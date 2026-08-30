@@ -624,6 +624,63 @@ const trackedPaths = gitTrackedPaths();
 const isSourceEntry = (pkg: DeclaringPackage, entry: string): boolean =>
   trackedPaths.has(path.posix.join(pkg.dir, entry));
 
+/**
+ * Whether an entry form (or an array entry) is a module a parser can read.
+ *
+ * `@object-ui/app-shell` exports `./styles.css`, and a stylesheet IS a
+ * `sideEffects` surface — webpack's classic silent bug is a dropped CSS import
+ * — so it must be COVERED by the array. What it is not is something the
+ * TypeScript parser below can scan for a load-time side effect, and what a
+ * bundler cannot be handed is a JS marker written into a `.css` file. Both
+ * narrowings below are keyed on this predicate rather than on a filename, so a
+ * second non-JS export form is covered the day it is added.
+ */
+const isParseableModule = (entry: string): boolean => /\.(ts|tsx|mts|js|jsx|mjs)$/.test(entry);
+
+/**
+ * Array entries that name a module of the package which is not an ENTRY FORM.
+ *
+ * objectui#3943 was written when the only array in the workspace named entry
+ * forms and nothing else (`@object-ui/layout`: its barrel, in three spellings).
+ * objectui#6683 added the general case: `@object-ui/app-shell` names ten DEEP
+ * modules that register SDUI widgets at load time, because those are exactly
+ * the modules a bundler must not drop.
+ *
+ * So the phantom direction below can no longer be "not an entry form ⇒ made
+ * up". It asks the weaker, still-worth-asking question — does this path name
+ * anything real? — and the STRONGER question, is the set exactly right, belongs
+ * to `scripts/check-side-effects-array.mjs`, which derives the enumeration from
+ * the module bodies and fails on a missing OR a stale name. Two guards, two
+ * derivations, on purpose.
+ */
+function packageModuleForms(pkg: DeclaringPackage): Set<string> {
+  const forms = new Set<string>();
+  const graph = entryGraphs.get(pkg.name);
+  if (!graph) return forms;
+
+  // The published spelling of a source module, derived from the barrel pair
+  // this package actually declares (`src/index.ts` <-> `dist/index.js`), never
+  // assumed. A package whose build does not preserve the tree simply yields no
+  // published forms here, and its `dist/*` entries fall to the entry-form half.
+  const sourceBarrel = resolvableEntryPaths(pkg).find((e) => isSourceEntry(pkg, e) && /(^|\/)index\./.test(e));
+  const publishedBarrel = resolvableEntryPaths(pkg).find((e) => !isSourceEntry(pkg, e) && /(^|\/)index\.[cm]?js$/.test(e));
+
+  for (const abs of graph.modules) {
+    const rel = path.relative(path.join(repoRoot, pkg.dir), abs).split(path.sep).join('/');
+    if (rel.startsWith('..')) continue;
+    forms.add(rel);
+    if (sourceBarrel && publishedBarrel) {
+      const srcRoot = sourceBarrel.split('/')[0];
+      const distRoot = publishedBarrel.split('/')[0];
+      const publishedExt = path.extname(publishedBarrel);
+      if (rel.startsWith(`${srcRoot}/`)) {
+        forms.add(`${distRoot}/${rel.slice(srcRoot.length + 1).replace(/\.(tsx|ts|mts|jsx|js|mjs)$/, publishedExt)}`);
+      }
+    }
+  }
+  return forms;
+}
+
 /* -------------------------------------------------------------------------- */
 /* The static scan: top-level statements that reach OUT of the module.          */
 /* -------------------------------------------------------------------------- */
@@ -951,9 +1008,19 @@ interface ProbeCase {
   entry: string;
 }
 
-/** Every entry form of every ARRAY package: the array's whole content is the claim. */
+/**
+ * Every entry form of every ARRAY package: the array's whole content is the claim.
+ *
+ * JS-shaped forms only. `mirrorPackage` probes a form by writing a JS marker
+ * module AT that path and asking a bundler whether it survives — which is a
+ * measurement for `dist/index.js` and a category error for
+ * `@object-ui/app-shell`'s `./src/styles.css`, where Vite's CSS pipeline emits
+ * an asset and no chunk for the marker to be in. The narrowing is keyed on the
+ * extension, not on a filename, and it removes nothing from the STATIC halves
+ * above: `src/styles.css` is still required to be covered by the array there.
+ */
 const arrayEntryProbes: ProbeCase[] = arrayPackages.flatMap((pkg) =>
-  (entryForms.get(pkg.name) ?? []).map((entry) => ({ pkg, name: pkg.name, entry })),
+  (entryForms.get(pkg.name) ?? []).filter(isParseableModule).map((entry) => ({ pkg, name: pkg.name, entry })),
 );
 
 /**
@@ -979,17 +1046,19 @@ describe('`sideEffects` declarations match load-time behaviour (objectui#3943)',
   it('discovers the declaring packages (guard cannot pass by finding nothing)', () => {
     // The hazard here is a SILENT one, so a guard that inspected an empty list
     // would reproduce it exactly: green output, nothing checked. These floors
-    // sit at the census measured on main@97da1b0d6 — 8 packages declare the
-    // field, 5 of them `false` and 1 an array — so a lost workspace root, a
-    // broken glob parser or a renamed field is a failure and not a quiet pass.
-    expect(declaringPackages.length).toBeGreaterThanOrEqual(6);
+    // sit at the census re-measured for objectui#6683 — 9 packages declare the
+    // field, 5 of them `false` and 2 an array (`components`/`fields` declare
+    // `true`) — so a lost workspace root, a broken glob parser or a renamed
+    // field is a failure and not a quiet pass.
+    expect(declaringPackages.length).toBeGreaterThanOrEqual(7);
     expect(falsePackages.length).toBeGreaterThanOrEqual(5);
-    expect(arrayPackages.length).toBeGreaterThanOrEqual(1);
+    expect(arrayPackages.length).toBeGreaterThanOrEqual(2);
 
     // The census by name. `components`/`fields` declare `true` and are excluded
     // on purpose: `true` is the conservative claim and can never lose a
     // registration, so it is not falsifiable in the direction that hurts.
     expect(declaringPackages.map((p) => p.name)).toEqual([
+      '@object-ui/app-shell',
       '@object-ui/core',
       '@object-ui/i18n',
       '@object-ui/layout',
@@ -1232,18 +1301,27 @@ describe('`sideEffects` declarations match load-time behaviour (objectui#3943)',
     // list look maintained when it is not.
     const phantom = arrayPackages.flatMap((pkg) => {
       const forms = entryForms.get(pkg.name) ?? [];
+      const modules = packageModuleForms(pkg);
       return (pkg.declared as string[])
-        .filter((entry) => !forms.includes(entry))
-        .map((entry) => `${pkg.name}: "${entry}" is not a module form of this package`);
+        .filter((entry) => !forms.includes(entry) && !modules.has(entry))
+        .map((entry) => `${pkg.name}: "${entry}" is neither an entry form nor a module of this package`);
     });
 
     expect(
       phantom,
       [
-        '`sideEffects` names a path that is not a resolvable module form of its package.',
-        'If a NEW module genuinely has load-time side effects, teach resolvableEntryPaths() where it comes',
-        'from (an `exports` subpath, a build output, a bundler alias) so the derivation stays the',
-        'authority. Otherwise delete it.',
+        '`sideEffects` names a path that is neither a resolvable entry form nor a module in the package’s',
+        'entry graph — it points at nothing at all.',
+        '',
+        'A DEEP module is legitimate here (objectui#6683: `@object-ui/app-shell` names the ten modules that',
+        'register SDUI widgets at load time, because those are exactly the ones a bundler must not drop).',
+        'What is not legitimate is a path no derivation can find. If a NEW module genuinely has load-time',
+        'side effects, make sure the barrel really reaches it; if a new ENTRY form appeared, teach',
+        'resolvableEntryPaths() where it comes from (an `exports` subpath, a build output, a bundler alias)',
+        'so the derivation stays the authority. Otherwise delete it.',
+        '',
+        'Whether the set is EXACTLY right — no missing registrar, no stale name — is the separate question',
+        '`scripts/check-side-effects-array.mjs` answers by re-deriving it from the module bodies.',
         '',
         ...phantom,
       ].join('\n'),
@@ -1262,6 +1340,11 @@ describe('`sideEffects` declarations match load-time behaviour (objectui#3943)',
     const phantomClaims = arrayPackages.flatMap((pkg) =>
       (pkg.declared as string[])
         .filter((entry) => isSourceEntry(pkg, entry))
+        // A `.css` entry form is a real `sideEffects` surface — a dropped
+        // stylesheet import is webpack's classic silent bug — but its effect IS
+        // the stylesheet, and running a TypeScript parser over it would report
+        // "no top-level side effect" about a file that has no top level.
+        .filter((entry) => isParseableModule(entry))
         .filter((entry) => scanModule(path.join(repoRoot, pkg.dir, entry)).effects.length === 0)
         .map((entry) => `${pkg.name}: "${entry}" is declared in \`sideEffects\` but has no top-level side effect`),
     );
@@ -1284,9 +1367,16 @@ describe('`sideEffects` declarations match load-time behaviour (objectui#3943)',
     // `src/index.ts` is the one source entry any array declares today, and its
     // `try { registerLayout(); } catch {}` is the effect being detected.
     const sourceEntries = arrayPackages.flatMap((pkg) =>
-      (pkg.declared as string[]).filter((entry) => isSourceEntry(pkg, entry)).map((entry) => `${pkg.name}/${entry}`),
+      (pkg.declared as string[])
+        .filter((entry) => isSourceEntry(pkg, entry) && isParseableModule(entry))
+        .map((entry) => `${pkg.name}/${entry}`),
     );
     expect(sourceEntries).toContain('@object-ui/layout/src/index.ts');
+    // objectui#6683's specimen: a DEEP module, not an entry form. Its presence
+    // is what makes the loop above cover the general case rather than one
+    // barrel, and it is one of the three registrations the 2026-08-29 ruling
+    // names as controls.
+    expect(sourceEntries).toContain('@object-ui/app-shell/src/console/connect/ConnectAgentWidget.tsx');
   });
 
   it('no array package declares a wildcard entry (this guard resolves literal paths)', () => {

@@ -38,6 +38,13 @@ ComponentRegistry.register('aspect-ratio',
   {
     namespace: 'ui',
     label: 'Aspect Ratio',
+    // Same declaration, same reason as `semantic.tsx` (objectui#6764): the
+    // renderer falls back to `renderChildren(schema.children || schema.body)`
+    // whenever no `image` is set, so a ratio box wrapping authored content is
+    // the documented shape -- and it drew `not-a-container` for it. Not in
+    // `PUBLIC_BLOCKS`, so the react-page scope builder never saw this tag and
+    // the declaration removes no injected identifier.
+    isContainer: true,
     inputs: [
       { name: 'ratio', type: 'number', label: 'Ratio', defaultValue: 16/9 },
       { name: 'image', type: 'string', label: 'Image URL' },

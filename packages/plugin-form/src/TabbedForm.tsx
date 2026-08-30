@@ -22,6 +22,7 @@ import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
 import { applyAutoColSpan, containerGridColsFor } from './autoLayout';
 import { useOccSave } from './occSave';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 
 export interface FormSectionConfig {
   /**
@@ -49,6 +50,33 @@ export interface FormSectionConfig {
    * Field names or configurations in this section
    */
   fields: (string | FormField)[];
+
+  /**
+   * ADR-0089 `FormSection.visibleWhen` — the TABBED arm of the one grouping
+   * contract ruled 2026-08-29 (objectui#6237, option A). Spelled exactly as the
+   * sibling `ModalFormSectionConfig.visibleWhen`, because it IS the same
+   * authored key: `ObjectForm` copies a section's predicate here, this layout
+   * copies it onto the tab it synthesises (`FormFieldTab.visibleWhen`), and the
+   * form renderer evaluates it on the canonical engine with the live record and
+   * the host predicate scope bound (#6010) — the same path a field's own
+   * `visibleWhen` takes. A broken predicate fails OPEN (the tab stays visible).
+   *
+   * Ruled semantics (maintainer 2026-08-27, the same ruling for tabs as for
+   * sections), inherited from the renderer rather than re-implemented here:
+   * visibility decides what is DRAWN and nothing else — a hidden tab's values
+   * still submit — and a hidden tab's fields skip CLIENT-side validation, so a
+   * user is never blocked by an error pointing at a control they cannot see.
+   * The server-side contract stays the loud floor for genuinely-required data;
+   * see the boundary note on `WizardStepConfig` and objectui#6237 for the
+   * measured reason the server cannot read this predicate.
+   *
+   * ⛔ Deliberately NOT on the wizard's step type. `WizardForm` used to borrow
+   * this very interface for its steps, and declaring the key on a type the
+   * wizard renderer never reads would manufacture the declared-but-unenforced
+   * shape this card family exists to close. `WizardStepConfig` omits it, so the
+   * key is writable exactly where it is honoured.
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
 
   /**
    * Custom CSS class for the section's Card wrapper.
@@ -307,7 +335,14 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
 
   // Handle form submission
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
-    if (!dataSource) {
+    // No submit TARGET: a declared `submitHandler` owns the write and needs no
+    // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+    // nor a `dataSource` is target-less. The one target-less form that is still
+    // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+    // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+    // adapter-less submit, bypassing a declared host seam and persisting
+    // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+    if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
       if (schema.onSuccess) {
         await schema.onSuccess(data);
       }
@@ -334,6 +369,10 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
         // renderer `ObjectForm` routes to must check it FIRST, or a declared
         // host-owned write silently becomes an independent one (objectui#6176).
         result = await schema.submitHandler(writePayload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of reporting
+        // success — the `catch` below hands this to `schema.onError` and rethrows.
+        throw noSubmitTargetError();
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, writePayload);
       } else if (schema.mode === 'edit' && schema.recordId) {
@@ -423,13 +462,64 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
       label: section.label || `Tab ${index + 1}`,
       description: section.description,
       containerClass: section.gridClassName,
+      // The authored section predicate (objectui#6237). Carried on the group so
+      // BOTH synthesis paths below can read it — the tab arm and the sub-two-tab
+      // degradation — instead of each re-deriving it from `schema.sections`.
+      visibleWhen: section.visibleWhen,
       fields: formColumns > 1
         ? applyAutoColSpan(body, formColumns, clampCol(section.columns))
         : body,
     };
   });
 
-  const allFields: FormField[] = tabGroups.flatMap((g) => g.fields);
+  // ── "Collapse below two tabs", the ruling's third binding semantic ─────────
+  // Two different situations wear that name, and only one of them was answered
+  // by the renderer:
+  //
+  //  (a) A PREDICATE hides one of two tabs. Answered upstream and inherited: the
+  //      renderer judges whether the tab arm engages on the DECLARED tabs, so a
+  //      predicate can only filter what is drawn — it never collapses the strip
+  //      mid-interaction (which would remount every surviving field, destroying
+  //      focus and in-progress edits, and would draw the hidden tab's fields
+  //      flat, breaking the ruled semantics). Nothing to do here.
+  //
+  //  (b) The form DECLARES fewer than two tabs. The renderer's tab arm needs
+  //      more than one usable tab to engage, so a single-section `tabbed` form
+  //      is already rendered as the untabbed layout — there is no tab to carry a
+  //      predicate, and the key would be silently inert exactly as it was before
+  //      this card. That is the case this block answers, and answering it is not
+  //      optional: leaving it out would let `ObjectForm` stop reporting the gap
+  //      (the arm now "supports" the key) while one shape of the gap survived.
+  //
+  // The defined degradation is the untabbed layout's OWN predicate mechanism
+  // (#6236): a `section-divider` row that CLAIMS its member fields by name, so
+  // the verdict gates the whole group through the identical unmount path and the
+  // ruled semantics stay byte-for-byte the same across the two shapes.
+  //
+  // Deliberately chrome-less — no `label`, no `description`. A single-section
+  // tabbed form draws no tab strip today, so its section heading is already
+  // absent; synthesising a visible header here would change the layout of every
+  // such form rather than just honouring the key. `SectionDivider` renders
+  // `null` without a label or description, so the row costs nothing visually and
+  // exists only to carry the claim. Emitted ONLY for sections that actually
+  // authored a predicate: a form with no predicate is byte-identical to before.
+  const rendersAsTabs = tabGroups.length > 1;
+  const degradedSectionGates: FormField[] = rendersAsTabs
+    ? []
+    : tabGroups
+        .filter((g) => g.visibleWhen != null)
+        .map((g) => ({
+          name: `__section_gate_${g.key}`,
+          type: 'section-divider',
+          visibleWhen: g.visibleWhen,
+          fields: g.fields.map((f) => f.name),
+          colSpan: 4,
+        } as unknown as FormField));
+
+  const allFields: FormField[] = [
+    ...degradedSectionGates,
+    ...tabGroups.flatMap((g) => g.fields),
+  ];
 
   return (
     <div className={cn('w-full @container', className, schema.className)}>
@@ -456,6 +546,15 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
             description: g.description,
             fields: g.fields.map((f) => f.name),
             containerClass: g.containerClass,
+            // The tab's predicate slot (objectui#6237) — the same authored
+            // `FormSection.visibleWhen` the modal arm copies onto its tab and
+            // the flat arm copies onto its divider. The renderer evaluates it
+            // and hides trigger, panel and fields together under the ruled
+            // hidden-group semantics; re-selection when the ACTIVE tab hides is
+            // the renderer's too (`activeFieldTab` derives over the VISIBLE
+            // tabs), so this layout inherits all three ruled semantics instead
+            // of re-implementing any of them.
+            visibleWhen: g.visibleWhen,
           })),
           defaultFieldTab: initialTab,
           fieldTabsPosition: schema.tabPosition || 'top',

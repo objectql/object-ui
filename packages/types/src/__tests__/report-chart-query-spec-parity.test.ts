@@ -641,6 +641,15 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     ['DriverQueryConfig', 'high-level query config the SQL AST builder consumes'],
     ['SqlDriverInterface', "objectui's SQL-oriented client driver abstraction"],
     ['DatasourceRegistration', 'in-memory datasource registration record'],
+    // objectui#3162 batch 8. `JoinNode` was ledgered as "erased to `any` upstream,
+    // re-export once objectstack#4171 lands". #4171 landed — and the symbol it was
+    // waiting on no longer exists: spec 17.0.0 retired `query.joins` and the whole
+    // JoinNode cluster (framework#4286), so there is nothing upstream to bind to
+    // and `data-protocol.ts` owns the name outright. Measured against spec 17.2.0:
+    // importing it from `@objectstack/spec/ui` OR `/data` is TS2305. This row is
+    // what tells us if the spec ever mints the name again, which is the only way
+    // the collision could come back.
+    ['JoinNode', "objectui's local query-AST join node; the spec retired its own (framework#4286)"],
   ])('the spec does not own `%s` (%s)', (name) => {
     expect(names).not.toContain(name);
   });
@@ -668,6 +677,15 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
  * types the schema properly, `IsUnknown<…>` flips to `false`, `true satisfies
  * false` stops compiling, and the failure is the instruction: re-run the triage
  * and burn it down.
+ *
+ * ⚠️ objectstack#4171 is CLOSED (completed 2026-07-30) and this symbol is STILL
+ * erased — do NOT read that closure as this pin's release. #4171 typed the
+ * RECURSIVE schemas (`NavigationItem`, `FormField`); it never touched
+ * `JoinedReportBlockSchema`, whose erasure has a different cause — a bare
+ * `z.ZodTypeAny` annotation, not recursion. Re-measured in the built dist at
+ * spec 17.2.0 (objectui#3162 batch 8): `IsUnknown` is still `true`. The pin
+ * below, not the state of any upstream issue, is what says when this is
+ * burnable.
  */
 type IsUnknown<T> = [unknown] extends [T] ? ([T] extends [unknown] ? true : false) : false;
 type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -676,7 +694,7 @@ const _specJoinedReportBlockIsNotEvenAny = false satisfies IsAny<SpecJoinedRepor
 void _specJoinedReportBlockIsStillUntyped;
 void _specJoinedReportBlockIsNotEvenAny;
 
-describe('JoinedReportBlock stays in the ledger (objectstack#4171)', () => {
+describe('JoinedReportBlock stays in the ledger — still untyped upstream (objectui#3162)', () => {
   it('documents why: the spec ships the schema untyped', () => {
     // The compile-time pins above are the real guard; this keeps the reason
     // visible in the test report rather than only in a comment.

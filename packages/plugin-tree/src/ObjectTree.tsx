@@ -21,7 +21,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { DataSource, ViewData } from '@object-ui/types';
-import { useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
+import { useNavigationOverlay, useSafeFieldLabel, useSettledSchema } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
 import {
@@ -338,65 +338,89 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [objectSchema, setObjectSchema] = useState<any>(null);
-  /**
-   * Whether the object-schema fetch below has finished — settled, not
-   * successful: a dataSource that cannot serve a schema, an object with no
-   * name, and a rejected fetch all count, so the record fetch can never be
-   * blocked forever by a schema that is never going to arrive.
-   *
-   * A one-way latch on purpose. Re-arming it on every run of that effect would
-   * mean a `setState` in the effect body, and this component's dependency list
-   * includes `dataConfig` — a `useMemo` over the `schema` PROP object — so a
-   * host that rebuilds its schema each render would turn a benign re-run into a
-   * render loop. Not re-arming costs at most one fetch against a stale schema
-   * when `objectName` changes mid-life, which is exactly what happened on every
-   * fetch before this.
-   */
-  const [schemaSettled, setSchemaSettled] = useState(false);
-
   const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
 
-  // Fetch the object schema whenever the dataSource can serve one.
-  //
-  // It feeds FOUR things: parent-field auto-detection, column labels, the
-  // `$expand` list built below, and (objectui#6014) the per-field definitions
-  // the cell formatter reads to resolve select options and reference values.
-  //
-  // This used to be gated on "the host passed no inline data", which read as a
-  // cheap skip but disagreed with the record-fetch effect below: THAT branch
-  // prefers a live object dataSource over any inline `data`, so on the one
-  // mount shape `ListView` actually uses (objectName + dataSource + its own
-  // pre-fetched `data`) the tree ran its own query with
-  // `buildExpandFields(undefined)` → `[]` → no `$expand` at all, and had no
-  // field definitions to format cells with. That is the whole of objectui#6014:
-  // lookups rendered as bare ids and selects as raw stored values, on the very
-  // page whose flat-table tab rendered both correctly. The guard inside
-  // `fetchSchema` already no-ops without a dataSource, so dropping the gate
-  // costs nothing on the pure inline/static path.
-  useEffect(() => {
-    let cancelled = false;
-    const fetchSchema = async () => {
-      try {
-        if (!dataSource || typeof dataSource.getObjectSchema !== 'function') return;
-        const objectName =
-          dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-        if (!objectName) return;
-        const result = await dataSource.getObjectSchema(objectName);
-        if (!cancelled) setObjectSchema(result);
-      } catch (err) {
-        console.error('[ObjectTree] Failed to fetch object schema:', err);
-      } finally {
-        // `finally`, so the two early `return`s and a rejected fetch all settle
-        // too — see the latch's docstring.
-        if (!cancelled) setSchemaSettled(true);
-      }
-    };
-    fetchSchema();
-    return () => {
-      cancelled = true;
-    };
-  }, [schema.objectName, dataSource, dataConfig]);
+  /**
+   * The object THIS render is bound to, as a plain string — so the resolution
+   * below re-keys on the OBJECT rather than on `dataConfig`, a `useMemo` over
+   * the `schema` PROP object whose identity a host that rebuilds its schema
+   * each render changes without changing which object is bound.
+   */
+  const schemaKey =
+    (dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName) ?? '';
+
+  /**
+   * The object schema, and whether it has settled FOR `schemaKey` — a single
+   * piece of state, from the shared hook ruled in objectui#6482.
+   *
+   * It feeds FOUR things: parent-field auto-detection, column labels, the
+   * `$expand` list built below, and (objectui#6014) the per-field definitions
+   * the cell formatter reads to resolve select options and reference values.
+   *
+   * ## Why the hook, and not the two `useState`s that were here
+   *
+   * This component used to carry the definition (`objectSchema`) and "has it
+   * settled" (`schemaSettled`) as two SEPARATE pieces of state, the second a
+   * one-way latch that nothing ever reset. Two independent values cannot
+   * express "settled, but for a DIFFERENT object" — so on an object switch the
+   * gate below read `schemaSettled === true` left over from the PREVIOUS
+   * object's settle, while `objectSchema` still held the previous object's
+   * fields, and the query went out as
+   * `find(newObject, { $expand: [ …previous object's relation fields… ] })`:
+   * rejected or silently ignored depending on the adapter, plus the transient
+   * it painted, before a correct second query followed (objectui#6481).
+   *
+   * `useSettledSchema` holds ONE value, `{ key, def } | null`, and derives
+   * readiness during render by comparing the settled key against `schemaKey`.
+   * The gate therefore closes in the SAME commit that changes the object
+   * rather than one commit later — and "ready for the wrong object" is not
+   * merely fixed but unwritable, because there is no second piece of state
+   * left to disagree with the first.
+   *
+   * ## The settle-on-every-exit guarantee, preserved
+   *
+   * The `finally` that used to live here existed so the two early `return`s
+   * (no `dataSource` / no `getObjectSchema`; no object name) and a rejected
+   * read all settled too — otherwise the gated record query below waits
+   * forever, and a tree whose adapter serves no schema never renders a row.
+   * The hook makes that structural rather than incidental: each of those exits
+   * settles explicitly with `def: null`, which is a DISTINCT outcome from "not
+   * ready yet". Both halves are pinned in
+   * `ObjectTree.settledSchemaKeying-6481.test.tsx`.
+   *
+   * Gate PLACEMENT stays this component's own, per that same ruling: it sits
+   * INSIDE the object-provider branch of the record effect, not at the top of
+   * it, because the inline/static branches issue no metadata read and must not
+   * be made to wait on one.
+   */
+  const { ready: schemaSettled, def: objectSchema } = useSettledSchema<any>(
+    schemaKey,
+    dataSource,
+  );
+
+  /**
+   * The record-fetch effect below used to key on `dataConfig` itself — the
+   * whole memoised object identity. `useMemo` carries no semantic guarantee:
+   * React is permitted to discard its cache and recompute, and
+   * `getDataConfig(schema)` builds a fresh `{ provider, object }` /
+   * `{ provider, items }` wrapper object on every call even when `schema`
+   * hasn't changed. So a discard (not just a `schema` change) was enough to
+   * re-run the effect and refetch, with nothing about the bound object
+   * actually different. These are every primitive field the effect actually
+   * reads off `dataConfig`; keying on them instead of the container object
+   * makes a cache discard a no-op for it, and returns the `useMemo` above to
+   * being a pure optimisation rather than a correctness dependency —
+   * mirroring `ObjectMap`/`ObjectCalendar`/`ObjectGantt` (objectui#6592).
+   *
+   * This is the record effect #6592's branch left untouched (objectui#6700):
+   * the OTHER dataConfig-identity dependence in this component — the schema
+   * resolution effect — was already retired by #6696 in favor of
+   * `useSettledSchema`'s own primitive `schemaKey` above, so this closes out
+   * the component rather than one effect of two.
+   */
+  const dataProvider = dataConfig?.provider;
+  const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
 
   // Fetch records.
   useEffect(() => {
@@ -412,7 +436,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         // columns — which usually omit the parent field and would flatten the
         // tree. Fetching our own records (no column projection) guarantees the
         // parent field is present so the hierarchy resolves.
-        if (dataConfig?.provider === 'object' && dataSource && typeof dataSource.find === 'function') {
+        if (dataProvider === 'object' && dataSource && typeof dataSource.find === 'function') {
           // Wait for the schema before querying. `$expand` is DERIVED from it,
           // so firing early guaranteed one query whose lookup columns came back
           // as bare ids — the user saw those raw ids painted, then replaced a
@@ -421,7 +445,10 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           // this effect re-runs the moment the latch flips.
           if (!schemaSettled) return;
           const expand = buildExpandFields(objectSchema?.fields);
-          const result = await dataSource.find(dataConfig.object, {
+          // `dataObjectName` is required on the 'object' variant of the
+          // discriminated union — same narrowing the pre-refactor
+          // `dataConfig.object` read carried.
+          const result = await dataSource.find(dataObjectName as string, {
             $filter: schema.filter,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
@@ -442,9 +469,9 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           return;
         }
 
-        if (dataConfig?.provider === 'value') {
+        if (dataProvider === 'value') {
           if (!cancelled) {
-            setRecords((dataConfig.items as any[]) ?? []);
+            setRecords((dataItems as any[]) ?? []);
             setLoading(false);
           }
           return;
@@ -465,7 +492,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataConfig, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
+  }, [dataProvider, dataObjectName, dataItems, dataSource, schema.filter, objectSchema, schemaSettled, (rest as any).data]);
 
   const config = useMemo(() => getTreeConfig(schema), [schema]);
   const parentField = useMemo(

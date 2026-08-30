@@ -273,9 +273,9 @@ function shellCode(run) {
  *     BROWSER, not the workspace. The package-manager anchor is what excludes
  *     it, since `playwright` is not `pnpm`.
  *   - `git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"`
- *     (`dependabot-auto-merge.yml`) CONFIGURES a merge driver; it installs
- *     nothing in that job, which explicitly never installs. The command-position
- *     anchor is what excludes it -- the `pnpm` there is inside an argument.
+ *     (`changeset-release.yml`) CONFIGURES a merge driver; it installs nothing,
+ *     and that job's real install is a later step. The command-position anchor
+ *     is what excludes it -- the `pnpm` there is inside an argument.
  *
  * Getting that second one wrong would move the install boundary to step 4 and
  * silently drop `scripts/dependabot-merge-gate.mjs` out of the population --

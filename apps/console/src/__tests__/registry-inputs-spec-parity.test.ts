@@ -231,7 +231,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
-import { ComponentPropsMap } from '@objectstack/spec/ui';
+import { ComponentPropsMap, PageComponentSchema } from '@objectstack/spec/ui';
 import { MANIFEST_INPUT_TYPES, inputTypeArms } from '@object-ui/sdui-parser';
 import type { ComponentInput } from '@object-ui/types';
 import {
@@ -310,9 +310,42 @@ function declaredInputs(type: string): string[] | null {
   return declaredInputEntries(type)?.map((input) => input.name) ?? null;
 }
 
+/**
+ * Keys the spec accepts on the NODE itself, on every page component
+ * (objectui#6678).
+ *
+ * `ComponentPropsMap[type]` is the per-block PROPS half of a component's
+ * contract. It is not the whole contract: `PageComponentSchema` — the schema of
+ * the node these `inputs` describe — carries its own top-level keys, and the
+ * html tier validates an author's attributes against `BASE_PROPS` ∪ `inputs`,
+ * with no third place for a node-level key to be declared.
+ *
+ * That distinction was invisible while no block declared a node-level key, and
+ * it stopped being invisible with `dataSource`: the spec's per-element data
+ * binding, read by every block that wraps `ElementDataSourceGate`, declared by
+ * none, and therefore reported by the html tier as a prop that does not exist —
+ * the one spelling that resolves a saved view, reported exactly like the
+ * spellings that do nothing (objectui#6678). The maintainer ruling of
+ * 2026-08-29 declares it on the blocks that read it, emitted at the wrapping
+ * seam; `BASE_PROPS` (which mirrors `BaseSchema`) was refused, because it would
+ * also silence the key on `flex` and `card`, which do not read it.
+ *
+ * So the forward direction's question — "does the contract accept this key on
+ * this node?" — has to be asked of the whole node contract. It is DERIVED here,
+ * not listed: `PageComponentSchema` is a `.pipe()`, whose input side is the
+ * object whose shape names those keys. A spec release that adds or removes one
+ * moves this set with it.
+ *
+ * ⚠️ Used by the FORWARD direction only. Feeding it to the reverse direction
+ * would demand that every covered block publish `dataSource` — including the
+ * blocks that do not read it, which is the exact lie the ruling refused.
+ */
+const nodeLevelSpecKeys = (): string[] =>
+  authorableShapeKeys((PageComponentSchema as unknown as { _def?: { in?: unknown } })._def?.in);
+
 /** Top-level inputs this block declares that its spec props schema rejects. */
 function offSpecInputs(type: string): string[] {
-  const allowed = new Set(specTopLevelKeys(type));
+  const allowed = new Set([...specTopLevelKeys(type), ...nodeLevelSpecKeys()]);
   return (declaredInputs(type) ?? []).filter((name) => !allowed.has(name));
 }
 
@@ -1336,6 +1369,23 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // it is the control.
     expect(isShapeKeyTombstoned(specSchema('page:card'), 'title')).toBe(false);
     expect(specTopLevelKeys('page:card')).toContain('title');
+  });
+
+  it('the node-level key set is derived, discriminating, and not empty', () => {
+    // Non-vacuity and calibration for the widening above, in both directions —
+    // a reader that returned [] would silently stop widening (every gate-wrapped
+    // block reds), and one that returned everything would stop being a gate.
+    const nodeKeys = nodeLevelSpecKeys();
+    expect(nodeKeys.length).toBeGreaterThan(0);
+    // Accepted, and measured rather than assumed: `PageComponentSchema.safeParse`
+    // keeps `dataSource` on a bare node and drops the two spellings the
+    // objectui#6598 reporter tried instead.
+    expect(nodeKeys).toContain('dataSource');
+    expect(nodeKeys).toContain('className');
+    // Refused — a per-block prop is not a node key, and neither is an invention.
+    expect(nodeKeys).not.toContain('objectName');
+    expect(nodeKeys).not.toContain('viewName');
+    expect(nodeKeys).not.toContain('__not_a_spec_key__');
   });
 
   it.each(covered)('%s declares no top-level input the spec does not accept', (type) => {

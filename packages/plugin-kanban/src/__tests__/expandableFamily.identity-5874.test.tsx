@@ -296,15 +296,24 @@ describe('the membership delta is OBSERVABLE on this read — the counter-probe 
    * stand in `resolveDisplay` lacked. So this pair is exactly the delta the
    * convergence introduced, read off the wire instead of off the DOM.
    *
-   * ⚠️ The board fetches TWICE: once before the object schema resolves (no
-   * field types are known yet, so no `$expand` can be computed) and again once
-   * `objectDef` arrives. Only the second call can carry the delta, so both
-   * cases below wait for it — otherwise the negative case would be green
-   * against a query that had not been built yet, which is the vacuous form of
-   * this assertion.
+   * ⚠️ This wait exists to keep the negative case from going green against a
+   * query that had not been built yet — the vacuous form of this assertion. It
+   * used to spell that as "wait for a SECOND call", because the board fetched
+   * twice: once before the object definition resolved (no field types known,
+   * so no `$expand` computable) and again once it arrived, and only the second
+   * could carry the delta.
+   *
+   * objectui#6271 gated the query on the definition instead, so there is now
+   * exactly ONE call and it is the schema-informed one. The wait moved with it
+   * — same condition ("a query built from resolved field types has been
+   * issued"), spelled against the ordering that actually holds. ⛔ Do not read
+   * this as a weakened wait: what makes one call sufficient is the gate. If
+   * that gate is ever removed, the pre-resolution query comes back, this wait
+   * starts admitting it, and the negative case below goes vacuous again —
+   * `fetchGate.objectDef-6271.test.tsx` is what fails first if anyone tries.
    */
   const awaitSchemaFetch = (adapter: ReturnType<typeof makeAdapter>) =>
-    waitFor(() => expect(adapter.find.mock.calls.length).toBeGreaterThanOrEqual(2));
+    waitFor(() => expect(adapter.find.mock.calls.length).toBeGreaterThanOrEqual(1));
 
   const everyExpand = (adapter: ReturnType<typeof makeAdapter>): string[] =>
     adapter.find.mock.calls.flatMap(

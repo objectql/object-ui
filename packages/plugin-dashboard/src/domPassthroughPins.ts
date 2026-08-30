@@ -12,28 +12,26 @@
  *
  * ## Why these live in `src/` and not in a test file
  *
- * They are TYPE assertions, and this package's tests are compiled by nothing:
- * `tsconfig.json` is the build and excludes `**\/*.test.tsx`,
- * `@object-ui/plugin-dashboard` is the sole remaining `TEST_DEBT` entry in
- * `scripts/check-type-check-coverage.mjs` (6 errors, objectui#4118), and vitest
- * erases types before running. Putting them in a test file is objectui#3181
- * exactly — a provably-false `Assert<Equal<1, 2>>` there passes
- * `pnpm type-check` at exit 0.
+ * They go where this repo already puts load-bearing compile-time assertions: in
+ * source, next to the contract, compiled by the package's own `tsc --noEmit`.
+ * That is `widgets/toDomProps.ts`'s shape in `@object-ui/fields`, which binds its
+ * DOM whitelist to its declaration in both directions the same way. Unlike that
+ * file these are `type`-only, so they emit ZERO runtime bytes — which matters
+ * here, because #4426 is a types-only change and must stay one.
  *
- * The narrow `tsconfig.typetests.json` rescue hatch is NOT the answer either,
- * however much the gate script's own comments read like an invitation:
- * objectui#4291 retired the last six, and
- * `scripts/__tests__/check-type-check-coverage.test.ts` now pins the terminal
- * state as a repository-state test — "a `tsconfig.typetests.json` reappearing
- * ANYWHERE turns this red". A first attempt at this change added one and CI said
- * so. The gate permits the SHAPE; the ratchet forbids a new USER.
- *
- * So the assertions go where this repo already puts load-bearing compile-time
- * assertions: in source, next to the contract, compiled by the package's own
- * `tsc --noEmit`. That is `widgets/toDomProps.ts`'s shape in `@object-ui/fields`,
- * which binds its DOM whitelist to its declaration in both directions the same
- * way. Unlike that file these are `type`-only, so they emit ZERO runtime bytes —
- * which matters here, because #4426 is a types-only change and must stay one.
+ * A PREFERENCE, not a constraint — though it was a constraint when this file was
+ * written. Then, this package's tests were compiled by nothing, so a
+ * provably-false `Assert<Equal<1, 2>>` in a test file passed `pnpm type-check` at
+ * exit 0 (objectui#3181), and the narrow `tsconfig.typetests.json` rescue hatch
+ * was no way round it (objectui#4291 retired the last six, and the ratchet in
+ * `scripts/__tests__/check-type-check-coverage.test.ts` still turns red on one
+ * reappearing anywhere — the gate permits the SHAPE, the ratchet forbids a new
+ * USER). That debt is paid, and by neither of those routes: `tsconfig.test.json`
+ * type-checks this package's tests and its `type-check` script chains it
+ * (`tsc --noEmit && tsc -p tsconfig.test.json`), so an assertion in a test file
+ * is checked now too. Nothing here argues against writing one — see the
+ * directives in `__tests__/ObjectDataTable.emitBoundary-6373.test.tsx`, which
+ * this package's `tsconfig.test.json` compiles.
  *
  * ## What each direction catches
  *

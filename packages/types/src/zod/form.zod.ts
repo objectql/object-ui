@@ -444,11 +444,17 @@ export const CommandSchema = BaseSchema.extend({
  * different layers, and `normalizeSectionField` in `@object-ui/plugin-form` is
  * the translation chokepoint between them (#3090).
  *
- * Keys mirror the `FormField` interface in `../form.ts`. Until #3090 this
- * schema validated only 13 of the interface's declared keys and *required*
- * `type` (the interface says optional) — so `objectui validate` silently
- * ignored typos in `visibleWhen`/`widget`/`dependsOn`/… (strip mode) and
- * rejected metadata the renderer accepts. The pinned key list lives in
+ * Keys mirror the AUTHORABLE surface of the `FormField` interface in
+ * `../form.ts` — not every key that interface declares. `FormField.field` (the
+ * resolved object-field metadata stash) is runtime-only and stays OUT of this
+ * schema on purpose: in the authored vocabulary that same key name carries a
+ * different meaning — a string naming the referenced object field — so
+ * validating it here would re-open the pun #3090 closed (objectui#6609).
+ *
+ * Until #3090 this schema validated only 13 of the interface's declared keys
+ * and *required* `type` (the interface says optional) — so `objectui validate`
+ * silently ignored typos in `visibleWhen`/`widget`/`dependsOn`/… (strip mode)
+ * and rejected metadata the renderer accepts. The pinned key list lives in
  * `__tests__/form-field-zod-coverage.test.ts`.
  */
 /**
@@ -593,6 +599,8 @@ export const FormFieldSchema = z.object({
     .describe('Field-level required rule (CEL)'),
   colSpan: z.number().optional().describe('Column span in grid layout (legacy — prefer span)'),
   span: z.enum(['auto', 'full']).optional().describe('Relative field width'),
+  fields: z.array(z.string()).optional()
+    .describe('Section grouping claim (objectui#6236) — section-divider rows only: names of the fields the section claims (the FormFieldTab.fields membership shape); the divider predicate then gates the whole group'),
 }).superRefine((field, ctx) => {
   // objectui#5449 — the namespace rule `@object-ui/core` has enforced since
   // objectui#5375, stated here so `objectui validate` (which reaches this

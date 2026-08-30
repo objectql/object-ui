@@ -22,13 +22,36 @@
  * objectstack#4075 mechanism — see check-spec-symbol-derivation.mjs, lie #3).
  * A set-coverage assertion is the #3017 fallback for exactly this case: the
  * zod side stays deliberate and reviewed, and any schema edit must touch the
- * list here in the same PR.
+ * list here in the same PR. That list is the AUTHORABLE key surface, not every
+ * key the interface declares — one declared key sits outside it on purpose, for
+ * the reason its own note records (objectui#6609).
  */
 
 import { describe, it, expect } from 'vitest';
 import { FieldConstraintsSchema, FormFieldSchema } from '../zod/form.zod.js';
 
-/** Every key `FormField` (../form.ts) declares by name, in declaration order. */
+/**
+ * The AUTHORABLE key surface of `FormField` (../form.ts) — the keys a DOCUMENT
+ * may itself carry, and so the keys `objectui validate` parses through this
+ * schema. Ordered to follow the interface loosely, as a reading aid only: the
+ * assertion sorts both sides, so the order here carries no claim (`visibleOn`
+ * precedes `hidden`/`readonly` in the interface and follows them here).
+ *
+ * ⚠️ NOT "every key the interface declares by name", and the gap is DELIBERATE.
+ * `FormField` also declares `field` — the resolved object-field metadata stash
+ * (#3090), which the object-bound form paths fill at RUNTIME with a
+ * server-served field definition so widgets can read `precision`, `currency`,
+ * `reference_to`, … No document ever writes it. And on the SPEC form-view side
+ * — the other authoring surface, the one #3090 keeps separate — that same key
+ * name means something else entirely: a STRING naming the referenced object
+ * field. Admitting `field` here and to `FormFieldSchema` would therefore make
+ * `objectui validate` accept and type a runtime-only stash on authored
+ * documents, re-opening the exact spec-vocabulary pun #3090 closed at the
+ * `normalizeSectionField` chokepoint. The refusal is pinned below by the
+ * `still rejects the SPEC form-field vocabulary` case: `{ field: 'email' }`
+ * must not parse. So a `field` entry here is a contract widening to be ruled
+ * on — never housekeeping that restores consistency (objectui#6609).
+ */
 const DECLARED_KEYS = [
   'id',
   'name',
@@ -52,6 +75,8 @@ const DECLARED_KEYS = [
   'requiredWhen',
   'colSpan',
   'span',
+  // objectui#6236 — the section grouping claim (section-divider rows only).
+  'fields',
 ];
 
 describe('FormFieldSchema covers the FormField contract', () => {

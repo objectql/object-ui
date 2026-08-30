@@ -99,21 +99,30 @@ async function fetchCount(
     try {
       // Request the server-side count instead of relying on the page length.
       // Without `$count: true` most adapters omit `total`, and we'd fall
-      // back to `records.length` which is capped to `$top: 1` → badge
+      // back to `data.length` which is capped to `$top: 1` → badge
       // shows "1" no matter how many rows exist.
+      //
+      // The rows fallback reads `data` — the ONE rows member `QueryResult`
+      // (`@object-ui/types`) declares — and nothing else. It used to try
+      // `records` FIRST, ahead of `data`: a spelling no producer emits at the
+      // `DataSource.find()` seam, because `ObjectStackAdapter.normalizeQueryResult`
+      // maps the server/SDK `records` envelope to `data` before returning
+      // (objectui#5945, objectui#6726). `ProbeFn` above never declared it
+      // either — only the `any` here let it through. Pinned by
+      // `related-count-store.contractEnvelope-6726.test.ts`; ⛔ do not
+      // re-add a tolerant arm, and ⛔ do not widen `QueryResult` to bless
+      // `records` (a published-type change, maintainer's call).
       const res: any = await probe(objectName, { $filter, $top: 1, $count: true });
       const total =
         typeof res?.total === 'number'
           ? res.total
           : typeof res?.count === 'number'
             ? res.count
-            : Array.isArray(res?.records)
-              ? res.records.length
-              : Array.isArray(res?.data)
-                ? res.data.length
-                : Array.isArray(res)
-                  ? res.length
-                  : 0;
+            : Array.isArray(res?.data)
+              ? res.data.length
+              : Array.isArray(res)
+                ? res.length
+                : 0;
       const n = typeof total === 'number' ? total : 0;
       setCount(objectName, relField, parentId, n);
       return n;

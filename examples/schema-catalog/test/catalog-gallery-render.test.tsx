@@ -304,6 +304,13 @@ const AUTHORED_TEXT_EXEMPT: Record<string, string> = {};
  * mirror reproduces is the host's SURFACE and its rows; the query semantics
  * ($search / $orderby / windowing) are the host's, and the parity case pins the
  * method names rather than re-deriving them here.
+ *
+ * objectui#6317 widened that guard where it had to be widened. Pinning method
+ * NAMES left the field declarations unwatched, and they drifted: the host
+ * declared `options` on `role` / `status` in `4b0b12630` and this schema did
+ * not follow for 330 commits, with every case in this file green throughout.
+ * The `USERS_SCHEMA` below is now compared to the host's WHOLE, options
+ * included — see the #6317 cases at the end of this file.
  */
 const USERS_ROWS = [
   { id: '1', name: 'Alice Johnson', email: 'alice@example.com', role: 'admin', department: 'Engineering', status: 'active', created_at: '2024-01-14' },
@@ -319,9 +326,25 @@ const USERS_SCHEMA = {
   fields: {
     name: { label: 'Name', type: 'text' },
     email: { label: 'Email', type: 'email' },
-    role: { label: 'Role', type: 'select' },
+    role: {
+      label: 'Role',
+      type: 'select',
+      options: [
+        { label: 'Admin', value: 'admin' },
+        { label: 'Member', value: 'member' },
+        { label: 'Viewer', value: 'viewer' },
+      ],
+    },
     department: { label: 'Department', type: 'text' },
-    status: { label: 'Status', type: 'select' },
+    status: {
+      label: 'Status',
+      type: 'select',
+      options: [
+        { label: 'Active', value: 'active' },
+        { label: 'Invited', value: 'invited' },
+        { label: 'Suspended', value: 'suspended' },
+      ],
+    },
     created_at: { label: 'Created', type: 'date' },
   },
 };
@@ -1231,4 +1254,313 @@ describe('objectui#5113 — the docs-site hosts supply the same fixture', () => 
       expect(read(host)).toContain('dataSource: galleryDataSource');
     },
   );
+});
+
+/**
+ * objectui#6317 — every `select` field in the fixture declares the options its
+ * own rows use, and this mirror declares exactly what the host declares.
+ *
+ * ## The defect
+ *
+ * `ObjectForm` copies a field's options through verbatim — `formField.options =
+ * field.options || []` (`packages/plugin-form/src/ObjectForm.tsx`) — so a
+ * `select` field with no `options` renders the "No options available" empty
+ * state. Measured through this file's own render path, an `object-form` over
+ * `users` with no `fields` restriction:
+ *
+ *   before: "NameEmailRoleNo options availableDepartmentStatusNo options
+ *            availableCancelUpdate"
+ *   after:  "NameEmailRoleAdminAdminMemberViewerDepartmentStatusActiveActive
+ *            InvitedSuspendedCancelUpdate"
+ *
+ * and the record's own `role` / `status` join the form's control values
+ * (`["Alice Johnson","alice@example.com","Engineering"]` → `["Alice Johnson",
+ * "alice@example.com","admin","Engineering","active"]`), so the two fields stop
+ * being dropped on the way in.
+ *
+ * ## Why the grid and view tiles do NOT move with it
+ *
+ * Worth recording, because the expectation going in was that they would.
+ * `ObjectGrid` SYNTHESISES options for an option-less select from the distinct
+ * values in the loaded rows (`packages/plugin-grid/src/ObjectGrid.tsx` —
+ * `fieldMeta.options = uniqueValues.map(v => ({ value: v, label:
+ * humanizeLabel(String(v)) }))`), so `admin` already printed as "Admin".
+ * Measured: the tile text of all seven `users`-bound entries is byte-identical
+ * before and after this declaration. The grid has a fallback for the missing
+ * declaration; the FORM path has none. That asymmetry is the whole card.
+ *
+ * ## Two directions, because a one-sided pin cannot see this drift
+ *
+ * The host declared these options in `4b0b12630` and this mirror did not
+ * follow for 330 commits — with every case in this file green throughout. The
+ * `select`-coverage case below catches a fixture that declares neither; the
+ * parity case catches the two files declaring different things.
+ */
+
+interface UsersFieldDecl {
+  label?: string;
+  type?: string;
+  options?: Array<{ label: string; value: string }>;
+}
+
+/** Distinct values the mirror's rows carry for one field — walked, not grepped. */
+function distinctRowValues(field: string): Set<string> {
+  const seen = new Set<string>();
+  for (const row of USERS_ROWS) {
+    const value = (row as Record<string, unknown>)[field];
+    if (value !== undefined && value !== null) seen.add(String(value));
+  }
+  return seen;
+}
+
+/**
+ * The host's `USERS_SCHEMA`, read off its source. `apps/**` is outside every
+ * root Vitest project, which is the same constraint that makes this file a
+ * mirror in the first place. Brace-matched rather than pattern-matched and then
+ * JSON-ified, so an extraction that stops working fails LOUDLY here rather than
+ * quietly comparing less than it claims to.
+ */
+function readHostUsersFields(source: string): Record<string, UsersFieldDecl> {
+  const start = source.indexOf('const USERS_SCHEMA = {');
+  expect(start, 'the host fixture no longer declares `const USERS_SCHEMA = {`').toBeGreaterThan(-1);
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  let end = -1;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  expect(end, 'the host `USERS_SCHEMA` literal has unbalanced braces').toBeGreaterThan(-1);
+  const json = source
+    .slice(open, end + 1)
+    .replace(/'/g, '"')
+    .replace(/([{,[]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":')
+    .replace(/,(\s*[}\]])/g, '$1');
+  let parsed: { fields?: Record<string, UsersFieldDecl> };
+  try {
+    parsed = JSON.parse(json) as { fields?: Record<string, UsersFieldDecl> };
+  } catch (error) {
+    throw new Error(
+      'the host `USERS_SCHEMA` is no longer a plain single-quoted literal, so this ' +
+        'parity case can no longer read it — a comment inside the literal, or an ' +
+        'apostrophe inside a string, would each do it. Fix the reader, not the pin.',
+      { cause: error },
+    );
+  }
+  expect(parsed.fields, 'the host `USERS_SCHEMA` declares no `fields`').toBeTruthy();
+  return parsed.fields as Record<string, UsersFieldDecl>;
+}
+
+describe('objectui#6317 — a `select` field declares the options its rows use', () => {
+  const mirrorFields = USERS_SCHEMA.fields as Record<string, UsersFieldDecl>;
+  const selectFields = Object.entries(mirrorFields)
+    .filter(([, field]) => field.type === 'select')
+    .map(([name]) => name);
+
+  it('the fixture declares select fields at all — otherwise the cases below are vacuous', () => {
+    expect(selectFields).not.toEqual([]);
+  });
+
+  it.each(selectFields)('`%s` declares options, and they cover its rows exactly', (name) => {
+    const declared = mirrorFields[name].options;
+    expect(
+      declared,
+      `\`${name}\` is declared \`type: 'select'\` with no \`options\`. ObjectForm copies ` +
+        'a field\'s options through verbatim, so a form bound to it renders the "No ' +
+        'options available" empty state — on a docs page whose whole purpose is to ' +
+        'show the component working.',
+    ).toBeTruthy();
+    const optionValues = new Set((declared ?? []).map((option) => String(option.value)));
+    const rowValues = distinctRowValues(name);
+    expect(
+      [...rowValues].filter((value) => !optionValues.has(value)),
+      `rows carry these \`${name}\` values that no option declares — they would render as a blank cell`,
+    ).toEqual([]);
+    expect(
+      [...optionValues].filter((value) => !rowValues.has(value)),
+      `these \`${name}\` options match no row, so nothing in the gallery demonstrates them`,
+    ).toEqual([]);
+  });
+
+  it('the host fixture declares the SAME field surface, options included', () => {
+    const hostSource = fs.readFileSync(
+      path.join(process.cwd(), 'apps/site/app/components/galleryDataSource.ts'),
+      'utf8',
+    );
+    expect(
+      readHostUsersFields(hostSource),
+      'the host fixture and this mirror declare different `users` field surfaces. They ' +
+        'are ONE fixture in two files and have to move together: the host gained its ' +
+        '`role` / `status` options in 4b0b12630 and this mirror did not follow for 330 ' +
+        'commits, with every case in this file green the whole time.',
+    ).toEqual(mirrorFields);
+  });
+});
+
+/**
+ * objectui#6537 — the two `plugin-form` entries stop steering around the
+ * fixture's `select` fields.
+ *
+ * ## What the entries were working around
+ *
+ * Both `plugin-form` entries authored a field list that omitted `role` and
+ * `status` — the only two `select` fields the `users` fixture declares:
+ * `object-form-record` listed `["name","email","department"]` and
+ * `object-form-tabbed-sections` sectioned over `[name,email]` /
+ * `[department,created_at]`. That was never an authoring choice. Until
+ * objectui#6317 this mirror declared both fields with NO `options`, and
+ * `ObjectForm` copies a field's options through verbatim (`formField.options =
+ * field.options || []`), so a form over either one painted the "No options
+ * available" empty state — on a docs page whose whole purpose is to show the
+ * component working. The five `plugin-grid` / `plugin-view` entries over the
+ * same object never steered around them, because `ObjectGrid` SYNTHESISES
+ * options for an option-less select from the loaded rows. That asymmetry is
+ * what #6317 measured, and it is why only the FORM entries carried a
+ * workaround.
+ *
+ * #6317 declared the options in the host fixture's `users` schema and in this
+ * mirror, so the constraint is gone and both entries carry the full field
+ * surface again.
+ *
+ * Measured through this file's own render path, before and after this card:
+ *
+ *   object-form-record
+ *     before "NameEmailDepartmentCancelSave changes"
+ *     after  "NameEmailRoleAdminAdminMemberViewerDepartmentStatusActiveActive
+ *             InvitedSuspendedCancelSave changes"
+ *   object-form-tabbed-sections
+ *     before "IdentityOrganisationNameEmailDepartmentCreatedCancelSave changes"
+ *     after  "IdentityOrganisationAccessNameEmailDepartmentCreatedRoleAdmin
+ *             AdminMemberViewerStatusActiveActiveInvitedSuspendedCancelSave
+ *             changes"
+ *
+ * ("Admin" twice: the closed trigger shows the selected option's label, and
+ * the option list carries it again.) The record's own values join the form's
+ * controls with them — `["Alice Johnson","alice@example.com","Engineering"]`
+ * becomes `["Alice Johnson","alice@example.com","admin","Engineering",
+ * "active"]` — so the two fields stop being dropped on the way in.
+ *
+ * That the text MOVES is the point, and it is the half #6317 could not show:
+ * the seven `users`-bound tiles were byte-identical across that card because
+ * the grid synthesises what the declaration was missing. The form path has no
+ * such fallback, so here the declaration is visible.
+ *
+ * The tabbed entry is measurable from its `identity` default tab because
+ * `TabbedForm` keeps EVERY panel mounted inside one `<form>` (objectui#2959,
+ * so a tab the user leaves keeps its values and one submit spans them all) —
+ * the `Access` tab's controls are in the DOM without activating it.
+ *
+ * ## Why this is a pin and not just an edit
+ *
+ * The workaround is invisible in the entries themselves — a shorter `fields`
+ * list reads as a deliberately trimmed demo, and every case in this file was
+ * green the whole time it was there. Nothing would notice it coming back. So
+ * the rule is stated positively and DERIVED from the fixture: every
+ * `plugin-form` entry authors every `select` field the fixture declares, and
+ * each of those fields puts its declared option labels on screen. A field that
+ * becomes a `select`, or an option that is added, joins this pin with no edit
+ * here; an entry that drops one turns it red.
+ *
+ * The render half is what makes it a measurement rather than a restatement of
+ * the JSON: an authored field that renders the empty state satisfies the
+ * authoring half and fails here.
+ */
+
+/** The empty state a `select` with no options paints (`packages/fields/src/widgets/useFieldTranslation.ts`, `packages/components/src/renderers/form/form.tsx`). Copied as a literal for the same reason the three diagnostics at the top of this file are: it is user-visible contract for this pin. */
+const OPTIONS_EMPTY = 'No options available';
+
+/**
+ * Field NAMES an entry authors, at any depth: the string members of any
+ * `fields` array. Walked rather than read off a known path, because the two
+ * entries put them in different places — one at the root, one inside
+ * `sections[].fields` — and a path-specific reader would report the tabbed
+ * entry as authoring none, which is the vacuous green this pin has to avoid.
+ */
+function authoredFieldNames(node: unknown, acc: string[] = []): string[] {
+  if (Array.isArray(node)) {
+    for (const n of node) authoredFieldNames(n, acc);
+    return acc;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'fields' && Array.isArray(v)) {
+        for (const f of v) if (typeof f === 'string') acc.push(f);
+      }
+      authoredFieldNames(v, acc);
+    }
+  }
+  return acc;
+}
+
+describe('objectui#6537 — the `plugin-form` entries author the fixture\'s `select` fields', () => {
+  const mirrorFields = USERS_SCHEMA.fields as Record<string, UsersFieldDecl>;
+  const selectFields = Object.entries(mirrorFields)
+    .filter(([, field]) => field.type === 'select')
+    .map(([name]) => name);
+  const formEntries = entries.filter((e) => e.meta.category === 'plugin-form');
+  const cases = formEntries.map((e) => [e.id, e.schema] as const);
+
+  it('is not vacuous: there are form entries, they restrict their fields, and the fixture has selects', () => {
+    expect(formEntries.map((e) => e.id)).not.toEqual([]);
+    expect(selectFields).not.toEqual([]);
+    // An entry that authors NO field list takes the whole object surface and
+    // would satisfy the authoring case below for free.
+    expect(
+      formEntries.filter((e) => authoredFieldNames(e.schema).length === 0).map((e) => e.id),
+    ).toEqual([]);
+  });
+
+  it.each(cases)('%s authors every select field the fixture declares', (_id, schema) => {
+    const authored = authoredFieldNames(schema);
+    expect(
+      selectFields.filter((name) => !authored.includes(name)),
+      'this entry steers around a `select` field of the object it binds to. That was a ' +
+        'workaround for an option-less fixture field (objectui#6317) and the fixture now ' +
+        'declares the options — a form demo that avoids the only pickers in its object ' +
+        'demonstrates less than the component does.',
+    ).toEqual([]);
+  });
+
+  it.each(cases)('%s puts every declared option label on screen', async (_id, schema) => {
+    const r = await renderEntry(schema);
+    try {
+      expect(
+        r.text.includes(OPTIONS_EMPTY),
+        `the tile paints "${OPTIONS_EMPTY}" — a select reached the form with no options`,
+      ).toBe(false);
+      const missing = selectFields.flatMap((name) =>
+        (mirrorFields[name].options ?? [])
+          .map((option) => option.label)
+          .filter((label) => !r.text.includes(label)),
+      );
+      expect(
+        missing,
+        'these option labels the fixture declares are not on the tile, so the picker the ' +
+          'docs page exists to show is not being shown',
+      ).toEqual([]);
+    } finally {
+      teardown(r);
+    }
+  });
+
+  it.each(cases)("%s carries the record's own select values in its controls", async (_id, schema) => {
+    const r = await renderEntry(schema);
+    try {
+      expect(r.controlValues.length).toBeGreaterThan(0);
+      const record = USERS_ROWS[0] as Record<string, unknown>;
+      expect(
+        selectFields.filter((name) => !r.controlValues.includes(String(record[name]))),
+        "the record's own values for these select fields never reached a form control, so " +
+          'the field is on screen but the record is being dropped on the way in',
+      ).toEqual([]);
+    } finally {
+      teardown(r);
+    }
+  });
 });

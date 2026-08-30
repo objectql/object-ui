@@ -11,8 +11,8 @@
  *
  * `DesignerFieldType` is derived from this array, `FieldDesigner`'s
  * `FIELD_TYPE_META` must cover it (total `Record`, so tsc gates that side),
- * and app-shell's `object-fields-bridge` builds its editable-subset check
- * from it. The inventory below is a deliberate second statement of the list:
+ * and `MetadataFieldsPage` builds its editable-subset check from it. The
+ * inventory below is a deliberate second statement of the list:
  * growing or shrinking the vocabulary is a two-file edit by design, so it
  * cannot happen as a drive-by — the failure message routes the editor to the
  * consumers that must be reviewed alongside it.
@@ -36,9 +36,8 @@ describe('DESIGNER_FIELD_TYPES (canonical Field Designer vocabulary)', () => {
   it('matches the checked-in inventory — vocabulary edits must be deliberate', () => {
     // If this fails you changed the designer's type vocabulary. That is fine,
     // but it is never only a types change: FieldDesigner needs presentation
-    // (FIELD_TYPE_META + FIELD_TYPE_CATEGORIES), the object-fields-bridge
-    // round-trip should be re-checked for the new/removed type, and this
-    // inventory re-pinned to acknowledge the review happened.
+    // (FIELD_TYPE_META + FIELD_TYPE_CATEGORIES), and this inventory must be
+    // re-pinned to acknowledge the review happened.
     expect([...DESIGNER_FIELD_TYPES].sort()).toEqual([...INVENTORY]);
   });
 });

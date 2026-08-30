@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   useSchemaContext,
@@ -80,7 +80,7 @@ const OBJECT_GANTT_DATA_SOURCE: ElementDataSourceMapping = {
 };
 
 // Register component
-export const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+export const ObjectGanttRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => {
   const { dataSource } = useSchemaContext() || {};
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121). A
   // gantt authored with the binding and no flat `objectName` produced no data
@@ -97,7 +97,7 @@ export const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       {(bound) => <ObjectGantt schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-gantt', ObjectGanttRenderer, {
   namespace: 'plugin-gantt',

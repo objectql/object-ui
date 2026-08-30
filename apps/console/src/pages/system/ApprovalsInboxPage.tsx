@@ -105,7 +105,7 @@ import {
   type ApprovalActionAttachment,
 } from '../../services/approvalsApi';
 import { useRecordReadability } from './recordReadability';
-import { useHiddenFields } from './hiddenFields';
+import { useHiddenFieldsByObject } from './hiddenFields';
 import { holdsStudioAccess } from '../../components/studioEntry';
 
 type TabKey = 'pending' | 'submitted' | 'all';
@@ -367,16 +367,29 @@ const AMOUNT_KEY_RE = /(amount|total|price|value|cost|sum|budget|salary|fee|reve
  * for the inline list display and amount sort. Prefers the server-formatted
  * `payload_display` value (currency, etc.) but always keeps the raw number for
  * ordering. Null when the snapshot has no such field.
+ *
+ * `hiddenKeys` is the fields THIS request's object declares `hidden: true`, and
+ * it is **required** on purpose (objectui#6020). It was optional when
+ * objectui#5565 added it, and four of the five call sites simply did not pass
+ * it — a filter that lives in the function body but is unpassed at the call
+ * site reads exactly like a fixed defect. Required, the compiler asks the one
+ * question that matters at every present and future call site: *whose* hidden
+ * keys? Pass `NO_HIDDEN_FIELDS` only where the answer is genuinely "nothing
+ * known", never to silence the parameter.
+ *
+ * An empty set means "nothing known to be hidden" — including the case where
+ * the metadata read has not answered — and yields today's amount. See
+ * `hiddenFields.ts` on why this presentation filter fails open.
  */
 function decisionAmountEntry(
   r: ApprovalRequestRow,
-  hiddenKeys?: ReadonlySet<string>,
+  hiddenKeys: ReadonlySet<string>,
 ): { key: string; label: string; value: number; display: string } | null {
   const payload = r.payload;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
     if (PAYLOAD_SYSTEM_KEYS.has(k)) continue;
-    if (hiddenKeys?.has(k)) continue; // author declared `hidden: true` (#5565)
+    if (hiddenKeys.has(k)) continue; // author declared `hidden: true` (#5565)
     if (!AMOUNT_KEY_RE.test(k)) continue;
     const num = typeof v === 'number'
       ? v
@@ -437,11 +450,20 @@ function RequestCell({ r, tr }: { r: ApprovalRequestRow; tr: Translate }) {
  * `href` is `null` for a record this viewer cannot open (objectui#5211) — the
  * readable/unreadable decision and the URL are ONE prop so the two cannot be
  * handed in disagreeing with each other.
+ *
+ * `hiddenKeys` belongs to THIS row's object (objectui#6020). The queue spans
+ * many objects, so it is a per-row prop and not something this cell could
+ * resolve for itself — see the page body, which drives it off one lookup.
  */
-function RecordCell({ r, href }: { r: ApprovalRequestRow; href: string | null }) {
+function RecordCell({ r, href, hiddenKeys }: {
+  r: ApprovalRequestRow;
+  href: string | null;
+  hiddenKeys: ReadonlySet<string>;
+}) {
   // Surface the decision-relevant amount inline so a reviewer can triage the
-  // queue without opening each request (#2762 P1-3).
-  const amount = decisionAmountEntry(r);
+  // queue without opening each request (#2762 P1-3) — minus anything the
+  // author declared `hidden: true` (objectui#6020).
+  const amount = decisionAmountEntry(r, hiddenKeys);
   // objectui#5211: no link into a record this viewer cannot open. The title
   // still shows — it comes from the request's own payload snapshot, which the
   // approver was already given — it just stops being an anchor.
@@ -708,17 +730,30 @@ export function ApprovalsInboxPage() {
   const readability = useRecordReadability(readabilityTargets);
 
   /**
-   * objectui#5565 — the fields the open request's object declares
-   * `hidden: true`. The drawer's business summary card is default UI, and
-   * `hidden` is a UI contract (objectstack#10749: "`hidden: true` stays
-   * UI-only; `internal: true` is the serialization primitive"), so the card
-   * must honour it. Scoped to the OPEN request's object: the queue rows are a
-   * different surface with a different cost model, and are not trimmed here.
+   * objectui#5565 + objectui#6020 — the fields each object on screen declares
+   * `hidden: true`. `hidden` is a UI contract (objectstack#10749: "`hidden:
+   * true` stays UI-only; `internal: true` is the serialization primitive"), and
+   * every surface below is default UI, so all of them must honour it: the
+   * drawer's summary card and lead amount (#5565), and — this is #6020 — the
+   * queue rows, the mobile cards, and the amount sort.
    *
-   * One cached metadata read per object per mount, empty until it answers —
-   * see `hiddenFields.ts` for the cost model and why this fails open.
+   * ⛔ It is keyed BY OBJECT and not a single set. The queue is N rows spanning
+   * K objects; threading the open request's set into the rows would apply one
+   * object's declarations to every row — hiding fields on rows whose object
+   * never declared them, missing fields on rows whose object did, and looking
+   * fixed while doing it. Every consumer asks with its OWN `object_name`.
+   *
+   * Same targets as the readability probe, so the deep-linked drawer's object
+   * is covered even when its request is not in the current row set. One cached
+   * metadata read per distinct object per mount, empty until it answers — see
+   * `hiddenFields.ts` for the cost model and why this fails open.
    */
-  const hiddenPayloadKeys = useHiddenFields(selected?.object_name);
+  const hiddenFieldObjects = useMemo(
+    () => readabilityTargets.map((t) => t.object_name),
+    [readabilityTargets],
+  );
+  const hiddenFields = useHiddenFieldsByObject(hiddenFieldObjects);
+  const hiddenPayloadKeys = hiddenFields.forObject(selected?.object_name);
   // Approve/reject/reassign/send-back/… are server-declared actions rendered by
   // DeclaredActionsBar (objectui#2697 + framework#3300); their param dialog
   // collects the comment and — since the shared upload-widget renderer (#2700/
@@ -1057,9 +1092,16 @@ export function ApprovalsInboxPage() {
     if (sortKey === 'amount') {
       // Highest amount first; rows without a detectable amount sink to the
       // bottom (keeping their relative newest-first order).
+      //
+      // objectui#6020: a row whose amount field its object declares
+      // `hidden: true` has no amount HERE either, so it sinks with them. An
+      // ordering IS a disclosure — it leaks the relative magnitude of a hidden
+      // figure to a viewer who never sees the figure — so the queue must not
+      // order on a value it declines to render. Each row is asked about its
+      // own object; a page spanning several objects gets several answers.
       sorted.sort((a, b) => {
-        const av = decisionAmountEntry(a)?.value;
-        const bv = decisionAmountEntry(b)?.value;
+        const av = decisionAmountEntry(a, hiddenFields.forObject(a.object_name))?.value;
+        const bv = decisionAmountEntry(b, hiddenFields.forObject(b.object_name))?.value;
         if (av == null && bv == null) return 0;
         if (av == null) return 1;
         if (bv == null) return -1;
@@ -1070,7 +1112,7 @@ export function ApprovalsInboxPage() {
       sorted.sort((a, b) => (submittedAt(a) || '').localeCompare(submittedAt(b) || ''));
     }
     return sorted;
-  }, [rows, query, processFilter, objectFilter, statusFilter, tab, sortKey]);
+  }, [rows, query, processFilter, objectFilter, statusFilter, tab, sortKey, hiddenFields]);
   /** Position of the open request within the visible list (drawer prev/next). */
   const drawerIndex = useMemo(
     () => (selectedId ? filteredRows.findIndex(r => r.id === selectedId) : -1),
@@ -1580,7 +1622,13 @@ export function ApprovalsInboxPage() {
                             </TableCell>
                           )}
                           <TableCell><RequestCell r={r} tr={tr} /></TableCell>
-                          <TableCell><RecordCell r={r} href={readability.isUnreadable(r) ? null : recordHref(r)} /></TableCell>
+                          <TableCell>
+                            <RecordCell
+                              r={r}
+                              href={readability.isUnreadable(r) ? null : recordHref(r)}
+                              hiddenKeys={hiddenFields.forObject(r.object_name)}
+                            />
+                          </TableCell>
                           <TableCell>
                             {isSystemSubmitter(r) ? (
                               // Flow-/system-initiated: name the origin instead of a
@@ -1646,7 +1694,8 @@ export function ApprovalsInboxPage() {
                         {r.record_title || formatIdentity(r.record_id)}
                         <span className="text-muted-foreground text-xs ml-1.5">{objectDisplay(r)}</span>
                         {(() => {
-                          const amount = decisionAmountEntry(r);
+                          // objectui#6020: this row's OWN object decides.
+                          const amount = decisionAmountEntry(r, hiddenFields.forObject(r.object_name));
                           return amount ? (
                             <span className="text-xs ml-1.5 font-medium" title={amount.label}>· {amount.display}</span>
                           ) : null;

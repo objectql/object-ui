@@ -27,9 +27,16 @@ import { SchemaRenderer } from '@object-ui/react';
 import { PreviewShell, PreviewErrorBoundary } from './PreviewShell.js';
 import { useMonacoFallback } from '../useMonacoFallback.js';
 
+// Lazy for the same reason as JsonSourceEditor — Monaco's core is ~3MB and
+// stays out of the initial app-shell chunk.
+//
+// The NAMED `Editor` export for the same reason too: under `nodenext` this
+// CommonJS package's default is the module namespace, not the component
+// (objectui#5440). `../JsonSourceEditor.tsx` carries the interop reading and
+// the evidence that both spellings are one declaration.
 const LazyMonaco = React.lazy(async () => {
   const mod = await import('@monaco-editor/react');
-  return { default: mod.default };
+  return { default: mod.Editor };
 });
 
 export interface SourcePageEditorProps {

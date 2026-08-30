@@ -41,6 +41,14 @@ on:
       - 'scripts/check-eager-closure-budget.mjs'
       - 'scripts/render-budget-comment.mjs'
       - 'scripts/invoked-as.mjs'
+      # The SDUI registration pins (objectui#6683) and their two dependencies.
+      # Same rule as the three above — this job runs them, so an edit to any of
+      # them must be able to turn this gate red on its OWN PR rather than on
+      # somebody else's next `packages/**` change.
+      - 'scripts/check-sdui-registration-pins.mjs'
+      - 'scripts/check-side-effects-array.mjs'
+      - 'scripts/component-registrations.mjs'
+      - 'scripts/js-comment-mask.mjs'
   pull_request:
     branches: [main, develop]
     paths:
@@ -81,6 +89,14 @@ on:
       - 'scripts/check-eager-closure-budget.mjs'
       - 'scripts/render-budget-comment.mjs'
       - 'scripts/invoked-as.mjs'
+      # The SDUI registration pins (objectui#6683) and their two dependencies.
+      # Same rule as the three above — this job runs them, so an edit to any of
+      # them must be able to turn this gate red on its OWN PR rather than on
+      # somebody else's next `packages/**` change.
+      - 'scripts/check-sdui-registration-pins.mjs'
+      - 'scripts/check-side-effects-array.mjs'
+      - 'scripts/component-registrations.mjs'
+      - 'scripts/js-comment-mask.mjs'
 
 concurrency:
   group: bundle-analysis-${{ github.event.pull_request.number || github.ref }}
@@ -329,6 +345,24 @@ jobs:
           echo ""
           echo "✅ Budget OK: entry chunk and eager closure are both within budget"
           echo "budget_status=pass" >> "$GITHUB_OUTPUT"
+
+      # The ARTIFACT half of the `sideEffects` contract (objectui#6683). The
+      # static gate in `ci.yml` proves the array agrees with the module bodies;
+      # it cannot prove that a real bundler reading that array still EMITS the
+      # registrations, and that is the question the hazard turns on —
+      # `"sideEffects": false` is statically coherent and drops three live SDUI
+      # widget registrations to 0 chunks on a green build (objectui#6535).
+      #
+      # The key set is derived from the array itself, so this step needs no
+      # list of its own. It runs after the budget step and never instead of it:
+      # a dropped registration and a size regression are different verdicts, and
+      # a size win bought by deleting a feature must not read as a size win.
+      #
+      # Not `if: always()` — with no `dist/` the checker exits 2 and says so,
+      # which is the honest verdict for a run that measured nothing, but there
+      # is no reason to spend it on a build that already failed.
+      - name: Pin the SDUI registrations the `sideEffects` array promises
+        run: pnpm check:sdui-registration-pins
 
       - name: Generate package size report
         id: size-report

@@ -19,6 +19,7 @@ import { viteMaplibreWorker } from '../../scripts/vite-maplibre-worker.ts';
 import { resolveClientDistInjection } from '../../scripts/vite-objectstack-client-dist.ts';
 import { resolveSpecDistInjection } from '../../scripts/vite-objectstack-spec-dist.ts';
 import { viteIneffectiveDynamicImports } from '../../scripts/vite-ineffective-dynamic-imports.ts';
+import { viteDeclaredLazyViews } from '../../scripts/vite-declared-lazy-views.ts';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -645,6 +646,15 @@ export default defineConfig({
     // firing — the counter-probe, because a build that dies before chunk
     // assignment reports zero of these and that reads exactly like "fixed".
     viteIneffectiveDynamicImports(),
+    // Keeps `AppContent`'s `lazy()` view declarations and the eager closure in
+    // agreement (objectui#6535). Two halves, one parsed list: it declares the
+    // pure route-view modules `moduleSideEffects: false` — without which the
+    // `@object-ui/app-shell` barrel's named re-exports hold five of them in the
+    // eager closure, since that package publishes no `sideEffects` field — and
+    // it then FAILS the build if a declared-lazy view is eager anyway and not
+    // pinned, or if a pinned one has quietly become lazy. Runs before
+    // `emitEagerClosureReport` reads the same graph.
+    viteDeclaredLazyViews(),
     // maplibre-gl loads its worker as a sibling of its own chunk URL — an
     // edge no bundler can see — so the worker (and the shared module it
     // imports) must be copied into assets/ or every map page 404s
@@ -753,8 +763,59 @@ export default defineConfig({
             // react-markdown / remark / micromark family — heavy markdown
             // pipeline pulled in only by markdown/chatbot plugins.
             { name: 'vendor-markdown', test: /[\\/]node_modules[\\/](react-markdown|remark-|rehype-|micromark|mdast-|hast-|unified|unist-|vfile|bail|trough|character-entities|decode-named-character-reference|devlop|estree-|comma-separated-tokens|space-separated-tokens|property-information|html-url-attributes|zwitch)/, priority: 85 },
-            // Sentry — only loaded when VITE_SENTRY_DSN is configured at runtime
+            // Sentry — only fetched when the RUNTIME serves a DSN on
+            // /api/v1/runtime/config (objectstack#12681); a deployment that
+            // configured none never requests this chunk at all.
             { name: 'vendor-sentry', test: /[\\/]node_modules[\\/]@sentry[\\/]/, priority: 85 },
+            // The eagerly-reached app-shell leaves that were holding declared-lazy
+            // route chunks in the eager closure by CHUNK CO-TENANCY (objectui#6680).
+            //
+            // Measured on `b98352a15` from the emitted chunks' own module lists —
+            // never from a source-level search, which cannot see this at all
+            // (objectui#6681):
+            //
+            //   assets/MarketplacePackagePage-*.js   7,647 B gz, EAGER
+            //     holds `components/SuggestedBindingsPanel.tsx` (+ its
+            //     `services/suggestedBindingsApi.ts`), which
+            //     `views/studio-design/StudioDesignSurface.tsx` — a barrel export the
+            //     console reaches eagerly — imports STATICALLY.
+            //   assets/MarketplaceInstalledPage-*.js 1,836 B gz, EAGER
+            //     holds `console/marketplace/InstalledListWidget.tsx`, which
+            //     `packages/app-shell/src/index.ts` BARE-imports for its SDUI
+            //     registration and which the package's `sideEffects` array names.
+            //
+            // In both, the page itself had NO static importer: only the co-tenant
+            // did, and the page's bytes rode along on every console page load while
+            // `AppContent` declared it `lazy()`. `MarketplacePage.tsx` had no eager
+            // co-tenant and was already lazy — the control that makes the mechanism
+            // legible rather than a story about these two files.
+            //
+            // Isolating the co-tenants lets all three pages chunk by their own
+            // (dynamic-only) reachability: eager closure 3180.2 KB -> 3171.5 KB
+            // gzipped, -8,888 bytes, 48 -> 45 eager chunks, with the three per-chunk
+            // ceilings unmoved.
+            //
+            // ⚠️ Group the CO-TENANTS, not the pages. The opposite grouping was
+            // measured first: a `marketplace-routes` group over the three
+            // declared-lazy pages swept `InstalledListWidget.tsx` in with them, so
+            // the barrel's bare import made the GROUP eager and it became an
+            // attractor for 47 modules — `runtime-config.ts`,
+            // `providers/MetadataProvider.tsx` and `@object-ui/plugin-form` among
+            // them — emitting a 44 KB eager chunk for a net of -1,697 bytes and
+            // three destroyed lazy boundaries. A group decides co-tenancy; it is
+            // not a laziness declaration, and `assertLazyLinterStaysLazy` above is
+            // the other half of that same lesson.
+            //
+            // The membership is EXPLICIT rather than a directory glob because each
+            // entry is a measured fact about one module's importers, and a glob
+            // would quietly enrol modules nobody weighed.
+            // `scripts/vite-declared-lazy-views.ts` fails this build in BOTH
+            // directions if the result drifts.
+            {
+              name: 'app-shell-eager-leaves',
+              test: /[\\/]packages[\\/]app-shell[\\/]src[\\/](?:components[\\/]SuggestedBindingsPanel\.tsx|services[\\/]suggestedBindingsApi\.ts|console[\\/]marketplace[\\/]InstalledListWidget\.tsx)$/,
+              priority: 75,
+            },
           ],
         },
       }

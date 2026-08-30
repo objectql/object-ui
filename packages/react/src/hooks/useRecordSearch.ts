@@ -187,8 +187,20 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
     return pool;
   }, [objects, objectNames]);
 
+  // The object NAME is the whole signature: it is the only field of an object
+  // definition this effect consumes (`dataSource.find(obj.name, …)` and the
+  // `objects` whitelist sent to `searchAll`); `label` / `icon` are read per hit
+  // at render time and never decide whether the fanout re-runs.
+  //
+  // An `o?.titleField ?? ''` half used to be appended to each entry. It could
+  // never vary: `@objectstack/spec`'s object schema is a `strictObject` that
+  // REJECTS `titleField` with `unrecognized_keys` (objectui#6531), so no legal
+  // object metadata carries it and the half was permanently `''` — a constant
+  // suffix in a cache key, which also read as evidence that some producer ships
+  // the key. Removed in objectui#6557; the display name comes from
+  // `getRecordDisplayName`, which does not consult it either.
   const candidateSignature = useMemo(() => {
-    return candidates.map((o) => `${o?.name}:${o?.titleField ?? ''}`).join('|');
+    return candidates.map((o) => String(o?.name)).join('|');
   }, [candidates]);
 
   // Run ID for racing-request guarding. Stable across renders.

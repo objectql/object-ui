@@ -146,11 +146,27 @@ const SpanRenderer = forwardRef<HTMLSpanElement, { schema: TextSpanSchema; class
   }
 );
 
-ComponentRegistry.register('span', 
+ComponentRegistry.register('span',
   SpanRenderer,
   {
     namespace: 'ui',
     label: 'Inline Container (Deprecated)',
+    /**
+     * The MACHINE-READABLE statement of the deprecation above (objectui#6674),
+     * level with the sibling `div` registration for the same reason
+     * objectui#4917 brought this renderer level with it: `SPAN_DEPRECATION_NOTICE`
+     * is a string literal and `label` is prose, and no gate can read either.
+     *
+     * `surfaces` carries the objectui#4000 ruling — deprecated on the JSON
+     * authoring surface, permanent vocabulary of the `kind:'html'` tier — as the
+     * same fact the `isHtmlTierNode` exemption above applies at runtime.
+     * `__tests__/span-deprecation-provenance.test.tsx` pins the two together.
+     */
+    deprecated: {
+      surfaces: ['json'],
+      replacement:
+        'use "badge" for labels, or "text" with a className for inline emphasis',
+    },
     inputs: [
       { name: 'className', type: 'string', label: 'CSS Class' }
     ],

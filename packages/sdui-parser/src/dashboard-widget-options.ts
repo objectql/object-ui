@@ -35,11 +35,34 @@
  *   legal metadata, so it is in the accepted set even though the dataset-bound
  *   render path does not currently display it.
  *
- * Notably NOT consumed anywhere in this repository: `thresholds` (zero read
- *   sites repo-wide) and `format` — the dataset-bound value is formatted with
- *   the MEASURE's own metadata (`measureField(...).format`, from the dataset
- *   definition), not with `options.format`. Both were widely believed to work;
- *   both draw this warning, which is the point.
+ * Notably NOT consumed on the path a widget really renders through:
+ * `thresholds` and `format`. Both were widely believed to work; both draw this
+ * warning, which is the point. They are NOT the same kind of claim, and since
+ * the 2026-08-25 maintainer ruling (batch adjudication close-out, decision B1 —
+ * a closure claim must be BOUNDED or DERIVABLE, and a claim written in two
+ * places is single-sourced) they are written separately (objectui#6186):
+ *
+ *   `thresholds` — zero read sites repo-wide. This paragraph is the CANONICAL
+ *     statement of that closure claim. `content/docs/plugins/plugin-dashboard.mdx`
+ *     used to assert it a second time in its own words; two copies of one
+ *     closure claim drift apart independently and neither knows when the other
+ *     stopped being true, so the page now POINTS here rather than restating it.
+ *     Single-sourcing is what makes this copy load-bearing, so it is DERIVED
+ *     rather than trusted:
+ *     `scripts/__tests__/unconsumed-widget-option-claim-6186.test.ts` re-scans
+ *     every JS/TS file git tracks for an access to a key of that name and fails
+ *     if one appears. Land a renderer that reads it and this module goes red in
+ *     the same run.
+ *   `format` — not read ON THE DATASET-BOUND PATH; the value is formatted with
+ *     the MEASURE's own metadata (`measureField(...).format`, from the dataset
+ *     definition), not from the widget's bag. Deliberately a BOUNDED claim and
+ *     not a repo-wide one: `format` is a live key in other vocabularies, so a
+ *     repo-wide scan would red on a TRUE claim — and an assertion that reds on
+ *     legitimate code gets deleted by the next person who hits it, which puts
+ *     the claim back where it started. Leg 2 of
+ *     `__tests__/dashboard-widget-options-census.test.ts` derives exactly this
+ *     bound: the DatasetWidget read set equals the declared set, and neither
+ *     key is in it.
  *
  * ## Scope — where the warning deliberately does NOT fire
  *

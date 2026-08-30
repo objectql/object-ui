@@ -9,12 +9,22 @@
 /**
  * `aggregate()` against an analytics endpoint that cannot answer.
  *
- * WHY THIS EXISTS. `@objectstack/client`'s `analytics.query()` returns
- * `res.json()` WITHOUT checking `res.ok`, so a non-2xx never throws — the error
- * body arrives where rows were expected. The adapter's row parser matched none
- * of its shapes, produced `[]`, and returned it as a RESULT: the `catch` that
- * promises a client-side fallback never ran, and a KPI on a deployment without
- * `@objectstack/service-analytics` rendered a confident **zero**.
+ * WHY THIS EXISTS. `@objectstack/client@17.2.0`'s `analytics.query()` DOES call
+ * `res.json()`, but only after `this.fetch(...)` — `ObjectStackClient.fetch` in
+ * the installed client's `dist/index.mjs` — which throws on `!res.ok` before
+ * `analytics.query` ever reaches its own `res.json()`. So today a non-2xx never
+ * arrives as data; it arrives as a thrown, decorated `Error` (`code` flattened
+ * from `errorBody?.code ?? errorBody?.error?.code`, plus `httpStatus`,
+ * `message`, `details`), and every test below this header depends on that catch
+ * firing. This paragraph used to describe the opposite: a client that returned
+ * `res.json()` WITHOUT checking `res.ok`, so the error body arrived where rows
+ * were expected, the adapter's row parser matched none of its shapes, produced
+ * `[]`, and returned it as a RESULT — the `catch` that promises a client-side
+ * fallback never ran, and a KPI on a deployment without
+ * `@objectstack/service-analytics` rendered a confident **zero**. That defect is
+ * why this file and `classifyAnalyticsFailure` exist; it is no longer what the
+ * installed client does, so it is recorded here as history rather than as the
+ * present-tense mechanism (objectui#5954).
  *
  * That is the same lie framework#3891 removed from the server side (a degraded
  * shim answering 200 with unscoped numbers), reproduced one layer up. These

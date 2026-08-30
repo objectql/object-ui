@@ -9,15 +9,14 @@
 /**
  * objectui#5452: a POPULATED `richtext` field rendered as a completely empty
  * cell. `richtext` stores HTML — that is what the showcase seed carries
- * (`examples/app-showcase/src/data/seed/index.ts`, `f_richtext`), what
+ * (`examples/app-showcase/src/data/seed/index.ts`, `f_richtext`) and what
  * `content/docs/data-modeling/field-type-decision-tree.mdx` documents
- * ("Formatted content with HTML/WYSIWYG"), and what this repo's own designer
- * bridge already assumes (`object-fields-bridge.ts` maps `richtext` to the
- * designer's `html` type). The display registry nevertheless dispatched it to
- * `MarkdownCellRenderer`, whose sanitizing GFM pipeline drops raw HTML — and
- * since a richtext value is ENTIRELY HTML, everything was dropped and the cell
- * came out blank. Failure direction is the bad one: no error, no fallback, no
- * console warning, so a populated field reads as an empty field.
+ * ("Formatted content with HTML/WYSIWYG"). The display registry nevertheless
+ * dispatched it to `MarkdownCellRenderer`, whose sanitizing GFM pipeline drops
+ * raw HTML — and since a richtext value is ENTIRELY HTML, everything was
+ * dropped and the cell came out blank. Failure direction is the bad one: no
+ * error, no fallback, no console warning, so a populated field reads as an
+ * empty field.
  *
  * Two things are pinned here, and they pull in opposite directions on purpose:
  *

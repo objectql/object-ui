@@ -31,9 +31,10 @@ const stub = {
 // really calls `useContext` before the `!ctx` early return in production, and
 // that leading real-hook is what makes a fewer-hooks re-render throw #310. A
 // plain `() => value` stub would call no real hook, silently masking the bug.
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     useRecordContext: () => (React.useRef(0), stub.recordCtx),
     useHighlightFieldNames: () => (React.useRef(0), [] as string[]),
     useSafeFieldLabel: () => (React.useRef(0), {

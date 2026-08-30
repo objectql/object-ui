@@ -147,6 +147,34 @@ const ast = [
 ];
 ```
 
+#### Rule-shaped arrays, on `find()` **and** `aggregate()`
+
+Server-driven view configs store their conditions as an array of rules
+(`ViewFilterRule[]`), not as a MongoDB-style object:
+
+```typescript
+const filter = [{ field: 'stage', operator: 'equals', value: 'won' }];
+```
+
+Both read paths lower that array to the same AST before it reaches the wire —
+`find()` via `$filter`, and `aggregate()` via the analytics `where`. They share
+one translator, so a stored filter cannot mean one thing on a list and another
+on a KPI:
+
+```typescript
+// find():      filter=["stage","=","won"]
+// aggregate(): { ..., where: ["stage", "=", "won"] }
+```
+
+Operator aliases (`equals`, `greater_than_or_equal`, `not_in`, `before`, ...)
+map to the canonical AST symbols, and rules spread into a logical node
+(`['and', ...rules, ...tuples]`) are lowered at depth. A rule that cannot be
+translated raises `MalformedFilterError` rather than being dropped — dropping
+one condition of an `and` would widen the result set and report success.
+
+Non-array filters are passed through unchanged on the aggregate path: a
+MongoDB-style object is already what `/analytics/query` accepts.
+
 ### Sorting
 
 ```typescript

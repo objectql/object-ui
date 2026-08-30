@@ -279,3 +279,60 @@ describe('sibling-block forms ↔ FlowNodeSchema blocks (framework#4278 ratchet)
     ).toEqual([]);
   });
 });
+
+/**
+ * **Declared defaults ↔ spec defaults — `escalation.notifySubmitter`** (#6794).
+ *
+ * Everything above is a KEY-set ledger: it proves the form edits exactly the
+ * keys the executor reads. The default a field DECLARES is the other axis, and
+ * it had drifted here — the hand-written table declared no `defaultValue` for
+ * `escalation.notifySubmitter` while the installed `@objectstack/spec` defaults
+ * the key to `true`, so the table stated the opposite of what an omitted key
+ * does at runtime. Not cosmetic: `defaultValue` is what `isFieldVisible`
+ * resolves an unset controller against, and it is what the ONLINE half of this
+ * form already carries (a published `configSchema` sends `default: true`, which
+ * `json-schema-to-fields` turns into `defaultValue: 'true'`) — so offline and
+ * online disagreed about the same key.
+ *
+ * The expected value is READ FROM THE INSTALLED SPEC, never spelled out here:
+ * objectui is the consumer, and a literal would make this file a second source
+ * of truth for a published contract.
+ *
+ * ⛔ Deliberately scoped to `notifySubmitter` alone. The sibling controller
+ * `escalation.enabled` is #6620 — held on hold behind a future
+ * `@objectstack/spec` bump that flips ITS default; installed spec and table
+ * agree on it today. Generalising this assertion across the block would arm
+ * that card's tripwire here, discharging an on-hold card without its restart
+ * condition being met.
+ */
+describe('approval escalation: declared default ↔ ApprovalEscalationSchema (#6794)', () => {
+  const EscalationSchema = spec.ApprovalEscalationSchema as
+    | { safeParse: (value: unknown) => { success: boolean; data?: Record<string, unknown> } }
+    | undefined;
+
+  /** What the spec applies when the key is omitted — the runtime's own answer. */
+  function specDefaultFor(key: string): unknown {
+    expect(
+      EscalationSchema,
+      '@objectstack/spec/automation must export ApprovalEscalationSchema',
+    ).toBeDefined();
+    // `timeoutHours` is the block's only required key.
+    const parsed = EscalationSchema!.safeParse({ timeoutHours: 24 });
+    expect(parsed.success, 'a minimal escalation block must parse').toBe(true);
+    return parsed.data?.[key];
+  }
+
+  it('the spec still materialises notifySubmitter from an omitted key', () => {
+    // Vacuity guard: were the key to stop being defaulted, the comparison below
+    // would silently be a comparison against `undefined`.
+    expect(typeof specDefaultFor('notifySubmitter')).toBe('boolean');
+  });
+
+  it('the form declares the default the spec applies', () => {
+    const field = fieldsForNodeType('approval').find((f) => f.id === 'escalation.notifySubmitter');
+    expect(field, 'the approval form must offer escalation.notifySubmitter').toBeDefined();
+    // Defaults are strings in this table — booleans spelled 'true' / 'false',
+    // the spelling `isFieldVisible` compares a controller against.
+    expect(field!.defaultValue).toBe(String(specDefaultFor('notifySubmitter')));
+  });
+});

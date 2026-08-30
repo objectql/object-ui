@@ -9,11 +9,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-vi.mock('@monaco-editor/react', () => ({
-  default: () => null,
-  // Simulate the CDN loader script failing to load.
-  loader: { init: () => Promise.reject(new Error('CDN blocked')) },
-}));
+// `Editor` and `default` are ONE declaration in the real package, and the
+// component under test imports the NAMED one (objectui#5440), so the stub is
+// bound to both names rather than to `default` alone.
+vi.mock('@monaco-editor/react', () => {
+  const Editor = () => null;
+  return {
+    Editor,
+    default: Editor,
+    // Simulate the CDN loader script failing to load.
+    loader: { init: () => Promise.reject(new Error('CDN blocked')) },
+  };
+});
 
 import { JsonSourceEditor } from './JsonSourceEditor';
 

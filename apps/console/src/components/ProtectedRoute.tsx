@@ -11,9 +11,14 @@
  */
 
 import type { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { AuthGuard } from '@object-ui/auth';
-import { ConnectedShell, RequireOrganization, LoadingFallback } from '@object-ui/app-shell';
+import {
+  ConnectedShell,
+  RequireOrganization,
+  LoadingFallback,
+  RedirectWithSplash,
+} from '@object-ui/app-shell';
 
 /**
  * Where an unauthenticated visitor to a protected route goes.
@@ -27,7 +32,11 @@ export function LoginRedirect() {
   const location = useLocation();
   const redirect = location.pathname + location.search;
   const search = redirect && redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : '';
-  return <Navigate to={`/login${search}`} replace />;
+  // `RedirectWithSplash`, not a bare `<Navigate>` (objectui#6378): this element
+  // replaces the `LoadingFallback` the SAME `AuthGuard` was rendering one state
+  // earlier, and a bare redirect renders null — measured, that left the viewport
+  // blank for 41 ms while `/login` rendered at transition priority.
+  return <RedirectWithSplash to={`/login${search}`} replace />;
 }
 
 /**

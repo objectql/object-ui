@@ -17,6 +17,7 @@ import {
   triggerFieldRefs,
   type ScopeGroupId,
   type ScopeRef,
+  type TriggerScope,
 } from './flow-scope.js';
 import { useObjectFields } from '../previews/useObjectFields.js';
 
@@ -40,6 +41,19 @@ export interface UseFlowScopeResult {
    * exactly the spelling the runtime rejects.
    */
   approvalExpressionGroups: ScopeGroup[];
+  /**
+   * The trigger record's DECLARED subject vocabulary at this node, when one is
+   * in scope — `{ objectName, fieldPrefix, includePrevious }`, straight from
+   * {@link resolveFlowScope} (objectui#6226).
+   *
+   * Re-exported rather than re-derived: the `refs` above have already been
+   * flattened and merged with variables / upstream outputs, so a consumer that
+   * needs the *shape* of the record vocabulary (the condition builder's
+   * subjects) would otherwise have to reverse-engineer the prefix back out of
+   * the tokens. Absent on a schedule / manual / webhook trigger, which binds no
+   * record — and absence is the signal that no vocabulary may be assumed.
+   */
+  trigger?: TriggerScope;
   /** True while the trigger object's fields are still loading. */
   loading: boolean;
   /** No references in scope — the field should render as a plain input. */
@@ -119,6 +133,13 @@ export function useFlowScope(
       { id: 'approval_vars' as const, label: 'Flow variables', refs: approvalVars },
     ].filter((g) => g.refs.length > 0);
 
-    return { groups, refs, approvalExpressionGroups, loading: !!scope.trigger && loading, isEmpty: refs.length === 0 };
+    return {
+      groups,
+      refs,
+      approvalExpressionGroups,
+      trigger: scope.trigger,
+      loading: !!scope.trigger && loading,
+      isEmpty: refs.length === 0,
+    };
   }, [scope, fields, loading, extraRefs]);
 }

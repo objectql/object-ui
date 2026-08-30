@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { isConfigBag } from './configBag.js';
+
 /**
  * Dev-build diagnostic: an UNEVALUATED template expression reached the DOM.
  *
@@ -102,8 +104,8 @@ function scanBag(
   into: UnevaluatedExpressionFinding[],
   skip?: (key: string, value: string) => boolean
 ): void {
-  if (!bag || typeof bag !== 'object' || Array.isArray(bag)) return;
-  for (const [key, value] of Object.entries(bag as Record<string, unknown>)) {
+  if (!isConfigBag(bag)) return;
+  for (const [key, value] of Object.entries(bag)) {
     if (typeof value !== 'string') continue;
     if (skip?.(key, value)) continue;
     const expressions = findExpressionSources(value);
@@ -141,10 +143,7 @@ export function collectUnevaluatedExpressions(
 
   // The hoist copies every `properties.*` value onto the node's top level, so
   // the same residue is visible twice. Report the authored spelling only.
-  const hoisted =
-    properties && typeof properties === 'object' && !Array.isArray(properties)
-      ? (properties as Record<string, unknown>)
-      : undefined;
+  const hoisted = isConfigBag(properties) ? properties : undefined;
   scanBag(spread, 'schema', findings, (key, value) => hoisted?.[key] === value);
 
   scanBag(props, 'props', findings);

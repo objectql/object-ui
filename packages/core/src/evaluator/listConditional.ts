@@ -334,6 +334,71 @@ export function evalRowPredicate(
   return verdict.value;
 }
 
+/** The two halves of a {@link partitionRowsByPredicate} verdict over a selection. */
+export interface RowPartition<TRow> {
+  /** Records whose predicate passed — the ones an operation may act on. */
+  eligible: TRow[];
+  /**
+   * How many records were filtered out. A caller that shrinks a user's
+   * selection owes them this number: a run over fewer records than they picked
+   * must say so rather than quietly shrinking.
+   */
+  skipped: number;
+}
+
+/**
+ * Split a set of records by one per-record predicate — the SET-shaped
+ * counterpart of {@link evalRowPredicate}, and the reason a bulk gate never
+ * needs a hook.
+ *
+ * A bulk affordance spans N records, so its gate is a **loop**, and React
+ * forbids calling `useRowPredicate` (or any hook) per iteration. Every bulk
+ * surface therefore reaches for `evalRowPredicate` directly; this wrapper is
+ * that loop written once, with the three cases each caller was otherwise
+ * re-deriving:
+ *
+ *   - **absent** (`null` / `undefined` / blank string) — nothing is gated, so
+ *     `rows` is returned BY REFERENCE and `skipped` is 0. The common case
+ *     allocates nothing and a caller's downstream memo still holds.
+ *   - **boolean** — a verdict, not an expression, short-circuited exactly as
+ *     `useCondition` / `useRowPredicate` do. Handing `true` to the engine
+ *     produces `{ dialect: 'cel', source: undefined }`, which faults and — on
+ *     this fail-closed path — would disqualify every record, so the most
+ *     explicit way to say "always" would exclude everyone (objectui#3492).
+ *   - **expression** — evaluated once per record with that record in scope,
+ *     **fail-closed**: a predicate that faults must not hand the caller records
+ *     it was written to exclude. `warnOnError` (default `true`) makes the
+ *     resulting exclusion diagnosable once per predicate instead of silent.
+ *
+ * The fail-closed default is what separates this from a lenient record-free
+ * evaluation, and the difference is not mere strictness: evaluated with NO
+ * record bound, `record.status != 'paid'` returns `true` for every row —
+ * including the ones it was written to exclude — so an authored gate is not
+ * weakened, it is inverted for half its inputs (objectui#3067).
+ */
+export function partitionRowsByPredicate<TRow extends Record<string, unknown>>(
+  pred: FieldRulePredicate | boolean | undefined | null,
+  rows: readonly TRow[],
+  opts: Omit<RowPredicateOptions, 'fallback' | 'rowless'> = {},
+): RowPartition<TRow> {
+  if (pred == null || pred === '') {
+    return { eligible: rows as TRow[], skipped: 0 };
+  }
+  if (typeof pred === 'boolean') {
+    return pred
+      ? { eligible: rows as TRow[], skipped: 0 }
+      : { eligible: [], skipped: rows.length };
+  }
+  const eligible = (rows as TRow[]).filter(row =>
+    evalRowPredicate(pred, row, {
+      ...opts,
+      warnOnError: opts.warnOnError ?? true,
+      fallback: false,
+    }),
+  );
+  return { eligible, skipped: rows.length - eligible.length };
+}
+
 // ---------------------------------------------------------------------------
 // Conditional formatting
 // ---------------------------------------------------------------------------

@@ -71,16 +71,24 @@
  *   - `FormSection.fields` elements are the spec's `FormField` (29 keys), not
  *     the 26-key {@link FormFieldSpec} objectui#5542 converged and pinned.
  *     Re-pointing that position is what would silently re-open #5542.
+ *   - `FormFieldSpec.options` elements are the spec's `SelectOption`, with
+ *     `visibleWhen` re-pointed to {@link VisibilityPredicate} and `default`
+ *     dropped (objectui#6247). This was the last position still hand-written
+ *     rather than derived, and what it cost is written out at that key: two of
+ *     the spec's five option keys were dropped by SILENCE, which is how a
+ *     legally-authored per-option `visibleWhen` came to parse clean and render
+ *     inert.
  *
  * So every key the two layers agree on comes FROM the spec and cannot fall
- * behind it, and each of the four positions where this layer is deliberately
- * narrower is named in an `Omit` list and restated once, next to its reason.
+ * behind it, and each position where this layer is deliberately narrower is
+ * named in an `Omit` list and restated once, next to its reason.
  * `form-spec.containers.test.tsx` pins both halves: that the derived keys really
  * are the spec's, and that each narrowing still refuses the arm it means to
  * refuse. Its console twin, `FormPage.viewSpec.test.ts`, pins the same two
  * types back out of that app's own renderer signature.
  */
 
+import type { SelectOption } from '@objectstack/spec/data';
 import type { FormSection, FormView } from '@objectstack/spec/ui';
 
 /**
@@ -99,8 +107,57 @@ export interface FormFieldSpec {
   // 🆕 Field type from Data.FieldType (auto-infers widget)
   type?: string;
   
-  // 🆕 Field config from Data.Field
-  options?: Array<{ label: string; value: string; color?: string }>;
+  /**
+   * The select options this field offers — DERIVED from the spec's own
+   * `SelectOption`, with the two narrowings this layer needs named in the
+   * `Omit` below (objectui#6247).
+   *
+   * It was a hand-written `{ label; value; color? }` triple: three of the
+   * spec's five keys, with the other two dropped by silence rather than by a
+   * named narrowing — the one element type in this file that the header's
+   * "every key the two layers agree on comes FROM the spec" rule had never
+   * been applied to. `visibleWhen` was among the dropped pair, so an author
+   * could legally write a per-option predicate into a `*.form.ts`, have it
+   * parse clean against `SelectOptionSchema` (`z.core.$strict`, so the schema
+   * really does declare it), and get a narrowing that this renderer then
+   * ignored: accepted, stored, shipped, inert — ADR-0049's declared≠enforced,
+   * and failing in the PERMISSIVE direction (the option stayed offered).
+   *
+   *   - `visibleWhen` is RE-POINTED, not dropped: the spec's `ExpressionInput`
+   *     makes `dialect` required and `source` optional, while the predicate
+   *     that actually reaches an evaluator here is {@link VisibilityPredicate}
+   *     (`dialect` optional, `source` required) — the same re-pointing, for the
+   *     same reason, that `FormSectionSpec` already makes for its own
+   *     `visibleWhen` / `visibleOn`. One vocabulary per document.
+   *   - `default` stays DROPPED, and now says so. Nothing on this surface reads
+   *     it: none of the three controls that consume `options` seeds a value
+   *     from it, so declaring it here would advertise an authoring key this
+   *     renderer does not honour — the very shape the `visibleWhen` half of
+   *     this comment exists to close.
+   *
+   *     ⚠️ RULED 2026-08-28 (objectui#6263 / objectstack#12868, executed
+   *     upstream by objectstack PR #13033), so this is no longer an open
+   *     question this file is holding open: the FORM-VIEW option vocabulary
+   *     does not accept a per-option `default`, and the drop above is now the
+   *     ruled shape rather than a pending decision. **Where the pre-selected
+   *     choice IS declared:** on the OBJECT definition — the field's
+   *     `defaultValue`, or the object option's own `default: true`, which the
+   *     engine honours on the insert path (`applyFieldDefaults` falls back to
+   *     the option marked `default: true` when the field declares no
+   *     `defaultValue`; `defaultValue` wins when both are declared —
+   *     objectstack#7246, ruled `enforce`, PR #7388). That is why
+   *     `SelectOptionSchema` still carries the key and only this reference site
+   *     narrows it: one surface honours it, this one deliberately does not, and
+   *     a second default contract here is what the 2026-08-10 ruling's objectui
+   *     rider told the console not to grow.
+   *
+   *     ⛔ Removing `'default'` from the `Omit` below re-admits it. That is now
+   *     a `tsc` failure, not a code-review question: PIN I in
+   *     `form-spec.containers.test.tsx`.
+   */
+  options?: Array<
+    Omit<SelectOption, 'visibleWhen' | 'default'> & { visibleWhen?: VisibilityPredicate }
+  >;
   reference?: string;
   /**
    * Sibling field name(s) whose value this field's widget reads to decide WHAT

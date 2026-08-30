@@ -427,9 +427,19 @@ describe('ceiling sensitivity, judged live (objectui#5924)', () => {
   /** The ceiling this file shipped before objectui#5924 re-baselined it. */
   const CEILING_BEFORE_5924 = 4_086_000;
 
+  /**
+   * The payload objectui#5924 measured, pinned as its own constant.
+   *
+   * It used to read `BASELINE.gzipBytes`, which made a HISTORICAL incident
+   * reproduction track today's measurement: objectui#6683 moved the baseline
+   * and the recorded "8.63x" became arithmetic about a moment that never
+   * happened. A reproduction of a past reading has to carry that reading.
+   */
+  const BASELINE_AT_5924 = 3_299_898;
+
   it('reds on the drift objectui#5924 recorded: 8.6x the regression above the live payload', () => {
     const result = evaluateHeadroomSensitivity({
-      report: sensitivityReport(BASELINE.gzipBytes),
+      report: sensitivityReport(BASELINE_AT_5924),
       budgetBytes: CEILING_BEFORE_5924,
     });
     expect(result.status).toBe('error');
@@ -459,8 +469,11 @@ describe('ceiling sensitivity, judged live (objectui#5924)', () => {
       ...Object.keys(PER_CHUNK_GZIP_CEILINGS),
     ]);
     // A passing run still prints every measurement, so a reader watching a
-    // ceiling drift upward sees it coming rather than the day it reds.
-    expect(result.message).toContain('3222.6');
+    // ceiling drift upward sees it coming rather than the day it reds. The
+    // literal is `BASELINE.gzipBytes` rendered, re-taken when objectui#6683
+    // re-baselined it downward — a rendering derived in the test would agree
+    // with the renderer by construction and pin nothing.
+    expect(result.message).toContain('3177.7');
   });
 
   it('is exactly one regression wide, from either side of the line', () => {
@@ -635,7 +648,7 @@ describe('main', () => {
     expect(code).toBe(0);
     expect(outputs.closure_status).toBe('pass');
     expect(outputs.closure_chunks).toBe('5');
-    expect(outputs.closure_gzip_kb).toBe('3222.6');
+    expect(outputs.closure_gzip_kb).toBe('3177.7');
   });
 
   it('exits 1 — a verdict about the BUNDLE — when over budget', () => {

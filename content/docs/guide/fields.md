@@ -84,6 +84,49 @@ Object UI comes with built-in support for the standard [ObjectStack Protocol](ht
 | `user` | Person picker — searches the `sys_user` object (a lookup specialized to users) |
 | `owner` | Record owner — a `user` field, typically read-only and stamped with the current user |
 
+## What a number field silently rewrites
+
+`number`, `currency`, `percent` and `geolocation` render a native
+`type="number"` input. The browser — not ObjectUI — decides what that box will
+accept, and it rewrites some entries **before any widget code runs**. Two
+different things can happen, and only one of them is announced.
+
+### Announced: text the browser cannot read
+
+If the box is left holding something that is not a complete number, the browser
+reports `validity.badInput` and these widgets now say so: the control is marked
+`aria-invalid="true"` and a message is drawn under it —
+
+> Not saved: the text in this box is not a number. Enter a plain decimal (example: 1234.56).
+
+Measured in Chromium 141, typing any of `1e`, `1e-`, `1e+`, `5e`, `-`, `.`,
+`+`, `-.` or `e` leaves the box **visibly displaying** what was typed while its
+value reads empty. Before this was announced, the field simply stored nothing
+and said nothing.
+
+### ⚠️ NOT announced: entries the browser silently truncates
+
+This is the important limitation, and it is deliberate rather than an oversight.
+
+| you paste / type | the field stores |
+|---|---|
+| `1.2.3` | `1.23` |
+| `0x10` | `10` |
+| `12abc` | `12` |
+
+**No warning is shown for these, and no widget-side check can add one.** The
+browser filters the keystrokes or the pasted text as it arrives, so by the time
+ObjectUI sees the field the discarded characters are already gone — there is
+nothing left to detect. This is native `type="number"` behaviour; recovering it
+would mean giving up the numeric keyboard on mobile and the `min`/`max`/`step`
+spinner on every numeric field in the product.
+
+⛔ **So do not read "no warning" as "the value is correct."** A warning means the
+browser could not read the box at all. Silence means the browser read
+*something* — which may be less than you typed. When exact input matters
+(reference codes, serial numbers, anything where `1.2.3` is meaningful), declare
+a `text` field, not a numeric one.
+
 ## Using Renderers in Custom Components
 
 If you are building your own custom component (like a Kanban board card), you can leverage the registry to render fields without reinventing the wheel.

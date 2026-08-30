@@ -24,8 +24,28 @@ export interface ObjectPerm {
   allowEdit?: boolean;
   allowDelete?: boolean;
   allowTransfer?: boolean;
-  allowRestore?: boolean;
-  allowPurge?: boolean;
+  // `allowRestore` / `allowPurge` were REMOVED here (objectui#6595). Both gated
+  // `restore` / `purge` ObjectQL operations that have never existed — a
+  // dispatched restore/purge is denied unconditionally by the evaluator's
+  // fail-closed destructive-operation backstop — so the matrix authored two
+  // checkboxes no runtime has ever read. `@objectstack/spec` retired both keys
+  // as `retiredKey()` tombstones (objectstack#12497; maintainer ruling
+  // 2026-08-26 accepting objectstack#1883 recommendation B, ADR-0049
+  // enforce-or-remove).
+  //
+  // THE RETURN PATH: both keys come back with the M2 lifecycle initiative,
+  // whose restart is recorded upstream on objectstack#1883. Restoring them
+  // means restoring three things together — these fields, the columns in
+  // `PermissionMatrixEditor`, the rows in `previews/PermissionPreview` — and
+  // only alongside the operations that make them enforceable.
+  //
+  // A value written by an older editor is not modelled here and not authorable.
+  // It is carried through save untouched, as any key this editor does not model
+  // is (`PermissionSetDraft`'s index signature below states that rule for the
+  // record; `updateObjectPerm`'s spread applies it per row). Stripping it is
+  // NOT this change: the installed spec still accepts both keys, so a strip
+  // today would delete stored data the schema still honours. That belongs with
+  // the `@objectstack/spec` bump that lands the retirement.
   viewAllRecords?: boolean;
   modifyAllRecords?: boolean;
 }

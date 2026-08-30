@@ -180,8 +180,203 @@
         }
       })();
     </script>
+    <!--
+      BOOT SPLASH — the console's FIRST PAINT (objectui#2628).
+
+      Everything above this point is invisible: `<body>` held `<div id="root">`
+      and nothing else, so the browser had nothing to paint until the module
+      graph had downloaded, evaluated, and resolved the two network round trips
+      `src/main.tsx` awaits before `createRoot().render()`. Measured on this
+      repository's own production build (Playwright + CDP `Page.startScreencast`,
+      frames classified pixel-by-pixel, corroborated by the Paint Timing API):
+
+        localhost, no throttling      1224-2016 ms of PURE WHITE
+        20 Mbps / 80 ms RTT           2289-2297 ms
+        Fast 4G (4 Mbps / 70 ms)      5808-6167 ms
+
+      — 2.21 MB over 64 requests before one pixel of content. The card reported
+      3-6 s from staging; the Fast-4G column is that band.
+
+      WHY IT IS HERE AND NOT IN A COMPONENT. The gap being filled IS the load of
+      the JavaScript, so an indicator that ships inside that JavaScript cannot
+      paint during it — it becomes visible at exactly the moment it is no longer
+      needed. This markup is in the HTML document, so it paints from the parser,
+      before the first chunk is even requested. `LoadingScreen`
+      (`@object-ui/app-shell`) is NOT a second copy of this and must not be
+      confused with it: it renders AFTER React mounts and owns the init screen's
+      ten-language step copy. This one covers the window before that.
+
+      NO TEXT, deliberately. A string here could not be translated — the i18n
+      packs live in the bundle this is waiting for — so shipping copy would mean
+      shipping English into a ten-language product, and shipping the product
+      name would mean waiting for `GET /api/v1/runtime/config`. The mark is the
+      same gradient tile + pulsing halo `LoadingScreen` opens with, so the
+      handoff reads as the same screen filling in rather than two loaders. It is
+      `aria-hidden` for the same reason there is no text: it carries nothing a
+      screen reader could use, and `LoadingScreen` brings the accessible copy
+      with it a moment later.
+
+      The colours are the app's OWN canvas and accent tokens
+      (`apps/console/src/index.css`: `--background`, `--primary`), inlined
+      because that stylesheet is also in the bundle. That is what makes the
+      window non-white rather than merely non-empty: the first frame is already
+      the surface `LoadingScreen` then draws on.
+    -->
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* `--background`, light. */
+        background: hsl(240 24% 97%);
+      }
+      :root[data-boot-theme='dark'] #boot-splash {
+        /* `--background`, dark. */
+        background: hsl(240 6% 6%);
+      }
+      #boot-splash .boot-splash-mark {
+        position: relative;
+        width: 72px;
+        height: 72px;
+      }
+      /* `bg-primary/20 rounded-2xl blur-xl animate-pulse` */
+      #boot-splash .boot-splash-halo {
+        position: absolute;
+        inset: 0;
+        border-radius: 1rem;
+        background: hsl(211 100% 50% / 0.2);
+        filter: blur(24px);
+        animation: boot-splash-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      /* `bg-linear-to-br from-primary to-primary/80 p-4 rounded-2xl shadow-lg` */
+      #boot-splash .boot-splash-tile {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        box-sizing: border-box;
+        padding: 16px;
+        border-radius: 1rem;
+        background-image: linear-gradient(
+          to bottom right,
+          hsl(211 100% 50%),
+          hsl(211 100% 50% / 0.8)
+        );
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        color: #fff;
+      }
+      :root[data-boot-theme='dark'] #boot-splash .boot-splash-halo {
+        background: hsl(211 100% 60% / 0.2);
+      }
+      :root[data-boot-theme='dark'] #boot-splash .boot-splash-tile {
+        background-image: linear-gradient(
+          to bottom right,
+          hsl(211 100% 60%),
+          hsl(211 100% 60% / 0.8)
+        );
+      }
+      #boot-splash svg {
+        display: block;
+        width: 40px;
+        height: 40px;
+      }
+      @keyframes boot-splash-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+      /* Motion is the only moving part; without it the tile still paints, so
+         the window stays non-white for readers who ask for no animation. */
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash .boot-splash-halo {
+          animation: none;
+        }
+      }
+    </style>
+    <!--
+      Theme + handoff for the splash above. A CLASSIC inline script for the same
+      reason the shim above is one: it must have run before the parser reaches
+      `<div id="boot-splash">`, so the very first painted frame already carries
+      the right canvas colour instead of flashing light and then correcting.
+
+      THEME. `ThemeProvider` (@object-ui/app-shell) stores the user's choice
+      under `vite-ui-theme` and defaults to following the OS; this reads the same
+      key and the same `prefers-color-scheme` so a dark-theme user never sees a
+      light frame. It writes `data-boot-theme` rather than the `light`/`dark`
+      CLASS that provider toggles, because those two must not collide: the
+      provider does `classList.remove('light','dark')` on mount and would be
+      undoing a decision it did not make. The attribute is removed with the
+      splash, so it exists only inside the boot window.
+
+      HANDOFF. The splash goes the moment React's first commit puts anything in
+      `#root` — not on a timer, and not after some fixed delay. A timer would
+      either uncover the white page again or sit on top of a rendered app. The
+      observer watches the document rather than `#root` because it runs from
+      `<head>`, before `#root` has been parsed. The mutation callback is a
+      microtask checkpoint on React's commit task, so removal lands in the same
+      frame the app first paints: no gap, and never two indicators at once.
+
+      If the bundle never evaluates at all, the splash stays up rather than
+      reverting to white. That is a deliberately unchanged failure MODE — a
+      boot that never mounts was a permanently blank page before this and is a
+      permanently pending one now — and it stays detectable: the
+      `#root`-content assertion in `e2e/console-rendering.spec.ts` reads the
+      React root, which this does not touch.
+    -->
+    <script>
+      (function installBootSplash() {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('vite-ui-theme');
+        } catch (_) {
+          /* storage blocked — fall through to the OS preference */
+        }
+        var followsOs = !stored || stored === 'system' || stored === 'auto';
+        var prefersDark =
+          typeof matchMedia === 'function' &&
+          matchMedia('(prefers-color-scheme: dark)').matches;
+        var dark = stored === 'dark' || (followsOs && prefersDark);
+        document.documentElement.setAttribute('data-boot-theme', dark ? 'dark' : 'light');
+
+        if (typeof MutationObserver !== 'function') return;
+        var observer = new MutationObserver(function () {
+          var root = document.getElementById('root');
+          if (!root || !root.firstChild) return;
+          observer.disconnect();
+          var splash = document.getElementById('boot-splash');
+          if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+          document.documentElement.removeAttribute('data-boot-theme');
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      })();
+    </script>
   </head>
   <body>
+    <div id="boot-splash" aria-hidden="true">
+      <div class="boot-splash-mark">
+        <div class="boot-splash-halo"></div>
+        <div class="boot-splash-tile">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M3 5V19A9 3 0 0 0 21 19V5"></path>
+            <path d="M3 12A9 3 0 0 0 21 12"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -11,7 +11,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AssignedUsersSection } from './AssignedUsersSection';
 
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => mockAdapter,
 }));
 vi.mock('@object-ui/fields', () => ({

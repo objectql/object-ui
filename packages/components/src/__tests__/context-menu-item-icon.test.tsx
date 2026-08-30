@@ -169,7 +169,7 @@ describe('ui:context-menu item icon resolution (objectui#6278)', () => {
         { label: 'Copy', value: 'copy', icon: 'copy' },
         { label: 'Cut', value: 'cut', icon: 'scissors' },
         { label: 'Paste', value: 'paste', icon: 'clipboard' },
-        { type: 'separator' },
+        { separator: true },
         { label: 'Delete', value: 'delete', icon: 'trash' },
       ]);
       for (const [label, name] of [

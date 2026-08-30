@@ -241,7 +241,7 @@ const ko = {
     },
     recipient: {
       selectTypeFirst: "먼저 수신자 유형을 선택하세요.",
-      loading: "불러오는 중…",
+      loading: "로딩 중…",
       search: "검색…",
       empty: "일치하는 항목 없음",
       select: "수신자 선택",
@@ -259,6 +259,14 @@ const ko = {
       jsonOnly: "이 조건은 JSON으로만 편집할 수 있습니다",
       editAsJson: "JSON으로 편집",
       useVisualBuilder: "비주얼 빌더 사용",
+    },
+    object: {
+      invalidJson: "잘못된 JSON",
+    },
+    location: {
+      refusedFormat:
+        "저장되지 않았습니다: 위도, 경도 쌍으로 입력하세요(예: 30.2741, 120.1551).",
+      refusedRange: "저장되지 않았습니다: {{detail}}",
     },
     tags: {
       placeholder: "입력 후 Enter 키로 추가…",
@@ -337,8 +345,7 @@ const ko = {
       undo: "되돌리기",
       undoing: "되돌리는 중…",
       done: "완료",
-      selectPlaceholder: "선택…",
-      loading: "불러오는 중…",
+      loading: "로딩 중…",
     },
     actions: "작업",
     edit: "편집",
@@ -439,7 +446,7 @@ const ko = {
       historyDescription: "이 객체의 최근 가져오기입니다.",
       historyHint: "백그라운드 가져오기 작업, 최신순.",
       historyRefresh: "새로고침",
-      historyLoading: "불러오는 중…",
+      historyLoading: "로딩 중…",
       historyEmpty: "아직 가져오기가 없습니다.",
       historyUnsupported: "이 데이터 소스는 가져오기 기록을 지원하지 않습니다.",
       historyColStatus: "상태",
@@ -531,9 +538,7 @@ const ko = {
     month: "월",
     week: "주",
     day: "일",
-    agenda: "일정",
     allDay: "종일",
-    noEvents: "일정이 없습니다",
     newEvent: "새 일정",
     moreEvents: "+{{count}} 더보기",
   },
@@ -676,6 +681,15 @@ const ko = {
     },
     gantt: {
       rowLabel: "항목",
+      unusableRange: {
+        malformedDate:
+          "사용할 수 없는 간트 날짜 범위 — {{path}}은(는) {{value}}이며 유효한 날짜가 아닙니다. 모든 간트 날짜는 파싱할 수 있어야 합니다: 각 행 항목의 startDate와 endDate, 그리고 스키마에 고정한 minDate / maxDate.",
+        inverted:
+          "사용할 수 없는 간트 날짜 범위 — minDate {{minDate}}이(가) maxDate {{maxDate}}보다 뒤입니다. 고정한 minDate / maxDate는 행에서 계산한 범위보다 우선하므로 이 축에는 열이 없고 막대를 배치할 수 없습니다. 두 값을 서로 바꾸세요.",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "지원되지 않는 variant \"gantt\" — 객체 바인딩 타임라인은 피드 variant({{variants}})를 렌더링합니다. 간트는 각각 중첩된 items를 가진 리터럴 행이 필요하므로 여기서는 간트 축(scale)이 적용되지 않습니다.",
     },
   },
   gantt: {
@@ -1027,16 +1041,8 @@ const ko = {
     noValue: "값 없음",
   },
   chart: {
-    noData: "차트 데이터가 없습니다",
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
-  },
-  map: {
-    searchLocations: "위치 검색…",
-    locationDetails: "위치 상세",
-    markersCount: "마커 {{count}}개",
-    invalidCoordinates: "좌표가 누락되었거나 유효하지 않아 {{count}}개 레코드가 지도에서 제외되었습니다.",
-    invalidCoordinatesPlural: "좌표가 누락되었거나 유효하지 않아 {{count}}개 레코드가 지도에서 제외되었습니다.",
   },
   dashboard: {
     noRows: "행 없음",
@@ -1353,7 +1359,6 @@ const ko = {
       defaultValue: "기본값",
       placeholder: "자리 표시자",
       referenceTo: "참조 대상",
-      formula: "수식",
       options: "옵션",
       addOption: "옵션 추가",
       validationRules: "유효성 검사 규칙",
@@ -2275,8 +2280,6 @@ const ko = {
     browseMarketplace: "앱 마켓플레이스 탐색",
     quickActions: {
       title: "빠른 작업",
-      createApp: "앱 생성",
-      createAppDesc: "새 애플리케이션으로 시작",
       manageObjects: "객체 관리",
       manageObjectsDesc: "데이터 모델 구성",
       systemSettings: "시스템 설정",
@@ -2292,11 +2295,6 @@ const ko = {
     greetingNight: "야간 작업 중",
     heroTagline: "마지막으로 중단한 곳에서 이어서 하거나 새로운 것을 발견해 보세요.",
     open: "열기",
-    stats: {
-      apps: "앱",
-      starred: "즐겨찾기",
-      recent: "최근",
-    },
     recentApps: {
       title: "최근 열린 항목",
       itemType: {
@@ -2327,7 +2325,6 @@ const ko = {
       organizations: "조직",
       roles: "역할",
       configuration: "구성",
-      createApp: "앱 만들기",
       administration: "관리",
       datasources: "데이터 소스",
       documentation: "문서",
@@ -2417,8 +2414,6 @@ const ko = {
     cancel: "취소",
     confirm: "확인",
     uploading: "업로드 중…",
-    defaultActionTitle: "작업",
-    ok: "확인",
     lookupPlaceholder: "{{label}}의 레코드 ID",
     lookupHelpText: "이 매개변수에 참조 개체가 설정되어 있지 않아 레코드 선택기를 사용할 수 없습니다. 레코드 ID를 직접 입력하거나 관리자에게 작업 매개변수 수정을 요청하세요.",
   },
@@ -2426,11 +2421,6 @@ const ko = {
     title: "작업 확인",
     confirm: "계속",
     cancel: "취소",
-  },
-  rowAction: {
-    openMenu: "메뉴 열기",
-    edit: "편집",
-    delete: "삭제",
   },
   navigationSync: {
     addedPage: "탐색 업데이트: 페이지 \"{{name}}\" 추가됨",
@@ -2462,15 +2452,6 @@ const ko = {
     printDialogOpening: "브라우저의 인쇄 대화 상자를 여는 중입니다（PDF 내보내기가 아닙니다）",
     exportFailed: "내보내기 실패: {{message}}",
     forecastSoon: "예측 보기가 곧 출시됩니다",
-  },
-  recordDetail: {
-    viewersTooltip: "현재 이 레코드를 보고 있는 사용자",
-  },
-  cellRender: {
-    empty: "비어 있음",
-    yes: "예",
-    no: "아니요",
-    systemFields: "시스템",
   },
   user: {
     profile: "프로필",
@@ -3020,7 +3001,7 @@ const ko = {
   },
   approvalsInbox: {
     loadMore: '더 보기',
-    loadingMore: '불러오는 중…',
+    loadingMore: '로딩 중…',
     loadedOf: '{{total}}개 중 {{loaded}}개 로드됨',
     actEscalate: 'SLA 에스컬레이션',
     systemSlaActor: '시스템(SLA)',
@@ -3406,6 +3387,44 @@ const ko = {
       bulkFailureJoiner: "; ",
       bulkOperationFailed: "일괄 작업 실패: {{reason}}",
     },
+  },
+  // objectui#6301 — 설정 › 패키지 자동화 (ADR-0126 §7.4). 용어는 기존 번역을
+  // 따릅니다: `common.package` = 패키지, `flowRunner.completed` = 플로우,
+  // 인용부호는 「」. ⛔ 계보·드리프트를 나타내는 표현은 이 그룹에 두지 않습니다 (§9).
+  packagedAutomation: {
+    title: "패키지 자동화",
+    subtitle: "설치된 패키지가 제공하는 플로우와 액션입니다. 이 배포에서 끌 수 있으며, 플로우는 새 이름으로 복제해 사용자 지정할 수도 있습니다. 편집은 Studio에서 합니다.",
+    refresh: "새로고침",
+    flowsHeading: "패키지 플로우",
+    actionsHeading: "패키지 액션",
+    colFlow: "플로우",
+    colActivation: "활성화 상태",
+    colActions: "작업",
+    toggleLabel: "{{label}}의 활성화 상태",
+    on: "켜짐",
+    off: "꺼짐",
+    clone: "복제",
+    cloneTitle: "패키지 플로우 복제",
+    cloneBody: "사본은 정의 전체를 그대로 가져가며 새 머신 이름과 레이블이 필요합니다. 사본은 Studio에서 편집하세요.",
+    cloneName: "새 머신 이름",
+    cloneLabel: "새 레이블",
+    cancel: "취소",
+    cloneConfirm: "복제본 만들기",
+    cloneCreated: "플로우 「{{name}}」을(를) 만들었습니다.",
+    emptyTitle: "패키지 플로우 없음",
+    emptyBody: "이 배포에는 자동화 플로우를 제공하는 설치된 패키지가 없습니다. 직접 작성한 플로우는 Studio에 있습니다.",
+    loadFailed: "패키지 자동화를 불러오지 못했습니다.",
+    toggleFailedHttp: "활성화 상태를 변경하지 못했습니다 (HTTP {{status}}).",
+    toggleFailed: "활성화 상태를 변경하지 못했습니다.",
+    cloneFailedHttp: "이 플로우를 복제하지 못했습니다 (HTTP {{status}}).",
+    cloneFailed: "이 플로우를 복제하지 못했습니다.",
+    actionsSubtitle: "설치된 패키지가 제공하는 액션입니다. 이 배포에서 끄면 액션이 제공되는 모든 곳에서 실행되지 않습니다. Studio에서 직접 액션을 따로 작성하는 것은 계속 가능합니다.",
+    colAction: "액션",
+    colObject: "오브젝트",
+    actionToggleLabel: "{{object}}의 {{label}} 활성화 상태",
+    actionsEmptyTitle: "패키지 액션 없음",
+    actionsEmptyBody: "이 배포에는 액션을 선언하는 설치된 패키지가 없습니다. 직접 작성한 액션은 Studio에 있습니다.",
+    actionsLoadFailed: "패키지 액션을 불러오지 못했습니다.",
   },
 };
 

@@ -309,6 +309,42 @@ export function detectBuilderHandoff(result: unknown): BuilderHandoff | undefine
   return { prompt, ...(packageId ? { packageId } : {}) };
 }
 
+/**
+ * cloud#1658 — the ask agent's `open_record` structured hand-off: the OTHER
+ * ending of a write request. Envelope
+ * `{ status:'record_handoff', handoff:'record', objectName, recordId, label?, reason? }`.
+ * Lifted so the chat renders an explicit "打开这条记录 →" action landing on the
+ * record the agent already resolved — the whole point is that the user never
+ * re-finds a record the agent has in hand. Both ids are REQUIRED: a hand-off
+ * with either missing is dropped here exactly as the server refuses to emit
+ * one, because a card pointing nowhere is worse than the prose it replaces.
+ */
+export interface RecordHandoff {
+  objectName: string;
+  recordId: string;
+  label?: string;
+  reason?: string;
+}
+
+export function detectRecordHandoff(result: unknown): RecordHandoff | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj || obj.status !== 'record_handoff') return undefined;
+  const str = (v: unknown): string | undefined => {
+    const t = typeof v === 'string' ? v.trim() : '';
+    return t.length > 0 ? t : undefined;
+  };
+  const o = obj as { objectName?: unknown; recordId?: unknown; label?: unknown; reason?: unknown };
+  const objectName = str(o.objectName);
+  const recordId = str(o.recordId);
+  if (!objectName || !recordId) return undefined;
+  return {
+    objectName,
+    recordId,
+    ...(str(o.label) ? { label: str(o.label) } : {}),
+    ...(str(o.reason) ? { reason: str(o.reason) } : {}),
+  };
+}
+
 export function detectProposedChanges(result: unknown): ProposedChanges | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'changes_proposed') return undefined;
@@ -586,6 +622,7 @@ function extractToolInvocations(
       const proposedPlan = detectProposedPlan(result);
       const proposedChanges = detectProposedChanges(result);
       const builderHandoff = detectBuilderHandoff(result);
+      const recordHandoff = detectRecordHandoff(result);
       // Promote a dangling `input-*` state to a terminal one so a reloaded
       // conversation never shows "Running" forever (the server doesn't always
       // snapshot the terminal tool state). Two cases:
@@ -619,6 +656,7 @@ function extractToolInvocations(
         proposedPlan,
         proposedChanges,
         builderHandoff,
+        recordHandoff,
         replayOutcome,
       } satisfies ChatToolInvocation;
     });

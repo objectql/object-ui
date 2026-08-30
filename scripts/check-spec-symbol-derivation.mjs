@@ -255,8 +255,10 @@ const ALLOW = {
       "Two-LAYER vocabulary, not two dialects of one concept (objectui#3090): the spec's " +
       "FormField is the authored form-VIEW shape (`field` = object-field reference, presentation " +
       "deltas only) while this is the runtime widget config (`name` = form data path, " +
-      "self-contained). Not derivable — and the spec's FormField type erases to `any` in its dist " +
-      "(objectstack#4171), so a re-export would delete typing outright. The layers meet only in " +
+      "self-contained). Not derivable. ⚠️ It is NOT the `any` erasure that blocks this any more: " +
+      "objectstack#4171 landed and the spec's FormField is typed — `spec-derived-unions.test.ts` " +
+      "pins `_specFormFieldIsNoLongerAny`. The blocker is the two-LAYER split above, which " +
+      "precision does not touch (guard header case 2c). The layers meet only in " +
       "`normalizeSectionField` (@object-ui/plugin-form), gated by " +
       "sectionFields.spec-parity.test.ts (per-key behavioral coverage of the spec key set, both " +
       "directions). Misimport of the spec names is banned by the no-restricted-imports entry in " +
@@ -337,6 +339,57 @@ const ALLOW = {
       "component would break the React `<XProvider>` convention and every consumer's JSX for " +
       "no defect. Pinned by packages/auth/src/__tests__/auth-spec-parity.test.ts, which fails " +
       "if the spec's `AuthProvider` ever stops being an enum of provider ids.",
+    issue: 4115,
+  },
+  // ── objectstack#4115 batch 8/8 (objectui#3162) ───────────────────────────────
+  // These three were the last DEBT entries. The ledger filed them as "blocked on
+  // objectstack#4171, burn down when the upstream `any` erasure lifts"; #4171
+  // closed completed 2026-07-30, and the re-measurement it licensed found none of
+  // them burnable — for reasons that are NOT the one the ledger recorded. They are
+  // deliberate dialects, so they belong here with the reason written down, rather
+  // than in a debt bucket implying work that measurement says must not happen.
+  // Every verdict below was measured in the BUILT dist at spec 17.2.0.
+  "@object-ui/types:NavigationItem": {
+    reason:
+      "Precise upstream, still not bindable — guard header case 2c. objectstack#4171 landed and " +
+      "the spec's NavigationItem is neither `any` nor `unknown` any more, so `no longer any` is " +
+      "settled and is NOT a licence to bind. The spec models navigation as a nine-variant " +
+      "discriminated union; objectui keeps one flat shape carrying `visible: boolean` (the spec " +
+      "takes a CEL string / Expression envelope, and `menuItemToNavigationItem` MANUFACTURES a " +
+      "boolean when it inverts legacy `MenuItem.hidden`), plus `pinned` (`useNavPins` + " +
+      "`FavoritesProvider`) and `defaultOpen`, neither of which the spec declares at either tier, " +
+      "plus a separator carrying `label`. Each blocker is pinned one-per-line in " +
+      "packages/types/src/__tests__/spec-derived-unions.test.ts, written to stop compiling the day " +
+      "that specific blocker lifts. What IS derivable is already derived (`NavigationItemType` and " +
+      "the per-branch keys come off the spec).",
+    issue: 4115,
+  },
+  "@object-ui/types:NavigationItemSchema": {
+    reason:
+      "Zod twin of the NavigationItem dialect, and the case where a precise upstream is most " +
+      "dangerous. The spec now ships `NavigationItemSchema: z.ZodType<NavigationItem, " +
+      "NavigationItemInput>` — pinned by `_specNavSchemaIsNoLongerAny` — so the ledger's stated " +
+      "reason (`the spec's is z.ZodType<any> and would validate nothing`) is spent. The live " +
+      "blocker is RUNTIME shape, invisible to every type-level probe: this schema has a published " +
+      "consumer in `objectui validate`, and referencing the spec's would make it REJECT metadata " +
+      "objectui accepts today — `pinned`, `defaultOpen` and a separator `label` all fail " +
+      "`unrecognized_keys` against the spec's `.strict()` branches, `visible: boolean` fails " +
+      "`invalid_union`, and a one-character `id` fails `too_small`. All five are pinned, behind two " +
+      "positive controls, in packages/types/src/__tests__/navigation-spec-parity.test.ts. " +
+      "Converging on the union is a breaking change tracked separately.",
+    issue: 4115,
+  },
+  "@object-ui/types:JoinedReportBlock": {
+    reason:
+      "Guard header case 2b, and still live: the spec declares `JoinedReportBlockSchema` as a bare " +
+      "`z.ZodTypeAny`, so its exported type resolves to `unknown`. Re-exporting would replace this " +
+      "package's precise block interface (`name`/`columns`/`groupingsDown`/`groupingsAcross`/" +
+      "`filter`/`chart`) with nothing at all. ⚠️ objectstack#4171 is CLOSED and this is STILL " +
+      "erased — that issue typed the RECURSIVE schemas and never touched this one, whose erasure " +
+      "has a different cause. Re-measured at spec 17.2.0: `IsUnknown` is still `true`. Pinned in " +
+      "packages/types/src/__tests__/report-chart-query-spec-parity.test.ts, which fails the day the " +
+      "spec types the schema — that pin, not the state of any upstream issue, is the release " +
+      "condition.",
     issue: 4115,
   },
   "@object-ui/types:SelectOption": {
@@ -495,13 +548,12 @@ const ALLOW = {
 // divergent `_input` — so re-exporting it would silently change what parses.
 // Compare `_input` too before touching a schema const.
 const DEBT_ISSUE = 4115;
-const DEBT = {
-  "@object-ui/types": [
-    "JoinedReportBlock",
-    "NavigationItem",
-    "NavigationItemSchema",
-  ],
-};
+// EMPTY since objectui#3162 (objectstack#4115 batch 8/8). The last three entries
+// were not burned down — they were MEASURED not-burnable and moved to ALLOW as
+// declared dialects, each carrying its own release condition as a pin. Re-adding
+// a name here means "collides, not yet triaged"; a name whose triage concluded
+// "deliberate divergence" belongs in ALLOW instead.
+const DEBT = {};
 
 // Files under these paths are not objectui's own authored surface.
 //   - `ui/` is the Shadcn no-touch zone (AGENTS.md #7): upstream 3rd-party files

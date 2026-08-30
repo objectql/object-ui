@@ -55,7 +55,8 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from '@object-ui/components';
-import { evaluatePredicate } from './predicate.js';
+import { usePredicateScope } from '@object-ui/react';
+import { evaluatePredicate, buildPredicateCtx, visibleOptions } from './predicate.js';
 import type { FormFieldSpec, FormSectionSpec, FormViewSpec, VisibilityPredicate } from './form-spec.js';
 import {
   WIDGETS,
@@ -709,6 +710,11 @@ function SchemaFormBody({
   // Live app locale (follows the i18next language, not just the browser) —
   // hoisted above the no-schema early return so the hook order is stable.
   const locale = useMetadataLocale();
+  // The host shell's predicate scope (`ExpressionProvider` → `usePredicateScope`).
+  // Hoisted here with `locale` so the hook order is stable across the early
+  // returns below. `buildPredicateCtx` selects only the ADR-0068 identity roots
+  // out of it and keeps `data` = the draft (objectui#6247).
+  const hostScope = usePredicateScope();
   // No schema → synthesize one from the value's top-level keys so the
   // form renderer can still produce a structured, labelled view (with
   // proper read-only semantics) instead of falling back to a raw JSON
@@ -751,7 +757,7 @@ function SchemaFormBody({
     .filter((k) => !hiddenFields.includes(k))
     .filter((k) => {
       const visibility = readVisibility(props[k] as any);
-      return !visibility || evaluatePredicate(visibility, { data: predicateData });
+      return !visibility || evaluatePredicate(visibility, buildPredicateCtx(predicateData, hostScope));
     });
 
   const v = value ?? {};
@@ -1007,9 +1013,14 @@ function SectionedSchemaForm({
   onChange: (key: string, val: unknown) => void;
 }) {
   const locale = useMetadataLocale();
+  // The host shell's predicate scope (`ExpressionProvider` → `usePredicateScope`).
+  // Hoisted here with `locale` so the hook order is stable across the early
+  // returns below. `buildPredicateCtx` selects only the ADR-0068 identity roots
+  // out of it and keeps `data` = the draft (objectui#6247).
+  const hostScope = usePredicateScope();
   const sections = (form.sections ?? []).filter((s) => {
     const visibility = readVisibility(s);
-    return !visibility || evaluatePredicate(visibility, { data: value });
+    return !visibility || evaluatePredicate(visibility, buildPredicateCtx(value, hostScope));
   });
 
   // Decide whether to render as tabs or stacked sections.
@@ -1022,7 +1033,7 @@ function SectionedSchemaForm({
         if (f.hidden) return false;
         if (hiddenFields.includes(f.field)) return false;
         const visibility = readVisibility(f);
-        if (visibility && !evaluatePredicate(visibility, { data: value })) {
+        if (visibility && !evaluatePredicate(visibility, buildPredicateCtx(value, hostScope))) {
           return false;
         }
         return true;
@@ -1139,7 +1150,7 @@ function SectionedSchemaForm({
             if (f.hidden) return false;
             if (hiddenFields.includes(f.field)) return false;
             const visibility = readVisibility(f);
-            return !visibility || evaluatePredicate(visibility, { data: value });
+            return !visibility || evaluatePredicate(visibility, buildPredicateCtx(value, hostScope));
           }),
     );
     if (tabSections.length === 0) return null;
@@ -1480,6 +1491,11 @@ function FieldControl({
   formData?: Record<string, unknown>;
 }) {
   const locale = useMetadataLocale();
+  // The host shell's predicate scope (`ExpressionProvider` → `usePredicateScope`).
+  // Hoisted here with `locale` so the hook order is stable across the early
+  // returns below. `buildPredicateCtx` selects only the ADR-0068 identity roots
+  // out of it and keeps `data` = the draft (objectui#6247).
+  const hostScope = usePredicateScope();
   // WHICH face renders is not decided here — `resolveFieldFace` decides it, and
   // `FieldRow` already called it with these very inputs to pick the naming
   // channel (objectui#5039). Calling the same pure function again here, rather
@@ -1666,6 +1682,13 @@ function FieldControl({
   const options = fieldSpec?.options;
   const enumValues = (effective?.enum as unknown[] | undefined) ?? undefined;
   
+  // ⚠️ The BRANCH condition reads the RAW list, deliberately (objectui#6247,
+  // Fork B → B1). Testing the FILTERED length here is the trap: a field whose
+  // every option is withdrawn would fall through this branch, then through
+  // `enumValues`, and land on the `string → Input` tail — so "withdraw every
+  // option" would render as a FREE-TEXT box, i.e. the exact opposite of the
+  // narrowing the author wrote. The face stays a Select; only its CONTENT is
+  // filtered, so an emptied set renders an empty picker.
   if (Array.isArray(options) && options.length > 0) {
     // Render from fieldSpec.options (Data.SelectOption[])
     return (
@@ -1678,7 +1701,7 @@ function FieldControl({
           <SelectValue placeholder={t('engine.form.selectEllipsis', locale)} />
         </SelectTrigger>
         <SelectContent>
-          {options.map((opt) => (
+          {visibleOptions(options, buildPredicateCtx(formData, hostScope)).map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
               {opt.color && (
@@ -2247,6 +2270,11 @@ function RecordField({
   onChange: (v: unknown) => void;
 }) {
   const locale = useMetadataLocale();
+  // The host shell's predicate scope (`ExpressionProvider` → `usePredicateScope`).
+  // Hoisted here with `locale` so the hook order is stable across the early
+  // returns below. `buildPredicateCtx` selects only the ADR-0068 identity roots
+  // out of it and keeps `data` = the draft (objectui#6247).
+  const hostScope = usePredicateScope();
   // State hoisted above every early return below (the widget delegation and the
   // specialized-editor branches) so hook order stays stable across renders.
   const [openKey, setOpenKey] = React.useState<string | null>(null);
@@ -2449,7 +2477,7 @@ function RecordField({
                 />
                 {specs.map((s) => {
                   const visibility = readVisibility(s);
-                  if (visibility && !evaluatePredicate(visibility, { data: row })) return null;
+                  if (visibility && !evaluatePredicate(visibility, buildPredicateCtx(row, hostScope))) return null;
                   const sub = pickSubSchema(schema, 'record', s.field);
                   return (
                     <FieldRow

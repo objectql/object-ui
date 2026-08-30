@@ -134,14 +134,38 @@ const SPEC_CLEAN = [
  * delete the only thing keeping the gallery's examples honest.
  */
 const KNOWN_STALE: Record<string, string> = {
-  // Not a typo in the sample: `packages/app-shell/.../object-fields-io.ts`
-  // `readFields()` branches on `shape: 'array' | 'record'` and round-trips
-  // whichever the draft used, so this sample is what covers the array branch in
-  // the gallery. Rewriting it to a record would drop that coverage while
-  // leaving the designer still able to author a shape ObjectSchema rejects,
-  // which is the actual question (AGENTS.md #0.1) — and it is an app-shell
-  // question, not a preview-samples one.
-  object: '`fields` is an array; ObjectSchema wants a record keyed by field name',
+  // TWO defects, and the reason says both on purpose (objectui#6647). A row
+  // here records what a reader would be rejected for, and a reason naming only
+  // the first blocker sends whoever fixes it back to a sample that is STILL
+  // red with no note — which is exactly how this row read until #6647.
+  //
+  // 1. The array `fields` — NOT a typo:
+  //    `packages/app-shell/.../object-fields-io.ts` `readFields()` branches on
+  //    `shape: 'array' | 'record'` and round-trips whichever the draft used, so
+  //    this sample is what covers the array branch in the gallery. Rewriting it
+  //    to a record would drop that coverage while leaving the designer still
+  //    able to author a shape ObjectSchema rejects, which is the actual
+  //    question (AGENTS.md #0.1) — an app-shell question, not a
+  //    preview-samples one.
+  //
+  // 2. `status.options` as bare strings, where `FieldSchema` wants option
+  //    OBJECTS (`{ label, value }`; an empty `{}` reports both as missing).
+  //    Unlike (1) this one is not deliberate — the designer cannot read it
+  //    either (`ObjectFieldInspector`'s `readOptions()` does
+  //    `String(o?.value ?? '')`, so three string options render as three BLANK
+  //    rows) — but re-authoring it means inventing the `value` codes the sample
+  //    should demonstrate, which is a sample-content decision, not a mechanical
+  //    re-spelling. Filed separately rather than smuggled in here.
+  //
+  // Both are measured against spec 17.2.0; only (1) is REPORTED today, because
+  // the parse short-circuits at `objects.0.fields` before it ever descends into
+  // a field. That masking is the whole hazard this ledger row now records: the
+  // third defect, `reference_to` on the lookup field, hid behind it for four
+  // spec releases and was fixed in #6647 — see its RETIRED_KEYS pin below,
+  // which is what stops it (or its twin) drifting back in while this row's
+  // quarantine keeps the reverse assertion satisfied on the array shape alone.
+  object:
+    '`fields` is an array; ObjectSchema wants a record keyed by field name (deliberate — it covers the array branch of `readFields()`). Fixing that alone is NOT enough: `status.options` are bare strings where the spec wants `{ label, value }` objects, reported only once the array shape stops short-circuiting the parse.',
   dashboard: 'widgets miss `dataset`/`values` and use retired `value`/`format`; `chart` is not a widget type',
   translation:
     'the `translations` collection is Array< Record< locale, TranslationData > >, but this sample is the metadata-RECORD form (name/label/locale/data) the console edits — so this row is a mapping mismatch, not necessarily a stale sample. Settle which contract the sample targets before guarding it.',
@@ -162,6 +186,15 @@ const NO_AUTHORING_SCHEMA: Record<string, string> = {
  * removed each one. A preview or inspector that still READS one of these is not
  * a reason to re-add it — that reader is the bug (see objectui#3236 / PR #3258,
  * where `ToolPreview` stopped rendering its three).
+ *
+ * For a SPEC_CLEAN sample this table is belt-and-braces: that row would already
+ * go red generically, and naming the key only keeps the retirement legible. For
+ * a KNOWN_STALE sample it is the ONLY guard there is — the reverse assertion
+ * below asks for `length > 0`, which the quarantined defect satisfies forever,
+ * so a retired key re-added to such a sample changes no test result at all.
+ * That is not hypothetical: it is how `object` carried `reference_to` through
+ * four spec releases (objectui#6647). Quarantine suppresses the generic signal,
+ * so per-key pins have to carry it.
  */
 const RETIRED_KEYS: Array<[type: string, key: string, adjudication: string]> = [
   ['tool', 'category', 'objectstack#3896'],
@@ -178,6 +211,14 @@ const RETIRED_KEYS: Array<[type: string, key: string, adjudication: string]> = [
   // item (by `order`), and the root landing follows `isDefault`.
   ['app', 'landing', 'objectstack#4001 — landing is now the first nav item'],
   ['app', 'homePageId', 'objectstack#4667 / #4709 — landing is now the first nav item'],
+  // Both spellings of the lookup target, pinned together because the spec
+  // refuses each BY NAME with the same did-you-mean and the designer reads
+  // neither: `ObjectFieldInspector` seeds its target box from `def.reference`.
+  // `referenceTo` is tombstoned in `@object-ui/types` with
+  // `specEquivalent: 'reference'`; the snake_case twin is the one that was
+  // actually in this sample.
+  ['object', 'reference_to', 'objectui#6647 — the spec spells it `reference`'],
+  ['object', 'referenceTo', 'objectui#6041 — the spec spells it `reference`'],
 ];
 
 /** Every key name appearing anywhere in `value`, at any depth. */

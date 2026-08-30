@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NODE_PALETTE, nodeCategory, type PaletteItem } from './flow-canvas-parts.js';
+import { apiBase } from '../../../utils/apiBase.js';
 
 /** Minimal shape of an engine action descriptor we consume. */
 interface ActionDescriptorLite {
@@ -38,11 +39,19 @@ interface ActionDescriptorLite {
   configSchema?: unknown;
 }
 
-/** Server API base — shared by the palette fetch and the runs panel. */
-export function apiBase(): string {
-  const url = (import.meta as { env?: { VITE_SERVER_URL?: string } }).env?.VITE_SERVER_URL || '';
-  return `${String(url).replace(/\/$/, '')}/api/v1`;
-}
+/**
+ * Server API base — shared by the palette fetch and the runs panel.
+ *
+ * The definition moved to `utils/apiBase.ts`; this module re-exports it so its
+ * existing importers are unchanged. It moved because importing it from HERE
+ * pulls this module's scope — and so the whole flow-designer canvas below it —
+ * into the importer's graph; see that file's header for what that cost.
+ *
+ * ⚠️ Imported and then exported, NOT `export { apiBase } from …`: this module
+ * calls `apiBase()` itself further down, and a bare re-export forwards the name
+ * without binding it in local scope.
+ */
+export { apiBase };
 
 /**
  * Merge engine descriptors onto the hardcoded base. Base order is canonical;

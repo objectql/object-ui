@@ -33,6 +33,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { readProps } from './readProps';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -44,12 +45,6 @@ interface ViewerProps {
   object?: string;
   mode?: 'diagram' | 'matrix' | 'summary';
   detail?: 'business' | 'technical';
-}
-
-function readProps(schema: any): ViewerProps {
-  const fromProperties = (schema?.properties ?? {}) as ViewerProps;
-  const fromProps = (schema?.props ?? {}) as ViewerProps;
-  return { ...fromProps, ...fromProperties };
 }
 
 /** Tolerate `fields` as either an object map or an array of `{name,...}`. */
@@ -360,7 +355,7 @@ function PermissionView({ name }: ViewerProps) {
 // ---------------------------------------------------------------------------
 
 export function ElementMetadataViewerRenderer({ schema }: { schema: any }) {
-  const props = readProps(schema);
+  const props = readProps<ViewerProps>(schema);
   switch (props.type) {
     case 'state_machine':
       return <StateMachineView {...props} />;

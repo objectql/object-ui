@@ -27,7 +27,9 @@
  * See `ObjectForm.submitRedirect.test.tsx` for the full account; the numbers for
  * this file:
  *
- * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign**: **6 of
+ * 1. **Restoring the old same-origin guard around the old assign**
+ *    (`isSameOriginUrl(behavior.url)`; the helper was deleted by objectui#5034,
+ *    so the mutation is now spelled inline): **6 of
  *    the 7 tests go RED**, the survivor being `navigates to a ruled relative
  *    path` — behaviour the old line also had. The same-origin-absolute test fails
  *    on the assign (the old guard answers yes and navigates — defect 3); the

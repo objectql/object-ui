@@ -199,7 +199,15 @@ export interface ValidationExpressionEvaluator {
  * Simple expression evaluator using a simple parser (no dynamic code execution)
  *
  * SECURITY: This implementation parses expressions into an AST and evaluates them
- * without using eval() or new Function(). It supports:
+ * without using eval() or new Function(). That is a remediation, not a style
+ * preference: an earlier revision compiled the predicate with
+ * `new Function(...contextKeys, "'use strict'; return (" + expression + ")")`,
+ * and CodeQL flagged it as "Unsafe code constructed from library input" —
+ * expressions reach this class from validation metadata, so that shape is a
+ * code-injection vector in any consumer that renders metadata it does not
+ * control. Never reintroduce eval(), new Function() or any other dynamic-code
+ * path here to buy expressiveness or speed; extend the parser, or inject a
+ * richer evaluator through the constructor (see NOT CEL below). Supports:
  * - Comparison operators: ==, !=, >, <, >=, <=
  * - Logical operators: &&, ||, !
  * - Property access: record.field, record['field']
@@ -218,7 +226,10 @@ export interface ValidationExpressionEvaluator {
  * pre-check agree with the server on richer predicates, pass a CEL-backed
  * `ValidationExpressionEvaluator` to the constructor.
  *
- * @see https://github.com/objectstack-ai/objectui/blob/main/SECURITY_FIX_SUMMARY.md
+ * The write-up this block used to link to (`SECURITY_FIX_SUMMARY.md`) was
+ * deleted with no successor; its load-bearing reasoning is inline above, and
+ * the original text remains readable at
+ * `git show ea72f1886^:SECURITY_FIX_SUMMARY.md`.
  */
 class SimpleExpressionEvaluator implements ValidationExpressionEvaluator {
   evaluate(expression: string, context: Record<string, any>): any {

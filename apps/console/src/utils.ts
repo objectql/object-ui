@@ -34,47 +34,11 @@ export function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-/**
- * Format a record title using the titleFormat pattern
- * @param titleFormat Pattern like "{name} - {email}", or an Expression
- *        envelope `{ dialect: 'template', source: '...' }` produced by the
- *        framework's compile step.
- * @param record The record data object
- * @returns Formatted title string
- */
-export function formatRecordTitle(titleFormat: string | { source?: string } | undefined, record: any): string {
-  const template: string | undefined =
-    typeof titleFormat === 'string'
-      ? titleFormat
-      : (titleFormat && typeof titleFormat === 'object' && typeof titleFormat.source === 'string')
-        ? titleFormat.source
-        : undefined;
-
-  if (!template || !record) {
-    return record?.id || record?._id || 'Record';
-  }
-
-  // Replace {fieldName} patterns with actual values
-  return template.replace(/\{(\w+)\}/g, (_match, fieldName) => {
-    const value = record[fieldName];
-    if (value === null || value === undefined) {
-      return '';
-    }
-    return String(value);
-  });
-}
-
-/**
- * Get display name for a record using titleFormat or fallback
- * @param objectDef Object definition with optional titleFormat
- * @param record The record data
- * @returns Display name for the record
- */
-export function getRecordDisplayName(objectDef: any, record: any): string {
-  if (objectDef?.titleFormat) {
-    return formatRecordTitle(objectDef.titleFormat, record);
-  }
-  
-  // Fallback: Try common name fields
-  return record?.name || record?.title || record?.label || record?.id || record?._id || 'Untitled';
-}
+// `formatRecordTitle` / `getRecordDisplayName` (a pre-ADR-0079 divergent
+// resolver pair, ~6 of which existed across surfaces) were removed here as
+// dead code (objectui#6558) — zero console importers, and their presence
+// re-armed the exact trap ADR-0079 closed: a same-named, same-signature
+// resolver one import away that ignores `nameField`/`displayNameField` and
+// ranks the legacy `titleFormat` template first. Console surfaces that need
+// a record title use the unified `@object-ui/core#getRecordDisplayName`
+// (and `formatTitleTemplate`), which the console already depends on.

@@ -146,6 +146,27 @@ ComponentRegistry.register('flex',
         { type: 'button', label: 'Button 2' },
         { type: 'button', label: 'Button 3' }
       ]
-    }
+    },
+    // `flex` renders `schema.children` (see `renderChildren` above) but did not
+    // DECLARE that it does, while `grid`, `card`, `container` and `stack` — the
+    // same directory, the same `ui` namespace — all do. The flag is not read by
+    // the render path, so nothing was broken at runtime; its consumers are
+    // elsewhere, and the gap made them contradict the renderer (objectui#6740).
+    //
+    // MEASURED, not inferred. Building the manifest the way the app builds it
+    // (`getKnownTypes()` + `getMeta()` -> `manifestFromConfigs`) and putting a
+    // `flex` node WITH children through `validateTree` returned
+    // `["not-a-container"]`, while `grid` / `card` / `container` under the same
+    // probe returned `[]` — the control that makes the reading real. Downstream,
+    // objectstack's three shipped `examples/app-showcase` html pages drew 32
+    // `not-a-container` warnings, every one of them on `flex` and `flex` the
+    // only source of them.
+    //
+    // `isContainer` alone, deliberately. The four `ui`-namespace siblings pair
+    // it with `resizable` / `resizeConstraints`, but the `page:*` containers in
+    // `containers.tsx` declare `isContainer: true` on its own — so the flag is
+    // independent of designer resize affordances, and minting one here would be
+    // a behaviour change this card did not measure.
+    isContainer: true
   }
 );

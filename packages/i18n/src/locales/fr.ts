@@ -260,6 +260,14 @@ const fr = {
       editAsJson: "Modifier en JSON",
       useVisualBuilder: "Utiliser le constructeur visuel",
     },
+    object: {
+      invalidJson: "JSON invalide",
+    },
+    location: {
+      refusedFormat:
+        "Non enregistré : saisissez une paire latitude, longitude (exemple : 30.2741, 120.1551).",
+      refusedRange: "Non enregistré : {{detail}}",
+    },
     tags: {
       placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",
     },
@@ -337,7 +345,6 @@ const fr = {
       undo: "Annuler",
       undoing: "Annulation…",
       done: "Terminé",
-      selectPlaceholder: "Sélectionner…",
       loading: "Chargement…",
     },
     actions: "Actions",
@@ -531,9 +538,7 @@ const fr = {
     month: "Mois",
     week: "Semaine",
     day: "Jour",
-    agenda: "Agenda",
     allDay: "Toute la journée",
-    noEvents: "Aucun événement",
     newEvent: "Nouvel événement",
     moreEvents: "+{{count}} de plus",
   },
@@ -676,6 +681,15 @@ const fr = {
     },
     gantt: {
       rowLabel: "Éléments",
+      unusableRange: {
+        malformedDate:
+          "Plage de dates du gantt inutilisable — {{path}} vaut {{value}}, ce qui n'est pas une date valide. Toutes les dates du gantt doivent être analysables : startDate et endDate de chaque élément de ligne, ainsi que tout minDate / maxDate fixé sur le schéma.",
+        inverted:
+          "Plage de dates du gantt inutilisable — minDate {{minDate}} est postérieur à maxDate {{maxDate}}. Un minDate / maxDate fixé l'emporte sur la plage calculée à partir des lignes ; cet axe n'a donc aucune colonne et aucune barre ne peut y être placée. Intervertissez les deux valeurs.",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "Variante « gantt » non prise en charge — une timeline liée à un objet affiche les variantes de flux ({{variants}}). Gantt nécessite des lignes littérales, chacune avec ses propres items imbriqués ; l'axe gantt (scale) est donc sans effet ici.",
     },
   },
   gantt: {
@@ -1029,16 +1043,8 @@ const fr = {
     noValue: "Aucune valeur",
   },
   chart: {
-    noData: "Aucune donnée de graphique disponible",
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
-  },
-  map: {
-    searchLocations: "Rechercher des lieux…",
-    locationDetails: "Détails du lieu",
-    markersCount: "{{count}} marqueurs",
-    invalidCoordinates: "{{count}} enregistrement avec des coordonnées manquantes ou invalides exclu de la carte.",
-    invalidCoordinatesPlural: "{{count}} enregistrements avec des coordonnées manquantes ou invalides exclus de la carte.",
   },
   dashboard: {
     noRows: "Aucune ligne",
@@ -1355,7 +1361,6 @@ const fr = {
       defaultValue: "Valeur par défaut",
       placeholder: "Espace réservé",
       referenceTo: "Référence à",
-      formula: "Formule",
       options: "Options",
       addOption: "Ajouter une option",
       validationRules: "Règles de validation",
@@ -2278,8 +2283,6 @@ const fr = {
     browseMarketplace: "Parcourir la marketplace d'apps",
     quickActions: {
       title: "Actions rapides",
-      createApp: "Créer une app",
-      createAppDesc: "Commencez avec une nouvelle application",
       manageObjects: "Gérer les objets",
       manageObjectsDesc: "Configurer les modèles de données",
       systemSettings: "Paramètres système",
@@ -2295,11 +2298,6 @@ const fr = {
     greetingNight: "Travail de nuit",
     heroTagline: "Reprenez là où vous vous êtes arrêté ou découvrez quelque chose de nouveau.",
     open: "Ouvrir",
-    stats: {
-      apps: "Applications",
-      starred: "Étoilés",
-      recent: "Récents",
-    },
     recentApps: {
       title: "Récemment ouverts",
       itemType: {
@@ -2330,7 +2328,6 @@ const fr = {
       organizations: "Organisations",
       roles: "Rôles",
       configuration: "Configuration",
-      createApp: "Créer une application",
       administration: "Administration",
       datasources: "Sources de données",
       documentation: "Documentation",
@@ -2420,8 +2417,6 @@ const fr = {
     cancel: "Annuler",
     confirm: "Confirmer",
     uploading: "Téléversement…",
-    defaultActionTitle: "Action",
-    ok: "OK",
     lookupPlaceholder: "ID d'enregistrement pour {{label}}",
     lookupHelpText: "Aucun objet de référence n'est configuré pour ce paramètre, le sélecteur d'enregistrement est donc indisponible. Saisissez un ID d'enregistrement ou demandez à un administrateur de corriger le paramètre d'action.",
   },
@@ -2429,11 +2424,6 @@ const fr = {
     title: "Confirmer l’action",
     confirm: "Continuer",
     cancel: "Annuler",
-  },
-  rowAction: {
-    openMenu: "Ouvrir le menu",
-    edit: "Modifier",
-    delete: "Supprimer",
   },
   navigationSync: {
     addedPage: "Navigation mise à jour : page \"{{name}}\" ajoutée",
@@ -2465,15 +2455,6 @@ const fr = {
     printDialogOpening: "Ouverture de la boîte de dialogue d'impression de votre navigateur (ce n'est pas un export PDF)",
     exportFailed: "Échec de l'export : {{message}}",
     forecastSoon: "La vue de prévision arrive bientôt",
-  },
-  recordDetail: {
-    viewersTooltip: "Utilisateurs consultant cet enregistrement en ce moment",
-  },
-  cellRender: {
-    empty: "Vide",
-    yes: "Oui",
-    no: "Non",
-    systemFields: "Système",
   },
   user: {
     profile: "Profil",
@@ -3409,6 +3390,45 @@ const fr = {
       bulkFailureJoiner: " ; ",
       bulkOperationFailed: "Échec de l'opération groupée : {{reason}}",
     },
+  },
+  // objectui#6301 — Configuration › Automatisation des packages (ADR-0126
+  // §7.4). Terminologie du pack : `common.package` = Package,
+  // `flowRunner.completed` = Flux, guillemets « … ». ⛔ Aucune formulation
+  // d'ascendance ou de dérive dans ce groupe (§9).
+  packagedAutomation: {
+    title: "Automatisation des packages",
+    subtitle: "Flux et actions fournis par les packages installés. Désactivez-en un pour ce déploiement, ou clonez un flux sous un nouveau nom pour le personnaliser. La modification se fait dans Studio.",
+    refresh: "Actualiser",
+    flowsHeading: "Flux des packages",
+    actionsHeading: "Actions des packages",
+    colFlow: "Flux",
+    colActivation: "Activation",
+    colActions: "Actions",
+    toggleLabel: "Activation de {{label}}",
+    on: "Activé",
+    off: "Désactivé",
+    clone: "Cloner",
+    cloneTitle: "Cloner le flux du package",
+    cloneBody: "La copie reprend toute la définition et exige un nouveau nom machine et un nouveau libellé. Modifiez la copie dans Studio.",
+    cloneName: "Nouveau nom machine",
+    cloneLabel: "Nouveau libellé",
+    cancel: "Annuler",
+    cloneConfirm: "Créer le clone",
+    cloneCreated: "Flux « {{name}} » créé.",
+    emptyTitle: "Aucun flux de package",
+    emptyBody: "Aucun package installé ne fournit de flux d'automatisation sur ce déploiement. Les flux que vous créez vous-même se trouvent dans Studio.",
+    loadFailed: "Impossible de charger l'automatisation des packages.",
+    toggleFailedHttp: "Impossible de modifier l'activation (HTTP {{status}}).",
+    toggleFailed: "Impossible de modifier l'activation.",
+    cloneFailedHttp: "Impossible de cloner ce flux (HTTP {{status}}).",
+    cloneFailed: "Impossible de cloner ce flux.",
+    actionsSubtitle: "Actions fournies par les packages installés. Désactivez-en une pour ce déploiement et elle cesse de s'exécuter partout où elle est proposée. Vous pouvez toujours créer votre propre action à côté, dans Studio.",
+    colAction: "Action",
+    colObject: "Objet",
+    actionToggleLabel: "Activation de {{label}} sur {{object}}",
+    actionsEmptyTitle: "Aucune action de package",
+    actionsEmptyBody: "Aucun package installé ne déclare d'action sur ce déploiement. Les actions que vous créez vous-même se trouvent dans Studio.",
+    actionsLoadFailed: "Impossible de charger les actions des packages.",
   },
 };
 

@@ -24,7 +24,10 @@ const getItem = vi.fn();
 const toastError = vi.fn();
 
 vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
-vi.mock('@object-ui/react', () => ({ useAction: () => ({ execute }) }));
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAction: () => ({ execute }),
+}));
 vi.mock('../../providers/MetadataProvider', () => ({ useMetadata: () => ({ getItem }) }));
 
 import { useNavActionDispatch } from '../useNavActionDispatch';

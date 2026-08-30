@@ -267,6 +267,14 @@ const zh = {
       editAsJson: '以 JSON 编辑',
       useVisualBuilder: '使用可视化构建器',
     },
+    object: {
+      invalidJson: 'JSON 无效',
+    },
+    location: {
+      refusedFormat:
+        '未保存：请输入纬度, 经度坐标对（例如 30.2741, 120.1551）。',
+      refusedRange: '未保存：{{detail}}',
+    },
     tags: {
       placeholder: '输入后回车添加…',
     },
@@ -541,7 +549,6 @@ const zh = {
       undo: '撤销',
       undoing: '撤销中…',
       done: '完成',
-      selectPlaceholder: '请选择…',
       loading: '加载中…',
     },
   },
@@ -550,9 +557,7 @@ const zh = {
     month: '月',
     week: '周',
     day: '日',
-    agenda: '日程',
     allDay: '全天',
-    noEvents: '暂无事件',
     newEvent: '新建事件',
     moreEvents: '+{{count}} 更多',
   },
@@ -700,6 +705,15 @@ const zh = {
     },
     gantt: {
       rowLabel: '条目',
+      unusableRange: {
+        malformedDate:
+          '甘特图日期区间不可用 —— {{path}} 的值是 {{value}}，无法解析为日期。每个甘特图日期都必须能被解析：每行条目的 startDate 与 endDate，以及 schema 上钉住的 minDate / maxDate。',
+        inverted:
+          '甘特图日期区间不可用 —— minDate {{minDate}} 晚于 maxDate {{maxDate}}。钉住的 minDate / maxDate 会覆盖由行数据算出的区间，因此该坐标轴没有任何列，也无法放置任何条形；请对调这两个值。',
+      },
+    },
+    unsupported: {
+      objectBoundGantt: '不支持的变体 "gantt" —— 对象绑定的时间线只渲染 feed 变体（{{variants}}）。甘特图需要字面量行，每行自带嵌套的 items，因此此处的甘特轴（scale）不起作用。',
     },
   },
   gantt: {
@@ -1066,7 +1080,6 @@ const zh = {
     noValue: '无',
   },
   chart: {
-    noData: '暂无图表数据',
     loading: '图表加载中…',
     nullCategory: '(未指定)',
   },
@@ -1095,13 +1108,6 @@ const zh = {
     editor: {
       panelTitle: '编辑报表',
     },
-  },
-  map: {
-    searchLocations: '搜索位置…',
-    locationDetails: '位置详情',
-    markersCount: '{{count}} 个标记',
-    invalidCoordinates: '{{count}} 条记录因坐标缺失或无效已从地图中排除。',
-    invalidCoordinatesPlural: '{{count}} 条记录因坐标缺失或无效已从地图中排除。',
   },
   dashboard: {
     addWidget: '添加组件',
@@ -1418,7 +1424,6 @@ const zh = {
       defaultValue: '默认值',
       placeholder: '占位文本',
       referenceTo: '引用对象',
-      formula: '公式',
       options: '选项',
       addOption: '添加选项',
       validationRules: '验证规则',
@@ -1448,7 +1453,19 @@ const zh = {
     breadcrumb: {
       dashboards: '仪表盘',
       pages: '页面',
-      reports: '报告',
+      // objectui#6166 — 报表 here is a maintainer RULING (2026-08-25), not a
+      // majority count. 报表 (tabular/data report) and 报告 (written/narrative
+      // report) are NOT interchangeable, so this key holding 报告 against the
+      // rest of the pack was read as evidence of a majority and never, on its
+      // own, as evidence of a mistake; the call was made on what renders. This
+      // segment labels the `routeType === 'report'` LIST route (app-shell
+      // AppHeader) — a structural sibling of dashboards/pages that drills into
+      // metadata report definitions, i.e. the same feature that
+      // `console.commandPalette.reports`, `console.nav.navReport` and
+      // `search.badgeReport` already call 报表. Nothing narrative renders
+      // beneath it. Don't re-file this as a pack inconsistency, and don't
+      // restore 报告 without a new ruling.
+      reports: '报表',
       system: '系统',
     },
     nav: {
@@ -2323,11 +2340,6 @@ const zh = {
       marketplaceDisabled: '本运行时未配置应用市场，因此这里没有可安装的模板。',
     },
     open: '打开',
-    stats: {
-      apps: '应用',
-      starred: '收藏',
-      recent: '最近访问',
-    },
     loading: '正在加载工作区…',
     recent: '最近使用',
     starred: '收藏',
@@ -2364,8 +2376,6 @@ const zh = {
     browseMarketplace: '浏览应用市场',
     quickActions: {
       title: '快捷操作',
-      createApp: '创建应用',
-      createAppDesc: '从新应用开始',
       manageObjects: '管理对象',
       manageObjectsDesc: '配置数据模型',
       systemSettings: '系统设置',
@@ -2416,7 +2426,6 @@ const zh = {
       organizations: '组织',
       roles: '角色',
       configuration: '配置',
-      createApp: '创建应用',
       administration: '管理',
       datasources: '数据源',
       documentation: '文档',
@@ -2570,18 +2579,11 @@ const zh = {
     cancel: '取消',
     confirm: '确认',
     uploading: '上传中…',
-    defaultActionTitle: '操作',
-    ok: '确定',
   },
   actionConfirm: {
     title: '确认操作',
     confirm: '继续',
     cancel: '取消',
-  },
-  rowAction: {
-    openMenu: '更多操作',
-    edit: '编辑',
-    delete: '删除',
   },
   navigationSync: {
     addedPage: '导航已更新：已添加页面 “{{name}}”',
@@ -2614,15 +2616,6 @@ const zh = {
     printDialogOpening: '正在打开浏览器打印对话框（不是导出 PDF）',
     exportFailed: '导出失败：{{message}}',
     forecastSoon: '预测视图即将上线',
-  },
-  recordDetail: {
-    viewersTooltip: '正在查看此记录的用户',
-  },
-  cellRender: {
-    empty: '空',
-    yes: '是',
-    no: '否',
-    systemFields: '系统字段',
   },
   user: {
     profile: '个人资料',
@@ -3465,6 +3458,45 @@ const zh = {
       bulkFailureJoiner: '；',
       bulkOperationFailed: '批量操作失败：{{reason}}',
     },
+  },
+  // objectui#6301 — 设置 › 打包自动化(ADR-0126 §7.4)。术语沿用本包既有译法:
+  // `common.package` = 软件包,`flowRunner.completed` = 流程,`common.duplicate`
+  // 一族的“复制”在这里写作“克隆”,因为服务端的 clone 是另起机器名的同级流程,
+  // 不是一次副本粘贴。⛔ 本组不含任何血缘/漂移措辞(§9)。
+  packagedAutomation: {
+    title: '打包自动化',
+    subtitle: '由已安装软件包提供的流程与动作。可在本部署中关闭其中之一,流程还可以新名称克隆后再自定义。编辑在 Studio 中进行。',
+    refresh: '刷新',
+    flowsHeading: '打包流程',
+    actionsHeading: '打包动作',
+    colFlow: '流程',
+    colActivation: '启用状态',
+    colActions: '操作',
+    toggleLabel: '{{label}} 的启用状态',
+    on: '已启用',
+    off: '已关闭',
+    clone: '克隆',
+    cloneTitle: '克隆打包流程',
+    cloneBody: '副本会带上完整定义,并需要新的机器名和标签。请在 Studio 中编辑副本。',
+    cloneName: '新机器名',
+    cloneLabel: '新标签',
+    cancel: '取消',
+    cloneConfirm: '创建克隆',
+    cloneCreated: '已创建流程「{{name}}」。',
+    emptyTitle: '没有打包流程',
+    emptyBody: '本部署中没有任何已安装软件包提供自动化流程。你自己编写的流程在 Studio 中。',
+    loadFailed: '无法加载打包自动化。',
+    toggleFailedHttp: '无法更改启用状态(HTTP {{status}})。',
+    toggleFailed: '无法更改启用状态。',
+    cloneFailedHttp: '无法克隆此流程(HTTP {{status}})。',
+    cloneFailed: '无法克隆此流程。',
+    actionsSubtitle: '由已安装软件包提供的动作。在本部署中关闭后,它在所有提供它的位置都不再运行。你仍然可以在 Studio 中另行编写自己的动作。',
+    colAction: '动作',
+    colObject: '对象',
+    actionToggleLabel: '{{object}} 上 {{label}} 的启用状态',
+    actionsEmptyTitle: '没有打包动作',
+    actionsEmptyBody: '本部署中没有任何已安装软件包声明动作。你自己编写的动作在 Studio 中。',
+    actionsLoadFailed: '无法加载打包动作。',
   },
 } as const;
 

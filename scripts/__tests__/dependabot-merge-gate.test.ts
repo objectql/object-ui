@@ -540,7 +540,8 @@ describe('the workflow cannot merge without consulting the gate', () => {
     expect(workflow).toMatch(/steps\.metadata\.outputs\.update-type == 'version-update:semver-major'/);
   });
 
-  it('keeps the lockfile merge driver `ci-cd-pipeline.md` pins it for', () => {
-    expect(workflow).toContain('merge.pnpm-merge.driver');
-  });
+  // No merge-driver assertion here any more (objectui#6369). It existed to hold
+  // this workflow to the row `ci-cd-pipeline.md` pinned for it; that row is gone,
+  // because the only merge this workflow performs is server-side `gh pr merge`
+  // and a local driver cannot participate in one.
 });

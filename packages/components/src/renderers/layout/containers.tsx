@@ -22,7 +22,7 @@ import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
-import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer } from '@object-ui/react';
+import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -456,8 +456,35 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       page: pageVariables,
     });
     // evaluateCondition is fail-open (unparseable predicate → visible) — the
-    // same semantics SchemaRenderer applies to component-level `visibleWhen`.
-    return evaluator.evaluateCondition(it.visibleWhen);
+    // same semantics SchemaRenderer applies to component-level `visibleWhen`,
+    // and objectui#6038 gives it the same VOICE. The verdict is untouched: a
+    // faulting predicate still resolves to `true` and the tab still renders.
+    //
+    // This site is in the census for the reason the card's census clause names
+    // — it swallows the identical fault under a different helper. It is worse
+    // than the node gate was, in fact: `SchemaRenderer` at least reported in
+    // development, while an item-level `visibleWhen` that faulted here was
+    // silent in BOTH builds, on a gate whose false verdict removes an entire
+    // tab (header and panel) rather than one block. Reported through the SAME
+    // reporter and the SAME dedupe `Set` as the node gate, so one authored
+    // predicate is one line no matter which surface evaluates it.
+    return evaluator.evaluateCondition(it.visibleWhen, {
+      onFault: (reason) =>
+        // `'page-component'`, not a tier of its own (objectui#6487): the bag
+        // built above binds `record`, `current_user` and `page.<var>` — the
+        // three roots the node tier's advice paragraph names — so an author who
+        // faults here needs exactly that paragraph. The extra breadth this site
+        // adds (the row spread flat, `data` aliased to the row) is undeclared on
+        // both surfaces, so it is not advertised on either.
+        reportUnresolvableVisibilityPredicate(
+          'page:tabs',
+          schema?.id,
+          'visibleWhen',
+          it.visibleWhen,
+          reason,
+          'page-component',
+        ),
+    });
   };
   const visibleFlags = rawItems.map(isItemVisible);
   // Keep the filtered array's identity stable while visibility is unchanged
@@ -504,6 +531,19 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     });
     return out;
   }, [items, recordObject]);
+  // objectui#6697 — the probe effect below keys on THIS string, not on the
+  // `Map` above. `useMemo` is a pure optimisation, not a correctness
+  // dependency: React may discard the cache and recompute even when
+  // `[items, recordObject]` compare equal, and the factory builds a brand new
+  // `Map` every time, so naming `probeTargets` in the effect re-probed every
+  // tab on a discard alone. A string cannot carry that identity churn — it
+  // compares by VALUE — so the effect now re-runs only when the probe set
+  // really differs. Derived inside a memo of its own so the walk is paid once
+  // per genuine recompute rather than once per render.
+  const probeKey = React.useMemo(
+    () => JSON.stringify(Array.from(probeTargets.entries())),
+    [probeTargets],
+  );
 
   React.useEffect(() => {
     if (!ds || typeof ds.find !== 'function') return;
@@ -536,7 +576,8 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     return () => {
       cancelled = true;
     };
-  }, [ds, probeTargets, parentId, countsVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ds, probeKey, parentId, countsVersion]);
 
   // Compute the displayed count by reading the store for every probe target.
   // useRelatedCountVersion above subscribed us to changes, so any store update —

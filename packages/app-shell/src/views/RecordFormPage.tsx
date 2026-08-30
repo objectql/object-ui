@@ -37,11 +37,15 @@ import { toast } from 'sonner';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useAdapter } from '../providers/AdapterProvider.js';
-import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider.js';
+import {
+  ExpressionProvider,
+  createExpressionEvaluator,
+  isObjectFieldVisible,
+} from '../providers/ExpressionProvider.js';
+import { buildExpressionUser } from '../providers/expressionUser.js';
 import { SkeletonDetail } from '../skeletons/index.js';
 import { ManagedByBadge } from '../components/ManagedByBadge.js';
 import { useAuth } from '@object-ui/auth';
-import { ExpressionEvaluator } from '@object-ui/core';
 
 export interface RecordFormPageProps {
   /** Form mode — `'create'` for the `/new` route, `'edit'` for the `/edit` route. */
@@ -163,50 +167,77 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   // expression consumers). Memoised on the underlying user identity so a
   // re-render that doesn't change the user does not invalidate downstream
   // memoisations.
-  const expressionUser = useMemo(
-    () =>
-      user
-        ? {
-            name: user.name,
-            email: user.email,
-            role: user.role ?? 'user',
-            // Server-parity actor shape for per-option `visibleWhen` gating
-            // (ADR-0058): the rule-validator binds `current_user.positions`.
-            positions: (user as any).positions ?? [],
-          }
-        : { name: 'Anonymous', email: '', role: 'guest', positions: [] },
-    [user],
-  );
+  //
+  // objectui#6515 — THE normaliser, not a second derivation of it. This was
+  // hand-rolled as `{ name, email, role, positions }`, which dropped `id` and
+  // `isPlatformAdmin` from every predicate evaluated on this page. Those two
+  // are named by real gates (`ctx.user.isPlatformAdmin == true` on
+  // `sys_environment`'s "Change Plan (admin)"; `record.id == ctx.user.id`
+  // throughout `sys_user`), and an ABSENT key is not `false` — it makes the
+  // predicate FAULT, and `evaluateVisibility` fails OPEN on a fault, so an
+  // admin-only field or action rendered for everyone with nothing on screen to
+  // say so. The signed-out branch diverged too: it carried no `isPlatformAdmin`
+  // at all, while `buildExpressionUser(null)` carries `false`.
+  //
+  // It is imported from `providers/`, NOT from `console/AppContent.js` where it
+  // used to live: this view is `lazy()`-loaded BY `AppContent`, so that import
+  // would be a static edge from the split chunk back into the module it was
+  // split out of — what `check-eager-closure-budget` weighs. The leaf module
+  // beside the provider is what makes the shared normaliser reachable here.
+  const expressionUser = useMemo(() => buildExpressionUser(user), [user]);
 
-  // Build expression evaluator for field-visibility expressions, mirroring
-  // the global ModalForm setup in AppContent.
+  // Evaluator for the field-visibility expressions below, over the SAME bag
+  // the `ExpressionProvider` at the bottom of this file publishes to the form's
+  // descendants — one builder, called with the same four inputs (objectui#6493).
+  //
+  // It cannot simply READ that provider: the provider is mounted in this
+  // component's own returned tree, so `useExpressionContext()` here would
+  // resolve to whatever provider sits ABOVE this page (today `AppContent`'s,
+  // with a different `app`; nothing at all if the page is ever mounted
+  // elsewhere, which would silently unbind `user` too). Building the same scope
+  // from the same inputs is the fix that needs no new wiring.
+  //
+  // The private bag this replaced bound `user` alone, so an authored
+  // `current_user` / `ctx.user` / `os.user` / `features` gate on a field
+  // faulted here and failed OPEN while resolving normally on a nav item.
   const expressionEvaluator = useMemo(
     () =>
-      new ExpressionEvaluator({
+      createExpressionEvaluator({
         // expressionUser already handles the anonymous fallback, so we can
         // pass it through unconditionally.
         user: expressionUser,
         app: { name: appName },
         data: {},
+        features,
       }),
-    [expressionUser, appName],
+    [expressionUser, appName, features],
   );
 
   // Resolve the field list using the same visibility-aware logic as the
   // ModalForm in AppContent so page-mode and modal-mode show the same
-  // fields for a given user.
+  // fields for a given user — one helper, called from both, so the two
+  // surfaces cannot drift on the polarity below.
+  //
+  // objectui#6514 — this gated on `f.visible`, a key `@objectstack/spec`'s
+  // `FieldSchema` REFUSES (it is prose in `FIELD_KEY_GUIDANCE`, deliberately
+  // not an alias). The gate was therefore unreachable through the authoring
+  // surface: metadata carrying a field-level `visible` never validates, and a
+  // census over the framework's 113 `*.object.*` files found zero of them.
+  // `isObjectFieldVisible` reads the DECLARED keys instead — the static `hidden`
+  // (INVERTED: `visible: false` is `hidden: true`) and the `visibleWhen`
+  // predicate — and the dead read is gone rather than kept alongside.
   const fields = useMemo(() => {
     if (!objectDef?.fields) return [];
     if (Array.isArray(objectDef.fields)) {
       return (objectDef.fields as any[])
         .filter((f: any) => {
           if (typeof f === 'string') return true;
-          return evaluateVisibility(f.visible, expressionEvaluator);
+          return isObjectFieldVisible(f, expressionEvaluator);
         })
         .map((f: any) => (typeof f === 'string' ? f : f.name));
     }
     return Object.entries(objectDef.fields as Record<string, any>)
-      .filter(([, f]) => evaluateVisibility(f.visible, expressionEvaluator))
+      .filter(([, f]) => isObjectFieldVisible(f, expressionEvaluator))
       .map(([key]) => key);
   }, [objectDef, expressionEvaluator]);
 

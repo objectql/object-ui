@@ -17,18 +17,25 @@
  *
  * ## Why this file exists separately, and why it is listed
  *
- * The assertions below are its entire point, so it is listed in
- * `packages/app-shell/tsconfig.typetests.json`. That listing is the difference
- * between a pin and a decoration: the package's build tsconfig excludes
- * `**\/*.test.tsx`, and vitest erases types before running, so a
- * `@ts-expect-error` written in an ordinary `*.test.tsx` file in this directory
- * is read by NO compiler — it neither fails when the error disappears nor when
- * the error was never there. This was drafted that way first, and the mutation
+ * The assertions below are its entire point, and
+ * `packages/app-shell/tsconfig.test.json` is what makes them a pin rather than a
+ * decoration: it compiles every `src/**\/*.test.tsx` in the package and is
+ * chained off the package's `type-check` script. SOME such project is
+ * load-bearing — the package's build tsconfig excludes `**\/*.test.tsx` and
+ * vitest erases types before running, so with none of it a `@ts-expect-error`
+ * would be read by NO compiler, failing neither when the error disappears nor
+ * when it was never there. This file was drafted that way first and the mutation
  * run said so: making naming optional again produced a completely green
- * `tsc --noEmit`. That is objectui#3009's failure verbatim (assertions that
- * never ran, under a header calling them the real enforcement), and
- * `tsconfig.typetests.json`'s own header warns about it — so the type-level
- * cases moved here, out of `_shared.labels.test.tsx`, where they are compiled.
+ * `tsc --noEmit`. That is objectui#3009's failure verbatim — assertions that
+ * never ran, under a header calling them the real enforcement.
+ *
+ * What has changed is the SHAPE of that coverage, and it retires one reason this
+ * file is separate. A narrow `tsconfig.typetests.json` used to name a handful of
+ * files one by one, so the type-level cases were moved here, out of
+ * `_shared.labels.test.tsx`, to sit on that list. Coverage is by glob now and
+ * BOTH files are compiled (the package graduated in objectui#4040 and the narrow
+ * project was retired with it), so the separation is a readability preference
+ * today, not a requirement — a directive in either file is checked.
  *
  * The runtime `expect` at the bottom is deliberately thin: the DOM consequences
  * (which element carries the id, what the accessible name resolves to, that the

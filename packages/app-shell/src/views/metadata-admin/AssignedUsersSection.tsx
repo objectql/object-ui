@@ -84,8 +84,26 @@ function useCopy() {
   );
 }
 
+/**
+ * The rows of a `find()` answer, read as `QueryResult` declares them.
+ *
+ * `QueryResult` (`@object-ui/types`) declares exactly one rows member: `data`.
+ * This reader used to try `records` and `items` FIRST and only then `data`
+ * (objectui#5945) — two spellings the contract does not define, tried ahead of
+ * the one it does. Measured across this repo, nothing produces either at this
+ * seam: `ObjectStackAdapter.normalizeQueryResult` maps the server's `records`
+ * envelope to `data` before returning, and `items` has no producer at all.
+ * Accepting them anyway is AGENTS.md #0.1 — a tolerant reader that would let a
+ * non-conforming producer (a raw SDK client handed in where a `DataSource`
+ * belongs) keep working, so the wrong shape is never rejected anywhere and
+ * becomes a second de-facto contract. Do not add spellings back: fix the
+ * producer.
+ *
+ * The bare-array arm stays because it is LIVE — fakes at this seam answer with
+ * a plain array (see `AssignedUsersSection.test.tsx`).
+ */
 const asArray = (res: any): any[] =>
-  Array.isArray(res) ? res : res?.records ?? res?.items ?? res?.data ?? [];
+  Array.isArray(res) ? res : res?.data ?? [];
 
 const personLabel = (u: any): string =>
   u?.full_name || u?.name || u?.display_name || u?.email || String(u?.id ?? '');

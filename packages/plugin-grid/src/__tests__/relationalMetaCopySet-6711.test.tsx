@@ -1,0 +1,170 @@
+/**
+ * objectui#6711 — `ObjectGrid`'s relational copy set must NOT carry
+ * `reference_to_field`.
+ *
+ * ## ⚠️ Why this is a pin and not a behaviour test
+ *
+ * The retired key had ZERO readers anywhere in the repo, so removing it changes
+ * no rendering at all: every other test in this package stays green whether or
+ * not the removal is correct. A green suite therefore proves nothing here. What
+ * CAN be asserted is the thing that was actually measured — the key is no
+ * longer WRITTEN onto the `fieldMeta` a cell renderer receives — so this file
+ * asserts that absence directly, at all three of `generateColumns`'s
+ * column-building call sites, and goes red the moment the key is re-added to
+ * `RELATIONAL_META_KEYS`.
+ *
+ * ## The control against vacuity lives in the same assertions
+ *
+ * Each case also asserts that the eight SURVIVING keys do arrive on the same
+ * meta. An absence assertion on its own passes for the wrong reason as soon as
+ * the fixture stops reaching the copy path at all (a renamed helper, a column
+ * path that no longer resolves this renderer, a def the grid never reads); the
+ * presence half is what makes each `not.toHaveProperty` a measurement rather
+ * than a tautology.
+ *
+ * The probe replaces the registered `lookup` cell renderer, which is exactly
+ * how the real `LookupCellRenderer` receives this bag — `getCellRenderer` checks
+ * the registry first — so what it captures is the `field` prop the shipped
+ * renderer would have been handed.
+ */
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import React from 'react';
+
+import { ObjectGrid } from '../ObjectGrid';
+import {
+  registerAllFields,
+  registerFieldRenderer,
+  getCellRenderer,
+  type CellRendererProps,
+} from '@object-ui/fields';
+import { ActionProvider, SchemaRendererProvider } from '@object-ui/react';
+
+registerAllFields();
+
+const OBJECT = 'os_6711_report';
+
+/**
+ * One field def carrying EVERY relational key the grid has ever copied,
+ * including the retired one. A def that omitted `reference_to_field` could not
+ * tell "the grid stopped copying it" apart from "the fixture never offered it".
+ */
+const MANAGER_DEF = {
+  type: 'lookup',
+  label: 'Manager',
+  reference_to: 'users',
+  reference: 'users',
+  display_field: 'name',
+  id_field: 'id',
+  description_field: 'title',
+  lookup_filters: [['active', '=', true]],
+  lookupFilters: [['active', '=', true]],
+  titleFormat: '{name}',
+  // The retired key (objectui#6711). Kept on the fixture on purpose.
+  reference_to_field: 'MUST_NOT_BE_COPIED',
+};
+
+/** The eight keys that survive the retirement — the control. */
+const SURVIVING_KEYS = [
+  'reference_to', 'reference',
+  'display_field', 'id_field', 'description_field',
+  'lookup_filters', 'lookupFilters', 'titleFormat',
+] as const;
+
+const ROWS = [{ id: 'r1', name: 'Tower T1', manager: 'u1' }];
+
+const captured: Record<string, any>[] = [];
+
+function ProbeCell({ value, field }: CellRendererProps): React.ReactElement {
+  captured.push(field as unknown as Record<string, any>);
+  return <span data-testid="probe">{String(value ?? '')}</span>;
+}
+
+let originalLookupRenderer: React.FC<CellRendererProps>;
+
+beforeAll(() => {
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = vi.fn() as any;
+  }
+  originalLookupRenderer = getCellRenderer('lookup');
+  registerFieldRenderer('lookup', ProbeCell);
+});
+
+afterAll(() => {
+  registerFieldRenderer('lookup', originalLookupRenderer);
+});
+
+function makeDataSource() {
+  return {
+    find: vi.fn(async () => ({ data: ROWS, total: ROWS.length, hasMore: false, pageSize: 50 })),
+    getObjectSchema: async (name: string) => ({
+      name,
+      fields: {
+        id: { type: 'text' },
+        name: { type: 'text', label: 'Name' },
+        manager: { ...MANAGER_DEF },
+      },
+    }),
+  } as any;
+}
+
+async function renderAndCaptureMeta(schemaExtra: Record<string, any>) {
+  captured.length = 0;
+  const ds = makeDataSource();
+  const schema: any = {
+    type: 'object-grid',
+    objectName: OBJECT,
+    data: ROWS,
+    pagination: { pageSize: 50 },
+    ...schemaExtra,
+  };
+  render(
+    <ActionProvider>
+      <SchemaRendererProvider dataSource={ds}>
+        <ObjectGrid schema={schema} dataSource={ds} />
+      </SchemaRendererProvider>
+    </ActionProvider>,
+  );
+  // ⚠️ Wait for the ENRICHED meta, not merely the first one. The object schema
+  // arrives from an async fetch, so the first paint hands the renderer a bare
+  // `{ name, type }` — on which `not.toHaveProperty('reference_to_field')`
+  // passes for the wrong reason. `label` is the signal because it is written
+  // from the same `objectDefField` block, immediately BEFORE
+  // `applyRelationalMeta`, and is not itself one of the keys under test — so
+  // the wait cannot manufacture the assertions below.
+  await waitFor(() => {
+    expect(captured.length).toBeGreaterThan(0);
+    expect(captured[captured.length - 1]).toHaveProperty('label');
+  });
+  return captured[captured.length - 1];
+}
+
+/**
+ * The three call sites of `applyRelationalMeta`, reached by the three shapes
+ * `generateColumns` branches on: ListColumn objects, a string array, and the
+ * inline-data path (rows handed down + an authored `fields` projection).
+ */
+const CALL_SITES: Array<[string, Record<string, any>]> = [
+  ['ListColumn objects', { columns: [{ field: 'manager', label: 'Manager', type: 'lookup' }] }],
+  ['string columns', { columns: ['manager'] }],
+  ['inline data + fields projection', { fields: ['manager'] }],
+];
+
+describe('objectui#6711 — ObjectGrid no longer copies `reference_to_field` onto fieldMeta', () => {
+  for (const [name, schemaExtra] of CALL_SITES) {
+    it(`does not copy it (${name})`, async () => {
+      const meta = await renderAndCaptureMeta(schemaExtra);
+      expect(meta).not.toHaveProperty('reference_to_field');
+    });
+
+    it(`still copies the eight surviving relational keys (${name})`, async () => {
+      const meta = await renderAndCaptureMeta(schemaExtra);
+      for (const key of SURVIVING_KEYS) {
+        expect(meta).toHaveProperty(key);
+      }
+      expect(meta.reference_to).toBe('users');
+      expect(meta.display_field).toBe('name');
+    });
+  }
+});

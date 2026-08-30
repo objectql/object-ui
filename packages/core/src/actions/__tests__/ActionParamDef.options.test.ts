@@ -18,12 +18,19 @@
  * type and the predicate stopped narrowing action dialogs. `ActionParamOption`
  * now names the two keys the param layer itself uses and passes the rest through.
  *
- * Scope of this file, stated honestly: vitest does not typecheck, and this package
- * excludes its own test files from `tsc` (TEST_DEBT in
- * `scripts/check-type-check-coverage.mjs`), so nothing here can fail because a
- * TYPE re-narrowed. The type half is pinned where it is actually compiled — in
- * `@object-ui/app-shell`'s `utils/resolveActionParams.test.ts`, which
- * `tsconfig.typetests.json` lists. What these cases hold is the behavioural
+ * Scope of this file, stated honestly: vitest does not typecheck, but this file
+ * IS compiled — `packages/core/tsconfig.test.json` takes the package's test tree
+ * by glob and is chained off the package's `type-check` script. That was not so
+ * when this note was written: `@object-ui/core` was then TEST_DEBT in
+ * `scripts/check-type-check-coverage.mjs` and nothing here could fail for a type
+ * reason at all. The package graduated in objectui#4040 and the debt table is now
+ * empty. Note what still limits the type reach of THIS file specifically: the
+ * deliberate `as OptionLike[]` seam described below opts its cases out of the
+ * narrowing check, compiler or no compiler.
+ *
+ * So the type half stays pinned where the narrowing actually bites — in
+ * `@object-ui/app-shell`'s `utils/resolveActionParams.test.ts`, compiled by that
+ * package's own `tsconfig.test.json`. What these cases hold is the behavioural
  * agreement: an option list of the shape a resolved param carries is filtered by
  * this package's own predicate reader, per option, on the keys it declares.
  *

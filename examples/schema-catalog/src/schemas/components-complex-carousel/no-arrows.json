@@ -6,7 +6,7 @@
   "items": [
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-12 border rounded bg-gradient-to-r from-pink-500 to-purple-500 text-white text-center",
         "children": [
           {
@@ -18,7 +18,7 @@
     ],
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-12 border rounded bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-center",
         "children": [
           {
@@ -30,7 +30,7 @@
     ],
     [
       {
-        "type": "div",
+        "type": "box",
         "className": "p-12 border rounded bg-gradient-to-r from-orange-500 to-red-500 text-white text-center",
         "children": [
           {

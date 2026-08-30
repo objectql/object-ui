@@ -199,6 +199,23 @@ Kanban board component with drag-and-drop powered by @dnd-kit.
 
 ## How Plugins Work
 
+### Stylesheets
+
+A plugin's JavaScript is only half of what it renders with. `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` publish a `style.css` of their own, and an app that installs one must import it after the base sheets:
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+@import "@object-ui/plugin-grid/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
+Each plugin sheet is compiled against the components theme and then has every rule that sheet already ships subtracted from it, so it carries only what the plugin adds. That includes the themed utilities (`bg-muted/10`, `bg-card/60`, `ring-primary/40`) which **no consumer-side configuration can produce** — the `@theme` block declaring their tokens lives in package source that is not published, so scanning `node_modules` cannot reach it ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)). Skip the import and the view renders unstyled.
+
+Add a line only for the plugins you install. The other `@object-ui/plugin-*` packages do not publish a stylesheet yet; the build step above is the pattern each of them will adopt when it needs one.
+
 ### Lazy Loading Architecture
 
 Plugins use React's `lazy()` and `Suspense` to load heavy dependencies on-demand:

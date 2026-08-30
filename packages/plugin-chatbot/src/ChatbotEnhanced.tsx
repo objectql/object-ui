@@ -321,6 +321,17 @@ export interface ChatToolInvocation {
     packageId?: string;
   };
   /**
+   * cloud#1658 — the ask agent's `open_record` structured hand-off (the record
+   * sibling of `builderHandoff`). Rendered as a "打开这条记录 →" action landing
+   * on the record the agent already resolved.
+   */
+  recordHandoff?: {
+    objectName: string;
+    recordId: string;
+    label?: string;
+    reason?: string;
+  };
+  /**
    * objectui#5695 — the terminal verdict of a confirm-replay (`replay_<id>`
    * tool results; cloud `runApprovedProposalReplay`). Rendered as a terminal
    * state on the ORIGINAL 确认修改 card — 已生效 / 已暂存为草稿 / 未生效 — so a
@@ -642,12 +653,18 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * → the button is disabled (nothing to route to).
    */
   onOpenBuilder?: (handoff: { prompt: string; packageId?: string }) => void;
+  /** cloud#1658 — open the record an `open_record` hand-off points at. */
+  onOpenRecord?: (handoff: { objectName: string; recordId: string; label?: string; reason?: string }) => void;
   /** Heading for the ADR-0057 P4 "Open in Builder" handoff card (default "Build this in the Builder"). */
   builderHandoffTitleLabel?: string;
   /** Label for the handoff card's primary action button (default "Open in Builder →"). */
   builderHandoffOpenLabel?: string;
   /** Tooltip on a superseded (older) handoff card's disabled button (default "A newer request is available"). */
   builderHandoffSupersededTitle?: string;
+  /** cloud#1658 — the record hand-off card's title. */
+  recordHandoffTitleLabel?: string;
+  /** cloud#1658 — the record hand-off card's action label. */
+  recordHandoffOpenLabel?: string;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -1097,6 +1114,7 @@ function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
     Boolean(tool.proposedChanges) ||
     // ADR-0057 P4 — the "Open in Builder →" handoff lives in the detailed body.
     Boolean(tool.builderHandoff) ||
+    Boolean(tool.recordHandoff) ||
     // A completed propose_blueprint that produced NO structured plan still needs
     // the detailed body — that's where the fallback "Build it" confirm gate
     // renders so the user is never left guessing the confirmation phrase.
@@ -1275,8 +1293,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planTitleLabel = 'Proposed plan',
       builderHandoffTitleLabel = 'Build this in the Builder',
       builderHandoffOpenLabel = 'Open in Builder →',
+      recordHandoffTitleLabel = 'Open this record',
+      recordHandoffOpenLabel = 'Open record →',
       builderHandoffSupersededTitle = 'A newer request is available',
       onOpenBuilder,
+      onOpenRecord,
       planExtendLabel = 'Adding to existing app',
       planQuestionsLabel = 'Confirm before building',
       planAssumptionsLabel = 'Assumptions',
@@ -1931,6 +1952,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             Boolean(tool.proposedChanges) ||
             // ADR-0057 P4 — open so the "Open in Builder →" action is visible.
             Boolean(tool.builderHandoff) ||
+            Boolean(tool.recordHandoff) ||
             // Fallback confirm gate (unstructured proposal) must open so its
             // "Build it" button is visible without an extra click.
             isUnstructuredBuildProposal(tool)
@@ -2201,6 +2223,36 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     </button>
                   );
                 })()}
+              </div>
+            ) : null}
+            {/* cloud#1658 — the record hand-off: the agent resolved the record a
+                write request names but has no action to perform the change, so
+                the card lands the user exactly there. No superseded logic on
+                purpose: unlike a build prompt, an older record link stays
+                correct — the record does not go stale because a newer hand-off
+                exists. */}
+            {tool.recordHandoff ? (
+              <div
+                className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"
+                data-testid="record-handoff"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                  <Sparkles className="size-3.5" />
+                  {recordHandoffTitleLabel}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  {tool.recordHandoff.label ?? tool.recordHandoff.objectName}
+                  {tool.recordHandoff.reason ? ` — ${tool.recordHandoff.reason}` : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onOpenRecord?.(tool.recordHandoff!)}
+                  disabled={!onOpenRecord}
+                  data-testid="record-handoff-open"
+                  className="inline-flex w-fit items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {recordHandoffOpenLabel}
+                </button>
               </div>
             ) : null}
             {tool.proposedPlan ? (

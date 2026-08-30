@@ -294,6 +294,16 @@ shared draft (`InlineEditProvider` from `@object-ui/react`), committed by
 - **Approval lock**: hosts pass `locked` / `lockedHint` to the save bar and
   gate `InlineEditProvider.canEdit` when the record is approval-locked, so a
   locked record hides its edit affordances instead of rejecting at Save.
+- **Approval band & recall** (#6464): the band reads `approvalPending` /
+  `approvalProgress` from the same provider, and offers its **Recall** button
+  only where the click can succeed. Recall is the submitter's lever — the
+  server authorizes it on submitter identity and refuses everyone else — so
+  hosts that resolve approvals pass `InlineEditProvider.approvalIsSubmitter`.
+  It is tri-state on purpose: `false` withdraws the button from a resolved
+  non-submitter, `true` keeps it, and **omitting it leaves the button exactly
+  as it was** — a host that resolves no approval identity is unchanged rather
+  than losing its submitter's only unlock lever. It gates the affordance only;
+  the recall endpoint remains the authority on who may actually recall.
 
 ## Links
 

@@ -129,6 +129,11 @@ const schema = {
 
 ## Properties
 
+`showTimestamp` through `onSend` below are declared on [`ChatbotSchema`](https://github.com/objectstack-ai/objectui/blob/main/packages/types/src/complex.ts)
+(`@object-ui/types`) — previously they existed only in an anonymous type local
+to the renderer, referenceable, validatable and documentable by nothing
+outside that one file (objectui#6169).
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `messages` | array | `[]` | Initial chat messages |
@@ -153,7 +158,7 @@ const schema = {
 | `headers` | object | - | Additional headers for API requests |
 | `requestBody` | object | - | Additional body parameters sent with each API request. Authored on the node as `requestBody`; the renderer forwards it to the chat runtime under its own `body` option. Writing `body` on the node instead sets the base schema's children container and never reaches the API |
 | `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
-| `surface` | `'card' \| 'plain'` | `'card'` | Controls whether the chat renders as a bordered panel or a frameless full-page workspace |
+| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only.** Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). The `chatbot` and `chatbot-floating` registrations render different components, which have no such chrome to switch, and do not read this key |
 | `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | Controls how much agent reasoning and tool detail is shown |
 | `onError` | function | - | Error callback for streaming/API errors |
 

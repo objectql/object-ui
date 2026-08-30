@@ -259,6 +259,14 @@ const pt = {
       editAsJson: "Editar como JSON",
       useVisualBuilder: "Usar o construtor visual",
     },
+    object: {
+      invalidJson: "JSON inválido",
+    },
+    location: {
+      refusedFormat:
+        "Não salvo: informe um par latitude, longitude (exemplo: 30.2741, 120.1551).",
+      refusedRange: "Não salvo: {{detail}}",
+    },
     tags: {
       placeholder: "Digite e pressione Enter para adicionar…",
     },
@@ -336,7 +344,6 @@ const pt = {
       undo: "Desfazer",
       undoing: "Desfazendo…",
       done: "Concluído",
-      selectPlaceholder: "Selecionar…",
       loading: "Carregando…",
     },
     actions: "Ações",
@@ -530,9 +537,7 @@ const pt = {
     month: "Mês",
     week: "Semana",
     day: "Dia",
-    agenda: "Agenda",
     allDay: "Dia inteiro",
-    noEvents: "Sem eventos",
     newEvent: "Novo evento",
     moreEvents: "+{{count}} mais",
   },
@@ -675,6 +680,15 @@ const pt = {
     },
     gantt: {
       rowLabel: "Itens",
+      unusableRange: {
+        malformedDate:
+          "Intervalo de datas do gantt inutilizável: {{path}} é {{value}}, que não é uma data válida. Todas as datas do gantt têm de ser analisáveis: startDate e endDate de cada item de linha, além de qualquer minDate / maxDate fixado no esquema.",
+        inverted:
+          "Intervalo de datas do gantt inutilizável: minDate {{minDate}} é posterior a maxDate {{maxDate}}. Um minDate / maxDate fixado prevalece sobre o intervalo calculado a partir das linhas, pelo que este eixo não tem colunas e nenhuma barra pode ser colocada; troque os dois valores.",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "Variante \"gantt\" não suportada: uma linha do tempo vinculada a um objeto renderiza as variantes de feed ({{variants}}). O gantt precisa de linhas literais, cada uma com os seus próprios items aninhados, por isso o eixo gantt (scale) não tem efeito aqui.",
     },
   },
   gantt: {
@@ -1026,16 +1040,8 @@ const pt = {
     noValue: "Sem valor",
   },
   chart: {
-    noData: "Nenhum dado de gráfico disponível",
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
-  },
-  map: {
-    searchLocations: "Pesquisar locais…",
-    locationDetails: "Detalhes do local",
-    markersCount: "{{count}} marcadores",
-    invalidCoordinates: "{{count}} registro com coordenadas ausentes ou inválidas excluído do mapa.",
-    invalidCoordinatesPlural: "{{count}} registros com coordenadas ausentes ou inválidas excluídos do mapa.",
   },
   dashboard: {
     noRows: "Sem linhas",
@@ -1352,7 +1358,6 @@ const pt = {
       defaultValue: "Valor padrão",
       placeholder: "Espaço reservado",
       referenceTo: "Referência a",
-      formula: "Fórmula",
       options: "Opções",
       addOption: "Adicionar opção",
       validationRules: "Regras de validação",
@@ -2275,8 +2280,6 @@ const pt = {
     browseMarketplace: "Explorar marketplace de apps",
     quickActions: {
       title: "Ações rápidas",
-      createApp: "Criar app",
-      createAppDesc: "Comece com uma nova aplicação",
       manageObjects: "Gerenciar objetos",
       manageObjectsDesc: "Configure modelos de dados",
       systemSettings: "Configurações do sistema",
@@ -2292,11 +2295,6 @@ const pt = {
     greetingNight: "Turno da noite",
     heroTagline: "Continue de onde parou ou descubra algo novo.",
     open: "Abrir",
-    stats: {
-      apps: "Aplicativos",
-      starred: "Favoritos",
-      recent: "Recentes",
-    },
     recentApps: {
       title: "Abertos recentemente",
       itemType: {
@@ -2327,7 +2325,6 @@ const pt = {
       organizations: "Organizações",
       roles: "Perfis",
       configuration: "Configuração",
-      createApp: "Criar aplicativo",
       administration: "Administração",
       datasources: "Fontes de dados",
       documentation: "Documentação",
@@ -2417,8 +2414,6 @@ const pt = {
     cancel: "Cancelar",
     confirm: "Confirmar",
     uploading: "Enviando…",
-    defaultActionTitle: "Ação",
-    ok: "OK",
     lookupPlaceholder: "ID do registro para {{label}}",
     lookupHelpText: "Este parâmetro não tem um objeto de referência configurado, portanto o seletor de registros não está disponível. Insira um ID de registro ou peça a um administrador para corrigir o parâmetro da ação.",
   },
@@ -2426,11 +2421,6 @@ const pt = {
     title: "Confirmar ação",
     confirm: "Continuar",
     cancel: "Cancelar",
-  },
-  rowAction: {
-    openMenu: "Abrir menu",
-    edit: "Editar",
-    delete: "Excluir",
   },
   navigationSync: {
     addedPage: "Navegação atualizada: página \"{{name}}\" adicionada",
@@ -2462,15 +2452,6 @@ const pt = {
     printDialogOpening: "Abrindo a caixa de diálogo de impressão do navegador (não é uma exportação para PDF)",
     exportFailed: "Falha na exportação: {{message}}",
     forecastSoon: "A exibição de previsão está chegando em breve",
-  },
-  recordDetail: {
-    viewersTooltip: "Usuários visualizando este registro agora",
-  },
-  cellRender: {
-    empty: "Vazio",
-    yes: "Sim",
-    no: "Não",
-    systemFields: "Sistema",
   },
   user: {
     profile: "Perfil",
@@ -3406,6 +3387,45 @@ const pt = {
       bulkFailureJoiner: "; ",
       bulkOperationFailed: "Falha na operação em massa: {{reason}}",
     },
+  },
+  // objectui#6301 — Configuração › Automação de pacotes (ADR-0126 §7.4).
+  // Terminologia do pack: `common.package` = Pacote, `flowRunner.completed` =
+  // Fluxo, aspas "…". ⛔ Nenhuma formulação de linhagem ou desvio neste
+  // grupo (§9).
+  packagedAutomation: {
+    title: "Automação de pacotes",
+    subtitle: "Fluxos e ações fornecidos pelos pacotes instalados. Desligue um nesta implantação ou clone um fluxo com um novo nome para personalizá-lo. A edição acontece no Studio.",
+    refresh: "Atualizar",
+    flowsHeading: "Fluxos de pacote",
+    actionsHeading: "Ações de pacote",
+    colFlow: "Fluxo",
+    colActivation: "Ativação",
+    colActions: "Ações",
+    toggleLabel: "Ativação de {{label}}",
+    on: "Ativado",
+    off: "Desativado",
+    clone: "Clonar",
+    cloneTitle: "Clonar fluxo do pacote",
+    cloneBody: "A cópia mantém toda a definição e exige um novo nome de máquina e um novo rótulo. Edite a cópia no Studio.",
+    cloneName: "Novo nome de máquina",
+    cloneLabel: "Novo rótulo",
+    cancel: "Cancelar",
+    cloneConfirm: "Criar clone",
+    cloneCreated: 'Fluxo "{{name}}" criado.',
+    emptyTitle: "Nenhum fluxo de pacote",
+    emptyBody: "Nenhum pacote instalado fornece um fluxo de automação nesta implantação. Os fluxos que você mesmo cria ficam no Studio.",
+    loadFailed: "Não foi possível carregar a automação de pacotes.",
+    toggleFailedHttp: "Não foi possível alterar a ativação (HTTP {{status}}).",
+    toggleFailed: "Não foi possível alterar a ativação.",
+    cloneFailedHttp: "Não foi possível clonar este fluxo (HTTP {{status}}).",
+    cloneFailed: "Não foi possível clonar este fluxo.",
+    actionsSubtitle: "Ações fornecidas pelos pacotes instalados. Desligue uma nesta implantação e ela deixa de ser executada em todos os lugares onde é oferecida. Criar sua própria ação ao lado dela continua disponível no Studio.",
+    colAction: "Ação",
+    colObject: "Objeto",
+    actionToggleLabel: "Ativação de {{label}} em {{object}}",
+    actionsEmptyTitle: "Nenhuma ação de pacote",
+    actionsEmptyBody: "Nenhum pacote instalado declara uma ação nesta implantação. As ações que você mesmo cria ficam no Studio.",
+    actionsLoadFailed: "Não foi possível carregar as ações de pacote.",
   },
 };
 

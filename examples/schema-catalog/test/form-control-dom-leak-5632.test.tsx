@@ -116,7 +116,12 @@ const MEASURED_TYPES = [
  * early reads CLEAN below and has earned nothing.
  */
 const NODE_CENSUS: Readonly<Record<string, { rendered: number; noElement: number }>> = {
-  button: { rendered: 140, noElement: 0 },
+  // 140 -> 126 with objectui#6250: the fourteen `components-feedback-toast/*`
+  // and `components-feedback-sonner/*` demos were `type: 'button'` nodes
+  // carrying an action object on `onClick`, and are now the registered
+  // `toast` / `sonner` nodes their own renderers execute. Catalog-authored,
+  // no renderer touched — the case this table's header sanctions.
+  button: { rendered: 126, noElement: 0 },
   input: { rendered: 48, noElement: 0 },
   checkbox: { rendered: 12, noElement: 0 },
   switch: { rendered: 7, noElement: 0 },

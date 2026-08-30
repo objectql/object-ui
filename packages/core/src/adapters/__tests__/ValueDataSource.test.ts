@@ -165,7 +165,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with simple AST equality condition', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['role', '=', 'admin'] as any,
+      $filter: ['role', '=', 'admin'],
     });
     expect(result.data).toHaveLength(2);
     expect(result.data.every((r: any) => r.role === 'admin')).toBe(true);
@@ -174,7 +174,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with AST "in" operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['role', 'in', ['admin', 'guest']] as any,
+      $filter: ['role', 'in', ['admin', 'guest']],
     });
     expect(result.data).toHaveLength(3);
   });
@@ -182,7 +182,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with AST "and" logical operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['and', ['role', '=', 'admin'], ['age', '>', 30]] as any,
+      $filter: ['and', ['role', '=', 'admin'], ['age', '>', 30]],
     });
     expect(result.data).toHaveLength(1);
     expect(result.data[0].name).toBe('Charlie');
@@ -191,7 +191,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with AST "or" logical operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['or', ['role', '=', 'guest'], ['name', '=', 'Alice']] as any,
+      $filter: ['or', ['role', '=', 'guest'], ['name', '=', 'Alice']],
     });
     expect(result.data).toHaveLength(2);
   });
@@ -199,7 +199,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with AST "!=" operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['role', '!=', 'admin'] as any,
+      $filter: ['role', '!=', 'admin'],
     });
     expect(result.data).toHaveLength(3);
   });
@@ -207,7 +207,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with AST "not in" operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['role', 'not in', ['admin', 'guest']] as any,
+      $filter: ['role', 'not in', ['admin', 'guest']],
     });
     expect(result.data).toHaveLength(2);
     expect(result.data.every((r: any) => r.role === 'user')).toBe(true);
@@ -216,7 +216,7 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with AST "contains" operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['name', 'contains', 'li'] as any,
+      $filter: ['name', 'contains', 'li'],
     });
     expect(result.data).toHaveLength(2); // Alice, Charlie
   });
@@ -224,21 +224,21 @@ describe('ValueDataSource — AST filter', () => {
   it('should filter with nested AST (and with in operator)', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['and', ['role', 'in', ['admin', 'user']], ['age', '>=', 28]] as any,
+      $filter: ['and', ['role', 'in', ['admin', 'user']], ['age', '>=', 28]],
     });
     expect(result.data).toHaveLength(3); // Alice (30, admin), Charlie (35, admin), Diana (28, user)
   });
 
   it('should return all items with empty AST filter', async () => {
     const ds = createDS();
-    const result = await ds.find('users', { $filter: [] as any });
+    const result = await ds.find('users', { $filter: [] });
     expect(result.data).toHaveLength(5);
   });
 
   it('should combine AST filter with sort', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: ['role', '=', 'admin'] as any,
+      $filter: ['role', '=', 'admin'],
       $orderby: { age: 'asc' },
     });
     expect(result.data).toHaveLength(2);

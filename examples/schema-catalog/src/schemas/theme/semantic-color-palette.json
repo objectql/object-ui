@@ -9,7 +9,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-primary mb-2"
         },
         {
@@ -24,7 +24,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-secondary mb-2"
         },
         {
@@ -39,7 +39,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-accent mb-2"
         },
         {
@@ -54,7 +54,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-muted mb-2"
         },
         {
@@ -69,7 +69,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-destructive mb-2"
         },
         {
@@ -84,7 +84,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-card border mb-2"
         },
         {
@@ -99,7 +99,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md bg-popover border mb-2"
         },
         {
@@ -114,7 +114,7 @@
       "className": "p-4 text-center",
       "children": [
         {
-          "type": "div",
+          "type": "box",
           "className": "w-full h-12 rounded-md border-2 border-border mb-2"
         },
         {

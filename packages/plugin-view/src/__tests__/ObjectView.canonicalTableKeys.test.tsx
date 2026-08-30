@@ -52,9 +52,10 @@ import { render, waitFor } from '@testing-library/react';
 import { ObjectView } from '../ObjectView';
 import type { ObjectViewSchema } from '@object-ui/types';
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => <div data-testid="schema-renderer">{schema?.type}</div>,
     SchemaRendererContext: React.createContext(null),
     subscribeDataChanges: () => () => {},
@@ -400,8 +401,20 @@ describe('delegated renderListView: canonical first, alias still working', () =>
     expect(s.sort).toBe('name desc');
   });
 
-  it('still hands over table.defaultSort alone', () => {
+  it('still hands over table.defaultSort alone — WRAPPED', () => {
+    // objectui#6235, and the same transition the `$orderby` assertion above
+    // made for the fetch path: the legacy spelling is still HONOURED when it
+    // is the only source (that is objectui#5102's half, and it is what this
+    // exact-value assertion keeps pinned); it is now honoured in the shape the
+    // delegated slot declares.
+    //
+    // This used to read `{ field: 'created', order: 'asc' }` — the bare object,
+    // handed to `list-view`'s `sort`, declared `string | SortConfig[]`. Every
+    // reader of that slot dropped it silently: `ListView.parseSortConfig` and
+    // `ObjectGrid.parseSchemaSort` return `[]` for a non-array, and the shared
+    // sink returns `undefined`. So this cell was green while the forwarded
+    // value could not be read by anything downstream.
     expect(delegatedSchema({ table: { defaultSort: { field: 'created', order: 'asc' } } as any }).sort)
-      .toEqual({ field: 'created', order: 'asc' });
+      .toEqual([{ field: 'created', order: 'asc' }]);
   });
 });

@@ -11,8 +11,9 @@ import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 're
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
+import { describeIgnoredBind, describeNonArrayData } from './dataTableBindDiagnostic';
 import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
-import type { DataTableSchema, TableSortItem } from '@object-ui/types';
+import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 import { 
@@ -101,8 +102,17 @@ function toDateTimeInputValue(value: unknown): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-// Field types that should edit as a numeric `<Input type="number">`.
-const NUMERIC_EDIT_TYPES = new Set(['number', 'currency', 'percent', 'int', 'integer', 'float', 'double']);
+// Column types that should edit as a numeric `<Input type="number">`.
+//
+// `int` / `integer` / `float` / `double` USED to be members (objectui#5853).
+// They were never declared by `TableColumn.type` — they arrived because
+// column-inference producers forwarded an object schema's field type verbatim,
+// which is also why this key had to be read through an `as any` below. Those
+// producers now fold their inferred value onto the declared vocabulary at their
+// emit seam (`normalizeTableColumnType`), so an undeclared spelling can no
+// longer reach this set. Typed as `TableColumnType` so re-adding one is a tsc
+// error rather than a silent re-opening of the undeclared dialect.
+const NUMERIC_EDIT_TYPES = new Set<TableColumnType>(['number', 'currency', 'percent']);
 
 /**
  * Human label for an object/array cell value (e.g. an expanded reference like
@@ -720,6 +730,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     showAddRow = false,
     borderless = false,
     disableInnerScroll = false,
+    // Read ONLY to diagnose it. `data-table` does not resolve `bind` and the
+    // objectui#6575 ruling is explicit that it must not start — see
+    // `dataTableBindDiagnostic.ts`.
+    bind: authoredBind,
   } = schema;
 
   // 'single' caps the selection at one row (replace-on-select) and drops the
@@ -767,7 +781,56 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // must not reach array operations like .filter() / .some(). The non-array
   // fallback is the shared empty, so a provider-config schema does not re-key
   // every downstream memo on each render (objectui#4618).
+  //
+  // This branch is ALSO the objectui#6665 defect: it swallows an AUTHORED
+  // non-array as quietly as an absent key — a `${...}` expression string, a
+  // number, an object, a `null`. The behaviour is deliberate and unchanged
+  // here; the second effect below is what stops it being silent.
   const data = Array.isArray(rawData) ? rawData : EMPTY_ROWS;
+
+  // objectui#6575 — say out loud that an authored `bind` was ignored.
+  //
+  // Channel: the one `plugin-grid` already uses for "you declared it, the
+  // renderer dropped it" — a `useEffect` keyed on the schema slice and one
+  // `console.warn` (see `columnSpellingDiagnostics.ts`) — rather than a second,
+  // differently-shaped one. `data` is in the key because the message's
+  // consequence clause is measured against the rows actually resolved.
+  const bindDiagnosticBlockType = (schema as { type?: unknown }).type;
+  const bindDiagnosticId = (schema as { id?: unknown }).id;
+  useEffect(() => {
+    const message = describeIgnoredBind(authoredBind, data, {
+      blockType: bindDiagnosticBlockType,
+      id: bindDiagnosticId,
+      caption,
+    });
+    if (message) console.warn(message);
+  }, [authoredBind, data, bindDiagnosticBlockType, bindDiagnosticId, caption]);
+
+  // objectui#6665 — say out loud that a non-array `data` was dropped.
+  //
+  // The SAME channel as the effect above (one module, one `console.warn`, an
+  // effect key as the rate limit) asking a DIFFERENT question: these nodes
+  // carry no `bind` at all, so the #6575 predicate is correctly silent on them.
+  // A second effect rather than a wider key on that one, because the two
+  // judgements are independent and #6575's key is pinned by its own tests.
+  //
+  // The message is computed in render and IS the effect key, rather than the
+  // effect being keyed on `rawData`. Two reasons, and neither is style:
+  //   - `data` (the collapsed value) cannot be the key — it is already
+  //     `EMPTY_ROWS` for every value this diagnostic fires on, so one bad value
+  //     replaced by another would not re-key and the second would go unsaid.
+  //   - `rawData` cannot be the key either — an authored OBJECT is a fresh
+  //     reference on every render that rebuilds the node, which would print the
+  //     same line again and again. Keying on the message keeps the ceiling this
+  //     module documents: one line per distinct authoring bug.
+  const nonArrayDataMessage = describeNonArrayData(rawData, {
+    blockType: bindDiagnosticBlockType,
+    id: bindDiagnosticId,
+    caption,
+  });
+  useEffect(() => {
+    if (nonArrayDataMessage) console.warn(nonArrayDataMessage);
+  }, [nonArrayDataMessage]);
 
   // The adapter reads the column keys `TableColumn` DECLARES. The `label`
   // alias is gone (objectui#5351); the `name` alias is HELD, and the hold is
@@ -1849,7 +1912,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
               {columns.map((col, index) => {
                 // `fitContent` columns hug their content (no fixed width /
                 // char-estimate) so inline row-action buttons never get clipped.
-                const isFit = (col as any).fitContent === true
+                const isFit = col.fitContent === true
                   && !columnWidths[col.accessorKey] && !col.width;
                 const columnWidth = isFit
                   ? '1%'
@@ -2118,7 +2181,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {columns.map((col, colIndex) => {
-                        const isFit = (col as any).fitContent === true
+                        const isFit = col.fitContent === true
                           && !columnWidths[col.accessorKey] && !col.width;
                         const columnWidth = isFit
                           ? '1%'
@@ -2187,9 +2250,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                             {isEditing ? (
                               (() => {
                                 // Type-aware inline editor. `col.type` is forwarded
-                                // from ObjectGrid's column inference. Keep this a small,
-                                // readable switch that's easy to extend.
-                                const editType = (col as any).type as string | undefined;
+                                // from a producer's column inference, folded onto the
+                                // DECLARED vocabulary at that producer's emit seam
+                                // (objectui#5853). This used to be
+                                // `(col as any).type as string | undefined` — a cast that
+                                // existed only because the values arriving were not the
+                                // values `TableColumn` declares. They are now, so the read
+                                // is typed and the switch below can only branch on
+                                // spellings the interface actually publishes.
+                                const editType: TableColumnType | undefined = col.type;
 
                                 // Host-injected editor: a higher layer (ObjectGrid) renders
                                 // the dedicated @object-ui/fields widget for this field's
@@ -2270,7 +2339,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   );
                                 }
 
-                                if (editType === 'datetime' || editType === 'datetime-local') {
+                                if (editType === 'datetime') {
                                   return (
                                     <Input
                                       ref={editInputRef}

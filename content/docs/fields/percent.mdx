@@ -44,6 +44,24 @@ const discountRate: PercentFieldMetadata = {
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
 
+## What the browser rewrites before this field sees it
+
+This widget renders a native `type="number"` input, so the browser decides what
+the box accepts. Two things can happen and **only one of them is announced**:
+
+- **Announced.** Text the browser cannot read at all — `1e`, a lone `-`, a lone
+  `.` — leaves the box visibly showing what was typed while its value reads
+  empty. The field is marked `aria-invalid` and draws
+  *"Not saved: the text in this box is not a number."*
+- ⚠️ **Not announced.** Entries the browser silently **truncates**: pasting
+  ``1.2.3`` stores ``0.0123``, and `0x10` stores ``0.1``. No warning is
+  possible here — the browser discards the extra characters as they arrive, so
+  nothing reaches ObjectUI to check.
+
+⛔ **"No warning" therefore does not mean "the value is right."** Full
+explanation and the reasoning: [What a number field silently
+rewrites](/docs/guide/fields#what-a-number-field-silently-rewrites).
+
 ## Value Conversion
 
 The percent field handles automatic conversion:

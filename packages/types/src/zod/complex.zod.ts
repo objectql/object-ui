@@ -310,6 +310,21 @@ export const ChatbotSchema = BaseSchema.extend({
   maxToolRoundtrips: z.number().optional()
     .describe('DEPRECATED (inert, slated for removal) — Max tool-calling round-trips. Nothing reads this; cap tool loops on the agent via planning.maxIterations'),
   onError: z.function().optional().describe('Error callback'),
+  // --- Local display + legacy auto-response fields (objectui#6169) ---
+  // Mirrors the TS declaration added at ../complex.ts in lockstep, so these
+  // ten keys move from the pre-existing "declared but unmirrored, rides
+  // through .passthrough() unvalidated" state straight to mirrored — never
+  // through an interim unmirrored window.
+  showTimestamp: z.boolean().optional().describe('Display a timestamp on each message'),
+  userAvatarUrl: z.string().optional().describe("URL of the user's avatar image"),
+  userAvatarFallback: z.string().optional().describe('Fallback text for the user avatar'),
+  assistantAvatarUrl: z.string().optional().describe("URL of the assistant's avatar image"),
+  assistantAvatarFallback: z.string().optional().describe('Fallback text for the assistant avatar'),
+  maxHeight: z.string().optional().describe('Maximum height of the chat message container (CSS value)'),
+  autoResponse: z.boolean().optional().describe('Enable local auto-response (demo/playground) mode'),
+  autoResponseText: z.string().optional().describe('Text of the local auto-response'),
+  autoResponseDelay: z.number().optional().describe('Delay in milliseconds before the local auto-response is sent'),
+  onSend: z.function().optional().describe('Called after a message is sent, in both API and local auto-response mode'),
 });
 
 /**

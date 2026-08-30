@@ -201,6 +201,44 @@ jobs:
           node scripts/check-entry-guard.mjs --self-test
           node scripts/check-entry-guard.mjs
 
+      # ── The ported objectstack tooling is a PINNED copy (objectui#6642) ───
+      # `scripts/pm/check-half-states.mjs` came from objectstack (objectui#5791)
+      # under a workflow header calling it a verbatim copy and enumerating the
+      # three things a re-sync must not clobber. Nothing checked either half.
+      # Measured 2026-08-28, before this step existed: the ported copy stood at
+      # 9,340 lines against upstream's 12,948 — a 4,637-line `diff` — and its
+      # own `--self-test` ran 1,116 cases where upstream's ran 1,574. So 458
+      # predicate cases had landed upstream and never arrived here, while the
+      # patrol went on rendering a confident report with the corresponding rows
+      # simply missing.
+      #
+      # The direction of harm is this repository's least visible one: a drifted
+      # copy does not fail, it REPORTS. It became load-bearing once already —
+      # objectui#6641 had to hand-port H22's closure floor into this copy,
+      # because wiring the new environment variable in the workflow alone would
+      # have set a variable this copy did not read.
+      #
+      # The gate reverses the DECLARED divergences out of each ported file and
+      # requires the reconstruction to hash to the pinned upstream digest, so
+      # drift beyond the declared set is byte-detectable in both directions —
+      # an edit here, or upstream moving. ⛔ It fetches nothing: a gate that
+      # reached api.github.com would be red on a network hiccup and green on a
+      # cached 200, and this repo's whole reason for owning a patrol is that a
+      # check which cannot read its input must never read as clean (#4690).
+      #
+      # Runs before install, next to the two gates above and for the same
+      # reason: node builtins and one local module only, so an install failure
+      # cannot take it down with it. `--self-test` runs FIRST — it drives the
+      # real comparer over fixtures (parity holds, drift outside a region,
+      # drift inside one, an ambiguous anchor, the pin-bump procedure, and
+      # every malformed-pin shape), which is what stops a comparer that
+      # recognises nothing from reading as a clean tree.
+      - name: Verify the ported objectstack tooling still matches its pin
+        if: steps.relevant.outputs.should_run == 'true'
+        run: |
+          node scripts/check-upstream-port-parity.mjs --self-test
+          node scripts/check-upstream-port-parity.mjs
+
       - name: Turbo Cache
         if: steps.relevant.outputs.should_run == 'true'
         uses: actions/cache@v6

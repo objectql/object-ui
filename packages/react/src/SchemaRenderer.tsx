@@ -29,11 +29,14 @@ import { useRecordContext } from './context/RecordContext.js';
 import { usePredicateScope } from './hooks/useExpression.js';
 import { usePageVariables } from './hooks/usePageVariables.js';
 import { resolveKeyedI18nLabel } from './utils/i18n.js';
+import { isConfigBag } from './utils/configBag.js';
 import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
+import { reportDroppedPropsBag } from './utils/propsBagDiagnostic.js';
 import {
   reportUnresolvableVisibilityPredicate,
   reportAdapterOnlyDataPredicate,
 } from './utils/visibilityDiagnostic.js';
+import type { PredicateGateKind } from './utils/visibilityDiagnostic.js';
 
 /**
  * Dev-mode schema validation.
@@ -179,9 +182,13 @@ const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
  *   - `type`/`id` are skipped, because the hoist never copied a canonical value
  *     up for them, so dropping the alias would DELETE the prop rather than
  *     replace it;
- *   - a degenerate (non-object) `properties` is left alone — the hoist and
- *     `readProps()` both merely object-spread it, and there is no canonical bag
- *     to prefer.
+ *   - a degenerate (non-object) `properties` is left alone — there is no
+ *     canonical bag to prefer, because a degenerate bag declares no key for
+ *     either spelling to win. (This bullet used to explain the carve-out by
+ *     saying "the hoist and `readProps()` both merely object-spread it". Half
+ *     of that stopped being true at objectui#6760, which stopped the hoist from
+ *     enumerating a degenerate bag; the carve-out itself is unaffected, since
+ *     it never rested on what the hoist does with the value.)
  *
  * Adjacent but NOT decided here: objectui#4795's pending question ② (whether
  * the `properties` envelope is an official `ui:*` authoring channel at all).
@@ -189,19 +196,24 @@ const HOIST_PROTECTED_KEYS = new Set(['type', 'id']);
  * position on whether either should exist.
  */
 function propsWithoutCanonicalKeys(
-  propsBag: Record<string, any> | undefined,
+  propsBag: unknown,
   propertiesBag: unknown
 ): Record<string, any> {
-  if (!propsBag) return {};
-  // Only a real object bag can win a key. `typeof null === 'object'` is covered
-  // by the truthiness check; arrays are excluded for the same reason the
-  // evaluation guard excludes them — a degenerate `properties` must not have
-  // its shape reinterpreted here.
-  if (
-    !propertiesBag ||
-    typeof propertiesBag !== 'object' ||
-    Array.isArray(propertiesBag)
-  ) {
+  // A degenerate `props` contributes NO keys (objectui#6752). This used to be a
+  // bare `if (!propsBag)`, so a non-object bag was returned as-is and the
+  // `createElement` spread below re-enumerated it: measured on `b76ca6764`,
+  // `props: 'not-a-bag'` reached the element as nine React props named `0` … `8`.
+  // Returning `{}` also makes the declared return type true — the old signature
+  // said `Record<string, any>` while this line could hand back a string.
+  //
+  // This does NOT move objectui#5123's precedence. That rule only decides which
+  // of two co-present values a key carries, and a degenerate bag declares no
+  // key for either bag to win: the indices were never authored, they are the
+  // object spread's reading of a string.
+  if (!isConfigBag(propsBag)) return {};
+  // Only a real object bag can win a key — the same predicate, for the reason
+  // stated there: a degenerate bag must not have its shape reinterpreted here.
+  if (!isConfigBag(propertiesBag)) {
     return propsBag;
   }
   let narrowed: Record<string, any> | null = null;
@@ -231,6 +243,54 @@ function propsWithoutCanonicalKeys(
  */
 const VISIBILITY_SHOW_KEYS = ['visibleWhen', 'visible', 'visibleOn', 'visibility'] as const;
 const VISIBILITY_HIDE_KEYS = ['hidden', 'hiddenOn'] as const;
+
+/**
+ * The six legs, as ONE closed type — so a seventh cannot be added to the chain
+ * without also being classified below.
+ */
+type VisibilityChainKey =
+  | (typeof VISIBILITY_SHOW_KEYS)[number]
+  | (typeof VISIBILITY_HIDE_KEYS)[number];
+
+/**
+ * Which CONSEQUENCE the diagnostic should print for a faulting predicate on
+ * this leg (objectui#6503).
+ *
+ * ## The defect this closes
+ *
+ * `evaluateCondition` answers an unevaluable predicate with `true` on every
+ * path. On the four SHOW legs the chain negates that answer, so the node is
+ * SHOWN and the reporter's "the gate did NOT bite" is true. On the two HIDE
+ * legs the chain returns it UN-negated (see `shouldHide` below), so the same
+ * `true` sets `_hidden` and this component returns `null`: the gate bit, and
+ * bit harder than on either sibling gate — the node is not on screen at all.
+ * Both were routed to `'visibility'`, so an author whose block VANISHED read a
+ * line telling them the gate did not bite and went looking for a rendering bug
+ * that does not exist. The polarity was documented in
+ * `visibilityDiagnostic.ts` and printed anyway; this is the routing that makes
+ * the documented split the one that is actually applied.
+ *
+ * ## Why derived from the two constants, when the reporter refuses to deduce
+ *
+ * `PredicateGateKind`'s docblock refuses to deduce the gate from `key` INSIDE
+ * the reporter, and that refusal stands: the reporter is exported and called
+ * from other packages, where an unheard-of spelling would silently inherit
+ * some other gate's sentence. Here the caller IS the chain. The two arrays
+ * above are the same declaration `shouldHide` and {@link winningVisibilityKey}
+ * consult, and {@link VisibilityChainKey} closes the parameter over them, so
+ * this is not a second table that can drift from the first — it is the same
+ * one, read for a second question. It also removes the failure mode that
+ * produced this card: a leg added to the chain and left with a consequence
+ * sentence written about a different polarity is now a TYPE error here, not a
+ * line of false console copy.
+ *
+ * The `disabled` / `disabledOn` gate is deliberately not reachable from this
+ * function: those legs are not in the visibility chain and route through
+ * `evaluateEnablementPredicate`, which states `'enablement'` at its own call
+ * site.
+ */
+const visibilityGateKind = (key: VisibilityChainKey): PredicateGateKind =>
+  (VISIBILITY_HIDE_KEYS as readonly string[]).includes(key) ? 'concealment' : 'visibility';
 
 /**
  * Which ONE visibility key actually decides a node's fate, mirroring both the
@@ -278,10 +338,9 @@ const VISIBILITY_HIDE_KEYS = ['hidden', 'hiddenOn'] as const;
  * Read-only: decides nothing about visibility itself, only which key a
  * DIAGNOSTIC should look at.
  */
-function winningVisibilityKey(node: Record<string, unknown>): string | undefined {
+function winningVisibilityKey(node: Record<string, unknown>): VisibilityChainKey | undefined {
   const propertiesBag = node.properties;
-  const hasPropertiesBag =
-    propertiesBag != null && typeof propertiesBag === 'object' && !Array.isArray(propertiesBag);
+  const hasPropertiesBag = isConfigBag(propertiesBag);
   const effective = (key: string): unknown =>
     hasPropertiesBag && Object.prototype.hasOwnProperty.call(propertiesBag, key)
       ? (propertiesBag as Record<string, unknown>)[key]
@@ -623,7 +682,20 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * on which dialect they happened to write it in.
      *
      * Deduped per (node type, key, predicate source): a broken predicate is
-     * re-evaluated on every render, and the point is one line, not a wall.
+     * re-evaluated on every render, and the point is one line, not a wall. The
+     * key is the predicate SOURCE TEXT plus the gate it was authored on — never
+     * the render and never the schema object — so the same broken predicate
+     * rendered over two hundred rows reports once, and a SECOND distinct
+     * predicate still reports (objectui#6038 pins both halves).
+     *
+     * ## Production is loud too, since objectui#6038
+     *
+     * It was `__DEV__`-only, and the maintainer's 2026-08-25 ruling retired
+     * that silence: a gate that stops biting in production used to leave
+     * nothing on the console for the bare-string dialect, so a class-1 defect
+     * could sit live and undiscovered (measured in objectstack#11254). The
+     * `__DEV__` gate below no longer decides WHETHER the fault is reported,
+     * only HOW it is detected — see the two branches.
      *
      * ## Defined HERE, ahead of the `properties` evaluation loop below
      *
@@ -634,16 +706,53 @@ export const SchemaRenderer: ForwardRefExoticComponent<
      * function changed; `shouldHide` below still calls it exactly as before,
      * on the POST-evaluation, POST-hoist schema, for the real verdict.
      */
-    const evaluateVisibilityPredicate = (raw: VisibilityPredicate, key: string): boolean => {
-      // PRODUCTION IS THE UNTOUCHED CALL. `throwOnError` is how the fault is
-      // detected, and on the CEL branch `evaluateCelCondition` implements it by
-      // evaluating TWICE (once with each fallback — a value that tracks the
-      // fallback both times is a fault). Spec-parsed metadata normalizes
-      // `visibleWhen` into a `{ dialect: 'cel' }` envelope, so that branch is
-      // the common one in production: paying for the probe unconditionally
-      // would double the engine calls for every predicate of every node, to
-      // build a message no production build ever prints.
-      if (!__DEV__) return evaluator.evaluateCondition(raw);
+    const evaluateVisibilityPredicate = (
+      raw: VisibilityPredicate,
+      key: VisibilityChainKey,
+    ): boolean => {
+      // WHICH consequence this leg's fail-soft default earns (objectui#6503).
+      // Computed once, used by both branches, so the production and the
+      // development report cannot disagree about what the default DID.
+      const gate = visibilityGateKind(key);
+      // PRODUCTION STILL MAKES THE SINGLE CALL — it just no longer makes it
+      // in silence (objectui#6038, maintainer ruling 2026-08-25, option B).
+      //
+      // `throwOnError` remains the DEV probe and remains too expensive to ship:
+      // on the CEL branch `evaluateCelCondition` implements it by evaluating
+      // TWICE (once with each fallback — a value that tracks the fallback both
+      // times is a fault), and spec-parsed metadata normalizes `visibleWhen`
+      // into a `{ dialect: 'cel' }` envelope, so that branch is the common one
+      // in production. Paying for the probe here would double the engine calls
+      // for every predicate of every node.
+      //
+      // `onFault` is the way out of that trade: the evaluator hands back the
+      // reason at the point it ALREADY knows the predicate faulted, inside the
+      // catch it already runs, so the fault becomes observable at ONE engine
+      // call. The verdict is `evaluateCondition(raw)`'s, unchanged — this card
+      // is observability only, and the fail-open semantics are not its to move.
+      //
+      // The reporter is the SAME one the dev branch below uses: same message,
+      // same severity, same dedupe `Set`, same key. Production and development
+      // now print the identical line for the identical fault, which is the
+      // property the `__DEV__` gate used to cost us.
+      if (!__DEV__) {
+        return evaluator.evaluateCondition(raw, {
+          onFault: (reason) =>
+            // `'page-component'` stated rather than defaulted (objectui#6487):
+            // this is the tier whose roots the spec declares for a node gate,
+            // and saying so here is what keeps the advice paragraph a decision
+            // this call site owns.
+            reportUnresolvableVisibilityPredicate(
+              newSchema.type,
+              newSchema.id,
+              key,
+              raw,
+              reason,
+              'page-component',
+              gate,
+            ),
+        });
+      }
       try {
         const verdict = evaluator.evaluateCondition(raw, { throwOnError: true });
         // objectui#5687 — the NON-throwing half of the same silence, and it is
@@ -656,7 +765,15 @@ export const SchemaRenderer: ForwardRefExoticComponent<
         reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource);
         return verdict;
       } catch (err) {
-        reportUnresolvableVisibilityPredicate(newSchema.type, newSchema.id, key, raw, err);
+        reportUnresolvableVisibilityPredicate(
+          newSchema.type,
+          newSchema.id,
+          key,
+          raw,
+          err,
+          'page-component',
+          gate,
+        );
         // The historical fail-soft answer, unchanged — and identical to what
         // the production branch above returns for the same input, which is what
         // keeps the two branches one behaviour rather than two. See the
@@ -664,6 +781,95 @@ export const SchemaRenderer: ForwardRefExoticComponent<
         // already returned for an unevaluable predicate.
         return true;
       }
+    };
+
+    /**
+     * Evaluate ONE enablement predicate (`disabled` / `disabledOn`), and make an
+     * unresolvable one LOUD (objectui#6445).
+     *
+     * ## Why this pair needed its own card at all
+     *
+     * Six legs of the visibility chain above route through
+     * {@link evaluateVisibilityPredicate} and report. These two called
+     * `evaluateCondition` BARE, so a faulting `disabled` predicate had never
+     * been reported in any build, in any dialect that does not report on its
+     * own — the only uninstrumented predicate pair left in this file.
+     *
+     * And it is the pair where the fail-soft default BITES. `evaluateCondition`
+     * answers an unevaluable predicate with `true`; on the negated visibility
+     * legs that means SHOWN, here it means GREYED OUT. The asymmetry this file
+     * already records for objectui#3862/#3955 cuts the other way for the
+     * console: "a greyed-out control is still on screen", so the user has a
+     * symptom and the author has nothing to grep for. That is why the reporter
+     * is handed a different consequence paragraph (`'enablement'`) rather than
+     * the visibility copy, which states the opposite of what this gate did.
+     *
+     * ## The verdict is byte-for-byte what it was
+     *
+     * `evaluateCondition(raw)` with an `onFault` callback returns exactly what
+     * `evaluateCondition(raw)` returned: `onFault` is invoked for its side
+     * effect and its return value is ignored (objectui#6038's seam). Fail-soft
+     * is PRESERVED deliberately — flipping it is a shipped-behaviour change on
+     * a live surface and is not this card's to make.
+     *
+     * ## One engine call, both builds — still true after objectui#6504
+     *
+     * The FAULT report above is unconditional either way: `onFault` alone
+     * covers both builds, one engine call, one code path, dev and production
+     * print the same line by construction. objectui#6504 adds a SECOND,
+     * dev-only check after that same call returns — not a second evaluation,
+     * a lexical scan of the already-available predicate source and the
+     * already-available `dataSource` — so production keeps its one-call,
+     * one-path shape exactly as this docblock described before this leg
+     * existed; only development pays for the extra check, and only after a
+     * clean (non-faulting) evaluation.
+     *
+     * ## objectui#5687's diagnostic, extended (objectui#6504, maintainer
+     * ruling 2026-08-27 option A)
+     *
+     * Was deliberately NOT called here — see the card this replaces filed at
+     * objectui#6504: the 2026-08-22 ruling was scoped to the visibility gate,
+     * and its message text ("a constant `false` hides the node on every row")
+     * is not what a constant does to a `disabled` gate. The 2026-08-27 ruling
+     * answers both gaps: extend to `disabled` / `disabledOn`, dev-only exactly
+     * as the visibility leg is (⛔ always-on was excluded, outside the #5687
+     * precedent), with its OWN copy — the constant-`true` direction, since on
+     * THIS gate that is the polarity that greys the control out in silence.
+     * `ADAPTER_ONLY_GATE_COPY['enablement']` (`visibilityDiagnostic.ts`) is
+     * that copy, and it carries the same #5330 dissolution pointer #5687's
+     * entry does: both legs retire together when that window closes.
+     *
+     * Reachable only on the branch where the predicate evaluated CLEANLY —
+     * `faulted` mirrors {@link evaluateVisibilityPredicate}'s try/catch split
+     * without paying for a second (`throwOnError`) engine call: `onFault` is
+     * already told exactly when the single call it wraps did not produce a
+     * clean verdict, so a local flag reuses that same signal instead of
+     * re-deriving it. A predicate that faults is the OTHER reporter's case,
+     * immediately above, in the same way it already is on the visibility leg.
+     */
+    const evaluateEnablementPredicate = (raw: VisibilityPredicate, key: string): boolean => {
+      let faulted = false;
+      const verdict = evaluator.evaluateCondition(raw, {
+        onFault: (reason) => {
+          faulted = true;
+          reportUnresolvableVisibilityPredicate(
+            newSchema.type,
+            newSchema.id,
+            key,
+            raw,
+            reason,
+            // Stated, not defaulted, for both arguments (objectui#6487,
+            // objectui#6445): this is the node tier, whose roots the spec
+            // declares, and the gate whose safe default disables the control.
+            'page-component',
+            'enablement',
+          );
+        },
+      });
+      if (__DEV__ && !faulted) {
+        reportAdapterOnlyDataPredicate(newSchema.type, newSchema.id, key, raw, dataSource, 'enablement');
+      }
+      return verdict;
     };
 
     // Evaluate 'properties' — the SPEC spelling of a node's config bag, of
@@ -695,19 +901,40 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // source today). Deepening that is a separate decision and would have to be
     // taken for both spellings at once — not smuggled in on one side here.
     //
-    // The guard is wider than the `props` branch's bare truthiness on purpose:
-    // this value FEEDS the hoist, so re-shaping a degenerate `properties`
-    // (a string, an array) via the object spread would propagate. Non-objects
-    // skip evaluation and reach the hoist exactly as they do today.
+    // Guarded by {@link isConfigBag}: a degenerate value must not have its shape
+    // reinterpreted by an object spread. Non-objects skip evaluation and reach
+    // the hoist — which, since objectui#6760, refuses them on its own.
+    //
+    // ⚠️ This guard used to say it was wider than the `props` branch BECAUSE
+    // this value feeds the hoist. That reason did not survive measurement
+    // (objectui#6752). Ablating this guard to bare truthiness and re-rendering
+    // `{ type, properties: 'not-a-bag' }` on `b76ca6764` left the indexed
+    // keys the hoist puts on the node completely UNCHANGED — `0` … `8` either
+    // way, because the hoist's own `Object.entries` walk enumerated a string's
+    // character indices whatever this line did — and moved exactly one thing:
+    // whether `schema.properties` still holds the value the author wrote
+    // (`'not-a-bag'` guarded, `{ '0': 'n', … }` ablated). So what this buys is
+    // the AUTHORED value's shape, which is channel-independent, and the `props`
+    // branch below carries the same guard for the same reason.
+    //
+    // ⭐ That measurement is also why objectui#6760 gave the HOIST its own
+    // guard instead of widening this one: this line never reached the indexed
+    // keys, so nothing written here could have removed them. With both guards
+    // in place the two are in SERIES, not redundant, and re-running the same
+    // ablation now reads the opposite way — measured on this card's branch,
+    // ablating THIS line to bare truthiness brings `0` … `8` BACK, because the
+    // bare spread manufactures a real `{ '0': 'n', … }` bag out of the string
+    // and the hoist below then enumerates it legitimately. Each guard is load
+    // bearing for a different half: this one keeps the authored value's shape,
+    // the hoist's one declines to enumerate a value that never had keys.
     // Snapshotted BEFORE evaluation — objectui#5756's diagnostic below reads
     // the RAW (pre-collapse) text from this reference, since `newSchema.properties`
     // is about to be replaced with the evaluated copy.
-    const rawPropertiesBag: Record<string, unknown> | undefined =
-      newSchema.properties &&
-      typeof newSchema.properties === 'object' &&
-      !Array.isArray(newSchema.properties)
-        ? (newSchema.properties as Record<string, unknown>)
-        : undefined;
+    const rawPropertiesBag: Record<string, unknown> | undefined = isConfigBag(
+      newSchema.properties
+    )
+      ? newSchema.properties
+      : undefined;
 
     if (rawPropertiesBag) {
       const newProperties: Record<string, any> = { ...rawPropertiesBag };
@@ -774,7 +1001,59 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // (e.g. tab visual style: 'line' | 'card' | 'pill'). Keep `properties`
     // intact on the schema so renderers can still read these collision-prone
     // keys via `schema.properties.<key>`.
-    if (newSchema.properties) {
+    //
+    // Guarded by {@link isConfigBag}: a DEGENERATE `properties` contributes no
+    // node keys at all (objectui#6760). Measured on `c6732825d`, this branch's
+    // base, with no part of that card in the tree: `properties: 'not-a-bag'`
+    // reached the element as nine React props named `0` … `8`, and
+    // `properties: ['x', 'y']` as `0`, `1`. Nobody authored those keys — they
+    // are `Object.entries`' reading of a string's character indices, and the
+    // values this loop writes onto the node are spread as React props at the
+    // `createElement` below.
+    //
+    // ## Which arm, and why this one
+    //
+    // objectui#6760 left two open, both cheap, both reversible, neither on the
+    // manual floor (the objectui#6708 census walked every JSON document, every
+    // `json` doc fence and every TypeScript object literal and found ZERO
+    // authored degenerate config bags):
+    //
+    //   (a) guard the hoist the way the evaluation memo above is guarded;
+    //   (b) rule that the hoist may enumerate whatever it is handed, and say
+    //       so here.
+    //
+    // Arm (a), for three reasons, in the order they were weighed:
+    //
+    //  1. **One answer per key, whichever channel reads it.** That is
+    //     objectui#5123's ruling (maintainer, 2026-08-18), and arm (b) breaks
+    //     it in the loudest available place: after objectui#6752,
+    //     `props: 'not-a-bag'` contributes no keys, so arm (b) would answer the
+    //     SAME authored mistake two ways depending on which of two spellings of
+    //     ONE bag the author used — and the reinterpreting half would be
+    //     `properties`, the SPEC spelling, while the quiet half is `props`, the
+    //     annotated legacy alias. A rule that punishes the canonical spelling
+    //     is not a rule anyone can teach.
+    //  2. **The reason for the guard was measured, and it is channel-**
+    //     **independent.** objectui#6752 established it by ablation rather than
+    //     by reading a comment (see the evaluation memo above): what a config-bag
+    //     guard buys is the AUTHORED value's shape, which has nothing to do with
+    //     which bag or which site is asking. The hoist is a third site asking the
+    //     same question about the same authored value; a third answer would be
+    //     drift, which is what {@link isConfigBag} exists to end (objectui#6761).
+    //  3. **The failure it prevents is silent and lands on generated metadata.**
+    //     A degenerate bag is a mistake an author (increasingly, an AI writing
+    //     metadata) makes by writing `properties: 'text'` where a bag belongs.
+    //     Arm (b) turns that into nine plausible-looking props with no warning
+    //     anywhere; arm (a) makes it inert, so the mistake stays legible as the
+    //     `properties` value the author actually wrote.
+    //
+    // What arm (a) does NOT change, measured rather than assumed: a real object
+    // bag hoists exactly as before (`type`/`id` still protected above), and
+    // `properties: 42` / `properties: true` were already contributing nothing
+    // — `Object.entries` yields no entries for them, so this guard only ever
+    // moves the string and array cases. Pinned in
+    // `__tests__/SchemaRenderer.degeneratePropertiesHoist.test.tsx`.
+    if (isConfigBag(newSchema.properties)) {
         const outerType = newSchema.type;
         const outerId = newSchema.id;
         const props = newSchema.properties;
@@ -792,8 +1071,28 @@ export const SchemaRenderer: ForwardRefExoticComponent<
       newSchema.content = evaluator.evaluate(newSchema.content);
     }
     
-    // Evaluate 'props'
-    if (newSchema.props) {
+    // Evaluate 'props' — the legacy alias of the config bag.
+    //
+    // The guard MIRRORS the `properties` branch above rather than testing bare
+    // truthiness (objectui#6752). Same predicate, both channels: a degenerate
+    // bag must not have its shape reinterpreted by an object spread.
+    //
+    // Measured on `b76ca6764` through the real `SchemaRenderer`, before this
+    // guard existed: a node written `{ type: 'card', props: 'not-a-bag' }`
+    // reached `createElement` carrying NINE React props named `0` … `8`, one
+    // per character, because `{ ...'not-a-bag' }` enumerates a string's
+    // character indices. Nothing threw and nothing was logged, so the symptom
+    // (a component handed nine props it never declared) sits a long way from
+    // the `props` value that caused it.
+    //
+    // This guard is HALF the fix and does not on its own remove those props —
+    // also measured, on the same base with only this line widened: the bag
+    // reached `propsWithoutCanonicalKeys` as the authored string, was returned
+    // unchanged, and `{ ...outgoingPropsBag }` at the `createElement` call
+    // re-enumerated it. The other half is that function's own guard. What this
+    // line buys is that `schema.props` keeps the value the author wrote instead
+    // of the spread's reading of it.
+    if (isConfigBag(newSchema.props)) {
       const newProps = { ...newSchema.props };
       for (const [key, val] of Object.entries(newProps)) {
         newProps[key] = evaluator.evaluate(val as any);
@@ -905,12 +1204,20 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     // value, exactly as before — only the gate in front of it narrowed. An
     // undeclared `disabled` now falls through to `disabledOn` instead of
     // short-circuiting on an empty predicate.
+    //
+    // Both legs route through `evaluateEnablementPredicate` (objectui#6445), so
+    // a predicate that cannot be evaluated is reported instead of silently
+    // greying the control out. The verdicts below are unchanged: that helper
+    // returns `evaluateCondition`'s own answer, and an UNDECLARED gate never
+    // reaches it at all — `hasDeclaredPredicate` still decides that, one line
+    // earlier, which is what keeps the objectui#3862 empty-shape rows silent
+    // as well as enabled.
     const isDisabled = (() => {
       if (hasDeclaredPredicate(newSchema.disabled)) {
-        return evaluator.evaluateCondition(newSchema.disabled);
+        return evaluateEnablementPredicate(newSchema.disabled, 'disabled');
       }
       if (hasDeclaredPredicate(newSchema.disabledOn)) {
-        return evaluator.evaluateCondition(newSchema.disabledOn);
+        return evaluateEnablementPredicate(newSchema.disabledOn, 'disabledOn');
       }
       return false;
     })();
@@ -921,6 +1228,71 @@ export const SchemaRenderer: ForwardRefExoticComponent<
 
     return newSchema;
   }, [schema, dataSource, predicateScope, pageVariables, boundRecord]);
+
+  /**
+   * SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
+   * id-scoped CSS injected as a `<style>` tag, and a scope class is appended to
+   * the node's className.
+   *
+   * ## Why this is a memo, and why it is HERE and not at its use site
+   *
+   * The scope-class branch rebuilds the schema object (`{ ...evaluatedSchema,
+   * className: mergedClassName }`) so renderers that read `schema.className`
+   * see the scope class. Unmemoised, that spread allocated a NEW object on
+   * every render of this component — even when the `evaluatedSchema` memo
+   * directly above it HELD — so every downstream renderer that memoises on
+   * `[schema]` (e.g. `ObjectMap`'s `dataConfig` / `mapConfig`, and the whole
+   * marker cascade below them) saw a fresh identity and re-ran (objectui#6270).
+   * Only nodes taking this branch were affected: a plain node was handed
+   * `evaluatedSchema` itself and was already stable.
+   *
+   * It is hoisted ABOVE the early returns below because it is a HOOK. Its use
+   * site sits after `if (!evaluatedSchema) return null`, the `_hidden` return
+   * and the unresolved-component returns, so a `useMemo` written there is a
+   * CONDITIONAL hook: a node toggling hidden -> visible would call one more
+   * hook than the previous render and React would throw "Rendered more hooks
+   * than during the previous render". Hoisting is what makes the memo legal,
+   * not a stylistic preference.
+   *
+   * `[evaluatedSchema, autoStyleId]` is the complete dependency set: every
+   * value below is a pure function of the evaluated node (`className`, `id`,
+   * `responsiveStyles`) and the `useId` fallback. `evaluatedSchema` is itself a
+   * fresh object whenever anything it interpolates changes, so a genuinely
+   * changed className, value or breakpoint still produces a NEW identity here —
+   * memoising cannot make a live value go stale.
+   *
+   * Non-object / primitive nodes fall through untouched: the render pass below
+   * returns them as text before any of this is read.
+   */
+  const scopedStyling = useMemo(() => {
+    const node = evaluatedSchema;
+    if (!node || typeof node !== 'object') {
+      return { scopeClass: '', scopedCss: '', mergedClassName: undefined, schemaForComponent: node };
+    }
+    const responsiveStyles = (node as Record<string, unknown>).responsiveStyles;
+    if (!hasResponsiveStyles(responsiveStyles)) {
+      // No scope class: hand the component `evaluatedSchema` ITSELF, which the
+      // memo above already keeps stable. Never a copy — a copy here would
+      // reintroduce the same instability for every node in the tree.
+      return {
+        scopeClass: '',
+        scopedCss: '',
+        mergedClassName: node.className,
+        schemaForComponent: node,
+      };
+    }
+    const scopeClass = scopeClassFor(node.id ?? autoStyleId);
+    const mergedClassName = [node.className, scopeClass].filter(Boolean).join(' ');
+    return {
+      scopeClass,
+      scopedCss: compileScopedStyles(`.${scopeClass}`, responsiveStyles),
+      mergedClassName,
+      // Some renderers read `schema.className` directly (e.g. element:text)
+      // while others read the `className` prop (e.g. flex/container). Set both
+      // so the scope class lands regardless of which channel a renderer honours.
+      schemaForComponent: { ...node, className: mergedClassName },
+    };
+  }, [evaluatedSchema, autoStyleId]);
 
   if (!evaluatedSchema) return null;
   // If schema is just a string, render it as text
@@ -1061,21 +1433,47 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     );
   }
 
-  // SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
-  // id-scoped CSS injected as a <style> tag, and a scope class is appended to
-  // the node's className. Build-independent, collision-free, responsive-correct.
-  const hasScopedStyles = hasResponsiveStyles(_responsiveStyles);
-  const scopeClass = hasScopedStyles ? scopeClassFor(evaluatedSchema.id ?? autoStyleId) : '';
-  const scopedCss = hasScopedStyles ? compileScopedStyles(`.${scopeClass}`, _responsiveStyles) : '';
-  const mergedClassName = scopeClass
-    ? [evaluatedSchema.className, scopeClass].filter(Boolean).join(' ')
-    : evaluatedSchema.className;
-  // Some renderers read `schema.className` directly (e.g. element:text) while
-  // others read the `className` prop (e.g. flex/container). Set both so the
-  // scope class lands regardless of which channel a renderer honours.
-  const schemaForComponent = scopeClass
-    ? { ...evaluatedSchema, className: mergedClassName }
-    : evaluatedSchema;
+  // The legacy `props` alias, narrowed exactly as objectui#5123 ruled: for a
+  // key BOTH bags declare, `properties` wins here as it already wins in
+  // `readProps()`, so one key has one answer on both channels.
+  //
+  // HOISTED out of the `createElement` call below (objectui#6708) so the
+  // diagnostic and the spread read the SAME bag. It is the same pure call with
+  // the same arguments producing the same object in the same spread position —
+  // nothing about what any renderer receives moves — but it removes the one way
+  // this diagnostic could go wrong: reporting a set of keys that is not the set
+  // actually handed to the component.
+  const outgoingPropsBag = propsWithoutCanonicalKeys(
+    evaluatedSchema.props,
+    evaluatedSchema.properties
+  );
+
+  // Dev-build diagnostic (objectui#6708, maintainer ruling 2026-08-29, option
+  // 2): those keys are spread as React props and never hoisted onto the node,
+  // so a renderer that reads its config from `schema` — every family except
+  // `element:*`'s `readProps()` — drops them without a word.
+  //
+  // Sited HERE, beside its objectui#4795 neighbour and after the metadata
+  // destructure, for the same reason: this is the point where what leaves this
+  // component for the renderer is finally known. Read-only — it reports what
+  // the line above already computed and changes nothing that is rendered.
+  //
+  // The AUTHORED bag comes from `schema`, not `evaluatedSchema`: the evaluation
+  // memo rebuilds `props` with an object spread, which turns a degenerate
+  // `props: 'text'` into `{ '0': 't', … }` long before this line. See
+  // `collectDroppedPropsKeys`.
+  if (__DEV__) {
+    reportDroppedPropsBag(
+      evaluatedSchema.type,
+      evaluatedSchema.id,
+      (schema as { props?: unknown } | null | undefined)?.props,
+      outgoingPropsBag
+    );
+  }
+
+  // SDUI scoped styling (ADR-0065) — computed in the memo hoisted above the
+  // early returns; see the doc comment there for why it cannot live here.
+  const { scopeClass, scopedCss, mergedClassName, schemaForComponent } = scopedStyling;
 
   // Extract AriaPropsSchema properties for accessibility
   const ariaProps = resolveAriaProps(evaluatedSchema);
@@ -1104,11 +1502,10 @@ export const SchemaRenderer: ForwardRefExoticComponent<
         schema: schemaForComponent,
         ...componentProps,  // Spread non-metadata schema properties as props
         // The legacy `props` alias still overrides plain top-level keys, but no
-        // longer overrides the canonical `properties` bag: for a key BOTH bags
-        // declare, `properties` wins here exactly as it already wins in
-        // `readProps()`, so one key has one answer on both channels
-        // (objectui#5123, maintainer ruling 2026-08-18).
-        ...propsWithoutCanonicalKeys(evaluatedSchema.props, evaluatedSchema.properties),
+        // longer overrides the canonical `properties` bag (objectui#5123,
+        // maintainer ruling 2026-08-18). Computed above rather than inline, so
+        // the objectui#6708 diagnostic names this exact bag — see there.
+        ...outgoingPropsBag,
         ...ariaProps,  // Inject ARIA attributes from AriaPropsSchema
         ...debugAttrs, // Debug-mode data attributes
         disabled: __disabled || undefined,

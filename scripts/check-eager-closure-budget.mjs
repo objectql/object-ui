@@ -48,9 +48,9 @@
  *
  *   - It must PASS on today's `main`. A gate that lands red is a gate someone
  *     disables, and this one replaced a gate nobody could fail. Headroom above
- *     the current 3,299,898 bytes: 45,102 (1.37%).
+ *     the current 3,254,004 bytes: 45,996 (1.41%).
  *   - The headroom must stay SMALLER than the regression the gate exists to
- *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 45,102 < 91,136, so this
+ *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 45,996 < 91,136, so this
  *     ceiling would have failed on that change. Widening the headroom past ~89
  *     KiB would leave the gate green through a repeat of its own motivating
  *     incident.
@@ -128,6 +128,25 @@
  * triage disposition 3) rather than silently, which is what the "Raising it"
  * note below asks of a re-baseline in either direction.
  *
+ * objectui#6683 lowered it again, to 3,300,000 over 3,254,004 — and this one was
+ * EARNED rather than drifted into. `@object-ui/app-shell` now publishes a
+ * precise `sideEffects` array (guarded by
+ * `scripts/check-side-effects-array.mjs`), which made 56,668 gzipped bytes of
+ * the barrel's closure shakeable. That is LARGER than the 45,102 bytes of
+ * headroom the 3,345,000 ceiling carried, so the ceiling had to move with it or
+ * the aggregate gauge would sit at 1.00x its own sensitivity — the blind band
+ * reopening the same day it was measured shut. The two numbers move in ONE
+ * commit for the reason the paragraph above gives.
+ *
+ * ⚠️ Read the direction correctly: the closure did NOT fall by the 242.6 KB the
+ * objectui#6683 card projected. That figure was measured for
+ * `"sideEffects": false`, which is closed by measurement because it also DROPS
+ * three live SDUI widget registrations. The precise array keeps them, and
+ * keeping them keeps their import closure eager; 56,668 bytes is what the
+ * correct declaration actually buys. The gap is not a defect in the array — it
+ * is the price of the correctness the ruling required, and the difference is
+ * recorded here rather than smoothed over.
+ *
  * ⛔ The floor is unchanged and applies to a LOWERING too: never put a ceiling
  * below a measured figure to express an aspiration. That is not a tighter
  * ratchet, it is a gate that lands red on `main`, which is how a budget gets
@@ -191,14 +210,24 @@ import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
- * how this number was chosen; measured 3,299,898 on `48e53814e`.
+ * how this number was chosen; measured 3,254,004 on `bd2a7ec50`.
  *
- * Re-baselined DOWNWARD by objectui#5924 from 4,086,000 (derived from the
- * 4,005,911 reading on `4c1623c0c`, which the payload had since fallen 706,013
- * bytes below). Headroom is now 45,102 bytes — 0.49x
- * {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}, where it had drifted to 8.6x.
+ * Re-baselined DOWNWARD twice, each time toward a measurement the payload had
+ * already fallen to:
+ *
+ *   - objectui#5924, from 4,086,000 (derived from the 4,005,911 reading on
+ *     `4c1623c0c`) to 3,345,000 over 3,299,898 on `48e53814e`.
+ *   - objectui#6683, to 3,300,000 over 3,254,004. `@object-ui/app-shell` now
+ *     declares a precise `sideEffects` ARRAY, which took 56,668 gzipped bytes
+ *     out of the closure — more than the 45,102 of headroom the previous
+ *     ceiling had, so leaving it in place would have parked the aggregate gauge
+ *     at 1.00x its own sensitivity and, on the next byte of shrink, tripped the
+ *     exit-2 verdict about the gauge. Lowering it in the SAME change is the
+ *     tightening the maintainer ruling of 2026-08-29 asked for.
+ *
+ * Headroom is 45,996 bytes — 0.50x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}.
  */
-export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_345_000;
+export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_300_000;
 
 /**
  * The measurement the ceiling above was derived from. Exported so the two
@@ -208,11 +237,20 @@ export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_345_000;
  * test instead of quietly becoming decorative.
  */
 export const BASELINE = Object.freeze({
-  /** `emitEagerClosureReport`'s `eagerGzipBytes` on this commit. */
-  gzipBytes: 3_299_898,
-  chunks: 52,
-  totalChunks: 508,
-  commit: '48e53814e',
+  /**
+   * `emitEagerClosureReport`'s `eagerGzipBytes` on this commit.
+   *
+   * `bd2a7ec50` is the commit that carries the array and the gates; this
+   * constant was written one commit later, and the two trees differ ONLY by
+   * this recorded identifier. That is safe to state rather than hope: the
+   * console build's turbo `inputs` cover `scripts/vite-*.ts`, not
+   * `scripts/check-*.mjs`, so nothing in this file reaches the bundler. The
+   * figure was re-measured on the later commit and came back identical.
+   */
+  gzipBytes: 3_254_004,
+  chunks: 48,
+  totalChunks: 513,
+  commit: 'bd2a7ec50',
 });
 
 /**
@@ -253,6 +291,40 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * group is renamed or removed in `vite.config.ts`, this gate stops the build
  * and says so, and the mapping is re-pinned deliberately.
  *
+ * ## Why `framework` moved (objectui#6759)
+ *
+ * From 502,000 over a 492,399 reading on `2c8474c04` to 512,000 over 502,405
+ * on `a64e96ca8`. What the added bytes buy is user-facing diagnostic text, in
+ * ten locales, for two ordinary author mistakes that used to be unreported:
+ *
+ *   - a malformed or absent gantt date crashed the render outright
+ *     (`RangeError: Invalid time value`), and
+ *   - an inverted author-pinned range drew a bar at `width: -4.3%` under a
+ *     header row with zero cells, and said nothing at all.
+ *
+ * A hard crash and a confidently-wrong render, both reachable from a typo in
+ * authored metadata, replaced by a refusal that names the offending value.
+ *
+ * The CODE that fix added buys none of this chunk, which is why there was
+ * nothing to trim instead: `plugin-timeline` is lazy and is not in the eager
+ * closure at all, so the guard, the value speller and both refusal branches
+ * cost this budget zero. Every byte of the growth is `packages/i18n` locale
+ * data, which lands here. Measured on the built chunk by deleting the twenty
+ * strings and re-gzipping: the ten locales' message text is 1,999 of the
+ * ~2,283 bytes the chunk grew by, and PER MESSAGE it costs 1,000 bytes
+ * against the 1,002 that objectui#6655's single refusal — the neighbour whose
+ * shape this one copied — already costs in the same chunk. The only lever
+ * left was to say less, in ten languages, about what the author got wrong.
+ *
+ * ⚠️ Most of the headroom this consumed was not spent by that card. The
+ * previous ceiling carried 9,601 bytes and `main` had already drifted to
+ * 488.4 KB of the 490.2 KB it allowed — 1.8 KB left, 0.02x the regression
+ * this gate must catch — before objectui#6759 added a byte (`b98352a15`,
+ * this PR's base, the gate's own printed line). Re-pinning the baseline onto
+ * a fresh measurement is what puts the gauge back in range. The drift itself,
+ * and that nobody could say which side moved it, is objectui#6631; this card
+ * does not close it and deliberately leaves the other two entries alone.
+ *
  * ## Raising one
  *
  * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
@@ -268,15 +340,25 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  */
 export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   'vendor-objectstack': 967_000,
-  framework: 502_000,
+  framework: 512_000,
   'ui-components': 399_000,
 });
 
 /**
- * The measurement {@link PER_CHUNK_GZIP_CEILINGS} was derived from: one
- * `vite build` of `apps/console` on `2c8474c04`, read out of the report that
- * build wrote. Exported so the ceilings are CHECKED against it instead of
- * merely asserted in this comment.
+ * The measurement {@link PER_CHUNK_GZIP_CEILINGS} was derived from, read out of
+ * the report a `vite build` of `apps/console` wrote. Provenance is per KEY, not
+ * per file, and saying so is the point — a comment that names one commit for
+ * three numbers taken on two is the drift objectui#6631 is open about:
+ *
+ *   - `vendor-objectstack`, `ui-components` — `2c8474c04` (objectui#5490).
+ *   - `framework` — `a64e96ca8` (objectui#6759); see "Why `framework` moved"
+ *     above. Safe to state rather than hope, for the reason {@link BASELINE}
+ *     gives about its own commit: the console build's turbo `inputs` cover
+ *     `scripts/vite-*.ts`, not `scripts/check-*.mjs`, so the commit that
+ *     records this figure cannot have changed the figure.
+ *
+ * Exported so the ceilings are CHECKED against it instead of merely asserted
+ * in this comment.
  *
  * ⚠️ This is a DIFFERENT and LATER reading than {@link BASELINE} above, which
  * still carries `4c1623c0c`. On `2c8474c04` the same build measures the closure
@@ -297,7 +379,7 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  */
 export const PER_CHUNK_BASELINE = Object.freeze({
   'vendor-objectstack': 948_461,
-  framework: 492_399,
+  framework: 502_405,
   'ui-components': 391_095,
 });
 

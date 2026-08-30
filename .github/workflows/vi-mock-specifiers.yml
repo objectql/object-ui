@@ -1,5 +1,20 @@
 name: Inert vi.mock Specifiers
 
+# Two gates over ONE population, in one home. Both read the `vi.mock` call sites
+# of this tree and both catch a mock that is silently not doing what it looks
+# like it is doing: `check-vi-mock-specifiers.mjs` catches a specifier that
+# resolves to no file (an inert stand-in), and `check-vi-mock-inherit.mjs`
+# catches a factory that hand-lists its exports (a frozen export surface,
+# objectui#6849). They share the call-site pattern deliberately -- a population
+# that drifted between them would be a hole neither one reports -- so they share
+# a workflow rather than each registering a required context of its own.
+#
+# The workflow `name:` and the job `name:` are therefore BROADER than the older
+# of the two gates. They are left unchanged on purpose: those two strings are
+# the check-run context that branch protection and
+# `scripts/dependabot-merge-gate.mjs` name, and renaming a required context
+# silently un-requires it.
+#
 # Why this is its own workflow rather than a step in `ci.yml` or `lint.yml`: a
 # module mock can be written into any package, in any shape of pull request, and
 # both of those workflows decide inside the job whether the change "needs a full
@@ -79,3 +94,23 @@ jobs:
       # gate's own defect one level up.
       - name: Check every relative vi.mock specifier resolves
         run: node scripts/check-vi-mock-specifiers.mjs
+
+      # The sibling property of the same call sites: a factory that HAND-LISTS
+      # the exports it returns freezes the mock's export surface. The next
+      # export any module in the file's import graph reads AT MODULE SCOPE then
+      # kills the file during COLLECTION -- `Test Files 3 failed | 546 passed`
+      # with `Tests 6694 passed`, ZERO failed assertions, because the tests in
+      # those files never ran (objectui#6768). It reads as flake to whoever
+      # sees it next, and the bill lands on whoever added the export.
+      #
+      # The recogniser is SEMANTIC, never a grep for `importOriginal`: that
+      # spelling mis-counted eleven correct files as broken AND missed one
+      # broken file entirely (objectui#6849). It asks whether the factory
+      # OBTAINS the real module -- a callback parameter under any name, or
+      # `vi.importActual` of the same specifier -- and SPREADS it.
+      #
+      # Narrow by ruling: only the covered workspace specifiers in
+      # `COVERED_SPECIFIERS` are judged. Whole-module replacement of a local
+      # module is legitimate and out of scope by construction, not by exemption.
+      - name: Check every covered vi.mock factory inherits the real export surface
+        run: node scripts/check-vi-mock-inherit.mjs

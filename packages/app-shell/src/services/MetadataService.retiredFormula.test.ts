@@ -69,9 +69,18 @@ function makeCapturingAdapter() {
   return { adapter, puts };
 }
 
-/** The field defs of the last PUT, in wire order. */
+/**
+ * The field defs of the last PUT, in wire order.
+ *
+ * `fields` is a name-keyed MAP on the wire (objectui#6240 — `ObjectSchema`
+ * refuses an array at the value level), and this file's subject is what is
+ * INSIDE one field def, so it reads the map's values in insertion order, which
+ * is the only field order the spec has. The CONTAINER shape is pinned by
+ * `MetadataService.objectPayloadFieldsMap.test.ts`, deliberately not here.
+ */
 function savedFields(puts: Array<Record<string, unknown>>): Record<string, unknown>[] {
-  return puts[puts.length - 1].fields as Record<string, unknown>[];
+  const fields = puts[puts.length - 1].fields as Record<string, Record<string, unknown>>;
+  return Object.values(fields);
 }
 
 const unrecognizedKeys = (result: ReturnType<typeof FieldSchema.safeParse>): string[] =>

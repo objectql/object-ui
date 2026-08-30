@@ -42,6 +42,12 @@ type ZodLikeIssue = {
    * issue and buries every member's real diagnostics here.
    */
   errors?: ZodLikeIssue[][];
+  /**
+   * Present only on `unrecognized_keys`: the offending key names, verbatim.
+   * One issue carries EVERY unrecognized key of its object, so a legacy body
+   * can list several retired aliases in a single `keys` array.
+   */
+  keys?: string[];
 };
 
 type ZodLikeSchema = {
@@ -797,6 +803,64 @@ async function validateObjectFieldRules(draft: unknown): Promise<SchemaFormIssue
   return issues;
 }
 
+/**
+ * ── Retired `formula` alias: point the author at the migration surface (objectui#6526) ──
+ *
+ * PRESENTATION ONLY — same contract as `expandViewIssues`: this runs strictly
+ * inside the final issue→`SchemaFormIssue` mapping, after `ok` has been
+ * decided. Same issue set, same paths, same verdict; only one rendered
+ * message grows a pointer.
+ *
+ * The population: the Field Designer's formula textarea wrote a `formula` key
+ * until objectui#6043 retired the control, so a stored object can still carry
+ * the alias inside a formula field. `FieldSchema` refuses the key by name
+ * (`unrecognized_keys` at `fields.<name>`), the same hard `422
+ * INVALID_METADATA` that blocks EVERY later save of that object. The
+ * adjudicated way out (objectui#6526, upholding objectui#6043) is NOT to
+ * strip the key — `object-fields-io`'s `RETIRED_FIELD_KEYS` note records how
+ * a strip destroys the authored expression — but to make the blocked state
+ * actionable: NAME the field, and POINT at the one surface that migrates the
+ * value properly. That surface is `ObjectFieldInspector`'s "Formula (CEL)"
+ * editor (`designer.field.formula`): the legacy value seeds it
+ * (`def.expression ?? def.formula`) and the first edit commits `expression`
+ * and clears the alias. The object staying unsaveable until that edit is the
+ * ruling's accepted cost; this pointer is what makes the cost payable.
+ *
+ * The pointer is APPENDED, never substituted: the spec's message is the
+ * contract's voice (AGENTS.md #0.1), and it carries the disclosure for any
+ * OTHER unrecognized key riding the same issue — a pre-objectui#6041 body can
+ * list `referenceTo` alongside `formula` in one `keys` array, and that key's
+ * own rename prescription must survive.
+ *
+ * Fires only when the field IS a `formula` field: the inspector renders the
+ * editor only for that type (the objectui#4306 ruling — a verdict with no
+ * on-screen editor to fix it wedges the author), so for any other type the
+ * pointer would name a destination that does not render, and the spec's
+ * message stands alone.
+ */
+const RETIRED_FORMULA_KEY = 'formula';
+
+function retiredFormulaKeyPointer(fieldName: string): string {
+  return (
+    `Field \`${fieldName}\` carries the retired \`${RETIRED_FORMULA_KEY}\` key. ` +
+    `To migrate: select the field in the object designer and make one edit in its ` +
+    `Formula (CEL) editor — that commits the value to \`expression\`, clears the ` +
+    `retired key, and the object saves again.`
+  );
+}
+
+function annotateRetiredFormulaKeyIssues(issues: ZodLikeIssue[], draft: unknown): ZodLikeIssue[] {
+  return issues.map((issue) => {
+    if (issue.code !== 'unrecognized_keys') return issue;
+    const path = issue.path ?? [];
+    if (path.length !== 2 || path[0] !== 'fields' || typeof path[1] !== 'string') return issue;
+    if (!issue.keys?.includes(RETIRED_FORMULA_KEY)) return issue;
+    const def = valueAtPath(draft, path) as { type?: unknown } | null | undefined;
+    if (!def || def.type !== 'formula') return issue;
+    return { ...issue, message: `${issue.message} ${retiredFormulaKeyPointer(path[1])}` };
+  });
+}
+
 // Keyed by mode AND type — `view` resolves to a different schema per mode, so
 // caching by type alone would hand the create gate whichever mode asked first.
 const SCHEMA_CACHE = new Map<string, ZodLikeSchema | null>();
@@ -924,11 +988,18 @@ export async function validateMetadataDraft(
   }
   if (rawIssues.length === 0 && celIssues.length === 0) return { ok: true, issues: [] };
 
-  // Presentation only — see `expandViewIssues`. `ok` is already `false` here
-  // and `rawIssues` is already final; this only decides what gets RENDERED for
+  // Presentation only — see `expandViewIssues` and
+  // `annotateRetiredFormulaKeyIssues`. `ok` is already `false` here and
+  // `rawIssues` is already final; this only decides what gets RENDERED for
   // each of them, so the verdict cannot move (pinned by the parity test in
-  // `clientValidation.viewDiagnostics.test.ts`).
-  const renderable = type === 'view' ? expandViewIssues(rawIssues, [], draft) : rawIssues;
+  // `clientValidation.viewDiagnostics.test.ts`, and for `object` by the one
+  // in `clientValidation.retiredFormulaKey.test.ts`).
+  const renderable =
+    type === 'view'
+      ? expandViewIssues(rawIssues, [], draft)
+      : type === 'object'
+        ? annotateRetiredFormulaKeyIssues(rawIssues, draft)
+        : rawIssues;
   const issues: SchemaFormIssue[] = [
     ...renderable.map((issue) => ({
       path: (issue.path ?? []).map((seg) => String(seg)).join('.'),

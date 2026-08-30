@@ -7,7 +7,7 @@
  */
 
 import React, { useContext } from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   SchemaRendererContext,
@@ -46,7 +46,7 @@ export {
 export { TabbedForm } from './TabbedForm';
 export type { TabbedFormProps, TabbedFormSchema, FormSectionConfig } from './TabbedForm';
 export { WizardForm } from './WizardForm';
-export type { WizardFormProps, WizardFormSchema } from './WizardForm';
+export type { WizardFormProps, WizardFormSchema, WizardStepConfig } from './WizardForm';
 export { SplitForm } from './SplitForm';
 export type { SplitFormProps, SplitFormSchema } from './SplitForm';
 export { DrawerForm } from './DrawerForm';
@@ -68,8 +68,41 @@ export type { LineItemsPanelSchema } from './LineItemsPanel';
 export { deriveDetail, deriveColumns, deriveFormFields, findRelationshipField, resolveInlineMode } from './deriveMasterDetail';
 export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
 
+/**
+ * The CREATE-payload rule this package owns, published for the OTHER form
+ * renderer (objectui#6059).
+ *
+ * `omitServerResolvedDefaults` is a pure function over a values object and an
+ * object schema — no React, no registry, no container — and it is the
+ * COMPOSITION of two `@object-ui/core` predicates (`isRuntimeDefault` AND
+ * `isMissingForRequired`, on create only) rather than a third opinion about
+ * either. It stayed module-private through the whole #4047 / #4068 / #4069 /
+ * #4085 / #5683 / #5727 / #5883 chain, so the console's `FormPage` — the SECOND
+ * form renderer in this repo — had to spell that composition out by hand for
+ * #5883, and the next renderer would have had to as well. Neither PREDICATE was
+ * ever copied (both live in `@object-ui/core` precisely so they cannot fork),
+ * but two hand-written copies of the composition are still free to disagree
+ * about a case neither author had in mind. One importable function is not.
+ *
+ * `isRequiredInForm` travels with it because each one's docblock names the
+ * other as its half: excusing a server-owned field from `required` and then
+ * submitting the key anyway is not half a fix, it is no fix. A consumer able to
+ * reach one and not the other can build exactly that state, which is the defect
+ * #4069 and #5883 closed on the two chains separately.
+ *
+ * Deliberately NOT the rest of `schemaDefaults.ts`. `seedCreateValues`,
+ * `schemaDefaultValues`, `isSeedableDefault`, `isCreateFormMode` and
+ * `SeedContext` are adjacent, not asked for — no consumer outside this package
+ * has needed them, and every added name is published surface somebody then has
+ * to keep. `isRuntimeDefault` stays out for a stronger reason: it is
+ * `@object-ui/core`'s to publish, this module only re-exports it for its own
+ * call sites, and a second published spelling of one classifier is the very
+ * thing #4085 collapsed.
+ */
+export { omitServerResolvedDefaults, isRequiredInForm } from './schemaDefaults';
+
 // Register object-form component
-const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = ({
+const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = elementDataSourceBlock(({
   schema,
   dataSource: dataSourceProp,
 }) => {
@@ -120,7 +153,7 @@ const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = ({
       {(bound) => <ObjectForm schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-form', ObjectFormRenderer, {
   namespace: 'plugin-form',
@@ -200,7 +233,7 @@ ComponentRegistry.register('form', ObjectFormRenderer, {
 // Register embeddable-form component for standalone public forms
 import { EmbeddableForm } from './EmbeddableForm';
 
-const EmbeddableFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+const EmbeddableFormRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => {
   // Same bridge `object-form` above does, and for the same reason (#3144):
   // `EmbeddableForm` needs a dataSource to fetch the object schema — its own
   // comment says so — and `SchemaRenderer` only ever puts one on the context,
@@ -231,7 +264,7 @@ const EmbeddableFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       {(bound) => <EmbeddableForm config={bound} dataSource={ctx?.dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('embeddable-form', EmbeddableFormRenderer, {
   namespace: 'plugin-form',
@@ -269,7 +302,7 @@ ComponentRegistry.register('form-analytics', FormAnalyticsRenderer, {
 // together — see ADR-0001).
 import { MasterDetailForm } from './MasterDetailForm';
 
-const MasterDetailFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
+const MasterDetailFormRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => {
   const ctx = useContext(SchemaRendererContext as React.Context<any>);
   const dataSource = ctx?.dataSource ?? undefined;
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121).
@@ -296,7 +329,7 @@ const MasterDetailFormRenderer: React.FC<{ schema: any }> = ({ schema }) => {
       {(bound) => <MasterDetailForm schema={bound} dataSource={dataSource} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer, {
   namespace: 'plugin-form',
@@ -379,7 +412,7 @@ const RECORD_LINE_ITEMS_DATA_SOURCE: ElementDataSourceMapping = {
   limit: 'limit',
 };
 
-const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (
+const LineItemsPanelRenderer: React.FC<{ schema: any }> = elementDataSourceBlock(({ schema }) => (
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121). No
   // `dataSource` is passed: the gate falls back to `SchemaRendererContext`, which
   // is the very adapter `LineItemsPanel` loads its rows through — resolving `view`
@@ -393,7 +426,7 @@ const LineItemsPanelRenderer: React.FC<{ schema: any }> = ({ schema }) => (
   >
     {(bound) => <LineItemsPanel schema={bound} />}
   </ElementDataSourceGate>
-);
+));
 
 ComponentRegistry.register('line_items', LineItemsPanelRenderer, {
   namespace: 'record',

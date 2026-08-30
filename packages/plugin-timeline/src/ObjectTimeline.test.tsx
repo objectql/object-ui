@@ -5,9 +5,10 @@ import { ObjectTimeline } from './ObjectTimeline';
 import { DataSource } from '@object-ui/types';
 
 // Mock useDataScope and useNavigationOverlay
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     useDataScope: () => undefined,
     useNavigationOverlay: () => ({
       isOverlay: false,

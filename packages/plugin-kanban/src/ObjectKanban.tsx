@@ -15,6 +15,7 @@ import {
   useSafeTranslate,
   extractWriteErrorMessage,
   isPermissionError,
+  declaredUserMessage,
 } from '@object-ui/react';
 import { toast } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -171,7 +172,24 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   const hasExternalData = Array.isArray(externalData);
 
   const [fetchedData, setFetchedData] = useState<any[]>([]);
-  const [objectDef, setObjectDef] = useState<any>(null);
+  // The object-definition read and the fact that it has SETTLED are one piece
+  // of state, keyed by the object it belongs to (objectui#6271). Two separate
+  // states could disagree for one commit — long enough for the record query to
+  // fire against the previous object's expand set — and a bare `objectDef`
+  // cannot express "settled with nothing", which is a legitimate outcome (an
+  // adapter with no `getObjectSchema`, or a read that threw). `key` is compared
+  // against the CURRENT object name during render, so switching objects closes
+  // the gate in the same commit that changes it, not one commit later.
+  const [schemaResolution, setSchemaResolution] = useState<{ key: string; def: any } | null>(null);
+  const schemaKey = schema.objectName ?? '';
+  /**
+   * Has the object definition for THIS object finished resolving? Note what
+   * this is NOT: "`objectDef` is truthy". A board whose adapter exposes no
+   * `getObjectSchema`, or whose schema read failed, must still get its cards —
+   * gating on a truthy definition would leave those boards empty forever.
+   */
+  const objectDefReady = schemaResolution !== null && schemaResolution.key === schemaKey;
+  const objectDef = objectDefReady ? schemaResolution.def : null;
   // loading state
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : false);
   const [error, setError] = useState<Error | null>(null);
@@ -200,16 +218,29 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     }
   }, [externalLoading, hasExternalData]);
 
-  // Fetch object definition for metadata (labels, options)
+  // Fetch object definition for metadata (labels, options).
+  //
+  // Every exit settles the resolution — success, failure, and "there is nothing
+  // to read from" alike — because the record query below WAITS on this
+  // (objectui#6271). A path that returned without settling would not merely
+  // skip the expansion, it would hold the query open forever.
   useEffect(() => {
     let isMounted = true;
+    const key = schema.objectName ?? '';
     const fetchMeta = async () => {
-        if (!dataSource || !schema.objectName) return;
+        if (!dataSource || !schema.objectName || typeof dataSource.getObjectSchema !== 'function') {
+            // No source for a definition: settle with none, so the board still
+            // queries (unexpanded — with no schema there is no expand set to
+            // derive, which is the same query this case produced before).
+            if (isMounted) setSchemaResolution({ key, def: null });
+            return;
+        }
         try {
             const def = await dataSource.getObjectSchema(schema.objectName);
-            if (isMounted) setObjectDef(def);
+            if (isMounted) setSchemaResolution({ key, def });
         } catch (e) {
             console.warn("Failed to fetch object def", e);
+            if (isMounted) setSchemaResolution({ key, def: null });
         }
     };
     fetchMeta();
@@ -220,12 +251,36 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // Skip internal fetch when data is managed by a parent component
     if (hasExternalData) return;
 
+    // ⭐ objectui#6271 — the object definition GATES this query; it does not
+    // refine it afterwards. Before this line the effect ran twice on every
+    // mount: once with `objectDef` still unresolved (so `buildExpandFields`
+    // saw no fields and the query carried NO `$expand` at all), then again
+    // once the definition landed. Measured on the standalone board, the first
+    // response never even reached the screen in the regimes that matter — the
+    // definition settles first, the effect re-runs, its cleanup flips
+    // `isMounted` false, and the unexpanded rows are dropped on arrival. So
+    // that round trip bought no earlier paint; it was a query whose answer was
+    // thrown away.
+    //
+    // What the gate costs is one schema resolution before the first query, and
+    // that is the measurement this was decided on: a metadata read is one small
+    // GET behind the same shared discovery call `find` already awaits, and it
+    // is served from `MetadataCache` (5-min TTL, concurrent readers coalesced
+    // onto one request) for every reader after the first — 0.01ms, no request.
+    // Anything hosting this board (ObjectView, ListView) has already read the
+    // same definition through the same adapter, so the gate is free there.
+    if (!objectDefReady) return;
+
     let isMounted = true;
     const fetchData = async () => {
         if (!dataSource || typeof dataSource.find !== 'function' || !schema.objectName) return;
         if (isMounted) setLoading(true);
         try {
-            // Auto-inject $expand for lookup/master_detail fields
+            // Auto-inject $expand for lookup/master_detail fields. Reached only
+            // with the definition resolved (the gate above), so a board whose
+            // object declares lookups queries WITH its expansion the first
+            // time — `objectDef` here is `null` only when there was nothing to
+            // resolve it from.
             const expand = buildExpandFields(objectDef?.fields);
             // The row cap is a REAL `$top` (objectui#4025). It used to be
             // `{ options: { $top: 100 } }` — `$filter` at the top level where the
@@ -258,7 +313,11 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         fetchData();
     }
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDef, refreshKey]);
+    // `objectDefReady` is what re-runs this effect once the definition lands;
+    // `objectDef` stays listed because the body reads it, and with the gate in
+    // place the two flip together in one commit — the pre-resolution run now
+    // returns above without querying instead of issuing an unexpanded one.
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey]);
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;
@@ -320,6 +379,34 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
       };
       // Detect strings that look like opaque foreign-key IDs so we don't dump
       // gibberish into card descriptions when the server didn't expand the lookup.
+      //
+      // ⭐ WHY THIS IS STILL HERE, given objectui#6271 (read this before
+      // deleting it). Part of what this suppression used to hide was THIS
+      // component's own fetch ordering: the board issued its first query before
+      // the object definition resolved, so that query carried no `$expand` and
+      // the first paint was rendered from raw lookup ids. That half is gone —
+      // the record query is now gated on the definition (see the fetch effect
+      // above), so the board's own rows arrive expanded or not at all.
+      //
+      // The suppression is NOT thereby redundant, because unexpanded rows still
+      // reach this function from sources the gate does not sit in front of:
+      //
+      //   1. `data` handed down by a parent. Measured, not assumed: ObjectView
+      //      hosts the board this way and its own query goes out as
+      //      `{ $top: 100 }` — it reads the schema through a ref that is still
+      //      empty on the one run it makes, so it never injects `$expand` at
+      //      all. Every card in that path is built from raw ids.
+      //   2. `bind` / inline `schema.data` — author-supplied rows, expanded by
+      //      nobody.
+      //   3. An adapter or backend that ignores `$expand`, or a single lookup
+      //      it cannot resolve (a dangling reference), which comes back as the
+      //      bare id inside an otherwise expanded row.
+      //
+      // So the coupling the two issues share is real and stays recorded: the
+      // display heuristic and the fetch ordering move together. What changed is
+      // the JUSTIFICATION, not the code — this predicate is now a guard against
+      // genuinely unexpanded DATA, no longer a cover for a query this component
+      // issued too early.
       const OPAQUE_ID_RE = /^[A-Za-z0-9_-]{12,32}$/;
       const isOpaqueId = (v: unknown): boolean => {
         if (typeof v !== 'string') return false;
@@ -603,7 +690,27 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
       ...(effectiveSwimlaneField ? { swimlaneField: effectiveSwimlaneField } : {}),
   };
 
-  const navConfig = (schema as any).navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
+  // Default to a right-side drawer so clicking a card opens an editable detail
+  // panel inline. A schema can override this with its own `navigation` config.
+  //
+  // No width is spelled here on purpose (objectui#6303, converging kanban on
+  // the shape #6305 gave ObjectGantt). `width` is `@deprecated [#2578 -> size]`
+  // in the spec that owns this shape, and `resolveOverlayWidth` gives an
+  // explicit `width` priority OVER `size` — so spelling it kept the deprecated
+  // branch load-bearing on the path most boards take (no declared
+  // `navigation`), and made the size buckets unreachable there. Omitting both
+  // leaves `resolveOverlayWidth` returning `undefined`, which is what
+  // RecordDetailDrawer's own `width` default is for; that default is the
+  // identical `min(960px, 60vw)`, so this is a zero-pixel change on every
+  // viewport. The absent width is deliberate, not an oversight — do not
+  // "restore" it. Pinned by `ObjectKanban.navWidthDefault.test.tsx`, both
+  // halves, because the equivalence now depends on the drawer's default too.
+  //
+  // Deliberately NOT converged on `size: 'lg'` either: that bucket is
+  // `min(92vw, 960px)`, which agrees with the above only at viewport >= 1600px
+  // and is up to 53% wider below it. That move is a real behaviour change and
+  // stays open on #6303 for a human ruling.
+  const navConfig = (schema as any).navigation ?? { mode: 'drawer' };
   // When this kanban is embedded in an ObjectView, the parent provides
   // `onRowClick`/`onCardClick` and owns the unified record-detail overlay.
   // We must always forward to the parent in that case — otherwise we'd open
@@ -704,10 +811,19 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         // Surface the failure — never silently snap the card back. A row-level
         // security denial (403) is the common case: the user lacks permission
         // to change this record's status. (cloud#864)
+        // …unless the AUTHOR opted in. `userMessage` (objectstack#9934) is the
+        // producer-side marking: a field set at throw time to say "this text is
+        // for the end user". It is a SEPARATE field from `message`, so nothing
+        // unmarked can reach here — the substitution below still governs every
+        // platform diagnostic and #3821 holds by construction rather than by us
+        // guessing what a body contains. Status-agnostic on purpose: 403 is
+        // where this was reported (objectui#5210/#5902), not a fence the
+        // contract draws — a marked 409 or 400 renders identically.
         toast.error(
-          isPermissionError(err)
-            ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
-            : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed'),
+          declaredUserMessage(err) ??
+            (isPermissionError(err)
+              ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
+              : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed')),
         );
         // Roll the optimistic move back, on BOTH data ownerships (#4138).
         //
@@ -896,7 +1012,10 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             recordId={recordId}
             dataSource={dataSource}
             objectSchema={objectDef as any}
-            width={(navigation.width as any) ?? 'min(960px, 60vw)'}
+            // No `?? 'min(960px, 60vw)'` fallback on purpose — `undefined` has
+            // to reach the drawer for its OWN identical default to apply. See
+            // the `navConfig` comment above (objectui#6303).
+            width={navigation.width as any}
             fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
             onFieldSave={async (field, value) => {
               if (!dataSource?.update) return;

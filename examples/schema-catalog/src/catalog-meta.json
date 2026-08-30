@@ -36,6 +36,51 @@
       "verification"
     ]
   },
+  "components-feedback-sonner/promise-based-toast": {
+    "title": "Custom Trigger Button",
+    "description": "A success toast whose trigger button is styled through buttonVariant.",
+    "tags": [
+      "toast",
+      "sonner",
+      "button"
+    ]
+  },
+  "components-feedback-sonner/toast-with-action": {
+    "title": "Message With Description",
+    "description": "A sonner toast carrying both a message and a secondary description line.",
+    "tags": [
+      "toast",
+      "sonner",
+      "description"
+    ]
+  },
+  "components-feedback-toast/destructive": {
+    "title": "Error Variant",
+    "description": "The 'error' toast variant. 'destructive' is a button variant, not a toast variant.",
+    "tags": [
+      "toast",
+      "variant",
+      "error"
+    ]
+  },
+  "components-feedback-toast/toast-with-action": {
+    "title": "Info Variant",
+    "description": "The 'info' toast variant, used here for an update notice.",
+    "tags": [
+      "toast",
+      "variant",
+      "info"
+    ]
+  },
+  "components-feedback-toast/toast-with-undo": {
+    "title": "Warning Variant",
+    "description": "The 'warning' toast variant, used here for a deletion notice.",
+    "tags": [
+      "toast",
+      "variant",
+      "warning"
+    ]
+  },
   "components-form-form/basic-form": {
     "title": "Basic Form",
     "description": "A hand-built `form` node from `@object-ui/components`: name, email, country and newsletter fields declared inline, with no object behind them. For a form generated from an object's own metadata, see the `plugin-form` examples.",
@@ -197,6 +242,51 @@
       "form",
       "drawer",
       "crud"
+    ]
+  },
+  "components-data-display-breadcrumb/custom-separator": {
+    "title": "Custom Separator",
+    "description": "The declared `separator` key, authored as \">\". Left unauthored, the trail separates with the declared default \"/\".",
+    "tags": [
+      "breadcrumb",
+      "separator",
+      "navigation"
+    ]
+  },
+  "components-data-display-breadcrumb/collapsed-trail": {
+    "title": "Collapsed Trail",
+    "description": "`maxItems: 3` over a five-crumb trail: the root, an elision marker, and the last two crumbs.",
+    "tags": [
+      "breadcrumb",
+      "maxItems",
+      "collapse"
+    ]
+  },
+  "components-navigation-header-bar/crumbs-with-icons": {
+    "title": "Crumbs With Icons",
+    "description": "`crumbs[].icon` — kebab-case Lucide names resolved to glyphs, the same declared key a `ui:breadcrumb` item carries.",
+    "tags": [
+      "header",
+      "breadcrumb",
+      "icon"
+    ]
+  },
+  "components-layout-box/basic-box": {
+    "title": "Basic Box",
+    "description": "A neutral block container: authored classes pass through verbatim, nothing is injected.",
+    "tags": [
+      "box",
+      "container",
+      "layout"
+    ]
+  },
+  "components-layout-box/nested-boxes": {
+    "title": "Nested Boxes",
+    "description": "Boxes nested for pure grouping — each level shows only its own authored classes.",
+    "tags": [
+      "box",
+      "container",
+      "nesting"
     ]
   }
 }

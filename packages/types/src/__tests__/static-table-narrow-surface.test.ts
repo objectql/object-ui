@@ -62,10 +62,27 @@ type Equal<A, B> =
 type Expect<T extends true> = T;
 
 // Side 3, type level: the narrow shape declares exactly the rich shape's key
-// set — five live, nine tombstoned, none invented, none forgotten. If a key
-// is ever added to `TableColumn` without a deliberate decision on the static
-// side (live or tombstone), this line goes red.
+// set — five live, fourteen tombstoned, none invented, none forgotten. If a
+// key is ever added to `TableColumn` without a deliberate decision on the
+// static side (live or tombstone), this line goes red. (`headerIcon` was the
+// first key to arrive through that gate — added rich by objectui#6424,
+// tombstoned here — then #6425's three declared field-meta overrides, and now
+// `fitContent`, objectui#6424's second key.)
 type _SameKeySet = Expect<Equal<keyof StaticTableColumn, keyof TableColumn>>;
+
+// The DECLARATION itself, read directly off the interface — no object literal
+// anywhere, so excess-property freshness plays no part. If `fitContent` were
+// undeclared, `TableColumn['fitContent']` would not resolve and this line
+// would not compile; if it were declared at a different type, `Equal` fails.
+// This is the pin a fresh-literal test cannot give: a literal is refused for
+// an undeclared key AND accepted for a declared one, so it measures freshness
+// and declaration together, while this measures only the declaration
+// (objectui#6424, maintainer ruling 2026-08-28, Option A).
+type _FitContentDeclaredRich = Expect<Equal<TableColumn['fitContent'], boolean | undefined>>;
+// The static twin's tombstone, same freshness-free route: `?: never` (never
+// `undefined`-only, never absent). Absence would make this line fail to
+// compile, which is the lockstep rule's whole point.
+type _FitContentTombstonedStatic = Expect<Equal<StaticTableColumn['fitContent'], undefined>>;
 
 /* ── fixtures ────────────────────────────────────────────────────────────── */
 
@@ -77,8 +94,14 @@ const LIVE_COLUMN = {
   width: 120,
 };
 
-/** The nine column keys the split retires from the static surface, with the
- *  value an author would plausibly write for each. */
+/** The fourteen keys the narrow surface refuses, with the value an author
+ *  would plausibly write for each: nine the #5474 split retired, plus the five
+ *  that joined the RICH shape later and are tombstoned here under the lockstep
+ *  rule — `headerIcon` and `fitContent` (objectui#6424's two keys) and the
+ *  three field-meta overrides objectui#6425 declared (`format` / `options` /
+ *  `currency`). The static renderer reads none of them: its measured read set
+ *  is the five live keys, and it has no auto-width pass for `fitContent` to
+ *  opt out of. */
 const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   minWidth: 80,
   align: 'right',
@@ -89,6 +112,11 @@ const RETIRED_COLUMN_KEYS: Record<string, unknown> = {
   resizable: true,
   editable: false,
   cell: () => 'x',
+  headerIcon: 'lucide:hash',
+  fitContent: true,
+  format: '$0,0',
+  options: [{ value: 'tech', label: 'Technology' }],
+  currency: 'EUR',
 };
 
 /** Every key the rich `TableColumn` interface declares. `satisfies` keeps the
@@ -110,6 +138,11 @@ const RICH_COLUMN_KEYS = [
   'resizable',
   'editable',
   'cell',
+  'headerIcon',
+  'fitContent',
+  'format',
+  'options',
+  'currency',
 ] as const satisfies readonly (keyof TableColumn)[];
 type _RichKeyListExhaustive = Expect<Equal<(typeof RICH_COLUMN_KEYS)[number], keyof TableColumn>>;
 
@@ -224,6 +257,33 @@ describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, object
     }
   });
 
+  it('the #6425 trio SURVIVES the rich parse — declared, not silently stripped', () => {
+    // Same discipline as `editable: false` above and `headerIcon` in
+    // `data-table-declared-column-keys.test.tsx` (objectui#6424): a non-strict
+    // z.object() ACCEPTS an undeclared key and silently STRIPS it, so this
+    // exact parse was green BEFORE objectui#6425 declared the keys — while the
+    // authored override vanished from the output. Acceptance cannot
+    // distinguish the fix from the defect; survival into the parsed OUTPUT
+    // can. `value` is an object sentinel: it rides `z.any()`, so it must
+    // survive BY IDENTITY, which also pins that the mirror is not coercing.
+    const valueSentinel = { code: 'tech' };
+    const authored = {
+      header: 'Amount',
+      accessorKey: 'amount',
+      format: '$0,0',
+      options: [{ value: valueSentinel, label: 'Technology', color: 'blue' }],
+      currency: 'EUR',
+    };
+    const result = TableColumnSchema.safeParse(authored);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.format).toBe('$0,0');
+      expect(result.data.currency).toBe('EUR');
+      expect(result.data.options).toEqual(authored.options);
+      expect(result.data.options?.[0]?.value).toBe(valueSentinel);
+    }
+  });
+
   it('`data-table` columns still parse with the rich keys authored', () => {
     const result = DataTableZod.safeParse({
       type: 'data-table',
@@ -241,7 +301,7 @@ describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, object
 /* ── 3. the two shapes stay in lockstep ──────────────────────────────────── */
 
 describe('the split itself — narrow = rich key set, live = the measured read set', () => {
-  it('narrow zod declares exactly the interface key set: 5 live + 9 tombstones', () => {
+  it('narrow zod declares exactly the interface key set: 5 live + 14 tombstones', () => {
     expect(liveKeys(StaticTableColumnSchema).sort()).toEqual(
       ['accessorKey', 'cellClassName', 'className', 'header', 'width'].sort(),
     );
@@ -283,6 +343,55 @@ describe('interface tombstones — authoring a retired key is a tsc error', () =
       align: 'right',
     };
     expect(column.header).toBe('Amount');
+  });
+
+  it('accepts `fitContent` on a rich TableColumn, and REFUSES it on the static twin (#6424)', () => {
+    // Both halves of the ruled declaration at the tsc layer. The static half
+    // carries the directive; the rich half deliberately does NOT, so a later
+    // narrowing of `TableColumn` fails here rather than passing silently.
+    const rich: TableColumn = {
+      header: 'Actions',
+      accessorKey: '_actions',
+      fitContent: true,
+    };
+    const narrow: StaticTableColumn = {
+      header: 'Actions',
+      accessorKey: '_actions',
+      // @ts-expect-error `fitContent` is tombstoned on the narrow surface
+      // (objectui#6424, under #5474's lockstep rule) — the static renderer
+      // has no auto-width pass to opt out of; use data-table.
+      fitContent: true,
+    };
+    expect(rich.fitContent).toBe(true);
+    expect(narrow.header).toBe('Actions');
+  });
+
+  it('FRESHNESS-FREE: the tombstone refuses a NON-FRESH value too, and the rich READ compiles (#6424)', () => {
+    // Why this test exists on top of the one above. At a FRESH object literal
+    // an undeclared key and a `?: never` tombstone are indistinguishable —
+    // both are tsc errors, by excess-property checking. Route the same value
+    // through a variable and the two come apart: excess properties on a
+    // NON-FRESH value are structurally fine, so an undeclared key would be
+    // ACCEPTED here and the directive below would go unused (a red build in
+    // this package, which type-checks its tests). Only a real tombstone
+    // refuses it. The literal pins the authoring surface; this pins the
+    // declaration.
+    const authored = { header: 'Actions', accessorKey: '_actions', fitContent: true };
+
+    // @ts-expect-error `fitContent: boolean` is not assignable to the
+    // tombstoned `fitContent?: never` — the refusal survives widening, so it
+    // is the tombstone doing the work, not literal freshness.
+    const narrow: StaticTableColumn = authored;
+
+    // The rich side, freshness-free in the other direction: assigning a wider
+    // object is legal whether or not the key is declared, so the pin is the
+    // READ — `column.fitContent` only compiles if `TableColumn` DECLARES it,
+    // and the annotation pins the declared type while it is at it.
+    const column: TableColumn = authored;
+    const fit: boolean | undefined = column.fitContent;
+
+    expect(fit).toBe(true);
+    expect(narrow.accessorKey).toBe('_actions');
   });
 
   it('still accepts the interactive keys on the RICH TableColumn (control)', () => {

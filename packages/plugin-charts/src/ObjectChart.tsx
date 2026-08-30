@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
+import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -1042,7 +1042,7 @@ const OBJECT_CHART_DATA_SOURCE: ElementDataSourceMapping = {
  * here, beside the registration, rather than in `ChartContainerImpl` — the
  * binding is a registry-boundary concern, not a rendering one.
  */
-export const ObjectChartBlock = (props: any) => (
+export const ObjectChartBlock = elementDataSourceBlock((props: any) => (
   <ElementDataSourceGate
     schema={props.schema}
     mapping={OBJECT_CHART_DATA_SOURCE}
@@ -1052,7 +1052,7 @@ export const ObjectChartBlock = (props: any) => (
   >
     {(bound) => <ObjectChart {...props} schema={bound} />}
   </ElementDataSourceGate>
-);
+));
 
 // Register it
 ComponentRegistry.register('object-chart', ObjectChartBlock, {

@@ -22,8 +22,11 @@ import { useRecentItems } from '../../hooks/useRecentItems.js';
 import { useFavorites } from '../../hooks/useFavorites.js';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useWorkspaceAdminStatus } from '@object-ui/auth';
-import { usePermissions } from '@object-ui/permissions';
 import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-chatbot';
+// May this session author metadata? Shared with the chat surfaces since the
+// maker convergence (cloud#1674) — the doctrine (objectstack#8270 posture,
+// unknown→fail-open) lives with the hook.
+import { useCanAuthorMetadata } from '../../hooks/useCanAuthorMetadata.js';
 import { HomeAppsStrip } from './HomeAppsStrip.js';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail.js';
 import { useHomeInbox } from '../../hooks/useHomeInbox.js';
@@ -65,47 +68,6 @@ function useHomeAiAvailability(): {
     // cloud#816 — authoring availability by DECLARED capability (name-check fallback inside).
     buildAvailable: agents.some((a) => agentHasCapability(agents, a.name, 'authoring')),
   };
-}
-
-/**
- * [ADR-0066] The system capability every metadata-authoring surface behind the
- * home CTAs ultimately requires. The server is the authority (it refuses the
- * write either way); what follows is only the presentational half.
- */
-const AUTHORING_CAPABILITY = 'manage_metadata';
-
-/**
- * May this session author metadata?
- *
- * objectstack#8270 — on the EE single-database multi-tenant deployment a
- * workspace owner holds `org_owner` + `organization_admin` but NOT
- * `manage_metadata`; that absence is the intended hosted posture (maintainer
- * ruling 2026-08-13), not a missing grant. `useWorkspaceAdminStatus` reads the
- * session's POSITIONS (spelled `roles` until framework ADR-0090 D3 renamed it;
- * objectui#5389 moved this hook onto the live spelling, and `org_owner` is in
- * that array either way), so it says `true` for that owner and the builder CTAs
- * rendered — the owner
- * followed "Build an app", filled in the new-package dialog, and hit a raw
- * capability refusal at submit. This consumes the answer the server already
- * gives (`GET /api/v1/auth/me/permissions` → `systemPermissions`, surfaced by
- * `MePermissionsProvider`); it does NOT re-derive permission logic client-side.
- *
- * **Unknown → fail OPEN**, the same doctrine `useCapabilityGate` states for
- * ADR-0066 gates (framework#3923): the server enforces regardless, and hiding a
- * permitted user's primary CTA on missing client data is the worse failure.
- * `MePermissionsProvider` now preserves the absent-vs-empty distinction
- * natively (objectui#4656) — `hasCapabilities` itself returns `true` when the
- * backend never reported `systemPermissions` at all (a deployment predating
- * ADR-0066), and gates normally on a real answer, including a genuinely
- * EMPTY one. This hook no longer re-derives that heuristic locally; it just
- * asks the centralized signal. The ruled case is unaffected: the EE owner's
- * set is non-empty (`manage_org_users`, `setup.access`, `setup.write`), so it
- * gates closed. Hosts with no permission provider at all already fail open
- * inside `usePermissions`.
- */
-function useCanAuthorMetadata(): boolean {
-  const { hasCapabilities } = usePermissions();
-  return hasCapabilities([AUTHORING_CAPABILITY]);
 }
 
 /**
@@ -199,9 +161,12 @@ function HomeAiActions({
           {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
         </Button>
       )}
-      {askAvailable && (
+      {/* cloud#1674 maker convergence: with the build CTA shown, "Ask AI" is
+          not a second door — the build composer answers data questions too
+          (data superset since cloud#1673), and `/ai/ask` would bounce a maker
+          straight back to `/ai/build`. Non-authoring sessions keep it. */}
+      {askAvailable && !showBuild && (
         <Button
-          variant={showBuild ? 'outline' : 'default'}
           onClick={() => navigate('/ai/ask')}
           data-testid="home-ask-ai"
         >

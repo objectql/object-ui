@@ -227,15 +227,24 @@ chart renders empty:
 `{ provider: 'schema', schemaId }`.
 
 **2. How the fields map — `getGanttConfig`.** Two spellings, checked in order.
-Top-level keys are used **only when `startDateField` and `endDateField` are both
-present**; otherwise the whole `gantt` block is read instead:
+The **`gantt` block wins whenever it is present**, and it is taken WHOLE — the
+flat top-level keys are not merged into it. The flat spelling is read only when
+there is no `gantt` block, and then only when `startDateField` and
+`endDateField` are both present. A node carrying both spellings renders the
+block's values and gets a dev-mode warning naming the ignored top-level keys.
+
+Precedence follows the maintainer ruling on objectui#5018 (2026-08-17), which
+settled the identical two-faces shape for `plugin-map`; objectui#6469 inherited
+it here. Before that flip the flat branch returned first, so an authored `gantt`
+block was discarded silently.
 
 ```typescript
 {
   type: 'gantt',
   objectName: 'project_tasks',
 
-  // (a) flat spelling — requires BOTH date fields to be taken
+  // (a) flat spelling — read only when there is no `gantt` block,
+  //     and then only with BOTH date fields present
   startDateField: 'start_date',
   endDateField: 'end_date',
   titleField: 'name',                 // defaults to 'name'
@@ -246,7 +255,7 @@ present**; otherwise the whole `gantt` block is read instead:
   typeField: 'task_kind',
   viewMode: 'week',                   // 'day'|'week'|'month'|'quarter'|'year'
 
-  // (b) …or the same configuration as one block:
+  // (b) …or the same configuration as one block, which OUTRANKS (a):
   // gantt: { startDateField: 'start_date', endDateField: 'end_date', … }
 }
 ```
@@ -255,9 +264,10 @@ present**; otherwise the whole `gantt` block is read instead:
 spec's `GanttConfigSchema.viewMode`) and is honoured by **both** renderer
 branches — the timeline and the resource-workload grid. It reaches the renderer
 through `getGanttConfig`, so it only takes effect alongside a taken gantt
-config: as a top-level key it needs `startDateField` + `endDateField` beside it,
-or it can sit inside the `gantt` block. Omitting it is meaningful — a persisted
-layout then seeds the granularity before the renderer's `'day'` fallback.
+config: as a top-level key it needs `startDateField` + `endDateField` beside it
+and no `gantt` block on the node, or it can sit inside the `gantt` block.
+Omitting it is meaningful — a persisted layout then seeds the granularity before
+the renderer's `'day'` fallback.
 
 #### Keys this page used to teach that the renderer never reads
 
@@ -660,9 +670,14 @@ const gantt: ObjectGanttSchema = {
   startDateField: 'start_date',
   endDateField: 'end_date',
   progressField: 'completion_percentage',
-  dependencyField: 'dependent_task_ids',
+  dependenciesField: 'dependent_task_ids',
 };
 ```
+
+`dependenciesField` (plural) is the spec's spelling and the one to author. The
+singular `dependencyField` is a `@deprecated` legacy alias: `ObjectGantt` still
+reads it (`dependenciesField || dependencyField`), so existing metadata keeps
+working, but new metadata should not use it.
 
 For a list view served under the `gantt` view type, the same configuration is a
 `gantt` block on `ListViewSchema` (typed by `GanttConfig`, also from

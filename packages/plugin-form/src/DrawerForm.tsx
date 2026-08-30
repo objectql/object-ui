@@ -51,6 +51,7 @@ import { sanitizeFormData } from './sanitize';
 import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
 import { useOccSave } from './occSave';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 
 /**
  * Container-query-based grid classes for form field layout.
@@ -398,7 +399,14 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
     setIsSubmitting(true);
     try {
-      if (!dataSource) {
+      // No submit TARGET: a declared `submitHandler` owns the write and needs no
+      // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+      // nor a `dataSource` is target-less. The one target-less form that is still
+      // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+      // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+      // adapter-less submit, bypassing a declared host seam and persisting
+      // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+      if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
         if (schema.onSuccess) {
           await schema.onSuccess(data);
         }
@@ -426,6 +434,10 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         // renderer `ObjectForm` routes to must check it FIRST, or a declared
         // host-owned write silently becomes an independent one (objectui#6176).
         result = await schema.submitHandler(writePayload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of reporting
+        // success — the `catch` below hands this to `schema.onError` and rethrows.
+        throw noSubmitTargetError();
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, writePayload);
       } else if (schema.mode === 'edit' && schema.recordId) {
@@ -574,6 +586,9 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
       schema.sections.forEach((section, index) => {
         const sectionKey = section.name || String(index);
         const isCollapsed = collapsedSections[sectionKey] ?? (section.collapsed ?? false);
+        // Resolved before the divider push so the membership claim below can
+        // name exactly the fields this group contributes (#6236).
+        const sectionFields = buildSectionFields(section);
 
         allFields.push({
           name: `__section_${sectionKey}`,
@@ -582,6 +597,9 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           // ADR-0089 section predicate (#6111) — the renderer evaluates it on
           // this pseudo-field with the host predicate scope bound (#6010).
           visibleWhen: (section as any).visibleWhen,
+          // The membership claim (#6236): resolved member names, so the
+          // predicate gates the whole group.
+          fields: sectionFields.map(f => f.name),
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,
@@ -591,7 +609,6 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           className: (section as any).className,
         } as any);
 
-        const sectionFields = buildSectionFields(section);
         if (isCollapsed) {
           allFields.push(...sectionFields.map(f => ({ ...f, hidden: true })));
         } else {
@@ -640,6 +657,9 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
             type: 'section-divider',
             // ADR-0089 section predicate (#6111).
             visibleWhen: (section as any).visibleWhen,
+            // The membership claim (#6236): resolved member names, so the
+            // predicate gates the whole group.
+            fields: body.map(f => f.name),
             colSpan: 4,
             collapsible: section.collapsible,
             collapsed: isCollapsed,

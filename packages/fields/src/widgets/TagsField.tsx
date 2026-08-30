@@ -33,6 +33,34 @@ export function TagsField({ value, onChange, field, readonly, className, error, 
 
   const removeTag = (t: string) => onChange(tags.filter((x) => x !== t));
 
+  const domProps = toDomProps(props);
+
+  /**
+   * Commit the typed draft as a tag on blur — and then hand the event on to the
+   * host (objectui#6802).
+   *
+   * ⚠️ `onBlur` is a DECLARED DOM pass-through key (`FieldWidgetDomProps`,
+   * `SDUI_DOM_PASS_THROUGH_KEYS`) that `toDomProps` already delivers onto this
+   * control, so the bare `onBlur={() => addTag(draft)}` this used to be —
+   * written AFTER the spread — silently overrode it: this package's
+   * DECLARED-BUT-NOT-DELIVERED class (objectui#3290 / objectui#3222).
+   *
+   * ⛔ NOT a no-op. The form renderer hosts every field through
+   * react-hook-form's `Controller` and spreads the controller field —
+   * `{ name, value, onChange, onBlur, ref, disabled }` — into the widget's
+   * props (`components/src/renderers/form/form.tsx`), so the dropped handler is
+   * the one that marks the field touched and runs blur-mode validation. The
+   * reproduction through the real renderer is
+   * `__tests__/hostOnBlurDelivery-e2e.test.tsx`.
+   *
+   * Order matters: `addTag` runs FIRST so a host validating on blur reads the
+   * committed list rather than the one the user had before typing the tag.
+   */
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    addTag(draft);
+    domProps.onBlur?.(e);
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
@@ -61,11 +89,11 @@ export function TagsField({ value, onChange, field, readonly, className, error, 
         // DOM pass-through onto the real focusable control (objectui#3318):
         // the whitelist spread carries the form renderer's id /
         // aria-describedby to the input the user actually types in.
-        {...toDomProps(props)}
+        {...domProps}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
-        onBlur={() => addTag(draft)}
+        onBlur={handleBlur}
         disabled={props.disabled}
         // Placeholder chain (objectui#3342): the author-declared
         // `field.placeholder` wins; otherwise the widget's own copy arrives

@@ -183,6 +183,70 @@ export interface BaseSchema {
   data?: any;
 
   /**
+   * Data-scope path this node draws its rows/value from — the SDUI data-binding
+   * vocabulary, resolved by `useDataScope()` (`@object-ui/react`).
+   *
+   * ```json
+   * { "type": "list", "bind": "customerNames" }   // → dataSource.customerNames
+   * { "type": "object-kanban", "bind": "app.settings.users" }
+   * ```
+   *
+   * ## Why it is declared HERE and not on each reader (objectui#6357)
+   *
+   * `bind` was read by ten production sites and declared by NO schema shape —
+   * it rode `BaseSchema`'s index signature as `any`, while three separate
+   * documents taught it as an authorable key of EVERY node: this repo's own
+   * `AGENTS.md` §4 ("Every node in the UI tree follows this shape
+   * (`@object-ui/types`)" — `bind?: string`), the published agent-facing
+   * `skills/objectui/rules/protocol.md` ("Every UI component node MUST follow
+   * this shape"), and `content/docs/fields/grid.mdx`.
+   *
+   * Per-component declaration was measured and rejected: it costs nine copies
+   * of one key and buys NOTHING extra, because neither half can refuse the key
+   * on a non-reader either way (see the ceiling below). The class had already
+   * generated FOUR local declarations before this one existed — three spelled
+   * `string`, one spelled `unknown` — which is exactly the "two copies of one
+   * key list is how a list becomes two disagreeing lists" hazard that
+   * `plugin-dashboard/src/schemaHostProps.ts`'s own header warns about. Only
+   * one of the four was a true duplicate of a base member (`ObjectPivotTable`'s,
+   * removed with this card); the other three are load-bearing because their
+   * containing types never reference `BaseSchema` at all, and that disconnection
+   * is objectui#5155 / objectui#6269's defect, not this card's. They are held as
+   * a ratchet in `__tests__/base-bind-declared.test.ts`.
+   *
+   * Precedent for a cross-cutting key honoured by a SUBSET living here:
+   * {@link BaseSchema.placeholder}, declared for every node and read only by
+   * input components.
+   *
+   * ## Readers, and the one documented silent failure
+   *
+   * Only a component that calls `useDataScope` honours it. Measured readers:
+   * `list` and `tree-view` (`@object-ui/components`), and the `object-*`
+   * widgets in `plugin-charts` / `plugin-dashboard` (×2) / `plugin-grid` /
+   * `plugin-kanban` / `plugin-list` / `plugin-timeline`. ⚠️ `data-table` does
+   * NOT: a `bind` on it is ignored and the table renders its header over an
+   * empty body, with no error and no warning (`protocol.md`, and pinned in
+   * `components/src/__tests__/skill-guide-data-table-binding.test.tsx`).
+   * Declaring the key here does not change that, and does not bless it — the
+   * key was already accepted on every node before this declaration existed.
+   *
+   * ## What declaring it buys, and what it does not (objectui#5155 / #6269)
+   *
+   * Same ceiling as the gantt and timeline pins. `BaseSchema` carries an index
+   * signature on the TS side and is `.passthrough()` on the zod side, so an
+   * UNDECLARED key is still accepted by both halves — this did NOT buy
+   * rejection of a misspelling such as `bindTo`. What it DOES buy is the VALUE:
+   * `bind: 42` type-checked and parsed green before this declaration and is
+   * refused by both halves now. That narrowing only refuses what already
+   * crashed — `useDataScope` is `(path?: string)` and resolves via
+   * `path.split('.')`, so a non-string `bind` threw a TypeError at render.
+   *
+   * @example "customerNames"
+   * @example "app.settings.users"
+   */
+  bind?: string;
+
+  /**
    * Child components or content.
    * Can be a single component, array of components, or primitive values.
    */

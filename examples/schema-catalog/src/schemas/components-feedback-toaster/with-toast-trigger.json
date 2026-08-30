@@ -8,8 +8,7 @@
       "onClick": "toast(\"Hello from ObjectUI!\")"
     },
     {
-      "type": "toaster",
-      "provider": "sonner"
+      "type": "toaster"
     }
   ]
 }

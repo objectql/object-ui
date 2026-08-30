@@ -52,6 +52,13 @@
  * member-set checks being insufficient on their own, as
  * `packages/types/src/__tests__/component-meta-single-declaration.test.ts`.
  *
+ * ⚠️ THE TWO READINGS ABOVE ARE RECORDED MEASUREMENTS, taken on the tree
+ * immediately before and after objectui#6067. They are history and are NOT
+ * updated as the key set grows — `onlyInCore` has since gained a fifth key,
+ * `deprecated` (objectui#6674), which the live assertions below carry. Editing
+ * a recorded reading to match today's tree would destroy the only evidence that
+ * the assignability pair was green on the diverged one.
+ *
  * ## Which declaration these type-level assertions actually read
  *
  * The EMITTED one. `packages/core/tsconfig.test.json` sets `"paths": {}`,
@@ -103,18 +110,26 @@ describe('ComponentMeta (core registry) — the key-set pin (the assertion a str
     expect(noCanonicalKeyIsMissing).toBe(true);
   });
 
-  it('adds exactly the four registry-only keys, named', () => {
+  it('adds exactly the five registry-only keys, named', () => {
     // The other half of the symmetric difference, pinned to a literal union
     // rather than to `keyof RegistryComponentMetaExtras` — comparing the extras
-    // type against itself would be true by construction. Spelling the four out
-    // is what catches a fifth key drifting onto the registration surface, and
-    // what catches one of these four being quietly moved onto the general type
+    // type against itself would be true by construction. Spelling them out
+    // is what catches a sixth key drifting onto the registration surface, and
+    // what catches one of these being quietly moved onto the general type
     // in `@object-ui/types` (the direction objectui#6067 weighed and rejected:
     // `skipFallback` and `namespace` are registry mechanics and do not belong
     // on a type published to every metadata author).
+    //
+    // `deprecated` is the fifth, added by objectui#6674. It is registry-only
+    // for the same reason the other four are: it states something about the
+    // REGISTRATION (which surfaces may still author this type), and the
+    // authoring-surface vocabulary it is scoped by is this engine's, not a
+    // general property of component metadata. This union is the pin the
+    // dispatch for #6674 flagged in advance — a new key that does not update it
+    // turns this case red on a change that has nothing to do with it.
     const registryOnlyKeys: Exact<
       OnlyOnRegistry,
-      'tier' | 'namespace' | 'skipFallback' | 'labelling'
+      'tier' | 'namespace' | 'skipFallback' | 'labelling' | 'deprecated'
     > = true;
 
     // And the extras type is the thing that supplies them, so the named type
@@ -160,6 +175,7 @@ describe('ComponentMeta (core registry) — the two keys the convergence deliver
       namespace: 'view',
       skipFallback: true,
       labelling: 'group',
+      deprecated: { surfaces: ['json'], replacement: 'use "object-grid"' },
       inputs: [{ name: 'columns', type: 'array' }],
       isContainer: false,
       resizable: true,
@@ -171,7 +187,7 @@ describe('ComponentMeta (core registry) — the two keys the convergence deliver
     expect(registration.description).toBe(
       'Drag-and-drop board view over a grouped dataset.',
     );
-    // The four registry keys are still writable on the same object — the
+    // The registry keys are still writable on the same object — the
     // convergence widened the surface, it did not swap one half for the other.
     expect([
       registration.tier,
@@ -179,6 +195,14 @@ describe('ComponentMeta (core registry) — the two keys the convergence deliver
       registration.skipFallback,
       registration.labelling,
     ]).toEqual(['public', 'view', true, 'group']);
+    // …and the fifth, objectui#6674's. Writing it HERE is what proves the key
+    // reached the declaration every component registration imports — the exact
+    // failure mode objectui#6067 was filed about, where a key was legal on the
+    // canonical type and a TS error at the registration surface.
+    expect(registration.deprecated).toEqual({
+      surfaces: ['json'],
+      replacement: 'use "object-grid"',
+    });
   });
 });
 
@@ -213,8 +237,14 @@ const CANONICAL_MEMBERS = [
   'description',
 ];
 
-/** The four this file legitimately declares. */
-const REGISTRY_MEMBERS = ['tier', 'namespace', 'skipFallback', 'labelling'];
+/** The five this file legitimately declares. */
+const REGISTRY_MEMBERS = [
+  'tier',
+  'namespace',
+  'skipFallback',
+  'labelling',
+  'deprecated',
+];
 
 describe('ComponentMeta (core registry) — the source-identity pin', () => {
   it('imports the canonical declaration instead of restating it', () => {
@@ -236,7 +266,7 @@ describe('ComponentMeta (core registry) — the source-identity pin', () => {
     expect(restated).toEqual([]);
   });
 
-  it('still declares the four registry-only members here, so the pattern is live', () => {
+  it('still declares the five registry-only members here, so the pattern is live', () => {
     // Control for the regex itself. A pattern that matched nothing anywhere
     // would pass the assertion above on any tree, including a re-diverged one.
     const declared = REGISTRY_MEMBERS.filter((m) =>

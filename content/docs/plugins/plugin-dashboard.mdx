@@ -319,8 +319,9 @@ from widget `options`. In particular, on a dataset-bound gauge:
 
 - `options.format` is **not read** — declare the format on the dataset
   measure instead;
-- `options.thresholds` is **not read** — no renderer in this repository reads
-  a `thresholds` key;
+- `options.thresholds` is **not read** — the census header in
+  `packages/sdui-parser/src/dashboard-widget-options.ts` is the canonical
+  statement of that closure claim, and a gate re-derives it on every test run;
 - `options.invert` is **not read** — if a measure needs to be displayed as its
   complement (e.g. a compliance rate stored as a violation rate), add a
   derived measure to the dataset (`derived: { op: 'ratio', … }`) and bind the

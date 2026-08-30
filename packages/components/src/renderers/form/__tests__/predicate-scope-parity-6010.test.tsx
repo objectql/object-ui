@@ -201,19 +201,37 @@ function fieldSurface(predicate: unknown, scope: Record<string, unknown>): boole
   return screen.queryByLabelText(/salary/i) !== null;
 }
 
-/** Form SECTION `visibleWhen` — the same call site, `type: 'section-divider'`. */
+/**
+ * Form SECTION `visibleWhen` — the same call site, `type: 'section-divider'`.
+ *
+ * Since objectui#6236 the divider carries a membership claim (`fields`) and
+ * its predicate gates the WHOLE group, so this row asserts the two halves
+ * cannot disagree — heading and claimed member move together — and returns
+ * their shared verdict. (Until #6236 it asserted only the heading; the group
+ * semantics themselves are pinned in section-grouping-6236.test.tsx.)
+ */
 function sectionSurface(predicate: unknown, scope: Record<string, unknown>): boolean {
   renderForm(
     {
       fields: [
         { name: 'title', label: 'Title', type: 'input' },
-        { name: 'pay', label: 'Compensation', type: 'section-divider', visibleWhen: predicate },
+        {
+          name: 'pay',
+          label: 'Compensation',
+          type: 'section-divider',
+          visibleWhen: predicate,
+          fields: ['salary'],
+        },
+        { name: 'salary', label: 'Salary', type: 'input' },
       ],
     },
     scope,
   );
   expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
-  return screen.queryByText('Compensation') !== null;
+  const headingShown = screen.queryByText('Compensation') !== null;
+  const memberShown = screen.queryByLabelText(/salary/i) !== null;
+  expect(memberShown).toBe(headingShown);
+  return headingShown;
 }
 
 /**

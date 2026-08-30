@@ -90,14 +90,44 @@
  * components (`pnpm shadcn:update button`) legitimately — fenced blocks are
  * stripped before the section is judged for that reason.
  *
- * The path check is here because no link gate can see this file:
- * `check-doc-links.mjs`'s per-package `SCAN_ROOTS` row globs one directory level
- * and then matches the exact filename `README.md`, so `README_SHADCN_SYNC.md` has
- * never been scanned by anything — which is also how its `## Files` section came
- * to claim `shadcn-sync.js` sits in this directory when it has always been at the
- * repo root. Widening that scan root is a separate change with its own entry
- * price (the objectui#3603 / objectui#3622 shape: one row plus whatever it turns
- * red) and is deliberately not taken here.
+ * **`check-doc-links.mjs` DOES scan this file today.** The claim that stood
+ * here — that no link gate can see it, because the per-package `SCAN_ROOTS` row
+ * globbed one directory level and matched only the exact filename `README.md` —
+ * became false with objectui#4938: that row now walks every markdown file under
+ * each package directory and excludes only the basenames `README.md` and
+ * `CHANGELOG.md`, at every depth. `README_SHADCN_SYNC.md` is neither, so it is
+ * inside that row (re-verified against the live `SCAN_ROOTS` table for
+ * objectui#6280 — 17 rows total, this file collected by the `packages/*` row
+ * and by no other).
+ *
+ * That does not make the checks below redundant, for two reasons that would
+ * each independently survive `check-doc-links.mjs` scanning every byte of this
+ * README:
+ *
+ *   - **It cannot see the paths this file names.** Every in-repo path here —
+ *     `shadcn-components.json`, `scripts/shadcn-sync.js`,
+ *     `scripts/shadcn-local-patches.mjs` — is written as a backticked code
+ *     span, never as a `[text](href)` markdown link, and `check-doc-links.mjs`
+ *     blanks every inline code span (`stripCode()`) before its link regex ever
+ *     runs, by design — a command example like `` `pnpm shadcn:update button` ``
+ *     must not be misread as a broken link. This README's only actual markdown
+ *     links (8, all external: `ui.shadcn.com`, `github.com/shadcn-ui/...`, and
+ *     the Radix/Tailwind/CVA sites) carry nothing check-doc-links would resolve
+ *     against this repo. So scanning this file today asserts nothing about the
+ *     paths the last `it` block below checks — the objectui#3881 path drift
+ *     (`## Files` claiming `shadcn-sync.js` sits in this directory when it has
+ *     always been at the repo root) would go just as uncaught by that gate
+ *     under today's widened surface as it did before objectui#4938.
+ *   - **It has no notion of this file's actual defect class.** objectui#3881
+ *     was two prose censuses disagreeing with `shadcn-components.json` about
+ *     which components belong where — a comparison against a JSON manifest,
+ *     not a link target. No widening of `SCAN_ROOTS`, at any width, gives a
+ *     link checker that question to ask.
+ *
+ * The first reason is why the path check (the last `it` block) survives; the
+ * second is why the category/manifest comparisons above it do. Both hold
+ * regardless of `check-doc-links.mjs`'s scan surface — not because that
+ * surface stops short of this file, since it no longer does.
  */
 
 import { describe, it, expect } from 'vitest';

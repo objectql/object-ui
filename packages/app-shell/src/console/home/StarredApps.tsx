@@ -24,9 +24,13 @@ const TYPE_TONES: Record<string, string> = {
   record: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/20',
 };
 
-// Per-type icon so the four kinds (object / record / dashboard / page) are
-// visually distinguishable at a glance. `getIcon` falls back to the same
-// Database glyph for every unknown name which made all cards look identical.
+// Per-type icon for four of the six `FavoriteItem['type']` kinds (object /
+// record / dashboard / page) so those cards are visually distinguishable at
+// a glance; `report` has no dedicated glyph and falls back to the same
+// Database icon as any unrecognized name. `nav` is the sixth kind — it never
+// reaches this lookup because it is filtered out below (nav items are
+// excluded from Starred; see FavoritesProvider's `FavoriteItem['type']` doc,
+// objectui#6335).
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   object: Database,
   record: FileText,
@@ -38,7 +42,19 @@ export function StarredApps({ items }: StarredAppsProps) {
   const navigate = useNavigate();
   const { t } = useObjectTranslation();
 
-  if (items.length === 0) return null;
+  // `nav` favorites (sidebar entries pinned via the in-tree pin toggle) are
+  // documented as "Excluded from Home/Starred" (FavoritesProvider.tsx) so
+  // they don't render twice — once here and once in the Pinned sidebar
+  // section. That exclusion was previously only documented, not enforced:
+  // `StarredApps` rendered whatever `items` it was handed, so a caller that
+  // included a `nav` favorite hit `home.recentApps.itemType.*`'s missing
+  // `nav` key and fell through to the raw-string fallback (objectui#6335).
+  // Filtering here restores declared-equals-enforced behaviour and matches
+  // the same `type !== 'nav'` exclusion already applied to the sidebar
+  // Favorites list (AppSidebar.tsx / UnifiedSidebar.tsx).
+  const visibleItems = items.filter((item) => item.type !== 'nav');
+
+  if (visibleItems.length === 0) return null;
 
   return (
     <section>
@@ -51,7 +67,7 @@ export function StarredApps({ items }: StarredAppsProps) {
         </h2>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = TYPE_ICONS[item.type] || Database;
           const tone = TYPE_TONES[item.type] || TYPE_TONES.object;
           // Reuse the recentApps.itemType.* keys so Starred and Recently

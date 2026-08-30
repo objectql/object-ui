@@ -115,6 +115,17 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'this gate carries no path filter, reports on every pull request, and is requirable; ' +
       '`scripts/dependabot-merge-gate.mjs` already classifies it as a required context',
   ],
+  [
+    'governed-surface-guard.yml',
+    'produces Governed Surface Queue Guard — added by objectui#6596. The one entry here whose ' +
+      'REASON is the queue build itself rather than merely reporting on it: its `pull_request` leg ' +
+      'is deliberately green whatever it finds, and its refusal exists only on `merge_group`, so a ' +
+      'missing subscription would remove the entire verdict rather than just delay it. It carries ' +
+      'no path filter either — a skipped job counts as SUCCESS in branch protection, which on a ' +
+      'check whose whole job is to refuse is the failure mode itself — so it reports on every pull ' +
+      'request and is requirable; `scripts/dependabot-merge-gate.mjs` classifies it as a required ' +
+      'context',
+  ],
 ]);
 
 /**

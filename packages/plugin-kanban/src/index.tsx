@@ -7,7 +7,7 @@
  */
 
 import React, { Suspense } from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   useSchemaContext,
@@ -398,7 +398,7 @@ const OBJECT_KANBAN_DATA_SOURCE: ElementDataSourceMapping = {
 };
 
 // Register object-kanban for ListView integration
-export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }> = ({ schema, ...props }) => {
+export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }> = elementDataSourceBlock(({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#6953):
   // before this, a board authored with `dataSource: { object, view }` and no
@@ -415,7 +415,7 @@ export const ObjectKanbanRenderer: React.FC<{ schema: any; [key: string]: any }>
       {(bound) => <ObjectKanban schema={bound} dataSource={dataSource} {...props} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register(
   'object-kanban',

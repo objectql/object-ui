@@ -18,6 +18,19 @@ A lazy-loaded kanban board component for Object UI based on @dnd-kit for drag-an
 pnpm add @object-ui/plugin-kanban
 ```
 
+Then import the stylesheet this package publishes, after the base sheets. It is a
+supplement — compiled against the `@object-ui/components` theme with that sheet's
+rules subtracted — so the order matters, and without it the board renders with no
+themed styling at all ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)):
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
 ## Usage
 
 ### Automatic Registration (Side-Effect Import)

@@ -711,9 +711,9 @@ export interface ObjectManagerSchema extends BaseSchema {
  * Single runtime source for every surface that enumerates the designer's
  * vocabulary: `FieldDesigner` renders its palette in exactly this order (its
  * `FIELD_TYPE_META` is a `Record<DesignerFieldType, …>`, so adding a member
- * here without presentation is a compile error), and app-shell's
- * `object-fields-bridge` derives its editable-subset check from it instead of
- * restating the list (objectui#3017).
+ * here without presentation is a compile error), and `MetadataFieldsPage`
+ * derives its editable-subset check from it instead of restating the list
+ * (objectui#3017).
  */
 export const DESIGNER_FIELD_TYPES = [
   'text',
@@ -780,8 +780,29 @@ export interface DesignerFieldDefinition {
   type: DesignerFieldType;
   /** Field group/section */
   group?: string;
-  /** Sort order within group */
-  sortOrder?: number;
+  /*
+   * There is deliberately no `sortOrder` here (objectui#6045). `FieldSchema`
+   * rejects the key by name and the spec has NO field-level ordering key at
+   * all — field order is DECLARATION ORDER in the object's `fields` record, so
+   * a designer that wants explicit ordering reorders that record rather than
+   * carrying an index. The near-spelling `sortable` is not a rename target: it
+   * is a boolean ("whether field is sortable in list views"), a different
+   * concept entirely.
+   *
+   * Nothing ever populated it. `MetadataService.toFieldPayload` copied it onto
+   * the wire shape, so the key was one reorder feature away from the hard 422
+   * `INVALID_METADATA` that blocks every later save of an object; it stayed
+   * latent only because `JSON.stringify` drops the `undefined`. That is
+   * objectui#4687's shape — a declaration with zero readers and zero writers —
+   * and the resolution is the same one: delete it, rather than leave a key
+   * declared here that no writer fills and no schema accepts.
+   *
+   * The object-level `sortOrder` on `ObjectDefinition` above is a DIFFERENT
+   * key on a different schema (objectui#6223 removed it from the object wire
+   * shape and deliberately kept it on that UI model, where it is the Object
+   * Manager's display order). So is the saved-view `sortOrder` in
+   * `app-shell`'s `ObjectView`. Neither is this one.
+   */
   /** Field description / help text */
   description?: string;
   /** Whether field is required */

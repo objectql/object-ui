@@ -14,18 +14,30 @@
  * inlines every `VITE_*` defined there into that bundle as a frozen object
  * literal, so a DSN committed in the tree is a live telemetry endpoint
  * compiled into the artifact that lands inside customer networks — and it
- * cannot be switched off afterwards, because the `VITE_SENTRY_ENABLED` kill
- * switch is read off that same frozen literal and is `undefined` forever on a
- * build that never defined it.
+ * cannot be switched off afterwards: nothing inside a published SPA can be
+ * edited on a deployed host, and there is no build-time kill switch to reach
+ * for either (the `VITE_SENTRY_ENABLED` one retired with the build-time DSN,
+ * having always been `undefined` forever on a build that never defined it).
  *
  * Measured, not hypothetical: an air-gapped EE deployment sent 14 Sentry
  * envelopes per session to sentry.io carrying IP + User-Agent PII, with no way
  * for the customer to stop it (objectstack-ai/cloud#1508). The `.env` file was
  * the mechanism, so the `.env` files are what this guards.
  *
- * Deployments that WANT reporting inject `VITE_SENTRY_DSN` from their own
- * deploy environment at build time, exactly as they already inject
- * `VITE_SERVER_URL`.
+ * Deployments that WANT reporting configure a DSN on their ObjectStack RUNTIME
+ * (`OS_TELEMETRY_CLIENT_ERROR_REPORTING_DSN`), which serves it to the SPA at
+ * boot — objectstack#12681 retired the build-time `VITE_SENTRY_DSN` path
+ * entirely, because ObjectStack's users consume this console prebuilt and
+ * cannot set build-time keys.
+ *
+ * ⚠️ That retirement did NOT retire this ratchet, and the rules below are
+ * deliberately unchanged. Its job was never "police the VITE_ prefix" — it is
+ * "nothing endpoint-shaped is committed to this repo", and the rules are keyed
+ * on `*DSN` / `*SEND_DEFAULT_PII` and on telemetry-host-shaped VALUES, so they
+ * catch a runtime-side spelling pasted into a committed `.env` exactly as well.
+ * A committed DSN is still inlined into the published bundle and still cannot
+ * be switched off afterwards; that hazard is a property of committing it, not
+ * of which variable name it was committed under.
  *
  * This lives beside `sentry.ts` rather than in `apps/console` for one
  * measured reason: Vite's `server.fs.deny` blocks `.env*` from `?raw` imports
@@ -112,6 +124,13 @@ describe('committed .env files carry no third-party telemetry endpoint', () => {
     expect(violationsIn('VITE_SENTRY_DSN=https://k@o1.ingest.us.sentry.io/2')).not.toEqual([]);
     expect(violationsIn('VITE_SENTRY_SEND_DEFAULT_PII=true')).not.toEqual([]);
     expect(violationsIn('SOME_TUNNEL=https://relay.ingest.sentry.io/x')).not.toEqual([]);
+    // The runtime-side spellings objectstack#12681 introduced. The rules are
+    // keyed on the KEY SUFFIX and on the VALUE, never on the `VITE_` prefix,
+    // so they already cover these — pinned so a later "tidy-up" cannot narrow
+    // the rules to the retired names and reopen the hole under a new one.
+    expect(violationsIn('OS_TELEMETRY_CLIENT_ERROR_REPORTING_DSN=https://k@o1.ingest.us.sentry.io/2'))
+      .not.toEqual([]);
+    expect(violationsIn('OS_TELEMETRY_CLIENT_ERROR_REPORTING_SEND_DEFAULT_PII=true')).not.toEqual([]);
     // …and does not fire on the commentary that documents the recipe.
     expect(violationsIn('# VITE_SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<p>')).toEqual([]);
     expect(violationsIn('VITE_SERVER_URL=\nVITE_USE_MOCK_SERVER=false')).toEqual([]);

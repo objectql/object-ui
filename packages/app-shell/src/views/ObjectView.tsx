@@ -148,12 +148,17 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
  * fallback entirely. The result on a calendar-bound view was a Timeline the
  * switcher offered and the renderer bucketed wholly into "No date" (objectui#3129).
  *
- * What stays here is the one thing this layer knows and `ListView` does not: the
- * object's declared `titleField`.
+ * What stays here is the view's OWN declared config, floored at `'name'` — the
+ * same two-rung shape the calendar and gantt branches below already use. An
+ * object-level `objectDef.titleField` leg used to sit in the middle of that
+ * chain; it was removed in objectui#6557 because `@objectstack/spec`'s object
+ * schema is a `strictObject` that REJECTS the key with `unrecognized_keys`, so
+ * no legal object metadata could ever reach it (objectui#6531 established the
+ * measurement, and dropped the twin read inside `getRecordDisplayName`).
  *
  * Exported for the regression suite.
  */
-export function timelineViewOptions(viewDef: any, objectDef: any): Record<string, unknown> {
+export function timelineViewOptions(viewDef: any): Record<string, unknown> {
     const declaredStart = viewDef?.timeline?.startDateField || viewDef?.timeline?.dateField;
     return {
         // Spread the full view-defined timeline config first so the spec fields
@@ -161,7 +166,7 @@ export function timelineViewOptions(viewDef: any, objectDef: any): Record<string
         ...(viewDef?.timeline || {}),
         // Only ever restate a binding the view actually declared.
         ...(declaredStart ? { startDateField: declaredStart } : {}),
-        titleField: viewDef?.timeline?.titleField || objectDef?.titleField || 'name',
+        titleField: viewDef?.timeline?.titleField || 'name',
         descriptionField: viewDef?.timeline?.descriptionField,
     };
 }
@@ -2208,7 +2213,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                             undefined;
                         return lane ? { groupBy: lane, groupField: lane } : {};
                     })(),
-                    titleField: viewDef.kanban?.titleField || objectDef.titleField || 'name',
+                    titleField: viewDef.kanban?.titleField || 'name',
                     cardFields: viewDef.kanban?.columns,
                 },
                 calendar: {
@@ -2220,12 +2225,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     defaultView: viewDef.calendar?.defaultView,
                 },
                 // The date axis is resolved once, in ListView — this face only
-                // forwards what the view declared plus the object's title field
-                // (objectui#3129). See `timelineViewOptions`.
-                timeline: timelineViewOptions(viewDef, objectDef),
+                // forwards what the view declared, floored at 'name'
+                // (objectui#3129, objectui#6557). See `timelineViewOptions`.
+                timeline: timelineViewOptions(viewDef),
                 map: {
                     locationField: viewDef.map?.locationField,
-                    titleField: viewDef.map?.titleField || objectDef.titleField || 'name',
+                    titleField: viewDef.map?.titleField || 'name',
                     latitudeField: viewDef.map?.latitudeField,
                     longitudeField: viewDef.map?.longitudeField,
                     zoom: viewDef.map?.zoom,
@@ -2239,7 +2244,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     ...(viewDef.gallery || {}),
                     imageField: viewDef.gallery?.imageField || viewDef.gallery?.coverField || 'image',
                     coverField: viewDef.gallery?.coverField || viewDef.gallery?.imageField,
-                    titleField: viewDef.gallery?.titleField || objectDef.titleField || 'name',
+                    titleField: viewDef.gallery?.titleField || 'name',
                 },
                 gantt: {
                     // Spread the full view-defined gantt config first so the
@@ -2259,9 +2264,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     // Self-referencing tree-grid config (plugin-tree). Spread the
                     // full view-defined tree first so parentField/fields/
                     // defaultExpandedDepth survive; labelField falls back to the
-                    // object title. parentField auto-detects when omitted.
+                    // view's own `tree.titleField`, then to 'name'. parentField
+                    // auto-detects when omitted.
                     ...((viewDef as any).tree || {}),
-                    labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || objectDef.titleField || 'name',
+                    labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || 'name',
                 },
                 chart: {
                     chartType: viewDef.chart?.chartType,

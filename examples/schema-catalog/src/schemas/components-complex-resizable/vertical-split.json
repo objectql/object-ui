@@ -8,7 +8,7 @@
       "defaultSize": 60,
       "content": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4 h-full bg-blue-50",
           "children": [
             {
@@ -24,7 +24,7 @@
       "defaultSize": 40,
       "content": [
         {
-          "type": "div",
+          "type": "box",
           "className": "p-4 h-full bg-green-50",
           "children": [
             {

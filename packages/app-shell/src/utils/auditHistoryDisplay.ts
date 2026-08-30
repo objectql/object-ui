@@ -28,8 +28,14 @@ export interface AuditFieldDef {
   label?: string;
   hidden?: boolean;
   options?: unknown[];
-  reference_to?: string | string[];
-  reference?: string | string[];
+  /**
+   * Relationship target object. `string`, and only `string` — see
+   * {@link lookupTarget} for the census behind both the carrier and the
+   * spelling. `reference_to` is deliberately NOT declared here: it is a key on
+   * ObjectUI's own view/field contract, not on an object metadata document,
+   * and this interface only ever describes the latter.
+   */
+  reference?: string;
   [k: string]: unknown;
 }
 
@@ -115,9 +121,51 @@ export function collectAuditChanges(
   return out;
 }
 
-/** Lookup reference target when it is a single concrete object (skip polymorphic). */
+/**
+ * Read a lookup/master_detail field's target object from its raw def.
+ *
+ * `reference` is the ONLY spelling this reads, and only as a bare `string` —
+ * both narrowings are measurements, not preferences (objectui#6719, extending
+ * objectui#6528's SPELLING axis and objectui#6648's CARRIER axis to this
+ * third reader of the same value).
+ *
+ * WHAT REACHES HERE. This helper has exactly one caller chain:
+ * `RecordDetailView`'s History effect, which passes `objectDef.fields` —
+ * `objectDef` being an entry of `useMetadata().objects`, i.e. the metadata
+ * cache for type `'object'` (`MetadataProvider`'s `TYPE_BY_STATE_KEY.objects`).
+ * That is an OBJECT METADATA DOCUMENT, never ObjectUI's own view/field
+ * contract. `plugin-detail` does hold defs keyed `reference_to`
+ * (`DetailViewFieldSchema` in `@object-ui/types` `views.zod.ts`), but it
+ * TRANSLATES INTO that contract from `reference` (`RecordDetailDrawer`,
+ * `RecordMetaFooter`) and none of it flows back into `objectDef.fields`.
+ *
+ *   spelling: `reference` is what `ObjectSchema.safeParse` (spec 17.2.0)
+ *             ACCEPTS — the positive control every zero below is measured
+ *             against. `reference_to` it REFUSES BY NAME ("Did you mean
+ *             `reference_to` -> `reference`?"), as it does `referenceTo` and
+ *             `reference_to_object`. Reading `reference_to` FIRST, as the
+ *             `reference_to ?? reference` chain here did, preferred the
+ *             spelling the contract rejects over the one it defines.
+ *   carrier:  `FieldSchema.reference` is `optional -> string`. `safeParse`
+ *             REFUSES `reference: ['crm_account']` (`invalid_type: expected
+ *             string, received array`) and `reference: { object: 'crm_account' }`
+ *             (`received object`) while ACCEPTING the bare name. A
+ *             structure-walking, key-position-aware census of both trees found
+ *             599 bare-string carriers at the field-def key position and ZERO
+ *             array or `{ object }` carriers from any producer, and
+ *             `AuditFieldDef` was the ONLY `string | string[]` declaration of
+ *             either key in either tree against 43 that declare `string`.
+ *
+ * Dropping the `reference_to` arm loses nothing even for a def that arrives
+ * spelling only the legacy key: `normalizeSchemaReferenceKeys`
+ * (`@object-ui/core`) runs over every `'object'` item at the app-shell
+ * ingestion choke point and stamps BOTH snake_case keys from whichever
+ * spelling arrived. Its own docs give the reason this reader must not keep a
+ * second copy of that tolerance — the choke point exists "so per-consumer
+ * dual-key fallbacks can't drift" (AGENTS.md #0.1).
+ */
 function lookupTarget(def: AuditFieldDef | undefined): string | null {
-  const target = def?.reference_to ?? def?.reference;
+  const target = def?.reference;
   return typeof target === 'string' && target.length > 0 ? target : null;
 }
 

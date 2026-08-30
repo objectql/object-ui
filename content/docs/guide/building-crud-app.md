@@ -9,7 +9,7 @@ This tutorial walks you through building a **Task Manager** CRUD application wit
 
 ## Prerequisites
 
-- **Node.js** 20+ and **pnpm** 9+
+- **Node.js** and **pnpm** (or npm/yarn) — ObjectUI is tested on Node 22.x with pnpm 10.x.
 - Basic knowledge of **React** and **TypeScript**
 
 ## Step 1: Project Setup

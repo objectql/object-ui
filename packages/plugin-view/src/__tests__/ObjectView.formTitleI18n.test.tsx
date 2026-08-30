@@ -70,9 +70,10 @@ import { ObjectView } from '../ObjectView';
 // Mock @object-ui/react to avoid circular dependency issues (same shape as
 // ObjectView.test.tsx — the bus exports are imported at module-eval time by the
 // real @object-ui/components, so a strict mock must expose them).
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => (
       <div data-testid="schema-renderer" data-schema-type={schema?.type}>
         {schema?.type}

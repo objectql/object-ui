@@ -1,28 +1,36 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * Pins that the object designer's field IO never carries `indexed` back out
- * (objectui#4644).
+ * Pins that the object designer's field IO never carries a retired FieldSchema
+ * key back out (objectui#4644 for `indexed`, objectui#6519 for its siblings).
  *
- * `indexed` is not a `FieldSchema` key and never was — the field-level flag
- * built no index (objectstack#2377 removed it), and since objectstack#4001
- * closed the silent-drop shape `FieldSchema.safeParse` refuses it by name:
+ * Each key here is refused BY NAME by `FieldSchema` — measured on the installed
+ * `@objectstack/spec` 17.2.0:
  *
- *   Unrecognized key(s) on this field: `indexed`.
- *     • never a FieldSchema key; a field-level index flag built no index
- *       (#2377). Declare the index in the object's `indexes[]`.
+ *   indexed      "never a FieldSchema key; a field-level index flag built no
+ *                index (#2377). Declare the index in the object's `indexes[]`."
+ *   referenceTo  "Did you mean `referenceTo` -> `reference`?"
+ *   isSystem     "Did you mean `isSystem` -> `system`?"
  *
- * Measured on console 17.0.0 GA: the field inspector shipped an `Indexed`
- * checkbox writing the key, and saving the draft came back
+ * Measured on console 17.0.0 GA for `indexed`: the field inspector shipped an
+ * `Indexed` checkbox writing the key, and saving the draft came back
  * `HTTP 422 {"code":"INVALID_METADATA"}` — the toggle stayed ticked, so every
- * later save of that object stayed blocked too.
+ * later save of that object stayed blocked too. The two siblings added by
+ * objectui#6519 are the same shape from the same era: each was written by a
+ * shipped designer build (see the per-key evidence on `RETIRED_FIELD_KEYS`), so
+ * a stored object can still carry it inside a field.
+ *
+ * The two keys the spec refuses that this door deliberately does NOT strip —
+ * `formula` and `sortOrder` — have a case each below, because the temptation to
+ * "finish the set" is exactly what those two paragraphs of the tombstone exist
+ * to stop.
  *
  * Retiring the control is only half of it. `readFields` deliberately preserves
  * unknown keys and every write path spreads the def it read, so a draft
  * authored before the retirement would carry the key straight back out to
  * `PUT /api/v1/meta/object/:name` with no control left on screen to clear it.
  * Stripping on load is what un-breaks those saves — which is why the pins
- * below are round-trips (`readFields` → `writeFields`), not just reads.
+ * below are round-trips (`readFields` -> `writeFields`), not just reads.
  *
  * Both draft shapes are covered because `readFields` normalises two of them
  * (array and record) through separate branches.
@@ -36,39 +44,127 @@ function roundTrip(fields: unknown) {
   return writeFields(readFields(fields));
 }
 
-describe('object-fields-io · retired FieldSchema keys (objectui#4644)', () => {
-  it('names `indexed` as retired', () => {
-    expect([...RETIRED_FIELD_KEYS]).toEqual(['indexed']);
+/** A representative value per key, as the retired control actually wrote it. */
+const SAMPLE: Record<(typeof RETIRED_FIELD_KEYS)[number], unknown> = {
+  indexed: true,
+  referenceTo: 'account',
+  isSystem: true,
+};
+
+describe('object-fields-io · retired FieldSchema keys (objectui#4644, objectui#6519)', () => {
+  it('names exactly the three keys this door strips', () => {
+    // The list is derived from the tombstone registry (objectui#6527:
+    // `RETIRED_FIELD_KEY_TOMBSTONES` in `@object-ui/types`, site
+    // `metadataAdminFieldsReadDoor`), and its two ABSENCES are deliberate:
+    //   `formula`   — premise holds, strip refused: ObjectFieldInspector
+    //                 migrates the legacy key through its linting CEL editor,
+    //                 and stripping empties that editor (measured: the pin
+    //                 `commits edits to \`expression\` …` goes red).
+    //   `sortOrder` — premise fails: no writer on this tree ever populated a
+    //                 field-level one, so no draft can carry it and a strip
+    //                 would be dead code that reads like a measurement.
+    // Both have a case of their own below, and both are also pinned at the
+    // registry itself (`retired-field-key-tombstones.test.ts` — `formula`'s
+    // absence is the objectui#6526 option B ruling made mechanical). See the
+    // registry before adding a fourth entry.
+    expect([...RETIRED_FIELD_KEYS]).toEqual(['indexed', 'referenceTo', 'isSystem']);
   });
 
-  it('drops `indexed` from a record-shaped draft on round-trip', () => {
-    const out = roundTrip({
-      owner_id: { type: 'lookup', label: 'Owner', indexed: true },
-    }) as Record<string, Record<string, unknown>>;
+  for (const key of RETIRED_FIELD_KEYS) {
+    it(`drops \`${key}\` from a record-shaped draft on round-trip`, () => {
+      const out = roundTrip({
+        owner_id: { type: 'lookup', label: 'Owner', [key]: SAMPLE[key] },
+      }) as Record<string, Record<string, unknown>>;
 
-    expect('indexed' in out.owner_id).toBe(false);
-    // Falsification: keyed to the tombstone, not a blanket unknown-key purge.
-    expect(out.owner_id).toEqual({ type: 'lookup', label: 'Owner' });
-  });
+      expect(key in out.owner_id).toBe(false);
+      // Falsification: keyed to the tombstone, not a blanket unknown-key purge.
+      expect(out.owner_id).toEqual({ type: 'lookup', label: 'Owner' });
+    });
 
-  it('drops `indexed` from an array-shaped draft on round-trip', () => {
-    const out = roundTrip([
-      { name: 'owner_id', type: 'lookup', label: 'Owner', indexed: true },
-    ]) as Array<Record<string, unknown>>;
+    it(`drops \`${key}\` from an array-shaped draft on round-trip`, () => {
+      const out = roundTrip([
+        { name: 'owner_id', type: 'lookup', label: 'Owner', [key]: SAMPLE[key] },
+      ]) as Array<Record<string, unknown>>;
 
-    expect('indexed' in out[0]).toBe(false);
-    expect(out[0]).toEqual({ name: 'owner_id', type: 'lookup', label: 'Owner' });
-  });
+      expect(key in out[0]).toBe(false);
+      expect(out[0]).toEqual({ name: 'owner_id', type: 'lookup', label: 'Owner' });
+    });
+  }
 
-  it('drops `indexed: false` too — the key itself is what the parse rejects', () => {
-    // The GA rejection is `unrecognized_keys`: it fires on the key's presence,
-    // so an un-ticked-but-persisted `false` blocks the save exactly as a
-    // `true` does. Leaving falsy values behind would fix only half the drafts.
-    const out = roundTrip({ code: { type: 'text', indexed: false } }) as Record<
+  it('drops every retired key at once — one poisoned field can carry several', () => {
+    // A draft from the era when all four controls shipped carries all four, and
+    // `unrecognized_keys` reports them together: clearing three of four leaves
+    // the object exactly as blocked as before.
+    const poisoned = Object.fromEntries(RETIRED_FIELD_KEYS.map((k) => [k, SAMPLE[k]]));
+    const out = roundTrip({ owner_id: { type: 'lookup', label: 'Owner', ...poisoned } }) as Record<
       string,
       Record<string, unknown>
     >;
-    expect('indexed' in out.code).toBe(false);
+
+    expect(RETIRED_FIELD_KEYS.filter((k) => k in out.owner_id)).toEqual([]);
+    expect(out.owner_id).toEqual({ type: 'lookup', label: 'Owner' });
+  });
+
+  it('drops falsy values too — the key itself is what the parse rejects', () => {
+    // The GA rejection is `unrecognized_keys`: it fires on the key's presence,
+    // so an un-ticked-but-persisted `false` blocks the save exactly as a
+    // `true` does. Leaving falsy values behind would fix only half the drafts.
+    const out = roundTrip({
+      code: { type: 'text', indexed: false, isSystem: false, referenceTo: '', formula: '' },
+    }) as Record<string, Record<string, unknown>>;
+    expect(RETIRED_FIELD_KEYS.filter((k) => k in out.code)).toEqual([]);
+  });
+
+  it('leaves the spec spelling of each renamed concept untouched', () => {
+    // `reference` and `system` are real `FieldSchema` keys — the strip is keyed
+    // to the REFUSED spelling only. Dropping the accepted one instead would
+    // silently delete a lookup's target and a field's system flag on every read.
+    const out = roundTrip({
+      owner_id: { type: 'lookup', label: 'Owner', reference: 'account', system: true, expression: 'a + b' },
+    }) as Record<string, Record<string, unknown>>;
+
+    expect(out.owner_id).toEqual({
+      type: 'lookup',
+      label: 'Owner',
+      reference: 'account',
+      system: true,
+      expression: 'a + b',
+    });
+  });
+
+  it('carries a legacy `formula` through — not stripped, on purpose', () => {
+    // `FieldSchema` refuses `formula` by name as well, and a shipped control
+    // wrote it, so unlike `sortOrder` the premise holds here. The strip is
+    // refused for a different reason: `ObjectFieldInspector` seeds its CEL
+    // editor from `def.expression ?? def.formula` and the first edit commits
+    // `expression` and clears the alias, which is the migration objectui#6043
+    // preserved when it refused to rename the key blindly. Stripping at this
+    // door empties that editor and the authored source is gone on the next
+    // save — measured: with `formula` in the list, that pin renders `""` and
+    // fails. RULED, objectui#6526 option B (2026-08-27): the migration path
+    // stands and the key is NOT stripped here; the 422 diagnostic points the
+    // author at the formula editor instead (PR #6624).
+    const out = roundTrip({
+      total: { type: 'formula', formula: 'price * quantity' },
+    }) as Record<string, Record<string, unknown>>;
+    expect(out.total).toEqual({ type: 'formula', formula: 'price * quantity' });
+  });
+
+  it('carries a field-level `sortOrder` through — not stripped, on purpose', () => {
+    // The deliberate asymmetry with `MetadataService`'s five-key `carryOver`.
+    // `FieldSchema` refuses `sortOrder` by name as well, but no writer on this
+    // tree ever populated a field-level one (objectui#6045 removed it as
+    // objectui#4687's zero-readers/zero-writers shape, not objectui#6041's
+    // rename), so no draft this door reads can carry it. This case is the
+    // module's own contract stated on the key that most tempts a defensive
+    // addition: strip the tombstoned keys, carry everything else. Evidence of a
+    // stored field-level `sortOrder` would flip it — update the tombstone and
+    // this pin together.
+    const out = roundTrip({ code: { type: 'text', sortOrder: 3 } }) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(out.code).toEqual({ type: 'text', sortOrder: 3 });
   });
 
   it('leaves every other unknown key on the field untouched', () => {
@@ -102,11 +198,12 @@ describe('object-fields-io · retired FieldSchema keys (objectui#4644)', () => {
     const out = roundTrip({
       a: { type: 'text', indexed: true },
       b: { type: 'text' },
-      c: { type: 'number', indexed: true },
+      c: { type: 'lookup', referenceTo: 'account' },
+      d: { type: 'text', isSystem: true },
     }) as Record<string, Record<string, unknown>>;
 
-    expect(Object.values(out).some((d) => 'indexed' in d)).toBe(false);
-    expect(Object.keys(out)).toEqual(['a', 'b', 'c']);
+    expect(Object.values(out).some((d) => RETIRED_FIELD_KEYS.some((k) => k in d))).toBe(false);
+    expect(Object.keys(out)).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('returns the original def object when there is nothing to strip', () => {

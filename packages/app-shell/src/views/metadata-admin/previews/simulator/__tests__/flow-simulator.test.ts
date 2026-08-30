@@ -21,12 +21,19 @@ const run = (nodes: SimNode[], edges: SimEdge[], seed = {}, mocks = {}) => {
  * is THE canonical persisted form, and a fixture that spells it by hand could
  * drift from what the spec actually emits (objectui#3216).
  *
- * The `SimEdge` return annotation states the matching type-level claim, but do
- * not read it as a proof: `tsc` never sees this file (the package tsconfig
- * excludes `**\/*.test.ts`, and app-shell's test tree is still TEST_DEBT), and
- * vitest erases types. The enforced version lives next door in
- * `flow-sim-edge.types.test.ts`, which IS compiled — `PersistedEdge extends
- * SimEdge`.
+ * The `SimEdge` return annotation states the matching type-level claim, and it
+ * is checked: `packages/app-shell/tsconfig.test.json` compiles every
+ * `src/**\/*.test.ts` in the package, this file included, and the package's
+ * `type-check` script chains it (`tsc --noEmit && tsc -p tsconfig.test.json`),
+ * which is what CI's Type Check job runs. That was NOT so when this note was
+ * written — the build tsconfig excludes `**\/*.test.ts`, app-shell's test tree
+ * was then TEST_DEBT, and vitest erases types, so `tsc` saw nothing here
+ * (objectui#3181). The package graduated in objectui#4040 and the debt table is
+ * now empty.
+ *
+ * Still read the pin next door in `flow-sim-edge.types.test.ts` as the stronger
+ * one: `PersistedEdge extends SimEdge` constrains the TYPE, where an annotation
+ * on this helper only constrains what this helper returns.
  */
 const specEdge = (e: Record<string, unknown>): SimEdge => FlowEdgeSchema.parse(e);
 

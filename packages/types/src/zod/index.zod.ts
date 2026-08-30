@@ -66,6 +66,7 @@ export {
 // ============================================================================
 export {
   DivSchema,
+  BoxSchema,
   TextSpanSchema,
   TextSchema,
   ImageSchema,

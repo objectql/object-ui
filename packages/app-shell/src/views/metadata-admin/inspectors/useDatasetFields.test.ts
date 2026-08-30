@@ -23,16 +23,66 @@ describe('resolveLabel', () => {
 });
 
 describe('resolveReferenceTo', () => {
-  it('reads string / camel / snake variants', () => {
-    expect(resolveReferenceTo({ reference: 'account' })).toBe('account'); // framework lookup shape
-    expect(resolveReferenceTo({ reference_to: 'account' })).toBe('account');
-    expect(resolveReferenceTo({ referenceTo: 'account' })).toBe('account');
-    expect(resolveReferenceTo({ reference_to_object: 'account' })).toBe('account');
+  it('reads the spec spelling `reference`', () => {
+    expect(resolveReferenceTo({ reference: 'account' })).toBe('account');
   });
-  it('reads array + object shapes', () => {
-    expect(resolveReferenceTo({ reference_to: ['account', 'lead'] })).toBe('account');
-    expect(resolveReferenceTo({ reference_to: { object: 'account' } })).toBe('account');
+
+  /**
+   * objectui#6648 — the CARRIER axis, pinned exactly like the SPELLING axis
+   * below and for the same reason. These two assertions used to read
+   * `.toBe('account')`: they were the tolerance written down, not evidence for
+   * it.
+   *
+   * `FieldSchema.reference` is a plain `z.string()`, and `ObjectSchema.safeParse`
+   * (spec 17.2.0) REFUSES both carriers — `invalid_type: expected string,
+   * received array` / `received object` — while ACCEPTING the bare name
+   * asserted above as the positive control. A structure-walking,
+   * key-position-aware census of both trees found 587 bare-string carriers at
+   * the field-def key position and ZERO producers of either carrier below, so
+   * resolving one could only re-hide a producer defect (AGENTS.md #0.1).
+   *
+   * The array case was the worse of the two: it returned element zero and
+   * silently DISCARDED the rest of a multi-target value. No such value is
+   * declared anywhere — polymorphic lookup is an open, unbuilt spec gap — so
+   * the branch was data loss wearing a compatibility shim. Deleting the
+   * narrowing turns this RED.
+   */
+  it.each([
+    { carrier: 'array', reference: ['account', 'lead'] as unknown },
+    { carrier: 'multi-element array (the discarded-rest case)', reference: ['account', 'lead', 'case'] as unknown },
+    { carrier: '`{ object }`', reference: { object: 'account' } as unknown },
+  ])('refuses the $carrier carrier on `reference` — a producer emitting it is the bug', ({ reference }) => {
+    expect(resolveReferenceTo({ reference })).toBeUndefined();
   });
+
+  /**
+   * objectui#6528 — the refusal is the point, so it is pinned rather than left
+   * as the absence of a test.
+   *
+   * These three spellings were a tolerant fallback chain here until the census
+   * measured them against every producer that can reach this helper and found
+   * none: `ObjectSchema.safeParse` (spec 17.2.0) REFUSES all three BY NAME while
+   * ACCEPTING `reference` (the positive control asserted above), `referenceTo`'s
+   * producers were retired by objectui#6041 and are stripped by the read door
+   * (objectui#6519), `reference_to` is live only on ObjectUI's own view/field
+   * schema — a different contract — and `reference_to_object` never had a
+   * producer at all.
+   *
+   * A def that reaches here spelling the target any of these ways is a PRODUCER
+   * defect (AGENTS.md #0.1). Resolving it would re-hide that producer, so this
+   * asserts it stays unresolved — deleting the narrowing turns this RED.
+   */
+  it.each(['reference_to', 'referenceTo', 'reference_to_object'])(
+    'refuses the legacy spelling `%s` — a producer emitting it is the bug',
+    (spelling) => {
+      expect(resolveReferenceTo({ [spelling]: 'account' })).toBeUndefined();
+    },
+  );
+
+  it('prefers `reference` on a partially-migrated def carrying both', () => {
+    expect(resolveReferenceTo({ reference: 'account', referenceTo: 'stale_legacy' })).toBe('account');
+  });
+
   it('returns undefined when absent', () => expect(resolveReferenceTo({ type: 'text' })).toBeUndefined());
 });
 
@@ -60,7 +110,7 @@ describe('normalizeObject', () => {
         label: 'Opportunity',
         fields: {
           amount: { type: 'currency', label: 'Amount' },
-          account: { type: 'lookup', label: 'Account', reference_to: 'account' },
+          account: { type: 'lookup', label: 'Account', reference: 'account' },
           stage: { type: 'text' },
         },
       },
@@ -73,7 +123,7 @@ describe('normalizeObject', () => {
 
   it('reads array-shaped fields too', () => {
     const norm = normalizeObject(
-      { fields: [{ name: 'owner', type: 'master_detail', reference_to: 'user' }] },
+      { fields: [{ name: 'owner', type: 'master_detail', reference: 'user' }] },
       'task',
     );
     expect(norm.relationships).toEqual([{ name: 'owner', label: 'owner', referenceTo: 'user' }]);

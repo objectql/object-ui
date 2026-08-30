@@ -410,9 +410,26 @@ export interface ReportComponentSchema extends BaseSchema {
   defaultExportFormat?: ReportExportFormat;
 
   /**
-   * Export configurations
+   * Per-format export configuration, keyed by {@link ReportExportFormat}.
+   *
+   * `Partial<Record<…>>`, not a total `Record` (objectui#6121, maintainer ruling
+   * 2026-08-25): a total `Record` made configuring ONE format an error unless the
+   * author declared all five (`pdf`, `excel`, `csv`, `html`, `json`) — the
+   * documented three-format example on `content/docs/core/report-schema.mdx`
+   * failed with `TS2739 … missing the following properties …: html, json`.
+   *
+   * The runtime twin was never total: `ReportComponentSchema.exportConfigs` in
+   * `./zod/reports.zod.ts` is `z.record(z.string(), ReportExportConfigSchema)`,
+   * whose keys are all optional. So the TS declaration was stricter than the
+   * validator that actually judges authored JSON — a format the type demanded
+   * and the parser did not. This makes the two agree, in the direction the
+   * validator already took.
+   *
+   * A format absent from this map exports with the renderer's defaults; it is
+   * not "unsupported". Widening pinned by
+   * `__tests__/report-schema-authoring-face.test.ts`.
    */
-  exportConfigs?: Record<ReportExportFormat, ReportExportConfig>;
+  exportConfigs?: Partial<Record<ReportExportFormat, ReportExportConfig>>;
 
   /**
    * Show export buttons

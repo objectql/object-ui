@@ -13,6 +13,12 @@
  * spec's `scale` (`TimelineConfigSchema`) was ignored for ALL six values;
  * and the header generator only knew month/week/day, so `hour` / `quarter` /
  * `year` produced zero header columns — a blank gantt axis.
+ *
+ * #2942 fixed the first drift by preferring `scale` and keeping `timeScale` as
+ * a fallback. objectui#6355 finishes it: the alias is RETIRED, so `scale` is
+ * the single axis spelling here. The refusal that keeps that retirement from
+ * being a silent revert is pinned in `@object-ui/types`
+ * (`__tests__/timeline-timescale-retired.test.ts`).
  */
 import { describe, it, expect } from 'vitest';
 import { TimelineConfigSchema } from '@objectstack/spec/ui';
@@ -43,21 +49,43 @@ describe('timeline covers the spec scale vocabulary', () => {
   });
 });
 
-describe('resolveTimelineScale honors the spec key first', () => {
+describe('resolveTimelineScale reads the spec key, and only it', () => {
   it('reads the spec `scale` key', () => {
     expect(resolveTimelineScale({ scale: 'quarter' })).toBe('quarter');
-  });
-
-  it('keeps the legacy `timeScale` dialect for stored JSON', () => {
-    expect(resolveTimelineScale({ timeScale: 'day' })).toBe('day');
-  });
-
-  it('the spec key wins when both are present', () => {
-    expect(resolveTimelineScale({ scale: 'year', timeScale: 'day' })).toBe('year');
   });
 
   it("absent/unknown values keep the renderer's historical month default", () => {
     expect(resolveTimelineScale({})).toBe('month');
     expect(resolveTimelineScale({ scale: 'fortnight' })).toBe('month');
+  });
+
+  it('no longer reads the RETIRED `timeScale` alias (objectui#6355)', () => {
+    // This replaces two assertions that pinned the alias branch — "keeps the
+    // legacy timeScale dialect" and "the spec key wins when both are present".
+    // Neither could survive the retirement honestly: the first pinned exactly
+    // the branch being deleted, and the second would have kept passing for a
+    // NEW reason (the alias ignored outright rather than losing a precedence
+    // contest), which is a pin that reads green while measuring nothing.
+    //
+    // The reversion below is REAL and is the accepted cost of the ruling
+    // (2026-08-27: immediate retirement, no phased window, startup stage). It
+    // is not left silent — that is the whole point of the retirement's other
+    // half. `@object-ui/types` tombstones the key on BOTH surfaces
+    // (`TimelineSchema.timeScale?: never` and the Zod twin's `z.never()`), so a
+    // document that still spells it is refused at the authoring boundary before
+    // it can ever reach this resolver and quietly re-bucket the chart. The pin
+    // for that refusal lives in
+    // `packages/types/src/__tests__/timeline-timescale-retired.test.ts`.
+    // A stored document exactly as it sits on disk today: axis spelled the old way.
+    const storedDocument: Record<string, unknown> = { variant: 'gantt', timeScale: 'day' };
+    expect(resolveTimelineScale(storedDocument)).toBe('month');
+  });
+
+  it('the retired alias cannot override an authored `scale`', () => {
+    // Counter-probe: the canonical key still wins, and still works, on a
+    // document that carries both. Without this the assertion above is satisfied
+    // by a resolver that returns 'month' for everything.
+    const bothSpellings: Record<string, unknown> = { variant: 'gantt', scale: 'year', timeScale: 'day' };
+    expect(resolveTimelineScale(bothSpellings)).toBe('year');
   });
 });

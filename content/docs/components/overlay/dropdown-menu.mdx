@@ -21,18 +21,30 @@ resolve against. A name that is not a live key of that record (an unknown or a
 retired spelling such as `edit`) renders **no glyph**, never a fallback glyph
 and never the literal name as text.
 
+## Dividers
+
+An item is either a command or a divider between groups of commands — never
+both, and a divider never carries a `label` (objectui#6523). Author a divider
+as `{ "separator": true }`; the retired `{ "type": "separator" }` spelling is
+refused at parse time rather than silently ignored.
+
 ## Schema
 
 ```plaintext
-interface DropdownMenuItem {
-  label?: string;
+interface DropdownMenuCommandItem {
+  label: string;
   value?: string;
   icon?: string;                  // kebab-case Lucide icon name (e.g. "square-pen")
   variant?: 'default' | 'destructive';
-  type?: 'separator';
   disabled?: boolean;
-  onClick?: () => void;           // Item click handler
+  onClick?: () => void;           // Click handler
 }
+
+interface DropdownMenuDividerItem {
+  separator: true;                // renders as a divider — no label
+}
+
+type DropdownMenuItem = DropdownMenuCommandItem | DropdownMenuDividerItem;
 
 interface DropdownMenuSchema {
   type: 'dropdown-menu';

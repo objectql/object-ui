@@ -131,6 +131,8 @@ block's schema and render the two non-final states.
 
 ```tsx
 import { ElementDataSourceGate } from '@object-ui/react'
+// The seam is imported from CORE, not from here — see the note below.
+import { elementDataSourceBlock } from '@object-ui/core'
 
 // `mapping` names ONLY the keys this block reads. A composed value written onto
 // a key the block ignores would be accepted and silently dropped — the defect
@@ -142,12 +144,35 @@ const OBJECT_GRID_BINDING = {
   limit: 'pagination.pageSize' as const,
 }
 
-const ObjectGridRenderer = ({ schema, ...props }) => (
+// `elementDataSourceBlock` is not optional decoration — see below.
+const ObjectGridRenderer = elementDataSourceBlock(({ schema, ...props }) => (
   <ElementDataSourceGate schema={schema} mapping={OBJECT_GRID_BINDING} testId="object-grid">
     {(bound) => <ObjectGrid schema={bound} {...props} />}
   </ElementDataSourceGate>
-)
+))
 ```
+
+**Wrap the registered renderer in `elementDataSourceBlock`.** It is what makes
+`ComponentRegistry.register` emit the `dataSource` input on that block's
+authoring surface, so the key the gate READS is also the key the manifest, the
+save gate, the generated JSX types and the designer DECLARE. Skip it and the
+binding still works at runtime while the html tier reports `dataSource` as a prop
+that does not exist — the one spelling that resolves a saved view, reported
+exactly like the spellings that do nothing (objectui#6678). The declaration is
+emitted from this one seam, so never hand-write a `dataSource` entry in a block's
+`inputs`. `pnpm check:element-data-source-declaration` fails any source that
+consumes the gate without reaching the seam.
+
+⚠️ **Import the seam from `@object-ui/core`, not from this package** — it is one
+function under one name, re-exported here for discoverability, and the check
+above enforces the core import at call sites. The reason is measured, not
+stylistic: a registration runs at MODULE SCOPE, 101 suites in this repo partially
+mock `@object-ui/react` by hand-listing the exports they return, and a
+module-scope read of a name absent from such a list throws at COLLECTION time —
+the importing test file dies before running a single assertion. Taking the seam
+from `@object-ui/react` reddened 17 files across all four CI shards with zero
+failed assertions among them. Nothing mocks `@object-ui/core`, and every
+registration module already imports `ComponentRegistry` from it.
 
 `object` lands on `objectName` by default (pass `object: 'apiName'` for another
 key, or `object: false` for a block that reads the composed binding itself).
@@ -157,6 +182,37 @@ A `view` name that does not resolve renders a configuration error rather than
 falling back to the object's full scope. Use `useElementDataSourceSchema` (plus
 the exported `ElementDataSourceErrorPanel` / `ElementDataSourceLoadingPanel`) when
 a block cannot be wrapped — a renderer whose hooks must run before the panels.
+That form still reads `dataSource`, so it still owes the seam: mark the renderer
+at its registration, `register('x', elementDataSourceBlock(XRenderer), { … })` —
+again importing `elementDataSourceBlock` from `@object-ui/core`.
+
+### useSettledSchema
+
+The settled-schema RESOLUTION half shared by `ObjectKanban` / `ObjectView` /
+`ObjectCalendar`'s fetch-gate hand copies (objectui#6482). Tracks whether an
+object's definition has finished resolving FOR THE KEY THE CURRENT RENDER IS
+ASKING ABOUT — `ready` and `def` are two views of one piece of state, so a
+stale key can never read as ready. GATE PLACEMENT — which effect actually
+waits on `ready` — stays a per-component decision; this hook only owns the
+resolution.
+
+```tsx
+import { useSettledSchema } from '@object-ui/react'
+
+function ObjectSomething({ schema, dataSource }) {
+  const key = schema.objectName ?? ''
+  const { ready, def } = useSettledSchema(key, dataSource)
+
+  useEffect(() => {
+    if (!ready) return // gate placement is local to this component
+    // issue the record query, e.g. buildExpandFields(def?.fields)
+  }, [ready, def])
+}
+```
+
+Pass `dataSource: undefined` for a render that should settle immediately with
+no definition (e.g. a provider that issues no metadata read at all) instead of
+adding a separate enable flag.
 
 ### ComponentRegistry
 
@@ -176,7 +232,7 @@ function MyComponent(props: Record<string, unknown>) {
 
 ### useDiscovery
 
-Access server discovery information including preview mode detection:
+Access server discovery information — service availability and server identity:
 
 ```tsx
 import { useDiscovery } from '@object-ui/react'
@@ -184,11 +240,6 @@ import { useDiscovery } from '@object-ui/react'
 function MyComponent() {
   const { discovery, isLoading, isAuthEnabled, isAiEnabled } = useDiscovery()
   
-  // Check if the server is in preview mode
-  if (discovery?.mode === 'preview') {
-    console.log('Preview mode active:', discovery.previewMode)
-  }
-
   // Check if AI service is available
   if (isAiEnabled) {
     console.log('AI service route:', discovery?.services?.ai?.route)
@@ -204,21 +255,17 @@ function MyComponent() {
 | --- | --- | --- |
 | `name` | `string` | Server name |
 | `version` | `string` | Server version |
-| `mode` | `string` | Runtime mode (e.g. `'development'`, `'production'`, `'preview'`) |
-| `previewMode` | `object` | Preview mode configuration (present when mode is `'preview'`) |
+| `mode` | `string` | Runtime mode the server reports (`RuntimeMode` in `@objectstack/spec`) |
 | `services` | `object` | Service availability status (auth, data, metadata, ai) |
 | `capabilities` | `string[]` | API capabilities |
 
-The `previewMode` object contains:
-
-| Property | Type | Default | Description |
-| --- | --- | --- | --- |
-| `autoLogin` | `boolean` | `true` | Skip login/registration pages |
-| `simulatedRole` | `'admin' \| 'user' \| 'viewer'` | `'admin'` | Simulated user role |
-| `simulatedUserName` | `string` | `'Preview User'` | Display name |
-| `readOnly` | `boolean` | `false` | Read-only mode |
-| `expiresInSeconds` | `number` | `0` | Session duration (0 = no expiry) |
-| `bannerMessage` | `string` | — | UI banner message |
+> The `previewMode` block and the `'preview'` runtime mode were retired in
+> objectui#6654, following their retirement in `@objectstack/spec`
+> (objectstack#11846). A server that still sends them is read as any other
+> payload: authentication follows `services.auth` alone, so a preview
+> deployment requires login rather than silently running with auth off.
+> `AuthProvider`'s `previewMode` **prop** in `@object-ui/auth` is a separate,
+> host-supplied capability and is unaffected.
 
 ### useNotifications / useNotificationsByPresentation
 
