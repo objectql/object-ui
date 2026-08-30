@@ -35,3 +35,26 @@ that adds an arm widens the accept set on its own:
 
 Runtime wording is unchanged: the one reader, the app shell's write-warning
 toast, already answered an unrecognized reason with its cause-free line.
+
+**Blast radius — the compile error IS the intended signal, not a regression.** A
+consumer that branches exhaustively on `reason` — a parameter, a `Map` key or a
+`Record` annotated `DroppedFieldsEvent['reason']` — stops compiling against this
+release, with a `TS2345` at each such site. That error is the notification, and
+the only one: the skew arm is deliberately NOT assignable to the spec union, so
+`tsc` reports server skew at the one place the wire is read rather than leaving
+it to a per-consumer discipline. Do not cast it away. Widen the annotation to
+`DroppedFieldsNotice['reason']`, and where the two arms have to be told apart,
+narrow with `entry.reason === UNRECOGNIZED_DROP_REASON` and read the wire value
+verbatim from `unrecognizedReason`.
+
+Widen the LOOKUPS, not the table. A `Record` that must stay exhaustive over the
+SPEC arms keeps its `DroppedFieldsEvent['reason']` key: widening that one would
+trade away the guarantee that a newly pinned spec reason fails `type-check`
+unworded (objectui#3935).
+
+In this repo the entire blast radius is the app shell's write-warning toast —
+two type annotations, no runtime change. Its emitted JavaScript is byte-identical
+and its wording tests pass unchanged, because the file was already written for
+this value: its own docstring says the runtime `reason` may sit outside the spec
+union and that the cause-free fallback is reachable, not dead. Only the parameter
+and the `Map` key had been left narrower than that documented contract.

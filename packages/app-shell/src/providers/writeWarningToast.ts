@@ -17,6 +17,7 @@
 
 import type {
   DroppedFieldsEvent,
+  DroppedFieldsNotice,
   ObjectStackAdapter,
   WriteWarningEvent,
 } from '@object-ui/data-objectstack';
@@ -154,7 +155,7 @@ const strippedLineUnknownReason: StrippedLine = (t: TranslateFn, fields: string)
  * union (see {@link strippedLineUnknownReason}); the `undefined` this branch
  * handles is therefore reachable, not dead.
  */
-function lineFor(reason: DroppedFieldsEvent['reason']): StrippedLine {
+function lineFor(reason: DroppedFieldsNotice['reason']): StrippedLine {
   const known: Partial<Record<string, StrippedLine>> = STRIPPED_LINE;
   return known[reason] ?? strippedLineUnknownReason;
 }
@@ -187,7 +188,7 @@ export async function emitWriteWarning(
   fieldLabel: FieldLabelFn,
   sink: WriteWarningSink,
 ): Promise<void> {
-  const byReason = new Map<DroppedFieldsEvent['reason'], string[]>();
+  const byReason = new Map<DroppedFieldsNotice['reason'], string[]>();
   for (const d of ev.droppedFields) {
     const seen = byReason.get(d.reason) ?? [];
     for (const f of d.fields) if (!seen.includes(f)) seen.push(f);
