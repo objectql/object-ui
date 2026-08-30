@@ -926,16 +926,26 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           items = results;
         } else if (results && typeof results === 'object') {
           // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
-          // declares. A `records` branch sat between `data` and `value` until
-          // objectui#6726 — a below-the-adapter spelling
-          // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
-          // `records` envelope to `data` before returning), so no producer
-          // emits it at this `DataSource.find()` seam and the branch was dead.
-          // Pinned by `ObjectView.contractEnvelope-6726.test.tsx`.
+          // declares, and now the only one this ladder reads. Two
+          // below-the-adapter spellings were removed from it, each on its own
+          // measurement: `records` (objectui#6726) and then `value`
+          // (objectui#6840) — the OData spelling that
+          // `ObjectStackAdapter.normalizeQueryResult` and
+          // `ApiDataSource.normalizeQueryResult` both fold into `data` BELOW
+          // this seam, so no producer emits it here. A sweep of the 25 `find()`
+          // definition bodies reachable by this component found `value`
+          // emitted 0 times against controls `data` (6) and `total` (6) drawn
+          // from the same cells.
+          //
+          // ⚠️ That zero is SEAM-LOCAL and must not be carried elsewhere: the
+          // same key is LIVE at `extractRecords`
+          // (`core/src/utils/extract-records.ts`, objectui#6839), where five
+          // test doubles in plugin-calendar / plugin-kanban still emit it.
+          //
+          // Pinned by `ObjectView.contractEnvelope-6726.test.tsx` and
+          // `ObjectView.contractEnvelope-6840.test.tsx`.
           if (Array.isArray((results as any).data)) {
             items = (results as any).data;
-          } else if (Array.isArray((results as any).value)) {
-            items = (results as any).value;
           }
         }
 

@@ -102,27 +102,34 @@ async function fetchCount(
       // back to `data.length` which is capped to `$top: 1` → badge
       // shows "1" no matter how many rows exist.
       //
-      // The rows fallback reads `data` — the ONE rows member `QueryResult`
-      // (`@object-ui/types`) declares — and nothing else. It used to try
-      // `records` FIRST, ahead of `data`: a spelling no producer emits at the
-      // `DataSource.find()` seam, because `ObjectStackAdapter.normalizeQueryResult`
-      // maps the server/SDK `records` envelope to `data` before returning
-      // (objectui#5945, objectui#6726). `ProbeFn` above never declared it
-      // either — only the `any` here let it through. Pinned by
-      // `related-count-store.contractEnvelope-6726.test.ts`; ⛔ do not
-      // re-add a tolerant arm, and ⛔ do not widen `QueryResult` to bless
-      // `records` (a published-type change, maintainer's call).
+      // The count reads `total` — the ONE count member `QueryResult`
+      // (`@object-ui/types`) declares — then falls back to the ONE rows member
+      // it declares, `data`. Nothing else.
+      //
+      // Two tolerant arms were removed from this expression, each on its own
+      // measurement. `records` FIRST, ahead of `data` (objectui#5945,
+      // objectui#6726). Then `count` SECOND, still ahead of `data`
+      // (objectui#6840): `count` is the RAW-payload spelling that
+      // `ObjectStackAdapter.normalizeQueryResult` and
+      // `ApiDataSource.normalizeQueryResult` both fold into `total` BELOW this
+      // seam, so no producer emits it here — a sweep of all 452 `find()`
+      // definition bodies in the repo found `count` emitted 0 times against
+      // controls `total` (85) and `data` (135) drawn from the same cells.
+      // `ProbeFn` above never declared either spelling — only the `any` here
+      // let them through. Pinned by
+      // `related-count-store.contractEnvelope-6726.test.ts` and
+      // `related-count-store.contractEnvelope-6840.test.ts`; ⛔ do not re-add a
+      // tolerant arm, and ⛔ do not widen `QueryResult` to bless `records` or
+      // `count` (a published-type change, maintainer's call).
       const res: any = await probe(objectName, { $filter, $top: 1, $count: true });
       const total =
         typeof res?.total === 'number'
           ? res.total
-          : typeof res?.count === 'number'
-            ? res.count
-            : Array.isArray(res?.data)
-              ? res.data.length
-              : Array.isArray(res)
-                ? res.length
-                : 0;
+          : Array.isArray(res?.data)
+            ? res.data.length
+            : Array.isArray(res)
+              ? res.length
+              : 0;
       const n = typeof total === 'number' ? total : 0;
       setCount(objectName, relField, parentId, n);
       return n;
