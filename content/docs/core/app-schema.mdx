@@ -142,7 +142,10 @@ interface MenuItem {
 The `actions` property defines global toolbar buttons:
 
 ```ts
-import type { MenuItem } from '@object-ui/types';
+// `AppAction.items` uses the navigation-item shape documented under "Navigation
+// Menu" above, which the barrel exports as `AppMenuItem`. The bare `MenuItem`
+// export is the unrelated overlay menu type used by `ui:dropdown-menu`.
+import type { AppMenuItem } from '@object-ui/types';
 
 interface AppAction {
   type: 'button' | 'dropdown' | 'user';
@@ -151,7 +154,7 @@ interface AppAction {
   onClick?: string;
   avatar?: string;        // For type='user'
   description?: string;   // For type='user'
-  items?: MenuItem[];     // For type='dropdown' or 'user'
+  items?: AppMenuItem[];  // For type='dropdown' or 'user'
   shortcut?: string;      // Keyboard shortcut
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
   size?: 'default' | 'sm' | 'lg' | 'icon';

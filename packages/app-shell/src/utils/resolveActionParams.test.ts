@@ -386,7 +386,7 @@ describe('resolveActionParams — field-inherited option keys (objectui#3559)', 
   /**
    * A `select` field whose options carry the full declared vocabulary. Authoring
    * this literal is itself the type-level half of the fix: this file is compiled
-   * by `tsconfig.typetests.json`, so a `RuntimeField.options` re-narrowed to
+   * by `tsconfig.test.json`, so a `RuntimeField.options` re-narrowed to
    * `{ label, value }` fails excess-property checking right here rather than
    * silently reverting the behaviour below.
    */
@@ -499,7 +499,7 @@ describe('resolveActionParams — field-inherited option keys (objectui#3559)', 
 
   it('keeps `label` and `value` required on a param option (type-level)', () => {
     // The catch-all widens the vocabulary; it must not dissolve the two keys
-    // this layer itself reads. Compiled by `tsconfig.typetests.json`, so these
+    // this layer itself reads. Compiled by `tsconfig.test.json`, so these
     // assertions are checked — a re-widening to `Record< string, unknown >`
     // turns the unused suppressions into errors.
     const complete: ActionParamOption = { label: 'Standard', value: 'standard', color: 'gray' };

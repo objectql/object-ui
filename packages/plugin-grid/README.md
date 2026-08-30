@@ -18,6 +18,19 @@ Grid plugin for Object UI - Advanced data grid with sorting, filtering, and pagi
 pnpm add @object-ui/plugin-grid
 ```
 
+Then import the stylesheet this package publishes, after the base sheets. It is a
+supplement — compiled against the `@object-ui/components` theme with that sheet's
+rules subtracted — so the order matters, and without it the grid renders with no
+themed styling at all ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)):
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@object-ui/components/style.css";
+@import "@object-ui/fields/style.css";
+@import "@object-ui/plugin-grid/style.css";
+```
+
 ## Usage
 
 ### Registration is a side effect of the import

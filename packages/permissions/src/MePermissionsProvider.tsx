@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   HttpFetchError,
   backoffMs,
@@ -20,6 +20,7 @@ import type {
   FieldLevelPermission,
 } from '@object-ui/types';
 import { PermCtx, type PermissionContextValue } from './PermissionContext.js';
+import { createDiscardProofCache } from './discardProofCache.js';
 
 /**
  * Shape of the upstream `/api/v1/auth/me/permissions` response.
@@ -98,6 +99,48 @@ export interface MePermissionsProviderProps {
 }
 
 const DEFAULT_ENDPOINT = '/api/v1/auth/me/permissions';
+
+/**
+ * [objectui#6813] One cache per cached thing, each keyed on exactly the inputs
+ * that thing is derived from — the same sets the `useCallback`/`useMemo`
+ * dependency arrays named before, so nothing churns more often than it did.
+ * What changes is that React can no longer discard them: a discard used to
+ * hand `PermCtx.Provider` a NEW value with every permission it carries
+ * unchanged, which moves the key `usePermissions()` caches on (objectui#6724)
+ * and re-runs every consumer effect downstream. See `discardProofCache.ts` for
+ * why this is a module-level `WeakMap` and not a `useMemo` or a `useRef`.
+ */
+const CHECK = createDiscardProofCache<PermissionContextValue['check']>();
+const CHECK_FIELD = createDiscardProofCache<PermissionContextValue['checkField']>();
+const GET_FIELD_PERMISSIONS = createDiscardProofCache<PermissionContextValue['getFieldPermissions']>();
+const GET_OBJECT_API_OPERATIONS = createDiscardProofCache<PermissionContextValue['getObjectApiOperations']>();
+const VALUE = createDiscardProofCache<PermissionContextValue>();
+
+/**
+ * Stands in for `data === null`, which cannot key a `WeakMap`. With no data
+ * every member answers its fail-closed constant and `isLoaded` is false, so
+ * this sentinel names exactly one reachable value rather than a family of them.
+ */
+const NO_DATA: object = { data: 'unloaded' };
+
+/**
+ * `isLoaded` is a boolean and cannot key a `WeakMap` either. Its domain has two
+ * members, so two module-level sentinels cover it totally — no coercion, no
+ * collision. It is the ONLY thing `loading` and `error` contribute to the
+ * context value, so keying on it directly (rather than on `[data, loading,
+ * error]`) also stops a new `Error` identity from churning a value that reads
+ * the same to every consumer.
+ */
+const LOADED: object = { isLoaded: true };
+const NOT_LOADED: object = { isLoaded: false };
+
+/**
+ * The row filter this provider can offer for any object: none. `/me/permissions`
+ * carries no row-level filter, so this is a constant for every object and every
+ * provider instance — module-level, which is strictly stabler than the
+ * `useCallback(..., [])` it replaces, since React may discard that one.
+ */
+const NO_ROW_FILTER: PermissionContextValue['getRowFilter'] = () => undefined;
 
 /**
  * MePermissionsProvider
@@ -188,7 +231,9 @@ export function MePermissionsProvider({
     return () => { token.cancelled = true; };
   }, [fetchPermissions, initialPermissions]);
 
-  const checkField = useCallback(
+  const dataKey: object = data ?? NO_DATA;
+
+  const checkField = CHECK_FIELD([dataKey], () =>
     (object: string, field: string, action: 'read' | 'write'): boolean => {
       if (!data) return false; // fail-closed
       // Normalize casing — backend stores keys lowercase but callers may
@@ -219,10 +264,9 @@ export function MePermissionsProvider({
         ? objPerm.allowRead !== false
         : objPerm.allowEdit !== false;
     },
-    [data],
   );
 
-  const check = useCallback(
+  const check = CHECK([dataKey], () =>
     (object: string, action: PermissionAction): PermissionCheckResult => {
       if (!data) return { allowed: false, reason: 'permissions-loading' };
       const objPerm = data.objects?.[object] ?? data.objects?.['*'];
@@ -245,10 +289,9 @@ export function MePermissionsProvider({
       const allowed = objPerm ? (objPerm as any)[k] !== false : data.authenticated !== true;
       return { allowed, reason: allowed ? undefined : 'denied-by-permission-set' };
     },
-    [data],
   );
 
-  const getFieldPermissions = useCallback(
+  const getFieldPermissions = GET_FIELD_PERMISSIONS([dataKey], () =>
     (object: string): FieldLevelPermission[] => {
       if (!data) return [];
       const prefix = `${object}.`;
@@ -264,12 +307,9 @@ export function MePermissionsProvider({
       }
       return out;
     },
-    [data],
   );
 
-  const getRowFilter = useCallback(() => undefined, []);
-
-  const getObjectApiOperations = useCallback(
+  const getObjectApiOperations = GET_OBJECT_API_OPERATIONS([dataKey], () =>
     (object: string): string[] | undefined => {
       if (!data) return undefined;
       const objKey = (object ?? '').toLowerCase();
@@ -279,38 +319,38 @@ export function MePermissionsProvider({
       const ops = objPerm?.apiOperations;
       return Array.isArray(ops) ? ops : undefined;
     },
-    [data],
   );
 
-  const value = useMemo<PermissionContextValue>(
-    () => ({
-      check,
-      checkField,
-      getFieldPermissions,
-      getRowFilter,
-      getObjectApiOperations,
-      roles: data?.roles ?? [],
-      // [objectui#5683] `null` while unloaded/anonymous — never ''. Consumers
-      // treat null as "unknown" and defer to the server.
-      userId: data?.userId ?? null,
-      // [objectui#4656] Forward the raw signal — do NOT `?? []` this. A
-      // backend predating ADR-0066 omits `systemPermissions` from the
-      // response entirely, and defaulting that to `[]` here made it
-      // indistinguishable from a genuinely empty grant to every consumer
-      // downstream (this provider's own `hasCapabilities` included).
-      systemPermissions: data?.systemPermissions,
-      hasCapabilities: (required: string[]) => {
-        const perms = data?.systemPermissions;
-        // Unknown (backend never reported systemPermissions) fails OPEN — see
-        // the doctrine on `PermissionContextValue.hasCapabilities`.
-        if (!Array.isArray(perms)) return true;
-        const held = new Set(perms);
-        return required.every((p) => held.has(p));
-      },
-      isLoaded: !loading && !error && data !== null,
-    }),
-    [check, checkField, getFieldPermissions, getRowFilter, getObjectApiOperations, data, loading, error],
-  );
+  const isLoaded = !loading && !error && data !== null;
+
+  // Keyed on the union of what the members above are keyed on, so this value is
+  // rebuilt exactly when one of them is and never captures a stale member.
+  const value = VALUE([dataKey, isLoaded ? LOADED : NOT_LOADED], () => ({
+    check,
+    checkField,
+    getFieldPermissions,
+    getRowFilter: NO_ROW_FILTER,
+    getObjectApiOperations,
+    roles: data?.roles ?? [],
+    // [objectui#5683] `null` while unloaded/anonymous — never ''. Consumers
+    // treat null as "unknown" and defer to the server.
+    userId: data?.userId ?? null,
+    // [objectui#4656] Forward the raw signal — do NOT `?? []` this. A
+    // backend predating ADR-0066 omits `systemPermissions` from the
+    // response entirely, and defaulting that to `[]` here made it
+    // indistinguishable from a genuinely empty grant to every consumer
+    // downstream (this provider's own `hasCapabilities` included).
+    systemPermissions: data?.systemPermissions,
+    hasCapabilities: (required: string[]) => {
+      const perms = data?.systemPermissions;
+      // Unknown (backend never reported systemPermissions) fails OPEN — see
+      // the doctrine on `PermissionContextValue.hasCapabilities`.
+      if (!Array.isArray(perms)) return true;
+      const held = new Set(perms);
+      return required.every((p) => held.has(p));
+    },
+    isLoaded,
+  }));
 
   if (loading && !data) return <>{loadingFallback}</>;
   if (error && !data) {

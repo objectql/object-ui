@@ -37,6 +37,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
+import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '@object-ui/react';
 // Registers the renderers at module scope, NOT inside a `beforeAll` — there the
 // cold transform is billed to `hookTimeout`. See
@@ -130,5 +131,39 @@ describe('div deprecation notice — scoped by provenance (#4000)', () => {
     expect(el).toBeTruthy();
     const attrs = Array.from(el!.attributes).map((a) => a.name);
     expect(attrs.filter((n) => n.includes('provenance') || n.includes('tier'))).toHaveLength(0);
+  });
+
+  /**
+   * objectui#6674 — the same scope, DECLARED, so a gate can read what the four
+   * cases above can only demonstrate by rendering.
+   *
+   * Before the registration carried `deprecated`, the only statements that this
+   * type is deprecated were the notice string literal and the word inside
+   * `label`; no gate, test or type could consult either, so both gates that
+   * touch component types ask whether the type RESOLVES instead — and it does.
+   *
+   * This case is the join. Above, the renderer EXEMPTS html-tier nodes at
+   * runtime; here, the registration DECLARES the identical scope. Asserting
+   * them in one file is what stops them drifting: widening `surfaces` to
+   * `['json', 'html']` without touching the exemption, or dropping the
+   * exemption without narrowing `surfaces`, turns this red — which no
+   * assertion about either one alone can do.
+   */
+  it('DECLARES the scope those four cases demonstrate — deprecated on json, not on html', () => {
+    // Deprecated where the notice is fired…
+    expect(ComponentRegistry.deprecationFor('div', 'json')).toEqual({
+      surfaces: ['json'],
+      replacement:
+        'use "card", "flex", or layout components like "container", "stack", or "grid"',
+    });
+
+    // …and NOT where the first case above proves the renderer stays silent. A
+    // declaration that said "deprecated" full stop would be false for the html
+    // tier, which is the objectui#4000 ruling this pair encodes.
+    expect(ComponentRegistry.deprecationFor('div', 'html')).toBeUndefined();
+
+    // The bare and namespaced spellings answer alike, because a corpus authors
+    // whichever it likes and the gate must not have to know which.
+    expect(ComponentRegistry.deprecationFor('ui:div', 'json')).toBeDefined();
   });
 });

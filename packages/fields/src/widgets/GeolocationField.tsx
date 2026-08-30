@@ -1,9 +1,10 @@
 import React, { useId } from 'react';
-import { Input, Button, Label, EmptyValue } from '@object-ui/components';
+import { Input, Button, Label, EmptyValue, cn } from '@object-ui/components';
 import { MapPin, Crosshair } from 'lucide-react';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
 import { toHostGroupProps } from './toHostGroupProps.js';
+import { useBadInputRefusal, BadInputMessage, BAD_INPUT_BORDER } from './numberBadInput.js';
 
 /**
  * Geolocation data structure
@@ -20,6 +21,14 @@ export interface GeolocationValue {
  */
 export function GeolocationField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<GeolocationValue>) {
   const [isLoading, setIsLoading] = React.useState(false);
+  /**
+   * TWO independent readings, one per sub-input (objectui#6780). A composite
+   * cannot share one refusal: `1e` in the latitude box says nothing about the
+   * longitude box, and a shared message could not name which half it is about.
+   * The example is each coordinate's own, matching `LocationField`'s.
+   */
+  const lat = useBadInputRefusal('30.2741');
+  const lng = useBadInputRefusal('120.1551');
   const location = value || {};
   // DOM pass-through (objectui#3318): the whitelist spread goes onto the FIRST
   // sub-input (latitude); the composite's validation state goes onto BOTH
@@ -60,11 +69,33 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   const groupId = useId();
   const subId = (name: keyof GeolocationValue) => `${groupId}-${name}`;
 
+  /**
+   * objectui#6780: ask the browser whether it can READ the box before trusting
+   * `.value`. Both sub-inputs are `type="number"`, so both can DISPLAY text
+   * (`1e`, `-`, `.`) while `.value` reads `''` — measured in Chromium
+   * 141.0.7390.37. The emission is deliberately unchanged; see
+   * `numberBadInput.tsx`.
+   */
   const handleFieldChange = (fieldName: keyof GeolocationValue, fieldValue: string) => {
     onChange({
       ...location,
       [fieldName]: fieldValue ? Number(fieldValue) : undefined,
     });
+  };
+
+  /**
+   * The blur arm — this widget had no `onBlur` at all. React delivers no
+   * `onChange` when `.value` never leaves `''` (the measured shape of PASTING
+   * `1e` into an empty box), and `badInput` is still true at blur time.
+   *
+   * ⚠️ The latitude box COMPOSES the host's `onBlur`, which `toDomProps`
+   * already delivers into `domProps`; a bare handler after that spread would
+   * silently drop a declared pass-through key. The longitude box takes no
+   * spread (objectui#3318), so it has none to compose.
+   */
+  const handleLatBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    lat.readBadInput(e.target);
+    domProps.onBlur?.(e);
   };
 
   const getCurrentLocation = () => {
@@ -174,13 +205,20 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
             id={subId('latitude')}
             type="number"
             value={location.latitude ?? ''}
-            onChange={(e) => handleFieldChange('latitude', e.target.value)}
+            onChange={(e) => {
+              lat.readBadInput(e.target);
+              handleFieldChange('latitude', e.target.value);
+            }}
+            onBlur={handleLatBlur}
             placeholder="37.7749"
             disabled={readonly || props.disabled}
             step="any"
-            className={props.className}
-            aria-invalid={!!error}
+            className={cn(lat.refusal ? BAD_INPUT_BORDER : '', props.className)}
+            // `refusal` is this box's OWN reading; `error` is the composite's
+            // published slot and keeps its single author (objectui#3222).
+            aria-invalid={!!error || !!lat.refusal}
           />
+          <BadInputMessage refusal={lat.refusal} />
         </div>
         
         <div>
@@ -189,12 +227,18 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
             id={subId('longitude')}
             type="number"
             value={location.longitude ?? ''}
-            onChange={(e) => handleFieldChange('longitude', e.target.value)}
+            onChange={(e) => {
+              lng.readBadInput(e.target);
+              handleFieldChange('longitude', e.target.value);
+            }}
+            onBlur={(e) => lng.readBadInput(e.target)}
             placeholder="-122.4194"
             disabled={readonly || props.disabled}
             step="any"
-            aria-invalid={!!error}
+            className={lng.refusal ? BAD_INPUT_BORDER : undefined}
+            aria-invalid={!!error || !!lng.refusal}
           />
+          <BadInputMessage refusal={lng.refusal} />
         </div>
       </div>
 

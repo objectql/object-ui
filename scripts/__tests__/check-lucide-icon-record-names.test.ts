@@ -304,15 +304,24 @@ describe('the `ui:icon` node type', () => {
 describe('a name whose resolver this gate cannot identify is declined, not flagged', () => {
   it('leaves the same retired spelling alone on an untyped and a non-censused node', () => {
     // Both shapes are live in this repository: Tailwind tone maps keyed `icon`,
-    // and catalog child items under `button-group`/`breadcrumb`/`command`
-    // (three of which never read `icon`, and a fourth that renders it as text).
-    // A gate that flagged these would be suppressed on day one, and then it
-    // would catch nothing at all.
+    // and catalog child items under a container that reaches no resolver —
+    // `button-group`, whose renderer still never reads `button.icon` and whose
+    // item type declares no such key (objectui#5931 routed that one for a
+    // decision rather than censusing it). A gate that flagged these would be
+    // suppressed on day one, and then it would catch nothing at all.
+    //
+    // ⚠️ The container in the JSON fixture below is deliberately one this
+    // repository's census does NOT declare descent for. `breadcrumb` and
+    // `command` used to serve here and no longer can: objectui#5931 wired both
+    // renderers through `resolveIcon`, so their child icons are now JUDGED.
+    // `judge`'s default table strips `descendants`, so this row would still be
+    // green with either — which is exactly why the name is chosen for what it
+    // MEANS and not for what currently passes.
     const result = judge('declined', {
       files: {
         'packages/app/src/tones.ts': "export const tone = { icon: 'text-amber-500' };",
         'packages/app/src/other.ts': "export const node = { type: 'text', icon: 'filter' };",
-        'examples/catalog/items.json': JSON.stringify({ type: 'breadcrumb', items: [{ icon: 'layout' }] }, null, 2),
+        'examples/catalog/items.json': JSON.stringify({ type: 'button-group', buttons: [{ icon: 'layout' }] }, null, 2),
       },
     });
 
@@ -421,10 +430,13 @@ describe('an icon on an UNTYPED child of a container that declares descent', () 
 
   it('does NOT leak descent into a container that never declared it', () => {
     // The reason `descendants` is opt-in per container rather than a blanket
-    // "nearest censused ancestor" rule: `breadcrumb`/`button-group`/`command`
-    // items were measured and none of their renderers reads `icon` at all.
+    // "nearest censused ancestor" rule: `button-group` items were measured and
+    // its renderer reads no `icon` at all, so a blanket rule would judge names
+    // that reach nothing. `breadcrumb`/`command` stood beside it here until
+    // objectui#5931 wired both through `resolveIcon` — a verdict is a fact
+    // about a renderer, and it expires when that renderer is repaired.
     const result = judge('descend-undeclared', {
-      files: { 'examples/catalog/crumbs.json': JSON.stringify({ type: 'breadcrumb', items: [{ icon: 'layout' }] }, null, 2) },
+      files: { 'examples/catalog/buttons.json': JSON.stringify({ type: 'button-group', buttons: [{ icon: 'layout' }] }, null, 2) },
       recordReadingTypes: DESCENT_TYPES,
     });
 
@@ -598,7 +610,13 @@ describe('this repository', () => {
     // fresh `icons` import, so `renderers/overlay/dropdown-menu.tsx` correctly
     // stays OUT of the record-reader census. A descent declaration that moved
     // this number would have altered the wrong part of the gate.
-    expect(repoResult.discovered.record).toHaveLength(8);
+    //
+    // The figure was 8 until objectui#5993 deduped `renderers/form/button.tsx`
+    // onto the shared `resolveIcon`. That is the ONE way this number is allowed
+    // to move: a site stopped reading the record. It did not stop resolving
+    // icons — `RECORD_READING_TYPES['button']` still judges its authored names,
+    // one indirection away, exactly like the two menu entries this row is about.
+    expect(repoResult.discovered.record).toHaveLength(7);
     expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/dropdown-menu.tsx');
     expect(RECORD_READING_TYPES['dropdown-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
     // objectui#6278 routes the twin the same way, so it must not move the
@@ -623,17 +641,29 @@ describe('this repository', () => {
     // objectui#5633's own discovery run. objectui#6009 supplies only the part-2
     // fact — which `type` sends names there — so this count must not move.
     expect(repoResult.discovered.record).toContain('packages/components/src/renderers/basic/icon.tsx');
-    expect(repoResult.discovered.record).toHaveLength(8);
+    // 7 since objectui#5993, for the reason the row above spells out. `ui:icon`
+    // keeps its own resolver deliberately — it draws a `SquareDashed`
+    // placeholder and warns where the shared one returns `null` (objectui#5631,
+    // pinned by `basic/__tests__/icon-unresolvable-placeholder.test.tsx`), so it
+    // is NOT a dedupe candidate and stays in this census.
+    expect(repoResult.discovered.record).toHaveLength(7);
   });
 
   it('carries more record-reading resolvers than objectui#5633 catalogued by hand', () => {
     // The card's table listed four. Discovery found eight, which is the whole
     // argument for measuring the population instead of maintaining a list: the
     // four it missed each resolve authored strings through the same record.
+    //
+    // Three of those four are still here. The fourth — `renderers/form/button.tsx`
+    // — was a hand-copied reimplementation of `resolve-icon.ts`, and objectui#5993
+    // deduped it onto the shared function, so it left this census by being FIXED
+    // rather than by being forgotten. Discovery is what proves that: the equality
+    // below fails if it comes back undeclared, and the census-drift check in the
+    // gate fails if the declaration outlives the read.
     expect(repoResult.discovered.record).toEqual([...DECLARED_RECORD_READERS].sort());
-    expect(repoResult.discovered.record.length).toBeGreaterThanOrEqual(8);
+    expect(repoResult.discovered.record.length).toBeGreaterThanOrEqual(7);
+    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/form/button.tsx');
     for (const late of [
-      'packages/components/src/renderers/form/button.tsx',
       'packages/plugin-list/src/ListView.tsx',
       'packages/plugin-detail/src/RelatedList.tsx',
       'packages/app-shell/src/views/metadata-admin/previews/ActionPreview.tsx',

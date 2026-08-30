@@ -15,6 +15,12 @@
  * - `views/RecordDetailView.tsx` does NOT consume that hook. It builds a second,
  *   near-identical `confirmHandler` and renders its own `<ActionConfirmDialog>`.
  *
+ * This file pins BOTH halves of that relationship. The OPEN half is #5835's and
+ * comes first; the CLOSE half (objectui#6034) is the second `describe` at the
+ * bottom, with its own header explaining which reset shape won and why. They
+ * live in ONE file on purpose: two parity pins for one relationship could
+ * disagree with each other, which is the very defect the two runtimes had.
+ *
  * Merging the two is a larger refactor and is deliberately NOT this file's job.
  * What this file buys instead is the property the duplication threatens: the
  * dialog is one component with one set of reads, so whichever runtime opened it
@@ -85,9 +91,29 @@ vi.mock('sonner', () => ({
  * a per-path double could drift exactly the way the runtimes did.
  */
 let dialogState: any = null;
+
+/**
+ * The CLOSE path's subject (objectui#6034). `dialogState` above only records
+ * while `open` is true, so it structurally cannot see what a runtime writes
+ * when the dialog CLOSES — the exact half these two runtimes disagreed on.
+ *
+ * - `dialogStates` records EVERY `state` the dialog is handed, so the object
+ *   that arrives after the close is observable.
+ * - `closeViaRuntime` is the runtime's OWN `onOpenChange` prop — driving the
+ *   real seam, not a re-spelling of it. A test that called `setConfirmState`
+ *   itself would pin the test's idea of the reset shape, not the runtime's.
+ */
+let dialogStates: any[] = [];
+const NO_DIALOG_RENDERED = () => {
+  throw new Error('ActionConfirmDialog never rendered — no runtime close seam to drive');
+};
+let closeViaRuntime: (open: boolean) => void = NO_DIALOG_RENDERED;
+
 vi.mock('./ActionConfirmDialog', () => ({
-  ActionConfirmDialog: ({ state }: any) => {
+  ActionConfirmDialog: ({ state, onOpenChange }: any) => {
     if (state?.open) dialogState = state;
+    dialogStates.push(state);
+    closeViaRuntime = onOpenChange;
     return null;
   },
 }));
@@ -244,10 +270,34 @@ async function confirmViaConsoleRuntime(...args: unknown[]) {
   return dialogState;
 }
 
+/**
+ * Close path — hand the runtime its own `onOpenChange(false)` and return the
+ * `state` object it writes in response (objectui#6034).
+ *
+ * The call ORDER mirrors `ActionConfirmDialog.handleCancel` exactly: the dialog
+ * settles the promise FIRST and only then calls `onOpenChange(false)`. That
+ * order is the whole reason a `resolve` retained past the close is inert — a
+ * second call on a settled promise is a no-op — so a close-path pin that
+ * skipped the settle would be pinning a sequence production never runs.
+ */
+async function closeFromRuntime(openState: any) {
+  const before = dialogStates.length;
+  await act(async () => {
+    openState.resolve?.(false);
+    closeViaRuntime(false);
+    await Promise.resolve();
+  });
+  const written = dialogStates.slice(before);
+  expect(written.length).toBeGreaterThan(0);
+  return written[written.length - 1];
+}
+
 beforeEach(() => {
   cleanup();
   captured.length = 0;
   dialogState = null;
+  dialogStates = [];
+  closeViaRuntime = NO_DIALOG_RENDERED;
   vi.stubGlobal(
     'fetch',
     vi.fn(async () =>
@@ -313,5 +363,93 @@ describe('app-shell — both confirm runtimes feed ActionConfirmDialog the same 
       expect(viewFields).toContain(field);
       expect(hookFields).toContain(field);
     }
+  });
+});
+
+/**
+ * ## The CLOSE half (objectui#6034)
+ *
+ * The block above is the OPEN half and it is #5835's. Its assertions stay green
+ * under either reset shape, so within this file they are **controls, not
+ * evidence** — they establish that both runtimes still reach the dialog at all,
+ * which is what makes a difference measured after the close attributable to the
+ * close handler.
+ *
+ * The divergence this half pins: `useConsoleActionRuntime` used to close with
+ * `setConfirmState({ open: false, message: '' })` — replacing the whole object,
+ * blanking `message` and dropping the `options` / `resolve` keys outright —
+ * while `RecordDetailView` closed with `setConfirmState(s => ({ ...s, open:
+ * false }))`, flipping one flag and keeping every field.
+ *
+ * **Field-preserving is the shape that won, because of who reads the state
+ * after the close.** `AlertDialogContent` carries `data-[state=closed]:
+ * animate-out … duration-200`, so Radix's `Presence` keeps the dialog MOUNTED
+ * through its exit animation — `ActionConfirmDialog` goes on reading
+ * `state.message` into `AlertDialogDescription` and `state.options` into the
+ * title and both button labels for the whole fade-out. Blanking rewrites the
+ * dialog's visible text mid-fade; preserving fades it out intact. The cost of
+ * preserving is a settled promise's `resolve` left reachable in state, which is
+ * inert: the dialog settles it before it ever asks for the close, and the open
+ * path replaces the entire state object, so nothing stale survives a reopen.
+ */
+describe('app-shell — both confirm runtimes reset ActionConfirmDialog the same way on CLOSE (objectui#6034)', () => {
+  it('RecordDetailView: the close flips `open` and keeps every other dialog-read field', async () => {
+    const opened = await confirmViaRecordDetailView(MESSAGE, BAG);
+    expect(opened.open).toBe(true);
+
+    const closed = await closeFromRuntime(opened);
+    expect(closed.open).toBe(false);
+    // By NAME, not by count: a shape that drops keys is red on the key set, and
+    // a shape that blanks `message` is red on the value even if the key stays.
+    expect(Object.keys(closed).sort()).toEqual(DIALOG_READS);
+    expect(closed.message).toBe(MESSAGE);
+    expect(closed.options).toEqual(BAG);
+    expect(typeof closed.resolve).toBe('function');
+  });
+
+  it('useConsoleActionRuntime: the close flips `open` and keeps every other dialog-read field', async () => {
+    const opened = await confirmViaConsoleRuntime(MESSAGE, BAG);
+    expect(opened.open).toBe(true);
+
+    const closed = await closeFromRuntime(opened);
+    expect(closed.open).toBe(false);
+    expect(Object.keys(closed).sort()).toEqual(DIALOG_READS);
+    expect(closed.message).toBe(MESSAGE);
+    expect(closed.options).toEqual(BAG);
+    expect(typeof closed.resolve).toBe('function');
+  });
+
+  it('the two runtimes write the same post-close state, field for field', async () => {
+    const viewClosed = await closeFromRuntime(await confirmViaRecordDetailView(MESSAGE, BAG));
+    cleanup();
+    const hookClosed = await closeFromRuntime(await confirmViaConsoleRuntime(MESSAGE, BAG));
+
+    expect(Object.keys(viewClosed).sort()).toEqual(Object.keys(hookClosed).sort());
+    expect(Object.keys(viewClosed).sort()).toEqual(DIALOG_READS);
+    expect(viewClosed.open).toBe(hookClosed.open);
+    expect(viewClosed.message).toBe(hookClosed.message);
+    expect(viewClosed.options).toEqual(hookClosed.options);
+    expect(typeof viewClosed.resolve).toBe(typeof hookClosed.resolve);
+  });
+
+  it('the close-path fixture is multi-field, so the two reset shapes are distinguishable here', async () => {
+    // Non-degeneracy guard. With an empty or single-field confirm state,
+    // "blanked" and "preserved" produce the SAME object and every assertion
+    // above passes without measuring anything. Applied to THIS fixture, the two
+    // shapes app-shell actually shipped must disagree — on the key set AND on a
+    // value — or the pin above is decorative.
+    const opened = await confirmViaRecordDetailView(MESSAGE, BAG);
+    const blanked: any = { open: false, message: '' };
+    const preserved: any = { ...opened, open: false };
+
+    expect(Object.keys(blanked).sort()).not.toEqual(Object.keys(preserved).sort());
+    expect(blanked).not.toHaveProperty('options');
+    expect(blanked).not.toHaveProperty('resolve');
+    expect(blanked.message).not.toBe(preserved.message);
+    expect(preserved.options).toEqual(BAG);
+
+    // …and the fixture itself is what makes those inequalities real.
+    expect(MESSAGE.length).toBeGreaterThan(0);
+    expect(Object.keys(BAG).length).toBeGreaterThan(1);
   });
 });

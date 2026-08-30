@@ -7,6 +7,10 @@
  */
 
 import type { ComponentMeta as CanonicalComponentMeta } from '@object-ui/types';
+import {
+  ELEMENT_DATA_SOURCE_INPUT,
+  isElementDataSourceBlock,
+} from '../data-scope/element-data-source.js';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
@@ -35,9 +39,87 @@ export type ComponentRenderer<T = any> = T;
 export type { ComponentInput } from '@object-ui/types';
 
 /**
+ * An AUTHORING SURFACE a component type can be reached from — the two this
+ * engine has, named as its own code already names them.
+ *
+ * - `'json'` — the JSON/SDUI authoring surface. A node an author (or an AI)
+ *   writes as `{ "type": "…" }` in metadata.
+ * - `'html'` — a `kind:'html'` page, written as constrained JSX text that
+ *   `@object-ui/sdui-parser` COMPILES (never executes) into SDUI nodes, tag
+ *   name straight through. `isHtmlTierNode` marks what that parser emitted.
+ *
+ * The distinction is not decorative here: it is the whole reason
+ * {@link ComponentDeprecation} carries a surface list rather than a boolean.
+ */
+export type AuthoringSurface = 'json' | 'html';
+
+/**
+ * That a component type is DEPRECATED for authoring — the machine-readable
+ * statement of it (objectui#6674).
+ *
+ * ## Why this exists at all
+ *
+ * Before this type, a deprecation was stated in exactly two places, neither of
+ * which any gate, test or type can consult: a `console.warn` STRING LITERAL
+ * inside the renderer, and the word "(Deprecated)" inside a human-readable
+ * `label`. So the question "is this type deprecated?" had no asker. The two
+ * gates that touch component types — `examples/schema-catalog/test/
+ * catalog-gallery-render.test.tsx` and `scripts/check-doc-component-types.mjs`
+ * — both ask only whether a type RESOLVES, and a deprecated type resolves
+ * perfectly well. The measurement objectui#6674 filed is what that costs: the
+ * catalog suite passes 583/583 with 85 authored `div` nodes in the corpus. The
+ * green was the finding.
+ *
+ * This is a layer BELOW the usual "declared but enforced nowhere" defect: there
+ * was nothing declared to enforce.
+ *
+ * ## Why `surfaces` is required, and why a boolean would have been wrong
+ *
+ * `deprecated: true` would restate, as a contract, the exact falsehood the
+ * maintainer ruled against on 2026-08-10 (objectui#4000): the `div` and `span`
+ * notices are scoped BY PROVENANCE because those tags are deprecated on the
+ * JSON surface and simultaneously PERMANENT, first-class vocabulary of the
+ * `kind:'html'` tier — an author there writes the plain tag, our own parser
+ * maps it straight through, and no other spelling exists for them to migrate
+ * to. "A notice that says the type is deprecated FULL STOP is therefore false
+ * for one of its two readers" (`div.tsx`), and the reader it was false for was
+ * the one who could do nothing about it. A declaration that dropped the scope
+ * would hand every future gate the same false premise, in a form that is harder
+ * to see than a console string. So the scope travels WITH the declaration, and
+ * {@link Registry.deprecationFor} makes callers name the surface they are
+ * asking about instead of re-deriving the exemption locally.
+ *
+ * ## What it deliberately does not do
+ *
+ * Nothing here fails a build, and nothing here deprecates anything: this is the
+ * vocabulary plus the reader. Which types get marked, and when, is
+ * objectui#3965's to decide — the ordering matters, because marking a type
+ * while the corpus still authors it 85 times produces a red with nowhere to go.
+ */
+export type ComponentDeprecation = {
+  /**
+   * The surfaces on which authoring this type is deprecated. A surface NOT
+   * listed keeps the type as first-class vocabulary there — that is the whole
+   * content of the objectui#4000 ruling, said once, in the declaration.
+   *
+   * Required and expected non-empty: an empty list declares a deprecation that
+   * applies to no reader, which is indistinguishable from not declaring one.
+   */
+  surfaces: AuthoringSurface[];
+  /**
+   * One line of migration guidance for the surfaces above — what to author
+   * instead. Optional, but it is what makes a gate's failure ACTIONABLE: a gate
+   * that can only say "deprecated" sends its reader back to the console string
+   * this declaration exists to replace.
+   */
+  replacement?: string;
+};
+
+/**
  * The keys the REGISTRY adds on top of the one `ComponentMeta` declaration:
- * registration mechanics (`tier` / `namespace` / `skipFallback`) and the
- * host-labelling contract (`labelling`). None of the four has a counterpart on
+ * registration mechanics (`tier` / `namespace` / `skipFallback`), the
+ * host-labelling contract (`labelling`), and the authoring-time
+ * `deprecated` declaration. None of the five has a counterpart on
  * the general type in `@object-ui/types`, and none is being moved there —
  * publishing registry mechanics on the general type was the alternative
  * objectui#6067 weighed and rejected.
@@ -112,6 +194,19 @@ export type RegistryComponentMetaExtras = {
    * unlabelled group.
    */
   labelling?: 'control' | 'group' | 'display';
+  /**
+   * That authoring this type is DEPRECATED, and on which surfaces
+   * (objectui#6674). Absent ⇒ not deprecated anywhere; see
+   * {@link ComponentDeprecation} for why the surfaces are part of the
+   * declaration rather than a boolean, and {@link Registry.deprecationFor} for
+   * the reader a gate asks.
+   *
+   * This is a DECLARATION about the TYPE, which is why it sits on the
+   * registration rather than on a node: every node of a deprecated type is
+   * deprecated, and the one place that fact can be stated once is where the
+   * type is registered.
+   */
+  deprecated?: ComponentDeprecation;
 };
 
 /**
@@ -176,6 +271,48 @@ type LazyEntry = {
   pending?: Promise<unknown>;
 };
 
+/**
+ * Emit the spec's `dataSource` input for a registration whose renderer wraps
+ * `ElementDataSourceGate` (objectui#6678).
+ *
+ * ## The one place, and why it is this one
+ *
+ * The maintainer ruling of 2026-08-29 adopted option B **in the injection
+ * form**: the declaration is emitted mechanically at the wrapping seam so every
+ * gate-wrapping registration declares the key from the same place that reads it
+ * — one mechanism rather than nine hand-kept copies across nine packages, which
+ * drift and which a tenth block would simply forget. `register()` is where every
+ * one of those registrations passes through, so it is where the emission lands;
+ * the DECLARATION itself is `ELEMENT_DATA_SOURCE_INPUT`, which lives beside the
+ * binding's own semantics in `data-scope/element-data-source.ts`.
+ *
+ * ## What it must NOT do, which is half the ruling
+ *
+ * Widening this to every registration is option A wearing a different hat: it
+ * would silence `dataSource` on `flex` and `card`, which do not read it, and the
+ * diagnostic would lie in the other direction instead of the one it lied in
+ * before. So the condition is the marker and nothing else — no heuristic over
+ * `objectName`, no "looks object-bound".
+ *
+ * ## Idempotent, and it never overwrites
+ *
+ * A registration that declares `dataSource` ITSELF keeps its own entry: the
+ * emission fills a gap, it does not own the key. (Nothing declares it today —
+ * that is the defect — but a block whose binding needs a narrower description
+ * later must be able to say so without fighting this function.) Re-registering
+ * the same component, which the registry allows and tests do constantly, is
+ * likewise a no-op rather than a growing `inputs` array.
+ */
+export function withElementDataSourceInput<T>(
+  component: ComponentRenderer<T>,
+  meta?: ComponentMeta,
+): ComponentMeta | undefined {
+  if (!isElementDataSourceBlock(component)) return meta;
+  const inputs: NonNullable<ComponentMeta['inputs']> = meta?.inputs ?? [];
+  if (inputs.some((input) => input?.name === ELEMENT_DATA_SOURCE_INPUT.name)) return meta;
+  return { ...(meta ?? {}), inputs: [...inputs, { ...ELEMENT_DATA_SOURCE_INPUT }] } as ComponentMeta;
+}
+
 export class Registry<T = any> {
   private components = new Map<string, ComponentConfig<T>>();
   private lazyEntries = new Map<string, LazyEntry>();
@@ -214,6 +351,9 @@ export class Registry<T = any> {
    */
   register(type: string, component: ComponentRenderer<T>, meta?: ComponentMeta) {
     const fullType = meta?.namespace ? `${meta.namespace}:${type}` : type;
+    // The `dataSource` declaration is EMITTED here, not written by the blocks
+    // (objectui#6678). See `withElementDataSourceInput`.
+    const resolvedMeta = withElementDataSourceInput(component, meta);
     
     // Warn if registering without namespace (deprecated pattern)
     if (!meta?.namespace) {
@@ -225,7 +365,7 @@ export class Registry<T = any> {
         `  registry.register('${type}', MyComponent);\n\n` +
         `  // After:\n` +
         `  registry.register('${type}', MyComponent, { namespace: 'my-plugin' });\n\n` +
-        `  See: https://github.com/objectstack-ai/objectui/blob/main/MIGRATION_GUIDE.md`
+        `  See: https://www.objectui.org/docs/guide/plugin-development#namespaced-registration`
       );
     }
     
@@ -236,7 +376,7 @@ export class Registry<T = any> {
     this.components.set(fullType, {
       type: fullType,
       component,
-      ...meta
+      ...resolvedMeta
     });
     
     // Also register without namespace for backward compatibility
@@ -261,7 +401,7 @@ export class Registry<T = any> {
       this.components.set(type, {
         type: fullType, // Keep reference to namespaced type
         component,
-        ...meta
+        ...resolvedMeta
       });
     }
 
@@ -496,6 +636,49 @@ export class Registry<T = any> {
   getMeta(type: string, namespace?: string): ComponentMeta | undefined {
     const key = namespace ? `${namespace}:${type}` : type;
     return this.components.get(key) ?? this.lazyEntries.get(key)?.meta;
+  }
+
+  /**
+   * The deprecation `type` declares FOR `surface` — or `undefined` when it
+   * declares none there (objectui#6674).
+   *
+   * ## The question this makes askable
+   *
+   * "Is this type deprecated?" — which, before the {@link ComponentDeprecation}
+   * declaration existed, nothing could ask. The only two statements of a
+   * deprecation were a `console.warn` string literal in a renderer and the word
+   * "(Deprecated)" inside a human `label`; no gate, test or type can consult
+   * either. Both gates that touch component types ask whether a type RESOLVES,
+   * and a deprecated type resolves.
+   *
+   * ## Why the caller must name a surface
+   *
+   * Because the honest answer differs by surface, and a reader that dropped the
+   * distinction would let every caller re-derive it — which is how the same
+   * exemption ends up written N times and wrong in N-1 of them. `div` is
+   * deprecated for JSON-authored pages and is permanent vocabulary of the
+   * `kind:'html'` tier (objectui#4000). Asking `deprecationFor('div', 'html')`
+   * therefore correctly answers `undefined` even when the type declares a
+   * `'json'` deprecation, and a gate over html-tier sources gets the right
+   * answer without knowing the ruling.
+   *
+   * Returning the DECLARATION rather than a boolean is deliberate: the caller
+   * that has to report the finding also needs `replacement` to say what to
+   * author instead, and a boolean would send it back to the console string.
+   *
+   * Resolution is {@link getMeta}'s, so both spellings of a namespaced
+   * registration answer alike (`div` and `ui:div`), a `skipFallback` type
+   * answers only under its namespaced key, and a pending `registerLazy` stub
+   * answers from the meta it was registered with.
+   */
+  deprecationFor(
+    type: string,
+    surface: AuthoringSurface,
+    namespace?: string,
+  ): ComponentDeprecation | undefined {
+    const declared = this.getMeta(type, namespace)?.deprecated;
+    if (!declared) return undefined;
+    return declared.surfaces.includes(surface) ? declared : undefined;
   }
 
   /**

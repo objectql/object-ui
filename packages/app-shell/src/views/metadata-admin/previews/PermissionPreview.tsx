@@ -11,8 +11,8 @@
  *   1. Header strip: name, profile/permission-set flag, system perms
  *      count, tab perms count, RLS rule count.
  *   2. Object × CRUD-VAMA grid. Each row is one object; each column
- *      is one capability (Create/Read/Edit/Delete/Transfer/Restore/
- *      Purge/ViewAll/ModifyAll). Cells are colored chips — green when
+ *      is one capability (Create/Read/Edit/Delete/Export/Transfer/
+ *      ViewAll/ModifyAll). Cells are colored chips — green when
  *      granted, neutral when not, amber when "View All" or "Modify
  *      All" is on (highlighting the bypass).
  *   3. Field-level security: grouped by object, only fields with a
@@ -56,8 +56,11 @@ const CAPS: Array<{ key: keyof ObjectPermission; short: string; long: string; da
   { key: 'allowDelete', short: 'D', long: 'Delete' },
   { key: 'allowExport', short: 'E', long: 'Export' },
   { key: 'allowTransfer', short: 'T', long: 'Transfer' },
-  { key: 'allowRestore', short: 'Re', long: 'Restore' },
-  { key: 'allowPurge', short: 'P', long: 'Purge', danger: true },
+  // Restore / Purge were removed with their authoring columns (objectui#6595):
+  // `@objectstack/spec` retired both keys, and the operations they claimed to
+  // gate have never existed. The `keyof ObjectPermission` typing above is what
+  // keeps this honest in the other direction — once the spec bump carrying the
+  // retirement lands, re-adding either row stops compiling.
   { key: 'viewAllRecords', short: 'V*', long: 'View All', danger: true },
   { key: 'modifyAllRecords', short: 'M*', long: 'Modify All', danger: true },
 ];
@@ -83,7 +86,8 @@ function findWarnings(objects: Record<string, ObjectPermission>): Warning[] {
     if (p.allowEdit && !p.allowRead) out.push({ object: obj, message: 'Edit granted without Read (record updates will fail).' });
     if (p.allowDelete && !p.allowRead) out.push({ object: obj, message: 'Delete granted without Read.' });
     if (p.modifyAllRecords && !p.viewAllRecords) out.push({ object: obj, message: 'Modify All without View All — modifications may target invisible records.' });
-    if (p.allowPurge && !p.allowDelete) out.push({ object: obj, message: 'Purge (hard delete) granted without Delete.' });
+    // No "Purge without Delete" lint: `allowPurge` is retired (objectui#6595),
+    // so the combination it warned about can no longer be authored.
     // Same class as Modify-All-without-View-All, one axis down: a write scope
     // wider than the read scope lets a user edit records they cannot see.
     const read = p.readScope ? SCOPE_ORDER.indexOf(p.readScope) : -1;
@@ -326,13 +330,13 @@ function Legend() {
         <CheckCircle2 className="h-3 w-3 text-emerald-600" /> granted
       </span>
       <span className="inline-flex items-center gap-1">
-        <CheckCircle2 className="h-3 w-3 text-amber-600" /> bypass (View/Modify All, Purge)
+        <CheckCircle2 className="h-3 w-3 text-amber-600" /> bypass (View/Modify All)
       </span>
       <span className="inline-flex items-center gap-1">
         <Circle className="h-3 w-3 text-muted-foreground/40" /> not granted
       </span>
       <span className="ml-auto font-mono">
-        C R U D = CRUD · T Re P = Transfer/Restore/Purge · V* M* = View/Modify All
+        C R U D = CRUD · E T = Export/Transfer · V* M* = View/Modify All
       </span>
     </div>
   );

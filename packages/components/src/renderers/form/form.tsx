@@ -1238,6 +1238,181 @@ ComponentRegistry.register('form',
       return locked;
     }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
 
+    // ── The section grouping contract (objectui#6236, maintainer ruling
+    // 2026-08-27) ─────────────────────────────────────────────────────────────
+    // A `section-divider` that CLAIMS its member fields (`fields: string[]` —
+    // the membership shape `FormFieldTab.fields` / `FormFieldPane.fields`
+    // already model) gates its WHOLE group: when the divider's own visibility
+    // verdict is FALSE, `renderFormField` draws neither the heading (the
+    // divider's own rule check does that half, pinned by
+    // predicate-scope-parity-6010) nor any claimed field (this set does the
+    // other half). Hiding a member this way is the SAME mechanism as the
+    // field's own false predicate — return `null`, so the Controller unmounts,
+    // react-hook-form skips the unmounted field at submit-time validation and
+    // keeps its value (`shouldUnregister` stays default-false). That is
+    // exactly the ruled semantics, inherited from the field-level precedent
+    // (#5594 / #2212) rather than re-implemented: visibility decides what is
+    // DRAWN and nothing else — a hidden section's values still submit — and a
+    // hidden section's fields skip client-side validation, so a user is never
+    // blocked by an error pointing at a control they cannot see (#6110's
+    // defect shape). The server-side contract stays the floor for
+    // genuinely-required data.
+    //
+    // The divider's verdict here replicates the FOUR gates `renderFormField`
+    // applies to the divider row itself — static `hidden`, the legacy
+    // `condition`, `visibleWhen` (via `resolveFieldRuleState`) and `visibleOn`
+    // — with the SAME record assembly (`ruleRecord` / `previousRecord` /
+    // `predicateScope`), the same fail-open fallbacks and the same locator
+    // strings, so heading and group cannot reach different verdicts
+    // (`warnPredicateFailure` dedupes by predicate source, so re-evaluating a
+    // predicate the render path also evaluates cannot double-warn — the
+    // `readonlyFieldNames` memo above already leans on that).
+    //
+    // A divider WITHOUT a claim keeps the pre-#6236 contract (a presentational
+    // row whose predicate gates only the heading); unknown claimed names are
+    // ignored (FormFieldTab parity); a field claimed by several dividers hides
+    // when ANY hidden claimer names it.
+    const hiddenSectionFieldNames = React.useMemo(() => {
+      const hiddenNames = new Set<string>();
+      for (const f of fields as FormFieldConfig[]) {
+        const divider = f as FormFieldConfig & { fields?: unknown };
+        if (divider?.type !== 'section-divider') continue;
+        const claimed = divider.fields;
+        if (!Array.isArray(claimed) || claimed.length === 0) continue;
+        const name = divider.name;
+        let dividerHidden = !!divider.hidden;
+        if (!dividerHidden) {
+          const legacyConditionCel = legacyConditionToCel(divider.condition);
+          if (
+            legacyConditionCel &&
+            !evalFieldPredicate(legacyConditionCel, ruleRecord, true, undefined, undefined, {
+              context: `condition of field '${name}'`,
+            })
+          ) {
+            dividerHidden = true;
+          }
+        }
+        if (!dividerHidden) {
+          const st = resolveFieldRuleState(
+            {
+              visibleWhen: (divider as any).visibleWhen,
+              readonlyWhen: (divider as any).readonlyWhen,
+              requiredWhen: (divider as any).requiredWhen,
+            },
+            ruleRecord,
+            {
+              required: !!divider.required,
+              readonly: (divider as any).readonly === true,
+              serverOwnedValue: isServerOwnedValue(divider, isCreateForm),
+            },
+            previousRecord,
+            predicateScope,
+            `field '${name}'`,
+          );
+          if (!st.visible) dividerHidden = true;
+        }
+        if (!dividerHidden && (divider as any).visibleOn != null) {
+          const viewVisible = evalFieldPredicate(
+            (divider as any).visibleOn,
+            ruleRecord,
+            true,
+            previousRecord,
+            predicateScope,
+            { context: `visibleOn of field '${name}'` },
+          );
+          if (!viewVisible) dividerHidden = true;
+        }
+        if (dividerHidden) {
+          for (const claimedName of claimed) {
+            if (typeof claimedName === 'string') hiddenNames.add(claimedName);
+          }
+        }
+      }
+      return hiddenNames;
+    }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
+
+    // --- Tabbed field layout (#2959) ---------------------------------------
+    // `fieldTabs` spreads THIS form's fields across tab panels. Crucially there
+    // is still exactly ONE <form> / react-hook-form instance: the panels are
+    // force-mounted and merely CSS-hidden, so a tab the user navigated away from
+    // keeps BOTH its values and its validation. (Rendering one form per tab lost
+    // every non-active tab's input — the footer submit button can only be
+    // associated with a single form — and unmounting a tab's fields makes
+    // react-hook-form skip their rules, which let a required field on a tab
+    // nobody opened sail past the client and return as a server 400.)
+    //
+    // Declared here, above the stale-error effect, because the tab predicate
+    // verdicts (#6237, below) join that effect's inputs.
+    const fieldTabs = React.useMemo<FormFieldTab[] | null>(() => {
+      const declared = schema.fieldTabs;
+      if (schema.children || !Array.isArray(declared)) return null;
+      const usable = declared.filter((t) => t && typeof t.key === 'string');
+      return usable.length > 1 ? usable : null;
+    }, [schema.fieldTabs, schema.children]);
+
+    // ── The tabbed arm of the grouping contract (objectui#6237, same
+    // maintainer ruling as #6236) ─────────────────────────────────────────────
+    // A tab may carry the section predicate (`FormFieldTab.visibleWhen`) the
+    // synthesis sites copy from an authored `FormSection.visibleWhen`. The
+    // verdict is evaluated HERE, with the same record assembly the field-level
+    // rules use (`ruleRecord` / `previousRecord` / `predicateScope`, #6010) and
+    // the same fail-open fallback, so a section rendered as a tab and the same
+    // section rendered as a divider cannot reach different verdicts.
+    //
+    // A hidden tab's trigger and panel are simply NOT DRAWN — which unmounts
+    // its fields, the exact mechanism a field's own false predicate uses
+    // (`return null`): react-hook-form keeps the values (`shouldUnregister`
+    // stays default-false), so they still submit, and skips the unmounted
+    // controls at submit-time validation. Those are the ruled semantics
+    // (visibility gates drawing only; the server stays the loud floor),
+    // inherited rather than re-implemented.
+    //
+    // Deliberately NOT folded into the `fieldTabs` memo above: whether the
+    // tabbed arm engages at all (`usable.length > 1`) is judged on the
+    // DECLARED tabs, so a predicate hiding one of two tabs filters what is
+    // drawn instead of collapsing the strip into the untabbed layout
+    // mid-interaction (a collapse would remount every remaining field —
+    // destroying focus and in-progress edits — and would draw the hidden
+    // tab's fields flat, breaking the ruled semantics).
+    const hiddenFieldTabKeys = React.useMemo(() => {
+      const hidden = new Set<string>();
+      for (const tab of fieldTabs ?? []) {
+        const visibleWhen = tab.visibleWhen;
+        if (visibleWhen == null) continue;
+        const visible = evalFieldPredicate(
+          visibleWhen,
+          ruleRecord,
+          true,
+          previousRecord,
+          predicateScope,
+          { context: `visibleWhen of fieldTab '${tab.key}'` },
+        );
+        if (!visible) hidden.add(tab.key);
+      }
+      return hidden;
+    }, [fieldTabs, ruleRecord, previousRecord, predicateScope]);
+
+    // Field names that are NOT drawn because every tab claiming them is hidden
+    // (#6237). A name also claimed by a VISIBLE tab still renders in that
+    // panel, so it stays out of this set — the set mirrors what the panels
+    // actually draw, and feeds the stale-error hygiene below. (The drawing
+    // itself needs no per-field gate: a hidden tab's panel is not rendered.)
+    const hiddenTabFieldNames = React.useMemo(() => {
+      const hidden = new Set<string>();
+      if (!fieldTabs || hiddenFieldTabKeys.size === 0) return hidden;
+      for (const tab of fieldTabs) {
+        if (!hiddenFieldTabKeys.has(tab.key)) continue;
+        for (const name of tab.fields ?? []) {
+          if (typeof name === 'string') hidden.add(name);
+        }
+      }
+      for (const tab of fieldTabs) {
+        if (hiddenFieldTabKeys.has(tab.key)) continue;
+        for (const name of tab.fields ?? []) hidden.delete(name);
+      }
+      return hidden;
+    }, [fieldTabs, hiddenFieldTabKeys]);
+
     // When a field's CEL rule relaxes — it becomes hidden (visibleWhen FALSE) or
     // no longer required (requiredWhen FALSE) — clear any stale validation error
     // left from a prior submit attempt. react-hook-form keeps an error until the
@@ -1274,16 +1449,33 @@ ComponentRegistry.register('form',
           });
         // A hidden field shows no errors at all; an un-required field clears
         // only its *required* error (keep legitimate format/min/etc. errors).
+        // A field hidden by its SECTION's predicate (#6236) clears the same
+        // way a field hidden by its own rule does — same rendering verdict,
+        // same stale-error hygiene.
         const errType = (errs[name] as { type?: string } | undefined)?.type;
-        if (!st.visible || !viewVisible || (!st.required && errType === 'required')) form.clearErrors(name);
+        if (
+          !st.visible ||
+          !viewVisible ||
+          hiddenSectionFieldNames.has(name) ||
+          hiddenTabFieldNames.has(name) ||
+          (!st.required && errType === 'required')
+        ) {
+          form.clearErrors(name);
+        }
       }
       // `predicateScope` joins `ruleRecord` here for the same reason it is passed
       // above (#6010): a scope change — the host swapping organisations, so
       // `current_user.positions` changes — can flip a `visibleWhen` to FALSE just
       // as a keystroke can, and a stale required-error on the field it just hid
       // must clear on that transition too.
+      // `hiddenSectionFieldNames` joins them (#6236): a section verdict flip is
+      // a visibility transition for every claimed field, and the memo can move
+      // on a `fields` identity change the two record inputs would miss.
+      // `hiddenTabFieldNames` joins for the same reason (#6237): a TAB verdict
+      // flip hides every field the tab claims, and its stale errors must clear
+      // on that transition exactly as a section flip clears its members'.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ruleRecord, predicateScope]);
+    }, [ruleRecord, predicateScope, hiddenSectionFieldNames, hiddenTabFieldNames]);
 
     // Read DataSource from SchemaRendererContext and propagate it to field
     // widgets as a prop so they can dynamically load related records.
@@ -1297,22 +1489,6 @@ ComponentRegistry.register('form',
       return m;
     }, [fields]);
 
-    // --- Tabbed field layout (#2959) ---------------------------------------
-    // `fieldTabs` spreads THIS form's fields across tab panels. Crucially there
-    // is still exactly ONE <form> / react-hook-form instance: the panels are
-    // force-mounted and merely CSS-hidden, so a tab the user navigated away from
-    // keeps BOTH its values and its validation. (Rendering one form per tab lost
-    // every non-active tab's input — the footer submit button can only be
-    // associated with a single form — and unmounting a tab's fields makes
-    // react-hook-form skip their rules, which let a required field on a tab
-    // nobody opened sail past the client and return as a server 400.)
-    const fieldTabs = React.useMemo<FormFieldTab[] | null>(() => {
-      const declared = schema.fieldTabs;
-      if (schema.children || !Array.isArray(declared)) return null;
-      const usable = declared.filter((t) => t && typeof t.key === 'string');
-      return usable.length > 1 ? usable : null;
-    }, [schema.fieldTabs, schema.children]);
-
     /** Field name → the tab that owns it (first claim wins). */
     const tabKeyByFieldName = React.useMemo(() => {
       const m = new Map<string, string>();
@@ -1322,13 +1498,20 @@ ComponentRegistry.register('form',
       return m;
     }, [fieldTabs]);
 
+    // Only VISIBLE tabs are selectable (#6237): a predicate hiding the ACTIVE
+    // tab re-selects deterministically — the user's pick if its tab is (still)
+    // visible, else the declared default, else the first visible tab — so the
+    // form never shows an empty panel. The pick itself is kept: derived
+    // selection means a hidden pick simply stops winning, and the tab the user
+    // chose becomes active again the moment its predicate re-admits it.
     const activeFieldTab = React.useMemo(() => {
       if (!fieldTabs?.length) return undefined;
-      const keys = fieldTabs.map((t) => t.key);
+      const keys = fieldTabs.map((t) => t.key).filter((k) => !hiddenFieldTabKeys.has(k));
+      if (!keys.length) return undefined;
       if (pickedFieldTab && keys.includes(pickedFieldTab)) return pickedFieldTab;
       if (schema.defaultFieldTab && keys.includes(schema.defaultFieldTab)) return schema.defaultFieldTab;
       return keys[0];
-    }, [fieldTabs, pickedFieldTab, schema.defaultFieldTab]);
+    }, [fieldTabs, hiddenFieldTabKeys, pickedFieldTab, schema.defaultFieldTab]);
 
     // Resolve each tab's declared field names against the form's field list.
     const fieldTabGroups = React.useMemo(() => {
@@ -1346,10 +1529,25 @@ ComponentRegistry.register('form',
     }, [fieldTabs, fields]);
 
     // A field no tab claimed must not vanish — it renders above the tab strip,
-    // visible from every tab.
+    // visible from every tab. Computed from the FULL group list on purpose: a
+    // predicate-hidden tab (#6237) still CLAIMS its fields — they are hidden
+    // with it, not promoted into this leading block.
     const untabbedFields = React.useMemo(
       () => (fieldTabGroups ? unclaimedFields(fieldTabGroups, fields as FormFieldConfig[]) : []),
       [fieldTabGroups, fields],
+    );
+
+    // What the strip and the panels actually draw (#6237): the groups whose
+    // tab the predicate verdict admits. Not drawing a hidden tab's panel IS
+    // the ruled-semantics mechanism — see `hiddenFieldTabKeys`.
+    const visibleFieldTabGroups = React.useMemo(
+      () =>
+        fieldTabGroups
+          ? hiddenFieldTabKeys.size === 0
+            ? fieldTabGroups
+            : fieldTabGroups.filter((g) => !hiddenFieldTabKeys.has(g.key))
+          : null,
+      [fieldTabGroups, hiddenFieldTabKeys],
     );
 
     // --- Split field layout (#2153) ----------------------------------------
@@ -1705,7 +1903,14 @@ ComponentRegistry.register('form',
       // looking at — naming it is useless if they can't see it. Activate its tab
       // first, then reveal it once that panel has actually been painted (it is
       // display:none until then, so scroll/focus would no-op).
+      //
+      // Unless the tab is predicate-HIDDEN (#6237): only the SERVER can reject
+      // a field there (its client rules are skipped with it), and there is no
+      // panel to activate or control to reveal — the toast above already names
+      // the field. Recording the activation as a pick anyway would yank the
+      // view to that tab whenever its predicate later re-admits it.
       const tabKey = tabKeyByFieldName.get(firstName);
+      if (tabKey && hiddenFieldTabKeys.has(tabKey)) return;
       if (tabKey && tabKey !== activeFieldTab) {
         setPickedFieldTab(tabKey);
         if (typeof requestAnimationFrame === 'function') {
@@ -1936,6 +2141,13 @@ ComponentRegistry.register('form',
 
       // Skip hidden fields
       if (hidden) return null;
+
+      // A field claimed by a HIDDEN section is not drawn (#6236) — the same
+      // `return null` a field's own false predicate takes, so the ruled
+      // semantics ride the existing mechanism: the value stays in the form
+      // state and still submits, and react-hook-form skips the unmounted
+      // control at submit-time validation. See `hiddenSectionFieldNames`.
+      if (hiddenSectionFieldNames.has(name)) return null;
 
       // Legacy `condition: { field, equals/notEquals/in }` — translated
       // to CEL and evaluated on the canonical engine over the seeded
@@ -2565,6 +2777,17 @@ ComponentRegistry.register('form',
           // `schema` destructure above already consumes them; drop the
           // top-level copies here so nothing bleeds through `...formProps`.
           objectName: _objectName,
+          // The persisted record (objectui#6396). It has a real consumer — the
+          // `previousRecord` memo above, which binds `previous` for field-rule
+          // CEL and is the INSERT/UPDATE signal the read-only submit strip
+          // gates on — but that consumer reads it off `schema`, never off
+          // `props`. This top-level copy is purely the SDUI-dispatch duplicate
+          // described above, and it was the one member of this family missing
+          // from the list: it rode `...formProps` onto <form>, where React
+          // declined it ("does not recognize the `previousValues` prop") AND
+          // still stamped the node with `previousvalues="[object Object]"` —
+          // seen on every edit-mode `object-master-detail-form` header render.
+          previousValues: _previousValuesProp,
           onDirtyChange: _onDirtyChangeProp,
           onCancel: _onCancelProp,
           fields: _fields,
@@ -2620,17 +2843,25 @@ ComponentRegistry.register('form',
             <div className={schema.fieldContainerClass || 'space-y-4'}>
               {renderChildren(schema.children)}
             </div>
-          ) : fieldTabGroups ? (
+          ) : fieldTabGroups && visibleFieldTabGroups ? (
             // Tabbed field layout (#2959): one <form>, one react-hook-form
             // instance, N force-mounted panels. Inactive panels are CSS-hidden
             // (`data-[state=inactive]:hidden`) rather than unmounted, which is
             // what keeps their values and their validation alive.
+            //
+            // Predicate-hidden tabs (#6237) are a different kind of hidden: the
+            // strip and the panel list below draw only `visibleFieldTabGroups`,
+            // so a hidden tab's fields UNMOUNT — the ruled hidden-group
+            // semantics (values kept and submitted, client validation
+            // skipped). With every tab hidden nothing remains to draw, so the
+            // strip is omitted rather than rendered empty.
             <>
               {untabbedFields.length > 0 && (
                 <div className={cn(fieldGridClass, 'mb-4')}>
                   {untabbedFields.map(renderFormField)}
                 </div>
               )}
+              {visibleFieldTabGroups.length > 0 && (
               <Tabs
                 value={activeFieldTab}
                 onValueChange={setPickedFieldTab}
@@ -2650,7 +2881,7 @@ ComponentRegistry.register('form',
                       : fieldTabsPosition === 'bottom' ? 'order-last mt-4' : 'mb-4',
                   )}
                 >
-                  {fieldTabGroups.map((group) => (
+                  {visibleFieldTabGroups.map((group) => (
                     <TabsTrigger
                       key={group.key}
                       value={group.key}
@@ -2672,7 +2903,7 @@ ComponentRegistry.register('form',
                   ))}
                 </TabsList>
                 <div className="min-w-0 flex-1">
-                  {fieldTabGroups.map((group) => (
+                  {visibleFieldTabGroups.map((group) => (
                     <TabsContent
                       key={group.key}
                       value={group.key}
@@ -2690,6 +2921,7 @@ ComponentRegistry.register('form',
                   ))}
                 </div>
               </Tabs>
+              )}
             </>
           ) : fieldPaneGroups ? (
             // Split field layout (#2153): one <form>, one react-hook-form

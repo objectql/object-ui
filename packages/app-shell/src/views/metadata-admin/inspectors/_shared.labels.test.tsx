@@ -426,12 +426,17 @@ describe('InspectorComboField — a combo without a visible label is still named
 
   // The type-level half of this contract — that a combo with NO name, or with
   // two names, does not compile — is pinned in
-  // `InspectorComboField.naming.types.test.tsx`, not here. A `@ts-expect-error`
-  // in this file would be read by no compiler: the package's build tsconfig
-  // excludes `**/*.test.tsx` and vitest erases types, so it would neither fail
-  // when the error disappeared nor when it was never there (objectui#3009). That
-  // sibling file is listed in `tsconfig.typetests.json`, which is what makes its
-  // directives load-bearing.
+  // `InspectorComboField.naming.types.test.tsx`, not here. That split is a
+  // PREFERENCE, not a constraint: do not read it as a rule against writing a
+  // `@ts-expect-error` in this file. It WAS a constraint when this note was
+  // written — the package's build tsconfig excludes `**/*.test.tsx` and vitest
+  // erases types, so a directive here would have failed neither when the error
+  // disappeared nor when it was never there (objectui#3009).
+  //
+  // `tsconfig.test.json` now compiles every `src/**/*.test.tsx` in the package,
+  // this file and that sibling alike, chained off the package's `type-check`
+  // script. A directive in either is load-bearing: when the error it expects
+  // stops happening, `tsc` reports the directive UNUSED (TS2578).
 });
 
 /* ───────────────────────── the counter-example holds ─────────────────────── */

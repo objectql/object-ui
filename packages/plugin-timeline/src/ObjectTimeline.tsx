@@ -27,6 +27,28 @@ import { useTimelineTranslation } from './useTimelineTranslation';
  */
 export const DEFAULT_TIMELINE_LIMIT = 100;
 
+/**
+ * The variants an OBJECT-BOUND timeline can render.
+ *
+ * `TimelineSchema.variant` is `vertical | horizontal | gantt`. These two are its
+ * FEED half — sequential event rails, one entry per record, which is exactly the
+ * shape this component composes below (`{ title, time, startDate, endDate, … }`,
+ * flat, no nested `items`).
+ *
+ * `gantt` is deliberately absent. That branch of the renderer reads the OTHER
+ * item shape — a ROW owning a nested `items` array — which this component has
+ * never produced. Composing real gantt rows from records was considered and NOT
+ * adopted (maintainer ruling, 2026-08-29, objectui#6655); the capability stays
+ * open and unruled. Until it exists, the object-bound path refuses gantt.
+ *
+ * Module-local on purpose: the refusal's message interpolates THIS list rather
+ * than restating it in prose, and nothing outside this file needs it. (It is
+ * also not a new public export — an exported array trips
+ * `react-refresh/only-export-components`, whose `allowConstantExport` covers
+ * primitives like `DEFAULT_TIMELINE_LIMIT` above but not an array literal.)
+ */
+const OBJECT_BOUND_TIMELINE_VARIANTS = ['vertical', 'horizontal'] as const;
+
 const TimelineMappingSchema = z.object({
   title: z.string().optional(),
   date: z.string().optional(),
@@ -397,12 +419,77 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   // Resolve scale: spec timeline.scale takes priority over flat schema.scale
   const resolvedScale = timelineConfig?.scale ?? schema.scale;
 
+  /**
+   * Whether `items` were AUTHORED rather than composed from records.
+   *
+   * This is the same test `effectiveItems` makes at its first line
+   * (`if (schema.items) return schema.items;`): with `items` set, this component
+   * is a pass-through and the author owns the item shape; without it, every item
+   * below was mapped from a record into the flat feed shape. The two must not
+   * drift — see the refusal directly below, which keys on it.
+   */
+  const hasAuthoredItems = !!schema.items;
+
+  /**
+   * objectui#6655 — refuse `variant: 'gantt'` on the COMPOSED path.
+   *
+   * The renderer's gantt branch reads gantt ROWS (`row.items[].startDate`);
+   * every item this component composes is a flat feed item with no nested
+   * `items`. `calculateDateRange` therefore reduced an empty list, `Math.min()`
+   * over it yielded `Infinity`, and `new Date(Infinity).toISOString()` threw
+   * `RangeError: Invalid time value` mid-render. The maintainer ruling
+   * (2026-08-29) adopted refusing loudly over composing rows from records, so
+   * the author gets a diagnostic naming the limitation instead of a crash.
+   *
+   * ## Three things this condition is careful about
+   *
+   * 1. `hasAuthoredItems` — a LITERAL gantt is legitimate and untouched. This
+   *    component also answers the bare `timeline` key (`view:timeline` in
+   *    `./index`; the presentational registration in `./renderer` carries
+   *    `skipFallback` so the bare key lands here), and the in-repo catalog
+   *    fixture `plugin-timeline/gantt-style-timeline.json` is exactly that:
+   *    `variant: 'gantt'` with authored rows. Refusing on `variant` alone would
+   *    take it, and every other authored gantt, down with it.
+   * 2. `=== 'gantt'`, never "not a feed variant" — an absent `variant` means the
+   *    renderer's `vertical` default, not an unsupported one.
+   * 3. Placed above the `error` and `loading` returns on purpose. This is a
+   *    STATIC authoring fact: it does not depend on the fetch, and no fetch
+   *    outcome changes it. Showing a transient network error first would send
+   *    the author to debug the wrong layer, and a skeleton would resolve into a
+   *    chart that cannot exist.
+   *
+   * It also settles the ruling's second clause. `resolvedScale` above is a
+   * gantt-only axis that this path composes unconditionally; on the gantt
+   * variant it used to be configuration for a render that crashed. The author
+   * who set it is now told why it has no effect, so it is no longer silently
+   * inert here. The composition itself is unchanged for the feed variants,
+   * where objectui#6355's pin (`ObjectTimeline.scaleComposition.test.tsx`)
+   * requires it to keep happening.
+   */
+  if (!hasAuthoredItems && schema.variant === 'gantt') {
+      return (
+        <div className="p-4 text-destructive" data-testid="timeline-unsupported-variant" role="alert">
+            {t('timeline.unsupported.objectBoundGantt', {
+              variants: OBJECT_BOUND_TIMELINE_VARIANTS.join(', '),
+            })}
+        </div>
+      );
+  }
+
   const effectiveSchema = {
       ...schema,
       items: effectiveItems || [],
       className: className || schema.className,
-      // Map spec 'scale' to renderer 'timeScale' (used by gantt variant)
-      ...(resolvedScale ? { timeScale: resolvedScale } : {}),
+      // Emit the resolved axis under the canonical `scale` (used by the gantt
+      // variant). This used to write the `timeScale` alias, which objectui#6355
+      // retired: leaving it would have made EVERY object-bound gantt fall
+      // through to the `month` default the moment `resolveTimelineScale` stopped
+      // reading the alias — silently, since this is a composed schema no author
+      // ever sees. Writing `scale` after the spread also restores the priority
+      // the line above intends: a `timelineConfig.scale` now actually beats a
+      // flat `schema.scale`, where under the alias the resolver's `scale ??
+      // timeScale` ordering let the flat key win.
+      ...(resolvedScale ? { scale: resolvedScale } : {}),
       onItemClick: (item: any) => {
         const record = item._data || item;
         navigation.handleClick(record);

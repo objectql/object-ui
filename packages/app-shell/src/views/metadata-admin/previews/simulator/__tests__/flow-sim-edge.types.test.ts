@@ -21,10 +21,14 @@
  * `undefined`) and skipped envelope guards the engine evaluates. The assertions
  * below make the local type incapable of describing either error again.
  *
- * The assertions ARE the file, so it is listed in
- * `packages/app-shell/tsconfig.typetests.json`: the package's build tsconfig
- * excludes `**\/*.test.ts` and vitest erases types before running
- * (objectui#3181), so unlisted they would be commentary, not a check.
+ * The assertions ARE the file, and `packages/app-shell/tsconfig.test.json` is
+ * what makes them a check: it compiles every `src/**\/*.test.ts` in the package,
+ * this file included, chained off the package's `type-check` script. Uncompiled
+ * they would be commentary — the package's build tsconfig excludes
+ * `**\/*.test.ts` and vitest erases types before running (objectui#3181).
+ * Coverage is by glob, not by a listing: the narrow `tsconfig.typetests.json`
+ * that used to name this file was retired when the package graduated
+ * (objectui#4040).
  */
 
 import { describe, it, expect } from 'vitest';

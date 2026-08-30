@@ -74,6 +74,20 @@ export const ToastSchema = BaseSchema.extend({
   ]).optional().describe('Toast position'),
   action: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Action button'),
   onDismiss: z.function().optional().describe('Dismiss handler'),
+  // The trigger button the `toast` renderer draws in place. `buttonVariant`
+  // is an ENUM and not `z.string()`: the renderer hands the value straight to
+  // `<Button variant={…}>`, whose vocabulary is the six keys of
+  // `buttonVariants`. `cva` contributes no variant class for an unrecognised
+  // key, so a non-empty string outside the six renders an unstyled button —
+  // and `''` is silently resolved to `default` by cva's falsy fallback
+  // (objectui#6496). `SonnerSchema` below carries the same pair of keys and
+  // now the same enum: it spelled `buttonVariant` as `z.string()` while its TS
+  // face declared the six-member union, and objectui#6541 closed that gap.
+  buttonLabel: z.string().optional().describe('Trigger button label'),
+  buttonVariant: z
+    .enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link'])
+    .optional()
+    .describe('Trigger button variant'),
 });
 
 /**
@@ -120,7 +134,19 @@ export const SonnerSchema = BaseSchema.extend({
   description: z.string().optional().describe('Toast description'),
   variant: z.enum(['default', 'success', 'warning', 'error', 'info']).optional().describe('Toast variant'),
   buttonLabel: z.string().optional().describe('Action button label'),
-  buttonVariant: z.string().optional().describe('Action button variant'),
+  // Narrowed from `z.string()` by objectui#6541 — an accept-set NARROWING on a
+  // published surface, not a widening. The reason is the one spelled out on
+  // `ToastSchema` above: `renderers/feedback/sonner.tsx` hands this value
+  // straight to `<Button variant={…}>`, whose vocabulary is the six keys of
+  // `buttonVariants`, and `cva` contributes no variant class outside them. The
+  // TS face in `../feedback.ts` has declared exactly these six all along — this
+  // mirror is what disagreed with it. Pinned against the Button's own
+  // vocabulary, in BOTH directions, in
+  // `components/src/__tests__/toast-button-variant-parity.test.ts`.
+  buttonVariant: z
+    .enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link'])
+    .optional()
+    .describe('Action button variant'),
 });
 
 /**

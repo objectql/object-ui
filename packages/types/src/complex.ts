@@ -641,6 +641,71 @@ export interface ChatbotSchema extends BaseSchema {
    */
   onError?: (error: Error) => void;
 
+  // --- Local display + legacy auto-response fields (objectui#6169) ---
+  //
+  // Lifted from an anonymous inline intersection that used to live ONLY at
+  // `packages/plugin-chatbot/src/renderer.tsx`'s `chatbot` registration site
+  // (`ComponentRegistry.register('chatbot', ...)`), where nothing outside
+  // that one file could reference, validate, or document them. Each key
+  // below was read-site-censused before being declared here — every one has
+  // a live reader in `renderer.tsx` and/or `useObjectChat.ts`; none were
+  // dead. `disabled` is deliberately NOT redeclared in this group: it is
+  // already `BaseSchema.disabled` (`boolean | string`), read generically by
+  // `SchemaRenderer` for every node type, not specific to `chatbot`.
+
+  /**
+   * Display a timestamp on each message.
+   * @default false
+   */
+  showTimestamp?: boolean;
+  /**
+   * URL of the user's avatar image.
+   */
+  userAvatarUrl?: string;
+  /**
+   * Fallback text shown when `userAvatarUrl` is not set or fails to load.
+   * @default 'You'
+   */
+  userAvatarFallback?: string;
+  /**
+   * URL of the assistant's avatar image.
+   */
+  assistantAvatarUrl?: string;
+  /**
+   * Fallback text shown when `assistantAvatarUrl` is not set or fails to load.
+   * @default 'AI'
+   */
+  assistantAvatarFallback?: string;
+  /**
+   * Maximum height of the chat message container (CSS value).
+   * @default '500px'
+   */
+  maxHeight?: string;
+  /**
+   * Enable local auto-response (demo/playground) mode. Ignored once `api`
+   * is set — API mode replaces the local echo entirely.
+   * @default false
+   */
+  autoResponse?: boolean;
+  /**
+   * The text of the local auto-response, used when `autoResponse` is true.
+   */
+  autoResponseText?: string;
+  /**
+   * Delay in milliseconds before the local auto-response is sent.
+   * @default 1000
+   */
+  autoResponseDelay?: number;
+  /**
+   * Called after a message is sent, in both API and local auto-response
+   * mode, with the trimmed content and the full message list at that
+   * point. `messages` here is the same authoring-side {@link ChatMessage}
+   * shape as the `messages` field above; the plugin's own runtime message
+   * type is a structural superset (objectui#4424) and still satisfies a
+   * handler typed against this narrower, published shape.
+   */
+  onSend?: (content: string, messages: ChatMessage[]) => void;
+
   // --- Floating / FAB display mode ---
 
   /**

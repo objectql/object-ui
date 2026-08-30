@@ -204,6 +204,105 @@ export type GanttConfig = SpecGanttConfig & {
      */
     showMidnight?: boolean;
   };
+  // ── objectui's own extensions, lifted out of `plugin-gantt` (objectui#6051) ──
+  //
+  // The nine members below were declared ONLY in `plugin-gantt`'s package-private
+  // `GanttConfigEx` intersection — the type `getGanttConfig` casts the `gantt`
+  // block to. `ObjectGantt` honours every one of them on BOTH authoring faces
+  // (the `gantt: { … }` block AND the flattened top-level spelling declared on
+  // `ObjectGanttSchema`), and a type that lives inside the plugin can be
+  // referenced by neither declaration — so the vocabulary is lifted here rather
+  // than restated, and the two faces derive from ONE source that cannot fork.
+  //
+  // Like `timeSegments` above, each is legal metadata rather than a second
+  // dialect: `GanttConfigSchema` is `$loose` upstream, so a key the spec does not
+  // model passes its parse instead of being rejected.
+  /**
+   * Record field marking a node as view-only (truthy → locked). A locked
+   * row's bar can't be dragged/resized, its progress can't be dragged, no
+   * dependency can be drawn from it, and its inline-edit / context-menu
+   * edit+delete are hidden — but clicking it (open drawer / jump) still works.
+   * Independent of the global `readOnly`; use to freeze individual levels (e.g.
+   * work orders) while siblings stay editable. Maps to `GanttTask.locked`.
+   */
+  lockField?: string;
+  /**
+   * Record field carrying the row's OBJECT API NAME. Mixed-object
+   * trees (an `api` provider composing parent-object rows with child-object rows)
+   * need the detail drawer and its full-page link to follow each row's REAL
+   * object — otherwise a child row's `→` link builds a URL under the view's bound
+   * object and 404s. Empty/missing value → falls back to the bound object.
+   */
+  objectField?: string;
+  /**
+   * How a summary bar's span is computed. `'children'` (default)
+   * rolls the bar up from its children — min start / max end / duration-weighted
+   * progress — and IGNORES the record's own dates. `'self'` renders the bar from
+   * the record's OWN start/end/progress, falling back to rollup
+   * only for records without dates (e.g. pure grouping levels). Use `'self'`
+   * when the parent's schedule is authoritative — e.g. a shift plan whose
+   * work-order children are locked history: under rollup, dragging the plan
+   * persists its own dates but the bar snaps back to the children's extent on
+   * refetch.
+   */
+  summaryExtent?: 'children' | 'self';
+  /**
+   * Auto-collapse tree nodes at/below this 0-indexed depth on first render.
+   * Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
+   * with children starts folded; the user can still expand them. Example: a
+   * project→product→production-plan→work-order tree uses
+   * `defaultCollapsedDepth: 2` so every production plan (and its work orders)
+   * starts collapsed. Forwarded to `GanttView`.
+   */
+  defaultCollapsedDepth?: number;
+  /**
+   * Record field carrying a per-task alert stroke color: any CSS color or
+   * semantic palette name (red/orange/…). When present the bar keeps its fill
+   * but gets an outline + halo in that color — e.g. red for overdue, orange for
+   * due-soon — typically a server-computed alert field. Empty/null → no stroke.
+   * Maps to `GanttTask.borderColor`.
+   */
+  borderColorField?: string;
+  /**
+   * Whether the backing store persists dependency link TYPES (fs/ss/ff/sf).
+   * Default true. Set false when dependencies are bare predecessor ids
+   * (predecessor ids only) — the link menu hides the type switcher (a switch would be
+   * silently reverted on refetch) and drag-created links are always FS.
+   * Forwarded to `GanttView`.
+   */
+  dependencyTypes?: boolean;
+  /**
+   * Business time zone, IANA name like 'Asia/Shanghai'. Renders the
+   * chart's calendar — shift bands, day columns, snapping, today line, date
+   * labels — in this zone's wall time for every viewer, instead of the
+   * browser's zone (which misplaces shift bands for viewers elsewhere). Persisted
+   * data stays real instants. Forwarded to `GanttView`.
+   */
+  timeZone?: string;
+  /**
+   * Base name for exported PNG/PDF files, e.g. the view's display
+   * label — the host's view schema often reaches this component stripped of
+   * `label`, so views declare it here. Falls back to the object schema label,
+   * then the object API name. A timestamp suffix is always appended.
+   */
+  exportFileName?: string;
+  /**
+   * Per-interaction switches: `move` / `resize` / `progress` / `link`,
+   * each defaulting to true. Metadata-drivable so a view can e.g. allow bar
+   * moves but pin durations (`{ resize: false }`) or keep the dependency UI
+   * read-only (`{ link: false }`). They only narrow what `readOnly` / row locks
+   * already allow. Forwarded to `GanttView`.
+   */
+  interactions?: {
+    /** Bar / subtree dragging (move along the timeline). */
+    move?: boolean;
+    /** Edge resize grips (change duration). */
+    resize?: boolean;
+    /** The progress drag handle. */
+    progress?: boolean;
+    /** Dependency UI: drag-to-link dots AND the create/delete menu entries. */
+    link?: boolean;
+  };
 };
 
 /**
@@ -689,7 +788,17 @@ export interface ObjectGridSchema extends BaseSchema {
   
   /**
    * @deprecated Use label instead
-   * Legacy title field
+   * Legacy title field — the caption/export-file-title fallback. `ObjectGrid.tsx`
+   * reads it at exactly two sites, `viewLabel: schema.label || schema.title` and
+   * `caption: schema.label || schema.title`, only when `label` is absent.
+   *
+   * Kept DECLARED — not retired — by objectui#6639's census-directed maintainer
+   * ruling (2026-08-29, declare branch): authored `object-grid.title` nodes exist
+   * (both confirmed hits are in `content/docs/api/schema-reference.md`'s
+   * examples), so dropping the read would silently cost those nodes their
+   * caption. Mirrored in `zod/objectql.zod.ts` and paired off the
+   * `UnmirroredDeclared` ledger in `__tests__/zod-mirror-parity.test.ts` by the
+   * same card — the #6424 family form.
    */
   title?: string;
 
@@ -970,12 +1079,18 @@ export interface ObjectFormSection {
    * `visibleWhen` surface uses, so one authored predicate text means one thing
    * everywhere (#6010). A broken predicate fails OPEN (the header renders).
    *
-   * ⚠️ Scope, measured: this gates the section's `section-divider` HEADER row.
-   * The renderer treats that row as presentational and holds no association
-   * between it and the fields that follow, so a false predicate removes the
-   * heading and leaves its fields rendering (objectui#6111). The console
-   * renderer drops the whole `<section>`; reconciling the two is filed
-   * separately.
+   * Scope: this gates the WHOLE section (objectui#6236, maintainer ruling
+   * 2026-08-27). The plugin-form layouts stamp the membership claim
+   * (`FormField.fields`, the FormFieldTab shape) onto the `section-divider`
+   * row they synthesize, and the renderer then hides heading and claimed
+   * fields together on a FALSE predicate — matching the console renderer
+   * (`apps/console/src/components/FormPage.tsx`), which drops the whole
+   * section element. Hidden fields skip client-side validation (a user is
+   * never blocked by an error pointing at a control they cannot see) and
+   * their values still submit — visibility decides what is DRAWN and nothing
+   * else (the console precedent, 2026-08-22 after #5594). Derived
+   * `fieldGroups` sections carry no predicate slot, so their groups are
+   * always drawn.
    */
   visibleWhen?: string | { dialect?: string; source: string };
 
@@ -1200,8 +1315,18 @@ export interface ObjectFormSchema extends BaseSchema {
 
   /**
    * Navigate here after a successful create/update (declarative; falls back to
-   * a toast). Supports `{id}`/`{recordId}` interpolation from the saved record;
-   * same-origin-guarded. Takes precedence over `successMessage`.
+   * a toast). Takes precedence over `successMessage`.
+   *
+   * The value is a RELATIVE path only — an absolute URL is refused even when it
+   * is same-origin — and it supports `{id}`/`{recordId}` interpolation from the
+   * saved record, URL-escaped when the destination is built. A refused
+   * destination is reported on the success toast rather than silently dropped.
+   *
+   * @deprecated Write `submitBehavior` instead — it is the one ruled shape for
+   * post-submit behaviour, it already takes precedence over this key, and it
+   * carries the richer `{{record.field_name}}` interpolation. This key keeps
+   * working for forms that already declare it (maintainer ruling, 2026-08-17,
+   * objectui#5034).
    */
   navigateOnSuccess?: string;
 
@@ -1419,6 +1544,173 @@ export interface ObjectFormSchema extends BaseSchema {
 }
 
 /**
+ * The `ObjectGridSchema` keys a view's `table` slot may carry: every member
+ * `ObjectGridSchema` declares, minus the identity keys the view itself fixes
+ * (`type`, `objectName`). 59 keys.
+ *
+ * ⚠️ This is an explicit list, and NOT `Omit<ObjectGridSchema, 'type' | 'objectName'>`,
+ * because `Omit` collapses here (objectui#6269). `Omit<T, K>` is
+ * `Pick<T, Exclude<keyof T, K>>`, and `keyof T` on a type carrying a string
+ * index signature is `string | number` — the literal member names are ABSORBED.
+ * `ObjectGridSchema` inherits `BaseSchema`'s `[key: string]: any`
+ * (objectui#5155), so the `Omit` rebuilt a type holding the index signature and
+ * NONE of the 61 named members: measured through the checker,
+ * `Omit<ObjectGridSchema, 'type' | 'objectName'>` declared 0 properties. The
+ * slot accepted anything (`table: { colunms: 3 }` type-checked), offered no
+ * editor completion, and the doc comment promised an inheritance it did not
+ * deliver. `Pick` with LITERAL keys never computes `keyof T`, so it cannot
+ * collapse the same way.
+ *
+ * 🔒 The duplicate-list hazard — a member added to `ObjectGridSchema` and not to
+ * this list — is pinned by
+ * `src/__tests__/object-view-slot-key-lists.test.ts`, which recomputes the
+ * source schema's declared members through the TypeScript checker and requires
+ * set equality with this list.
+ *
+ * 🗑️ When a #5155 phase removes `BaseSchema`'s root index signature, `Omit`
+ * stops collapsing: this list, `ObjectFormSlotKey` below, and their pin all
+ * become removable in favour of the original `Omit` form.
+ */
+type ObjectGridSlotKey =
+  | 'aggregations'
+  | 'ariaLabel'
+  | 'batchActions'
+  | 'bind'
+  | 'body'
+  | 'bulkActionDefs'
+  | 'bulkActions'
+  | 'bulkSpecActions'
+  | 'children'
+  | 'className'
+  | 'columns'
+  | 'conditionalFormatting'
+  | 'data'
+  | 'defaultFilters'
+  | 'defaultSort'
+  | 'description'
+  | 'disabled'
+  | 'disabledOn'
+  | 'editable'
+  | 'emptyState'
+  | 'exportOptions'
+  | 'fields'
+  | 'filter'
+  | 'frozenColumns'
+  | 'grouping'
+  | 'hidden'
+  | 'hiddenOn'
+  | 'id'
+  | 'keyboardNavigation'
+  | 'label'
+  | 'name'
+  | 'navigation'
+  | 'onNavigate'
+  | 'operations'
+  | 'pageSize'
+  | 'pagination'
+  | 'placeholder'
+  | 'reorderableColumns'
+  | 'resizable'
+  | 'resizableColumns'
+  | 'rowActions'
+  | 'rowColor'
+  | 'rowHeight'
+  | 'rowSpecActions'
+  | 'searchableFields'
+  | 'selectable'
+  | 'selection'
+  | 'showColumnTypeIcons'
+  | 'showFilters'
+  | 'showPagination'
+  | 'showSearch'
+  | 'singleClickEdit'
+  | 'sort'
+  | 'staticData'
+  | 'style'
+  | 'testId'
+  | 'title'
+  | 'visible'
+  | 'visibleOn'
+  | 'visibleWhen';
+
+/**
+ * The `ObjectFormSchema` keys a view's `form` slot may carry: every member
+ * `ObjectFormSchema` declares, minus the identity keys the view itself fixes
+ * (`type`, `objectName`, `mode`). 64 keys.
+ *
+ * Same mechanism, same pin, same removal condition as `ObjectGridSlotKey` above
+ * — see its comment. Measured before the fix:
+ * `Omit<ObjectFormSchema, 'type' | 'objectName' | 'mode'>` declared 0 of
+ * `ObjectFormSchema`'s 67 members.
+ */
+type ObjectFormSlotKey =
+  | 'allowSkip'
+  | 'ariaLabel'
+  | 'bind'
+  | 'body'
+  | 'buttons'
+  | 'cancelText'
+  | 'children'
+  | 'className'
+  | 'columns'
+  | 'customFields'
+  | 'data'
+  | 'defaultTab'
+  | 'defaults'
+  | 'description'
+  | 'disabled'
+  | 'disabledOn'
+  | 'drawerSide'
+  | 'drawerWidth'
+  | 'fields'
+  | 'formType'
+  | 'groups'
+  | 'hidden'
+  | 'hiddenOn'
+  | 'id'
+  | 'initialData'
+  | 'initialValues'
+  | 'label'
+  | 'layout'
+  | 'mobile'
+  | 'modalCloseButton'
+  | 'modalSize'
+  | 'name'
+  | 'navigateOnSuccess'
+  | 'nextText'
+  | 'onCancel'
+  | 'onError'
+  | 'onOpenChange'
+  | 'onStepChange'
+  | 'onSuccess'
+  | 'open'
+  | 'placeholder'
+  | 'prevText'
+  | 'readOnly'
+  | 'recordId'
+  | 'resetOnSuccess'
+  | 'sections'
+  | 'showCancel'
+  | 'showReset'
+  | 'showStepIndicator'
+  | 'showSubmit'
+  | 'splitDirection'
+  | 'splitResizable'
+  | 'splitSize'
+  | 'style'
+  | 'subforms'
+  | 'submitBehavior'
+  | 'submitHandler'
+  | 'submitText'
+  | 'successMessage'
+  | 'tabPosition'
+  | 'testId'
+  | 'title'
+  | 'visible'
+  | 'visibleOn'
+  | 'visibleWhen';
+
+/**
  * ObjectView Schema
  * A complete object management interface combining ObjectGrid and ObjectForm.
  * Provides list view with search, filters, and integrated create/edit dialogs.
@@ -1474,16 +1766,22 @@ export interface ObjectViewSchema extends BaseSchema {
   navigation?: ViewNavigationConfig;
   
   /**
-   * Table/Grid configuration
-   * Inherits from ObjectGridSchema
+   * Table/Grid configuration.
+   *
+   * Every `ObjectGridSchema` member except the identity keys this view already
+   * fixes (`type`, `objectName`) — see `ObjectGridSlotKey` for why the key list
+   * is spelled out instead of `Omit`-ed (objectui#6269).
    */
-  table?: Partial<Omit<ObjectGridSchema, 'type' | 'objectName'>>;
+  table?: Partial<Pick<ObjectGridSchema, ObjectGridSlotKey>>;
   
   /**
-   * Form configuration
-   * Inherits from ObjectFormSchema
+   * Form configuration.
+   *
+   * Every `ObjectFormSchema` member except the identity keys this view already
+   * fixes (`type`, `objectName`, `mode`) — see `ObjectFormSlotKey` for why the
+   * key list is spelled out instead of `Omit`-ed (objectui#6269).
    */
-  form?: Partial<Omit<ObjectFormSchema, 'type' | 'objectName' | 'mode'>>;
+  form?: Partial<Pick<ObjectFormSchema, ObjectFormSlotKey>>;
   
   /**
    * Fields that support text search
@@ -1997,7 +2295,25 @@ export interface ObjectGanttSchema extends BaseSchema {
   endDateField?: string;
   /** Field for task title/name */
   titleField?: string;
-  /** Field for task dependencies */
+  /**
+   * Field for task dependencies.
+   *
+   * @deprecated Legacy alias — author {@link ObjectGanttSchema.dependenciesField}
+   * instead. The plural is the spec's spelling (`@objectstack/spec`
+   * `GanttConfigSchema.dependenciesField`); this singular has NO spec
+   * counterpart. It is pre-spec objectui vocabulary, and until objectui#6051 it
+   * was the ONLY dependencies spelling this interface declared — so for the whole
+   * time the alias existed the published type taught the non-spec key and hid the
+   * canonical one. That is what this tag exists to correct: the two were declared
+   * as equals, and a reader had no way to learn which one to write.
+   *
+   * Still accepted, deliberately. `getGanttConfig`'s flat branch reads
+   * `dependenciesField || dependencyField`, so metadata already written against
+   * this key renders unchanged and the canonical key wins wherever both carry a
+   * value. Deprecating is NOT removing: dropping the alias would narrow the
+   * accept set of a published surface, which is a separate enforce-or-remove
+   * decision (objectui#6470) and not something this marker takes.
+   */
   dependencyField?: string;
   /** Field for progress (0-100) */
   progressField?: string;
@@ -2111,6 +2427,155 @@ export interface ObjectGanttSchema extends BaseSchema {
    * with) {@link readOnly}. Read at `ObjectGantt.tsx`.
    */
   mobileReadOnly?: boolean;
+
+  // ── The flattened `GanttConfig` face (objectui#6051) ────────────────────────
+  //
+  // `getGanttConfig` (`plugin-gantt/src/ObjectGantt.tsx`) has two branches. The
+  // `gantt` block wins whenever it is present (objectui#6469); this flat face is
+  // read only when there is no block, and then only when `startDateField` AND
+  // `endDateField` are both present at the TOP LEVEL. The keys of the flat branch
+  // were declared by neither
+  // this interface nor `ObjectGridSchema`: they were reachable only through
+  // `BaseSchema`'s `[key: string]: any`, so `schema.colorField` type-checked as
+  // `any` with no cast anywhere to grep for. That is why the census behind this
+  // card is an AST enumeration and not a compile-and-observe — an index signature
+  // swallows exactly the evidence a type annotation would have produced.
+  //
+  // Every member below is DERIVED from {@link GanttConfig}, the same type the
+  // `gantt` block carries, so the flat spelling cannot drift from the block
+  // spelling. All are optional, matching the renderer: the flat branch reads each
+  // key bare and forwards `undefined` unchanged.
+  //
+  // ⚠️ WHICH face wins was NOT decided by objectui#6051, which declared these keys.
+  // It was settled afterwards by objectui#6469, inheriting the maintainer ruling on
+  // objectui#5018 (2026-08-17) that `plugin-map` shipped in PR #5156: the BLOCK
+  // wins, taken whole, and the shadowed flat keys are named in a dev-mode warning
+  // instead of being dropped silently. So a node carrying both spellings renders
+  // the `gantt` block's values — the reverse of the pre-#6469 order.
+
+  /**
+   * Record field carrying the bar's FILL colour: any CSS colour or a semantic
+   * palette name (red/orange/…), typically a server-computed status colour.
+   * When it is unset — or when the record's value is empty — the bar falls back
+   * to the record's own `status`/`state`/`priority`/`severity` value, so the
+   * timeline tells the same colour story as list/kanban. With neither, bars
+   * take the platform default blue.
+   */
+  colorField?: GanttConfig['colorField'];
+  /** Per-task alert stroke colour field. See {@link GanttConfig.borderColorField}. */
+  borderColorField?: GanttConfig['borderColorField'];
+  /**
+   * Record field holding this task's predecessors. The CANONICAL spelling — the
+   * flat branch reads `dependenciesField || dependencyField`, so the singular
+   * {@link ObjectGanttSchema.dependencyField} above stays accepted as the legacy
+   * alias and this one wins. That alias is `@deprecated` (objectui#6470): still
+   * read, no longer taught.
+   */
+  dependenciesField?: GanttConfig['dependenciesField'];
+  /**
+   * Record field holding this row's PARENT id — the single-parent pointer the
+   * task tree is built from: indentation, expand/collapse and summary rollup
+   * all follow it. An empty value, or one naming no loaded row, renders that
+   * row as a root. Leave unset for a flat chart; `groupByField` is the
+   * alternative, bucketing leaves under synthesized rows instead of a
+   * record-declared hierarchy.
+   */
+  parentField?: GanttConfig['parentField'];
+  /** Record field mapping onto a node kind (task/summary/milestone/group). */
+  typeField?: GanttConfig['typeField'];
+  /** Record field marking a row view-only. See {@link GanttConfig.lockField}. */
+  lockField?: GanttConfig['lockField'];
+  /** Record field carrying the row's own object API name (mixed-object trees). */
+  objectField?: GanttConfig['objectField'];
+  /** How a summary bar's span is computed. See {@link GanttConfig.summaryExtent}. */
+  summaryExtent?: GanttConfig['summaryExtent'];
+  /** Auto-collapse depth on first render. See {@link GanttConfig.defaultCollapsedDepth}. */
+  defaultCollapsedDepth?: GanttConfig['defaultCollapsedDepth'];
+  /**
+   * Extra record fields listed as label/value rows in a bar's hover tooltip, in
+   * the order given. Each entry is a field name (dot-paths allowed) or
+   * `{ field, label }` to set the label explicitly; otherwise the label comes
+   * from the object schema, falling back to a humanized field name, and the
+   * value is formatted by field type the way a list cell would render it. A row
+   * whose value is empty is DROPPED rather than dashed, so a mixed-object tree
+   * can list the union of every level's fields here. Any surviving rows replace
+   * the tooltip's default date · duration · progress line.
+   */
+  tooltipFields?: GanttConfig['tooltipFields'];
+  /** Baseline (planned) start field → planned-vs-actual reference bars. */
+  baselineStartField?: GanttConfig['baselineStartField'];
+  /** Baseline (planned) end field → planned-vs-actual reference bars. */
+  baselineEndField?: GanttConfig['baselineEndField'];
+  /** Dynamic group-by field, replacing the parent hierarchy. */
+  groupByField?: GanttConfig['groupByField'];
+  /** Render the per-resource load histogram instead of the timeline grid. */
+  resourceView?: GanttConfig['resourceView'];
+  /** Record field the resource view buckets by. Required for {@link resourceView}. */
+  assigneeField?: GanttConfig['assigneeField'];
+  /** Record field carrying each task's load units (default 1). */
+  effortField?: GanttConfig['effortField'];
+  /** Per-resource capacity ceiling (default 1); loads above it flag overload. */
+  capacity?: GanttConfig['capacity'];
+  /**
+   * Quick-filter dropdowns rendered above the chart — a row of multi-selects,
+   * each narrowing the visible bars by one record field. A dimension's options
+   * resolve from the object schema (a select's options, or the referenced
+   * records for a lookup), so the dropdown offers that field's full domain
+   * rather than only the values present in the loaded page; declare `options`
+   * on the dimension to override that with a fixed list.
+   */
+  quickFilters?: GanttConfig['quickFilters'];
+  /** Recompute the timeline range when filtering (default true). */
+  autoZoomToFilter?: GanttConfig['autoZoomToFilter'];
+  /** Shift segmentation for the day-mode timeline. See {@link GanttConfig.timeSegments}. */
+  timeSegments?: GanttConfig['timeSegments'];
+  /** Per-interaction switches. See {@link GanttConfig.interactions}. */
+  interactions?: GanttConfig['interactions'];
+  /** Base name for exported PNG/PDF files. See {@link GanttConfig.exportFileName}. */
+  exportFileName?: GanttConfig['exportFileName'];
+  /** Business time zone (IANA name) the calendar renders in. */
+  timeZone?: GanttConfig['timeZone'];
+  /** Whether the store persists dependency link TYPES (fs/ss/ff/sf). */
+  dependencyTypes?: GanttConfig['dependencyTypes'];
+
+  // ── The BLOCK face (the `ObjectGridSchema`-style shape, objectui#6475) ──────
+  //
+  // `getGanttConfig`'s FIRST branch (`plugin-gantt/src/ObjectGantt.tsx`) reads
+  // this and wins whenever present (objectui#6469 ruled block-over-flat). It was
+  // the 28th and last undeclared key of the objectui#6051 census — the one key
+  // whose VALUES get stricter on declaration rather than merely gaining a name:
+  // it had no mirror entry at all, so a block rode through `.passthrough()`
+  // entirely unvalidated. Declaring it as {@link GanttConfig} means it is now
+  // PARSED, and `GanttConfig` derives from the spec's `GanttConfigSchema`, which
+  // REQUIRES `startDateField`, `endDateField` and `titleField`. Because
+  // `ObjectGanttSchema` is a member of `AnyComponentSchema`, that reaches
+  // `safeValidateSchema` and therefore the CLI's `validate` / `check` commands: a
+  // block missing one of the three moves from "accepted, then warned about at
+  // runtime" to "refused at authoring time".
+  //
+  // This is a `declared = enforced` restoration, not new requiredness: the
+  // renderer already fed the block to `GanttConfigSchema.safeParse` and logged
+  // `[ObjectGantt] Invalid gantt configuration` on failure — the trio was already
+  // required for the block to actually work, just silently. Maintainer ruling,
+  // objectui#6475 (2026-08-27), Option A: declare as-is, spec requiredness
+  // enforces immediately, no warning window (excluded by the startup-stage
+  // no-gradualism rule, objectstack#12668 — no named external-user evidence).
+  gantt?: GanttConfig;
+
+  // ── The query/data keys the fetch path reads (objectui#6051) ────────────────
+  //
+  // These are NOT gantt config: they are the read the component issues. They were
+  // declared on `ObjectGridSchema`, which is what `ObjectGanttProps.schema` used
+  // to be typed as — objectui#5903 retyped that prop to this interface, which is
+  // correct and is why they now have to be declared HERE. `plugin-gantt`'s
+  // registry mapping (`OBJECT_GANTT_DATA_SOURCE` in `index.tsx`) names `filter`
+  // and `sort` as the two keys the element data-source binding maps onto.
+  /** Inline records, wrapped into a `{ provider: 'value' }` config by `getDataConfig`. */
+  staticData?: any[];
+  /** Query filter (JSON Rules format), forwarded verbatim as `$filter`. */
+  filter?: any[];
+  /** Sort configuration, forwarded as `$orderby` via `convertSortToQueryParams`. */
+  sort?: string | SortConfig[];
 }
 
 /**

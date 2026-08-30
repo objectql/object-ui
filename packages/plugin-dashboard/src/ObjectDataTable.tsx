@@ -14,10 +14,12 @@ import {
   columnIdentity,
   columnHeader,
 } from '@object-ui/core';
-import type { DrillDownConfig } from '@object-ui/types';
+import type { DrillDownConfig, TableColumn } from '@object-ui/types';
+import { normalizeTableColumnType } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
 import { resolveFilterPlaceholders, humanizeFieldKey } from './utils';
+import type { FieldMeta } from './recordFields';
 import {
   buildFieldMeta,
   renderFieldValue,
@@ -53,6 +55,342 @@ interface NormalizedColumn {
   accessorKey: string;
   [key: string]: any;
 }
+
+/**
+ * What this widget's column producer is allowed to EMIT (objectui#6373).
+ *
+ * `enrich` below hands its result to `data-table`, whose columns slot is
+ * `DataTableSchema.columns: TableColumn[]`. It used to return
+ * `NormalizedColumn`, whose `[key: string]: any` accepts anything, so nothing
+ * checked the emit against the slot's declaration at all: `{ ...col,
+ * ...fieldMeta }` wrote SEVEN keys `TableColumn` does not declare — `name`,
+ * `label`, `options`, `referenceTo`, `format`, `currency`, `decimals`.
+ *
+ * ## ⭐ Why this is not just `: TableColumn`
+ *
+ * Measured on this program before choosing the shape: annotating the return
+ * `TableColumn` and leaving the spread in place raises NO error. TypeScript's
+ * excess-property check is a FRESHNESS check on the properties an object
+ * literal WRITES OUT; properties arriving through a spread are exempt. So the
+ * plain annotation the card suggested is blind to the exact defect the card is
+ * about — it would have type-checked the seam without enforcing it, converting
+ * a surfaced-key census into a silenced one.
+ *
+ * The `?: never` members are what make the annotation able to fail. They are
+ * ADR-0049 retirement tombstones — this repo's convention for a key that is
+ * refused rather than merely absent (`StaticTableColumn` in
+ * `@object-ui/types`, `crud.ts` `confirm`) — and they bite by ASSIGNABILITY,
+ * not freshness: `FieldMeta['label']` is `string`, which is not assignable to
+ * `undefined`, so re-introducing `{ ...fieldMeta }` here is a compile error
+ * (TS2322) naming the first offending key. Writing one out explicitly is the
+ * other error (TS2353). Both directions were run before this type was written.
+ *
+ * ## The rule, so the next producer gets the same answer
+ *
+ * A producer may write into a `TableColumn[]` slot only keys the CONSUMER of
+ * that slot reads, and the consumer's read set is MEASURED from the consumer's
+ * source, never assumed. Then: a key the consumer reads and `TableColumn`
+ * declares is written; a key the consumer reads and `TableColumn` does not
+ * declare is held as an alias only where a ruling already holds it; a key the
+ * consumer does not read is RETIRED from the emit — never declared, because
+ * declaring a key nothing reads is the same `declared != enforced` defect
+ * facing the other way (objectui#5453's forwarded `wrap` key).
+ *
+ * Measured read set of the consumer (`data-table.tsx`, comments stripped):
+ * `accessorKey`, `width`, `align`, `header`, `className`, `cellClassName`,
+ * `sortable`, `resizable`, `editable`, `type`, `cell`, `headerIcon`,
+ * `fitContent`, and `name`. Not one of `label`, `options`, `referenceTo`,
+ * `format`, `currency`, `decimals` appears — so all six retired from the
+ * emit, and this producer still SOURCES none of them from `fieldMeta`.
+ *
+ * ⚠️ Three of the six — `format`, `options`, `currency` — have since been
+ * DECLARED on `TableColumn` itself (objectui#6425, maintainer ruling
+ * 2026-08-27), so they are no longer tombstoned on this emit type: the band
+ * below derives them away the moment the declaration landed. That is not a
+ * softening of the emit rule but its other branch — an AUTHORED value now
+ * passes through `{ ...col }` as declared metadata (the cell pipeline reads
+ * it back off the authored column), while writing one out of `fieldMeta`
+ * remains retired, pinned by the runtime census in
+ * `ObjectDataTable.emitBoundary-6373.test.tsx`.
+ *
+ * Retiring them is behaviour-preserving because none of them was the live path
+ * for its own value: everything they carried is read off `fieldMeta` by the
+ * `cell` closure below, which is where this widget's type-aware rendering
+ * actually happens. That check — does the value still reach its consumer by
+ * another road? — is part of the rule, not an aside: a key with no second road
+ * is not inert, and retiring it would change behaviour.
+ *
+ * `type` is not adjudicated here. objectui#5853 already settled it at this
+ * seam, and its fold (`normalizeTableColumnType`) stands unchanged.
+ *
+ * `name` is HELD, not retired, and not adjudicated here either: it is
+ * objectui#5120's, still open. `data-table` reads `col.accessorKey || col.name`
+ * and holds that alias deliberately, because two PUBLISHED skill guides teach a
+ * `data-table` column spelled `{ name, label }`. So this producer keeps writing
+ * it, byte for byte what it wrote before, and the hold is now DECLARED at the
+ * seam instead of arriving anonymously inside a spread. When #5120 retires the
+ * consumer alias, this member becomes a tombstone with it.
+ */
+/**
+ * ⭐ `decimals` — RETIRED from `FieldMeta` ITSELF (objectui#6625), and this
+ * hand-written tombstone is now the ONLY enforcement of that key's refusal at
+ * BOTH halves of this seam. ⛔ Do not "tidy" it away as redundant.
+ *
+ * Until objectui#6625 the key needed no tombstone: it was a `FieldMeta` member,
+ * so BOTH bands below — {@link EnrichedColumn}'s write-side tombstones
+ * (objectui#6373) and {@link UnheldFieldMetaOverrideKey}'s read-side refusal
+ * (objectui#6425) — derived it for free. Refusal by MEMBERSHIP. #6625 then
+ * retired the member (written from the schema def, read by nothing), which
+ * removed it from `keyof FieldMeta` and silently ended that enforcement at both
+ * ends. Nothing would have gone red at the moment of loss: on the read side the
+ * suite's `@ts-expect-error` would merely have turned TS2578-unused, and on the
+ * write side the hand-written pin would have gone on passing on the
+ * excess-property check alone — a pin passing because its subject stopped
+ * existing.
+ *
+ * This is the exact mirror of the rule `ObjectGrid`'s sibling tombstone
+ * records (`ObjectGridRetiredOptionsTombstone`, objectui#6425): *a pin enforced
+ * by a key's non-membership silently stops enforcing the moment the key becomes
+ * a member.* Read from this end: **a refusal DERIVED from a key's membership
+ * silently stops enforcing the moment that member is deleted.** Same seam, same
+ * blindness, opposite direction — which is why the retirement had to be
+ * re-stated by hand rather than inherited.
+ *
+ * objectui#6425's verdict is unchanged — no reader for an authored `decimals`
+ * existed then and none exists now — and so is the runtime behaviour: the value
+ * the retired `buildFieldMeta` write resolved reached nothing. Only the
+ * refusal's mechanism moves, from derived to hand-written. It is intersected
+ * into BOTH types below, because the retirement belongs to the SEAM, not to one
+ * of its two halves — the same reason `ObjectGrid` intersects its own tombstone
+ * into both its draft and its post-fold column. ⭐ A future reader for decimal
+ * places reads `scale`, never this key (objectui#6625; `NumberCellRenderer`
+ * already does).
+ */
+type ObjectDataTableRetiredDecimalsTombstone = { decimals?: never };
+
+/**
+ * ⭐ `referenceTo` — RETIRED from `FieldMeta` ITSELF (objectui#6597), the same
+ * mechanism and the same reason as {@link ObjectDataTableRetiredDecimalsTombstone}
+ * above — read that docblock for the full mechanics of why a hand-written
+ * tombstone, not the derived band, is what has to carry this refusal now that
+ * the key has left `keyof FieldMeta`.
+ *
+ * The verdict: `referenceTo` was documented by this package's README as an
+ * author-facing column override, and objectui#6425's ruling routed it to this
+ * card (⛔ "not declared as spelled") rather than deciding it, because the
+ * card that could declare or retire a HELD key cannot also be the card that
+ * MEASURES whether a real authoring story exists for it. objectui#6597 did
+ * that measurement: `LookupCellRenderer` resolves its lookup target from
+ * `field.reference_to` / `field.reference`, never `field.referenceTo`, and
+ * `computeLookupExpand` builds `$expand` from the OBJECT SCHEMA's field types,
+ * never from an authored column override — so the key reached nothing, HELD
+ * or not, pinned by the `referenceTo`-vs-`options` positive control in
+ * `ObjectDataTable.overrideSource-6425.test.tsx`. No authoring story survived
+ * the search either: `ObjectGrid`'s own relational-meta pass-through
+ * (`applyRelationalMeta`) copies `reference_to` / `reference` from the SCHEMA
+ * field def only, never from an authored override, and nothing in this repo's
+ * docs/examples/fixtures shows a table column pinning a lookup's target away
+ * from what its schema field already says. Under the maintainer's standing
+ * startup-stage rule (2026-08-27: no measured demand retires immediately,
+ * no transition window), that measurement selects RETIRE — the README line is
+ * withdrawn with it. ⭐ A future reader for the resolved reference target
+ * reads `reference_to` / `reference` off the schema field def — the spelling
+ * `LookupCellRenderer` and `computeLookupExpand` actually use — never this key.
+ */
+type ObjectDataTableRetiredReferenceToTombstone = { referenceTo?: never };
+
+export type EnrichedColumn =
+  TableColumn
+  /** HELD alias, objectui#5120 — see above. Not declared by `TableColumn`. */
+  & { name?: string }
+  /** RETIRED at this emit seam, objectui#6373 — derived, never hand-listed, so
+   *  a future `FieldMeta` member is tombstoned by default and has to be
+   *  adjudicated to escape. */
+  & { [K in Exclude<keyof FieldMeta, keyof TableColumn | 'name'>]?: never }
+  & ObjectDataTableRetiredDecimalsTombstone
+  & ObjectDataTableRetiredReferenceToTombstone;
+
+/**
+ * What this widget's column producer is allowed to READ off the AUTHORED
+ * column as a field-meta override (objectui#6425) — the READ half of the seam
+ * {@link EnrichedColumn} above fences on the WRITE side. objectui#6373 fenced
+ * what `enrich` emits; nothing yet fenced what it consumes.
+ *
+ * `enrich` handed `buildFieldMeta` six values taken off the authored column.
+ * Five of them — `format`, `options`, `referenceTo`, `currency`, `decimals` —
+ * were declared by neither `TableColumn` (`@object-ui/types`) nor its
+ * `TableColumnSchema` zod mirror. Three were reached through `(col as any)`;
+ * the other two through {@link NormalizedColumn}'s `[key: string]: any`, which
+ * answers `any` just as loudly without the tell. So the widget honoured an
+ * authoring vocabulary the published types refuse, and no artefact in the repo
+ * said which keys those were or why.
+ *
+ * ## The per-key ruling landed (objectui#6425, maintainer 2026-08-27)
+ *
+ * This type used to hold all five keys with ⛔ "declares nothing and retires
+ * nothing" — both branches were maintainer decisions. The ruling has since
+ * disposed of them per key, and this keyhole now CARRIES that disposition:
+ *
+ *  - `format`, `options` — DECLARED on `TableColumn` + its zod mirror
+ *    (documented AND kept; declaring is truth-maintenance). Read below at
+ *    their published types via `Pick<TableColumn, …>`.
+ *  - `currency` — DECLARED (kept in production, never promised before;
+ *    declaring makes the existing behaviour honest). Same `Pick`.
+ *  - `decimals` — RETIRED, immediately (neither promised nor kept: zero
+ *    readers measured, and the authored read below is gone). Refused by
+ *    {@link ObjectDataTableRetiredDecimalsTombstone} since objectui#6625
+ *    retired the `FieldMeta` member itself and took the key out of the derived
+ *    band's pool; the verdict is unchanged, only its mechanism moved.
+ *  - `referenceTo` — RETIRED (objectui#6597, enforce-or-remove: measured no
+ *    authoring story for a column-level reference override — see the
+ *    withdraw verdict above `ObjectDataTableRetiredReferenceToTombstone`).
+ *    Refused by that tombstone the same way `decimals` is refused by its own.
+ *
+ * The shape itself is unchanged from what objectui#6461 landed for
+ * `plugin-grid` (`ObjectGridColumnHolds` / `RetiredListColumnKey`); the
+ * identifiers differ because this producer's seam is a READ, not an emit.
+ *
+ * ## The band is DERIVED, and it bites by assignability
+ *
+ * `FieldMeta` is the override vocabulary — `buildFieldMeta`'s `overrides` is a
+ * subset of it — so it is the pool a new tolerance would come from, and the
+ * same pool {@link EnrichedColumn}'s tombstones derive from. Deriving means a
+ * NEW `FieldMeta` member is refused here on the day it is added, without
+ * anyone remembering to extend a hand-written list. (Stated without a count on
+ * purpose: it read "a seventh" while the type had eight members, and
+ * objectui#6625 and objectui#6597 have since retired two. The property is
+ * that ADDING is covered by derivation — ⚠️ REMOVING is not, which is why
+ * those cards each had to leave a hand-written tombstone behind —
+ * {@link ObjectDataTableRetiredDecimalsTombstone} and
+ * {@link ObjectDataTableRetiredReferenceToTombstone}.)
+ *
+ * ⚠️ It derives from the OVERRIDE VOCABULARY, not from the authored input
+ * type, and that difference is forced rather than stylistic. `plugin-grid`'s
+ * sibling band (`RetiredListColumnKey`, objectui#6461) is
+ * `Exclude<keyof ListColumn, …>` — it can derive from its authored type
+ * because `ListColumn` DECLARES its keys. This producer's authored type
+ * cannot: {@link NormalizedColumn} carries `[key: string]: any`, so `keyof` it
+ * is `string | number`. Measured on this program — a band built on it accepts
+ * `'totallyMadeUpKey'` as a member, so it would ban nothing at all. The pool
+ * therefore has to be the vocabulary the overrides are drawn FROM.
+ *
+ * That choice has a cost, and it is stated here rather than left to be
+ * discovered: a candidate key OUTSIDE `FieldMeta` can never land in the band.
+ * It is refused by the other half of this type instead —
+ * `AuthoredColumnOverrides` declares no index signature, so reading an
+ * unadjudicated key is TS2339 AT THE READ SITE, which is the enforcement
+ * `enrich` actually runs on (`(col as any).x` and the bag's index signature
+ * both answered `any` there). Both halves are pinned by the suite.
+ *
+ * ⚠️ Measured on this program, in both directions, before this shape was
+ * written:
+ *  - `?: never` bites by ASSIGNABILITY, not by freshness, so the refusal
+ *    survives a spread — `const s: AuthoredColumnOverrides = someBag` fails on
+ *    a source that DECLARES a banded key, and passes on one that does not.
+ *  - `accessorKey` is required here for a reason that is not decoration:
+ *    without one property in common, TypeScript's weak-type check rejects the
+ *    assignment below outright (TS2559), and a type that refuses everything
+ *    pins nothing. It is the same key {@link NormalizedColumn} already
+ *    declares required, so this makes no new claim about the authored object.
+ *
+ * ## A VIEW, not a census of the object
+ *
+ * The banded members say "this producer must not SOURCE this override from the
+ * authored column" — not "this key is absent at run time". `normalizeColumns`
+ * deliberately leaves the authored spelling in place, so a column really can
+ * carry `name` / `label`; they are refused HERE because this seam already has
+ * answers for both and they do not come from the column: `name` comes from
+ * `accessorKey` and `label` from `col.header`, which objectui#5351 made the one
+ * place the authored label is translated.
+ */
+
+/**
+ * The undeclared-but-live override keys this producer still holds. **None
+ * remain.** objectui#6425's ruling (maintainer, 2026-08-27) declared `format` /
+ * `options` / `currency` on `TableColumn` itself (they are read via
+ * `Pick<TableColumn, …>` below, no hold needed) and retired `decimals`
+ * outright — refused by {@link ObjectDataTableRetiredDecimalsTombstone} since
+ * objectui#6625 retired the `FieldMeta` member that used to carry it into the
+ * derived band. `referenceTo` was the last hold — objectui#6425's ruling
+ * routed it to objectui#6597 rather than deciding it (⛔ "not declared as
+ * spelled"), and that card MEASURED no authoring story for a column-level
+ * reference override, so the maintainer's standing startup-stage rule
+ * (2026-08-27: no measured demand retires immediately) picked withdraw —
+ * refused by {@link ObjectDataTableRetiredReferenceToTombstone} the same way
+ * `decimals` is refused by its own tombstone.
+ *
+ * Kept as an interface — empty rather than deleted — because it is the
+ * documented anchor a future per-key ruling holds a new key onto, the same
+ * role it played for `format` / `options` / `currency` before objectui#6425
+ * declared them and for `referenceTo` before objectui#6597 retired it.
+ */
+// Deliberately empty: this is a documented EXTENSION POINT, not a stray
+// placeholder. It is declared `interface` rather than `type = object` so a
+// future per-key ruling can add a member the same way `format` / `options` /
+// `currency` (before objectui#6425) and `referenceTo` (before objectui#6597)
+// once did, without having to first convert it back from a type alias.
+// `object` would accept the same intersections but reads as "no future member
+// is expected here", which is the opposite of this type's role.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- see above
+export interface ObjectDataTableColumnHolds {}
+
+/**
+ * The candidate keys this seam refuses — DERIVED from the override vocabulary,
+ * never hand-listed, so a future `FieldMeta` member has to be adjudicated onto
+ * {@link ObjectDataTableColumnHolds} to escape. Keys `TableColumn` declares
+ * leave the pool by declaration: `type` (objectui#5853 owns its VALUE set,
+ * folded below by `normalizeTableColumnType`) and, since objectui#6425's
+ * ruling, `format` / `options` / `currency`.
+ *
+ * ⚠️ `decimals` and `referenceTo` USED TO land here — that is how objectui#6425's
+ * ruling was enforced for `decimals` at the read site, and how `referenceTo`
+ * stayed HELD (neither declared nor refused) until objectui#6597 ruled. Neither
+ * can any more: objectui#6625 and objectui#6597 each retired the `FieldMeta`
+ * member itself, so both keys are out of this Exclude's POOL rather than out of
+ * its exclusion list, and a derived band cannot refuse a key that is not in
+ * what it derives from. Their refusals are carried by
+ * {@link ObjectDataTableRetiredDecimalsTombstone} and
+ * {@link ObjectDataTableRetiredReferenceToTombstone} instead, intersected below.
+ * ⛔ Do not read this band's silence about either key as a softening — the
+ * tombstone and the band together are the same verdict, unchanged since each
+ * key's ruling.
+ *
+ * The pool shrank, then grew again. What THIS band refuses is `name` and
+ * `label` — both of them `FieldMeta` members with answers this seam already
+ * has (see the docblock above) — plus, since objectui#6694, the three
+ * relational members that card added: `reference_to`, `reference` and
+ * `display_field`.
+ *
+ * ⭐ Those three are the derivation working as designed, and their verdict is
+ * the one objectui#6597 already reached for `referenceTo`: an AUTHORED column
+ * may not source a lookup's reference target. They are refused HERE while
+ * `buildFieldMeta` writes them freely, because that write's source is the
+ * OBJECT SCHEMA field def and never the column — the same distinction
+ * objectui#6597 measured, and the reason adding them needed no new hold. They
+ * reached this band without anyone extending a list.
+ */
+export type UnheldFieldMetaOverrideKey =
+  Exclude<keyof FieldMeta, keyof TableColumn | keyof ObjectDataTableColumnHolds>;
+
+/** The keyhole `enrich` reads the authored column through. See the docblock above. */
+export type AuthoredColumnOverrides =
+  { accessorKey: string }
+  /** DECLARED by `TableColumn`; widened to `string` because the authored value
+   *  is folded onto the published union downstream, not at the read. */
+  & { type?: string }
+  /** DECLARED by `TableColumn` + its zod mirror (objectui#6425, maintainer
+   *  ruling 2026-08-27) — the three adjudicated override keys are read at
+   *  their published types, straight off the declaration. */
+  & Pick<TableColumn, 'format' | 'options' | 'currency'>
+  & ObjectDataTableColumnHolds
+  & { [K in UnheldFieldMetaOverrideKey]?: never }
+  /** RETIRED, objectui#6425's verdict — re-stated by hand because objectui#6625
+   *  took the key out of the derived band's pool. See the tombstone's docblock. */
+  & ObjectDataTableRetiredDecimalsTombstone
+  /** RETIRED, objectui#6597's verdict (enforce-or-remove, withdraw) —
+   *  re-stated by hand for the same reason: the key left `keyof FieldMeta`,
+   *  so the derived band can no longer reach it. See the tombstone's docblock. */
+  & ObjectDataTableRetiredReferenceToTombstone;
 
 /**
  * Shared empty fallback for the resolved row list (objectui#4629).
@@ -388,13 +726,22 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // is set, prefer translated field labels via the convention-based hook so that
   // headers automatically pick up i18n bundles.
   //
-  // Each column is also enriched with `type/options/referenceTo/format` from
-  // the bound object schema and gets a `cell:` render function that delegates
-  // to `getCellRenderer` from `@object-ui/fields`. This produces the same
-  // type-aware rendering as ObjectGrid / list views and the report viewer
-  // (Badge for select, link for lookup, ✓/✗ for boolean, mailto:/tel: links,
-  // currency/percent/date formatting honouring the column's `format` prop).
-  const derivedColumns = useMemo(() => {
+  // Each column is also enriched from the bound object schema — `options`,
+  // `format`, `currency` — and gets a `cell:` render function that delegates
+  // to `getCellRenderer` from `@object-ui/fields`. This
+  // produces the same type-aware rendering as ObjectGrid / list views and the
+  // report viewer (Badge for select, link for lookup, ✓/✗ for boolean,
+  // mailto:/tel: links, currency/percent/date formatting honouring the column's
+  // `format` prop).
+  //
+  // ⭐ THAT ENRICHMENT REACHES THE CELL, NOT THE COLUMN (objectui#6373). Those
+  // five values live on the `FieldMeta` the `cell` closure captures, which is
+  // the only thing that reads them. They used to ALSO be spread onto the column
+  // object handed to `data-table`, which declares none of them and reads none of
+  // them — five keys that were inert wherever they landed. The emit is checked
+  // against `EnrichedColumn` now; see its docstring for the rule and for why
+  // annotating `TableColumn` alone could not have enforced it.
+  const derivedColumns = useMemo<EnrichedColumn[]>(() => {
     const objectName = schema.objectName;
     const fieldsByName: Record<string, any> = {};
     if (objectSchema?.fields) {
@@ -435,12 +782,34 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       return objectName ? fieldLabel(objectName, k, humanized) : humanized;
     };
 
-    const enrich = (col: NormalizedColumn): NormalizedColumn => {
+    const enrich = (col: NormalizedColumn): EnrichedColumn => {
+      // ⭐ THE READ SEAM (objectui#6425). Every override below is taken through
+      // `AuthoredColumnOverrides` rather than off the bag directly, so each key
+      // arrives with the type and the written verdict its docblock gives it,
+      // and an unadjudicated `FieldMeta` member is a compile error here instead
+      // of an `any` nobody had to justify. This assignment is the enforcement —
+      // it is what fails if the authored shape ever grows a banded key.
+      const authored: AuthoredColumnOverrides = col;
+
       // Build the shared FieldMeta (translated select options, resolved
-      // referenceTo / currency / decimals). Column-level props override the
-      // schema-derived values. Lookup fields just pass `referenceTo` through —
-      // the server expands them via `$expand` so the cell value is `{ id, name }`,
-      // which the lookup/user cell renderers handle natively.
+      // currency). Column-level props override the schema-derived values.
+      // Lookup fields need no override here for their relation target: the
+      // server expands them via `$expand` (built from the OBJECT SCHEMA's
+      // field types by `computeLookupExpand`, never from an authored column
+      // key) so the cell value arrives as `{ id, name }`, which the
+      // lookup/user cell renderers handle natively off the expanded record.
+      //
+      // `decimals` is NOT read here any more — RETIRED by objectui#6425's
+      // ruling (maintainer, 2026-08-27): zero readers were measured for it
+      // (`NumberCellRenderer` reads `scale`, `PercentCellRenderer` reads
+      // `precision`), so the authored key never reached anything, and the
+      // schema-derived value `buildFieldMeta` still resolves is untouched.
+      //
+      // `referenceTo` is NOT read here any more either — RETIRED by
+      // objectui#6597 (enforce-or-remove, withdraw): `LookupCellRenderer`
+      // resolves its target from `reference_to` / `reference`, never this
+      // spelling, so an authored `referenceTo` never reached anything on this
+      // path (measured, `ObjectDataTable.overrideSource-6425.test.tsx`).
       const fieldMeta = buildFieldMeta({
         accessorKey: col.accessorKey,
         label: col.header,
@@ -448,12 +817,10 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
         objectName,
         fieldOptionLabel,
         overrides: {
-          type: col.type,
-          format: col.format,
-          options: col.options,
-          referenceTo: (col as any).referenceTo,
-          currency: (col as any).currency,
-          decimals: (col as any).decimals,
+          type: authored.type,
+          format: authored.format,
+          options: authored.options,
+          currency: authored.currency,
         },
       });
 
@@ -462,11 +829,25 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       const inferredAlign = (col as any).align
         ?? (isNumericFieldMeta(fieldMeta) ? 'right' : undefined);
 
-      if (typeof col.cell === 'function') return { ...col, ...fieldMeta, align: inferredAlign };
+      // ⭐ THE SECOND EMIT SEAM (objectui#5853). `buildFieldMeta` returns
+      // `type: overrides.type ?? meta?.type` — the OBJECT SCHEMA's field type —
+      // which the `...fieldMeta` spread that used to stand here wrote straight
+      // into the column's `type`, the same verbatim forwarding `ObjectGrid` does
+      // at its own seam. (The spread itself has since retired — objectui#6373 —
+      // but this fold is unchanged and still load-bearing: `type` is written out
+      // explicitly below, so the value still has to be folded before it lands.)
+      // The card's census named ObjectGrid as the only inference producer; this
+      // is the second one, and it gets the same fold so `TableColumn.type` only
+      // ever holds a value that type declares. An out-of-union type drops the
+      // `type` KEY, never the column — display here is driven by `cell` below,
+      // which reads `fieldMeta`, not `col.type`, so it is unaffected.
+      const columnType = normalizeTableColumnType(fieldMeta.type);
+
+      if (typeof col.cell === 'function') return { ...col, name: fieldMeta.name, type: columnType, align: inferredAlign };
 
       // Tenant-default currency backstops a currency column with no explicit code.
       const cell = (value: any): React.ReactNode => renderFieldValue(value, fieldMeta, tenantCurrency, displayLocale);
-      return { ...col, ...fieldMeta, align: inferredAlign, cell };
+      return { ...col, name: fieldMeta.name, type: columnType, align: inferredAlign, cell };
     };
 
     if (schema.columns && schema.columns.length > 0) {
@@ -569,8 +950,18 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // Honor an author-supplied onRowClick; otherwise wire the drill-to-record
   // handler when drill-down is enabled. The base data-table guards against
   // firing on interactive cells (buttons / menus / dialogs).
+  //
+  // objectui#6575 — `bind` is CONSUMED here, not passed through: `boundData =
+  // useDataScope(schema.bind)` resolved it above and `finalData` below IS that
+  // result. Spreading it onward handed the key to `data-table`, which reads no
+  // `bind` at all, so a correctly bound (and published-guide-taught) widget
+  // tripped that card's ignored-`bind` diagnostic on every render — a warning
+  // over rows that were on screen BECAUSE the bind had been honoured. Stop the
+  // key where it was spent, the same shape `DashboardGridLayout` already uses
+  // for `data`. Pinned by `ObjectDataTable.bindNotForwarded-6575.test.tsx`.
+  const { bind: _consumedBind, ...schemaWithoutBind } = schema;
   const tableSchema = {
-    ...schema,
+    ...schemaWithoutBind,
     type: 'data-table',
     data: finalData,
     columns: derivedColumns,

@@ -59,8 +59,10 @@ whoever else claims it.
 
 ### Public exports
 
-The package entry exports these — components, their prop/schema types, and the
-layout helpers. There is no aggregate map among them:
+The package entry exports these — components, their prop/schema types, the
+layout helpers, and the two create-payload rules a second form renderer needs
+(see [`required` + a runtime default](#required-or-requiredwhen--a-runtime-default)).
+There is no aggregate map among them:
 
 ```typescript
 import {
@@ -90,6 +92,8 @@ import {
   deriveFormFields,
   findRelationshipField,
   resolveInlineMode,
+  omitServerResolvedDefaults,
+  isRequiredInForm,
 } from '@object-ui/plugin-form';
 
 import type {
@@ -137,9 +141,10 @@ The renderers this package registers for itself are internal wrappers rather
 than these exported components. `SchemaRenderer` hands a registered component its
 `schema` (plus the schema's own props), but never a `dataSource` — that travels
 on `SchemaRendererContext` — so each wrapper reads it off the context first.
-`ObjectForm` takes `dataSource` as a prop, optional because inline `customFields`
-need no adapter, so a custom-key registration either supplies one or wraps the
-component the same way.
+`ObjectForm` takes `dataSource` as a prop, optional because inline fields need no
+adapter, so a custom-key registration either supplies one or wraps the component
+the same way. "Optional" is not "absent is fine for every form", though — see
+[What a form submits to](#what-a-form-submits-to).
 
 ## Schema API
 
@@ -322,6 +327,25 @@ since one verdict drives all three — in that mode the user genuinely is not
 required to provide the value. Showing what the server *will* supply, as a
 non-authoritative preview, is a separate follow-up.
 
+The two halves of that verdict are importable, so a host with its own form
+renderer applies the same rule rather than re-deriving it (objectui#6059):
+
+```typescript
+import { isRequiredInForm, omitServerResolvedDefaults } from '@object-ui/plugin-form';
+
+// Should this create form enforce `required` on the field?
+const required = isRequiredInForm(field, isCreateForm);
+
+// Drop the keys the producer must resolve, immediately before the insert.
+const payload = isCreateForm ? omitServerResolvedDefaults(values, objectSchema) : values;
+```
+
+They are published as a pair on purpose: excusing a server-owned field from
+`required` and then submitting the key anyway is not half a fix, it is no fix.
+Both are pure functions over plain data — no React, no registry — and
+`omitServerResolvedDefaults` is **create-only**, so the caller keeps the mode
+gate, as the example shows.
+
 Every consumer reads one predicate, `isRuntimeDefault` in `@object-ui/core`
 (re-exported for this package's own use by `src/schemaDefaults.ts`, not from the
 package entry listed above) — which is what keeps a form from seeding a field it
@@ -366,6 +390,7 @@ the renderer distribute the fields:
   fieldTabs: [
     { key: 'basics', label: 'Basics', fields: ['subject', 'status'] },
     { key: 'detail', label: 'Detail', description: 'Anything else', fields: ['description'] },
+    { key: 'billing', label: 'Billing', fields: ['vat_id'], visibleWhen: 'status == "won"' },
   ],
   defaultFieldTab?: 'basics',                    // defaults to the first tab
   fieldTabsPosition?: 'top',                     // 'top' | 'bottom' | 'left' | 'right'
@@ -381,7 +406,88 @@ the renderer distribute the fields:
 - Fields no tab claims render above the tab strip rather than disappearing.
 - Needs at least two tabs, and is ignored when the form uses `children`.
 
-`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this.
+`ModalForm` (`contentLayout: 'tabbed'`) and `TabbedForm` are built on this, and
+both forward a section's `visibleWhen` onto the tab they synthesise — see the
+support table below.
+
+#### Conditional tabs (`FormFieldTab.visibleWhen`)
+
+A tab may carry a `visibleWhen` predicate — the same slot, vocabulary and
+engine as the field-level rule (`string | { dialect?, source }`, a CEL
+predicate over the live record, evaluated by `@objectstack/formula` with the
+host predicate scope bound, so it can read `current_user` / `app` / `data` /
+`features` exactly as a field rule can). Like every conditional rule in this
+system it **fails open**: a predicate that cannot be evaluated leaves the tab
+visible rather than hiding data behind a broken expression.
+
+When the predicate resolves FALSE the renderer draws **neither the tab's
+trigger nor its panel** — a hidden tab disappears from the tab strip entirely,
+it is not merely an empty panel.
+
+**Submit semantics are deliberately counter-intuitive — visibility gates
+drawing, and nothing else:**
+
+- **A hidden tab's values still submit.** Hiding a tab does not remove its
+  fields' values from the record: whatever they hold (loaded from the record,
+  seeded by defaults, or typed before the tab hid) is carried in the payload.
+  A visibility rule is not a data filter — dropping the values would turn a
+  cosmetic predicate into a silent data-loss door.
+- **A hidden tab's fields skip client-side validation.** A user is never
+  blocked by an error pointing at a control they cannot see. The flip side:
+  a *required* field on a hidden tab sails past the client — **the
+  server-side contract is the loud floor** for genuinely-required data, and a
+  submit missing it fails there, visibly.
+- **Stale errors clear.** A tab hiding mid-session (its predicate flipping on
+  a keystroke or a scope change) clears its fields' leftover validation
+  errors, the same hygiene a field's own `visibleWhen` applies.
+
+These are not tab-specific rules: they are the ruled hidden-group semantics
+every section `visibleWhen` follows, inherited through the same mechanism a
+field's own FALSE predicate uses (the fields simply stop being drawn; the form
+keeps their values and skips unmounted controls at validation).
+
+Two mechanics worth knowing:
+
+- **Selection is derived over the visible tabs.** If the predicate hides the
+  ACTIVE tab, the renderer re-selects deterministically — the user's own pick
+  if still visible, else `defaultFieldTab`, else the first visible tab — so
+  the form never shows an empty panel. The pick itself is kept: the tab the
+  user chose becomes active again the moment its predicate re-admits it.
+- **Whether the tabbed layout engages at all is judged on the DECLARED tabs**
+  (the "needs at least two tabs" rule above counts declarations, not
+  verdicts). A predicate hiding all but one tab filters what is drawn; it
+  never collapses the strip into the flat layout mid-interaction.
+
+**Where `visibleWhen` on a tab works today** — this key landed renderer-first,
+and only where the renderer actually evaluates it:
+
+| Authoring surface | Carries the predicate? |
+| --- | --- |
+| `type: 'form'` with `fieldTabs[].visibleWhen` (as above) | **Yes** — evaluated by the form renderer |
+| `ModalForm` / `formType: 'modal'` with `contentLayout: 'tabbed'` | **Yes** — the section's `visibleWhen` is copied onto its tab |
+| `TabbedForm` / `formType: 'tabbed'` sections | **Yes** — the section's `visibleWhen` is copied onto the tab `TabbedForm` synthesises; a single-section form, which draws no tab strip, gates the group through the flat layout's own section-divider mechanism instead |
+| `WizardForm` / `formType: 'wizard'` steps | **No** — steps are not tabs; nothing evaluates a step-level predicate |
+
+The remaining **No** row is deliberate, not an oversight: declaring the key on a
+surface whose renderer ignores it would make the metadata lie (#6111), so the
+key stops at the boundary until each surface enforces it.
+
+⛔ **A wizard step has no predicate slot at all, and that is enforced by the
+type.** A step predicate is not the tab predicate under another name — steps are
+mounted one at a time and keyed by index, so a step predicate would be
+step-boundary reactive where a tab's is live-record reactive, and it would need
+navigation, indicator, `isLastStep`, final-gate and re-selection semantics that
+none of the tab machinery supplies. So `WizardStepConfig` is declared
+independently of `FormSectionConfig` (maintainer ruling 2026-08-30, #6237) and
+simply does not carry the key: `visibleWhen` on a wizard step literal is a
+**compile error**, not a silently ignored key. Track #6237 for the step
+contract.
+
+That row also **reports itself** rather than failing silently. Authoring a
+section `visibleWhen` on `formType: 'wizard'` logs a console warning naming the
+layout and the sections whose predicate is being dropped — untyped JSON reaches
+the renderer too, so the compile-time half cannot be the only one. Nothing warns
+on the five arms that honour the key.
 
 ### Wizard steps and `allowSkip`
 
@@ -532,7 +638,10 @@ A section's `fields` accepts three shapes — a field **name**, a spec
 `FormField` object. The inline shape is what lets a wizard run with no data
 source at all, which is the closest equivalent of the old snippet; note that
 `WizardForm` reports a data-source-less submit through `onSuccess` (there is no
-`onSubmit` on this schema):
+`onSubmit` on this schema). **Every** step's fields have to be the inline shape
+for that to hold — one bare name among them means the form needed object
+metadata it could not fetch, and the submit is refused rather than confirmed
+(again, [What a form submits to](#what-a-form-submits-to)):
 
 ```tsx
 import { WizardForm } from '@object-ui/plugin-form';
@@ -625,6 +734,30 @@ const schema: FormSchema = {
 Each rule appears **once**, under its own name — an object, not a list. A second
 `minLength` cannot exist, which is the point: the shape the renderer hands
 react-hook-form is one rule per kind.
+
+## What a form submits to
+
+A form has somewhere to put the values when it has **either** a `dataSource` (it
+writes through the adapter) **or** a declared `submitHandler` (the host owns the
+write and needs no adapter of its own). With neither, exactly one shape is still
+legitimate: **fields authored inline**, where the author's `onSuccess` *is* the
+write. That is
+
+- a non-empty `customFields`, or
+- `sections` whose fields are **all** inline runtime `FormField` objects.
+
+Anything else — a form naming fields the object schema would have to resolve,
+with no adapter to fetch it and no host seam to hand the values to — **refuses**
+the submit with `DataSource is required for form submission (inline mode not
+configured)`. The error reaches `schema.onError` and is rethrown.
+
+This is uniform across all six renderers (`simple`, `tabbed`, `wizard`, `split`,
+`drawer`, `modal`). It used to be uniform in the other direction: the five
+variant renderers answered an adapter-less submit by calling `onSuccess` and
+returning, which reported a save that never happened and, through
+`MasterDetailForm`, produced a success toast over a form it then cleared
+(objectui#6300). A declared `submitHandler` is consulted first, so a host that
+said it owns the write is never bypassed for want of an adapter it never needed.
 
 ## Integration with Data Sources
 

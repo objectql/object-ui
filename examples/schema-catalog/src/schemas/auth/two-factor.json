@@ -39,7 +39,7 @@
         },
         { "type": "button", "label": "Verify", "variant": "default", "className": "w-full" },
         {
-          "type": "div",
+          "type": "box",
           "className": "text-center",
           "children": [
             { "type": "text", "content": "Didn't receive a code? ", "className": "text-sm text-muted-foreground" },

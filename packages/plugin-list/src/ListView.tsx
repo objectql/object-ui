@@ -15,13 +15,13 @@ import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@obje
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
-import { SchemaRenderer, useNavigationOverlay, classifyLoadError } from '@object-ui/react';
+import { SchemaRenderer, useNavigationOverlay, classifyLoadError, usePredicateScope } from '@object-ui/react';
 import type { LoadErrorKind } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
@@ -1180,6 +1180,61 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   }, [schema.bulkActions, schema.objectName, objectDef, effectiveApiOps, canDo]);
 
   /**
+   * [objectui#4420] The PER-RECORD half of the same key, for the same bar.
+   *
+   * `permittedBulkActions` above reads `userActions.delete` as a BOOLEAN — the
+   * object-level verdict — and that is all it ever read. Since objectui#2614
+   * the key also accepts `{ enabled?, visibleWhen?, disabledWhen? }`, whose
+   * `visibleWhen` gates the affordance **per record**; the row kebab has
+   * honoured it since, and this bar did not. Tick only a record the predicate
+   * excludes and the bar still offered the red Delete — the same declared key
+   * meaning two different things on two surfaces.
+   *
+   * ## What was ruled (maintainer, 2026-08-17 — behaviour 1 of three)
+   *
+   * Filter the operation and report the skipped. The bar evaluates
+   * `visibleWhen` once per selected record, Delete runs over the allowed
+   * SUBSET, and the excluded records are reported rather than silently
+   * dropped. Two rejected alternatives, restated because each is a way to
+   * misread this code: the button is **never hidden or disabled** by the
+   * predicate (behaviour 2 — one stray tick would disable the whole bar), and
+   * the predicate is **not** declared out of scope for set operations
+   * (behaviour 3 — the key must not mean different things on two surfaces).
+   * A selection where EVERY row is excluded therefore still renders the
+   * button; what the user gets is a legible refusal, not an absence.
+   *
+   * ## Why `evalRowPredicate`, never `useRowPredicate`
+   *
+   * A bulk gate evaluates N records in a LOOP, and React forbids a hook per
+   * iteration. `partitionRowsByPredicate` is that loop — the shared,
+   * fail-closed fold in `@object-ui/core` that the grid's own bulk bar reads
+   * through `partitionBulkRows`, so the two bars cannot drift on what
+   * "eligible" means.
+   *
+   * ## Why `objectDef`, and only the built-in `delete`
+   *
+   * The predicates come off the OBJECT's `userActions` block (the CRUD
+   * predicate vocabulary), never the VIEW's `schema.userActions` (toolbar
+   * policy) — the same name collision `toolbarFlags` above is pinned against.
+   * Only the built-in `delete` entry is filtered: custom action ids route
+   * through the action runner carrying their own gates, exactly as the
+   * object-level gate above leaves them alone.
+   */
+  const deleteVisibleWhen = React.useMemo(
+    () => resolveEffectiveCrudAffordances(objectDef as any, effectiveApiOps).deletePredicates?.visibleWhen,
+    [objectDef, effectiveApiOps],
+  );
+  const predicateScope = usePredicateScope();
+  const bulkDeleteEligibility = React.useMemo(
+    () => partitionRowsByPredicate(deleteVisibleWhen as never, selectedRows as Array<Record<string, unknown>>, {
+      scope: predicateScope,
+      fields: objectDef?.fields,
+      label: 'delete',
+    }),
+    [deleteVisibleWhen, selectedRows, predicateScope, objectDef],
+  );
+
+  /**
    * [#4647] Is the grid toolbar's inline-edit toggle offered at all?
    *
    * Two gaps closed together, because both end at this one render condition.
@@ -1788,7 +1843,36 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     fetchData();
 
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filter, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
+    // objectui#6697 — this effect names the `expandFields` memo's INPUTS, not
+    // the memo's OUTPUT. `useMemo` is a pure optimisation, not a correctness
+    // dependency: React may discard the cache and recompute even when the
+    // deps compare equal, and `buildExpandFields` hands back a FRESH array on
+    // every call, so naming `expandFields` here re-issued the whole
+    // `dataSource.find` on a discard alone. Its inputs are all props and
+    // state, which a discard cannot move — so the effect is discard-immune
+    // WITHOUT losing a single re-run it used to have.
+    //
+    // ⚠️ A value key over `expandFields` (`JSON.stringify(...)`) is NOT the
+    // route here, and this is the measured reason: `buildExpandFields`
+    // collapses the whole collected set down to the relation roots, so the
+    // key it produces is not content-equivalent to what this effect reads —
+    // the body builds `$select` from `schema.columns` and the view bindings
+    // too. It also DEFEATS objectui#4567's live-dependency pin, which drives
+    // "+ Add field" on the Studio grid: that appends an unpublished field, so
+    // the producer's `gridColumns` rebuilds with EQUAL content and only a new
+    // identity, and a value key cannot see it. objectui#4567 ruled that
+    // "ListView's by-identity dependency is correct for a real column change"
+    // and put the stabilisation at the PRODUCER; naming the props keeps that
+    // ruling intact.
+    //
+    // The sibling re-keys in this fix take the other route on purpose:
+    // `RelatedList`'s memos are keyed on exactly one primitive each, and
+    // `PageTabsRenderer`'s probe memo is keyed on another MEMO's output
+    // (`items`), which is not discard-immune. Key on the nearest
+    // discard-immune thing — props/state where they are the memo's inputs, a
+    // value key where they are not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema.objectName, schema.data, dataSource, schema.filter, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, schema.columns, (schema as any).kanban, (schema as any).calendar, (schema as any).gallery, (schema as any).timeline, (schema as any).gantt, (schema as any).options, objectDef?.fields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
 
   // Any change to the result-defining inputs (object, filters, sort, search,
   // grouping, page size) invalidates the current page number — snap back to
@@ -2003,6 +2087,53 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return fields;
   }, [schema.columns, schema.objectName, hiddenFields, schema.fieldOrder, perms]);
 
+  /**
+   * Did the AUTHOR declare a column projection at all? (objectui#6598)
+   *
+   * `effectiveFields` is `[]` in two situations the child grid cannot tell
+   * apart, and sending the same empty array for both is what produced this
+   * issue's headline symptom: `<list-view objectName="opportunity" />` on an
+   * html-kind page rendered the row count, the toolbar and the index column —
+   * and not one data column, with no diagnostic anywhere.
+   *
+   *   1. The author declared none (`columns` absent, or `[]`). `ObjectGrid`
+   *      derives defaults from the object schema for exactly this case
+   *      ("Default columns priority (when schema doesn't specify columns)"),
+   *      and `normalizeColumns` already reads an empty `columns` as unauthored
+   *      — the same rule `ElementDataSourceGate`'s precedence table states.
+   *      But that derivation is gated on `schema.fields` being ABSENT, and an
+   *      empty array is truthy, so the `fields: []` this component sent read as
+   *      "show exactly these zero columns" and the defaults never ran.
+   *      Single-variable measurement: a bare `<object-grid objectName="…" />`
+   *      on the same tier, same data source, renders four default columns; the
+   *      same object behind `<list-view>` renders none.
+   *   2. The author declared some and the gates above removed them all — FLS
+   *      denied every one, or every one is hidden. That case must KEEP sending
+   *      the empty projection. Falling through to the grid's defaults there
+   *      would show fields the author never asked for.
+   *
+   *      ⭐ THE REASON CHANGED; THE PREDICATE DID NOT (objectui#6799). This
+   *      clause used to end "…and `ObjectGrid` re-applies FLS only on the
+   *      DERIVED path, not on the explicit-columns one — so widening here would
+   *      be a widening past the field gate." That is no longer true. As of
+   *      objectui#6799 the grid re-applies FLS on ALL THREE of its default
+   *      paths, the authored `columns` one included, so a fall-through here no
+   *      longer escapes the field gate. The predicate stays exactly as it is
+   *      for the half of the sentence that never depended on the grid: an empty
+   *      projection is the AUTHOR's projection after filtering, and handing the
+   *      grid "unauthored" would replace it with the object's default columns —
+   *      fields the author never declared. FLS-checked now, but still not what
+   *      was authored. AUTHORING INTENT is what this predicate protects, and
+   *      that was always the load-bearing half.
+   *
+   * Hence the question is about the AUTHORED value and never about what
+   * survived filtering.
+   */
+  const hasAuthoredColumns = React.useMemo(
+    () => Array.isArray(schema.columns) && schema.columns.length > 0,
+    [schema.columns],
+  );
+
   // Generate the appropriate view component schema
   const viewComponentSchema = React.useMemo(() => {
     const densityRowHeight = density.mode === 'compact'
@@ -2046,7 +2177,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         return {
           type: 'object-grid',
           ...baseProps,
-          columns: effectiveFields,
+          // Unauthored ⇒ hand the grid NO projection, so its default-columns
+          // derivation runs (see `hasAuthoredColumns`). `fields` has to be
+          // cleared with it: it rides in on `baseProps`, and it is the key the
+          // derivation is gated on.
+          ...(hasAuthoredColumns
+            ? { columns: effectiveFields }
+            : { fields: undefined, columns: undefined }),
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
           // [#4647] The MODE, not just its toggle. Gating only the toggle would
           // leave the issue's own consequence reachable by a different door: a
@@ -2274,7 +2411,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // asynchronously (`/me/permissions`) and `objectDef` loads into state, so a
   // grid schema built before either resolved must be rebuilt when they do —
   // otherwise `editable` keeps the pre-verdict answer for the session.
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, inlineEditOffered, objectDef]);
+  }, [currentView, schema, currentSort, effectiveFields, hasAuthoredColumns, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, inlineEditOffered, objectDef]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 
@@ -2367,7 +2504,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // sort on a field this picker then refused to list — the declared sort
   // worked on load, while its rows rendered blank and the user could neither
   // reproduce nor modify it. The whitelist is a FILTER contract; sortability
-  // is a property of the field's type, which is what the two rules below read.
+  // is a separate question, answered by the two rules below.
   //
 
   // This view's sort becomes a server `$orderby` on the FLAT field name, and a
@@ -2380,33 +2517,56 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // below points at the supported alternative (a stored field that
   // denormalizes the name onto this object, written when the source changes).
   //
-  // Second rule — `UNMATERIALIZED_FIELD_TYPES` (`@object-ui/core`, bound to the
-  // spec's own storage fact): a `formula` field has no materialised column, so
-  // the server answers a sort naming one with a 400. It matters here precisely
-  // BECAUSE the base set widened: a formula field used to reach this picker only
-  // if someone had whitelisted it, and now every formula field on the object
-  // would be offered. Withheld silently — the relational hint below stays
-  // strictly about relations, which is what its sentence describes.
+  // Second rule — THE PLATFORM SAYS which field names it will order by
+  // (objectstack#10235 ruling A, consumed here via #5729's landed spelling in
+  // `@object-ui/core`). `isPlatformSortableField` is the contract: an entry
+  // must EXIST in the served projection and say `sortable: true`. Absence is a
+  // refusal — an unknown name, a dotted path, an unprovisioned audit column —
+  // never a default of `true`. Withheld silently, so the relational hint below
+  // stays strictly about relations, which is what its sentence describes.
   //
-  // The set used to be a private copy in this file, on the reasoning that it was
-  // one sortability rule for one picker. objectui#3950 made it three more
-  // consumers (this grid's own column headers, and both of RelatedList's sort
-  // entry points), so it moved to core where the relational family already
-  // lives — one judgement, not four copies drifting apart.
+  // This picker used to re-derive that verdict from the field's TYPE, reading
+  // `UNMATERIALIZED_FIELD_TYPES` (#3950 consolidated the local copy into core).
+  // The two agree about `formula` — the platform computes its own projection
+  // from the same `@objectstack/spec` storage fact — which is exactly why the
+  // drift went unnoticed: they part company on everything the projection
+  // encodes as ABSENCE, and on any verdict the runtime doors add later, where
+  // a type read answers `sortable` and the platform answers `400 INVALID_SORT`.
+  // One judgement, served; not a fourth copy of it drifting apart.
+  //
+  // NO SIGNAL SERVED (`undefined`) is a different question from "nothing is
+  // sortable": a deployment older than objectstack#10235, an inline/mock data
+  // source, or `objectDef` not yet loaded. That branch keeps the type read as a
+  // compatibility floor — behaviour identical to before this card — and is
+  // meant to be deleted when the supported floor passes that release.
   //
   // Exception (both rules): a field the CURRENT sort already uses stays listed
   // — relational ones flagged as ordering by ID — so opening this popover on a
   // view that was authored (or saved before this change) with such a sort
   // neither renders a blank row nor silently drops that sort on the next edit.
-  // For a formula field that exception is the only way to REMOVE the offending
-  // row, since the sort it names is one the server refuses outright.
+  // For a platform-refused field that exception is the only way to REMOVE the
+  // offending row, since the sort it names is one the server refuses outright.
+  //
+  // ONE read of the served projection, for BOTH legs below — the list this
+  // picker renders, and the sort it emits for a host to persist. Read twice,
+  // the two copies could answer differently about the same field on the same
+  // render, which is the drift `isPlatformSortableField` was consolidated to
+  // end. `undefined` stays "no signal served", never "nothing is sortable".
+  const platformSortability = React.useMemo(
+    () => readObjectSortability(objectDef),
+    [objectDef],
+  );
+
   const { sortFields, sortHasRelationalField } = React.useMemo(() => {
     const inUse = new Set(currentSort.map((item) => item.field).filter(Boolean));
     let excluded = false;
     const fields: Array<{ value: string; label: string }> = [];
     for (const field of candidateFields) {
       const relational = EXPANDABLE_FIELD_TYPES.has(field.type);
-      if (!relational && !UNMATERIALIZED_FIELD_TYPES.has(field.type)) {
+      const platformSortable = platformSortability
+        ? isPlatformSortableField(platformSortability, field.value)
+        : !UNMATERIALIZED_FIELD_TYPES.has(field.type);
+      if (!relational && platformSortable) {
         fields.push({ value: field.value, label: field.label });
         continue;
       }
@@ -2420,7 +2580,44 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       if (relational) excluded = true;
     }
     return { sortFields: fields, sortHasRelationalField: excluded };
-  }, [candidateFields, currentSort, t]);
+  }, [candidateFields, currentSort, t, platformSortability]);
+
+  /**
+   * [#6455] THE persist boundary: what this picker LISTS is not what it
+   * PERSISTS.
+   *
+   * The exception just above deliberately keeps a platform-refused field
+   * listed while the CURRENT sort names it — it is the only way a user can
+   * REMOVE a sort the server refuses outright. But the picker used to render
+   * and emit from the SAME array, so any OTHER edit in the popover — adding a
+   * second key, flipping a direction — re-emitted the refused entry, and the
+   * host's `onSortChange` turned it into `persistViewPatch({ sort })`: a
+   * personalization PUT storing a column the platform answers
+   * `400 INVALID_SORT` for, written by a user who never touched that row.
+   *
+   * So the two legs part company HERE, at the one boundary every emit crosses,
+   * exactly as #5729 parted them at the grid seam (`ObjectGrid`'s
+   * `manualSort` / `manualOnSortChange` pair). The refused entry stays in
+   * `currentSort` — listed, removable, and still the order this list asks the
+   * server for — while no write ever carries it. Removing it persists the
+   * removal; a sort with nothing refused in it is emitted unchanged.
+   *
+   * Every `onSortChange` in this component goes through here rather than each
+   * call site filtering for itself: a builder edit, a header click and a
+   * "reset to default" are three doors onto ONE stored `sort`, and a filter
+   * spelled three times is a filter one new door can be added without.
+   *
+   * Only under a served projection: with no signal there is no verdict to
+   * filter by, and the pre-objectstack#10235 behaviour stands unchanged.
+   */
+  const emitSortChange = React.useCallback((next: SortItem[]) => {
+    if (!onSortChange) return;
+    onSortChange(
+      platformSortability
+        ? filterPlatformSortableSort(next, platformSortability)
+        : next,
+    );
+  }, [onSortChange, platformSortability]);
 
   /**
    * A column-header sort from the child grid (#3106).
@@ -2445,8 +2642,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }));
     setCurrentSort(items);
     setServerPage(1);
-    onSortChange?.(items);
-  }, [onSortChange]);
+    emitSortChange(items);
+  }, [emitSortChange]);
 
   /**
    * "Reset to the view's default sort" (objectui#4243) — the way back the
@@ -2467,9 +2664,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const restored = parseSortConfig(schema.sort);
     setCurrentSort(restored);
     setServerPage(1);
-    onSortChange?.(restored);
+    emitSortChange(restored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schemaSortKey, onSortChange]);
+  }, [schemaSortKey, emitSortChange]);
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
@@ -2965,8 +3162,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   fields={sortFields}
                   value={currentSort}
                   onChange={(newSort) => {
+                    // `setCurrentSort` takes the array WHOLE (the in-use
+                    // exception depends on it); `emitSortChange` is what the
+                    // host persists. See the boundary's docblock above.
                     setCurrentSort(newSort);
-                    if (onSortChange) onSortChange(newSort);
+                    emitSortChange(newSort);
                   }}
                 />
                 {sortHasRelationalField && (
@@ -3532,13 +3732,23 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               const actionStr = String(action).toLowerCase();
               const isDestructive = actionStr.includes('delete') || actionStr.includes('remove') || actionStr.includes('destroy');
               const Icon = isDestructive ? Trash2 : null;
+              // [objectui#4420] The built-in `delete` runs over the ALLOWED
+              // SUBSET — the records `userActions.delete.visibleWhen` admits —
+              // never the raw tick list. The button itself is untouched by the
+              // predicate (ruled: never hidden, never disabled); what shrinks
+              // is what it acts on, and the notice below owns up to it. Only
+              // the canonical `delete` is filtered: every other id routes
+              // through the action runner with its own gates.
+              const rowsForAction = actionStr === 'delete'
+                ? (bulkDeleteEligibility.eligible as any[])
+                : selectedRows;
               return (
                 <Button
                   key={action}
                   variant={isDestructive ? 'destructive' : 'outline'}
                   size="sm"
                   className="h-7 px-2.5 text-xs gap-1.5"
-                  onClick={() => props.onBulkAction?.(action, selectedRows)}
+                  onClick={() => props.onBulkAction?.(action, rowsForAction)}
                   data-testid={`bulk-action-${action}`}
                 >
                   {Icon && <Icon className="h-3 w-3" />}
@@ -3547,6 +3757,30 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               );
             })}
           </div>
+          {/* [objectui#4420] The report half of the ruling, on the surface that
+              has one. This bar dispatches straight through `onBulkAction` — it
+              never opens `BulkActionDialog`, so there is no confirm step to
+              carry the grid's `bulk-skipped-notice`; the bar states it up
+              front instead, which also makes the all-excluded case a legible
+              refusal BEFORE the click rather than a dead press. Same testid as
+              the dialog's slot: one name for one fact, whichever surface says
+              it. */}
+          {bulkDeleteEligibility.skipped > 0
+            && permittedBulkActions.some((a: any) => String(a).toLowerCase() === 'delete') && (
+            <span
+              className="text-muted-foreground ml-3"
+              data-testid="bulk-skipped-notice"
+            >
+              {/* The grid dialog's own key, deliberately: this is the same
+                  sentence about the same fact, already translated in every
+                  locale pack. A `list.*` alias would be a second spelling of
+                  one string — ten packs to keep in step for no new meaning. */}
+              {t('grid.bulk.skippedIneligible', {
+                count: bulkDeleteEligibility.skipped,
+                defaultValue: `${bulkDeleteEligibility.skipped} selected record(s) are not eligible for this action and will be skipped.`,
+              })}
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"

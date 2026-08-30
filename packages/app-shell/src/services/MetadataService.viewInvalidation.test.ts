@@ -42,16 +42,17 @@ function makeAdapter() {
   const saveItem = vi.fn(
     async (_category: string, _name: string, _data: Record<string, unknown>) => ({ success: true }),
   );
+  const deleteItem = vi.fn(async (type: string, name: string) => ({ type, name, deleted: true }));
 
   const adapter = {
-    getClient: () => ({ meta: { saveItem } }),
+    getClient: () => ({ meta: { saveItem, deleteItem } }),
     invalidateCache: (key: string) => invalidatedKeys.push(key),
     invalidateViewKeys: (objectName: string, viewName: string) => {
       viewSeamCalls.push([objectName, viewName]);
     },
   };
 
-  return { adapter, invalidatedKeys, viewSeamCalls, saveItem };
+  return { adapter, invalidatedKeys, viewSeamCalls, saveItem, deleteItem };
 }
 
 describe('MetadataService routes view writes through the adapter seam (#4373)', () => {
@@ -133,25 +134,26 @@ describe('MetadataService routes view writes through the adapter seam (#4373)', 
   });
 
   it('deleteMetadataItem cannot name the view keys, and the reason is its payload', async () => {
-    // Pinned as a decision, not left as an absence. The tombstone this method
-    // writes is `{ name, enabled: false, _deleted: true }` — no object binding
-    // — and the signature has no object parameter either, so unlike the save
-    // half there is nothing here to derive the keys from. Inventing an object
-    // argument for a method with no callers would be guessing at a surface.
-    // If a `'view'` caller ever appears, give it the object it already knows
-    // and call `adapter.invalidateViewKeys(objectName, name)` here.
-    const { adapter, invalidatedKeys, viewSeamCalls, saveItem } = makeAdapter();
+    // Pinned as a decision, not left as an absence — and objectui#6238 made the
+    // reason STRONGER rather than obsolete. This method used to PUT a tombstone
+    // `{ name, enabled: false, _deleted: true }`, whose defect was that it
+    // carried no object binding to derive the two object-scoped view keys from;
+    // it now issues `DELETE /meta/view/:name`, which carries no body at all.
+    // The signature still has no object parameter, so there is still nothing
+    // here to derive the keys from, and inventing an object argument for a
+    // method with no callers would still be guessing at a surface. If a
+    // `'view'` caller ever appears, give it the object it already knows and
+    // call `adapter.invalidateViewKeys(objectName, name)` here.
+    const { adapter, invalidatedKeys, viewSeamCalls, saveItem, deleteItem } = makeAdapter();
 
     await new MetadataService(adapter as unknown as ObjectStackAdapter).deleteMetadataItem('view', 'account.mine');
 
-    expect(saveItem).toHaveBeenCalledWith('view', 'account.mine', {
-      name: 'account.mine',
-      enabled: false,
-      _deleted: true,
-    });
-    // The written body carries no object — this is the measurement, not a wish.
-    const [, , written] = saveItem.mock.calls[0];
-    expect(written.object).toBeUndefined();
+    expect(deleteItem).toHaveBeenCalledWith('view', 'account.mine');
+    // The delete door takes `(type, name)` and nothing else, so there is no
+    // body to read an object out of — this is the measurement, not a wish.
+    expect(deleteItem.mock.calls[0]).toHaveLength(2);
+    // And no tombstone PUT rides along beside it.
+    expect(saveItem).not.toHaveBeenCalled();
     expect(viewSeamCalls).toEqual([]);
     expect(invalidatedKeys).toEqual(['view:account.mine']);
   });

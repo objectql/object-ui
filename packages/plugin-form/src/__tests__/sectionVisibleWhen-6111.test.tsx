@@ -70,16 +70,55 @@
  * everywhere, which is precisely why the ALLOWED rows could never have caught
  * this.
  *
- * ## Scope, measured — what this does NOT claim
+ * ## Scope — the whole group, since objectui#6236
  *
- * The renderer treats `section-divider` as a presentational ROW and holds no
- * association between it and the fields that follow it, so a false predicate
- * removes the HEADING and leaves the section's fields rendering. The console
- * renderer (`apps/console/src/components/FormPage.tsx:1819`) drops the whole
- * `<section>`, fields included. That divergence is real and is filed
- * separately — it needs a renderer-side grouping contract, not another line in
- * a layout. The `stillRendersItsFields` case below pins the CURRENT behaviour
- * honestly rather than letting the file imply a guarantee it does not deliver.
+ * objectui#6236 (maintainer ruling 2026-08-27) closed the divergence this
+ * header used to record: the renderer now holds a real divider-to-field
+ * association — the divider's membership claim (`FormField.fields`, stamped by
+ * every synthesis site above from the RESOLVED member list) — and a false
+ * section predicate hides the heading AND the claimed fields, matching the
+ * console renderer. So every DENIED row below asserts both halves: the heading
+ * (the #6111 deliverable) and the gated member field (the #6236 wiring). The
+ * hidden members skip client-side validation and their values still submit;
+ * those semantics are pinned at the renderer in
+ * `packages/components/src/renderers/form/__tests__/section-grouping-6236.test.tsx`
+ * — this file pins that each LAYOUT's synthesis site actually stamps the claim
+ * (an unstamped site reverts to heading-only, invisible to every other suite).
+ *
+ * Two derived-fieldGroup synthesis sites (ModalForm / DrawerForm
+ * `derivedSections`) also stamp the claim for uniformity, but the spec
+ * `fieldGroups` vocabulary has no section-predicate slot, so no authoring path
+ * can turn their gate on today and no DENIED row can discriminate them; they
+ * stay fail-open until that vocabulary grows a predicate.
+ *
+ * ## The tabbed modal arm — the seventh synthesis site (objectui#6237)
+ *
+ * `ModalForm` with `contentLayout: 'tabbed'` synthesises NO divider at all —
+ * sections become `fieldTabs` entries — so its stamp is the tab's own
+ * predicate slot (`FormFieldTab.visibleWhen`, same ruling as #6236) and its
+ * DENIED row asserts the tab TRIGGER text and the member field are both gone.
+ * The hidden-tab semantics (values still submit, client validation skipped,
+ * re-selection, no mid-interaction collapse) are pinned at the renderer in
+ * `packages/components/src/renderers/form/__tests__/fieldtab-visiblewhen-6237.test.tsx`;
+ * the rows here pin only that THIS synthesis site copies the predicate onto
+ * the tab.
+ *
+ * ## `TabbedForm` — the eighth synthesis site (objectui#6237, this card)
+ *
+ * `formType: 'tabbed'` reaches `TabbedForm`, which already synthesised
+ * `fieldTabs` — the very machinery the modal tabbed arm above runs on — but
+ * dropped the predicate at three points: `ObjectForm`'s tabbed map, the section
+ * config (which declared no such key), and the `fieldTabs` synthesis. All three
+ * now carry it, so this arm reaches the SAME evaluator by the SAME route and
+ * gets a row in the matrix below rather than a mechanism of its own.
+ *
+ * ⛔ `WizardForm` is deliberately still absent, and not by oversight: its step
+ * type OMITS the predicate (`WizardStepConfig`) because a step predicate is a
+ * different contract — step-boundary reactive against the ruled live-record
+ * reactivity, needing navigation and final-gate semantics none of this
+ * machinery supplies. `ObjectForm` reports that gap at runtime instead
+ * (sectionPredicateLayoutDiagnostic-6237.test.tsx). Adding a wizard row here
+ * would be pinning an unruled contract into existence.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -142,15 +181,16 @@ afterEach(() => {
  * proves the form rendered AT ALL — so a missing `Compensation` heading is a
  * verdict and not an inability. `Compensation` carries the gate.
  */
-const sections = () => [
+const sections = (gate: unknown = GATE) => [
   { name: 'always', label: 'Always', fields: ['subject'] },
-  { name: 'pay', label: 'Compensation', visibleWhen: GATE, fields: ['salary'] },
+  { name: 'pay', label: 'Compensation', visibleWhen: gate, fields: ['salary'] },
 ];
 
 /** Mount through `ObjectForm` — the entry `RecordFormPage` itself uses. */
 const renderObjectForm = async (
   scope: Record<string, unknown>,
   extra: Record<string, unknown>,
+  gate?: unknown,
 ) => {
   render(
     <PredicateScopeProvider scope={scope as any}>
@@ -159,7 +199,7 @@ const renderObjectForm = async (
           type: 'object-form',
           objectName: 'crm_case',
           mode: 'create',
-          sections: sections(),
+          sections: sections(gate),
           ...extra,
         } as any}
         dataSource={dataSource}
@@ -171,7 +211,11 @@ const renderObjectForm = async (
 };
 
 /** Mount `ModalForm` directly — the shape `resolveFormViewLayout` produces. */
-const renderModalFormDirect = async (scope: Record<string, unknown>) => {
+const renderModalFormDirect = async (
+  scope: Record<string, unknown>,
+  extra: Record<string, unknown> = {},
+  gate?: unknown,
+) => {
   render(
     <PredicateScopeProvider scope={scope as any}>
       <ModalForm
@@ -180,7 +224,8 @@ const renderModalFormDirect = async (scope: Record<string, unknown>) => {
           objectName: 'crm_case',
           mode: 'create',
           open: true,
-          sections: sections(),
+          sections: sections(gate),
+          ...extra,
         } as any}
         dataSource={dataSource}
       />
@@ -193,42 +238,85 @@ const renderModalFormDirect = async (scope: Record<string, unknown>) => {
 const gatedHeading = () => screen.queryByText('Compensation');
 
 /**
+ * The gated section's claimed MEMBER field (#6236) — `null` when the layout's
+ * synthesis site stamped the membership claim and the gate took the group.
+ */
+const gatedField = () => screen.queryByLabelText(/salary/i);
+
+/**
  * Every layout, by name, with the mount that reaches its own synthesis site.
  * Named individually because a fix applied to five of six sites still passes a
  * suite that exercises five.
  */
-const LAYOUTS: { label: string; mount: (scope: Record<string, unknown>) => Promise<void> }[] = [
+const LAYOUTS: {
+  label: string;
+  mount: (scope: Record<string, unknown>, gate?: unknown) => Promise<void>;
+}[] = [
   {
     label: 'ObjectForm — stacked `simple` sections (ObjectForm.tsx section-divider)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'simple' }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'simple' }, gate),
   },
   {
     label: 'ModalForm — via ObjectForm delegation (key-by-key remap + ModalForm groups map)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'modal', open: true }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'modal', open: true }, gate),
   },
   {
     label: 'ModalForm — mounted directly (the resolveFormViewLayout shape)',
-    mount: (scope) => renderModalFormDirect(scope),
+    mount: (scope, gate) => renderModalFormDirect(scope, {}, gate),
+  },
+  {
+    // The tabbed arm (#6237): sections render as TAB PANELS, so there is no
+    // divider to stamp — the synthesis site copies the predicate onto the
+    // tab itself (`FormFieldTab.visibleWhen`) and the renderer hides trigger,
+    // panel and members together. In the DENIED row `gatedHeading()` is the
+    // tab TRIGGER text rather than a divider heading — same locator, same
+    // authored key, seventh synthesis site.
+    label: "ModalForm — contentLayout 'tabbed', mounted directly (fieldTabs synthesis, #6237)",
+    mount: (scope, gate) => renderModalFormDirect(scope, { contentLayout: 'tabbed' }, gate),
+  },
+  {
+    // Same arm via ObjectForm delegation: `contentLayout` rides the spread and
+    // the key-by-key section remap must have copied `visibleWhen` for the tab
+    // to receive it — both hops, like the stacked modal row above.
+    label: "ModalForm — contentLayout 'tabbed', via ObjectForm delegation (#6237)",
+    mount: (scope, gate) =>
+      renderObjectForm(scope, { formType: 'modal', open: true, contentLayout: 'tabbed' }, gate),
+  },
+  {
+    // The `formType: 'tabbed'` arm (#6237, this card). Same shape as the two
+    // modal-tabbed rows above — sections become tab panels, so the stamp is the
+    // tab's own `FormFieldTab.visibleWhen` and `gatedHeading()` reads the tab
+    // TRIGGER text — but a DIFFERENT chain: `ObjectForm`'s tabbed map into
+    // `TabbedForm`'s own `fieldTabs` synthesis. Both hops must copy the key, and
+    // a row per chain is the point of this matrix: the modal rows stayed green
+    // through the entire period this arm was inert.
+    label: "TabbedForm — formType 'tabbed', via ObjectForm delegation (tabbed map + fieldTabs synthesis, #6237)",
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'tabbed' }, gate),
   },
   {
     label: 'DrawerForm — via ObjectForm delegation (key-by-key remap + explicit-sections divider)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'drawer', open: true }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'drawer', open: true }, gate),
   },
   {
     label: 'SplitForm — via ObjectForm delegation (key-by-key remap + paneFields divider)',
-    mount: (scope) => renderObjectForm(scope, { formType: 'split' }),
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'split' }, gate),
   },
 ];
 
 describe('#6111 — an authored section `visibleWhen` reaches an evaluator in every layout', () => {
-  describe('DENIED — the predicate resolves FALSE, so the section heading is HIDDEN', () => {
-    // ⚠️ THE deliverable. Green here is the only observation that separates
-    // "the predicate arrived and was evaluated" from "it never arrived" —
-    // every other row in this file is green on unfixed code.
+  describe('DENIED — the predicate resolves FALSE, so the whole section is HIDDEN', () => {
+    // ⚠️ THE deliverable, in two halves. The heading half (#6111) separates
+    // "the predicate arrived and was evaluated" from "it never arrived"; the
+    // member half (#6236) separates "this layout's synthesis site stamped the
+    // membership claim" from "the divider arrived claim-less and the gate
+    // stayed heading-only" — an unstamped site fails ONLY here, in the SHOWN
+    // direction, because a claim-less divider is valid compat behaviour
+    // everywhere else.
     for (const layout of LAYOUTS) {
       it(layout.label, async () => {
         await layout.mount(DENIED);
         expect(gatedHeading()).toBeNull();
+        expect(gatedField()).toBeNull();
       });
     }
   });
@@ -236,10 +324,13 @@ describe('#6111 — an authored section `visibleWhen` reaches an evaluator in ev
   describe('ALLOWED — the SAME predicate text, a user it admits ⇒ still SHOWN', () => {
     // The control. Without it, "hidden" is satisfied by a layout that dropped
     // the heading for an unrelated reason — a worse defect, invisible above.
+    // The member assertion keeps the same honesty for the group half: a gate
+    // that hides claimed fields unconditionally would pass every DENIED row.
     for (const layout of LAYOUTS) {
       it(layout.label, async () => {
         await layout.mount(ALLOWED);
         expect(gatedHeading()).not.toBeNull();
+        expect(gatedField()).not.toBeNull();
       });
     }
   });
@@ -250,43 +341,39 @@ describe('#6111 — an authored section `visibleWhen` reaches an evaluator in ev
     // purpose: the only difference from the DENIED block is the ROOT the
     // predicate names, so a fail-CLOSED regression cannot hide behind the
     // membership test.
+    //
+    // Mounted through `layout.mount` like the two blocks above (#6237's edit):
+    // the loop used to render the SAME simple form under every row's label, so
+    // five FAULTED rows named layouts they never mounted — fail-open was only
+    // ever measured on the stacked path.
     for (const layout of LAYOUTS) {
       it(layout.label, async () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const unbound = cel("'sales_manager' in no_such_root.positions");
-        render(
-          <PredicateScopeProvider scope={DENIED as any}>
-            <ObjectForm
-              schema={{
-                type: 'object-form',
-                objectName: 'crm_case',
-                mode: 'create',
-                formType: 'simple',
-                sections: [
-                  { name: 'always', label: 'Always', fields: ['subject'] },
-                  { name: 'pay', label: 'Compensation', visibleWhen: unbound, fields: ['salary'] },
-                ],
-              } as any}
-              dataSource={dataSource}
-            />
-          </PredicateScopeProvider>,
-        );
-        await waitFor(() => expect(screen.getByText('Always')).toBeTruthy());
+        await layout.mount(DENIED, unbound);
         expect(gatedHeading()).not.toBeNull();
+        expect(gatedField()).not.toBeNull();
       });
     }
   });
 
-  it('measured scope: a hidden section still renders its FIELDS (objectui#6111 follow-up)', async () => {
-    // NOT an endorsement — an honest pin of what this change does and does not
-    // deliver. `section-divider` is a presentational ROW; the renderer holds no
-    // association between it and the fields after it, so the heading goes and
-    // the fields stay. The console renderer drops the whole `<section>`.
-    // Reconciling the two needs a renderer-side grouping contract and is filed
-    // separately; this assertion turning red is the SIGNAL that it landed.
+  it('measured scope: a hidden section hides its FIELDS too (objectui#6236 wiring landed)', async () => {
+    // FLIPPED — deliberately, and exactly once. From #6111 until the #6236
+    // wiring landed, this case pinned the honest limitation: the divider was a
+    // presentational row, so a false section predicate removed the heading and
+    // LEFT THE FIELDS RENDERING (`expect(getByLabelText(/salary/i)).toBeTruthy()`
+    // stood here). #6111 wrote it so that its red flip would be the SIGNAL the
+    // grouping contract landed rather than a broken test — and that is what
+    // happened: the synthesis sites now stamp the membership claim
+    // (`fields: [...names]`) onto the divider, the renderer gates the whole
+    // group, and this case now pins the NEW contract on the same chain, the
+    // same mount, the same predicate: heading gone AND claimed field gone,
+    // matching the console renderer at last. Values still submit and hidden
+    // members skip client-side validation — pinned at the renderer in
+    // section-grouping-6236.test.tsx.
     await renderObjectForm(DENIED, { formType: 'simple' });
     expect(gatedHeading()).toBeNull();
-    expect(screen.getByLabelText(/salary/i)).toBeTruthy();
+    expect(gatedField()).toBeNull();
   });
 });

@@ -73,6 +73,7 @@ import {
   detectDraftResult,
   detectProposedPlan,
   detectBuilderHandoff,
+  detectRecordHandoff,
   detectProposedChanges,
   detectReplayOutcome,
   detectBuiltAppPackage,
@@ -103,7 +104,9 @@ import { AppHeader } from '../../layout/AppHeader.js';
 import { armChatDockExpanded, readDockReturnLocation } from '../../layout/chatDockState.js';
 import { fetchPendingDraftCount } from '../../preview/draftStatus.js';
 import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
-import { getRuntimeConfig } from '../../runtime-config.js';
+import { getRuntimeConfig, isAiStudioEnabled } from '../../runtime-config.js';
+import { makerConvergedOnBuild, makerVisibleAgents } from '../../hooks/surfaceAgent.js';
+import { useCanAuthorMetadata } from '../../hooks/useCanAuthorMetadata.js';
 import { cloudPricingDeepLink } from '../marketplace/marketplaceApi.js';
 import { useNavigationContext } from '../../context/NavigationContext.js';
 import {
@@ -193,6 +196,7 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
         // live floating-chat mapper (extractToolInvocations) already lifts all
         // four; this is its hydration counterpart.
         const builderHandoff = detectBuilderHandoff(result);
+        const recordHandoff = detectRecordHandoff(result);
         const proposedChanges = detectProposedChanges(result);
         // objectui#5695 — a confirm-replay result becomes a terminal state on
         // the original 确认修改 card; it must never rehydrate as an ordinary
@@ -207,6 +211,7 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
           ...(draftReview && !replayOutcome ? { draftReview } : {}),
           ...(proposedPlan ? { proposedPlan } : {}),
           ...(builderHandoff ? { builderHandoff } : {}),
+          ...(recordHandoff ? { recordHandoff } : {}),
           ...(proposedChanges ? { proposedChanges } : {}),
           ...(replayOutcome ? { replayOutcome } : {}),
           ...(part.errorText ? { errorText: String(part.errorText) } : {}),
@@ -812,13 +817,24 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // here, then stripped as the route is canonicalized to `/ai/:agent`.
   const legacyAgentParam = !agentSegment ? searchParams.get('agent') ?? undefined : undefined;
 
+  // cloud#1674 maker convergence — the ONE predicate for this page's ask→build
+  // collapse (shared with ChatPane's launcher filter via surfaceAgent.ts).
+  const canAuthorMetadata = useCanAuthorMetadata();
+  const makerConverged = makerConvergedOnBuild(agents, canAuthorMetadata, isAiStudioEnabled());
+
   // App/platform default — used for a bare `/ai` (respecting the legacy
   // `?agent=`), and as the endpoint while a legacy bare-id link is being
   // redirected to its real agent surface.
-  const fallbackAgent = useMemo(
-    () => resolveDefaultAgentName(agents, legacyAgentParam ?? defaultAgentProp ?? envDefaultAgent),
-    [agents, legacyAgentParam, defaultAgentProp, envDefaultAgent],
-  );
+  const fallbackAgent = useMemo(() => {
+    const resolved = resolveDefaultAgentName(agents, legacyAgentParam ?? defaultAgentProp ?? envDefaultAgent);
+    // cloud#1674 — a maker's bare `/ai` (or an ask-preferring `?agent=` link)
+    // lands on the converged build composer: ask is no longer a start surface
+    // for principals who can author. Custom-agent preferences pass through.
+    if (makerConverged && isAskAgent(resolved)) {
+      return resolveAgentParam('build', catalogNames) ?? resolved;
+    }
+    return resolved;
+  }, [agents, legacyAgentParam, defaultAgentProp, envDefaultAgent, makerConverged, catalogNames]);
 
   // Resolved backend agent name for this surface (route agent wins; else default).
   const activeAgent = useMemo(() => {
@@ -931,11 +947,20 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
       navigate(`/ai/${friendly}${preservedQuery}`, { replace: true });
       return;
     }
+    // cloud#1674 — a maker landing on BARE `/ai/ask` (no conversation) is
+    // redirected to the converged build composer; ask stopped being a start
+    // surface for authoring principals. WITH a conversation id the link keeps
+    // working, so existing ask threads (sidebar rows, old deep links) still
+    // open and render.
+    if (makerConverged && segmentIsAgent && isAskAgent(activeAgent) && !urlConversationId) {
+      navigate(`/ai/build${preservedQuery}`, { replace: true });
+      return;
+    }
     if (segmentIsAgent && agentSegment !== friendly) {
       const tail = urlConversationId ? `/${encodeURIComponent(urlConversationId)}` : '';
       navigate(`/ai/${friendly}${tail}${preservedQuery}`, { replace: true });
     }
-  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, unavailableKnownAgent, urlConversationId, searchString, navigate]);
+  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, unavailableKnownAgent, makerConverged, urlConversationId, searchString, navigate]);
 
   // ── Legacy `/ai/:conversationId` (bare id) ──────────────────────────────
   // Resolve the conversation's own agent and 301 to `/ai/:agent/:conversationId`
@@ -1226,6 +1251,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             userId={userId}
             apiBase={apiBase}
             activeAgent={activeAgent}
+            includeAskConversations={makerConverged}
             refreshKey={refreshKey}
             titleHints={titleHints}
             className="h-full border-r-0"
@@ -1268,6 +1294,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
               userId={userId}
               apiBase={apiBase}
               activeAgent={activeAgent}
+              includeAskConversations={makerConverged}
               refreshKey={refreshKey}
               titleHints={titleHints}
               className="w-72 min-h-0 flex-1 border-r-0"
@@ -1457,7 +1484,16 @@ export function ChatPane({
   // The agent dropdown is a LAUNCHER now (not an in-surface mode toggle): it
   // navigates to `/ai/:agent`, so it naturally lists custom agents and can stay
   // always-available. Shown only when there's more than one agent to switch to.
-  const showAgentLauncher = agents.length > 1;
+  //
+  // cloud#1674 maker convergence: for an authoring-capable principal the
+  // built-in `ask` leaves the launcher — build subsumes it (data superset since
+  // cloud#1673), so Ask/Build stop being peer modes and the maker gets ONE
+  // composer. Computed INSIDE ChatPane so every host (full `/ai` page, Studio
+  // copilot, console dock) converges identically. Custom agents stay listed;
+  // ask conversations stay openable — only the "start here" affordance goes.
+  const canAuthorMetadata = useCanAuthorMetadata();
+  const launcherAgents = makerVisibleAgents(agents, canAuthorMetadata, isAiStudioEnabled());
+  const showAgentLauncher = launcherAgents.length > 1;
 
   // ADR-0057 P4 — the `ask` agent declined an authoring request (suggest_builder).
   // Open the full-page BUILD surface seeded with the handoff prompt (carried as
@@ -1477,6 +1513,33 @@ export function ChatPane({
       navigate(`/ai/build${qs ? `?${qs}` : ''}`);
     },
     [navigate, editPackageId, conversationId],
+  );
+
+  // cloud#1658 — land the user on the record an `open_record` hand-off names.
+  // The payload has objectName + recordId but the canonical record route needs
+  // the APP segment (`/apps/:app/:object/record/:id`), so resolve the object's
+  // owning package on click — one same-origin metadata read — instead of
+  // burdening the agent with an id it may not know. `setup` is the fallback
+  // shell for an object no package claims.
+  const openRecord = useCallback(
+    async (handoff: { objectName: string; recordId: string }) => {
+      let app = 'setup';
+      try {
+        const r = await fetch(`/api/v1/meta/object/${encodeURIComponent(handoff.objectName)}`, {
+          credentials: 'include',
+        });
+        if (r.ok) {
+          const j = (await r.json()) as { item?: { _packageId?: unknown } };
+          if (typeof j?.item?._packageId === 'string' && j.item._packageId) app = j.item._packageId;
+        }
+      } catch {
+        /* resolution is best-effort; the fallback below still lands on the record */
+      }
+      navigate(
+        `/apps/${encodeURIComponent(app)}/${encodeURIComponent(handoff.objectName)}/record/${encodeURIComponent(handoff.recordId)}`,
+      );
+    },
+    [navigate],
   );
 
   // ── ADR-0037 Live Canvas ────────────────────────────────────────────────
@@ -1974,7 +2037,7 @@ export function ChatPane({
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {showAgentLauncher ? (
-          agents.length <= 3 ? (
+          launcherAgents.length <= 3 ? (
             // Claude-Code-style segmented switcher (mirrors the floating
             // assistant) so Ask/Build read as visible peer modes, not a hidden
             // dropdown. Each tab navigates to that agent's surface. Falls back
@@ -1988,7 +2051,7 @@ export function ChatPane({
                 data-testid="ai-chat-agent-picker"
                 aria-label={t('console.ai.switchAssistant', { defaultValue: 'Switch assistant' })}
               >
-                {agents.map((agent) => (
+                {launcherAgents.map((agent) => (
                   <TabsTrigger
                     key={agent.name}
                     value={agent.name}
@@ -2015,7 +2078,7 @@ export function ChatPane({
                 <SelectValue placeholder={t('console.ai.chooseAgent', { defaultValue: 'Choose assistant…' })} />
               </SelectTrigger>
               <SelectContent align="start">
-                {agents.map((agent) => (
+                {launcherAgents.map((agent) => (
                   <SelectItem key={agent.name} value={agent.name} className="text-xs">
                     <span className="font-medium">
                       {localizeAgentLabel(t, agent.name, agent.label)}
@@ -2181,6 +2244,7 @@ export function ChatPane({
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
         onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
         onOpenBuilder={openBuilder}
+        onOpenRecord={openRecord}
         surface="plain"
         maxHeight="100%"
         headerSlot={headerSlot}

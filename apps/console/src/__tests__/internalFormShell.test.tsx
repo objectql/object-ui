@@ -60,6 +60,9 @@ vi.mock('@object-ui/app-shell', () => ({
   // The route elements are built when App renders, so this export is
   // read even by a test that never visits /docs.
   LoadingScreen: stub('loading-screen'),
+  // App.tsx's catch-all route element (objectui#6378). Read for the same
+  // reason `LoadingScreen` is: the route table is built when App renders.
+  RedirectWithSplash: stub('redirect-with-splash'),
   RequireAiSurface: passthrough,
   SystemRedirect: () => null,
   DefaultHomeLayout: ({ children }: { children?: ReactNode }) => (

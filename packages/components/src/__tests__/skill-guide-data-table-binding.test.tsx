@@ -47,7 +47,7 @@
  * whichever way that one lands — nothing below asserts a column key spelling.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import fs from 'node:fs';
@@ -61,6 +61,7 @@ import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 // file lives INSIDE `@object-ui/components`, and the bare specifier would be a
 // package self-import (`scripts/check-package-self-import.mjs`).
 import '../renderers';
+import { DATA_TABLE_BIND_DIAGNOSTIC_PREFIX } from '../renderers/complex/dataTableBindDiagnostic';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../../..');
@@ -115,6 +116,21 @@ function bodyCells(): string[] {
   return Array.from(document.querySelectorAll('tbody td')).map((td) => (td.textContent ?? '').trim());
 }
 
+/**
+ * objectui#6575 — every `[ObjectUI] DataTable bind:` line this render emitted.
+ *
+ * Filtered by the diagnostic's own prefix rather than by call count: these
+ * renders go through the REAL `SchemaRenderer` and the real registry, so an
+ * unrelated warning from some other component must not be able to satisfy —
+ * or break — an assertion about this one.
+ */
+function bindWarnings(): string[] {
+  const spy = console.warn as unknown as { mock?: { calls: unknown[][] } };
+  return (spy.mock?.calls ?? [])
+    .map((args) => String(args[0]))
+    .filter((line) => line.startsWith(DATA_TABLE_BIND_DIAGNOSTIC_PREFIX));
+}
+
 function renderNode(schema: unknown, dataSource: unknown) {
   return render(
     <SchemaRendererProvider dataSource={dataSource}>
@@ -156,11 +172,22 @@ describe('skill guides — no `data-table` example is bound with `bind` (#5126, 
   });
 });
 
-describe('skill guides — the taught `data-table` form renders rows (#5126)', () => {
+describe('skill guides — the taught `data-table` form renders rows (#5126, #6575)', () => {
   // A decoy dataSource: it holds exactly the path the retired example bound to.
   // Rows appearing while this is in scope proves they came from the node's
   // inline `data`, not from the provider.
   const DECOY = { customers: [{ name: 'Should Not Appear', email: 'decoy@example.com' }] };
+
+  // objectui#6575 added a render-time diagnostic on the ignored `bind`. Both
+  // legs below now read it, in opposite directions, off the SAME renders that
+  // already pin the behaviour — so "the table is still empty" and "the author
+  // is now told why" cannot drift apart into two trees.
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it.each(['skills/objectui/guides/schema-expressions.md', 'skills/objectui/guides/data-integration.md'] as const)(
     '%s: the inline-`data` table puts its rows on screen',
@@ -179,6 +206,13 @@ describe('skill guides — the taught `data-table` form renders rows (#5126)', (
         'Grace Hopper',
         'grace@example.com',
       ]);
+
+      // objectui#6575, the SILENT direction. This node carries no `bind`, so
+      // the diagnostic must not fire — a warning that fires on every table is
+      // worse than no warning at all. The zero is a reading because the
+      // sibling test below finds a line through this same helper, on the same
+      // channel, one `bind` key apart.
+      expect(bindWarnings()).toEqual([]);
     },
   );
 
@@ -198,6 +232,27 @@ describe('skill guides — the taught `data-table` form renders rows (#5126)', (
     // not assumed: the bound array never reaches the renderer at all.
     expect(document.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(bodyCells()).toEqual(['No results foundTry adjusting your filters or search query.']);
+
+    // objectui#6575 — the trap stops being silent (maintainer ruling
+    // 2026-08-27, option A). THIS is the load-bearing half of the update:
+    // every assertion above passes identically against the tree before the
+    // diagnostic existed, so only the lines below can tell the two apart.
+    //
+    // Behaviour is unchanged and stays pinned above: the rows still do not
+    // arrive. What is new is that the author is told so.
+    const warnings = bindWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("`bind: 'customers'` is ignored");
+    // The sentence the ruling names, matching what
+    // `skills/objectui/rules/protocol.md` already teaches.
+    expect(warnings[0]).toContain(
+      'data-table does not read `bind`; it reads its rows from the inline `data` array on the node',
+    );
+    // The consequence, measured rather than asserted: this table really is
+    // empty, and the message says so only because of that.
+    expect(warnings[0]).toContain('renders its header over an empty body');
+    // And the way out.
+    expect(warnings[0]).toContain('Put the rows in `data`');
   });
 });
 

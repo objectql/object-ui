@@ -129,6 +129,16 @@ export const ObjectGridSchema = BaseSchema.extend({
   showPagination: z.boolean().optional(),
   defaultSort: z.object({ field: z.string(), order: z.enum(['asc', 'desc']) }).optional(),
   defaultFilters: z.record(z.string(), z.any()).optional(),
+  // The legacy caption/export-title fallback — `ObjectGrid.tsx` reads it at
+  // exactly two sites, `viewLabel: schema.label || schema.title` and
+  // `caption: schema.label || schema.title`, only when `label` is absent — and
+  // the interface has declared it `@deprecated` all along. Mirrored under
+  // objectui#6639's census-directed ruling (2026-08-29, declare branch:
+  // authored `object-grid.title` nodes exist, so the key is declared rather
+  // than the read retired). Typed `z.string()`, not `z.any()` — serializable
+  // metadata, the #6424 family form: the gain is the typed refusal, since the
+  // `.passthrough()` base was already admitting ANY `title` unexamined.
+  title: z.string().optional().describe('DEPRECATED, write label instead: legacy caption/export-file-title fallback, read only when label is absent'),
   operators: z.record(z.string(), z.any()).optional(), // Missing in previous TS scan but common
   rowActions: z.array(z.string()).optional(),
   batchActions: z.array(z.string()).optional(),
@@ -162,7 +172,7 @@ export const ObjectFormSchema = BaseSchema.extend({
   showSubmit: z.boolean().optional().describe('Show submit button'),
   submitText: z.string().optional().describe('Submit button text'),
   successMessage: z.string().optional().describe('Success toast text after create/update when no onSuccess handler is given'),
-  navigateOnSuccess: z.string().optional().describe('Navigate here after success ({id}/{recordId} interpolated, same-origin-guarded); precedes the toast'),
+  navigateOnSuccess: z.string().optional().describe('DEPRECATED, write submitBehavior instead: navigate here after success (relative path only; {id}/{recordId} interpolated and URL-escaped); precedes the toast'),
   resetOnSuccess: z.boolean().optional().describe('Reset the form after a successful create for another entry'),
   submitBehavior: z.union([
     z.object({ kind: z.literal('thank-you'), title: z.string().optional(), message: z.string().optional() }),
@@ -595,6 +605,69 @@ export const ObjectTreeSchema = BaseSchema.extend({
 });
 
 /**
+ * objectui's own `GanttConfig` extensions — everything `../objectql.ts` declares
+ * on {@link GanttConfig} beyond the spec's `GanttConfigSchema` (objectui#6051
+ * lifted nine of them out of `plugin-gantt`'s package-private `GanttConfigEx`;
+ * `timeSegments` was already there).
+ *
+ * Held as ONE field map rather than inlined, so the flattened top-level spelling
+ * below is built from a single source — the same way the TS side derives its
+ * flattened members from `GanttConfig`. It is also the shape the nested `gantt`
+ * block is built from (objectui#6475), one line extending the spec's gantt
+ * config schema with this map — so both authoring faces share one vocabulary
+ * and cannot fork from each other.
+ *
+ * ⚠️ Keep this docstring free of a literal `Spec` + capital-letter token: it
+ * sits between the `ObjectTreeSchema` and `ObjectGanttSchema` export
+ * boundaries, and `zod-mirror-parity.test.ts`'s `SPEC_DERIVED_PAIRS` re-check
+ * scans raw text between export boundaries for `\bSpec[A-Z]\w*` — a match here
+ * is misattributed to `ObjectTreeSchema`, which references no spec schema at
+ * all (measured: this comment alone flipped that test red).
+ *
+ * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
+ * `^export const` out of this directory and would require a registered TS
+ * counterpart for it. It has none of its own — it is a fragment of `GanttConfig`,
+ * and `GanttConfig` is checked through the two faces that carry it.
+ */
+const GanttConfigExtensionFields = {
+  borderColorField: z.string().optional().describe('Record field carrying a per-task alert stroke colour'),
+  lockField: z.string().optional().describe('Record field marking a row view-only (truthy → locked)'),
+  objectField: z.string().optional().describe("Record field carrying the row's own object API name"),
+  summaryExtent: z.enum(['children', 'self']).optional().describe("How a summary bar's span is computed"),
+  defaultCollapsedDepth: z.number().optional().describe('Auto-collapse tree nodes at/below this 0-indexed depth'),
+  dependencyTypes: z.boolean().optional().describe('Whether the store persists dependency link TYPES (fs/ss/ff/sf)'),
+  timeZone: z.string().optional().describe("Business time zone (IANA name) the chart's calendar renders in"),
+  exportFileName: z.string().optional().describe('Base name for exported PNG/PDF files'),
+  interactions: z
+    .object({
+      move: z.boolean().optional().describe('Bar / subtree dragging'),
+      resize: z.boolean().optional().describe('Edge resize grips'),
+      progress: z.boolean().optional().describe('The progress drag handle'),
+      link: z.boolean().optional().describe('Dependency UI: drag-to-link dots and the create/delete menu'),
+    })
+    .optional()
+    .describe('Per-interaction switches, each defaulting to true'),
+  timeSegments: z
+    .object({
+      dayStart: z.string().optional().describe("Clock time the shift-day begins, 'HH:mm'"),
+      bands: z
+        .array(
+          z.object({
+            key: z.string().optional().describe('Stable band id'),
+            label: z.string().describe('Display label'),
+            start: z.string().describe("Band start, 'HH:mm'"),
+            end: z.string().describe("Band end, 'HH:mm'"),
+            color: z.string().optional().describe('Accent colour for the column tint'),
+          })
+        )
+        .describe('Ordered bands covering the 24h shift-day'),
+      showMidnight: z.boolean().optional().describe('Draw the dashed calendar-midnight cue'),
+    })
+    .optional()
+    .describe('Shift segmentation for the day-mode timeline'),
+};
+
+/**
  * ObjectGantt Schema
  */
 export const ObjectGanttSchema = BaseSchema.extend({
@@ -603,7 +676,14 @@ export const ObjectGanttSchema = BaseSchema.extend({
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
-  dependencyField: z.string().optional().describe('Dependency field'),
+  // The legacy singular alias. Kept accepted — `getGanttConfig`'s flat branch
+  // reads `dependenciesField || dependencyField` — but no longer declared as an
+  // equal of the canonical key: same treatment `KanbanConfig` above gives
+  // `groupField`/`cardFields`, so this adopts the ruled idiom rather than a
+  // second spelling of "deprecated". The canonical `dependenciesField` is
+  // declared below, BY REFERENCE to the spec (objectui#6470).
+  /** @deprecated legacy alias for the spec's `dependenciesField` */
+  dependencyField: z.string().optional().describe('Deprecated alias for dependenciesField'),
   progressField: z.string().optional().describe('Progress field'),
   // DERIVED from the spec's `GanttConfigSchema.shape.viewMode` (an optional
   // enum, deliberately WITHOUT a default) so the member list cannot drift
@@ -642,6 +722,58 @@ export const ObjectGanttSchema = BaseSchema.extend({
   showBaselines: z.boolean().optional().describe('Render planned-vs-actual baseline bars — defaults ON, only an explicit false disables'),
   readOnly: z.boolean().optional().describe('Disable every write path and lock the record drawer'),
   mobileReadOnly: z.boolean().optional().describe('Auto read-only on narrow viewports — defaults ON, only an explicit false disables'),
+  // objectui#6051 — the FLATTENED `GanttConfig` face. `getGanttConfig` builds its
+  // config from these top-level keys when the node carries no `gantt` block and
+  // `startDateField` / `endDateField` are both present — the block OUTRANKS this
+  // face (objectui#6469); nothing declared them, on either side,
+  // because `BaseSchema`'s index signature admits them untyped. Mirrored at the
+  // SAME requiredness as `../objectql.ts` (all optional) so the zod-mirror-parity
+  // ratchet stays at zero drift for this pair.
+  //
+  // The spec-modelled members are taken from `SpecGanttConfigSchema.shape` by
+  // reference, exactly as `viewMode` above is, so the vocabulary cannot fork.
+  colorField: SpecGanttConfigSchema.shape.colorField,
+  dependenciesField: SpecGanttConfigSchema.shape.dependenciesField,
+  parentField: SpecGanttConfigSchema.shape.parentField,
+  typeField: SpecGanttConfigSchema.shape.typeField,
+  tooltipFields: SpecGanttConfigSchema.shape.tooltipFields,
+  baselineStartField: SpecGanttConfigSchema.shape.baselineStartField,
+  baselineEndField: SpecGanttConfigSchema.shape.baselineEndField,
+  groupByField: SpecGanttConfigSchema.shape.groupByField,
+  resourceView: SpecGanttConfigSchema.shape.resourceView,
+  assigneeField: SpecGanttConfigSchema.shape.assigneeField,
+  effortField: SpecGanttConfigSchema.shape.effortField,
+  capacity: SpecGanttConfigSchema.shape.capacity,
+  quickFilters: SpecGanttConfigSchema.shape.quickFilters,
+  autoZoomToFilter: SpecGanttConfigSchema.shape.autoZoomToFilter,
+  // …and objectui's own ten, from the one field map above.
+  ...GanttConfigExtensionFields,
+  // `gantt` — the BLOCK face `getGanttConfig`'s FIRST branch reads and prefers
+  // (objectui#6469 ruled block-over-flat) — objectui#6475. Built from the same
+  // field map as the flat face above, `SpecGanttConfigSchema` extended with
+  // `GanttConfigExtensionFields`, so the two authoring faces cannot fork.
+  //
+  // This is the one entry among the 28 that NARROWS rather than merely names: a
+  // `gantt` block previously rode through `.passthrough()` entirely unvalidated;
+  // now it is PARSED against the spec's `GanttConfigSchema`, which REQUIRES
+  // `startDateField`/`endDateField`/`titleField`. This mirror reaches the CLI's
+  // `validate`/`check` through `AnyComponentSchema` → `safeValidateSchema`, so a
+  // block missing the trio moves from "accepted, then warned about at runtime"
+  // to "refused at authoring time" — a `declared = enforced` restoration, not
+  // new requiredness: the renderer already fed the block to
+  // `GanttConfigSchema.safeParse` and logged `[ObjectGantt] Invalid gantt
+  // configuration` on failure. Maintainer ruling, objectui#6475 (2026-08-27),
+  // Option A: enforce as-is, no warning window (excluded by the startup-stage
+  // no-gradualism rule, objectstack#12668 — no named external-user evidence).
+  gantt: SpecGanttConfigSchema.extend(GanttConfigExtensionFields).optional().describe(
+    'Nested gantt config block — the authoring face, and the winner over the flattened top-level keys whenever present'
+  ),
+  // The query/data keys the fetch path reads. They were declared on
+  // `ObjectGridSchema` — what `ObjectGanttProps.schema` used to be typed as before
+  // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.
+  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config'),
+  filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
+  sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
 });
 
 /**

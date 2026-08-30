@@ -260,6 +260,14 @@ const ja = {
       editAsJson: "JSON で編集",
       useVisualBuilder: "ビジュアルビルダーを使用",
     },
+    object: {
+      invalidJson: "JSON が不正です",
+    },
+    location: {
+      refusedFormat:
+        "保存されていません: 緯度, 経度 の組で入力してください（例: 30.2741, 120.1551）。",
+      refusedRange: "保存されていません: {{detail}}",
+    },
     tags: {
       placeholder: "入力してEnterキーで追加…",
     },
@@ -337,7 +345,6 @@ const ja = {
       undo: "取り消す",
       undoing: "取り消し中…",
       done: "完了",
-      selectPlaceholder: "選択…",
       loading: "読み込み中…",
     },
     actions: "アクション",
@@ -531,9 +538,7 @@ const ja = {
     month: "月",
     week: "週",
     day: "日",
-    agenda: "予定表",
     allDay: "終日",
-    noEvents: "予定はありません",
     newEvent: "新しい予定",
     moreEvents: "+{{count}} 件",
   },
@@ -676,6 +681,15 @@ const ja = {
     },
     gantt: {
       rowLabel: "項目",
+      unusableRange: {
+        malformedDate:
+          "ガントの日付範囲が使用できません — {{path}} が {{value}} で、有効な日付として解析できません。ガントのすべての日付は解析可能である必要があります: 各行アイテムの startDate と endDate、およびスキーマで固定した minDate / maxDate。",
+        inverted:
+          "ガントの日付範囲が使用できません — minDate {{minDate}} が maxDate {{maxDate}} より後です。固定した minDate / maxDate は行から計算した範囲より優先されるため、この軸には列がなくバーを配置できません。2 つの値を入れ替えてください。",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "サポートされていないバリアント \"gantt\" — オブジェクト連動のタイムラインはフィードバリアント（{{variants}}）を描画します。ガントには、それぞれが入れ子の items を持つリテラル行が必要なため、ここではガント軸（scale）は効果がありません。",
     },
   },
   gantt: {
@@ -1027,16 +1041,8 @@ const ja = {
     noValue: "値なし",
   },
   chart: {
-    noData: "チャートデータがありません",
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
-  },
-  map: {
-    searchLocations: "場所を検索…",
-    locationDetails: "場所の詳細",
-    markersCount: "{{count}} 個のマーカー",
-    invalidCoordinates: "座標が欠落または無効なため、{{count}} 件のレコードが地図から除外されました。",
-    invalidCoordinatesPlural: "座標が欠落または無効なため、{{count}} 件のレコードが地図から除外されました。",
   },
   dashboard: {
     noRows: "行がありません",
@@ -1353,7 +1359,6 @@ const ja = {
       defaultValue: "デフォルト値",
       placeholder: "プレースホルダー",
       referenceTo: "参照先",
-      formula: "数式",
       options: "オプション",
       addOption: "オプションを追加",
       validationRules: "検証ルール",
@@ -2278,8 +2283,6 @@ const ja = {
     browseMarketplace: "アプリマーケットプレイスを参照",
     quickActions: {
       title: "クイックアクション",
-      createApp: "アプリを作成",
-      createAppDesc: "新しいアプリケーションを開始",
       manageObjects: "オブジェクトを管理",
       manageObjectsDesc: "データモデルを設定",
       systemSettings: "システム設定",
@@ -2295,11 +2298,6 @@ const ja = {
     greetingNight: "夜遅くまで作業中",
     heroTagline: "前回の続きを始めるか、新しいものを探索してください。",
     open: "開く",
-    stats: {
-      apps: "アプリケーション",
-      starred: "スター付き",
-      recent: "最近のアイテム",
-    },
     recentApps: {
       title: "最近アクセスしたもの",
       itemType: {
@@ -2330,7 +2328,6 @@ const ja = {
       organizations: "組織",
       roles: "ロール",
       configuration: "構成",
-      createApp: "アプリを作成",
       administration: "管理",
       datasources: "データソース",
       documentation: "ドキュメント",
@@ -2355,6 +2352,7 @@ const ja = {
       typeUpdate: "更新",
       typeDelete: "削除",
       typeComment: "コメント",
+      typeSystem: "システム",
       relativeJustNow: "たった今",
       relativeSecondsAgo: "{{count}}秒前",
       relativeMinutesAgo: "{{count}}分前",
@@ -2420,8 +2418,6 @@ const ja = {
     cancel: "キャンセル",
     confirm: "確認",
     uploading: "アップロード中…",
-    defaultActionTitle: "アクション",
-    ok: "OK",
     lookupPlaceholder: "{{label}} のレコードID",
     lookupHelpText: "このパラメータには参照オブジェクトが設定されていないため、レコードピッカーを利用できません。レコードIDを直接入力するか、管理者にアクションパラメータの修正を依頼してください。",
   },
@@ -2429,11 +2425,6 @@ const ja = {
     title: "操作の確認",
     confirm: "続行",
     cancel: "キャンセル",
-  },
-  rowAction: {
-    openMenu: "メニューを開く",
-    edit: "編集",
-    delete: "削除",
   },
   navigationSync: {
     addedPage: "ナビゲーション更新：ページ「{{name}}」を追加しました",
@@ -2465,15 +2456,6 @@ const ja = {
     printDialogOpening: "ブラウザーの印刷ダイアログを開いています（PDF エクスポートではありません）",
     exportFailed: "エクスポートに失敗しました：{{message}}",
     forecastSoon: "予測ビューは近日公開予定",
-  },
-  recordDetail: {
-    viewersTooltip: "このレコードを閲覧中のユーザー",
-  },
-  cellRender: {
-    empty: "空",
-    yes: "はい",
-    no: "いいえ",
-    systemFields: "システム",
   },
   user: {
     profile: "プロフィール",
@@ -3409,6 +3391,44 @@ const ja = {
       bulkFailureJoiner: "、",
       bulkOperationFailed: "一括操作に失敗しました：{{reason}}",
     },
+  },
+  // objectui#6301 — 設定 › パッケージ自動化 (ADR-0126 §7.4)。用語は既存訳に
+  // 合わせています: `common.package` = パッケージ、`flowRunner.completed` =
+  // フロー、引用符は「」。⛔ 系譜・ドリフトを示す語はこのグループに置きません (§9)。
+  packagedAutomation: {
+    title: "パッケージ自動化",
+    subtitle: "インストール済みパッケージが提供するフローとアクションです。このデプロイでオフにできます。フローは新しい名前でクローンしてカスタマイズすることもできます。編集は Studio で行います。",
+    refresh: "更新",
+    flowsHeading: "パッケージフロー",
+    actionsHeading: "パッケージアクション",
+    colFlow: "フロー",
+    colActivation: "有効状態",
+    colActions: "操作",
+    toggleLabel: "{{label}} の有効状態",
+    on: "オン",
+    off: "オフ",
+    clone: "クローン",
+    cloneTitle: "パッケージフローをクローン",
+    cloneBody: "コピーは定義全体を引き継ぎ、新しいマシン名とラベルが必要です。コピーの編集は Studio で行ってください。",
+    cloneName: "新しいマシン名",
+    cloneLabel: "新しいラベル",
+    cancel: "キャンセル",
+    cloneConfirm: "クローンを作成",
+    cloneCreated: "フロー「{{name}}」を作成しました。",
+    emptyTitle: "パッケージフローはありません",
+    emptyBody: "このデプロイには、自動化フローを提供するインストール済みパッケージがありません。自分で作成したフローは Studio にあります。",
+    loadFailed: "パッケージ自動化を読み込めませんでした。",
+    toggleFailedHttp: "有効状態を変更できませんでした (HTTP {{status}})。",
+    toggleFailed: "有効状態を変更できませんでした。",
+    cloneFailedHttp: "このフローをクローンできませんでした (HTTP {{status}})。",
+    cloneFailed: "このフローをクローンできませんでした。",
+    actionsSubtitle: "インストール済みパッケージが提供するアクションです。このデプロイでオフにすると、提供されているすべての場所で実行されなくなります。自分のアクションを別途 Studio で作成することは引き続き可能です。",
+    colAction: "アクション",
+    colObject: "オブジェクト",
+    actionToggleLabel: "{{object}} の {{label}} の有効状態",
+    actionsEmptyTitle: "パッケージアクションはありません",
+    actionsEmptyBody: "このデプロイには、アクションを宣言するインストール済みパッケージがありません。自分で作成したアクションは Studio にあります。",
+    actionsLoadFailed: "パッケージアクションを読み込めませんでした。",
   },
 };
 

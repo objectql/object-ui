@@ -113,12 +113,95 @@ describe('objectui#5424 — `buildExpressionUser` stops advertising the retired 
     const anonymous = buildExpressionUser(null);
 
     expect('roles' in anonymous).toBe(false);
+    // objectui#6534 widened this from five keys to six by adding `id: null`.
+    // That is a TIGHTENING of the pin, not a weakening of it, and it was graded
+    // as part of the fix rather than a breach — triage, 2026-08-26, verbatim:
+    //
+    //   "Updating `AppContent.expressionUserShape.test.ts`'s five-key pin is
+    //    part of the fix, not a breach"
+    //
+    // The pin's job is unchanged and its strictness is unchanged: it still
+    // enumerates the WHOLE object with `toStrictEqual`, so an added key, a
+    // dropped key or a key written as explicit `undefined` all still fail here.
+    // Only the enumerated set moved, and it moved to CLOSE the last asymmetry
+    // between the two branches — which is the same symmetry objectui#5424 was
+    // closing when it removed `roles`.
     expect(anonymous).toStrictEqual({
+      id: null,
       name: 'Anonymous',
       email: '',
       role: 'guest',
       isPlatformAdmin: false,
       positions: [],
     });
+  });
+});
+
+/**
+ * objectui#6534 — the anonymous branch ANSWERS `id` instead of omitting it.
+ *
+ * `id` was signed-in-only, so `'id' in buildExpressionUser(null)` was `false`.
+ * An absent key is not `false`: `ctx.user.id == '…'` FAULTS for a signed-out
+ * visitor, and a faulting visibility predicate fails OPEN
+ * (`evaluateVisibility`), so an id-gated field rendered for exactly the
+ * principal it was written to exclude — at EVERY mount site, including the two
+ * that have always called this normaliser correctly.
+ *
+ * ## Why `null` and not `undefined`
+ *
+ * Settled by precedent on this very object, not chosen here. objectui#5424
+ * removed `roles` because present-and-always-`undefined` "is the shape that
+ * teaches the wrong thing" — the context answers rather than being plainly
+ * absent, and the answer is silently wrong. `null` is a VALUE: a CEL author can
+ * compare against it and the comparison resolves. `undefined` would reproduce
+ * exactly the defect objectui#5424 measured, one key over.
+ *
+ * ## Why `in` and not just a value assertion
+ *
+ * Same reason the `roles` pin above uses it: `{ id: undefined }` and `{}` both
+ * read as `undefined` at `user.id`, so only key PRESENCE distinguishes the
+ * three candidate shapes. The `in` check and the value check together are what
+ * separate `null` from both rejected alternatives — neither alone does.
+ *
+ * ## Fenced boundary
+ *
+ * This is NOT a change to fail-open. A predicate that faults still renders
+ * (objectui#6443 / #6487 / #6445 — deliberate, and untouched by this card).
+ * What changed is that this predicate no longer faults.
+ */
+describe('objectui#6534 — the anonymous branch answers `id` rather than omitting it', () => {
+  it('advertises `id` on the anonymous branch', () => {
+    // The pin. This is the assertion that was `false` before the fix, and it is
+    // the one that moves between all three candidate shapes.
+    expect('id' in buildExpressionUser(null)).toBe(true);
+  });
+
+  it('answers `null` there — a value a predicate can compare against', () => {
+    const anonymous = buildExpressionUser(null);
+
+    expect(anonymous.id).toBeNull();
+    // Explicitly NOT `undefined`: that is the shape objectui#5424 rejected on
+    // this object, and `toBeNull` alone would not catch it being reintroduced
+    // as `undefined` on a future edit — `toBeUndefined` would pass on `{}` too.
+    expect(anonymous.id).not.toBeUndefined();
+  });
+
+  it('agrees with the signed-in branch on the key set — the asymmetry is closed', () => {
+    // objectui#5424 removed `roles` to make the two branches agree on one
+    // shape; `id` was the last key they still disagreed on. A future edit that
+    // adds a key to one branch and forgets the other fails HERE, whichever
+    // branch it forgets, without needing to know which key was added.
+    const signedIn = buildExpressionUser(PROTOCOL_17_USER);
+    const anonymous = buildExpressionUser(null);
+
+    expect(Object.keys(anonymous).sort()).toEqual(Object.keys(signedIn).sort());
+  });
+
+  it('still distinguishes anonymous from a signed-in user by VALUE, not by key set', () => {
+    // The converse guard: converging the key sets must not make the two
+    // branches indistinguishable. A gate excluding a signed-out visitor reads
+    // the value, and the values still differ.
+    expect(buildExpressionUser(null).id).toBeNull();
+    expect(buildExpressionUser(PROTOCOL_17_USER).id).toBe('u_1');
   });
 });

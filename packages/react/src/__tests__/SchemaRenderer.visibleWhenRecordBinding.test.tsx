@@ -364,8 +364,26 @@ describe('#5454 leg 3 — an unresolvable predicate is loud, and its verdict is 
       cleanup();
       mountProd({ hidden: cel('record.nope.deeper == 1') }, undefined);
       expect(shown()).toBe(false);
-      // ...but with none of this module's diagnostic, which is dev-only.
-      expect(warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX))).toHaveLength(0);
+      // ...and, since objectui#6038, WITH this module's diagnostic — one line
+      // per distinct faulting predicate source, in production too.
+      //
+      // This assertion used to read `toHaveLength(0)`, and the change is the
+      // whole of the maintainer's 2026-08-25 ruling (option B): "A is rejected
+      // — the silence is no longer an accepted property." The pin is rewritten
+      // rather than deleted, because what it was really guarding is the half
+      // that did NOT move: every verdict above is untouched, and the branch is
+      // still the SINGLE-evaluation one (production never pays for the
+      // `throwOnError` probe — `EvaluationOptions.onFault` reports the fault
+      // the evaluator had already caught).
+      //
+      // TWO lines, not one: the two mounts above carry two DIFFERENT predicate
+      // sources (`record.status == 'in_review'` on `visibleWhen`, and
+      // `record.nope.deeper == 1` on `hidden`). One line each is the dedupe
+      // working; one line total would mean it had swallowed the second.
+      const produced = warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX));
+      expect(produced).toHaveLength(2);
+      expect(produced.some(m => m.includes("record.status == 'in_review'"))).toBe(true);
+      expect(produced.some(m => m.includes('record.nope.deeper == 1'))).toBe(true);
       core.ComponentRegistry.unregister?.(NAME, 'element');
     } finally {
       vi.unstubAllEnvs();
@@ -379,5 +397,58 @@ describe('#5454 leg 3 — an unresolvable predicate is loud, and its verdict is 
     cleanup();
     mount({ visibleWhen: cel("record.status == 'in_review'") }, undefined);
     expect(warn.mock.calls.map(c => String(c[0])).filter(m => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX))).toHaveLength(1);
+  });
+});
+
+/* -------------------------------------------------------------------------- *
+ * objectui#6487 — the node gate names ITS OWN roots, and only those.
+ *
+ * The reporter's closing paragraph became per-tier when objectui#6443 wired the
+ * app-shell chrome gate onto it and that surface started printing the node
+ * tier's roots for a bag that has neither. This cell is the node tier's end of
+ * that split, asserted where a REAL faulting node predicate reaches the
+ * console: the paragraph here is unchanged, and it must not drift onto the
+ * app-shell copy.
+ *
+ * The `not` half is the load-bearing one. `current_user` is named at both tiers,
+ * so asserting on it alone would be green whichever paragraph printed; the cells
+ * below assert the roots the two tiers DISAGREE about.
+ * -------------------------------------------------------------------------- */
+
+describe('#6487 — the node tier`s advice paragraph', () => {
+  it('names the three roots the spec declares, and not the app-shell bag', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // No row is bound, so `record.*` cannot resolve — a real fault, at the real
+    // call site, on the same run as the assertions below.
+    mount({ visibleWhen: cel("record.nosuchroot6487node == 'x'") }, undefined);
+    expect(shown()).toBe(true); // fail-soft verdict, unchanged
+
+    const msg = warn.mock.calls
+      .map((c) => String(c[0]))
+      .find((m) => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX));
+    expect(msg).toBeDefined(); // the fault reached the reporter in THIS run
+    expect(msg).toContain('Page-component predicates bind');
+    expect(msg).toContain('`record`');
+    expect(msg).toContain('`page.<var>`');
+    // The app-shell tier's roots, which this bag does not promise.
+    expect(msg).not.toContain('`features`');
+    expect(msg).not.toContain('`ctx.user`');
+    expect(msg).not.toContain('`os.user`');
+  });
+
+  it('the ambient app scope being mounted does not move the node gate onto the app-shell copy', () => {
+    // `APP_SCOPE` is the bag app-shell's `ExpressionProvider` really publishes,
+    // and `mount` spreads it into the node evaluator — so a fix that had
+    // deduced the tier from what happens to be in scope, rather than from the
+    // call site, would print the app-shell paragraph here. The tier is an
+    // argument precisely so that it cannot.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mount({ visibleWhen: 'nosuchroot6487ambient.x > 1' }, IN_REVIEW, APP_SCOPE);
+    const msg = warn.mock.calls
+      .map((c) => String(c[0]))
+      .find((m) => m.includes(UNRESOLVABLE_VISIBILITY_PREFIX));
+    expect(msg).toBeDefined();
+    expect(msg).toContain('Page-component predicates bind');
+    expect(msg).not.toContain('Neither `record` nor');
   });
 });

@@ -399,8 +399,15 @@ describe('#5687 group 3 — the `record.*` bucket is NOT this card, and cannot b
 
 describe('#5687 group 4 — production is untouched', () => {
   it('a PRODUCTION build reaches the SAME verdicts and prints nothing', async () => {
-    // The diagnostic is dev-only by the same `__DEV__` gate objectui#5454 put
-    // in front of the probe. A gate that changed the ANSWER would be a fork.
+    // THIS leg — objectui#5687's adapter-only `data.*` report — is dev-only,
+    // and stays so: its own ruling (2026-08-22, option A) scoped it there, and
+    // it does not describe a fault at all (the predicate evaluated perfectly,
+    // against the wrong object). The SIBLING leg no longer is: objectui#6038
+    // took the `__DEV__` gate off `reportUnresolvableVisibilityPredicate`, so
+    // a FAULTING predicate is reported in production too. That is why every
+    // assertion below filters on `ADAPTER_ONLY_DATA_PREDICATE_PREFIX` rather
+    // than counting raw `console.warn` calls. A gate that changed the ANSWER
+    // would be a fork, and none of these verdicts moved.
     //
     // The dynamic import lives in the test BODY, not a hook: it has to read
     // module state that only exists after `resetModules` + `stubEnv`, which is

@@ -32,7 +32,7 @@
  */
 
 import * as React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceErrorPanel,
   ElementDataSourceLoadingPanel,
@@ -51,14 +51,7 @@ import {
   SelectItem,
 } from '../../ui';
 import { cn } from '../../lib/utils';
-
-function readProps<T extends Record<string, any>>(schema: any): T {
-  // Per spec, element components carry their config in `schema.properties`.
-  // Tolerate `schema.props` (legacy alias) so JSON written either way works.
-  const fromProperties = (schema?.properties ?? {}) as T;
-  const fromProps = (schema?.props ?? {}) as T;
-  return { ...fromProps, ...fromProperties };
-}
+import { readProps } from './readProps';
 
 function toText(v: unknown): string {
   if (v == null) return '';
@@ -143,7 +136,15 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
         if (sort) query.$orderby = sort;
         if (limit) query.$top = limit;
         const res = await adapter.find(object, query);
-        const data: any[] = res?.data ?? res?.records ?? (Array.isArray(res) ? res : []);
+        // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+        // declares; the bare-array arm stays because fakes at this seam really
+        // do answer with a plain array. A `res?.records` arm sat between them
+        // until objectui#6726 — a below-the-adapter spelling
+        // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
+        // `records` envelope to `data` before returning), so no producer emits
+        // it here. Pinned by
+        // `record-picker.contractEnvelope-6726.test.tsx`.
+        const data: any[] = res?.data ?? (Array.isArray(res) ? res : []);
         if (!cancelled) setRows(data);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? 'Failed to load');
@@ -300,7 +301,26 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
   );
 }
 
-ComponentRegistry.register('record_picker', ElementRecordPickerRenderer, {
+// This block CONSUMES the gate's family without the JSX wrapper — the hook plus
+// the two status panels — because its object lives under `properties` rather
+// than on a schema key the gate could write. It reads `dataSource` exactly as
+// the wrapping blocks do, so it declares it from the same seam: the marker is
+// applied to the renderer at its registration rather than at a gate tag it does
+// not have. Found by the render probe in
+// `apps/console/src/__tests__/element-data-source-input-injection.test.tsx`,
+// which detects the gate's own panels and does not care how they got there.
+//
+// ⚠️ The seam is imported from `@object-ui/core`, NOT from `@object-ui/react`
+// where the sibling blocks take it — the ONE function under the ONE name, by a
+// second path. This is the only site in the family that calls it at MODULE
+// SCOPE inside a package this widely imported, and that combination is a real
+// hazard here: 101 suites partially mock `@object-ui/react` by hand-listing the
+// exports they return, so a module-scope read of a name those lists do not carry
+// throws at COLLECTION time — the whole test file fails before it runs an
+// assertion. Measured on this change: 17 files, all four CI shards, and not one
+// failed assertion among them. Nothing in this repo mocks `@object-ui/core`, and
+// this module already imports `ComponentRegistry` from it at module scope.
+ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecordPickerRenderer), {
   namespace: 'element',
   skipFallback: true,
   label: 'Record Picker',

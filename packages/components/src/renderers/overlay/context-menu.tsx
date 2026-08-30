@@ -7,13 +7,12 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
-import type { ContextMenuSchema } from '@object-ui/types';
+import type { ContextMenuSchema, MenuItem } from '@object-ui/types';
 import { 
   ContextMenu, 
   ContextMenuTrigger, 
   ContextMenuContent, 
-  ContextMenuItem, 
-  ContextMenuLabel, 
+  ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubTrigger,
@@ -37,12 +36,19 @@ import { renderChildren } from '../../lib/utils';
 // re-affirmed for this exact shape by objectui#5930.
 import { resolveIcon } from '../action/resolve-icon';
 
-// Reuse helper for recursive menu items if I could share it, but for now duplicate concise logic
-const renderContextMenuItems = (items: any[]) => {
+// Reuse helper for recursive menu items if I could share it, but for now
+// duplicate concise logic. `items` is the DECLARED `MenuItem[]` (objectui#6346
+// tightened this from `any[]`, which is what let a renderer that read an
+// undeclared spelling type-check in the first place).
+const renderContextMenuItems = (items: MenuItem[] | undefined) => {
   if (!items) return null;
-  return items.map((item: any, i: number) => {
-    if (item.type === 'separator') return <ContextMenuSeparator key={i} />;
-    if (item.type === 'label') return <ContextMenuLabel key={i}>{item.label}</ContextMenuLabel>;
+  return items.map((item, i) => {
+    // The declared divider spelling (objectui#6523) — `context-menu` used to
+    // branch on an undeclared `item.type === 'separator'` instead, which is
+    // now a tombstoned key on `MenuItem` (`type?: never`) rather than a
+    // second accepted dialect. `item.separator` narrows `item` to the
+    // command arm for the remainder of this iteration.
+    if (item.separator) return <ContextMenuSeparator key={i} />;
     // Resolved once per item and read by BOTH arms below. The submenu-trigger
     // arm carries the identical defect; repairing only the leaf would be a
     // narrower version of the same bug (objectui#5930, objectui#6278).
@@ -50,7 +56,7 @@ const renderContextMenuItems = (items: any[]) => {
     if (item.children) {
         return (
             <ContextMenuSub key={i}>
-                <ContextMenuSubTrigger inset={item.inset}>
+                <ContextMenuSubTrigger>
                     {Icon && <Icon className="mr-2 h-4 w-4" />}
                     {item.label}
                 </ContextMenuSubTrigger>
@@ -60,9 +66,13 @@ const renderContextMenuItems = (items: any[]) => {
             </ContextMenuSub>
         )
     }
-    
+
     return (
-      <ContextMenuItem key={i} disabled={item.disabled} inset={item.inset} onSelect={item.onSelect}>
+      // `onSelect` is Radix's callback prop name on `ContextMenuItem`; it
+      // fires the DECLARED `item.onClick` (objectui#6346 — this renderer used
+      // to read an undeclared `item.onSelect` on the schema item instead, so
+      // an authored `onClick` validated, published, and never fired).
+      <ContextMenuItem key={i} disabled={item.disabled} onSelect={() => item.onClick?.()}>
         {Icon && <Icon className="mr-2 h-4 w-4" />}
         {item.label}
         {item.shortcut && <ContextMenuShortcut>{item.shortcut}</ContextMenuShortcut>}
@@ -100,11 +110,11 @@ ComponentRegistry.register('context-menu',
         label: 'Trigger Area',
       },
       { name: 'triggerClassName', type: 'string', label: 'Trigger Area Class' },
-      { 
-        name: 'items', 
-        type: 'array', 
+      {
+        name: 'items',
+        type: 'array',
         label: 'Items',
-        description: 'Recursive structure: { type?: "separator"|"label", label, icon, shortcut, children }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
+        description: 'Recursive structure: a command item { label, icon, shortcut, disabled, onClick, children } or a divider { separator: true }. `icon` is a kebab-case Lucide icon name resolved against lucide\'s runtime `icons` record; an unknown or retired spelling renders no glyph.'
       },
       { name: 'className', type: 'string', label: 'Content CSS Class' }
     ],
@@ -112,7 +122,7 @@ ComponentRegistry.register('context-menu',
       items: [
         { label: 'Action 1' },
         { label: 'Action 2' },
-        { type: 'separator' },
+        { separator: true },
         { label: 'Action 3' }
       ],
       trigger: [{ type: 'text', content: 'Right click here' }]

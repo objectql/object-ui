@@ -34,6 +34,7 @@ import { AiUsageIndicator } from './AiUsageIndicator.js';
 import { useChatConversation } from '../hooks/index.js';
 import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope.js';
 import { resolveSurfaceAgent } from '../hooks/surfaceAgent.js';
+import { useCanAuthorMetadata } from '../hooks/useCanAuthorMetadata.js';
 import { isAiStudioEnabled } from '../runtime-config.js';
 import {
   clampDockWidth,
@@ -255,14 +256,19 @@ function ChatDockConversation({
   onCanvasOpenChange,
 }: ChatDockConversationProps) {
   const { agents, isLoading, error } = useAgents({ apiBase });
+  // cloud#1674 maker convergence — the console dock is a maker surface, so an
+  // authoring-capable principal's ambient thread upgrades ask→build inside the
+  // ONE resolver; business sessions keep the ask ambient thread unchanged.
+  const canAuthorMetadata = useCanAuthorMetadata();
   const activeAgent = React.useMemo(
     () =>
       resolveSurfaceAgent('default', {
         agents,
         appDefaultAgent: defaultAgent,
         aiStudioEnabled: isAiStudioEnabled(),
+        canAuthorMetadata,
       }),
-    [agents, defaultAgent],
+    [agents, defaultAgent, canAuthorMetadata],
   );
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`

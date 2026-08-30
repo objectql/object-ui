@@ -80,6 +80,15 @@ Each `style.css` is a real export, mapped to that package's `dist/index.css` and
 
 `@object-ui/fields/style.css` is a supplement, and the order matters: it is compiled against the components theme and then has every rule that sheet already ships subtracted from it, so it contains only the utilities the field widgets add — the tag colour map, the signature canvas cursor, the rating hover states, and 17 themed utilities such as `hover:bg-accent/30` and `ring-destructive/50` that no consumer-side configuration can generate, because the tokens they resolve live in unpublished package source. Import it before the components sheet, or alone, and those rules resolve against tokens that are not there yet.
 
+`@object-ui/plugin-grid/style.css` and `@object-ui/plugin-kanban/style.css` are the same shape again, one per plugin you install:
+
+```css
+@import "@object-ui/plugin-grid/style.css";
+@import "@object-ui/plugin-kanban/style.css";
+```
+
+Each is compiled against the components theme and then has that sheet's rules subtracted, which is why they are ~16 kB and ~11 kB rather than another 170 each. Between them they carry the 25 themed utilities the two plugins use and neither base sheet contains — `bg-muted/10`, `bg-card/60`, `ring-primary/40` and friends — which nothing on your side can generate ([#4929](https://github.com/objectstack-ai/objectui/issues/4929)). No other `@object-ui/plugin-*` package publishes a stylesheet yet.
+
 Do **not** point Tailwind at the packages inside `node_modules` — neither with a v4 `@source` line nor a v3 `content` entry. Scanning the published files regenerates the shape-only utilities (`inline-flex`, `rounded-md`, `h-9`) the two sheets already contain, and it cannot produce the themed ones at all: the `@theme` block they come from lives in package source, which is not published. Your Tailwind entry goes on generating the classes *your* source uses, exactly as before.
 
 To recolour ObjectUI, override the token values rather than the utilities — either the `:root` custom properties shown above, or a `Theme` object handed to `ThemeProvider` (see below). Both re-theme every component without any scanning.

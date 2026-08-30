@@ -136,7 +136,8 @@ export const ViewSwitcherSchema = BaseSchema.extend({
   activeView: ViewTypeSchema.optional().describe('Current active view'),
   variant: z.enum(['tabs', 'buttons', 'dropdown']).optional().describe('Switcher variant'),
   position: z.enum(['top', 'bottom', 'left', 'right']).optional().describe('Switcher position'),
-  onViewChange: z.string().optional().describe('View change callback'),
+  onViewChange: z.string().optional()
+    .describe('Event name dispatched on window when the view changes (detail: { view }) — an event NAME, not a callback or a handler expression'),
   persistPreference: z.boolean().optional().describe('Persist view preference'),
   storageKey: z.string().optional().describe('Storage key for persisting view'),
   allowCreateView: z.boolean().optional().describe('Show "+" button to add/create a new view'),
@@ -160,7 +161,8 @@ export const FilterUISchema = BaseSchema.extend({
     placeholder: z.string().optional().describe('Placeholder'),
   })).describe('Available filters'),
   values: z.record(z.string(), z.any()).optional().describe('Current filter values'),
-  onChange: z.string().optional().describe('Filter change callback'),
+  onChange: z.string().optional()
+    .describe('Event name dispatched on window when the filters change (detail: { values }) — an event NAME, not a callback or a handler expression'),
   showClear: z.boolean().optional().describe('Show clear button'),
   showApply: z.boolean().optional().describe('Show apply button'),
   layout: z.enum(['inline', 'popover', 'drawer']).optional().describe('Filter layout'),
@@ -179,7 +181,8 @@ export const SortUISchema = BaseSchema.extend({
     field: z.string().describe('Field to sort by'),
     direction: z.enum(['asc', 'desc']).describe('Sort direction'),
   })).optional().describe('Current sort configuration'),
-  onChange: z.string().optional().describe('Sort change callback'),
+  onChange: z.string().optional()
+    .describe('Event name dispatched on window when the sort changes (detail: { sort }) — an event NAME, not a callback or a handler expression'),
   multiple: z.boolean().optional().describe('Allow multiple sort fields'),
   variant: z.enum(['dropdown', 'buttons']).optional().describe('UI variant'),
 });

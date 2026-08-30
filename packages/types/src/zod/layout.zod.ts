@@ -33,6 +33,19 @@ export const DivSchema = BaseSchema.extend({
 });
 
 /**
+ * Box Schema - Neutral block container (objectui#3965)
+ *
+ * The class-transparent replacement for the deprecated `div` on the JSON
+ * authoring surface: renders `children`, authored `className` passes through
+ * verbatim, zero injected classes. Mirrors {@link ../layout.ts BoxSchema};
+ * the pairing is registered in `__tests__/zod-mirror-parity.test.ts`.
+ */
+export const BoxSchema = BaseSchema.extend({
+  type: z.literal('box'),
+  children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
+});
+
+/**
  * Span Schema - Inline text container
  */
 export const TextSpanSchema = BaseSchema.extend({
@@ -393,6 +406,7 @@ export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
  */
 export const LayoutSchema = z.discriminatedUnion('type', [
   DivSchema,
+  BoxSchema,
   TextSpanSchema,
   TextSchema,
   ImageSchema,

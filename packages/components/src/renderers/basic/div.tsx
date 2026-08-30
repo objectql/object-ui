@@ -103,11 +103,37 @@ const DivRenderer = forwardRef<HTMLDivElement, { schema: DivSchema; className?: 
   }
 );
 
-ComponentRegistry.register('div', 
+ComponentRegistry.register('div',
   DivRenderer,
   {
     namespace: 'ui',
     label: 'Container (Deprecated)',
+    /**
+     * The MACHINE-READABLE statement of the deprecation above (objectui#6674).
+     *
+     * Until this key existed, the only two statements that this type is
+     * deprecated were `DIV_DEPRECATION_NOTICE` — a string literal inside a
+     * renderer — and the word inside `label`. Neither can be consulted by a
+     * gate, a test or a type, which is why a deprecated type could be authored
+     * 85 times across 27 shipped exemplars with every check in the repository
+     * green: both gates that touch component types ask whether the type
+     * RESOLVES, and this one resolves.
+     *
+     * `surfaces` carries the objectui#4000 ruling rather than restating it in a
+     * second place: the `isHtmlTierNode` exemption ABOVE and this list are the
+     * same fact, and `__tests__/div-deprecation-provenance.test.tsx` pins them
+     * to each other so neither can move alone.
+     *
+     * ⛔ Declaring this deprecates NOTHING NEW and fails NO build. The catalog
+     * ratchet (`examples/schema-catalog/test/deprecated-component-types.test.ts`,
+     * objectui#6732) freezes the existing stock and refuses growth; draining it
+     * is objectui#3965's worklist.
+     */
+    deprecated: {
+      surfaces: ['json'],
+      replacement:
+        'use "card", "flex", or layout components like "container", "stack", or "grid"',
+    },
     inputs: [
       { name: 'className', type: 'string', label: 'CSS Class' }
     ],

@@ -1,10 +1,6 @@
 {
-  "type": "button",
-  "label": "Delete Item",
-  "onClick": {
-    "action": "toast",
-    "title": "Item Deleted",
-    "description": "The item has been removed.",
-    "actionLabel": "Undo"
-  }
+  "type": "toast",
+  "variant": "warning",
+  "title": "Item Deleted",
+  "description": "The item has been removed."
 }

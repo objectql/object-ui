@@ -2,7 +2,7 @@
   "type": "timeline",
   "variant": "gantt",
   "dateFormat": "short",
-  "timeScale": "month",
+  "scale": "month",
   "rowLabel": "Projects",
   "items": [
     {

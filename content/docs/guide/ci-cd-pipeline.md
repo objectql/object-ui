@@ -25,7 +25,7 @@ one has its own section below.
 |---|---|---|---|
 | `ci.yml` | CI | Push / PR to `main`, `develop`; merge-queue builds | **Yes** — every job but the two coverage-lane jobs (`test-coverage` and `coverage-report`, push only) runs on PRs and on queue builds |
 | `lint.yml` | Lint | Push / PR to `main`, `develop`; merge-queue builds; manual | **Yes** — ESLint **errors** only |
-| `changeset-guard.yml` | Changeset Bump Policy | PR / push touching `.changeset/**` | **Yes** |
+| `changeset-guard.yml` | Changeset Bump Policy, Changeset Overwrite Report | PR / push touching `.changeset/**` or either gate itself | **Yes** — the bump policy job only; the overwrite job is report-only |
 | `changeset-presence.yml` | Changeset Declaration | PR to `main`, `develop` — **no path filter**; merge-queue builds | **Yes** — when a released package's `src/` changed and no changeset was added |
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
@@ -37,6 +37,8 @@ one has its own section below.
 | `vi-mock-specifiers.yml` | Inert vi.mock Specifier Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `vi.mock` / `vi.doMock` relative specifier resolves to no file, or the scan's population collapses |
 | `shell-escape-residue.yml` | Shell Escape Residue Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a fenced block in `AGENTS.md`, `CLAUDE.md`, `skills/**` or `content/docs/**` carries the enumerated machine-produced shell escape, or a scan root fails to resolve |
 | `readme-exports.yml` | README Export Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `packages/**/README.md` imports a name from its own package that the package does not export, or the scan's population collapses |
+| `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
+| `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval pinned to the PR's current head is refused there; on the pull request itself it is deliberately green and prints an early warning |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -65,8 +67,10 @@ The path filters explain most "why did nothing run on my PR?" questions:
   the whole point: a check that is never *created* cannot be a required check — it leaves the PR
   pending rather than failing it — so while the filter sat on the trigger, none of these could be
   required at all.
-- `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes,
-  which is precisely why it is a separate workflow instead of a job inside `ci.yml`.
+- `changeset-guard.yml` carries the inverse filter — it runs *only* when `.changeset/**` changes
+  (plus its own YAML and `scripts/check-changeset-no-major.mjs`, so a change to the gate itself is
+  exercised by the PR that makes it — objectui#6321), which is precisely why it is a separate
+  workflow instead of a job inside `ci.yml`.
 - `changeset-presence.yml` is that guard's mirror image and the reason there are two: a PR which
   *forgot* its changeset does not touch `.changeset/**`, so the inverse filter guarantees the one
   check that could notice never runs. It therefore carries **no** filter and decides from the diff
@@ -74,6 +78,16 @@ The path filters explain most "why did nothing run on my PR?" questions:
 - `control-bytes.yml` and `docs-links.yml` carry **no** filter of any kind, which is equally
   deliberate: both guard markdown, and a gate that a markdown-only PR cannot start is no gate on
   the change most likely to trip it. Both cost a checkout plus one `node` call.
+- `docs-route-eager-closure.yml` carries **no** filter for the opposite reason — not that its
+  subject is invisible to a filter, but that a filter naming everything it reads would be
+  indistinguishable from having none. Its inputs are the whole `/docs/[[...slug]]` module graph:
+  `apps/site/**`, `content/docs/**` (the compiled MDX modules are most of that graph) and
+  `packages/**` — a refactor dropping an import from `packages/plugin-view/src/ObjectView.tsx` is
+  exactly what turns a free declaration into a new graph — plus the gate's own closure under
+  `scripts/`. A filter that then *missed* one of those directories could not be exercised by the
+  pull request that changed it, which is the defect
+  [#6321](https://github.com/objectstack-ai/objectui/issues/6321) records. It too costs a checkout
+  plus one `node` call.
 
 ## Merge Queue
 
@@ -128,14 +142,20 @@ Two things follow for anyone editing this directory:
   inside the derived floor from that moment. "May this context be required?" is still a property of
   the repository's settings that no test here can read — `REQUIRED_CONTEXTS` is a human's answer to
   it, and deriving from that answer beats writing it down a second time and watching the copies
-  drift ([#6160](https://github.com/objectstack-ai/objectui/issues/6160)).
+  drift ([#6160](https://github.com/objectstack-ai/objectui/issues/6160)). A gate that carries no path filter
+  *precisely so that it can be required* is the mirror image of the bullet below, and the sequence
+  matters there too: name its context in `REQUIRED_CONTEXTS` and subscribe `merge_group` in the
+  same commit that creates the workflow, rather than acquiring either afterwards
+  ([#6316](https://github.com/objectstack-ai/objectui/issues/6316) is a worked example — see its
+  own section for which gate that was).
 - **Some contexts can never be required, structurally**, and no amount of triggering changes
   that. Each line below is blocked by a *different* property, which is why they are all worth
   reading; they are examples rather than a census, so a further workflow carrying any of these
   shapes is just as unrequirable without appearing here.
   - **Changeset Bump Policy** (`changeset-guard.yml`) — an **inverse** path filter: its
-    `pull_request` trigger declares `paths: ['.changeset/**']`, so on a PR that touches nothing
-    under `.changeset/**` the context is never created at all.
+    `pull_request` trigger declares
+    `paths: ['.changeset/**', '.github/workflows/changeset-guard.yml', 'scripts/check-changeset-no-major.mjs', 'scripts/check-changeset-overwrite.mjs']`,
+    so on a PR that touches none of those four neither of its contexts is created at all.
   - **Bundle Analysis** (`performance-budget.yml`) — an ordinary path filter on the same
     trigger, with the same consequence for every PR that matches none of its paths.
   - **Live E2E (informational)** (`live-e2e.yml`) — the job carries `continue-on-error: true`,
@@ -186,7 +206,7 @@ it green — which is how two of `type-check`'s gates came to be missing from th
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
 | `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
-| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:phantom-deps`, then `pnpm check:self-import`, then `pnpm check:esm-specifiers`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:designer-field-key-parity`, then `pnpm check:icon-record-names`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:phantom-deps` fails when a released package imports a bare specifier its own `package.json` does not declare — a *phantom dependency*, invisible locally because the workspace root's `devDependencies` sit on the upward resolution path from every package directory and on no consumer's, so `require.resolve('react', { paths: ['packages/core/src'] })` succeeds while `@object-ui/core` declares react in no field at all ([#4394](https://github.com/objectstack-ai/objectui/issues/4394)). `pnpm check:self-import` runs next because it reuses that gate's parser: it fails when a file inside a package names its OWN package, a specifier that resolves through the package's `exports` map to `dist/` while `type-check` waits on `^build` — the *dependencies'* builds, never the package's own — so on a cold cache the declarations do not exist yet and the file fails with `TS2307`. Locally it is always green, because every local workflow builds before it type-checks and leaves a `dist/` behind; PR #4789's first run was red on exactly one such line ([#4801](https://github.com/objectstack-ai/objectui/issues/4801)). `pnpm check:esm-specifiers` follows it for the same reason — sources only, no build: it fails when a published package whose build preserves import specifiers (a bare emitting `tsc`, which never rewrites them) writes a relative specifier with no file extension. Node's ESM resolver does not extension-search relative specifiers, so such a specifier makes the published entry unloadable outside a bundler; `@object-ui/react`'s entry died with `ERR_MODULE_NOT_FOUND` while every bundler-based consumer, the whole test suite and CI stayed green ([#4538](https://github.com/objectstack-ai/objectui/issues/4538)). The half that actually *imports* each built entry needs a full build and runs in `node-esm-load-gate.yml`. `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). `pnpm check:designer-field-key-parity` fails when one of the field designers' statically declared payload shapes (`FieldMetadataPayload`, `ServerFieldSchema`, `DesignerFieldDefinition`) declares a key the installed `@objectstack/spec` `FieldSchema` refuses by NAME. Such a key makes `PUT /api/v1/meta/object/:name` return a hard 422 `INVALID_METADATA` that blocks *every subsequent save* of that object, and the author cannot tell from the designer UI which key did it — the class had been filed three times, each closed with a per-key tombstone written after the instance was found in production, with nothing detecting the next one ([#4644](https://github.com/objectstack-ai/objectui/issues/4644) `indexed`, [#4687](https://github.com/objectstack-ai/objectui/issues/4687) `distance_metric`, [#4676](https://github.com/objectstack-ai/objectui/issues/4676) `placeholder`, gated by [#5761](https://github.com/objectstack-ai/objectui/issues/5761)). It reads the accept set off the schema itself rather than from a list, and it covers a deliberately documented *subset* of the write path: a key that reaches the payload only through a `patchDef` spread or an index signature is outside its reach, and the boundary is stated in the script's own docblock. Its draft-I/O half — the `readFields`/`writeFields` round-trip, which has no declared shape to read — runs in the test suite as `object-fields-io.spec-keys.test.ts`. Same placement rationale as the gates around it: it parses the sources with `typescript` and imports the installed spec, so it needs the install and nothing built. `pnpm check:icon-record-names` fails when an authored icon NAME that reaches a resolver reading lucide's runtime `icons` record is not a live key of that record. lucide retires a spelling by dropping it from that record while keeping it as a deprecated named export, so the retired name still imports, still type-checks and still renders wherever it is used as a *component* — `Edit === SquarePen` is true — and resolves to nothing wherever it is used as a *string*: nothing goes red in either direction, which is why the class was repaired twice in two packages before anyone gated it ([#5586](https://github.com/objectstack-ai/objectui/issues/5586), [#5622](https://github.com/objectstack-ai/objectui/issues/5622), [#5633](https://github.com/objectstack-ai/objectui/issues/5633)). It carries no list of retired spellings — the record itself is the judgement — and it re-discovers the resolver population from source on every run, which is how its first pass found four record-reading resolvers nobody had catalogued. It sits here because it parses the sources with `typescript` and reads the installed lucide: the install, and nothing built. The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:phantom-deps`, then `pnpm check:self-import`, then `pnpm check:side-effects-array`, then `pnpm check:element-data-source-declaration`, then `pnpm check:esm-specifiers`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:designer-field-key-parity`, then `pnpm check:icon-record-names`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:phantom-deps` fails when a released package imports a bare specifier its own `package.json` does not declare — a *phantom dependency*, invisible locally because the workspace root's `devDependencies` sit on the upward resolution path from every package directory and on no consumer's, so `require.resolve('react', { paths: ['packages/core/src'] })` succeeds while `@object-ui/core` declares react in no field at all ([#4394](https://github.com/objectstack-ai/objectui/issues/4394)). `pnpm check:self-import` runs next because it reuses that gate's parser: it fails when a file inside a package names its OWN package, a specifier that resolves through the package's `exports` map to `dist/` while `type-check` waits on `^build` — the *dependencies'* builds, never the package's own — so on a cold cache the declarations do not exist yet and the file fails with `TS2307`. Locally it is always green, because every local workflow builds before it type-checks and leaves a `dist/` behind; PR #4789's first run was red on exactly one such line ([#4801](https://github.com/objectstack-ai/objectui/issues/4801)). `pnpm check:side-effects-array` runs next, sources only and no build: it fails when a package's `sideEffects` ARRAY and its module bodies disagree in either direction — a module that registers something at load time and is not named (a bundler drops it, and the registration is gone from a *consumer's* app with no error, no warning and exit 0), or a name whose module no longer registers anything. `@object-ui/app-shell` declares such an array because both simpler answers are measurably wrong for it: omitting the field makes the whole package unshakeable, and `"sideEffects": false` silently drops three live SDUI widget registrations to zero chunks ([#6535](https://github.com/objectstack-ai/objectui/issues/6535), [#6683](https://github.com/objectstack-ai/objectui/issues/6683)). The enumeration is re-derived from the module bodies on every run rather than listed, so there is no second copy to rot. The artifact half of the same contract — do those registrations survive a real bundler — cannot run in this job at all: it needs a built console, so it lives in the SDUI registration pin step of `performance-budget.yml`. `pnpm check:element-data-source-declaration` runs next, sources only and no build: it fails when a source that consumes `ElementDataSourceGate` does not also pass through `elementDataSourceBlock()`, the seam that declares the `dataSource` key the gate reads. A block that wraps the gate off-seam publishes an authoring surface missing the one key its own runtime honours, and the html tier reports that key with the same `unknown-prop` warning it gives the spellings that do nothing ([#6678](https://github.com/objectstack-ai/objectui/issues/6678)). `pnpm check:esm-specifiers` follows it for the same reason — sources only, no build: it fails when a published package whose build preserves import specifiers (a bare emitting `tsc`, which never rewrites them) writes a relative specifier with no file extension. Node's ESM resolver does not extension-search relative specifiers, so such a specifier makes the published entry unloadable outside a bundler; `@object-ui/react`'s entry died with `ERR_MODULE_NOT_FOUND` while every bundler-based consumer, the whole test suite and CI stayed green ([#4538](https://github.com/objectstack-ai/objectui/issues/4538)). The half that actually *imports* each built entry needs a full build and runs in `node-esm-load-gate.yml`. `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). `pnpm check:designer-field-key-parity` fails when one of the field designers' statically declared payload shapes (`FieldMetadataPayload`, `ServerFieldSchema`, `DesignerFieldDefinition`) declares a key the installed `@objectstack/spec` `FieldSchema` refuses by NAME. Such a key makes `PUT /api/v1/meta/object/:name` return a hard 422 `INVALID_METADATA` that blocks *every subsequent save* of that object, and the author cannot tell from the designer UI which key did it — the class had been filed three times, each closed with a per-key tombstone written after the instance was found in production, with nothing detecting the next one ([#4644](https://github.com/objectstack-ai/objectui/issues/4644) `indexed`, [#4687](https://github.com/objectstack-ai/objectui/issues/4687) `distance_metric`, [#4676](https://github.com/objectstack-ai/objectui/issues/4676) `placeholder`, gated by [#5761](https://github.com/objectstack-ai/objectui/issues/5761)). It reads the accept set off the schema itself rather than from a list, and it covers a deliberately documented *subset* of the write path: a key that reaches the payload only through a `patchDef` spread or an index signature is outside its reach, and the boundary is stated in the script's own docblock. Its draft-I/O half — the `readFields`/`writeFields` round-trip, which has no declared shape to read — runs in the test suite as `object-fields-io.spec-keys.test.ts`. Same placement rationale as the gates around it: it parses the sources with `typescript` and imports the installed spec, so it needs the install and nothing built. `pnpm check:icon-record-names` fails when an authored icon NAME that reaches a resolver reading lucide's runtime `icons` record is not a live key of that record. lucide retires a spelling by dropping it from that record while keeping it as a deprecated named export, so the retired name still imports, still type-checks and still renders wherever it is used as a *component* — `Edit === SquarePen` is true — and resolves to nothing wherever it is used as a *string*: nothing goes red in either direction, which is why the class was repaired twice in two packages before anyone gated it ([#5586](https://github.com/objectstack-ai/objectui/issues/5586), [#5622](https://github.com/objectstack-ai/objectui/issues/5622), [#5633](https://github.com/objectstack-ai/objectui/issues/5633)). It carries no list of retired spellings — the record itself is the judgement — and it re-discovers the resolver population from source on every run, which is how its first pass found four record-reading resolvers nobody had catalogued. It sits here because it parses the sources with `typescript` and reads the installed lucide: the install, and nothing built. The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
 | `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. | Pull requests and merge-queue builds (everything but `push`); steps short-circuit on a PR that changed only ignored paths |
 | `test-coverage` | Test (coverage shard N/4) | `pnpm test:coverage --reporter=blob --shard=N/4` across a 4-runner matrix with `fail-fast: false`. Each shard writes `.vitest-reports/blob-N-4.json` — raw coverage and test results in one file — and uploads it as an artifact even when the shard is red, which is what makes a failing coverage run diagnosable at all (vitest deletes `coverage/` on a red run unless `coverage.reportOnFailure` is set, [#5402](https://github.com/objectstack-ai/objectui/issues/5402)). The configured coverage thresholds are neutralised on the shard legs, because a quarter of the suite judged against a whole-suite threshold is not a defect signal; they are enforced once, on the merged report, by the job below ([#5403](https://github.com/objectstack-ai/objectui/issues/5403)). | **Push only** |
 | `coverage-report` | Test (coverage) | Downloads the four blob reports, refuses to continue unless all four arrived, merges them with `pnpm test:coverage --merge-reports` into one complete report — which is where the configured coverage thresholds are enforced, over the whole merged map, the shard legs having overridden them to zero — and publishes that report as the `coverage-report` artifact (kept 7 days, the same as the blobs it is derived from). Its last step runs on every path and states the outcome: the job is **red, with an error annotation**, whenever the gate did not run for the commit — before [#5403](https://github.com/objectstack-ai/objectui/issues/5403) the final step carried the implicit `success()` and was silently skipped by 311 of 373 coverage jobs, which is how four days of a 100%-failing coverage job went unnoticed. A breach of the thresholds is reported *separately* from a lane that never delivered, because the two call for opposite actions. ⛔ It never merges a report from fewer than four shards: a wrong coverage number is worse than a missing one. The Codecov upload this job used to carry was retired by [#5436](https://github.com/objectstack-ai/objectui/issues/5436) — `CODECOV_TOKEN` was never set, so it failed on every push; the trend dashboard and PR coverage comments are gone with it, the gate is not. | **Push only** |
@@ -404,9 +424,13 @@ all**, which is the point of the workflow. It appears in the checks list as **In
 Check**.
 
 Runs `scripts/check-doc-links.mjs`, which walks every `.md` / `.mdx` file in the surfaces listed in
-its `SCAN_ROOTS` — `content/docs/`, `examples/`, the root `README.md`, `CONTRIBUTING.md`,
-`ROADMAP.md`, the internal `docs/` tree and every package `README.md` — and asks of each internal
-markdown link whether its target is really there.
+its `SCAN_ROOTS` (17 rows as of objectui#6280) — `content/docs/`, `examples/`, the internal `docs/`
+tree, every package and app `README.md`, the rest of each package's and app's directory tree (every
+file except `README.md` and `CHANGELOG.md`, the latter excluded everywhere as changesets output
+rather than authored prose), every nested `README.md` a package or app carries below its top level,
+and the root-level markdown files (`README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `AGENTS.md`,
+`CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md`, `QUICK_REFERENCE.md`) — and asks of each
+internal markdown link whether its target is really there.
 
 **Two rules, because the two groups are read through different machinery** (objectui#3536). For
 `content/docs/` the question is the one a site reader cares about, **does the site serve this URL?**
@@ -775,8 +799,9 @@ shrinks. A hard-coded list would break silently the first time someone moved a s
 install, which is exactly the edit that needs catching. Two anchoring decisions the derivation
 depends on, each with a case in this repository: `pnpm exec playwright install chromium` installs a
 browser rather than the workspace, and `git config merge.pnpm-merge.driver "pnpm install …"` in
-`dependabot-auto-merge.yml` *configures* a driver in a job that never installs — reading either as an
-install would move a boundary and silently drop a script out of the population.
+`changeset-release.yml` *configures* a driver — the `pnpm install` there is a quoted argument, and
+that job's real install is a later step — reading either as an install would move a boundary and
+silently drop a script out of the population.
 
 **It walks the graph, not the entry file.** Requiring each of the entry's own imports to start with
 `node:` is too narrow in one direction (a relative import of a builtins-only local module is fine,
@@ -966,6 +991,123 @@ reject while `BaseSchema` carries an index signature and its Zod mirror is `.pas
 exports the name. Run it locally with `pnpm check:readme-exports` after a build, or
 `node scripts/check-readme-exports.mjs --list` to see every self-import it judged.
 
+## Docs Route Eager Closure (`docs-route-eager-closure.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all** (the reason is in the [inventory](#workflow-inventory) bullets above). It
+appears in the checks list as **Docs Route Eager Closure Check**, and `REQUIRED_CONTEXTS` in
+`scripts/dependabot-merge-gate.mjs` declares that context blocking — which is also what puts this
+workflow inside the derived `merge_group` floor, because a required check that never reports on a
+queue build does not fail it, it stalls it for the ruleset's 60 minutes.
+
+Runs `scripts/check-docs-route-eager-closure.mjs` (`pnpm check:docs-route-closure`): a checkout plus
+one `node` call over the source tree, **no install and no build**, ~1.3 s.
+
+**What it weighs, and what was not weighing it.**
+`apps/site/app/components/registerCatalogBlocks.ts` is a list of side-effect imports, and each one
+pulls its package's module graph into the Next docs route `/docs/[[...slug]]` — a route **all 181
+docs pages share**, not just the catalog gallery. The cards that added to that list said the cost
+was governed by `check:eager-closure`. It was not:
+`scripts/check-eager-closure-budget.mjs` reads `apps/console/dist/eager-closure.json` and
+`performance-budget.yml` builds `@object-ui/console`, so that budget weighs the **console**. The
+only measurement of the docs route that has ever existed was reconstructed by hand, once, from the
+`script src` set of the prerendered route on disk, and the `+50%` stop condition
+[#4616](https://github.com/objectstack-ai/objectui/issues/4616) set had no gauge behind it
+([#6316](https://github.com/objectstack-ai/objectui/issues/6316)).
+
+**Structural, not byte-level — ruled that way on purpose.** A second byte budget would need a
+556-page docs build in CI. This gate instead walks the route's **static** module graph from source —
+the route entries, plus every compiled `content/docs/**` MDX module, which the route pulls in through
+the generated `.source/server.ts` — and sorts every package the registrar names into one of three
+buckets:
+
+| Bucket | Meaning |
+|---|---|
+| **Recorded** | listed in the gate's `MEASURED_PAYLOAD` — its eager cost was argued for and written down when it landed |
+| **Free** | already reachable without this file naming it, so the import adds a *declaration* and no payload |
+| **New graph** | neither, so the import pulls a graph this route has never carried — **fails** |
+
+The third bucket is the whole point: it turns an unmeasured hazard into a review event, which is
+what a cheap instrument can honestly do. `MEASURED_PAYLOAD` is a ledger and **not a ceiling** — it
+carries no bytes and no threshold, and every entry is re-measured on each run, so an entry the
+registrar stopped naming, or one that became reachable some other way, fails and has to shrink.
+
+**Exit 1 and exit 2 mean different things, and must not be read as one.** Exit **1** is a verdict
+about the registrar: a new graph, or a ledger that has drifted. Exit **2** says the **gauge** is not
+trustworthy — a specifier the walk must resolve did not, a route entry moved, the registrar is no
+longer reachable from the route at all, or every workspace package now reads as reachable (a
+traversal that reaches everything cannot tell a new graph from a free one). A reader who sees exit 2
+must not conclude the registrar is wrong; nothing was validly measured. All three verdicts print
+before any of them decides the code, the way `check-eager-closure-budget.mjs` prints its four.
+
+**A structural gate that cannot fail is worse than none**, because it converts an unmeasured hazard
+into a false assurance — so the failing direction is verified rather than assumed.
+`scripts/__tests__/check-docs-route-eager-closure.test.ts` drives the real analysis over fixture
+trees for each way the walk could silently answer "everything is reachable": a fenced MDX code block
+counted as an import, an erased `import type`, a lazy `import()` (the distinction the gate exists to
+police — `PluginLoader` is built on it so those graphs stay *off* this route), a package named only
+in the registrar's own prose, an unresolved specifier, and the registrar falling off the route.
+
+**If it fails:** the message names the package, the line that declares it, and the two ways out —
+reach the code through a package the route already carries, or argue for the payload in review and
+record it in `MEASURED_PAYLOAD` with what it is for. Run it locally with
+`pnpm check:docs-route-closure`; a green run prints the full classification, including which file
+each *free* package is already imported by.
+
+## Governed Surface Guard (`governed-surface-guard.yml`)
+
+**Trigger:** Pull request to `main` / `develop` (`opened`, `synchronize`, `reopened`,
+`ready_for_review`) and merge-queue builds — **no path filter** on either leg.
+**Appears as:** **Governed Surface Queue Guard**.
+**Blocks a PR?** Not on the pull request, by design. On a merge-queue build it refuses.
+
+The **governed surface** is a fixed list — `AGENTS.md`, `CLAUDE.md`, `.claude/**`, `skills/**`,
+`docs/adr/**` — and the rule about it is that a change to any of them is merged by a human, not by
+the queue. That rule used to live only in prose. On
+[#6183](https://github.com/objectstack-ai/objectui/pull/6183) an `AGENTS.md` change was correctly
+parked as a draft; a GitHub MCP `update_pull_request` call passing only `reviewers` silently also
+set `draft: false`; the pull request entered the merge queue and landed with no human approval, and
+converting it back to a draft did not dequeue it. Nothing in CI could have refused that. This
+workflow is the refusal ([#6596](https://github.com/objectstack-ai/objectui/issues/6596)).
+
+**The two legs mean different things, and that is the whole design.** On a **pull request** the
+check is deliberately green whatever it finds, and prints an early warning naming the governed paths
+and the sequence not to start. A governed pull request sitting as a draft for the maintainer to
+merge by hand is the *healthy* end state, so a check that reddened on it would be red on the healthy
+case forever — and a permanently red check is one everybody learns to ignore. On a **merge-queue
+build** the same finding is a refusal: that is a state a governed pull request should never be in at
+all, so red there is red on the anomaly.
+
+**What clears the queue leg** is an `APPROVED` review by an account in `GOVERNED_APPROVERS` whose
+`commit_id` equals the pull request's *current* head sha. The sha pin is what makes the approval an
+approval *of something*: a push after the approval goes stale and reopens the refusal, so a
+clearance cannot outlive the bytes it was given for. Dismissed and superseded approvals never count.
+The remedy the refusal prints **first** is not approval at all — convert the pull request back to a
+draft and leave the merge to the maintainer.
+
+**What it costs when nothing is governed:** nothing. The path test runs before any request is
+constructed, so an ordinary pull request produces a `CLEAR` verdict and **zero** GitHub API calls;
+an API outage cannot block a diff that touches no governed path. The mirrored requirement is that an
+API error on a diff that *is* governed is a refusal with its own exit code (4, distinct from 3 for
+"nobody approved"), never a pass — this gate exists because every other layer in the chain failed
+open.
+
+**What it deliberately does not do.** It does not govern its own workflow or CI configuration
+generally: that would be a larger rule than the one that was ruled. It cannot stop a maintainer
+merging a governed pull request by hand, and does not try — under this regime the human merge *is*
+the review record. And it does not make itself required: that is a branch-protection setting only
+the maintainer can flip. Until it is flipped, the queue leg reports without stopping anything. What
+this repository can write down, and has, is `REQUIRED_CONTEXTS` in `scripts/dependabot-merge-gate.mjs`.
+
+**If it fails:** read the verdict — it names every governed path that matched, the pull request each
+belongs to, and the two ways out. To ask the same question about a file list before pushing, run
+`pnpm governed -- AGENTS.md packages/core/src/index.ts` (or
+`node scripts/check-governed-queue-guard.mjs --test <paths>`); it exits 0 when nothing is governed.
+The predicates are covered by `node scripts/check-governed-queue-guard.mjs --self-test`, which the
+workflow runs as its own first step because a rotted predicate must redden rather than wave a
+governed diff through, and the wiring is pinned by
+`scripts/__tests__/check-governed-queue-guard.test.ts`.
+
 ## Link Checking (`check-links.yml`)
 
 **Trigger:** Weekly cron (`17 4 * * 0` — Sundays, off the top of the hour, when the scheduled-run
@@ -975,7 +1117,7 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 
 | | Covers | Network | Runs |
 |---|---|---|---|
-| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), in `examples/`, `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/` and every package `README.md` (as paths on disk), plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
+| `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), and, as paths on disk: `examples/`, the internal `docs/` tree, every package and app `README.md`, the rest of each package's and app's directory tree (everything but `README.md`/`CHANGELOG.md`), every nested `README.md`, and the root-level markdown files (`README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md`, `QUICK_REFERENCE.md`) — plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
 Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
@@ -1261,6 +1403,24 @@ changeset started nothing at all. Since [#3523](https://github.com/objectstack-a
 job in them short-circuits, because `.changeset/**` is still on the in-job ignore list. The check
 that has to read the changeset therefore still lives here.
 
+The same `paths:` list also carries the gate's own YAML and both scripts it runs,
+`scripts/check-changeset-no-major.mjs` and `scripts/check-changeset-overwrite.mjs`
+([#6321](https://github.com/objectstack-ai/objectui/issues/6321))
+— self-coverage, not the inverse trigger above: without it, a PR that edits the gate is not the PR
+that runs it, and the first real execution lands on someone else's unrelated `.changeset/**` PR.
+Deliberately not listed: `scripts/check-changeset-presence.mjs` (the overwrite gate imports its
+base-ref resolver, `git diff` wrapper and frontmatter reader rather than growing a third copy —
+the second copy, in `check-i18n-en-drift.mjs`, inherited a real defect from that resolver's first
+draft and had to be fixed to match under
+[#3766](https://github.com/objectstack-ai/objectui/issues/3766); the root vitest suite exercises it
+on any PR touching `scripts/**`), `scripts/invoked-as.mjs` (a dependency the gate scripts import, but a
+widely shared one — 40+ importers under `scripts/` — that `published-dist-gate.yml`,
+`spec-range-floors.yml` and `node-esm-load-gate.yml` also import without listing; only
+`half-state-patrol.yml` lists it, as a documented one-off) and the script's own
+`__tests__/check-changeset-no-major.test.ts` (it already runs in the root vitest suite on any PR
+that touches `scripts/**`, the same `~ partial` reasoning `published-dist-gate.yml` and
+`spec-range-floors.yml` apply to their own gate scripts' `__tests__` files).
+
 Runs `scripts/check-changeset-no-major.mjs`, which fails if any pending changeset declares a
 `major` bump. Every publishable package is in one `fixed` group (39 packages), so a single
 `major` publishes all of them as the next major — and objectui's major is pinned to the
@@ -1270,6 +1430,39 @@ breaking changes of our own as `minor` and describe the break in the changeset b
 The one release that legitimately bumps the major is the one following `@objectstack` across
 its major; it sets `OBJECTUI_ALLOW_MAJOR=1`. `pnpm test` asserts the same repository state, so
 the rule survives this workflow being skipped.
+
+#### Second job: Changeset Overwrite Report
+
+Runs `scripts/check-changeset-overwrite.mjs`, which asks a different question of the same files:
+did this change **modify or delete a `.changeset/*.md` that already existed at its merge base** —
+a changeset it did not add? It is a separate job because it reads a diff and so needs
+`fetch-depth: 0`, which the bump-policy job does not want.
+
+[#6336](https://github.com/objectstack-ai/objectui/issues/6336) is why it exists. A dev run wrote
+its changeset to a hand-picked `changesets`-style name that already existed on `main`, and the
+heredoc overwrote an unrelated `@object-ui/plugin-charts: minor`. It was caught before any commit,
+but the property that makes it worth a gate is that **the cost lands on a third party and is
+invisible at the time it happens**: the agent that picks the colliding name loses nothing, and
+whichever earlier PR's release declaration vanishes only discovers it when a package silently
+fails to bump. Both signals that should catch it fail — `git status` shows `` M`` rather than
+`??`, which reads as your own new file landing, and a deleted release declaration is not something
+any later gate flags. With 424 accumulated changesets against an `adjective-animal-verb` name
+space, the collision probability is not theoretical.
+
+**It is report-only, and that is measured rather than cautious.** Across all 5281 first-parent
+commits on `main`, 12 commits modified a pre-existing changeset (19 files) and **all 19 were
+legitimate** — bump levels corrected when the pending release line changed, a "eleven" corrected
+to "ten", a typo'd package name fixed, authors amending their own not-yet-released changeset. A
+blocking gate would have failed every one of those PRs. Deletions are dominated by the release
+itself (82 of 88 delete changesets alongside a package `CHANGELOG.md`, which is `changeset
+version` emptying the queue); the job recognizes that shape and says so instead of reporting it.
+`OS_CHANGESET_OVERWRITE_ENFORCE=1` flips the job to blocking for whoever revisits this with a new
+measurement.
+
+⭐ **The convention that makes the hazard impossible**: name a changeset after the issue it
+settles — `.changeset/<issue>-<slug>.md`. The `adjective-animal-verb` names are safe when
+`pnpm changeset` allocates them, because it allocates against the files already present; picking
+one by hand is what removes that guarantee.
 
 > **A changeset IS now required, by `changeset-presence.yml` — but there is still no
 > `skip-changeset` mechanism.** Until [#3387](https://github.com/objectstack-ai/objectui/issues/3387)
@@ -1370,8 +1563,11 @@ surface, and every loud-failure path.
 **Trigger:** manual dispatch only. Nothing triggers this workflow automatically.
 
 Uses [git-cliff](https://git-cliff.org/) with `cliff.toml` configuration to regenerate the root
-`CHANGELOG.md` and commit it to the repository. Because it commits back to a branch that may have
-moved, it configures the lockfile merge driver first (see **Lockfile Merge Driver** below).
+`CHANGELOG.md` and commit it to the repository. It configured the lockfile merge driver until
+[#6358](https://github.com/objectstack-ai/objectui/issues/6358); it no longer does, because this
+job never merges. It checks out, runs git-cliff, stages exactly `CHANGELOG.md`, commits and
+pushes — and a driver fires only when git has to merge the attributed path. Committing back to a
+branch that may have moved does not reach one: such a push is *rejected*, not merged.
 
 **When to run it:** at release time, as part of cutting the release — that is the ritual it
 belongs to, and there is no other owner.
@@ -1521,7 +1717,9 @@ Dependabot bump never touches `.claude/hooks/**`, so it is never waited for) rat
 
 - **Patch/minor updates**: approved and enqueued — **but only after an explicit wait**, see below.
 - **Major updates**: commented for manual review; never approved, never enqueued.
-- Configures a pnpm-lock.yaml merge driver for conflict resolution.
+- Configures **no** lockfile merge driver ([#6369](https://github.com/objectstack-ai/objectui/issues/6369)):
+  its only merge is `gh pr merge`, which GitHub runs server-side, where the runner's git config
+  cannot reach.
 
 **The wait, and why it exists.** This workflow used to run `gh pr merge --auto --squash`
 unconditionally for every patch/minor bump. `--auto` lands the merge as soon as GitHub considers
@@ -1581,8 +1779,8 @@ pnpm-lock.yaml merge=pnpm-merge
 ```
 
 Git does not ship a `pnpm-merge` driver, and an attribute naming a driver nothing defines falls
-back to an ordinary text merge. So every workflow that merges, rebases, or commits onto a branch
-that may have moved defines it immediately after checkout:
+back to an ordinary text merge. So every workflow that performs a **local** merge or rebase --
+one git carries out on the runner -- defines it immediately after checkout:
 
 ```yaml
 - name: Configure Git merge driver for pnpm-lock.yaml
@@ -1591,13 +1789,39 @@ that may have moved defines it immediately after checkout:
     git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
 ```
 
-Three workflows carry that step, for three different reasons:
+One workflow carries that step:
 
 | Workflow | Why it needs the driver |
 |---|---|
-| `changeset-release.yml` | version bumps rewrite the lockfile on the release branch |
-| `changelog.yml` | commits a regenerated `CHANGELOG.md` back to the branch |
-| `dependabot-auto-merge.yml` | squash-merges dependency PRs whose entire content is often a lockfile change |
+| `changeset-release.yml` | ⚠️ configures it — but performs no local merge, see the measurement below |
+
+⚠️ **That row's stated reason was wrong, and the row is now the whole question**
+([#6391](https://github.com/objectstack-ai/objectui/issues/6391)). It used to read "version bumps
+rewrite the lockfile on the release branch". A **rewrite is not a merge**: `changeset:version`
+overwrites `pnpm-lock.yaml` outright, and git runs a merge driver only when it has to *reconcile
+two versions* of an attributed path. Measured on `changeset-release.yml`, and recorded in the file
+itself so it is not re-derived a fourth time:
+
+- Every `git` in that workflow, enumerated rather than grepped for absence: the two `git config`
+  lines, `git status --porcelain` twice, and `git checkout -- .` plus `git clean -fdq` in "Restore
+  the pre-version tree". No `merge`, `rebase`, `pull`, `cherry-pick`, `am`, `apply` or `revert` —
+  every zero-hit taken with a control term that hit the same file.
+- `git checkout -- .` there takes tracked paths from the **index** to undo what the version step
+  wrote. That is a discard, not a merge.
+- The deciding fact is in the marketplace action, not the workflow. Read at `changesets/action`
+  v1.9.0 (`a45c4d5`), `src/git.ts` and the shipped `dist/` bundle agreeing: its entire git surface
+  is `checkout`, `reset --hard`, `add .`, `commit -m`, `push --force` and `config user.*`. The
+  version-branch update is a checkout, a `reset --hard` to the triggering commit, a commit, and a
+  **force-push**. A force-push resolves no merge, so the driver has no occasion to fire.
+
+⭐ **But the `.gitattributes` line is not dead, and that is why this is not simply a third
+removal.** The attribute is repository-wide, and its live consumer is the contributor path this
+page already points at: `CONTRIBUTING.md` tells contributors to configure this same driver and
+then to `git merge upstream/main`. Measured in a scratch repository, one variable changed between
+the two runs — **with** the attribute the driver fires and the lockfile is regenerated; **without**
+it, and nothing else altered, the identical merge ends in `CONFLICT (content)` with conflict
+markers left in `pnpm-lock.yaml`. So the CI half is dead and the repository half is live, while the
+pin below binds them together. Resolving that is a decision, not a cleanup.
 
 `scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
 actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
@@ -1613,8 +1837,25 @@ configured with a plain `pnpm install` under **Configure Git Merge Driver for pn
 `CONTRIBUTING.md`; contributors want it for the same reason CI does, on rebases of long-lived
 branches.
 
-Adding a workflow that merges or pushes? Add the step **after checkout and before the merge**,
-and add its row above — the pin fails otherwise.
+Adding a workflow that merges **locally** — a merge git performs on the runner? Add the step
+after checkout and before the merge, and add its row above — the pin fails otherwise. This
+sentence has been read too widely twice, and each reading left a dead copy behind:
+
+⛔ **Pushing is not merging.** It said "merges or pushes" until
+[#6358](https://github.com/objectstack-ai/objectui/issues/6358): `changelog.yml` carried the step
+on the strength of that word, having no merge to resolve. A workflow that only commits and pushes
+needs no driver, and giving it one buys nothing while implying a lockfile hazard it does not have.
+
+⛔ **A server-side merge is not a local one.** `dependabot-auto-merge.yml` carried the step until
+[#6369](https://github.com/objectstack-ai/objectui/issues/6369) for a merge it genuinely performs
+— `gh pr merge`. But GitHub executes that one itself, not on the runner, so no local git config
+takes part in it.
+
+⛔ **A rewrite is not a merge, and a force-push resolves none.** `changeset-release.yml` carries
+the step on the strength of "version bumps rewrite the lockfile"
+([#6391](https://github.com/objectstack-ai/objectui/issues/6391)). Regenerating a file is not
+reconciling two versions of it, and the version branch is updated by `reset --hard` plus a
+force-push inside `changesets/action`, which merges nothing on the runner.
 
 ## Adding a New Workflow
 
@@ -1625,17 +1866,28 @@ and add its row above — the pin fails otherwise.
 > because nothing checked, and one of them is a PR gate.
 
 1. Create a new `.yml` file in `.github/workflows/`.
-2. Follow the existing pattern for pnpm + Turbo setup:
+2. Copy the pnpm + Turbo setup from a workflow that runs today, not from a snippet on this
+   page. A copied YAML block is a fossil the moment it is pasted — this page used to keep
+   one here, and every line of it had drifted: `actions/setup-node@v4` where every workflow
+   now uses `@v7`, a hardcoded `node-version: 20` where every workflow declares `'22.x'`
+   (and 20 sat below the floor the root `package.json`'s `engines` field now declares), and
+   `pnpm/action-setup@v4`, which no workflow in this repository has ever used — pnpm comes
+   from `corepack enable` plus the root `packageManager` field instead.
 
-```yaml
-- uses: actions/checkout@v4
-- uses: pnpm/action-setup@v4
-- uses: actions/setup-node@v4
-  with:
-    node-version: 20
-    cache: 'pnpm'
-- run: pnpm install --frozen-lockfile
-```
+   `readme-exports.yml` (see the **README Exports** section above) is a good one to read: it
+   is short, runs on every pull request, and its setup is the complete pattern most new
+   build/test/lint workflows need — checkout, enable Corepack, `actions/setup-node` with
+   pnpm's own cache, `pnpm install --frozen-lockfile`, then a `turbo run build` step for
+   whatever it needs built. Two of its steps hold for any workflow no matter which Node or
+   pnpm version the repository is on when you read this:
+
+   ```yaml
+   - uses: actions/checkout@v7
+   - run: corepack enable
+   ```
+
+   Copy everything else — the Node version, the cache key, the install command — from the
+   workflow itself, not from this page.
 
 3. Use Turbo for any build/test/lint steps to leverage caching:
 

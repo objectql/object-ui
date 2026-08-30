@@ -159,6 +159,69 @@ function FieldError({ id, message }: { id: string; message: string }) {
   );
 }
 
+/**
+ * <DomainCombobox> — the control a `select` gets when its specifier declares a
+ * `valueDomain` (objectstack#5712 / PR objectstack#6581).
+ *
+ * Such a key is judged against a STANDARD, not against the manifest's table:
+ * `PUT /api/settings/localization` takes any IANA zone or ISO 4217 code, so the
+ * 17 curated timezones and 9 currencies are a convenience list, not the domain.
+ * A closed dropdown therefore advertises a narrower contract than the server
+ * enforces, and leaves every legal value outside the table reachable only by
+ * API or env.
+ *
+ * Native `<datalist>` gives exactly suggest-but-allow-anything, with zero extra
+ * dependencies and built-in accessibility — the same reason the flow designer's
+ * `FlowReferenceField` uses it. The curated `options` stay visible as
+ * suggestions; free text is committed verbatim, and an out-of-domain value is
+ * refused by the server with `invalid_value` + `constraint: { valueDomain }`,
+ * which lands in the field-error slot the wrapper already owns.
+ *
+ * Props beyond its own are forwarded to the `<input>` so `wrapper`'s
+ * `aria-invalid` / `aria-describedby` reach the focusable control rather than a
+ * wrapping node (same seam as Combobox's trigger pass-through, objectui#3318).
+ */
+function DomainCombobox({
+  id,
+  value,
+  options,
+  disabled,
+  onChange,
+  ...inputProps
+}: {
+  id: string;
+  value: unknown;
+  options: Array<{ value: string; label: string }>;
+  disabled?: boolean;
+  onChange: (next: unknown) => void;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'id'>) {
+  const listId = `${id}-domain`;
+  return (
+    <>
+      <Input
+        id={id}
+        type="text"
+        // `list` only when there is something to suggest: an empty <datalist>
+        // renders a dead dropdown affordance on some browsers.
+        list={options.length > 0 ? listId : undefined}
+        value={value == null ? '' : String(value)}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        {...inputProps}
+      />
+      {options.length > 0 ? (
+        <datalist id={listId}>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </datalist>
+      ) : null}
+    </>
+  );
+}
+
 export function SettingsField(props: SettingsFieldProps) {
   const { spec, resolved, value, onChange, onAction, locked, saving, labels, error } = props;
   const id = useId();
@@ -355,7 +418,33 @@ export function SettingsField(props: SettingsFieldProps) {
           />
         </div>
       );
-    case 'select':
+    case 'select': {
+      // Keyed off the DECLARATION, never off the key: a key that gains a
+      // domain server-side gets the right control here with no edit.
+      //
+      // Declared → the standard is the enforcement boundary, so an editable
+      // combobox (objectstack#5712). ABSENT → ⛔ the closed dropdown stays
+      // exactly as it was: those `options` are still exhaustive (objectstack
+      // #5131 semantics — the sms/mail provider selects), and
+      // `localization.locale` had its domain declaration deliberately REJECTED
+      // in objectstack#6515 because its options ARE the shipped catalogs.
+      // Widening those to free input would be a regression wearing this fix's
+      // clothes, so the two branches are pinned against each other in
+      // `__tests__/SettingsField.valueDomain.test.tsx`.
+      if (spec.valueDomain) {
+        return wrapper(
+          <DomainCombobox
+            id={id}
+            value={value}
+            disabled={disabled}
+            onChange={onChange}
+            options={(spec.options ?? []).map((opt) => ({
+              value: String(opt.value),
+              label: renderOptionLabel(opt),
+            }))}
+          />,
+        );
+      }
       return wrapper(
         <Select
           value={value == null ? undefined : String(value)}
@@ -374,6 +463,7 @@ export function SettingsField(props: SettingsFieldProps) {
           </SelectContent>
         </Select>,
       );
+    }
     case 'radio':
       return wrapper(
         <RadioGroup

@@ -145,7 +145,7 @@ const ENVELOPE = new Set(shapeKeys(OuiBaseSchema));
  * Envelope keys this node REDECLARES with a narrower type.
  *
  * Detected by member IDENTITY against `BaseSchema`, not by a hand-written list:
- * `BaseSchema.extend()` copies the envelope's 20 members in, so a key that is
+ * `BaseSchema.extend()` copies the envelope's 21 members in, so a key that is
  * still the base's own member is inherited, and one that is a different object
  * was deliberately narrowed on this node (`type: z.literal('object-view')`,
  * `description: z.string()`). They are part of the node's declared surface and

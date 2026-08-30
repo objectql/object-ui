@@ -135,18 +135,44 @@
  * page carrying a demo. The gallery page's own modal preview is unaffected — it
  * renders after `SchemaThumbnail` has already registered these on that page.
  *
- * IMPORT ORDER IS CONTRACT. Several packages register the same bare keyword
- * (`chart` is claimed by plugin-charts, plugin-dashboard and plugin-report;
- * `calendar` by plugin-calendar over `@object-ui/components`' `ui:calendar`),
- * and the last registration of a key wins. The first two lines keep the order
- * objectui#4600 established; the rest are appended, which is the order the
- * census above was measured in.
+ * IMPORT ORDER IS CONTRACT. The last registration of a bare keyword wins, so
+ * where two of the packages below claim one, the order decides what draws.
+ * Re-derived with `deriveRegistryKeys` (`scripts/check-doc-component-types.mjs`)
+ * on `origin/main` @ `e929c562a`, none of them do today (objectui#6442): bare
+ * `chart` is `plugin-charts`' alone — neither `plugin-dashboard` nor
+ * `plugin-report` registers it, and the two `apps/console` sites that also hold
+ * the key are `registerLazy` stubs whose loader is `plugin-charts` itself — and
+ * bare `calendar` is `plugin-calendar`'s alone, because `@object-ui/components`
+ * passes `skipFallback` on `ui:calendar` precisely to stay out of that keyword.
+ * The order stays fixed against the day that changes: the first two lines keep
+ * the order objectui#4600 established; the rest are appended, which is the
+ * order the census above was measured in.
  *
  * Guarded by two pins in `examples/schema-catalog/test/`:
  * `plugin-dashboard-gallery-render.test.tsx` (objectui#4600, the dashboard
  * category) and `catalog-gallery-render.test.tsx` (objectui#4616, every
  * category), both of which mirror this list and fail if it stops loading a
  * package.
+ *
+ * ## What weighs an ADDITION to this list (objectui#6316)
+ *
+ * Not `check:eager-closure`, whatever the cards that added to this list said:
+ * that gate reads `apps/console/dist/eager-closure.json` and weighs the CONSOLE.
+ * The figures above were taken by hand, once, and nothing re-takes them.
+ *
+ * `pnpm check:docs-route-closure`
+ * (`scripts/check-docs-route-eager-closure.mjs`) is what governs a new line
+ * here. It walks the `/docs/[[...slug]]` route's STATIC module graph — the
+ * entries, plus every compiled `content/docs/**\/*.mdx` module — and requires
+ * each package named below to be either already reachable without this file
+ * naming it (a declaration and no payload: measurably the case for the last two
+ * imports, through `@object-ui/plugin-view`) or recorded in that script's
+ * `MEASURED_PAYLOAD` with what it is for. A package that is neither is a
+ * genuinely new graph on a route all 181 docs pages share, and it fails there
+ * so that someone argues for it in review.
+ *
+ * It is structural, not byte-level, and deliberately so: it costs no docs
+ * build, and it does not re-take the measurement above or claim to.
  */
 import '@object-ui/plugin-dashboard';
 import '@object-ui/plugin-charts';

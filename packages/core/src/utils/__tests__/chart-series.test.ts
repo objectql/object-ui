@@ -195,14 +195,61 @@ describe('relabelDimensions + buildChartSeries (the value≠label chart bug, clo
 });
 
 describe('resolveRelationshipTarget (objectui#4053)', () => {
-  it('reads the target off every spelling of the reference key', () => {
+  it('reads the target off the spec spelling `reference`', () => {
+    // The positive control: the one carrier `ObjectSchema.safeParse` ACCEPTS,
+    // and the one every zero below is measured against.
     expect(resolveRelationshipTarget({ type: 'lookup', reference: 'crm_account' })).toBe('crm_account');
-    expect(resolveRelationshipTarget({ type: 'lookup', reference_to: 'crm_account' })).toBe('crm_account');
-    expect(resolveRelationshipTarget({ type: 'lookup', referenceTo: 'crm_account' })).toBe('crm_account');
-    expect(resolveRelationshipTarget({ type: 'lookup', reference_to_object: 'crm_account' })).toBe('crm_account');
-    // Array and `{ object }` carriers, both seen on spec-shaped defs.
-    expect(resolveRelationshipTarget({ type: 'lookup', reference: ['crm_account'] })).toBe('crm_account');
-    expect(resolveRelationshipTarget({ type: 'lookup', reference: { object: 'crm_account' } })).toBe('crm_account');
+  });
+
+  /**
+   * objectui#6648 — the mirror of the dataset designer's CARRIER refusal pin,
+   * kept in lockstep for the same reason the spelling pins are (see below): the
+   * two canonicalizations are one doctrine in two files, and a divergence
+   * recreates the defect one file over.
+   *
+   * These two used to assert `.toBe('crm_account')` — the tolerance written
+   * down. The census that removed them walked STRUCTURE, not text, across both
+   * trees and found ZERO producers of either carrier at the field-def key
+   * position, against 587 bare-string carriers there. `ObjectSchema.safeParse`
+   * (spec 17.2.0) REFUSES both as `invalid_type`, and the array branch also
+   * discarded every element after the first.
+   */
+  it.each([
+    { carrier: 'array', reference: ['crm_account'] as unknown },
+    { carrier: 'multi-element array (the discarded-rest case)', reference: ['crm_account', 'crm_lead'] as unknown },
+    { carrier: '`{ object }`', reference: { object: 'crm_account' } as unknown },
+  ])('refuses the $carrier carrier on `reference` — a producer emitting it is the bug', ({ reference }) => {
+    expect(resolveRelationshipTarget({ type: 'lookup', reference })).toBeUndefined();
+  });
+
+  /**
+   * objectui#6528 — the mirror of the dataset designer's refusal pin, kept in
+   * lockstep so the two canonicalizations cannot drift (the divergence would
+   * recreate the defect one file over).
+   *
+   * The census that removed these three: `ObjectSchema.safeParse` (spec 17.2.0)
+   * REFUSES `reference_to` / `referenceTo` / `reference_to_object` BY NAME and
+   * ACCEPTS `reference` (asserted above as the positive control); no producer
+   * emits any of the three onto an object metadata document.
+   *
+   * This path matters MORE than the designer's: it reads
+   * `GET /meta/object/:name` directly, with no `readFields` door stripping
+   * retired keys. An unresolved target is best-effort by construction — the
+   * walk yields no entry and the caller keeps the raw value — so a producer
+   * emitting a legacy spelling degrades visibly instead of being silently
+   * absorbed here (AGENTS.md #0.1).
+   */
+  it.each(['reference_to', 'referenceTo', 'reference_to_object'])(
+    'refuses the legacy spelling `%s` — a producer emitting it is the bug',
+    (spelling) => {
+      expect(resolveRelationshipTarget({ type: 'lookup', [spelling]: 'crm_account' })).toBeUndefined();
+    },
+  );
+
+  it('prefers `reference` on a partially-migrated def carrying both', () => {
+    expect(
+      resolveRelationshipTarget({ type: 'lookup', reference: 'crm_account', referenceTo: 'stale_legacy' }),
+    ).toBe('crm_account');
   });
 
   it('accepts every master-detail spelling, case-insensitively', () => {

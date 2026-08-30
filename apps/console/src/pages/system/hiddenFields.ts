@@ -16,8 +16,9 @@
  * `hidden` is neither of those. The producer is **correct** to ship a `hidden`
  * field in an approval request's `payload_json` snapshot, so the UI is not
  * compensating for a bad producer when it declines to render it — the UI is
- * the *only* place that contract lives, and the Approvals drawer's business
- * summary card is default UI. That is why the trim is here and not in
+ * the *only* place that contract lives, and every Approvals Inbox surface —
+ * the drawer's business summary card, the queue rows, and the amount sort
+ * (objectui#6020) — is default UI. That is why the trim is here and not in
  * `@objectstack/plugin-approvals`.
  *
  * ⛔ Do not extend this to `internal`. They are distinct primitives with
@@ -38,7 +39,10 @@
  *
  * ## Cost
  *
- * One `getObjectSchema(objectName)` per distinct object, per mount. The read is
+ * One `getObjectSchema(objectName)` per distinct object, per mount — so a page
+ * of N queue rows spanning K objects costs `K` reads, not N, and paging in
+ * more rows costs only the objects not seen yet. See `planHiddenFieldReads`,
+ * which IS the cost model and is pinned by `hiddenFields.test.ts`. The read is
  * `GET /api/v1/meta/object/:name` — the same read the record form and detail
  * view already perform for any business user — and it lands on the adapter's
  * own `MetadataCache` (LRU, 5-minute TTL, in-flight de-duplication), so
@@ -130,35 +134,96 @@ export async function readHiddenFields(
 }
 
 /**
- * The hidden-field set for `objectName`, resolved once per mount.
+ * The distinct objects one render needs answers for — **the cost model**.
  *
- * Returns the empty set until the read answers, so the first paint of a drawer
- * renders exactly what it renders today and the trim applies as soon as the
- * declaration is known. Callers must treat the empty set as "nothing known to
- * be hidden" — see the header on failing open.
+ * The returned length is exactly the number of metadata reads a render adds,
+ * so a test can assert the cost directly instead of describing it. Names are
+ * deduped and kept in first-seen order (stable output for stable input); a
+ * missing or empty name is not an object and is dropped.
  */
-export function useHiddenFields(objectName: string | null | undefined): ReadonlySet<string> {
+export function planHiddenFieldReads(
+  objectNames: readonly (string | null | undefined)[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of objectNames) {
+    if (typeof name !== 'string' || name === '' || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+}
+
+/** What a row asks the lookup at render time. */
+export interface HiddenFieldLookup {
+  /**
+   * The fields `objectName` declares `hidden: true`.
+   *
+   * The empty set is "nothing known to be hidden" — it covers *nothing
+   * declared*, *this object was never asked about*, *the read has not answered
+   * yet*, and *the read failed*, which are one answer on purpose. See the
+   * header on failing open: callers render the field for all four.
+   */
+  forObject(objectName: string | null | undefined): ReadonlySet<string>;
+}
+
+/**
+ * Hidden-field sets for every object on screen, each resolved once per mount.
+ *
+ * A queue is N rows spanning K objects, so the answer cannot be one set — one
+ * object's declarations applied to every row would hide fields on rows whose
+ * object never declared them and miss fields on rows whose object did
+ * (objectui#6020). The lookup is therefore keyed by object name, and a row
+ * always asks with its OWN `object_name`.
+ *
+ * Every object is read at most once per mount: newly loaded rows cost only the
+ * objects not seen yet, and re-renders (search typing, the minute clock, a
+ * drawer opening) cost nothing. Until a read answers, `forObject` returns the
+ * empty set, so the first paint renders exactly what it renders today and the
+ * trim applies as soon as the declaration is known — see the header on why
+ * this presentation filter fails open, and never the other way.
+ */
+export function useHiddenFieldsByObject(
+  objectNames: readonly (string | null | undefined)[],
+): HiddenFieldLookup {
   const adapter = useAdapter() as HiddenFieldsSource | null | undefined;
   const [known, setKnown] = useState<ReadonlyMap<string, ReadonlySet<string>>>(() => new Map());
   /** Object names already handed to a read — the "read once" ledger. */
   const attempted = useRef<Set<string>>(new Set());
+  /** Latest names without making them an effect dependency (see `signature`). */
+  const latest = useRef<readonly (string | null | undefined)[]>(objectNames);
+  latest.current = objectNames;
 
-  const name = typeof objectName === 'string' && objectName !== '' ? objectName : null;
+  // `objectNames` is a fresh array every render, so the effect keys off the SET
+  // of objects rather than the array's identity.
+  const signature = useMemo(() => planHiddenFieldReads(objectNames).join('|'), [objectNames]);
 
   useEffect(() => {
-    if (!adapter || !name || attempted.current.has(name)) return;
-    attempted.current.add(name);
+    if (!adapter) return;
+    const fresh = planHiddenFieldReads(latest.current).filter((n) => !attempted.current.has(n));
+    if (fresh.length === 0) return;
+    for (const n of fresh) attempted.current.add(n);
     let cancelled = false;
-    void readHiddenFields(adapter, name).then((hidden) => {
+    // `readHiddenFields` never rejects, so one object that cannot be described
+    // resolves to the empty set without dropping the others' answers.
+    void Promise.all(
+      fresh.map(async (n) => [n, await readHiddenFields(adapter, n)] as const),
+    ).then((entries) => {
       if (cancelled) return;
       setKnown((prev) => {
         const next = new Map(prev);
-        next.set(name, hidden);
+        for (const [n, hidden] of entries) next.set(n, hidden);
         return next;
       });
     });
     return () => { cancelled = true; };
-  }, [adapter, name]);
+  }, [adapter, signature]);
 
-  return useMemo(() => (name ? known.get(name) ?? NONE : NONE), [known, name]);
+  return useMemo<HiddenFieldLookup>(() => ({
+    forObject: (objectName) => (
+      typeof objectName === 'string' && objectName !== ''
+        ? known.get(objectName) ?? NONE
+        : NONE
+    ),
+  }), [known]);
 }

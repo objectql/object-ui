@@ -8,25 +8,86 @@ name: Half-State Patrol
 # prose below is upstream's and its issue numbers (#9844, #4449, #9575, #4690,
 # #7412, #11217 …) are OBJECTSTACK numbers — do not read them as objectui cards.
 #
-# Every divergence from upstream is listed here, once, so a future re-sync knows
-# exactly what it must not clobber:
+# ## Where the divergence list lives (objectui#6642)
 #
-#   1. `PM_SWEEP_CLOSED_WINDOW_PAGES: 0` on the sweep step — H22's closed-card
-#      reader is OFF in this install. Measured 2026-08-24: 815 closed cards here
-#      carry `pm:dispatched`, and ~347 of the 400 issues in upstream's window
-#      carry some `pm:*` residue label (~87%, against the 26% upstream measured).
-#      Stripping `pm:*` on close was never this lane's practice, so H22 here
-#      reports the CONVENTION, not a defect — ~347 rows that would consume the
-#      whole body budget and trim every other predicate out of the anchor. The
-#      sweeper says "UNREAD, not clean" in its summary rather than reporting 0.
-#      ⛔ Re-enabling is a BACKFILL decision (strip the residue first), never a
-#      quiet default flip. The script's default is still upstream's 4.
+# ⚠️ It is no longer this comment. This header used to carry the whole list and
+# to end with "nothing else diverges; the predicates are untouched" — and that
+# sentence rotted, silently, for months. Measured 2026-08-28: the ported copy
+# stood at 9,340 lines against upstream's 12,948 (a 4,637-line `diff`), running
+# 1,116 self-test cases where upstream ran 1,574. The three deliberate
+# adaptations below were accurate the whole time; what the list could not say
+# was that ~3,600 lines of upstream fixes had never arrived, because a
+# hand-maintained enumeration can only describe what someone remembered to
+# write down.
+#
+# The enumeration is therefore MACHINE-CHECKED now, in
+# `scripts/upstream-port-pin.json`: every declared divergence as an exact text
+# pair, with the upstream commit and the SHA-256 of the blob it was taken from.
+# `scripts/check-upstream-port-parity.mjs` reverses those pairs out of the
+# ported files and requires the reconstruction to hash to the pinned digest, so
+# a drift beyond the declared set — here or upstream — is RED in `lint.yml`
+# rather than invisible. Bumping the pin (`--resync`) is the deliberate re-sync
+# act. ⛔ Do not maintain a second copy of the divergence list in this comment;
+# that is what just failed.
+#
+# What the pin CANNOT see, and what therefore still belongs here, is the wiring:
+# the pin judges file contents, and the two items below are decisions taken in
+# THIS file about how the sweeper is called.
+#
+#   1. `PM_SWEEP_CLOSED_FLOOR` on the sweep step — H22's closed-card reader is
+#      ON here, but judges only cards closed on/after the cutover date. It read
+#      `PM_SWEEP_CLOSED_WINDOW_PAGES: 0` (reader fully OFF) until 2026-08-28.
+#
+#      The measurement that forced the hold, taken 2026-08-24: 815 closed cards
+#      here carry `pm:dispatched`, and ~347 of the 400 issues in upstream's
+#      window carry some `pm:*` residue label (~87%, against the 26% upstream
+#      measured). At that density H22 reports the CONVENTION, not a defect —
+#      ~347 rows that consume the whole body budget and trim every other
+#      predicate out of the anchor.
+#
+#      objectui#5985 recorded that as a two-way choice: either stripping is the
+#      rule (and ~815 closed cards need a BACKFILL first) or the row is simply
+#      not wanted here. The dated floor is the third option both readings omit.
+#      `pm:*` on a card closed before the convention existed is inert history —
+#      the dispatch loop reads state on OPEN cards only — so judging from the
+#      cutover forward buys the row's whole value (residue produced from now
+#      on, while the paired write is still a live duty) at zero backfill and
+#      zero historical noise. ⛔ NO bulk label backfill of closed cards was run
+#      and none is owed; the sweeper writes no label under any code path.
+#
+#      The cutover is 2026-08-28, the date the strip-on-close convention was
+#      written into the pm-dispatch protocol's label-discipline section. ⛔ Do
+#      not move it EARLIER without re-measuring: every day it moves back pulls
+#      in cards closed under no convention at all. `resolveClosureFloor` in the
+#      sweeper refuses a malformed value (exit 2) rather than degrading to "no
+#      floor", because a silent degrade here restores the 87% flood four times
+#      a day and a flooded anchor reads exactly like a working patrol.
+#
+#      ⚠️ The floor is UPSTREAM code, not a fourth hand divergence: a re-sync
+#      that replaces the sweeper with upstream's keeps it. What diverges is
+#      this WIRING — upstream sets no floor, because its own board measured 26%
+#      and it treats recent closed residue as a live duty.
 #   2. `scripts/invoked-as.mjs` is in the `paths:` filter below — the sweeper
 #      imports it, and it was ported alongside.
-#   3. `scripts/pm/check-half-states.mjs` carries `DEFAULT_SWEEP_REPO =
-#      'objectstack-ai/objectui'` so a bare terminal run here sweeps THIS board.
 #
-# Nothing else diverges; the predicates are untouched.
+# The IN-SCRIPT divergences are the pin's business, not this comment's, but the
+# classes are worth knowing before you open it — three of them, and the set is
+# meant to shrink:
+#
+#   a. `DEFAULT_SWEEP_REPO = 'objectstack-ai/objectui'`, so a bare terminal run
+#      here sweeps THIS board, plus the two self-test rows that pinned the
+#      constant against objectstack's literal.
+#   b. `PM_SWEEP_CLOSED_WINDOW_PAGES` / `resolveClosedWindowPages` — an
+#      objectui-only escape hatch that can switch H22's closed reader fully OFF,
+#      authored during the port and never upstreamed. UNSET here since
+#      2026-08-28 (the floor in (1) is what holds the historical residue out),
+#      so it is dormant, but it is live code and its "the surface is UNREAD, not
+#      clean" summary branch is the #4690 property the port turned on.
+#   c. Three H32 self-test rows. `seatLane` compares a seat title's `@ <repo>`
+#      suffix against the LIVE resolved sweep repo, so which name is FOREIGN is
+#      install-dependent and upstream's specimens invert here. ⚠️ This class is
+#      upstream's to remove: derive the specimen from the resolved repo there
+#      and all three entries disappear.
 #
 # ## Why a workflow, and not "a seat should run it"
 #
@@ -209,11 +270,14 @@ jobs:
           # workflow — the two agree by construction and a copy of this file
           # cannot end up sweeping the repo it was copied FROM.
           PM_SWEEP_REPO: ${{ github.repository }}
-          # objectui#5791 — H22's closed-card reader is OFF here. See divergence
-          # (1) in this file's header for the measurement that decided it, and
-          # `resolveClosedWindowPages` in the sweeper for what 0 means. The
-          # rendered body reports the surface as UNREAD, never as clean.
-          PM_SWEEP_CLOSED_WINDOW_PAGES: '0'
+          # objectui#5985 — H22's closed-card reader is ON, with a DATED FLOOR:
+          # only cards closed on/after this date are judged. See divergence (1)
+          # in this file's header for the measurement and the reasoning, and
+          # `resolveClosureFloor` in the sweeper for the parsing and the loud
+          # refusal. The page window is deliberately absent: it is back to the
+          # script's own upstream default of 4, and the floor — not a zeroed
+          # window — is what keeps the ~815 historical carriers out.
+          PM_SWEEP_CLOSED_FLOOR: '2026-08-28'
           PROVENANCE: >-
             run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             · commit `${{ github.sha }}` · trigger `${{ github.event_name }}`

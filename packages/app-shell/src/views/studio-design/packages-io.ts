@@ -55,10 +55,70 @@ export async function fetchPackages(): Promise<PkgEntry[]> {
 }
 
 /**
+ * The duplicate operation's OWN result, which travels inside the dispatcher
+ * envelope's `data` — not at the top level.
+ *
+ * `POST /packages/:id/duplicate` is served only by the runtime dispatcher, and
+ * that door always wraps (`deps.success(result)` → `{ success: true, data }`).
+ * So a top-level `success` read is reading the ENVELOPE, whose value is `true`
+ * by construction on a 200. The operation's verdict is one level down, and it
+ * is a real three-state: the server computes it as
+ * `failed.length === 0 && copied.length > 0`, which leaves TWO reachable
+ * outcomes that answer HTTP 200 with `data.success === false`:
+ *
+ *  1. PARTIAL — some items failed to copy. `failed[]` carries a per-item
+ *     `error` string and is the ONLY place the reason is ever stated; a
+ *     generic `HTTP nnn` here tells the author nothing.
+ *  2. EMPTY — nothing was copied at all (e.g. a source package whose rows are
+ *     outside this caller's scope). `failed[]` is empty in this arm — nothing
+ *     is named as having failed — so the counts are the only signal.
+ *
+ * Those two are exhaustive for `success === false`: with no failures AND at
+ * least one copy the server would have said `true`.
+ */
+interface DuplicateOutcome {
+  success?: boolean;
+  copiedCount?: number;
+  failedCount?: number;
+  failed?: Array<{ type?: string; name?: string; error?: string }>;
+}
+
+/** Per-item failures named in full before the message summarizes the rest. */
+const DUPLICATE_FAILURE_DETAIL_LIMIT = 5;
+
+/**
+ * Turn a false operation verdict into something the Studio author can act on.
+ * The counts say how far the copy got; `failed[].error` says why each item did
+ * not make it. Both arms are reachable on a 200 — see {@link DuplicateOutcome}.
+ */
+function describeDuplicateFailure(outcome: DuplicateOutcome): string {
+  const failed = Array.isArray(outcome.failed) ? outcome.failed : [];
+  const failedCount = typeof outcome.failedCount === 'number' ? outcome.failedCount : failed.length;
+  const copiedCount = typeof outcome.copiedCount === 'number' ? outcome.copiedCount : 0;
+  if (failedCount > 0) {
+    const shown = failed
+      .slice(0, DUPLICATE_FAILURE_DETAIL_LIMIT)
+      .map((f) => `${f.type || 'item'}/${f.name || '?'}: ${f.error || 'copy failed'}`);
+    const rest = failed.length - shown.length;
+    const detail = shown.length ? ` ${shown.join('; ')}${rest > 0 ? `; +${rest} more` : ''}` : '';
+    return `Partial duplicate: ${copiedCount} item(s) copied, ${failedCount} failed.${detail}`;
+  }
+  return (
+    'Nothing was copied: the duplicate is empty (0 items copied, 0 reported as failed). ' +
+    "The source package may have no active items, or its rows may be outside this session's scope."
+  );
+}
+
+/**
  * Duplicate a package into a NEW writable base (ADR-0070 D4 — the Airtable
  * "duplicate base" gesture; POST /packages/:id/duplicate). This is how a
  * read-only code package becomes a customizable starting point: objects are
  * re-namespaced and intra-package references rewritten server-side.
+ *
+ * Rejects on a transport/error-envelope failure AND on a false operation
+ * verdict, which a 200 can carry. Unwrapping before reading that verdict is
+ * the same order `revertCommit` uses for the sibling commit-revert route in
+ * `preview/commitHistory.ts`.
  */
 export async function duplicatePackage(sourceId: string, targetId: string, targetName?: string): Promise<void> {
   const res = await fetch(`/api/v1/packages/${encodeURIComponent(sourceId)}/duplicate`, {
@@ -67,11 +127,22 @@ export async function duplicatePackage(sourceId: string, targetId: string, targe
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ targetPackageId: targetId, ...(targetName ? { targetName } : {}) }),
   });
-  const payload = (await res.json().catch(() => null)) as
-    | { success?: boolean; error?: { message?: string } }
-    | null;
-  if (!res.ok || payload?.success === false) {
-    throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+  const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!res.ok) {
+    // The error envelope IS top-level (`{ success: false, error }`) — no `data`
+    // to unwrap on this arm.
+    const message = (payload?.error as { message?: string } | undefined)?.message;
+    throw new Error(message || `HTTP ${res.status}`);
+  }
+  // Unwrap FIRST, then read the operation's flag. The `?? payload` arm mirrors
+  // the commit-revert helper: it would classify a hypothetical bare (unwrapped)
+  // answer instead of reading it as success. Against today's single wrapping
+  // surface only the `data` arm is live.
+  const inner = ((payload?.data as Record<string, unknown> | undefined) ?? payload ?? undefined) as
+    | DuplicateOutcome
+    | undefined;
+  if (inner?.success === false) {
+    throw new Error(describeDuplicateFailure(inner));
   }
 }
 

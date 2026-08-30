@@ -133,7 +133,7 @@ const CASES: readonly Case[] = [
   // `rejected: true` row here goes red for a reason that has nothing to do with
   // `ActionDef`. Measured: green locally after a build, red in CI without one.
   //
-  // `tsconfig.typetests.json` has no such problem — it is a real project in the
+  // `tsconfig.test.json` has no such problem — it is a real project in the
   // dependency graph, so CI's Type Check job builds `@object-ui/types` before
   // compiling it, and the `@ts-expect-error` on `{ description: 42 }` there is
   // enforced for real. Splitting the two `description` pins out is therefore

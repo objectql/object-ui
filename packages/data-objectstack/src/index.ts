@@ -8,6 +8,12 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+// #4934 — a VALUE import, not a type one: the write-warning boundary parses the
+// wire's `reason` against the enum the spec itself declares, so the accept set
+// is read off the pin instead of hand-copied here (a hand copy is the drift
+// this seam already paid for once — see `DroppedFieldsEvent`'s comment below).
+import { DroppedFieldsEventSchema } from '@objectstack/spec/data';
+import type { ApiError } from '@objectstack/spec/api';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
 // from `MetadataClient.save` (#4133/#4236), this one from the interceptor below.
@@ -1005,11 +1011,29 @@ export class ConcurrentUpdateError extends Error {
   readonly httpStatus = 409;
   readonly currentVersion: string | null;
   readonly currentRecord: unknown;
-  constructor(opts: { currentVersion: string | null; currentRecord: unknown; message?: string }) {
+  /**
+   * The refusal text the PRODUCER marked as addressed to the end user
+   * (`ApiErrorSchema.userMessage`, objectstack#9934), or `null` when the
+   * refusal carried no marking.
+   *
+   * Declared on the class because this error has no `details` bag: the shared
+   * reader (`declaredUserMessage` in `@object-ui/react`) looks at the
+   * top-level field first, so parking it here is what makes the marking
+   * readable at the surface. The contract is status-agnostic — a 409 carries
+   * it exactly like a 400 or a 403 does.
+   */
+  readonly userMessage: string | null;
+  constructor(opts: {
+    currentVersion: string | null;
+    currentRecord: unknown;
+    message?: string;
+    userMessage?: string | null;
+  }) {
     super(opts.message ?? 'Record was modified by another user');
     this.name = 'ConcurrentUpdateError';
     this.currentVersion = opts.currentVersion;
     this.currentRecord = opts.currentRecord;
+    this.userMessage = opts.userMessage ?? null;
   }
 }
 
@@ -1017,11 +1041,71 @@ export class ConcurrentUpdateError extends Error {
  * Detect "concurrent update" errors raised by the platform. The wire
  * shape is `409` + `code: 'CONCURRENT_UPDATE'`. The client surfaces
  * extra details on `error.details` (full response body).
+ *
+ * Accepts EITHER that wire `code` OR `name === 'ConcurrentUpdateError'`, and
+ * reads `httpStatus` for neither. This paragraph exists because the doc used
+ * to name only the wire shape, which left the `name` limb reading as drift
+ * (objectui#6375). It is not drift: it is the deliberate cross-realm
+ * duck-check that {@link isViewConfigPermissionDeniedError} documents and
+ * cites *this* function as its precedent for — a host that bundles this
+ * package twice (or re-throws across a worker boundary) ends up holding two
+ * copies of the class, `instanceof` fails, and the `name` string is the only
+ * discriminator left. That host is out of tree by construction, so an in-repo
+ * consumer census cannot see the case the limb was written for and is not
+ * evidence against it; `@object-ui/plugin-form` and `@object-ui/plugin-detail`
+ * each carry their own copy of the same two-limb check for adapters they must
+ * not depend on.
+ *
+ * Deliberately WIDER than {@link normaliseClientError}'s re-wrap, which keys
+ * on the wire `code` alone: an error carrying only the class name is
+ * recognised here and passed through there. Both accepted sets are pinned in
+ * `occ.test.ts`.
  */
 export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpdateError {
   if (!error || typeof error !== 'object') return false;
   const e = error as Record<string, unknown>;
   return e.code === 'CONCURRENT_UPDATE' || e.name === 'ConcurrentUpdateError';
+}
+
+/**
+ * The one declared key this boundary carries, anchored to the contract rather
+ * than to a string literal: `ApiError` is `z.input<typeof ApiErrorSchema>` in
+ * `@objectstack/spec`, so a rename there fails this file at compile time
+ * instead of silently going quiet. The same anchor `@object-ui/react`'s
+ * reader uses.
+ */
+type MarkedRefusal = Pick<ApiError, 'userMessage'>;
+
+/**
+ * Lift the producer's user-facing marking off a client error.
+ *
+ * `userMessage` (`ApiErrorSchema.userMessage`, objectstack#9934) is the opt-in
+ * channel an application author sets at throw time to say "this text is for
+ * the end user". The contract states it **status-agnostic** — not a 403
+ * special case, any refusal status may carry it — so this read is
+ * deliberately gated on neither a status nor a code.
+ *
+ * Read from the same two places, under the same declared key, as the shared
+ * reader `declaredUserMessage` in `@object-ui/react`: the error itself
+ * (`@objectstack/client` lifts a marked body onto `err.userMessage`, from
+ * either wire dialect) and `details`, which the client falls back to the WHOLE
+ * response body — the identical pair the `fields[]` read below uses. The
+ * predicate (non-empty after trimming, returned untrimmed) matches that reader
+ * exactly, so a marking that survives this boundary is one the surface accepts.
+ *
+ * Deliberately not imported from `@object-ui/react`: that package depends on
+ * THIS one, so the symbol cannot travel in this direction. The key is anchored
+ * to the contract type rather than to either copy of the predicate.
+ */
+function liftUserMessage(
+  e: Record<string, unknown>,
+  details: Record<string, unknown>,
+): MarkedRefusal['userMessage'] | null {
+  if (typeof e.userMessage === 'string' && e.userMessage.trim()) return e.userMessage;
+  if (typeof details.userMessage === 'string' && details.userMessage.trim()) {
+    return details.userMessage;
+  }
+  return null;
 }
 
 /**
@@ -1034,6 +1118,12 @@ export function isConcurrentUpdateError(error: unknown): error is ConcurrentUpda
  *   - `400` + `VALIDATION_FAILED` → {@link DataApiValidationError}, carrying the
  *     server's per-field entries so a form can mark the offending inputs
  *     instead of showing one undirected toast.
+ *
+ * Both re-wraps preserve the producer's `userMessage` marking (see
+ * {@link liftUserMessage}). Re-wrapping used to drop it, which made the
+ * marking unreadable at every surface downstream of this boundary — nothing
+ * threw, the typed error was otherwise correct, and the user simply got a
+ * generic string.
  */
 export function normaliseClientError(error: unknown): unknown {
   if (!error || typeof error !== 'object') return error;
@@ -1042,6 +1132,9 @@ export function normaliseClientError(error: unknown): unknown {
   // the WHOLE body — and the validation envelope has no `details` key, so this
   // is where `fields[]` lands.
   const details = (e.details ?? {}) as Record<string, unknown>;
+  // Status-agnostic on purpose: lifted before either branch decides a shape,
+  // so a 400 and a 409 carry the marking identically.
+  const userMessage = liftUserMessage(e, details);
 
   if (e.code === 'VALIDATION_FAILED' || e.name === 'ValidationError') {
     const rawFields = Array.isArray(details.fields)
@@ -1068,16 +1161,30 @@ export function normaliseClientError(error: unknown): unknown {
       typeof e.message === 'string' ? e.message : 'Validation failed',
       validationErrors[0]?.field,
       validationErrors,
-      { fields: rawFields },
+      // The marking rides the details bag exactly the way `fields` already
+      // does, landing on `err.details.userMessage` — the second of the two
+      // places the shared reader looks. Purely additive: `field`,
+      // `validationErrors` and `fields` are untouched, so the per-field
+      // marking a form already draws keeps working. Omitted entirely when
+      // unmarked, so an unmarked refusal carries no empty key.
+      userMessage === null ? { fields: rawFields } : { fields: rawFields, userMessage },
     );
   }
 
-  if (e.code !== 'CONCURRENT_UPDATE' && e.httpStatus !== 409) return error;
+  // The wire `code` is the sole discriminator. A
+  // `code !== 'CONCURRENT_UPDATE' && httpStatus !== 409` guard used to sit
+  // directly above this line and could never decide an outcome: its condition
+  // is strictly stronger, so everything it would have returned is returned
+  // here anyway. Its `httpStatus !== 409` half advertised a second acceptance
+  // path — a bare 409 still getting re-wrapped — that never existed, on the
+  // one function whose whole job is deciding what gets re-wrapped
+  // (objectui#6375). The truth table is pinned in `occ.test.ts`.
   if (e.code !== 'CONCURRENT_UPDATE') return error;
   return new ConcurrentUpdateError({
     currentVersion: typeof details.currentVersion === 'string' ? details.currentVersion : null,
     currentRecord: details.currentRecord ?? null,
     message: typeof e.message === 'string' ? e.message : undefined,
+    userMessage,
   });
 }
 
@@ -1254,16 +1361,117 @@ export type BatchProgressListener = (event: BatchProgressEvent) => void;
 export type { DroppedFieldsEvent };
 
 /**
+ * The `reason` values THIS bundle's `@objectstack/spec` pin declares, read off
+ * `DroppedFieldsEventSchema` rather than restated (objectui#4934).
+ *
+ * Derived, so a pin bump that adds an arm widens the accept set here on its own
+ * — the alternative is a hand list that silently classifies a brand-new spec
+ * reason as skew, which is the same drift in the other direction.
+ */
+const RECOGNIZED_DROP_REASONS: ReadonlySet<unknown> = new Set<unknown>(
+  DroppedFieldsEventSchema.shape.reason.options,
+);
+
+/**
+ * The `reason` of a write-strip this bundle's spec pin cannot name
+ * (objectui#4934).
+ *
+ * Deliberately NOT a spec spelling: it is namespaced so it can never collide
+ * with an arm `@objectstack/spec` adds later (a collision would merge real
+ * reasons into the skew bucket — the failure this whole card is about, one level
+ * up). `droppedFieldsReason.boundary.test.ts` pins that the installed spec does
+ * not declare it.
+ */
+export const UNRECOGNIZED_DROP_REASON = 'objectui:unrecognized-drop-reason';
+
+/**
+ * The skew arm: one server-reported write-strip whose `reason` is outside the
+ * enum this bundle's `@objectstack/spec` pin declares (objectui#4934).
+ *
+ * A deployed client normally runs BEHIND the server it talks to, so a reason
+ * from the future is the expected skew direction, not a corrupt payload. The
+ * boundary used to assert such an entry into {@link DroppedFieldsEvent} on shape
+ * alone — `reason` was never read — so the interior was typed to trust a union
+ * nothing had checked, and the next consumer to write an exhaustive-looking
+ * table over `DroppedFieldsEvent['reason']` would have been handed a value that
+ * type says is impossible.
+ *
+ * Three properties of this shape are load-bearing:
+ *
+ * - The entry is **kept**. Dropping it would tell the user nothing about fields
+ *   the server really did strip — precisely the silence objectui#3484 removed.
+ * - The wire value is **preserved verbatim** in {@link unrecognizedReason},
+ *   never coerced or normalised onto a known arm: claiming `readonly` for a
+ *   reason we cannot name is a false statement about the user's data, and it is
+ *   also unfalsifiable once the original value is gone.
+ * - `reason` carries {@link UNRECOGNIZED_DROP_REASON}, which is not assignable
+ *   to `DroppedFieldsEvent['reason']`. That is what makes the skew case visible
+ *   to `tsc` at every consumer instead of resting on N per-consumer
+ *   disciplines — and it keeps the spec type as the canonical arm rather than
+ *   widening the whole surface to `string` (objectui#3160).
+ */
+export interface UnrecognizedDropReasonEvent {
+  object?: string;
+  fields: string[];
+  reason: typeof UNRECOGNIZED_DROP_REASON;
+  /** Whatever the server sent, untouched — including a non-string or nothing at all. */
+  unrecognizedReason: unknown;
+}
+
+/**
+ * One entry of a write-warning: either the spec type (canonical arm) or the
+ * named skew arm above. Narrow with `entry.reason === UNRECOGNIZED_DROP_REASON`.
+ */
+export type DroppedFieldsNotice = DroppedFieldsEvent | UnrecognizedDropReasonEvent;
+
+/**
+ * A `droppedFields` entry as it comes OFF THE WIRE: everything a structural
+ * check can honestly claim about it, and no more. `reason` is `unknown` because
+ * nothing has parsed it yet — writing `DroppedFieldsEvent` here is the exact
+ * assertion objectui#4934 exists to delete.
+ */
+type WireDroppedFieldsEntry = Omit<DroppedFieldsEvent, 'reason'> & { reason?: unknown };
+
+/** Whether the wire's `reason` is an arm the installed spec pin declares. */
+function isRecognizedDropReason(reason: unknown): reason is DroppedFieldsEvent['reason'] {
+  return RECOGNIZED_DROP_REASONS.has(reason);
+}
+
+/**
+ * Classify ONE wire entry by parsing its `reason` against the spec enum
+ * (objectui#4934).
+ *
+ * A recognized entry is passed through by reference — unchanged, extra
+ * server-sent keys and all — so this is a classification, not a rewrite; only
+ * the skew case builds a new object. The cast on that path is the one kind this
+ * seam may still make: `reason` has just been PARSED, so the claim is proven
+ * rather than assumed.
+ */
+function asDroppedFieldsNotice(entry: WireDroppedFieldsEntry): DroppedFieldsNotice {
+  if (isRecognizedDropReason(entry.reason)) return entry as DroppedFieldsEvent;
+  return {
+    ...entry,
+    reason: UNRECOGNIZED_DROP_REASON,
+    unrecognizedReason: entry.reason,
+  };
+}
+
+/**
  * Emitted after a create/update whose response carried `droppedFields`
  * (framework #3431/#3455). The write SUCCEEDED — this is a warning that some
  * supplied fields never landed, so the UI can tell the user rather than let it
  * pass silently. Subscribe via {@link ObjectStackAdapter.onWriteWarning}.
+ *
+ * `droppedFields` is the two-arm {@link DroppedFieldsNotice} and not
+ * `DroppedFieldsEvent[]`: the wire is parsed here, and an entry whose `reason`
+ * this bundle's spec pin cannot name arrives on the explicit skew arm rather
+ * than being asserted into the union (objectui#4934).
  */
 export interface WriteWarningEvent {
   operation: 'create' | 'update';
   resource: string;
   id?: string | number;
-  droppedFields: DroppedFieldsEvent[];
+  droppedFields: DroppedFieldsNotice[];
 }
 
 /** Event listener type for write-warning (dropped-fields) events. */
@@ -1323,14 +1531,14 @@ function sameWireValue(a: unknown, b: unknown): boolean {
  * back empty, which suppresses the warning entirely.
  */
 function withoutNoOpDrops(
-  droppedFields: DroppedFieldsEvent[],
+  droppedFields: DroppedFieldsNotice[],
   sent: Record<string, unknown> | undefined | null,
   stored: Record<string, unknown> | undefined | null,
-): DroppedFieldsEvent[] {
+): DroppedFieldsNotice[] {
   if (!sent || !stored || typeof sent !== 'object' || typeof stored !== 'object') {
     return droppedFields;
   }
-  const out: DroppedFieldsEvent[] = [];
+  const out: DroppedFieldsNotice[] = [];
   for (const e of droppedFields) {
     const kept = e.fields.filter((f) => {
       if (!Object.prototype.hasOwnProperty.call(sent, f)) return true;
@@ -2253,6 +2461,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * and, when present, notify write-warning subscribers. Tolerant of a client
    * whose response type predates `droppedFields`: the field is read structurally
    * and validated, so an older client (or a backend that never drops) is a no-op.
+   *
+   * SHAPE decides whether an entry is an event at all (it must carry a non-empty
+   * `fields`); `reason` is then PARSED against the spec enum and an unrecognized
+   * one routed to the skew arm — never asserted into the union, and never
+   * dropped (objectui#4934).
    */
   private notifyDroppedFields(
     operation: 'create' | 'update',
@@ -2263,10 +2476,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   ): void {
     const dropped = (result as { droppedFields?: unknown } | null | undefined)?.droppedFields;
     if (!Array.isArray(dropped) || dropped.length === 0) return;
-    const valid = dropped.filter(
-      (e): e is DroppedFieldsEvent =>
-        !!e && typeof e === 'object' && Array.isArray((e as DroppedFieldsEvent).fields) && (e as DroppedFieldsEvent).fields.length > 0,
-    );
+    const valid = dropped
+      .filter(
+        (e): e is WireDroppedFieldsEntry =>
+          !!e &&
+          typeof e === 'object' &&
+          Array.isArray((e as WireDroppedFieldsEntry).fields) &&
+          (e as WireDroppedFieldsEntry).fields.length > 0,
+      )
+      .map(asDroppedFieldsNotice);
     // A strip that changed nothing is not news — see withoutNoOpDrops (#3484).
     const stored = (result as { record?: Record<string, unknown> } | null | undefined)?.record;
     const droppedFields = withoutNoOpDrops(valid, sent, stored);
@@ -2295,7 +2513,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     const results = (payload as { results?: unknown[] } | null | undefined)?.results;
     for (const entry of dropped) {
       if (!entry || typeof entry !== 'object') continue;
-      const e = entry as DroppedFieldsEvent & { index?: number };
+      // The cast claims only the structure this loop checks; `reason` stays
+      // unparsed until `asDroppedFieldsNotice` below (objectui#4934).
+      const e = entry as WireDroppedFieldsEntry & { index?: number };
       if (!Array.isArray(e.fields) || e.fields.length === 0) continue;
       const op = typeof e.index === 'number' ? operations[e.index] : undefined;
       // Same no-op suppression as the single-record path (#3484). The echoed
@@ -2305,8 +2525,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         typeof e.index === 'number' && Array.isArray(results)
           ? (results[e.index] as Record<string, unknown> | undefined)
           : undefined;
+      // `reason` is parsed against the spec enum here too — the batch path used
+      // to re-assert the wire value into the union via the cast above
+      // (objectui#4934). `index` is deliberately not carried onto the notice:
+      // it addresses an operation in THIS response, not the strip.
       const [live] = withoutNoOpDrops(
-        [{ object: e.object, fields: e.fields, reason: e.reason }],
+        [asDroppedFieldsNotice({ object: e.object, fields: e.fields, reason: e.reason })],
         op?.data as Record<string, unknown> | undefined,
         stored,
       );
@@ -4496,7 +4720,30 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // spec/ui/dashboard.zod.ts). Send via the canonical `where`
         // field of the analytics endpoint, matching the unified Query
         // DSL (spec/data/query.zod.ts).
-        payload.where = params.filter;
+        //
+        // An ARRAY filter goes through the same `translateFilterArray` the
+        // `find()` path runs in `convertQueryParams`, because an authored
+        // `ViewFilterRule[]` reaches this method exactly as it reaches that
+        // one. It used to ship RAW from here, and the analytics door is
+        // stricter than the data door: `lowerAnalyticsWhere`
+        // (`@objectstack/service-analytics`, shared by both aggregation
+        // strategies) THROWS "[analytics] received a 'where' array that is
+        // not a filter" on an array of rule objects, while accepting AST
+        // tuples. So a stored filter that a list renders correctly rendered
+        // `element:number` into its error state on every analytics-capable
+        // deployment — and analytics is the default one, since the CLI always
+        // loads it (objectui#6302).
+        //
+        // One lowering, not two: the same function, so the analytics path and
+        // the `find()` path cannot disagree about one stored filter — which is
+        // the whole reason `translateFilterArray` was made a single definition
+        // (see its header). Non-array filters keep passing through untouched:
+        // the MongoDB-style object this branch was written for is what
+        // `/analytics/query` already accepts, and translating it here would be
+        // a semantic change this fix is expressly not making.
+        payload.where = Array.isArray(params.filter)
+          ? translateFilterArray(params.filter)
+          : params.filter;
       }
 
       const data = await this.client.analytics.query(payload);

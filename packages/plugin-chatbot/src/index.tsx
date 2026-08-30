@@ -358,6 +358,7 @@ export {
   detectDraftResult,
   detectProposedPlan,
   detectBuilderHandoff,
+  detectRecordHandoff,
   detectProposedChanges,
   detectReplayOutcome,
   detectAuthoringVerdict,

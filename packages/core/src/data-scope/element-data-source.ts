@@ -278,3 +278,119 @@ export function elementDataSourceViewNotFoundMessage(
     : 'This object has no saved views.';
   return `dataSource.view "${view}" was not found on object "${object}". ${known}`;
 }
+
+/* ------------------------------------------------------------------ *
+ * The DECLARATION half — one copy, next to the semantics (objectui#6678)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The spec key this module resolves, spelled once.
+ *
+ * Every consumer that needs the NAME (the registry injection, its gates, the
+ * pins) reads it from here rather than repeating the literal, so "which key is
+ * this?" has exactly one answer in the tree.
+ */
+export const ELEMENT_DATA_SOURCE_KEY = 'dataSource';
+
+/**
+ * The authoring-surface declaration of {@link ELEMENT_DATA_SOURCE_KEY} — the one
+ * copy, emitted into every registration that wraps the runtime gate.
+ *
+ * ## Why it lives here and is injected rather than written per block
+ *
+ * `PageComponentSchema.dataSource` is READ by `ElementDataSourceGate` in
+ * `@object-ui/react` on behalf of every object-bound block that wraps itself in
+ * it — nine of them at the time of writing. It was declared by NONE: `validateTree`
+ * skips `BASE_PROPS` and otherwise looks a prop up in the component's `inputs`,
+ * and `dataSource` was in neither. So the html tier reported the one spelling
+ * that resolves a saved view — the only one that works — with the identical
+ * `unknown-prop` warning it gives the spellings that do nothing, on the tier
+ * meant to accept AI-authored pages, where the diagnostic IS the contract
+ * (objectui#6678, the reporter of objectui#6598 gave up on exactly this).
+ *
+ * The maintainer ruling of 2026-08-29 took option B **in the injection form**:
+ * emitted mechanically at the wrapping seam, so a block declares the key from
+ * the same place that reads it. Nine hand-kept copies is the shape that ruling
+ * refused — they drift, and a tenth block would simply forget. Adding the key to
+ * `sdui-parser`'s `BASE_PROPS` (option A) was refused too: that set mirrors
+ * `BaseSchema`, and silencing `dataSource` on blocks that do NOT read it
+ * (`flex`, `card`) would make the diagnostic lie in the other direction.
+ *
+ * ## Why `object`, and not a bare `'object'` kind
+ *
+ * The `binding: 'object'` marker is what tells a consumer this input names an
+ * OBJECT — `validateTree` records it as a binding site, and the designer offers
+ * an object picker rather than a free-text blob. The `type` stays the coarse
+ * `'object'` kind because the value is a record; the two words are unrelated and
+ * both are correct here.
+ */
+export const ELEMENT_DATA_SOURCE_INPUT: {
+  name: string;
+  type: 'object';
+  label: string;
+  binding: 'object';
+  description: string;
+} = {
+  name: ELEMENT_DATA_SOURCE_KEY,
+  type: 'object',
+  label: 'Data Source',
+  binding: 'object',
+  description:
+    'Per-element data binding: { object, view, filter, sort, limit }. Overrides the ' +
+    'page-level object context for this block; `view` names a saved view of `object`, ' +
+    'and `filter` is ANDed with the view’s own rather than replacing it.',
+};
+
+/**
+ * The renderers that wrap the runtime gate.
+ *
+ * A `WeakSet` rather than a property on the component: marking must not mutate a
+ * `React.forwardRef` exotic object or show up when a test snapshots a
+ * registration, and an unregistered renderer must stay collectable.
+ */
+const elementDataSourceBlocks = new WeakSet<object>();
+
+/**
+ * Declare that `renderer` wraps `ElementDataSourceGate`, so its registrations
+ * publish {@link ELEMENT_DATA_SOURCE_INPUT}.
+ *
+ * This is the SEAM, and it is deliberately the only way in: `Registry.register`
+ * injects the declaration for exactly the renderers marked here, so the key is
+ * published by whatever consumes the gate and by nothing else — which is what
+ * keeps the `flex` / `card` direction of the ruling true.
+ * `scripts/check-element-data-source-declaration.mjs` fails any source that
+ * consumes the gate without passing through it, so a new block cannot forget.
+ *
+ * ## Two import paths, ONE name and ONE function
+ *
+ * `@object-ui/react` re-exports this beside `ElementDataSourceGate` so the seam is
+ * findable next to the thing it is about. That export is for DISCOVERABILITY:
+ * every CALL SITE imports from here, and
+ * `scripts/check-element-data-source-declaration.mjs` enforces it.
+ *
+ * The rule is measured, not stylistic. A registration runs at MODULE SCOPE, and
+ * `element:record_picker`'s registration in `@object-ui/components` is the
+ * worked example. 101 suites in this repo partially
+ * mock `@object-ui/react` by hand-listing the exports they return, and a
+ * module-scope read of a name those lists do not carry throws at COLLECTION
+ * time — the importing test file fails before it runs a single assertion.
+ * Measured: 17 files, all four CI shards, zero failed assertions among them.
+ * Nothing mocks `@object-ui/core`, and `@object-ui/components` already imports
+ * `ComponentRegistry` from it at module scope, so this path adds no coupling
+ * that was not already there.
+ */
+export function elementDataSourceBlock<C>(renderer: C): C {
+  if (renderer && (typeof renderer === 'object' || typeof renderer === 'function')) {
+    elementDataSourceBlocks.add(renderer as unknown as object);
+  }
+  return renderer;
+}
+
+/** Whether `renderer` was marked by {@link elementDataSourceBlock}. */
+export function isElementDataSourceBlock(renderer: unknown): boolean {
+  return (
+    !!renderer
+    && (typeof renderer === 'object' || typeof renderer === 'function')
+    && elementDataSourceBlocks.has(renderer as object)
+  );
+}

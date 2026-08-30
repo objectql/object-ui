@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   useSchemaContext,
@@ -236,7 +236,7 @@ function resolveHostDataSource(raw: unknown): ObjectCalendarComponentProps['data
 }
 
 // Register object-calendar component
-export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any }> = ({
+export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any }> = elementDataSourceBlock(({
   schema,
   // The merged node className + SDUI scope class, set by `SchemaRenderer` AFTER
   // the node's `props` container: CONSUMED and forwarded, as before.
@@ -288,7 +288,7 @@ export const ObjectCalendarRenderer: React.FC<{ schema: any; [key: string]: any 
       )}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
   namespace: 'plugin-calendar',

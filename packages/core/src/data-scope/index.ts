@@ -25,7 +25,11 @@ export {
 export {
   collectSavedViews,
   composeElementDataSource,
+  ELEMENT_DATA_SOURCE_INPUT,
+  ELEMENT_DATA_SOURCE_KEY,
+  elementDataSourceBlock,
   elementDataSourceViewNotFoundMessage,
+  isElementDataSourceBlock,
   isElementDataSourceConfig,
   resolveSavedView,
   type ComposedElementDataSource,

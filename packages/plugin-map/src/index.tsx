@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import {
   ElementDataSourceGate,
   useSchemaContext,
@@ -41,7 +41,7 @@ const OBJECT_MAP_DATA_SOURCE: ElementDataSourceMapping = {
 };
 
 // Register component
-export const ObjectMapRenderer: React.FC<any> = ({ schema, ...props }) => {
+export const ObjectMapRenderer: React.FC<any> = elementDataSourceBlock(({ schema, ...props }) => {
   const { dataSource } = useSchemaContext() || {};
   // The spec's `PageComponentSchema.dataSource` binding (objectstack#7121): a map
   // authored with the binding and no flat `objectName` got a null data config, so
@@ -57,7 +57,7 @@ export const ObjectMapRenderer: React.FC<any> = ({ schema, ...props }) => {
       {(bound) => <ObjectMap schema={bound} dataSource={dataSource} {...props} />}
     </ElementDataSourceGate>
   );
-};
+});
 
 ComponentRegistry.register('object-map', ObjectMapRenderer, {
   namespace: 'plugin-map',

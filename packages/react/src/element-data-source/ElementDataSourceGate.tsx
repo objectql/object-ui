@@ -390,6 +390,64 @@ export function NoDataSourcePanel({
   );
 }
 
+/**
+ * The wrapping seam — mark `renderer` as one that wraps {@link
+ * ElementDataSourceGate}, so its registrations DECLARE the `dataSource` key this
+ * gate READS (objectui#6678).
+ *
+ * ```tsx
+ * export const ObjectMapRenderer = elementDataSourceBlock<React.FC<any>>(({ schema }) => (
+ *   <ElementDataSourceGate schema={schema} testId="object-map" …>
+ *     {(bound) => <ObjectMap schema={bound} />}
+ *   </ElementDataSourceGate>
+ * ));
+ * ```
+ *
+ * ## What this closes
+ *
+ * `PageComponentSchema.dataSource` is the one spelling that resolves a saved
+ * view for an object-bound block. It works — and because no registration
+ * declared it, `sdui-parser`'s `validateTree` reported it with the SAME
+ * `unknown-prop` warning it gives the spellings that do nothing. On the tier
+ * built to accept AI-authored pages the diagnostic IS the contract, so the
+ * tier's only signal pointed away from the one key that works.
+ *
+ * ## Why a seam and not nine declarations
+ *
+ * Maintainer ruling, 2026-08-29: option B **in the injection form**. Nine
+ * hand-written copies across nine packages is the shape that ruling refused —
+ * they drift, and the tenth block forgets. Passing through here is the only
+ * thing a block does; `Registry.register` emits the declaration
+ * (`withElementDataSourceInput`), and `ELEMENT_DATA_SOURCE_INPUT` in
+ * `@object-ui/core` is its single copy, beside the binding's own semantics.
+ *
+ * ## And it cannot be forgotten
+ *
+ * `scripts/check-element-data-source-declaration.mjs` fails any source that
+ * renders `ElementDataSourceGate` for a registration without passing that
+ * registration's renderer through this function. That is the mechanical half of
+ * "a tenth block gets it automatically"; this function is the seam it enforces.
+ *
+ * Returns the renderer UNCHANGED (the mark is held in a `WeakSet`), so it is safe
+ * over a `React.forwardRef` object, over `React.memo`, and over a component that
+ * something else already re-exports by reference.
+ *
+ * ⚠️ Re-exported from `@object-ui/core` — where the marker and the declaration
+ * live — rather than wrapped here: ONE function under ONE name. This export
+ * exists for DISCOVERABILITY, so the seam is findable beside the gate it is
+ * about; **call sites must import it from `@object-ui/core`**, and
+ * `check:element-data-source-declaration` enforces that.
+ *
+ * The rule is measured, not stylistic. A registration runs at MODULE SCOPE, 101
+ * suites in this repo partially mock `@object-ui/react` by hand-listing the
+ * exports they return, and a module-scope read of a name absent from such a list
+ * throws at COLLECTION time — the importing test file dies before running one
+ * assertion. Taking the seam from here reddened 17 files across all four CI
+ * shards with zero failed assertions among them. Nothing mocks `@object-ui/core`,
+ * and every registration module already imports `ComponentRegistry` from it.
+ */
+export { elementDataSourceBlock } from '@object-ui/core';
+
 export interface ElementDataSourceGateProps<S> {
   /** The block's schema node. */
   schema: S;

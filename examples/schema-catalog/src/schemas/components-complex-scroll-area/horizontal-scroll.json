@@ -4,7 +4,7 @@
   "height": "150px",
   "orientation": "horizontal",
   "className": "rounded-md border",
-  "content": [
+  "children": [
     {
       "type": "flex",
       "gap": 4,

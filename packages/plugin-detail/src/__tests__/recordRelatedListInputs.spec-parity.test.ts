@@ -33,7 +33,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
-import { RecordRelatedListProps } from '@objectstack/spec/ui';
+import { PageComponentSchema, RecordRelatedListProps } from '@objectstack/spec/ui';
 import '../index';
 
 type ShapeCarrier = { shape?: unknown; _def?: { shape?: unknown } };
@@ -70,6 +70,26 @@ function innerObject(schema: unknown, key: string): unknown {
 }
 
 const specTopLevelKeys = (): string[] => shapeKeys(RecordRelatedListProps);
+
+/**
+ * Keys the spec accepts on the NODE, on every page component (objectui#6678).
+ *
+ * `RecordRelatedListProps` is this block's PROPS contract, which is not the whole
+ * contract of the node an `inputs` list describes: `PageComponentSchema` carries
+ * its own top-level keys, and the html tier validates an author's attributes
+ * against `BASE_PROPS` + `inputs` with no third place for a node-level key to be
+ * declared. `dataSource` — the spec's per-element binding, which this block reads
+ * through `ElementDataSourceGate` and now declares from that seam — is one of
+ * them, and it is accepted here for the same reason `className` would be.
+ *
+ * DERIVED from `PageComponentSchema`'s own input shape (it is a `.pipe()`), never
+ * listed, so a spec release moves it. The repo-wide half of this gate makes the
+ * same widening in
+ * `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`, and both
+ * assert the derivation still discriminates.
+ */
+const nodeLevelSpecKeys = (): string[] =>
+  shapeKeys((PageComponentSchema as unknown as { _def?: { in?: unknown } })._def?.in);
 const specAddKeys = (): string[] => shapeKeys(innerObject(RecordRelatedListProps, 'add'));
 const specPickerKeys = (): string[] =>
   shapeKeys(innerObject(innerObject(RecordRelatedListProps, 'add'), 'picker'));
@@ -90,8 +110,19 @@ describe('record:related_list — registry inputs vs @objectstack/spec', () => {
   });
 
   it('declares no top-level input the spec does not accept', () => {
-    const allowed = new Set(specTopLevelKeys());
+    const allowed = new Set([...specTopLevelKeys(), ...nodeLevelSpecKeys()]);
     expect(inputNames().filter((name) => !allowed.has(name))).toEqual([]);
+  });
+
+  it('the node-level widening is derived, discriminating and non-empty', () => {
+    // Calibration, in both directions: [] would silently stop widening and this
+    // block would red on a key the spec accepts, while an everything-set would
+    // stop this pin being a gate at all.
+    const nodeKeys = nodeLevelSpecKeys();
+    expect(nodeKeys.length).toBeGreaterThan(0);
+    expect(nodeKeys).toContain('dataSource');
+    expect(nodeKeys).not.toContain('relationshipField');
+    expect(nodeKeys).not.toContain('__not_a_spec_key__');
   });
 
   it('publishes `relationshipValueField`, which the renderer has read all along', () => {

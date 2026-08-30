@@ -11,7 +11,9 @@ import {
   DEFAULT_SWEEP_REPO,
   h22ClosedCardPmResidue,
   resolveClosedWindowPages,
+  resolveClosureFloor,
   resolveSweepRepo,
+  seatLane,
   summaryLine,
 } from '../pm/check-half-states.mjs';
 
@@ -20,18 +22,35 @@ import {
  *
  * ## What this file is for, and what it deliberately is not
  *
- * The sweeper carries its own ~1,077-case `--self-test`, and that suite is the
- * authority on the twenty-odd predicates. Re-asserting predicates here would
- * fork the pin: two copies drifting apart, one of them not the one upstream
- * maintains. So the first test below simply RUNS that suite in CI — the point
- * being that a port whose self-test nobody executes is the #4690 shape again
- * (a check that reads as enforcement while nothing invokes it).
+ * The sweeper carries its own `--self-test`, and that suite is the authority on
+ * the twenty-odd predicates. Re-asserting predicates here would fork the pin:
+ * two copies drifting apart, one of them not the one upstream maintains. So the
+ * first test below simply RUNS that suite in CI — the point being that a port
+ * whose self-test nobody executes is the #4690 shape again (a check that reads
+ * as enforcement while nothing invokes it).
+ *
+ * ⚠️ REPLACED PIN (objectui#6642): that sentence used to say "~1,077-case", and
+ * the figure was 1,116 by then and is 1,574 after the re-sync. The count is
+ * deliberately gone rather than refreshed — a hand-copied enumeration drifts by
+ * construction and a stale one reads exactly as authoritative as a fresh one,
+ * which is the lesson `lint-workflow.test.ts` records at length for this repo.
+ * The assertion below never read the number and still does not.
  *
  * Everything after it pins the ADAPTATIONS instead — the handful of places this
  * install diverges from upstream. Those are exactly the lines a future verbatim
  * re-sync from objectstack would clobber silently, and each one is load-bearing:
  * dropping any of them does not break the patrol loudly, it makes the patrol
  * report something false quietly.
+ *
+ * ## What this file cannot see, and what now can (objectui#6642)
+ *
+ * By construction it looks only at THIS copy. It cannot tell whether upstream
+ * has moved, which is how the port drifted 4,637 lines behind while every test
+ * here stayed green. `scripts/check-upstream-port-parity.mjs` is the half that
+ * looks the other way: it pins the ported files against a named upstream commit
+ * modulo the same adaptations, byte-for-byte. The two are complements — that
+ * gate proves the copy still IS the copy; this file proves the adaptations
+ * survived being one.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -81,17 +100,72 @@ describe('check-half-states — sweeps THIS board (objectui#5791 adaptation)', (
   });
 });
 
-describe('check-half-states — H22 closed-card reader is OFF here (objectui#5791)', () => {
+describe('check-half-states — H32 lane foreignness inverts here (objectui#6642)', () => {
   /**
-   * The measurement that decided this, re-measured 2026-08-24 for the port:
-   * 815 closed cards in objectui carry `pm:dispatched`, and ~347 of the 400
-   * issues inside upstream's window carry some `pm:*` residue label (~87%,
-   * against the 26% upstream measured on its own board). Stripping `pm:*` on
-   * close was never this lane's practice, so H22 here reports the CONVENTION
-   * rather than a defect — ~347 rows that would exhaust the body budget and
-   * trim every other predicate out of the anchor on day one.
+   * A divergence the re-sync DISCOVERED rather than one it authored, and the
+   * only one that made a verbatim copy impossible outright: upstream's H32 rows
+   * do not merely read oddly here, they FAIL. Three of them, on the first run
+   * of upstream's suite against this install.
+   *
+   * `seatLane` decides whether a seat post's lane is readable from this sweep by
+   * comparing the title's `@ <repo>` suffix against the RESOLVED sweep repo —
+   * a live value, not a constant. Upstream's self-test rows hard-code
+   * `@ objectui` as the foreign specimen and `@ objectstack` as the own-board
+   * one, which is correct there and exactly backwards here.
+   *
+   * The property being asserted is identical in both installs; only the
+   * specimens swap. ⚠️ Which is why this block is the one adaptation that
+   * should NOT be defended: the day upstream derives its specimen from the
+   * resolved repo instead of writing the name, three pin entries disappear and
+   * these rows become redundant with upstream's own.
    */
-  it('keeps upstream\'s default in the script, so the port stays a straight copy', () => {
+  const seat = (title: string) => ({ title });
+
+  it('reads a SIBLING board\'s lane as foreign — and the sibling here is objectstack', () => {
+    expect(seatLane(seat('[PM seat] domain:devx @ objectstack — 🟢 os-x')).foreign).toBe(true);
+  });
+
+  it('…and this board\'s own lane as readable, keeping the bare label', () => {
+    const own = seatLane(seat('[PM seat] domain:devx @ objectui — 🟢 os-x'));
+    expect(own.foreign).toBe(false);
+    expect(own.lane).toBe('domain:devx');
+  });
+
+  it('the specimens follow the RESOLVED sweep repo, which is what makes this a divergence', () => {
+    // Pinning the coupling itself rather than a value: this line is the reason
+    // upstream's rows cannot be carried verbatim, and its removal upstream is
+    // the event that retires this whole block plus three pin entries.
+    const src = fs.readFileSync(sweeperPath, 'utf8');
+    expect(src).toContain("SWEEP_REPO.repo.split('/')[1]");
+    // Both places this install resolves that value agree, so the rows above
+    // hold on a runner (GITHUB_REPOSITORY) and in a bare terminal (the default).
+    expect(resolveSweepRepo({}).repo).toBe('objectstack-ai/objectui');
+    expect(resolveSweepRepo({ GITHUB_REPOSITORY: 'objectstack-ai/objectui' }).repo).toBe('objectstack-ai/objectui');
+  });
+});
+
+describe('check-half-states — H22 runs here behind a DATED CLOSURE FLOOR (objectui#5985)', () => {
+  /**
+   * ⚠️ REPLACED PIN, not a respelled one. Until 2026-08-28 this block pinned the
+   * opposite arrangement: the reader fully OFF via `PM_SWEEP_CLOSED_WINDOW_PAGES:
+   * '0'`, under a ruling that stripping `pm:*` on close was not this lane's
+   * convention. That ruling is superseded — fleet practice now strips `pm:*` in
+   * the landing/close stroke, and the convention is written into the pm-dispatch
+   * protocol's label-discipline section as of 2026-08-28.
+   *
+   * The measurement that forced the original hold still stands and is why the
+   * re-enable is FLOORED rather than plain (re-measured 2026-08-24 for the
+   * port): 815 closed cards here carry `pm:dispatched`, and ~347 of the 400
+   * issues inside upstream's window carry some `pm:*` residue label (~87%,
+   * against the 26% upstream measured on its own board). An unfloored re-enable
+   * would report the CONVENTION rather than defects — ~347 rows that exhaust
+   * the body budget and trim every other predicate out of the anchor on day one.
+   *
+   * ⛔ The floor is what makes the re-enable cheap: no backfill of the 815
+   * historical carriers was run, and none is owed. The sweeper writes no label
+   * under any code path, so no bulk rewrite is even reachable from here.
+   */
+  it('keeps upstream\'s page default in the script, so the port stays a straight copy', () => {
     // The divergence lives in the WORKFLOW, not in the script's default. This
     // is what lets the predicate file be re-synced verbatim.
     expect(CLOSED_ISSUE_WINDOW_PAGES).toBe(4);
@@ -99,45 +173,91 @@ describe('check-half-states — H22 closed-card reader is OFF here (objectui#579
     expect(resolveClosedWindowPages({}).source).toBe('default');
   });
 
-  it('is switched off by the workflow, and visibly so', () => {
-    expect(workflow).toMatch(/PM_SWEEP_CLOSED_WINDOW_PAGES: '0'/);
-    expect(resolveClosedWindowPages({ PM_SWEEP_CLOSED_WINDOW_PAGES: '0' }).pages).toBe(0);
-    expect(resolveClosedWindowPages({ PM_SWEEP_CLOSED_WINDOW_PAGES: '0' }).valid).toBe(true);
+  it('is switched ON by the workflow — the page-window hold is GONE', () => {
+    // The hold's absence is asserted directly. Left in place beside a floor it
+    // would win silently (0 pages reads nothing whatever the floor says), and
+    // the anchor would keep reporting UNREAD while looking re-enabled.
+    expect(workflow).not.toMatch(/^\s*PM_SWEEP_CLOSED_WINDOW_PAGES:/m);
+    expect(resolveClosedWindowPages({}).pages).toBe(4);
+  });
+
+  it('sets a dated floor in the workflow, and visibly so', () => {
+    expect(workflow).toMatch(/PM_SWEEP_CLOSED_FLOOR: '2026-08-28'/);
+    const resolved = resolveClosureFloor({ PM_SWEEP_CLOSED_FLOOR: '2026-08-28' });
+    expect(resolved.valid).toBe(true);
+    expect(resolved.floor?.toISOString()).toBe('2026-08-28T00:00:00.000Z');
   });
 
   it('refuses a malformed page count instead of silently defaulting', () => {
-    // Silently falling back to 4 would re-open the reader this install shut,
-    // and the anchor would carry the residue as though someone chose that.
+    // The knob still exists and still refuses garbage — it is simply not what
+    // holds the historical residue out any more.
     for (const raw of ['O', '-1', '1.5', 'four']) {
       expect(resolveClosedWindowPages({ PM_SWEEP_CLOSED_WINDOW_PAGES: raw }).valid).toBe(false);
     }
     expect(resolveClosedWindowPages({ PM_SWEEP_CLOSED_WINDOW_PAGES: ' 2 ' }).pages).toBe(2);
   });
 
-  it('leaves the H22 predicate itself untouched', () => {
-    // The adaptation is a window, not a rewritten rule: handed a closed card
-    // with residue the predicate must still say so. Re-enabling the reader is
-    // therefore a one-variable decision, not a code change.
+  it('refuses a malformed floor instead of silently running unfloored', () => {
+    // ⛔ The property the re-enable turns on. A floor that degraded to "no
+    // floor" would put ~347 convention rows in the anchor four times a day,
+    // and a flooded anchor reads exactly like a working patrol.
+    for (const raw of ['28-08-2026', '2026/08/28', 'yesterday', '2026-8-28', 'O']) {
+      expect(resolveClosureFloor({ PM_SWEEP_CLOSED_FLOOR: raw }).valid).toBe(false);
+      expect(resolveClosureFloor({ PM_SWEEP_CLOSED_FLOOR: raw }).floor).toBeNull();
+    }
+    // …including a shape-valid date that does not exist. `Date.parse` rolls
+    // `2026-02-31` to March rather than rejecting it, so the resolver
+    // round-trips the parse instead of trusting it.
+    expect(resolveClosureFloor({ PM_SWEEP_CLOSED_FLOOR: '2026-02-31' }).valid).toBe(false);
+    // Unset is valid and means "no floor" — upstream's own behaviour.
+    expect(resolveClosureFloor({}).valid).toBe(true);
+    expect(resolveClosureFloor({}).floor).toBeNull();
+  });
+
+  it('applies the floor to the H22 predicate: old closures out, new ones judged', () => {
+    // The whole re-enable, in two assertions. The old card is the ~815-card
+    // backlog in miniature — real residue, deliberately NOT a finding.
     const closedCard = {
       state: 'closed',
       state_reason: 'completed',
       labels: [{ name: 'pm:dispatched' }],
     };
-    expect(h22ClosedCardPmResidue(closedCard)).toContain('`pm:dispatched`');
-    expect(h22ClosedCardPmResidue({ ...closedCard, state: 'open' })).toBeNull();
+    const floor = resolveClosureFloor({ PM_SWEEP_CLOSED_FLOOR: '2026-08-28' }).floor;
+    expect(h22ClosedCardPmResidue({ ...closedCard, closed_at: '2026-01-01T00:00:00Z' }, floor)).toBeNull();
+    expect(h22ClosedCardPmResidue({ ...closedCard, closed_at: '2026-08-29T00:00:00Z' }, floor)).toContain('`pm:dispatched`');
+    // The cutover date itself is judged: it is the first day the convention
+    // applies, so cards closed within it are the convention's own population.
+    expect(h22ClosedCardPmResidue({ ...closedCard, closed_at: '2026-08-28T12:00:00Z' }, floor)).toContain('`pm:dispatched`');
+    // Unfloored, the predicate is byte-for-byte upstream's — the port stays a
+    // straight copy and the floor is opt-in.
+    expect(h22ClosedCardPmResidue({ ...closedCard, closed_at: '2026-01-01T00:00:00Z' })).toContain('`pm:dispatched`');
+    expect(h22ClosedCardPmResidue({ ...closedCard, state: 'open' }, floor)).toBeNull();
   });
 
-  it('reports the closed surface as UNREAD, never as clean', () => {
-    // ⛔ The property the whole adaptation turns on (#4690). A disabled reader
-    // and an empty result are the same number and opposite facts; if this ever
-    // renders "H22 read 0", the anchor starts asserting a clean closed surface
-    // that nothing looked at.
+  it('names the floor in the summary, so a floored pass cannot read as a full one', () => {
+    // ⛔ #4690, in the shape this change could newly break: "H22 read 200" with
+    // a floor silently applied overstates what was judged. The line must carry
+    // the floor date, and must say the earlier closures are UNJUDGED rather
+    // than clean.
+    const counts = { repo: 'objectstack-ai/objectui', issues: 3, unscoped: 4, prs: 1, merged: 2, closed: 200 };
+    const floored = summaryLine({ ...counts, closedFloor: '2026-08-28' }, 0);
+    expect(floored).toContain('H22 read 200 recently-closed issue(s)');
+    expect(floored).toContain('only cards closed on/after 2026-08-28 are judged');
+    expect(floored).toContain('NOT a reading about them');
+    // An unfloored pass must not grow the clause.
+    expect(summaryLine(counts, 0)).not.toContain('are judged');
+  });
+
+  it('still reports a DISABLED reader as UNREAD, never as clean', () => {
+    // The disabled branch is no longer wired here, but it is still live code
+    // and still the property the port turned on (#4690): a disabled reader and
+    // an empty result are the same number and opposite facts. Kept pinned so
+    // re-adding the hold cannot quietly render "H22 read 0".
     const counts = { repo: 'objectstack-ai/objectui', issues: 3, unscoped: 4, prs: 1, merged: 2, closed: 0 };
     const disabled = summaryLine({ ...counts, closedWindowDisabled: true }, 0);
     expect(disabled).toContain('is DISABLED in this install');
     expect(disabled).toContain('UNREAD');
     expect(disabled).not.toContain('H22 read 0');
-    // …and it names the way back, so the choice is reversible by a reader.
     expect(disabled).toContain('PM_SWEEP_CLOSED_WINDOW_PAGES');
 
     // The other direction: an enabled reader that found nothing IS a clean

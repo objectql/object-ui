@@ -12,10 +12,19 @@ import { fileURLToPath } from 'node:url';
  *
  * The card's premise also said the block's Node/pnpm/React rows were "currently
  * accurate". Two of the three were. **Node was not** — the row read `≥ 20` while
- * root `engines.node` has been `>=22`, and the row *names that anchor in its own
- * text*. A claim that cites its anchor and disagrees with it is the strongest
- * possible argument that review alone does not hold this block: the reviewer had
- * the pointer and still did not follow it.
+ * root `engines.node` was `>=22` at the time, and the row *names that anchor in
+ * its own text*. A claim that cites its anchor and disagrees with it is the
+ * strongest possible argument that review alone does not hold this block: the
+ * reviewer had the pointer and still did not follow it.
+ *
+ * `engines.node` has since moved again, to `>=22.11` (objectui#5306 / PR #6311) —
+ * and objectui#6313 is the same shape of drift one decimal place down: the
+ * forward assertion below derived its expected floor with `match(/(\d+)/)`,
+ * which keeps only the LEADING integer group and silently discards everything
+ * after it. `>=22.11` derived a floor of `22`, so a row reading exactly `≥ 22`
+ * (missing the `.11` its own anchor carries) passed. The derivation below now
+ * strips the comparator and keeps the WHOLE version string instead, so the row
+ * and the anchor can no longer disagree at the minor version.
  *
  * ## Why a per-block pin and not the repo's existing ratchet
  *
@@ -121,6 +130,21 @@ function peerMajors(range: string): string[] {
     .split('||')
     .map((comparator) => comparator.trim().match(/^[\^~>=<\s]*(\d+)\./)?.[1])
     .filter((major): major is string => major !== undefined);
+}
+
+/**
+ * The floor an `engines`-style range states, as the WHOLE version string — not just
+ * its leading integer group.
+ *
+ * objectui#6313: the previous derivation, `match(/(\d+)/)?.[1]`, kept only the
+ * leading digits, so `>=22.11` produced a floor of `22` and silently discarded the
+ * `.11` rather than failing. A row reading exactly `≥ 22` then satisfied an anchor
+ * that actually says `22.11`. Stripping the comparator and keeping the remainder
+ * whole means the row and the anchor can no longer disagree at any segment the
+ * anchor carries.
+ */
+function versionFloor(range: string): string | undefined {
+  return range.match(/^[\^~>=<\s]*(.+)$/)?.[1];
 }
 
 /**
@@ -314,8 +338,8 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
     const engine = rootManifest.engines?.node;
     expect(engine, 'root package.json must still declare engines.node').toBeDefined();
 
-    const floor = (engine as string).match(/(\d+)/)?.[1];
-    expect(floor, `engines.node must still carry a numeric floor (got "${engine}")`).toBeDefined();
+    const floor = versionFloor(engine as string);
+    expect(floor, `engines.node must still carry a version floor (got "${engine}")`).toBeDefined();
     expectRowStates(
       'Node.js',
       [`≥ ${floor}`],
@@ -323,10 +347,64 @@ describe('QUICK_REFERENCE.md "Current Release" — toolchain rows', () => {
     );
   });
 
+  /**
+   * objectui#6313: `match(/(\d+)/)?.[1]` on `engines.node` kept only the leading
+   * integer group, so `>=22.11` derived a floor of `22` and a row reading exactly
+   * `≥ 22` — missing the `.11` its own anchor states — passed. Two properties, both
+   * measured against the REAL `engines.node` rather than a hard-coded literal, so
+   * this cannot itself go stale the way the row it guards did:
+   *
+   * - The old (leading-integer) and new (whole-string) derivations must disagree
+   *   whenever the anchor carries a minor — proving the fix changed what floor
+   *   comes OUT, not just how it is computed. If `engines.node` ever loses its
+   *   minor this assertion goes quiet, which is why the next one does not depend
+   *   on that disagreement to make its point.
+   * - A row stating the coarser, pre-fix floor must be REJECTED by the same
+   *   equality `expectRowStates` uses above. This is the entire point of the card:
+   *   if `≥ 22` were accepted before the fix and still accepted after it, the
+   *   derivation changed without changing what the pin enforces.
+   */
+  it('derives the Node floor as the whole version, not just its leading integer group', () => {
+    const engine = rootManifest.engines?.node as string;
+    const staleFloor = engine.match(/(\d+)/)?.[1];
+    const floor = versionFloor(engine);
+
+    expect(
+      floor,
+      `engines.node ("${engine}") no longer carries a minor segment for the leading-integer ` +
+        `derivation ("${staleFloor}") to differ from — objectui#6313's regression case needs one ` +
+        're-anchored to keep exercising the disagreement',
+    ).not.toBe(staleFloor);
+
+    expect(
+      statedLiterals(`≥ ${staleFloor}`),
+      `a row reading "≥ ${staleFloor}" must NOT satisfy the derived Node floor "≥ ${floor}" — ` +
+        'accepting it is exactly the objectui#6313 staleness this pin exists to catch',
+    ).not.toEqual(statedLiterals(`≥ ${floor}`));
+  });
+
+  /**
+   * The coarseness objectui#4913 already fixed for `toContain` (a numerically-prefixed
+   * SUPERSET like `≥ 220` passing against a derived `≥ 22`) must not come back now that
+   * the floor is derived differently. Built off the real anchor's leading integer group
+   * so this states the exact shape the card's own history section records, rather than
+   * a made-up number.
+   */
+  it('rejects a `≥ 220`-shaped row as equal to a shorter derived Node floor', () => {
+    const engine = rootManifest.engines?.node as string;
+    const staleFloor = engine.match(/(\d+)/)?.[1] as string;
+
+    expect(
+      statedLiterals(`≥ ${staleFloor}0`),
+      `"≥ ${staleFloor}0" must not equal "≥ ${staleFloor}" — a numeric-prefix superset is not the ` +
+        'same version literal, the objectui#4913 regression this guards',
+    ).not.toEqual(statedLiterals(`≥ ${staleFloor}`));
+  });
+
   it('states the pnpm floor and the pinned `packageManager`', () => {
     const engine = rootManifest.engines?.pnpm;
     expect(engine, 'root package.json must still declare engines.pnpm').toBeDefined();
-    const floor = (engine as string).match(/(\d+)/)?.[1];
+    const floor = versionFloor(engine as string);
 
     const pinned = rootManifest.packageManager;
     expect(pinned, 'root package.json must still declare packageManager').toBeDefined();
@@ -420,8 +498,8 @@ describe('QUICK_REFERENCE.md "Current Release" — no un-derived literal', () =>
     add(consoleManifest.version);
     add(rootManifest.devDependencies?.['@objectstack/spec']);
     add(consoleManifest.devDependencies?.['@objectstack/client']);
-    add(`≥ ${rootManifest.engines?.node?.match(/(\d+)/)?.[1]}`);
-    add(`≥ ${rootManifest.engines?.pnpm?.match(/(\d+)/)?.[1]}`);
+    add(`≥ ${versionFloor(rootManifest.engines?.node ?? '')}`);
+    add(`≥ ${versionFloor(rootManifest.engines?.pnpm ?? '')}`);
     add(rootManifest.packageManager?.split('@').pop());
     for (const major of peerMajors(reactManifest.peerDependencies?.react ?? '')) {
       add(`${major}.x`);

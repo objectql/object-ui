@@ -17,8 +17,8 @@
  *     and it had a real cost: a still-filled form invites a second submit, which
  *     writes a second record.
  *   - **defect 3** — a SAME-ORIGIN ABSOLUTE url is refused. The old guard
- *     (`isSameOriginUrl`) said yes to it, so this consumer accepted a spelling the
- *     authoring door refuses.
+ *     (`isSameOriginUrl`, since deleted by objectui#5034) said yes to it, so
+ *     this consumer accepted a spelling the authoring door refuses.
  *   - **defect 5** — `{{record.field_name}}` is substituted from the record the
  *     submit just wrote, URL-escaped.
  *
@@ -32,7 +32,9 @@
  *
  * ## Reverse verification — predicted first, then measured (counts are measured)
  *
- * 1. **Restoring `isSameOriginUrl(behavior.url)` around the old assign** — i.e.
+ * 1. **Restoring the old same-origin guard around the old assign**
+ *    (`isSameOriginUrl(behavior.url)`; the helper was deleted by objectui#5034,
+ *    so the mutation is now spelled inline) — i.e.
  *    putting the whole pre-ruling consumption back: **6 of the 9 tests here go
  *    RED, 3 stay green** (12 red across both component files; WizardForm's is
  *    6 of 7). The three survivors are `navigates to a ruled relative path` and

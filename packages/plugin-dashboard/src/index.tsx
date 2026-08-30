@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, elementDataSourceBlock } from '@object-ui/core';
 import { ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardGridLayout } from './DashboardGridLayout';
@@ -171,7 +171,7 @@ const OBJECT_METRIC_DATA_SOURCE: ElementDataSourceMapping = {
  * spread already provided, and a host that renders this component with explicit
  * props and no schema at all (the dashboard grid path) is untouched.
  */
-const ObjectMetricBlock: React.FC<{ schema?: any; [key: string]: any }> = ({ schema, ...props }) => (
+const ObjectMetricBlock: React.FC<{ schema?: any; [key: string]: any }> = elementDataSourceBlock(({ schema, ...props }) => (
   <ElementDataSourceGate
     schema={schema}
     mapping={OBJECT_METRIC_DATA_SOURCE}
@@ -187,7 +187,7 @@ const ObjectMetricBlock: React.FC<{ schema?: any; [key: string]: any }> = ({ sch
       />
     )}
   </ElementDataSourceGate>
-);
+));
 
 // Register object-aware metric widget (async data loading with error states)
 ComponentRegistry.register(
@@ -286,7 +286,7 @@ const OBJECT_PIVOT_DATA_SOURCE: ElementDataSourceMapping = {
  * is no binding — so the dashboard/manual paths that render this component with a
  * plain schema behave exactly as before.
  */
-const ObjectPivotBlock: React.FC<{ schema?: any; [key: string]: any }> = ({ schema, ...props }) => (
+const ObjectPivotBlock: React.FC<{ schema?: any; [key: string]: any }> = elementDataSourceBlock(({ schema, ...props }) => (
   <ElementDataSourceGate
     schema={schema}
     mapping={OBJECT_PIVOT_DATA_SOURCE}
@@ -296,7 +296,7 @@ const ObjectPivotBlock: React.FC<{ schema?: any; [key: string]: any }> = ({ sche
   >
     {(bound) => <ObjectPivotTable {...(props as any)} schema={bound as any} />}
   </ElementDataSourceGate>
-);
+));
 
 // Register object-aware pivot table (async data loading)
 ComponentRegistry.register(

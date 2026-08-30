@@ -3,13 +3,11 @@
  *
  * This component fetches discovery information from the server and conditionally
  * enables/disables authentication based on the server's auth service status.
- * Also detects preview mode from the server and configures the auth provider accordingly.
  */
 
 import { useState, useEffect, useCallback, ReactNode } from 'react';
 import { getSharedDiscovery } from '@object-ui/data-objectstack';
 import { AuthProvider } from '@object-ui/auth';
-import type { PreviewModeOptions } from '@object-ui/auth';
 import { LoadingScreen } from './LoadingScreen.js';
 import { isServiceUsable, type DiscoveryInfo } from '@object-ui/react';
 
@@ -34,13 +32,12 @@ const STRINGS = {
  *
  * On startup it:
  * 1. Calls `/api/v1/discovery` (with a 10s AbortController timeout)
- * 2. Detects preview mode + auth.enabled from the response
+ * 2. Reads the auth service's availability from the response
  * 3. On failure, shows the LoadingScreen in error mode with a Retry button
  *    (no silent fallback to "auth enabled" — the user is told the server is unreachable)
  */
 export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWrapperProps) {
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
-  const [previewMode, setPreviewMode] = useState<PreviewModeOptions | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -94,28 +91,23 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
         throw new Error('empty discovery response');
       }
 
-      if (discovery?.mode === 'preview') {
-        setPreviewMode({
-          autoLogin: discovery.previewMode?.autoLogin ?? true,
-          simulatedRole: discovery.previewMode?.simulatedRole ?? 'admin',
-          simulatedUserName: discovery.previewMode?.simulatedUserName ?? 'Preview User',
-          readOnly: discovery.previewMode?.readOnly ?? false,
-          expiresInSeconds: discovery.previewMode?.expiresInSeconds ?? 0,
-          bannerMessage: discovery.previewMode?.bannerMessage,
-        });
-        setAuthEnabled(false);
-      } else {
-        // ADR-0076 D12 (honest capabilities): trust the 15.1+ signals when
-        // present — a `stub` or `handlerReady:false` auth service must NOT
-        // wrap the app in a real AuthProvider (login against a dev fake).
-        // Pre-15.1 servers carry none of these fields → historical default
-        // (enabled) is preserved by isServiceUsable.
-        const isAuthEnabled = isServiceUsable(discovery?.services?.auth);
-        if (discovery?.services?.auth?.status === 'degraded') {
-          console.warn('[ConditionalAuthWrapper] auth service reports degraded — keeping auth enabled (it still serves).');
-        }
-        setAuthEnabled(isAuthEnabled);
+      // ADR-0076 D12 (honest capabilities): trust the 15.1+ signals when
+      // present — a `stub` or `handlerReady:false` auth service must NOT
+      // wrap the app in a real AuthProvider (login against a dev fake).
+      // Pre-15.1 servers carry none of these fields → historical default
+      // (enabled) is preserved by isServiceUsable.
+      //
+      // This reading is the ONLY thing that decides it. `discovery.mode` used
+      // to be consulted first: `'preview'` turned auth off outright and
+      // simulated an identity out of `discovery.previewMode`. `@objectstack/spec`
+      // retired that whole wire surface (objectstack#11846), so this consumer
+      // is retired with it (objectui#6654) — a deployment still emitting it
+      // falls back to this reading, i.e. it requires login.
+      const isAuthEnabled = isServiceUsable(discovery?.services?.auth);
+      if (discovery?.services?.auth?.status === 'degraded') {
+        console.warn('[ConditionalAuthWrapper] auth service reports degraded — keeping auth enabled (it still serves).');
       }
+      setAuthEnabled(isAuthEnabled);
       setIsLoading(false);
     } catch (e) {
       const err = e as Error;
@@ -147,15 +139,6 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
         onRetry={error ? () => runDiscovery(true) : undefined}
         retrying={retrying}
       />
-    );
-  }
-
-  // If in preview mode, wrap with a preview-configured AuthProvider
-  if (previewMode) {
-    return (
-      <AuthProvider authUrl={authUrl} previewMode={previewMode}>
-        {children}
-      </AuthProvider>
     );
   }
 

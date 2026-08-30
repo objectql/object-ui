@@ -82,7 +82,45 @@ export function validateTree(tree: SchemaElement | null, manifest: Manifest): Ma
         if (input.binding) {
           bindings.push({ tag: node.type, input: key, kind: input.binding, value });
         }
-        if (!isExpr(value)) {
+        if (isExpr(value)) {
+          // A braced value that failed JSON materialization compiled to the
+          // parser's deferred `{ $expr }` marker — and NOTHING downstream
+          // evaluates that marker: this tier parses, never executes
+          // (ADR-0080), and no renderer consumes `$expr`. The value therefore
+          // reaches the renderer as an opaque object, every defensive
+          // non-array/non-object read degrades it to "not declared", and the
+          // author's binding silently vanishes (objectui#6598: eight `columns`
+          // spellings on a data block, all eaten without a single diagnostic —
+          // rows rendered, zero data columns). ADR-0078 prohibits exactly this
+          // parsed-but-silently-inert state, so name it at compile time, with
+          // the fix in the message.
+          //
+          // The message must name the CURRENT accepted grammar, and objectui#6614
+          // (Q1-A, ruled 2026-08-28) moved it: `interpretBrace` now materializes
+          // the JS literal subset, so single-quoted strings and unquoted
+          // identifier keys REACH the renderer and can no longer draw this
+          // warning. The old wording ("write it as JSON, double-quoted") named a
+          // now-legal spelling as the illegal one — advice that would have sent
+          // an author to edit working source. What is left on this side of the
+          // boundary is a genuine expression, so that is what the message names.
+          //
+          // Warning, not error, per the objectui#5709 precedent for inert
+          // authored keys. ⛔ Escalation to error is objectui#6614 Q2 and is
+          // deliberately NOT part of this change: it belongs at the SAVE GATE,
+          // once the framework wires the registry manifest into
+          // `validate-jsx-pages` (objectstack#12719 records that gap).
+          diagnostics.push({
+            severity: 'warning',
+            code: 'inert-expression',
+            message:
+              `<${node.type}> prop "${key}" is a braced expression this tier never evaluates — ` +
+              `the value will be silently ignored at render. This tier materializes LITERALS only ` +
+              `(strings, numbers, booleans, null, arrays, objects; quotes may be single or double, ` +
+              `object keys may be unquoted), e.g. columns={['name','amount']} works — ` +
+              `columns={rows.map((r) => r.name)} cannot`,
+            tag: node.type,
+          });
+        } else {
           const typeDiag = checkType(node.type, input, value);
           if (typeDiag) diagnostics.push(typeDiag);
         }

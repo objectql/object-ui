@@ -31,9 +31,111 @@ import {
   useSubmitRedirectNavigation,
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
-import { isAppRelativeDestination } from './thankYouRedirectNavigation';
 import { useOccSave } from './occSave';
-import type { FormSectionConfig } from './TabbedForm';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
+
+/**
+ * A wizard STEP — the wizard's OWN authored group shape (objectui#6237).
+ *
+ * ## Why this is declared here rather than derived from the tabbed layout
+ *
+ * It used to be `Omit<FormSectionConfig, 'visibleWhen'>`, which subtracted the
+ * predicate slot from `TabbedForm`'s section type. That closed the hole for the
+ * ONE key it named and left the mechanism wide open: `FormSectionConfig` is the
+ * predicate-CARRYING type, so every key added to it lands here by default and
+ * the author has to remember to widen the `Omit`. The defect the 2026-08-30
+ * ruling closes is the SILENCE — "在共享 `FormSectionConfig` 上声明 `visibleWhen`
+ * 会**静默**给 WizardForm 的 step 也发一个谓词槽而那侧无实现" — and a subtractive
+ * derivation reproduces that silence for the next key in the same family
+ * (`readonlyWhen` / `requiredWhen`, both already this repo's field-level
+ * predicate vocabulary). Declaring the step shape independently flips the
+ * derivation from subtractive to additive: a key reaches a wizard step only
+ * because someone wrote it here, on the type whose renderer has to honour it.
+ *
+ * This is also simply the house pattern. `SplitFormSectionConfig`,
+ * `ModalFormSectionConfig` and `DrawerFormSectionConfig` each declare their own
+ * group shape, each documents `className` / `gridClassName` in ITS layout's
+ * terms, and each declares `visibleWhen` only because its layout honours it
+ * (`SplitFormSectionConfig` even carries a key — `pane` — that exists nowhere
+ * else). The wizard borrowing the tabbed layout's interface was the exception,
+ * and it cost real accuracy: a wizard author reading the shared type was told
+ * `name` is "used as tab value", `label` is "used as tab trigger text", and
+ * `className` is "Unused in the tabbed layout" — while this renderer uses all
+ * three, `className` at the step container (`FormSectionContainer` below).
+ *
+ * ## ⛔ Why there is no predicate slot, and why that is not an oversight
+ *
+ * A step predicate is not a port of the tab predicate, it is a different
+ * contract. Steps are wizard component state keyed by section INDEX, only the
+ * current step is mounted (unmounted-ness is every other step's NORMAL state,
+ * which is why the final gate re-checks the whole declared field set), and the
+ * predicate would read `formData` — which merges only at step boundaries. So a
+ * step predicate is structurally STEP-BOUNDARY reactive where a tab's is ruled
+ * LIVE-RECORD reactive: one keyword, two different "when". It also needs
+ * machinery none of which is inherited — navigation policy for skipping hidden
+ * steps, the indicator, `isLastStep`, the "Step X of Y" denominator, index
+ * stability while hiding is live, re-selection when the CURRENT step hides, and
+ * a final-gate exclusion for a hidden step's required fields.
+ *
+ * Declaring the key on a type this renderer ignores would make it WRITABLE on a
+ * step — precisely the declared-but-unenforced shape this card family exists to
+ * close. Its absence means TypeScript rejects the key on a wizard step literal,
+ * which is where an author (or an agent authoring metadata) finds out.
+ * `ObjectForm` additionally reports the gap at runtime for a section predicate
+ * arriving on the wizard route, since untyped JSON reaches it too. Both halves
+ * are pinned in `__tests__/tabbedFormSectionPredicate-6237.test.tsx`, including
+ * a FAMILY-level pin that fails the build if any `*When` key ever appears here,
+ * not just the one this card was about.
+ *
+ * ⚠️ This changes nothing that used to work. The published surface is exactly
+ * the key set `WizardStepConfig` already had — the derivation changed, not the
+ * type — and `visibleWhen` was already a type error on a wizard step literal.
+ */
+export interface WizardStepConfig {
+  /**
+   * Step identifier. Used as the step's test handle
+   * (`data-testid="wizard-step:<name>"`) and, with `label`, as what the
+   * indicator names; falls back to the step INDEX when absent.
+   */
+  name?: string;
+
+  /**
+   * Step label — the text the step indicator shows.
+   * Falls back to `Step <n>`.
+   */
+  label?: string;
+
+  /**
+   * Step description, rendered under the step heading.
+   */
+  description?: string;
+
+  /**
+   * How densely this step fills the grid (1–4). Outranked by the form view's
+   * own `columns` (spec `FormView.columns`), which sets the grid WIDTH.
+   * @default 1
+   */
+  columns?: 1 | 2 | 3 | 4;
+
+  /**
+   * Field names or configurations in this step.
+   */
+  fields: (string | FormField)[];
+
+  /**
+   * Custom CSS class for this step's container.
+   *
+   * Honoured, unlike its tabbed counterpart: a wizard mounts ONE step at a
+   * time inside its own `FormSectionContainer`, so the step has a container to
+   * carry it.
+   */
+  className?: string;
+
+  /**
+   * Custom CSS class for this step's field grid (overrides the column classes).
+   */
+  gridClassName?: string;
+}
 
 /**
  * What the submitter is told when a DECLARED `navigateOnSuccess` produced no
@@ -57,8 +159,8 @@ import type { FormSectionConfig } from './TabbedForm';
  * same-origin guard refused) and returns no discriminant, so a reason in this
  * copy could only be re-derived by reimplementing that helper's internals at the
  * call site — where it would drift from the helper, and would additionally bake
- * today's acceptance rule into user-visible prose while objectui#5548 is still
- * open on exactly that rule. The diagnosable detail — the template the author
+ * an acceptance rule into user-visible prose, which objectui#5034 has since
+ * narrowed once already. The diagnosable detail — the template the author
  * actually wrote — goes to `console.warn` at each call site instead.
  *
  * Lives here rather than in `successBehavior.ts` (the natural home, but read-only
@@ -108,7 +210,7 @@ export interface WizardFormSchema {
   /**
    * Wizard step sections
    */
-  sections: FormSectionConfig[];
+  sections: WizardStepConfig[];
   
   /**
    * Allow navigation to any step (not just sequential).
@@ -399,7 +501,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
 
   // Build section fields from object schema
   const buildSectionFields = useCallback(
-    (section: FormSectionConfig): FormField[] =>
+    (section: WizardStepConfig): FormField[] =>
       buildSectionFieldsShared(section as any, {
         objectSchema,
         objectName: schema.objectName,
@@ -557,7 +659,14 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       // Final submission
       setSubmitting(true);
       try {
-        if (!dataSource) {
+        // No submit TARGET: a declared `submitHandler` owns the write and needs no
+        // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+        // nor a `dataSource` is target-less. The one target-less form that is still
+        // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+        // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+        // adapter-less submit, bypassing a declared host seam and persisting
+        // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+        if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
           if (schema.onSuccess) {
             await schema.onSuccess(mergedData);
           }
@@ -583,6 +692,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           // host-owned write silently becomes an independent one
           // (objectui#6176).
           result = await schema.submitHandler(writePayload);
+        } else if (!dataSource) {
+          // No route left: no host seam and no adapter. Refuse instead of reporting
+          // success — the `catch` below hands this to `schema.onError` and rethrows.
+          throw noSubmitTargetError();
         } else if (schema.mode === 'create') {
           result = await dataSource.create(schema.objectName, writePayload);
         } else if (schema.mode === 'edit' && schema.recordId) {
@@ -673,16 +786,14 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           if (nav) {
             // Landing on the saved record is the confirmation — no toast needed.
             //
-            // WHO travels is the same split ObjectForm's arm makes; see the long
-            // comment there (objectui#5034 point 1). An app-relative destination
-            // goes to the state the seam-owning effect above reads, so a mounted
-            // host's basename is applied instead of the origin root; anything
-            // else keeps this synchronous `window.location.assign`.
-            if (isAppRelativeDestination(nav)) {
-              setPendingRedirect({ url: nav, delayMs: 0 });
-            } else {
-              window.location.assign(nav);
-            }
+            // WHO travels is what ObjectForm's arm does; see the long comment
+            // there (objectui#5034, points 1 and 3). The destination goes to the
+            // state the seam-owning effect above reads, so a mounted host's
+            // basename is applied instead of the origin root. Unconditionally,
+            // because `resolveSuccessNavigate` now accepts relative references
+            // only — the `window.location.assign` arm that used to stand here is
+            // unreachable and was deleted with the ruling that made it so.
+            setPendingRedirect({ url: nav, delayMs: 0 });
             return result;
           }
           if (schema.navigateOnSuccess) {

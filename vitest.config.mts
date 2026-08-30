@@ -71,6 +71,7 @@ const domTsTests = [
   'packages/react/src/hooks/__tests__/useDataRefresh.test.ts',
   'packages/react/src/hooks/__tests__/useExpression.test.ts',
   'packages/react/src/hooks/__tests__/useRecordSearch.test.ts',
+  'packages/react/src/hooks/__tests__/useSettledSchema.test.ts',
 ];
 
 // Test files that render through the ComponentRegistry and therefore need the
@@ -126,6 +127,24 @@ const heavyDomTests = [
   // side-effect registration, and taking a plugin-list -> plugin-grid
   // dependency to import it directly would be the heavier change.
   'packages/plugin-list/src/__tests__/ListView.crossPageSelectAll.test.tsx',
+  // objectui#6598 — the reported html-kind page, end to end over the REAL
+  // object-grid. The defect is ListView and ObjectGrid disagreeing about how
+  // "the author declared no columns" is spelled, so a stub grid (what the
+  // sibling handoff pin registers) is standing in for one side of the
+  // disagreement and cannot see it. Same reason, same route as the entry above.
+  'packages/plugin-list/src/__tests__/htmlTierListViewDefaultColumns-6598.test.tsx',
+  // objectui#6598 — the reporter's eight `columns` spellings as a matrix,
+  // each through the real live registration and the REAL object-grid. Same
+  // reason and same route as the entry above: the card's own claim is about
+  // all eight at once, and a stub grid stands in for one side of the
+  // ListView/ObjectGrid disagreement it has to observe.
+  'packages/plugin-list/src/__tests__/htmlTierColumnSpellings-6598.test.tsx',
+  // objectui#6723 — PIN 4: the grid's new inline-data FLS gate must be a
+  // no-op through this host, which pre-filters its own fields. "No-op"
+  // is a claim about the REAL grid's rendered headers, so a stub grid
+  // (what the sibling handoff pins register) cannot observe it. Same
+  // reason and same route as the three entries above.
+  'packages/plugin-list/src/__tests__/ListView.inlineFlsNoop-6723.test.tsx',
 ];
 
 export default defineConfig({

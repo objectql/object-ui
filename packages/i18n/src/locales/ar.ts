@@ -85,7 +85,7 @@ const ar = {
   common: {
     addToFavorites: "إضافة إلى المفضلة",
     removeFromFavorites: "إزالة من المفضلة",
-    loading: "جاري التحميل…",
+    loading: "جارٍ التحميل…",
     save: "حفظ",
     discard: "تجاهل",
     cancel: "إلغاء",
@@ -264,6 +264,14 @@ const ar = {
       editAsJson: "التحرير بصيغة JSON",
       useVisualBuilder: "استخدام المُنشئ المرئي",
     },
+    object: {
+      invalidJson: "JSON غير صالح",
+    },
+    location: {
+      refusedFormat:
+        "لم يتم الحفظ: أدخل زوجًا من خط العرض وخط الطول (مثال: 30.2741, 120.1551).",
+      refusedRange: "لم يتم الحفظ: {{detail}}",
+    },
     tags: {
       placeholder: "اكتب واضغط Enter للإضافة…",
     },
@@ -341,7 +349,6 @@ const ar = {
       undo: "تراجع",
       undoing: "جارٍ التراجع…",
       done: "تم",
-      selectPlaceholder: "اختر…",
       loading: "جارٍ التحميل…",
     },
     actions: "إجراءات",
@@ -349,10 +356,10 @@ const ar = {
     delete: "حذف",
     export: "تصدير",
     exportAs: "تصدير كـ {{format}}",
-    loading: "جاري تحميل الشبكة…",
+    loading: "جارٍ تحميل الشبكة…",
     errorLoading: "خطأ في تحميل الشبكة",
     pullToRefresh: "اسحب للتحديث",
-    refreshing: "جاري التحديث…",
+    refreshing: "جارٍ التحديث…",
     openRecord: "فتح السجل",
     rowHeight: "ارتفاع الصف: {{mode}}",
     openMenu: "فتح القائمة",
@@ -535,9 +542,7 @@ const ar = {
     month: "شهر",
     week: "أسبوع",
     day: "يوم",
-    agenda: "جدول أعمال",
     allDay: "طوال اليوم",
-    noEvents: "لا توجد أحداث",
     newEvent: "حدث جديد",
     moreEvents: "+{{count}} المزيد",
   },
@@ -680,6 +685,15 @@ const ar = {
     },
     gantt: {
       rowLabel: "العناصر",
+      unusableRange: {
+        malformedDate:
+          "نطاق تواريخ جانت غير صالح للاستخدام — {{path}} يساوي {{value}}، وهو ليس تاريخًا صالحًا. يجب أن تكون كل تواريخ جانت قابلة للتحليل: startDate و endDate لكل عنصر صف، بالإضافة إلى أي minDate / maxDate مثبّت في المخطط.",
+        inverted:
+          "نطاق تواريخ جانت غير صالح للاستخدام — minDate {{minDate}} يقع بعد maxDate {{maxDate}}. يتجاوز minDate / maxDate المثبّت النطاق المحسوب من الصفوف، لذلك لا يحتوي هذا المحور على أي أعمدة ولا يمكن وضع أي شريط عليه؛ بدّل القيمتين.",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "النوع \"gantt\" غير مدعوم — المخطط الزمني المرتبط بكائن يعرض أنواع التغذية ({{variants}}). يحتاج مخطط جانت إلى صفوف صريحة، لكل منها عناصر items متداخلة خاصة به، لذلك لا يؤثر محور جانت (scale) هنا.",
     },
   },
   gantt: {
@@ -872,7 +886,7 @@ const ar = {
     relatedRecords: "{{count}} سجلات",
     relatedRecordOne: "{{count}} سجل",
     noRelatedRecords: "لا توجد سجلات ذات صلة",
-    loading: "جاري التحميل…",
+    loading: "جارٍ التحميل…",
     copyToClipboard: "نسخ إلى الحافظة",
     copied: "تم النسخ!",
     deleteConfirmation: "هل أنت متأكد أنك تريد حذف هذا السجل؟",
@@ -1034,16 +1048,8 @@ const ar = {
     noValue: "لا قيمة",
   },
   chart: {
-    noData: "لا تتوفر بيانات للرسم البياني",
-    loading: "جاري تحميل الرسم البياني…",
+    loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
-  },
-  map: {
-    searchLocations: "البحث عن المواقع…",
-    locationDetails: "تفاصيل الموقع",
-    markersCount: "{{count}} علامة",
-    invalidCoordinates: "{{count}} سجل بإحداثيات مفقودة أو غير صالحة مستبعد من الخريطة.",
-    invalidCoordinatesPlural: "{{count}} سجلات بإحداثيات مفقودة أو غير صالحة مستبعدة من الخريطة.",
   },
   dashboard: {
     noRows: "لا توجد صفوف",
@@ -1360,7 +1366,6 @@ const ar = {
       defaultValue: "القيمة الافتراضية",
       placeholder: "نص تلميحي",
       referenceTo: "مرجع إلى",
-      formula: "صيغة",
       options: "خيارات",
       addOption: "إضافة خيار",
       validationRules: "قواعد التحقق",
@@ -1638,7 +1643,7 @@ const ar = {
       },
     },
     title: "وحدة تحكم ObjectStack",
-    initializing: "جاري تهيئة التطبيق…",
+    initializing: "جارٍ تهيئة التطبيق…",
     loadingHint: "قد يستغرق إعداد بيئة جديدة بعض الوقت.",
     breadcrumb: {
       dashboards: "لوحات المعلومات",
@@ -1672,9 +1677,9 @@ const ar = {
       cryptoRefusalToastNoSubject: "تعذّر تشفير الأسرار",
     },
     loadingSteps: {
-      connecting: "جاري الاتصال بمصدر البيانات",
-      loadingConfig: "جاري تحميل الإعدادات",
-      preparingWorkspace: "جاري تجهيز مساحة العمل",
+      connecting: "جارٍ الاتصال بمصدر البيانات",
+      loadingConfig: "جارٍ تحميل الإعدادات",
+      preparingWorkspace: "جارٍ تجهيز مساحة العمل",
     },
     error: {
       connectionFailed: "تعذّر الاتصال بالخادم",
@@ -1684,7 +1689,7 @@ const ar = {
     },
     actions: {
       retry: "إعادة المحاولة",
-      retrying: "جاري إعادة المحاولة…",
+      retrying: "جارٍ إعادة المحاولة…",
     },
     serverAction: {
       openingTitle: "جارٍ الفتح…",
@@ -2283,8 +2288,6 @@ const ar = {
     browseMarketplace: "تصفح متجر التطبيقات",
     quickActions: {
       title: "إجراءات سريعة",
-      createApp: "إنشاء تطبيق",
-      createAppDesc: "ابدأ بتطبيق جديد",
       manageObjects: "إدارة الكائنات",
       manageObjectsDesc: "تكوين نماذج البيانات",
       systemSettings: "إعدادات النظام",
@@ -2300,11 +2303,6 @@ const ar = {
     greetingNight: "وردية الليل",
     heroTagline: "استمر من حيث توقفت أو اكتشف شيئاً جديداً.",
     open: "فتح",
-    stats: {
-      apps: "التطبيقات",
-      starred: "المميزة",
-      recent: "الأخيرة",
-    },
     recentApps: {
       title: "فُتح مؤخراً",
       itemType: {
@@ -2335,7 +2333,6 @@ const ar = {
       organizations: "المؤسسات",
       roles: "الأدوار",
       configuration: "التهيئة",
-      createApp: "إنشاء تطبيق",
       administration: "الإدارة",
       datasources: "مصادر البيانات",
       documentation: "الوثائق",
@@ -2360,6 +2357,7 @@ const ar = {
       typeUpdate: "تحديث",
       typeDelete: "حذف",
       typeComment: "تعليق",
+      typeSystem: "النظام",
       relativeJustNow: "الآن",
       relativeSecondsAgo: "منذ {{count}} ث",
       relativeMinutesAgo: "منذ {{count}} د",
@@ -2425,8 +2423,6 @@ const ar = {
     cancel: "إلغاء",
     confirm: "تأكيد",
     uploading: "جارٍ الرفع…",
-    defaultActionTitle: "إجراء",
-    ok: "موافق",
     lookupPlaceholder: "معرف السجل لـ {{label}}",
     lookupHelpText: "لم يتم تكوين كائن مرجعي لهذه المعلمة، لذا فإن أداة اختيار السجلات غير متاحة. أدخل معرف السجل، أو اطلب من المسؤول تصحيح معلمة الإجراء.",
   },
@@ -2434,11 +2430,6 @@ const ar = {
     title: "تأكيد الإجراء",
     confirm: "متابعة",
     cancel: "إلغاء",
-  },
-  rowAction: {
-    openMenu: "فتح القائمة",
-    edit: "تعديل",
-    delete: "حذف",
   },
   navigationSync: {
     addedPage: "تم تحديث التنقل: تمت إضافة الصفحة \"{{name}}\"",
@@ -2470,15 +2461,6 @@ const ar = {
     printDialogOpening: "جارٍ فتح مربع حوار الطباعة في المتصفح (ليس تصديرًا إلى PDF)",
     exportFailed: "فشل التصدير: {{message}}",
     forecastSoon: "عرض التوقعات قادم قريباً",
-  },
-  recordDetail: {
-    viewersTooltip: "المستخدمون يشاهدون هذا السجل الآن",
-  },
-  cellRender: {
-    empty: "فارغ",
-    yes: "نعم",
-    no: "لا",
-    systemFields: "النظام",
   },
   user: {
     profile: "الملف الشخصي",
@@ -3414,6 +3396,45 @@ const ar = {
       bulkFailureJoiner: "؛ ",
       bulkOperationFailed: "فشلت العملية الجماعية: {{reason}}",
     },
+  },
+  // objectui#6301 — الإعداد › أتمتة الحزم (ADR-0126 §7.4). المصطلحات كما في
+  // بقية الحزمة: ‏`common.package` = الحزمة، و`flowRunner.completed` = التدفق،
+  // وعلامات الاقتباس «…». ⛔ لا توجد صياغة عن الأصل أو الانحراف في هذه
+  // المجموعة (§9).
+  packagedAutomation: {
+    title: "أتمتة الحزم",
+    subtitle: "تدفقات وإجراءات تأتي مع الحزم المثبّتة. يمكنك إيقاف أي منها في هذا النشر، أو استنساخ تدفق باسم جديد لتخصيصه. التحرير يتم في Studio.",
+    refresh: "تحديث",
+    flowsHeading: "تدفقات الحزم",
+    actionsHeading: "إجراءات الحزم",
+    colFlow: "التدفق",
+    colActivation: "التفعيل",
+    colActions: "إجراءات",
+    toggleLabel: "تفعيل {{label}}",
+    on: "مفعل",
+    off: "إيقاف",
+    clone: "استنساخ",
+    cloneTitle: "استنساخ تدفق الحزمة",
+    cloneBody: "تحتفظ النسخة بالتعريف كاملاً وتتطلب اسم آلة وتسمية جديدين. حرّر النسخة في Studio.",
+    cloneName: "اسم آلة جديد",
+    cloneLabel: "تسمية جديدة",
+    cancel: "إلغاء",
+    cloneConfirm: "إنشاء نسخة",
+    cloneCreated: "تم إنشاء التدفق «{{name}}».",
+    emptyTitle: "لا توجد تدفقات من الحزم",
+    emptyBody: "لا توجد حزمة مثبّتة توفّر تدفق أتمتة في هذا النشر. التدفقات التي تنشئها بنفسك موجودة في Studio.",
+    loadFailed: "تعذّر تحميل أتمتة الحزم.",
+    toggleFailedHttp: "تعذّر تغيير التفعيل (HTTP {{status}}).",
+    toggleFailed: "تعذّر تغيير التفعيل.",
+    cloneFailedHttp: "تعذّر استنساخ هذا التدفق (HTTP {{status}}).",
+    cloneFailed: "تعذّر استنساخ هذا التدفق.",
+    actionsSubtitle: "إجراءات تأتي مع الحزم المثبّتة. أوقف أحدها في هذا النشر فيتوقف عن العمل في كل مكان يُعرض فيه. ويبقى بإمكانك إنشاء إجراء خاص بك إلى جانبه في Studio.",
+    colAction: "الإجراء",
+    colObject: "الكائن",
+    actionToggleLabel: "تفعيل {{label}} على {{object}}",
+    actionsEmptyTitle: "لا توجد إجراءات من الحزم",
+    actionsEmptyBody: "لا توجد حزمة مثبّتة تعلن عن إجراء في هذا النشر. الإجراءات التي تنشئها بنفسك موجودة في Studio.",
+    actionsLoadFailed: "تعذّر تحميل إجراءات الحزم.",
   },
 };
 

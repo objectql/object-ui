@@ -58,11 +58,13 @@
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
  *   - **12 entries** in `KnownDrift`, **17 keys** across them.
- *   - **16 entries** in `UnmirroredDeclared`, **98 keys** across them. ⚠️ It was
+ *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
- *     keys to the ledger below by RECLASSIFICATION, not by fixing them. Anything
- *     citing "121" as the mirroring debt is citing a number that changed meaning —
- *     the comparable figure is 98 + 23. The full statement is on that ledger.
+ *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
+ *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
+ *     Anything citing "121" as the mirroring debt is citing a number that changed
+ *     meaning — the comparable figure is 97 + 1 mirrored + 23 reclassified. The
+ *     full statement is on that ledger.
  *   - **6 entries** in `RuntimeOnlyDeclared`, **23 keys** across them — a strict
  *     subset of the 16 pairs above, so the "no entry in either" population is
  *     unchanged.
@@ -120,7 +122,7 @@ import { AlertSchema, AvatarSchema, BadgeSchema, ChartDataSeriesSchema, ChartSch
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
 import { ButtonSchema, CalendarSchema, CheckboxSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
-import { AspectRatioSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
+import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
 import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
 import { ObjectCalendarSchema, ObjectChartSchema, ObjectFormSchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
 import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
@@ -137,7 +139,7 @@ import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, Ba
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
 import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
-import type { AspectRatioSchema as Ts_AspectRatioSchema, CardSchema as Ts_CardSchema, ContainerSchema as Ts_ContainerSchema, DivSchema as Ts_DivSchema, FlexSchema as Ts_FlexSchema, GridSchema as Ts_GridSchema, IconSchema as Ts_IconSchema, ImageSchema as Ts_ImageSchema, PageNodeRegion as Ts_PageNodeRegion, PageNodeSchema as Ts_PageNodeSchema, ResizablePanel as Ts_ResizablePanel, ResizableSchema as Ts_ResizableSchema, ScrollAreaSchema as Ts_ScrollAreaSchema, SeparatorSchema as Ts_SeparatorSchema, StackSchema as Ts_StackSchema, TabItem as Ts_TabItem, TabsSchema as Ts_TabsSchema, TextSchema as Ts_TextSchema, TextSpanSchema as Ts_TextSpanSchema } from '../layout';
+import type { AspectRatioSchema as Ts_AspectRatioSchema, BoxSchema as Ts_BoxSchema, CardSchema as Ts_CardSchema, ContainerSchema as Ts_ContainerSchema, DivSchema as Ts_DivSchema, FlexSchema as Ts_FlexSchema, GridSchema as Ts_GridSchema, IconSchema as Ts_IconSchema, ImageSchema as Ts_ImageSchema, PageNodeRegion as Ts_PageNodeRegion, PageNodeSchema as Ts_PageNodeSchema, ResizablePanel as Ts_ResizablePanel, ResizableSchema as Ts_ResizableSchema, ScrollAreaSchema as Ts_ScrollAreaSchema, SeparatorSchema as Ts_SeparatorSchema, StackSchema as Ts_StackSchema, TabItem as Ts_TabItem, TabsSchema as Ts_TabsSchema, TextSchema as Ts_TextSchema, TextSpanSchema as Ts_TextSpanSchema } from '../layout';
 import type { ButtonGroupButton as Ts_ButtonGroupButton, ButtonGroupSchema as Ts_ButtonGroupSchema, HeaderBarSchema as Ts_HeaderBarSchema, NavigationMenuSchema as Ts_NavigationMenuSchema, PaginationSchema as Ts_PaginationSchema, SidebarSchema as Ts_SidebarSchema } from '../navigation';
 import type { ObjectCalendarSchema as Ts_ObjectCalendarSchema, ObjectChartSchema as Ts_ObjectChartSchema, ObjectFormSchema as Ts_ObjectFormSchema, ObjectGanttSchema as Ts_ObjectGanttSchema, ObjectGridSchema as Ts_ObjectGridSchema, ObjectKanbanSchema as Ts_ObjectKanbanSchema, ObjectMapConfig as Ts_ObjectMapConfig, ObjectMapSchema as Ts_ObjectMapSchema, ObjectTreeSchema as Ts_ObjectTreeSchema, ObjectViewSchema as Ts_ObjectViewSchema, SortConfig as Ts_SortConfig } from '../objectql';
 import type { AlertDialogSchema as Ts_AlertDialogSchema, ContextMenuSchema as Ts_ContextMenuSchema, DialogSchema as Ts_DialogSchema, DrawerSchema as Ts_DrawerSchema, DropdownMenuSchema as Ts_DropdownMenuSchema, HoverCardSchema as Ts_HoverCardSchema, MenubarMenu as Ts_MenubarMenu, MenubarSchema as Ts_MenubarSchema, PopoverSchema as Ts_PopoverSchema, SheetSchema as Ts_SheetSchema, TooltipSchema as Ts_TooltipSchema } from '../overlay';
@@ -192,7 +194,7 @@ export type NarrowerThanDeclared< M, D > = {
  * index signatures SEPARATELY, so remapping the index-signature keys to `never`
  * leaves the literal members — INCLUDING the ones inherited from `BaseSchema`.
  * Same probe against this alias resolves the 36 literal names of
- * `ObjectGanttSchema` and the 20 of `BaseSchema`.
+ * `ObjectGanttSchema` and the 21 of `BaseSchema` (20 until objectui#6357 added `bind`).
  *
  * ⚠️ This lifts the ceiling on what the GUARD can READ, not on what a mirror can
  * REJECT. #5155's ceiling stands: `BaseSchema` is `.passthrough()`, so declaring a
@@ -423,6 +425,7 @@ const MIRRORS = {
   'form.zod.ts#TextareaSchema': TextareaSchema,
   'form.zod.ts#ToggleSchema': ToggleSchema,
   'layout.zod.ts#AspectRatioSchema': AspectRatioSchema,
+  'layout.zod.ts#BoxSchema': BoxSchema,
   'layout.zod.ts#CardSchema': CardSchema,
   'layout.zod.ts#ContainerSchema': ContainerSchema,
   'layout.zod.ts#DivSchema': DivSchema,
@@ -585,6 +588,7 @@ interface Declared {
   'form.zod.ts#TextareaSchema': Ts_TextareaSchema;
   'form.zod.ts#ToggleSchema': Ts_ToggleSchema;
   'layout.zod.ts#AspectRatioSchema': Ts_AspectRatioSchema;
+  'layout.zod.ts#BoxSchema': Ts_BoxSchema;
   'layout.zod.ts#CardSchema': Ts_CardSchema;
   'layout.zod.ts#ContainerSchema': Ts_ContainerSchema;
   'layout.zod.ts#DivSchema': Ts_DivSchema;
@@ -709,19 +713,23 @@ interface KnownDrift {
  * Exact DECLARED-BUT-UNMIRRORED key set per pair: keys the published TypeScript
  * invites an author to write and the published validator has never heard of.
  *
- * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION
+ * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION,
+ * ## then 97 by the first REPAIR
  *
- * objectui#6058 seeded this ledger at **121 keys**. It records **98**, and the
- * difference is NOT 23 defects repaired. objectui#6152 measured the 23
- * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for
- * every one of them; they moved, intact and still pinned, to `RuntimeOnlyDeclared`
- * below. ⛔ Nothing was mirrored, no declaration was removed, nothing was waived.
+ * objectui#6058 seeded this ledger at **121 keys**. It records **97**, and the two
+ * movements are different facts. objectui#6152 measured the 23 callback-shaped
+ * (`on*`) keys and ruled that mirroring is the wrong remedy for every one of them;
+ * they moved, intact and still pinned, to `RuntimeOnlyDeclared` below — ⛔ nothing
+ * was mirrored, no declaration was removed, nothing was waived by that move. Then
+ * objectui#6639 MIRRORED `ObjectGridSchema.title` (census-directed maintainer
+ * ruling 2026-08-29, declare branch) — one defect actually repaired, the ledger's
+ * first shrink by repair.
  *
- * So: **98 is the mirroring debt; 98 + 23 is what "121" used to mean.** A card that
- * cites 121 as the size of the mirroring problem, or 98 as a shrink from it, is
- * wrong in both directions. objectui#6141 is the standing example of what a
- * silently moved count costs — it is why this paragraph is in the ledger rather
- * than in a commit message.
+ * So: **97 is the mirroring debt; 97 + 1 mirrored + 23 reclassified is what "121"
+ * used to mean.** A card that cites 121 as the size of the mirroring problem, or
+ * 98/97 as a shrink from it, is wrong in both directions. objectui#6141 is the
+ * standing example of what a silently moved count costs — it is why this paragraph
+ * is in the ledger rather than in a commit message.
  *
  * ## ⛔ SHRINK-ONLY, and why a seed is a FLOOR rather than a waiver
  *
@@ -754,12 +762,13 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (13 entries, 85 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (13 entries, 84 keys)** — plain omissions from a hand-written mirror.
  *
  * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
- * (107 → 85). The pair COUNTS did not move — every affected pair kept keys here —
- * which is why 16 entries still hold 98 keys.
+ * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`). The pair
+ * COUNTS did not move — every affected pair kept keys here — which is why 16
+ * entries still hold 97 keys.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -844,12 +853,17 @@ interface UnmirroredDeclared {
     | 'formType' | 'mobile' | 'modalCloseButton' | 'modalSize' | 'nextText' | 'open' | 'prevText'
     | 'sections' | 'showStepIndicator' | 'splitDirection' | 'splitResizable' | 'splitSize'
     | 'subforms' | 'submitHandler' | 'tabPosition';
-  /** LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152). */
+  /**
+   * LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152),
+   * and `title` was MIRRORED by objectui#6639 (census-directed ruling 2026-08-29,
+   * declare branch) — the ledger's first shrink by REPAIR rather than
+   * reclassification.
+   */
   'objectql.zod.ts#ObjectGridSchema':
     | 'aggregations' | 'bulkActionDefs' | 'bulkSpecActions' | 'conditionalFormatting'
     | 'emptyState' | 'exportOptions' | 'grouping' | 'navigation' | 'operations'
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
-    | 'singleClickEdit' | 'title';
+    | 'singleClickEdit';
   /**
    * SPEC-DERIVED → objectui#2231. ⭐ This pair had NO entry in EITHER ledger before
    * objectui#6058 — eleven declared keys the published validator has never heard of,
@@ -888,13 +902,15 @@ interface UnmirroredDeclared {
  * ## ⚠️ THIS IS WHERE 23 KEYS WENT — a RECLASSIFICATION, not a fix
  *
  * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058. It records
- * **98** today and the difference is these 23, moved here whole. ⛔ Nothing was
- * mirrored, no declaration was removed, no defect was repaired and nothing was
+ * **97** today: these 23 moved here whole, and `ObjectGridSchema.title` was later
+ * MIRRORED by objectui#6639 — the move recorded HERE repaired nothing. ⛔ Nothing was
+ * mirrored by it, no declaration was removed, no defect was repaired and nothing was
  * waived: the same 23 facts are still measured, still declared-but-unmirrored, still
  * reconciled against the same measurement — under a different remedy.
  *
- * **98 is the mirroring debt; 98 + 23 is what "121" used to mean.** Cite it that way.
- * objectui#6141 is the standing example of what a silently moved count costs.
+ * **97 is the mirroring debt; 97 + 1 mirrored + 23 reclassified is what "121" used
+ * to mean.** Cite it that way. objectui#6141 is the standing example of what a
+ * silently moved count costs.
  *
  * ## Why mirroring is the wrong remedy for these (the objectui#6152 ruling)
  *
@@ -1089,7 +1105,7 @@ export type assertionRuntimeOnlyIsCallbackShapedOnly =
  * The two ledgers are DISJOINT per pair.
  *
  * The union reconciliation below cannot see a double-filing — `'a' | 'a'` is `'a'` —
- * so a key recorded in both halves would reconcile green while making "98 + 23" the
+ * so a key recorded in both halves would reconcile green while making "97 + 23" the
  * wrong arithmetic and leaving two contradictory remedies on record. Named here
  * instead of assumed.
  */

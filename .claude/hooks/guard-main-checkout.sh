@@ -54,7 +54,7 @@ This repo is edited by multiple agents at once — the shared checkout gets its 
 switched and tree reset under you, silently clobbering uncommitted work. A feature
 branch on the shared checkout is NOT enough; you must be in a dedicated worktree:
 
-  git worktree add ../${name}-<task> -b <branch> main
+  git fetch origin main && git worktree add ../${name}-<task> -b <branch> origin/main
   cd ../${name}-<task> && pnpm install    # then re-run your edits there
 
 This guard checks the edited file's OWN repo, so sibling repos are covered too.

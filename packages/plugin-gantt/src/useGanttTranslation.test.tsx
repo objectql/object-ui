@@ -13,7 +13,8 @@ import { renderHook } from '@testing-library/react';
 let hostDict: Record<string, string> = {};
 const hostT = (key: string) => hostDict[key] ?? key;
 
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: hostT, language: 'zh' }),
 }));
 

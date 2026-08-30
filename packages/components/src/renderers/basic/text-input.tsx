@@ -30,14 +30,7 @@ import { usePageVariableBinding } from '@object-ui/react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { Input, Label } from '../../ui';
 import { cn } from '../../lib/utils';
-
-function readProps<T extends Record<string, any>>(schema: any): T {
-  // Per spec, element components carry their config in `schema.properties`.
-  // Tolerate `schema.props` (legacy alias) so JSON written either way works.
-  const fromProperties = (schema?.properties ?? {}) as T;
-  const fromProps = (schema?.props ?? {}) as T;
-  return { ...fromProps, ...fromProperties };
-}
+import { readProps } from './readProps';
 
 type TextInputType = 'text' | 'email' | 'number' | 'tel' | 'url' | 'password';
 const INPUT_TYPES: TextInputType[] = ['text', 'email', 'number', 'tel', 'url', 'password'];

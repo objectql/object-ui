@@ -55,6 +55,30 @@ Supported types out of the box:
 - **Media**: `file`, `image`
 - **System**: `formula`, `summary`, `auto_number`
 
+### `type="number"` widgets: what is announced and what is not
+
+`NumberField`, `CurrencyField`, `PercentField` and `GeolocationField` all render
+a native `type="number"` input, so the **browser** decides what the box accepts.
+They share one reading of that, in `widgets/numberBadInput.tsx`:
+
+- **Announced.** When the browser reports `validity.badInput` — the box is
+  holding text it cannot convert, e.g. a typed `1e`, which Chromium keeps
+  DISPLAYING while `.value` reads `''` — the control is marked `aria-invalid`
+  and draws a `Not saved: …` message, reusing objectui#6716's refusal shape.
+  Both a change arm and a blur arm are wired, because pasting into an empty box
+  never moves `.value` and so fires no React change event at all.
+- ⚠️ **Not announced, and not announceable.** Entries the browser silently
+  **truncates**: `1.2.3` stores `1.23`, `0x10` stores `10`. The characters are
+  discarded as they arrive, before any handler here runs, so no widget-side
+  guard can refuse them. Recovering them would mean abandoning `type="number"`
+  and with it the mobile numeric keyboard and the `min`/`max`/`step` spinner
+  (objectui#2572).
+
+⛔ Silence therefore means "the browser read *something*", never "the value is
+correct". User-facing wording lives in
+[the fields guide](../../content/docs/guide/fields.md). The measured browser vs
+happy-dom matrix is in `src/__tests__/numberInputBrowserReadings.ts`.
+
 ### Rendering form field widgets outside the form
 
 The full widget surface is exported for consumers that render field widgets

@@ -837,9 +837,25 @@ describe('every declared `exports` subpath resolves to a file that ships (object
     }
 
     // The producibility population specifically, since it is the one this issue
-    // turns on and the one whose emptiness would be silent. Both `./style.css`
-    // exports must be in it whether or not the tree has been built.
-    expect(generatedCssExports.map((e) => e.pkg.name).sort()).toEqual(['@object-ui/components', '@object-ui/fields']);
+    // turns on and the one whose emptiness would be silent. Every `./style.css`
+    // export must be in it whether or not the tree has been built.
+    //
+    // This list GREW from `['@object-ui/components', '@object-ui/fields']` to the
+    // four below in objectui#4929, and the clause that moved it is the maintainer
+    // ruling of 2026-08-17 on that card: "every `@object-ui/plugin-*` ships its own
+    // stylesheet ... Scope today: `plugin-grid` + `plugin-kanban` (the two with
+    // measured classes); the build step is the pattern any future plugin inherits."
+    // So the set is expected to keep growing as further plugins adopt the step —
+    // and each addition has to arrive the same way, with a package that really
+    // declares `"./style.css"` and really builds it. Shrinking it, by contrast,
+    // means a package stopped producing a sheet it still promises: that is
+    // objectui#4059's defect returning, and the failure this line should raise.
+    expect(generatedCssExports.map((e) => e.pkg.name).sort()).toEqual([
+      '@object-ui/components',
+      '@object-ui/fields',
+      '@object-ui/plugin-grid',
+      '@object-ui/plugin-kanban',
+    ]);
   });
 
   it('every export target is inside something `files` ships', () => {

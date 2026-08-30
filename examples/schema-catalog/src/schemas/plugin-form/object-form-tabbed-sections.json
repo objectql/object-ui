@@ -7,7 +7,8 @@
   "defaultTab": "identity",
   "sections": [
     { "name": "identity", "label": "Identity", "columns": 2, "fields": ["name", "email"] },
-    { "name": "organisation", "label": "Organisation", "fields": ["department", "created_at"] }
+    { "name": "organisation", "label": "Organisation", "fields": ["department", "created_at"] },
+    { "name": "access", "label": "Access", "fields": ["role", "status"] }
   ],
   "submitText": "Save changes"
 }

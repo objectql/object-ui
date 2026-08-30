@@ -54,13 +54,18 @@
  * stopped delivering rows fails as a broken probe rather than reporting the
  * consumer forked.
  *
- * ## Out of scope, deliberately
+ * ## What used to be out of scope here — closed by objectui#5896
  *
- * Only the TABLE is shared. The row -> `FeedItem` construction around it is
- * still written twice (this merge builds the item inline; the block calls
- * `activityRowToFeedItem`), so the console surface still drops an unmapped
- * type SILENTLY where the block warns once. That is the same class of mirror
- * one level up, and it is not this card's fence.
+ * This card shared only the TABLE; the row -> `FeedItem` construction around
+ * it stayed written twice, so the console surface still dropped an unmapped
+ * type SILENTLY where the block warned once. objectui#5896 converged that too:
+ * the merge now calls `activityRowToFeedItem`, and an unmapped type RENDERS
+ * through `UNMAPPED_ACTIVITY_FEED_TYPE` with one diagnostic. The pins for that
+ * behaviour and for the single constructor live in
+ * `RecordDetailView.activityUnmappedType-5896.test.tsx`; this file keeps
+ * pinning the TABLE's identity, which the convergence preserves — the shared
+ * constructor reads the same shared object, so both legs below still measure a
+ * real read.
  */
 
 import * as React from 'react';
@@ -308,19 +313,32 @@ describe('the previously mapped kinds are unchanged — regression controls', ()
     }
   });
 
-  it('the console surface still shows a mapped row and still drops the rest', async () => {
-    renderWith([
-      activityRow('updated', 0),
-      activityRow('commented', 1),
-      activityRow('zzz_not_an_activity_type', 2),
-    ]);
+  it('a mapped row shows, a DELIBERATE exclusion does not', async () => {
+    // Updated by objectui#5896. This leg used to also assert that
+    // `zzz_not_an_activity_type` produced no row — it pinned the silent drop,
+    // which was the defect, not the contract. Under the objectstack#11507
+    // direction-4 ruling an unmapped type is an author-extended value and
+    // renders through the fallback; that is asserted in
+    // `RecordDetailView.activityUnmappedType-5896.test.tsx`, together with the
+    // diagnostic that accompanies it.
+    //
+    // What survives here is the distinction the table draws and this card is
+    // about: `commented` maps to `undefined` ON PURPOSE (its content lives in
+    // `sys_comment`), and a decision stays a decision.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      renderWith([activityRow('updated', 0), activityRow('commented', 1)]);
 
-    expect(await screen.findByText(summaryFor('updated'))).toBeTruthy();
-    // `commented` is a deliberate exclusion (its content comes from
-    // `sys_comment`); the third is a type nothing maps.
-    await waitFor(() => {
-      expect(screen.queryByText(summaryFor('commented'))).toBeNull();
-      expect(screen.queryByText(summaryFor('zzz_not_an_activity_type'))).toBeNull();
-    });
+      expect(await screen.findByText(summaryFor('updated'))).toBeTruthy();
+      await waitFor(() => {
+        expect(screen.queryByText(summaryFor('commented'))).toBeNull();
+      });
+      // ...and silently: no `[record:activity]` diagnostic for an exclusion.
+      expect(
+        warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('[record:activity]')),
+      ).toHaveLength(0);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

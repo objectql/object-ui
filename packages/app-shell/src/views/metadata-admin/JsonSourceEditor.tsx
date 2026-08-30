@@ -27,9 +27,22 @@ import { useMonacoFallback } from './useMonacoFallback.js';
 
 // Lazy: Monaco's React wrapper itself pulls in the editor core
 // (~3MB), so we keep it out of the initial app-shell chunk.
+//
+// The NAMED `Editor` export, not `default`: `@monaco-editor/react@4.7.0` is
+// CommonJS and ships no `exports` map, so under this package's `nodenext`
+// resolution the default is the module NAMESPACE rather than the component,
+// and `React.lazy` rejects it (TS2345 — objectui#5440).
+//
+// It is the SAME component, not a near-enough substitute — checked in the
+// installed 4.7.0 rather than assumed from the name. Its own typings alias one
+// declaration to both spellings (`export { _default as Editor, ...,
+// _default as default }`), and the two are identical at runtime in its CJS
+// build and its ESM build alike. That is what makes this safe under `bundler`
+// resolution too, which is what the console actually bundles with and where
+// the previous spelling worked.
 const LazyMonaco = React.lazy(async () => {
   const mod = await import('@monaco-editor/react');
-  return { default: mod.default };
+  return { default: mod.Editor };
 });
 
 export interface JsonIssue {

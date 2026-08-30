@@ -20,8 +20,15 @@ export { ExpressionProvider, useExpressionContext, evaluateVisibility } from './
  * `'x' in current_user.positions` an unbound-key fault, which fails OPEN, so a
  * second mount site re-deriving this by hand would reintroduce exactly the
  * asymmetry #6010's parity pin exists to refuse.
+ *
+ * objectui#6515 — that is exactly what `RecordFormPage` did, because the
+ * normaliser used to live in `console/AppContent.js` and the view is
+ * `lazy()`-loaded BY that module. The specifier below moved to the leaf module
+ * beside the provider it feeds; the NAME published from this entry did not.
+ * `console/AppContent.js` re-exports it too, for importers already reaching it
+ * there.
  */
-export { buildExpressionUser } from './console/AppContent.js';
+export { buildExpressionUser } from './providers/expressionUser.js';
 
 // Hooks
 export { useObjectActions } from './hooks/useObjectActions.js';
@@ -129,6 +136,8 @@ export {
   ConsoleToaster,
   presentNotificationToast,
   RouteFader,
+  RedirectWithSplash,
+  type RedirectWithSplashProps,
   toastWithUndo,
   type ToastWithUndoOptions,
   ErrorBoundary,
@@ -137,7 +146,8 @@ export {
   useTheme,
 } from './chrome/index.js';
 
-// Observability — Sentry integration, opt-in via VITE_SENTRY_DSN
+// Observability — Sentry integration, configured by the runtime on
+// `/api/v1/runtime/config` (objectstack#12681). No build-time DSN.
 export { initSentry, captureError, setSentryUser, getSentry } from './observability/index.js';
 
 // Runtime configuration pushed by the server at boot. Consumers fetch
@@ -156,13 +166,22 @@ export {
   getPwaDescription,
   getPwaThemeColor,
   isRuntimeConfigInitialised,
-  // The fail-closed reading of the runtime's client-telemetry permission.
+  // The fail-closed reading of the runtime's client error-reporting sink.
   // Exported so no consumer has to write its own `?.` chain against the
-  // payload — one `!== false` dialect is all it takes to re-open objectui#5522.
-  isClientErrorReportingAllowed,
+  // payload — one loose truthiness dialect is all it takes to re-open
+  // objectui#5522. (Replaces `isClientErrorReportingAllowed`, removed with the
+  // permission boolean it read — objectstack#12681.)
+  getClientErrorReporting,
   resetRuntimeConfigForTesting,
 } from './runtime-config.js';
-export type { AppShellRuntimeConfig, RuntimeFeatures, RuntimeBranding, RuntimeTelemetry, PlatformStage } from './runtime-config.js';
+export type {
+  AppShellRuntimeConfig,
+  RuntimeFeatures,
+  RuntimeBranding,
+  RuntimeTelemetry,
+  RuntimeClientErrorReporting,
+  PlatformStage,
+} from './runtime-config.js';
 
 // Standard inner-SPA views
 export {
@@ -281,6 +300,15 @@ import './views/record-attachments-renderer.js';
 // `record:approvals` — schema-addressable approval panel referenced by
 // synthesized record pages when the record has approval requests (#3461).
 import './views/record-approvals-renderer.js';
+// `global:search` / `global:notifications` — the two spec `PageComponentType`
+// members the 2026-08-26 ruling on objectstack#12183 kept declared because both
+// data sources shipped (objectui#6757). Registered here, not in
+// `@object-ui/components`, because they read this package's providers and feeds;
+// without these two imports an authored page draws the "Component Placeholder"
+// scaffold for `global:search` and a red unknown-type panel for
+// `global:notifications`.
+import './views/global-search-renderer.js';
+import './views/global-notifications-renderer.js';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type
@@ -354,6 +382,12 @@ export type {
 // The builder's front door: pick/create a writable package → pillar builder.
 // Standalone at `/studio` and embedded via the `studio:builder` component ref.
 export { BuilderLanding } from './views/studio-design/BuilderLanding.js';
+
+// Setup › Packaged automation (ADR-0126 §7.4) — on/off + clone for the flows
+// installed packages ship. Reached through the `automation:packaged` component
+// ref registered in `services/builtinComponents`; exported so a host app can
+// compose the page directly.
+export { PackagedAutomationPage } from './views/setup/PackagedAutomationPage.js';
 
 // AI assistant bus — connects the metadata designers to the global chat.
 export {

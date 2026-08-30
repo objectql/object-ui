@@ -219,9 +219,25 @@ export default ConcurrentUpdateDialog;
  * raise the same kind of error) while still recognising the canonical
  * shape: `code === 'CONCURRENT_UPDATE'` carrying optional
  * `currentVersion` / `currentRecord` fields.
+ *
+ * The second limb — `name === 'ConcurrentUpdateError'` — is the deliberate
+ * cross-realm discriminator, and it stays: a host that bundles the adapter
+ * twice makes `instanceof` fail, leaving the class name as the only thing
+ * left to match on. The rationale is recorded above `isConcurrentUpdateError`
+ * in `packages/data-objectstack/src/index.ts` and, in full, above
+ * `isViewConfigPermissionDeniedError` in the same file.
+ *
+ * That limb is also why `code` is declared OPTIONAL below (objectui#6421). An
+ * error matched by `name` alone carries no `code` at all, so promising
+ * `code: 'CONCURRENT_UPDATE'` as a REQUIRED literal handed the caller a
+ * property the value does not have: `err.code === 'CONCURRENT_UPDATE'` would
+ * type-check and be `undefined` at runtime, with no compiler help. Declared =
+ * enforced — the narrowed type states only what BOTH limbs guarantee, which
+ * is the two optional payload fields its one consumer already reads. Pinned
+ * by `__tests__/ConcurrentUpdateDialog.narrowedCode-6421.test.tsx`.
  */
 export function isConcurrentUpdateError(err: unknown): err is {
-  code: 'CONCURRENT_UPDATE';
+  code?: 'CONCURRENT_UPDATE';
   currentVersion?: string;
   currentRecord?: Record<string, unknown> | null;
   message?: string;

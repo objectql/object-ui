@@ -42,6 +42,7 @@ import {
 } from '@object-ui/components';
 import { AlertTriangle } from 'lucide-react';
 import { createSafeTranslation } from '@object-ui/i18n';
+import { declaredUserMessage } from '@object-ui/react';
 
 // Localized strings for the conflict dialog. Falls back to English when no
 // i18n provider is mounted (createSafeTranslation handles that).
@@ -101,6 +102,15 @@ export interface OccSaveArgs {
 interface ConflictState {
   /** Latest server-side version from the 409, for the overwrite retry. */
   currentVersion?: string;
+  /**
+   * The refusal text the PRODUCER marked as addressed to the end user
+   * (`userMessage`, objectstack#9934), or `undefined` when the 409 carried no
+   * marking. Read through `declaredUserMessage`, never duck-typed here: the
+   * marking lands in two different places depending on which error the adapter
+   * built (a typed member on `ConcurrentUpdateError`, the details bag on
+   * `DataApiValidationError`), and that reader is the one place that knows both.
+   */
+  userMessage?: string;
 }
 
 /** Backend ships SQL-style "YYYY-MM-DD HH:mm:ss.SSS"; normalise for Date. */
@@ -149,10 +159,18 @@ export function useOccSave(): {
       } catch (err) {
         if (!isConcurrentUpdateError(err)) throw err;
         const currentVersion = (err as { currentVersion?: unknown }).currentVersion;
+        // A 409 an author MARKED says something this dialog's canned copy
+        // cannot — which record, which team, what to do next. It used to be
+        // dropped here, so every conflict read identically no matter what the
+        // producer wrote (objectui#5902, inheriting objectui#5210's ruling).
+        // Everything unmarked still answers `null`, so objectstack#3821's
+        // protection is untouched.
+        const marked = declaredUserMessage(err);
         const overwrite = await new Promise<boolean>((resolve) => {
           decisionRef.current = resolve;
           setConflict({
             currentVersion: typeof currentVersion === 'string' ? currentVersion : undefined,
+            userMessage: marked ?? undefined,
           });
         });
         if (!overwrite) return { status: 'cancelled' };
@@ -182,6 +200,21 @@ export function useOccSave(): {
             {t('form.conflictTitle')}
           </AlertDialogTitle>
           <AlertDialogDescription>
+            {/*
+              The producer's marking leads, in its own right — and does NOT
+              replace the sentence under it. That sentence does two jobs in one
+              paragraph: it says why the write was refused, AND it explains what
+              the destructive button will do. `userMessage` is a refusal
+              message, not affordance copy this surface owns, so evicting the
+              paragraph would leave "Overwrite" unexplained on the one surface
+              where the choice is irreversible. Rendered verbatim: the author
+              already wrote and localized it for their user.
+            */}
+            {conflict?.userMessage && (
+              <span className="mb-2 block font-medium text-foreground">
+                {conflict.userMessage}
+              </span>
+            )}
             {t('form.conflictMessage')}
             {latestTime && (
               <span className="mt-2 block text-xs text-muted-foreground">

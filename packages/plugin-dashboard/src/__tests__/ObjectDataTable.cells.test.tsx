@@ -1,8 +1,15 @@
 /**
  * Smoke tests for type-aware cell rendering in dashboard list (table) widgets.
- * Verifies ObjectDataTable hydrates each column with type/options/format from
- * the bound object schema and provides a `cell` render function delegating to
- * the shared `getCellRenderer` registry from `@object-ui/fields`.
+ * Verifies ObjectDataTable resolves each column's `type` / `options` / `format`
+ * from the bound object schema and provides a `cell` render function delegating
+ * to the shared `getCellRenderer` registry from `@object-ui/fields`.
+ *
+ * ⚠️ That resolution reaches the CELL, not the column (objectui#6373). The
+ * `FieldMeta` those values live on is captured by the `cell` closure; it used to
+ * be spread onto the column object as well, writing six keys `TableColumn` does
+ * not declare and nothing reads. The assertions below were always about the
+ * rendered output and are unchanged by that retirement — the emitted column's
+ * own key set is pinned in `ObjectDataTable.emitBoundary-6373.test.tsx`.
  *
  * The underlying `data-table` renderer is mocked so the test focuses on
  * column enrichment without pulling the full component registry.

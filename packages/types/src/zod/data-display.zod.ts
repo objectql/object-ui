@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
  * Alert Schema - Alert/notification component
@@ -106,12 +107,55 @@ export const TableColumnSchema = z.object({
   minWidth: z.union([z.string(), z.number()]).optional().describe('Minimum width'),
   align: z.enum(['left', 'center', 'right']).optional().describe('Column alignment'),
   fixed: z.enum(['left', 'right']).optional().describe('Fixed column position'),
-  type: z.string().optional().describe('Column type'),
+  // The canonical value set, built from the ONE declaration in
+  // `../data-display.ts` rather than restated here (objectui#5853, maintainer
+  // ruling 2026-08-25, Option B). This key was `z.string()`: every typo passed
+  // — `type: 'money'` validated green, matched no renderer branch, and the
+  // column silently fell through to plain text rendering. That is the lenient
+  // -validation face that lets AI-authored metadata errors through, and it is
+  // now a loud parse failure naming the key.
+  type: z.enum(TABLE_COLUMN_TYPES).optional().describe('Column type'),
   sortable: z.boolean().optional().describe('Whether column is sortable'),
   filterable: z.boolean().optional().describe('Whether column is filterable'),
   resizable: z.boolean().optional().describe('Whether column is resizable'),
   editable: z.boolean().optional().describe('Whether column is editable (for inline editing)'),
   cell: z.function().optional().describe('Custom cell renderer'),
+  // A rendered React node — a runtime slot like `cell` above, so the mirror's
+  // one job is to PASS IT THROUGH: a non-strict z.object() silently STRIPS an
+  // undeclared key, and a stripped `headerIcon` was exactly the second de-facto
+  // contract objectui#6424 closed (the renderer honoured what the published
+  // declaration refused). Declared on the interface, mirrored here, and paired
+  // in `__tests__/zod-mirror-parity.test.ts`.
+  headerIcon: z.any().optional().describe('Icon node rendered into the header cell, before the header text'),
+  // The card's second key (objectui#6424, maintainer ruling 2026-08-28,
+  // Option A). Unlike `headerIcon`/`cell` above this one is serializable
+  // metadata, so the mirror TYPES it — `z.boolean()`, not `z.any()`. It was
+  // silently STRIPPED by this non-strict object before the declaration: the
+  // same second de-facto contract the `headerIcon` half closed, the renderer
+  // honouring what the published declaration refused. Pinned by output
+  // SURVIVAL, not parse acceptance — acceptance was green while the flag
+  // vanished and the row-actions column fell back to the clipped 80px floor.
+  fitContent: z.boolean().optional().describe('Size the column to its own content (width:1% + nowrap) instead of a measured width'),
+  // The three field-meta override keys objectui#6425 declared (maintainer
+  // ruling 2026-08-27, per-key): honoured by `object-data-table`'s cell
+  // pipeline — documented behaviour for `format` / `options`, long-shipped
+  // for `currency` — and previously silently STRIPPED by this non-strict
+  // mirror, the same second de-facto contract #6424 closed for `headerIcon`.
+  // The pin is output SURVIVAL, not parse acceptance
+  // (static-table-narrow-surface.test.ts): acceptance was green before the
+  // declaration and cannot distinguish the fix from the defect.
+  format: z.string().optional().describe('Field-meta override: display format pattern (e.g. "$0,0", "0%", "YYYY-MM-DD")'),
+  options: z
+    .array(
+      z.object({
+        value: z.any().describe('Stored value the cell value is matched against'),
+        label: z.string().describe('Label rendered for the matched value'),
+        color: z.string().optional().describe('Badge/dot color for the matched value'),
+      }),
+    )
+    .optional()
+    .describe('Field-meta override: option list for select-flavoured columns'),
+  currency: z.string().optional().describe('Field-meta override: ISO 4217 currency code for currency-formatted cells'),
 });
 
 /**
@@ -142,6 +186,11 @@ export const StaticTableColumnSchema = z.object({
   resizable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   editable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   cell: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  headerIcon: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
+  fitContent: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
+  format: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  options: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  currency: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
 });
 
 /**
@@ -264,6 +313,10 @@ export const ChartTypeSchema = SpecChartTypeSchema;
 export const ChartDataSeriesSchema = z.object({
   name: z.string().describe('Series name'),
   data: z.array(z.number()).describe('Series data points'),
+  // Mirrors `ChartDataSeries.type` (objectui#6121). The three families are the
+  // ones `normalizeChartSchema` actually honours as a per-series override; see
+  // the TS declaration for the read this narrowness is taken from.
+  type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
   color: z.string().optional().describe('Series color'),
 });
 
@@ -299,13 +352,56 @@ export const TimelineEventSchema = z.object({
 });
 
 /**
+ * Timeline scale — the six values of `@objectstack/spec`
+ * `ui/TimelineConfig.json#scale`, which are also the six `TIMELINE_SCALES` the
+ * gantt renderer accepts. Mirrors `TimelineScale` in `../data-display.ts`.
+ *
+ * Deliberately NOT exported: every exported const in this directory has to be
+ * registered in `zod-mirror-parity.test.ts`'s `MIRRORS` or `EXCLUSIONS`, and a
+ * shared inline enum is not a mirror of any declaration — it is spelling reuse
+ * between the two keys below.
+ */
+const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', 'year']);
+
+/**
  * Timeline Schema - Timeline component
+ *
+ * Mirrors `TimelineSchema` in `../data-display.ts`, which objectui#6170 aligned
+ * to the key set `TimelineRenderer` actually reads (maintainer ruling
+ * 2026-08-25). `zod-mirror-parity.test.ts` pins the two together: a key
+ * declared there and absent here is `UnmirroredDeclaredKeys` and reddens the
+ * pair, so the nine presentational keys below are not optional to carry.
+ *
+ * `events` / `orientation` / `position` stay declared and stay mirrored: they
+ * have zero read points, but removing them is a breaking narrowing routed
+ * through ADR-0049 rather than done here. `events` follows the declaration from
+ * required to OPTIONAL — strictly more input parses than before.
+ *
+ * `timeScale` is RETIRED (objectui#6355) and carries the `z.never()` tombstone
+ * below — still mirrored, deliberately, because the parity ratchet compares key
+ * SETS and because a tombstone must be present on both halves to be audible.
  */
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
-  events: z.array(TimelineEventSchema).describe('Timeline events'),
-  orientation: z.enum(['vertical', 'horizontal']).optional().describe('Timeline orientation'),
-  position: z.enum(['left', 'right', 'alternate']).optional().describe('Event position'),
+  variant: z.enum(['vertical', 'horizontal', 'gantt']).optional().describe('Layout variant'),
+  items: z.array(z.any()).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt'),
+  dateFormat: z.enum(['short', 'long', 'iso']).optional().describe('How item dates are rendered'),
+  scale: TimelineScaleSchema.optional().describe('Gantt axis bucket size (canonical spelling — the spec key)'),
+  // RETIRED (objectui#6355, ruling 2026-08-27): the pre-spec alias for `scale`.
+  // The TS twin (`../data-display.ts`) types it `?: never`; here any authored
+  // value is a loud parse rejection (absent stays valid), mirroring how
+  // `@objectstack/spec` retires keys and how `crud.zod.ts` retires `confirm`.
+  // NOT deletable: `BaseSchema` is `.passthrough()`, so dropping the key would
+  // let the retired spelling parse green while the renderer no longer reads it
+  // — a silent revert to the `month` default, which is the whole failure this
+  // retirement exists to make audible. One axis spelling: `scale` above.
+  timeScale: z.never().optional().describe('RETIRED (objectui#6355) — author scale instead'),
+  rowLabel: z.string().optional().describe('Header label above the gantt row-label gutter'),
+  minDate: z.string().optional().describe('Override the auto-calculated gantt axis start (YYYY-MM-DD)'),
+  maxDate: z.string().optional().describe('Override the auto-calculated gantt axis end (YYYY-MM-DD)'),
+  events: z.array(TimelineEventSchema).optional().describe('DEPRECATED — zero read points; renders an empty rail. Use items'),
+  orientation: z.enum(['vertical', 'horizontal']).optional().describe('DEPRECATED — zero read points. Use variant'),
+  position: z.enum(['left', 'right', 'alternate']).optional().describe('DEPRECATED — zero read points'),
 });
 
 /**

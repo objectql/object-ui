@@ -22,7 +22,7 @@
  * - ViewSwitcher for toggling between view types
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type {
   ObjectViewSchema,
   ObjectGridSchema,
@@ -67,6 +67,7 @@ import {
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
+import { useStableIdentity } from './stableIdentity';
 
 /**
  * SchemaRenderer from @object-ui/react, used to render sub-view schemas.
@@ -618,12 +619,34 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Declared with the other top-level hooks so it stays above every conditional
   // return — rules-of-hooks.
   const { t: tView } = useObjectViewTranslation();
-  const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
-  // Assigned in the render body (not in an effect) so the fetchData effect always
-  // reads the latest objectSchema without needing it as a dependency. This matches
-  // the same pattern used in ObjectCalendar's objectSchemaRef.
-  const objectSchemaRef = useRef<Record<string, unknown> | null>(null);
-  objectSchemaRef.current = objectSchema;
+  // The object-schema read and the fact that it has SETTLED are ONE piece of
+  // state, keyed by the object it belongs to (objectui#6419). This replaces a
+  // `useState` + a render-body `objectSchemaRef.current = objectSchema` write,
+  // which existed so the non-grid fetch effect below could read the schema
+  // without listing it as a dependency. That bought the effect one run per
+  // mount — and paid for it with the expansion, permanently: on that one run
+  // the ref was still `null`, so `buildExpandFields` saw no fields and the
+  // query went out with no `$expand` at all, for every non-grid view this
+  // component hosts.
+  //
+  // Two separate states (`def` + `hasSettled`) could disagree for one commit —
+  // long enough for the record query to fire against the previous object's
+  // expand set — and a bare `objectSchema` cannot express "settled with
+  // nothing", which is a legitimate outcome (an adapter with no
+  // `getObjectSchema`, or a read that threw). `key` is compared against the
+  // CURRENT object name during render, so switching objects closes the gate in
+  // the same commit that changes it, not one commit later.
+  const [schemaResolution, setSchemaResolution] =
+    useState<{ key: string; def: Record<string, unknown> | null } | null>(null);
+  const schemaKey = schema.objectName ?? '';
+  /**
+   * Has the object schema for THIS object finished resolving? Note what this is
+   * NOT: "`objectSchema` is truthy". A view whose adapter exposes no
+   * `getObjectSchema`, or whose schema read failed, must still fetch its rows —
+   * gating on a truthy schema would leave those views empty forever.
+   */
+  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
+  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
@@ -697,6 +720,44 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const currentActiveViewId = activeViewId || viewsPropResolved?.[0]?.id;
   const activeView = viewsPropResolved?.find(v => v.id === currentActiveViewId) || viewsPropResolved?.[0];
 
+  /**
+   * ⭐ objectui#6460 — everything the NON-GRID FETCH EFFECT below needs from the
+   * active view, as ONE reference that only changes when one of those values
+   * changes.
+   *
+   * `activeView` is an ELEMENT of the `views` prop array, so a host that builds
+   * that array inline (`views={[{ id: 'cal', type: 'calendar', label: … }]}` —
+   * how this component's own docs write it) hands over a fresh object every
+   * time it renders. Listing `activeView` itself made the fetch effect re-run
+   * once per PARENT render: measured 4 `find` calls where a hoisted array gives
+   * 1, and because `ObjectView` passes `data={data}` down, each of those also
+   * re-delivered a fresh row array to the child view.
+   *
+   * ⚠️ The three members are not interchangeable with "whatever the effect
+   * touches", and objectui#6460's own body got this wrong — it said the effect
+   * reads `filter` and `type`. Measured in the effect body, it reads `filter`
+   * and **`sort`** (`type` reaches it only via `currentViewType`, its own
+   * dependency). Dropping `sort` would stop a host that changes only a view's
+   * sort from ever re-querying — a worse defect than the churn, and invisible
+   * to any test written from that sentence.
+   *
+   * `id` is carried deliberately even though the effect does not read it: it is
+   * the host's own answer to "which view is active", it is a string and so
+   * cannot churn, and pinning it keeps switching views observably re-fetching
+   * even between two views whose filter and sort happen to coincide. Same
+   * ingredients as the display key this file already derives further down
+   * (`${schema.objectName}-${activeNamedView || activeView?.id || 'default'}-…`).
+   *
+   * Precedence is NOT flattened here. Both values still lose to
+   * `currentNamedViewConfig` at the read sites in the effect, exactly as before;
+   * this only decides WHEN the effect re-runs, never which source wins.
+   */
+  const activeViewQueryInputs = useStableIdentity(
+    activeView
+      ? { id: activeView.id, filter: activeView.filter, sort: activeView.sort }
+      : undefined,
+  );
+
   // Current view type from named view, multi-view prop, or default
   const currentViewType: string = useMemo(() => {
     if (currentNamedViewConfig?.type) return currentNamedViewConfig.type;
@@ -707,20 +768,32 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Navigation config
   const navigationConfig: ViewNavigationConfig | undefined = schema.navigation;
 
-  // Fetch object schema from ObjectQL/ObjectStack
+  // Fetch object schema from ObjectQL/ObjectStack.
+  //
+  // Every exit settles the resolution — success, failure, and "there is nothing
+  // to read from" alike — because the non-grid record query below WAITS on this
+  // (objectui#6419). A path that returned without settling would not merely
+  // skip the expansion, it would hold that query open forever.
   useEffect(() => {
     let isMounted = true;
+    const key = schema.objectName ?? '';
     const fetchObjectSchema = async () => {
+      if (!schema.objectName || !dataSource || typeof dataSource.getObjectSchema !== 'function') {
+        // No source for a schema: settle with none, so the view still queries
+        // (unexpanded — with no schema there is no expand set to derive, which
+        // is the same query this case produced before).
+        if (isMounted) setSchemaResolution({ key, def: null });
+        return;
+      }
       try {
         const schemaData = await dataSource.getObjectSchema(schema.objectName);
-        if (isMounted) setObjectSchema(schemaData);
+        if (isMounted) setSchemaResolution({ key, def: schemaData });
       } catch (err) {
         console.error('Failed to fetch object schema:', err);
+        if (isMounted) setSchemaResolution({ key, def: null });
       }
     };
-    if (schema.objectName && dataSource) {
-      fetchObjectSchema();
-    }
+    fetchObjectSchema();
     return () => { isMounted = false; };
   }, [schema.objectName, dataSource]);
 
@@ -737,6 +810,43 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       if (currentViewType === 'grid') return;
       if (!dataSource || !schema.objectName) return;
 
+      // ⭐ objectui#6419 — the object schema GATES this query; it does not
+      // refine it afterwards. The shape is `ObjectKanban`'s (objectui#6271),
+      // but the measurement behind it is this component's own, because this
+      // effect has five more dependencies and the kanban's numbers do not
+      // transfer. Instrumented adapter, schema/find both 30ms, rows handed to
+      // the child as `data={data}`:
+      //
+      //   before          1 find, `{$top:100}` — no `$expand`, EVER; the child
+      //                   receives exactly one delivery, of raw rows.
+      //   `objectSchema`  2 finds, `[{$top:100}, {$top:100,$expand:[...]}]`;
+      //   in the deps     the child receives TWO deliveries, `raw` then
+      //                   `expanded`.
+      //   gated (here)    1 find, carrying `$expand` the first time; one
+      //                   delivery, `expanded`.
+      //
+      // That middle row is where this component parts company with the kanban.
+      // On the board the unexpanded first response was DISCARDED on arrival
+      // (`isMounted` flipped false before it landed) — a wasted round trip, no
+      // visible artefact. Here the ordering measured is
+      // `schema:settled -> find:settled -> find:issued`: the raw rows settle
+      // into `setData` BEFORE the re-run's cleanup, reach the child, and paint.
+      // So an extra re-run here costs a visible two-step render — every
+      // lookup / master_detail / user / tree field blank (kanban's
+      // `isOpaqueId`) or a raw id for ~40ms, then swapping — which is exactly
+      // the "duplicate events in child views like the calendar" the ref this
+      // replaces was introduced to avoid. Gating avoids both.
+      //
+      // What the gate costs is one schema resolution ahead of the query, and
+      // this component ALREADY issues that read unconditionally on mount
+      // (measured: `getObjectSchema` calls = 1 in every regime, before and
+      // after). It is one small GET, served from `MetadataCache` (5-min TTL,
+      // concurrent readers coalesced onto one request) for every reader after
+      // the first. Correct, expanded rows land at the same wall clock as the
+      // dependency version reached them — with half the queries and no wrong
+      // paint in between.
+      if (!objectSchemaReady) return;
+
       setLoading(true);
       try {
         // `mergeFilterNodes` rescues an OBJECT source: `table.defaultFilters` is
@@ -751,7 +861,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // one only as its alias (objectui#5102). The two view segments ahead of
         // it are untouched — this extends the last segment only.
         const finalFilter = mergeFilterNodes(
-          currentNamedViewConfig?.filter || activeView?.filter
+          currentNamedViewConfig?.filter || activeViewQueryInputs?.filter
             || schema.table?.filter || schema.table?.defaultFilters,
         );
 
@@ -786,15 +896,16 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // Precedence is unchanged: the canonical `table.sort` still outranks the
         // deprecated `table.defaultSort`, and both still lose to a view's sort —
         // the same order the grid path and `mergedSort` express.
-        const sort = currentNamedViewConfig?.sort || activeView?.sort
+        const sort = currentNamedViewConfig?.sort || activeViewQueryInputs?.sort
           || schema.table?.sort
           || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
-        // Auto-inject $expand for lookup/master_detail fields.
-        // Use a ref instead of the state variable to avoid re-running this effect
-        // every time the object schema loads — that would cause a double-fetch and
-        // duplicate events in child views like the calendar.
-        const expand = buildExpandFields((objectSchemaRef.current as any)?.fields);
+        // Auto-inject $expand for lookup/master_detail fields. Reached only
+        // with the schema resolved (the gate above), so a view whose object
+        // declares lookups queries WITH its expansion the first time —
+        // `objectSchema` here is `null` only when there was nothing to resolve
+        // it from.
+        const expand = buildExpandFields((objectSchema as any)?.fields);
         const results = await dataSource.find(schema.objectName, {
           // `mergeFilterNodes` returns a node or `undefined`; the old
           // `.length > 0` here was the second place an object filter was lost.
@@ -814,10 +925,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         if (Array.isArray(results)) {
           items = results;
         } else if (results && typeof results === 'object') {
+          // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+          // declares. A `records` branch sat between `data` and `value` until
+          // objectui#6726 — a below-the-adapter spelling
+          // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
+          // `records` envelope to `data` before returning), so no producer
+          // emits it at this `DataSource.find()` seam and the branch was dead.
+          // Pinned by `ObjectView.contractEnvelope-6726.test.tsx`.
           if (Array.isArray((results as any).data)) {
             items = (results as any).data;
-          } else if (Array.isArray((results as any).records)) {
-            items = (results as any).records;
           } else if (Array.isArray((results as any).value)) {
             items = (results as any).value;
           }
@@ -833,9 +949,17 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-    // objectSchema intentionally omitted from deps — read via ref to prevent double-fetch
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, dataSource, currentViewType, refreshKey, currentNamedViewConfig, activeView, renderListView]);
+    // `objectSchemaReady` and `objectSchema` are BOTH listed and both are load
+    // bearing: `objectSchema` is `null` in two different situations — before
+    // the read settles, and after it settles with nothing — and only the first
+    // of those may hold the query. Listing them is what makes the gate open;
+    // it is not the dependency-driven refetch this replaced, because the runs
+    // before the gate opens return above without querying.
+  }, [
+    schema.objectName, dataSource, currentViewType, refreshKey,
+    currentNamedViewConfig, activeViewQueryInputs, renderListView,
+    objectSchemaReady, objectSchema,
+  ]);
 
   // Determine layout mode. #2578: default the record surface from how heavy the
   // object is — a field-heavy object opens create/edit/detail as a full page, a
@@ -1514,6 +1638,36 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // deprecated one as its alias (objectui#5102). Both land on `list-view`'s
   // own `filter` / `sort` keys below, so a canonical value arrives in the slot
   // that already matches its shape.
+  //
+  // objectui#6235: that last sentence used to be FALSE of the sort chain's
+  // final branch. `list-view`'s `sort` slot is declared `string | SortConfig[]`
+  // (the spec's own `ListViewSchema.sort`, imported by reference into
+  // `packages/types/src/zod/objectql.zod.ts`), and every branch above the last
+  // produces one of those two — but `table.defaultSort` is declared a SINGLE
+  // `{ field, order }` object, and it was forwarded BARE. There is no
+  // compile-time witness: `ObjectViewSchema.table` collapses to a bare index
+  // signature (objectui#5102) and this node is assembled on the host-
+  // composition surface (objectui#5097), whose `renderListView` slot types
+  // `schema` as `any`.
+  //
+  // Every reader of that slot then drops the sort SILENTLY — no crash, no
+  // error, just an unsorted list: `ListView.parseSortConfig` and
+  // `ObjectGrid.parseSchemaSort` both open `typeof sort === 'string' ? [sort]
+  // : Array.isArray(sort) ? sort : []`, so a bare object yields `[]`, and the
+  // shared sink `convertSortToQueryParams` returns `undefined` for it. Both
+  // in-tree hosts feed this slot straight into `ListView`
+  // (`app-shell/src/views/ObjectView.tsx` `fullSchema`, and
+  // `studio-design/StudioDesignSurface.tsx` `renderStudioGridList`).
+  //
+  // So the legacy member of the pair is lowered HERE, in the caller, verbatim
+  // as the non-grid fetch path above already does it and as `ObjectGrid`
+  // performs it for this exact pair. ⛔ The alternative — teaching the shared
+  // sink to accept a bare `{ field, order }` — is the widening the maintainer
+  // ruling of 2026-08-22 REJECTED on the merits (quoted with the non-grid
+  // fetch above): that slot legitimately also carries `$orderby`'s own
+  // `Record<field, direction>` map, in which `{ field: 'desc' }` is a legal
+  // ordering by a column literally named `field`, so the sink would have to
+  // GUESS. Precedence is untouched — only the last branch changes shape.
   const mergedFilters = currentNamedViewConfig?.filter
     || activeView?.filter
     || schema.table?.filter
@@ -1522,7 +1676,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   const mergedSort = currentNamedViewConfig?.sort
     || activeView?.sort
     || schema.table?.sort
-    || schema.table?.defaultSort;
+    || (schema.table?.defaultSort ? [schema.table.defaultSort] : undefined);
 
   // --- Content renderer ---
   const renderContent = () => {

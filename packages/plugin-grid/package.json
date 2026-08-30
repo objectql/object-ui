@@ -12,10 +12,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.umd.cjs"
-    }
+    },
+    "./style.css": "./dist/index.css"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/build-css.mjs",
     "test": "vitest run",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
@@ -42,8 +43,11 @@
     "@object-ui/data-objectstack": "workspace:*",
     "@object-ui/sdui-parser": "workspace:*",
     "@objectstack/spec": "^17.0.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.5",
     "msw": "^2.15.0",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vite-plugin-dts": "^5.0.3"

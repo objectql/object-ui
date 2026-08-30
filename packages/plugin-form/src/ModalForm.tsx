@@ -53,6 +53,7 @@ import { sanitizeFormData } from './sanitize';
 import { seedCreateValues, omitServerResolvedDefaults } from './schemaDefaults';
 import { usePermissions } from '@object-ui/permissions';
 import { useOccSave } from './occSave';
+import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 
 // Localized strings for the unsaved-changes guard. Falls back to English when
 // no i18n provider is mounted (createSafeTranslation handles that).
@@ -440,7 +441,14 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
     setIsSubmitting(true);
     try {
-      if (!dataSource) {
+      // No submit TARGET: a declared `submitHandler` owns the write and needs no
+      // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+      // nor a `dataSource` is target-less. The one target-less form that is still
+      // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+      // This arm used to be `if (!dataSource)` alone: it confirmed EVERY
+      // adapter-less submit, bypassing a declared host seam and persisting
+      // nothing (objectui#6300). See `submitTarget.ts` for the whole rule.
+      if (!dataSource && !schema.submitHandler && hasInlineFieldSource(schema)) {
         if (schema.onSuccess) {
           await schema.onSuccess(data);
         }
@@ -479,6 +487,10 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         // renderer `ObjectForm` routes to must check it FIRST, or a declared
         // host-owned write silently becomes an independent one (objectui#6176).
         result = await schema.submitHandler(writePayload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of reporting
+        // success — the `catch` below hands this to `schema.onError` and rethrows.
+        throw noSubmitTargetError();
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, writePayload);
       } else if (schema.mode === 'edit' && schema.recordId) {
@@ -683,6 +695,11 @@ export const ModalForm: React.FC<ModalFormProps> = ({
                 description: g.description,
                 fields: g.fields.map((f) => f.name),
                 containerClass: g.gridClassName,
+                // The tab's predicate slot (#6237) — the same authored
+                // `FormSection.visibleWhen` the stacked arm copies onto its
+                // divider; the renderer evaluates it and hides trigger, panel
+                // and fields together under the ruled hidden-group semantics.
+                visibleWhen: g.visibleWhen,
               })),
             }}
           />
@@ -704,6 +721,10 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             // ADR-0089 section predicate (#6111) — the renderer evaluates it on
             // this pseudo-field with the host predicate scope bound (#6010).
             visibleWhen: g.visibleWhen,
+            // The membership claim (#6236): resolved member names, so the
+            // predicate gates the whole group (same spelling as the
+            // `fieldTabs` claim above).
+            fields: g.fields.map((f) => f.name),
             colSpan: 4,
             className: g.className,
           } as any);
@@ -736,6 +757,9 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             type: 'section-divider',
             // ADR-0089 section predicate (#6111).
             visibleWhen: (section as any).visibleWhen,
+            // The membership claim (#6236): resolved (post-FLS) member names,
+            // so the predicate gates the whole group.
+            fields: body.map((f) => f.name),
           } as any);
         }
         allFields.push(...(columns > 1 ? applyAutoColSpan(body, columns) : body));

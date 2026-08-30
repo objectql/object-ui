@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FieldSchema } from '@objectstack/spec/data';
+import { FieldSchema, ObjectSchema } from '@objectstack/spec/data';
 import { RETIRED_FIELD_KEYS, newField, readFields, writeFields } from './object-fields-io.js';
 
 /**
@@ -153,5 +153,90 @@ describe('strip-on-load is what makes a pre-#4644 draft saveable again', () => {
     }) as Record<string, Record<string, unknown>>;
     expect(out.nickname).not.toHaveProperty('indexed');
     expect(out.nickname.zzzDefinitelyNotAKey).toBe('kept');
+  });
+});
+/**
+ * The 422 shape, asserted on the BODY the designer PUTs rather than on a
+ * helper's return value (objectui#6519).
+ *
+ * `writeFields` returns the `fields` map; what fails in production is
+ * `PUT /api/v1/meta/object/:name` validating the WHOLE object document. Parsing
+ * only the field def would leave the path unmeasured, and the path is the part
+ * that says a save of THIS object is blocked: `ObjectSchema` reports the refusal
+ * at `["fields", <name>]`, which is what comes back as
+ * `422 {"code":"INVALID_METADATA"}` and stays broken for every later save until
+ * the key is cleared — with the retired controls gone, from no UI at all.
+ */
+const emittedBody = (fields: unknown) => ({
+  name: 'account',
+  label: 'Account',
+  fields: roundTrip(fields),
+});
+
+/** `[path, keys]` for every `unrecognized_keys` issue, path included. */
+const refusedAt = (result: ReturnType<typeof ObjectSchema.safeParse>): Array<[string, string[]]> =>
+  result.success
+    ? []
+    : result.error.issues
+        .filter((i) => i.code === 'unrecognized_keys')
+        .map((i) => [i.path.join('.'), (i as unknown as { keys: string[] }).keys] as [string, string[]]);
+
+describe('the emitted PUT body — the document that actually 422s', () => {
+  it('control: the whole document is otherwise accepted', () => {
+    // Without this, every refusal below is compatible with a schema that
+    // refuses every document, and the paths would prove nothing.
+    expect(ObjectSchema.safeParse(emittedBody({ amount: { type: 'number', label: 'Amount' } })).success).toBe(
+      true,
+    );
+  });
+
+  for (const key of RETIRED_FIELD_KEYS) {
+    it(`control: an UN-STRIPPED \`${key}\` is refused at ["fields","amount"]`, () => {
+      // Deliberately NOT routed through `readFields` — this is the raw draft a
+      // pre-retirement build stored, and the assertion is the 422's own shape:
+      // the refusal is reported on the FIELD ENTRY, not the object.
+      const raw = { name: 'account', label: 'Account', fields: { amount: { type: 'number', label: 'A', [key]: 1 } } };
+      const result = ObjectSchema.safeParse(raw);
+      expect(result.success).toBe(false);
+      expect(refusedAt(result)).toEqual([['fields.amount', [key]]]);
+    });
+
+    it(`a draft carrying \`${key}\` comes out of the round-trip as a parseable body`, () => {
+      // The two halves together are the real assertion: the control above
+      // proves the key is genuinely fatal, this proves the read door removes it
+      // before the body is built. Either alone is compatible with a broken strip.
+      const body = emittedBody({ amount: { type: 'number', label: 'A', [key]: 1 } });
+      expect(ObjectSchema.safeParse(body).success).toBe(true);
+      expect((body.fields as Record<string, Record<string, unknown>>).amount).not.toHaveProperty(key);
+    });
+  }
+
+  it('a draft carrying ALL of them at once comes out parseable', () => {
+    // How a draft from the era actually looks: the controls shipped together,
+    // and `unrecognized_keys` reports them together, so clearing a subset
+    // leaves the object exactly as blocked.
+    const poisoned = Object.fromEntries(RETIRED_FIELD_KEYS.map((k) => [k, 1]));
+    const raw = {
+      name: 'account',
+      label: 'Account',
+      fields: { amount: { type: 'number', label: 'A', ...poisoned } },
+    };
+    expect(refusedAt(ObjectSchema.safeParse(raw))).toEqual([['fields.amount', [...RETIRED_FIELD_KEYS]]]);
+    expect(ObjectSchema.safeParse(emittedBody(raw.fields)).success).toBe(true);
+  });
+
+  it('the array draft shape reaches the same parseable body', () => {
+    // `readFields` normalises the two draft shapes through separate branches,
+    // and only the record shape is what `ObjectSchema` accepts on the wire.
+    const body = {
+      name: 'account',
+      label: 'Account',
+      fields: Object.fromEntries(
+        (roundTrip([{ name: 'amount', type: 'number', label: 'A', referenceTo: 'account', indexed: true }]) as Array<
+          Record<string, unknown>
+        >).map(({ name, ...def }) => [name as string, def]),
+      ),
+    };
+    expect(ObjectSchema.safeParse(body).success).toBe(true);
   });
 });

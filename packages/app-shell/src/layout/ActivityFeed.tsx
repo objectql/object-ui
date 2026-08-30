@@ -17,18 +17,18 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@object-ui/components';
-import { Activity, Plus, Pencil, Trash2, MessageSquare, Filter } from 'lucide-react';
+import { Activity, Plus, Pencil, Trash2, MessageSquare, Filter, Info } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
+import type { ActivityItem } from './activityItemType.js';
 
-export interface ActivityItem {
-  id: string;
-  type: 'create' | 'update' | 'delete' | 'comment';
-  objectName: string;
-  recordId?: string;
-  user: string;
-  description: string;
-  timestamp: string;
-}
+/**
+ * The item shape and its kind union live in `activityItemType.ts` with the
+ * `sys_activity` reading that produces them (objectui#6730) — that module is
+ * DOM-free, so what a row BECOMES can be asserted without mounting this Sheet.
+ * Re-exported here so every existing `from './ActivityFeed.js'` import (and the
+ * package barrel's `ActivityItem`) keeps resolving unchanged.
+ */
+export type { ActivityItem, ActivityItemType } from './activityItemType.js';
 
 export interface ActivityFeedProps {
   activities?: ActivityItem[];
@@ -43,6 +43,11 @@ const typeConfig: Record<
   update: { icon: Pencil, color: 'text-blue-500' },
   delete: { icon: Trash2, color: 'text-red-500' },
   comment: { icon: MessageSquare, color: 'text-amber-500' },
+  // The generic bucket (objectui#6730): built-ins these four kinds have no
+  // honest presentation for (`system` / `completed` / `scheduled` / `login` /
+  // `logout`) plus every author-extended value. Neutral on purpose — the point
+  // of the bucket is that it does not claim the row was an update.
+  system: { icon: Info, color: 'text-muted-foreground' },
 };
 
 /** Format an ISO timestamp as a localized relative string (e.g. "2m ago"). */
@@ -69,6 +74,7 @@ export function ActivityFeed({ activities = [], className }: ActivityFeedProps) 
     update: true,
     delete: true,
     comment: true,
+    system: true,
   });
 
   const togglePreference = (type: ActivityItem['type']) => {
@@ -83,6 +89,7 @@ export function ActivityFeed({ activities = [], className }: ActivityFeedProps) 
     update: t('layout.activityFeed.typeUpdate'),
     delete: t('layout.activityFeed.typeDelete'),
     comment: t('layout.activityFeed.typeComment'),
+    system: t('layout.activityFeed.typeSystem'),
   };
 
   return (

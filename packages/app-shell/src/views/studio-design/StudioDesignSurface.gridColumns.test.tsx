@@ -152,15 +152,37 @@ describe('Studio Data pillar grid — the columns array keeps a stable identity 
   });
 
   /**
-   * The dependency must stay LIVE, not be defeated. This pin is green before and
-   * after the fix on purpose — it is a must-not-change, not a red-first case.
-   * Its force comes from the path it uses: "+ Add field" mutates `objDraft.fields`
-   * WITHOUT remounting the grid (its key is `${current.name}:${gridVer}` and
-   * `gridVer` is unchanged), so the refetch it produces can only have arrived
-   * through the column-identity dependency chain. A memo that froze the columns
-   * (or returned a constant) would turn this red.
+   * Identity-churn liveness: the columns dependency must stay LIVE against a
+   * FRESH ARRAY — not be defeated by a producer-side memo that freezes the
+   * columns or constant-folds them. This pin is green before and after the
+   * #4567 fix on purpose; it is a must-not-change, not a red-first case.
+   *
+   * ⚠️ What this case drives is NOT a content change, and this docstring used
+   * to say that it was ("a REAL column change still refetches"). cloud#1652 is
+   * what moved it out from under that sentence: `gridColumns` gained a trailing
+   * `.filter((n) => publishedFieldNames.has(n))`, and `publishedFieldNames` is
+   * read from the SERVER baseline alone (the `layered()` response), never from
+   * the draft. "+ Add field" appends an UNPUBLISHED `field_<N>` to
+   * `objDraft.fields`, so the memo recomputes — new `fields`, hence a new array
+   * — and that same filter then removes `field_<N>` again. What reaches the grid
+   * is therefore an array of EQUAL CONTENT carrying a FRESH IDENTITY.
+   *
+   * Measured on origin/main while correcting this docstring (objectui#6729):
+   * across the click `find()` goes 1 -> 2 while `$select` is
+   * `["id","name","status"]` both before and after, and no `field_` ever reaches
+   * the projection. So the refetch asserted below can only have arrived through
+   * the column-IDENTITY dependency chain — and there is no remount to explain it
+   * either: the grid's key is `${current.name}:${gridVer}`, and `gridVer` does
+   * not move.
+   *
+   * ⛔ Do not read this as covering "columns whose CONTENT changed must still
+   * refetch". That case is real, and it is pinned elsewhere — plugin-list's
+   * `ListView.discardedExpandFieldsMemo.test.tsx` (objectui#6697), which moves
+   * `$select` while holding `$expand` byte-identical. Taking the old sentence at
+   * face value already cost one round: #6697's implementer concluded the content
+   * case was covered here, and had to add it there.
    */
-  it('a REAL column change still refetches — the dependency stays live', async () => {
+  it('a fresh columns array of EQUAL content still refetches — identity-churn liveness', async () => {
     const before = await mountSettledGrid();
 
     fireEvent.click(screen.getAllByRole('button', { name: /Add field/i })[0]);

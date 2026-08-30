@@ -260,6 +260,14 @@ const de = {
       editAsJson: "Als JSON bearbeiten",
       useVisualBuilder: "Visuellen Builder verwenden",
     },
+    object: {
+      invalidJson: "Ungültiges JSON",
+    },
+    location: {
+      refusedFormat:
+        "Nicht gespeichert: Geben Sie ein Paar aus Breitengrad, Längengrad ein (Beispiel: 30.2741, 120.1551).",
+      refusedRange: "Nicht gespeichert: {{detail}}",
+    },
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
     },
@@ -337,7 +345,6 @@ const de = {
       undo: "Rückgängig",
       undoing: "Wird rückgängig gemacht…",
       done: "Fertig",
-      selectPlaceholder: "Auswählen…",
       loading: "Wird geladen…",
     },
     actions: "Aktionen",
@@ -531,9 +538,7 @@ const de = {
     month: "Monat",
     week: "Woche",
     day: "Tag",
-    agenda: "Agenda",
     allDay: "Ganztägig",
-    noEvents: "Keine Termine",
     newEvent: "Neuer Termin",
     moreEvents: "+{{count}} weitere",
   },
@@ -676,6 +681,15 @@ const de = {
     },
     gantt: {
       rowLabel: "Elemente",
+      unusableRange: {
+        malformedDate:
+          "Unbrauchbarer Gantt-Datumsbereich — {{path}} ist {{value}} und damit kein gültiges Datum. Jedes Gantt-Datum muss parsebar sein: startDate und endDate jedes Zeilenelements sowie ein am Schema gesetztes minDate / maxDate.",
+        inverted:
+          "Unbrauchbarer Gantt-Datumsbereich — minDate {{minDate}} liegt nach maxDate {{maxDate}}. Ein gesetztes minDate / maxDate überschreibt den aus den Zeilen berechneten Bereich, daher hat diese Achse keine Spalten und es kann kein Balken platziert werden; vertauschen Sie die beiden Werte.",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "Nicht unterstützte Variante „gantt“ — eine objektgebundene Timeline rendert die Feed-Varianten ({{variants}}). Gantt benötigt literale Zeilen mit jeweils eigenen verschachtelten items; die Gantt-Achse (scale) hat hier daher keine Wirkung.",
     },
   },
   gantt: {
@@ -866,7 +880,7 @@ const de = {
     relatedRecords: "{{count}} Datensätze",
     relatedRecordOne: "{{count}} Datensatz",
     noRelatedRecords: "Keine verknüpften Datensätze gefunden",
-    loading: "Laden…",
+    loading: "Wird geladen…",
     copyToClipboard: "In Zwischenablage kopieren",
     copied: "Kopiert!",
     deleteConfirmation: "Sind Sie sicher, dass Sie diesen Datensatz löschen möchten?",
@@ -1027,16 +1041,8 @@ const de = {
     noValue: "Kein Wert",
   },
   chart: {
-    noData: "Keine Diagrammdaten verfügbar",
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
-  },
-  map: {
-    searchLocations: "Orte suchen…",
-    locationDetails: "Standortdetails",
-    markersCount: "{{count}} Markierungen",
-    invalidCoordinates: "{{count}} Datensatz mit fehlenden oder ungültigen Koordinaten von der Karte ausgeschlossen.",
-    invalidCoordinatesPlural: "{{count}} Datensätze mit fehlenden oder ungültigen Koordinaten von der Karte ausgeschlossen.",
   },
   dashboard: {
     noRows: "Keine Zeilen",
@@ -1353,7 +1359,6 @@ const de = {
       defaultValue: "Standardwert",
       placeholder: "Platzhalter",
       referenceTo: "Verweis auf",
-      formula: "Formel",
       options: "Optionen",
       addOption: "Option hinzufügen",
       validationRules: "Validierungsregeln",
@@ -2025,20 +2030,20 @@ const de = {
       approveWarning: "Genehmigen Sie nur, wenn Sie diese Verbindung soeben selbst gestartet haben. Nach der Genehmigung kann diese Laufzeitumgebung auf die privaten Pakete Ihrer Organisation zugreifen.",
       loggedInAs: "Angemeldet als {{email}}",
       approve: "Gerät genehmigen",
-      approving: "Genehmige…",
+      approving: "Wird genehmigt…",
       approvedTitle: "Gerät autorisiert",
       approvedDescription: "Sie können zum Gerät zurückkehren — es sollte sich in Kürze anmelden.",
       approveSuccess: "Gerät autorisiert",
       approveSuccessDescription: "Sie können dieses Fenster schließen.",
       approveFailed: "Genehmigung fehlgeschlagen",
       deny: "Anfrage ablehnen",
-      denying: "Ablehne…",
+      denying: "Wird abgelehnt…",
       deniedTitle: "Zugriff verweigert",
       deniedDescription: "Dem Gerät wird kein Zugriff gewährt.",
       denyFailed: "Anfrage konnte nicht abgelehnt werden",
       invalidTitle: "Ungültiger Gerätelink",
       invalidDescription: "In der URL wurde kein Gerätecode angegeben.",
-      loading: "Lade…",
+      loading: "Wird geladen…",
       cancel: "Abbrechen",
       // objectui#3546 slice three — device-authorization plugin switched off.
       disabledTitle: "Geräteautorisierung nicht aktiviert",
@@ -2276,8 +2281,6 @@ const de = {
     browseMarketplace: "App-Marktplatz durchsuchen",
     quickActions: {
       title: "Schnellaktionen",
-      createApp: "App erstellen",
-      createAppDesc: "Beginnen Sie mit einer neuen Anwendung",
       manageObjects: "Objekte verwalten",
       manageObjectsDesc: "Datenmodelle konfigurieren",
       systemSettings: "Systemeinstellungen",
@@ -2293,11 +2296,6 @@ const de = {
     greetingNight: "Nachtschicht",
     heroTagline: "Machen Sie dort weiter, wo Sie aufgehört haben, oder entdecken Sie etwas Neues.",
     open: "Öffnen",
-    stats: {
-      apps: "Anwendungen",
-      starred: "Markiert",
-      recent: "Zuletzt verwendet",
-    },
     recentApps: {
       title: "Zuletzt geöffnet",
       itemType: {
@@ -2328,7 +2326,6 @@ const de = {
       organizations: "Organisationen",
       roles: "Rollen",
       configuration: "Konfiguration",
-      createApp: "App erstellen",
       administration: "Verwaltung",
       datasources: "Datenquellen",
       documentation: "Dokumentation",
@@ -2353,6 +2350,7 @@ const de = {
       typeUpdate: "Aktualisieren",
       typeDelete: "Löschen",
       typeComment: "Kommentar",
+      typeSystem: "System",
       relativeJustNow: "gerade eben",
       relativeSecondsAgo: "vor {{count}}s",
       relativeMinutesAgo: "vor {{count}}m",
@@ -2418,8 +2416,6 @@ const de = {
     cancel: "Abbrechen",
     confirm: "Bestätigen",
     uploading: "Wird hochgeladen…",
-    defaultActionTitle: "Aktion",
-    ok: "OK",
     lookupPlaceholder: "Datensatz-ID für {{label}}",
     lookupHelpText: "Für diesen Parameter ist kein Referenzobjekt konfiguriert, daher ist die Datensatzauswahl nicht verfügbar. Geben Sie eine Datensatz-ID ein oder bitten Sie einen Administrator, den Aktionsparameter zu korrigieren.",
   },
@@ -2427,11 +2423,6 @@ const de = {
     title: "Aktion bestätigen",
     confirm: "Weiter",
     cancel: "Abbrechen",
-  },
-  rowAction: {
-    openMenu: "Menü öffnen",
-    edit: "Bearbeiten",
-    delete: "Löschen",
   },
   navigationSync: {
     addedPage: "Navigation aktualisiert: Seite „{{name}}“ hinzugefügt",
@@ -2464,15 +2455,6 @@ const de = {
     exportFailed: "Export fehlgeschlagen: {{message}}",
     forecastSoon: "Prognoseansicht kommt bald",
   },
-  recordDetail: {
-    viewersTooltip: "Benutzer, die diesen Datensatz gerade ansehen",
-  },
-  cellRender: {
-    empty: "Leer",
-    yes: "Ja",
-    no: "Nein",
-    systemFields: "System",
-  },
   user: {
     profile: "Profil",
     settings: "Einstellungen",
@@ -2491,7 +2473,7 @@ const de = {
     columnsLabel: "Spalte",
     allLabel: "(Alle)",
     emptyLabel: "(Leer)",
-    loading: "Laden…",
+    loading: "Wird geladen…",
     failedToLoad: "Matrix konnte nicht geladen werden: {{message}}",
     needsAcross: "Matrixbericht erfordert mindestens ein `groupingsAcross`-Feld.",
     aggregate: {
@@ -3021,7 +3003,7 @@ const de = {
   },
   approvalsInbox: {
     loadMore: 'Mehr laden',
-    loadingMore: 'Lädt…',
+    loadingMore: 'Wird geladen…',
     loadedOf: '{{loaded}} von {{total}} geladen',
     actEscalate: 'SLA eskaliert',
     systemSlaActor: 'System (SLA)',
@@ -3407,6 +3389,45 @@ const de = {
       bulkFailureJoiner: "; ",
       bulkOperationFailed: "Massenvorgang fehlgeschlagen: {{reason}}",
     },
+  },
+  // objectui#6301 — Setup › Paketautomatisierung (ADR-0126 §7.4). Terminologie
+  // wie im übrigen Pack: `common.package` = Paket, `flowRunner.completed` =
+  // Flow, Anführungszeichen „…“. ⛔ Keine Herkunfts- oder Drift-Formulierungen
+  // in dieser Gruppe (§9).
+  packagedAutomation: {
+    title: "Paketautomatisierung",
+    subtitle: "Flows und Aktionen aus installierten Paketen. Schalten Sie eines für diese Installation ab oder klonen Sie einen Flow unter einem neuen Namen, um ihn anzupassen. Bearbeitet wird im Studio.",
+    refresh: "Aktualisieren",
+    flowsHeading: "Paket-Flows",
+    actionsHeading: "Paket-Aktionen",
+    colFlow: "Flow",
+    colActivation: "Aktivierung",
+    colActions: "Aktionen",
+    toggleLabel: "Aktivierung für {{label}}",
+    on: "An",
+    off: "Aus",
+    clone: "Klonen",
+    cloneTitle: "Paket-Flow klonen",
+    cloneBody: "Die Kopie übernimmt die gesamte Definition und benötigt einen neuen Maschinennamen und ein neues Label. Bearbeiten Sie die Kopie im Studio.",
+    cloneName: "Neuer Maschinenname",
+    cloneLabel: "Neues Label",
+    cancel: "Abbrechen",
+    cloneConfirm: "Klon erstellen",
+    cloneCreated: "Flow „{{name}}“ erstellt.",
+    emptyTitle: "Keine Paket-Flows",
+    emptyBody: "In dieser Installation liefert kein installiertes Paket einen Automatisierungs-Flow. Selbst erstellte Flows finden Sie im Studio.",
+    loadFailed: "Paketautomatisierung konnte nicht geladen werden.",
+    toggleFailedHttp: "Aktivierung konnte nicht geändert werden (HTTP {{status}}).",
+    toggleFailed: "Aktivierung konnte nicht geändert werden.",
+    cloneFailedHttp: "Dieser Flow konnte nicht geklont werden (HTTP {{status}}).",
+    cloneFailed: "Dieser Flow konnte nicht geklont werden.",
+    actionsSubtitle: "Aktionen aus installierten Paketen. Schalten Sie eine für diese Installation ab, und sie läuft überall dort nicht mehr, wo sie angeboten wird. Eine eigene Aktion daneben zu erstellen, bleibt Ihnen im Studio offen.",
+    colAction: "Aktion",
+    colObject: "Objekt",
+    actionToggleLabel: "Aktivierung für {{label}} auf {{object}}",
+    actionsEmptyTitle: "Keine Paket-Aktionen",
+    actionsEmptyBody: "In dieser Installation deklariert kein installiertes Paket eine Aktion. Selbst erstellte Aktionen finden Sie im Studio.",
+    actionsLoadFailed: "Paket-Aktionen konnten nicht geladen werden.",
   },
 };
 

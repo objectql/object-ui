@@ -25,8 +25,8 @@ import {
   useSubmitRedirectNavigation,
   type PendingSubmitRedirect,
 } from './submitRedirectNavigation';
-import { isAppRelativeDestination } from './thankYouRedirectNavigation';
 import { usePermissions } from '@object-ui/permissions';
+import { sectionPredicateUnsupportedWarning } from './sectionPredicateDiagnostic';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm, NAVIGATE_ON_SUCCESS_REFUSED_NOTE } from './WizardForm';
 import { SplitForm } from './SplitForm';
@@ -43,6 +43,7 @@ import {
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
 import { sanitizeFormData } from './sanitize';
+import { noSubmitTargetError } from './submitTarget';
 import {
   schemaDefaultValues,
   isCreateFormMode,
@@ -199,8 +200,40 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
   // page. Skipped in view mode (read-only detail uses related lists instead).
   // For drawer/modal formTypes we fall through to DrawerForm/ModalForm, which
   // host the master-detail form INSIDE their envelope.
-  if ((schema as any).subforms?.length && schema.mode !== 'view'
-      && schema.formType !== 'drawer' && schema.formType !== 'modal') {
+  const routesToMasterDetail = !!(schema as any).subforms?.length && schema.mode !== 'view'
+      && schema.formType !== 'drawer' && schema.formType !== 'modal';
+
+  // ── objectui#6237 diagnostic, now scoped to the ONE arm still inert ────────
+  // The interim diagnostic ruled on 2026-08-29 covered `tabbed` AND `wizard`,
+  // the two routes that dropped an authored section `visibleWhen`. The tabbed
+  // arm now HONOURS it (the map below copies the key, `TabbedForm` puts it on
+  // the tab it synthesises, and the renderer evaluates it), so warning about it
+  // would be a false alarm about a working feature — the same boundary the four
+  // control rows of the diagnostic's pin defend. `wizard` stays inert by
+  // DESIGN, not by omission: a step predicate is a different contract, not a
+  // port (see `WizardStepConfig`), so its gap is still reported rather than
+  // silently dropped.
+  //
+  // Deliberately NOT reported for the master-detail branch: that branch re-enters
+  // `ObjectForm` through `MasterDetailForm`'s parent schema, which is where the
+  // real layout is decided (a master-detail `wizard` parent renders `simple`,
+  // which DOES honour the predicate). Reporting here as well would double-report
+  // the tabbed parent and false-report the wizard one.
+  const inertPredicateLayout = !routesToMasterDetail && schema.formType === 'wizard'
+    ? schema.formType
+    : null;
+  // Joined to a string on purpose: the effect's deps must be primitives, or a
+  // fresh array identity each render would re-report on every keystroke.
+  const inertPredicateSections = (schema.sections ?? [])
+    .filter((s: any) => s?.visibleWhen != null)
+    .map((s: any) => s?.name || s?.label || '(unnamed)')
+    .join(', ');
+  useEffect(() => {
+    if (!inertPredicateLayout || !inertPredicateSections) return;
+    console.warn(sectionPredicateUnsupportedWarning(inertPredicateLayout, inertPredicateSections));
+  }, [inertPredicateLayout, inertPredicateSections]);
+
+  if (routesToMasterDetail) {
     return (
       <MasterDetailForm
         schema={{
@@ -245,6 +278,18 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            // ADR-0089 section predicate (objectui#6237) — key-by-key rebuild,
+            // so an uncopied key is silently dropped before TabbedForm ever
+            // sees it, exactly as it was on this route until this card. The
+            // split/drawer/modal maps below have carried it since #6111; this
+            // is the tabbed arm joining them.
+            //
+            // Read WITHOUT an `as any` cast on purpose, unlike those three:
+            // `ObjectFormSection.visibleWhen` is declared, so the compiler is
+            // able to catch a rename here. Through a cast it would keep
+            // compiling and silently copy `undefined` — the exact silent-drop
+            // failure this line exists to fix.
+            visibleWhen: s.visibleWhen,
             className: (s as any).className,
             gridClassName: (s as any).gridClassName,
           })),
@@ -782,16 +827,31 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       }
     }
 
-    // For inline fields without a dataSource, just call the success callback
-    if (hasInlineFields && !dataSource) {
+    // No submit TARGET: a declared `submitHandler` owns the write and needs no
+    // adapter of its own (objectui#6176's seam), so only a form with NEITHER it
+    // nor a `dataSource` is target-less. The one target-less form that is still
+    // legitimate is the inline-fields collector, whose `onSuccess` IS the write.
+    // This arm used to be `hasInlineFields && !dataSource` alone, checked BEFORE
+    // the persistence chain: a declared `submitHandler` was never reached, so a
+    // host that had said it owns the write got a success signal for a write it
+    // was never asked to perform (objectui#6388). Same rule and same precedence
+    // as the five variant renderers — see `submitTarget.ts` for the whole rule.
+    //
+    // The predicate stays this component's own `hasInlineFields` (non-empty
+    // `customFields`) rather than the shared `hasInlineFieldSource`. That
+    // helper's second limb — sections whose every field is an inline runtime
+    // `FormField` — is how the SECTIONED variants express an inline field
+    // source, and this renderer does not read it: here `sections[].fields` only
+    // SELECT (and override) fields already resolved from `customFields` or the
+    // object schema, so a sections-only form with no adapter resolves zero
+    // fields. Treating that as inline would widen the carve-out into a success
+    // signal for a form that collected nothing — this card's own defect class.
+    // Limb (a) is identical, and the refusal below is the shared one, verbatim.
+    if (!dataSource && !schema.submitHandler && hasInlineFields) {
       if (schema.onSuccess) {
         await schema.onSuccess(formData);
       }
       return formData;
-    }
-
-    if (!dataSource) {
-      throw new Error('DataSource is required for form submission (inline mode not configured)');
     }
 
     // Strip server-managed and computed / read-only fields from the payload
@@ -831,6 +891,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
         // + children into one atomic transaction). The form just validates and
         // hands over the values; it does NOT create/update itself.
         result = await schema.submitHandler(payload);
+      } else if (!dataSource) {
+        // No route left: no host seam and no adapter. Refuse instead of
+        // reporting success — the `catch` below hands this to `schema.onError`
+        // and rethrows. Expressing it here rather than in a pre-`try` guard is
+        // what lets the `submitHandler` branch above run first, and it is also
+        // what narrows `dataSource` for the routes below with no assertion.
+        throw noSubmitTargetError();
       } else if (schema.mode === 'create') {
         result = await dataSource.create(schema.objectName, payload);
       } else if (schema.mode === 'edit' && schema.recordId) {
@@ -917,9 +984,8 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
       } else if (!schema.submitHandler) {
         const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
         if (nav) {
-          // WHO travels to an ACCEPTED `navigateOnSuccess` destination —
-          // objectui#5034 point 1, the same mount-blindness class as
-          // objectui#4989 defect 4 and objectui#5112.
+          // An ACCEPTED `navigateOnSuccess` destination goes to the host —
+          // objectui#5034, points 1 and 3.
           //
           // A rooted path such as `/apps/x/o/record/r1` handed to
           // `window.location.assign` resolves against the ORIGIN root, so under a
@@ -928,37 +994,31 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           // an authored in-app destination left the application. Only the host
           // knows its mount, and the seam that landed with PR #5111 is already
           // wired into this component — the state below and the effect that owns
-          // it are 440 lines up. This arm was the one call site still bypassing
-          // it. `delayMs: 0` reuses that one mechanism rather than minting a
-          // second: this key declares no delay, and an unset delay was already a
-          // zero timer, i.e. "go now". Reuse also hands this arm the property
-          // objectui#5033 bought for the other one — unmounting cancels the wait,
-          // so a navigation cannot fire into a form the submitter has left.
+          // it are 440 lines up. `delayMs: 0` reuses that one mechanism rather
+          // than minting a second: this key declares no delay, and an unset delay
+          // was already a zero timer, i.e. "go now". Reuse also hands this arm the
+          // property objectui#5033 bought for the other one — unmounting cancels
+          // the wait, so a navigation cannot fire into a form the submitter has
+          // left.
           //
-          // WHICH destinations are accepted is deliberately UNTOUCHED here:
-          // `resolveSuccessNavigate` is the authority and objectui#5548 is open on
-          // its contract (same-origin absolutes, the single-brace `{id}` dialect,
-          // the unescaped interpolation). This edit changes only who travels.
+          // Handed over UNCONDITIONALLY, which is point 3's consequence rather
+          // than a relaxation. `resolveSuccessNavigate` now admits relative
+          // references only (maintainer ruling 2026-08-17: this key runs under the
+          // objectstack#7496 semantics, so a same-origin ABSOLUTE is refused at
+          // the door like any other out-of-contract value). `HostNavigationValue`
+          // declares `to` to be "an already-resolved, application-relative path,
+          // never an absolute URL … It is the CALLER's job to have judged the
+          // destination" — and the caller has now judged it, once, at the
+          // admission door instead of twice.
           //
-          // The split is not a conservatism — it is the seam's own declared input
-          // contract. `HostNavigationValue.navigate` documents `to` as "an
-          // already-resolved, application-relative path, never an absolute URL …
-          // It is the CALLER's job to have judged the destination", and this key,
-          // unlike `submitBehavior.url`, is NOT relative-only: its same-origin
-          // guard admits an absolute `https://own-host/record/1` too. So the
-          // shared hook — written for a relative-only key, and correct to hand
-          // over everything it holds — must not be handed a value its contract
-          // says it never receives. Routing an absolute through a router would
-          // also rewrite the author's full address into a path the host then
-          // places somewhere else; an author who spelled the whole address asked
-          // for that address. Same judgement, same predicate, as objectui#5112
-          // made on `thankYouPage.redirectUrl`, whose acceptance set has exactly
-          // this shape — reused rather than re-derived.
-          if (isAppRelativeDestination(nav)) {
-            setPendingRedirect({ url: nav, delayMs: 0 });
-          } else {
-            window.location.assign(nav);
-          }
+          // The `window.location.assign(nav)` arm that used to stand here was
+          // deleted as unreachable, not as unwanted: nothing can reach it once
+          // every accepted value is relative. That is proved rather than reasoned
+          // — `navigateOnSuccess.urlContract.test.tsx` pins, over a corpus,
+          // that every value this helper accepts satisfies the predicate the arm
+          // branched on. The absent-seam fallback is unchanged and still
+          // `window.location.assign`; it lives in `useSubmitRedirectNavigation`.
+          setPendingRedirect({ url: nav, delayMs: 0 });
           return result;
         }
         if (schema.navigateOnSuccess) {
@@ -1209,6 +1269,13 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           // bound (#6010), so copying it here is what makes the authored
           // section predicate reach an evaluator at all.
           visibleWhen: (section as any).visibleWhen,
+          // The membership claim (#6236): the RESOLVED member names — the same
+          // strings the renderer's flat list carries — so the section
+          // predicate gates the whole group, not just this heading. Resolved
+          // rather than authored on purpose: the authored `section.fields`
+          // entries can be spec field-defs, and a perms-filtered field is not
+          // in the form at all.
+          fields: sectionFields.map(f => f.name),
           colSpan: 4,
           collapsible: section.collapsible,
           collapsed: isCollapsed,

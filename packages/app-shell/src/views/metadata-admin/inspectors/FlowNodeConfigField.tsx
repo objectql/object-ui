@@ -7,14 +7,14 @@
  */
 
 import * as React from 'react';
-import type { FlowConfigField } from './flow-node-config.js';
+import type { FlowConfigField, InactiveRetainedKind } from './flow-node-config.js';
 import { t } from '../i18n.js';
 import {
   InspectorNumberField,
   InspectorSelectField,
   InspectorCheckboxField,
 } from './_shared.js';
-import { Label } from '@object-ui/components';
+import { Button, Label } from '@object-ui/components';
 import { FlowKeyValueField } from './FlowKeyValueField.js';
 import { FlowStringListField } from './FlowStringListField.js';
 import { FlowObjectListField } from './FlowObjectListField.js';
@@ -22,7 +22,28 @@ import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceFi
 import { validateExpressionClient } from './expression-validate.js';
 import { VariableTextInput } from './VariableTextInput.js';
 import type { ScopeGroup } from './useFlowScope.js';
+import type { TriggerScope } from './flow-scope.js';
+import { ConditionBuilder } from './ConditionBuilder.js';
 import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check.js';
+
+/**
+ * The context subjects a flow trigger condition binds — none (objectui#6226).
+ *
+ * ConditionBuilder's default context list is `record.id` / `user.*` / `org.*`,
+ * which is right for its five record-scoped consumers and wrong here: at a
+ * record-trigger gate the evaluation context is the changed record FLATTENED to
+ * top level plus `previous`, and `record` is exactly the root `flow-scope.ts`
+ * withholds on the start node. Inheriting the default would make this editor
+ * emit `record.id` — the one spelling the `findUnknownRefs` note rendered a few
+ * lines below, reading the SAME scope, flags as out of scope. One panel
+ * contradicting its own generated output.
+ *
+ * So the vocabulary offered here is exactly what `TriggerScope` declares: the
+ * trigger record's fields (bare) and `previous` / `previous.FIELD`. Roots this
+ * surface has not been shown to bind are not guessed into the list; an author
+ * who needs one still has the raw CEL escape hatch.
+ */
+const FLOW_TRIGGER_CONTEXT_SUBJECTS: ReadonlyArray<{ value: string; label?: string }> = [];
 
 export interface FlowNodeConfigFieldProps {
   field: FlowConfigField;
@@ -36,12 +57,61 @@ export interface FlowNodeConfigFieldProps {
   scopeGroups?: ScopeGroup[];
   /** #3447: approval-expression picker groups (current/trigger/vars roots). */
   approvalScopeGroups?: ScopeGroup[];
+  /**
+   * The trigger record's declared subject vocabulary at this node, when one is
+   * in scope (objectui#6226) — supplied by `useFlowScope`, resolved by
+   * `flow-scope.ts`. Required before a `conditionBuilder` field may render the
+   * row builder: the vocabulary is declared by the site, never inferred from
+   * the value.
+   */
+  triggerScope?: TriggerScope;
+  /**
+   * objectui#6499 — set when this field is on screen ONLY because it holds a
+   * stored value its `showWhen` controller does not currently admit. Supplied
+   * by the host inspector, which owns the node and the sibling field set (this
+   * component sees neither), and computed by `inactiveRetainedKind`.
+   *
+   * `undefined`/`null` is the normal case and renders exactly as before, so a
+   * caller that does not pass it is unaffected.
+   */
+  inactiveRetained?: InactiveRetainedKind | null;
+  /**
+   * Clears the retained value — an ordinary field commit of `undefined`, the
+   * same write the author would make by emptying the control by hand. The
+   * ruling keeps hidden values by default; this is how the author discards one
+   * DELIBERATELY. Omit to render the notice without the button.
+   */
+  onClearInactive?: () => void;
 }
 
-export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups }: FlowNodeConfigFieldProps) {
+export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups, approvalScopeGroups, triggerScope, inactiveRetained, onClearInactive }: FlowNodeConfigFieldProps) {
   const refMode: 'expression' | 'template' =
     field.refMode ?? (field.kind === 'expression' ? 'expression' : 'template');
+  // objectui#6226 — the row-based condition builder, on the fields that opted in
+  // AND at a site that declares the vocabulary. All three conjuncts are load
+  // bearing: `conditionBuilder` keeps `expression` from meaning "predicate"
+  // everywhere it appears; `triggerScope` is the declared vocabulary, absent on
+  // a trigger that binds no record; `refMode !== 'template'` keeps an
+  // `interpolate()` field (a loop `collection`) out even if one ever opts in.
+  const asConditionBuilder =
+    field.kind === 'expression' && !!field.conditionBuilder && !!triggerScope && refMode !== 'template';
   const control = (() => {
+    if (asConditionBuilder && triggerScope) {
+      return (
+        <ConditionBuilder
+          label={field.label}
+          value={value != null ? String(value) : ''}
+          onCommit={(cel) => onCommit(cel)}
+          objectName={triggerScope.objectName}
+          disabled={disabled}
+          subjects={{
+            fieldPrefix: triggerScope.fieldPrefix,
+            includePrevious: triggerScope.includePrevious,
+            context: FLOW_TRIGGER_CONTEXT_SUBJECTS,
+          }}
+        />
+      );
+    }
     switch (field.kind) {
       case 'reference':
         return (
@@ -228,6 +298,44 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
   return (
     <div className="space-y-1">
       {control}
+      {/*
+        objectui#6499 — the "inactive values retained" affordance. Rendered
+        ABOVE the expression/scope notes and independently of them: those judge
+        the value's CONTENT, this one says the value is not in effect at all,
+        and an author who cannot see the second will misread the first.
+        Deliberately not a `disabled` control — the value is still editable, it
+        just is not live, and greying it out would hide the very text the
+        ruling asks the author to be able to read and act on.
+      */}
+      {inactiveRetained && (
+        <div
+          className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5"
+          role="note"
+          data-testid="inactive-retained"
+          data-inactive-retained={inactiveRetained}
+        >
+          <p className="flex-1 text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+            {t(
+              inactiveRetained === 'no-controller'
+                ? 'engine.inspector.flowNode.inactiveRetainedOrphan'
+                : 'engine.inspector.flowNode.inactiveRetained',
+              locale,
+            )}
+          </p>
+          {onClearInactive && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 px-2 text-[11px] text-amber-700 dark:text-amber-400"
+              onClick={onClearInactive}
+              disabled={disabled}
+            >
+              {t('engine.inspector.flowNode.inactiveRetainedClear', locale)}
+            </Button>
+          )}
+        </div>
+      )}
       {exprIssue && (
         <p className="text-[11px] leading-snug text-destructive" role="alert">
           {exprIssue.message}

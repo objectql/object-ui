@@ -17,6 +17,14 @@
  * {@link RETIRED_FIELD_KEYS} — see the note on that constant.
  */
 
+// The retired-field-key tombstone registry lives at a dedicated internal
+// subpath, not the main barrel — objectui#6527 option B (maintainer ruling,
+// 2026-08-28): a barrel import eagerly evaluates every other barrel member
+// (including `spec-report.ts`'s read of `@objectstack/spec/ui`), which is
+// what widened an unrelated test's partial mock into a suite failure under
+// the prior shape. A subpath import never pulls the barrel in.
+import { retiredFieldKeysFor } from '@object-ui/types/internal/retired-field-keys';
+
 import type { FieldTypeId } from './field-types.js';
 
 export type Shape = 'array' | 'record';
@@ -24,37 +32,60 @@ export type Shape = 'array' | 'record';
 /**
  * Field keys the ObjectStack spec REJECTS by name, stripped on read.
  *
- * `indexed` was never a `FieldSchema` key. The field-level flag built no
- * index (objectstack#2377 removed it), and since objectstack#4001 closed the
- * silent-drop shape, `FieldSchema.safeParse` refuses it outright:
+ * Derived from the tombstone registry (`RETIRED_FIELD_KEY_TOMBSTONES` in
+ * `@object-ui/types`, objectui#6527) — this door is the registry's
+ * `metadataAdminFieldsReadDoor` site. The registry names each retired key, the
+ * card that retired it, and which sites strip it; the per-key evidence lives
+ * there. What stays HERE is this door's own contract:
  *
- *   Unrecognized key(s) on this field: `indexed`.
- *     • never a FieldSchema key; a field-level index flag built no index
- *       (#2377). Declare the index in the object's `indexes[]`.
+ * Every key this door strips is one a SHIPPED build wrote (verified per key,
+ * objectui#6519), so a stored draft can still carry it inside a field —
+ * `ObjectSchema.safeParse` reports it at `["fields", <name>]`, the hard 422
+ * (`INVALID_METADATA`) that blocks EVERY subsequent save of the object, with
+ * the writing controls retired and no UI path left to clear the key. Stripping
+ * on load — not a data migration — is what makes an edit-and-save round-trip
+ * of such a draft come out parseable. `readFields` is the single read door for
+ * `draft.fields` across the whole object designer (inspector, form designer,
+ * design surface, settings / validations / API panels), and `writeFields`
+ * writes each def back verbatim, so one strip here covers every writer.
+ * Nothing is lost on the way out: where the spec has a spelling for the
+ * concept it is a SEPARATE key (`reference`, `system`) that is NOT stripped
+ * and rides through untouched, which is what lets the designer read it back.
  *
- * The real surface is object-level `indexes: [{ name, fields, unique }]`,
- * materialised by `SqlDriver.syncDeclaredIndexes` — nothing in this repo
- * reads a field-level `indexed`, so there is no behaviour to preserve.
+ * ── The two registry keys this door deliberately does NOT strip ──
  *
- * Until objectui#4644 the field inspector offered an `Indexed` checkbox that
- * wrote the key, so drafts authored in Studio can still carry it — and every
- * write path here spreads the def it read (`{ ...def, ...patch }`), which
- * would carry the key straight back out to
- * `PUT /api/v1/meta/object/:name`, where it is a hard 422
- * (`INVALID_METADATA`) that blocks EVERY subsequent save of the object until
- * the author finds and clears it.
+ * `formula` — RULED, objectui#6526 option B (2026-08-27): this door reads
+ * drafts a live editor also MIGRATES, which neither write-side carry-over
+ * does. `ObjectFieldInspector` seeds its linting CEL editor from
+ * `readPredicate(def.expression ?? def.formula)` and the first edit commits
+ * the spec key and clears the alias (`patchDef({ expression: …, formula:
+ * undefined })`) — the migration objectui#6043 preserved when it refused the
+ * blind rename. Stripping here empties that editor and the authored source is
+ * gone on the next save (measured on objectui#6519: with `formula` in this
+ * list, the inspector's pin *commits edits to `expression` and migrates the
+ * legacy `formula` key* goes RED with the editor rendering `""`). A `formula`
+ * draft instead stays blocked at the server until the author makes that one
+ * migrating edit, and the client-side 422 diagnostic names the field and
+ * points at the Formula (CEL) editor (PR #6624).
  *
- * Stripping on load — not a data migration — is what makes an
- * edit-and-save round-trip of such a draft come out parseable. `readFields`
- * is the single read door for `draft.fields` across the whole object
- * designer (inspector, form designer, design surface, settings / validations
- * / API panels), so one strip here covers every writer.
+ * `sortOrder` — the premise fails: no writer on this tree ever populated a
+ * field-level one (objectui#6045 — objectui#4687's zero-readers/zero-writers
+ * shape, not a rename), so no draft this door reads can carry it, and a strip
+ * would be dead code that reads like a measurement. This door's contract is
+ * "add it on evidence, not defensively"; `MetadataService`'s carry-over keeps
+ * it as that site's one recorded-DEFENSIVE entry instead. (The object-level
+ * `sortOrder` on `ObjectDefinition` and the saved-view `sortOrder` in
+ * `ObjectView` are different concepts living outside `fields` entirely, so
+ * neither passes through this door.)
  *
  * Same shape as `PermissionAdvancedFacets`' `RETIRED_RLS_KEYS`
- * (objectstack#7130). Keyed to the tombstone, never a blanket unknown-key
+ * (objectstack#7130). Keyed to the tombstones, never a blanket unknown-key
  * purge: every other key the designer does not render still survives.
+ * `object-fields-io.retiredKeys.test.ts` pins the derived list and both
+ * absences from this door's side; the registry's own test pins the same facts
+ * at the source.
  */
-export const RETIRED_FIELD_KEYS = ['indexed'] as const;
+export const RETIRED_FIELD_KEYS = retiredFieldKeysFor('metadataAdminFieldsReadDoor');
 
 /** Drop {@link RETIRED_FIELD_KEYS} from one field definition. */
 function stripRetiredFieldKeys(def: Record<string, unknown>): Record<string, unknown> {

@@ -6,22 +6,14 @@
       "items": [
         {
           "label": "New Tab",
-          "value": "new",
-          "shortcut": [
-            "Ctrl",
-            "T"
-          ]
+          "value": "new"
         },
         {
           "label": "New Window",
-          "value": "window",
-          "shortcut": [
-            "Ctrl",
-            "N"
-          ]
+          "value": "window"
         },
         {
-          "type": "separator"
+          "separator": true
         },
         {
           "label": "Exit",
@@ -34,46 +26,26 @@
       "items": [
         {
           "label": "Undo",
-          "value": "undo",
-          "shortcut": [
-            "Ctrl",
-            "Z"
-          ]
+          "value": "undo"
         },
         {
           "label": "Redo",
-          "value": "redo",
-          "shortcut": [
-            "Ctrl",
-            "Y"
-          ]
+          "value": "redo"
         },
         {
-          "type": "separator"
+          "separator": true
         },
         {
           "label": "Cut",
-          "value": "cut",
-          "shortcut": [
-            "Ctrl",
-            "X"
-          ]
+          "value": "cut"
         },
         {
           "label": "Copy",
-          "value": "copy",
-          "shortcut": [
-            "Ctrl",
-            "C"
-          ]
+          "value": "copy"
         },
         {
           "label": "Paste",
-          "value": "paste",
-          "shortcut": [
-            "Ctrl",
-            "V"
-          ]
+          "value": "paste"
         }
       ]
     },
@@ -82,27 +54,15 @@
       "items": [
         {
           "label": "Zoom In",
-          "value": "zoom-in",
-          "shortcut": [
-            "Ctrl",
-            "+"
-          ]
+          "value": "zoom-in"
         },
         {
           "label": "Zoom Out",
-          "value": "zoom-out",
-          "shortcut": [
-            "Ctrl",
-            "-"
-          ]
+          "value": "zoom-out"
         },
         {
           "label": "Reset Zoom",
-          "value": "reset",
-          "shortcut": [
-            "Ctrl",
-            "0"
-          ]
+          "value": "reset"
         }
       ]
     }

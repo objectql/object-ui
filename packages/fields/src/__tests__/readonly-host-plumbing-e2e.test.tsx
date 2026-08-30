@@ -178,7 +178,7 @@ const VALUES: Record<string, unknown> = {
   lookup: 'rec_1',
   master_detail: 'rec_1',
   image: 'https://example.com/a.png',
-  location: { latitude: 1, longitude: 2 },
+  location: { lat: 1, lng: 2 },
   formula: 'computed',
   summary: 7,
   auto_number: 'A-0001',

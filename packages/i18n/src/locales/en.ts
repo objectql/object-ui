@@ -296,6 +296,39 @@ const en = {
       editAsJson: 'Edit as JSON',
       useVisualBuilder: 'Use visual builder',
     },
+    // objectui#6755 — a widget's OWN refusal sentence: `ObjectField`'s
+    // unparsable JSON draft, and `LocationField`'s format and range refusals
+    // (objectui#6716 / #6714). They were string literals in the widgets, so a
+    // zh / ja / ar user who mistyped a coordinate or a JSON blob was told why in
+    // English inside a form whose every other word was translated.
+    //
+    // KEYED, where objectui#4028 DROPPED the five address placeholders in the
+    // namespace below — and the difference is what that decision's own comment
+    // records about them: "The right example is a function of the address's
+    // COUNTRY, not the reader's language", and "Each box here already has a
+    // visible label naming exactly what it wants". Neither reaches a refusal
+    // sentence: nothing else on the screen says why the edit was refused, and
+    // what that sentence must say IS a function of the reader's language. What
+    // #4028 does establish for both is the COST — ten pack entries per key,
+    // bound from then on by `check:i18n-drift` — and the 2026-08-29 maintainer
+    // ruling accepted that cost for these three sentences.
+    //
+    // Values are byte-identical to the literals they replace (`FIELD_DEFAULTS`
+    // in `packages/fields/src/widgets/useFieldTranslation.ts` carries the same
+    // three), so English and provider-less rendering are unchanged.
+    //
+    // `{{detail}}` is the SPEC's own complaint about the refused pair.
+    // `LocationField` refuses to restate `LocationValueSchema`'s bounds — a
+    // hand-copied range is a second contract — so this key translates the frame
+    // and interpolates whatever the schema said.
+    object: {
+      invalidJson: 'Invalid JSON',
+    },
+    location: {
+      refusedFormat:
+        'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
+      refusedRange: 'Not saved: {{detail}}',
+    },
     // objectui#3342 — the tags widget's input hint, shown while the tag list
     // is empty. The author-declared `field.placeholder` always wins over this.
     tags: {
@@ -603,7 +636,6 @@ const en = {
       undo: 'Undo',
       undoing: 'Undoing\u2026',
       done: 'Done',
-      selectPlaceholder: 'Select\u2026',
       loading: 'Loading\u2026',
     },
   },
@@ -612,9 +644,7 @@ const en = {
     month: 'Month',
     week: 'Week',
     day: 'Day',
-    agenda: 'Agenda',
     allDay: 'All Day',
-    noEvents: 'No events',
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
   },
@@ -762,6 +792,15 @@ const en = {
     },
     gantt: {
       rowLabel: 'Items',
+      unusableRange: {
+        malformedDate:
+          'Unusable gantt date range — {{path}} is {{value}}, which is not a valid date. Every gantt date has to parse: the startDate and endDate on every row item, plus any minDate / maxDate pinned on the schema.',
+        inverted:
+          'Unusable gantt date range — minDate {{minDate}} is after maxDate {{maxDate}}. A pinned minDate / maxDate overrides the range computed from the rows, so this axis has no columns and no bar can be placed on it; swap the two values.',
+      },
+    },
+    unsupported: {
+      objectBoundGantt: 'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
     },
   },
   gantt: {
@@ -1152,7 +1191,6 @@ const en = {
     noValue: 'No value',
   },
   chart: {
-    noData: 'No chart data available',
     loading: 'Loading chart…',
     nullCategory: '(None)',
   },
@@ -1195,13 +1233,6 @@ const en = {
       // any retired key that returns.
       panelTitle: 'Edit report',
     },
-  },
-  map: {
-    searchLocations: 'Search locations…',
-    locationDetails: 'Location Details',
-    markersCount: '{{count}} markers',
-    invalidCoordinates: '{{count}} record with missing or invalid coordinates excluded from the map.',
-    invalidCoordinatesPlural: '{{count}} records with missing or invalid coordinates excluded from the map.',
   },
   designer: {
     undo: 'Undo',
@@ -1522,7 +1553,6 @@ const en = {
       defaultValue: 'Default Value',
       placeholder: 'Placeholder',
       referenceTo: 'Reference To',
-      formula: 'Formula',
       options: 'Options',
       addOption: 'Add Option',
       validationRules: 'Validation Rules',
@@ -2489,11 +2519,6 @@ const en = {
       marketplaceDisabled: 'This runtime has no app marketplace configured, so there are no templates to install here.',
     },
     open: 'Open',
-    stats: {
-      apps: 'Applications',
-      starred: 'Starred',
-      recent: 'Recent items',
-    },
     loading: 'Loading workspace…',
     recent: 'Recent',
     starred: 'Starred',
@@ -2532,8 +2557,6 @@ const en = {
     browseMarketplace: 'Browse App Marketplace',
     quickActions: {
       title: 'Quick Actions',
-      createApp: 'Create App',
-      createAppDesc: 'Start with a new application',
       manageObjects: 'Manage Objects',
       manageObjectsDesc: 'Configure data models',
       systemSettings: 'System Settings',
@@ -2585,7 +2608,6 @@ const en = {
       organizations: 'Organizations',
       roles: 'Roles',
       configuration: 'Configuration',
-      createApp: 'Create App',
       administration: 'Administration',
       datasources: 'Datasources',
       documentation: 'Documentation',
@@ -2600,6 +2622,7 @@ const en = {
       typeUpdate: 'Update',
       typeDelete: 'Delete',
       typeComment: 'Comment',
+      typeSystem: 'System',
       relativeJustNow: 'just now',
       relativeSecondsAgo: '{{count}}s ago',
       relativeMinutesAgo: '{{count}}m ago',
@@ -2746,18 +2769,11 @@ const en = {
     cancel: 'Cancel',
     confirm: 'Confirm',
     uploading: 'Uploading…',
-    defaultActionTitle: 'Action',
-    ok: 'OK',
   },
   actionConfirm: {
     title: 'Confirm Action',
     confirm: 'Continue',
     cancel: 'Cancel',
-  },
-  rowAction: {
-    openMenu: 'Open menu',
-    edit: 'Edit',
-    delete: 'Delete',
   },
   navigationSync: {
     addedPage: 'Navigation updated: added page "{{name}}"',
@@ -2791,15 +2807,6 @@ const en = {
     printDialogOpening: 'Opening your browser’s print dialog (not a PDF export)',
     exportFailed: 'Export failed: {{message}}',
     forecastSoon: 'Forecast view coming soon',
-  },
-  recordDetail: {
-    viewersTooltip: 'Users viewing this record',
-  },
-  cellRender: {
-    empty: 'Empty',
-    yes: 'Yes',
-    no: 'No',
-    systemFields: 'System',
   },
   user: {
     profile: 'Profile',
@@ -3750,6 +3757,76 @@ const en = {
       bulkFailureJoiner: '; ',
       bulkOperationFailed: 'Bulk operation failed: {{reason}}',
     },
+  },
+  // objectui#6301 — Setup › Packaged automation (ADR-0126 §7.4): the
+  // operational surface for the flows an installed package ships. Authoring
+  // stays in Studio, so this group has no editing vocabulary at all; it is
+  // on/off, clone, and the states those two produce.
+  //
+  // ⛔ No drift or ancestry wording anywhere in this group (ADR-0126 §9). There
+  // is deliberately no "customized", no "based on v3", no "out of date" — the
+  // platform does not track that lineage, and a translatable string for it is
+  // the cheapest way for the surface to grow one.
+  //
+  // ⛔ Server refusals are NOT in this group either. The posture gate, the
+  // subflow guard and the clone name conflict all arrive as server-authored
+  // prose and are rendered verbatim; the four `*Failed*` keys below are the
+  // last-resort fallbacks for a response that carried no message at all.
+  packagedAutomation: {
+    title: 'Packaged automation',
+    // Covers BOTH sections since ADR-0126 §8 item 2 put packaged actions on
+    // this page: only flows can be cloned, so the clone clause names them.
+    subtitle:
+      'Flows and actions shipped by installed packages. Turn one off for this deployment, or clone a flow under a new name to customize it. Editing happens in Studio.',
+    refresh: 'Refresh',
+    // Section headings — the page carries two tables.
+    flowsHeading: 'Packaged flows',
+    actionsHeading: 'Packaged actions',
+    colFlow: 'Flow',
+    colActivation: 'Activation',
+    colActions: 'Actions',
+    // The switch's accessible name — the only place a row's label is spoken.
+    toggleLabel: 'Activation for {{label}}',
+    on: 'On',
+    off: 'Off',
+    clone: 'Clone',
+    cloneTitle: 'Clone packaged flow',
+    cloneBody:
+      'The copy carries the whole definition and takes a new machine name and label. Edit the copy in Studio.',
+    cloneName: 'New machine name',
+    cloneLabel: 'New label',
+    cancel: 'Cancel',
+    cloneConfirm: 'Create clone',
+    cloneCreated: 'Created flow "{{name}}".',
+    emptyTitle: 'No packaged flows',
+    emptyBody:
+      'No installed package ships an automation flow on this deployment. Flows you author yourself live in Studio.',
+    loadFailed: 'Could not load packaged automation.',
+    // Two keys per action, not one: the response arm has an HTTP status to
+    // name and the transport-exception arm does not, and a single key cannot
+    // carry a hole only half its call sites can fill.
+    // Artifact-neutral by wording, and shared by BOTH sections' toggles: the
+    // sentence says nothing about flows, so the actions half reuses it rather
+    // than defining a second key with the same English in ten packs.
+    toggleFailedHttp: 'Could not change activation (HTTP {{status}}).',
+    toggleFailed: 'Could not change activation.',
+    cloneFailedHttp: 'Could not clone this flow (HTTP {{status}}).',
+    cloneFailed: 'Could not clone this flow.',
+
+    // ── Packaged ACTIONS section (ADR-0126 §8 item 2, ruling 3) ────────────
+    // ⛔ No clone key here on purpose: the action-clone half is unchartered,
+    // and a string is the cheapest way for an unchartered surface to appear.
+    actionsSubtitle:
+      'Actions shipped by installed packages. Turn one off for this deployment and it stops running everywhere it is offered. Authoring your own action alongside it stays open in Studio.',
+    colAction: 'Action',
+    colObject: 'Object',
+    // The object is part of the accessible name because it is part of the
+    // identity — two objects may declare the same action name.
+    actionToggleLabel: 'Activation for {{label}} on {{object}}',
+    actionsEmptyTitle: 'No packaged actions',
+    actionsEmptyBody:
+      'No installed package declares an action on this deployment. Actions you author yourself live in Studio.',
+    actionsLoadFailed: 'Could not load packaged actions.',
   },
 } as const;
 

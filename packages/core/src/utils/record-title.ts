@@ -23,8 +23,12 @@
  * (`nameField`) to canonical and de-prioritizes the legacy render-only
  * `titleFormat` template:
  *
+ *   0. `options.titleField` — the caller's own DECLARED view-level pointer
+ *      (gallery / calendar / gantt / map / kanban / timeline config).
  *   1. `objectDef.nameField` — the canonical record-title pointer (ADR-0079);
- *      a field the server can return and query, if present & non-empty.
+ *      a field the server can return and query, if present & non-empty. With
+ *      the undeclared `objectDef.titleField` read gone (objectui#6531) this is
+ *      the top of the OBJECT-level ladder, exactly as ADR-0079 states.
  *   2. `objectDef.displayNameField` (alias `NAME_FIELD_KEY`) — deprecated alias
  *      of `nameField`, kept for back-compat.
  *   3. `objectDef.titleFormat` — LEGACY render-only template, rendered via
@@ -304,10 +308,16 @@ export function deriveTitleField(objectDef: any): string | undefined {
 /**
  * Standard name-ish keys probed directly on a *record* as a last resort before
  * the `Record #<id>` floor — used when `objectDef.fields` is absent so
- * {@link deriveTitleField} can't run (loosely-typed metadata, lightweight search
- * candidates that carry only `name`/`titleField`, etc.). Mirrors the historical
+ * {@link deriveTitleField} can't run (loosely-typed metadata, the lightweight
+ * object stub `useRecordSearch` synthesizes for a hit whose object is not in
+ * the app's metadata — `{ name: objectName }` — etc.). Mirrors the historical
  * hard-coded fallback chain the divergent resolvers used, so removing them is
  * non-regressive. Ordered by priority.
+ *
+ * objectui#6531 rewrote the parenthetical above: it used to say those search
+ * candidates "carry only `name`/`titleField`", which read as evidence that some
+ * producer puts `titleField` on an object-shaped payload. The census found
+ * none, and the spec's object schema rejects the key outright.
  */
 const NAME_ISH_RECORD_KEYS = [
   'name',
@@ -342,7 +352,7 @@ export interface RecordDisplayNameOptions {
   fallback?: string;
   /**
    * Whether to probe standard name-ish keys (`name`/`title`/…) directly on the
-   * record when `objectDef.fields` is absent (precedence step 3b). Defaults to
+   * record when `objectDef.fields` is absent (precedence step 4b). Defaults to
    * `true`. Callers that have a better generic fallback to interleave (e.g. the
    * detail header prefers `schema.title`, the object label, over a guessed
    * record key) pass `false` so this step is skipped and the resolver returns
@@ -356,9 +366,10 @@ export interface RecordDisplayNameOptions {
  *
  * Precedence (ADR-0079 Phase 2 makes the object's declared field canonical and
  * de-prioritizes the legacy `titleFormat` template):
- *   0. `options.titleField`, then `objectDef.titleField` (when provided &
- *      non-empty on the record) — lets a view / object keep its author-chosen
- *      title field.
+ *   0. `options.titleField` (when provided & non-empty on the record) — lets
+ *      a view keep its author-chosen title field. The object-level
+ *      `objectDef.titleField` leg was removed in objectui#6531: the spec's
+ *      object schema rejects that key, so nothing could produce it.
  *   1. `objectDef.nameField` — the NEW canonical record-title pointer
  *      (ADR-0079). A field name the server can return and query.
  *   2. `objectDef.displayNameField` / `objectDef.NAME_FIELD_KEY` — the
@@ -382,10 +393,23 @@ export function getRecordDisplayName(
   record: any,
   options?: RecordDisplayNameOptions,
 ): string {
-  // 0. Explicit title field — caller option first, then the object's own
-  //    `titleField` hint — if it actually resolves on the record.
-  const explicit =
-    valueAt(record, options?.titleField) ?? valueAt(record, objectDef?.titleField);
+  // 0. Explicit title field — the caller's option, if it actually resolves on
+  //    the record. This is a DECLARED key: every view config that offers a
+  //    title pointer (`ui/CalendarConfig`, `ui/GalleryConfig`, `ui/GanttConfig`,
+  //    `ui/ListMapConfig`, `ui/ObjectKanbanProps`, `ui/TimelineConfig`) declares
+  //    `titleField`, and its author chose it for THIS view, so it outranks the
+  //    object's own pointer by design.
+  //
+  //    An object-level `objectDef.titleField` used to be consulted here too, as
+  //    a second `??` leg. Removed in objectui#6531: `@objectstack/spec`'s object
+  //    schema is a `strictObject` that REJECTS `titleField` with
+  //    `unrecognized_keys` — the same code a nonsense key gets — so no
+  //    spec-compliant producer can ship it, and a census across both repos
+  //    (metadata, every `getObjectSchema` implementation, the lookup-chip and
+  //    search-candidate paths) found none that does. Reading it was a
+  //    consumer-side alias for an undeclared key (AGENTS.md Commandment #0.1),
+  //    ranked ABOVE the `nameField` ADR-0079 Phase 2 made canonical.
+  const explicit = valueAt(record, options?.titleField);
   if (explicit) return explicit;
 
   // 1+2. Declared name field — the canonical `nameField` (ADR-0079 Phase 2),

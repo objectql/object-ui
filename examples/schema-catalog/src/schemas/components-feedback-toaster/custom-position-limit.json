@@ -1,9 +1,8 @@
 {
-  "type": "div",
+  "type": "box",
   "children": [
     {
       "type": "toaster",
-      "provider": "sonner",
       "position": "top-right",
       "limit": 3
     }

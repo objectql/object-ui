@@ -7,8 +7,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useRecordSearch } from '../useRecordSearch';
 
+// FIXTURE TRIAGE (objectui#6557): `account` used to carry `titleField: 'name'`.
+// That key is one `@objectstack/spec`'s object schema — a `strictObject` —
+// REJECTS with `unrecognized_keys` (objectui#6531), so no legal object metadata
+// can ship it, and nothing here ever read it: the display below resolves
+// through `getRecordDisplayName`'s name-ish derivation with the key present or
+// absent. It pinned nothing while reading as a producer. `titleFormat` on
+// `contact` is the CONTROL — a declared key that does parse and does decide the
+// display, so its assertions below still measure something.
 const objects = [
-  { name: 'account', label: 'Account', titleField: 'name' },
+  { name: 'account', label: 'Account' },
   { name: 'contact', label: 'Contact', titleFormat: '{{first_name}} {{last_name}}' },
   { name: 'opportunity', label: 'Opportunity', searchable: false },
 ];
@@ -485,6 +493,79 @@ describe('useRecordSearch', () => {
         expect(result.current.isSearching).toBe(false);
       });
       expect(ds.find).toHaveBeenCalledTimes(8);
+    });
+  });
+});
+
+/**
+ * objectui#6557 — the candidate signature is the memo key that decides when the
+ * cross-object fanout re-runs. It used to append `o?.titleField ?? ''` to every
+ * entry.
+ *
+ * BOTH DIRECTIONS are pinned here, because proving only the first is
+ * evidence-identical to having broken change detection outright:
+ *
+ *  - THE FIX: a new `objects` array whose only difference is the
+ *    contract-rejected `titleField` no longer re-runs the fanout. Restore the
+ *    old signature line and this case goes RED (the key changes the string, so
+ *    the effect refires).
+ *  - THE CONTROLS: a real change (a candidate NAME) still refires, and a new
+ *    array with identical content still does not. Both are green in either
+ *    world — which is what makes them controls rather than a second copy of the
+ *    first assertion.
+ */
+describe('candidate signature (objectui#6557)', () => {
+  const base = [
+    { name: 'account', label: 'Account' },
+    { name: 'contact', label: 'Contact' },
+  ];
+  /** Fresh array + fresh element identities, so only CONTENT can be the cause. */
+  const clone = (extra: Record<string, unknown> = {}) => base.map((o) => ({ ...o, ...extra }));
+
+  async function mounted(ds: any) {
+    const view = renderHook(
+      ({ objects }: { objects: any[] }) =>
+        useRecordSearch({ query: 'acme', objects, dataSource: ds, debounceMs: 0 }),
+      { initialProps: { objects: clone() } },
+    );
+    await waitFor(() => {
+      expect(ds.find).toHaveBeenCalledTimes(2);
+    });
+    ds.find.mockClear();
+    return view;
+  }
+
+  it('does NOT re-run when the only difference is the contract-rejected `titleField`', async () => {
+    const ds = makeDataSource({});
+    const { rerender } = await mounted(ds);
+
+    // `@objectstack/spec`'s object schema REJECTS this key with
+    // `unrecognized_keys`, so this array is not metadata any producer could
+    // ship — it is the shape the deleted half of the signature was reacting to.
+    rerender({ objects: clone({ titleField: 'headline' }) });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(ds.find).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL: a new array with identical content still does not re-run', async () => {
+    const ds = makeDataSource({});
+    const { rerender } = await mounted(ds);
+
+    rerender({ objects: clone() });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(ds.find).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL: a changed candidate NAME still re-runs the fanout', async () => {
+    const ds = makeDataSource({});
+    const { rerender } = await mounted(ds);
+
+    rerender({ objects: [{ name: 'account', label: 'Account' }, { name: 'lead', label: 'Lead' }] });
+
+    await waitFor(() => {
+      expect(ds.find).toHaveBeenCalledWith('lead', expect.objectContaining({ $search: 'acme' }));
     });
   });
 });

@@ -655,7 +655,7 @@ const COMPONENTS_PLAIN_TYPES: readonly string[] = [
   'protocol-placeholder:global:search', 'protocol-placeholder:nav:breadcrumb',
   'protocol-placeholder:nav:menu', 'ui:a', 'ui:abbr', 'ui:accordion', 'ui:address',
   'ui:alert', 'ui:app', 'ui:article', 'ui:aside', 'ui:aspect-ratio', 'ui:avatar', 'ui:b',
-  'ui:badge', 'ui:blockquote', 'ui:br', 'ui:breadcrumb', 'ui:button', 'ui:button-group',
+  'ui:badge', 'ui:blockquote', 'ui:box', 'ui:br', 'ui:breadcrumb', 'ui:button', 'ui:button-group',
   'ui:calendar', 'ui:card', 'ui:carousel', 'ui:checkbox', 'ui:cite', 'ui:collapsible',
   'ui:combobox', 'ui:command', 'ui:container', 'ui:context-menu', 'ui:data-table',
   'ui:date-picker', 'ui:dd', 'ui:del', 'ui:div', 'ui:dl', 'ui:dt', 'ui:em', 'ui:email',

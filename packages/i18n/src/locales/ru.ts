@@ -266,6 +266,14 @@ const ru = {
       editAsJson: "Редактировать как JSON",
       useVisualBuilder: "Использовать визуальный конструктор",
     },
+    object: {
+      invalidJson: "Некорректный JSON",
+    },
+    location: {
+      refusedFormat:
+        "Не сохранено: введите пару широта, долгота (например: 30.2741, 120.1551).",
+      refusedRange: "Не сохранено: {{detail}}",
+    },
     tags: {
       placeholder: "Введите и нажмите Enter, чтобы добавить…",
     },
@@ -343,7 +351,6 @@ const ru = {
       undo: "Отменить",
       undoing: "Отмена…",
       done: "Готово",
-      selectPlaceholder: "Выберите…",
       loading: "Загрузка…",
     },
     actions: "Действия",
@@ -537,9 +544,7 @@ const ru = {
     month: "Месяц",
     week: "Неделя",
     day: "День",
-    agenda: "Расписание",
     allDay: "Весь день",
-    noEvents: "Нет событий",
     newEvent: "Новое событие",
     moreEvents: "+{{count}} ещё",
   },
@@ -682,6 +687,15 @@ const ru = {
     },
     gantt: {
       rowLabel: "Элементы",
+      unusableRange: {
+        malformedDate:
+          "Непригодный диапазон дат гантта — {{path}} равно {{value}}, что не является корректной датой. Все даты гантта должны разбираться: startDate и endDate каждого элемента строки, а также minDate / maxDate, заданные в схеме.",
+        inverted:
+          "Непригодный диапазон дат гантта — minDate {{minDate}} позже maxDate {{maxDate}}. Заданные minDate / maxDate имеют приоритет над диапазоном, вычисленным по строкам, поэтому у этой оси нет столбцов и полосу разместить негде; поменяйте оба значения местами.",
+      },
+    },
+    unsupported: {
+      objectBoundGantt: "Неподдерживаемый вариант \"gantt\" — временная шкала, привязанная к объекту, отображает ленточные варианты ({{variants}}). Для гантта нужны литеральные строки, каждая со своим вложенным items, поэтому ось гантта (scale) здесь не действует.",
     },
   },
   gantt: {
@@ -1037,16 +1051,8 @@ const ru = {
     noValue: "Нет значения",
   },
   chart: {
-    noData: "Нет данных для графика",
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
-  },
-  map: {
-    searchLocations: "Поиск местоположений…",
-    locationDetails: "Детали местоположения",
-    markersCount: "{{count}} маркеров",
-    invalidCoordinates: "{{count}} запись с отсутствующими или недействительными координатами исключена из карты.",
-    invalidCoordinatesPlural: "{{count}} записей с отсутствующими или недействительными координатами исключены из карты.",
   },
   dashboard: {
     noRows: "Нет строк",
@@ -1363,7 +1369,6 @@ const ru = {
       defaultValue: "Значение по умолчанию",
       placeholder: "Заполнитель",
       referenceTo: "Ссылка на",
-      formula: "Формула",
       options: "Параметры",
       addOption: "Добавить параметр",
       validationRules: "Правила валидации",
@@ -2289,8 +2294,6 @@ const ru = {
     browseMarketplace: "Обзор маркетплейса приложений",
     quickActions: {
       title: "Быстрые действия",
-      createApp: "Создать приложение",
-      createAppDesc: "Начните с нового приложения",
       manageObjects: "Управление объектами",
       manageObjectsDesc: "Настройте модели данных",
       systemSettings: "Системные настройки",
@@ -2306,11 +2309,6 @@ const ru = {
     greetingNight: "Ночная смена",
     heroTagline: "Продолжите с того места, где остановились, или откройте что-то новое.",
     open: "Открыть",
-    stats: {
-      apps: "Приложения",
-      starred: "Отмеченные",
-      recent: "Недавние",
-    },
     recentApps: {
       title: "Недавно открытые",
       itemType: {
@@ -2341,7 +2339,6 @@ const ru = {
       organizations: "Организации",
       roles: "Роли",
       configuration: "Конфигурация",
-      createApp: "Создать приложение",
       administration: "Администрирование",
       datasources: "Источники данных",
       documentation: "Документация",
@@ -2366,6 +2363,7 @@ const ru = {
       typeUpdate: "Обновление",
       typeDelete: "Удаление",
       typeComment: "Комментарий",
+      typeSystem: "Система",
       relativeJustNow: "только что",
       relativeSecondsAgo: "{{count}} с назад",
       relativeMinutesAgo: "{{count}} м назад",
@@ -2431,8 +2429,6 @@ const ru = {
     cancel: "Отмена",
     confirm: "Подтвердить",
     uploading: "Загрузка…",
-    defaultActionTitle: "Действие",
-    ok: "ОК",
     lookupPlaceholder: "ID записи для {{label}}",
     lookupHelpText: "Для этого параметра не настроен объект ссылки, поэтому выбор записи недоступен. Введите ID записи или попросите администратора исправить параметр действия.",
   },
@@ -2440,11 +2436,6 @@ const ru = {
     title: "Подтвердите действие",
     confirm: "Продолжить",
     cancel: "Отмена",
-  },
-  rowAction: {
-    openMenu: "Открыть меню",
-    edit: "Редактировать",
-    delete: "Удалить",
   },
   navigationSync: {
     addedPage: "Навигация обновлена: страница \"{{name}}\" добавлена",
@@ -2476,15 +2467,6 @@ const ru = {
     printDialogOpening: "Открывается диалог печати браузера (это не экспорт в PDF)",
     exportFailed: "Ошибка экспорта: {{message}}",
     forecastSoon: "Прогнозное представление скоро будет",
-  },
-  recordDetail: {
-    viewersTooltip: "Пользователи, просматривающие эту запись",
-  },
-  cellRender: {
-    empty: "Пусто",
-    yes: "Да",
-    no: "Нет",
-    systemFields: "Система",
   },
   user: {
     profile: "Профиль",
@@ -3420,6 +3402,45 @@ const ru = {
       bulkFailureJoiner: "; ",
       bulkOperationFailed: "Массовая операция не выполнена: {{reason}}",
     },
+  },
+  // objectui#6301 — Настройка › Автоматизация из пакетов (ADR-0126 §7.4).
+  // Терминология пакета: `common.package` = Пакет, `flowRunner.completed` =
+  // Поток, кавычки «…». ⛔ Никаких формулировок о происхождении или
+  // расхождении в этой группе (§9).
+  packagedAutomation: {
+    title: "Автоматизация из пакетов",
+    subtitle: "Потоки и действия, поставляемые установленными пакетами. Отключите любой из них в этой установке или клонируйте поток под новым именем, чтобы настроить. Редактирование — в Studio.",
+    refresh: "Обновить",
+    flowsHeading: "Потоки из пакетов",
+    actionsHeading: "Действия из пакетов",
+    colFlow: "Поток",
+    colActivation: "Активация",
+    colActions: "Действия",
+    toggleLabel: "Активация для {{label}}",
+    on: "Вкл.",
+    off: "Выкл.",
+    clone: "Клонировать",
+    cloneTitle: "Клонировать поток из пакета",
+    cloneBody: "Копия сохраняет определение целиком и требует нового машинного имени и метки. Редактируйте копию в Studio.",
+    cloneName: "Новое машинное имя",
+    cloneLabel: "Новая метка",
+    cancel: "Отмена",
+    cloneConfirm: "Создать клон",
+    cloneCreated: "Поток «{{name}}» создан.",
+    emptyTitle: "Нет потоков из пакетов",
+    emptyBody: "В этой установке ни один установленный пакет не поставляет поток автоматизации. Потоки, которые вы создаёте сами, находятся в Studio.",
+    loadFailed: "Не удалось загрузить автоматизацию из пакетов.",
+    toggleFailedHttp: "Не удалось изменить активацию (HTTP {{status}}).",
+    toggleFailed: "Не удалось изменить активацию.",
+    cloneFailedHttp: "Не удалось клонировать этот поток (HTTP {{status}}).",
+    cloneFailed: "Не удалось клонировать этот поток.",
+    actionsSubtitle: "Действия, поставляемые установленными пакетами. Отключите действие в этой установке — и оно перестанет выполняться везде, где предлагается. Создать рядом собственное действие по-прежнему можно в Studio.",
+    colAction: "Действие",
+    colObject: "Объект",
+    actionToggleLabel: "Активация для {{label}} на {{object}}",
+    actionsEmptyTitle: "Нет действий из пакетов",
+    actionsEmptyBody: "В этой установке ни один установленный пакет не объявляет действие. Действия, которые вы создаёте сами, находятся в Studio.",
+    actionsLoadFailed: "Не удалось загрузить действия из пакетов.",
   },
 };
 

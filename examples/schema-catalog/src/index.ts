@@ -108,6 +108,8 @@ import components_data_display_avatar_avatar_with_fallback from './schemas/compo
 import components_data_display_avatar_avatar_with_image from './schemas/components-data-display-avatar/avatar-with-image.json' with { type: 'json' };
 import components_data_display_badge_badge_variants from './schemas/components-data-display-badge/badge-variants.json' with { type: 'json' };
 import components_data_display_breadcrumb_basic_breadcrumb from './schemas/components-data-display-breadcrumb/basic-breadcrumb.json' with { type: 'json' };
+import components_data_display_breadcrumb_collapsed_trail from './schemas/components-data-display-breadcrumb/collapsed-trail.json' with { type: 'json' };
+import components_data_display_breadcrumb_custom_separator from './schemas/components-data-display-breadcrumb/custom-separator.json' with { type: 'json' };
 import components_data_display_breadcrumb_with_icons from './schemas/components-data-display-breadcrumb/with-icons.json' with { type: 'json' };
 import components_data_display_kbd_command_palette from './schemas/components-data-display-kbd/command-palette.json' with { type: 'json' };
 import components_data_display_kbd_copy_shortcut from './schemas/components-data-display-kbd/copy-shortcut.json' with { type: 'json' };
@@ -163,9 +165,7 @@ import components_feedback_toast_success_toast from './schemas/components-feedba
 import components_feedback_toast_toast_with_action from './schemas/components-feedback-toast/toast-with-action.json' with { type: 'json' };
 import components_feedback_toast_toast_with_undo from './schemas/components-feedback-toast/toast-with-undo.json' with { type: 'json' };
 import components_feedback_toaster_custom_position_limit from './schemas/components-feedback-toaster/custom-position-limit.json' with { type: 'json' };
-import components_feedback_toaster_default_provider from './schemas/components-feedback-toaster/default-provider.json' with { type: 'json' };
 import components_feedback_toaster_default_toaster from './schemas/components-feedback-toaster/default-toaster.json' with { type: 'json' };
-import components_feedback_toaster_sonner_provider from './schemas/components-feedback-toaster/sonner-provider.json' with { type: 'json' };
 import components_feedback_toaster_with_toast_trigger from './schemas/components-feedback-toaster/with-toast-trigger.json' with { type: 'json' };
 import components_form_button_button_sizes from './schemas/components-form-button/button-sizes.json' with { type: 'json' };
 import components_form_button_button_with_icon from './schemas/components-form-button/button-with-icon.json' with { type: 'json' };
@@ -196,7 +196,7 @@ import components_form_combobox_disabled from './schemas/components-form-combobo
 import components_form_combobox_searchable_combobox from './schemas/components-form-combobox/searchable-combobox.json' with { type: 'json' };
 import components_form_combobox_with_value from './schemas/components-form-combobox/with-value.json' with { type: 'json' };
 import components_form_command_command_menu from './schemas/components-form-command/command-menu.json' with { type: 'json' };
-import components_form_command_command_palette_with_shortcuts from './schemas/components-form-command/command-palette-with-shortcuts.json' with { type: 'json' };
+import components_form_command_file_command_palette from './schemas/components-form-command/file-command-palette.json' with { type: 'json' };
 import components_form_date_picker_basic_date_picker from './schemas/components-form-date-picker/basic-date-picker.json' with { type: 'json' };
 import components_form_date_picker_date_range_selector from './schemas/components-form-date-picker/date-range-selector.json' with { type: 'json' };
 import components_form_date_picker_disabled from './schemas/components-form-date-picker/disabled.json' with { type: 'json' };
@@ -254,6 +254,8 @@ import components_layout_aspect_ratio_4_3 from './schemas/components-layout-aspe
 import components_layout_aspect_ratio_square from './schemas/components-layout-aspect-ratio/square.json' with { type: 'json' };
 import components_layout_aspect_ratio_ultrawide from './schemas/components-layout-aspect-ratio/ultrawide.json' with { type: 'json' };
 import components_layout_aspect_ratio_video_aspect_ratio from './schemas/components-layout-aspect-ratio/video-aspect-ratio.json' with { type: 'json' };
+import components_layout_box_basic_box from './schemas/components-layout-box/basic-box.json' with { type: 'json' };
+import components_layout_box_nested_boxes from './schemas/components-layout-box/nested-boxes.json' with { type: 'json' };
 import components_layout_card_basic_card from './schemas/components-layout-card/basic-card.json' with { type: 'json' };
 import components_layout_card_inventory_table_card from './schemas/components-layout-card/inventory-table-card.json' with { type: 'json' };
 import components_layout_card_profile_detail_card from './schemas/components-layout-card/profile-detail-card.json' with { type: 'json' };
@@ -281,6 +283,7 @@ import components_layout_stack_basic_stack from './schemas/components-layout-sta
 import components_layout_tabs_basic_tabs from './schemas/components-layout-tabs/basic-tabs.json' with { type: 'json' };
 import components_navigation_header_bar_admin_breadcrumbs from './schemas/components-navigation-header-bar/admin-breadcrumbs.json' with { type: 'json' };
 import components_navigation_header_bar_app_navigation from './schemas/components-navigation-header-bar/app-navigation.json' with { type: 'json' };
+import components_navigation_header_bar_crumbs_with_icons from './schemas/components-navigation-header-bar/crumbs-with-icons.json' with { type: 'json' };
 import components_navigation_header_bar_deep_navigation from './schemas/components-navigation-header-bar/deep-navigation.json' with { type: 'json' };
 import components_navigation_header_bar_settings_path from './schemas/components-navigation-header-bar/settings-path.json' with { type: 'json' };
 import components_navigation_header_bar_simple_header from './schemas/components-navigation-header-bar/simple-header.json' with { type: 'json' };
@@ -1322,6 +1325,26 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_data_display_breadcrumb_basic_breadcrumb,
   },
+  'components-data-display-breadcrumb/collapsed-trail': {
+    id: 'components-data-display-breadcrumb/collapsed-trail',
+    meta: {
+      title: "Collapsed Trail",
+      description: "`maxItems: 3` over a five-crumb trail: the root, an elision marker, and the last two crumbs.",
+      category: 'components-data-display-breadcrumb',
+      tags: ["breadcrumb", "maxItems", "collapse"],
+    },
+    schema: components_data_display_breadcrumb_collapsed_trail,
+  },
+  'components-data-display-breadcrumb/custom-separator': {
+    id: 'components-data-display-breadcrumb/custom-separator',
+    meta: {
+      title: "Custom Separator",
+      description: "The declared `separator` key, authored as \">\". Left unauthored, the trail separates with the declared default \"/\".",
+      category: 'components-data-display-breadcrumb',
+      tags: ["breadcrumb", "separator", "navigation"],
+    },
+    schema: components_data_display_breadcrumb_custom_separator,
+  },
   'components-data-display-breadcrumb/with-icons': {
     id: 'components-data-display-breadcrumb/with-icons',
     meta: {
@@ -1658,9 +1681,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-sonner/promise-based-toast': {
     id: 'components-feedback-sonner/promise-based-toast',
     meta: {
-      title: "Promise Based Toast",
-      description: "",
+      title: "Custom Trigger Button",
+      description: "A success toast whose trigger button is styled through buttonVariant.",
       category: 'components-feedback-sonner',
+      tags: ["toast", "sonner", "button"],
     },
     schema: components_feedback_sonner_promise_based_toast,
   },
@@ -1676,9 +1700,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-sonner/toast-with-action': {
     id: 'components-feedback-sonner/toast-with-action',
     meta: {
-      title: "Toast With Action",
-      description: "",
+      title: "Message With Description",
+      description: "A sonner toast carrying both a message and a secondary description line.",
       category: 'components-feedback-sonner',
+      tags: ["toast", "sonner", "description"],
     },
     schema: components_feedback_sonner_toast_with_action,
   },
@@ -1766,9 +1791,10 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-toast/destructive': {
     id: 'components-feedback-toast/destructive',
     meta: {
-      title: "Destructive",
-      description: "",
+      title: "Error Variant",
+      description: "The 'error' toast variant. 'destructive' is a button variant, not a toast variant.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "error"],
     },
     schema: components_feedback_toast_destructive,
   },
@@ -1793,18 +1819,20 @@ const REGISTRY: Record<string, Example> = {
   'components-feedback-toast/toast-with-action': {
     id: 'components-feedback-toast/toast-with-action',
     meta: {
-      title: "Toast With Action",
-      description: "",
+      title: "Info Variant",
+      description: "The 'info' toast variant, used here for an update notice.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "info"],
     },
     schema: components_feedback_toast_toast_with_action,
   },
   'components-feedback-toast/toast-with-undo': {
     id: 'components-feedback-toast/toast-with-undo',
     meta: {
-      title: "Toast With Undo",
-      description: "",
+      title: "Warning Variant",
+      description: "The 'warning' toast variant, used here for a deletion notice.",
       category: 'components-feedback-toast',
+      tags: ["toast", "variant", "warning"],
     },
     schema: components_feedback_toast_toast_with_undo,
   },
@@ -1817,15 +1845,6 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_feedback_toaster_custom_position_limit,
   },
-  'components-feedback-toaster/default-provider': {
-    id: 'components-feedback-toaster/default-provider',
-    meta: {
-      title: "Default Provider",
-      description: "",
-      category: 'components-feedback-toaster',
-    },
-    schema: components_feedback_toaster_default_provider,
-  },
   'components-feedback-toaster/default-toaster': {
     id: 'components-feedback-toaster/default-toaster',
     meta: {
@@ -1834,15 +1853,6 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-feedback-toaster',
     },
     schema: components_feedback_toaster_default_toaster,
-  },
-  'components-feedback-toaster/sonner-provider': {
-    id: 'components-feedback-toaster/sonner-provider',
-    meta: {
-      title: "Sonner Provider",
-      description: "",
-      category: 'components-feedback-toaster',
-    },
-    schema: components_feedback_toaster_sonner_provider,
   },
   'components-feedback-toaster/with-toast-trigger': {
     id: 'components-feedback-toaster/with-toast-trigger',
@@ -2114,14 +2124,14 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_form_command_command_menu,
   },
-  'components-form-command/command-palette-with-shortcuts': {
-    id: 'components-form-command/command-palette-with-shortcuts',
+  'components-form-command/file-command-palette': {
+    id: 'components-form-command/file-command-palette',
     meta: {
-      title: "Command Palette With Shortcuts",
+      title: "File Command Palette",
       description: "",
       category: 'components-form-command',
     },
-    schema: components_form_command_command_palette_with_shortcuts,
+    schema: components_form_command_file_command_palette,
   },
   'components-form-date-picker/basic-date-picker': {
     id: 'components-form-date-picker/basic-date-picker',
@@ -2638,6 +2648,26 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_layout_aspect_ratio_video_aspect_ratio,
   },
+  'components-layout-box/basic-box': {
+    id: 'components-layout-box/basic-box',
+    meta: {
+      title: "Basic Box",
+      description: "A neutral block container: authored classes pass through verbatim, nothing is injected.",
+      category: 'components-layout-box',
+      tags: ["box", "container", "layout"],
+    },
+    schema: components_layout_box_basic_box,
+  },
+  'components-layout-box/nested-boxes': {
+    id: 'components-layout-box/nested-boxes',
+    meta: {
+      title: "Nested Boxes",
+      description: "Boxes nested for pure grouping — each level shows only its own authored classes.",
+      category: 'components-layout-box',
+      tags: ["box", "container", "nesting"],
+    },
+    schema: components_layout_box_nested_boxes,
+  },
   'components-layout-card/basic-card': {
     id: 'components-layout-card/basic-card',
     meta: {
@@ -2884,6 +2914,16 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-navigation-header-bar',
     },
     schema: components_navigation_header_bar_app_navigation,
+  },
+  'components-navigation-header-bar/crumbs-with-icons': {
+    id: 'components-navigation-header-bar/crumbs-with-icons',
+    meta: {
+      title: "Crumbs With Icons",
+      description: "`crumbs[].icon` — kebab-case Lucide names resolved to glyphs, the same declared key a `ui:breadcrumb` item carries.",
+      category: 'components-navigation-header-bar',
+      tags: ["header", "breadcrumb", "icon"],
+    },
+    schema: components_navigation_header_bar_crumbs_with_icons,
   },
   'components-navigation-header-bar/deep-navigation': {
     id: 'components-navigation-header-bar/deep-navigation',

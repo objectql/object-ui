@@ -22,7 +22,7 @@
  * - Works with object/value data providers
  */
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
 import { CalendarView } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
@@ -31,6 +31,7 @@ import {
   useSafeTranslate,
   extractWriteErrorMessage,
   isPermissionError,
+  declaredUserMessage,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
@@ -176,7 +177,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const [data, setData] = useState<any[]>(hasExternalData ? externalData! : []);
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : true);
   const [error, setError] = useState<Error | null>(null);
-  const [objectSchema, setObjectSchema] = useState<any>(null);
+  // The object-schema read and the fact that it has SETTLED are ONE piece of
+  // state, keyed by the object it belongs to (objectui#6453). The derived
+  // `objectSchema` / `objectSchemaReady` pair lives further down, next to
+  // `dataConfig`, because the key is the object the RECORD QUERY will use.
+  const [schemaResolution, setSchemaResolution] =
+    useState<{ key: string; def: any } | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const isMobile = useIsMobile();
   const schemaDefaultView = (schema as any).defaultView as 'month' | 'week' | 'day' | undefined;
@@ -235,10 +241,48 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     (schema as any).colorField
   ]);
   const hasInlineData = dataConfig?.provider === 'value';
+  /**
+   * The record-fetch effect below used to key on `dataConfig` itself — the
+   * whole memoised object identity. `useMemo` carries no semantic
+   * guarantee (React may discard its cache and recompute), and
+   * `getDataConfig(schema)` builds a fresh wrapper object on every call
+   * even when its own deps haven't changed, so a discard alone was enough
+   * to re-run the effect and refetch. `dataProvider` and `dataItems` are
+   * the remaining primitive fields that effect reads off `dataConfig` —
+   * `schemaObjectName` below already covers the `object` field for the
+   * same purpose. Keying on all three instead of the container object
+   * makes a cache discard a no-op (objectui#6592).
+   */
+  const dataProvider = dataConfig?.provider;
+  const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
 
-  // Use ref for objectSchema to avoid double-fetch on mount
-  const objectSchemaRef = useRef<any>(null);
-  objectSchemaRef.current = objectSchema;
+  // ⭐ objectui#6453 — this replaces a `useRef` written in the render body
+  // (`objectSchemaRef.current = objectSchema`), which existed so the fetch
+  // effect below could read the schema without listing it as a dependency.
+  // That bought the effect one run per mount and paid for it with the
+  // expansion, permanently: on that one run the ref was still `null`,
+  // `buildExpandFields` saw no fields, and the standalone calendar's query went
+  // out with no `$expand` at all — so every lookup / master_detail / user /
+  // tree field rendered from its raw foreign-key id, forever.
+  //
+  // The KEY is the object the record query will use, which on this component is
+  // NOT simply `schema.objectName`: an authored `data` block can name a
+  // different object. Comparing it during render means switching objects closes
+  // the gate in the same commit that changes it, not one commit later, so no
+  // query can carry the previous object's expand set.
+  const schemaObjectName =
+    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+  const schemaKey = schemaObjectName ?? '';
+  /**
+   * Has the object schema for THIS object finished resolving? Note what this is
+   * NOT: "`objectSchema` is truthy". A calendar whose adapter exposes no
+   * `getObjectSchema`, or whose schema read failed, must still fetch its
+   * records — gating on a truthy schema would leave those calendars empty
+   * forever. "Settled with nothing" and "not yet settled" are different states
+   * and only the second may hold the query.
+   */
+  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
+  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
 
   // Sync external data/loading changes from parent (e.g. ObjectView re-fetches after filter change)
   useEffect(() => {
@@ -258,15 +302,32 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     // Skip internal fetch when data is managed by a parent component
     if (hasExternalData) return;
 
+    // ⭐ objectui#6453 — the object schema GATES this query; it does not refine
+    // it afterwards. Measured on THIS component (instrumented adapter, three
+    // latency profiles), the alternative — putting `objectSchema` in the
+    // dependency list below — costs two queries and, when the schema read is
+    // the slower of the two, a THREE-step paint: raw ids, back to the
+    // "Loading calendar..." placeholder (this effect calls `setLoading(true)`
+    // on re-run, and `loading` is an early return above), then the expanded
+    // rows. When the schema read is the faster one the first response is
+    // instead discarded on arrival — a round trip bought and thrown away.
+    // Gating is the only shape that is right in every profile.
+    //
+    // Scoped to the `object` provider deliberately: an inline (`value`) data
+    // set has no expand set to derive and issues no metadata read at all, so
+    // gating it would hold a query open on a resolution nothing was going to
+    // produce.
+    if (dataProvider === 'object' && !objectSchemaReady) return;
+
     let isMounted = true;
     const fetchData = async () => {
       try {
         if (!isMounted) return;
         setLoading(true);
-        
-        if (hasInlineData && dataConfig?.provider === 'value') {
+
+        if (hasInlineData && dataProvider === 'value') {
           if (isMounted) {
-            setData(dataConfig.items as any[]);
+            setData(dataItems as any[]);
             setLoading(false);
           }
           return;
@@ -276,22 +337,29 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           throw new Error('DataSource required for object/api providers');
         }
 
-        if (dataConfig?.provider === 'object') {
-          const objectName = dataConfig.object;
+        if (dataProvider === 'object') {
+          // `schemaObjectName` already resolves this same 'object' branch's
+          // `dataConfig.object` (required on that discriminated-union
+          // variant), computed once above for the schema-fetch gate too.
+          const objectName = schemaObjectName as string;
           // Auto-inject $expand for lookup/master_detail fields
-          const expand = buildExpandFields(objectSchemaRef.current?.fields);
+          // Reached only with the schema resolved (the gate above), so a
+          // calendar whose object declares relations queries WITH its
+          // expansion the first time. `objectSchema` is `null` here only
+          // when there was nothing to resolve it from.
+          const expand = buildExpandFields(objectSchema?.fields);
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
-          
+
           const items: any[] = extractRecords(result);
-          
+
           if (isMounted) {
             setData(items);
           }
-        } else if (dataConfig?.provider === 'api') {
+        } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectCalendar');
           if (isMounted) setData([]);
         }
@@ -308,31 +376,40 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [hasExternalData, dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, refreshKey]);
+  }, [hasExternalData, dataProvider, schemaObjectName, dataItems, dataSource, hasInlineData,
+      schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema]);
 
-  // Fetch object schema for field metadata
+  // Fetch object schema for field metadata.
+  //
+  // Every exit settles the resolution — success, failure, and "there is nothing
+  // to read from" alike — because the record query above WAITS on this
+  // (objectui#6453). A path that returned without settling would not merely
+  // skip the expansion, it would hold that query open forever.
   useEffect(() => {
+    let isMounted = true;
+    const key = schemaKey;
     const fetchObjectSchema = async () => {
+      // No source for a schema — including an inline (`value`) data set, which
+      // issues no metadata read here and did not before. Settle with none, so
+      // anything gated on this still runs (unexpanded: with no schema there is
+      // no expand set to derive, which is the same query these cases produced
+      // before).
+      if (hasInlineData || !dataSource || !key || typeof dataSource.getObjectSchema !== 'function') {
+        if (isMounted) setSchemaResolution({ key, def: null });
+        return;
+      }
       try {
-        if (!dataSource) return;
-        
-        const objectName = dataConfig?.provider === 'object' 
-          ? dataConfig.object 
-          : schema.objectName;
-          
-        if (!objectName) return;
-        
-        const schemaData = await dataSource.getObjectSchema(objectName);
-        setObjectSchema(schemaData);
+        const schemaData = await dataSource.getObjectSchema(key);
+        if (isMounted) setSchemaResolution({ key, def: schemaData });
       } catch (err) {
         console.error('Failed to fetch object schema:', err);
+        if (isMounted) setSchemaResolution({ key, def: null });
       }
     };
 
-    if (!hasInlineData && dataSource) {
-      fetchObjectSchema();
-    }
-  }, [schema.objectName, dataSource, hasInlineData, dataConfig]);
+    fetchObjectSchema();
+    return () => { isMounted = false; };
+  }, [schemaKey, dataSource, hasInlineData]);
 
   // Transform data to calendar events
   const events = useMemo(() => {
@@ -386,7 +463,24 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   // Must be called before any early returns to satisfy React hooks rules
   // When the local navigation mode is an overlay (drawer/modal), ignore the
   // inherited onRowClick so the local overlay wins over parent page-nav.
-  const navConfig = (schema as any).navigation ?? { mode: 'drawer', width: 'min(960px, 60vw)' };
+  // No width is spelled here on purpose (objectui#6303, converging the calendar
+  // on the shape #6305 gave ObjectGantt). `width` is `@deprecated [#2578 ->
+  // size]` in the spec that owns this shape, and `resolveOverlayWidth` gives an
+  // explicit `width` priority OVER `size` — so spelling it kept the deprecated
+  // branch load-bearing on the path most calendars take (no declared
+  // `navigation`), and made the size buckets unreachable there. Omitting both
+  // leaves `resolveOverlayWidth` returning `undefined`, which is what
+  // RecordDetailDrawer's own `width` default is for; that default is the
+  // identical `min(960px, 60vw)`, so this is a zero-pixel change on every
+  // viewport. The absent width is deliberate, not an oversight — do not
+  // "restore" it. Pinned by `ObjectCalendar.navWidthDefault.test.tsx`, both
+  // halves, because the equivalence now depends on the drawer's default too.
+  //
+  // Deliberately NOT converged on `size: 'lg'` either: that bucket is
+  // `min(92vw, 960px)`, which agrees with the above only at viewport >= 1600px
+  // and is up to 53% wider below it. That move is a real behaviour change and
+  // stays open on #6303 for a human ruling.
+  const navConfig = (schema as any).navigation ?? { mode: 'drawer' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
     navigation: navConfig,
@@ -432,10 +526,19 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       // Surface the failure — never silently snap the event back. A row-level
       // security denial (403) is the common case: the user lacks permission to
       // reschedule this record. (cloud#864)
+      // …unless the AUTHOR opted in. `userMessage` (objectstack#9934) is the
+      // producer-side marking: a field set at throw time to say "this text is
+      // for the end user". It is a SEPARATE field from `message`, so nothing
+      // unmarked can reach here — the substitution below still governs every
+      // platform diagnostic and #3821 holds by construction rather than by us
+      // guessing what a body contains. Status-agnostic on purpose: 403 is
+      // where this was reported (objectui#5210/#5902), not a fence the
+      // contract draws — a marked 409 or 400 renders identically.
       toast.error(
-        isPermissionError(err)
-          ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
-          : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed'),
+        declaredUserMessage(err) ??
+          (isPermissionError(err)
+            ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
+            : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed')),
       );
     }
   }, [calendarConfig, schema.objectName, dataSource, data, tt]);
@@ -691,7 +794,10 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
             recordId={recordId}
             dataSource={dataSource}
             objectSchema={objectSchema as any}
-            width={(navigation.width as any) ?? 'min(960px, 60vw)'}
+            // No `?? 'min(960px, 60vw)'` fallback on purpose — `undefined` has
+            // to reach the drawer for its OWN identical default to apply. See
+            // the `navConfig` comment above (objectui#6303).
+            width={navigation.width as any}
             fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
             onFieldSave={async (field, value) => {
               if (!dataSource?.update) return;

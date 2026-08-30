@@ -108,12 +108,12 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   evalFieldPredicate,
-  isMissingForRequired,
   isRuntimeDefault,
   isServerOwnedValue,
   resolveFieldRuleState,
   type FieldRulePredicate,
 } from '@object-ui/core';
+import { omitServerResolvedDefaults } from '@object-ui/plugin-form';
 import { usePredicateScope } from '@object-ui/react';
 import type { FormFieldSpec, FormSectionSpec, FormViewSpec } from '@object-ui/app-shell';
 import { resolveSubmitRedirect } from './submitRedirect';
@@ -1022,27 +1022,40 @@ export function readPrefill(
  * the two halves of this fix, and it cannot come to mean something narrower
  * here than it does on the sibling chain.
  *
- * ## Why the two predicates rather than the sibling function
+ * ## The sibling function, now imported rather than re-composed (objectui#6059)
  *
  * `@object-ui/plugin-form`'s `omitServerResolvedDefaults`
  * (`src/schemaDefaults.ts`) is this rule on the OTHER form chain and states the
  * pairing outright — "excusing a server-owned field from `required` is only
- * half an answer if the form then submits the key anyway". Calling it from here
- * is not available: that package's `exports` map publishes `.` alone, and its
- * root (`src/index.tsx`) does not re-export `schemaDefaults`, so the function
- * has no spelling a consumer can import.
+ * half an answer if the form then submits the key anyway". Until #6059 it had
+ * no spelling a consumer could import: that package's `exports` map publishes
+ * `.` alone and its root did not re-export `schemaDefaults`, so this function
+ * carried the composition — `isRuntimeDefault(default) && isMissingForRequired(value)`
+ * — written out by hand. The two PREDICATES were never copied (both come from
+ * `@object-ui/core`, which is where they live so that every layer deciding
+ * server-ownership reads one answer — `validation/server-owned-value.ts` says
+ * so, and lists this renderer's `resolveFieldRuleState` among the consumers),
+ * but the COMPOSITION existed twice, which #6059 recorded as the structural
+ * reason the next renderer would write it a third time.
  *
- * What matters is that the CLASSIFIERS are not copied, and they are not: both
- * are imported from `@object-ui/core`, which is where they live precisely so
- * every layer that decides server-ownership reads one answer
- * (`validation/server-owned-value.ts` says so, and lists this renderer's
- * `resolveFieldRuleState` among the consumers). `omitServerResolvedDefaults` is
- * itself only such a local application of the same two calls. This file already
- * reads `isRuntimeDefault` directly for #5727's seeding fence, and
- * `plugin-kanban` and `@object-ui/components`' form renderer read
- * `isMissingForRequired` the same way. Publishing the sibling helper from
- * plugin-form's root would let this call site shrink to one line; that is a
- * change to another package's published surface, not to this one.
+ * The entry now publishes it, so this function is the CALLER: it keeps the two
+ * things that are genuinely this renderer's — the create-mode gate, read off
+ * the same URL switch `resolveRowState` uses, and the projection of this page's
+ * own rows onto the `{ fields: { [name]: { defaultValue } } }` shape the helper
+ * reads — and delegates the rule itself. `RenderableField.defaultValue` is
+ * copied straight off the object field in {@link buildSections} (`def`, with no
+ * FormView override for that key), so the projection carries exactly the
+ * defaults the hand-written version consulted, for exactly the same names; a
+ * key that no row declares gets `undefined`, which is what the old
+ * `serverOwned` set said about it too. The rows rather than
+ * `loaded.objectSchema` deliberately: the previous verdict was a function of
+ * the RENDERED rows, and this card is explicit that nothing about the payload
+ * may change.
+ *
+ * This file still reads `isRuntimeDefault` directly for #5727's seeding fence —
+ * that half is one predicate, not a composition, and its sibling
+ * (`isSeedableDefault`) deliberately differs about `null` (see
+ * {@link readPrefill}).
  *
  * ## The two boundaries
  *
@@ -1061,16 +1074,9 @@ export function omitServerOwnedBlanks(
   isCreateForm: boolean,
 ): Record<string, unknown> {
   if (!isCreateForm) return values;
-  const serverOwned = new Set(
-    fields.filter((f) => isRuntimeDefault(f.defaultValue)).map((f) => f.name),
-  );
-  if (serverOwned.size === 0) return values;
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(values)) {
-    if (serverOwned.has(key) && isMissingForRequired(value)) continue;
-    out[key] = value;
-  }
-  return out;
+  return omitServerResolvedDefaults(values, {
+    fields: Object.fromEntries(fields.map((f) => [f.name, { defaultValue: f.defaultValue }])),
+  });
 }
 
 /** Authed/anonymous fetch — credentials included so cookies (auth) flow. */

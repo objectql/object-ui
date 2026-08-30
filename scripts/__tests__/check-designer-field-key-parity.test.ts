@@ -499,14 +499,37 @@ describe('the real shapes, on the real tree', () => {
   });
 
   it('every ledger entry names the card that owns its resolution', async () => {
-    const entries = Object.entries(KNOWN_UNPARSEABLE_KEYS);
-    expect(entries.length).toBeGreaterThan(0);
-    for (const [key, entry] of entries) {
+    // The ledger is REMOVE-only and it is currently EMPTY — every key it ever
+    // held has been resolved (objectui#4676 `placeholder`, objectui#6043
+    // `formula`, objectui#6045 `sortOrder`, objectui#6238 `enabled`). That is
+    // the ratchet arriving where it was pointed, so an empty ledger is the
+    // success state and must not be a failure.
+    //
+    // This case used to open `expect(entries.length).toBeGreaterThan(0)` as its
+    // non-vacuity guard, and when objectui#6238 emptied the ledger that
+    // assertion inverted into a demand that some key stay UNRESOLVED — with a
+    // failure message (`expected 0 to be greater than 0`) whose obvious remedy
+    // is to add a row back, i.e. the one edit the header forbids. The guard is
+    // kept, pointed at the right thing: the validation must be exercised, and
+    // the fixture below is what exercises it when the real ledger is empty.
+    const validate = (key: string, entry: { card?: string; note?: string; oracle?: string }) => {
       expect(entry.card, `${key} has no card`).toMatch(/^objectui#\d+$/);
       expect(entry.note, `${key} has no note`).toBeTruthy();
       // objectui#6223: with two oracles, an entry that names none silently
       // defaults to the field one and can absorb an object-level key.
       expect(['FieldSchema', 'ObjectSchema'], `${key} names no oracle`).toContain(entry.oracle);
-    }
+    };
+
+    // Non-vacuity, on a fixture rather than on the real tree: the loop body
+    // really does reject a malformed entry, whatever the live ledger holds.
+    validate('zzzWellFormedFixture', {
+      card: 'objectui#0000',
+      note: 'fixture',
+      oracle: 'FieldSchema',
+    });
+    expect(() => validate('zzzNoCardFixture', { note: 'fixture', oracle: 'FieldSchema' })).toThrow();
+    expect(() => validate('zzzNoOracleFixture', { card: 'objectui#0000', note: 'fixture' })).toThrow();
+
+    for (const [key, entry] of Object.entries(KNOWN_UNPARSEABLE_KEYS)) validate(key, entry);
   });
 });

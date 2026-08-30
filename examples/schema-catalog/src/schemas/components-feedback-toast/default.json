@@ -1,9 +1,6 @@
 {
-  "type": "button",
-  "label": "Default Toast",
-  "onClick": {
-    "action": "toast",
-    "title": "Notification",
-    "description": "This is a default toast message."
-  }
+  "type": "toast",
+  "variant": "default",
+  "title": "Notification",
+  "description": "This is a default toast message."
 }
