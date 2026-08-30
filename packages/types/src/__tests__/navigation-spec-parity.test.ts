@@ -38,6 +38,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { NavigationItemSchema, NavigationAreaSchema } from '../zod/app.zod.js';
+import { NavigationItemSchema as SpecNavigationItemSchema } from '@objectstack/spec/ui';
 
 /** Parse and return the surviving object, so "accepted" cannot hide a strip. */
 function keep(input: unknown): Record<string, unknown> | null {
@@ -112,5 +113,56 @@ describe('NavigationAreaSchema keeps the spec fields it used to drop', () => {
     });
     expect(r.success).toBe(true);
     expect(r.success && r.data.description).toBe('Pipeline and accounts');
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Why this schema is NOT the spec's, stated as a measurement (objectui#3162)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The objectstack#4115 ledger filed `NavigationItemSchema` as "erased to `any`
+ * upstream — flow the spec's shape in by reference once objectstack#4171 lands".
+ * #4171 landed, and the spec's schema is precise now (pinned in
+ * `spec-derived-unions.test.ts`). That makes the ledger's stated reason spent —
+ * and it is exactly the moment the burn-down becomes DANGEROUS, because the
+ * remaining reason lives at runtime where no type-level probe can see it.
+ *
+ * The header above says it in prose: objectui keeps one flat, all-optional shape
+ * and the spec is a discriminated union of `.strict()` variants. Prose does not
+ * fail. This does: every case below is metadata `objectui validate` accepts today
+ * and the spec's schema rejects, so referencing the spec's schema would silently
+ * narrow the published CLI's accepted surface.
+ *
+ * The day the two are reconciled these flip and this block is the instruction to
+ * re-run the triage — not to delete the assertions until the divergence is
+ * actually gone.
+ */
+describe('referencing the spec NavigationItemSchema would reject metadata objectui accepts (objectui#3162)', () => {
+  /** Guards every rejection below from passing because the spec schema rejects everything. */
+  it('accepts a fully spec-shaped item and a bare separator (positive controls)', () => {
+    expect(SpecNavigationItemSchema.safeParse({
+      id: 'apps', type: 'object', label: 'Apps', objectName: 'sys_app',
+    }).success).toBe(true);
+    expect(SpecNavigationItemSchema.safeParse({ type: 'separator' }).success).toBe(true);
+  });
+
+  it.each([
+    ['pinned', { id: 'apps', type: 'object', label: 'Apps', objectName: 'sys_app', pinned: true },
+      'backs useNavPins + FavoritesProvider'],
+    ['defaultOpen', { id: 'grp', type: 'group', label: 'G', children: [], defaultOpen: true },
+      'the legacy spelling this file keeps accepting for published metadata'],
+    ['visible: boolean', { id: 'ai', type: 'url', label: 'AI', url: '/ai', visible: true },
+      'menuItemToNavigationItem MANUFACTURES one when it inverts MenuItem.hidden'],
+    ['separator label', { type: 'separator', label: 'Section' },
+      'menuItemToNavigationItem emits one; the spec separator declares only id/order'],
+    ['single-character id', { id: 'a', type: 'url', label: 'A', url: '/a' },
+      'objectui requires only a non-empty id; the spec requires two characters'],
+  ])('the spec rejects %s (%s)', (_name, input, _why) => {
+    // objectui accepts it...
+    expect(NavigationItemSchema.safeParse(input).success).toBe(true);
+    // ...and the spec does not, which is the whole reason for the local schema.
+    expect(SpecNavigationItemSchema.safeParse(input).success).toBe(false);
   });
 });

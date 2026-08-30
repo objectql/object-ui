@@ -57,7 +57,9 @@ import {
   ACTION_LOCATIONS as SpecACTION_LOCATIONS,
   ActionLocationSchema as SpecActionLocationSchema,
   ActionSchema as SpecActionSchema,
+  NavigationItemSchema as SpecNavigationItemSchema,
 } from '@objectstack/spec/ui';
+import type { z } from 'zod';
 import {
   FieldType as SpecFieldType,
 } from '@objectstack/spec/data';
@@ -147,6 +149,38 @@ const _validationErrorShape: ValidationError = { field: 'name', message: 'requir
 // gone with the imports. `packages/types/src/data-protocol.ts` now restates the
 // members locally, verbatim from the last spec that published them, as the
 // objectui query-AST vocabulary they have become.
+//
+// ── objectstack#4115 batch 8/8 (objectui#3162): CLOSED WITH ZERO RE-EXPORTS ───
+//
+// The ledger's last batch — `JoinNode`, `NavigationItem`, `NavigationItemSchema`,
+// `JoinedReportBlock` — was filed as "blocked on objectstack#4171; burn down when
+// the upstream `any` erasure lifts". #4171 closed completed on 2026-07-30, and the
+// re-measurement it licensed found that NONE of the four is burnable, for three
+// DIFFERENT reasons — none of which is the one the ledger recorded. Measured in the
+// BUILT dist at spec 17.2.0 (source and issue state were both insufficient: the
+// whole point of this ledger is that dist erasure is invisible from either):
+//
+//  - `JoinNode`            — the spec no longer exports the symbol AT ALL
+//                            (TS2305 from `/ui` and `/data`); spec 17.0.0 retired
+//                            the cluster. Nothing upstream to bind to. Absence
+//                            pinned in `report-chart-query-spec-parity.test.ts`.
+//  - `NavigationItem`      — upstream IS precise now (`IsAny` and `IsUnknown` both
+//                            `false`), so #4171 really did land. Binding is still
+//                            wrong: the three semantic blockers pinned below are
+//                            unaffected by it. `any` was never the only blocker —
+//                            #3177 established that, and it still holds.
+//  - `NavigationItemSchema`— upstream IS precise now; pinned below. The live
+//                            blocker is SHAPE, and it is a RUNTIME one: see
+//                            `navigation-spec-parity.test.ts`.
+//  - `JoinedReportBlock`   — STILL erased, to `unknown`, by a cause #4171 never
+//                            covered. Pinned in
+//                            `report-chart-query-spec-parity.test.ts`.
+//
+// So the batch burns down to zero re-exports and the ledger's remaining debt is
+// now carried as state pins that name their own release condition, rather than as
+// a card pointing at an upstream issue that has since closed without settling it.
+// ⛔ A closed upstream issue is not a licence to re-export: prove the dist type is
+// precise, then prove binding it does not narrow what this package already accepts.
 
 /**
  * Admission probes for `NavigationItem` and `FormField` (#3177).
@@ -238,6 +272,17 @@ const _specSeparatorStillHasNoLabel = false satisfies 'label' extends keyof Extr
 // that drops a member (the objectstack#4115 failure class) fails here.
 const _navTypeCoversSpec = null as unknown as SpecNavigationItem['type'] satisfies NavigationItemType;
 
+// `NavigationItemSchema` (objectui#3162 batch 8): upstream precision is SETTLED,
+// so no future triage may re-derive the ledger's stale reason from prose. The spec
+// now ships `z.ZodType<NavigationItem, NavigationItemInput>`; this holds that
+// measurement, and fires if the annotation ever regresses to `z.ZodType<any>`.
+//
+// This pin deliberately does NOT say the schema is bindable — it says the OLD
+// reason for not binding is spent. The live reason is runtime shape, and only
+// `navigation-spec-parity.test.ts` can pin that, because it is about which
+// metadata parses, not which types assign.
+const _specNavSchemaIsNoLongerAny = false satisfies IsAny<z.infer<typeof SpecNavigationItemSchema>>;
+
 // ── FormField: not one concept in two dialects, but two concepts on two layers ─
 //
 // `select-option-spec-parity.test.ts` states the distinction in its own header —
@@ -296,6 +341,7 @@ void _validationErrorShape;
 void _localNavIsNotYetTheSpecUnion; void _specNavVisibleStillRejectsBoolean;
 void _specNavStillHasNoPinned; void _specNavStillHasNoDefaultOpen;
 void _specSeparatorStillHasNoLabel; void _navTypeCoversSpec;
+void _specNavSchemaIsNoLongerAny;
 void _specFormFieldIsNoLongerAny; void _specFormFieldStillHasNoName;
 void _specFormFieldInputStillHasNoName; void _specFieldSlotIsStillAName;
 void _localFieldSlotIsStillAnObject; void _specDependsOnStillTakesNoArray;

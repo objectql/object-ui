@@ -126,9 +126,25 @@ export const NavigationItemSchema: z.ZodType<any> = z.lazy(() => z.object({
  * is what let that happen.
  *
  * One key is pinned locally, matching the TS twin in `app.ts`:
- *  - `navigation` — objectui's `NavigationItemSchema`, because the spec's is
- *    `z.ZodType<any>` (objectstack#4171 / objectui#3162) and would validate
- *    nothing.
+ *  - `navigation` — objectui's `NavigationItemSchema`. ⚠️ The reason is NO LONGER
+ *    "the spec's is `z.ZodType<any>` and would validate nothing". That was true
+ *    when this was written and is false now: objectstack#4171 landed, and spec
+ *    17.2.0 declares `NavigationItemSchema: z.ZodType<NavigationItem,
+ *    NavigationItemInput>` — measured precise in the BUILT dist, not just in
+ *    source (objectui#3162 batch 8).
+ *
+ *    What blocks the burn-down now is SHAPE, not precision. The spec models
+ *    navigation as a discriminated union of `.strict()` variants; objectui keeps
+ *    one flat, all-optional object that deliberately accepts more. Measured
+ *    against spec 17.2.0, referencing the spec's schema would make `objectui
+ *    validate` REJECT metadata this renderer accepts today: `pinned`,
+ *    `defaultOpen` and a separator carrying `label` all fail `unrecognized_keys`,
+ *    `visible: boolean` fails `invalid_union`, and a one-character `id` fails
+ *    `too_small`. Pinned by `__tests__/navigation-spec-parity.test.ts`.
+ *
+ *    Converging on the union is a breaking change for every consumer that reads
+ *    fields off `NavigationItem` without narrowing — tracked separately, and
+ *    deliberately not smuggled into a ledger burn-down.
  *
  * `order`, `visible` and `requiredPermissions` were AREA-level keys until
  * `@objectstack/spec` 17.0.0 retired them (`AREA_VISIBLE_RETIRED` /
