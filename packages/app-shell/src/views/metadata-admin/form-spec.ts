@@ -133,8 +133,27 @@ export interface FormFieldSpec {
    *     it: none of the three controls that consume `options` seeds a value
    *     from it, so declaring it here would advertise an authoring key this
    *     renderer does not honour — the very shape the `visibleWhen` half of
-   *     this comment exists to close. Tracked separately as objectui#6263;
-   *     honouring it is that card's decision, not a free widening here.
+   *     this comment exists to close.
+   *
+   *     ⚠️ RULED 2026-08-28 (objectui#6263 / objectstack#12868, executed
+   *     upstream by objectstack PR #13033), so this is no longer an open
+   *     question this file is holding open: the FORM-VIEW option vocabulary
+   *     does not accept a per-option `default`, and the drop above is now the
+   *     ruled shape rather than a pending decision. **Where the pre-selected
+   *     choice IS declared:** on the OBJECT definition — the field's
+   *     `defaultValue`, or the object option's own `default: true`, which the
+   *     engine honours on the insert path (`applyFieldDefaults` falls back to
+   *     the option marked `default: true` when the field declares no
+   *     `defaultValue`; `defaultValue` wins when both are declared —
+   *     objectstack#7246, ruled `enforce`, PR #7388). That is why
+   *     `SelectOptionSchema` still carries the key and only this reference site
+   *     narrows it: one surface honours it, this one deliberately does not, and
+   *     a second default contract here is what the 2026-08-10 ruling's objectui
+   *     rider told the console not to grow.
+   *
+   *     ⛔ Removing `'default'` from the `Omit` below re-admits it. That is now
+   *     a `tsc` failure, not a code-review question: PIN I in
+   *     `form-spec.containers.test.tsx`.
    */
   options?: Array<
     Omit<SelectOption, 'visibleWhen' | 'default'> & { visibleWhen?: VisibilityPredicate }

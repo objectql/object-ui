@@ -33,7 +33,11 @@
  *     re-hand-writing either declaration fails here the day the spec moves,
  *     rather than years later when someone reads two files side by side. Each
  *     narrowing has a matching negative pin, so "derived" can never quietly
- *     become "widened to whatever the spec says".
+ *     become "widened to whatever the spec says". PIN I extends that promise
+ *     down one level, to the LEAF's option element (objectui#6263): its two
+ *     narrowings — `visibleWhen` re-pointed, `default` dropped — were the last
+ *     ones resting on a comment alone, and `default` is the one a maintainer
+ *     actually ruled on.
  *   • **vitest** — the render block. The widening this convergence performs is
  *     asserted INERT and, for `columns`, load-bearing: a section that spells its
  *     column count as the string `'3'` — legal metadata `FormSectionSchema`
@@ -44,6 +48,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
+import type { SelectOption } from '@objectstack/spec/data';
 import type { FormSection, FormView } from '@objectstack/spec/ui';
 import { SchemaForm } from './SchemaForm';
 import type { FormFieldSpec, FormSectionSpec, FormViewSpec } from './form-spec';
@@ -211,6 +216,67 @@ export function formContainerContractPins(): void {
     label: 'Contact us',
   };
   void viewHasNoLabel;
+
+  // ── PIN I — the OPTION-ELEMENT narrowings, objectui#6263. The leaf's option
+  // element is `Omit<SelectOption, 'visibleWhen' | 'default'>` plus a re-pointed
+  // predicate (form-spec.ts), and until now NOTHING failed if either name left
+  // that `Omit` list: PIN G covers the section/view narrowings, the option
+  // element had no negative pin at all. So the one narrowing a maintainer
+  // actually ruled on rested on a comment.
+  //
+  // The ruling (2026-08-28, on objectstack#12868, executed upstream by
+  // objectstack PR #13033): the FORM-VIEW option vocabulary does not accept a
+  // per-option `default`. The pre-selected choice is declared on the OBJECT
+  // definition — the field's `defaultValue`, or the object option's own
+  // `default: true`, which the engine honours on the insert path
+  // (objectstack#7246, PR #7388, ruled `enforce`). Re-admitting the key here
+  // would give this surface a second default contract, which that same ruling
+  // says it must not have.
+  type OptionElement = NonNullable<FormFieldSpec['options']>[number];
+
+  const optionRefusesDefault: OptionElement = {
+    label: 'Open',
+    value: 'open',
+    // @ts-expect-error objectui#6263 — per-option `default` is not part of the
+    // form-view option vocabulary. Declare the pre-selected choice on the
+    // object definition instead.
+    default: true,
+  };
+  void optionRefusesDefault;
+
+  const optionNarrowsPredicate: OptionElement = {
+    label: 'Open',
+    value: 'open',
+    // @ts-expect-error narrowed to `VisibilityPredicate`, exactly as PIN G's
+    // section-level twin: `source` is REQUIRED here because that is what
+    // `evalFieldPredicate` reads, while the spec's `ExpressionInput` also
+    // admits a `dialect`-only / `ast`-only envelope no evaluator consumes.
+    visibleWhen: { dialect: 'cel' },
+  };
+  void optionNarrowsPredicate;
+
+  // Positive control for the two refusals above: this position still ACCEPTS
+  // every key it does declare. Without it, a collapsed element type (`never`,
+  // or an `Omit` that ate the whole shape) would satisfy both `@ts-expect-error`
+  // lines and read as a narrowing that is really a hole.
+  const optionAcceptsDeclaredKeys: OptionElement = {
+    label: 'Open',
+    value: 'open',
+    color: '#3B82F6',
+    visibleWhen: 'record.stage == "won"',
+  };
+  void optionAcceptsDeclaredKeys;
+
+  // Control that PIN I measures a NARROWING and not an ABSENCE, and the reason
+  // it is worth a line: `SelectOption` is shared by two surfaces and only this
+  // one drops the key. If the spec ever retired `default` outright — which
+  // would revert the ruled, implemented, pinned object-field behaviour — the
+  // expect-error above would still fire, for a reason that is not this card's,
+  // and PIN I would go on passing while the thing it guards was gone.
+  const defaultIsStillASharedSpecOptionKey: Assert<
+    'default' extends keyof SelectOption ? true : false
+  > = true;
+  void defaultIsStillASharedSpecOptionKey;
 }
 
 const schema = {
