@@ -52,7 +52,16 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import { ViewSwitcherSchema, FilterUISchema, SortUISchema } from '@object-ui/types/zod';
+import {
+  ViewSwitcherSchema as ViewSwitcherMirror,
+  FilterUISchema as FilterUIMirror,
+  SortUISchema as SortUIMirror,
+} from '@object-ui/types/zod';
+import type {
+  ViewSwitcherSchema,
+  FilterUISchema,
+  SortUISchema,
+} from '@object-ui/types';
 import { ViewSwitcher } from '../ViewSwitcher';
 import { FilterUI } from '../FilterUI';
 import { SortUI } from '../SortUI';
@@ -61,7 +70,9 @@ vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
     ...(await importOriginal<Record<string, unknown>>()),
-    SchemaRenderer: ({ schema }: any) => <div data-schema-type={schema?.type} />,
+    SchemaRenderer: ({ schema }: { schema?: { type?: string } }) => (
+      <div data-schema-type={schema?.type} />
+    ),
     SchemaRendererContext: React.createContext(null),
     subscribeDataChanges: () => () => {},
     notifyDataChanged: () => {},
@@ -71,9 +82,9 @@ vi.mock('@object-ui/react', async (importOriginal) => {
 afterEach(() => cleanup());
 
 /** Record every CustomEvent of `name` dispatched on `window` while `fn` runs. */
-function captureWindowEvents(name: string, fn: () => void): CustomEvent[] {
-  const seen: CustomEvent[] = [];
-  const listener = (e: Event) => seen.push(e as CustomEvent);
+function captureWindowEvents<D>(name: string, fn: () => void): D[] {
+  const seen: D[] = [];
+  const listener = (e: Event) => seen.push((e as CustomEvent<D>).detail);
   window.addEventListener(name, listener);
   try { fn(); } finally { window.removeEventListener(name, listener); }
   return seen;
@@ -84,29 +95,29 @@ describe('#6124 half 1 — the three event-name keys are DECLARED on the authora
   // retired key still parses green, so only the declaration can report a
   // deletion. Retiring any of these three turns exactly this half red.
   it('ViewSwitcherSchema declares onViewChange', () => {
-    expect(Object.keys(ViewSwitcherSchema.shape)).toContain('onViewChange');
+    expect(Object.keys(ViewSwitcherMirror.shape)).toContain('onViewChange');
   });
   it('FilterUISchema declares onChange', () => {
-    expect(Object.keys(FilterUISchema.shape)).toContain('onChange');
+    expect(Object.keys(FilterUIMirror.shape)).toContain('onChange');
   });
   it('SortUISchema declares onChange', () => {
-    expect(Object.keys(SortUISchema.shape)).toContain('onChange');
+    expect(Object.keys(SortUIMirror.shape)).toContain('onChange');
   });
 
   it('each is a STRING mirror — an authored event name parses, a function does not', () => {
-    const base = { type: 'sort-ui', fields: [{ field: 'name' }] };
-    expect(SortUISchema.safeParse({ ...base, onChange: 'sort:changed' }).success).toBe(true);
+    const base = { type: 'sort-ui' as const, fields: [{ field: 'name' }] };
+    expect(SortUIMirror.safeParse({ ...base, onChange: 'sort:changed' }).success).toBe(true);
     // control: the instrument can say no — the string arm is a real constraint
-    expect(SortUISchema.safeParse({ ...base, onChange: () => {} }).success).toBe(false);
+    expect(SortUIMirror.safeParse({ ...base, onChange: () => {} }).success).toBe(false);
   });
 
   it('the describe() text names the EVENT-NAME channel, not "callback"', () => {
     // The mislabel is the measured root cause of the wrong bucketing, so the
     // corrected wording is pinned rather than left to survive by luck.
     for (const d of [
-      ViewSwitcherSchema.shape.onViewChange.description,
-      FilterUISchema.shape.onChange.description,
-      SortUISchema.shape.onChange.description,
+      ViewSwitcherMirror.shape.onViewChange.description,
+      FilterUIMirror.shape.onChange.description,
+      SortUIMirror.shape.onChange.description,
     ]) {
       // Names the real channel …
       expect(d).toMatch(/event name/i);
@@ -120,21 +131,21 @@ describe('#6124 half 1 — the three event-name keys are DECLARED on the authora
 
 describe('#6124 half 2 — the authored string is LIVE: it is the CustomEvent name', () => {
   it('ViewSwitcher dispatches the authored name on view change', () => {
-    const schema: any = {
+    const schema: ViewSwitcherSchema = {
       type: 'view-switcher', variant: 'buttons',
       views: [{ type: 'list' }, { type: 'grid' }],
       onViewChange: 'zz6124:view',
     };
     render(<ViewSwitcher schema={schema} />);
-    const events = captureWindowEvents('zz6124:view', () => {
+    const details = captureWindowEvents<{ view: string }>('zz6124:view', () => {
       fireEvent.click(screen.getByRole('button', { name: /grid/i }));
     });
-    expect(events).toHaveLength(1);
-    expect((events[0].detail as any).view).toBe('grid');
+    expect(details).toHaveLength(1);
+    expect(details[0].view).toBe('grid');
   });
 
   it('FilterUI dispatches the authored name on filter change', () => {
-    const schema: any = {
+    const schema: FilterUISchema = {
       type: 'filter-ui', layout: 'inline',
       filters: [{ field: 'qty', label: 'Qty', type: 'number' }],
       onChange: 'zz6124:filter',
@@ -142,24 +153,24 @@ describe('#6124 half 2 — the authored string is LIVE: it is the CustomEvent na
     const { container } = render(<FilterUI schema={schema} />);
     const input = container.querySelector('input[type="number"]') as HTMLInputElement;
     expect(input).toBeTruthy();
-    const events = captureWindowEvents('zz6124:filter', () => {
+    const details = captureWindowEvents<{ values: Record<string, unknown> }>('zz6124:filter', () => {
       fireEvent.change(input, { target: { value: '7' } });
     });
-    expect(events).toHaveLength(1);
-    expect((events[0].detail as any).values.qty).toBe(7);
+    expect(details).toHaveLength(1);
+    expect(details[0].values.qty).toBe(7);
   });
 
   it('SortUI dispatches the authored name on sort change', () => {
-    const schema: any = {
+    const schema: SortUISchema = {
       type: 'sort-ui', variant: 'buttons',
       fields: [{ field: 'name', label: 'Name' }],
       onChange: 'zz6124:sort',
     };
     render(<SortUI schema={schema} />);
-    const events = captureWindowEvents('zz6124:sort', () => {
+    const details = captureWindowEvents<{ sort: Array<{ field: string }> }>('zz6124:sort', () => {
       fireEvent.click(screen.getByRole('button', { name: /name/i }));
     });
-    expect(events).toHaveLength(1);
-    expect((events[0].detail as any).sort[0].field).toBe('name');
+    expect(details).toHaveLength(1);
+    expect(details[0].sort[0].field).toBe('name');
   });
 });
