@@ -478,8 +478,13 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   //
   // Deliberately NOT converged on `size: 'lg'` either: that bucket is
   // `min(92vw, 960px)`, which agrees with the above only at viewport >= 1600px
-  // and is up to 53% wider below it. That move is a real behaviour change and
-  // stays open on #6303 for a human ruling.
+  // and is up to 53% wider below it. That move is a real behaviour change, and
+  // it was RULED AGAINST: objectui#6584, 2026-08-27 — stays on the CSS
+  // literal; no bucket convergence. All four surfaces (gantt, kanban,
+  // calendar, RecordDetailDrawer) keep today's pixels. The question is
+  // CLOSED, not open — do not re-open it as a cleanup. If bucket-vocabulary
+  // unification ever becomes a product direction that is a fresh ruling,
+  // with visual-regression evidence across all four surfaces in one stroke.
   const navConfig = (schema as any).navigation ?? { mode: 'drawer' };
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({

@@ -77,6 +77,15 @@ export interface RecordDetailDrawerProps {
    * `min(960px, 60vw)` which fills ~60% of typical desktop viewports
    * (the prior `max-w-2xl` cap felt cramped on wide screens).
    *
+   * That default is the single code home of the literal repo-wide: the
+   * gantt, kanban and calendar renderers deliberately spell no width and
+   * let `undefined` fall through to here. Converging it on the `size: 'lg'`
+   * bucket (`min(92vw, 960px)` — up to 53% wider below a 1600px viewport)
+   * was RULED AGAINST: objectui#6584, 2026-08-27 — stays on the CSS
+   * literal; no bucket convergence. The question is CLOSED, not open. A
+   * future move to the bucket is a fresh ruling, with visual-regression
+   * evidence across all four surfaces in one stroke.
+   *
    * Note: when `resizable` is true (the default), this is only used
    * as the initial width — the user's drag-resized width takes over
    * and is persisted to localStorage keyed by `objectName`.
