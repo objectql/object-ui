@@ -11,7 +11,7 @@ are not dates at all used to become instants silently. These now produce the
 same loud diagnostic #6759 and #6770 already use — an alert naming the authored
 path and the offending value — instead of a chart:
 
-| `startDate` / `endDate` / `minDate` / `maxDate` | before | after |
+| authored gantt date — a row item's `startDate` / `endDate`, or a **truthy** `minDate` / `maxDate` pin | before | after |
 | --- | --- | --- |
 | `false` | a 649-column axis starting Jan 1970, bar `width: -100%`, no warning | refused, named |
 | `true` | the same 1970 axis | refused, named |
@@ -19,6 +19,12 @@ path and the offending value — instead of a chart:
 | `[0]` | drew a chart dated to the **year 2000** | refused, named |
 | `{ toString() { return '2024-01-01' } }` | drew a normal-looking chart | refused, named |
 | a `bigint` or a `symbol` | threw an uncaught `TypeError` mid-render | refused, named |
+
+**Falsy pins are not affected, and never were.** A `minDate` / `maxDate` of
+`false`, `0` or `''` is discarded by the renderer's existing truthy-only `||`
+before anything judges it: such a pin never produced a 1970 axis and it is not
+refused now — the chart simply uses the range computed from the rows, exactly as
+it did before. The before/after readings above are row-date readings.
 
 **If your gantt stops drawing after this upgrade, the diagnostic names the exact
 authored path** (e.g. `items[0].items[0].endDate`). Fix it at the producer: emit
