@@ -416,8 +416,9 @@ describe('the predicate is RUNTIME, so the exception shapes need no skip-list (o
     // other direction of that file's red. If objectui#6771's retirement of the
     // `body` dialect gives one of them a `children` read, that is when it earns
     // a reasoned entry of its own. ⚠️ Two of them are PUBLIC — `badge` and
-    // `alert` are bare keys in ADR-0080's `PUBLIC_BLOCKS` (measured 2026-08-30)
-    // — so that change would be moving published contract, not a mechanical fix.
+    // `alert` — so that change would be moving published contract, not a
+    // mechanical fix. That is a measurement, so it is pinned rather than
+    // asserted in prose: see the block below.
     // `validateTree`'s containment branch is guarded by `node.children?.length`
     // ALONE, so no author writing `body` on them has ever drawn a false
     // diagnostic. Measured: 13 bare keys, not the 10 objectui#6779 estimated —
@@ -428,6 +429,68 @@ describe('the predicate is RUNTIME, so the exception shapes need no skip-list (o
       expect(await rendersChildren(type), `\`${type}\` started rendering children`).toBe(false);
       expect(diagnose(withChildren(type)).map((d) => d.code), type).toContain(CONTAINMENT);
     }
+  }, CENSUS_TIMEOUT);
+});
+
+describe('the public tier of the ruled 14 is THREE, not one (objectui#6804)', () => {
+  // The baseline's ⚠️ paragraph tells whoever implements objectui#6771 that two of
+  // the 13 tags they are about to give a `children` read are PUBLISHED CONTRACT.
+  // That is a measurement, and this file's convention — set by the 44's own
+  // paragraph, "measured; the pin asserts it" — is that a measured claim in the
+  // ledger names the pin holding it. Unpinned, the warning goes quietly false the
+  // day `badge` or `alert` leaves the public tier, in the one sentence written to
+  // stop an unmeasured public-tier change. That is this card's own defect shape one
+  // level up: a claim nothing can distinguish from a stale one.
+  //
+  // Read off the LIVE REGISTRY rather than off `PUBLIC_BLOCKS`, because the list is
+  // the INPUT and the registry is the FACT, and this is precisely a population
+  // where the two differ: `getPublicConfigs()` keys the contract by the curated tag
+  // it was listed under, so the namespaced `page:sidebar` enters the public set
+  // under THAT spelling while the bare `sidebar` registration never does. Grepping
+  // the list would score all 12 sidebar keys off one entry that belongs to none of
+  // them.
+  it('`badge` and `alert` are public; the 11 bare `sidebar-*` keys are not', async () => {
+    const rows = await census();
+    const byType = new Map(rows.map((r) => [r.type, r]));
+    const isPublic = publicTags();
+
+    // DIRECTION CONTROL, first and for the same reason the 44's block carries one:
+    // without it, "the sidebar keys are not public" is indistinguishable from "this
+    // reader returned nothing", and every absence below would pass vacuously.
+    // `button` is the known positive — it is the fact the exclusion above rests on.
+    expect(isPublic.size).toBeGreaterThan(0);
+    expect(isPublic.has('button'), 'the public reader resolved nothing — every absence below is vacuous').toBe(
+      true,
+    );
+
+    // (1) The two public body readers. `button` is the only public tag among the 45
+    // VIOLATIONS, but not the only public tag among the ruled 14 — that is the
+    // distinction the baseline note now draws and this holds it.
+    for (const type of ['badge', 'alert']) {
+      expect(
+        byType.get(type)?.isPublic,
+        `\`${type}\` left the public tier — the baseline's ⚠️ public-tier paragraph is now false, fix it`,
+      ).toBe(true);
+    }
+
+    // (2) …and the eleven that are not, so "three" is a count and not a guess.
+    const sidebars = bareTags().filter((t) => t.startsWith('sidebar'));
+    expect(sidebars.length, 'the `sidebar-*` family changed size — re-measure the note').toBe(11);
+    expect(
+      sidebars.filter((t) => byType.get(t)?.isPublic),
+      'a bare `sidebar-*` key became public — declaring it would now delete a react-page identifier',
+    ).toEqual([]);
+    expect(['button', 'badge', 'alert'].filter((t) => byType.get(t)?.isPublic).length).toBe(3);
+
+    // (3) And why that is not the whole sidebar story: the sidebar that IS public is
+    // the namespaced registration, and it already declares the flag — so it is not
+    // in this containment story at all, and a reader who finds `page:sidebar` in
+    // `PUBLIC_BLOCKS` must not conclude the bare family is public too.
+    expect(isPublic.has('page:sidebar')).toBe(true);
+    expect(
+      ComponentRegistry.getMeta('page:sidebar')?.isContainer,
+      '`page:sidebar` stopped declaring containment — it is now part of this story',
+    ).toBe(true);
   }, CENSUS_TIMEOUT);
 });
 
