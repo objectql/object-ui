@@ -8,6 +8,11 @@
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type { DroppedFieldsEvent } from '@objectstack/spec/data';
+// #4934 — a VALUE import, not a type one: the write-warning boundary parses the
+// wire's `reason` against the enum the spec itself declares, so the accept set
+// is read off the pin instead of hand-copied here (a hand copy is the drift
+// this seam already paid for once — see `DroppedFieldsEvent`'s comment below).
+import { DroppedFieldsEventSchema } from '@objectstack/spec/data';
 import type { ApiError } from '@objectstack/spec/api';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
@@ -1356,16 +1361,117 @@ export type BatchProgressListener = (event: BatchProgressEvent) => void;
 export type { DroppedFieldsEvent };
 
 /**
+ * The `reason` values THIS bundle's `@objectstack/spec` pin declares, read off
+ * `DroppedFieldsEventSchema` rather than restated (objectui#4934).
+ *
+ * Derived, so a pin bump that adds an arm widens the accept set here on its own
+ * — the alternative is a hand list that silently classifies a brand-new spec
+ * reason as skew, which is the same drift in the other direction.
+ */
+const RECOGNIZED_DROP_REASONS: ReadonlySet<unknown> = new Set<unknown>(
+  DroppedFieldsEventSchema.shape.reason.options,
+);
+
+/**
+ * The `reason` of a write-strip this bundle's spec pin cannot name
+ * (objectui#4934).
+ *
+ * Deliberately NOT a spec spelling: it is namespaced so it can never collide
+ * with an arm `@objectstack/spec` adds later (a collision would merge real
+ * reasons into the skew bucket — the failure this whole card is about, one level
+ * up). `droppedFieldsReason.boundary.test.ts` pins that the installed spec does
+ * not declare it.
+ */
+export const UNRECOGNIZED_DROP_REASON = 'objectui:unrecognized-drop-reason';
+
+/**
+ * The skew arm: one server-reported write-strip whose `reason` is outside the
+ * enum this bundle's `@objectstack/spec` pin declares (objectui#4934).
+ *
+ * A deployed client normally runs BEHIND the server it talks to, so a reason
+ * from the future is the expected skew direction, not a corrupt payload. The
+ * boundary used to assert such an entry into {@link DroppedFieldsEvent} on shape
+ * alone — `reason` was never read — so the interior was typed to trust a union
+ * nothing had checked, and the next consumer to write an exhaustive-looking
+ * table over `DroppedFieldsEvent['reason']` would have been handed a value that
+ * type says is impossible.
+ *
+ * Three properties of this shape are load-bearing:
+ *
+ * - The entry is **kept**. Dropping it would tell the user nothing about fields
+ *   the server really did strip — precisely the silence objectui#3484 removed.
+ * - The wire value is **preserved verbatim** in {@link unrecognizedReason},
+ *   never coerced or normalised onto a known arm: claiming `readonly` for a
+ *   reason we cannot name is a false statement about the user's data, and it is
+ *   also unfalsifiable once the original value is gone.
+ * - `reason` carries {@link UNRECOGNIZED_DROP_REASON}, which is not assignable
+ *   to `DroppedFieldsEvent['reason']`. That is what makes the skew case visible
+ *   to `tsc` at every consumer instead of resting on N per-consumer
+ *   disciplines — and it keeps the spec type as the canonical arm rather than
+ *   widening the whole surface to `string` (objectui#3160).
+ */
+export interface UnrecognizedDropReasonEvent {
+  object?: string;
+  fields: string[];
+  reason: typeof UNRECOGNIZED_DROP_REASON;
+  /** Whatever the server sent, untouched — including a non-string or nothing at all. */
+  unrecognizedReason: unknown;
+}
+
+/**
+ * One entry of a write-warning: either the spec type (canonical arm) or the
+ * named skew arm above. Narrow with `entry.reason === UNRECOGNIZED_DROP_REASON`.
+ */
+export type DroppedFieldsNotice = DroppedFieldsEvent | UnrecognizedDropReasonEvent;
+
+/**
+ * A `droppedFields` entry as it comes OFF THE WIRE: everything a structural
+ * check can honestly claim about it, and no more. `reason` is `unknown` because
+ * nothing has parsed it yet — writing `DroppedFieldsEvent` here is the exact
+ * assertion objectui#4934 exists to delete.
+ */
+type WireDroppedFieldsEntry = Omit<DroppedFieldsEvent, 'reason'> & { reason?: unknown };
+
+/** Whether the wire's `reason` is an arm the installed spec pin declares. */
+function isRecognizedDropReason(reason: unknown): reason is DroppedFieldsEvent['reason'] {
+  return RECOGNIZED_DROP_REASONS.has(reason);
+}
+
+/**
+ * Classify ONE wire entry by parsing its `reason` against the spec enum
+ * (objectui#4934).
+ *
+ * A recognized entry is passed through by reference — unchanged, extra
+ * server-sent keys and all — so this is a classification, not a rewrite; only
+ * the skew case builds a new object. The cast on that path is the one kind this
+ * seam may still make: `reason` has just been PARSED, so the claim is proven
+ * rather than assumed.
+ */
+function asDroppedFieldsNotice(entry: WireDroppedFieldsEntry): DroppedFieldsNotice {
+  if (isRecognizedDropReason(entry.reason)) return entry as DroppedFieldsEvent;
+  return {
+    ...entry,
+    reason: UNRECOGNIZED_DROP_REASON,
+    unrecognizedReason: entry.reason,
+  };
+}
+
+/**
  * Emitted after a create/update whose response carried `droppedFields`
  * (framework #3431/#3455). The write SUCCEEDED — this is a warning that some
  * supplied fields never landed, so the UI can tell the user rather than let it
  * pass silently. Subscribe via {@link ObjectStackAdapter.onWriteWarning}.
+ *
+ * `droppedFields` is the two-arm {@link DroppedFieldsNotice} and not
+ * `DroppedFieldsEvent[]`: the wire is parsed here, and an entry whose `reason`
+ * this bundle's spec pin cannot name arrives on the explicit skew arm rather
+ * than being asserted into the union (objectui#4934).
  */
 export interface WriteWarningEvent {
   operation: 'create' | 'update';
   resource: string;
   id?: string | number;
-  droppedFields: DroppedFieldsEvent[];
+  droppedFields: DroppedFieldsNotice[];
 }
 
 /** Event listener type for write-warning (dropped-fields) events. */
@@ -1425,14 +1531,14 @@ function sameWireValue(a: unknown, b: unknown): boolean {
  * back empty, which suppresses the warning entirely.
  */
 function withoutNoOpDrops(
-  droppedFields: DroppedFieldsEvent[],
+  droppedFields: DroppedFieldsNotice[],
   sent: Record<string, unknown> | undefined | null,
   stored: Record<string, unknown> | undefined | null,
-): DroppedFieldsEvent[] {
+): DroppedFieldsNotice[] {
   if (!sent || !stored || typeof sent !== 'object' || typeof stored !== 'object') {
     return droppedFields;
   }
-  const out: DroppedFieldsEvent[] = [];
+  const out: DroppedFieldsNotice[] = [];
   for (const e of droppedFields) {
     const kept = e.fields.filter((f) => {
       if (!Object.prototype.hasOwnProperty.call(sent, f)) return true;
@@ -2355,6 +2461,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * and, when present, notify write-warning subscribers. Tolerant of a client
    * whose response type predates `droppedFields`: the field is read structurally
    * and validated, so an older client (or a backend that never drops) is a no-op.
+   *
+   * SHAPE decides whether an entry is an event at all (it must carry a non-empty
+   * `fields`); `reason` is then PARSED against the spec enum and an unrecognized
+   * one routed to the skew arm — never asserted into the union, and never
+   * dropped (objectui#4934).
    */
   private notifyDroppedFields(
     operation: 'create' | 'update',
@@ -2365,10 +2476,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   ): void {
     const dropped = (result as { droppedFields?: unknown } | null | undefined)?.droppedFields;
     if (!Array.isArray(dropped) || dropped.length === 0) return;
-    const valid = dropped.filter(
-      (e): e is DroppedFieldsEvent =>
-        !!e && typeof e === 'object' && Array.isArray((e as DroppedFieldsEvent).fields) && (e as DroppedFieldsEvent).fields.length > 0,
-    );
+    const valid = dropped
+      .filter(
+        (e): e is WireDroppedFieldsEntry =>
+          !!e &&
+          typeof e === 'object' &&
+          Array.isArray((e as WireDroppedFieldsEntry).fields) &&
+          (e as WireDroppedFieldsEntry).fields.length > 0,
+      )
+      .map(asDroppedFieldsNotice);
     // A strip that changed nothing is not news — see withoutNoOpDrops (#3484).
     const stored = (result as { record?: Record<string, unknown> } | null | undefined)?.record;
     const droppedFields = withoutNoOpDrops(valid, sent, stored);
@@ -2397,7 +2513,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     const results = (payload as { results?: unknown[] } | null | undefined)?.results;
     for (const entry of dropped) {
       if (!entry || typeof entry !== 'object') continue;
-      const e = entry as DroppedFieldsEvent & { index?: number };
+      // The cast claims only the structure this loop checks; `reason` stays
+      // unparsed until `asDroppedFieldsNotice` below (objectui#4934).
+      const e = entry as WireDroppedFieldsEntry & { index?: number };
       if (!Array.isArray(e.fields) || e.fields.length === 0) continue;
       const op = typeof e.index === 'number' ? operations[e.index] : undefined;
       // Same no-op suppression as the single-record path (#3484). The echoed
@@ -2407,8 +2525,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         typeof e.index === 'number' && Array.isArray(results)
           ? (results[e.index] as Record<string, unknown> | undefined)
           : undefined;
+      // `reason` is parsed against the spec enum here too — the batch path used
+      // to re-assert the wire value into the union via the cast above
+      // (objectui#4934). `index` is deliberately not carried onto the notice:
+      // it addresses an operation in THIS response, not the strip.
       const [live] = withoutNoOpDrops(
-        [{ object: e.object, fields: e.fields, reason: e.reason }],
+        [asDroppedFieldsNotice({ object: e.object, fields: e.fields, reason: e.reason })],
         op?.data as Record<string, unknown> | undefined,
         stored,
       );
