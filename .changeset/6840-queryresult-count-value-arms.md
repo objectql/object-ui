@@ -1,6 +1,6 @@
 ---
-'@object-ui/components': patch
-'@object-ui/plugin-view': patch
+'@object-ui/components': minor
+'@object-ui/plugin-view': minor
 ---
 
 Read `find()` answers as `QueryResult` declares them on two more seams: the
