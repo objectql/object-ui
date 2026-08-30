@@ -53,7 +53,7 @@ trade away the guarantee that a newly pinned spec reason fails `type-check`
 unworded (objectui#3935).
 
 In this repo the entire blast radius is the app shell's write-warning toast —
-two type annotations, no runtime change. Its emitted JavaScript is byte-identical
+two type annotations, no runtime change. Its executable JavaScript is byte-identical
 and its wording tests pass unchanged, because the file was already written for
 this value: its own docstring says the runtime `reason` may sit outside the spec
 union and that the cause-free fallback is reachable, not dead. Only the parameter
