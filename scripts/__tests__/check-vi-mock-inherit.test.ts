@@ -569,7 +569,7 @@ describe('repo state — the gate is green on this tree', () => {
 
   it('has no frozen and no unreadable factory on a covered specifier', () => {
     expect(
-      result.frozen.map((f: { file: string; line: number; reason: string }) => `${f.file}:${f.line} ${f.reason}`),
+      result.frozen.map((f: { file: string; line: number; reason?: string }) => `${f.file}:${f.line} ${f.reason}`),
       'Run `pnpm check:vi-mock-inherit` for the full report and the fix guidance.',
     ).toEqual([]);
     expect(result.unreadable.map((u: { file: string; line: number }) => `${u.file}:${u.line}`)).toEqual([]);
@@ -578,7 +578,7 @@ describe('repo state — the gate is green on this tree', () => {
   it('actually walked the tree rather than silently matching nothing', () => {
     // The empty-verdict trap: without these, the assertion above passes for the
     // wrong reason on the day the walk breaks. Floors, not exact counts — the
-    // measured figures move every day (4002 / 2285 / 107 when this landed).
+    // measured figures move every day (4004 / 2286 / 107 when this landed).
     expect(result.census.sources).toBeGreaterThan(1000);
     expect(result.census.testFiles).toBeGreaterThan(1000);
     expect(result.census.covered).toBeGreaterThan(50);
