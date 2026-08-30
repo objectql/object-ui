@@ -208,9 +208,23 @@ export function useETagCache(userConfig: ETagCacheConfig = {}): ETagCacheResult 
   // every layout effect, ref attachment and paint, so the sole window deferred
   // is the render phase — where `fetchWithETag` / `clearCache` and the other
   // side effects are not callable anyway.
-  const configRef = useRef({ enabled, storage, storagePrefix, maxEntries, ttl });
+  //
+  // The object itself is built by `useMemo` rather than inline at the two
+  // places that consume it. `useRef({ ... })` evaluates its argument on EVERY
+  // render and keeps only the first result, so every later render allocated a
+  // five-key object that was thrown away (objectui#6817) — the same shape PR
+  // objectui#6796 repaired in `useSchemaPersistence`. Its identity is
+  // unobservable from outside the hook: the ref is private and every reader
+  // only reads fields off `.current`, so a memo React chooses to discard is
+  // harmless — it rebuilds an equal object, which is what every render used
+  // to do unconditionally.
+  const config = useMemo(
+    () => ({ enabled, storage, storagePrefix, maxEntries, ttl }),
+    [enabled, storage, storagePrefix, maxEntries, ttl],
+  );
+  const configRef = useRef(config);
   useInsertionEffect(() => {
-    configRef.current = { enabled, storage, storagePrefix, maxEntries, ttl };
+    configRef.current = config;
   });
 
   // Hydrate memory cache from localStorage on mount
