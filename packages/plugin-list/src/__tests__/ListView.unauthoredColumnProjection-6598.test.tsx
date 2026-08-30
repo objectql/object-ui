@@ -30,12 +30,18 @@
  * `effectiveFields` is `[]` for two reasons that must NOT be handed down the
  * same way, and only one of them is "unauthored". When the author DID declare
  * columns and the field gate removed every one of them, the empty projection is
- * the answer and has to survive: `ObjectGrid` re-applies FLS on its DERIVED
- * column path only, never on the explicit-columns path, so falling through to
- * the derivation there would put fields on screen that the author never asked
- * for and the principal may not read. That is why the predicate reads the
- * AUTHORED value and never what survived filtering — and why it is pinned next
- * to the case it would otherwise be "simplified" into.
+ * the answer and has to survive: falling through to the derivation there would
+ * put fields on screen that the author never asked for. That is why the
+ * predicate reads the AUTHORED value and never what survived filtering — and
+ * why it is pinned next to the case it would otherwise be "simplified" into.
+ *
+ * ⭐ The reason is NOT "the grid would not re-check". It used to be: before
+ * objectui#6799 `ObjectGrid` re-applied FLS on its derived path only, so a
+ * fall-through here escaped the field gate outright. objectui#6799 closed that
+ * — all three of the grid's default paths re-check now — and this pin is
+ * deliberately UNCHANGED, because what it protects is AUTHORING INTENT. The
+ * object's default columns are not the author's projection whether or not they
+ * are FLS-checked on the way out.
  *
  * plugin-grid is not a dependency of plugin-list (avoids a cycle), so — as in
  * `ListView.findParamsHandoff.test.tsx` — a stub `object-grid` records what
@@ -177,8 +183,10 @@ describe('ListView → object-grid: the unauthored column projection (#6598)', (
 
     // NOT `undefined`. The author declared a projection; every column of it was
     // denied. Handing the grid "unauthored" here would run its derivation and
-    // put the object's other fields on screen — a widening past the field gate,
-    // which the explicit-columns path in ObjectGrid does not re-check.
+    // put the object's OTHER fields on screen — fields the author never
+    // declared. (Before objectui#6799 that was ALSO a widening past the field
+    // gate, because the grid's explicit-columns path did not re-check. It does
+    // now; the assertion is unchanged, because authoring intent is the reason.)
     expect(gridSchema()).toBeTruthy();
     expect(gridSchema().columns).toEqual([]);
     expect(gridSchema().fields).toEqual([]);
