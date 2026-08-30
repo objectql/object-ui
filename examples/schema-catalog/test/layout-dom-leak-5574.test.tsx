@@ -82,7 +82,7 @@ type Node = Record<string, unknown>;
  * it discriminates nothing; what it does is carry PR #5573's fix forward under
  * the same instrument that grades the other four.
  */
-const MEASURED_TYPES = ['flex', 'stack', 'container', 'grid', 'text'] as const;
+const MEASURED_TYPES = ['flex', 'stack', 'container', 'grid', 'text', 'box'] as const;
 
 /**
  * Nodes of each type in the catalog today, and how many of them render no
@@ -101,7 +101,15 @@ const NODE_CENSUS: Readonly<Record<string, { rendered: number; noElement: number
   stack: { rendered: 153, noElement: 0 },
   container: { rendered: 15, noElement: 0 },
   grid: { rendered: 26, noElement: 0 },
-  text: { rendered: 699, noElement: 176 },
+  // 699 -> 702: the two components-layout-box exemplars author 3 text nodes
+  // (objectui#3965).
+  text: { rendered: 702, noElement: 176 },
+  // The objectui#3965 migration population (80 nodes retyped from `div`) plus
+  // the 4 nodes of the components-layout-box exemplars. `box` is born on
+  // `toDomProps` and class-transparency, so it joins the measured set as a
+  // converged renderer from day one — 84 real authored nodes, every one
+  // expected to render its element and leak nothing.
+  box: { rendered: 84, noElement: 0 },
 };
 
 /**
