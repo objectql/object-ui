@@ -129,6 +129,16 @@ export const ObjectGridSchema = BaseSchema.extend({
   showPagination: z.boolean().optional(),
   defaultSort: z.object({ field: z.string(), order: z.enum(['asc', 'desc']) }).optional(),
   defaultFilters: z.record(z.string(), z.any()).optional(),
+  // The legacy caption/export-title fallback — `ObjectGrid.tsx` reads it at
+  // exactly two sites, `viewLabel: schema.label || schema.title` and
+  // `caption: schema.label || schema.title`, only when `label` is absent — and
+  // the interface has declared it `@deprecated` all along. Mirrored under
+  // objectui#6639's census-directed ruling (2026-08-29, declare branch:
+  // authored `object-grid.title` nodes exist, so the key is declared rather
+  // than the read retired). Typed `z.string()`, not `z.any()` — serializable
+  // metadata, the #6424 family form: the gain is the typed refusal, since the
+  // `.passthrough()` base was already admitting ANY `title` unexamined.
+  title: z.string().optional().describe('DEPRECATED, write label instead: legacy caption/export-file-title fallback, read only when label is absent'),
   operators: z.record(z.string(), z.any()).optional(), // Missing in previous TS scan but common
   rowActions: z.array(z.string()).optional(),
   batchActions: z.array(z.string()).optional(),

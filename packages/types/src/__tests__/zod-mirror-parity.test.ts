@@ -58,11 +58,13 @@
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
  *   - **12 entries** in `KnownDrift`, **17 keys** across them.
- *   - **16 entries** in `UnmirroredDeclared`, **98 keys** across them. ⚠️ It was
+ *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
- *     keys to the ledger below by RECLASSIFICATION, not by fixing them. Anything
- *     citing "121" as the mirroring debt is citing a number that changed meaning —
- *     the comparable figure is 98 + 23. The full statement is on that ledger.
+ *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
+ *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
+ *     Anything citing "121" as the mirroring debt is citing a number that changed
+ *     meaning — the comparable figure is 97 + 1 mirrored + 23 reclassified. The
+ *     full statement is on that ledger.
  *   - **6 entries** in `RuntimeOnlyDeclared`, **23 keys** across them — a strict
  *     subset of the 16 pairs above, so the "no entry in either" population is
  *     unchanged.
@@ -709,19 +711,23 @@ interface KnownDrift {
  * Exact DECLARED-BUT-UNMIRRORED key set per pair: keys the published TypeScript
  * invites an author to write and the published validator has never heard of.
  *
- * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION
+ * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION,
+ * ## then 97 by the first REPAIR
  *
- * objectui#6058 seeded this ledger at **121 keys**. It records **98**, and the
- * difference is NOT 23 defects repaired. objectui#6152 measured the 23
- * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for
- * every one of them; they moved, intact and still pinned, to `RuntimeOnlyDeclared`
- * below. ⛔ Nothing was mirrored, no declaration was removed, nothing was waived.
+ * objectui#6058 seeded this ledger at **121 keys**. It records **97**, and the two
+ * movements are different facts. objectui#6152 measured the 23 callback-shaped
+ * (`on*`) keys and ruled that mirroring is the wrong remedy for every one of them;
+ * they moved, intact and still pinned, to `RuntimeOnlyDeclared` below — ⛔ nothing
+ * was mirrored, no declaration was removed, nothing was waived by that move. Then
+ * objectui#6639 MIRRORED `ObjectGridSchema.title` (census-directed maintainer
+ * ruling 2026-08-29, declare branch) — one defect actually repaired, the ledger's
+ * first shrink by repair.
  *
- * So: **98 is the mirroring debt; 98 + 23 is what "121" used to mean.** A card that
- * cites 121 as the size of the mirroring problem, or 98 as a shrink from it, is
- * wrong in both directions. objectui#6141 is the standing example of what a
- * silently moved count costs — it is why this paragraph is in the ledger rather
- * than in a commit message.
+ * So: **97 is the mirroring debt; 97 + 1 mirrored + 23 reclassified is what "121"
+ * used to mean.** A card that cites 121 as the size of the mirroring problem, or
+ * 98/97 as a shrink from it, is wrong in both directions. objectui#6141 is the
+ * standing example of what a silently moved count costs — it is why this paragraph
+ * is in the ledger rather than in a commit message.
  *
  * ## ⛔ SHRINK-ONLY, and why a seed is a FLOOR rather than a waiver
  *
@@ -754,12 +760,13 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (13 entries, 85 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (13 entries, 84 keys)** — plain omissions from a hand-written mirror.
  *
  * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
- * (107 → 85). The pair COUNTS did not move — every affected pair kept keys here —
- * which is why 16 entries still hold 98 keys.
+ * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`). The pair
+ * COUNTS did not move — every affected pair kept keys here — which is why 16
+ * entries still hold 97 keys.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -844,12 +851,17 @@ interface UnmirroredDeclared {
     | 'formType' | 'mobile' | 'modalCloseButton' | 'modalSize' | 'nextText' | 'open' | 'prevText'
     | 'sections' | 'showStepIndicator' | 'splitDirection' | 'splitResizable' | 'splitSize'
     | 'subforms' | 'submitHandler' | 'tabPosition';
-  /** LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152). */
+  /**
+   * LOCAL. It was 17: `onNavigate` is in `RuntimeOnlyDeclared` below (objectui#6152),
+   * and `title` was MIRRORED by objectui#6639 (census-directed ruling 2026-08-29,
+   * declare branch) — the ledger's first shrink by REPAIR rather than
+   * reclassification.
+   */
   'objectql.zod.ts#ObjectGridSchema':
     | 'aggregations' | 'bulkActionDefs' | 'bulkSpecActions' | 'conditionalFormatting'
     | 'emptyState' | 'exportOptions' | 'grouping' | 'navigation' | 'operations'
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
-    | 'singleClickEdit' | 'title';
+    | 'singleClickEdit';
   /**
    * SPEC-DERIVED → objectui#2231. ⭐ This pair had NO entry in EITHER ledger before
    * objectui#6058 — eleven declared keys the published validator has never heard of,
@@ -888,13 +900,15 @@ interface UnmirroredDeclared {
  * ## ⚠️ THIS IS WHERE 23 KEYS WENT — a RECLASSIFICATION, not a fix
  *
  * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058. It records
- * **98** today and the difference is these 23, moved here whole. ⛔ Nothing was
- * mirrored, no declaration was removed, no defect was repaired and nothing was
+ * **97** today: these 23 moved here whole, and `ObjectGridSchema.title` was later
+ * MIRRORED by objectui#6639 — the move recorded HERE repaired nothing. ⛔ Nothing was
+ * mirrored by it, no declaration was removed, no defect was repaired and nothing was
  * waived: the same 23 facts are still measured, still declared-but-unmirrored, still
  * reconciled against the same measurement — under a different remedy.
  *
- * **98 is the mirroring debt; 98 + 23 is what "121" used to mean.** Cite it that way.
- * objectui#6141 is the standing example of what a silently moved count costs.
+ * **97 is the mirroring debt; 97 + 1 mirrored + 23 reclassified is what "121" used
+ * to mean.** Cite it that way. objectui#6141 is the standing example of what a
+ * silently moved count costs.
  *
  * ## Why mirroring is the wrong remedy for these (the objectui#6152 ruling)
  *
@@ -1089,7 +1103,7 @@ export type assertionRuntimeOnlyIsCallbackShapedOnly =
  * The two ledgers are DISJOINT per pair.
  *
  * The union reconciliation below cannot see a double-filing — `'a' | 'a'` is `'a'` —
- * so a key recorded in both halves would reconcile green while making "98 + 23" the
+ * so a key recorded in both halves would reconcile green while making "97 + 23" the
  * wrong arithmetic and leaving two contradictory remedies on record. Named here
  * instead of assumed.
  */

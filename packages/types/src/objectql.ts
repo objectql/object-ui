@@ -788,7 +788,17 @@ export interface ObjectGridSchema extends BaseSchema {
   
   /**
    * @deprecated Use label instead
-   * Legacy title field
+   * Legacy title field — the caption/export-file-title fallback. `ObjectGrid.tsx`
+   * reads it at exactly two sites, `viewLabel: schema.label || schema.title` and
+   * `caption: schema.label || schema.title`, only when `label` is absent.
+   *
+   * Kept DECLARED — not retired — by objectui#6639's census-directed maintainer
+   * ruling (2026-08-29, declare branch): authored `object-grid.title` nodes exist
+   * (both confirmed hits are in `content/docs/api/schema-reference.md`'s
+   * examples), so dropping the read would silently cost those nodes their
+   * caption. Mirrored in `zod/objectql.zod.ts` and paired off the
+   * `UnmirroredDeclared` ledger in `__tests__/zod-mirror-parity.test.ts` by the
+   * same card — the #6424 family form.
    */
   title?: string;
 
