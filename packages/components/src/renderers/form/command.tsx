@@ -10,7 +10,7 @@ import { ComponentRegistry } from '@object-ui/core';
 import type { CommandSchema } from '@object-ui/types';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '../../ui/command';
 // `CommandItem.icon` is an authored lucide NAME that this renderer never read —
-// `command-menu.json` and `command-palette-with-shortcuts.json` declare nine of
+// `command-menu.json` and `file-command-palette.json` declare nine of
 // them between them and drew none (objectui#5931).
 //
 // Routed through the RECORD surface (`icons` from 'lucide-react', reached via

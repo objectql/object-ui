@@ -169,7 +169,7 @@ describe('command palette fixture: every item key survives a CommandItem parse',
    * and `.success` stays true. Round-trip equality is what detects it.
    */
   const items = (
-    (schemaOf('components-form-command/command-palette-with-shortcuts')
+    (schemaOf('components-form-command/file-command-palette')
       .groups as Json[])[0].items as Json[]
   );
 

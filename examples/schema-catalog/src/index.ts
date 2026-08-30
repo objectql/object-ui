@@ -196,7 +196,7 @@ import components_form_combobox_disabled from './schemas/components-form-combobo
 import components_form_combobox_searchable_combobox from './schemas/components-form-combobox/searchable-combobox.json' with { type: 'json' };
 import components_form_combobox_with_value from './schemas/components-form-combobox/with-value.json' with { type: 'json' };
 import components_form_command_command_menu from './schemas/components-form-command/command-menu.json' with { type: 'json' };
-import components_form_command_command_palette_with_shortcuts from './schemas/components-form-command/command-palette-with-shortcuts.json' with { type: 'json' };
+import components_form_command_file_command_palette from './schemas/components-form-command/file-command-palette.json' with { type: 'json' };
 import components_form_date_picker_basic_date_picker from './schemas/components-form-date-picker/basic-date-picker.json' with { type: 'json' };
 import components_form_date_picker_date_range_selector from './schemas/components-form-date-picker/date-range-selector.json' with { type: 'json' };
 import components_form_date_picker_disabled from './schemas/components-form-date-picker/disabled.json' with { type: 'json' };
@@ -2122,14 +2122,14 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_form_command_command_menu,
   },
-  'components-form-command/command-palette-with-shortcuts': {
-    id: 'components-form-command/command-palette-with-shortcuts',
+  'components-form-command/file-command-palette': {
+    id: 'components-form-command/file-command-palette',
     meta: {
-      title: "Command Palette With Shortcuts",
+      title: "File Command Palette",
       description: "",
       category: 'components-form-command',
     },
-    schema: components_form_command_command_palette_with_shortcuts,
+    schema: components_form_command_file_command_palette,
   },
   'components-form-date-picker/basic-date-picker': {
     id: 'components-form-date-picker/basic-date-picker',

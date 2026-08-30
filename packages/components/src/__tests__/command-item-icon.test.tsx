@@ -198,7 +198,7 @@ describe('ui:command item icon resolution (objectui#5931)', () => {
       }
     });
 
-    it('command-palette-with-shortcuts.json — draws a glyph for all three names it declares', () => {
+    it('file-command-palette.json — draws a glyph for all three names it declares', () => {
       renderCommand([
         { value: 'new', label: 'New File', icon: 'file-plus' },
         { value: 'open', label: 'Open File', icon: 'folder-open' },

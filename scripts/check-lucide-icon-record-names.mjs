@@ -276,7 +276,7 @@ export const RECORD_READING_TYPES = {
   // extract nothing, report no violations and read exactly like a clean tree.
   // Descent reaches them because an untyped node passes descent through to its
   // own children. `min` is the measured count: six names in `command-menu.json`
-  // plus three in `command-palette-with-shortcuts.json`.
+  // plus three in `file-command-palette.json`.
   'command': {
     paths: [],
     descendants: true,
