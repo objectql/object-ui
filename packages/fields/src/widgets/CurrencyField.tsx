@@ -136,6 +136,8 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
    * warns about `1e` but silently truncates `1.2.3` teaches people that no
    * warning means the value is right. See `content/docs/guide/fields.md`.
    */
+  const domProps = toDomProps(props);
+
   // Parse and format on blur to ensure valid currency format
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     // objectui#6780: the blur arm. React delivers no `onChange` when `.value`
@@ -143,17 +145,33 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
     // — and `badInput` is still true at blur time, so this is the only arm that
     // sees that route.
     //
-    // ⚠️ This widget's `onBlur` has ALWAYS overridden the host's (it is written
-    // after the `toDomProps` spread), and that is left exactly as it was: no
-    // host in this repo passes `onBlur` to a field widget today (the data-table
-    // inline editor uses a document-level pointerdown listener instead), so
-    // composing it here would be an unmeasured behaviour change outside this
-    // card's ruling. Filed separately.
+    // ⚠️ COMPOSES the host's `onBlur` rather than replacing it (objectui#6802).
+    // `onBlur` is a declared DOM pass-through key (`FieldWidgetDomProps`,
+    // `SDUI_DOM_PASS_THROUGH_KEYS`) that `toDomProps` already delivers here, so
+    // the bare handler this used to be — written AFTER the spread — silently
+    // dropped it: this package's DECLARED-BUT-NOT-DELIVERED class
+    // (objectui#3290 / objectui#3222).
+    //
+    // ⛔ NOT the no-op the card assumed. objectui#6802 was filed on the reading
+    // that "no host in this repo passes `onBlur` to a field widget"; that is
+    // FALSE. The form renderer hosts every field through react-hook-form's
+    // `Controller` and spreads the controller field — `{ name, value, onChange,
+    // onBlur, ref, disabled }` — into the widget's props
+    // (`components/src/renderers/form/form.tsx`). That `onBlur` is what marks
+    // the field touched and, under an authored `validationMode: 'onBlur'` /
+    // `'onTouched'`, runs its validation. Overriding it opted currency fields
+    // out of blur-mode validation while every sibling field kept it. The
+    // reproduction through the real renderer is
+    // `__tests__/hostOnBlurDelivery-e2e.test.tsx`.
     readBadInput(e.target);
     const val = parseFloat(e.target.value);
     if (!isNaN(val)) {
       onChange(parseFloat(val.toFixed(precision)));
     }
+    // Last: the widget's own rounding emission lands before the host is told
+    // the field was touched, so a blur-mode validator reads the parsed value
+    // rather than the raw one.
+    domProps.onBlur?.(e);
   };
 
   // ONE channel for the symbol (objectui#4414). This used to be a hand-written
@@ -176,7 +194,7 @@ export function CurrencyField({ value, onChange, field, readonly, error, classNa
           </span>
         )}
         <Input
-          {...toDomProps(props)}
+          {...domProps}
           type="number"
           value={value ?? ''}
           onChange={(e) => {

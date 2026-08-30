@@ -328,20 +328,27 @@ describe('GeolocationField reads its two boxes independently (objectui#6780)', (
 describe('the added onBlur composes the host handler instead of replacing it', () => {
   /**
    * `onBlur` is a DECLARED DOM pass-through key (`FieldWidgetDomProps`), so
-   * `toDomProps` delivers a host's handler onto these controls. The three
-   * widgets that gained an `onBlur` here write it AFTER that spread, so without
-   * composition they would silently drop it — this package's
-   * DECLARED-BUT-NOT-DELIVERED class (objectui#3290 / objectui#3222).
+   * `toDomProps` delivers a host's handler onto these controls. A widget that
+   * writes its own `onBlur` AFTER that spread silently drops it — this
+   * package's DECLARED-BUT-NOT-DELIVERED class (objectui#3290 / objectui#3222).
    *
-   * ⛔ `CurrencyField` is deliberately absent. It has overridden the host's
-   * `onBlur` since long before this card, no host in this repo passes one
-   * today, and changing that is an unmeasured behaviour change outside this
-   * card's ruling. Filed separately rather than folded in here.
+   * ⭐ `CurrencyField` joined this list in objectui#6802. It was excluded here
+   * on the reading that it "has overridden the host's `onBlur` since long
+   * before this card, no host in this repo passes one today". ⛔ The second
+   * half of that is FALSE, and the note is corrected rather than moved: the
+   * form renderer hosts every field through react-hook-form's `Controller` and
+   * spreads the controller field — which always carries an `onBlur` — into the
+   * widget's props, so this widget was opting currency fields out of blur-mode
+   * validation on every form in the repo. The user-visible reproduction lives
+   * in `hostOnBlurDelivery-e2e.test.tsx`; `TagsField`, which carried the same
+   * shape and is not a `type="number"` widget, is pinned in
+   * `TagsField.hostOnBlur.test.tsx`.
    */
   it.each([
     ['PercentField', PercentField, { name: 'rate', type: 'percent' }],
     ['NumberField', NumberField, { name: 'qty', type: 'number' }],
     ['GeolocationField', GeolocationField, { name: 'where', type: 'geolocation' }],
+    ['CurrencyField', CurrencyField, { name: 'amount', type: 'currency', currency: 'USD' }],
   ])('%s still calls a host onBlur', (_name, Widget, field) => {
     const hostBlur = vi.fn();
     const { box } = mountWidget(asWidget(Widget), field, undefined, { onBlur: hostBlur });
