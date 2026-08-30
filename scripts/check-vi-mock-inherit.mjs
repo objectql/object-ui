@@ -98,7 +98,7 @@
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
  * zero for it, then add it to `COVERED_SPECIFIERS` in the same PR. The list only
- * ever grows. objectui#6851 carries the per-specifier worklist.
+ * ever grows. objectui#6892 carries the per-specifier worklist.
  *
  * ⛔ There is deliberately NO per-file exception list, and adding one is the
  * wrong repair. An exemption means the recogniser called correct code broken;
@@ -160,7 +160,7 @@
  *
  * This is a LOCAL workaround in this gate, not a change to the shared masker --
  * that module is used by many gates and its JSX behaviour is filed separately
- * as objectui#6850.
+ * as objectui#6891.
  */
 
 import { execFileSync } from 'node:child_process';

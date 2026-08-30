@@ -234,7 +234,7 @@ describe('scope — narrow, and out of scope by construction rather than by exem
   });
 
   it('a workspace package outside the covered set is counted, not judged', () => {
-    // 299 frozen factories live on these today (objectui#6851). Judging them
+    // 299 frozen factories live on these today (objectui#6892). Judging them
     // would land this gate RED on 298 sites it was not dispatched to sweep.
     const site = verdictOf(`() => ({ useAuth: Stub })`, '@object-ui/auth');
     expect(site.scope).toBe('workspace');
@@ -324,7 +324,7 @@ describe('deJsxClosingTags — the shared masker reads `</div>` as a regex liter
    * to the end of the line, swallowing whatever is there — including the `)`
    * that closes a `vi.mock` call. Measured on this tree: SEVEN call sites in
    * five files could not be delimited at all, one of them a covered site.
-   * Filed against the shared module as objectui#6850; worked around here.
+   * Filed against the shared module as objectui#6891; worked around here.
    */
 
   const jsxFactory = `({ open, children }: any) => (open ? <div>{children}</div> : null)`;
