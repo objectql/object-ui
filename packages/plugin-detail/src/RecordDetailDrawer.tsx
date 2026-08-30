@@ -263,8 +263,32 @@ export function RecordDetailDrawer({
         format: def.format,
         // Served schemas key the target as `reference` (ObjectStack
         // convention, #2407); the drawer can receive a raw schema from any
-        // DataSource, so resolve every spelling.
-        reference_to: def.reference_to ?? def.reference ?? def.referenceTo ?? def.target,
+        // DataSource, so both snake_case spellings are resolved here.
+        //
+        // Two further arms stood here until objectui#6837 — `def.referenceTo`
+        // and `def.target` — and they were NOT redundant-but-harmless: no
+        // contract declares either spelling. `FieldSchema` refuses BOTH by name
+        // with `unrecognized_keys`, each carrying its own "did you mean
+        // `reference`" rename; `referenceTo` is additionally stripped at the
+        // designer read door (`RETIRED_FIELD_KEYS`, objectui#6041 / #6519), so
+        // that arm could never hit. A structure-walk producer census found ZERO
+        // emitters of either at THIS cell — a value inside an object schema's
+        // `fields` container, which is what `objectSchema.fields[name]` reads —
+        // while the controls `reference` (92 hits / 36 files) and `reference_to`
+        // (52 / 36) were hot in the same pass over the same cells. So the two
+        // arms were invented tolerance surface: a silent absorption point for a
+        // producer that should fail visibly (AGENTS.md #0.1).
+        //
+        // ⛔ Do not re-add a spelling arm here. A producer emitting a refused
+        // spelling is fixed AT THE PRODUCER, or canonicalised once at the
+        // ingestion choke point (`normalizeSchemaReferenceKeys`, which stamps
+        // both snake_case keys from whichever spelling arrived) — never by a
+        // renderer-side alias.
+        //
+        // The two remaining arms are deliberately left standing: deciding
+        // between them per reader is objectui#6837's OPEN scope (the
+        // classification table over ~20 more readers), not this slice's.
+        reference_to: def.reference_to ?? def.reference,
         reference_field: def.reference_field ?? def.referenceField,
         required: def.required,
         validation: def.validation,
