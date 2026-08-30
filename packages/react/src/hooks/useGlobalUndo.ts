@@ -6,7 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 import { globalUndoManager, type UndoableOperation } from '@object-ui/core';
 
 export interface UseGlobalUndoOptions {
@@ -54,7 +61,20 @@ function getCachedSnapshot() { return cachedSnapshot; }
  */
 export function useGlobalUndo(options: UseGlobalUndoOptions = {}) {
   const optionsRef = useRef(options);
-  optionsRef.current = options;
+  // Refreshed in the MUTATION phase, never in the render body. Every caller
+  // passes an inline object literal with inline `onUndo` / `onRedo` closures,
+  // so `options` is a new object on every render and the ref is what lets
+  // `undo` / `redo` keep a stable identity (the keydown effect below is keyed
+  // on them) while still reaching the newest callbacks. Writing it during
+  // render published the options of renders React discards or replays.
+  // `useInsertionEffect` runs ahead of every layout effect, ref attachment and
+  // paint in the commit, so the only window this moves is the render phase
+  // itself — where `undo` / `redo`, being async data mutations, are not
+  // callable. `useEffectEvent` would be idiomatic but is React 19.2+, and this
+  // package's peer range starts at React 18.
+  useInsertionEffect(() => {
+    optionsRef.current = options;
+  });
 
   const state = useSyncExternalStore(subscribe, getCachedSnapshot, getServerSnapshot);
 

@@ -6,7 +6,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 // ---------------------------------------------------------------------------
 // The offline vocabulary used to be the spec's (`OfflineConfigSchema` and
@@ -259,7 +267,18 @@ export function useOffline(config: OfflineConfig = {}): OfflineResult {
   const [queue, setQueue] = useState<QueuedMutation[]>(loadQueue);
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const syncConfigRef = useRef(syncConfig);
-  syncConfigRef.current = syncConfig;
+  // `sync` below is keyed on `[enabled, queue]`, so a config-only change keeps
+  // the SAME `sync` closure alive — and the auto-sync effect deliberately
+  // captures one and fires it 100ms later. The ref is how those retained
+  // closures still read the newest `sync` config; putting `syncConfig` in
+  // `sync`'s deps instead would rebuild `sync` (and the memoised result) on
+  // every render, because callers pass `sync: { ... }` as an inline literal.
+  // Only the write moves out of the render body: `useInsertionEffect` runs in
+  // the mutation phase, ahead of every layout effect and paint, so no caller
+  // that could legally reach `sync()` observes a different value than before.
+  useInsertionEffect(() => {
+    syncConfigRef.current = syncConfig;
+  });
 
   // Persist queue to localStorage whenever it changes
   useEffect(() => {

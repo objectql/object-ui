@@ -29,10 +29,18 @@
  * ⚠️ The pass-through assertion below is load-bearing, not decoration. The form
  * hands the widget's emission to `dataSource.create` UNCHANGED —
  * `sanitizeFormData` filters KEYS (server-managed, computed, read-only) and
- * never inspects a value, and `buildValidationRules` has no branch for
- * `location`, so its `min`/`max` rules only ever carry an author-declared bound
- * on a scalar. If a later change ever did add repair or validation on this
- * path, that assertion is what notices.
+ * never inspects a value.
+ *
+ * ⚠️ The second half of that sentence has since changed and the cases below
+ * still hold, which is worth stating rather than leaving to be re-derived.
+ * `buildValidationRules` DOES have a `location` branch now (objectui#6744): a
+ * stored value is adjudicated against `valueSchemaFor({ type: 'location' })`
+ * and an out-of-range one blocks the write. It does not touch the readings
+ * here, because every case in this file TYPES its coordinate — the widget
+ * refuses the out-of-range ones before they become form values, so the rule is
+ * handed `undefined` and has nothing to say. The measurement this file records
+ * is about the CREATE path at INPUT time; #6744's is about a value already in
+ * the record. `ObjectForm.locationStoredRange.test.tsx` pins that one.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor, fireEvent } from '@testing-library/react';

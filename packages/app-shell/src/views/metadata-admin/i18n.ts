@@ -395,6 +395,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.flowNode.config': 'Config (JSON)',
   'engine.inspector.flowNode.advanced': 'Advanced (JSON)',
   'engine.inspector.flowNode.advancedHint': 'Optional custom keys not covered by the form above — most flows don\u2019t need this.',
+  // objectui#6499 — a dependent field whose controller is off still renders,
+  // because a stored value is never hidden. These name that state instead of
+  // letting it read as live configuration.
+  'engine.inspector.flowNode.inactiveRetained': 'Kept, not in effect — its controlling field is off. The value stays saved until you clear it.',
+  'engine.inspector.flowNode.inactiveRetainedOrphan': 'Kept, not in effect — nothing activates this field. The value stays saved so it is not lost silently.',
+  'engine.inspector.flowNode.inactiveRetainedClear': 'Clear value',
   'engine.inspector.flowNode.noConfig': 'No configuration needed for this node type.',
   'engine.inspector.flowNode.nestedIdHint': 'A node inside a container region keeps its id here — rename it in the container’s Advanced JSON.',
   'engine.inspector.flowNode.kv.add': 'Add entry',
@@ -2211,6 +2217,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.flowNode.config': '配置（JSON）',
   'engine.inspector.flowNode.advanced': '高级（JSON）',
   'engine.inspector.flowNode.advancedHint': '上方表单未覆盖的可选自定义键 —— 大多数流程无需填写。',
+  'engine.inspector.flowNode.inactiveRetained': '已保留，未生效 —— 控制字段处于关闭。该值仍然存储，直到你清除它。',
+  'engine.inspector.flowNode.inactiveRetainedOrphan': '已保留，未生效 —— 没有任何开关能启用此字段。该值仍然存储，以免静默丢失。',
+  'engine.inspector.flowNode.inactiveRetainedClear': '清除值',
   'engine.inspector.flowNode.noConfig': '此节点类型无需配置。',
   'engine.inspector.flowNode.nestedIdHint': '容器区域内的节点 ID 在此只读 —— 请在容器的高级 JSON 中重命名。',
   'engine.inspector.flowNode.kv.add': '添加条目',

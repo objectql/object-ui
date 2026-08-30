@@ -5,9 +5,10 @@ import type { DashboardComponentSchema } from '@object-ui/types';
 
 // Mock SchemaRenderer to avoid pulling in the full renderer tree.
 // Forwards className and includes an interactive child to simulate real chart content.
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema, className }: { schema: any; className?: string }) => (
       <div data-testid="schema-renderer" className={className}>
         <button data-testid={`interactive-child-${schema?.type ?? 'unknown'}`}>

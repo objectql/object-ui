@@ -2,7 +2,7 @@
   "type": "context-menu",
   "trigger": {
     "type": "card",
-    "content": "Right-click here",
+    "children": "Right-click here",
     "className": "p-8 text-center border-dashed"
   },
   "items": [

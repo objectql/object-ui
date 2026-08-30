@@ -136,7 +136,15 @@ function ElementRecordPickerRenderer({ schema }: { schema: any }) {
         if (sort) query.$orderby = sort;
         if (limit) query.$top = limit;
         const res = await adapter.find(object, query);
-        const data: any[] = res?.data ?? res?.records ?? (Array.isArray(res) ? res : []);
+        // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+        // declares; the bare-array arm stays because fakes at this seam really
+        // do answer with a plain array. A `res?.records` arm sat between them
+        // until objectui#6726 — a below-the-adapter spelling
+        // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
+        // `records` envelope to `data` before returning), so no producer emits
+        // it here. Pinned by
+        // `record-picker.contractEnvelope-6726.test.tsx`.
+        const data: any[] = res?.data ?? (Array.isArray(res) ? res : []);
         if (!cancelled) setRows(data);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? 'Failed to load');

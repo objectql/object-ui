@@ -352,7 +352,7 @@ export interface RecordDisplayNameOptions {
   fallback?: string;
   /**
    * Whether to probe standard name-ish keys (`name`/`title`/…) directly on the
-   * record when `objectDef.fields` is absent (precedence step 3b). Defaults to
+   * record when `objectDef.fields` is absent (precedence step 4b). Defaults to
    * `true`. Callers that have a better generic fallback to interleave (e.g. the
    * detail header prefers `schema.title`, the object label, over a guessed
    * record key) pass `false` so this step is skipped and the resolver returns

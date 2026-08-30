@@ -13,7 +13,8 @@ const { schemaSpy } = vi.hoisted(() => ({ schemaSpy: vi.fn() }));
 vi.mock('../../InterfaceListPage', () => ({
   InterfaceListPage: () => <div data-testid="mock-interface-list" />,
 }));
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   SchemaRenderer: ({ schema }: { schema: any }) => {
     schemaSpy(schema);
     return <div data-testid="mock-schema-renderer" />;

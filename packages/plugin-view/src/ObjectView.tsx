@@ -925,10 +925,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         if (Array.isArray(results)) {
           items = results;
         } else if (results && typeof results === 'object') {
+          // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+          // declares. A `records` branch sat between `data` and `value` until
+          // objectui#6726 — a below-the-adapter spelling
+          // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
+          // `records` envelope to `data` before returning), so no producer
+          // emits it at this `DataSource.find()` seam and the branch was dead.
+          // Pinned by `ObjectView.contractEnvelope-6726.test.tsx`.
           if (Array.isArray((results as any).data)) {
             items = (results as any).data;
-          } else if (Array.isArray((results as any).records)) {
-            items = (results as any).records;
           } else if (Array.isArray((results as any).value)) {
             items = (results as any).value;
           }

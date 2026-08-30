@@ -19,9 +19,9 @@ declare namespace NodeJS {
   }
 }
 
-// Global process for browser environments
-declare const process: {
-  env: {
-    NODE_ENV: string;
-  };
-};
+// The browser `process` shim that used to sit here now lives in
+// `browser-process-shim.d.ts`, which `tsconfig.test.json` excludes. It replaced
+// (not augmented) the real node global in this package's TEST project, where
+// `@types/node` IS configured — see that file's header and objectui#6809.
+// Whatever stays in THIS file reaches both projects, so keep it to declarations
+// that are correct in both.

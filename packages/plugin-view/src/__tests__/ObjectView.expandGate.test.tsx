@@ -83,9 +83,10 @@ import type { ObjectViewSchema } from '@object-ui/types';
 /** Every non-empty row array `ObjectView` hands the child view, in order. */
 const deliveries: any[][] = [];
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     // Records the `data` prop, which is the seam the defect is visible at:
     // ObjectView passes `data={data}` down, suppressing the child's own fetch.
     SchemaRenderer: ({ schema, data }: any) => {

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useInsertionEffect, useMemo, useRef, useState } from 'react';
 
 // ---------------------------------------------------------------------------
 // Types aligned with @objectstack/client ETag caching
@@ -199,9 +199,19 @@ export function useETagCache(userConfig: ETagCacheConfig = {}): ETagCacheResult 
   const [cacheSize, setCacheSize] = useState(0);
   const [serviceWorkerActive, setServiceWorkerActive] = useState(false);
 
-  // Keep config in a ref so callbacks always see latest values
+  // Keep config in a ref so callbacks always see latest values. Every reader
+  // below is a `useCallback` with `[]` deps whose identity consumers may key
+  // effects on, so the config has to reach them without changing it — that is
+  // the ref's job. Only the WRITE moves: done in the render body it also ran
+  // for renders React discards or replays, publishing config from a tree that
+  // never committed. `useInsertionEffect` runs in the mutation phase, ahead of
+  // every layout effect, ref attachment and paint, so the sole window deferred
+  // is the render phase — where `fetchWithETag` / `clearCache` and the other
+  // side effects are not callable anyway.
   const configRef = useRef({ enabled, storage, storagePrefix, maxEntries, ttl });
-  configRef.current = { enabled, storage, storagePrefix, maxEntries, ttl };
+  useInsertionEffect(() => {
+    configRef.current = { enabled, storage, storagePrefix, maxEntries, ttl };
+  });
 
   // Hydrate memory cache from localStorage on mount
   useEffect(() => {

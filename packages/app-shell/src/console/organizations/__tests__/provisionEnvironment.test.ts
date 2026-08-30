@@ -5,7 +5,8 @@
  *
  *   - posts `Production` + the explicit org id to the cloud env endpoint;
  *   - resolves the created env on 2xx, reading it from the NESTED `environment`
- *     row the control plane wraps it in (objectui#6629);
+ *     row the control plane wraps it in (objectui#6629), and REFUSES a 2xx
+ *     whose `data` carries no such row (objectui#6707);
  *   - treats 403/409 ("org already has its production env" — e.g. the control
  *     plane's auto-default-environment plugin won the race) as SUCCESS
  *     (`alreadyProvisioned`), NOT a failure;
@@ -86,19 +87,48 @@ describe('provisionProductionEnvironment', () => {
 
   // Contract-first (AGENTS.md #0.1): the fix reads exactly ONE dialect. A flat
   // `data` is not a second accepted spelling of the payload, so its keys must
-  // not be picked up — no `data.environment ?? data` alias. Note it still
-  // RESOLVES rather than throws: rejecting a wrong-shaped `data` would change
-  // behaviour on a path the caller currently relies on swallowing, and is
-  // deliberately NOT folded into this fix (objectui#6629).
-  it('does not fall back to a flat `data` shape when `environment` is absent', async () => {
+  // not be picked up — no `data.environment ?? data` alias.
+  //
+  // objectui#6707 turned this pin from "resolves with nothing" into "REJECTS".
+  // It used to assert the call still resolved, because refusing a wrong-shaped
+  // `data` changes behaviour on a path the caller relies on swallowing, and
+  // that was deliberately severed from #6629 as its own decision. It was ruled
+  // (2026-08-29, option B): a flat payload is a producer violation, not a
+  // second dialect, so it is refused. The assertion is also strictly STRONGER
+  // than the one it replaces — a reintroduced `data.environment ?? data` alias
+  // would resolve `{ id: 'flat-1' }` here and fail this test, exactly as it
+  // failed the old one.
+  it('rejects a flat `data` shape instead of falling back to it', async () => {
     authFetch.mockResolvedValue(
       res(200, { success: true, data: { id: 'flat-1', hostname: 'flat.localhost' } }),
     );
 
-    const out = await provisionProductionEnvironment({ organizationId: 'org-123' });
+    await expect(provisionProductionEnvironment({ organizationId: 'org-123' })).rejects.toThrow(
+      /`data\.environment` is missing/,
+    );
+  });
 
-    expect(out.id).toBeUndefined();
-    expect(out.hostname).toBeUndefined();
+  // objectui#6707 — the producer-regression case the throw exists for, and it
+  // is NOT the same failure as a missing envelope. A `data` that is present and
+  // well-formed but carries no `environment` row (the other keys the handler
+  // really sends are here; `hostnameAssignment` is conditional, and its absence
+  // is the ordinary "no rename happened" case, never "unknown") must be refused
+  // with its OWN diagnostic. The two conditions answer different questions —
+  // "did the control plane wrap the payload?" vs "did it put the row where it
+  // says it does?" — so collapsing them into one message would cost whoever
+  // reads that logged warning the ability to tell a broken transport from a
+  // regressed producer. Hence the negative assertion, not just the positive one.
+  it('rejects an enveloped `data` whose `environment` row is absent, with its own diagnostic', async () => {
+    authFetch.mockResolvedValue(res(201, { success: true, data: { warnings: [], durationMs: 42 } }));
+
+    const err: unknown = await provisionProductionEnvironment({ organizationId: 'org-123' }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/`data\.environment` is missing/);
+    expect((err as Error).message).not.toMatch(/envelope/i);
   });
 
   it('treats 403 (already has its production env) as success, not a failure', async () => {

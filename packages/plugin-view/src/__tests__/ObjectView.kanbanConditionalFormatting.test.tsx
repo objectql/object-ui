@@ -53,9 +53,10 @@ import type { ObjectViewSchema } from '@object-ui/types';
 /** Every schema the view hands to SchemaRenderer, in order. */
 const rendered: any[] = [];
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => {
       rendered.push(schema);
       return <div data-testid="schema-renderer">{schema?.type}</div>;

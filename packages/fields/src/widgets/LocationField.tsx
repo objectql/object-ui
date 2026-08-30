@@ -353,8 +353,9 @@ export function LocationField({ value, onChange, field, readonly, error, ...prop
    * `undefined`. That was measured on this card before the route was chosen: a
    * real `location` branch installed in `buildValidationRules` saw `undefined`
    * in both refusal arms, while the same branch fired correctly for a STORED
-   * out-of-range pair. `buildValidationRules` still has no `location` branch,
-   * and this card does not give it one.
+   * out-of-range pair. `buildValidationRules` HAS a `location` branch as of
+   * objectui#6744 — for that STORED case, never for these refusal arms — and
+   * this card did not give it one.
    */
   const [refusalError, setRefusalError] = useState<string | null>(null);
 

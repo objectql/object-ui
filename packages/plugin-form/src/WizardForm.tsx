@@ -36,6 +36,40 @@ import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
 import type { FormSectionConfig } from './TabbedForm';
 
 /**
+ * A wizard STEP — the tabbed layout's section config minus its predicate slot
+ * (objectui#6237).
+ *
+ * The wizard borrows the tabbed arm's section shape because the two describe the
+ * same authored thing: a named group of fields. It must NOT borrow the predicate
+ * slot, and the omission is the enforcement, not a comment:
+ *
+ * A step predicate is not a port of the tab predicate, it is a different
+ * contract. Steps are wizard component state keyed by section INDEX, only the
+ * current step is mounted (unmounted-ness is every other step's NORMAL state,
+ * which is why the final gate re-checks the whole declared field set), and the
+ * predicate would read `formData` — which merges only at step boundaries. So a
+ * step predicate is structurally STEP-BOUNDARY reactive where a tab's is ruled
+ * LIVE-RECORD reactive: one keyword, two different "when". It also needs
+ * machinery none of which is inherited — navigation policy for skipping hidden
+ * steps, the indicator, `isLastStep`, the "Step X of Y" denominator, index
+ * stability while hiding is live, re-selection when the CURRENT step hides, and
+ * a final-gate exclusion for a hidden step's required fields.
+ *
+ * Declaring the key on the shared type would make it WRITABLE on a step while
+ * this renderer ignores it — precisely the declared-but-unenforced shape this
+ * card family exists to close. Omitting it means TypeScript rejects the key on a
+ * wizard step literal, which is where an author (or an agent authoring metadata)
+ * finds out. `ObjectForm` additionally reports the gap at runtime for a section
+ * predicate arriving on the wizard route, since untyped JSON reaches it too.
+ *
+ * ⚠️ This omission changes nothing that used to work: `FormSectionConfig` did
+ * not declare `visibleWhen` before objectui#6237 either, so a wizard step
+ * literal carrying it was already a type error. The wizard's surface is exactly
+ * what it was; only the tabbed arm widened.
+ */
+export type WizardStepConfig = Omit<FormSectionConfig, 'visibleWhen'>;
+
+/**
  * What the submitter is told when a DECLARED `navigateOnSuccess` produced no
  * destination — objectui#5034 point 2.
  *
@@ -108,7 +142,7 @@ export interface WizardFormSchema {
   /**
    * Wizard step sections
    */
-  sections: FormSectionConfig[];
+  sections: WizardStepConfig[];
   
   /**
    * Allow navigation to any step (not just sequential).
@@ -399,7 +433,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
 
   // Build section fields from object schema
   const buildSectionFields = useCallback(
-    (section: FormSectionConfig): FormField[] =>
+    (section: WizardStepConfig): FormField[] =>
       buildSectionFieldsShared(section as any, {
         objectSchema,
         objectName: schema.objectName,

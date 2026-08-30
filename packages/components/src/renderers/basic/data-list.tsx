@@ -132,7 +132,15 @@ function RepeaterRenderer({ schema }: { schema: any }) {
         if (props.sort) query.$orderby = props.sort;
         if (props.limit) query.$top = props.limit;
         const res = await adapter.find(props.object, query);
-        const data: any[] = res?.data ?? res?.records ?? (Array.isArray(res) ? res : []);
+        // `data` is the ONE rows member `QueryResult` (`@object-ui/types`)
+        // declares; the bare-array arm stays because fakes at this seam really
+        // do answer with a plain array. A `res?.records` arm sat between them
+        // until objectui#6726 — a below-the-adapter spelling
+        // (`ObjectStackAdapter.normalizeQueryResult` maps the server/SDK
+        // `records` envelope to `data` before returning), so no producer emits
+        // it here and the arm bought nothing. Pinned by
+        // `data-list.contractEnvelope-6726.test.tsx`.
+        const data: any[] = res?.data ?? (Array.isArray(res) ? res : []);
         if (!cancelled) setRows(data);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? 'Failed to load');

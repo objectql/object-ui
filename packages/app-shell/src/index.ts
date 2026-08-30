@@ -300,6 +300,15 @@ import './views/record-attachments-renderer.js';
 // `record:approvals` — schema-addressable approval panel referenced by
 // synthesized record pages when the record has approval requests (#3461).
 import './views/record-approvals-renderer.js';
+// `global:search` / `global:notifications` — the two spec `PageComponentType`
+// members the 2026-08-26 ruling on objectstack#12183 kept declared because both
+// data sources shipped (objectui#6757). Registered here, not in
+// `@object-ui/components`, because they read this package's providers and feeds;
+// without these two imports an authored page draws the "Component Placeholder"
+// scaffold for `global:search` and a red unknown-type panel for
+// `global:notifications`.
+import './views/global-search-renderer.js';
+import './views/global-notifications-renderer.js';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type

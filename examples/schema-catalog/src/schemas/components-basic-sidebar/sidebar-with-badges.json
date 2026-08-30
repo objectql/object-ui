@@ -25,7 +25,7 @@
                             },
                             {
                               "type": "badge",
-                              "content": "12",
+                              "label": "12",
                               "className": "ml-auto"
                             }
                           ]
@@ -44,7 +44,7 @@
                             },
                             {
                               "type": "badge",
-                              "content": "3",
+                              "label": "3",
                               "className": "ml-auto"
                             }
                           ]

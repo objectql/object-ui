@@ -33,7 +33,8 @@ const stub = {
   objectSchema: { managedBy: 'platform' } as any,
 };
 
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRecordContext: () => ({
     objectName: 'crm_lead',
     recordId: 'rec_1',

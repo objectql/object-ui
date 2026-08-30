@@ -22,7 +22,8 @@ let mockObjectList: Array<Record<string, unknown>> = [];
 vi.mock('@object-ui/auth', () => ({
   createAuthenticatedFetch: () => fetchSpy,
 }));
-vi.mock('@object-ui/react', () => ({
+vi.mock('@object-ui/react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => ({ find: vi.fn(async () => []) }),
 }));
 vi.mock('./useMetadata', () => ({

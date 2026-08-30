@@ -58,6 +58,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
+import { ComponentRegistry } from '@object-ui/core';
 import { SchemaRenderer } from '@object-ui/react';
 // Registers the renderers at module scope, NOT inside a `beforeAll` — there the
 // cold transform is billed to `hookTimeout`. See
@@ -157,5 +158,26 @@ describe('span deprecation notice — scoped by provenance (#4917)', () => {
     expect(el).toBeTruthy();
     const attrs = Array.from(el!.attributes).map((a) => a.name);
     expect(attrs.filter((n) => n.includes('provenance') || n.includes('tier'))).toHaveLength(0);
+  });
+
+  /**
+   * objectui#6674 — the same scope, DECLARED. Level with the sibling case in
+   * `div-deprecation-provenance.test.tsx`, for the reason objectui#4917 gave
+   * for bringing this renderer level in the first place: the two carry the same
+   * ruling, and a fact stated for one of them and not the other is how they
+   * diverge.
+   *
+   * The runtime exemption above and the declaration below are the same fact.
+   * Moving either alone turns this red.
+   */
+  it('DECLARES the scope those cases demonstrate — deprecated on json, not on html', () => {
+    expect(ComponentRegistry.deprecationFor('span', 'json')).toEqual({
+      surfaces: ['json'],
+      replacement:
+        'use "badge" for labels, or "text" with a className for inline emphasis',
+    });
+
+    expect(ComponentRegistry.deprecationFor('span', 'html')).toBeUndefined();
+    expect(ComponentRegistry.deprecationFor('ui:span', 'json')).toBeDefined();
   });
 });

@@ -51,9 +51,10 @@ import '@testing-library/jest-dom';
 import type { DataSource } from '@object-ui/types';
 import { ObjectView } from '../ObjectView';
 
-vi.mock('@object-ui/react', async () => {
+vi.mock('@object-ui/react', async (importOriginal) => {
   const React = await import('react');
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     SchemaRenderer: ({ schema }: any) => (
       <div data-testid="schema-renderer" data-schema-type={schema?.type}>
         {schema?.type}

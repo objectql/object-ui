@@ -46,7 +46,7 @@ export {
 export { TabbedForm } from './TabbedForm';
 export type { TabbedFormProps, TabbedFormSchema, FormSectionConfig } from './TabbedForm';
 export { WizardForm } from './WizardForm';
-export type { WizardFormProps, WizardFormSchema } from './WizardForm';
+export type { WizardFormProps, WizardFormSchema, WizardStepConfig } from './WizardForm';
 export { SplitForm } from './SplitForm';
 export type { SplitFormProps, SplitFormSchema } from './SplitForm';
 export { DrawerForm } from './DrawerForm';

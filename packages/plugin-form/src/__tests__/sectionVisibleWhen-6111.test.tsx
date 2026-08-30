@@ -101,9 +101,24 @@
  * re-selection, no mid-interaction collapse) are pinned at the renderer in
  * `packages/components/src/renderers/form/__tests__/fieldtab-visiblewhen-6237.test.tsx`;
  * the rows here pin only that THIS synthesis site copies the predicate onto
- * the tab. `TabbedForm` / `WizardForm` still declare no section predicate at
- * all (their section configs carry no `visibleWhen` key), so there is nothing
- * to copy and no row to write — those arms are separate cards.
+ * the tab.
+ *
+ * ## `TabbedForm` — the eighth synthesis site (objectui#6237, this card)
+ *
+ * `formType: 'tabbed'` reaches `TabbedForm`, which already synthesised
+ * `fieldTabs` — the very machinery the modal tabbed arm above runs on — but
+ * dropped the predicate at three points: `ObjectForm`'s tabbed map, the section
+ * config (which declared no such key), and the `fieldTabs` synthesis. All three
+ * now carry it, so this arm reaches the SAME evaluator by the SAME route and
+ * gets a row in the matrix below rather than a mechanism of its own.
+ *
+ * ⛔ `WizardForm` is deliberately still absent, and not by oversight: its step
+ * type OMITS the predicate (`WizardStepConfig`) because a step predicate is a
+ * different contract — step-boundary reactive against the ruled live-record
+ * reactivity, needing navigation and final-gate semantics none of this
+ * machinery supplies. `ObjectForm` reports that gap at runtime instead
+ * (sectionPredicateLayoutDiagnostic-6237.test.tsx). Adding a wizard row here
+ * would be pinning an unruled contract into existence.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -266,6 +281,17 @@ const LAYOUTS: {
     label: "ModalForm — contentLayout 'tabbed', via ObjectForm delegation (#6237)",
     mount: (scope, gate) =>
       renderObjectForm(scope, { formType: 'modal', open: true, contentLayout: 'tabbed' }, gate),
+  },
+  {
+    // The `formType: 'tabbed'` arm (#6237, this card). Same shape as the two
+    // modal-tabbed rows above — sections become tab panels, so the stamp is the
+    // tab's own `FormFieldTab.visibleWhen` and `gatedHeading()` reads the tab
+    // TRIGGER text — but a DIFFERENT chain: `ObjectForm`'s tabbed map into
+    // `TabbedForm`'s own `fieldTabs` synthesis. Both hops must copy the key, and
+    // a row per chain is the point of this matrix: the modal rows stayed green
+    // through the entire period this arm was inert.
+    label: "TabbedForm — formType 'tabbed', via ObjectForm delegation (tabbed map + fieldTabs synthesis, #6237)",
+    mount: (scope, gate) => renderObjectForm(scope, { formType: 'tabbed' }, gate),
   },
   {
     label: 'DrawerForm — via ObjectForm delegation (key-by-key remap + explicit-sections divider)',

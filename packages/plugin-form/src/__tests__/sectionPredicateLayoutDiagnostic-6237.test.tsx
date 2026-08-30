@@ -35,11 +35,19 @@
  *     feature.
  *   - flat / `simple` — carries the predicate on the `section-divider`
  *     pseudo-field. Also works.
- *   - `tabbed` (`TabbedForm`) and `wizard` (`WizardForm`) — the same key-by-key
- *     rebuild, copying no predicate. These are the inert arms.
+ *   - `tabbed` (`TabbedForm`) — WAS inert, and is no longer: the tabbed map now
+ *     copies the predicate, `TabbedForm` puts it on the tab it synthesises, and
+ *     the renderer evaluates it. It has MOVED to the honouring set below, which
+ *     is the single most important edit this file has taken: a diagnostic that
+ *     keeps warning about a feature that started working is a false alarm, and
+ *     false alarms are how a real one stops being read.
+ *   - `wizard` (`WizardForm`) — the same key-by-key rebuild, copying no
+ *     predicate. The last inert arm, and inert BY DESIGN: a step predicate is a
+ *     different contract, not a port of the tab one (see `WizardStepConfig`).
  *
- * The four negative rows below therefore pin the boundary, not politeness: they
- * are what stops a later edit from turning this into a blanket warning.
+ * The negative rows below therefore pin the boundary, not politeness: they are
+ * what stops a later edit from turning this into a blanket warning, and what
+ * would catch the tabbed arm regressing back into silence.
  *
  * ⚠️ Note the ModalForm `contentLayout: 'tabbed'` arm is NOT an inert arm and is
  * deliberately absent from the warned set — it gained a real predicate slot in
@@ -136,35 +144,37 @@ const diagnosticCalls = () =>
     .map((c: unknown[]) => String(c[0]))
     .filter((m: string) => m.includes('Section `visibleWhen` is not yet supported on this layout'));
 
-describe('#6237 — the inert arms REPORT instead of dropping the predicate in silence', () => {
-  it('formType `tabbed`: reports, naming the ruled phrase, the surface and the section', async () => {
-    await renderObjectForm(DENIED, { formType: 'tabbed' });
+describe('#6237 — the ONE still-inert arm REPORTS instead of dropping the predicate in silence', () => {
+  it('formType `wizard`: reports, naming the ruled phrase, the surface and the section', async () => {
+    await renderObjectForm(DENIED, { formType: 'wizard' });
     await waitFor(() => expect(diagnosticCalls().length).toBe(1));
     const message = diagnosticCalls()[0];
     expect(message).toContain('not yet supported on this layout');
-    expect(message).toContain("the `tabbed` layout's tabs");
+    expect(message).toContain("the `wizard` layout's steps");
     // The section is named, so an author with ten sections knows which one.
     expect(message).toContain('pay');
-    // The remedy names an arm that genuinely works today.
     expect(message).toContain('objectui#6237');
   });
 
-  it('formType `wizard`: reports too — steps are the second silently-inert arm', async () => {
+  it("the remedy now names `tabbed` as a working arm — it stopped being the problem", async () => {
+    // The remedy line is the half an author actually acts on. When an arm moves
+    // from inert to honouring, a remedy that still omits it sends the author to
+    // a layout they may not want for a reason that no longer exists.
     await renderObjectForm(DENIED, { formType: 'wizard' });
     await waitFor(() => expect(diagnosticCalls().length).toBe(1));
-    expect(diagnosticCalls()[0]).toContain("the `wizard` layout's steps");
+    expect(diagnosticCalls()[0]).toContain("`formType: 'tabbed' | 'modal' | 'drawer' | 'split'`");
   });
 
   it('the report does not depend on the VERDICT — an admitting predicate is just as inert', async () => {
-    // Nothing evaluates the key on these arms, so a TRUE predicate is dropped
+    // Nothing evaluates the key on this arm, so a TRUE predicate is dropped
     // exactly as a FALSE one is. A diagnostic that only fired on the denied
     // scope would leave the author of an allow-rule believing it worked.
-    await renderObjectForm(ALLOWED, { formType: 'tabbed' });
+    await renderObjectForm(ALLOWED, { formType: 'wizard' });
     await waitFor(() => expect(diagnosticCalls().length).toBe(1));
   });
 
   it('every section carrying a predicate is named, not just the first', async () => {
-    await renderObjectForm(DENIED, { formType: 'tabbed' }, [
+    await renderObjectForm(DENIED, { formType: 'wizard' }, [
       { name: 'always', label: 'Always', fields: ['subject'] },
       { name: 'pay', label: 'Compensation', visibleWhen: GATE, fields: ['salary'] },
       { name: 'extra', label: 'Extra', visibleWhen: GATE, fields: ['subject'] },
@@ -185,6 +195,12 @@ describe('#6237 — the boundary: arms that HONOUR the predicate stay silent', (
       { formType: 'modal', open: true, contentLayout: 'tabbed' }],
     ['drawer (ObjectForm drawer map copies it)', { formType: 'drawer', open: true }],
     ['split (ObjectForm split map copies it)', { formType: 'split' }],
+    // The row this card moved. `tabbed` honours the key through the very same
+    // renderer machinery the `modal + contentLayout: tabbed` row above uses —
+    // `ObjectForm`'s tabbed map copies the predicate, `TabbedForm` copies it
+    // onto the synthesised `FormFieldTab.visibleWhen`. Its BEHAVIOUR (not just
+    // its silence) is pinned in tabbedFormSectionPredicate-6237.test.tsx.
+    ['tabbed (TabbedForm, via FormFieldTab.visibleWhen)', { formType: 'tabbed' }],
   ];
 
   for (const [label, extra] of honouring) {
@@ -195,7 +211,7 @@ describe('#6237 — the boundary: arms that HONOUR the predicate stay silent', (
   }
 
   it('an inert arm with NO authored predicate is silent — the gap, not the layout, is reported', async () => {
-    await renderObjectForm(DENIED, { formType: 'tabbed' }, [
+    await renderObjectForm(DENIED, { formType: 'wizard' }, [
       { name: 'always', label: 'Always', fields: ['subject'] },
       { name: 'pay', label: 'Compensation', fields: ['salary'] },
     ]);
@@ -205,7 +221,7 @@ describe('#6237 — the boundary: arms that HONOUR the predicate stay silent', (
 
 describe('#6237 — the report is once per mount, not once per render', () => {
   it('re-rendering the same schema does not re-report', async () => {
-    const view = await renderObjectForm(DENIED, { formType: 'tabbed' });
+    const view = await renderObjectForm(DENIED, { formType: 'wizard' });
     await waitFor(() => expect(diagnosticCalls().length).toBe(1));
     // A fresh element with the same authored content: the effect's deps are
     // primitives (layout + joined names), so identity churn must not re-fire it.
@@ -219,7 +235,7 @@ describe('#6237 — the report is once per mount, not once per render', () => {
             objectName: 'crm_case',
             mode: 'create',
             sections: sections(),
-            formType: 'tabbed',
+            formType: 'wizard',
           } as any}
           dataSource={dataSource}
         />
@@ -244,21 +260,36 @@ describe('#6237 — the master-detail branch reports through its INNER pass, exa
     expect(diagnosticCalls()).toEqual([]);
   });
 
-  it('master-detail `tabbed`: reported ONCE, not once per ObjectForm pass', async () => {
+  it('master-detail `tabbed`: silent — the parent re-enters the honouring tabbed arm', async () => {
+    // This row USED to be the "reported exactly once" case. It is silent now,
+    // and the path is worth naming: `MasterDetailForm` passes the authored
+    // sections through untouched and re-enters `ObjectForm` with
+    // `formType: 'tabbed'`, so the predicate rides the same map every other
+    // tabbed form uses. Master-detail needed no work of its own.
     await renderObjectForm(DENIED, { formType: 'tabbed', subforms });
-    await waitFor(() => expect(diagnosticCalls().length).toBe(1));
-    expect(diagnosticCalls()[0]).toContain("the `tabbed` layout's tabs");
+    expect(diagnosticCalls()).toEqual([]);
   });
 });
 
-describe('#6237 — the message is single-sourced', () => {
-  it('both arms speak through one builder, so the two cannot drift apart', () => {
-    expect(sectionPredicateUnsupportedWarning('tabbed', 'pay'))
-      .toContain('not yet supported on this layout');
-    expect(sectionPredicateUnsupportedWarning('wizard', 'pay'))
-      .toContain('not yet supported on this layout');
-    // The one thing that differs is the surface noun.
-    expect(sectionPredicateUnsupportedWarning('tabbed', 'pay'))
-      .not.toEqual(sectionPredicateUnsupportedWarning('wizard', 'pay'));
+describe('#6237 — the message is single-sourced, and its remedy stays true', () => {
+  it('the builder names the wizard surface and the sections it was given', () => {
+    const message = sectionPredicateUnsupportedWarning('wizard', 'pay');
+    expect(message).toContain('not yet supported on this layout');
+    expect(message).toContain("the `wizard` layout's steps");
+    expect(message).toContain('pay');
+  });
+
+  it('⛔ the remedy must never point at an arm that does not honour the key', () => {
+    // The failure this pins is asymmetric and quiet: the message is prose, so a
+    // layout that regressed (or one added later without a predicate slot) can
+    // sit in the remedy list for months while every author it advises is sent
+    // somewhere the key does nothing. The honouring rows above test the arms;
+    // this tests the SENTENCE that recommends them.
+    const message = sectionPredicateUnsupportedWarning('wizard', 'pay');
+    for (const honoured of ['tabbed', 'modal', 'drawer', 'split']) {
+      expect(message).toContain(honoured);
+    }
+    // ...and never recommends the arm it is complaining about.
+    expect(message).not.toContain("'wizard' |");
   });
 });
