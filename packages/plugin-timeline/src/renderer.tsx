@@ -388,28 +388,147 @@ type UnusableGanttDate = { path: string; value: unknown };
  * itself, for "one they wrote as empty"; until this card that branch could not
  * be reached.
  *
- * ## Where the line is: `null`, not "coerces to the epoch"
+ * ## Where the line is: the RULED TYPE RULE (objectui#6781)
  *
- * The test is `value === null` and deliberately nothing wider. `0` coerces to
- * the epoch too (measured: the same 649-column axis) — but `0` is a legitimate
- * epoch timestamp, indistinguishable from an author who means 1970-01-01, and
- * `startDate: 1704067200000` renders 2024 correctly today. `null` is not a
- * timestamp at all; it is what a data source hands you for a field that is
- * unset. That is the value refused here.
+ * #6770 drew this line at `value === null` and deliberately nothing wider,
+ * because it had measured only that one spelling. objectui#6781 measured the
+ * rest of the type space and the maintainer ruled the line to be a TYPE rule
+ * instead — see `isGanttDateType` below, which is now the whole of "is this a
+ * date at all". `null` is no longer named on its own; it is refused by that
+ * rule, through this same function, with the same path and the same spelling
+ * (measured — see the table on `isGanttDateType`).
+ *
+ * `0` stays ACCEPTED under that rule, which is the part worth reading twice.
+ * `0` coerces to the epoch just like `null` did (measured: the same 649-column
+ * axis) — but `0` is a legitimate epoch timestamp, indistinguishable from an
+ * author who means 1970-01-01, and `startDate: 1704067200000` renders 2024
+ * correctly today. `null` is not a timestamp at all; it is what a data source
+ * hands you for a field that is unset. The type rule keeps exactly that
+ * distinction and widens nothing around it.
  */
+/**
+ * THE RULED TYPE RULE for a gantt date — objectui#6781, maintainer ruling
+ * 2026-08-30 (option A of that card's three).
+ *
+ * ## The accept set, stated as an accept set
+ *
+ *     string  |  FINITE number  |  Date
+ *
+ * and nothing else. This is a RULE, not a list of values someone tripped over:
+ * every input class is judged by the same question — "is this the kind of thing
+ * a date can be written as?" — and the answer does not depend on which
+ * coercion `new Date` happens to perform on it. The three cards before this one
+ * each added one more refused VALUE (`undefined` #6759, `null` #6770); this one
+ * replaces that accretion with the rule they were each approximating, so the
+ * next exotic value does not need a fourth card.
+ *
+ * ## Why a type rule rather than more values
+ *
+ * `new Date(x)` accepts far more than dates. It runs ToPrimitive on anything,
+ * so a boolean, an array, or any object with a plausible `toString` becomes an
+ * instant, silently. Measured on this card's base fab4802e3, one row item and a
+ * throwaway probe (`endDate` set, `startDate: '2024-01-01'`):
+ *
+ *     endDate: false            -> NO diagnostic, axis 649 columns
+ *                                  (Jan 1970 … Jan 2024), bars ["left: 100%;
+ *                                  width: -100%;"]
+ *     endDate: true             -> NO diagnostic, axis 649 columns, bars
+ *                                  ["left: 100%; width: -99.99999999994131%;"]
+ *     endDate: ['2024-01-01']   -> NO diagnostic, axis ["Jan 2024"], bars
+ *                                  ["left: 0%; width: 100%;"]
+ *     endDate: [0]              -> NO diagnostic (ToPrimitive gives "0", which
+ *                                  parses as the year 2000)
+ *     endDate: {toString: () => '2024-01-01'}
+ *                               -> NO diagnostic, axis ["Jan 2024"]
+ *
+ * The first is the filed shape of this defect and is byte-identical to the
+ * `endDate: 0` reading the card was filed on: a fifty-four-year axis and a
+ * NEGATIVE-width bar, with no diagnostic. `false` is where a wrong value hides:
+ * a boolean reaching a date field means a mapping layer emitted the wrong
+ * column, and drawing a 1970 axis from it is the silent-wrong-render this
+ * chart's three previous cards each closed one spelling of.
+ *
+ * ## Why `0` is KEPT (the ruling is explicit, and it is the load-bearing half)
+ *
+ * `0` is a finite number, so it is ACCEPTED and still draws 1970-01-01. That is
+ * ruled, not incidental: `0` is a legitimate epoch timestamp, and under a
+ * `startDate: 1704067200000` encoding an author who writes `0` means the epoch.
+ * Refusing it would take away a real capability to catch a hypothetical input.
+ * Measured for this card: the repo has ZERO sites feeding an integer `0` into a
+ * gantt date (control: 222 gantt-date assignment sites repo-wide), so the
+ * capability is preserved on the encoding's terms rather than on a consumer's —
+ * which is why the pin for it is a TEST and not a call site.
+ *
+ * ## Why FINITE, when `new Date` already refuses `NaN` and `Infinity`
+ *
+ * It moves nothing measured: `new Date(NaN)` and `new Date(Infinity)` are both
+ * invalid dates, so the parse check below already refused them and still would.
+ * The clause is here so the accept set can be READ as the rule it is — "a
+ * number that is an instant" — instead of leaving the exclusion to a coercion
+ * detail that a later reader would have to rediscover. Same verdict, stated
+ * rather than inherited.
+ *
+ * ## `null` and `undefined` are SUBSUMED, and their diagnostics do not move
+ *
+ * Neither is a string, a finite number, or a `Date`, so both are refused here
+ * — #6759's `undefined` and #6770's `null` alike — and neither is named
+ * separately any more. This is strictly wider than `value === null` and it
+ * changes nothing an author sees: the path is the same, and
+ * `spellGanttDateValue` still spells them as themselves. The reasoning that put
+ * them here is preserved in this function's header, which is where a reader
+ * asking "why is an absent date refused?" goes.
+ *
+ * ## The order is load-bearing: this gate runs BEFORE `new Date`
+ *
+ * `new Date(x)` does not merely refuse a `bigint` or a `symbol` — it THROWS
+ * `TypeError: Cannot convert a BigInt value to a number`. Measured on the same
+ * base, both crashed the render from inside the guard itself:
+ *
+ *     endDate: 0n         -> THREW TypeError (uncaught, mid-render)
+ *     endDate: Symbol('s') -> THREW TypeError (uncaught, mid-render)
+ *
+ * A guard that crashes while reporting an author error replaces a named
+ * diagnostic with a blank screen — the exact failure mode `spellGanttDateValue`
+ * calls out one docblock up, and the reason its `symbol` branch was written
+ * "total by construction". Refusing by TYPE first makes this predicate total:
+ * `new Date` is only ever reached with a string, a finite number, or a `Date`,
+ * none of which throw. Those two classes now take the ordinary refusal path,
+ * and that `symbol` branch is reachable at last.
+ *
+ * `instanceof Date` is this repo's single idiom for "is a Date" (see
+ * `packages/core/src/validation/validation-engine.ts` and
+ * `components/src/renderers/complex/data-table.tsx`); an invalid `Date` object
+ * passes this gate and is then refused by the parse check below, where it
+ * belongs.
+ */
+const isGanttDateType = (value: unknown): value is string | number | Date =>
+  typeof value === 'string' ||
+  (typeof value === 'number' && Number.isFinite(value)) ||
+  value instanceof Date;
+
 function findUnusableGanttDate(
   items: any[],
   pinnedMinDate: unknown,
   pinnedMaxDate: unknown,
 ): UnusableGanttDate | undefined {
   /**
-   * Two ways a gantt date is unusable. Everything but `null` is judged by
-   * whether it parses; `null` has to be named separately precisely because it
-   * DOES parse — to the epoch — while meaning the opposite of a date
-   * (objectui#6770, see the header).
+   * Two ways a gantt date is unusable, in this order and only this order.
+   *
+   * 1. It is not one of the three things a date can be written as — the ruled
+   *    TYPE rule, objectui#6781, spelled out on `isGanttDateType` above. This
+   *    subsumes #6770's `null` and #6759's `undefined`, and it is what refuses
+   *    `false` / `true` / an array / an object with a `toString`, all of which
+   *    `new Date` would otherwise coerce into a silent 1970 axis.
+   * 2. It is the right TYPE but does not parse — #6759's original question,
+   *    still asked, and still the only thing that separates `'2024-01-01'` from
+   *    `'not-a-date'` or a valid `Date` from `new Date(NaN)`.
+   *
+   * The type gate must come first: `new Date` THROWS on a `bigint` or a
+   * `symbol`, so asking "does it parse?" of an unjudged value crashes the guard
+   * (measured — see `isGanttDateType`).
    */
   const isUnusable = (value: unknown) =>
-    value === null || Number.isNaN(new Date(value as any).getTime());
+    !isGanttDateType(value) || Number.isNaN(new Date(value).getTime());
 
   for (let rowIndex = 0; rowIndex < items.length; rowIndex++) {
     const rowItems = (items[rowIndex]?.items || []) as any[];
