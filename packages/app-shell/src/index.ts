@@ -309,6 +309,18 @@ import './views/record-approvals-renderer.js';
 // `global:notifications`.
 import './views/global-search-renderer.js';
 import './views/global-notifications-renderer.js';
+// `app:launcher` / `nav:menu` — Phase 1 of that same 2026-08-26 ruling
+// (objectui#6661): the two `PageComponentType` members that are purely
+// metadata-driven, so nothing had to ship before their renderers could.
+// Registered here, not in `@object-ui/components`, because they read this
+// package's providers (the metadata app registry, the expression / permission /
+// capability guards) and `@object-ui/components` depends on neither
+// `@object-ui/layout`, `@object-ui/permissions` nor `react-router-dom`. Without
+// these two imports an authored page draws the "Component Placeholder" scaffold
+// for `nav:menu` and a red unknown-type panel for `app:launcher` (which, unlike
+// `nav:menu`, is not in the eager `PALETTE_PLACEHOLDER_BLOCKS` set).
+import './views/app-launcher-renderer.js';
+import './views/nav-menu-renderer.js';
 // The metadata-admin engine's five load-time registrations (built-in anchors,
 // default JSONSchemas, the datasource resource, built-in previews, built-in
 // inspectors). objectui#6776 moved them OUT of `views/metadata-admin/index.ts`

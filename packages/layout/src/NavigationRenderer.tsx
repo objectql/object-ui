@@ -290,8 +290,18 @@ export function resolveLabel(
  * (`src/system/i18n-resolver.ts`) rewrites every navigation node's `label` by
  * id before the metadata reaches this renderer, so `base` is already
  * localized when it arrives. One owner, not two — localize nav labels there.
+ *
+ * EXPORTED since objectui#6661, for the same reason {@link resolveHref} is: a
+ * second surface now renders the same `NavigationItem[]`. `nav:menu` is the
+ * app's navigation tree as PAGE CONTENT (`app-shell/src/views/nav-menu-renderer.tsx`),
+ * and it cannot mount `NavigationRenderer` itself — that renders through
+ * `SidebarMenuButton`, whose `useSidebar()` throws outside the shell's
+ * `SidebarProvider`. Re-deriving the label rules there would put one nav entry
+ * under two names on two surfaces of one app, which is exactly the drift the
+ * "single source of truth" note on `resolveHref` exists to prevent. Nothing
+ * about the behaviour changed with the keyword.
  */
-function resolveNavItemLabel(
+export function resolveNavItemLabel(
   item: NavigationItem,
   resolver?: (objectName: string, fallbackLabel: string) => string,
   t?: (key: string, options?: any) => string,
