@@ -1681,11 +1681,23 @@ The rendered summary says that surface is **UNREAD**, never that it is clean
 **Trigger:** PR to `main`/`develop`, and push to `main`, **when `.claude/hooks/**` or this
 workflow file changes**. **Blocks a PR:** yes.
 
-Runs `.claude/hooks/guard-main-checkout-bash.selftest.sh` and
-`.claude/hooks/guard-shared-stash.selftest.sh` — the hermetic self-test matrices for
-the two PreToolUse guards behind the rule both `CLAUDE.md` files state as binding: worktree-first,
-and never `git stash` (AGENTS.md §9). Each self-test builds its own throwaway git fixture and
-needs only `jq` and `git`, both preinstalled on `ubuntu-latest` — no install, no build.
+Runs the hermetic self-test matrices for the PreToolUse guards behind the rules both
+`CLAUDE.md` files state as binding: worktree-first, and never `git stash` (AGENTS.md §9). Each
+self-test builds its own throwaway git fixture and needs only `jq` and `git`, both preinstalled
+on `ubuntu-latest` — no install, no build.
+
+**Discovered at run time, never enumerated**
+([#6906](https://github.com/objectstack-ai/objectui/issues/6906)). The single step runs
+`find .claude/hooks -type f -name '*.selftest.sh'`, so a new matrix under `.claude/hooks/` is
+picked up with **no edit to this workflow** — including one in a subdirectory, which a flat glob
+would miss. It used to be one hand-written `run:` step per matrix, and that was this workflow's
+own defect one level up: it names itself the standing caller for all of them while a new matrix
+shipped uncalled until someone remembered to edit it. Two properties keep discovery honest, and
+both are load-bearing: an **empty** discovery is **red** (a step that verified nothing is not a
+pass, so a renamed or moved directory cannot degrade the gate into a silent no-op), and the loop
+**tolerates and collects** rather than sequencing — a `run:` block executes under `bash -e`, so a
+bare loop would abort at the first red matrix and leave the rest unrun, neither green nor red.
+The step still fails when any matrix does, and names every one that failed.
 
 Before this workflow ([#5754](https://github.com/objectstack-ai/objectui/issues/5754)), nothing
 ran either matrix automatically: a hook is not imported by any package, so no unit test, type
@@ -1699,11 +1711,11 @@ without a caller.
 
 **This job is a runner, not a rewrite.** It does not modify the hooks or their self-tests —
 `.claude/**` is governed surface. It only gives the existing matrices a caller that fails the
-build the moment either one goes red, the same way any other required check does.
+build the moment any one of them goes red, the same way any other required check does.
 
 **Path-filtered, unlike `control-bytes.yml`.** That gate carries no `paths` filter because a raw
 control byte can land in a markdown-only PR just as easily as a TypeScript one. That reasoning
-does not transfer here: both self-tests assert the CURRENT hook script's behaviour against a
+does not transfer here: the self-tests assert the CURRENT hook script's behaviour against a
 fixture they build themselves, so nothing about a docs-only or dependency-bump PR can move the
 result. This workflow instead mirrors `changeset-guard.yml`'s inverse-filter shape, firing only
 on a PR that touches `.claude/hooks/**` — which is also why `scripts/dependabot-merge-gate.mjs`
