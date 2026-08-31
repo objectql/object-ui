@@ -387,18 +387,58 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * Exported so the ceilings are CHECKED against it instead of merely asserted
  * in this comment.
  *
- * ⚠️ This is a DIFFERENT and LATER reading than {@link BASELINE} above, which
- * still carries `4c1623c0c`. On `2c8474c04` the same build measures the closure
- * at 3,298,620 bytes — 707,291 BELOW that recorded aggregate baseline, almost
- * all of it in `vendor-objectstack` (1,493 KB in the objectui#5490 card, 926 KB
- * here). The aggregate ceiling and its baseline were deliberately NOT touched
- * by objectui#5490: objectui#5468 ruled that the aggregate line "stays as
- * shipped", and moving it — in either direction — is the maintainer's call, not
- * this card's. The consequence is recorded rather than quietly fixed: the
- * aggregate ceiling now sits ~787 KB above today's payload, which is far more
- * than the {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES} it was sized to catch,
- * and until that is re-decided these per-chunk ceilings are what actually holds
- * the three biggest chunks in place.
+ * ⚠️ These readings are on DIFFERENT commits from {@link BASELINE} above, and
+ * WHICH ONE IS LATER flips every time either side is re-baselined — so read the
+ * commit names, never a direction asserted here. As of objectui#6776 the
+ * AGGREGATE is the later reading: BASELINE's `3d257c85a` is dated 2026-08-30
+ * against `2c8474c04` on 2026-08-25 here, and `a64e96ca8` was recorded by
+ * objectui#6759, which landed 2026-08-29. This paragraph asserted the reverse,
+ * in the present tense, from objectui#5490 until objectui#6778 — true when it
+ * was written, then left standing while three aggregate re-baselines moved
+ * {@link BASELINE} out from under it.
+ *
+ * ⚠️ Do not expect `git show` to answer for all of these. Squash-merge keeps the
+ * landing commit and drops the PR branch, so of the three named above only
+ * `2c8474c04` is an ancestor of `main`; `3d257c85a` still resolves as an object
+ * but is not on `main` (it landed as `350509b53`), and `a64e96ca8` is not an
+ * object in this repository at all. That is why every hash here is cited WITH
+ * its issue: the issue outlives the hash.
+ *
+ * The aggregate ceiling and its baseline were deliberately NOT touched by
+ * objectui#5490: objectui#5468 had ruled that the aggregate line "stays as
+ * shipped", and moving it — in either direction — is the maintainer's call. That
+ * is why the provenance splits in the first place.
+ *
+ * ⛔ The stale direction is the cheap half. The expensive half is the CONCLUSION
+ * this paragraph used to draw from it: that the aggregate ceiling sat far above
+ * the payload — 4,086,000 over the 3,298,620 reading, 787,380 bytes of headroom,
+ * 8.64x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES} — and that these per-chunk
+ * ceilings were therefore the only lines holding the three biggest chunks in
+ * place. That was accurate for objectui#5490 and is now false: objectui#5924,
+ * objectui#6683 and objectui#6776 lowered the aggregate ceiling three times,
+ * onto 3,268,000, and it is back in range and doing work.
+ *
+ * Checked rather than argued, which is the rule everywhere else in this file. A
+ * full console build on `e33b44796` and `pnpm check:eager-closure` printed:
+ *
+ *     ✅ aggregate closure          3149.2 KB measured / 3191.4 KB ceiling (headroom 42.2 KB = 0.47x)
+ *     ✅ chunk `vendor-objectstack`  925.7 KB measured /  944.3 KB ceiling (headroom 18.6 KB = 0.21x)
+ *     ✅ chunk `framework`           492.9 KB measured /  500.0 KB ceiling (headroom  7.1 KB = 0.08x)
+ *     ✅ chunk `ui-components`       386.2 KB measured /  389.6 KB ceiling (headroom  3.4 KB = 0.04x)
+ *
+ * All four sit inside one regression, which is the whole of what "in range"
+ * means here — {@link evaluateHeadroomSensitivity} calls 1.00x an error. So the
+ * relationship these ceilings have to the aggregate is no longer "we are the
+ * half that still works". It is narrower, and still worth having: they are the
+ * TIGHTER half — 0.21x, 0.08x, 0.04x against the aggregate's 0.47x — so growth
+ * in these three chunks reds the gate well before the aggregate would, and they
+ * say WHERE, which one total never can.
+ *
+ * ⛔ Do not size a re-baseline off the figures above. They are ONE dated run,
+ * recorded so this paragraph rests on a measurement instead of an argument; the
+ * answer in force is the table the gate prints on YOUR build. That this prose
+ * went three re-baselines stale while the numbers beside it could not
+ * (objectui#6778) is the reason to distrust the prose first.
  *
  * Keys must match {@link PER_CHUNK_GZIP_CEILINGS} exactly (a test enforces it):
  * a ceiling with no measurement behind it is a number someone guessed, and a
