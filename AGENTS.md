@@ -406,19 +406,20 @@ ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工�
 
 > 同意
 
-**本仓的受管面 —— 四项,已逐条对本仓实际目录核实:**
+**本仓的受管面 —— 五项,已逐条对本仓实际目录核实:**
 
 - `AGENTS.md` —— **你正在读的这个文件本身就是受管面**。
 - `CLAUDE.md` —— 仓根一个。
 - `.claude/**` —— **整棵树**:hooks、settings、launch 配置、内部 skills,一个不落,**不是只有 skills**。
-- `docs/adr/**` —— 本仓**确实有**这个目录;它和上面三项同级,不因为篇数少而降级。
+- `skills/**` —— 仓根**发布给使用者**的那棵 skills 树(如 `skills/objectui/`),guard 里的 `skills-catalog` 一项 —— 见下方 ⚠️,这一项本段曾经写反。
+- `docs/adr/**` —— 本仓**确实有**这个目录;它和上面四项同级,不因为篇数少而降级。
 
-⚠️ **别把两棵 skills 树弄混 —— 这是本仓最容易踩的一条:**
+⚠️ **两棵 skills 树都受管 —— 别把它们和 skill 的安装位置弄混:**
 
 - `.claude/skills/**` —— 内部 agent 工具,在 `.claude/**` 之内,**受管**。
-- `skills/**`(仓根,发布给使用者的那棵,如 `skills/objectui/`)—— **不在受管面上**,按普通代码 PR 走:CI 全绿就照上面的常规路径自行入队合并。`.agents/skills/` 是 skill 的**安装位置**(内容由 `skills-lock.json` 还原,第三方的那些被 gitignore),不是规程文本,同样不受管。
+- `skills/**`(仓根,发布给使用者的那棵,如 `skills/objectui/`)—— **同样受管**,就是 `GOVERNED_SURFACES` 里的 `skills-catalog` 一项:只改 `skills/**` 的 PR 也**停在 draft 等人类合并**,⛔ 不翻 ready、不入队。`.agents/skills/` 是 skill 的**安装位置**(内容由 `skills-lock.json` 还原,第三方的那些被 gitignore),不是规程文本,**不受管**。
 
-  两棵树名字像、内容都叫 skill,判据却只有一个:**路径是不是以 `.claude/` 开头**。曾有 agent 把发布用的 `skills/` 当成「维护者专属」而不敢挂 auto-merge,PR 白等一轮 —— **往保守方向误判同样是误判**,它一样让活停在那里。
+  两棵树名字像、内容都叫 skill,本段曾按「路径是不是以 `.claude/` 开头」把仓根那棵判成**不受管**、并要求照普通代码 PR 自行入队 —— **那是错的**,而且错在会被机械拒绝的方向上:`merge_group` 腿照样拒,照着那句话做的席位要赔上一整轮队列构建。判据以 `scripts/check-governed-queue-guard.mjs` 的 `GOVERNED_SURFACES` 为准,拿不准就直接问它:`node scripts/check-governed-queue-guard.mjs --test <paths…>`。
 
 **硬规则 —— PR 的 diff 命中受管面时:**
 
@@ -430,7 +431,7 @@ ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工�
 - **CI 全绿、已 review 都不构成例外。** 这类文件是后续每一次 dispatch 读的操作规程,绿灯说明不了它该不该成为规程。
 - **发现自己已经挂上了怎么办**:把 PR 转回 **draft** 是唯一能可靠退出合并队列的动作 —— 只调 `disable_pr_auto_merge` 会摘掉 auto-merge 但**不取消队列成员资格**,两个都要做。⚠️ 只回收**你自己**挂上的:本仓多 agent 共用同一 GitHub 身份,不是你设置的状态就属于别的 actor —— 去问、去报告,别替他回退。
 
-**本仓没有任何机械兜底,这一段就是全部。** 本仓没有 CODEOWNERS(核实:仓内不存在该文件),受管面上没有 required check、没有钩子,也没有事后审计把受管面的合并列出来给任何人看 —— 违规会**静默成功**,不会有任何人被通知。`../objectstack` 有一份 report-only 的合并后审计(`scripts/pm/check-governed-merges.mjs`),它只读那个仓自己的合并,**不覆盖本仓**。所以在本仓,这条规则的全部效力就在于你读到了它并照做。**本段没点名的兜底工具,就是不存在的工具**;哪天本仓真有了检测,它会写在这里。
+**本仓现在有机械兜底了,但它只堵合并队列这一条路 —— 别把它读成「有人会拦住我」。**(objectui#6596,维护者裁决 2026-08-27)判定在 `scripts/check-governed-queue-guard.mjs`,接线在 `.github/workflows/governed-surface-guard.yml`,两条腿含义不同:`merge_group` 是**会拒绝**的那条 —— 队列构建是投机合并与 `main` 之间的最后一道,受管 diff 上没有 `GOVERNED_APPROVERS`(os-zhuang、hotlong)钉在**当前 head** 上的 APPROVED review 就红(退出码 3/4/5);`pull_request` 那条是**早期警告,故意退出 0**,因为受管 PR 停在 draft 等人类合并本就是本规程的健康终态,而对健康态报红的检查就是没人再看的永久红灯。自己的 diff 受不受管,离线一条命令就能问:`node scripts/check-governed-queue-guard.mjs --test <paths…>`。**但边界要看清:** 本仓没有 CODEOWNERS(核实:仓内不存在该文件),受管面上没有钩子;guard 的 job 名 `Governed Surface Queue Guard` 已登记进 `scripts/dependabot-merge-gate.mjs` 的 `REQUIRED_CONTEXTS`,但把它翻成 live ruleset 里的 required check 是**只有维护者能改的仓库设置** —— 在那之前,队列腿只是**报告**,不会真的挡下队列;维护者手动合并受管 PR 也不产生 `merge_group` 事件,guard 同样拦不住(这不是洞:在本规程下**人类的那次合并就是审核记录**)。`../objectstack` 有一份 report-only 的合并后审计(`scripts/pm/check-governed-merges.mjs`),它只读那个仓自己的合并,**不覆盖本仓**。所以这条规则的效力仍然主要在于你读到了它并照做 —— guard 关掉的是「翻 ready → 入队 → 队列就是全部审核」这一条席位路径。**本段没点名的兜底工具,就是不存在的工具**;工具变了,这里跟着改。
 
 ### 服务纪律(本仓库与 `../objectstack` 多 agent 并行开发)
 
