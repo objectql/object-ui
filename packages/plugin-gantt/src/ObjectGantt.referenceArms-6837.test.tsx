@@ -253,9 +253,25 @@ describe('ObjectGantt resolves only contract-declared target spellings (objectui
     it('and degrades to the distinct loaded values rather than rendering nothing', async () => {
       // Guards the refusal above against the degenerate pass: a gantt that
       // rendered no quick filter at all would also never fetch `projects`.
+      //
+      // ⚠️ ASYNC reads, deliberately (objectui#6959). `mount()` settles on a
+      // MOCK CALL — `find('task', { $expand })` was ISSUED — and that is one
+      // promise resolution EARLIER than the `setLoading(false)` in `reload()`'s
+      // `finally`. So on return from `mount()` `ObjectGantt` may still be
+      // painting its `loading` branch (`Loading Gantt chart...`), and a
+      // SYNCHRONOUS `getByTestId` here races it. It lost that race twice in
+      // fifteen minutes in the merge queue — a heavier runner than PR CI —
+      // ejecting two PRs that do not touch `plugin-gantt` at all.
+      //
+      // `mount()`'s find-call gate STAYS: the refusal probe needs proof of the
+      // SCHEMA-dependent commit, and `gantt-view` alone does not carry it —
+      // `loading` flips false after the FIRST `find()` resolves, which happens
+      // before `objectSchema` lands. The two gates measure different facts, so
+      // this block waits for both rather than trading one for the other.
       const { ds, view } = await mount(FIELD_DEFS.legacy_camel);
-      expect(view.getByTestId('gantt-view').getAttribute('data-count')).toBe('2');
-      fireEvent.click(view.getByTestId('quick-filter-trigger-project'));
+      const chart = await view.findByTestId('gantt-view');
+      expect(chart.getAttribute('data-count')).toBe('2');
+      fireEvent.click(await view.findByTestId('quick-filter-trigger-project'));
       const panel = view.getByTestId('quick-filter-panel-project');
       expect(within(panel).getByTestId('quick-filter-option-project-p1')).toBeTruthy();
       expect(within(panel).queryByTestId('quick-filter-option-project-p3')).toBeNull();
