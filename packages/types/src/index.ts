@@ -1034,7 +1034,7 @@ export type {
   ObjectUiLocalParamFieldType,
   ResolvableParamFieldType,
   ActionParam,
-  ActionSchema as UIActionSchema,
+  UIActionSchema,
   ActionGroup,
   ActionContext,
   ActionResult,

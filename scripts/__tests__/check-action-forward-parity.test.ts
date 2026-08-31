@@ -98,7 +98,7 @@ function repoWith(
     files: {
       [UI_VIEW]:
         overrides.view ??
-        'export interface ActionSchema {\n  name?: string;\n  description?: string;\n}\n',
+        'export interface UIActionSchema {\n  name?: string;\n  description?: string;\n}\n',
       [KEYS_MODULE]:
         overrides.keys ?? "export const RETIRED_ACTION_KEYS = {\n  execute: 'renamed to target',\n};\n",
       [CONSUMER]:
@@ -388,7 +388,7 @@ describe('extraction failure throws rather than returning a clean verdict', () =
   });
 
   it('a renderer view with no properties is red', () => {
-    expect(() => judge(repoWith('{ target }', { view: 'export interface ActionSchema {}\n' }))).toThrow(
+    expect(() => judge(repoWith('{ target }', { view: 'export interface UIActionSchema {}\n' }))).toThrow(
       /declares no properties/,
     );
   });
@@ -409,7 +409,7 @@ describe('extraction failure throws rather than returning a clean verdict', () =
     // Authorable and runtime-read do not intersect at all: nothing would ever be
     // checked for this surface again.
     expect(() =>
-      judge(repoWith('{ target }', { view: 'export interface ActionSchema {\n  nothingReadsThis?: string;\n}\n' }), {
+      judge(repoWith('{ target }', { view: 'export interface UIActionSchema {\n  nothingReadsThis?: string;\n}\n' }), {
         spec: { declared: ['norThis'], inline: [] },
       }),
     ).toThrow(/owed set is empty/);

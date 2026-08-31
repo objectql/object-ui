@@ -17,6 +17,7 @@
 
 import type { ChartType as SpecChartType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
+import type { BreadcrumbSchema } from './navigation.js';
 
 /**
  * Alert component
@@ -1644,34 +1645,27 @@ export interface TimelineSchema extends BaseSchema {
 }
 
 /**
- * Breadcrumb item
+ * Breadcrumb — ONE authority, and it lives in `./navigation.ts`.
+ *
+ * This module declared its own `BreadcrumbItem` / `BreadcrumbSchema` until
+ * objectui#6349. They were not a second dialect, they were a stale COPY: a
+ * strict subset of the navigation declarations, missing `BreadcrumbItem.icon` /
+ * `onClick` / `siblings` and `BreadcrumbSchema.maxItems`, with no key declared
+ * differently on either side. Everything that actually reads a breadcrumb was
+ * already on the navigation declaration — `registry.ts` maps the `'breadcrumb'`
+ * component type to it, `packages/types/src/index.ts` re-exports it under the
+ * bare names, `zod/navigation.zod.ts` mirrors it, and
+ * `content/docs/components/data-display/breadcrumb.mdx` documents `icon` and
+ * `maxItems` on THIS page. The copy's only reach was the
+ * `@object-ui/types/data-display` subpath and the {@link DataDisplaySchema}
+ * union below, both of which under-declared what the renderer honours.
+ *
+ * A re-export is one declaration with a second export site, which is exactly
+ * how this monorepo is meant to fan a type out; the recurrence guard
+ * (`scripts/__tests__/one-authority-per-exported-name-6273.test.ts`) does not
+ * count it. 2026-08-25 family ruling, objectui#6172 decision 甲/A1.
  */
-export interface BreadcrumbItem {
-  /**
-   * Item label
-   */
-  label: string;
-  /**
-   * Item href/link
-   */
-  href?: string;
-}
-
-/**
- * Breadcrumb component
- */
-export interface BreadcrumbSchema extends BaseSchema {
-  type: 'breadcrumb';
-  /**
-   * Breadcrumb items
-   */
-  items: BreadcrumbItem[];
-  /**
-   * Separator character
-   * @default '/'
-   */
-  separator?: string;
-}
+export type { BreadcrumbItem, BreadcrumbSchema } from './navigation.js';
 
 /**
  * Keyboard key component
