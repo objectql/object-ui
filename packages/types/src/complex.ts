@@ -347,6 +347,16 @@ export interface FilterBuilderSchema extends BaseSchema {
    * @default 3
    */
   maxDepth?: number;
+  /**
+   * Tailwind classes on the outermost wrapper `div`.
+   *
+   * READ SITE: `packages/components/src/renderers/complex/filter-builder.tsx:37`
+   * — `className={schema.wrapperClass || ''}`.
+   *
+   * Distinct from {@link BaseSchema.className}, which this renderer applies
+   * further in. Declared by objectui#6150.
+   */
+  wrapperClass?: string;
 }
 
 /**
@@ -398,6 +408,39 @@ export interface CarouselSchema extends BaseSchema {
    * Carousel items
    */
   items: CarouselItem[];
+  /**
+   * Option bag forwarded VERBATIM to the underlying embla carousel.
+   *
+   * READ SITE: `packages/components/src/renderers/complex/carousel.tsx:23` —
+   * `opts={schema.opts}`, passed straight through to the `Carousel`
+   * primitive, whose own `opts` is embla's `EmblaOptionsType`.
+   *
+   * ⚠️ Deliberately declared OPEN rather than as the two-key shape the docs
+   * page shows (`{ loop?, align? }`). The renderer forwards the whole bag, so
+   * every other embla option authored today reaches the library and works;
+   * declaring the documented pair would REFUSE those authored documents —
+   * a narrowing of a published surface, which is a ruling and not a
+   * declaration. objectui#6150 records the capability as it is; picking a
+   * narrower shape is escalated with that card.
+   */
+  opts?: Record<string, unknown>;
+  /**
+   * Scroll axis.
+   *
+   * READ SITE: `renderers/complex/carousel.tsx:24` —
+   * `orientation={schema.orientation || 'horizontal'}`.
+   *
+   * @default 'horizontal'
+   */
+  orientation?: 'horizontal' | 'vertical';
+  /**
+   * Tailwind classes applied to EACH slide (not the container — that is
+   * {@link BaseSchema.className}).
+   *
+   * READ SITE: `renderers/complex/carousel.tsx:30` —
+   * `className={schema.itemClassName}` on every `CarouselItem`.
+   */
+  itemClassName?: string;
   /**
    * Auto-play interval (ms)
    */

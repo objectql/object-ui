@@ -357,6 +357,47 @@ git cat-file -e origin/main:.github/workflows/ci.yml    # 阳性对照:必须解
 **阳性对照不是可选项。** 没有它,一个打错的路径和一次真实的缺席给出完全相同的退出码,而你会把前者读成
 后者。
 
+#### ⛔ 对照本身还有一个洞:**枚举**和**读取**必须来自不同来源才验得动
+
+`origin/main` 阅读规则覆盖的是文件**内容**,**不覆盖文件枚举**。把工作树 glob 喂给逐文件的 `origin/main`
+读取,会给出一个**长得像全量扫描的零**:被漏掉的文件根本没进入 `git show` 的输入,于是既不会命中,也不
+会出现在它自己的输出里。每一个被打开的文件都读得完全正确 —— 这正是它如此可信的原因。
+
+```bash
+for f in .github/workflows/*.yml; do            # ⛔ 文件清单来自工作树
+  git show "origin/main:$f" | grep -q PATTERN   #    文件内容来自 origin/main
+done
+```
+
+本仓 2026-08-29 实测(objectstack#13305):`ls .github/workflows/*.yml | wc -l` = **30**,
+`git ls-tree --name-only origin/main .github/workflows/ | grep -c '\.yml$'` = **31**。差的那一个正是
+`.github/workflows/governed-surface-guard.yml`,而它声明了 `ready_for_review` —— 也就是说,「翻 ready
+会触发什么」这个问题的答案,恰好就是被漏在枚举之外的那个文件。据此读数把 10 个 PR 翻成 ready,每个都从
+`clean` 掉到 `unstable`,而且是在 runner 容量停摆期间。
+
+⚠️ **当时跑了零命中对照,而且它通过了。** `pull_request` 命中 5 个 workflow 文件,方法确实有效 —— 但那
+5 个文件出自**同一份错误清单**,所以对照验证的是**匹配器**,而不是**枚举**。
+
+> 一个对照必须有能力因为你担心的那个原因而失败;同源对照结构上做不到。
+
+⇒ 可迁移的一般化:**当一次扫描的「总体」和「逐项读取」来自不同来源时,对照必须取自总体那一侧,而不是读
+取那一侧。**
+
+规范写法 —— 枚举走你要读的那个 ref,正如 `git show origin/main:` 已经是读内容的规范写法:
+
+```bash
+git ls-tree --name-only origin/main <dir>            # 枚举:与读取同源
+git ls-tree -r --name-only origin/main <dir>         # 递归
+
+git ls-tree --name-only origin/main <dir> | wc -l    # 信任任何零之前,先比一下总体
+ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工作树不是总体
+```
+
+一个 PreToolUse 钩子(`.claude/hooks/guard-tree-enum.sh`)拦住这个**组合**:两半各自单独出现一律放行
+(两者单独用都是正常的),用 `git ls-tree origin/main` 枚举的命令一律放行,解析不了的一律放行 —— 规则大
+于钩子。有意例外:`OS_ALLOW_TREE_ENUM=1`。改这个钩子?重跑
+`.claude/hooks/guard-tree-enum.selftest.sh`。
+
 ### ⛔ 受管面(governed surface):agent 起草,人类合并
 
 维护者裁决(2026-08-18),**原文照录、不翻译** —— 提问明确点名了本仓:

@@ -174,6 +174,7 @@ export type {
   ToggleSchema,
   FormSchema,
   LabelSchema,
+  CodeEditorSchema,
   FormComponentSchema,
 } from './form.js';
 
@@ -206,6 +207,7 @@ export type {
   KbdSchema,
   HtmlSchema,
   StatisticSchema,
+  BarChartSchema,
   DataDisplaySchema,
   TableColumnType,
 } from './data-display.js';
@@ -1034,7 +1036,7 @@ export type {
   ObjectUiLocalParamFieldType,
   ResolvableParamFieldType,
   ActionParam,
-  ActionSchema as UIActionSchema,
+  UIActionSchema,
   ActionGroup,
   ActionContext,
   ActionResult,

@@ -1,8 +1,10 @@
 {
   "type": "tabs",
+  "defaultValue": "tab1",
   "items": [
     {
       "label": "Tab 1",
+      "value": "tab1",
       "content": [
         {
           "type": "text",
@@ -12,6 +14,7 @@
     },
     {
       "label": "Tab 2",
+      "value": "tab2",
       "content": [
         {
           "type": "text",
@@ -21,6 +24,7 @@
     },
     {
       "label": "Tab 3",
+      "value": "tab3",
       "content": [
         {
           "type": "text",

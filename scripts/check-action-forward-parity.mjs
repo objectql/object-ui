@@ -392,7 +392,12 @@ export function loadSpecSchemas(require = createRequire(import.meta.url)) {
 }
 
 /**
- * `@object-ui/types`' renderer VIEW of an action.
+ * `@object-ui/types`' renderer VIEW of an action — `interface UIActionSchema`.
+ *
+ * ⚠️ It was `interface ActionSchema` until objectui#6349, a second authority for
+ * a name `packages/types/src/crud.ts` also declares. The declaration now spells
+ * the name the package always PUBLISHED it under (`UIActionSchema`); the type
+ * and the file are unchanged.
  *
  * Declared surfaces are typed against this, not against the spec schema
  * directly — it carries renderer-only fields the spec does not model
@@ -408,16 +413,16 @@ export function uiActionViewKeys(root, file = UI_ACTION_VIEW) {
   }
   const sf = parse(root, file);
   for (const stmt of sf.statements) {
-    if (!ts.isInterfaceDeclaration(stmt) || stmt.name.text !== "ActionSchema") continue;
+    if (!ts.isInterfaceDeclaration(stmt) || stmt.name.text !== "UIActionSchema") continue;
     const keys = stmt.members
       .filter(ts.isPropertySignature)
       .map((m) => (m.name && (ts.isIdentifier(m.name) || ts.isStringLiteral(m.name)) ? m.name.text : null))
       .filter((n) => n !== null);
-    if (keys.length === 0) fail(`\`ActionSchema\` in ${file} declares no properties — extraction failed.`);
+    if (keys.length === 0) fail(`\`UIActionSchema\` in ${file} declares no properties — extraction failed.`);
     return keys;
   }
   fail(
-    `\`interface ActionSchema\` not found in ${file}.\n` +
+    `\`interface UIActionSchema\` not found in ${file}.\n` +
       "    The renderer view moved or was renamed; re-point this gate at it."
   );
 }

@@ -298,7 +298,12 @@ export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
  */
 export const TreeViewSchema = BaseSchema.extend({
   type: z.literal('tree-view'),
-  data: z.array(TreeNodeSchema).describe('Tree data'),
+  data: z.array(TreeNodeSchema)
+    .describe('Tree data, read as the fallback limb of `boundData || schema.nodes || schema.data || []` at renderers/data-display/tree-view.tsx:105'),
+  nodes: z.array(TreeNodeSchema).optional()
+    .describe('Tree data, read FIRST at renderers/data-display/tree-view.tsx:105 — the middle limb of `boundData || schema.nodes || schema.data || []`, so it wins over `data`. ⚠️ `data` stays REQUIRED here: declaring `nodes` does not by itself make a `nodes`-only document legal (objectui#6150)'),
+  title: z.string().optional()
+    .describe('Heading above the tree, read at renderers/data-display/tree-view.tsx:115 (presence gate) and :117 (the h3 body) (objectui#6150)'),
   defaultExpandedIds: z.array(z.string()).optional().describe('Default expanded node IDs'),
   defaultSelectedIds: z.array(z.string()).optional().describe('Default selected node IDs'),
   expandedIds: z.array(z.string()).optional().describe('Controlled expanded node IDs'),
@@ -443,6 +448,32 @@ export const HtmlSchema = BaseSchema.extend({
 /**
  * Data Display Schema Union - All data display component schemas
  */
+/**
+ * Bar Chart Schema — mirrors `BarChartSchema` in `../data-display.ts`.
+ *
+ * Closes half of objectui#6318's bucket B: `bar-chart` is a REGISTERED
+ * component that no union member modelled, so `safeValidateSchema` refused
+ * every document naming it and `objectui check` could only report it. Every key
+ * here is one `ChartBarRenderer` demonstrably reads
+ * (`plugin-charts/src/ChartRenderer.tsx:28-38`); nothing is admitted on the
+ * strength of what a bar chart "should" accept.
+ *
+ * All five are OPTIONAL, deliberately. `data` is the one the registration marks
+ * `required: true` in its authoring `inputs`, but the renderer reads it as
+ * `schema.data` with no guard and the implementation defaults an absent array —
+ * so requiring it here would refuse a document the renderer draws. An authoring
+ * hint and a validation floor are different claims; only the second belongs in
+ * a schema.
+ */
+export const BarChartSchema = BaseSchema.extend({
+  type: z.literal('bar-chart'),
+  data: z.array(z.record(z.string(), z.any())).optional().describe('Rows to plot; one bar per row'),
+  dataKey: z.string().optional().describe('Row key holding the bar value (y axis)'),
+  xAxisKey: z.string().optional().describe('Row key holding the bar category (x axis)'),
+  height: z.number().optional().describe('Chart height in pixels'),
+  color: z.string().optional().describe('Bar fill colour'),
+});
+
 export const DataDisplaySchema = z.discriminatedUnion('type', [
   AlertSchema,
   StatisticSchema,
@@ -457,4 +488,5 @@ export const DataDisplaySchema = z.discriminatedUnion('type', [
   TimelineSchema,
   KbdSchema,
   HtmlSchema,
+  BarChartSchema,
 ]);

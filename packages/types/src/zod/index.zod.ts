@@ -120,6 +120,7 @@ export {
   CommandSchema,
   FormFieldSchema,
   FormSchema,
+  CodeEditorSchema,
   FormComponentSchema,
 } from './form.zod.js';
 
@@ -147,6 +148,7 @@ export {
   TimelineSchema,
   KbdSchema,
   HtmlSchema,
+  BarChartSchema,
   DataDisplaySchema,
 } from './data-display.zod.js';
 

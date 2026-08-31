@@ -59,7 +59,10 @@ export const TextSpanSchema = BaseSchema.extend({
  */
 export const TextSchema = BaseSchema.extend({
   type: z.literal('text'),
-  value: z.string().optional().describe('Text content'),
+  content: z.string().optional()
+    .describe("Text content, read FIRST at renderers/basic/text.tsx:51,56 — `schema.content || schema.value`, so it wins over `value` (objectui#6150)"),
+  value: z.string().optional()
+    .describe('Text content, read as the fallback limb of `schema.content || schema.value` at renderers/basic/text.tsx:51,56'),
   variant: z.enum(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'])
     .optional()
     .default('body')

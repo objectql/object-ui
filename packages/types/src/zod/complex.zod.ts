@@ -214,6 +214,8 @@ export const FilterBuilderSchema = BaseSchema.extend({
   onChange: z.function().optional().describe('Change handler'),
   allowGroups: z.boolean().optional().describe('Allow grouped conditions'),
   maxDepth: z.number().optional().describe('Maximum nesting depth'),
+  wrapperClass: z.string().optional()
+    .describe("Outer wrapper classes, read at renderers/complex/filter-builder.tsx:37 — `className={schema.wrapperClass || ''}` (objectui#6150)"),
 });
 
 /**
@@ -230,6 +232,12 @@ export const CarouselItemSchema = z.object({
 export const CarouselSchema = BaseSchema.extend({
   type: z.literal('carousel'),
   items: z.array(CarouselItemSchema).describe('Carousel items'),
+  opts: z.record(z.string(), z.unknown()).optional()
+    .describe("Embla option bag forwarded verbatim at renderers/complex/carousel.tsx:23 — `opts={schema.opts}`. Left OPEN on purpose: the renderer passes the whole bag through, so narrowing it to the docs' `{loop, align}` pair would refuse authored documents that work today (objectui#6150)"),
+  orientation: z.enum(['horizontal', 'vertical']).optional()
+    .describe("Scroll axis, read at renderers/complex/carousel.tsx:24 — `orientation={schema.orientation || 'horizontal'}` (objectui#6150)"),
+  itemClassName: z.string().optional()
+    .describe('Per-slide Tailwind classes, read at renderers/complex/carousel.tsx:30 — `className={schema.itemClassName}` on every CarouselItem (objectui#6150)'),
   autoPlay: z.number().optional().describe('Auto-play interval (ms)'),
   showArrows: z.boolean().optional().describe('Show navigation arrows'),
   showDots: z.boolean().optional().describe('Show navigation dots'),
