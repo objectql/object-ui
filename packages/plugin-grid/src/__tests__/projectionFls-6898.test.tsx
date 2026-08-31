@@ -113,7 +113,10 @@ const OBJECT_FIELDS = {
 };
 
 const makeDataSource = (schemaExtra: Record<string, unknown> = {}) => ({
-  find: vi.fn(async () => ({ data: [], total: 0 })),
+  // `vi.fn().mockResolvedValue(...)` rather than `vi.fn(async () => ...)`: the
+  // inline implementation narrows the mock's ARG tuple to `[]`, and every
+  // assertion here reads `find.mock.calls.at(-1)?.[1].$select` — the second arg.
+  find: vi.fn().mockResolvedValue({ data: [], total: 0 }),
   findOne: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
