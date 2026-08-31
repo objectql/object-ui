@@ -167,12 +167,22 @@ const declaredOptional = (shape: ZodShape, key: string): boolean =>
  * and reading a union's option SCHEMAS out of it would be relying on a return
  * value its contract does not promise.
  */
-function unwrapWrappers(node: unknown): Record<string, any> | undefined {
-  let carrier = node as Record<string, any> | undefined;
+interface WrapperCarrier {
+  readonly options?: readonly unknown[];
+  readonly def?: {
+    readonly type?: string;
+    readonly innerType?: unknown;
+    readonly options?: readonly unknown[];
+  };
+  readonly _def?: { readonly innerType?: unknown };
+}
+
+function unwrapWrappers(node: unknown): WrapperCarrier | undefined {
+  let carrier = node as WrapperCarrier | undefined;
   for (let depth = 0; carrier && depth <= 8; depth += 1) {
     const inner = carrier.def?.innerType ?? carrier._def?.innerType;
     if (!inner) return carrier;
-    carrier = inner as Record<string, any>;
+    carrier = inner as WrapperCarrier;
   }
   return carrier;
 }
@@ -181,7 +191,7 @@ function unwrapWrappers(node: unknown): Record<string, any> | undefined {
 function declaredTypeText(node: unknown): string {
   const inner = unwrapWrappers(node);
   if (inner?.def?.type === 'union') {
-    const options = (inner.options ?? inner.def.options ?? []) as unknown[];
+    const options = inner.options ?? inner.def.options ?? [];
     return options.map((option) => unwrapWrappers(option)?.def?.type ?? 'unknown').join(' | ');
   }
   return String(inner?.def?.type ?? 'unknown');
