@@ -272,6 +272,77 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
 }
 
 /**
+ * "Is this value a `Date`?" — asked so that NOTHING the authored document
+ * controls can answer it, and so that asking cannot throw (objectui#7027).
+ *
+ * ## What was wrong with `instanceof Date`
+ *
+ * It is this repo's idiom for the question (see
+ * `packages/core/src/validation/validation-engine.ts` and
+ * `components/src/renderers/complex/data-table.tsx`), and it answers a
+ * DIFFERENT question: "does this inherit from `Date.prototype`?". A `Date` is
+ * a Date because it owns a `[[DateValue]]` internal slot; the prototype chain
+ * is decoration, and the two come apart in both directions. Measured on this
+ * card's base 7fc5c3c12 with a node probe:
+ *
+ *     Object.create(Date.prototype) instanceof Date        -> true
+ *     new Date(Object.create(Date.prototype))              -> THREW TypeError:
+ *         Method Date.prototype.toString called on incompatible receiver
+ *         [object Object]
+ *
+ * `new Date(x)` uses the slot directly when `x` owns one and runs ToPrimitive
+ * when it does not — so an impostor that passed the gate reached `new Date`,
+ * reached `Date.prototype[Symbol.toPrimitive]`, reached
+ * `Date.prototype.toString` on a receiver with no slot, and took the render
+ * down with it. That is a blank screen where a named diagnostic belongs, which
+ * is the exact failure mode #6781 put the type gate here to remove and #6907
+ * removed one function downstream.
+ *
+ * `instanceof` is not even total on its own terms: it walks
+ * `[[GetPrototypeOf]]`, so a `Proxy` with a throwing `getPrototypeOf` trap
+ * crashes inside the operator (measured, same probe).
+ *
+ * ## Why NOT the two brand tests the card suggested — both measured, both out
+ *
+ * - `Object.prototype.toString.call(value) === '[object Date]'` performs
+ *   `Get(O, @@toStringTag)` UNCONDITIONALLY (ES2015 19.1.3.6 step 16), even
+ *   once the builtin tag is decided. A `@@toStringTag` getter that throws is
+ *   an authored value, and #6907 measured that exact input crashing the
+ *   speller. It trades an impostor crash for a getter crash.
+ * - `Number.isFinite(value.getTime())` calls the AUTHOR'S `getTime`. A
+ *   `class X extends Date` that overrides it is a REAL Date — `super()` gave
+ *   it the slot, so #6781's accept set contains it and the chart must draw —
+ *   and this spelling would refuse it by dying. It trades an impostor crash
+ *   for a subclass crash, on a value that is not even wrong.
+ *
+ * Both are pinned as red rows in `timeline-gantt-date-brand-7027.test.tsx`,
+ * so a later "simplification" into either one fails there rather than in a
+ * fifth card.
+ *
+ * ## What this does instead
+ *
+ * Invokes the BUILTIN `Date.prototype.getTime` with `.call`. It reads the
+ * receiver's `[[DateValue]]` slot and nothing else: no property is fetched off
+ * `value`, so no author getter runs, no `@@toStringTag` is consulted, no proxy
+ * trap fires, and a subclass cannot hijack it. The slot is not observable any
+ * other way — the language exposes that bit only by throwing when it is
+ * absent — so the `catch` is the READ, not error handling draped over a
+ * fallible operation.
+ *
+ * `new Date(NaN)` owns its slot, so it is a `Date` here and is refused one
+ * step later by the parse check, keeping its `Invalid Date` spelling. That is
+ * the half of #6781's ruling this must not move.
+ */
+const isDate = (value: unknown): value is Date => {
+  try {
+    Date.prototype.getTime.call(value as Date);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * How a gantt date value is SPELLED inside a diagnostic (objectui#6759,
  * ruled into a rule by objectui#6907).
  *
@@ -375,7 +446,11 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
  *   `class X extends Date` that overrides `toString` can hijack `String` and
  *   throw (measured) — the builtin cannot be. This is the one non-primitive
  *   with a spelling the LANGUAGE owns, and it is also the only non-primitive
- *   the accept set contains.
+ *   the accept set contains. The branch is SELECTED by `isDate` and not by
+ *   `instanceof Date` (objectui#7027): the builtin `toString` throws on a
+ *   receiver that inherits `Date.prototype` without owning the slot, so
+ *   choosing this branch on the prototype chain is what let an impostor crash
+ *   the very sentence that was supposed to name it.
  * - everything else -> `an array` / `a function` / `an object`, chosen with
  *   `Array.isArray` and `typeof`, which read no author-controlled property.
  *   Deliberately NOT `Object.prototype.toString.call`: that consults
@@ -383,10 +458,18 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
  *   more informative spelling is the non-total one.
  *
  * All eight `typeof` results are covered and no branch falls through to author
- * code, so the helper is total by construction over every value that reaches
- * it. The single reflective operation it performs, `instanceof Date`, is the
- * one `isGanttDateType` already performed on the same value to refuse it — so
- * this function adds no throw site the accept gate does not already have.
+ * code. The single reflective operation it performs is the Date test, which is
+ * the one `isGanttDateType` already performed on the same value to refuse it —
+ * so this function adds no throw site the accept gate does not already have.
+ *
+ * ⚠️ objectui#7027 — that sentence was true and the helper was still not
+ * total, because the shared test was `instanceof Date` and `instanceof` is not
+ * total. `Object.create(Date.prototype)` took this function's `Date` branch
+ * and threw inside `Date.prototype.toString.call`; a `Proxy` with a throwing
+ * `getPrototypeOf` trap threw inside the operator itself (both measured on
+ * 7fc5c3c12). Both sites now ask `isDate`, which is total, so the shared
+ * operation adds no throw site because it HAS none — not because the gate
+ * absorbed it first.
  *
  * ## What this deliberately does NOT do
  *
@@ -407,8 +490,10 @@ function spellGanttDateValue(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
 
   // The one non-primitive whose spelling the LANGUAGE owns, and the only one
-  // the accept set contains. `.call` so a subclass cannot hijack it.
-  if (value instanceof Date) return Date.prototype.toString.call(value);
+  // the accept set contains. `.call` so a subclass cannot hijack it, and
+  // `isDate` rather than `instanceof` so a slot-less impostor never reaches
+  // that builtin — it throws on a receiver without `[[DateValue]]` (#7027).
+  if (isDate(value)) return Date.prototype.toString.call(value);
 
   // Every other non-primitive — named, never rendered. No author code runs.
   if (Array.isArray(value)) return 'an array';
@@ -612,16 +697,33 @@ type UnusableGanttDate = { path: string; value: unknown };
  * none of which throw. Those two classes now take the ordinary refusal path,
  * and that `symbol` branch is reachable at last.
  *
- * `instanceof Date` is this repo's single idiom for "is a Date" (see
- * `packages/core/src/validation/validation-engine.ts` and
- * `components/src/renderers/complex/data-table.tsx`); an invalid `Date` object
- * passes this gate and is then refused by the parse check below, where it
- * belongs.
+ * ⚠️ ...with ONE gap, closed by objectui#7027 and worth reading as the reason
+ * this docblock now points at `isDate`. The paragraph above is a claim about
+ * `new Date`'s ARGUMENT, and it was only as good as the predicate that
+ * produced it. `instanceof Date` answers "does this inherit from
+ * `Date.prototype`?", not "is this a `Date`?", so it admitted
+ * `Object.create(Date.prototype)` — which is not a `Date`, reached `new Date`,
+ * and threw. Measured on 7fc5c3c12; the reading and the two other impostor
+ * spellings are on `isDate` above and pinned in
+ * `timeline-gantt-date-brand-7027.test.tsx`.
+ *
+ * ⛔ That is the fourth totality claim in this code path and the third to be
+ * falsified by the next card's measurement (#6759 -> #6905 -> #6907 -> this).
+ * The pattern is the lesson: totality asserted in prose is a hypothesis, and
+ * the only thing that has ever settled it here is an exercised input set. Do
+ * not answer a future gap with a fifth sentence — add the row to that file.
+ *
+ * The ACCEPT SET is untouched by #7027. `isDate` is strictly narrower than
+ * `instanceof Date` over values that reach it, and everything it newly refuses
+ * is a value no authored document can carry (ObjectUI metadata is JSON; JSON
+ * has no way to spell a prototype). An invalid `Date` object owns its slot, so
+ * it still passes this gate and is still refused by the parse check below,
+ * where it belongs, with its `Invalid Date` spelling intact.
  */
 const isGanttDateType = (value: unknown): value is string | number | Date =>
   typeof value === 'string' ||
   (typeof value === 'number' && Number.isFinite(value)) ||
-  value instanceof Date;
+  isDate(value);
 
 function findUnusableGanttDate(
   items: any[],
