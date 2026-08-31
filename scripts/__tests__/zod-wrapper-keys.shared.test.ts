@@ -110,38 +110,60 @@ describe('the shared Zod wrapper-key list (objectui#6923)', () => {
   });
 });
 
+/**
+ * ⚠️ The per-key checks below are ONE test that loops, not `it.each(onDisk)`.
+ *
+ * That distinction was measured, not stylistic. `it.each` over the list under
+ * test generates its cases FROM that list, so with the list emptied it
+ * generates NONE — the suite reports fewer tests and stays green on the part
+ * that matters. Running this file's own ablation caught it: emptied, the
+ * `it.each` legs simply vanished and only the membership pins failed. That is
+ * this card's defect reproduced inside its own counter-example.
+ *
+ * A loop inside one test, with the non-vacuity floor asserted IN THE SAME TEST,
+ * cannot go quiet that way: no data, no cases, but the floor still fails.
+ */
 describe('constraint 4 — emptying the list must turn the gates RED, not quiet', () => {
-  describe('check-action-forward-parity.mjs', () => {
-    it.each(onDisk)('resolves a shape reachable only through `%s`', (key) => {
+  it('check-action-forward-parity: every entry in the list is load-bearing', () => {
+    expect(onDisk.length).toBeGreaterThan(0);
+    for (const key of onDisk) {
+      // A shape reachable ONLY by stepping through `key`. Drop `key` from the
+      // list and this throws instead of resolving.
       expect(specShapeKeys(wrappedIn(key), 'fixture')).toEqual(SHAPE_KEYS);
-    });
-
-    it('raises on a wrapper spelling the list does not carry', () => {
-      // Not `toThrow()` alone: the gate's own error type is the contract, and a
-      // bare throw would be satisfied by any incidental TypeError.
-      expect(() => specShapeKeys(wrappedIn('bogusWrapper'), 'fixture')).toThrow(ExtractionError);
-      expect(() => specShapeKeys(wrappedIn('bogusWrapper'), 'fixture')).toThrow(
-        /could not resolve `fixture`'s shape/,
-      );
-    });
+    }
   });
 
-  describe('check-designer-field-key-parity.mjs', () => {
-    // Reached through the gate's own `importSpec` seam, so the walk under test
-    // is the one the gate really runs — this gate keeps its walk module-private
-    // and the ruling's boundary says to leave it there.
-    const acceptSetFor = (node: unknown) =>
-      schemaAcceptSet('FieldSchema', async () => ({ FieldSchema: node }));
+  it('check-action-forward-parity: raises on a wrapper spelling the list does not carry', () => {
+    // Not `toThrow()` alone: the gate's own error type is the contract, and a
+    // bare throw would be satisfied by any incidental TypeError.
+    expect(() => specShapeKeys(wrappedIn('bogusWrapper'), 'fixture')).toThrow(ExtractionError);
+    expect(() => specShapeKeys(wrappedIn('bogusWrapper'), 'fixture')).toThrow(
+      /could not resolve `fixture`'s shape/,
+    );
+  });
 
-    it.each(onDisk)('resolves a shape reachable only through `%s`', async (key) => {
+  // The designer gate keeps its walk module-private, and the ruling's boundary
+  // says to leave it there — so it is reached through the gate's OWN
+  // `importSpec` seam, which means the walk under test is the one it really runs.
+  const acceptSetFor = (node: unknown) =>
+    schemaAcceptSet('FieldSchema', async () => ({ FieldSchema: node }));
+
+  it('check-designer-field-key-parity: every entry in the list is load-bearing', async () => {
+    expect(onDisk.length).toBeGreaterThan(0);
+    for (const key of onDisk) {
       const { accept } = await acceptSetFor(wrappedIn(key));
       expect([...accept]).toEqual(SHAPE_KEYS);
-    });
+    }
+  });
 
-    it('raises on a wrapper spelling the list does not carry', async () => {
-      await expect(acceptSetFor(wrappedIn('bogusWrapper'))).rejects.toThrow(
-        /could not resolve `FieldSchema`'s shape/,
-      );
-    });
+  it('check-designer-field-key-parity: raises on a wrapper spelling the list does not carry', async () => {
+    // ⭐ This gate is the reason the whole file uses fixtures. With the list
+    // emptied, the gate's REAL run stays GREEN — measured — because
+    // `data.FieldSchema` and `data.ObjectSchema` expose `.shape` at depth 0 and
+    // never need a wrapper hop. A counter-test anchored on the installed spec
+    // would therefore assert nothing here; this one still fails.
+    await expect(acceptSetFor(wrappedIn('bogusWrapper'))).rejects.toThrow(
+      /could not resolve `FieldSchema`'s shape/,
+    );
   });
 });
