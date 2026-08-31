@@ -134,9 +134,13 @@
  *
  * Deliberate boundaries, stated so they are not mistaken for oversights:
  *
- *   - **`package.json` itself never counts.** Clause (c) reads that file; it does
- *     not match it. A dependency bump can be just as user-visible, and this gate
- *     still does not see it. That was the first draft's trade and it is kept.
+ *   - **`package.json` is not a FILE in this population, and never becomes one.**
+ *     Clause (c) reads that file; it does not match it, and no clause added
+ *     since does either. What changed under objectui#6736 is a different
+ *     question asked of the same file — see "The manifest's published contract"
+ *     below — and it is deliberately not a fourth clause: `isPublishedSource`
+ *     stays path-only, so a manifest edit can never be answered by "the file
+ *     changed".
  *   - **`<pkg>/public/` does not count.** Vite copies it verbatim into the
  *     published `dist/`, so it genuinely IS published — a favicon, a logo, a PWA
  *     manifest. None of it is executable, and demanding a declaration for a logo
@@ -159,6 +163,93 @@
  *     `src/__tests__/` is answered by the empty-frontmatter exemption, in one
  *     line. The alternative — teaching the gate which files "don't count" — is
  *     where the holes live, and this gate asks for a sentence, not a release.
+ *
+ * ## The manifest's published contract — a FIELD reading, not a file (objectui#6736)
+ *
+ * Everything above answers "did a published FILE change". A package's published
+ * contract is not only files: `sideEffects` tells every consumer's bundler what
+ * it may drop, `exports` decides what a consumer can import at all, `files`
+ * decides what is in the tarball. None of those live under `src`, all of them
+ * are read by consumers, and until objectui#6736 a change to any of them was
+ * owed no declaration. The live instance the card was filed on is PR #6735,
+ * which gave `@object-ui/app-shell` a `sideEffects` ARRAY — modules the array
+ * does not name became droppable in every consumer's build — and got this
+ * gate's own verdict, quoted as it read then:
+ *
+ *     7 file(s) changed, 0 of them published source of a package the release
+ *     covers, 0 under a package changesets ignores, 1 changeset(s) added.
+ *     OK  No source of a released package changed in this range, so no
+ *     changeset is owed.
+ *
+ * That changeset was there because its author decided it was owed. Nothing
+ * asked for it.
+ *
+ * ### The list is fixed, and adding to it is a ruling
+ *
+ * `CONTRACT_FIELDS` below is the list objectui#6736 named and triage ratified as
+ * implementable-as-given. It is NOT a starting point to grow by taste: the
+ * triage comment says in as many words that adding or dropping a field is the
+ * step that needs a decision, not an implementation choice. What is in it:
+ * `sideEffects`; `exports`, `main`, `module`, `types`; `files`;
+ * `peerDependencies`, `engines`.
+ *
+ * ### What stays out, and why that is the SAME trade as before
+ *
+ * `version`, `dependencies`, `devDependencies`, `scripts`, `name`,
+ * `publishConfig` and everything else are not read. Two of those are named
+ * exclusions rather than leftovers, and they are the reason this is a field
+ * reading rather than a file one:
+ *
+ *   - **`version`** is written by `changeset version` itself. A gate that went
+ *     red on it would go red on the release commit that answers it.
+ *   - **`devDependencies`** is what Dependabot bumps. Demanding a changeset per
+ *     bot bump is the noise this gate cannot afford.
+ *
+ * Neither is special-cased in the code, and that is the point worth keeping:
+ * they are excluded BY CONSTRUCTION, because the reading is an allowlist of
+ * eight fields and they are not in it. There is no branch to forget, no bot
+ * identity to sniff, and no commit message to parse — the two exclusions the
+ * card names are properties of the list, and `check-changeset-presence.test.ts`
+ * exercises both against real fixtures so that stays true.
+ *
+ * `dependencies` staying out is the part of the old trade that is KEPT rather
+ * than reversed: a runtime dependency bump can be just as user-visible as any
+ * of the eight, and this gate still does not see it. That was the first draft's
+ * trade, it is narrowed here rather than abandoned, and it is stated so nobody
+ * reads "the manifest is guarded now" off this section.
+ *
+ * ### Two readings of the same file, and why they do not collide
+ *
+ * `package.json` was already being read — clause (c) asks its `files` list
+ * whether some OTHER changed path ships. That reading is about a different
+ * path, takes the manifest as it stands AFTER the change (the tarball a
+ * consumer will get is the one the new list describes), and is unchanged here.
+ * The field reading asks whether the manifest's own guarded values MOVED, so it
+ * needs both sides and reads them out of git.
+ *
+ * Where the two readings touch — `files` is in both — they are held to one
+ * normalisation: `publishedEntries` is what clause (c) compares against, and it
+ * is what the field diff compares too, so `dist` and `dist/` are one value to
+ * both. Without that, the gate could demand a declaration for a `files` edit
+ * that its own clause (c) reports as changing nothing shipped: code
+ * contradicting itself inside one run.
+ *
+ * ### Why a diff of parsed values, and not the file's mtime
+ *
+ * Reformatting a manifest, sorting its keys, or bumping its version touches the
+ * file. Only a value moving inside one of the eight fields is a contract
+ * change, so both sides are PARSED and the guarded fields compared value by
+ * value. Comparison is order-preserving serialisation, which is correct rather
+ * than merely convenient: `exports` condition order is resolution order in
+ * Node, so reordering conditions IS a behaviour change and must not compare
+ * equal. For `peerDependencies` and `engines` a pure key reorder would be
+ * reported too — accepted, and cheap: it costs one empty-frontmatter changeset,
+ * and nobody reorders those keys without meaning something.
+ *
+ * An unparseable manifest on EITHER side is a hard failure, like every other
+ * unreadable input here (see "Never silent" below). A manifest absent on one
+ * side — a package added or removed — reads as every guarded field appearing
+ * or disappearing, which is what it is.
  *
  * ## The empty-frontmatter exemption
  *
@@ -700,6 +791,153 @@ export function classifyChangedPaths(paths, packages) {
   return { guarded, unclassified, skipped };
 }
 
+// -- the manifest's published contract (objectui#6736) ------------------------
+
+/** A package's own manifest, by name. */
+export const MANIFEST = 'package.json';
+
+/**
+ * The `package.json` fields whose VALUE is the package's published contract.
+ *
+ * FIXED BY RULING, not by taste. objectui#6736 named this list and triage
+ * ratified it as implementable as given, with the explicit rider that adding or
+ * dropping a field is a decision to be taken on the card and not in a patch. The
+ * header section "The manifest's published contract" carries the reasoning,
+ * including what is deliberately absent (`version`, `dependencies`,
+ * `devDependencies`, `scripts`) and why the two exclusions the card names fall
+ * out of the list itself rather than out of a special case.
+ *
+ * Sorted alphabetically so the fields a failure names come out in one order
+ * whatever moved.
+ */
+export const CONTRACT_FIELDS = [
+  'engines',
+  'exports',
+  'files',
+  'main',
+  'module',
+  'peerDependencies',
+  'sideEffects',
+  'types',
+];
+
+/**
+ * A field that is not present at all.
+ *
+ * A bare word rather than a sentinel object because it is compared against
+ * `JSON.stringify` output, which can never produce it: a string serialises WITH
+ * its quotes, and every other type starts with a digit, a sign, `t`, `f`, `n`,
+ * `[` or `{`. So "absent" and "the value is the string absent" stay two
+ * different readings. Not a control byte, deliberately — see the `NUL` comment
+ * above for what one of those costs a repository.
+ */
+const ABSENT = 'absent';
+
+/** The one field both readings of the manifest share. */
+const MANIFEST_FILES = 'files';
+
+/**
+ * One guarded field of one manifest, as a comparable string.
+ *
+ * `files` goes through `publishedEntries` — the SAME normalisation clause (c)
+ * compares changed paths against — so `['dist']` and `['dist/']` are one value
+ * to both readings of that field. Anything else is compared by
+ * order-preserving serialisation: `exports` condition order is resolution order
+ * in Node, so a reorder is a behaviour change and must not compare equal.
+ *
+ * @param {Record<string, unknown> | null} manifest parsed manifest, or null when
+ *   the file is absent on that side of the diff
+ * @param {string} field
+ */
+function fieldValue(manifest, field) {
+  if (manifest === null) return ABSENT;
+  if (!Object.prototype.hasOwnProperty.call(manifest, field)) return ABSENT;
+  if (field === MANIFEST_FILES) return JSON.stringify(publishedEntries(manifest));
+  return JSON.stringify(manifest[field]);
+}
+
+/**
+ * Which of `CONTRACT_FIELDS` moved between two parsed manifests.
+ *
+ * Either side may be `null` (the manifest does not exist there): a package added
+ * or removed reads as every guarded field it declares appearing or
+ * disappearing, which is what happened.
+ *
+ * @param {Record<string, unknown> | null} before
+ * @param {Record<string, unknown> | null} after
+ * @returns {string[]} field names, in `CONTRACT_FIELDS` order
+ */
+export function manifestFieldsChanged(before, after) {
+  return CONTRACT_FIELDS.filter((field) => fieldValue(before, field) !== fieldValue(after, field));
+}
+
+/**
+ * One manifest as parsed JSON at `ref`, or `null` when it is not there.
+ *
+ * `ref === null` means the WORKING TREE, matching `changedFiles`' default "after"
+ * side and `check-changeset-overwrite`'s `contentAt`: an author running this
+ * locally is judged on what is on disk, before committing.
+ *
+ * A manifest that will not parse THROWS. It is an unreadable input like any
+ * other here, and the direction is the one "Never silent" fixes: this gate
+ * decides whether a declaration is owed, so "cannot tell" is a red build.
+ */
+function manifestAt(root, ref, file) {
+  let source;
+  if (ref === null) {
+    const onDisk = join(root, file);
+    source = existsSync(onDisk) ? readFileSync(onDisk, 'utf8') : null;
+  } else {
+    source = gitQuiet(root, ['show', `${ref}:${file}`]);
+  }
+  if (source === null) return null;
+  try {
+    return JSON.parse(source);
+  } catch (error) {
+    throw new Error(
+      `cannot parse ${file} at ${ref === null ? 'the working tree' : ref}: ${error.message}`,
+    );
+  }
+}
+
+/**
+ * The changed manifests whose published contract moved, split the same three
+ * ways as `classifyChangedPaths`.
+ *
+ * Only a WORKSPACE PACKAGE's own manifest is read: the path has to be exactly
+ * `<a discovered package directory>` + `/package.json`. The repository root
+ * manifest publishes nothing, and a `package.json` deeper inside a package is a
+ * fixture or a nested config, not that package's contract.
+ *
+ * `unclassified` carries the same meaning it does for source — a package in
+ * neither the `fixed` group nor `ignore`, which this gate refuses to guess
+ * about — so the two classifications compose into one verdict instead of two.
+ *
+ * @param {string[]} paths changed paths, as `changedFiles` returned them
+ * @param {Map<string, { name: string, versioned: boolean, ignored: boolean, files: string[] }>} packages
+ */
+export function contractChanges(root, { base, head = null, paths, packages }) {
+  const guarded = [];
+  const unclassified = [];
+  const skipped = [];
+
+  for (const path of paths) {
+    if (!path.endsWith(`/${MANIFEST}`)) continue;
+    const directory = path.slice(0, path.length - MANIFEST.length - 1);
+    const pkg = packages.get(directory);
+    if (pkg === undefined) continue;
+
+    const fields = manifestFieldsChanged(manifestAt(root, base, path), manifestAt(root, head, path));
+    if (fields.length === 0) continue;
+
+    const entry = { file: path, pkg: pkg.name, directory, fields };
+    if (pkg.versioned) guarded.push(entry);
+    else if (pkg.ignored) skipped.push(entry);
+    else unclassified.push(entry);
+  }
+  return { guarded, unclassified, skipped };
+}
+
 // -- declarations -------------------------------------------------------------
 
 /**
@@ -766,8 +1004,9 @@ export function addedDeclarations(root, { base, head = null }) {
 /**
  * @typedef {object} Analysis
  * @property {{ file: string, pkg: string, directory: string }[]} guarded
- * @property {{ file: string, pkg: string, directory: string }[]} unclassified
- * @property {{ file: string, pkg: string, directory: string }[]} skipped
+ * @property {{ file: string, pkg: string, directory: string, fields: string[] }[]} contract
+ * @property {{ file: string, pkg: string, directory: string, fields?: string[] }[]} unclassified
+ * @property {{ file: string, pkg: string, directory: string, fields?: string[] }[]} skipped
  * @property {{ file: string, declaration: { kind: string, entries?: number } }[]} declarations
  * @property {number} changedFileCount
  */
@@ -782,11 +1021,13 @@ export function analyze(root, { base, head = null }) {
   const config = readReleaseConfig(root);
   const packages = discoverPackages(root, config);
   const paths = changedFiles(root, { base, head });
-  const { guarded, unclassified, skipped } = classifyChangedPaths(paths, packages);
+  const source = classifyChangedPaths(paths, packages);
+  const contract = contractChanges(root, { base, head, paths, packages });
   return {
-    guarded,
-    unclassified,
-    skipped,
+    guarded: source.guarded,
+    contract: contract.guarded,
+    unclassified: [...source.unclassified, ...contract.unclassified],
+    skipped: [...source.skipped, ...contract.skipped],
     declarations: addedDeclarations(root, { base, head }),
     changedFileCount: paths.length,
   };
@@ -802,8 +1043,26 @@ export const usableDeclarations = (analysis) => analysis.declarations.filter((d)
  */
 export function verdict(analysis) {
   if (analysis.unclassified.length > 0) return 1;
-  if (analysis.guarded.length === 0) return 0;
+  if (analysis.guarded.length + analysis.contract.length === 0) return 0;
   return usableDeclarations(analysis).length > 0 ? 0 : 1;
+}
+
+/**
+ * What changed, as one noun phrase both the red and the green message open with.
+ *
+ * Source files and contract changes are counted separately because they are
+ * answered by looking at different things — a path, and a field's value — and a
+ * message that merged them would send an author to grep for a file that is
+ * green.
+ *
+ * @param {Analysis} analysis
+ */
+export function subjectPhrase(analysis) {
+  const parts = [];
+  if (analysis.guarded.length > 0) parts.push(`${analysis.guarded.length} source file(s)`);
+  if (analysis.contract.length > 0) parts.push(`${analysis.contract.length} published-contract change(s)`);
+  const packages = new Set([...analysis.guarded, ...analysis.contract].map((entry) => entry.pkg));
+  return `${parts.join(' and ')} of ${packages.size} released package(s)`;
 }
 
 // -- CLI ----------------------------------------------------------------------
@@ -861,17 +1120,18 @@ if (invokedDirectly) {
   console.log(
     `Compared ${head ?? 'the working tree'} with ${base.ref.slice(0, 9)} (${base.how}): ` +
       `${analysis.changedFileCount} file(s) changed, ${analysis.guarded.length} of them published ` +
-      `source of a package the release covers, ${analysis.skipped.length} under a package changesets ` +
+      `source of a package the release covers, ${analysis.contract.length} of them a manifest whose ` +
+      `published contract moved, ${analysis.skipped.length} under a package changesets ` +
       `ignores, ${analysis.declarations.length} changeset(s) added.`,
   );
 
   if (analysis.unclassified.length > 0) {
     const packages = [...new Set(analysis.unclassified.map((entry) => `${entry.pkg} (${entry.directory})`))];
     console.error(
-      `\n❌  ${analysis.unclassified.length} changed source file(s) belong to a package that is in ` +
+      `\n❌  ${analysis.unclassified.length} changed file(s) belong to a package that is in ` +
         'neither the `fixed` group nor `ignore` of .changeset/config.json:\n' +
         packages.map((name) => `      • ${name}`).join('\n') +
-        '\n\n    So this gate cannot tell whether that source ships, and it will not guess "no" —\n' +
+        '\n\n    So this gate cannot tell whether that package ships, and it will not guess "no" —\n' +
         '    that would leave the newest package in the repository the one nothing guards.\n' +
         '    Classify it: `node scripts/check-changeset-fixed.mjs` is the gate that owns this,\n' +
         '    and its message says where to add the name.',
@@ -879,9 +1139,10 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
-  if (analysis.guarded.length === 0) {
+  if (analysis.guarded.length + analysis.contract.length === 0) {
     console.log(
-      '✅  No source of a released package changed in this range, so no changeset is owed.' +
+      '✅  No source or published contract of a released package changed in this range, so no ' +
+        'changeset is owed.' +
         (analysis.skipped.length > 0
           ? `\n    (${analysis.skipped.length} file(s) under a package changesets ignores were skipped.)`
           : ''),
@@ -892,9 +1153,7 @@ if (invokedDirectly) {
   if (usable.length > 0) {
     const releaseNothing = usable.every((d) => d.declaration.entries === 0);
     console.log(
-      `✅  ${analysis.guarded.length} source file(s) of ${
-        new Set(analysis.guarded.map((entry) => entry.pkg)).size
-      } released package(s) changed, and this change declares ` +
+      `✅  ${subjectPhrase(analysis)} changed, and this change declares ` +
         `${usable.length} changeset(s): ${usable.map((d) => d.file).join(', ')}.` +
         (releaseNothing
           ? '\n    Every one of them has an EMPTY frontmatter — declared as releasing nothing, which\n' +
@@ -910,20 +1169,20 @@ if (invokedDirectly) {
     process.exit(0);
   }
 
+  // A contract change names its FIELDS. Without them the line reads "your
+  // package.json changed", which is true of a version bump this gate passes —
+  // an author sent to look for a change the gate did not object to.
   const byPackage = new Map();
-  for (const entry of analysis.guarded) {
+  for (const entry of [...analysis.guarded, ...analysis.contract]) {
     if (!byPackage.has(entry.pkg)) byPackage.set(entry.pkg, []);
-    byPackage.get(entry.pkg).push(entry.file);
+    byPackage.get(entry.pkg).push(entry.fields ? `${entry.file} — ${entry.fields.join(', ')}` : entry.file);
   }
 
-  console.error(
-    `\n❌  ${analysis.guarded.length} source file(s) of ${byPackage.size} released package(s) ` +
-      'changed, and this change adds no changeset:\n',
-  );
-  for (const [pkg, files] of [...byPackage].sort()) {
+  console.error(`\n❌  ${subjectPhrase(analysis)} changed, and this change adds no changeset:\n`);
+  for (const [pkg, lines] of [...byPackage].sort()) {
     console.error(`      ${pkg}`);
-    for (const file of files.slice(0, 5)) console.error(`          ${file}`);
-    if (files.length > 5) console.error(`          … and ${files.length - 5} more`);
+    for (const line of lines.slice(0, 5)) console.error(`          ${line}`);
+    if (lines.length > 5) console.error(`          … and ${lines.length - 5} more`);
   }
   if (unreadable.length > 0) {
     console.error(
@@ -946,6 +1205,13 @@ if (invokedDirectly) {
         ---
 
         Test-only change to the grid column resolver; no published behaviour changes.
+
+    A published-contract line above names FIELDS rather than a file: what moved is one
+    of ${CONTRACT_FIELDS.join(', ')} in that package's
+    package.json, and each of those is read by consumers of the tarball. \`version\`,
+    \`dependencies\`, \`devDependencies\` and \`scripts\` are NOT guarded — a
+    \`changeset version\` bump and a Dependabot devDependency bump go green here by
+    construction (objectui#6736).
 
     Scored \`minor\` at most, never \`major\`: every package is in one fixed group, so
     one major carries all of them off the @objectstack major this repo is pinned to

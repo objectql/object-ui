@@ -6,11 +6,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  CONTRACT_FIELDS,
   changedFiles,
   classifyChangedPaths,
   describeDeclaration,
   discoverPackages,
   isPublishedSource,
+  manifestFieldsChanged,
   readReleaseConfig,
   resolveBaseRef,
 } from '../check-changeset-presence.mjs';
@@ -44,6 +46,15 @@ import {
  *     below keep the widening honest in both directions: red-naming-the-file,
  *     green-when-declared, and green for a non-shipped neighbour in the same
  *     package directory.
+ *  2c. **The manifest's PUBLISHED CONTRACT is read by FIELD** (objectui#6736).
+ *     `sideEffects`, `exports` and their six neighbours are read by every
+ *     consumer and live in no file the population above covers, so PR #6735's
+ *     `sideEffects` array got `no changeset is owed` from this gate's own
+ *     verdict. The legs here are the widening's two directions at once: the
+ *     eight fields go red, and the two exclusions the card NAMED — a `version`
+ *     bump written by `changeset version`, a Dependabot `devDependencies` bump —
+ *     stay green. Neither exclusion is a branch in the code; both are properties
+ *     of the allowlist, which is why they need a test to stay true.
  *  3. **The verdicts**, against throwaway repositories rather than this one's
  *     history, so they stay decidable when the history moves.
  *  4. **Every missing input fails LOUD.** A diff gate that cannot compute its
@@ -457,6 +468,302 @@ describe("the population is a package's PUBLISHED, EXECUTABLE source — not `sr
       ]),
       'the widening is not a blanket over the package directory',
     ).toEqual([]);
+  });
+});
+
+// ── 2c. the manifest's PUBLISHED CONTRACT, read by field (objectui#6736) ─────
+
+describe("a package's published CONTRACT lives in package.json fields, not only in files", () => {
+  // objectui#6736: `sideEffects`, `exports`/`main`/`module`/`types`, `files`,
+  // `peerDependencies`/`engines` are read by every consumer and are under no
+  // path the population above covers. Measured on PR #6735, which gave
+  // `@object-ui/app-shell` a `sideEffects` ARRAY — modules the array does not
+  // name become droppable in every consumer's build — and got this gate's
+  // `No source of a released package changed in this range, so no changeset is
+  // owed`. The changeset in that PR was there because its author decided it was.
+  //
+  // The reading is by FIELD and not by file, and that is what makes the card's
+  // two named exclusions expressible at all. Both are exercised below, because
+  // neither is a branch in the gate: they hold only for as long as the allowlist
+  // stays an allowlist.
+
+  /** Rewrites one workspace manifest, keeping `name` (discovery reads it). */
+  const manifest = (extra: Record<string, unknown>): string =>
+    JSON.stringify({ name: '@fixture/alpha', version: '1.0.0', ...extra }, null, 2);
+
+  it('POSITIVE — a sideEffects array appears with no changeset, and the gate goes red naming the FIELD', () => {
+    const repo = fixtureRepo('contract-side-effects');
+    repo.write('packages/alpha/package.json', manifest({ sideEffects: ['./src/register.ts'] }));
+    repo.commit('perf(alpha): declare precise sideEffects, undeclared');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status, "every consumer's bundler reads this and nothing declared it").toBe(1);
+    expect(run.output).toMatch(/adds no changeset/);
+    expect(run.output).toMatch(/@fixture\/alpha/);
+    expect(run.output).toMatch(/packages\/alpha\/package\.json/);
+    // Naming the FIELD is the load-bearing half here, and more so than naming
+    // the file was for objectui#5733: "your package.json changed" is also true
+    // of a version bump this gate passes, so a red without the field name sends
+    // the author looking for a change the gate did not object to.
+    expect(run.output).toMatch(/sideEffects/);
+  });
+
+  it('NEGATIVE CONTROL — the same change WITH a changeset is green', () => {
+    const repo = fixtureRepo('contract-declared');
+    repo.write('packages/alpha/package.json', manifest({ sideEffects: ['./src/register.ts'] }));
+    repo.write('.changeset/eager-moths-shake.md', '---\n"@fixture/alpha": patch\n---\n\nPrecise sideEffects.\n');
+    repo.commit('perf(alpha): declared');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/declares 1 changeset/);
+    // Green BECAUSE of the declaration, not because nothing was looked at — the
+    // distinction the old gate could not make on this change class at all.
+    expect(run.output).toMatch(/published-contract change\(s\)/);
+  });
+
+  it('EXCLUSION 1 — a `version` bump alone, which is what `changeset version` writes, is green', () => {
+    // A gate that went red here would go red on the release commit that answers
+    // it. Measured against this repository's own history: `59f61cfb8`
+    // (`chore: release packages`, #4655) rewrites 40 released package.json files
+    // and adds no changeset — it EMPTIES `.changeset/`. Field-level: exit 0.
+    // Any file-level reading of the same commit: exit 1.
+    const repo = fixtureRepo('contract-version-bump');
+    repo.write('packages/alpha/package.json', JSON.stringify({ name: '@fixture/alpha', version: '1.1.0' }, null, 2));
+    repo.commit('chore: release packages');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status, '`version` is not in CONTRACT_FIELDS, so nothing was owed').toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+    expect(run.output).toMatch(/0 of them a manifest whose published contract moved/);
+  });
+
+  it('EXCLUSION 2 — a devDependencies bump alone, which is what Dependabot writes, is green', () => {
+    // Measured against real history: `590dd6356` (#4948, `chore(deps-dev): bump
+    // the dev-dependencies group ... with 11 updates`) rewrites 9 released
+    // package.json files with no changeset. Field-level: exit 0. File-level: 1.
+    const repo = fixtureRepo('contract-devdeps-bump');
+    repo.write(
+      'packages/alpha/package.json',
+      manifest({ devDependencies: { vitest: '^3.2.0' }, dependencies: { clsx: '^2.1.1' } }),
+    );
+    repo.commit('chore(deps-dev): bump vitest');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+  });
+
+  it('every guarded field goes red on its own', () => {
+    // One fixture per field rather than one fixture moving all eight: a single
+    // combined case passes as long as ANY one field is read, which is how a
+    // half-wired allowlist stays green.
+    const values: Record<string, unknown> = {
+      engines: { node: '>=24' },
+      exports: { '.': './dist/index.js' },
+      files: ['dist', 'plugin.ts'],
+      main: './dist/index.js',
+      module: './dist/index.mjs',
+      peerDependencies: { react: '^19.0.0' },
+      sideEffects: false,
+      types: './dist/index.d.ts',
+    };
+    expect(Object.keys(values).sort(), 'a field with no case here would be untested').toEqual([...CONTRACT_FIELDS].sort());
+
+    for (const field of CONTRACT_FIELDS) {
+      const repo = fixtureRepo(`contract-field-${field.toLowerCase()}`);
+      repo.write('packages/alpha/package.json', manifest({ [field]: values[field] }));
+      repo.commit(`chore(alpha): move ${field}`);
+
+      const run = runGate(repo.root, lastCommitRange(repo));
+      expect(run.status, `${field} is part of the published contract`).toBe(1);
+      expect(run.output).toMatch(new RegExp(field));
+    }
+  });
+
+  it('an UNGUARDED field moving on its own is green, however large the edit', () => {
+    // The other direction of the same allowlist. `scripts`, `dependencies` and
+    // the rest are not read, and `dependencies` staying out is a KEPT part of
+    // the pre-#6736 trade rather than an oversight — stated in the gate's header
+    // so nobody reads "the manifest is guarded now" off this change.
+    const repo = fixtureRepo('contract-unguarded-fields');
+    repo.write(
+      'packages/alpha/package.json',
+      manifest({
+        description: 'now with a description',
+        scripts: { build: 'tsc', test: 'vitest run' },
+        dependencies: { clsx: '^2.1.1' },
+        publishConfig: { access: 'public' },
+      }),
+    );
+    repo.commit('chore(alpha): everything except the contract');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+  });
+
+  it('reformatting a manifest without moving a value is green — the diff is of VALUES, not bytes', () => {
+    // Why the fields are parsed rather than the file's mtime or its bytes read:
+    // re-indenting, or moving `version` above `name`, changes the file and moves
+    // no contract.
+    const repo = fixtureRepo('contract-reformat');
+    repo.write(
+      'packages/alpha/package.json',
+      `${JSON.stringify({ version: '1.0.0', name: '@fixture/alpha' }, null, 4)}\n`,
+    );
+    repo.commit('style(alpha): reindent and reorder the manifest');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+  });
+
+  it("a `files` respelling that clause (c) reads as the SAME tarball is green — one normalisation, both readings", () => {
+    // `['./plugin.ts', 'dist/']` and `['plugin.ts', 'dist']` describe one
+    // tarball, and `publishedEntries` already says so for clause (c). If the
+    // field diff compared raw values instead, the gate could demand a
+    // declaration for a `files` edit its own clause (c) reports as changing
+    // nothing shipped — code contradicting itself inside a single run.
+    const repo = fixtureRepo('contract-files-respell');
+    repo.write(
+      'apps/console/package.json',
+      JSON.stringify(
+        { name: '@fixture/console', version: '1.0.0', files: ['./dist/', './plugin.ts', 'README.md'] },
+        null,
+        2,
+      ),
+    );
+    repo.commit('chore(console): respell the files list');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+  });
+
+  it('an `exports` condition REORDER is red — condition order is resolution order in Node', () => {
+    // The half that makes the order-preserving comparison correct rather than
+    // merely convenient. Putting `types` after `default` is a real breakage and
+    // moves no key and no value, only their order.
+    const repo = fixtureRepo('contract-exports-reorder');
+    repo.write(
+      'packages/alpha/package.json',
+      manifest({ exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } } }),
+    );
+    repo.commit('feat(alpha): declare exports');
+    repo.write('.changeset/first.md', '---\n"@fixture/alpha": patch\n---\n\nDeclare exports.\n');
+    repo.commit('chore(alpha): declare it');
+
+    repo.write(
+      'packages/alpha/package.json',
+      manifest({ exports: { '.': { default: './dist/index.js', types: './dist/index.d.ts' } } }),
+    );
+    repo.commit('chore(alpha): reorder the exports conditions, undeclared');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(1);
+    expect(run.output).toMatch(/exports/);
+  });
+
+  it('a contract move inside a package changesets IGNORES is skipped, not demanded', () => {
+    const repo = fixtureRepo('contract-ignored');
+    repo.write(
+      'packages/ignored-demo/package.json',
+      JSON.stringify({ name: '@fixture/ignored-demo', version: '1.0.0', sideEffects: false }, null, 2),
+    );
+    repo.commit('chore(ignored-demo): sideEffects on a package no release covers');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status, 'changesets never versions it, so a declaration would be about nothing').toBe(0);
+    expect(run.output).toMatch(/1 file\(s\) under a package changesets ignores were skipped/);
+  });
+
+  it('the ROOT manifest is not a package contract', () => {
+    // The repository root publishes nothing. The reading is keyed to a
+    // DISCOVERED package directory, so only a workspace package's own manifest
+    // is ever read.
+    const repo = fixtureRepo('contract-root-manifest');
+    repo.write('package.json', JSON.stringify({ name: 'fixture-root', private: true, sideEffects: false }, null, 2));
+    repo.commit('chore: sideEffects at the repository root');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(0);
+    expect(run.output).toMatch(/no changeset is owed/);
+  });
+
+  it('a manifest that will not parse is a LOUD failure, not a quiet pass', () => {
+    // Same direction as every other missing input here: this gate decides
+    // whether a declaration is owed, so "cannot tell" is a red build.
+    const repo = fixtureRepo('contract-unparseable');
+    repo.write('packages/alpha/package.json', '{ "name": "@fixture/alpha", "sideEffects": [ }\n');
+    repo.commit('chore(alpha): break the manifest');
+
+    const run = runGate(repo.root, lastCommitRange(repo));
+    expect(run.status).toBe(1);
+    expect(run.output).toMatch(/cannot tell whether one is owed/);
+  });
+
+  it('the FIELD reading and clause (c) stay two different questions about one file', () => {
+    // `isPublishedSource` is path-only and must remain so: a manifest edit can
+    // never be answered by "the file changed", or `version` bumps come back in
+    // through the population rather than through the field list.
+    expect(isPublishedSource('package.json', { files: ['dist', 'plugin.ts', 'README.md'] })).toBe(false);
+    expect(isPublishedSource('package.json', { files: ['package.json'] })).toBe(true);
+
+    const packages = discoverPackages(repoRoot, readReleaseConfig(repoRoot));
+    expect(
+      classifyChangedPaths(['apps/console/package.json', 'packages/i18n/package.json'], packages).guarded,
+      'the manifest is still not published SOURCE — it is judged by its field values instead',
+    ).toEqual([]);
+  });
+
+  it('pins CONTRACT_FIELDS — the list is a RULING, so changing it must be a deliberate edit here', () => {
+    // objectui#6736's triage: the field list is implementable as given, and
+    // "⛔ 若实现者想增删该清单，停下回帖 —— 那才是需要裁决的一步". A test that
+    // pins the exact list is what makes that mechanical rather than a hope.
+    expect(CONTRACT_FIELDS).toEqual([
+      'engines',
+      'exports',
+      'files',
+      'main',
+      'module',
+      'peerDependencies',
+      'sideEffects',
+      'types',
+    ]);
+    expect(CONTRACT_FIELDS, 'the two named exclusions are properties of the LIST, not branches').not.toContain(
+      'version',
+    );
+    expect(CONTRACT_FIELDS).not.toContain('devDependencies');
+    expect(CONTRACT_FIELDS, 'kept out deliberately — the pre-#6736 trade is narrowed, not abandoned').not.toContain(
+      'dependencies',
+    );
+  });
+
+  it('manifestFieldsChanged — appearing, disappearing, and equal-by-normalisation', () => {
+    expect(manifestFieldsChanged({ name: 'a' }, { name: 'a' })).toEqual([]);
+    // Absent -> present and present -> absent are both moves, and `false` is a
+    // real `sideEffects` value that must not read as "not there".
+    expect(manifestFieldsChanged({}, { sideEffects: false })).toEqual(['sideEffects']);
+    expect(manifestFieldsChanged({ sideEffects: false }, {})).toEqual(['sideEffects']);
+    // An absent `files` is not the same declaration as an empty one: absent
+    // publishes the directory, `[]` does not.
+    expect(manifestFieldsChanged({}, { files: [] })).toEqual(['files']);
+    expect(manifestFieldsChanged({ files: ['dist'] }, { files: ['./dist/'] })).toEqual([]);
+    expect(manifestFieldsChanged({ files: ['dist'] }, { files: ['dist', 'plugin.ts'] })).toEqual(['files']);
+    // A whole manifest arriving or leaving — a package added or removed.
+    expect(manifestFieldsChanged(null, { main: './index.js', version: '1.0.0' })).toEqual(['main']);
+    expect(manifestFieldsChanged({ main: './index.js' }, null)).toEqual(['main']);
+    expect(manifestFieldsChanged(null, null)).toEqual([]);
+    // Reported in CONTRACT_FIELDS order, so a failure names them the same way
+    // whatever moved.
+    expect(manifestFieldsChanged({}, { types: './d.ts', engines: { node: '>=22' }, main: './i.js' })).toEqual([
+      'engines',
+      'main',
+      'types',
+    ]);
+    // Unguarded fields are invisible to it, however they move.
+    expect(manifestFieldsChanged({ version: '1.0.0' }, { version: '2.0.0', scripts: { build: 'tsc' } })).toEqual([]);
   });
 });
 
