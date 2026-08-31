@@ -78,7 +78,7 @@ Actions are defined **as data**, not functions. Example:
 
 ### 6. Layout as Components
 
-Layouts are just components that render children. Treat `Grid`, `Stack`, `Container` as first-class citizens. Layout schemas declare responsive columns on the node as `columns` — a number, or a breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl`, with `xs` as the base (e.g. `columns: { xs: 1, md: 2, lg: 4 }`).
+Layouts are just components that render children. Treat `Grid`, `Stack`, `Container` as first-class citizens. Layout schemas declare responsive columns on the node as `columns` — a number, or a breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl`, with `xs` as the base (e.g. `columns: { xs: 1, md: 2, lg: 4 }`). The spec also accepts `2xl`, which the `grid` renderer never reads ([`rules/protocol.md`](./rules/protocol.md)).
 
 ### 7. Type Safety over Magic
 

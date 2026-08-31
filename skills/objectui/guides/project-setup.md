@@ -73,8 +73,8 @@ Add plugins as needed (full plugin catalog):
   "@object-ui/plugin-editor": "latest",
   "@object-ui/plugin-markdown": "latest",
   "@object-ui/plugin-view": "latest",
+  "@object-ui/plugin-tree": "latest",
   "@object-ui/plugin-designer": "latest",
-  "@object-ui/plugin-workflow": "latest",
   "@object-ui/plugin-ai": "latest",
   "@object-ui/plugin-chatbot": "latest"
 }
@@ -312,7 +312,7 @@ by absolute path — still resolves. The run then executes console's 22 files, r
 `Test Files 22 passed (22)`, and never touches the package you asked for. A guard rejects
 those invocations with a non-zero exit and prints the correct form. It is wired into
 `vitest.config.mts` and into each standalone per-package config
-(`packages/plugin-grid/vitest.config.ts` and its ten siblings), since Vitest loads
+(`packages/plugin-grid/vitest.config.ts` and its sixteen siblings), since Vitest loads
 whichever config sits in the directory it was launched from (objectui#5406):
 
 ```
@@ -379,17 +379,22 @@ import { DataSourceProvider, MetadataProvider, ThemeProvider } from '@object-ui/
 Use when integrating ObjectUI into a host system (CRM, ERP, custom admin) and you want:
 
 - `AppShell` (sidebar + main split layout)
-- `ObjectRenderer`, `DashboardRenderer`, `PageRenderer`
+- `ObjectView`, `RecordDetailView`, `DashboardView`, `PageView`, `ReportView`
 - `AdapterProvider`, `MetadataProvider`, `ExpressionProvider`
 - `useObjectActions`, `useRecentItems`, `useAdapter`, `useMetadataItem`
 
+⚠️ These are `*View`, not `*Renderer`. `ObjectRenderer` exists nowhere in the
+repo; `DashboardRenderer` is `@object-ui/plugin-dashboard`'s; `PageRenderer` is
+internal to `@object-ui/components` and is reached through the registry, not by
+import. Importing any of the three from `app-shell` does not resolve.
+
 ```tsx
-import { AppShell, ObjectRenderer, AdapterProvider, MetadataProvider } from '@object-ui/app-shell';
+import { AppShell, ObjectView, AdapterProvider, MetadataProvider } from '@object-ui/app-shell';
 
 <AdapterProvider adapter={myAdapter}>
   <MetadataProvider value={metadata}>
     <AppShell sidebar={<MySidebar />}>
-      <ObjectRenderer objectName="contact" />
+      <ObjectView objectName="contact" />
     </AppShell>
   </MetadataProvider>
 </AdapterProvider>
@@ -413,7 +418,7 @@ Typical usage is via the `objectui dev` CLI (which wraps the same renderer).
 |------|-----|
 | Bare renderer in existing app | `@object-ui/react` |
 | Need shared providers (data/metadata/theme) | + `@object-ui/providers` |
-| Need shell + object/dashboard/page/form renderers | + `@object-ui/app-shell` |
+| Need shell + object/dashboard/page/record views | + `@object-ui/app-shell` |
 | Need full admin console (sidebar, system hub, navigation) | study `apps/console` patterns |
 | Need a CLI-driven dev server | `@object-ui/cli` (`objectui dev`) |
 | Need a standalone runtime bundle | `@object-ui/runner` |

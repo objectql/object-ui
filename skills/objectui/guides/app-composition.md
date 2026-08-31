@@ -29,8 +29,10 @@ skip your app. Powerful constructs are escape hatches, not defaults.
 
 ## What Each Navigation Target Buys You
 
-The nav contract is a discriminated union on `type` (see `NavigationItemSchema`
-in `@object-ui/types`; aligned with `@objectstack/spec`). Runtime resolution is
+The nav contract is a discriminated union on `type` — nine members:
+`object`, `dashboard`, `page`, `report`, `url`, `component`, `group`,
+`separator`, `action` (see `NavigationItemSchema` in `@object-ui/types`;
+aligned with `@objectstack/spec`). Runtime resolution is
 `resolveHref` in `packages/layout/src/NavigationRenderer.tsx` — the single
 source of truth for nav → URL mapping.
 
@@ -44,7 +46,10 @@ source of truth for nav → URL mapping.
 | `{type:'report', reportName}` | `/report/:name` | Report renderer |
 | `{type:'page', pageName}` | `/page/:name` | **Bare SDUI rendering only.** No object shell — view switching, actions, and record routing must be hand-assembled in the page schema |
 | `{type:'url', url}` | external | External link (`target` controls tab) |
+| `{type:'component', componentRef, params?}` | `/component/:ns/:name?…` | A registered bespoke surface. `componentRef` is colon-joined (`metadata:resource`); `params` ride as querystring. `metadata:*` refs are special-cased onto the `/metadata[/:type[/:name]]` routes |
 | `{type:'group', children}` | — | Grouping only; no target |
+| `{type:'separator'}` | — | A rule in the sidebar; skipped by `resolveHref` and never pinnable |
+| `{type:'action'}` | — | Fires a host handler instead of navigating; **dropped entirely** when the host passes no action handler |
 
 ## Decision Rules (in priority order)
 

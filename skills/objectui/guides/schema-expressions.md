@@ -22,7 +22,8 @@ Key files (for reference, not for editing):
 - `packages/core/src/evaluator/ExpressionContext.ts` — scope stacking
 - `packages/core/src/evaluator/FormulaFunctions.ts` — built-in functions
 - `packages/core/src/evaluator/ExpressionCache.ts` — LFU caching
-- `packages/react/src/SchemaRenderer.tsx` — integration layer (lines 117-175)
+- `packages/react/src/SchemaRenderer.tsx` — integration layer (the
+  `evaluatedSchema` memo; grep that name rather than a line number)
 
 ## What gets expression-evaluated
 
@@ -123,7 +124,10 @@ ${!isLocked}                    → boolean negation
 - Ternary: `condition ? trueVal : falseVal`
 - Nullish coalescing: `??`
 - Optional chaining: `?.`
+- Unary: `!`, unary `-` / `+`, `typeof`
 - Method calls: `.toUpperCase()`, `.includes()`, `.filter()`, `.map()`, `.length`
+- Primaries: literals, identifiers, `( … )`, array literals `[1, 2]`, and a
+  single-param arrow (`items.filter(i => i.active)`)
 
 ### Type preservation
 
@@ -171,11 +175,13 @@ ${AVG(scores)}                  → average
 ${COUNT(users)}                 → count
 ${MIN(values)}                  → minimum
 ${MAX(values)}                  → maximum
+${MEDIAN(values)}  ${PERCENTILE(90, values)}  ${STDEV(values)}  ${VARIANCE(values)}
 ```
 
 ### Logic
 ```
 ${IF(score > 90, "A", IF(score > 80, "B", "C"))}
+${SWITCH(tier, 1, "gold", 2, "silver", "other")}
 ${AND(isActive, hasPermission)}
 ${OR(isAdmin, isOwner)}
 ${NOT(isLocked)}
@@ -186,15 +192,25 @@ ${NOT(isLocked)}
 ${UPPER(name)}                  → "ALICE"
 ${LOWER(email)}                 → "alice@example.com"
 ${CONCAT(firstName, " ", lastName)}  → "Alice Smith"
+${TRIM(s)}  ${LEN(s)}  ${LEFT(s, 3)}  ${RIGHT(s, 3)}  ${SUBSTRING(s, 0, 3)}
+${FIND("@", s)}  ${REPLACE(s, "a", "b")}  ${REGEX(s, "^[0-9]+$")}
 ```
+
+`PERCENTILE` takes 0–100, not 0–1; `FIND(search, text)` puts the needle first
+and returns a **0-based** index (`-1` when absent).
 
 ### Date
 ```
 ${TODAY()}                      → current date
 ${NOW()}                        → current datetime
 ${DATEADD(startDate, 7, 'days')}
+${DATEDIFF(startDate, endDate, 'days')}
 ${DATEFORMAT(createdAt, 'YYYY-MM-DD')}
 ```
+
+That is the whole registry — **30 functions**, all of them registered by
+`FormulaFunctions.registerDefaults()`. `register(name, fn)` upper-cases the
+name, so calls are case-insensitive.
 
 ## Condition fields (visibility and disabled)
 
@@ -543,7 +559,10 @@ The expression parser blocks dangerous patterns to prevent injection:
 
 **Blocked:** `eval()`, `Function()`, `setTimeout()`, `setInterval()`, `import()`, `require()`, `process.*`, `global.*`, `window.*`, `document.*`, `__proto__`, `constructor`, `prototype`
 
-If a blocked pattern is detected, the expression throws an error at compile time.
+That list is `isDangerous`'s regex table, matched against the expression source
+before compilation. Property access has a second gate the list omits: the
+parser's `BLOCKED_PROPS` also rejects `__defineGetter__`, `__defineSetter__`,
+`__lookupGetter__` and `__lookupSetter__`.
 
 **Safe by design:** The recursive-descent parser never converts expression strings into executable JavaScript code. It tokenizes and evaluates each node directly.
 
@@ -586,16 +605,23 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 { "hidden": "${data.count > 0}" }
 ```
 
-### Cannot use constructor or `new Date()`
+### `new X()` — only `Date` and `RegExp`
 
-**Cause:** Security restriction blocks constructors.
+`parseNewExpression` permits exactly two constructors and throws
+`new X() is not supported in expressions` for every other name. `new Date(…)`
+is **not** blocked — measured through the schema path, it returns a real
+`Date`. Prefer a formula function anyway: a `Date` object stringifies into
+the DOM as a locale-dependent blob.
 
 ```json
-// ❌ Blocked
+// ✅ Works, but renders "Thu Jan 01 1970 …"
 { "type": "text", "content": "${new Date(data.timestamp)}" }
 
-// ✅ Use formula functions
+// ✅ Preferred — formatted, and stable across locales
 { "type": "text", "content": "${DATEFORMAT(data.timestamp, 'YYYY-MM-DD')}" }
+
+// ❌ Rejected — any constructor other than Date / RegExp
+{ "type": "text", "content": "${new Function('return 1')()}" }
 ```
 
 ### Object literal in expression

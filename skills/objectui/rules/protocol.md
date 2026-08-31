@@ -280,6 +280,14 @@ A bare `"columns": 4` already gets a mobile-first ramp (1 column, 2 at `sm`,
 4 at `md`), so reach for the object form only when you need the breakpoints
 spelled out.
 
+**`2xl` is accepted and then dropped.** The spec's `BreakpointColumnMapSchema`
+declares six keys — `xs` … `xl` **plus `2xl`** — but the `grid` renderer reads
+only the first five, so `{ "xs": 1, "2xl": 6 }` validates, emits no `2xl:`
+class, and renders at the `xs` count forever. Measured: `{xs:1, xl:5}` →
+`grid grid-cols-1 xl:grid-cols-5 gap-4`; `{xs:1, "2xl":6}` →
+`grid grid-cols-1 gap-4`. Stop at `xl`, or carry the widest step in
+`className`.
+
 **❌ DO NOT** spell it `cols` — no schema, renderer or registry declares that
 key, so the value is dropped on the floor and the grid renders a flat two
 columns at *every* breakpoint (objectui#4001).

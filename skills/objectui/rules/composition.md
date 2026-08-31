@@ -152,21 +152,22 @@ Dialog, Sheet, and Drawer **always need a Title** for accessibility.
 </div>
 ```
 
-**Empty states use Empty:**
+**Empty states use Empty:** it composes like `Card`, it is not a props bag —
+`Empty` and its parts each take only `className` + children.
 ```typescript
 // ✅ Correct
-<Empty
-  icon={<InboxIcon />}
-  title="No results found"
-  description="Try adjusting your search"
-/>
+<Empty>
+  <EmptyMedia><InboxIcon /></EmptyMedia>
+  <EmptyTitle>No results found</EmptyTitle>
+  <EmptyDescription>Try adjusting your search</EmptyDescription>
+</Empty>
 
-// ❌ Wrong
-<div className="text-center p-8">
-  <InboxIcon className="mx-auto" />
-  <h3>No results found</h3>
-</div>
+// ❌ Wrong — `icon` / `title` / `description` are not props; they land on the
+//    underlying <div> as unknown attributes and nothing renders.
+<Empty icon={<InboxIcon />} title="No results found" />
 ```
+Parts: `EmptyHeader`, `EmptyMedia`, `EmptyTitle`, `EmptyDescription`,
+`EmptyContent`, `EmptyValue` (`@object-ui/components`).
 
 **Use Separator instead of hr:**
 ```typescript
@@ -218,7 +219,7 @@ showNotification({ type: 'success', message: 'Saved' });
 **✅ CORRECT:**
 ```typescript
 <Button disabled={isLoading}>
-  {isLoading && <Spinner data-icon="inline-start" />}
+  {isLoading && <Spinner />}
   {isLoading ? 'Saving...' : 'Save'}
 </Button>
 ```
@@ -229,51 +230,30 @@ showNotification({ type: 'success', message: 'Saved' });
 <Button isPending={isLoading}>Save</Button>
 ```
 
-## Rule: Icons in Buttons Use data-icon
+## Rule: Icons in Buttons Are Children — No Sizing, No Spacing, No `icon` Prop
+
+Put the icon where you want it in the children; leading or trailing is child
+order. `buttonVariants`' base string already carries `gap-2` and
+`[&_svg]:size-4 [&_svg]:shrink-0`, so the spacing and the sizing are done.
 
 **✅ CORRECT:**
 ```typescript
-<Button>
-  <SearchIcon data-icon="inline-start" />
-  Search
-</Button>
+import { SearchIcon, ChevronRightIcon } from 'lucide-react';
 
-<Button>
-  Save
-  <ChevronRightIcon data-icon="inline-end" />
-</Button>
+<Button><SearchIcon />Search</Button>
+<Button>Save<ChevronRightIcon /></Button>
 ```
 
 **❌ FORBIDDEN:**
 ```typescript
-// ❌ No data-icon attribute
-<Button>
-  <SearchIcon className="mr-2" />
-  Search
-</Button>
+// ❌ Manual sizing or spacing classes on the icon — the base string does both
+<Button><SearchIcon className="mr-2 size-4" />Search</Button>
 
-// ❌ Manual sizing classes on icons
-<Button>
-  <SearchIcon className="size-4" data-icon="inline-start" />
-  Search
-</Button>
-```
-
-**Why:** Components handle icon sizing via CSS. No manual `size-4` or `w-4 h-4` needed.
-
-## Rule: Pass Icons as Objects, Not String Keys
-
-**✅ CORRECT:**
-```typescript
-import { CheckIcon } from 'lucide-react';
-
+// ❌ There is no `icon` prop. `ButtonProps` is ButtonHTMLAttributes +
+//    variant/size + `asChild`, so this reaches the DOM as an unknown
+//    attribute and renders nothing. (`size="icon"` is the square-button
+//    SIZE variant — a different key with a confusingly similar name.)
 <Button icon={CheckIcon}>Save</Button>
-```
-
-**❌ FORBIDDEN:**
-```typescript
-// ❌ Don't use string lookups
-<Button icon="check">Save</Button>
 ```
 
 ## Rule: Registry-Based Component Resolution

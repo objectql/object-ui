@@ -25,6 +25,8 @@ skills/objectui/
 │   ├── composition.md
 │   └── no-touch-zones.md
 ├── guides/       # Domain-specific deep dives
+│   ├── architecture.md
+│   ├── app-composition.md
 │   ├── page-builder.md
 │   ├── plugin-development.md
 │   ├── schema-expressions.md
@@ -78,8 +80,8 @@ The skill stays in sync with the `packages/` tree:
 
 - **Core renderer:** `@object-ui/types`, `core`, `components`, `fields`, `layout`, `react`
 - **Integration:** `@object-ui/app-shell`, `providers`, `runner`, `data-objectstack`
-- **Platform features:** `@object-ui/auth`, `permissions`, `tenant`, `i18n`, `mobile`, `collaboration`
-- **Plugins (19):** `plugin-{grid, list, detail, form, kanban, calendar, timeline, gantt, dashboard, report, charts, map, editor, markdown, view, designer, workflow, ai, chatbot}`
+- **Platform features:** `@object-ui/auth`, `permissions`, `i18n`, `mobile`, `collaboration`
+- **Plugins (19):** `plugin-{grid, list, detail, form, kanban, calendar, timeline, gantt, dashboard, report, charts, map, editor, markdown, view, tree, designer, ai, chatbot}`
 - **Tooling:** `@object-ui/cli`, `create-plugin`, `vscode-extension`
 
 ## Maintenance

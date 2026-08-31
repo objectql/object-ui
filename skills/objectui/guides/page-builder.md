@@ -476,7 +476,7 @@ Pick plugins by domain — each registers its own `type` strings in the Componen
 | Boards / Dashboards | `plugin-kanban`, `plugin-dashboard`, `plugin-report` |
 | Visualization | `plugin-charts`, `plugin-map` |
 | Editors | `plugin-editor`, `plugin-markdown` |
-| Views & Design | `plugin-view`, `plugin-designer`, `plugin-workflow` |
+| Views & Design | `plugin-view`, `plugin-tree`, `plugin-designer` |
 | AI | `plugin-ai`, `plugin-chatbot` |
 
 For lazy loading, use `LazyPluginLoader` from `@object-ui/react` rather than top-level imports.
@@ -486,10 +486,18 @@ For lazy loading, use `LazyPluginLoader` from `@object-ui/react` rather than top
 For host apps that need more than the raw renderer, prefer `@object-ui/app-shell`:
 
 ```tsx
-import { AppShell, ObjectRenderer, PageRenderer, DashboardRenderer } from '@object-ui/app-shell';
+import { AppShell, ObjectView, PageView, DashboardView } from '@object-ui/app-shell';
 ```
 
-It exposes `ObjectRenderer`, `PageRenderer`, `DashboardRenderer` and matching providers (`AdapterProvider`, `MetadataProvider`, `ExpressionProvider`). See `guides/project-setup.md` for the decision matrix.
+It exposes `ObjectView`, `RecordDetailView`, `PageView`, `DashboardView`,
+`ReportView` and matching providers (`AdapterProvider`, `MetadataProvider`,
+`ExpressionProvider`). ⚠️ Not `ObjectRenderer` / `PageRenderer` /
+`DashboardRenderer`. `ObjectRenderer` exists nowhere in the repo;
+`DashboardRenderer` is a public export of `@object-ui/plugin-dashboard`; and
+`PageRenderer` is an internal renderer inside `@object-ui/components`,
+reachable only through the `page` / `app` / `utility` / `home` / `record`
+registry keys it registers, never as an import. See
+`guides/project-setup.md` for the decision matrix.
 
 ## Common mistakes to avoid
 

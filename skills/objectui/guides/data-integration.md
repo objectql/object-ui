@@ -46,18 +46,22 @@ interface DataSource<T = any> {
 
   // View support (optional)
   getView?(objectName: string, viewId: string): Promise<any | null>;
-  saveView?(objectName: string, viewId: string, config: any): Promise<any>;
+  createView?(...); updateView?(...); updateViewConfig?(...); deleteView?(...);
 
   // Analytics (optional)
   aggregate?(resource: string, params: AggregateParams): Promise<AggregateResult>;
-
-  // Custom actions (optional)
-  execute?(resource: string, action: string, params?: any): Promise<any>;
 
   // Real-time (optional)
   onMutation?(callback: (event: MutationEvent) => void): () => void;
 }
 ```
+
+Six members are **required**; the optional half is much larger than the excerpt
+above — **32** optional members at `origin/main`, covering bulk/transaction,
+views, apps & pages, file upload, and the export / import job lifecycles. Read
+`data.ts` before concluding a capability is missing, and note the two spellings
+that do **not** exist: there is no `saveView` (write through `updateViewConfig`
+/ `createView` / `updateView`) and no generic `execute`.
 
 ### QueryParams
 
@@ -69,6 +73,9 @@ interface QueryParams {
   $skip?: number;                 // OFFSET (for pagination)
   $top?: number;                  // LIMIT (page size)
   $expand?: string[];             // JOIN/expand related objects
+  $search?: string;               // free-text search term
+  $searchFields?: string[];       // fields the search term is matched against
+  $count?: boolean;               // ask the backend for `total`
   [key: string]: any;             // why an unprefixed `limit` type-checks — and is then dropped
 }
 ```

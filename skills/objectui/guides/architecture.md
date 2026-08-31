@@ -30,7 +30,7 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 
 | Package | Role | Responsibility |
 |---|---|---|
-| `@object-ui/app-shell` | Minimal Shell | Framework-agnostic `AppShell`, `ObjectRenderer`, `DashboardRenderer`, `PageRenderer`. Bring-your-own-router. |
+| `@object-ui/app-shell` | Minimal Shell | Framework-agnostic `AppShell`, `ObjectView`, `DashboardView`, `PageView`. Bring-your-own-router. |
 | `@object-ui/providers` | Context Stack | Reusable `DataSourceProvider`, `MetadataProvider`, `ThemeProvider`. Console-free. |
 | `@object-ui/runner` | Universal Runtime | Standalone runtime + dev server for schema-driven apps. Pre-wires popular plugins. |
 | `@object-ui/data-*` | Data Adapters | Connectors for REST, ObjectQL, GraphQL (e.g. `@object-ui/data-objectstack`). |
@@ -59,14 +59,14 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 | `@object-ui/plugin-editor` / `plugin-markdown` | Rich text + markdown editors. |
 | `@object-ui/plugin-view` | View switcher / saved views. |
 | `@object-ui/plugin-designer` | Visual schema designer canvas. |
-| `@object-ui/plugin-workflow` | Workflow / process editor. |
+| `@object-ui/plugin-tree` | Hierarchy / tree views (`tree`, `object-tree`). |
 | `@object-ui/plugin-ai` / `plugin-chatbot` | AI assistant + chatbot UI. |
 
 ### Tooling
 
 | Package | Purpose |
 |---|---|
-| `@object-ui/cli` | `objectui` CLI: `init`, `dev`, `build`, `start`, `studio`, `validate`, `check`, `lint`, `test`, `generate`, `add`, `doctor`, `analyze`, `create plugin`. |
+| `@object-ui/cli` | `objectui` CLI: `init`, `serve`, `dev`, `build`, `start`, `studio`, `validate`, `check`, `lint`, `test`, `generate`, `add`, `doctor`, `analyze`, `create plugin`. |
 | `@object-ui/create-plugin` | `pnpm create-plugin <name>` scaffolder for new `plugin-*` packages. |
 | `@object-ui/vscode-extension` | VSCode extension: syntax highlighting, IntelliSense, validation for ObjectUI JSON schemas. |
 
@@ -131,18 +131,15 @@ See `rules/protocol.md` for which fields are expression-evaluated and which are 
 How users add their own components (e.g. a `Map` widget):
 
 ```typescript
-// packages/core/src/registry.ts
-export type ComponentImpl = React.FC<{ schema: any; ... }>;
+// packages/core/src/registry/Registry.ts — one shared instance, not free functions
+export const ComponentRegistry = new Registry<any>();
 
-const registry = new Map<string, ComponentImpl>();
+// register(type, component, meta?) — `meta.namespace` makes the key `namespace:type`
+ComponentRegistry.register('map', MapRenderer, { namespace: 'plugin-map' });
 
-export function registerComponent(type: string, impl: ComponentImpl) {
-  registry.set(type, impl);
-}
-
-export function resolveComponent(type: string) {
-  return registry.get(type) || FallbackComponent;
-}
+// get(type, namespace?) — undefined when nothing is registered; the caller
+// (SchemaRenderer) is what falls back, the registry does not.
+const impl = ComponentRegistry.get('map');
 ```
 
 ### Pattern B: The Renderer Loop (Recursion)

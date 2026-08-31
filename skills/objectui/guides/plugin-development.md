@@ -80,20 +80,38 @@ ComponentRegistry.register('my-widget', MyWidgetRenderer, {
 | `isContainer` | `boolean` | Accepts child components |
 | `resizable` | `boolean` | Designer allows resizing |
 | `resizeConstraints` | `object` | Min/max width/height |
+| `tier` | `'public' \| 'internal'` | Public contract tier (ADR-0080). Undefined = internal |
+| `labelling` | `'control' \| 'group' \| 'display'` | How a host associates its label; absent ⇒ `'control'` |
+| `deprecated` | `object` | Authoring-time deprecation (`surfaces`, `replacement`) |
+| `examples` | `array` | Sample schemas for the designer |
+| `tags` | `string[]` | Free-form grouping tags |
+| `description` | `string` | Longer description for the designer |
+
+Sixteen keys in total: the eleven on `ComponentMeta` (`@object-ui/types`
+`base.ts`) plus the five `RegistryComponentMetaExtras` the registry adds
+(`tier`, `namespace`, `skipFallback`, `labelling`, `deprecated`).
 
 ### ComponentInput types
 
 ```typescript
+type ComponentInputControlType =
+  | 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object'
+  | 'color' | 'date' | 'code' | 'file' | 'slot';
+
 type ComponentInput = {
   name: string;          // Maps to component prop
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object'
-       | 'color' | 'date' | 'code' | 'file' | 'slot';
+  // ONE control type, or an ARRAY of them when the input accepts several
+  // shapes (objectui#3832). Widening the vocabulary is a contract change.
+  type: ComponentInputControlType | ComponentInputControlType[];
   label?: string;
   defaultValue?: any;
   required?: boolean;
   enum?: string[] | Array<{ label: string; value: string }>;
   description?: string;
   advanced?: boolean;    // Hide by default in designer
+  inputType?: string;    // Widget hint for the designer control
+  min?: number; max?: number; step?: number;   // numeric bounds
+  placeholder?: string;
 };
 ```
 
@@ -264,10 +282,12 @@ type FieldWidgetComponentProps<T = any> = {
 The slot is named `error` because that is what `FieldWidgetPropsSchema` in
 `@objectstack/spec/ui` — the published widget contract — calls it.
 
-The type is **closed**: it also declares the host plumbing and DOM/ARIA
-pass-through keys the renderer forwards (`dataSource`, `dependentValues`,
-`dependsOn`, `emptyHint`, `compact`, `id`, `name`, `aria-*`, `data-*`), and
-nothing else. A key it does not declare is a compile error rather than a silent
+The type is **closed**: it also declares the host plumbing
+(`dataSource`, `dependentValues`, `dependsOn`, `dependsOnLabels`, `emptyHint`,
+`compact`, `onUploadingChange`, `onSelectRecord`, `onCreateNew`) and, by
+intersection, the DOM/ARIA pass-through the renderer forwards
+(`FieldWidgetDomProps` → `id` / `name`, `AriaAttributes`, and a
+`data-${string}` index signature), and nothing else. A key it does not declare is a compile error rather than a silent
 `any`, so a typo like `readOnly` for `readonly` is caught at build time instead
 of being quietly `undefined` at runtime.
 

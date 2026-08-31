@@ -26,19 +26,30 @@ pnpm test:e2e          # Playwright E2E tests
 
 ### Coverage thresholds
 
-Configured in `vitest.config.mts`:
-- Lines: 62% | Functions: 54% | Branches: 50% | Statements: 61%
+Configured in `vitest.config.mts` (`coverage.thresholds`):
+- Lines: 40% | Functions: 33% | Branches: 30% | Statements: 40%
 
 ## Vitest configuration
 
-Two test suites in `vitest.workspace.ts`:
+There is **no `vitest.workspace.ts`**. The projects are declared inline in
+`vitest.config.mts` under `test.projects`, and there are three of them plus
+`apps/console`'s own config. The split is by **file extension**, not by package
+— a `.test.ts` anywhere lands in `unit`, so a React test must be `.test.tsx`:
 
-1. **Unit tests** (`node` environment): `packages/core`, `packages/types`, `packages/cli`, `packages/data-objectstack`
-2. **UI tests** (`happy-dom` environment): All other packages, apps, examples
+| Project | Environment | Matches | Setup file |
+|---|---|---|---|
+| `unit` | `node` | `packages/**`, `examples/**` `*.test.ts` + `eslint-rules/**/*.test.js` + `scripts/**/*.test.ts` | `vitest.setup.base.ts` |
+| `dom` | `happy-dom` | `packages/**`, `examples/**` `*.test.tsx` | `vitest.setup.dom-light.tsx` |
+| `dom-heavy` | `happy-dom` | the registry-rendering files listed as `heavyDomTests` | `vitest.setup.dom.tsx` |
 
-### Setup file (`vitest.setup.tsx`)
+Run one with `--project unit` / `dom` / `dom-heavy` (`pnpm test:unit` is the
+first). `unit` also sets `isolate: false`; the DOM projects keep isolation.
 
-The setup file registers components globally before tests run:
+### Setup file (`vitest.setup.dom.tsx`)
+
+The `dom-heavy` setup registers components globally before tests run
+(`vitest.setup.tsx` is a legacy shim that re-exports it and is wired into no
+config):
 ```typescript
 import '@object-ui/components';     // Shadcn primitives
 import '@object-ui/fields';         // Field widgets
@@ -114,7 +125,7 @@ describe('schema validation', () => {
   it('rejects schema without type', () => {
     const result = validateSchema({} as any);
     expect(result.valid).toBe(false);
-    expect(formatValidationErrors(result.errors)).toContain('type');
+    expect(formatValidationErrors(result)).toContain('type');
   });
 
   it('validates nested children', () => {
@@ -137,27 +148,31 @@ import { describe, it, expect } from 'vitest';
 import { ExpressionEvaluator } from '@object-ui/core';
 
 describe('ExpressionEvaluator', () => {
-  const evaluator = new ExpressionEvaluator();
-  const context = {
+  // The CONTEXT is a constructor argument. `evaluate(expr, options)` and
+  // `evaluateExpression(expr, options)` take EvaluationOptions as their second
+  // argument — passing the context there is silently ignored, every `${…}`
+  // resolves against an empty scope, and the template part falls back to its
+  // own literal, so the test fails with the source string as `received`.
+  const evaluator = new ExpressionEvaluator({
     data: { name: 'Alice', count: 42, items: [1, 2, 3] },
     user: { role: 'admin' },
-  };
+  });
 
   it('evaluates template expressions', () => {
-    expect(evaluator.evaluate('Hello ${data.name}', context)).toBe('Hello Alice');
+    expect(evaluator.evaluate('Hello ${data.name}')).toBe('Hello Alice');
   });
 
   it('preserves type for single expressions', () => {
-    expect(evaluator.evaluate('${data.count}', context)).toBe(42);
+    expect(evaluator.evaluate('${data.count}')).toBe(42);
   });
 
   it('evaluates boolean conditions', () => {
-    expect(evaluator.evaluateExpression('user.role === "admin"', context)).toBe(true);
+    expect(evaluator.evaluateExpression('user.role === "admin"')).toBe(true);
   });
 
   it('handles missing variables safely', () => {
-    expect(evaluator.evaluate('${data.missing}', context)).toBeUndefined();
-    expect(evaluator.evaluate('${data.missing || "fallback"}', context)).toBe('fallback');
+    expect(evaluator.evaluate('${data.missing}')).toBeUndefined();
+    expect(evaluator.evaluate('${data.missing || "fallback"}')).toBe('fallback');
   });
 });
 ```
