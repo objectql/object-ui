@@ -104,7 +104,13 @@ export type _RequiredIsBoolean = Expect< Equal< NonNullable< TsCheckboxSchema['r
 export type _ButtonTextIsString = Expect< Equal< NonNullable< TsFileUploadSchema['buttonText'] >, string > >;
 export type _UploadWrapperClassIsString = Expect< Equal< NonNullable< TsFileUploadSchema['wrapperClass'] >, string > >;
 export type _AlignIsOverlayAlignment = Expect< Equal< NonNullable< TsHoverCardSchema['align'] >, OverlayAlignment > >;
-export type _TriggerIsNodeOrNodes = Expect< Equal< NonNullable< TsContextMenuSchema['trigger'] >, SchemaNode | SchemaNode[] > >;
+// ⚠️ No `NonNullable` here, unlike every line above: `SchemaNode` ITSELF admits
+// `null | undefined` (`base.ts`), so `NonNullable` would strip those limbs out of
+// the union and compare a different type. Read raw, the optional `?` adds
+// `undefined` to a union that already carries it, so the two sides are equal —
+// and the guard still bites, because an undeclared `trigger` would resolve to
+// `any` through `BaseSchema`'s index signature and `Equal< any, … >` is false.
+export type _TriggerIsNodeOrNodes = Expect< Equal< TsContextMenuSchema['trigger'], SchemaNode | SchemaNode[] > >;
 
 /**
  * INVOKED, not read — so the declared type is a call signature taking the
