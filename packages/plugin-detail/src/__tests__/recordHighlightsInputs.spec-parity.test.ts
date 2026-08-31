@@ -19,11 +19,17 @@
  *     HeaderHighlight gate and honoured by the renderer, but the `fields`
  *     description still spelled the entry shape `{name,label?,icon?,type?}`);
  *   - a top-level input the spec does not declare is worse than undocumented,
- *     it is actively misleading. `RecordHighlightsProps` is a plain `z.object`,
- *     so an unknown top-level key is STRIPPED on parse with no error, the
- *     manifest gate only validates top-level props and raises no diagnostic,
- *     and the renderer never sees it. The manifest would be telling authors to
- *     write something the platform throws away.
+ *     it is actively misleading: the manifest would be publishing an authoring
+ *     surface the platform does not accept. That verdict holds on every pin —
+ *     an UNDECLARED top-level key is not an authoring surface — while the
+ *     contract states it two ways depending on the installed
+ *     `@objectstack/spec`: a closed `RecordHighlightsProps` refuses the key
+ *     with a named `unrecognized_keys`, where the older strip-mode `z.object`
+ *     dropped it from `data` with no error at all, which is exactly why this
+ *     gap could stay silent for as long as it did. Which way the installed pin
+ *     states it is probed behaviourally, below, by
+ *     `specRefusesUnknownTopLevelKeys` — never narrated here as a
+ *     present-tense fact about a mode.
  *
  * Both assertions derive their expectation from the spec at runtime rather than
  * restating today's key list, so a spec change fails here instead of quietly
