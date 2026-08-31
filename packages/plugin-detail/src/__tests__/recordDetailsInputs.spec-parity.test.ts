@@ -131,6 +131,31 @@ const specRefusesUnknownSectionKeys = !RecordDetailsProps.safeParse({
   sections: [{ label: 'Contact', fields: ['phone'], __objectui_4648_probe__: true }],
 }).success;
 
+/**
+ * The TOP-LEVEL twin of the probe above — does the installed spec refuse an
+ * undeclared key on the props object itself, or drop it in silence?
+ * (objectui#5887.)
+ *
+ * Both probes exist for the same reason and neither substitutes for the other:
+ * strictness is per SCHEMA, so the section-level reading above says nothing
+ * about `RecordDetailsProps` itself, and the sibling
+ * `recordHighlightsInputs.spec-parity.test.ts`'s top-level probe is a reading of
+ * `RecordHighlightsProps` — the shape to copy, not evidence about this one.
+ * Probed behaviourally rather than off a version string: the strictness IS the
+ * fact, and a probe cannot go stale against a pin it never reads.
+ *
+ * The probe key is a name no spec would ever declare — and if one ever did, the
+ * assertion below is what says so, rather than the probe quietly measuring a
+ * declared key and reporting strip mode.
+ */
+const TOP_LEVEL_BASELINE = { fields: ['phone'] };
+const UNDECLARED_TOP_LEVEL_KEY = '__objectui_5887_probe__';
+const unknownTopLevelParse = RecordDetailsProps.safeParse({
+  ...TOP_LEVEL_BASELINE,
+  [UNDECLARED_TOP_LEVEL_KEY]: true,
+});
+const specRefusesUnknownTopLevelKeys = !unknownTopLevelParse.success;
+
 const config = () => ComponentRegistry.getConfig('record:details');
 const inputs = () => config()?.inputs ?? [];
 const input = (name: string) => inputs().find((i) => i.name === name);
@@ -274,10 +299,11 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // is exactly why the gap was silent. So "it is still there afterwards" is the
     // proof on both, and `success === true` is not — on a stripping pin an
     // undeclared key gets that too. Probed behaviourally rather than off a
-    // version string: `specRefusesUnknownTopLevelKeys` in the sibling
-    // `recordHighlightsInputs.spec-parity.test.ts` models the shape, and
-    // strictness is per schema, so it is the pattern rather than a reading of
-    // this one.
+    // version string, and measured on THIS schema:
+    // `specRefusesUnknownTopLevelKeys` above, asserted in the block that follows
+    // (objectui#5887). The sibling `recordHighlightsInputs.spec-parity.test.ts`
+    // models the shape, and strictness is per schema, so it was only ever the
+    // pattern rather than a reading of this one.
     expect(specTopLevelKeys()).toContain('hideFields');
     const parsed = RecordDetailsProps.safeParse({ hideFields: ['phone'] });
     expect(parsed.success).toBe(true);
@@ -285,6 +311,39 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
 
     expect(inputs().map((i) => i.name)).toContain('hideFields');
     expect(input('hideFields')?.description ?? '').not.toBe('');
+  });
+
+  it('refuses an undeclared top-level key, measured on THIS schema (#5887)', () => {
+    // The top-level counterpart of `publishes no section member key the spec
+    // refuses to carry` above, and the reading the block before this one used to
+    // borrow from a sibling. Both arms state the same verdict — an undeclared
+    // top-level key is not an authoring surface — because the contract states it
+    // two ways depending on the installed `@objectstack/spec`, and pinning the
+    // wrong one reds this file for a reason unrelated to what it guards.
+    //
+    // CONTROL FIRST, in this same assertion: the identical fixture WITHOUT the
+    // probe key parses green, so the probe's verdict below is attributable to the
+    // undeclared key and not to a malformed fixture. Without it, a probe that
+    // failed for any other reason would read as strictness.
+    expect(RecordDetailsProps.safeParse(TOP_LEVEL_BASELINE).success).toBe(true);
+
+    if (specRefusesUnknownTopLevelKeys) {
+      // A loud refusal. Asserted as an ENVELOPE — the code AND the key it names —
+      // because a bare "it failed" would also be satisfied by a rejection of
+      // `fields`, which is the half that must stay valid.
+      expect(unknownTopLevelParse.success).toBe(false);
+      expect(unknownTopLevelParse.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+      expect(
+        unknownTopLevelParse.error?.issues.flatMap(
+          (i) => (i as unknown as { keys?: string[] }).keys ?? [],
+        ),
+      ).toContain(UNDECLARED_TOP_LEVEL_KEY);
+    } else {
+      // Strip mode, and the concrete harm this family keeps re-paying for: no
+      // throw, no diagnostic, key gone, author handed a success receipt.
+      expect(unknownTopLevelParse.success).toBe(true);
+      expect(unknownTopLevelParse.data).not.toHaveProperty(UNDECLARED_TOP_LEVEL_KEY);
+    }
   });
 
   it('`hideFields` documents bare names only, because the spec rejects entry objects', () => {
