@@ -12,19 +12,20 @@ The Menubar component provides a horizontal menu bar similar to desktop applicat
 ## Dividers
 
 An item is either a command or a divider between groups of commands — never
-both, and a divider never carries a `label`. Author a divider as
-`{ "separator": true }`.
+both, and a divider never carries a `label` (objectui#6523). Author a divider
+as `{ "separator": true }`; the retired `{ "type": "separator" }` spelling is
+refused at parse time rather than silently ignored.
 
 ## Schema
 
 ```plaintext
 interface MenubarCommandItem {
   label: string;
-  value?: string;
   icon?: string;
   shortcut?: string;               // e.g. "Ctrl+T" — a single string, not an array
   disabled?: boolean;
   onClick?: () => void;            // Click handler
+  children?: MenubarItem[];        // Submenu items — drawn as a nested submenu
 }
 
 interface MenubarDividerItem {
@@ -40,7 +41,7 @@ interface MenubarMenu {
 
 interface MenubarSchema {
   type: 'menubar';
-  menus: MenubarMenu[];           // Menu definitions
+  menus?: MenubarMenu[];          // Menu definitions
   className?: string;
 }
 ```
