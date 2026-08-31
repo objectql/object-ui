@@ -78,6 +78,48 @@ function formatFinding(f: MetadataSaveAdvisoryEvent['advisories'][number]): stri
 }
 
 /**
+ * The frame's verb, chosen by the door the write came through.
+ *
+ * An exhaustive `switch` with a `never` check rather than a two-way ternary,
+ * and the difference is the whole point of the field. A ternary answers
+ * "is it publish, else save" — so a THIRD door added to the union would
+ * compile everywhere, declare itself honestly at its constructor, and still
+ * silently render "Saved". That is precisely the silent-wrong-verb class
+ * `door` exists to kill, reintroduced one level up. Here a new member makes
+ * this function a compile error instead, which is the only form of the
+ * guarantee worth having: the type must not merely be STATED, it must be
+ * HANDLED.
+ *
+ * The `default` branch is unreachable for type-checked callers — it exists
+ * for an untyped one (the event type is published, and JS consumers are not
+ * bound by it). It throws rather than falling back to the save wording,
+ * because both emitters wrap the sink in a try/catch that swallows: the
+ * failure mode is therefore "no toast", never "a toast that says the wrong
+ * thing about what just happened to the author's data".
+ */
+function advisoryTitle(ev: MetadataSaveAdvisoryEvent, t: TranslateFn): string {
+  const count = ev.advisories.length;
+  switch (ev.door) {
+    case 'save':
+      return t('console.saveAdvisoryTitle', {
+        count,
+        defaultValue: 'Saved — the authoring check raised {{count}} advisory finding(s)',
+      });
+    case 'publish':
+      return t('console.publishAdvisoryTitle', {
+        count,
+        defaultValue: 'Published — the authoring check raised {{count}} advisory finding(s)',
+      });
+    default: {
+      const unhandled: never = ev.door;
+      throw new Error(
+        `saveAdvisoryToast: no title for advisory door ${JSON.stringify(unhandled)}`,
+      );
+    }
+  }
+}
+
+/**
  * Announce the gate's advisory findings for a metadata write that SUCCEEDED.
  *
  * Says nothing when there is nothing to say: the server omits `advisories`
@@ -93,7 +135,9 @@ function formatFinding(f: MetadataSaveAdvisoryEvent['advisories'][number]): stri
  * Publish are two different buttons in this product, so "Saved" after a Publish
  * would tell the author their change is still a draft. `ev.door` is what says
  * which one, because `ev.mode` cannot — a direct active save and a draft
- * promotion both report `mode: 'publish'`.
+ * promotion both report `mode: 'publish'`. The choice is an exhaustive switch,
+ * not a two-way test: see {@link advisoryTitle} for why that distinction is
+ * the field's actual guarantee.
  */
 export function emitSaveAdvisories(
   ev: MetadataSaveAdvisoryEvent,
@@ -102,19 +146,8 @@ export function emitSaveAdvisories(
 ): void {
   if (!ev.advisories || ev.advisories.length === 0) return;
 
-  const title =
-    ev.door === 'publish'
-      ? t('console.publishAdvisoryTitle', {
-          count: ev.advisories.length,
-          defaultValue: 'Published — the authoring check raised {{count}} advisory finding(s)',
-        })
-      : t('console.saveAdvisoryTitle', {
-          count: ev.advisories.length,
-          defaultValue: 'Saved — the authoring check raised {{count}} advisory finding(s)',
-        });
-
   sink.warning(
-    title,
+    advisoryTitle(ev, t),
     {
       description: ev.advisories.map(formatFinding).join('\n'),
       duration: ADVISORY_TOAST_MS,

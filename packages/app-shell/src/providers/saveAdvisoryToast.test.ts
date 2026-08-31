@@ -226,3 +226,44 @@ describe('emitSaveAdvisories — the publish door (#5026)', () => {
     expect(sink.warning).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The exhaustiveness guarantee (#5026, contract-review condition 2).
+ *
+ * `door` being REQUIRED buys "every type-checked constructor must state a
+ * door". It does NOT by itself buy "the renderer handles the door it was
+ * given" — with a two-way ternary, a third union member would compile at its
+ * constructor, declare itself honestly, and still silently render "Saved",
+ * which is the exact class `door` exists to kill, reintroduced one level up.
+ *
+ * The compile-time half of the fix is the `never` check in `advisoryTitle`,
+ * enforced by `tsc` and not expressible here. What IS pinned here is its
+ * runtime consequence, which is what an untyped consumer would hit: an
+ * unhandled door must NOT come out wearing the save wording.
+ */
+describe('emitSaveAdvisories — the door union is handled exhaustively', () => {
+  it('refuses an unhandled door instead of silently calling it "Saved"', () => {
+    const sink = makeSink();
+    // An untyped consumer's event. The cast is the point: inside the type
+    // system this is unreachable, which is what the `never` check enforces.
+    const rogue = event({ door: 'rollback' as unknown as MetadataSaveAdvisoryEvent['door'] });
+
+    expect(() => emitSaveAdvisories(rogue, t, sink)).toThrow(/advisory door/);
+
+    // The load-bearing assertion: nothing was rendered. A wrong verb about a
+    // write that already touched the author's data is worse than no toast,
+    // and both emitters swallow this throw, so "no toast" is what ships.
+    expect(sink.warning).not.toHaveBeenCalled();
+    expect(sink.error).not.toHaveBeenCalled();
+  });
+
+  it('still handles every door the union actually declares', () => {
+    // The control for the case above: the refusal must be specific to an
+    // unhandled member, not a renderer that throws at everything.
+    for (const door of ['save', 'publish'] as const) {
+      const sink = makeSink();
+      emitSaveAdvisories(event({ door }), t, sink);
+      expect(sink.warning).toHaveBeenCalledTimes(1);
+    }
+  });
+});
