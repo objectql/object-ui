@@ -386,6 +386,20 @@ const collectRelatedLists = (nodes: any, acc: any[] = []): any[] => {
 };
 
 /**
+ * One count probe: which collection to count, scoped how.
+ *
+ * `filter` is the declared scope carried on the `record:related_list` node
+ * (objectui#4664) — absent for a list that declared none, which keeps the
+ * probe's query and its cache key byte-identical to what they were.
+ */
+interface Probe {
+  objectName: string;
+  relationshipField?: string;
+  filter?: Record<string, any> | any[];
+  attachments?: boolean;
+}
+
+/**
  * Walk a tab's children (depth-first) and return true when a
  * `record:attachments` node is present. The Attachments tab
  * (objectstack#4358) derives its badge from a `sys_attachment` count scoped
@@ -507,17 +521,28 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // every render.
   const recordObject: string | undefined = ctx?.objectName;
   const probeTargets = React.useMemo(() => {
-    const out = new Map<number, Array<{ objectName: string; relationshipField?: string; attachments?: boolean }>>();
+    const out = new Map<number, Array<Probe>>();
     items.forEach((it, idx) => {
       if (it.count !== undefined && it.count !== null && it.count !== '') return;
       const lists = collectRelatedLists((it as any).children);
-      const probes: Array<{ objectName: string; relationshipField?: string; attachments?: boolean }> = [];
+      const probes: Array<Probe> = [];
       for (const rl of lists) {
         const objectName: string | undefined = rl?.properties?.objectName || rl?.objectName;
         if (!objectName) continue;
         const relationshipField: string | undefined =
           rl?.properties?.relationshipField || rl?.relationshipField;
-        probes.push({ objectName, relationshipField });
+        // objectui#4664 — the list's OWN declared scope, read off the very node
+        // this badge is counting for. The badge must answer the same question
+        // the rows do: `RelatedList` ANDs this filter with
+        // `{ [relationshipField]: parentId }` for the rows, and the store ANDs
+        // the same pair for the count. Skipping it is what produces the defect
+        // this reads against — a badge saying 7 above a list showing 3.
+        const filter = rl?.properties?.filter ?? rl?.filter;
+        probes.push({
+          objectName,
+          relationshipField,
+          ...(filter === undefined || filter === null ? {} : { filter }),
+        });
       }
       // Attachments tab (objectstack#4358): count sys_attachment rows scoped
       // to this record. The synthetic `relationshipField` below is only a
@@ -569,6 +594,7 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
           probe.objectName,
           probe.relationshipField,
           parentId,
+          probe.filter,
         ).catch(() => 0);
         if (cancelled) return;
       }
@@ -588,7 +614,7 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     let sum = 0;
     let seenAny = false;
     for (const p of probes) {
-      const v = RelatedCountStore.get(p.objectName, p.relationshipField, parentId);
+      const v = RelatedCountStore.get(p.objectName, p.relationshipField, parentId, p.filter);
       if (v !== undefined) {
         sum += v;
         seenAny = true;

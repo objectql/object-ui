@@ -1976,7 +1976,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // its tab is shown (nothing is preloaded here), and header/row
     // affordances (+ New / View All / row navigation) are wired
     // downstream by `RelatedRecordActionsBridge`.
-    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary, sort: inheritedSort }) => {
+    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary, sort: inheritedSort, filter: declaredFilter }) => {
       const childObjectDef = objects.find((o: any) => o.name === childObject);
       // A `relatedListTitle` on the relationship wins; else fall back to the
       // localized child-object label.
@@ -2002,6 +2002,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // Absent when the child declares no list-view sort, keeping the
         // synthesized node byte-identical to what it was before.
         ...(inheritedSort && inheritedSort.length > 0 ? { sort: inheritedSort } : {}),
+        // The list's own declared scope, from `relatedListFilter` on the FK
+        // (objectui#4664). Forwarded onto the SAME `filter` key the
+        // component-level `record:related_list` input already uses
+        // (objectstack#7118), so both producers land on one read site and one
+        // lowering — the declared shape is the platform's existing
+        // `FilterCondition`, not a second dialect for derived pages.
+        //
+        // `RelatedList` ANDs it with `{ [referenceField]: parentId }`, and the
+        // tab strip's count probe composes the SAME pair, so the badge and the
+        // rows answer one question. Omitted when the FK declared nothing, for
+        // the reason the sibling keys are: a `filter: undefined` written onto
+        // the node is a different fact from "the author said nothing".
+        ...(declaredFilter ? { filter: declaredFilter } : {}),
         ...(childObjectDef?.icon ? { icon: childObjectDef.icon } : {}),
         // `relatedList: 'primary'` prominence flag (ADR-0085) — the list is
         // promoted to its own tab by `buildDefaultTabs`.

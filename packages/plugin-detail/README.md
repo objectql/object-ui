@@ -256,7 +256,26 @@ criterion can only ever narrow that set. Authors write it in the spec's own
 vocabulary (`[{ field, operator, value }]`); a `dataSource` binding's composed
 filter (component AND saved view AND binding) lands on the same key. Both are
 lowered to ObjectQL through the repo's single filter sink, so no second dialect
-appears. On the legacy raw-URL fallback path (no `dataSource` adapter, where the
+appears.
+
+**A third producer writes that same key: the relationship itself.** A `lookup` /
+`master_detail` field may declare `relatedListFilter` (`@objectstack/spec` 17.1.0
+— objectstack#8704 / PR #8955), a canonical Query-DSL `FilterCondition` such as
+`{ status: { $ne: 'deleted' } }`. `RecordDetailView` derives the record page's
+related lists from the relationship graph and carries that value onto this node's
+`filter`, so an auto-derived page honours it without anyone authoring a page
+(objectui#4664). It is an authored constraint, not a user-editable suggestion —
+it never becomes a filter-bar row — and it lands on the existing key rather than
+a new one, so all three producers share one read site and one lowering.
+
+The **tab badge honours the same composed filter**. `page:tabs` auto-derives a
+Related tab's count from the `record:related_list` nodes underneath it, and that
+probe reads this node's `filter` and composes it with the parent scope through
+the same `mergeFilterNodes` sink the row query uses — one value, sent twice. That
+is what keeps the badge from saying 7 above a list showing 3; it is normative in
+the spec key's own contract text, not a nicety. Counts are cached per
+(object, relationship, parent, **scope**), so a filtered and an unfiltered probe
+over the same relationship never badge each other. On the legacy raw-URL fallback path (no `dataSource` adapter, where the
 query language is `filter[<field>]=<value>` and cannot carry an operator) a
 declared filter is refused with a console explanation rather than dropped —
 answering with more rows than the metadata asked for is the failure this key's

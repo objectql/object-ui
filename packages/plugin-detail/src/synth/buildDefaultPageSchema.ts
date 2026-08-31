@@ -192,6 +192,24 @@ export interface BuildPageOptions {
      */
     sort?: string | Array<{ field: string; order: 'asc' | 'desc' }>;
     /**
+     * This list's own declared SCOPE — forwarded verbatim onto the synthesized
+     * node's `filter`, the key `record:related_list` has read since
+     * objectstack#7118 (`RelatedList` ANDs it with `{ [relationshipField]:
+     * parentId }`, never substituting for it).
+     *
+     * The host supplies it; this synthesizer neither derives nor merges it.
+     * `RecordDetailView` fills it from the FK field's `relatedListFilter`
+     * (objectui#4664 — the spec key from objectstack#8704 / PR #8955), already
+     * in the canonical Query-DSL `FilterCondition` shape that key declares. The
+     * component-level authored `filter` and this derived one are therefore the
+     * same vocabulary arriving at the same prop, which is the point: one read
+     * site, one lowering, no per-producer dialect.
+     *
+     * Omitted → the node carries no `filter` and the list sends the parent
+     * scope alone, exactly as before this key had a producer.
+     */
+    filter?: Record<string, any> | any[];
+    /**
      * `relatedList: 'primary'` — a CORE relationship. Under the default
      * layout this list is promoted to its OWN tab; non-primary lists collapse
      * into a single "Related" tab. Ignored when `relatedLayout` forces a
@@ -705,6 +723,11 @@ export function buildDefaultTabs(
         // onto the node is a different fact from "the author said nothing",
         // and it is the one a later liveness audit would read.
         ...(rel.sort ? { sort: rel.sort } : {}),
+        // objectui#4664 — same emit-only-when-supplied rule as `sort` above,
+        // and for the same reason. The tab strip's count probe reads this key
+        // off the node it is badging, so emitting it is also what keeps the
+        // badge and the rows asking one question.
+        ...(rel.filter ? { filter: rel.filter } : {}),
       });
     const asOwnTab = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
       label: rel.title || rel.objectName,

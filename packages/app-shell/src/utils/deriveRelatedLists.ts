@@ -21,6 +21,13 @@
  *   - `relatedListTitle` / `relatedListColumns` on the FK field override the
  *     derived title / columns (columns default to the child object's own list
  *     columns when omitted — resolved by the renderer).
+ *   - `relatedListFilter` on the FK field is the list's own declared SCOPE
+ *     (objectui#4664; the spec key landed upstream as objectstack#8704 / PR
+ *     #8955 and ships from `@objectstack/spec` 17.1.0). It is carried through
+ *     to the `record:related_list` node's existing `filter` prop, where
+ *     `RelatedList` AND-composes it with `{ [referenceField]: parentId }`
+ *     (objectstack#7118) — the parent condition is never negotiable, so the
+ *     declared filter may only NARROW this parent's children.
  *   - ROW ORDER is inherited from the child object's DEFAULT LIST VIEW `sort`
  *     (objectui#5795). There is deliberately no field-level `relatedListSort`
  *     to pair with the keys above: the contract question was ruled on
@@ -65,6 +72,29 @@ export interface DerivedRelatedList {
   title?: string;
   /** Explicit columns override from `relatedListColumns` (else auto-derived by the renderer). */
   columns?: any[];
+  /**
+   * The list's own declared SCOPE, from `relatedListFilter` on the FK field
+   * (objectui#4664). A spec `FilterCondition` — the canonical Query-DSL object
+   * a query `where` already speaks (`{ status: { $ne: 'deleted' } }`), which is
+   * exactly the vocabulary `record:related_list.filter` already accepts. NO new
+   * dialect is introduced on this side: the value travels verbatim to that
+   * existing prop and is lowered by the repo's one filter→wire sink
+   * (`toFilterNode` / `mergeFilterNodes` in `@object-ui/core`).
+   *
+   * AND-composed with `{ [referenceField]: parentId }`, never substituted for
+   * it. That is the spec's own contract text on the key, and it is the whole
+   * safety property: replacement would leak OTHER parents' rows, which reads on
+   * screen as a plausible list rather than as a bug.
+   *
+   * An authored constraint, never a user-editable suggestion — it is not routed
+   * through the filter bar (the same reason `record:related_list.filter` is not,
+   * objectstack#7118).
+   *
+   * Absent (never `{}`) when the FK declares nothing, so the synthesized node
+   * and the query it sends stay byte-identical to what they were before this
+   * key had a producer — the same discipline `sort` and `columns` follow above.
+   */
+  filter?: Record<string, any>;
   /** True when the child→parent link is a `master_detail` (owned) relationship. */
   isOwned: boolean;
   /**
@@ -132,6 +162,24 @@ function inheritedListViewSort(
   if (!map) return undefined;
   const entries = Object.entries(map).map(([field, order]) => ({ field, order }));
   return entries.length > 0 ? entries : undefined;
+}
+
+/**
+ * Did the FK actually DECLARE a `relatedListFilter`?
+ *
+ * A spec `FilterCondition` is a plain object; an array is the `ViewFilterRule[]`
+ * vocabulary, which this key is not (upstream typed it `FilterConditionSchema`).
+ * Returning `false` for everything else keeps a malformed value from travelling
+ * as though it were authored — the renderer refuses to guess, exactly as #0.1
+ * asks, rather than coercing it into something that "works".
+ */
+function isDeclaredFilter(value: unknown): value is Record<string, any> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value as Record<string, unknown>).length > 0
+  );
 }
 
 /** Normalize an object's `fields` (record or array) into `[name, def]` pairs. */
@@ -209,6 +257,16 @@ export function deriveRelatedLists(
           : {}),
         ...(Array.isArray(fieldDef.relatedListColumns) && fieldDef.relatedListColumns.length > 0
           ? { columns: fieldDef.relatedListColumns }
+          : {}),
+        // `relatedListFilter` (objectui#4664). The same declared-vs-absent
+        // discrimination its two siblings above do — a plain non-empty object
+        // is a declaration, anything else is silence. This is NOT a tolerant
+        // reader: no alias is accepted, no shape is coerced, and nothing is
+        // defaulted. An empty object is a boolean identity by the spec's own
+        // rule for empty combinators, so forwarding it would put a key on the
+        // node that means exactly what saying nothing means.
+        ...(isDeclaredFilter(fieldDef.relatedListFilter)
+          ? { filter: fieldDef.relatedListFilter }
           : {}),
       };
       // NO `break`: a child object may reference this parent through several FKs.

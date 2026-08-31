@@ -14,7 +14,10 @@
  *
  * Design notes:
  *  - One global Map keyed by `${objectName}::${relField}::${parentId}` so
- *    a count fetched by one tab strip is reused by every other consumer.
+ *    a count fetched by one tab strip is reused by every other consumer. A
+ *    probe carrying a declared scope filter (objectui#4664) discriminates
+ *    inside the relField segment, so a filtered and an unfiltered count over
+ *    the same triple are separate entries rather than one wrong number.
  *  - Subscribers receive *all* keyspace changes; coarse-grained but
  *    badges are cheap to re-render and avoids per-key subscription noise.
  *  - We deliberately avoid Zustand here — the surface area is one Map +
@@ -24,13 +27,25 @@
 
 import { useSyncExternalStore } from 'react';
 import { subscribeDataChanges } from '@object-ui/react';
+import { mergeFilterNodes } from '@object-ui/core';
 
 type Listener = () => void;
 
 interface ProbeFn {
   (
     objectName: string,
-    query: { $filter?: Record<string, unknown>; $top?: number; $count?: boolean },
+    query: {
+      /**
+       * The parent scope alone (a MongoDB-style object, as it always was), or
+       * — once a list declares its own scope — the ObjectQL AST node
+       * `mergeFilterNodes` lowers the pair to. Both arms are what the ROW
+       * query on the same list already sends, so this union is not a new
+       * dialect: it is the same two shapes `RelatedList` puts on the wire.
+       */
+      $filter?: Record<string, unknown> | unknown[];
+      $top?: number;
+      $count?: boolean;
+    },
   ): Promise<{ total?: number; data?: unknown[] } | unknown[] | { length?: number }>;
 }
 
@@ -43,8 +58,39 @@ const listeners = new Set<Listener>();
 // snapshots).
 let version = 0;
 
-function key(objectName: string, relField: string | undefined, parentId: string | undefined): string {
-  return `${objectName}::${relField ?? ''}::${parentId ?? ''}`;
+/**
+ * A list's own declared scope, as carried on the `record:related_list` node it
+ * badges (objectui#4664 / objectstack#7118). Two probes over the SAME
+ * (object, relField, parent) triple are different questions when their scopes
+ * differ, so it is part of the cache identity below.
+ */
+export type CountScopeFilter = Record<string, any> | any[];
+
+/**
+ * Cache identity for one probe.
+ *
+ * The scope rides INSIDE the relField segment rather than as a fourth one, so
+ * the two structural reads `invalidate` performs on these strings keep working
+ * unchanged: `startsWith(`${objectName}::`)` and — for the parentId-scoped
+ * form — `endsWith(`::${parentId}`)`. Appending the scope after the parent id
+ * would have silently broken the second, and its failure mode is a badge that
+ * never refreshes after a write: no error, just a stale number.
+ *
+ * With no scope the string is BYTE-IDENTICAL to what it was before this
+ * parameter existed, so no cache entry moves and no warm badge goes cold.
+ *
+ * Keyed on CONTENT (`JSON.stringify`) for the reason `RelatedList` keys its own
+ * filter memo that way: an inline filter object on a schema node is a new
+ * identity every render, and identity-keying would miss the cache every time.
+ */
+function key(
+  objectName: string,
+  relField: string | undefined,
+  parentId: string | undefined,
+  filter?: CountScopeFilter,
+): string {
+  const scope = filter === undefined ? (relField ?? '') : `${relField ?? ''}#${JSON.stringify(filter)}`;
+  return `${objectName}::${scope}::${parentId ?? ''}`;
 }
 
 function emit(): void {
@@ -52,8 +98,13 @@ function emit(): void {
   for (const l of listeners) l();
 }
 
-function getCount(objectName: string, relField: string | undefined, parentId: string | undefined): number | undefined {
-  return counts.get(key(objectName, relField, parentId));
+function getCount(
+  objectName: string,
+  relField: string | undefined,
+  parentId: string | undefined,
+  filter?: CountScopeFilter,
+): number | undefined {
+  return counts.get(key(objectName, relField, parentId, filter));
 }
 
 function setCount(
@@ -61,8 +112,9 @@ function setCount(
   relField: string | undefined,
   parentId: string | undefined,
   value: number,
+  filter?: CountScopeFilter,
 ): void {
-  const k = key(objectName, relField, parentId);
+  const k = key(objectName, relField, parentId, filter);
   const prev = counts.get(k);
   if (prev === value) return;
   counts.set(k, value);
@@ -78,8 +130,9 @@ async function fetchCount(
   objectName: string,
   relField: string | undefined,
   parentId: string | undefined,
+  filter?: CountScopeFilter,
 ): Promise<number> {
-  const k = key(objectName, relField, parentId);
+  const k = key(objectName, relField, parentId, filter);
   const cached = counts.get(k);
   if (cached !== undefined) return cached;
   const pending = inflight.get(k);
@@ -91,11 +144,30 @@ async function fetchCount(
     // `limit` which most adapters silently ignored, so the probe ended
     // up fetching the entire target table and returning its global
     // count — completely wrong for parent-scoped badges.
-    const $filter: Record<string, unknown> = {};
+    const parentScope: Record<string, unknown> = {};
     if (relField) {
       if (!parentId) return 0;
-      $filter[relField] = parentId;
+      parentScope[relField] = parentId;
     }
+    // objectui#4664 — the parent relationship AND the list's own declared
+    // scope, composed exactly as `RelatedList` composes them for the ROWS
+    // (`mergeFilterNodes(parentScope, listFilterNode)`). That shared sink is
+    // what makes badge/row parity a property of the code rather than of two
+    // implementations agreeing by luck: the badge cannot count a set the list
+    // does not show, because both sides send the same `$filter`.
+    //
+    // The parent condition is never negotiable — a declared filter may only
+    // NARROW this parent's children — and `mergeFilterNodes` guarantees that
+    // by wrapping both sources under one `and` rather than letting either
+    // replace the other.
+    //
+    // With nothing declared the query is the untouched MongoDB-style object it
+    // has always been, rather than a freshly lowered AST that means the same
+    // thing: same reason `RelatedList` guards its own call this way. The
+    // difference is invisible on screen and visible to every caller pinning
+    // the wire.
+    const $filter =
+      filter === undefined ? parentScope : (mergeFilterNodes(parentScope, filter) ?? parentScope);
     try {
       // Request the server-side count instead of relying on the page length.
       // Without `$count: true` most adapters omit `total`, and we'd fall
@@ -131,7 +203,7 @@ async function fetchCount(
               ? res.length
               : 0;
       const n = typeof total === 'number' ? total : 0;
-      setCount(objectName, relField, parentId, n);
+      setCount(objectName, relField, parentId, n, filter);
       return n;
     } catch {
       return 0;
@@ -190,10 +262,11 @@ export function useRelatedCount(
   objectName: string | undefined,
   relField: string | undefined,
   parentId: string | undefined,
+  filter?: CountScopeFilter,
 ): number | undefined {
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   if (!objectName) return undefined;
-  return getCount(objectName, relField, parentId);
+  return getCount(objectName, relField, parentId, filter);
 }
 
 /**
