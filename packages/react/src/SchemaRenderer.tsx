@@ -32,6 +32,7 @@ import { resolveKeyedI18nLabel } from './utils/i18n.js';
 import { isConfigBag } from './utils/configBag.js';
 import { reportUnevaluatedExpressions } from './utils/unevaluatedExpression.js';
 import { reportDroppedPropsBag } from './utils/propsBagDiagnostic.js';
+import { expressionBindableTextKeysFor } from '@objectstack/spec/ui';
 import {
   reportUnresolvableVisibilityPredicate,
   reportAdapterOnlyDataPredicate,
@@ -1070,7 +1071,79 @@ export const SchemaRenderer: ForwardRefExoticComponent<
     if (typeof newSchema.content === 'string') {
       newSchema.content = evaluator.evaluate(newSchema.content);
     }
-    
+
+    /**
+     * Evaluate the SPEC-DECLARED, expression-bindable TOP-LEVEL text keys
+     * (objectui#4795 Direction 1, maintainer ruling 2026-08-25).
+     *
+     * ## The hole this closes
+     *
+     * A value reaches the screen only if it is BOTH evaluated here AND read
+     * back by the renderer off the node. `content` above satisfies both; the
+     * other text keys satisfied neither at once, so
+     * `{ type: 'statistic', value: '${data.total}' }` — whose renderer reads
+     * `schema.value` (`data-display/statistic.tsx`) — put the literal
+     * `${data.total}` on screen, and the `props`-envelope workaround the
+     * objectui#4786 teaching rewrite retired rendered BLANK instead (evaluated,
+     * then spread as a React prop nobody reads). `statistic` is the dashboard
+     * workhorse and had no way at all to bind a dynamic value.
+     *
+     * ## Why this is ONE leg here and not a patch in each renderer
+     *
+     * The ruling's own implementation caution: the read-back sites must be
+     * "converged on evaluated values, not patched per component". They already
+     * agree on WHERE to read (the node's top level) — what they lacked was
+     * anything writing an evaluated value there. Writing it at the single
+     * producer of evaluated schema means `statistic.tsx`, `card.tsx` and
+     * `button.tsx` are UNCHANGED by this card and every future top-level reader
+     * is covered by construction. Four fixed components and no contract was the
+     * failure mode named at dispatch.
+     *
+     * ## The vocabulary is the spec's, and is consumed rather than copied
+     *
+     * `@objectstack/spec` declares it (objectstack#9599): the closed set
+     * `title` / `label` / `value` / `description`, plus the per-component
+     * carriage map saying which of them each component type actually reads
+     * back. The 2026-08-18 ruling is explicit that this memo CONSUMES the
+     * declaration "rather than hard-coding a twin list" — so the only thing
+     * this file knows is the name of the lookup. A row added upstream starts
+     * working here with no edit; a row this file invented would be the second
+     * dialect the declaration exists to prevent.
+     *
+     * ## The type string is passed VERBATIM
+     *
+     * `expressionBindableTextKeysFor` keys on the bare registry name, and the
+     * spec states the answer for an unlisted type is the empty set — "closed
+     * and mechanically answerable in both directions, never inferred from what
+     * a renderer happens to read". So no prefix-stripping normalization: it
+     * would look harmless (`ui:statistic` → `statistic`) and would in the same
+     * motion grant rows to `element:button` and `page:card`, whose renderers
+     * read their config out of the bag via `readProps()` and never touch these
+     * keys on the node — re-manufacturing the evaluated-but-not-read-back half
+     * of the very table this card exists to close. Measured on this tree: the
+     * authored corpus spells these types bare (`statistic` 42, `card` 135,
+     * `button` 158 nodes) and `ui:*` zero times, so verbatim is also the
+     * spelling authors actually use. `action:button` (5 nodes) has no row and
+     * is reported upstream rather than inferred here.
+     *
+     * ## Ordering and idempotence
+     *
+     * After the `properties` hoist deliberately, exactly like `content`: a
+     * value arriving through that channel was already evaluated by the
+     * `properties` leg, so it no longer carries a `${…}` and
+     * `evaluator.evaluate` returns it unchanged. The `typeof === 'string'`
+     * guard is doing real work rather than mirroring the line above — it stops
+     * this loop CREATING an absent key as `undefined`, which would change what
+     * `{ ...schema }` spreads and what `key in schema` answers downstream.
+     */
+    for (const key of expressionBindableTextKeysFor(
+      typeof newSchema.type === 'string' ? newSchema.type : '',
+    )) {
+      if (typeof newSchema[key] === 'string') {
+        newSchema[key] = evaluator.evaluate(newSchema[key]);
+      }
+    }
+
     // Evaluate 'props' — the legacy alias of the config bag.
     //
     // The guard MIRRORS the `properties` branch above rather than testing bare
