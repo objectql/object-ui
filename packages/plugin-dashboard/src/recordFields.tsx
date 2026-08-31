@@ -92,11 +92,15 @@ export const NUMERIC_FIELD_TYPES = new Set([
  * widgets funnel through, which is what this module exists for (see the file
  * header: the two surfaces must never drift).
  *
- * ## ⚠️ The copy set is DELIBERATELY 3 of the grid's 9 — measured, per key
+ * ## ⚠️ The copy set is DELIBERATELY 3 of the grid's 7 — measured, per key
  *
- * `RELATIONAL_META_KEYS` is `reference_to`, `reference`, `reference_to_field`,
- * `display_field`, `id_field`, `description_field`, `lookup_filters`,
- * `lookupFilters`, `titleFormat`. The grid needs all nine because its cells are
+ * `RELATIONAL_META_KEYS` is `reference_to`, `reference`, `display_field`,
+ * `id_field`, `description_field`, `lookup_filters`, `lookupFilters`. It listed
+ * NINE until the two keys this file had already measured as reader-less were
+ * retired from it as well — `reference_to_field` (objectui#6711) and
+ * `titleFormat` (objectui#6874).
+ *
+ * The grid needs the remaining seven because its cells are
  * EDITABLE — its own docblock says the extra keys "drive the inline picker's
  * query (LookupField reads reference_to/reference, display_field, id_field,
  * description_field, lookup_filters)", and the defect that earned them was an
@@ -114,15 +118,17 @@ export const NUMERIC_FIELD_TYPES = new Set([
  *    mentions in that module; read only by `fields/src/widgets/LookupField.tsx`
  *    and `UserField.tsx`, both EDITORS. ⛔ NOT copied.
  *  - `reference_to_field` — ZERO member reads anywhere in the repo. ⛔ NOT
- *    copied.
+ *    copied. ⭐ The grid has since retired it from its own list too
+ *    (objectui#6711); this measurement is what that retirement acted on.
  *  - `titleFormat` — never read off a FIELD meta at all; every reader takes it
  *    off the OBJECT schema (`getRecordDisplayName` in `@object-ui/core`,
  *    `containers.tsx`). On this path that object schema arrives through
  *    `useRefObjectSchema(reference_to)` — so copying `reference_to` is what
  *    makes `titleFormat` work, and copying `titleFormat` here would reach
- *    nothing. ⛔ NOT copied.
+ *    nothing. ⛔ NOT copied. ⭐ The grid has since retired it too
+ *    (objectui#6874), on exactly this reading.
  *
- * ⛔ Do not "restore parity" by widening this to the grid's nine. A member
+ * ⛔ Do not "restore parity" by widening this to the grid's seven. A member
  * written from the schema def on every call and read by nothing is exactly what
  * objectui#6625 (`decimals`) and objectui#6597 (`referenceTo`) retired from this
  * very file. Add a key when a reader on THIS path is measured, not before; if

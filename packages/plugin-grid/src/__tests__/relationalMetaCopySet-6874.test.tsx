@@ -1,17 +1,25 @@
 /**
- * objectui#6711 — `ObjectGrid`'s relational copy set must NOT carry
- * `reference_to_field`.
+ * objectui#6874 — `ObjectGrid`'s relational copy set must NOT carry
+ * `titleFormat`.
  *
  * ## ⚠️ Why this is a pin and not a behaviour test
  *
- * The retired key had ZERO readers anywhere in the repo, so removing it changes
- * no rendering at all: every other test in this package stays green whether or
- * not the removal is correct. A green suite therefore proves nothing here. What
- * CAN be asserted is the thing that was actually measured — the key is no
- * longer WRITTEN onto the `fieldMeta` a cell renderer receives — so this file
- * asserts that absence directly, at all three of `generateColumns`'s
- * column-building call sites, and goes red the moment the key is re-added to
- * `RELATIONAL_META_KEYS`.
+ * `titleFormat` is a real, live key — but it has ZERO readers on a FIELD meta.
+ * Every read of the identifier in this repo takes it off an OBJECT schema
+ * (`objectDef` / `objectSchema` / `objSchema` in `record-title.ts`,
+ * `containers.tsx`, `DetailView.tsx`, `ObjectKanban.tsx`, `ObjectCalendar.tsx`,
+ * `useRecordSearch.ts`), and the one that this grid's own inline picker uses is
+ * `refObjectSchema?.titleFormat` in `LookupField` — the REFERENCED object's
+ * schema, fetched by `getSchema(referenceTo)`. So `reference_to` is what makes
+ * `titleFormat` work on this path, and the copy reached nothing.
+ *
+ * Removing it therefore changes no rendering at all: every other test in this
+ * package stays green whether or not the removal is correct. A green suite
+ * proves nothing here. What CAN be asserted is the thing that was actually
+ * measured — the key is no longer WRITTEN onto the `fieldMeta` a cell renderer
+ * receives — so this file asserts that absence directly, at all three of
+ * `generateColumns`'s column-building call sites, and goes red the moment the
+ * key is re-added to `RELATIONAL_META_KEYS`.
  *
  * ## The control against vacuity lives in the same assertions
  *
@@ -26,6 +34,10 @@
  * how the real `LookupCellRenderer` receives this bag — `getCellRenderer` checks
  * the registry first — so what it captures is the `field` prop the shipped
  * renderer would have been handed.
+ *
+ * Same disposition, same list, same author path as objectui#6711, which retired
+ * `reference_to_field` from this array; that absence is pinned in
+ * `relationalMetaCopySet-6711.test.tsx`.
  */
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
@@ -43,12 +55,12 @@ import { ActionProvider, SchemaRendererProvider } from '@object-ui/react';
 
 registerAllFields();
 
-const OBJECT = 'os_6711_report';
+const OBJECT = 'os_6874_report';
 
 /**
  * One field def carrying EVERY relational key the grid has ever copied,
- * including the retired one. A def that omitted `reference_to_field` could not
- * tell "the grid stopped copying it" apart from "the fixture never offered it".
+ * including both retired ones. A def that omitted `titleFormat` could not tell
+ * "the grid stopped copying it" apart from "the fixture never offered it".
  */
 const MANAGER_DEF = {
   type: 'lookup',
@@ -60,12 +72,11 @@ const MANAGER_DEF = {
   description_field: 'title',
   lookup_filters: [['active', '=', true]],
   lookupFilters: [['active', '=', true]],
-  // Also retired, in objectui#6874, and pinned in its own file
-  // (`relationalMetaCopySet-6874.test.tsx`). Kept on the fixture so this file's
-  // survivor control stays a list of keys the grid really does still copy.
-  titleFormat: '{name}',
-  // The retired key (objectui#6711). Kept on the fixture on purpose.
-  reference_to_field: 'MUST_NOT_BE_COPIED',
+  // The key this file pins as retired (objectui#6874). Kept on the fixture on
+  // purpose — a def without it would make the assertion vacuous.
+  titleFormat: 'MUST_NOT_BE_COPIED',
+  // Retired earlier, in objectui#6711. Kept for the same reason.
+  reference_to_field: 'x',
 };
 
 /** The seven keys that survive both retirements — the control. */
@@ -131,11 +142,11 @@ async function renderAndCaptureMeta(schemaExtra: Record<string, any>) {
   );
   // ⚠️ Wait for the ENRICHED meta, not merely the first one. The object schema
   // arrives from an async fetch, so the first paint hands the renderer a bare
-  // `{ name, type }` — on which `not.toHaveProperty('reference_to_field')`
-  // passes for the wrong reason. `label` is the signal because it is written
-  // from the same `objectDefField` block, immediately BEFORE
-  // `applyRelationalMeta`, and is not itself one of the keys under test — so
-  // the wait cannot manufacture the assertions below.
+  // `{ name, type }` — on which `not.toHaveProperty('titleFormat')` passes for
+  // the wrong reason. `label` is the signal because it is written from the same
+  // `objectDefField` block, immediately BEFORE `applyRelationalMeta`, and is not
+  // itself one of the keys under test — so the wait cannot manufacture the
+  // assertions below.
   await waitFor(() => {
     expect(captured.length).toBeGreaterThan(0);
     expect(captured[captured.length - 1]).toHaveProperty('label');
@@ -154,11 +165,11 @@ const CALL_SITES: Array<[string, Record<string, any>]> = [
   ['inline data + fields projection', { fields: ['manager'] }],
 ];
 
-describe('objectui#6711 — ObjectGrid no longer copies `reference_to_field` onto fieldMeta', () => {
+describe('objectui#6874 — ObjectGrid no longer copies `titleFormat` onto fieldMeta', () => {
   for (const [name, schemaExtra] of CALL_SITES) {
     it(`does not copy it (${name})`, async () => {
       const meta = await renderAndCaptureMeta(schemaExtra);
-      expect(meta).not.toHaveProperty('reference_to_field');
+      expect(meta).not.toHaveProperty('titleFormat');
     });
 
     it(`still copies the seven surviving relational keys (${name})`, async () => {
