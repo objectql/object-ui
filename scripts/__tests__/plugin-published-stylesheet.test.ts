@@ -5,12 +5,31 @@ import { fileURLToPath } from 'node:url';
 
 import * as gridStylesheet from '../../packages/plugin-grid/scripts/build-css.mjs';
 import * as kanbanStylesheet from '../../packages/plugin-kanban/scripts/build-css.mjs';
+import * as fieldsStylesheet from '../../packages/fields/scripts/build-css.mjs';
 import { classesOf, COMPONENTS_ENTRY, REPO_ROOT } from '../build-plugin-stylesheet.mjs';
 
 /**
  * objectui#4929: `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` now
  * publish a stylesheet, built in the subtraction shape `@object-ui/fields`
  * established (objectui#4059).
+ *
+ * objectui#6438: `@object-ui/fields` is a subject here too. It is the package
+ * whose sheet has actually been shipping to consumers since objectui#4059 — the
+ * defect this file's shape exists to prevent — and until now it was pinned by
+ * nothing in the suite: the builder's four write-time assertions run only during
+ * a build, and CI runs this suite on an unbuilt worktree. It could not be a
+ * subject earlier because it ran its own copy of the builder and exported no
+ * module surface; objectui#6405 re-pointed it at the shared
+ * `createPluginStylesheetBuilder`, so it now exports the same shape the two
+ * plugins do and the five per-package assertions apply to it unchanged.
+ *
+ * One asymmetry is deliberate and load-bearing: fields passes a per-package
+ * `header` through `buildOptions` (its published banner bytes predate the shared
+ * module, and objectui#6405's acceptance gate was that re-pointing it changed
+ * `dist/index.css` by not one byte), while the plugins inherit the shared
+ * default. Nothing below reads the emitted banner; anything added later that
+ * does must take it from `mod.buildOptions`, never from the shared default,
+ * or it will judge fields wrongly.
  *
  * ## What has to be pinned, and why a naive test would pass while broken
  *
@@ -80,17 +99,58 @@ const CARD_THEMED = {
     'text-muted-foreground/60',
     'text-primary/90',
   ],
+  /**
+   * Derived for objectui#6438 from the sheet this build actually emits, NOT read
+   * back off fields' own `MUST_SURVIVE` — the note above applies with more force
+   * here, because three of these are in that list and copying it would have
+   * looked identical while pinning nothing.
+   *
+   * Method: build fields' sheet through the shared builder, then keep every
+   * surviving class whose own declarations resolve a `--color-*` token declared
+   * in `packages/components/src/index.css`'s `@theme` block (35 tokens) — the
+   * file that package does not publish, which is exactly what makes a build
+   * inside this monorepo the only possible producer of these utilities.
+   *
+   * That yields 17, and 17 is independently what
+   * `packages/fields/scripts/build-css.mjs` records having measured at
+   * objectui#4059 ("17 of those depend on the ObjectUI `@theme` block").
+   * `bg-primary/20`, `hover:bg-accent/30` and `ring-destructive/50` — the three
+   * that card names — are 3 of the 17, i.e. its starting corpus rather than its
+   * answer; the other 14 are ones its literal-grep method could not see.
+   */
+  fields: [
+    'bg-background/60',
+    'bg-destructive/5',
+    'bg-muted/60',
+    'bg-primary/20',
+    'border-background',
+    'border-border/40',
+    'border-muted-foreground/25',
+    'border-muted-foreground/30',
+    'focus-visible:ring-ring/60',
+    'focus:ring-ring/60',
+    'hover:bg-accent/30',
+    'hover:bg-muted/80',
+    'hover:bg-primary/10',
+    'hover:bg-primary/50',
+    'hover:border-primary/50',
+    'ring-border/60',
+    'ring-destructive/50',
+  ],
 } as const;
 
 /**
- * Utilities `@object-ui/components`' sheet carries. Each is also used by both
- * plugins, so "absent from the plugin sheet" can only mean the subtraction ran.
+ * Utilities `@object-ui/components`' sheet carries. Each is also compiled by all
+ * three subjects — asserted below against each one's own pre-subtraction
+ * compile — so "absent from the emitted sheet" can only mean the subtraction
+ * ran, and never that the package simply does not use the class.
  */
 const ALREADY_SHIPPED = ['flex', 'text-sm', 'rounded-md', 'bg-background', 'sr-only'];
 
 const SUBJECTS = [
   { name: 'plugin-grid', mod: gridStylesheet },
   { name: 'plugin-kanban', mod: kanbanStylesheet },
+  { name: 'fields', mod: fieldsStylesheet },
 ] as const;
 
 type Built = {
@@ -125,7 +185,7 @@ beforeAll(async () => {
   }
 }, 120_000);
 
-describe('published plugin stylesheets (objectui#4929)', () => {
+describe('published supplement stylesheets (objectui#4929, objectui#6438)', () => {
   it('gives every themed utility the card measured a producer', () => {
     const everything = new Set(
       SUBJECTS.flatMap(({ name }) => [...(built.get(name) as Built).classes]),
