@@ -47,6 +47,9 @@ import * as React from 'react';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import * as Automation from '@objectstack/spec/automation';
+// The Zod wrapper-key vocabulary — one list, read by the `.mjs` CI gates that
+// walk the same internals (objectui#6923, ruled 2026-08-31).
+import { ZOD_WRAPPER_KEYS } from '@object-ui/test-support';
 import { FlowCanvas } from './FlowCanvas';
 import { NODE_PALETTE, defaultNodeExtras, defaultNodeLabel } from './flow-canvas-parts';
 
@@ -121,7 +124,7 @@ function objectShape(schema: unknown, depth = 0): Record<string, ZodLike | undef
   const def = (s._def ?? s.def) as Record<string, unknown> | undefined;
   if (!def) return null;
   if (def.shape) return def.shape as Record<string, ZodLike | undefined>;
-  for (const key of ['in', 'out', 'innerType', 'schema', 'left', 'right']) {
+  for (const key of ZOD_WRAPPER_KEYS) {
     const found = def[key] ? objectShape(def[key], depth + 1) : null;
     if (found) return found;
   }

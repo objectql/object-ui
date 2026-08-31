@@ -103,6 +103,7 @@
   "devDependencies": {
     "@changesets/cli": "^3.0.0",
     "@eslint/js": "^10.0.1",
+    "@object-ui/test-support": "workspace:*",
     "@objectstack/spec": "^17.0.0",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "^10.4.1",
