@@ -20,7 +20,20 @@
  *   - `properties.*` — evaluated, then HOISTED onto the node by the COMPAT
  *                      hoist (`type` / `id` excepted). It therefore lands
  *                      exactly where every renderer reads, in every namespace.
- *   - a node key     — read, but never expression-evaluated.
+ *   - a node key     — read, and expression-evaluated only if
+ *                      `@objectstack/spec` DECLARES it bindable for that
+ *                      component type (objectui#4795 Direction 1, ruled
+ *                      2026-08-25). Every other node key is read raw.
+ *
+ * ⚠️ That third line said a flat "read, but never expression-evaluated" when
+ * this file was written, and the reading below said so too. objectui#4795
+ * closed the gap for the closed set `title` / `label` / `value` /
+ * `description`, per the carriage map in
+ * `EXPRESSION_BINDABLE_TEXT_KEYS_BY_COMPONENT` — `card` carries `title` and
+ * `description`. The rest of this file's measurement is untouched: the two
+ * envelope fates above are exactly what #5372 measured, and the card's
+ * question ② (whether `properties` is an official `ui:*` authoring channel)
+ * is still open and still not answered here.
  *
  * So the one spelling the rules told an author not to reach for was the only
  * one that reaches a provider's data, and the two the rules endorsed both fail
@@ -158,9 +171,19 @@ describe('#5372 behaviour — the hoist is not `element:*`-only', () => {
     expect(header()).toBe('Customer Summary');
   });
 
-  it('a node-level `title` is read but never evaluated', () => {
+  // objectui#4795 Direction 1 flipped this reading. It used to assert the
+  // literal `${data.label}` on screen — a node key was read but never
+  // evaluated — and that is the defect the 2026-08-25 ruling retired for the
+  // spec-DECLARED keys. Kept as a pair so the file still states both halves:
+  // a declared key now evaluates, an undeclared one on the same node does not.
+  it('a node-level `title` is read AND evaluated — `card` declares it', () => {
     renderNode({ type: 'card', title: '${data.label}' });
-    expect(header()).toBe('${data.label}');
+    expect(header()).toBe('Evaluated Title');
+  });
+
+  it('a node key `card` does NOT declare is still read raw (`value`)', () => {
+    renderNode({ type: 'card', title: 'Fixed', value: '${data.label}' });
+    expect(header()).toBe('Fixed');
   });
 
   it('the same expression under `properties` is evaluated AND read', () => {

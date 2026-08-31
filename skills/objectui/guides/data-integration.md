@@ -239,8 +239,9 @@ is both expression-evaluated and read back by the renderer, and the provider's
 }
 ```
 
-A `statistic`'s `label` / `value` / `description` are read off the node but are
-**not** expression-evaluated, so give them values the host already resolved:
+A `statistic` declares `label` / `value` / `description` as expression-bindable
+(objectui#4795), so these are evaluated on the node and read back. Host-resolved
+literals work exactly as before:
 
 ```json
 {
