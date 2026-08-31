@@ -34,7 +34,7 @@ import { ChevronDown, ChevronRight, AlertTriangle, Plus } from "lucide-react"
 
 const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
 
-// One authority for these two names, in `./types` (objectui#6172 / #6155).
+// One authority for these two names in this package: `./types` (objectui#6172 / #6155).
 // This file's former local copies added `coverImage` (card) and `collapsed`
 // (column); both now live on the canonical declaration as optional members, so
 // this module sees exactly the shape it declared before. The re-export

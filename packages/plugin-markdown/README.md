@@ -62,7 +62,7 @@ const schema: MarkdownSchema = {
 ```typescript
 {
   type: 'markdown',
-  content?: string,    // Markdown content (supports GitHub Flavored Markdown)
+  content: string,     // Markdown content (supports GitHub Flavored Markdown)
   className?: string   // Tailwind classes
 }
 ```
