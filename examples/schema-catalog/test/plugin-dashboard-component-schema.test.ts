@@ -62,8 +62,12 @@
  *      COMPONENT node, so its body is `BaseSchema`'s (passthrough: `value` /
  *      `icon` / `trend` / `trendValue` are `plugin-dashboard`'s registry
  *      `inputs`, not widget keys), while every other widget is the spec-derived
- *      `DashboardWidgetSchema`'s. Check 3 is what catches a stale or
- *      mis-layered key that check 1 would strip in silence.
+ *      `DashboardWidgetSchema`'s. When this gate was written check 3 caught the
+ *      stale or mis-layered keys check 1 stripped in silence; since
+ *      objectui#6002 made the widget schema `.strict()` (and moved this same
+ *      routing into the shared `DashboardComponentSchema` widget slot), those
+ *      keys refuse loudly in checks 1 AND 3, and the dropped-key detector
+ *      remains as the regression floor.
  *
  * ## Deliberately NOT catalog-wide
  *
@@ -141,6 +145,12 @@ function auditWidget(widget: Widget, where: string): string[] {
   // schema that owns its body is objectui's own `BaseSchema` — the ruling's
   // "objectui's own component schema" — which is passthrough and therefore
   // keeps the component's props. Everything else is a spec-derived widget.
+  //
+  // Since objectui#6002 the spec-derived arm is `.strict()`, so an undeclared
+  // key on that arm surfaces as a REFUSAL from the parse below (loud, key
+  // named) rather than reaching the dropped-key detector. The detector stays:
+  // it is the regression floor if strictness is ever loosened back toward the
+  // strip regime — the same defence-in-depth stance check 2 takes for `type`.
   const isComponentNode = typeof type === 'string' && COMPONENT_WIDGET_TYPES.has(type);
   const owner = isComponentNode ? BaseSchema : DashboardWidgetSchema;
   const ownerName = isComponentNode ? 'BaseSchema (objectui component node)' : 'DashboardWidgetSchema';
@@ -288,13 +298,16 @@ describe('counter-probe — the gate refuses deliberately malformed entries', ()
       'check 2 — a widget type nothing registers (the OBJUI-001 red panel at runtime)',
       (w) => { w.type = 'metrci-card'; },
       // Both halves must fire: the shared schema's own enum message AND the
-      // catalog's restatement of it.
-      /Invalid option: expected one of[\s\S]*outside the closed widget vocabulary/,
+      // catalog's restatement of it. Order-insensitive lookaheads since
+      // objectui#6002: the doc-level parse (check 1) now reports the widget
+      // slot's union as a bare `Invalid input`, so the enum message reaches
+      // the report through check 3's routed parse, AFTER the restatement.
+      /^(?=[\s\S]*Invalid option: expected one of)(?=[\s\S]*outside the closed widget vocabulary)/,
     ],
     [
       'check 2 — a chart family the spec retired',
       (w) => { w.type = 'heatmap'; },
-      /Invalid option: expected one of[\s\S]*outside the closed widget vocabulary/,
+      /^(?=[\s\S]*Invalid option: expected one of)(?=[\s\S]*outside the closed widget vocabulary)/,
     ],
     [
       'check 2 — a widget naming no component at all',
@@ -302,14 +315,18 @@ describe('counter-probe — the gate refuses deliberately malformed entries', ()
       /no `type` and no `component` envelope/,
     ],
     [
+      // Pre-#6002 these two were caught by the dropped-key detector
+      // (`silently DROPS authored key(s)`); the strict widget schema now
+      // refuses them upstream of it, naming every key (objectui#6002).
       'check 3 — the pre-ADR-0021 inline analytics keys this card was opened about',
       (w) => { w.object = 'opportunity'; w.categoryField = 'stage'; w.aggregate = 'sum'; },
-      /silently DROPS authored key\(s\).*`object`.*`categoryField`.*`aggregate`/,
+      /refused by DashboardWidgetSchema[\s\S]*Unrecognized keys[\s\S]*"object"[\s\S]*"categoryField"[\s\S]*"aggregate"/,
     ],
     [
       'check 3 — a single mis-layered renderer setting left at widget top level',
       (w) => { w.dateGranularity = 'month'; },
-      /silently DROPS authored key\(s\) `dateGranularity`/,
+      // zod prints the singular `Unrecognized key:` for a single offender.
+      /refused by DashboardWidgetSchema[\s\S]*Unrecognized keys?[\s\S]*"dateGranularity"/,
     ],
     [
       'check 1 — a retired key the spec tombstoned, refused rather than dropped',

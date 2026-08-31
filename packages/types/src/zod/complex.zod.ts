@@ -373,14 +373,16 @@ export const DashboardWidgetLayoutSchema = z.object({
  * built on it would have passed by validating nothing.
  *
  * ⚠️ A member of `DASHBOARD_COMPONENT_WIDGET_TYPES` is a component node, and
- * this schema is NOT the schema for its body: the object below strips undeclared
- * keys, so `metric-card`'s own props (`value`, `icon`, `trend`, `trendValue` —
- * registry `inputs`, not widget keys) do not survive a parse here. They are
- * kept by objectui's own passthrough component schema, `BaseSchema`, which is
- * the schema the ruling names for a component node. The standing gate
+ * this schema is NOT the schema for its body: `metric-card`'s own props
+ * (`value`, `icon`, `trend`, `trendValue` — registry `inputs`, not widget
+ * keys) belong to objectui's own passthrough component schema, `BaseSchema`,
+ * which is the schema the ruling names for a component node. Since
+ * objectui#6002 made {@link DashboardWidgetSchema} `.strict()`, that routing
+ * lives in `DashboardComponentSchema`'s widget slot itself (see
+ * {@link DashboardWidgetSlotComponentSchema}); the standing gate
  * (`examples/schema-catalog/test/plugin-dashboard-component-schema.test.ts`)
- * routes each widget to whichever of the two owns it and asserts neither loses
- * an authored key.
+ * routes each widget to whichever of the two owns it and asserts a component
+ * node loses no authored key while a widget refuses undeclared ones.
  */
 export const DashboardWidgetTypeSchema = z.enum([
   ...SpecChartTypeSchema.options,
@@ -414,6 +416,28 @@ export const DashboardWidgetTypeSchema = z.enum([
  *  - `component` — the legacy `{ id, component: <SDUI node>, layout }` envelope,
  *    which the spec has no room for. Migration to the shorthand form is deferred.
  *
+ * ## `.strict()` — undeclared keys are REFUSED, not stripped (objectui#6002)
+ *
+ * Until #6002 this was a plain `z.object()`, and the docstring above records
+ * what that meant once already: keys outside the declared set were dropped
+ * WITHOUT A WORD. Measured on the #4600 branch, a widget carrying the retired
+ * pre-ADR-0021 inline analytics keys (`object` / `categoryField` / `aggregate`)
+ * parsed five-keys-in, three-keys-out, verdict ACCEPT — so the contract could
+ * never tell an author, a designer, or a publish-time check that the document
+ * says something the platform stopped honouring. Maintainer ruling 2026-08-25
+ * (objectui#6002, Route 1 two-step): after #6150 declared the genuinely
+ * consumed keys, undeclared widget keys refuse loudly — zod's
+ * `unrecognized_keys` issue names every offending key. The spec's own
+ * tombstones (`actionUrl` / `actionType` / `actionIcon` / `aria` /
+ * `responsive`) stay DECLARED `z.never()` members, so they keep their specific
+ * removal messages rather than degrading to a generic unknown-key error.
+ *
+ * ⚠️ This schema owns spec-family widgets only. A component node in the widget
+ * slot (`type: 'metric-card'`) is routed to passthrough `BaseSchema` by
+ * {@link DashboardWidgetSlotComponentSchema} before this schema is consulted —
+ * its props are component inputs, not widget keys, and MUST NOT be refused
+ * here (2026-08-14 ruling, objectstack#8593).
+ *
  * Drift guard: `__tests__/report-chart-query-spec-parity.test.ts`.
  */
 export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.shape, [
@@ -424,6 +448,30 @@ export const DashboardWidgetSchema = specFieldsExcept(SpecDashboardWidgetSchema.
   type: DashboardWidgetTypeSchema.optional()
     .describe('Widget visualization type — the spec families plus objectui\'s closed `list`/`custom` and `metric-card` extensions'),
   component: SchemaNodeSchema.optional().describe('Widget Component (legacy format)'),
+}).strict();
+
+/**
+ * A COMPONENT node sitting directly in a dashboard's widget slot — the
+ * `metric-card` extension the 2026-08-14 ruling (objectstack#8593) admits:
+ *
+ *   > An SDUI dashboard COMPONENT node validates against objectui's OWN
+ *   > component schema; [...] `metric-card` joins objectui's own CLOSED
+ *   > component enum as an explicitly allowed objectui extension.
+ *
+ * Its body is `BaseSchema` (passthrough): `value` / `icon` / `trend` /
+ * `trendValue` are the component's registry `inputs`, not widget keys, and a
+ * `.strict()` {@link DashboardWidgetSchema} must never see them. The `type`
+ * override is what makes this arm reachable ONLY for component nodes: for
+ * every other widget (any spec family, `list`/`custom`, the legacy
+ * `component` envelope with no `type` at all) the required closed enum fails
+ * fast and the union falls through to the strict widget schema — so this arm
+ * cannot become a passthrough hatch around #6002's refusal. Deliberately NOT
+ * exported: the routing is an internal property of the widget slot, not new
+ * authoring surface.
+ */
+const DashboardWidgetSlotComponentSchema = BaseSchema.extend({
+  type: z.enum(DASHBOARD_COMPONENT_WIDGET_TYPES)
+    .describe('objectui component type legal in a widget slot (closed set)'),
 });
 
 /**
@@ -554,7 +602,13 @@ export const DashboardComponentSchema = BaseSchema.extend(SpecDashboardFields.sh
   type: z.literal('dashboard'),
   columns: z.number().optional().describe('Number of columns'),
   gap: z.number().optional().describe('Grid gap'),
-  widgets: z.array(DashboardWidgetSchema).describe('Dashboard widgets'),
+  // Routed slot (objectui#6002): a component node (`metric-card`) is owned by
+  // passthrough BaseSchema per the 2026-08-14 ruling; every other widget is
+  // the `.strict()` spec-derived schema. Component arm first — it matches
+  // exclusively on the closed component-type enum, so a spec-family widget
+  // can never be captured by it.
+  widgets: z.array(z.union([DashboardWidgetSlotComponentSchema, DashboardWidgetSchema]))
+    .describe('Dashboard widgets'),
   globalFilters: z.array(GlobalFilterSchema).optional().describe('Dashboard-level filters'),
   dateRange: z.object({
     field: z.string().optional(),
