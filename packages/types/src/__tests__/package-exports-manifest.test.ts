@@ -37,10 +37,15 @@
  * be vacuously absent-or-red on a cold CI cache, not a meaningful signal.
  * The artifact-level claim (a clean `tsc` build never emits `.cjs`) was
  * verified by hand for this fix and is not expected to regress silently: the
- * package's `"build": "tsc"` script and lack of any bundler/dual-emit step
+ * package's bare-`tsc` EMIT step and lack of any bundler/dual-emit step
  * are exactly the two other things this test pins, so a future edit that
  * reintroduces a `require` condition without ALSO reintroducing the emit step
  * would still need to touch this file's expectations to pass CI.
+ *
+ * The build script is read as a chain rather than as one string: its first
+ * segment is the emit and must be bare `tsc`, and every later segment is
+ * enumerated in the test, so non-emitting post-build checks can be added
+ * without weakening any of the above. See that case for why.
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -64,7 +69,29 @@ describe('@object-ui/types package.json exports map (objectui#4896)', () => {
     // If this ever changes to a bundler/dual-emit build, the `require`-less
     // exports map below should be revisited rather than assumed to still be
     // correct.
-    expect(pkg.scripts?.build).toBe('tsc');
+    //
+    // What that sentence pins is that NOTHING IN THE BUILD EMITS A SECOND
+    // FORMAT. `toBe('tsc')` conflated it with the literal string, so appending
+    // a post-build assertion that emits nothing at all (objectui#6703) turned
+    // this red while the CJS question was untouched — a spelling too strict for
+    // its own stated meaning.
+    //
+    // The chain is therefore split instead of compared whole. The EMITTING step
+    // must be bare `tsc`; every other step is enumerated right here, so a
+    // bundler — or any new step whatsoever — still cannot arrive without
+    // editing this expectation and justifying it. That is exactly what the
+    // header above asks for, and it is no weaker than the old spelling: both
+    // fail on any change, this one just fails for the right reason.
+    //
+    // The first assertion is the same question `buildsWithTsc()` asks in
+    // `scripts/check-dist-completeness.mjs`, RESTATED rather than imported:
+    // this package's test program sets `allowJs: false` and includes only
+    // `src/**/*.test.ts`, so importing that `.mjs` fails with TS7016 (measured,
+    // not assumed). The duplication is structural — change one, change the
+    // other.
+    const steps = (pkg.scripts?.build ?? '').split('&&').map((step) => step.trim());
+    expect(steps[0]).toBe('tsc');
+    expect(steps.slice(1)).toEqual(['node ../../scripts/check-dist-completeness.mjs']);
   });
 
   it('the root "." export carries exactly {types, import} — no "require" condition', () => {
