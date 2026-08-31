@@ -25,7 +25,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ../../scripts/check-dist-completeness.mjs",
     "test": "vitest run",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."

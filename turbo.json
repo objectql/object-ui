@@ -18,6 +18,7 @@
         "$TURBO_ROOT$/tsconfig.base.json",
         "$TURBO_ROOT$/scripts/vite-*.ts",
         "$TURBO_ROOT$/scripts/build-plugin-stylesheet.mjs",
+        "$TURBO_ROOT$/scripts/check-dist-completeness.mjs",
         "$TURBO_ROOT$/scripts/invoked-as.mjs"
       ]
     },
