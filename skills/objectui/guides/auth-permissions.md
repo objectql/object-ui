@@ -313,10 +313,12 @@ trap applies to `visible`, `disabled` and any other expression-valued key.
 
 ## Multi-tenancy
 
-There is no client-side tenancy layer. Tenant scoping is server-enforced:
-`createAuthenticatedFetch` (`@object-ui/auth`) injects the active
-organization as the `X-Tenant-ID` header on every API call, and the backend
-applies row-level isolation. Per-tenant branding is a `ThemeSchema` concern
+There is no client-side tenancy layer. Tenant scoping is server-enforced
+from the session, not from a header: `createAuthenticatedFetch`
+(`@object-ui/auth`) does stamp the active organization as `X-Tenant-ID` on
+requests, but that header is an edge routing hint, not identity — see
+`packages/auth/README.md`, "The `X-Tenant-ID` edge contract", for what it may
+and may not be trusted for. Per-tenant branding is a `ThemeSchema` concern
 (see the theming guide), not an auth concern.
 
 ## Provider composition pattern
