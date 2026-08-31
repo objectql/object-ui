@@ -1,5 +1,5 @@
 ---
-"@object-ui/types": patch
+"@object-ui/types": minor
 ---
 
 Model `code-editor` and `bar-chart` in `AnyComponentSchema`, and repair three catalog fixtures
