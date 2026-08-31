@@ -127,7 +127,14 @@ interface Case {
   type: string;
   key: string;
   /** The zod mirror, or `null` for the one runtime-only key. */
-  mirror: { shape: Record< string, unknown >; safeParse: (v: unknown) => { success: boolean; data?: any; error?: any } } | null;
+  mirror: {
+    shape: Record< string, unknown >;
+    safeParse: (v: unknown) => {
+      success: boolean;
+      data?: Record< string, unknown >;
+      error?: { issues: { path: (string | number)[] }[] };
+    };
+  } | null;
   /** A minimal LEGAL document for this type, carrying none of the 13. */
   control: Record< string, unknown >;
   /** A value the declaration admits. */
@@ -234,14 +241,14 @@ describe('objectui#6150 — the 13 renderer-read keys are declared on their ship
       it('accepts the declared value and the value SURVIVES the parse', () => {
         const r = mirror.safeParse({ ...control, [key]: legal });
         expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);
-        if (r.success) expect(r.data[key]).toEqual(legal);
+        if (r.success) expect(r.data![key]).toEqual(legal);
       });
 
       it('refuses a wrong-typed value AT the key — the enforcement mirroring adds', () => {
         const r = mirror.safeParse({ ...control, [key]: illegal });
         expect(r.success).toBe(false);
         if (!r.success) {
-          expect(r.error.issues.map((i: { path: (string | number)[] }) => i.path.join('.'))).toContain(key);
+          expect(r.error!.issues.map((i) => i.path.join('.'))).toContain(key);
         }
       });
 
@@ -258,7 +265,7 @@ describe('objectui#6150 — the 13 renderer-read keys are declared on their ship
         // every touched mirror is byte-for-byte the policy it had before.
         const r = mirror.safeParse({ ...control, [SENTINEL]: illegal });
         expect(r.success).toBe(true);
-        if (r.success) expect(r.data[SENTINEL]).toEqual(illegal);
+        if (r.success) expect(r.data![SENTINEL]).toEqual(illegal);
       });
     } else {
       it('is DECLARED on the TS face but ABSENT from the mirror — a runtime slot, per objectui#6152', () => {
