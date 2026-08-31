@@ -67,6 +67,16 @@ export interface RuntimeFeatures {
    * (treated as off). Server-derived from the plan entitlements.
    */
   sso?: boolean;
+  /**
+   * SCIM-based user/group provisioning is available on this environment's
+   * plan. Optional commercial flag — absent on self-hosted / vanilla
+   * runtimes (treated as off). Server-derived from the plan entitlements,
+   * the same producer object as `customDomain` / `sso`. Declaration only:
+   * this keeps the interface in sync with the wire the producer already
+   * emits — no SPA read point or gate consumes it yet (future work, not
+   * implied by this declaration).
+   */
+  scim?: boolean;
 }
 
 /**
