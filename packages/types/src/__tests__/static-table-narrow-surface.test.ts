@@ -224,6 +224,112 @@ describe('static `table` — the narrow zod surface refuses the retired keys (ob
   });
 });
 
+/* ── 1b. the refusal CARRIES the remediation text ────────────────────────── */
+
+/** The nine keys the #5474 split retired — the set objectui#6105 converted to
+ *  `retirementTombstone()`. NOT the whole tombstone population of this shape:
+ *  the five later arrivals (#6424 / #6425) are pinned as the scope boundary
+ *  below, still carrying zod's generic message. */
+const SIX105_CONVERTED = [
+  'minWidth', 'align', 'fixed', 'type', 'sortable',
+  'filterable', 'resizable', 'editable', 'cell',
+] as const;
+
+/** zod's own message for a `z.never()` with no custom error — the string this
+ *  card exists to replace. Matched as a PREFIX because the tail names the
+ *  received type (`… received string` / `… received boolean`). */
+const ZOD_GENERIC_NEVER = 'Invalid input: expected never, received ';
+
+const describeOf = (schema: unknown, key: string): string | undefined =>
+  (shapeOf(schema)[key] as { description?: string } | undefined)?.description;
+
+describe('the tombstone refusal reaches the author with its remediation text (objectui#6105)', () => {
+  it('the nine #5474 tombstones each answer with their own guidance, not zod\'s generic message', () => {
+    // Non-vacuity control, IN THIS TEST: a fully-live column must parse GREEN
+    // in the same run. Without it a schema that refused everything — or a
+    // broken reader returning no issues at all — would satisfy every
+    // assertion below by accident.
+    expect(StaticTableColumnSchema.safeParse(LIVE_COLUMN).success).toBe(true);
+
+    for (const key of SIX105_CONVERTED) {
+      const result = StaticTableColumnSchema.safeParse({
+        header: 'Amount',
+        accessorKey: 'amount',
+        [key]: RETIRED_COLUMN_KEYS[key],
+      });
+      expect(result.success, key).toBe(false);
+      if (result.success) continue;
+
+      const issue = result.error.issues.find((i) => String(i.path[0]) === key);
+      expect(issue, `no issue addressed to \`${key}\``).toBeDefined();
+
+      // The message is the payload this card is about.
+      expect(issue!.message, key).not.toContain(ZOD_GENERIC_NEVER);
+      expect(issue!.message, key).toContain('RETIRED (objectui#5474)');
+      expect(issue!.message, key).toContain('use data-table');
+
+      // BOTH channels, one string: the runtime message and the `.describe()`
+      // metadata that feeds generated JSON-Schema/docs are the SAME text. This
+      // is the invariant `retirementTombstone()` exists to make unbreakable —
+      // asserted derived (no hand-copied literal to rot), which is why the two
+      // literal anchors above sit beside it: two empty strings are also equal.
+      expect(issue!.message, key).toBe(describeOf(StaticTableColumnSchema, key));
+
+      // Clause ②: the ACCEPT SET is untouched. Same refusal, same address,
+      // same issue code as the bare `z.never()` spelling reported — only the
+      // message moved. A `refine`-based helper would have reported `custom`
+      // here, which is a contract change wearing a message change's clothes.
+      expect(issue!.code, key).toBe('invalid_type');
+      expect(issue!.path, key).toEqual([key]);
+    }
+  });
+
+  it('`align` answers with the full remediation string the card measured', () => {
+    // One member pinned as a LITERAL, so the derived assertions above cannot
+    // all drift together. This is the exact string objectui#6105 measured as
+    // unreachable, and the one an author writing `align: 'right'` now reads.
+    const result = StaticTableColumnSchema.safeParse({
+      header: 'Amount',
+      accessorKey: 'amount',
+      align: 'right',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        'RETIRED (objectui#5474) — never read by the static table; use data-table, '
+        + 'or a cellClassName like text-right',
+      );
+    }
+  });
+
+  it('SCOPE BOUNDARY — the later tombstones still emit zod\'s generic message', () => {
+    // objectui#6105 was scoped to the nine #5474 keys, deliberately. These
+    // seven — the five rich-shape arrivals tombstoned here under the lockstep
+    // rule (#6424 / #6425) and the static table's own `hoverable` / `striped`
+    // pair — were left on the bare spelling. Pinned so the remaining half is a
+    // recorded decision with a red test behind it rather than an oversight;
+    // the follow-up that converts them flips this expectation deliberately.
+    for (const key of ['headerIcon', 'fitContent', 'format', 'options', 'currency'] as const) {
+      const result = StaticTableColumnSchema.safeParse({
+        header: 'Amount',
+        accessorKey: 'amount',
+        [key]: RETIRED_COLUMN_KEYS[key],
+      });
+      expect(result.success, key).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message, key).toContain(ZOD_GENERIC_NEVER);
+      }
+    }
+    for (const key of ['hoverable', 'striped'] as const) {
+      const result = TableZod.safeParse({ ...STATIC_TABLE, [key]: true });
+      expect(result.success, key).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message, key).toContain(ZOD_GENERIC_NEVER);
+      }
+    }
+  });
+});
+
 /* ── 2. the rich surface is untouched ────────────────────────────────────── */
 
 describe('rich `TableColumn` — NOT narrowed by the split (ruling scope, objectui#5474)', () => {

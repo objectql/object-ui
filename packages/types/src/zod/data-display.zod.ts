@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
@@ -164,12 +165,28 @@ export const TableColumnSchema = z.object({
  * Option C: split the types). `TableColumnSchema` above remains the rich
  * shared shape `data-table` honours and is deliberately NOT narrowed.
  *
- * The `z.never().optional()` members are ADR-0049 retirement tombstones (the
- * convention `crud.zod.ts` `confirm` set): an authored value is REFUSED at
- * parse time with the key named in the error path, instead of being silently
- * stripped the way an undeclared key would be. Loud refusal is the ruled
- * outcome — these keys were accepted-and-inert for as long as the static
- * table shared the rich column type.
+ * The `never`-typed members are ADR-0049 retirement tombstones (the convention
+ * `crud.zod.ts` `confirm` set): an authored value is REFUSED at parse time with
+ * the key named in the error path, instead of being silently stripped the way
+ * an undeclared key would be. Loud refusal is the ruled outcome — these keys
+ * were accepted-and-inert for as long as the static table shared the rich
+ * column type.
+ *
+ * The nine keys the #5474 split retired carry that refusal through
+ * `retirementTombstone()` (`./tombstone.zod.ts`), which writes the guidance
+ * string ONCE into both author-facing channels — `.describe()` for generated
+ * JSON-Schema and docs, and the parse-time issue message for the author who
+ * trips it. Until objectui#6105 the string reached only the first: the runtime
+ * message was zod's generic `"Invalid input: expected never, received string"`,
+ * which names the key but not the remedy, so the loud refusal arrived without
+ * the half that teaches. The accept set is untouched by that conversion — same
+ * `success`, same issue `path`, same issue `code` (`invalid_type`); only the
+ * message differs.
+ *
+ * The five later arrivals below (`headerIcon` / `fitContent`, objectui#6424;
+ * `format` / `options` / `currency`, objectui#6425) still carry the bare
+ * spelling and still emit zod's generic message — deliberately out of #6105's
+ * scope, not an oversight.
  */
 export const StaticTableColumnSchema = z.object({
   header: z.string().describe('Column header text'),
@@ -177,15 +194,15 @@ export const StaticTableColumnSchema = z.object({
   className: z.string().optional().describe('Column class name'),
   cellClassName: z.string().optional().describe('Cell class name'),
   width: z.union([z.string(), z.number()]).optional().describe('Column width'),
-  minWidth: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  align: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table, or a cellClassName like text-right'),
-  fixed: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  type: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  sortable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  filterable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  resizable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  editable: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  cell: z.never().optional().describe('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  minWidth: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  align: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table, or a cellClassName like text-right'),
+  fixed: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  type: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  sortable: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  filterable: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  resizable: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  editable: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
+  cell: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   headerIcon: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
   fitContent: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
   format: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
