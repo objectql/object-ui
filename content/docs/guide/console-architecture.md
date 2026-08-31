@@ -197,7 +197,25 @@ Per-app branding is applied via `AppShell`'s `branding` prop:
 }}>
 ```
 
-This sets CSS custom properties (`--brand-primary`, `--brand-primary-hsl`, etc.) on the document root.
+This writes CSS custom properties on the document root (`html`), and re-applies them whenever
+the `.dark` class on that element changes, so the brand stays readable across the theme toggle.
+
+**Branding acts through the Shadcn theme tokens.** `primaryColor` sets `--primary`,
+`--primary-foreground`, `--ring`, `--sidebar-primary` and `--sidebar-ring`; `accentColor` sets
+`--accent` and `--accent-foreground`. They reach rendered output through the Tailwind 4 `@theme`
+block in `packages/components/src/index.css`, which maps each one to a colour token
+(`--color-primary: hsl(var(--primary))`, `--color-accent: hsl(var(--accent))`, and so on) — and
+that is what generates the `bg-primary`, `text-primary-foreground`, `bg-accent` and `ring-ring`
+utilities the components already use. Overriding the token is therefore the whole mechanism:
+every existing consumer picks up the brand colour without a single component change.
+
+`AppShell` also writes `--brand-primary`, `--brand-primary-hsl`, `--brand-accent` and
+`--brand-accent-hsl`. These are **backward-compatibility aliases, not the branding surface** —
+no utility is wired to them, and nothing in this repository reads them. They are not
+interchangeable with the tokens above either: `--brand-*` carries the authored hex and its
+light-mode HSL triple and does not follow the light/dark toggle, whereas `--primary` /
+`--accent` carry the mode-adjusted value. Theme against the Shadcn tokens; treat the
+`--brand-*` names as an alias kept for whatever already consumes it.
 
 ## Development Mode
 
