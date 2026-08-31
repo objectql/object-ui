@@ -637,9 +637,39 @@ export interface ComponentMeta {
 }
 
 /**
- * Complete component configuration combining renderer and metadata.
+ * Complete component configuration combining renderer and metadata — the ONE
+ * declaration of this name (objectui#6298).
+ *
+ * ## Why it carries a type parameter
+ *
+ * `@object-ui/core` used to declare a SECOND `ComponentConfig` in
+ * `src/registry/Registry.ts`, and after objectui#6067 / PR #6297 single-sourced
+ * the `ComponentMeta` half, GENERICITY AND THE `component` SLOT was the whole
+ * of what still made the two same-named PUBLISHED exports genuinely different
+ * types: core's was `<T = any>` with a parameterised renderer slot, this one was
+ * non-generic with `component: any`. Core now RE-EXPORTS this declaration, so
+ * the parameter has to live here for that re-export to be lossless.
+ *
+ * The parameter is DEFAULTED, so every existing spelling keeps its meaning
+ * exactly: bare `ComponentConfig` is `ComponentConfig<any>`, whose `component`
+ * is `any` — the same slot this declaration has always published. Nothing that
+ * compiled against it before has to change.
+ *
+ * ⚠️ `T` is the RENDERER ITSELF, not a props type. Core's `ComponentRenderer<T>`
+ * is the IDENTITY alias (`export type ComponentRenderer<T = any> = T`), which is
+ * why `component: T` here says exactly what `component: ComponentRenderer<T>`
+ * said there — and why this convergence needed no `@object-ui/types` →
+ * `@object-ui/core` dependency edge, which would have been a cycle in the wrong
+ * direction (this package is the bottom layer; core depends on it). That
+ * identity is not assumed: it is pinned in
+ * `packages/core/src/registry/__tests__/component-config-single-declaration.test.ts`,
+ * and if `ComponentRenderer` ever stops being the identity this slot stops
+ * matching it and that pin goes red.
+ *
+ * @typeParam T - The renderer this configuration carries. Defaults to `any`,
+ *   the framework-agnostic slot this package published before it was named.
  */
-export interface ComponentConfig extends ComponentMeta {
+export interface ComponentConfig<T = any> extends ComponentMeta {
   /**
    * Unique component type identifier
    */
@@ -648,7 +678,7 @@ export interface ComponentConfig extends ComponentMeta {
   /**
    * The component renderer (framework-specific)
    */
-  component: any;
+  component: T;
 }
 
 /**

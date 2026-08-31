@@ -348,7 +348,7 @@ import { ComponentRegistry } from '@object-ui/core';
 
 ComponentRegistry.has('board');                              // boolean
 ComponentRegistry.getAllTypes();                              // string[]
-ComponentRegistry.getNamespaceComponents('plugin-board');     // ComponentConfig[]
+ComponentRegistry.getNamespaceComponents('plugin-board');     // RegistryComponentConfig[]
 ```
 
 ## Plugin Configuration & Schema Types

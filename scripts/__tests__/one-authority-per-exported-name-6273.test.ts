@@ -359,7 +359,18 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['ChatMessage', ['packages/plugin-chatbot/src/ChatbotEnhanced.tsx', 'packages/types/src/complex.ts']],
   ['ChatToolInvocation', ['packages/plugin-chatbot/src/ChatbotEnhanced.tsx', 'packages/types/src/complex.ts']],
   ['ComboboxOption', ['packages/components/src/custom/combobox.tsx', 'packages/types/src/form.ts']],
-  ['ComponentConfig', ['packages/core/src/registry/Registry.ts', 'packages/types/src/base.ts']],
+  // `ComponentConfig` sat here, colliding between
+  // `packages/core/src/registry/Registry.ts` and `packages/types/src/base.ts`.
+  // objectui#6298 made `@object-ui/types` the one authority — it gained the
+  // defaulted type parameter that was the last real difference between the two
+  // — and `Registry.ts` now RE-EXPORTS it, which this gate does not count. The
+  // entry would fail the stale-baseline direction.
+  //
+  // ⚠️ `ComponentMeta` below is the same PAIR OF FILES and is deliberately
+  // still here: PR #6297 converged its SHAPE (`CanonicalComponentMeta &
+  // RegistryComponentMetaExtras`) but left a declaration in `Registry.ts`, and
+  // a derived declaration is still an authority. That contrast is why #6298
+  // took the re-export route rather than the derive route.
   ['ComponentMeta', ['packages/core/src/registry/Registry.ts', 'packages/types/src/base.ts']],
   ['ConditionalFormattingRule', ['packages/plugin-kanban/src/KanbanEnhanced.tsx', 'packages/plugin-kanban/src/KanbanImpl.tsx', 'packages/types/src/objectql.ts']],
   ['ConfirmDialogState', ['packages/app-shell/src/views/ActionConfirmDialog.tsx', 'packages/plugin-designer/src/hooks/useConfirmDialog.ts']],
