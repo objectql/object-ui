@@ -1891,7 +1891,7 @@ the runner. Removed by [#6436](https://github.com/objectstack-ai/objectui/issues
 2. Copy the pnpm + Turbo setup from a workflow that runs today, not from a snippet on this
    page. A copied YAML block is a fossil the moment it is pasted — this page used to keep
    one here, and every line of it had drifted: `actions/setup-node@v4` where every workflow
-   now uses `@v7`, a hardcoded `node-version: 20` where every workflow declares `'22.x'`
+   now uses `@v7`, a hardcoded `node-version: 20` where every workflow declares 22
    (and 20 sat below the floor the root `package.json`'s `engines` field now declares), and
    `pnpm/action-setup@v4`, which no workflow in this repository has ever used — pnpm comes
    from `corepack enable` plus the root `packageManager` field instead.
