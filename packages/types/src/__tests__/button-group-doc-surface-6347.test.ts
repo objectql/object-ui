@@ -50,15 +50,23 @@
  * shared `enumOptions` reader rather than a hand-copied string list, so this
  * file follows the platform instead of asserting yesterday's vocabulary.
  *
- * ## Two BaseSchema-inherited rows are pinned for MEMBERSHIP only — deliberate
+ * ## The two BaseSchema-inherited rows are pinned too, and one of them was wrong
  *
  * The page also documents `disabled` and `className`, which `ButtonGroupSchema`
- * inherits. Their type TEXT is not pinned here: `BaseSchema` declares
- * `disabled?: boolean | string` (the string limb is the expression dialect),
- * while this page — and all 21 sibling `content/docs/components/**` pages that
- * document it, and the common-props table in `content/docs/api/schema-reference.md`
- * — spell it `boolean`. Correcting one page would make it the lone outlier of a
- * repo-wide convention, so it is measured and reported rather than guessed at.
+ * inherits rather than declares. `disabled` was spelled `boolean` against a
+ * declared `boolean | string` (`base.ts`; the mirror is
+ * `z.union([z.boolean(), z.string()])`, the string limb being the predicate
+ * dialect `disabledOn` also carries).
+ *
+ * That reads at first like a repo-wide convention worth leaving alone — 14
+ * `content/docs/components/**` pages spell a component schema's own `disabled`
+ * as `boolean`. It is not: 13 of those 14 component schemas REDECLARE
+ * `disabled?: boolean` themselves (`ButtonSchema`, `SelectSchema`,
+ * `SwitchSchema`, `ToggleGroupSchema` and nine more), so their pages are right.
+ * `ButtonGroupSchema` is the ONE that does not redeclare it, which makes this
+ * page the outlier rather than the convention. Measured, not assumed — and it
+ * is why the type TEXT of both inherited rows is asserted here rather than
+ * waved through as "documented centrally".
  *
  * ## `## Selection Mode` is gone because the renderer cannot draw it
  *
@@ -150,6 +158,36 @@ const declaredOptional = (shape: ZodShape, key: string): boolean =>
   shape[key].safeParse(undefined).success;
 
 /**
+ * Peel `.optional()` / `.default()` / `.nullable()` off a mirror member.
+ *
+ * Bounded rather than `while`, for the reason `@object-ui/test-support`'s
+ * `enumOptions` gives: the step is reached through `unknown`, so a node that
+ * unwraps to itself ends the walk instead of the process. That shared reader is
+ * deliberately NOT used here — it answers "which enum NAMES does this accept",
+ * and reading a union's option SCHEMAS out of it would be relying on a return
+ * value its contract does not promise.
+ */
+function unwrapWrappers(node: unknown): Record<string, any> | undefined {
+  let carrier = node as Record<string, any> | undefined;
+  for (let depth = 0; carrier && depth <= 8; depth += 1) {
+    const inner = carrier.def?.innerType ?? carrier._def?.innerType;
+    if (!inner) return carrier;
+    carrier = inner as Record<string, any>;
+  }
+  return carrier;
+}
+
+/** The declared type of a member, spelled the way the page writes it. */
+function declaredTypeText(node: unknown): string {
+  const inner = unwrapWrappers(node);
+  if (inner?.def?.type === 'union') {
+    const options = (inner.options ?? inner.def.options ?? []) as unknown[];
+    return options.map((option) => unwrapWrappers(option)?.def?.type ?? 'unknown').join(' | ');
+  }
+  return String(inner?.def?.type ?? 'unknown');
+}
+
+/**
  * The members this component declares in its OWN right.
  *
  * `type` is re-declared by `.extend()` as the discriminator literal, so it
@@ -214,12 +252,22 @@ describe('button-group.mdx: the `ButtonGroupSchema` block IS the shipped mirror 
   });
 
   it.each(['disabled', 'className'])(
-    'the inherited `%s` row it documents is a declared member (membership only — see header)',
+    'the inherited `%s` row it documents matches the declared member',
     (key) => {
       expect(BASE_KEYS.has(key)).toBe(true);
       expect(groupDoc.get(key)?.optional).toBe(declaredOptional(groupShape, key));
+      expect(groupDoc.get(key)?.typeText).toBe(declaredTypeText(groupShape[key]));
     },
   );
+
+  it('`ButtonGroupSchema` is the one component schema that does NOT narrow `disabled`', () => {
+    // The reason the row above says `boolean | string` while 13 sibling pages
+    // correctly say `boolean`: those 13 schemas redeclare it. This assertion is
+    // what stops a later `disabled?: boolean` narrowing on ButtonGroupSchema
+    // from leaving the page silently over-stating instead of under-stating.
+    expect(declaredTypeText(groupShape.disabled)).toBe('boolean | string');
+    expect(Object.keys(groupShape).includes('disabled')).toBe(true);
+  });
 });
 
 describe('button-group.mdx: no Selection Mode section, because the renderer has no selection (objectui#6347)', () => {
@@ -274,5 +322,15 @@ describe('counter-probes: the readers above can still fail (objectui#6347)', () 
     expect(documentedLiterals("'default' | 'outline' | 'ghost'")).not.toEqual(
       enumOptions(groupShape.variant),
     );
+  });
+
+  it('`declaredTypeText` reads the mirror, not a hard-coded string', () => {
+    // Non-vacuity for the union reader: it must distinguish the two inherited
+    // rows from each other, and must not answer `unknown` for either.
+    expect(declaredTypeText(groupShape.className)).toBe('string');
+    expect(declaredTypeText(groupShape.disabled)).not.toBe(
+      declaredTypeText(groupShape.className),
+    );
+    expect(declaredTypeText(groupShape.disabled)).not.toContain('unknown');
   });
 });

@@ -5,7 +5,8 @@ Docs only, publishes nothing: `content/docs/components/basic/button-group.mdx`
 published a `ButtonGroupSchema` / `ButtonGroupButton` surface that disagreed
 with the shipped types in **both** directions. objectui#6347 named the two
 over-statements; re-measuring the whole fence against
-`packages/types/src/navigation.ts` and its Zod mirror found ten rows.
+`packages/types/src/navigation.ts`, `packages/types/src/base.ts` and their Zod
+mirrors found eleven rows.
 
 Over-stated — documented, never declared:
 
@@ -28,10 +29,22 @@ Under-stated — declared, never documented:
 | `ButtonGroupButton` had no `className` row | `className?: string` (`navigation.ts:329`, `.zod.ts:148`) | added |
 | `ButtonGroupSchema.variant?: 'default' \| 'outline' \| 'ghost'` | six members (`navigation.ts:345`, `.zod.ts:157`) | `secondary`, `destructive`, `link` restored |
 | `ButtonGroupSchema.size?: 'sm' \| 'default' \| 'lg'` | four members (`navigation.ts:350`, `.zod.ts:158`) | `icon` restored |
+| `disabled?: boolean` | `BaseSchema.disabled?: boolean \| string` (`base.ts`, `zod/base.zod.ts:190`) — `ButtonGroupSchema` does **not** redeclare it | `boolean \| string` |
 
 Both directions are one defect class with the sign flipped. Fixing only the
 direction a card happens to notice is what left these omissions sitting beside
 two earlier corrections to the same page (objectui#6132, objectui#6143).
+
+The `disabled` row deserves its own note, because it looks like a convention and
+is not. Fourteen `content/docs/components/**` pages spell a component schema's
+own `disabled` as `boolean` — but **thirteen of those fourteen schemas redeclare
+`disabled?: boolean` themselves** (`ButtonSchema`, `SelectSchema`,
+`SwitchSchema`, `ToggleGroupSchema` and nine more), so those pages are right.
+`ButtonGroupSchema` is the one that does not, so it inherits `BaseSchema`'s
+`boolean | string` and this page was the outlier rather than the convention.
+Whether `ButtonGroupSchema` *should* narrow it like its thirteen siblings is a
+types question, not a docs one, and is deliberately not answered here — the
+renderer reads neither spelling today.
 
 `onClick` is documented as declared and annotated as a runtime slot: it is
 `z.function()`, and objectui#4453 narrowed the runtime to

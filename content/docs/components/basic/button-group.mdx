@@ -39,7 +39,7 @@ interface ButtonGroupSchema {
   size?: 'default' | 'sm' | 'lg' | 'icon';
 
   // States
-  disabled?: boolean;
+  disabled?: boolean | string;   // boolean, or a predicate expression
 
   // Styling
   className?: string;
