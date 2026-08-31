@@ -1026,10 +1026,16 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // The listener is still needed, for a different reason: NOTHING EVER HANDS
   // THE WIDGET ONE. The wrapper below carries `onKeyDown` alone, and the
   // context object `renderCellEditor` receives — `{ column, row, value, stage,
-  // commit, cancel }` — has no DOM-props slot to put an `onBlur` in. The
-  // in-repo factory behind that seam, `@object-ui/fields`' `FieldEditWidget`,
-  // forwards `autoFocus` and nothing else out of the DOM block, so a host
-  // handler could not reach the control through it even if one were passed.
+  // commit, cancel }` — has no DOM-props slot to put an `onBlur` in.
+  //
+  // ⚠️ The second half of that reason is GONE (objectui#6909). The in-repo
+  // factory behind the seam, `@object-ui/fields`' `FieldEditWidget`, used to
+  // forward `autoFocus` and nothing else out of the DOM block, so a host
+  // handler could not have reached the control even if one were passed. It now
+  // hands the widget its whole `toDomProps` set, so a passed `onBlur` WOULD
+  // arrive. What keeps this listener load-bearing is the FIRST half alone: the
+  // seam still has nowhere to put one. Widening that context object is a
+  // `DataTableSchema` contract change, not something to infer from here.
   //
   // Note also what the listener is NOT load-bearing for. Its job is exiting
   // EDIT MODE, not rescuing the value: injected widgets stage on every change

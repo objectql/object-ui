@@ -237,7 +237,10 @@ describe('objectui#6694 — RecordDetailDrawer lookup rows carry their reference
 /**
  * The copy-set boundary.
  *
- * `ObjectGrid`'s `applyRelationalMeta` copies NINE keys; this seam copies THREE,
+ * `ObjectGrid`'s `applyRelationalMeta` copies SEVEN keys — it copied NINE until
+ * objectui#6711 and objectui#6874 retired `reference_to_field` and `titleFormat`
+ * from its list, both on the reader measurement this seam had already recorded.
+ * This seam copies THREE,
  * and the difference is measured rather than preferred: the grid's cells are
  * EDITABLE, so its extra keys feed the inline picker (`LookupField` / `UserField`
  * read `id_field`, `description_field`, `lookup_filters`, `lookupFilters`).
@@ -245,7 +248,7 @@ describe('objectui#6694 — RecordDetailDrawer lookup rows carry their reference
  * renderer — and `packages/fields/src/index.tsx` reads exactly three relational
  * keys off a cell's `field` prop.
  *
- * ⛔ This is what stops the omitted six from being added back "for parity": a
+ * ⛔ This is what stops the omitted keys from being added back "for parity": a
  * `FieldMeta` member written on every call and read by nothing is precisely what
  * objectui#6625 (`decimals`) and objectui#6597 (`referenceTo`) retired from this
  * same file. If these widgets ever gain inline editing, that is the event that
@@ -257,7 +260,11 @@ describe('objectui#6694 — buildFieldMeta copies the cell-read relational keys 
     reference_to: 'project',
     reference: 'project',
     display_field: 'project_code',
-    // The six the grid also copies, which have no reader on this path:
+    // Six keys with no reader on this path. FOUR of them the grid still copies
+    // (its picker-only keys); the other two it has since retired as well —
+    // `reference_to_field` (objectui#6711) and `titleFormat` (objectui#6874).
+    // All six stay on the fixture on purpose: the assertion below pins THIS
+    // seam's boundary, which does not move when the grid's list does.
     reference_to_field: 'x',
     id_field: 'x',
     description_field: 'x',

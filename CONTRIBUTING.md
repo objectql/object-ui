@@ -64,6 +64,13 @@ git config merge.pnpm-merge.driver "pnpm install"
 
 This configuration allows Git to automatically resolve conflicts in `pnpm-lock.yaml` by regenerating the lockfile using `pnpm install` instead of attempting a manual merge.
 
+**This step is not optional bookkeeping — it is the only place the driver is defined.**
+`.gitattributes` routes `pnpm-lock.yaml` through a driver named `pnpm-merge`, but naming a
+driver does not define one, and no CI workflow defines it either (none of them performs a
+merge git carries out on the runner; see the "Lockfile Merge Driver" section of
+`content/docs/guide/ci-cd-pipeline.md`). Skip this and the `git merge upstream/main` below
+leaves conflict markers inside `pnpm-lock.yaml` instead of regenerating it.
+
 ### Create a Branch
 
 ```bash

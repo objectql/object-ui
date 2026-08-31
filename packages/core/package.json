@@ -38,6 +38,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@object-ui/test-support": "workspace:*",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },

@@ -32,6 +32,9 @@
 
 import { describe, it, expect } from 'vitest';
 import * as Automation from '@objectstack/spec/automation';
+// The Zod wrapper-key vocabulary — one list, read by the `.mjs` CI gates that
+// walk the same internals (objectui#6923, ruled 2026-08-31).
+import { ZOD_WRAPPER_KEYS } from '@object-ui/test-support';
 import { fieldsForNodeType, type FlowConfigField } from './flow-node-config';
 
 // Feature-detected exports — absent on a spec that predates framework#4278.
@@ -105,7 +108,7 @@ function objectShape(schema: unknown, depth = 0): Record<string, unknown> | null
   const def = (s._def ?? s.def) as Record<string, unknown> | undefined;
   if (!def) return null;
   if (def.shape) return def.shape as Record<string, unknown>;
-  for (const key of ['in', 'out', 'innerType', 'schema', 'left', 'right']) {
+  for (const key of ZOD_WRAPPER_KEYS) {
     const found = def[key] ? objectShape(def[key], depth + 1) : null;
     if (found) return found;
   }

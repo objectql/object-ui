@@ -42,3 +42,13 @@ export {
 } from './spec-tombstones';
 
 export { enumOptions, shapeEnumOptions } from './spec-enum-options';
+
+/**
+ * The Zod wrapper-key vocabulary (objectui#6923). The DATA lives in
+ * `zod-wrapper-keys.json` so that `node scripts/check-*.mjs` can read the same
+ * bytes through `@object-ui/test-support/zod-wrapper-keys` — the one thing this
+ * package's `.` entry, being TypeScript source, cannot offer a bare-node
+ * consumer. `zod-wrapper-keys.ts` carries the reasoning; read it before
+ * touching either side.
+ */
+export { ZOD_WRAPPER_KEYS } from './zod-wrapper-keys';

@@ -315,7 +315,7 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
 
 /**
  * objectui#3724: the `pnpm-lock.yaml` merge driver is repository configuration
- * (`.gitattributes`) that only works where a workflow defines the driver, so "which
+ * (`.gitattributes`) that only works where something defines the driver, so "which
  * workflows define it" is a claim about three files at once — and it was wrong in both
  * copies that made it. This page named `changeset-release.yml` and
  * `dependabot-auto-merge.yml`; the deleted `.github/WORKFLOWS.md` named
@@ -327,6 +327,43 @@ describe('ci-cd-pipeline.md — workflow inventory', () => {
  * hand-maintained list into unpinned prose would just relocate the drift generator, which is
  * the whole reason #3724 chose deletion over a second copy. Hence this pin: both directions,
  * so a workflow that gains the step without a row is as red as a row whose workflow lost it.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * objectui#6436 (ruled 2026-08-27) removed the LAST workflow that configured the driver.
+ * `changeset-release.yml` performs no local merge, so its config could never fire; the
+ * repository half (`.gitattributes`) and the contributor half (`CONTRIBUTING.md`) were
+ * measured live and were kept. The mechanism is now contributor-facing with zero CI
+ * consumers.
+ *
+ * ⭐ THE ANTI-VACUITY WEIGHT MOVED — IT DID NOT VANISH. This block used to open with
+ * `expect(configuring.length).toBeGreaterThan(0)`, and that single line was doing two
+ * different jobs:
+ *
+ *   1. proving the grep had matched something, so "no workflow is missing a row" was a
+ *      reading rather than an artifact of a scan that read nothing; and
+ *   2. proving the mechanism still had a consumer at all — a zero-match grep once let both
+ *      directions of this pin go vacuously green, which is why the guard was added.
+ *
+ * Zero is now the CORRECT answer to that count, so the guard cannot stay as `> 0`. ⛔ But
+ * flipping it to `=== 0` and stopping there would delete both jobs and re-install the exact
+ * defect this block exists to catch. Each job therefore has a new and explicit owner:
+ *
+ *   1. → `the workflow scan is live` below. A zero-hit taken with no control is not a
+ *      reading. The scan now takes a control term that MUST hit the same population —
+ *      `git config`, which `changelog.yml` genuinely runs. If the directory, the read or
+ *      the regex ever breaks, the control collapses to zero as well and that test fails,
+ *      instead of a broken scan silently agreeing with the expected zero.
+ *   2. → `keeps the .gitattributes half of the mechanism true` and `keeps CONTRIBUTING.md's
+ *      contributor path — the mechanism's only remaining consumer` below. That is where the
+ *      real weight landed: those two files ARE the mechanism now. If either goes, the driver
+ *      genuinely has no consumers left and this section should be deleted with it — which is
+ *      exactly what the old `> 0` failure message demanded, re-pointed at the consumer that
+ *      is actually live.
+ *
+ * The both-directions pin itself stays, and the PHANTOM direction is now the load-bearing
+ * half of it: with zero configuring workflows, `phantom` is precisely "workflows this page
+ * still names", so a row that comes back reddens on its own. The `missing` direction is the
+ * tripwire for a CI consumer returning.
  */
 describe('ci-cd-pipeline.md — lockfile merge driver', () => {
   /** Workflows that actually configure the driver, by grepping for the git config key. */
@@ -335,6 +372,21 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
       .readdirSync(workflowDir)
       .filter((f) => f.endsWith('.yml'))
       .filter((f) => /merge\.pnpm-merge/.test(fs.readFileSync(path.join(workflowDir, f), 'utf8')))
+      .sort();
+  }
+
+  /**
+   * The control population: workflows containing a `git config` of any kind. Deliberately a
+   * NEAR MISS of the driver key — both are `git config` lines in `.github/workflows/`, read
+   * out of the same directory by the same reader — so a scan that can see one can see the
+   * other. `changelog.yml` really does run `git config --local user.email`, so zero here
+   * means the scan is broken, not that the repository changed.
+   */
+  function workflowsMatchingControl(): string[] {
+    return fs
+      .readdirSync(workflowDir)
+      .filter((f) => f.endsWith('.yml'))
+      .filter((f) => /git config/.test(fs.readFileSync(path.join(workflowDir, f), 'utf8')))
       .sort();
   }
 
@@ -364,17 +416,28 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
     return [...named].sort();
   }
 
-  it('lists exactly the workflows that configure merge.pnpm-merge — in both directions', () => {
-    const configuring = workflowsConfiguringDriver();
-    // A grep that matched nothing would make both directions vacuously green — the failure
-    // mode the retired `dev-server` job demonstrated for the job table below.
+  it('the workflow scan is live — zero configuring workflows is a reading, not a broken grep', () => {
+    // This test is the replacement for the retired `configuring.length > 0` guard, in its
+    // first job only: proving the scan works. It says nothing about whether the driver has a
+    // consumer — that question moved to the two `keeps …` tests below.
+    const files = fs.readdirSync(workflowDir).filter((f) => f.endsWith('.yml'));
     expect(
-      configuring.length,
-      'no workflow appears to configure `merge.pnpm-merge` — if the driver was genuinely ' +
-        'retired, delete the "Lockfile Merge Driver" section and the `.gitattributes` line ' +
-        'with it rather than leaving a page describing a mechanism nothing installs',
+      files.length,
+      `no .yml files were read out of ${workflowDir} at all, so every count this block takes ` +
+        'is zero for a reason that has nothing to do with the merge driver',
     ).toBeGreaterThan(0);
 
+    expect(
+      workflowsMatchingControl(),
+      'the control term `git config` matched NO workflow, but `changelog.yml` runs ' +
+        '`git config --local user.email`. The directory listing, the file reads or the regex ' +
+        'is broken — and until it is fixed, "zero workflows configure the merge driver" is ' +
+        'not a measurement. A zero-hit taken with no control is not a reading (objectui#6436).',
+    ).not.toEqual([]);
+  });
+
+  it('lists exactly the workflows that configure merge.pnpm-merge — in both directions', () => {
+    const configuring = workflowsConfiguringDriver();
     const named = workflowsNamedInDoc();
     const missing = configuring.filter((f) => !named.includes(f));
     const phantom = named.filter((f) => !configuring.includes(f));
@@ -384,8 +447,12 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
       `these workflows configure the pnpm-lock.yaml merge driver but have no row in the ` +
         `"Lockfile Merge Driver" table of content/docs/guide/ci-cd-pipeline.md:\n` +
         missing.map((f) => `  - ${f}`).join('\n') +
-        `\n\nAdd a row saying why that workflow merges. An incomplete list is how this claim ` +
-        `was wrong on two pages at once before objectui#3724.`,
+        `\n\nSince objectui#6436 the expected count is ZERO, so this is a CI consumer coming ` +
+        `back. Either it genuinely merges on the runner — in which case add its row, saying ` +
+        `why it merges — or it is configuring a driver it can never use, which is the dead ` +
+        `half that card removed. NOTE the scan greps workflow text, so merely NAMING the ` +
+        `config key in a comment trips this; that is the safe direction, but spell the key ` +
+        `as the \`merge=pnpm-merge\` attribute in prose to avoid it.`,
     ).toEqual([]);
 
     expect(
@@ -393,23 +460,60 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
       `the "Lockfile Merge Driver" table names workflows that do NOT configure ` +
         `\`merge.pnpm-merge\`:\n` +
         phantom.map((f) => `  - ${f}`).join('\n') +
-        `\n\nEither the step was dropped from that workflow — in which case its lockfile ` +
-        `conflicts are being resolved as a text merge, and that is the bug — or the row is ` +
-        `stale and should go.`,
+        `\n\n⭐ This direction is load-bearing now. With zero configuring workflows, it says ` +
+        `exactly "the page names no workflow", so a row that comes back — stale, or copied ` +
+        `from the pre-objectui#6436 page — fails here on its own rather than riding along ` +
+        `with a count that happened to be non-zero. Either the workflow really configures ` +
+        `the driver, or the row goes.`,
     ).toEqual([]);
   });
 
   it('keeps the .gitattributes half of the mechanism true', () => {
-    // The driver only ever runs because an attribute asks for it. Half the mechanism living
-    // in a file the workflows do not mention is exactly why this was documented nowhere
-    // complete; if the attribute goes, the section is describing dead configuration.
+    // ⭐ Load-bearing since objectui#6436: with no workflow configuring the driver, the
+    // attribute is the mechanism's only presence IN this repository. It used to be checked
+    // because "the workflows would be configuring it for nothing"; there are no workflows to
+    // configure it now, so this assertion is no longer a corollary of anything else.
     const attributes = fs.readFileSync(path.join(repoRoot, '.gitattributes'), 'utf8');
     expect(
       attributes,
-      '.gitattributes no longer routes pnpm-lock.yaml through the `pnpm-merge` driver, so the ' +
-        '"Lockfile Merge Driver" section on content/docs/guide/ci-cd-pipeline.md now describes ' +
-        'a driver nothing invokes — the workflows would be configuring it for nothing.',
+      '.gitattributes no longer routes pnpm-lock.yaml through the `pnpm-merge` driver. Since ' +
+        'objectui#6436 removed the last workflow that configured it, this line is the only ' +
+        'thing in the repository that asks for the driver at all — without it the mechanism ' +
+        'is gone, contributors who configured the driver silently stop getting it, and the ' +
+        '"Lockfile Merge Driver" section of content/docs/guide/ci-cd-pipeline.md describes ' +
+        'nothing. Removing it is a decision, not a cleanup: measured, a conflicting merge ' +
+        'without this attribute leaves conflict markers INSIDE pnpm-lock.yaml.',
     ).toMatch(/^pnpm-lock\.yaml\s+merge=pnpm-merge\s*$/m);
+  });
+
+  it("keeps CONTRIBUTING.md's contributor path — the mechanism's only remaining consumer", () => {
+    // ⭐ This is where the retired `configuring.length > 0` guard's SECOND job landed. That
+    // guard asked "does anything still consume this driver?" and answered with the workflow
+    // count. The workflow count is zero by ruling now, so the question is answered here, at
+    // the consumer that was measured live: CONTRIBUTING.md defines the driver locally and
+    // then runs a merge that gives it an occasion to fire.
+    const contributing = fs.readFileSync(path.join(repoRoot, 'CONTRIBUTING.md'), 'utf8');
+
+    expect(
+      contributing,
+      'CONTRIBUTING.md no longer tells contributors to define `merge.pnpm-merge.driver`. An ' +
+        'attribute names a driver but does not define one, and since objectui#6436 no ' +
+        'workflow defines it either — so if this instruction is gone, `.gitattributes:5` ' +
+        'selects a driver that exists nowhere and silently falls back to a text merge. At ' +
+        'that point the mechanism has zero consumers and the "Lockfile Merge Driver" section ' +
+        'of content/docs/guide/ci-cd-pipeline.md, plus the .gitattributes line, should be ' +
+        'deleted with it — which is what the retired `configuring.length > 0` guard demanded, ' +
+        'pointed at the consumer that is actually live.',
+    ).toMatch(/git config\s+merge\.pnpm-merge\.driver/);
+
+    expect(
+      contributing,
+      "CONTRIBUTING.md still defines the driver but no longer tells contributors to merge " +
+        'upstream, so nothing in the documented workflow gives the driver an occasion to ' +
+        'fire. A configured driver with no merge is the same dead shape objectui#6436 removed ' +
+        'from changeset-release.yml — if the contributor path really no longer merges, the ' +
+        'driver instruction above it is dead too and this whole mechanism should be re-judged.',
+    ).toMatch(/git merge\s+upstream\/main/);
   });
 });
 

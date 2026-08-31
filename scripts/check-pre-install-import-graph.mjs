@@ -273,9 +273,23 @@ function shellCode(run) {
  *     BROWSER, not the workspace. The package-manager anchor is what excludes
  *     it, since `playwright` is not `pnpm`.
  *   - `git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"`
- *     (`changeset-release.yml`) CONFIGURES a merge driver; it installs nothing,
- *     and that job's real install is a later step. The command-position anchor
- *     is what excludes it -- the `pnpm` there is inside an argument.
+ *     CONFIGURES a merge driver; it installs nothing. The command-position
+ *     anchor is what excludes it -- the `pnpm` there is inside an argument.
+ *
+ *     ⚠️ Formerly `changeset-release.yml`, where that step sat ahead of the job's
+ *     real install. It was removed with the dead CI half of the lockfile merge
+ *     driver (objectui#6436, ruled 2026-08-27), so NO live in-repo instance of
+ *     this shape remains. This is the SECOND re-pointing of the example -- PR
+ *     objectui#6389 moved it here when `dependabot-auto-merge.yml` lost its copy
+ *     -- and this time there is nowhere live to move it to. The shape survives
+ *     as the synthetic fixture in the `does not read an install out of a shell
+ *     comment or a quoted argument` case of
+ *     `scripts/__tests__/check-pre-install-import-graph.test.ts`, cited by test
+ *     NAME rather than line number on purpose (objectui#6998 records a
+ *     cross-file citation in this repo that had rotted 86 and 107 lines off).
+ *     ⛔ Do not drop the anchor because its example went away: it is the reason
+ *     the boundary is drawn at a command position, and a quoted `pnpm install`
+ *     can reappear in any workflow at any time.
  *
  * Getting that second one wrong would move the install boundary to step 4 and
  * silently drop `scripts/dependabot-merge-gate.mjs` out of the population --

@@ -82,9 +82,35 @@ code imports — nothing in `src/` of a released package may import this.
     above, not a second reader: `shapeEnumOptions` delegates to it, so there is
     exactly one wrapper walk in this repository and a third entry point must not
     change that.
-  - The other Zod-internals reader classes #5872 censused — array-element
-    unwrapping, the wrapper-key walk — are NOT confined here yet and are still
-    hand-copied; converting them is a separate round, one reader class at a time.
+  - Of the other Zod-internals reader classes #5872 censused, the wrapper-key
+    list is now shared as DATA (below, objectui#6923); array-element unwrapping
+    is NOT confined here yet and is still hand-copied — converting it is a
+    separate round, one reader class at a time.
+- `src/zod-wrapper-keys.json` + `src/zod-wrapper-keys.ts` — the Zod wrapper-key
+  vocabulary, exported as `ZOD_WRAPPER_KEYS` (objectui#6923, ruled 2026-08-31 —
+  objectui#5872 class (3)). The `.json` holds the data and the `.ts` holds the
+  reasoning; read the `.ts` header before touching either.
+
+  This is the one class whose copies had grown OUT of tests and into `.mjs` CI
+  gate scripts, so the class-(1) pattern above was unavailable across it: this
+  package's `exports["."]` is TypeScript source and a bare
+  `node scripts/check-*.mjs` has no build artefact to reach. The ruling gave the
+  DATA a build-free home and a subpath of its own, and drew a boundary around
+  it — **the walks stay with their callers**. They are not identical
+  (`check-designer-field-key-parity.mjs` reads `node._def ?? node.def ??
+  node._zod?.def`; `check-action-forward-parity.mjs` reads `s._def ?? s.def`),
+  and sharing a FUNCTION across the language boundary is explicitly outside that
+  ruling. Consumed by those two gates plus
+  `packages/core/src/actions/__tests__/actionKeys.pin.test.ts`,
+  `packages/app-shell/src/views/metadata-admin/inspectors/flow-node-config.spec-reconciliation.test.ts`
+  and `packages/app-shell/src/views/metadata-admin/previews/flow-canvas-seeds.spec-parse.test.tsx`.
+  No copy of the list is left in-tree.
+- `src/__tests__/zod-wrapper-keys.test.ts` — the surface half: the module is the
+  JSON verbatim, it is non-empty, and it reaches consumers through the package
+  index rather than a deep path. The half that carries the discrimination is
+  `scripts/__tests__/zod-wrapper-keys.shared.test.ts`, which drives one fixture
+  per key through **both** `.mjs` gates' real entry points, so emptying the list
+  — or dropping a single entry — turns them red instead of quietly permissive.
 - `src/__tests__/spec-enum-options.test.ts` — the calibration for that reader:
   one synthetic fixture per wrapper spelling it claims to walk (bare enum,
   `.optional()`, `.default()`, a stack, and a `lazySchema()` thunk), the `[]`
@@ -101,7 +127,15 @@ code imports — nothing in `src/` of a released package may import this.
 
 - Consumers add `"@object-ui/test-support": "workspace:*"` to
   **`devDependencies`** — never `dependencies`, since no consumer ships it.
-- Import the package root (`@object-ui/test-support`), never a deep path.
+- Import the package root (`@object-ui/test-support`), never a deep path. The
+  single exception is `@object-ui/test-support/zod-wrapper-keys`, a declared
+  `exports` subpath pointing straight at a `.json` file. It exists because a
+  bare-node CI gate has no other way in, it carries DATA only, and it was ruled
+  (objectui#6923) rather than assumed. It does not license a second one — a
+  TypeScript consumer has the package root and must use it.
 - There is no build: consumers resolve the TypeScript source through the
   `exports` map. `pnpm --filter @object-ui/test-support type-check` reads both
   the modules and their tests in one program.
+- The workspace ROOT declares this package too, so that `node scripts/*.mjs`
+  can resolve the subpath above from `scripts/`. That root entry is what makes
+  the bare specifier work; a gate importing it without it fails at module load.

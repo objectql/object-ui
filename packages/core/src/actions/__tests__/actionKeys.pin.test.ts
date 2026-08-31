@@ -20,6 +20,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { ActionSchema as SpecActionSchema } from '@objectstack/spec/ui';
+// The Zod wrapper-key vocabulary — one list, read by the `.mjs` CI gates that
+// walk the same internals (objectui#6923, ruled 2026-08-31).
+import { ZOD_WRAPPER_KEYS } from '@object-ui/test-support';
 import {
   ACTION_DEF_KEYS,
   SPEC_ACTION_KEYS,
@@ -73,7 +76,7 @@ function specActionKeys(): string[] {
     const def = (s._def ?? s.def) as Record<string, unknown> | undefined;
     if (!def) return null;
     if (def.shape) return shapeOf(def.shape);
-    for (const key of ['in', 'out', 'innerType', 'schema', 'left', 'right']) {
+    for (const key of ZOD_WRAPPER_KEYS) {
       const found = def[key] ? walk(def[key], depth + 1) : null;
       if (found) return found;
     }

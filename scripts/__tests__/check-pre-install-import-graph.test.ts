@@ -111,12 +111,17 @@ describe('the population follows the workflows', () => {
   });
 
   it('does not read an install out of a shell comment or a quoted argument', () => {
-    // Both shapes are in this repository: `changeset-release.yml` configures a
-    // merge driver whose VALUE is `"pnpm install --no-frozen-lockfile"`, ahead of
-    // that job's real install, and block scalars carry `#` lines that are shell
-    // comments rather than YAML ones. Reading either as an install moves the
-    // boundary earlier and silently drops a script out of the population — the
-    // shrinking direction, which costs coverage rather than raising a false red.
+    // The second shape is still in this repository: block scalars carry `#` lines
+    // that are shell comments rather than YAML ones. The first — a merge driver
+    // whose VALUE is `"pnpm install --no-frozen-lockfile"`, sitting ahead of a
+    // job's real install — was formerly `changeset-release.yml`'s, removed with
+    // the dead CI half of the lockfile merge driver (objectui#6436, ruled
+    // 2026-08-27). ⚠️ No live in-repo instance is left, so this fixture is now the
+    // only place that shape is written down; it is kept deliberately, not by
+    // oversight. Reading either as an install moves the boundary earlier and
+    // silently drops a script out of the population — the shrinking direction,
+    // which costs coverage rather than raising a false red. The prose anchor in
+    // `scripts/check-pre-install-import-graph.mjs` cites this case by name.
     const tricky = `jobs:
   j:
     steps:

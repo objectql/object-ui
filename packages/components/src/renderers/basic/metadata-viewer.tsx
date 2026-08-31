@@ -32,6 +32,7 @@ import {
   Minus,
   AlertTriangle,
 } from 'lucide-react';
+import type { SelectOption as SpecSelectOption } from '@objectstack/spec/data';
 import { cn } from '../../lib/utils';
 import { readProps } from './readProps';
 
@@ -106,12 +107,50 @@ function Placeholder({ tone = 'muted', children }: { tone?: 'muted' | 'warn'; ch
 // state_machine — live transition graph from a `state_machine` validation rule
 // ---------------------------------------------------------------------------
 
-interface SelectOption {
-  label?: string;
-  value: string;
-  color?: string;
-  default?: boolean;
-}
+/**
+ * One declared option of the object field a state machine runs on — DERIVED
+ * from the spec's own `SelectOption` (`@objectstack/spec/data`), with the one
+ * narrowing this projection needs named in the `Omit` below (objectui#6887).
+ *
+ * It was a hand-written `{ label?; value; color?; default? }` quadruple: four of
+ * the spec's five keys, with the fifth dropped by SILENCE — no `Omit` naming it,
+ * no comment saying the drop was deliberate. Nothing type-checks author-written
+ * metadata against this declaration (the value arrives from `useMetadataItem`
+ * as `any`), so unlike the authoring-side copies this one could not mis-accept
+ * anything; what it could do is go on compiling while the spec's option shape
+ * moved, and silently answer an older question. Deriving is what stops that,
+ * and it is the same form `form-spec.ts` uses one package over for
+ * `FormFieldSpec.options` (objectui#6247 / PR #6618).
+ *
+ *   - `visibleWhen` is DROPPED, and now says so. This view draws the DECLARED
+ *     state set — every option the field declares becomes a chip, and the
+ *     transition graph is read from the `state_machine` rule, not from who is
+ *     looking. Per-option `visibleWhen` withdraws an option from a PICKER for
+ *     one record and one `current_user` (ADR-0068); a diagram of the machine
+ *     has no such subject, so there is nothing here to evaluate it against.
+ *     Carrying the key would advertise a gate this projection does not apply.
+ *
+ *   - `default` is KEPT, and is read at `initial` below. That is deliberate and
+ *     is the whole reason this is a spec derivation rather than a narrower
+ *     local shape: `default` on the OBJECT-field face is ruled `enforce`
+ *     (objectstack#7246, implemented by PR #7388) — the engine seeds the insert
+ *     path from the option marked `default: true` — so the state this view
+ *     calls "initial" is the same one the platform actually writes.
+ *
+ * `SelectOption` (`z.input`) rather than `SelectOptionParsed` (`z.infer`) even
+ * though this is a read model: on the four retained keys the two are the SAME
+ * type — none of `label` / `value` / `color` / `default` carries a `.default()`
+ * or a transform — and the entire input/output difference lives on
+ * `visibleWhen`, the key omitted above.
+ *
+ * ⚠️ Structurally this admits one shape LESS than the quadruple it replaces:
+ * the spec makes `label` REQUIRED and the hand copy had relaxed it to optional,
+ * by silence, the same way it dropped `visibleWhen`. Nothing turned on the
+ * relaxation — `labelOf` falls back to the raw value for any state the option
+ * list does not describe at all, which is the case that fallback exists for
+ * (transition sources and targets are not required to be declared options).
+ */
+type StateOption = Omit<SpecSelectOption, 'visibleWhen'>;
 
 function StateMachineView({ object, name }: ViewerProps) {
   const { item: obj, loading, error } = useMetadataItem('object', object ?? null);
@@ -141,7 +180,7 @@ function StateMachineView({ object, name }: ViewerProps) {
       ? rule.transitions
       : {};
   const field = getField(obj, rule.field);
-  const options: SelectOption[] = Array.isArray(field?.options) ? field.options : [];
+  const options: StateOption[] = Array.isArray(field?.options) ? field.options : [];
   const optByValue = new Map(options.map((o) => [o.value, o]));
   const labelOf = (v: string) => optByValue.get(v)?.label ?? v;
   const colorOf = (v: string) => optByValue.get(v)?.color;

@@ -129,6 +129,28 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { isEntrypoint } from "./invoked-as.mjs";
 
+/**
+ * The wrapper-key vocabulary, shared with the TypeScript readers that walk the
+ * same Zod internals (objectui#6923, ruled 2026-08-31 — objectui#5872 class (3)).
+ *
+ * A bare-node gate cannot import `@object-ui/test-support` itself: that entry is
+ * TypeScript source with no build artefact. `/zod-wrapper-keys` is the subpath
+ * the ruling gave the DATA — build-free JSON — so both language sides read the
+ * same bytes. The WALK stays local on purpose: sharing a FUNCTION across this
+ * boundary is explicitly outside that ruling.
+ *
+ * `createRequire` rather than `import ... with { type: "json" }`, and the
+ * difference is load-bearing: this module is imported BOTH by `node` (the gate
+ * run) and by Vite's SSR transform (its pin tests in `scripts/__tests__/`).
+ * Measured — under the SSR transform the attributed JSON import yields no
+ * default export, and the walk fails with "__vite_ssr_import_N__.default is not
+ * iterable" instead of reading the list. `createRequire` is the same idiom
+ * `loadSpecSchemas` below already uses, and behaves identically in both.
+ */
+const ZOD_WRAPPER_KEYS = createRequire(import.meta.url)(
+  "@object-ui/test-support/zod-wrapper-keys"
+);
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..");
 
@@ -354,7 +376,7 @@ export function specShapeKeys(schema, label) {
     const def = s._def ?? s.def;
     if (!def) return null;
     if (def.shape) return shapeOf(def.shape);
-    for (const key of ["in", "out", "innerType", "schema", "left", "right"]) {
+    for (const key of ZOD_WRAPPER_KEYS) {
       const found = def[key] ? walk(def[key], depth + 1) : null;
       if (found) return found;
     }

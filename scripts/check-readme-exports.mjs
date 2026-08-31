@@ -114,6 +114,24 @@
  * carries the census rather than a bare OK. Same discipline as
  * `scripts/check-vi-mock-specifiers.mjs` (objectui#5646).
  *
+ * ## The population is TRACKED files (objectui#6545)
+ *
+ * Both walks are `git ls-files -- packages/`, so the population is what git
+ * TRACKS, not what is on disk. A brand-new `packages/<pkg>/README.md` written
+ * but not yet `git add`-ed is outside it, and this gate reports OK without ever
+ * having opened the file -- true of the population it scanned, and silent about
+ * the one file its author was asking about. CI never sees this (a committed
+ * tree has no untracked files); it bites only the local pre-flight, which is
+ * exactly where an author runs a gate to avoid a red push.
+ *
+ * The verdict line therefore says `tracked` beside both counts, so a green
+ * reads as "green over N tracked READMEs" rather than a claim about the
+ * directory. Same wording, and the same reason, as
+ * `scripts/check-control-bytes.mjs`, `scripts/check-vi-mock-specifiers.mjs` and
+ * `scripts/check-vi-mock-inherit.mjs`. WIDENING the population to untracked
+ * files, or refusing to run on a dirty worktree, would change what this gate
+ * MEANS and is deliberately not done here -- that is a decision, not a patch.
+ *
  * ## Deliberately out of scope
  *
  * Extracting the code blocks and COMPILING them (objectui#5043's "stronger
@@ -654,12 +672,12 @@ function repoRoot() {
 /** The census, as one line, for the verdict. */
 export function summarise({ census }) {
   return (
-    `${census.readmes} README(s) under packages/ (${census.readmesOrphaned} outside any package), ` +
+    `${census.readmes} tracked README(s) under packages/ (${census.readmesOrphaned} outside any package), ` +
     `${census.codeBlocks} fenced block(s) ` +
     `(${census.codeBlocksParsed} parsed as code, ${census.codeBlocksUntagged} untagged); ` +
     `${census.importBindings} import binding(s), ${census.selfBindings} of them self-imports judged ` +
     `(${census.real} real, ${census.wrongPath} wrong-path, ${census.fabricated} fabricated); ` +
-    `${census.exportSymbols} export symbol(s) read from ${census.packagesRead} of ${census.packages} package(s) ` +
+    `${census.exportSymbols} export symbol(s) read from ${census.packagesRead} of ${census.packages} tracked package(s) ` +
     `(${census.packagesWithReadme} carry a README) ` +
     `(${census.packagesUnbuilt} unbuilt, ${census.packagesNoTypeEntry} declare no types); ` +
     `${census.sideEffect} side-effect import(s), ${census.namespace} namespace, ${census.deepSelf} deep self-path, ` +
