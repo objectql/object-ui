@@ -1,5 +1,5 @@
 ---
-'@object-ui/core': major
+'@object-ui/core': minor
 '@object-ui/types': minor
 '@object-ui/components': patch
 ---
@@ -7,6 +7,11 @@
 BREAKING (`@object-ui/core`): `ActionRunner`'s legacy `ActionDef.onSuccess`
 chained-callback channel is retired — `onSuccess` now has exactly the meaning the
 contract declares (objectui#5934, maintainer ruling 2026-08-31).
+
+(The bump is `minor` by this repo's release model — objectui's major is pinned to
+the `@objectstack` family major, and its own breaking changes ship as `minor` with
+the break spelled out here, per `scripts/check-changeset-no-major.mjs`. This
+paragraph is that spelling-out: the break below is real and consumer-visible.)
 
 - **What breaks, by specifier**: `import type { ActionDef } from '@object-ui/core'` —
   `ActionDef['onSuccess']` was `ActionDef | ActionDef[]` (chained callbacks the runner
