@@ -45,7 +45,7 @@
     "@object-ui/test-support": "workspace:*",
     "@objectstack/spec": "^17.0.0",
     "@tailwindcss/postcss": "^4.3.3",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "msw": "^2.15.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",

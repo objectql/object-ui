@@ -47,7 +47,7 @@
     "@object-ui/test-support": "workspace:*",
     "@objectstack/spec": "^17.0.0",
     "@types/react-grid-layout": "^2.1.0",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "react-grid-layout": "^2.2.4",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",

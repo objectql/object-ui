@@ -45,7 +45,7 @@
   "devDependencies": {
     "@object-ui/sdui-parser": "workspace:*",
     "@object-ui/test-support": "workspace:*",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "react-router-dom": "^7.18.2",
     "vite": "^8.2.1",
     "vite-plugin-dts": "^5.0.3",

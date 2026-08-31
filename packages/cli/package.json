@@ -58,7 +58,7 @@
     "@object-ui/types": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/glob": "^9.0.0",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.5.4",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
