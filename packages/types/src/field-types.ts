@@ -197,6 +197,21 @@ export interface TextareaFieldMetadata extends BaseFieldMetadata {
 export interface MarkdownFieldMetadata extends BaseFieldMetadata {
   type: 'markdown';
   max_length?: number;
+  /**
+   * Height of the INLINE editor, in text rows (the HTML textarea `rows`
+   * attribute; the fullscreen dialog sizes itself and ignores it).
+   *
+   * Declared by the objectui#6140 ruling (maintainer 2026-08-25, Option A):
+   * `RichTextField` — the one widget behind the `markdown`/`html`/`richtext`
+   * registry keys — has always read `rows` off this metadata (default 8) while
+   * no rich-content type declared it, so the running widget honoured a key an
+   * annotated literal rejected. Aligns the `TextareaFieldMetadata` precedent
+   * and `@objectstack/spec` `FieldSchema.rows` (a positive integer, authorable
+   * on exactly the multiline editor types textarea/markdown/html/richtext).
+   * The four inert editor keys the same ruling measured (`toolbar`/`preview`/
+   * `minHeight`/`maxHeight`) stay deliberately undeclared — nothing reads them.
+   */
+  rows?: number;
 }
 
 /**
@@ -205,6 +220,14 @@ export interface MarkdownFieldMetadata extends BaseFieldMetadata {
 export interface HtmlFieldMetadata extends BaseFieldMetadata {
   type: 'html';
   max_length?: number;
+  /**
+   * Height of the INLINE editor, in text rows. Same declaration as
+   * `MarkdownFieldMetadata.rows` (objectui#6140 Option A ruling — see the
+   * docblock there): `RichTextField` reads it for all three registry keys it
+   * serves, and `@objectstack/spec` `FieldSchema.rows` declares it for the
+   * multiline editor types.
+   */
+  rows?: number;
 }
 
 /**
@@ -290,6 +313,18 @@ export interface TimeFieldMetadata extends BaseFieldMetadata {
 export interface SelectOptionMetadata {
   label: string;
   value: string;
+  /**
+   * Optional secondary/help text for the option (objectui#6153, inheriting the
+   * objectui#6140 ruling frame — a key that is genuinely consumed gets
+   * declared). `LookupField` has always SEARCHED it on authored static options
+   * (`opt.description && opt.description.toLowerCase().includes(q)`) and its
+   * `recordToOption` emits the same key for fetched records — while this type
+   * never declared it, so the behaviour was real for a key no annotated
+   * literal could carry. Aligns `@objectstack/spec`
+   * `SelectOptionSchema.description`; renderers may show it as supporting
+   * text.
+   */
+  description?: string;
   color?: string;
   icon?: string;
   disabled?: boolean;

@@ -61,9 +61,11 @@ const priority: LookupFieldMetadata = {
 };
 ```
 
-The picker also searches a `description` on a static option, but
-`SelectOptionMetadata` does not declare that key; the gap is tracked as
-[objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153). The
+A static option may also carry a `description` — secondary text the picker's
+typeahead searches alongside the label. It is a declared `SelectOptionMetadata`
+member (declared for exactly that consumption —
+[objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153) — and
+aligned with `@objectstack/spec`'s `SelectOptionSchema.description`). The
 `dataSource` a host injects and the `onCreateNew` callback it passes are widget props,
 not metadata.
 

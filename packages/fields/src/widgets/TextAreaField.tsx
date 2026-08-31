@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import type { TextareaFieldMetadata } from '@object-ui/types';
 import { Textarea, EmptyValue, CharacterCount } from '@object-ui/components';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor.js';
 import { FieldWidgetComponentProps } from './types.js';
@@ -64,11 +65,19 @@ export function TextAreaField({ value, onChange, field, readonly, error, ...prop
   // the moment a field toggles readonly. `maxLength` is derived here for the
   // same reason the ids are — proximity to the hook, not because the readonly
   // branch wants it.
-  const textareaField = field as any;
+  // The declared metadata face — every key this widget reads off the carrier
+  // (`rows`, `max_length`, `mobile_fullscreen`, `placeholder`, `label`) is a
+  // `TextareaFieldMetadata` member, so the reads below are compiler-checked
+  // (objectui#6140's de-cast sweep; the sibling `RichTextField` got the same
+  // treatment when its types gained `rows`).
+  const textareaField = field as TextareaFieldMetadata;
   // Spec FieldSchema declares camelCase `maxLength`; `max_length` is the legacy
   // objectui spelling. Dual-read (framework#1878 §3 recheck) — without this a
-  // spec-authored maxLength gave neither the textarea cap nor the counter.
-  const maxLength = textareaField?.maxLength ?? textareaField?.max_length;
+  // spec-authored maxLength gave neither the textarea cap nor the counter. The
+  // camelCase half stays a narrow structural read because the objectui metadata
+  // type deliberately does not declare the spec spelling (that face alignment
+  // is objectui#4631's, not this widget's).
+  const maxLength = (field as { maxLength?: number }).maxLength ?? textareaField?.max_length;
 
   /**
    * Two description ids off one `useId()` — one per editing surface.

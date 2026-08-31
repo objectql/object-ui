@@ -38,6 +38,14 @@ import { useFieldTranslation } from './useFieldTranslation.js';
 export interface LookupOption {
   value: string | number;
   label: string;
+  /**
+   * Secondary text: searched by the popover typeahead alongside the label, and
+   * rendered as supporting text. For AUTHORED static options this is the
+   * declared `SelectOptionMetadata.description` (objectui#6153 — declared
+   * there, and on `@objectstack/spec`'s `SelectOptionSchema`, precisely
+   * because this widget consumes it); for fetched records `recordToOption`
+   * derives it from `description_field`.
+   */
   description?: string;
   [key: string]: any;
 }

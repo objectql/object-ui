@@ -1,4 +1,5 @@
 import React from 'react';
+import type { HtmlFieldMetadata, MarkdownFieldMetadata } from '@object-ui/types';
 import { cn, Textarea, EmptyValue, type FullscreenEditorAria } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/react';
 import { FullscreenFieldEditor } from './FullscreenFieldEditor.js';
@@ -279,7 +280,14 @@ export function RichTextField({ value, onChange, field, readonly, error, ...prop
     return <Display value={value} field={field} />;
   }
 
-  const richField = field as any;
+  // The declared metadata face for this widget's registry keys. `markdown` and
+  // `html` each have an exported type; the third key, `richtext`, has no union
+  // member of its own and structurally matches the same three optional reads
+  // below — every key this widget consumes (`rows`, `mobile_fullscreen`,
+  // `placeholder`, `label`) is DECLARED on both members, `rows` since the
+  // objectui#6140 Option A ruling (which is what retired the `as any` that
+  // used to launder this carrier).
+  const richField = field as MarkdownFieldMetadata | HtmlFieldMetadata;
   const rows = richField?.rows || 8;
   // The stored syntax, DERIVED from the type's display pipeline rather than
   // read off a `format` key no rich-content type declares. Empty for a type

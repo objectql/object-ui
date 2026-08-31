@@ -3,7 +3,7 @@ title: "Rich Text Field"
 description: "Rich text editor for formatted content"
 ---
 
-The Rich Text Field component provides a WYSIWYG editor for creating formatted text content with markdown or HTML support.
+The Rich Text Field component edits formatted text content with markdown or HTML support — a plain-textarea editor today, with the stored markup rendered formatted on every read surface.
 
 ## Basic Usage
 
@@ -16,8 +16,8 @@ The Rich Text Field component provides a WYSIWYG editor for creating formatted t
 
 `markdown` and `html` are two field types served by one widget, and each has its own
 exported metadata type — `MarkdownFieldMetadata` and `HtmlFieldMetadata`
-(`@object-ui/types`). Both extend `BaseFieldMetadata` and add a single length bound;
-there is no combined "rich text" metadata type.
+(`@object-ui/types`). Both extend `BaseFieldMetadata` and add a length bound and an
+inline-editor height; there is no combined "rich text" metadata type.
 
 ```ts
 import type { HtmlFieldMetadata, MarkdownFieldMetadata } from '@object-ui/types';
@@ -28,6 +28,9 @@ const releaseNotes: MarkdownFieldMetadata = {
   label: 'Release Notes',
   placeholder: 'Write the notes…',
   max_length: 20000,
+  // Inline editor height in text rows (positive integer; default 8). The
+  // fullscreen dialog sizes itself and ignores it.
+  rows: 12,
 };
 
 const emailBody: HtmlFieldMetadata = {
@@ -38,10 +41,13 @@ const emailBody: HtmlFieldMetadata = {
 };
 ```
 
+`rows` sizes the inline editor, in text rows — declared on both types (and on
+`@objectstack/spec`'s `FieldSchema` for the multiline editor types), matching the
+`textarea` field's key of the same name ([objectui#6140](https://github.com/objectstack-ai/objectui/issues/6140)).
 The editor is a plain textarea today — there is no formatting toolbar, no preview pane
-and no pixel height to configure, so neither metadata type declares one. The widget
-does size its inline editor from a `rows` key, but neither type declares that either;
-that gap is tracked as [objectui#6140](https://github.com/objectstack-ai/objectui/issues/6140).
+and no pixel height to configure, so neither metadata type declares one: `toolbar`,
+`preview`, `minHeight` and `maxHeight` are **not** metadata keys, and writing them
+does nothing.
 
 The value being edited, and the `className` / `disabled` a host supplies, are **not**
 metadata keys — they are runtime widget props. See [Field Widget Props](/docs/fields/widget-props).
@@ -85,13 +91,17 @@ import { TextCellRenderer } from '@object-ui/fields';
 
 ## Features
 
-- **WYSIWYG**: What you see is what you get editing
 - **Markdown Support**: For lightweight formatting
 - **HTML Support**: For advanced formatting
-- **Preview Mode**: See formatted output
-- **Syntax Highlighting**: For code blocks
-- **Image Upload**: Embed images (when configured)
-- **Auto-save**: Prevent data loss
+- **Formatted read surfaces**: Grids, detail pages and the readonly form branch
+  render the stored markup formatted (sanitized for HTML)
+- **Fullscreen editing**: An expand affordance when the form opts in
+  (`mobile.fullscreenLongText`)
+
+The editing surface itself is a plain textarea with a format indicator — a
+formatting toolbar, an edit-time preview pane and WYSIWYG editing are **not yet
+implemented** (whatever the editor grows into, both the inline and fullscreen
+surfaces gain it at once, since they share one editor component).
 
 ## Editor Modes
 
