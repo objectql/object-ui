@@ -43,6 +43,7 @@ see "The `props` envelope is evaluated but not read" below.
 | `visibleOn` | Condition | boolean | `"visibleOn": "data.permissions.canView"` |
 | `disabled` | Condition | boolean | `"disabled": "${form.isSubmitting}"` |
 | `disabledOn` | Condition | boolean | `"disabledOn": "!data.hasPermission"` |
+| `title` / `label` / `value` / `description` | Template (`${}`) | Preserves original type | **Declared types only** — `statistic` (`label`/`value`/`description`), `card` (`title`/`description`), `button` (`label`). Closed set, declared in `@objectstack/spec` (objectui#4795). |
 
 **Precedence rule:** `visible` takes priority over `hidden`. If both are present, `visible` wins.
 
@@ -50,9 +51,10 @@ see "The `props` envelope is evaluated but not read" below.
 
 These top-level schema fields are **not** processed by ExpressionEvaluator:
 
-- `value`, `label`, `description`, `title` — read by the renderers, but never
-  template-evaluated. Resolve them in the host before rendering, or carry the
-  bound text on a `text` node's `content`.
+- `value`, `label`, `description`, `title` **on a type that does not declare
+  them** (see the row above) — read by the renderers, but not template-evaluated
+  there. Resolve them in the host before rendering, or carry the bound text on a
+  `text` node's `content`.
 - `className` — always a static Tailwind class string
 - `id` — always a static string
 - `type` — component type identifier
@@ -74,13 +76,14 @@ literal `${...}` on screen for nothing on screen. Put keys on the node.
 // ❌ Evaluated, then dropped — renders an empty card
 { "type": "card", "props": { "title": "${data.customer.name}" } }
 
-// ❌ Read, but never evaluated — renders the literal "${data.customer.name}"
+// ✅ `card` declares `title`, so on the node it is evaluated AND read
 { "type": "card", "title": "${data.customer.name}" }
 
-// ✅ `content` is the one text key that is both evaluated and read
-{ "type": "card", "title": "Customer", "children": [
-  { "type": "text", "content": "${data.customer.name}" }
-] }
+// ❌ `text` does not declare `value` — renders the literal "${data.customer.name}"
+{ "type": "text", "value": "${data.customer.name}" }
+
+// ✅ `content` is evaluated on every component type
+{ "type": "text", "content": "${data.customer.name}" }
 ```
 
 The `element:*` namespace is where `props` is read: those components take their
@@ -421,8 +424,8 @@ and is blank is the whole failure.
     { "name": "Grace Hopper", "email": "grace@example.com" }
   ],
   "columns": [
-    { "name": "name", "label": "Name" },
-    { "name": "email", "label": "Email" }
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Email", "accessorKey": "email" }
   ]
 }
 ```

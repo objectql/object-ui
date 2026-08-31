@@ -19,6 +19,7 @@ value must clear before it reaches the screen.
 | `visibleOn` | Condition | boolean | `"visibleOn": "data.permissions.canView"` |
 | `disabled` | Condition | boolean | `"disabled": "${form.isSubmitting}"` |
 | `disabledOn` | Condition | boolean | `"disabledOn": "!data.hasPermission"` |
+| `title` / `label` / `value` / `description` | Template (`${}`) | Preserves original type | **Only on the component types the spec declares** — see "Rule: Bindable Text Keys" below. `"value": "${data.total}"` on a `statistic` renders the number. |
 | `properties.*` | Template (`${}`) | Preserves original type | Evaluated, then **hoisted onto the node** (`type` / `id` excepted), so the result lands where every renderer reads. See "Rule: Keys Live on the Node" below. |
 | `props.*` | Template (`${}`) | Preserves original type | Evaluated, then spread as **React props** — a `ui:*` / `page:*` renderer reads `schema.*` and never sees the result. Consumed only by `element:*` components. |
 
@@ -28,12 +29,13 @@ value must clear before it reaches the screen.
 
 These top-level schema fields are passed as raw strings:
 
-- `value`, `label`, `description`, `title` — read by the renderers, but never
-  template-evaluated. **Do not "move them to `props`"** to make an expression
-  work: under `props` they are evaluated and then discarded, so the component
-  paints an empty frame instead. Resolve the value in the host before handing
-  the schema to `SchemaRenderer`, or carry it on a `text` node's `content`,
-  which is the one text key that is both evaluated and read.
+- `value`, `label`, `description`, `title` — evaluated **only on the component
+  types that declare them** (see "Rule: Bindable Text Keys"); read raw
+  everywhere else. **Do not "move them to `props`"** to make an expression work
+  on a type that does not declare them: under `props` they are evaluated and
+  then discarded, so the component paints an empty frame instead. On an
+  undeclared type, resolve the value in the host before handing the schema to
+  `SchemaRenderer`, or carry it on a `text` node's `content`.
 - `className` — always a static Tailwind class string
 - `id` — always a static string
 - `type` — component type identifier
@@ -59,6 +61,35 @@ interface UIComponent {
   children?: UIComponent[];  // Optional: nested components
 }
 ```
+
+## Rule: Bindable Text Keys
+
+Four text keys can carry a `${}` expression **on the node itself** — `title`,
+`label`, `value`, `description` — but only on the component types that declare
+them. The list is closed and lives in `@objectstack/spec`
+(`EXPRESSION_BINDABLE_TEXT_KEYS_BY_COMPONENT`); the renderer reads that
+declaration rather than keeping its own copy.
+
+| Component | Bindable node keys |
+|---|---|
+| `statistic` | `label`, `value`, `description` |
+| `card` | `title`, `description` |
+| `button` | `label` |
+
+**✅ CORRECT — a dashboard number that moves with the data:**
+```json
+{
+  "type": "statistic",
+  "label": "Active users",
+  "value": "${data.metrics.activeUsers}"
+}
+```
+
+On any other component type these four keys are read **raw**: the expression
+reaches the screen as literal text. There is no way to opt a type in from
+metadata — a new type/key pair is a change to the spec's declaration, not
+something the renderer infers. Until then, resolve the value in the host, or
+use a `text` node's `content`, which every type evaluates.
 
 ## Rule: Keys Live on the Node, Not in a `props` Envelope
 

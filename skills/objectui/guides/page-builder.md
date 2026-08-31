@@ -188,17 +188,18 @@ clear the first gate; only the short list below clears the second.
 | `disabled` / `disabledOn` | Boolean expression. Passed as prop to component. |
 | `props.*` | Template-evaluated, but handed to the component as React props — a `ui:*` / `page:*` renderer never reads the result back, so the evaluated value is discarded. Only `element:*` components consume it. Do not use it as an expression carrier. |
 | `properties.*` | Template-evaluated **and hoisted onto the node**, so unlike `props` the result is read — by every namespace. Its status as an authoring channel is open (objectui#4795); see [`rules/protocol.md`](../rules/protocol.md) before reaching for it. |
+| `title` / `label` / `value` / `description` | Template-evaluated **on the component types that declare them** — `statistic` (`label`/`value`/`description`), `card` (`title`/`description`), `button` (`label`). The list is closed and declared in `@objectstack/spec`; see [`rules/protocol.md`](../rules/protocol.md). |
 
 **NOT evaluated (raw strings passed through):**
 
 | Field | What to do instead |
 |-------|-----------|
-| `title` / `label` / `value` / `description` | Read by the renderer, but never template-evaluated — an inline `${...}` reaches the screen as literal text. Moving it under `props` does not help: it gets evaluated there and then dropped. Resolve the value in the host **before** handing the schema to `SchemaRenderer` (the same pattern the i18n guide uses for `t(...)`), or carry it on a `text` node's `content`. |
+| `title` / `label` / `value` / `description` **on any other type** | Read by the renderer, but not template-evaluated there — an inline `${...}` reaches the screen as literal text. Moving it under `props` does not help: it gets evaluated there and then dropped. Resolve the value in the host **before** handing the schema to `SchemaRenderer` (the same pattern the i18n guide uses for `t(...)`), or carry it on a `text` node's `content`. |
 | `className` | Not expression-evaluated. Use static Tailwind classes only. |
 | `id` | Static string. No expressions. |
 
-**Correct pattern** — a `statistic`'s text keys sit on the node and carry
-values the host already resolved:
+**Correct pattern** — a `statistic`'s text keys sit on the node. Static values
+work as-is, and so do expressions (`statistic` declares all three):
 ```json
 {
   "type": "statistic",
@@ -209,8 +210,8 @@ values the host already resolved:
 }
 ```
 
-**Correct pattern for a live-bound number** — `content` is the one text key
-that is both evaluated and read:
+**Correct pattern on a type that does NOT declare the key** — `content` is
+evaluated on every component type, so a `text` child carries the binding:
 ```json
 {
   "type": "card",
@@ -232,7 +233,8 @@ that is both evaluated and read:
 }
 ```
 
-**Also wrong (value shows as raw `${...}` text — read, but not evaluated):**
+**Right, since objectui#4795 — `statistic` declares `value` and `label`, so
+these are evaluated on the node and read back:**
 ```json
 {
   "type": "statistic",
@@ -240,6 +242,10 @@ that is both evaluated and read:
   "label": "${data.labels.title}"
 }
 ```
+
+⚠️ The same two keys on a type with no declaration (e.g. `text`) still reach the
+screen as literal `${...}`. The declaring types are listed in
+[`rules/protocol.md`](../rules/protocol.md).
 
 For the full expression syntax reference (operators, formula functions, security model), see the `objectui-schema-expressions` skill.
 

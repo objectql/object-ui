@@ -40,11 +40,24 @@
  *     empty state. The correction is verified against the renderer rather
  *     than against a reading of it.
  *
- * The `columns` entries in these examples are deliberately untouched: their
- * `{ name, label }` spelling is the separate open question on objectui#5120
- * (the undeclared `col.name` / `col.label` alias at `data-table.tsx:776-777`),
- * parked with the maintainer. This file pins the BINDING only, and stays true
- * whichever way that one lands — nothing below asserts a column key spelling.
+ * ⚠️ COLUMN SPELLING — this file is NOT spelling-independent, and an earlier
+ * revision of this docblock said it was. It claimed the file "pins the BINDING
+ * only … nothing below asserts a column key spelling". That was false and was
+ * filed as objectui#5479: the BEHAVIOUR assertions below are on rendered CELL
+ * TEXT, and a cell only has text when its column's accessor resolves — so they
+ * transitively pin the accessor spelling the guides use. A docblock asserting
+ * independence over assertions that were not independent is what made
+ * objectui#5120's last step invisible when the family was ruled on.
+ *
+ * Both aliases have since retired — `label` in objectui#5351, `name` in
+ * objectui#5120 — and the two guides' `data-table` columns migrated to the
+ * declared `{ header, accessorKey }` in the same commit as the `name`
+ * retirement, because these blocks are lifted and rendered at run time and
+ * would otherwise go blank. That coupling is the point, not a defect: the
+ * guides are executable fixtures, so the instruction corpus cannot drift from
+ * the runtime without this file going red. Keep it that way — if a future
+ * change makes the adapter's accepted key set narrower again, migrate the
+ * guides in the SAME commit.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -160,6 +173,31 @@ describe('skill guides — no `data-table` example is bound with `bind` (#5126, 
       (b) => /"type"\s*:\s*"data-table"/.test(b) && /"bind"\s*:/.test(b),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it('no `data-table` example spells a column with the retired `name` (#5120)', () => {
+    // objectui#5120 retired `accessorKey: col.accessorKey || col.name` on the
+    // adapter. These blocks are RENDERED below, so a guide that regressed to
+    // `name` would already fail — but only as "expected [] to equal
+    // ['Ada Lovelace', …]", which names neither the key nor the card. This
+    // assertion is here to make the failure SAY what broke, and to hold the
+    // corpus even if the behaviour legs are ever narrowed.
+    for (const rel of GUIDE_PATHS) {
+      const md = readGuide(rel);
+      for (const node of blocksOfType(md, 'data-table')) {
+        const columns = (node.columns ?? []) as Record<string, unknown>[];
+        for (const col of columns) {
+          expect(
+            'name' in col,
+            `${rel}: a data-table column spells the retired \`name\`; the declared key is \`accessorKey\` (objectui#5120)`,
+          ).toBe(false);
+          expect(
+            'accessorKey' in col,
+            `${rel}: a data-table column is missing the declared \`accessorKey\` (objectui#5120)`,
+          ).toBe(true);
+        }
+      }
+    }
   });
 
   it('no guide claims a table component calls useDataScope', () => {
