@@ -1,6 +1,7 @@
 ---
 '@object-ui/app-shell': minor
 '@object-ui/layout': minor
+'@object-ui/i18n': minor
 ---
 
 Renderers for the `app:launcher` and `nav:menu` page blocks (objectui#6661).
@@ -51,3 +52,9 @@ shape for each, and both use `skipFallback: true` so neither claims the bare
 `launcher` / `menu` keys. This does not change the Studio page palette —
 `app:launcher` remains recorded there as a shell singleton, which is a palette
 decision independent of whether a declared type renders.
+
+Three new strings — the launcher's and the menu's accessible names, and the
+menu's empty state — are declared under `console.nav` in `en.ts` and its nine
+sibling packs. An inline `defaultValue` alone is not a fix: it renders English
+at one call site and leaves the string untranslatable everywhere
+(objectui#3517).
