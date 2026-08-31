@@ -349,11 +349,17 @@ const filesOf = (sites: readonly Located[]): string[] => [
 const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['ActionContext', ['packages/core/src/actions/ActionRunner.ts', 'packages/types/src/ui-action.ts']],
   ['ActionResult', ['packages/core/src/actions/ActionRunner.ts', 'packages/types/src/ui-action.ts']],
-  ['ActionSchema', ['packages/types/src/crud.ts', 'packages/types/src/ui-action.ts']],
   ['AggregationConfig', ['packages/plugin-grid/src/useGroupedData.ts', 'packages/types/src/data-protocol.ts']],
   ['AppShellProps', ['packages/app-shell/src/types.ts', 'packages/layout/src/AppShell.tsx']],
-  ['BreadcrumbItem', ['packages/types/src/data-display.ts', 'packages/types/src/navigation.ts']],
-  ['BreadcrumbSchema', ['packages/types/src/data-display.ts', 'packages/types/src/navigation.ts']],
+  // `ActionSchema` sat here, colliding between `packages/types/src/crud.ts` and
+  // `packages/types/src/ui-action.ts`. Structurally unrelated types — 28 members
+  // each, 9 shared, `type` the literal `'action'` there and `ActionType` here — so
+  // the remedy was the RENAME branch: ui-action's declaration now spells
+  // `UIActionSchema`, the name `src/index.ts` always published it under
+  // (objectui#6349). `BreadcrumbItem` / `BreadcrumbSchema` sat here too, colliding
+  // between `packages/types/src/data-display.ts` and
+  // `packages/types/src/navigation.ts`; data-display's were a strict SUBSET copy, so
+  // that file re-points at navigation's one authority.
   ['CalendarEvent', ['packages/plugin-calendar/src/index.tsx', 'packages/types/src/complex.ts']], // the ruled-on objectui#5044 alias — see the header
   ['CalendarSchema', ['packages/plugin-calendar/src/ObjectCalendar.tsx', 'packages/types/src/form.ts']],
   ['ChatMessage', ['packages/plugin-chatbot/src/ChatbotEnhanced.tsx', 'packages/types/src/complex.ts']],

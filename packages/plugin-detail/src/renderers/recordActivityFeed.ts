@@ -162,6 +162,91 @@ export const ACTIVITY_TYPE_TO_FEED_TYPE: Readonly<Record<string, FeedItemType | 
 export const UNMAPPED_ACTIVITY_FEED_TYPE: FeedItemType = 'system';
 
 /**
+ * Feed kinds an ObjectUI surface produces WITHOUT going through
+ * {@link ACTIVITY_TYPE_TO_FEED_TYPE}.
+ *
+ * Exactly one today: `comment`, built from `sys_comment` rows by app-shell's
+ * `RecordDetailView` (the `sys_comment` read, and the two optimistic rows the
+ * composer writes) and handed to this block through `DiscussionContext`. It
+ * cannot be derived here — app-shell depends on this package, not the other way
+ * round — so it is DECLARED, and `feedTypeProducerCensus-5877.test.ts` re-runs
+ * the census over the repository so the declaration cannot go stale silently.
+ *
+ * ## Census, and the pathspec it was taken over (objectui#5877)
+ *
+ * Every `.ts` / `.tsx` file in the repository that is not a test, at every top
+ * level (`packages/`, `apps/`, `examples/`, `scripts/`, `e2e/`), narrowed to the
+ * files that mention `FeedItem` at all — you cannot construct one without
+ * naming the type — then read for `FeedItemType` literals. 1622 files scanned,
+ * 13 mention `FeedItem`, one produces a kind off this map. A census is only as
+ * wide as its pathspec, so the pathspec is stated rather than implied, and the
+ * test above holds it.
+ *
+ * ⛔ NOT counted, deliberately: app-shell's `sharedUserFeeds.ts` /
+ * `activityItemType.ts` read the same `sys_activity` rows but produce
+ * `ActivityItemType` (`create` / `update` / `delete` / `comment` / `system`), a
+ * DIFFERENT five-value vocabulary that is not a projection of this one in either
+ * direction (objectui#6730 records why converging them costs rows). A row it
+ * turns into an `ActivityItem` never becomes a `FeedItem`, so it produces
+ * nothing for this feed. `ActivityEntry` in `@object-ui/types` is a third
+ * vocabulary again, and has no producer at all.
+ *
+ * ⚠️ Also NOT counted, and the reason the diagnostic below names it: a HOST can
+ * hand this block a feed of its own (`items` on the node, or a
+ * `DiscussionContext` it mounts itself). Those items are produced outside this
+ * repository, so no census taken here can bound their kinds.
+ */
+export const FEED_TYPES_PRODUCED_OFF_MAP: readonly FeedItemType[] = ['comment'];
+
+/**
+ * Feed kinds this repository has decided NOT to adopt — as opposed to kinds
+ * nothing happens to produce.
+ *
+ * The distinction matters more than the diagnostic that uses it. Reporting a
+ * decision as a defect is how a warning channel gets trained out of an author's
+ * attention, and these three are decisions: `created` / `deleted` / `shared`
+ * rows are mapped to `field_change` ON PURPOSE, because `RecordDetailView` and
+ * this block must agree about what a `created` row IS before either can move to
+ * the richer kind. Adopting them is a change to that shared map, not to this
+ * block. The reasoning is written out at {@link ACTIVITY_TYPE_TO_FEED_TYPE}.
+ *
+ * ⚠️ This list is a TRANSCRIPTION of that prose, not a derivation, and there is
+ * no way to make it one: the decision exists as a comment, and a comment is not
+ * machine-readable. Two consequences, both load-bearing:
+ *
+ *  1. it is only as true as the prose it was copied from, so it is edited
+ *     together with that prose and never on its own;
+ *  2. a kind that is NOT on this list is not thereby known to be an oversight.
+ *     It is only known to have no producer. Whether somebody decided against it
+ *     and did not write it down is not recorded anywhere this code can read, and
+ *     the message below says so rather than guessing.
+ *
+ * ⛔ Do not extend it by inference. A kind belongs here when a decision about it
+ * is written down, not when its absence looks deliberate.
+ */
+export const DELIBERATELY_UNADOPTED_FEED_TYPES: readonly FeedItemType[] = [
+  'record_create',
+  'record_delete',
+  'sharing',
+];
+
+/**
+ * Every feed kind some ObjectUI surface can put on a record feed.
+ *
+ * DERIVED from the producers themselves — the map's range, its fallback, and
+ * the declared off-map producer above — never a second hand-written list of
+ * kinds. Giving an unproduced kind a producer (one new entry in
+ * {@link ACTIVITY_TYPE_TO_FEED_TYPE}) therefore retires its diagnostic in the
+ * same edit, with nothing else to remember. A hand-kept copy would not, and
+ * that copy is exactly what this file's header records the cost of.
+ */
+export const PRODUCED_FEED_TYPES: ReadonlySet<FeedItemType> = new Set<FeedItemType>([
+  ...Object.values(ACTIVITY_TYPE_TO_FEED_TYPE).filter((v): v is FeedItemType => Boolean(v)),
+  UNMAPPED_ACTIVITY_FEED_TYPE,
+  ...FEED_TYPES_PRODUCED_OFF_MAP,
+]);
+
+/**
  * The feed types a COMPLETED activity produces.
  *
  * `showCompleted` (spec default `false`) is stated over feed types rather than
@@ -225,6 +310,14 @@ const warnedUnrecognisedFeedTypes = new Set<string>();
 /** Test seam: forget which `types` entries have already been named. */
 export function resetUnrecognisedFeedTypeWarnings(): void {
   warnedUnrecognisedFeedTypes.clear();
+}
+
+/** Authored `types` values already named as unproduced. See {@link warnOnce}. */
+const warnedUnproducedFeedTypes = new Set<string>();
+
+/** Test seam: forget which unproduced `types` entries have already been named. */
+export function resetUnproducedFeedTypeWarnings(): void {
+  warnedUnproducedFeedTypes.clear();
 }
 
 /** Authored `filterMode` values already named as unrecognised. See {@link warnOnce}. */
@@ -292,6 +385,98 @@ export function normalizeFilterMode(value: unknown): FeedFilterMode {
 }
 
 /**
+ * Say out loud that an authored `types` entry selects a kind nothing produces.
+ *
+ * ## The failure being repaired (objectui#5877)
+ *
+ * `types: ['approval']` parses, typechecks, builds, and renders a permanently
+ * EMPTY tab with nothing said anywhere. Every entry is a declared member of the
+ * spec's `FeedItemType`, so the sibling diagnostic above has nothing to report
+ * — and the author, or the AI writing the metadata, reads the result as a
+ * working feature that happens to have no data yet. That is the silent-inert
+ * class: a declared surface enforced by nothing.
+ *
+ * ⛔ It is NOT a refusal. The entry is honoured exactly as authored, the same as
+ * every other declared kind; nothing that renders changes. What changes is that
+ * the emptiness is now diagnosable.
+ *
+ * ## Three populations, not two — and the message keeps them apart
+ *
+ * A kind with no producer can be either of two very different things, and
+ * lumping the second into the third is worse than saying nothing at all,
+ * because it teaches authors that this channel reports non-problems:
+ *
+ *  - PRODUCED ({@link PRODUCED_FEED_TYPES}) — silent. Nothing to report.
+ *  - DELIBERATELY UNADOPTED ({@link DELIBERATELY_UNADOPTED_FEED_TYPES}) —
+ *    reported as a decision with its reason, never as a defect.
+ *  - NO PRODUCER, no recorded decision — reported as exactly that, and the
+ *    message stops there rather than calling it a gap. Whether somebody ruled
+ *    against the kind and left no note is not knowable from here.
+ *
+ * ## What this diagnostic cannot see, stated in the message itself
+ *
+ * The census is over THIS repository's producers. A host that supplies the feed
+ * (`items` on the node, or its own `DiscussionContext`) produces kinds no census
+ * taken here can bound, so the message names that exception instead of
+ * pretending the list is exhaustive.
+ *
+ * It is also repo-wide rather than per-path: `comment` counts as produced
+ * because `RecordDetailView` produces it, even though a bare self-fetching block
+ * with no host cannot (`commented` maps to `undefined` — a deliberate exclusion,
+ * see {@link ACTIVITY_TYPE_TO_FEED_TYPE}). Reporting per-path would need the
+ * feed's source, which this pure sanitiser does not have.
+ *
+ * Deduped per distinct kind on its OWN channel — one authoring mistake is one
+ * mistake however many times React re-runs the filter, and the unrecognised
+ * channel must not silence this one (see {@link warnOnce}).
+ */
+function warnUnproducedFeedTypes(kinds: readonly FeedItemType[]): void {
+  const unproduced = kinds.filter((k) => !PRODUCED_FEED_TYPES.has(k));
+  if (unproduced.length === 0) return;
+
+  warnOnce(warnedUnproducedFeedTypes, unproduced, (fresh) => {
+    const quoted = (list: readonly string[]) => list.map((t) => `"${t}"`).join(', ');
+    const unadopted = fresh.filter((t) => DELIBERATELY_UNADOPTED_FEED_TYPES.includes(t as FeedItemType));
+    const noProducer = fresh.filter((t) => !DELIBERATELY_UNADOPTED_FEED_TYPES.includes(t as FeedItemType));
+
+    let message =
+      `[record:activity] \`types\` names ${fresh.length} declared feed item `
+      + `type${fresh.length === 1 ? '' : 's'} that NO ObjectUI producer emits, so `
+      + `${fresh.length === 1 ? 'it selects' : 'they select'} nothing: `
+      + `${quoted(fresh)}. The entr${fresh.length === 1 ? 'y is' : 'ies are'} honoured as `
+      + 'authored — nothing is dropped or widened — but a timeline filtered to '
+      + `${fresh.length === 1 ? 'it' : 'them'} alone renders permanently empty, which is `
+      + 'the thing that used to happen with no diagnostic at all.';
+
+    if (unadopted.length > 0) {
+      message +=
+        ` DELIBERATELY NOT ADOPTED, a decision rather than a gap: ${quoted(unadopted)} — `
+        + '`created` / `deleted` / `shared` activity is mapped to `field_change` on '
+        + 'purpose, because the record page and this block have to agree about what a '
+        + '`created` row IS before either can move to the richer kind. Adopting them is '
+        + 'a change to that shared map (ACTIVITY_TYPE_TO_FEED_TYPE, @object-ui/plugin-detail), '
+        + 'not to one block.';
+    }
+
+    if (noProducer.length > 0) {
+      message +=
+        ` NO PRODUCER on any ObjectUI surface: ${quoted(noProducer)} — @objectstack/spec `
+        + 'declares the kind and nothing here emits it. Whether that is a gap or a '
+        + 'decision nobody wrote down is not recorded anywhere this diagnostic can read, '
+        + 'so it reports the measurement and stops there.';
+    }
+
+    message +=
+      ` Feed item types ObjectUI produces today: ${[...PRODUCED_FEED_TYPES].sort().join(', ')}. `
+      + 'If your HOST supplies the feed — `items` on the node, or a DiscussionContext it '
+      + 'mounts — it may produce kinds this census cannot see, and this warning does not '
+      + 'apply to them.';
+
+    return message;
+  });
+}
+
+/**
  * Sanitise an authored `types` allow-list. Narrowing or refusal, never widening.
  *
  * Three distinct authored intents used to collapse into one rendering
@@ -303,6 +488,7 @@ export function normalizeFilterMode(value: unknown): FeedFilterMode {
  * | `[]`                          | `[]`        | nothing — the author said "no kinds" |
  * | `['crm_task']` (none known)   | `[]`        | nothing, plus one diagnostic   |
  * | `['task', 'crm_task']`        | `['task']`  | the recognised members, plus one diagnostic |
+ * | `['approval']` (no producer)  | `['approval']` | nothing, plus one diagnostic — the kind is declared and honoured, but nothing emits it (objectui#5877) |
  *
  * `undefined` now means "no `types` key was authored" and ONLY that. It used to
  * mean that OR "everything you authored was dropped", and {@link applyFeedConfig}
@@ -321,9 +507,14 @@ export function normalizeFilterMode(value: unknown): FeedFilterMode {
  * Membership is read from `@objectstack/spec`'s `FeedItemType` at runtime, never
  * re-typed here — see the file header for what a hand copy of a spec enum cost.
  *
- * NOT pure: an entry it cannot recognise logs once (see {@link warnOnce}). The
- * failure being repaired is invisibility, so the diagnostic is the other half of
- * the fix rather than a nicety.
+ * NOT pure, on TWO independent channels (see {@link warnOnce}) — the failure
+ * being repaired is invisibility in both cases, so the diagnostics are the other
+ * half of the fix rather than a nicety:
+ *
+ *  - an entry it cannot recognise logs once (no declared kind matches it);
+ *  - a RECOGNISED entry that no producer emits logs once as well, on its own
+ *    channel — see {@link warnUnproducedFeedTypes}. That one changes nothing
+ *    about the return value: the kind is declared, so it is kept and honoured.
  */
 export function normalizeFeedTypes(value: unknown): FeedItemType[] | undefined {
   // The only shape that means "no filter": the author never wrote the key.
@@ -362,6 +553,10 @@ export function normalizeFeedTypes(value: unknown): FeedItemType[] | undefined {
         + 'EMPTY timeline rather than every kind. Declared feed item types: '
         + `${FEED_ITEM_TYPE_VALUES.join(', ')}.`);
   }
+
+  // Second channel, over the entries that WERE recognised: a declared kind that
+  // no producer emits is honoured exactly, and says so (objectui#5877).
+  warnUnproducedFeedTypes(kept);
 
   return kept;
 }

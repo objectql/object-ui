@@ -243,11 +243,14 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ALLOW = {
   "@object-ui/types:ActionSchema": {
     reason:
-      "Two deliberate objectui-side shapes, both documented at their declaration. " +
-      "`ui-action.ts` is a renderer VIEW over the spec's action — it carries renderer-only " +
-      "fields the spec does not model, while importing the spec-owned parts it does share " +
-      "(`ActionLocation`, `ActionType`). `crud.ts` is the explicitly @deprecated legacy " +
-      "shape kept for backward compatibility and slated for removal in a future major.",
+      "`crud.ts`'s explicitly @deprecated legacy action shape, kept for backward " +
+      "compatibility and slated for removal in a future major. ⚠️ This entry covered TWO " +
+      "objectui-side shapes until objectui#6349: `ui-action.ts` declared a same-named " +
+      "renderer VIEW over the spec's action (renderer-only fields the spec does not model, " +
+      "importing the spec-owned parts it shares — `ActionLocation`, `ActionType`). That one " +
+      "is now declared as `UIActionSchema`, the name the package always published it under, " +
+      "so it no longer shadows a spec export and no longer needs excusing here. This entry " +
+      "stays because `crud.ts` still carries the name.",
     issue: 4115,
   },
   "@object-ui/types:FormField": {
