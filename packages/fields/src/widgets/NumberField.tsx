@@ -9,7 +9,7 @@ import { useBadInputRefusal, BadInputMessage, BAD_INPUT_BORDER } from './numberB
  * NumberField - Numeric input with optional decimal precision
  * Supports min/max/step constraints and configurable decimal precision
  */
-export function NumberField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<number>) {
+export function NumberField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<number>) {
   // Before the readonly return: hooks are unconditional (objectui#6780).
   const { refusal, readBadInput } = useBadInputRefusal('1234');
 
@@ -72,12 +72,18 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
         min={typeof numberField?.min === 'number' ? numberField.min : undefined}
         max={typeof numberField?.max === 'number' ? numberField.max : undefined}
         step={step}
-        // ⚠️ Written ONLY when refused. This widget does not read the published
-        // `error` slot (objectui#3222 never gave it one), so an unconditional
-        // `aria-invalid={!!refusal}` would stamp `"false"` over the correct
-        // value `<FormControl>`'s Radix Slot hands down — the exact overwrite
-        // objectui#3222's e2e pins call out.
-        {...(refusal ? { 'aria-invalid': true } : {})}
+        // `refusal` is this widget's OWN reading and no host can produce it;
+        // `error` keeps its single author (objectui#3222 / objectui#6716) —
+        // the same two-name split `CurrencyField` and `PercentField` use.
+        //
+        // This was a CONDITIONAL spread (written only while `refusal` was
+        // active) for as long as the widget did not read `error`: an
+        // unconditional attribute computed from a prop it never consumed would
+        // have stamped `"false"` over the correct value `<FormControl>`'s Radix
+        // Slot hands down — the overwrite objectui#3222's e2e pins call out.
+        // Reading `error` here is what retires that hazard, so the two halves
+        // landed together (objectui#6803); neither is safe alone.
+        aria-invalid={!!error || !!refusal}
       />
       <BadInputMessage refusal={refusal} />
     </div>

@@ -120,6 +120,53 @@ describe('P3.2 Validation Feedback', () => {
       const input = screen.getByRole('spinbutton');
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
+
+    /**
+     * objectui#6803. `NumberField` was the ONE widget in this package that
+     * renders a control and never read the published `error` slot, so these two
+     * cases are the load-bearing half of that fix.
+     *
+     * ⚠️ The e2e pin next door (`widget-aria-invalid-e2e.test.tsx`) CANNOT show
+     * this gap, and that is measured, not assumed: inside the real form the
+     * `aria-invalid` that `<FormControl>`'s Radix Slot hands down arrives as a
+     * widget prop, and `toDomProps` forwards the whole `aria-*` family by
+     * prefix — so the Slot's correct value reached the input on its own and the
+     * `number` row was GREEN there before this fix as well as after. The
+     * omission was invisible precisely because a host was covering for it.
+     *
+     * Here there is no host and no Slot, which is the widget's own contract:
+     * handed an `error`, it must mark its own control. That is the assertion
+     * that goes red without the wiring.
+     */
+    it('NumberField sets aria-invalid when `error` provided', () => {
+      render(
+        <NumberField
+          value={5}
+          onChange={noop}
+          field={{ type: 'number' } as any}
+          error="Must be at least 10"
+        />
+      );
+      const input = screen.getByRole('spinbutton');
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+    });
+
+    it('NumberField says aria-invalid="false" when handed no error', () => {
+      // The explicit `"false"` is the load-bearing half, same as in the e2e
+      // file: a valid field SAYS it is valid rather than staying mute. Before
+      // objectui#6803 this widget wrote the attribute ONLY while its own
+      // bad-input refusal was active, so with no host to cover for it the
+      // control carried no `aria-invalid` at all.
+      render(
+        <NumberField
+          value={5}
+          onChange={noop}
+          field={{ type: 'number' } as any}
+        />
+      );
+      const input = screen.getByRole('spinbutton');
+      expect(input).toHaveAttribute('aria-invalid', 'false');
+    });
   });
 
   // ---------------------------------------------------------------

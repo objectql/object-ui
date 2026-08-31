@@ -52,6 +52,7 @@ import { PercentField } from '../widgets/PercentField';
 import { RichTextField } from '../widgets/RichTextField';
 import { TextField } from '../widgets/TextField';
 import { SelectField } from '../widgets/SelectField';
+import { NumberField } from '../widgets/NumberField';
 
 /**
  * The widgets that read the validation slot, by their form-path key: the seven
@@ -68,6 +69,7 @@ const WIDGETS = [
   ['percent', PercentField],
   ['markdown', RichTextField],
   ['select', SelectField],
+  ['number', NumberField],
 ] as const;
 
 beforeAll(() => {
@@ -133,6 +135,7 @@ describe('field widgets announce an invalid field to AT (objectui#3222)', () => 
     ['currency', 'amount', null],
     ['percent', 'ratio', null],
     ['markdown', 'body', ''],
+    ['number', 'quantity', null],
   ] as const)(
     'a required %s field is aria-invalid only AFTER validation fails',
     async (type, name, emptyValue) => {
