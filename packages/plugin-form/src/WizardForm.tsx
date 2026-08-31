@@ -87,6 +87,15 @@ import { hasInlineFieldSource, noSubmitTargetError } from './submitTarget';
  * a FAMILY-level pin that fails the build if any `*When` key ever appears here,
  * not just the one this card was about.
  *
+ * Since the objectstack#13622 ruling (2026-08-31), the boundary is also an
+ * AUTHOR-door refusal: `@objectstack/spec` refuses `visibleWhen` (and
+ * `collapsible`/`collapsed: true`) on a wizard step at parse, so authored
+ * form-view metadata carrying them never reaches this renderer at all. This
+ * type and the runtime report remain the guard for what the spec door cannot
+ * see — programmatic SDUI callers and metadata published before the
+ * tightening. The step-predicate FUTURE contract stays tracked in
+ * objectui#6237; the spec-side refusal is its single opening point.
+ *
  * ⚠️ This changes nothing that used to work. The published surface is exactly
  * the key set `WizardStepConfig` already had — the derivation changed, not the
  * type — and `visibleWhen` was already a type error on a wizard step literal.

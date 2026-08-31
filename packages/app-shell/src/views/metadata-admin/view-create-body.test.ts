@@ -101,6 +101,26 @@ describe('view createBuildBody — ViewItem family discrimination (objectui#2323
     }
   });
 
+  it('seeds one starter step for a wizard create — and ONLY for wizard (objectui#6985)', () => {
+    // A `type: 'wizard'` form view must declare its steps: the spec refuses
+    // absent/empty `sections` on the wizard variant at parse (objectstack#13622
+    // D7, ruled 2026-08-31). An empty-`sections` wizard body would 422 at
+    // create→save on a platform running a spec that carries the refusal — so
+    // the build seeds one starter step, exactly as the flow anchor seeds its
+    // required `type` enum (objectui#2326).
+    const wizard = build({ label: 'W', name: 'w', object: 'crm_lead', viewKind: 'form', formType: 'wizard' });
+    const sections = (wizard.config as Record<string, unknown>).sections as unknown[];
+    expect(sections.length).toBeGreaterThanOrEqual(1);
+    expectSpecValid(wizard);
+
+    // The boundary: only the wizard variant refuses emptiness, and fabricated
+    // structure must not leak into every authored view. A tabbed create keeps
+    // the bare `[]` it always had.
+    const tabbed = build({ label: 'T', name: 't', object: 'crm_lead', viewKind: 'form', formType: 'tabbed' });
+    expect((tabbed.config as Record<string, unknown>).sections).toEqual([]);
+    expectSpecValid(tabbed);
+  });
+
   it('qualifies the view name to <object>.<key> for both families', () => {
     expect(build({ label: 'All', name: 'all', object: 'crm_lead' }).name).toBe('crm_lead.all');
     expect(

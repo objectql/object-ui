@@ -308,6 +308,14 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
         schema={{
           ...schema,
           formType: 'wizard',
+          // Key-by-key rebuild into `WizardStepConfig`, the wizard's OWN step
+          // shape: `visibleWhen` / `collapsible` / `collapsed` are deliberately
+          // not copied — wizard steps carry no predicate slot and do not
+          // collapse (objectui#6237 split; upgraded to a spec-door parse
+          // refusal by objectstack#13622 D2, ruled 2026-08-31, so authored
+          // metadata carrying them never reaches this map). The predicate drop
+          // is additionally reported above for the callers the spec door
+          // cannot see (programmatic SDUI, pre-tightening metadata).
           sections: schema.sections.map(s => ({
             name: s.name,
             label: tSec(s),

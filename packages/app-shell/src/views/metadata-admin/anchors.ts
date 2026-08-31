@@ -294,11 +294,24 @@ export function registerBuiltinAnchors(): void {
       const qualifiedName =
         key.includes('.') || !object ? key : `${object}.${key}`;
       const isForm = draft.viewKind === 'form';
+      const formType = (draft.formType as string) || 'simple';
       const config = isForm
         ? {
-            type: (draft.formType as string) || 'simple',
+            type: formType,
             data: { provider: 'object', object },
-            sections: [],
+            // A `type: 'wizard'` form view must declare its steps: the spec
+            // refuses absent/EMPTY `sections` on the wizard variant at parse
+            // (objectstack#13622 D7, ruled 2026-08-31 — before that refusal
+            // the shape silently rendered as a plain simple form). Seed one
+            // starter step so a create→save that never opens the designer
+            // can't 422 once the platform runs a spec carrying the refusal —
+            // the same seed-the-required-shape move the flow anchor makes for
+            // its `type` enum (objectui#2326). Other form types keep the bare
+            // `[]`: only the wizard variant refuses emptiness, and seeding
+            // where nothing demands it would put fabricated structure into
+            // every authored view.
+            sections:
+              formType === 'wizard' ? [{ label: 'Step 1', fields: [] }] : [],
           }
         : {
             type: (draft.kind as string) || 'grid',

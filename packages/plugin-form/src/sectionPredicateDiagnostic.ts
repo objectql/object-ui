@@ -25,6 +25,13 @@
  * an author who writes the key on a wizard is told so rather than watching it do
  * nothing.
  *
+ * Since objectstack#13622 (ruled 2026-08-31) the boundary is ALSO enforced at
+ * the author door: `@objectstack/spec` refuses `visibleWhen` on a wizard step
+ * at parse, so authored form-view metadata can no longer arrive here carrying
+ * it. This report is deliberately KEPT (Card R of that ruling): programmatic
+ * SDUI callers do not pass the spec door, and metadata published before the
+ * tightening still round-trips — for both, this warning is the only signal.
+ *
  * Single-sourced so the runtime report and the pin that holds its wording cannot
  * drift apart.
  */

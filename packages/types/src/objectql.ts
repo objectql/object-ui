@@ -1050,12 +1050,23 @@ export interface ObjectFormSection {
   
   /**
    * Whether the section can be collapsed
+   *
+   * Wizard boundary (objectstack#13622 D2, ruled 2026-08-31): wizard steps do
+   * not collapse — the wizard shows exactly the current step. On a
+   * `formType: 'wizard'` form the renderer drops this key (ObjectForm's
+   * wizard map rebuilds each step key by key and does not copy it), and
+   * `@objectstack/spec` refuses an authored `true` on a wizard step at parse.
+   * An authored `false` stays accepted everywhere: it declares exactly the
+   * behavior a wizard delivers.
    * @default false
    */
   collapsible?: boolean;
-  
+
   /**
    * Whether the section is initially collapsed
+   *
+   * Same wizard boundary as {@link collapsible}: dropped by the wizard route,
+   * and `true` is refused on a wizard step at the spec door.
    * @default false
    */
   collapsed?: boolean;
@@ -1100,6 +1111,17 @@ export interface ObjectFormSection {
    * else (the console precedent, 2026-08-22 after #5594). Derived
    * `fieldGroups` sections carry no predicate slot, so their groups are
    * always drawn.
+   *
+   * Wizard boundary (objectstack#13622 D2, ruled 2026-08-31): wizard steps
+   * carry NO predicate slot — steps are entered in array order behind the
+   * step gate, never conditionally. On a `formType: 'wizard'` form the
+   * renderer drops this key (and reports the drop via console.warn — see
+   * `sectionPredicateUnsupportedWarning` in @object-ui/plugin-form), the
+   * wizard's own step type (`WizardStepConfig`) rejects it at compile time
+   * (objectui#6237's ruled split), and `@objectstack/spec` refuses it on a
+   * wizard step at parse. Put the predicate on the fields inside the step —
+   * field-level `visibleWhen` is evaluated on every layout. A step-level
+   * predicate is a future contract of its own, tracked in objectui#6237.
    */
   visibleWhen?: string | { dialect?: string; source: string };
 
@@ -1223,6 +1245,15 @@ export interface ObjectFormSchema extends BaseSchema {
    * Form sections for organized layout.
    * Used by tabbed/wizard/simple forms to group fields.
    * Aligns with @objectstack/spec FormView.sections
+   *
+   * Wizard semantics (objectstack#13622, ruled 2026-08-31): on a
+   * `formType: 'wizard'` form the sections ARE the steps — there is no
+   * `steps` key — and array order is step order (no `order` key; reordering
+   * the array reorders the wizard). A wizard with absent or empty `sections`
+   * is refused by `@objectstack/spec` at parse for authored form views; this
+   * renderer's own fallback for that shape (rendering as a plain simple
+   * form) is only reachable by programmatic SDUI callers, which do not pass
+   * the spec door.
    */
   sections?: ObjectFormSection[];
   
@@ -1277,6 +1308,13 @@ export interface ObjectFormSchema extends BaseSchema {
   
   /**
    * Allow skipping steps. Only used when formType is 'wizard'.
+   *
+   * This is navigation freedom, NOT a validation exemption (objectstack#13622
+   * D4, ruled 2026-08-31): the default (absent/`false`) is the step gate —
+   * the next step opens only after the current step's form submits and
+   * validates — and `true` merely lets the user enter any step. Either way
+   * the final submit re-checks every step's declared field set and returns
+   * the user to the first step with an outstanding required field.
    * @default false
    */
   allowSkip?: boolean;
