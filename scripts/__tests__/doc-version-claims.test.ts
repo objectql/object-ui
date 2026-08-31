@@ -364,10 +364,12 @@ import { fileURLToPath } from 'node:url';
  * than repaired, because the sentence carrying it is TRUE: it cites `node-version: 20`
  * as the value that page's own copied YAML block had fossilised at, and says in the same
  * breath that every workflow declares 22 instead. Re-measured against
- * `.github/workflows` at this cut: 28 `node-version` declarations across 23 files, ZERO
- * of them reading 20, all 28 reading 22 (control, same sweep: 19 `corepack enable`
- * steps). So the literal is a citation of a REMOVED value, and the claim around it is
- * one the workflows can adjudicate.
+ * `.github/workflows`, where NO `node-version` declaration reads 20 and every one of them
+ * reads 22 — a reading the workflow-version assertion below RE-TAKES on every run, which
+ * is why it is stated here without a count. It used to carry one, and a control beside it,
+ * and both had drifted by the time anyone re-read them (objectui#6447). So the literal is
+ * a citation of a REMOVED value, and the claim around it is one the workflows can
+ * adjudicate.
  *
  * ### What this does NOT cover, stated so it is not mistaken for covered
  *
@@ -403,7 +405,9 @@ import { fileURLToPath } from 'node:url';
  * reviewer re-runs the command it describes. Both of its halves had gone false, and nothing
  * in this repository was in a position to notice:
  *
- *   - The COUNT. Re-measured at this cut: 28 `node-version` declarations across 23 files in
+ *   - The COUNT. Measured when objectui#6400 landed, and left stated AS OF that cut rather
+ *     than re-taken as a reading of the tree today: 28 `node-version` declarations across
+ *     23 files in
  *     `.github/workflows` - twice the 14 the sentence names - and 27 rather than all 28 are
  *     spelled `'22.x'`, because `half-state-patrol.yml` writes `'22'`, a spelling that
  *     sentence does not admit at all. (Control, same sweep, same directory: 20 `corepack
@@ -459,15 +463,73 @@ import { fileURLToPath } from 'node:url';
  *     sentence is true exactly when this comparison would be false. It stays
  *     reviewer-checked on purpose - and its `why` already carried no count, the instinct
  *     this card generalised.
- *   - The two `pnpm 10.x` entries, whose reasons count `corepack enable` steps. Same class,
- *     different anchor SOURCE - the root `packageManager` field rather than a workflow key
- *     - so covering them needs a second derivation, not one more field on this one.
- *     Measured stale at this cut (17 across 12 stated, 20 across 14 in the tree) and filed
- *     as objectui#6447.
+ *   - The two `pnpm 10.x` entries, whose reasons COUNTED `corepack enable` steps. Same
+ *     class, different anchor SOURCE - the root `packageManager` field rather than a
+ *     workflow key - so covering them needed a second derivation, not one more field on
+ *     this one. Filed as objectui#6447 and closed by the section below, which built that
+ *     second derivation. The bullet stays as the record of why one field could not do both
+ *     jobs.
  *   - The prose absolute on the page itself: `ci-cd-pipeline.md:1744` says "every workflow
  *     declares `'22.x'`", which the one `'22'` lane falsifies. That is a claim about
  *     SPELLING on a doc surface, and this assertion is blind to spelling by construction.
  *     Filed as objectui#6448.
+ *
+ * ## What objectui#6447 added: a second anchor SOURCE, and the count that outed it
+ *
+ * The section above moved one entry's anchor out of its sentence and into a run, and named
+ * two entries it could not take with it: `building-crud-app.md :: pnpm 10.x` and
+ * `quick-start.md :: pnpm 10.x`. Their reasons said the pnpm CI runs is the one the root
+ * `packageManager` field names, and offered a COUNT of `corepack enable` steps as the
+ * argument for why that field is the anchor. The field half was exactly right and stayed
+ * right through every cut since. The count half was stale four days after it was typed:
+ * 17 steps across 12 files stated, 20 across 14 measured when the card was filed, and 20
+ * across 14 still when it was worked. Those numbers are recorded here as the FINDING and
+ * are not re-taken anywhere, which is the distinction the closing section of this header
+ * draws. Same sentence objectui#6400 is about, reached from a different source.
+ *
+ * ### Why a second field and not a second spelling of the first
+ *
+ * `workflowVersionKey` names a GitHub-Actions KEY and reduces every declaration of it
+ * across a DIRECTORY to one major. Nothing about that shape fits here. `packageManager` is
+ * one field of one file: there is no directory to sweep, no unanimity to establish, and
+ * the value is not a version at all - it is a TOOL and a version welded with an at-sign.
+ * Making one field mean both would put a "which kind of source is this" branch inside a
+ * derivation whose whole value is that it has none. So `manifestVersionField` joins
+ * `skeletonDep` and `workflowVersionKey` as the third way an entry names its anchor and
+ * has the comparison RUN rather than re-verified.
+ *
+ * ### The TOOL half is compared, because a version-only comparison is vacuous here
+ *
+ * `packageManager` states `pnpm@10.31.0`. A comparison reading only the version stays
+ * green if this workspace switches package managers and keeps a major - a page teaching
+ * `pnpm 10.x` against a field naming something else, with the gate reporting agreement.
+ * That is the vacuous anchor this file exists to notice, and it would have been shipped BY
+ * a card about vacuous anchors. So the tool the field names is compared against the
+ * toolchain word the CLAIM leads with, read with the same `TOOLCHAIN` alternation the scan
+ * matched that word with in the first place. No new vocabulary enters the file for it: a
+ * claim is in this inventory BECAUSE a toolchain word starts it.
+ *
+ * ### What it deliberately does NOT do
+ *
+ *   - It does not count `corepack enable` steps, and no reason quotes that number any
+ *     more. The count was never the anchor - it was the ARGUMENT for why the field is the
+ *     anchor, and that argument does not need a live number to stand. Re-taking it every
+ *     run would be a second derivation guarding a sentence that no longer states it.
+ *   - It does not read `engines.pnpm`, or any manifest but the root one. The claim is
+ *     about the pnpm that BUILDS this workspace, and one field states that.
+ *   - It does not compare the minor or the patch. Same stance as `majorOf`, for the same
+ *     reason: `pnpm 10.x` states a major and nothing finer, so nothing finer is what it
+ *     can be held to.
+ *
+ * ### The counts this card also took out of the prose above
+ *
+ * A card about a frozen count in a reason string cannot leave frozen counts in the docblock
+ * that argues for the reason strings. The policy applied, stated once so the next reader
+ * can apply it too: a count describing the CURRENT tree is REMOVED and replaced by the run
+ * that re-takes it, while a count recording what a change MEASURED when it landed is kept
+ * and ATTRIBUTED to that change, so it reads as history rather than as a reading of today.
+ * Two sites moved under the first rule and one under the second; the surviving numbers in
+ * this header are all of the second kind.
  *
  * ## The census that set the design (measured on d46b40324, the merge of PR #3698)
  *
@@ -911,6 +973,26 @@ interface KnownClaim {
    * what lets this field see the one lane that spells the same Node `'22'`.
    */
   workflowVersionKey?: string;
+  /**
+   * Only legal on an `anchored` entry, and the objectui#6447 counterpart to
+   * `workflowVersionKey`: the field of the ROOT `package.json` whose value IS this claim's
+   * anchor, read and compared on every run. Present means checked; absent means the entry
+   * rests on a reviewer re-running the command its `why` describes.
+   *
+   * A second SOURCE field rather than one more spelling on `workflowVersionKey`, because
+   * the two read different kinds of thing: that one sweeps a directory for every
+   * declaration of a key and reduces them to a major, this one reads a single field whose
+   * value is a tool and a version welded together. The header section on objectui#6447
+   * carries the argument.
+   *
+   * The field is NAMED rather than derived from the claim, for the reason `skeletonDep` is:
+   * `pnpm 10.x` does not spell `packageManager`, and inventing a name-to-field mapping
+   * would put a guess in the path of the assertion. What IS derived from the claim is the
+   * toolchain word it leads with, which the value's own tool half is compared against - a
+   * version-only comparison would report agreement while the workspace built with something
+   * else entirely.
+   */
+  manifestVersionField?: string;
 }
 
 /**
@@ -938,7 +1020,8 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     file: 'content/docs/guide/building-crud-app.md',
     claim: 'pnpm 10.x',
     kind: 'anchored',
-    why: 'Anchored on the root packageManager field, pnpm@10.31.0: 17 corepack enable steps across 12 workflow files mean the pnpm that installs and builds these packages in CI is the one that field names. Same objectui#6307 rewrite as the Node line above, replacing `**pnpm** 9+` - a floor zero manifests in this workspace declare.',
+    manifestVersionField: 'packageManager',
+    why: "Anchored on the root packageManager field and ASSERTED against it by the manifest-version assertion below, which re-reads that field on every run and demands this page state the tool and the major it names (objectui#6447). That field is what corepack hands every CI job installing this workspace, so the pnpm these packages are built with is the one it declares. Same objectui#6307 rewrite as the Node line above, replacing `**pnpm** 9+` - a floor zero manifests in this workspace declare. The corepack-step count this reason used to quote left it in objectui#6447: it had already drifted, and a count no run re-takes is what that card is about.",
   },
   {
     file: 'content/docs/guide/ci-cd-pipeline.md',
@@ -1005,7 +1088,8 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     file: 'content/docs/guide/quick-start.md',
     claim: 'pnpm 10.x',
     kind: 'anchored',
-    why: 'Same anchor as the building-crud-app.md pnpm entry above: the root packageManager field, pnpm@10.31.0, is what corepack hands every CI job that installs this workspace. Written by objectui#6307 in place of `**pnpm** 9+`.',
+    manifestVersionField: 'packageManager',
+    why: "Same anchor, same assertion and same objectui#6307 rewrite as the building-crud-app.md pnpm entry above: the root packageManager field is re-read and compared on every run (objectui#6447), in place of `**pnpm** 9+`. This reason carried its neighbour's corepack-step count BY REFERENCE - it inherited the number without restating it - and lost it in the same change, which is the shape a claim-by-reference makes possible and worth naming.",
   },
   {
     file: 'content/docs/guide/theming.md',
@@ -1766,6 +1850,124 @@ const workflowVersionChecks: WorkflowVersionCheck[] = KNOWN_CLAIMS.flatMap((entr
       })),
       absent: occurrences.length === 0,
       declarations: workflowVersionDeclarations(key),
+    },
+  ];
+});
+
+/**
+ * The manifest that IS this workspace's toolchain declaration, and the anchor source for
+ * every `manifestVersionField` entry above (objectui#6447).
+ *
+ * Not a scan root and never one, for the same reason `WORKFLOWS_DIR` is not: no claim is
+ * ever recorded FROM it. It is read only as the truth a doc claim is measured against.
+ */
+const ROOT_MANIFEST = 'package.json';
+
+/** The tool and the version one `packageManager`-shaped value states. */
+interface ToolVersion {
+  /** Lowercased, because the claim side is matched case-insensitively by the scan. */
+  tool: string;
+  /** The version as written: `10.31.0`. `majorOf` is what reduces it. */
+  version: string;
+}
+
+/**
+ * The tool and version a `packageManager`-shaped value states, or null when it states no
+ * such pair.
+ *
+ * The `+sha512...` integrity suffix corepack accepts is DROPPED rather than refused: it
+ * identifies the download, not the version, and a field carrying one names the same pnpm as
+ * a field without one. What is refused is a value with no at-sign at all, or with an empty
+ * half on either side - `pnpm`, `pnpm@`, a bare `10.31.0`. Those state a tool or a version
+ * but not the pair this compares, and a parser that guessed at the missing half would build
+ * exactly the anchor-that-cannot-fail this field exists to avoid. Same stance as `majorOf`
+ * one section up, and for the same reason: unreadable is REPORTED, never treated as
+ * agreement.
+ */
+function parseToolVersion(raw: string): ToolVersion | null {
+  const match = /^([^@\s]+)@([^\s+]+)/.exec(raw.trim());
+  if (match === null) return null;
+  return { tool: match[1].toLowerCase(), version: match[2] };
+}
+
+/**
+ * The value the root manifest declares for `field`, or null when it declares none.
+ *
+ * A real `JSON.parse` and not a line regex, unlike `parseWorkflowVersionLine`: the input is
+ * ONE file this repository owns, JSON has one reading, and the cost that made a line parser
+ * the honest choice for YAML is not paid here - so the independent census cross-check that
+ * parser owes is not owed by this one either.
+ *
+ * Uncached and parameterised on the path for the reason `workflowVersionDeclarations` is:
+ * the fixture below writes a manifest, reads it, rewrites it and reads it again to produce
+ * the red direction, and a cache keyed on a path whose CONTENTS change inside one test
+ * hands back the first answer twice and turns the red half of a two-direction proof green.
+ */
+function manifestFieldValue(
+  field: string,
+  manifestPath: string = path.join(repoRoot, ROOT_MANIFEST),
+): string | null {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(manifestPath, 'utf8');
+  } catch {
+    return null;
+  }
+  const json = JSON.parse(raw) as Record<string, unknown>;
+  const value = json[field];
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  return value.trim();
+}
+
+/**
+ * The toolchain word a claim LEADS with, lowercased, or null when it leads with none.
+ *
+ * The counterpart to `claimMajor`, reading the other end of the same string, and built from
+ * the same `TOOLCHAIN` alternation the scan matched the claim with in the first place. That
+ * reuse is the whole point: a claim is in this inventory BECAUSE a toolchain word starts
+ * it, so this cannot invent a vocabulary the scan does not already have, and a name the
+ * scan would never match cannot arrive here as a silently-passing comparison.
+ */
+const CLAIM_TOOL_HEAD = new RegExp('^(' + TOOLCHAIN + ')', 'i');
+
+function claimTool(claim: string): string | null {
+  const match = CLAIM_TOOL_HEAD.exec(claim.trim());
+  return match === null ? null : match[1].toLowerCase();
+}
+
+interface ManifestVersionCheck {
+  entry: KnownClaim;
+  field: string;
+  /** Occurrences of this entry's literal, with the tool and major each one states. */
+  stated: { line: number; literal: string; tool: string | null; major: number | null }[];
+  /** The literal is not in the tree - the downward ratchet is its single reporter. */
+  absent: boolean;
+  /** The raw field value, or null when the root manifest declares no such field. */
+  declared: string | null;
+}
+
+/**
+ * Resolved through `flaggedClaims` for the same reason `workflowVersionChecks` is: the scan
+ * has already turned each inventory key back into concrete line numbers, so "the literal is
+ * not in the tree" stays one fact with one reporter.
+ */
+const manifestVersionChecks: ManifestVersionCheck[] = KNOWN_CLAIMS.flatMap((entry) => {
+  const field = entry.manifestVersionField;
+  if (field === undefined) return [];
+
+  const occurrences = claimsByKey.get(keyOf(entry)) ?? [];
+  return [
+    {
+      entry,
+      field,
+      stated: occurrences.map((occurrence) => ({
+        line: occurrence.line,
+        literal: occurrence.claim,
+        tool: claimTool(occurrence.claim),
+        major: claimMajor(occurrence.claim),
+      })),
+      absent: occurrences.length === 0,
+      declared: manifestFieldValue(field),
     },
   ];
 });
@@ -2840,5 +3042,244 @@ describe('doc version claims - the workflow-version assertion', () => {
         'the field and are back to being recorded rather than checked, which is the state ' +
         'objectui#6400 found them in',
     ).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('doc version claims - the manifest-version assertion', () => {
+  it('pins every manifest-anchored claim to the tool and version the root manifest declares', () => {
+    const failures: string[] = [];
+
+    for (const check of manifestVersionChecks) {
+      // Same division of labour the workflow assertion above draws: the downward ratchet is
+      // the single reporter of a literal that has left the tree, and the vacuity floors
+      // below are what stop this skip from quietly becoming the way out.
+      if (check.absent) continue;
+
+      if (check.declared === null) {
+        failures.push(
+          `${check.entry.file} :: manifestVersionField names ${check.field}, which the root ` +
+            `${ROOT_MANIFEST} does not declare - there is no anchor to read, so this entry ` +
+            `cannot rest on one: point the field at the one the manifest states, or reclassify`,
+        );
+        continue;
+      }
+
+      const declared = parseToolVersion(check.declared);
+      if (declared === null) {
+        failures.push(
+          `${check.entry.file} :: the root ${ROOT_MANIFEST} states ${check.field}: ` +
+            `${JSON.stringify(check.declared)}, which names no tool-and-version pair this can ` +
+            `read - the anchor is not disagreeing with the page, it is UNKNOWN, and an ` +
+            `unknown anchor is named here rather than skipped`,
+        );
+        continue;
+      }
+
+      const anchorMajor = majorOf(declared.version);
+      if (anchorMajor === null) {
+        failures.push(
+          `${check.entry.file} :: ${check.field} states ${JSON.stringify(declared.version)} ` +
+            `for ${declared.tool}, a value with no readable major, so NOTHING was compared`,
+        );
+        continue;
+      }
+
+      for (const stated of check.stated) {
+        if (stated.tool !== null && stated.tool !== declared.tool) {
+          failures.push(
+            `${check.entry.file}:${stated.line}  the page states ` +
+              `${JSON.stringify(stated.literal)}, a claim about ${stated.tool}; the root ` +
+              `${ROOT_MANIFEST} declares ${check.field}: ${JSON.stringify(check.declared)} - ` +
+              `the page is teaching a tool this workspace is not built with, and the majors ` +
+              `agreeing would not make that true`,
+          );
+          continue;
+        }
+        if (stated.major === null) {
+          failures.push(
+            `${check.entry.file}:${stated.line} :: the literal ` +
+              `${JSON.stringify(stated.literal)} states no version this can read, so NOTHING ` +
+              `was compared - fix the claim, or drop manifestVersionField and let the entry ` +
+              `rest on a reviewer again`,
+          );
+          continue;
+        }
+        if (stated.major === anchorMajor) continue;
+        failures.push(
+          `${check.entry.file}:${stated.line}  the page states ` +
+            `${JSON.stringify(stated.literal)} (major ${stated.major}); the root ` +
+            `${ROOT_MANIFEST} declares ${check.field}: ${JSON.stringify(check.declared)} ` +
+            `(major ${anchorMajor})`,
+        );
+      }
+    }
+
+    expect(
+      failures,
+      `A documentation page and this workspace's root manifest no longer agree on the ` +
+        `toolchain CI builds with:\n` +
+        failures.map((f) => `  - ${f}`).join('\n') +
+        `\n\nThese entries state what CI EXERCISES, so the manifest adjudicates and the page ` +
+        `follows - update the page to the tool and the major measured above. If instead the ` +
+        `manifest moved somewhere the docs should NOT follow, that is a finding about the ` +
+        `manifest and not about the page.\n\n` +
+        `What this deliberately does NOT judge (objectui#6447):\n` +
+        `  - the MINOR or the PATCH. 'pnpm 10.x' states a major and nothing finer, so ` +
+        `nothing finer is what it can be held to - see majorOf.\n` +
+        `  - the number of corepack enable steps. That count was the ARGUMENT for why this ` +
+        `field is the anchor, never the anchor itself, and no reason quotes it any more - ` +
+        `which is the whole of objectui#6447.`,
+    ).toEqual([]);
+
+    // Vacuity floors, the shape the workflow assertion carries and for the same reason:
+    // every branch above loops over a list that could be empty, and an empty list reports
+    // success over nothing - which is precisely the state these two entries sat in for
+    // months while this file reported green.
+    expect(
+      manifestVersionChecks.length,
+      'no inventory entry carries manifestVersionField - the manifest-anchored entries lost ' +
+        'the field and are back to being recorded rather than checked, which is the state ' +
+        'objectui#6447 found them in',
+    ).toBeGreaterThanOrEqual(2);
+
+    expect(
+      manifestVersionChecks.reduce((n, check) => n + check.stated.length, 0),
+      'the manifest-version assertion compared no doc lines at all - the claim resolution ' +
+        'collapsed and it is now green over nothing',
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('goes red when the manifest moves a major, and when the TOOL changes under the page', () => {
+    // The permanent two-direction witness, and a fixture rather than a corpus reading for
+    // the reason objectui#6400's is: a green anchor assertion looks exactly like an
+    // assertion that compared nothing, which is the failure this file keeps being filed
+    // about. Here the fixture is a MANIFEST, because that is this assertion's input.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-version-claims-manifest-'));
+    const manifest = path.join(dir, 'package.json');
+    try {
+      const write = (value: string): void =>
+        fs.writeFileSync(
+          manifest,
+          JSON.stringify({ name: 'fixture', packageManager: value }, null, 2),
+          'utf8',
+        );
+
+      // The GREEN direction: the shape the root manifest actually holds today.
+      write('pnpm@10.31.0');
+      expect(manifestFieldValue('packageManager', manifest)).toBe('pnpm@10.31.0');
+      expect(parseToolVersion('pnpm@10.31.0')).toEqual({ tool: 'pnpm', version: '10.31.0' });
+      expect(claimTool('pnpm 10.x')).toBe('pnpm');
+      expect(claimMajor('pnpm 10.x')).toBe(10);
+      expect(majorOf('10.31.0')).toBe(10);
+
+      // The RED direction on the VERSION - and read back through the same uncached reader,
+      // so this also proves the reader sees the SECOND write rather than a memo of the
+      // first. A cache here would turn the red half of this proof green.
+      write('pnpm@11.0.0');
+      const bumped = parseToolVersion(manifestFieldValue('packageManager', manifest) ?? '');
+      expect(
+        bumped === null ? null : majorOf(bumped.version),
+        'a major bump in packageManager must be visible here - if it is not, the assertion ' +
+          'above cannot go red at all and is prose with extra steps',
+      ).toBe(11);
+      expect(
+        bumped === null ? null : majorOf(bumped.version),
+        'and it must differ from what the page states, which is the disagreement the ' +
+          'assertion reports',
+      ).not.toBe(claimMajor('pnpm 10.x'));
+
+      // The RED direction on the TOOL: same major, different package manager. This is the
+      // one a version-only comparison would have reported as agreement.
+      write('yarn@10.0.0');
+      const switched = parseToolVersion(manifestFieldValue('packageManager', manifest) ?? '');
+      expect(switched?.tool).toBe('yarn');
+      expect(
+        switched === null ? null : majorOf(switched.version),
+        'the majors line up on purpose here - the tool check is the only thing that can ' +
+          'catch this, so the version half must NOT be what fails',
+      ).toBe(claimMajor('pnpm 10.x'));
+      expect(
+        switched?.tool,
+        'a page teaching pnpm against a manifest naming another tool must not read as ' +
+          'agreement just because the majors agree',
+      ).not.toBe(claimTool('pnpm 10.x'));
+
+      // A field the manifest does not declare reads as absent, not as a guess.
+      fs.writeFileSync(manifest, JSON.stringify({ name: 'fixture' }, null, 2), 'utf8');
+      expect(
+        manifestFieldValue('packageManager', manifest),
+        'a manifest that declares no such field must read null, so the assertion can say ' +
+          'there is no anchor rather than compare against an invented one',
+      ).toBeNull();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reads a tool-and-version manifest value, and refuses the values beside it', () => {
+    expect(parseToolVersion('pnpm@10.31.0')).toEqual({ tool: 'pnpm', version: '10.31.0' });
+    // corepack's integrity suffix identifies the DOWNLOAD, not the version.
+    expect(parseToolVersion('pnpm@10.31.0+sha512.deadbeef')).toEqual({
+      tool: 'pnpm',
+      version: '10.31.0',
+    });
+    expect(parseToolVersion('npm@11.0.0')).toEqual({ tool: 'npm', version: '11.0.0' });
+    expect(parseToolVersion('  pnpm@10.31.0  ')).toEqual({ tool: 'pnpm', version: '10.31.0' });
+    // Case is not part of the anchor: the scan matches the claim's toolchain word
+    // case-insensitively, so the tool half is compared lowercased on both sides.
+    expect(parseToolVersion('PNPM@10.31.0')?.tool).toBe('pnpm');
+
+    for (const notAPair of ['pnpm', 'pnpm@', '10.31.0', '@10.31.0', '']) {
+      expect(
+        parseToolVersion(notAPair),
+        `${JSON.stringify(notAPair)} states no tool-and-version pair and must read as ` +
+          `unknown rather than as an anchor that happens to agree`,
+      ).toBeNull();
+    }
+
+    // And the doc side, which reads the HEAD of an already-matched claim - the end
+    // claimMajor does not read.
+    expect(claimTool('pnpm 10.x')).toBe('pnpm');
+    expect(claimTool('Node 22.x')).toBe('node');
+    expect(claimTool('React 18+')).toBe('react');
+    for (const notAToolchainClaim of ['v1.2.3', '10.x', '']) {
+      expect(
+        claimTool(notAToolchainClaim),
+        `${JSON.stringify(notAToolchainClaim)} leads with no toolchain word, and inventing ` +
+          `one would compare the manifest against a name the scan never matched`,
+      ).toBeNull();
+    }
+  });
+
+  it('lets no manifestVersionField sit on a kind the anchor was never meant to judge', () => {
+    // The same closure discipline skeletonDep and workflowVersionKey carry, for the same
+    // reason: an entry compared against a machine-readable truth in this tree IS the
+    // definition of `anchored`, so this field on any other kind would be two statements
+    // contradicting each other.
+    for (const entry of KNOWN_CLAIMS) {
+      if (entry.manifestVersionField === undefined) continue;
+      expect(
+        entry.kind,
+        `${keyOf(entry)} carries manifestVersionField, so its version IS compared against ` +
+          `this tree - that is what anchored means, and any other kind says the opposite`,
+      ).toBe('anchored');
+    }
+
+    // And no entry may name two anchor SOURCES. Two anchors on one claim are two answers to
+    // "what does this rest on", with nothing to decide between them when they disagree -
+    // and an entry that passes whenever EITHER agrees is the unfalsifiable shape this file
+    // exists to keep out.
+    for (const entry of KNOWN_CLAIMS) {
+      if (entry.manifestVersionField === undefined) continue;
+      expect(
+        entry.workflowVersionKey,
+        `${keyOf(entry)} names both a manifest field and a workflow key - an entry rests on ` +
+          `ONE anchor source, and naming two makes its reason unfalsifiable by construction`,
+      ).toBeUndefined();
+      expect(
+        entry.skeletonDep,
+        `${keyOf(entry)} names both a manifest field and a skeleton dep - same objection`,
+      ).toBeUndefined();
+    }
   });
 });
