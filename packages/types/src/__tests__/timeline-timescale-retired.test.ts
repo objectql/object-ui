@@ -77,6 +77,30 @@ describe('timeScale is RETIRED — the old spelling is refused, not silently def
     expect((issue as { expected?: string } | undefined)?.expected).toBe('never');
   });
 
+  it('the refusal CARRIES the remediation text, not zod\'s generic message (objectui#6931)', () => {
+    // Until objectui#6931 this key answered with zod's own
+    // `"Invalid input: expected never, received string"` — which names the key
+    // (via the path asserted above) but not the remedy, so the author was told
+    // WHAT is wrong and never `scale`. `retirementTombstone()` writes the
+    // guidance once into the parse message and `.describe()` both.
+    const result = TimelineSchema.safeParse(TIMESCALE_ONLY_DOCUMENT);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    const issue = result.error.issues.find((i) => i.path[0] === 'timeScale');
+    expect(issue?.message).not.toContain('Invalid input: expected never, received ');
+    expect(issue?.message).toBe('RETIRED (objectui#6355) — author scale instead');
+    // ONE string, BOTH channels: the parse message an author reads and the
+    // `.describe()` metadata that feeds generated JSON-Schema are the SAME
+    // text — asserted derived, so the two cannot drift apart.
+    expect(issue?.message).toBe(
+      (TimelineSchema.shape.timeScale as { description?: string }).description,
+    );
+    // Accept set untouched by the message change: same code the bare
+    // `z.never()` reported, pinned beside `expected: 'never'` above.
+    expect(issue?.code).toBe('invalid_type');
+  });
+
   it('ACCEPTS the same document migrated to the canonical `scale`', () => {
     // Counter-probe. Without it the assertion above is satisfied by any schema
     // that refuses everything, and the pin would prove nothing about the KEY.

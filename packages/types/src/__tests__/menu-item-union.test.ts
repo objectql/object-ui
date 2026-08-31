@@ -173,6 +173,48 @@ describe('MenuItemSchema — the zod mirror agrees with the TS union (objectui#6
     expect(result.success).toBe(false);
   });
 
+  it('both tombstones carry their remediation text — and where a UNION puts it (objectui#6931)', () => {
+    // Until objectui#6931 both arms answered with zod's generic
+    // `"Invalid input: expected never, received string"`. They now carry the
+    // #6523 guidance through `retirementTombstone()`, one string feeding the
+    // parse message and `.describe()` alike.
+    //
+    // What a UNION does to that is pinned here rather than glossed: the
+    // TOP-LEVEL issue is zod's own `invalid_union` at path `[]` with the
+    // message `"Invalid input"`, and the guidance lives in the per-arm errors
+    // hanging off it. A consumer that prints only top-level issues therefore
+    // still shows `Invalid input` — a property of the union, not of the
+    // tombstone. This records which half moved, so nobody later reads the
+    // unchanged top-level message as the conversion having failed.
+    const result = MenuItemSchema.safeParse({ label: 'New Tab', type: 'separator' });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    const top = result.error.issues[0]!;
+    expect(top.code).toBe('invalid_union');
+    expect(top.path).toEqual([]);
+
+    const armIssues = (
+      (top as unknown as { errors?: { path: PropertyKey[]; code: string; message: string }[][] }).errors ?? []
+    )
+      .flat()
+      .filter((i) => String(i.path[0]) === 'type');
+    expect(armIssues.length, 'no arm reported an issue addressed to `type`').toBeGreaterThan(0);
+    for (const issue of armIssues) {
+      // Accept set untouched: `invalid_type`, exactly what the bare
+      // `z.never()` reported. A `refine`-based helper would say `custom` here.
+      expect(issue.code).toBe('invalid_type');
+      expect(issue.message).not.toContain('Invalid input: expected never, received ');
+      expect(issue.message).toContain('RETIRED (objectui#6523)');
+    }
+
+    // Non-vacuity, IN THIS TEST: both declared spellings still parse green in
+    // the same run, so a schema that refused everything could not satisfy the
+    // assertions above by accident.
+    expect(MenuItemSchema.safeParse({ label: 'New Tab' }).success).toBe(true);
+    expect(MenuItemSchema.safeParse({ separator: true }).success).toBe(true);
+  });
+
   it('a live command item — label, icon, shortcut, onClick — still parses green', () => {
     const result = MenuItemSchema.safeParse({
       label: 'New Tab',

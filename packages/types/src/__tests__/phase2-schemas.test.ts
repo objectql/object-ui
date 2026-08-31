@@ -407,6 +407,36 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
     }
   });
 
+  it('the confirm refusal CARRIES its remediation text (objectui#6931)', () => {
+    // `confirm` ESTABLISHED this tombstone convention (objectui#4314) and was
+    // the last key in the population still answering with zod's generic
+    // `"Invalid input: expected never, received object"` — naming the key and
+    // nothing else. The author now reads the remedy (`confirmText`) in the
+    // message itself, which is what `packages/cli`'s `validate` / `check`
+    // print verbatim beside the path and code.
+    const result = ActionSchema.safeParse({
+      type: 'action',
+      label: 'Delete Record',
+      actionType: 'confirm',
+      confirm: { title: 'Confirm Deletion', message: 'Are you sure?' },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+
+    const issue = result.error.issues.find((i) => i.path.join('.') === 'confirm');
+    expect(issue, 'parse failed, but not on the `confirm` path').toBeDefined();
+    expect(issue!.message).not.toContain('Invalid input: expected never, received ');
+    expect(issue!.message).toBe('RETIRED (objectui#4314) — author confirmText instead');
+    // Accept set untouched: same code the bare `z.never()` reported — only the
+    // message moved.
+    expect(issue!.code).toBe('invalid_type');
+
+    // Non-vacuity, IN THIS TEST: the canonical spelling still parses green.
+    expect(
+      ActionSchema.safeParse({ type: 'action', label: 'Delete Record', confirmText: 'Sure?' }).success,
+    ).toBe(true);
+  });
+
   it('carries the retirement to TypeScript authors (confirm is `never`)', () => {
     const action: CrudActionSchema = {
       type: 'action',

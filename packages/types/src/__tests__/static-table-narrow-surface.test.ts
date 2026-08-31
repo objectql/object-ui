@@ -227,9 +227,9 @@ describe('static `table` — the narrow zod surface refuses the retired keys (ob
 /* ── 1b. the refusal CARRIES the remediation text ────────────────────────── */
 
 /** The nine keys the #5474 split retired — the set objectui#6105 converted to
- *  `retirementTombstone()`. NOT the whole tombstone population of this shape:
- *  the five later arrivals (#6424 / #6425) are pinned as the scope boundary
- *  below, still carrying zod's generic message. */
+ *  `retirementTombstone()` FIRST. The five later arrivals (#6424 / #6425)
+ *  followed in objectui#6931 and are pinned separately below, so which round
+ *  converted what stays readable; both groups now answer the same way. */
 const SIX105_CONVERTED = [
   'minWidth', 'align', 'fixed', 'type', 'sortable',
   'filterable', 'resizable', 'editable', 'cell',
@@ -302,13 +302,23 @@ describe('the tombstone refusal reaches the author with its remediation text (ob
     }
   });
 
-  it('SCOPE BOUNDARY — the later tombstones still emit zod\'s generic message', () => {
-    // objectui#6105 was scoped to the nine #5474 keys, deliberately. These
-    // seven — the five rich-shape arrivals tombstoned here under the lockstep
-    // rule (#6424 / #6425) and the static table's own `hoverable` / `striped`
-    // pair — were left on the bare spelling. Pinned so the remaining half is a
-    // recorded decision with a red test behind it rather than an oversight;
-    // the follow-up that converts them flips this expectation deliberately.
+  it('the SCOPE BOUNDARY of #6105 is closed — the later seven answer with their guidance too (objectui#6931)', () => {
+    // This assertion is the #6105 scope-boundary pin, FLIPPED deliberately.
+    // It used to assert the opposite: that these seven — the five rich-shape
+    // arrivals tombstoned here under the lockstep rule (#6424 / #6425) and the
+    // static table's own `hoverable` / `striped` pair — still emitted
+    // `ZOD_GENERIC_NEVER`, so the half #6105's reviewed scope left untouched
+    // was a recorded decision with a red test behind it rather than an
+    // oversight. objectui#6931 converted them, which is the flip that card was
+    // told to make; the pin stays (deleting it would remove the guard) and now
+    // holds the population to the SAME standard as the nine above.
+    //
+    // Non-vacuity control, IN THIS TEST: the fully-live column and table must
+    // parse GREEN in the same run, so a schema that refused everything could
+    // not satisfy the loops below by accident.
+    expect(StaticTableColumnSchema.safeParse(LIVE_COLUMN).success).toBe(true);
+    expect(TableZod.safeParse(STATIC_TABLE).success).toBe(true);
+
     for (const key of ['headerIcon', 'fitContent', 'format', 'options', 'currency'] as const) {
       const result = StaticTableColumnSchema.safeParse({
         header: 'Amount',
@@ -316,16 +326,48 @@ describe('the tombstone refusal reaches the author with its remediation text (ob
         [key]: RETIRED_COLUMN_KEYS[key],
       });
       expect(result.success, key).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues[0]?.message, key).toContain(ZOD_GENERIC_NEVER);
-      }
+      if (result.success) continue;
+
+      const issue = result.error.issues.find((i) => String(i.path[0]) === key);
+      expect(issue, `no issue addressed to \`${key}\``).toBeDefined();
+      expect(issue!.message, key).not.toContain(ZOD_GENERIC_NEVER);
+      expect(issue!.message, key).toContain('NOT on the static table surface');
+      expect(issue!.message, key).toContain('use data-table');
+      // ONE string, BOTH channels — asserted derived, as for the nine.
+      expect(issue!.message, key).toBe(describeOf(StaticTableColumnSchema, key));
+      // Clause ②: the accept set is untouched — same code, same address as
+      // the bare `z.never()` spelling reported before the conversion.
+      expect(issue!.code, key).toBe('invalid_type');
+      expect(issue!.path, key).toEqual([key]);
     }
+
     for (const key of ['hoverable', 'striped'] as const) {
       const result = TableZod.safeParse({ ...STATIC_TABLE, [key]: true });
       expect(result.success, key).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues[0]?.message, key).toContain(ZOD_GENERIC_NEVER);
-      }
+      if (result.success) continue;
+
+      const issue = result.error.issues.find((i) => String(i.path[0]) === key);
+      expect(issue, `no issue addressed to \`${key}\``).toBeDefined();
+      expect(issue!.message, key).not.toContain(ZOD_GENERIC_NEVER);
+      expect(issue!.message, key).toContain('RETIRED (objectui#5474)');
+      expect(issue!.message, key).toBe(describeOf(TableZod, key));
+      expect(issue!.code, key).toBe('invalid_type');
+      expect(issue!.path, key).toEqual([key]);
+    }
+  });
+
+  it('`striped` answers with the full remediation string the conversion carried', () => {
+    // The literal twin of the `align` pin above, on the other half of the
+    // population: one member written out verbatim so the derived assertions
+    // cannot all drift together. `striped` is the pick because its remedy is
+    // not "use data-table" alone — the text a caller could most easily lose.
+    const result = TableZod.safeParse({ ...STATIC_TABLE, striped: true });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        'RETIRED (objectui#5474) — the static table never implemented striping; '
+        + 'style rows via className, or use data-table',
+      );
     }
   });
 });

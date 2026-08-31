@@ -184,9 +184,11 @@ export const TableColumnSchema = z.object({
  * message differs.
  *
  * The five later arrivals below (`headerIcon` / `fitContent`, objectui#6424;
- * `format` / `options` / `currency`, objectui#6425) still carry the bare
- * spelling and still emit zod's generic message — deliberately out of #6105's
- * scope, not an oversight.
+ * `format` / `options` / `currency`, objectui#6425) were outside #6105's
+ * reviewed scope and carried the bare spelling until objectui#6931 converted
+ * them here. That mattered because a half-converted shape teaches worse than a
+ * uniform one: an author reading guidance on nine keys and zod's generic on
+ * five learns the message means something, then has it withheld.
  */
 export const StaticTableColumnSchema = z.object({
   header: z.string().describe('Column header text'),
@@ -203,11 +205,11 @@ export const StaticTableColumnSchema = z.object({
   resizable: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   editable: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
   cell: retirementTombstone('RETIRED (objectui#5474) — never read by the static table; use data-table'),
-  headerIcon: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
-  fitContent: z.never().optional().describe('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
-  format: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
-  options: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
-  currency: z.never().optional().describe('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  headerIcon: retirementTombstone('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
+  fitContent: retirementTombstone('NOT on the static table surface (objectui#6424) — declared on the rich TableColumn only; use data-table'),
+  format: retirementTombstone('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  options: retirementTombstone('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  currency: retirementTombstone('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
 });
 
 /**
@@ -217,7 +219,10 @@ export const StaticTableColumnSchema = z.object({
  * `hoverable` / `striped` are ADR-0049 tombstones (objectui#5474): the static
  * renderer never implemented either — both carried `@default` annotations and
  * reference-page teaching describing behaviour that did not exist. An
- * authored value now fails parse loudly rather than doing nothing silently.
+ * authored value now fails parse loudly rather than doing nothing silently,
+ * and the refusal carries its own remediation text through
+ * `retirementTombstone()` (objectui#6931) rather than zod's generic
+ * `expected never`.
  */
 export const TableSchema = BaseSchema.extend({
   type: z.literal('table'),
@@ -225,8 +230,8 @@ export const TableSchema = BaseSchema.extend({
   columns: z.array(StaticTableColumnSchema).describe('Table columns (static subset — objectui#5474)'),
   data: z.array(z.any()).describe('Table data'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Table footer'),
-  hoverable: z.never().optional().describe('RETIRED (objectui#5474) — the static table never implemented row hover; use data-table'),
-  striped: z.never().optional().describe('RETIRED (objectui#5474) — the static table never implemented striping; style rows via className, or use data-table'),
+  hoverable: retirementTombstone('RETIRED (objectui#5474) — the static table never implemented row hover; use data-table'),
+  striped: retirementTombstone('RETIRED (objectui#5474) — the static table never implemented striping; style rows via className, or use data-table'),
 });
 
 /**
@@ -401,9 +406,10 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
  * through ADR-0049 rather than done here. `events` follows the declaration from
  * required to OPTIONAL — strictly more input parses than before.
  *
- * `timeScale` is RETIRED (objectui#6355) and carries the `z.never()` tombstone
- * below — still mirrored, deliberately, because the parity ratchet compares key
- * SETS and because a tombstone must be present on both halves to be audible.
+ * `timeScale` is RETIRED (objectui#6355) and carries the
+ * `retirementTombstone()` spelling below (objectui#6931) — still mirrored,
+ * deliberately, because the parity ratchet compares key SETS and because a
+ * tombstone must be present on both halves to be audible.
  */
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
@@ -419,7 +425,7 @@ export const TimelineSchema = BaseSchema.extend({
   // let the retired spelling parse green while the renderer no longer reads it
   // — a silent revert to the `month` default, which is the whole failure this
   // retirement exists to make audible. One axis spelling: `scale` above.
-  timeScale: z.never().optional().describe('RETIRED (objectui#6355) — author scale instead'),
+  timeScale: retirementTombstone('RETIRED (objectui#6355) — author scale instead'),
   rowLabel: z.string().optional().describe('Header label above the gantt row-label gutter'),
   minDate: z.string().optional().describe('Override the auto-calculated gantt axis start (YYYY-MM-DD)'),
   maxDate: z.string().optional().describe('Override the auto-calculated gantt axis end (YYYY-MM-DD)'),

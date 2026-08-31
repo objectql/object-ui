@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { retirementTombstone } from './tombstone.zod.js';
 
 /**
  * Dialog Schema - Dialog/modal component
@@ -133,6 +134,15 @@ export const HoverCardSchema = BaseSchema.extend({
  * TS union `MenuItem = MenuCommandItem | MenuDividerItem` in `../overlay.ts`;
  * see that file's doc comment for why this is a union rather than an
  * optional `label`, and why `type` is tombstoned on both arms.
+ *
+ * Both tombstones carry their guidance through `retirementTombstone()`
+ * (objectui#6931), so the arm-level issue reads the remediation instead of
+ * zod's generic `expected never`. Note what a UNION does to that: the
+ * top-level issue this schema reports is zod's own `invalid_union`
+ * (`"Invalid input"`, path `[]`), and the per-arm issues — where the guidance
+ * lives — hang off it. A consumer that only prints top-level issues therefore
+ * still shows `Invalid input` here; the guidance is reached by walking the
+ * union's arm errors, and by the `.describe()` metadata, which is unchanged.
  */
 export const MenuItemSchema: z.ZodType<any> = z.lazy(() =>
   z.union([
@@ -144,7 +154,7 @@ export const MenuItemSchema: z.ZodType<any> = z.lazy(() =>
       shortcut: z.string().optional().describe('Keyboard shortcut'),
       children: z.array(MenuItemSchema).optional().describe('Submenu items'),
       separator: z.literal(false).optional().describe('Not a divider'),
-      type: z.never().optional().describe(
+      type: retirementTombstone(
         'RETIRED (objectui#6523) — dividers are `{ separator: true }`; ' +
         '`type` (\'separator\' or \'label\') was an undeclared spelling two ' +
         'renderers used to read and is now a declared refusal, not a strip.'
@@ -152,7 +162,7 @@ export const MenuItemSchema: z.ZodType<any> = z.lazy(() =>
     }),
     z.object({
       separator: z.literal(true).describe('Renders as a divider between items — no label'),
-      type: z.never().optional().describe('RETIRED (objectui#6523) — see the command-item arm above.'),
+      type: retirementTombstone('RETIRED (objectui#6523) — see the command-item arm above.'),
     }),
   ])
 );

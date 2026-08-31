@@ -20,6 +20,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { retirementTombstone } from './tombstone.zod.js';
 
 /**
  * Action Execution Mode Schema
@@ -82,7 +83,10 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   // The TS twin (`crud.ts`) types it `?: never`; here any authored value is a
   // loud parse rejection (absent stays valid), mirroring how `@objectstack/spec`
   // retires keys. One confirm spelling: `confirmText` below.
-  confirm: z.never().optional().describe('RETIRED (objectui#4314) — author confirmText instead'),
+  // This key ESTABLISHED the convention and was the last one still answering
+  // with zod's generic `expected never`; objectui#6931 routes it through
+  // `retirementTombstone()` so the refusal carries the remedy it teaches.
+  confirm: retirementTombstone('RETIRED (objectui#4314) — author confirmText instead'),
   confirmText: z.string().optional().describe('Confirmation message — shows a confirm dialog before executing'),
   dialog: z.object({
     title: z.string().optional().describe('Dialog title'),
