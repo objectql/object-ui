@@ -15,7 +15,7 @@
  * green while that was true.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { FeedFilterMode as SpecFilterMode, FeedItemType as SpecFeedItemType } from '@objectstack/spec/data';
 import type { FeedItem } from '@object-ui/types';
 import {
@@ -28,7 +28,10 @@ import {
   normalizeFeedTypes,
   normalizeFilterMode,
   normalizeLimit,
+  DELIBERATELY_UNADOPTED_FEED_TYPES,
+  PRODUCED_FEED_TYPES,
   resetUnknownActivityTypeWarnings,
+  resetUnproducedFeedTypeWarnings,
   resetUnrecognisedFeedTypeWarnings,
   resetUnrecognisedFilterModeWarnings,
   UNMAPPED_ACTIVITY_FEED_TYPE,
@@ -391,8 +394,16 @@ describe('input normalisation reads its vocabulary from the spec', () => {
   it('accepts every FeedItemType the spec declares, read from the spec itself', () => {
     // The allow-list vocabulary is never hand-typed here: a pin that re-states
     // the enum it is pinning cannot fail when the enum moves.
+    //
+    // The warn is muted rather than asserted here: naming all thirteen kinds
+    // reaches the unproduced-kind channel (objectui#5877), which has its own
+    // suite below. What THIS test is about is that all thirteen are ACCEPTED,
+    // and they still are — the diagnostic changes nothing about the return.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const declared = [...SpecFeedItemType.options];
     expect(normalizeFeedTypes(declared)).toEqual(declared);
+    resetUnproducedFeedTypeWarnings();
+    warn.mockRestore();
   });
 
   it('distinguishes "no `types` authored" from "nothing survived" (objectui#5841)', () => {
@@ -596,10 +607,18 @@ describe('an unusable `types` filter narrows or refuses, never widens (objectui#
     // `types: []` is honoured exactly, so there is nothing to report. Warning
     // about a request that was carried out teaches authors to ignore the channel
     // (same posture the unknown-activity-type warning takes above).
+    //
+    // ⚠️ This leg used to author `[...SpecFeedItemType.options]` — all thirteen
+    // declared kinds — as its "well-formed" case. That is no longer silent, and
+    // the change is the whole of objectui#5877: eight of the thirteen have no
+    // producer on any ObjectUI surface, so a filter naming them selects nothing
+    // and now says so on a SEPARATE channel (suite below). The property THIS
+    // test exists for is untouched and is asserted on kinds that are actually
+    // produced — a filter this pipeline can honour end to end stays quiet.
     const warn = quiet();
     applyFeedConfig(feed, {}, 50);
     applyFeedConfig(feed, { types: [] }, 50);
-    applyFeedConfig(feed, { types: [...SpecFeedItemType.options] }, 50);
+    applyFeedConfig(feed, { types: [...PRODUCED_FEED_TYPES] }, 50);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -612,6 +631,200 @@ describe('an unusable `types` filter narrows or refuses, never widens (objectui#
     applyFeedConfig(feed, { types: [UNRECOGNISED] }, 50);
     expect(warn).toHaveBeenCalledTimes(2);
     resetUnknownActivityTypeWarnings();
+  });
+});
+
+/**
+ * objectui#5877 — a declared feed kind with no producer must not render a
+ * permanently empty tab in silence.
+ *
+ * `types: ['approval']` parses, typechecks, builds and renders nothing, and
+ * before this suite nothing anywhere said why. Both directions are asserted,
+ * because a warn-on-everything implementation satisfies the first one alone:
+ * an unproduced kind MUST warn, and a produced kind MUST NOT. The populations
+ * are derived from the spec enum and from the producers themselves — a suite
+ * that re-types the census cannot fail when the census moves.
+ */
+describe('a `types` entry naming a kind nothing produces says so (objectui#5877)', () => {
+  beforeEach(() => {
+    // The buckets are module state and earlier suites in this file author
+    // thirteen-kind lists, so a fresh bucket is part of the fixture, not
+    // cleanup — a poisoned bucket makes every assertion below vacuously pass.
+    resetUnproducedFeedTypeWarnings();
+    resetUnrecognisedFeedTypeWarnings();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetUnproducedFeedTypeWarnings();
+    resetUnrecognisedFeedTypeWarnings();
+  });
+
+  const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const said = (warn: ReturnType<typeof quiet>, call = 0) => String(warn.mock.calls[call]?.[0] ?? '');
+
+  const declared = [...SpecFeedItemType.options];
+  const produced = declared.filter((k) => PRODUCED_FEED_TYPES.has(k));
+  const unproduced = declared.filter((k) => !PRODUCED_FEED_TYPES.has(k));
+
+  const feed: FeedItem[] = [
+    item({ id: 'c1', type: 'comment', createdAt: '2026-01-01T00:00:00.000Z' }),
+    item({ id: 'f1', type: 'field_change', createdAt: '2026-01-02T00:00:00.000Z' }),
+    item({ id: 's1', type: 'system', createdAt: '2026-01-03T00:00:00.000Z' }),
+  ];
+
+  /**
+   * The census this card was dispatched to re-derive, pinned as SETS rather
+   * than as a count so a red run names which kind moved.
+   *
+   * Measured on merge-base `e3d117ae1` over the whole repository (every
+   * non-test `.ts`/`.tsx` under `packages/`, `apps/`, `examples/`, `scripts/`,
+   * `e2e/`) — see `feedTypeProducerCensus-5877.test.ts`, which re-runs that
+   * scan rather than trusting this list. Giving a kind a producer is meant to
+   * turn this red: the census is the diagnostic's input, and it moving without
+   * anyone noticing is exactly how the warn would start lying.
+   */
+  it('the census — 13 declared kinds, 5 produced, 8 not', () => {
+    expect(declared).toHaveLength(13);
+    expect(produced.slice().sort()).toEqual(['comment', 'event', 'field_change', 'system', 'task']);
+    expect(unproduced.slice().sort()).toEqual([
+      'approval', 'call', 'email', 'file', 'note', 'record_create', 'record_delete', 'sharing',
+    ]);
+  });
+
+  it('`system` is PRODUCED — the unmapped fallback is a producer, not a gap', () => {
+    // The correction that made this card's original census stale. #6112 gave
+    // `activityRowToFeedItem` a defined fallback so an unclassified activity
+    // type reports a MISSING DECISION instead of vanishing; a warn that fired
+    // on `system` would contradict that design.
+    const warn = quiet();
+    expect(PRODUCED_FEED_TYPES.has(UNMAPPED_ACTIVITY_FEED_TYPE)).toBe(true);
+    normalizeFeedTypes(['system']);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('WARNS for a genuinely unproduced kind — the card\'s own example', () => {
+    const warn = quiet();
+    normalizeFeedTypes(['approval']);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(said(warn)).toContain('"approval"');
+    expect(said(warn)).toContain('NO PRODUCER');
+  });
+
+  it('CONTROL — stays SILENT for every produced kind, one at a time and together', () => {
+    // The direction that fails a warn-on-everything implementation. Asserted
+    // per kind AND as a list, because a whole-list check passes for an
+    // implementation that warns on exactly one member.
+    const warn = quiet();
+    for (const kind of produced) normalizeFeedTypes([kind]);
+    normalizeFeedTypes(produced);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('CONTROL — every unproduced kind warns, one at a time', () => {
+    // The mirror of the control above: no member of the unproduced set is
+    // quietly exempt, so the diagnostic covers the population rather than the
+    // one kind the first test happened to name.
+    for (const kind of unproduced) {
+      const warn = quiet();
+      normalizeFeedTypes([kind]);
+      expect(warn, `expected a diagnostic for the unproduced kind "${kind}"`).toHaveBeenCalledTimes(1);
+      expect(said(warn)).toContain(`"${kind}"`);
+      warn.mockRestore();
+      resetUnproducedFeedTypeWarnings();
+    }
+  });
+
+  it('reports a DELIBERATELY unadopted kind as a decision, never as a defect', () => {
+    // The distinction the card turns on: `record_create` / `record_delete` /
+    // `sharing` are not missing, they are not adopted, and reporting a decision
+    // as a defect is how authors learn to ignore a channel.
+    const warn = quiet();
+    normalizeFeedTypes([...DELIBERATELY_UNADOPTED_FEED_TYPES]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = said(warn);
+    expect(message).toContain('DELIBERATELY NOT ADOPTED');
+    expect(message).toContain('a decision rather than a gap');
+    expect(message).toContain('shared map');
+    // …and it does NOT reach for the other population's wording.
+    expect(message).not.toContain('NO PRODUCER');
+  });
+
+  it('keeps the two populations apart inside ONE diagnostic', () => {
+    const warn = quiet();
+    normalizeFeedTypes(['sharing', 'approval']);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = said(warn);
+    expect(message).toContain('DELIBERATELY NOT ADOPTED');
+    expect(message).toContain('"sharing"');
+    expect(message).toContain('NO PRODUCER');
+    expect(message).toContain('"approval"');
+    // The honest limitation, stated in the message rather than in a comment
+    // nobody reads: an unproduced kind is not thereby known to be an oversight.
+    expect(message).toContain('not recorded anywhere');
+  });
+
+  it('names the host exception rather than claiming the census is exhaustive', () => {
+    // A host that supplies `items` or its own DiscussionContext produces kinds
+    // no census taken in this repository can bound. Saying so is what keeps the
+    // warning honest for the surface it cannot see.
+    const warn = quiet();
+    normalizeFeedTypes(['email']);
+    expect(said(warn)).toContain('HOST');
+    expect(said(warn)).toContain('Feed item types ObjectUI produces today:');
+  });
+
+  it('HONOURS the entry — this is a diagnostic, not a refusal', () => {
+    const warn = quiet();
+    // Returned as authored, so nothing that renders changes: a declared kind is
+    // still a legal filter, and the block still filters to it.
+    expect(normalizeFeedTypes(['approval'])).toEqual(['approval']);
+    expect(normalizeFeedTypes(['approval', 'comment'])).toEqual(['approval', 'comment']);
+    expect(warn).toHaveBeenCalledTimes(1); // deduped: `approval` named once
+  });
+
+  it('dedupes per distinct kind, and names only the fresh ones', () => {
+    const warn = quiet();
+    normalizeFeedTypes(['approval']);
+    normalizeFeedTypes(['approval']);
+    expect(warn).toHaveBeenCalledTimes(1);
+    normalizeFeedTypes(['approval', 'call']);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(said(warn, 1)).toContain('"call"');
+    expect(said(warn, 1)).not.toContain('"approval"');
+  });
+
+  it('is its OWN channel — the unrecognised warning does not silence it', () => {
+    // Same hazard the other two channels keep apart: one bucket would let
+    // whichever fired first swallow the other, and these two vocabularies meet
+    // in one authored list all the time.
+    const warn = quiet();
+    normalizeFeedTypes(['crm_task', 'approval']);
+    expect(warn).toHaveBeenCalledTimes(2);
+    const messages = warn.mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => m.includes('unrecognised') && m.includes('"crm_task"'))).toBe(true);
+    expect(messages.some((m) => m.includes('NO PRODUCER') && m.includes('"approval"'))).toBe(true);
+  });
+
+  it('fires through applyFeedConfig — the path the block actually renders on', () => {
+    // Asserting the sanitiser alone would leave the diagnostic unreachable from
+    // the pipeline; this is the call `record:activity` makes on every render.
+    const warn = quiet();
+    const applied = applyFeedConfig(feed, { types: ['approval'] }, 50);
+    expect(applied.items).toEqual([]); // the permanently empty tab, unchanged
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(said(warn)).toContain('"approval"');
+  });
+
+  it('the produced set is DERIVED from the producers, not a second hand list', () => {
+    // The property that makes an added producer retire its own diagnostic in
+    // the same edit: every value the map can yield is in the set, and so is the
+    // fallback. A hand-kept copy would pass a value check while drifting.
+    for (const mapped of Object.values(ACTIVITY_TYPE_TO_FEED_TYPE)) {
+      if (mapped) expect(PRODUCED_FEED_TYPES.has(mapped)).toBe(true);
+    }
+    expect(PRODUCED_FEED_TYPES.has(UNMAPPED_ACTIVITY_FEED_TYPE)).toBe(true);
+    // …and it never claims a kind the spec does not declare.
+    for (const kind of PRODUCED_FEED_TYPES) expect(declared).toContain(kind);
   });
 });
 

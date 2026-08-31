@@ -223,7 +223,7 @@ indistinguishable from no activity at all.
 
 | Input | Effect | Needs |
 |---|---|---|
-| `types` | Allow-list of feed item types. Recognised entries narrow the feed; unrecognised ones are dropped and named in one `console.warn`. A list that keeps nothing — `types: []`, or one whose every entry is unrecognised — filters to **nothing** and the panel renders an empty timeline, rather than widening back to every kind. Omit `types` for no filter; that is the only value that means it. | — |
+| `types` | Allow-list of feed item types. Recognised entries narrow the feed; unrecognised ones are dropped and named in one `console.warn`. A list that keeps nothing — `types: []`, or one whose every entry is unrecognised — filters to **nothing** and the panel renders an empty timeline, rather than widening back to every kind. Omit `types` for no filter; that is the only value that means it. A recognised entry that **no producer emits** is honoured but named too — see [Feed kinds with no producer](#feed-kinds-with-no-producer). | — |
 | `filterMode` | Which slice the filter dropdown opens on (`all` / `comments_only` / `changes_only` / `tasks_only`). The user can still change it. An unrecognised value falls back to `all`. | — |
 | `showFilterToggle` | Shows/hides that dropdown. | — |
 | `limit` | Items per page; also caps the scoped `sys_activity` read. "Load more" grows the window by this much and re-reads. | — |
@@ -241,6 +241,43 @@ indistinguishable from no activity at all.
 > from. The input stays declared only because `@objectstack/spec` declares it —
 > it is recorded as a known gap here and in the block's registration rather than
 > left looking configurable (objectui#3165).
+
+### Feed kinds with no producer
+
+`FeedItemType` publishes thirteen kinds. ObjectUI produces **five** of them:
+
+| kind | produced by |
+|---|---|
+| `field_change` | `sys_activity` types `created` / `updated` / `deleted` / `assigned` / `shared` |
+| `task` | `sys_activity` type `completed` |
+| `event` | `sys_activity` type `scheduled` |
+| `system` | `sys_activity` type `system`, **and** any author-extended type the map has never seen (it renders through the generic presentation rather than vanishing) |
+| `comment` | `sys_comment` rows, merged in by the console's record page and handed to the block through the discussion context |
+
+The other eight — `email`, `call`, `note`, `file`, `record_create`,
+`record_delete`, `approval`, `sharing` — have no producer on any ObjectUI
+surface. Authoring `types: ['approval']` is legal, typechecks, builds, and
+renders a **permanently empty** timeline. Since objectui#5877 it also emits one
+`console.warn` per distinct kind, so the emptiness is diagnosable instead of
+looking like "a working feature with no data yet".
+
+The diagnostic separates two reasons a kind has no producer, because reporting a
+decision as a defect is how a warning channel gets ignored:
+
+- `record_create`, `record_delete` and `sharing` are **deliberately not
+  adopted**. Those rows are mapped to `field_change` on purpose — the record page
+  and this block have to agree about what a `created` row *is* before either can
+  move to the richer kind, so adopting them is a change to a shared map rather
+  than to one block.
+- The rest simply have **no producer**. Whether that is a gap or a decision
+  nobody wrote down is not recorded anywhere the renderer can read, so the
+  warning reports the measurement and stops there.
+
+<Callout type="info">
+  The census is over **ObjectUI's own** producers. If your host supplies the feed
+  itself — `items` on the node, or a discussion context you mount — it can
+  produce kinds this list cannot see, and the warning does not apply to them.
+</Callout>
 
 ## Schema API
 
