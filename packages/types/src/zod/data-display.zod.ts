@@ -298,7 +298,12 @@ export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
  */
 export const TreeViewSchema = BaseSchema.extend({
   type: z.literal('tree-view'),
-  data: z.array(TreeNodeSchema).describe('Tree data'),
+  data: z.array(TreeNodeSchema)
+    .describe('Tree data, read as the fallback limb of `boundData || schema.nodes || schema.data || []` at renderers/data-display/tree-view.tsx:105'),
+  nodes: z.array(TreeNodeSchema).optional()
+    .describe('Tree data, read FIRST at renderers/data-display/tree-view.tsx:105 — the middle limb of `boundData || schema.nodes || schema.data || []`, so it wins over `data`. ⚠️ `data` stays REQUIRED here: declaring `nodes` does not by itself make a `nodes`-only document legal (objectui#6150)'),
+  title: z.string().optional()
+    .describe('Heading above the tree, read at renderers/data-display/tree-view.tsx:115 (presence gate) and :117 (the h3 body) (objectui#6150)'),
   defaultExpandedIds: z.array(z.string()).optional().describe('Default expanded node IDs'),
   defaultSelectedIds: z.array(z.string()).optional().describe('Default selected node IDs'),
   expandedIds: z.array(z.string()).optional().describe('Controlled expanded node IDs'),

@@ -1111,9 +1111,35 @@ export interface TreeNode {
 export interface TreeViewSchema extends BaseSchema {
   type: 'tree-view';
   /**
-   * Tree data
+   * Tree data — the fallback spelling, read only when
+   * {@link TreeViewSchema.nodes} is absent.
+   *
+   * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:105`
+   * — `const rawNodes = boundData || schema.nodes || schema.data || []`.
    */
   data: TreeNode[];
+  /**
+   * Tree data — the spelling the renderer reads FIRST.
+   *
+   * READ SITE: `renderers/data-display/tree-view.tsx:105`, the middle limb of
+   * `boundData || schema.nodes || schema.data || []`, so `nodes` WINS over
+   * {@link TreeViewSchema.data} when both are authored (and a `bind`-resolved
+   * value wins over both).
+   *
+   * ⚠️ Declaring `nodes` does NOT by itself make `{ type: 'tree-view', nodes }`
+   * a legal document: {@link TreeViewSchema.data} stays REQUIRED on both faces,
+   * so the validator still demands `data`. Relaxing that is an accept-set
+   * change and a separate ruling — objectui#6150 declares the read, nothing
+   * more.
+   */
+  nodes?: TreeNode[];
+  /**
+   * Heading rendered above the tree.
+   *
+   * READ SITE: `renderers/data-display/tree-view.tsx:115` (presence gate) and
+   * `:117` (the `h3` body).
+   */
+  title?: string;
   /**
    * Default expanded node IDs
    */
@@ -1148,6 +1174,21 @@ export interface TreeViewSchema extends BaseSchema {
    * Node expand handler
    */
   onExpandChange?: (expandedIds: string[]) => void;
+  /**
+   * Node click handler — INVOKED, not merely read, so this is a call
+   * signature and not a value shape.
+   *
+   * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:98`
+   * (presence gate `if (schema.onNodeClick)`) and `:99` (the call
+   * `schema.onNodeClick(node)`), where `node` is the clicked
+   * {@link TreeNode}. The handler's return value is discarded.
+   *
+   * ⚠️ NOT mirrored in `../zod/data-display.zod.ts`, deliberately: a function
+   * cannot appear in an authored JSON document, so it is a runtime slot.
+   * objectui#6152 ruled that class never gets a mirror; it is recorded in
+   * `__tests__/zod-mirror-parity.test.ts`'s `RuntimeOnlyDeclared` instead.
+   */
+  onNodeClick?: (node: TreeNode) => void;
 }
 
 /**

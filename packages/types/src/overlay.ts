@@ -319,6 +319,17 @@ export interface HoverCardSchema extends BaseSchema {
    */
   closeDelay?: number;
   /**
+   * Alignment of the card against its trigger.
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/hover-card.tsx:24` —
+   * `align={schema.align}` on `HoverCardContent`, beside the already-declared
+   * `side={schema.side}`.
+   *
+   * Same vocabulary as {@link DropdownMenuSchema.align} and
+   * {@link PopoverSchema.align}; declared by objectui#6150.
+   */
+  align?: OverlayAlignment;
+  /**
    * Open state change handler
    */
   onOpenChange?: (open: boolean) => void;
@@ -458,6 +469,21 @@ export interface ContextMenuSchema extends BaseSchema {
    * Element to attach context menu to
    */
   children: SchemaNode | SchemaNode[];
+  /**
+   * The right-clickable area's content.
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/context-menu.tsx:95`
+   * — `renderChildren(schema.trigger || { type: 'text', value: 'Right click here' })`
+   * inside `ContextMenuTrigger`. ⚠️ Note the renderer renders `trigger`, NOT
+   * the declared {@link ContextMenuSchema.children}, which no read site
+   * consumes.
+   *
+   * Declared OPTIONAL although the docs page shows it required: the renderer
+   * substitutes a placeholder when it is absent, so every document without a
+   * `trigger` is legal today and declaring it required would refuse them.
+   * Declared by objectui#6150.
+   */
+  trigger?: SchemaNode | SchemaNode[];
 }
 
 /**

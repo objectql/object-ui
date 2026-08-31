@@ -120,6 +120,8 @@ export const HoverCardSchema = BaseSchema.extend({
   defaultOpen: z.boolean().optional().describe('Default open state'),
   open: z.boolean().optional().describe('Controlled open state'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Hover card side'),
+  align: z.enum(['start', 'center', 'end']).optional()
+    .describe('Alignment against the trigger, read at renderers/overlay/hover-card.tsx:24 — `align={schema.align}` on HoverCardContent, beside the already-declared `side` (objectui#6150)'),
   openDelay: z.number().optional().describe('Delay before opening (ms)'),
   closeDelay: z.number().optional().describe('Delay before closing (ms)'),
   onOpenChange: z.function().optional().describe('Open change handler'),
@@ -176,6 +178,8 @@ export const ContextMenuSchema = BaseSchema.extend({
   type: z.literal('context-menu'),
   items: z.array(MenuItemSchema).describe('Menu items'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Context menu children'),
+  trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
+    .describe("Right-clickable area, read at renderers/overlay/context-menu.tsx:95 — `renderChildren(schema.trigger || {type:'text', value:'Right click here'})`. Optional although the docs page shows it required: the renderer substitutes a placeholder, so trigger-less documents are legal today (objectui#6150)"),
 });
 
 /**

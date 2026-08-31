@@ -346,6 +346,18 @@ export interface CheckboxSchema extends BaseSchema {
    */
   error?: string;
   /**
+   * Whether the box must be checked — drives a VISIBLE affordance, not just
+   * form semantics.
+   *
+   * READ SITES: `packages/components/src/renderers/form/checkbox.tsx:45` —
+   * `required={schema.required}` on the Radix `Checkbox` — and `:49`, where it
+   * gates the label's required marker
+   * (`schema.required && "text-destructive after:content-['*']"`).
+   *
+   * Declared by objectui#6150; one of the two behavioural keys in that census.
+   */
+  required?: boolean;
+  /**
    * Change handler
    */
   onChange?: (checked: boolean) => void;
@@ -592,6 +604,21 @@ export interface FileUploadSchema extends BaseSchema {
    * Error message
    */
   error?: string;
+  /**
+   * Label on the drop zone / upload button.
+   *
+   * READ SITE: `packages/components/src/renderers/form/file-upload.tsx:123` —
+   * `{isUploading ? "…" : (schema.buttonText || "DROP PAYLOAD OR CLICK TO UPLOAD")}`.
+   */
+  buttonText?: string;
+  /**
+   * Tailwind classes appended to the outer wrapper `div`.
+   *
+   * READ SITE: `renderers/form/file-upload.tsx:78` — appended to the
+   * renderer's own grid classes as
+   * `` `grid w-full … ${schema.wrapperClass || ''}` ``.
+   */
+  wrapperClass?: string;
   /**
    * Change handler (receives FileList or File[])
    */

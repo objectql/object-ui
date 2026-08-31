@@ -65,9 +65,11 @@
  *     Anything citing "121" as the mirroring debt is citing a number that changed
  *     meaning — the comparable figure is 97 + 1 mirrored + 23 reclassified. The
  *     full statement is on that ledger.
- *   - **6 entries** in `RuntimeOnlyDeclared`, **23 keys** across them — a strict
- *     subset of the 16 pairs above, so the "no entry in either" population is
- *     unchanged.
+ *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
+ *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
+ *     the first pair whose ONLY ledger entry is a runtime-only one
+ *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
+ *     "no entry in either" population dropped by one to 141.
  *   - 158 − 12 = **146**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
@@ -248,7 +250,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 142 of the 158. */
+/** …and so does a clean pair with no entry, which is the case for 141 of the 158. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -1041,6 +1043,23 @@ interface RuntimeOnlyDeclared {
    */
   'objectql.zod.ts#ObjectViewSchema': 'onNavigate';
   /**
+   * `TreeViewSchema`'s ONLY entry in either ledger — the pair was clean before
+   * objectui#6150 and this key is the whole of its debt.
+   *
+   * OVERSIGHT group by mirror shape (`onSelectChange` and `onExpandChange` are
+   * mirrored beside it as `z.function()`), but it arrives here as a DECLARATION,
+   * not a discovery: objectui#6150's census measured `schema.onNodeClick` INVOKED
+   * at `renderers/data-display/tree-view.tsx:98,99` against a type that declared
+   * nothing, and the card declared it. A function cannot appear in an authored
+   * JSON document, so the key is a runtime slot and objectui#6152's ruling routes
+   * it here rather than to a mirror — the step-3 exception in the header above,
+   * used exactly as written.
+   *
+   * ⚠️ This is the first pair to sit in `RuntimeOnlyDeclared` without also sitting
+   * in `UnmirroredDeclared`; the two counts in the file header record that.
+   */
+  'data-display.zod.ts#TreeViewSchema': 'onNodeClick';
+  /**
    * 3 of `DetailViewSchema`'s former 14 — the exact three the 2026-07 audit named. By
    * mirror SHAPE this is the oversight group (`onBack` is mirrored, as `z.string()`),
    * but this is also the pair where "a props bag wearing a schema's clothes" was
@@ -1169,10 +1188,12 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
- * pairs with no entry in either (158 − 16; `RuntimeOnlyDeclared`'s 6 pairs are a
- * measured subset of `UnmirroredDeclared`'s 16, so the clean population is unchanged
- * by objectui#6152's reclassification).
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 141
+ * pairs with no entry in either (158 − 17). Six of `RuntimeOnlyDeclared`'s seven
+ * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
+ * reclassification left the clean population unchanged; objectui#6150 then added
+ * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 17
+ * pairs and not 16.
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
  * The exit code is a whole-file verdict, so it moves only while the rest of the

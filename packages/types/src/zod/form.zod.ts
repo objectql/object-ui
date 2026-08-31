@@ -264,6 +264,8 @@ export const CheckboxSchema = BaseSchema.extend({
   defaultChecked: z.boolean().optional().describe('Default checked state'),
   checked: z.boolean().optional().describe('Controlled checked state'),
   disabled: z.boolean().optional().describe('Whether checkbox is disabled'),
+  required: z.boolean().optional()
+    .describe("Required affordance, read at renderers/form/checkbox.tsx:45 (`required=` on the Radix Checkbox) and :49 (gates the label's `*` marker) (objectui#6150)"),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   onChange: z.function().optional().describe('Change handler'),
@@ -339,6 +341,10 @@ export const FileUploadSchema = BaseSchema.extend({
   type: z.literal('file-upload'),
   name: z.string().optional().describe('Field name for form submission'),
   label: z.string().optional().describe('Upload label'),
+  buttonText: z.string().optional()
+    .describe('Drop-zone label, read at renderers/form/file-upload.tsx:123 — `schema.buttonText || "DROP PAYLOAD OR CLICK TO UPLOAD"` (objectui#6150)'),
+  wrapperClass: z.string().optional()
+    .describe('Outer wrapper classes, appended to the renderer\'s own grid classes at renderers/form/file-upload.tsx:78 (objectui#6150)'),
   accept: z.string().optional().describe('Accepted file types'),
   multiple: z.boolean().optional().describe('Allow multiple files'),
   maxSize: z.number().optional().describe('Maximum file size (bytes)'),
