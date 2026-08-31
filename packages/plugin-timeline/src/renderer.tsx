@@ -272,31 +272,148 @@ function calculateDateRange(items: any[]): { minDate: string; maxDate: string } 
 }
 
 /**
- * How a gantt date value is SPELLED inside a diagnostic (objectui#6759).
+ * How a gantt date value is SPELLED inside a diagnostic (objectui#6759,
+ * ruled into a rule by objectui#6907).
  *
- * The diagnostic's whole job is to name the value the author actually wrote, so
- * the three spellings that would blur it are all avoided: a string is quoted
- * (`"not-a-date"`), so an empty or space-padded value is visible rather than
- * vanishing into the sentence; `undefined` and `null` are spelled as
- * themselves, which is how an author reads a key they forgot to write versus
- * one they wrote as empty; and everything else falls back to `String`.
+ * ## THE RULE
  *
- * The `null` branch was written by #6759 ahead of a caller: `null` parses to
- * the epoch, so `findUnusableGanttDate` could not reach it and no resolved
- * `minDate` / `maxDate` can be `null` (the caller's `||` discards it). It went
- * live with objectui#6770, which refuses a `null` ROW date.
+ *     Spell the value when the LANGUAGE owns its spelling.
+ *     Name its TYPE when producing text would run AUTHOR code.
  *
- * Total by construction, including the `symbol` branch that looks like padding:
- * `String(Symbol())` THROWS, and a helper that crashes while reporting an
- * author error would replace a named diagnostic with an unexplained blank
- * render — the exact failure mode this card exists to remove.
+ * That single line decides every branch below, and it is a rule rather than a
+ * list of values someone tripped over — the same treatment #6781 gave the
+ * accept set. Every primitive has a spelling fixed by the grammar, so a
+ * primitive is spelled: it is literally the text the author typed, and it
+ * cannot be confused with the spelling of a different value. A non-primitive
+ * has no such spelling. The only way to get text out of one is to call
+ * `toString` / `Symbol.toPrimitive` / `Symbol.toStringTag`, all of which are
+ * whatever the authored document happens to carry — so the diagnostic would be
+ * quoting the very data it is refusing, as if it were trustworthy.
+ *
+ * ## Why the old `String` fallback had to go — three faults, all measured
+ *
+ * The fallback was written by #6759 when nothing but `[object Object]`-shaped
+ * values could reach it. #6905 (the #6781 type rule) routes the whole
+ * non-date type space through it. Measured on this card's base b458300ca, one
+ * row item and a throwaway probe (`startDate: '2024-01-01'`, `endDate` varied):
+ *
+ *     endDate: []                 -> "endDate is , which is not a valid date"
+ *     endDate: ['2024-01-01']     -> "endDate is 2024-01-01, ..."
+ *     endDate: [0]                -> "endDate is 0, ..."
+ *     endDate: 0n                 -> "endDate is 0, ..."
+ *     endDate: {toString: () => '2024-01-01'}
+ *                                 -> "endDate is 2024-01-01, ..."
+ *     endDate: new Map()          -> "endDate is [object Map], ..."
+ *     endDate: function myFn() {} -> the function's SOURCE TEXT, newlines and all
+ *     endDate: {toString() { throw }}      -> THREW, uncaught, mid-render
+ *     endDate: {get [Symbol.toStringTag]() { throw }}
+ *                                          -> THREW, uncaught, mid-render
+ *     endDate: Object.create(null)         -> THREW TypeError: Cannot convert
+ *                                             object to primitive value
+ *
+ * 1. It VANISHES. `String([])` is the empty string, so the value disappears
+ *    from its own sentence — the exact blur this helper quotes strings to
+ *    avoid, reached through a different branch.
+ * 2. It LIES. `['2024-01-01']` is spelled as a text that IS a valid date, and
+ *    `[0]` / `0n` as a number that IS an accepted one (`0` is a kept gantt
+ *    date, #6781). The author is told a correct-looking value is invalid with
+ *    no hint that the wrapper is the fault.
+ * 3. It THROWS. The last three rows are live crashes on `main`, and they are
+ *    the reason this is not a cosmetic card. #6759 declared this helper "total
+ *    by construction" and #6905 made that property load-bearing by putting the
+ *    type gate BEFORE `new Date`. But the gate only stopped `new Date` from
+ *    throwing; `String(value)` still handed control to author code one line
+ *    later, so the crash class did not go away — it moved from
+ *    `findUnusableGanttDate` into this function. A helper that dies while
+ *    reporting an author error replaces a named diagnostic with a blank screen,
+ *    which is the failure mode both cards exist to remove.
+ *
+ * ## Why NOT `JSON.stringify`, the obvious repair
+ *
+ * `JSON.stringify(0n)` THROWS (`TypeError: Do not know how to serialize a
+ * BigInt`), and it throws again on a cycle, and it drops `undefined` members.
+ * It would reintroduce fault 3 — the crash class — into the one helper that
+ * must not have it. Measured, not assumed. It stays only where it is already
+ * total: on a `string`, where it is #6759's quoting and nothing else.
+ *
+ * ## Why NOT "type plus a bounded rendering"
+ *
+ * The rule refuses it, on the same ground as the rest: any rendering of a
+ * non-primitive reads something off it. Even the most bounded version — an
+ * element count — is not total, because `Array.isArray` is true for a Proxy
+ * whose `length` trap throws (measured). A hybrid would buy a few characters of
+ * detail by giving back the crash-freedom the whole card is about.
+ *
+ * ## Why naming the TYPE does not abandon this helper's purpose
+ *
+ * The purpose is to let an author find and fix the value. The PATH half does
+ * the finding and is always exact (`items[0].items[0].endDate`); the value half
+ * exists to disambiguate what sits there when the author cannot see it — `''`
+ * from `'  '` from a key never written. For a non-primitive, the author can
+ * read their own document at that path; what they cannot read is WHY it was
+ * refused. "is an array" says exactly that, and says it about the wrapper,
+ * which is the repair. Naming a WRONG value, as the fallback did, is strictly
+ * worse than naming a category: it costs the author a search for a fault that
+ * is not there.
+ *
+ * ## The branches, and why each is total
+ *
+ * - `string` -> quoted (#6759's pin; empty and space-padded stay visible).
+ * - `undefined` / `null` -> themselves (#6759 / #6770's pins; how an author
+ *   reads a key they forgot to write versus one they wrote as empty).
+ * - `symbol` -> `Symbol(desc)` via `Symbol.prototype.toString`, which no
+ *   instance can override. `String(aSymbol)` THROWS; #6905's type-first
+ *   ordering is what finally made this branch reachable.
+ * - `bigint` -> the LITERAL, with its `n`. `String(0n)` is `"0"`, which is
+ *   fault 2; `${value}n` is what the author typed and is unmistakable.
+ * - `number` / `boolean` -> `String`, which for a primitive IS the source
+ *   syntax (`0`, `NaN`, `false`).
+ * - `Date` -> `Date.prototype.toString.call`, NOT `String`. Byte-identical for
+ *   every Date that owns a `[[DateValue]]` slot (measured, both the valid and
+ *   the `Invalid Date` reading), so the inverted-range diagnostic this helper
+ *   is shared with does not move. It is used in place of `String` because a
+ *   `class X extends Date` that overrides `toString` can hijack `String` and
+ *   throw (measured) — the builtin cannot be. This is the one non-primitive
+ *   with a spelling the LANGUAGE owns, and it is also the only non-primitive
+ *   the accept set contains.
+ * - everything else -> `an array` / `a function` / `an object`, chosen with
+ *   `Array.isArray` and `typeof`, which read no author-controlled property.
+ *   Deliberately NOT `Object.prototype.toString.call`: that consults
+ *   `Symbol.toStringTag`, which can be a throwing getter (measured), so the
+ *   more informative spelling is the non-total one.
+ *
+ * All eight `typeof` results are covered and no branch falls through to author
+ * code, so the helper is total by construction over every value that reaches
+ * it. The single reflective operation it performs, `instanceof Date`, is the
+ * one `isGanttDateType` already performed on the same value to refuse it — so
+ * this function adds no throw site the accept gate does not already have.
+ *
+ * ## What this deliberately does NOT do
+ *
+ * It does not change WHICH values are refused — that is #6781's ruling and it
+ * is untouched here — and it does not change the sentence. "is an array, which
+ * is not a valid date" reads correctly in the existing
+ * `timeline.gantt.unusableRange.malformedDate` hole, so no new i18n key is
+ * added and the ten locale packs are not opened. A spelling repair that needed
+ * a new key would be a different file surface and a separate decision.
  */
 function spellGanttDateValue(value: unknown): string {
+  // Primitives — the language fixes the spelling, so it is the author's own.
   if (typeof value === 'string') return JSON.stringify(value);
   if (value === undefined) return 'undefined';
   if (value === null) return 'null';
   if (typeof value === 'symbol') return value.toString();
-  return String(value);
+  if (typeof value === 'bigint') return `${value}n`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+
+  // The one non-primitive whose spelling the LANGUAGE owns, and the only one
+  // the accept set contains. `.call` so a subclass cannot hijack it.
+  if (value instanceof Date) return Date.prototype.toString.call(value);
+
+  // Every other non-primitive — named, never rendered. No author code runs.
+  if (Array.isArray(value)) return 'an array';
+  if (typeof value === 'function') return 'a function';
+  return 'an object';
 }
 
 /** A gantt date that does not parse, with the authored path that names it. */
