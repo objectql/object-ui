@@ -420,9 +420,53 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check:scripts
 
-      - name: Turbo Cache
+      # ── Cache bookkeeping cannot void a recorded verdict (objectui#6577) ──
+      # THE ORDERING, because it is the only thing a future reader needs in
+      # order to judge whether this step may be touched: this job's verdict is
+      # recorded by the three checking steps below, the last of which is
+      # `Type-check repo-root vitest setup files`. EVERYTHING AFTER THAT POINT
+      # IS BOOKKEEPING — writing `.turbo/cache` back for the next run. It must
+      # never be able to discard an answer the gate has already produced.
+      #
+      # It could, and once did. On 2026-08-26 the merge-group build of #6571
+      # was ejected from the queue with `CI_FAILURE` while every substantive
+      # check passed: all 21 real steps of this job succeeded, the gate steps
+      # included, and then the runner-generated `Post Turbo Cache` step spent
+      # 13m09s (789s) inside the cache upload and was still there when this
+      # job's `timeout-minutes: 20` fired at 20m02s. The job went `cancelled`,
+      # the merge queue cannot tell `cancelled` from `failure`, and a pull
+      # request that had passed was dequeued — 20 minutes of head-of-line
+      # blocking for every lane, then a full re-run. Same shape as the
+      # objectui#5304 apt block in the `e2e` job below: an unbounded network
+      # call whose only backstop was the job ceiling, which converts a
+      # transient fault into a CANCELLED check — a gate that reports nothing.
+      #
+      # A transient, not a property of this workflow: the same job on the same
+      # PR head thirteen minutes earlier (job 98190108000) went green in 5m53s
+      # and its cache save took ONE SECOND. That 1s is what the bound on the
+      # save step at the end of this job is sized against.
+      #
+      # Why the restore/save SPLIT and not a timeout on a single cache step:
+      # combined `actions/cache` declares `main: dist/restore/index.js` plus
+      # `post: dist/save/index.js`, so the save is a step the RUNNER generates
+      # (`Post Turbo Cache`, step #40 in the incident) — not an authored step,
+      # and no workflow syntax attaches `timeout-minutes` or
+      # `continue-on-error` to it. Splitting moves the save into the main
+      # phase, where both are ordinary documented step keys. The action's own
+      # `save-always` deprecation text points at this same split.
+      #
+      # The restore half is deliberately left UNBOUNDED. A restore stall fails
+      # before any verdict exists — a gate that did not run, which is honest —
+      # rather than a recorded verdict discarded, and bounding it would force a
+      # cold check under this same 20-minute ceiling.
+      #
+      # ⛔ Raising `timeout-minutes: 20` is not the fix and was ruled out on the
+      # card: a larger ceiling only buys a longer hang, still ending in
+      # `cancelled`, and lifting a gate's ceiling weakens the gate.
+      - name: Restore Turbo Cache
+        id: turbo-cache
         if: steps.relevant.outputs.should_run == 'true'
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-type-check-${{ github.sha }}
@@ -462,6 +506,39 @@ jobs:
       - name: Type-check repo-root vitest setup files
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check:vitest-setup
+
+      # The bookkeeping half of the split documented at the restore step above,
+      # placed HERE — after the last checking step — because that is exactly
+      # where the post phase it replaces already ran. Nothing about which
+      # commits this job accepts or rejects moves with it.
+      #
+      # `timeout-minutes: 5` is the bound the incident asked for: 300x the 1s a
+      # healthy save of this cache measured, so it cannot fire on a working
+      # runner, and even measured from the slowest verdict path on record
+      # (6m53s, the incident run) it lands roughly eight minutes clear of this
+      # job's 20-minute ceiling — this step can no longer reach that ceiling.
+      #
+      # `continue-on-error: true` is the other half, and without it the bound
+      # would only trade a `cancelled` gate for a red one. A cache that failed
+      # to upload costs the next run some time; it says nothing whatsoever
+      # about the code under test, so it must not be allowed to speak for it.
+      #
+      # Behaviour preserved, spelled out so the equivalence is checkable:
+      #   - `cache-hit != 'true'` reproduces the combined action's own "exact
+      #     hit on the primary key ⇒ do not save" skip.
+      #   - the condition names no status function, so the implicit `success()`
+      #     still applies — matching the combined action's `post-if: success()`.
+      #   - same `path` and same `key` as the restore step above.
+      - name: Save Turbo Cache
+        if: >-
+          steps.relevant.outputs.should_run == 'true'
+          && steps.turbo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-type-check-${{ github.sha }}
 
   # PRs run the suite split across 4 runners. The suite is dominated by fixed
   # per-file cost rather than by the assertions: a PR run reported 495s wall
