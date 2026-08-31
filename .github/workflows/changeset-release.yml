@@ -518,21 +518,32 @@ jobs:
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
-      # ⚠️ MEASURED 2026-08-26 (objectui#6391): this job performs NO local merge,
-      # so the driver configured below has no occasion to fire HERE. The step is
-      # kept anyway — see the ⛔ at the bottom of this comment, which is the part
-      # that matters.
+      # ⛔ Do NOT add a lockfile merge-driver `git config` step back here.
+      #
+      # There used to be one, and it could never fire. Removed by objectui#6436
+      # under the maintainer's ruling of 2026-08-27 ("dead in CI, live for
+      # contributors"): this job performs NO local merge, so a driver configured
+      # here had no occasion to run.
+      #
+      # ⭐ The MECHANISM is not retired — only this file's dead half is.
+      # `.gitattributes` still routes `pnpm-lock.yaml` through `merge=pnpm-merge`,
+      # and `CONTRIBUTING.md` still tells contributors to define that driver
+      # locally before `git merge upstream/main`. Measured both ways in a scratch
+      # repo, one variable changed: WITH the attribute the driver fires and the
+      # lockfile is regenerated; WITHOUT it, nothing else altered, the identical
+      # merge ends in `CONFLICT (content)` with conflict markers left inside
+      # `pnpm-lock.yaml`. The mechanism is contributor-facing with zero CI
+      # consumers, and this file is where the last CI consumer used to be.
       #
       # The sweep, so nobody re-derives it a fourth time (objectui#6358 and
       # objectui#6369 each re-derived it for a different workflow):
       #
       #   Every `git` in this file, enumerated rather than grepped-for-absence:
-      #   the two `git config` lines below, `git status --porcelain` (x2),
-      #   `git checkout -- .` and `git clean -fdq` in "Restore the pre-version
-      #   tree". No `merge`, `rebase`, `pull`, `cherry-pick`, `am`, `apply` or
-      #   `revert` anywhere in the file — each of those zero-hits was taken with
-      #   a control term that DID hit the same file, because a zero-hit with no
-      #   control is not a reading.
+      #   `git status --porcelain` (x2), `git checkout -- .` and `git clean -fdq`
+      #   in "Restore the pre-version tree". No `merge`, `rebase`, `pull`,
+      #   `cherry-pick`, `am`, `apply` or `revert` anywhere in the file — each of
+      #   those zero-hits was taken with a control term that DID hit the same
+      #   file, because a zero-hit with no control is not a reading.
       #
       #   `git checkout -- .` (below, in the restore step) takes tracked paths
       #   from the INDEX to undo what `pnpm changeset:version` wrote. That is a
@@ -547,29 +558,19 @@ jobs:
       # and `config user.*`. The version-branch update is `prepareBranch`
       # (checkout, then `reset --hard github.context.sha`) followed by a commit
       # and a FORCE-PUSH. It never merges, rebases or three-ways anything, so on
-      # this side too the driver has no occasion to fire. (Its `commitMode:
+      # this side too the driver had no occasion to fire. (Its `commitMode:
       # github-api` path — not selected here; the default is `git-cli` — builds
       # the commit through the GitHub API instead, and the bundle reads no
       # `.gitattributes` and implements no merge driver at all.)
       #
-      # ⛔ DO NOT delete this step "because it is dead" without a ruling. It is
-      # dead only in the CI half. The `.gitattributes` line it depends on
-      # (`pnpm-lock.yaml merge=pnpm-merge`) is NOT dead: `CONTRIBUTING.md` tells
-      # contributors to configure this same driver locally and then to
-      # `git merge upstream/main`, which is a real local merge on the attributed
-      # path. Measured both ways in a scratch repo: with the attribute the driver
-      # fires and the lockfile is regenerated; with the attribute removed and
-      # nothing else changed, the same merge ends in `CONFLICT (content)` with
-      # conflict markers in `pnpm-lock.yaml`. Removing the CI half forces
-      # `ci-cd-pipeline-doc.test.ts` to demand the attribute's removal too, which
-      # would break that live contributor path — so the two must be decided
-      # together, not dropped as one more dead row. objectui#6391 carries it.
-      - name: Configure Git merge driver for pnpm-lock.yaml
-        run: |
-          # Configure custom merge driver for pnpm-lock.yaml
-          # This allows Git to automatically resolve lockfile conflicts by regenerating it
-          git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
-          git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
+      # ⚠️ Re-adding the step reddens `ci-cd-pipeline-doc.test.ts`, which now
+      # asserts that ZERO workflows configure the driver — in both directions. If
+      # some future job really does merge locally on the runner, it needs the step
+      # AND a row in the "Lockfile Merge Driver" table of
+      # `content/docs/guide/ci-cd-pipeline.md`; the pin fails otherwise. Note that
+      # pin greps workflow files for the config key, so even NAMING the key in a
+      # comment here trips it — deliberately the safe direction (a false red, never
+      # a false green), which is why this comment spells the attribute form.
 
       - name: Turbo Cache
         uses: actions/cache@v6

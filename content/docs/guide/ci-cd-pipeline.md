@@ -798,10 +798,13 @@ job**. Move a step above an install and the population grows on the next run; mo
 shrinks. A hard-coded list would break silently the first time someone moved a step across an
 install, which is exactly the edit that needs catching. Two anchoring decisions the derivation
 depends on, each with a case in this repository: `pnpm exec playwright install chromium` installs a
-browser rather than the workspace, and `git config merge.pnpm-merge.driver "pnpm install …"` in
-`changeset-release.yml` *configures* a driver — the `pnpm install` there is a quoted argument, and
-that job's real install is a later step — reading either as an install would move a boundary and
-silently drop a script out of the population.
+browser rather than the workspace, and `git config merge.pnpm-merge.driver "pnpm install …"`
+*configures* a driver — the `pnpm install` there is a quoted argument, not an install. That second
+case was formerly live in `changeset-release.yml`; it was removed with the dead CI half of the
+lockfile merge driver ([#6436](https://github.com/objectstack-ai/objectui/issues/6436)), so the
+repository no longer contains a real instance and the gate keeps it as a synthetic fixture instead.
+Reading either shape as an install would move a boundary and silently drop a script out of the
+population.
 
 **It walks the graph, not the entry file.** Requiring each of the entry's own imports to start with
 `node:` is too narrow in one direction (a relative import of a builtins-only local module is fine,
@@ -1261,7 +1264,11 @@ restore step is load-bearing — with `.changeset/` left consumed the action wou
 pending, take its no-op branch and return, and the PR would fossilise with nothing failing
 anywhere — so the restoration is asserted, not assumed.
 
-Both lanes configure a pnpm-lock.yaml merge driver to prevent lock file conflicts.
+Neither lane configures a lockfile merge driver. This job performs no local merge — the version
+branch is updated by `reset --hard` plus a force-push inside `changesets/action` — so there is
+nothing for a driver to resolve. It configured one until
+[#6436](https://github.com/objectstack-ai/objectui/issues/6436); see **Lockfile Merge Driver**
+below for the half of that mechanism which is still live.
 
 ### Published Dist Gate (`published-dist-gate.yml`)
 
@@ -1771,6 +1778,12 @@ instead of quietly dropping out of the wait.
 
 ## Lockfile Merge Driver
 
+⭐ **Contributor-facing, with zero CI consumers.** It had exactly one CI consumer,
+`changeset-release.yml`, and that one was measured dead before it was removed
+([#6436](https://github.com/objectstack-ai/objectui/issues/6436), ruled 2026-08-27). What is left
+is live, repository-wide, and takes place entirely on contributors' machines — CI has no part in
+it.
+
 `pnpm-lock.yaml` is never merged line by line — it is regenerated. `.gitattributes` asks for
 that:
 
@@ -1778,70 +1791,63 @@ that:
 pnpm-lock.yaml merge=pnpm-merge
 ```
 
-Git does not ship a `pnpm-merge` driver, and an attribute naming a driver nothing defines falls
-back to an ordinary text merge. So every workflow that performs a **local** merge or rebase --
-one git carries out on the runner -- defines it immediately after checkout:
+⚠️ **An attribute names a driver; it does not define one.** Git ships no `pnpm-merge` driver, and
+an attribute naming a driver nothing defines falls back to an ordinary text merge. The definition
+lives in each contributor's own git config, and `CONTRIBUTING.md` is where they are told to add
+it, under **Configure Git Merge Driver for pnpm-lock.yaml**:
 
-```yaml
-- name: Configure Git merge driver for pnpm-lock.yaml
-  run: |
-    git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
-    git config merge.pnpm-merge.driver "pnpm install --no-frozen-lockfile"
+```bash
+git config merge.pnpm-merge.name "pnpm-lock.yaml merge driver"
+git config merge.pnpm-merge.driver "pnpm install"
 ```
 
-One workflow carries that step:
+That is the entire live mechanism — the attribute in the repository, the definition on the
+machine — and it fires on the `git merge upstream/main` that the same page tells contributors to
+run. Measured in a scratch repository with one variable changed between two runs: **with** the
+attribute the driver fires and the lockfile is regenerated; **without** it, nothing else altered,
+the identical merge ends in `CONFLICT (content)` with conflict markers left inside
+`pnpm-lock.yaml`.
+
+⭐ **Why the live half is worth more than the CI half ever was.** A lockfile carrying conflict
+markers is a high-blast-radius artifact that fails far from its cause, and hand-resolving one —
+by a person or by an agent — is precisely the edit nobody can review line by line. Letting the
+package manager regenerate the file instead makes that whole class of error structurally
+unreachable.
+
+**No workflow configures the driver**, and none should unless it gains a merge that git carries
+out **on the runner**:
 
 | Workflow | Why it needs the driver |
 |---|---|
-| `changeset-release.yml` | ⚠️ configures it — but performs no local merge, see the measurement below |
-
-⚠️ **That row's stated reason was wrong, and the row is now the whole question**
-([#6391](https://github.com/objectstack-ai/objectui/issues/6391)). It used to read "version bumps
-rewrite the lockfile on the release branch". A **rewrite is not a merge**: `changeset:version`
-overwrites `pnpm-lock.yaml` outright, and git runs a merge driver only when it has to *reconcile
-two versions* of an attributed path. Measured on `changeset-release.yml`, and recorded in the file
-itself so it is not re-derived a fourth time:
-
-- Every `git` in that workflow, enumerated rather than grepped for absence: the two `git config`
-  lines, `git status --porcelain` twice, and `git checkout -- .` plus `git clean -fdq` in "Restore
-  the pre-version tree". No `merge`, `rebase`, `pull`, `cherry-pick`, `am`, `apply` or `revert` —
-  every zero-hit taken with a control term that hit the same file.
-- `git checkout -- .` there takes tracked paths from the **index** to undo what the version step
-  wrote. That is a discard, not a merge.
-- The deciding fact is in the marketplace action, not the workflow. Read at `changesets/action`
-  v1.9.0 (`a45c4d5`), `src/git.ts` and the shipped `dist/` bundle agreeing: its entire git surface
-  is `checkout`, `reset --hard`, `add .`, `commit -m`, `push --force` and `config user.*`. The
-  version-branch update is a checkout, a `reset --hard` to the triggering commit, a commit, and a
-  **force-push**. A force-push resolves no merge, so the driver has no occasion to fire.
-
-⭐ **But the `.gitattributes` line is not dead, and that is why this is not simply a third
-removal.** The attribute is repository-wide, and its live consumer is the contributor path this
-page already points at: `CONTRIBUTING.md` tells contributors to configure this same driver and
-then to `git merge upstream/main`. Measured in a scratch repository, one variable changed between
-the two runs — **with** the attribute the driver fires and the lockfile is regenerated; **without**
-it, and nothing else altered, the identical merge ends in `CONFLICT (content)` with conflict
-markers left in `pnpm-lock.yaml`. So the CI half is dead and the repository half is live, while the
-pin below binds them together. Resolving that is a decision, not a cleanup.
+| _(none)_ | No workflow performs a local merge, so none gives the driver an occasion to fire |
 
 `scripts/__tests__/ci-cd-pipeline-doc.test.ts` pins that table against the workflows that
-actually configure `merge.pnpm-merge`, in both directions. It is pinned because the claim had
-already drifted two ways at once, and neither copy was checked by anything: this page named
-`changeset-release.yml` and `dependabot-auto-merge.yml`, while the deleted `.github/WORKFLOWS.md`
-named `changeset-release.yml` and `changelog.yml`. Each was missing a different one
+actually configure the driver, in both directions — a workflow that gains the step without a row
+is as red as a row whose workflow lost it. It is pinned because the claim had already drifted two
+ways at once, and neither copy was checked by anything: this page named `changeset-release.yml`
+and `dependabot-auto-merge.yml`, while the deleted `.github/WORKFLOWS.md` named
+`changeset-release.yml` and `changelog.yml`. Each was missing a different one
 ([#3724](https://github.com/objectstack-ai/objectui/issues/3724)).
 
-`--no-frozen-lockfile` is spelled out because Actions sets `CI=true`, under which pnpm refuses
-to modify the lockfile — a driver that cannot write the file it exists to rewrite would fail the
-merge it was installed to resolve. That default is off locally, which is why the same driver is
-configured with a plain `pnpm install` under **Configure Git Merge Driver for pnpm-lock.yaml** in
-`CONTRIBUTING.md`; contributors want it for the same reason CI does, on rebases of long-lived
-branches.
+⚠️ **That pin no longer proves the mechanism is alive, so something else has to.** While a
+workflow still configured the driver, "at least one workflow configures it" doubled as the guard
+that the table's grep had actually matched something. Zero is now the correct answer, so the same
+test instead asserts the two halves that remain load-bearing: that `.gitattributes` still routes
+`pnpm-lock.yaml` through the driver, and that `CONTRIBUTING.md` still tells contributors to define
+it. If either of those goes, the mechanism really has no consumers and this section should go with
+it — but that is then a measured conclusion rather than a silent one.
 
-Adding a workflow that merges **locally** — a merge git performs on the runner? Add the step
-after checkout and before the merge, and add its row above — the pin fails otherwise. This
-sentence has been read too widely twice, and each reading left a dead copy behind:
+Adding a workflow that merges **locally** — a merge git performs on the runner? Add the
+configuration step after checkout and before the merge, and add its row to the table above — the
+pin fails otherwise. It would need `--no-frozen-lockfile` in the driver command, because Actions
+sets `CI=true`, under which pnpm refuses to modify the lockfile, and a driver that cannot write
+the file it exists to rewrite would fail the merge it was installed to resolve. That default is
+off locally, which is why contributors configure the same driver with a plain `pnpm install`.
 
-⛔ **Pushing is not merging.** It said "merges or pushes" until
+The "does this workflow merge?" question has been read too widely three times, and each reading
+left a dead copy behind:
+
+⛔ **Pushing is not merging.** This sentence said "merges or pushes" until
 [#6358](https://github.com/objectstack-ai/objectui/issues/6358): `changelog.yml` carried the step
 on the strength of that word, having no merge to resolve. A workflow that only commits and pushes
 needs no driver, and giving it one buys nothing while implying a lockfile hazard it does not have.
@@ -1851,11 +1857,12 @@ needs no driver, and giving it one buys nothing while implying a lockfile hazard
 — `gh pr merge`. But GitHub executes that one itself, not on the runner, so no local git config
 takes part in it.
 
-⛔ **A rewrite is not a merge, and a force-push resolves none.** `changeset-release.yml` carries
+⛔ **A rewrite is not a merge, and a force-push resolves none.** `changeset-release.yml` carried
 the step on the strength of "version bumps rewrite the lockfile"
-([#6391](https://github.com/objectstack-ai/objectui/issues/6391)). Regenerating a file is not
-reconciling two versions of it, and the version branch is updated by `reset --hard` plus a
-force-push inside `changesets/action`, which merges nothing on the runner.
+([#6391](https://github.com/objectstack-ai/objectui/issues/6391)), and was the last workflow to
+carry it. Regenerating a file is not reconciling two versions of it, and the version branch is
+updated by `reset --hard` plus a force-push inside `changesets/action`, which merges nothing on
+the runner. Removed by [#6436](https://github.com/objectstack-ai/objectui/issues/6436).
 
 ## Adding a New Workflow
 
