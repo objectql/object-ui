@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
+    "@object-ui/test-support": "workspace:*",
     "@vitejs/plugin-react": "^6.0.5",
     "msw": "^2.15.0",
     "typescript": "^6.0.3",

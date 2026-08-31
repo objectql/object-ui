@@ -2043,6 +2043,9 @@ importers:
       '@object-ui/data-objectstack':
         specifier: workspace:*
         version: link:../data-objectstack
+      '@object-ui/test-support':
+        specifier: workspace:*
+        version: link:../test-support
       '@vitejs/plugin-react':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -2244,6 +2247,9 @@ importers:
       '@object-ui/data-objectstack':
         specifier: workspace:*
         version: link:../data-objectstack
+      '@object-ui/test-support':
+        specifier: workspace:*
+        version: link:../test-support
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3

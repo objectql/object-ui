@@ -36,15 +36,32 @@ import {
   MULTI_CAPABLE_TYPES,
   MULTI_OPTION_TYPES,
 } from '@objectstack/spec/data';
+import { enumOptions } from '@object-ui/test-support';
 
 import { SUPPORTED_SUMMARY_TYPES, type ColumnSummarySetting, type ColumnSummaryType } from '../useColumnSummary';
 import { hasMultiValueShape } from '../hooks/multiValueFields';
 
-const specSummaryOptions = (ColumnSummarySchema as unknown as { options: readonly string[] }).options;
+/**
+ * The spec's column-summary vocabulary.
+ *
+ * The wrapper walk is `@object-ui/test-support`'s shared reader (objectui#6924).
+ * No throw wrapper here — unlike the module-scope readers converted alongside it
+ * in objectui#7025, this suite already discharges the reader's non-vacuity duty
+ * with its OWN first assertion below, which is the sanctioned alternative. What
+ * it replaces was a NON-OPTIONAL cast of the enum node to an options-bearing
+ * shape; the loudness that cast provided is preserved by that assertion, not
+ * lost to `[]`.
+ */
+const specSummaryOptions: readonly string[] = enumOptions(ColumnSummarySchema);
 
 describe('the column-summary vocabulary comes from the spec', () => {
   it('reads a non-empty enum from the spec (the probe itself is not vacuous)', () => {
-    expect(Array.isArray(specSummaryOptions) && specSummaryOptions.length > 0).toBe(true);
+    // The reader answers `[]` when it cannot read the enum, so THIS is what
+    // keeps every assertion below from passing over an empty list.
+    expect(
+      specSummaryOptions,
+      'could not read ColumnSummarySchema.options from the spec',
+    ).not.toEqual([]);
   });
 
   it('every aggregation the spec accepts is one this renderer computes', () => {

@@ -39,6 +39,7 @@ import {
   ChartTypeSchema as SpecChartTypeSchema,
   PageTypeSchema as SpecPageTypeSchema,
 } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import {
   HttpMethodSchema,
   HttpRequestSchema,
@@ -175,7 +176,12 @@ describe('ListColumnSchema is the spec schema (the extension collapsed)', () => 
     // arm through `lazySchema`, whose Proxy resolves `.shape.type` to the inner
     // enum instead of the exported schema object, so a `toBe` check would test
     // the wrapper rather than the vocabulary it is meant to protect.
-    const vocabulary = (SpecColumnSummarySchema as unknown as { options: string[] }).options;
+    // The wrapper walk is `@object-ui/test-support`'s shared reader
+    // (objectui#6924). No throw wrapper: the assertion on the next line already
+    // discharges the reader's non-vacuity duty, which is what keeps the loop
+    // below from passing over an empty vocabulary now that a failed read
+    // answers `[]` instead of throwing (objectui#7025).
+    const vocabulary = enumOptions(SpecColumnSummarySchema);
     expect(vocabulary.length, 'spec ColumnSummarySchema should be a non-empty enum').toBeGreaterThan(0);
 
     for (const agg of vocabulary) {

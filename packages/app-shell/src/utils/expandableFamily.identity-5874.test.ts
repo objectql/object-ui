@@ -54,6 +54,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EXPANDABLE_FIELD_TYPES } from '@object-ui/core';
 import { FieldType } from '@objectstack/spec/data';
+import { enumOptions } from '@object-ui/test-support';
 import { ActionParamSchema } from '@objectstack/spec/ui';
 import {
   resolveActionParams,
@@ -61,9 +62,30 @@ import {
   type RawActionParam,
 } from './resolveActionParams';
 
-const SPEC_FIELD_TYPES: readonly string[] = [
-  ...(FieldType as unknown as { options: readonly string[] }).options,
-];
+/**
+ * The spec's own `FieldType` vocabulary.
+ *
+ * The wrapper walk is `@object-ui/test-support`'s shared reader (objectui#6924);
+ * the THROW stays HERE, because the reader deliberately answers `[]` rather than
+ * raising and this read is module-scope. What it replaces was a NON-OPTIONAL
+ * cast of the enum node to an options-bearing shape, spread directly — which
+ * failed LOUDLY the moment the cast stopped holding (spreading `undefined`
+ * throws), so a bare `enumOptions` call here would have traded a loud failure
+ * for a silently empty vocabulary: every assertion below would then pass over
+ * nothing. That trade is the regression objectui#7025 exists to refuse. (The
+ * retired spelling is deliberately NOT quoted here: the card's enumeration
+ * instrument is a grep for it, and a comment carrying the literal text makes
+ * every future re-derivation of this population read a false positive.)
+ */
+const readSpecFieldTypes = (): readonly string[] => {
+  const options = enumOptions(FieldType);
+  if (options.length === 0) {
+    throw new Error('could not read FieldType.options from @objectstack/spec');
+  }
+  return options;
+};
+
+const SPEC_FIELD_TYPES: readonly string[] = readSpecFieldTypes();
 
 /** Every picker key `lookupExtras` copies off the resolved object field. */
 const PICKER_KEYS = [
