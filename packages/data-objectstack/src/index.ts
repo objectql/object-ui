@@ -2750,6 +2750,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           this.emitSaveAdvisory({
             type,
             name,
+            // #5026 — this interceptor wraps `meta.saveItem`, the SAVE door
+            // (`PUT /meta/:type/:name`) and only that one. The SDK's publish
+            // door (`meta.publishItem`) has no caller in this repo, so wiring
+            // it here would be a surface with no consumer; `MetadataClient` is
+            // where the publish door is actually taken.
+            door: 'save',
             mode: (result as { state?: string } | null | undefined)?.state === 'draft' ? 'draft' : 'publish',
             advisories,
           });

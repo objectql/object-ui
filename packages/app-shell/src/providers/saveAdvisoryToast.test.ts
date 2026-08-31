@@ -57,6 +57,7 @@ function event(overrides: Partial<MetadataSaveAdvisoryEvent> = {}): MetadataSave
   return {
     type: 'flow',
     name: 'nightly_purge',
+    door: 'save',
     mode: 'publish',
     advisories: [FINDING],
     ...overrides,
@@ -158,5 +159,70 @@ describe('emitSaveAdvisories (#4133)', () => {
     const description = sink.warning.mock.calls[0]![1]!.description!;
     expect(description).toContain('[flow/delete-without-filter]');
     expect(description).toContain(FINDING.message);
+  });
+});
+
+/**
+ * The publish door renders through this SAME function (objectui#5026) — same
+ * warning tier, same duration, same per-finding formatting. One source more,
+ * not one surface more. What must differ is the frame's verb, because in this
+ * product Save and Publish are two different buttons: a toast that says "Saved"
+ * after a Publish tells the author their change is still a draft, which is the
+ * opposite of what happened.
+ */
+describe('emitSaveAdvisories — the publish door (#5026)', () => {
+  const published = () => event({ door: 'publish' });
+
+  it('says "Published", not "Saved", when the findings came through the publish door', () => {
+    const sink = makeSink();
+
+    emitSaveAdvisories(published(), t, sink);
+
+    const [title] = sink.warning.mock.calls[0]!;
+    expect(title).toContain('Published');
+    expect(title).not.toContain('Saved');
+  });
+
+  it('keeps saying "Saved" for the save door — the existing wording is untouched', () => {
+    const sink = makeSink();
+
+    emitSaveAdvisories(event({ door: 'save' }), t, sink);
+
+    expect(sink.warning.mock.calls[0]![0]).toContain('Saved');
+  });
+
+  it('reads the DOOR, not the mode — both doors report `mode: "publish"`', () => {
+    // The discriminating case: a direct active save also carries
+    // `mode: 'publish'`, so a renderer that branched on `mode` would call it a
+    // publish. Same mode on both events here; only `door` differs.
+    const saveSink = makeSink();
+    const publishSink = makeSink();
+
+    emitSaveAdvisories(event({ door: 'save', mode: 'publish' }), t, saveSink);
+    emitSaveAdvisories(event({ door: 'publish', mode: 'publish' }), t, publishSink);
+
+    expect(saveSink.warning.mock.calls[0]![0]).toContain('Saved');
+    expect(publishSink.warning.mock.calls[0]![0]).toContain('Published');
+  });
+
+  it('is the same surface otherwise — warning tier, same body, same duration', () => {
+    const sink = makeSink();
+
+    emitSaveAdvisories(published(), t, sink);
+
+    expect(sink.warning).toHaveBeenCalledTimes(1);
+    expect(sink.error).not.toHaveBeenCalled();
+    const [, opts] = sink.warning.mock.calls[0]!;
+    expect(opts!.description).toContain(FINDING.message);
+    expect(opts!.description).toContain(FINDING.hint);
+    expect(opts!.duration).toBeGreaterThanOrEqual(10_000);
+  });
+
+  it('says nothing on a clean publish', () => {
+    const sink = makeSink();
+
+    emitSaveAdvisories(event({ door: 'publish', advisories: [] }), t, sink);
+
+    expect(sink.warning).not.toHaveBeenCalled();
   });
 });

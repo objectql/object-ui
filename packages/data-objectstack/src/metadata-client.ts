@@ -57,15 +57,31 @@ import type {
 export type { RuntimeAuthoringIssue };
 
 /**
- * Emitted after a {@link MetadataClient.save} whose response carried a
- * non-empty `advisories` array. The save SUCCEEDED — the row persisted and the
- * server returned 200 — so this is advisory, never a failure.
+ * Emitted after a metadata WRITE whose response carried a non-empty
+ * `advisories` array. The write SUCCEEDED — the row persisted and the server
+ * returned 200 — so this is advisory, never a failure.
  *
  * Deliberately the same shape of seam as `ObjectStackAdapter.onWriteWarning`
  * (#3431/#3455): a successful write whose response carries something the author
  * needs to be told, surfaced to the shell as an event so the data layer never
  * imports a toaster. The difference is only which door produced it — that one
- * is record CRUD, this one is the metadata save door.
+ * is record CRUD, these are the metadata write doors.
+ *
+ * ## Both write doors report (#5026)
+ *
+ * The #4463 runtime authoring gate runs on BOTH metadata write doors by its D1
+ * ruling — a draft→active promotion is gated exactly as a direct active save —
+ * and its non-blocking findings ride the 2xx of whichever door earned them.
+ * `SaveMetaItemResponseSchema` has carried the key since #4717 and
+ * `PublishMetaItemResponseSchema` since objectstack#9176; both declare it at
+ * the response's TOP level, under the same name and with the same
+ * `RuntimeAuthoringIssueSchema` element type, which is what lets one reader and
+ * one event serve both. Measured against the installed `@objectstack/spec`
+ * rather than assumed — see the PR for the probe.
+ *
+ * The name keeps its `Save` prefix because it is public API of this package and
+ * renaming it would break consumers for no behavioural gain; {@link door} is
+ * what says which write produced the event.
  */
 export interface MetadataSaveAdvisoryEvent {
   /** Metadata type saved (e.g. `'flow'`). */
@@ -80,6 +96,27 @@ export interface MetadataSaveAdvisoryEvent {
    * consumer reading the event can tell which door it came through.
    */
   mode: 'draft' | 'publish';
+  /**
+   * Which write door produced this event (#5026).
+   *
+   * - `'save'` — `PUT /meta/:type/:name` ({@link MetadataClient.save}, and the
+   *   SDK's `meta.saveItem` behind `ObjectStackAdapter`).
+   * - `'publish'` — `POST /meta/:type/:name/publish`
+   *   ({@link MetadataClient.publish} and {@link MetadataClient.publishDraft}).
+   *
+   * Distinct from {@link mode}, which cannot answer this: a direct active save
+   * and a draft promotion both report `mode: 'publish'` because both land the
+   * body in the active overlay. The renderer needs the DOOR, because the author
+   * pressed either Save or Publish and a toast that says "Saved" after a
+   * Publish tells them their change is still a draft — the opposite of what
+   * happened, and in this product Save and Publish are two different buttons
+   * with two different meanings.
+   *
+   * REQUIRED rather than optional-with-a-default so a future third door cannot
+   * be wired without stating which one it is: an omitted discriminator would
+   * silently render the save wording.
+   */
+  door: 'save' | 'publish';
   /** The findings. Never empty — the event is not emitted otherwise. */
   advisories: RuntimeAuthoringIssue[];
 }
@@ -88,9 +125,14 @@ export interface MetadataSaveAdvisoryEvent {
 export type MetadataSaveAdvisoryListener = (event: MetadataSaveAdvisoryEvent) => void;
 
 /**
- * Read the `advisories` array off a save response, defensively.
+ * Read the `advisories` array off a metadata write response, defensively.
  *
- * The server omits the key entirely on a clean save, so `undefined` is the
+ * Serves BOTH write doors unchanged (#5026): `SaveMetaItemResponseSchema` and
+ * `PublishMetaItemResponseSchema` declare the key at the same top level, under
+ * the same name, with the same element schema — so there is one reader, not a
+ * per-door copy that could drift.
+ *
+ * The server omits the key entirely on a clean write, so `undefined` is the
  * common case and means "nothing to say". Anything that is not an array of
  * objects carrying the six required keys is dropped rather than rendered: a
  * half-shaped finding would print blanks at the author, and this channel must
@@ -139,7 +181,9 @@ export interface MetadataClientConfig {
   previewDrafts?: boolean;
   /**
    * Called after a {@link MetadataClient.save} whose 2xx response carried a
-   * non-empty `advisories` array (objectstack#7435). The save already
+   * non-empty `advisories` array (objectstack#7435). Since #5026 the SAME sink
+   * also receives the publish door's findings (objectstack#9176) — read
+   * `event.door` to tell them apart. The write already
    * succeeded; this is how the shell learns there is something to tell the
    * author instead of the findings being discarded client-side.
    *
@@ -637,7 +681,7 @@ export class MetadataClient {
   private readonly headers: Record<string, string>;
   /** ADR-0037: when true, reads render the draft-overlaid world. */
   readonly previewDrafts: boolean;
-  /** #4133 — sink for post-save advisory findings; see the config field. */
+  /** #4133 / #5026 — sink for both write doors' advisory findings; see the config field. */
   private readonly onSaveAdvisory: MetadataSaveAdvisoryListener | undefined;
 
   constructor(config: MetadataClientConfig) {
@@ -841,6 +885,33 @@ export class MetadataClient {
   }
 
   /**
+   * Report the runtime authoring gate's advisory findings for a write the
+   * server has ALREADY committed (#4133 for the save door, #5026 for the
+   * publish door).
+   *
+   * Everything here is best-effort by construction, and that is the whole
+   * contract: the row is committed server-side before this runs, so neither a
+   * malformed body, nor a missing key, nor a throwing sink may change what the
+   * calling method returns or whether it throws. The server emits `advisories`
+   * ONLY when non-empty, so a clean write costs one absent-key check.
+   *
+   * One helper rather than a copy per door: the two doors' responses declare
+   * the key identically, so a second inline copy could only ever drift.
+   */
+  private emitAdvisories(
+    body: unknown,
+    event: Omit<MetadataSaveAdvisoryEvent, 'advisories'>,
+  ): void {
+    if (!this.onSaveAdvisory) return;
+    try {
+      const advisories = readSaveAdvisories(body);
+      if (advisories.length > 0) this.onSaveAdvisory({ ...event, advisories });
+    } catch {
+      /* an advisory must never turn a committed write into a thrown error */
+    }
+  }
+
+  /**
    * Save (PUT) a metadata item. The framework accepts both the bare
    * item payload and the `{ item: ... }` / `{ metadata: ... }`
    * envelopes; we send bare for consistency. Pass `mode: 'draft'` to
@@ -880,25 +951,12 @@ export class MetadataClient {
     if (!res.ok) throw await parseError(res);
     const body = await res.json();
     // #4133 — the runtime authoring gate's advisory findings (objectstack#7435).
-    // The server emits `advisories` ONLY when non-empty, so a clean save costs
-    // nothing here. Everything below is best-effort by construction: the save
-    // has already been committed server-side and returning it must not depend
-    // on anything the advisory channel does.
-    if (this.onSaveAdvisory) {
-      try {
-        const advisories = readSaveAdvisories(body);
-        if (advisories.length > 0) {
-          this.onSaveAdvisory({
-            type,
-            name,
-            mode: options.mode === 'draft' ? 'draft' : 'publish',
-            advisories,
-          });
-        }
-      } catch {
-        /* an advisory must never turn a committed save into a thrown error */
-      }
-    }
+    this.emitAdvisories(body, {
+      type,
+      name,
+      door: 'save',
+      mode: options.mode === 'draft' ? 'draft' : 'publish',
+    });
     return body as T;
   }
 
@@ -913,6 +971,12 @@ export class MetadataClient {
    * the rows and reports under `seedApplied` — a data problem never fails the
    * publish, so callers should check `seedApplied?.success` and warn the user
    * rather than assume the data went live.
+   *
+   * Same door as {@link publish} (`POST /meta/:type/:name/publish`), so it
+   * reports the gate's advisories the same way (#5026). The BATCH door
+   * (`POST /packages/:id/publish-drafts`) is a different route that discards
+   * per-draft advisories server-side; that is objectstack#9343 and nothing here
+   * compensates for it.
    */
   async publishDraft(
     type: string,
@@ -931,6 +995,11 @@ export class MetadataClient {
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     // Tolerate the dispatcher's `{ success, data: {...} }` envelope.
     const inner = (body as any)?.data && typeof (body as any).data === 'object' ? (body as any).data : body;
+    // #5026 — this is the SAME single-item publish door `publish()` uses, so it
+    // reports the same way. Read off `inner`, the object this method returns:
+    // `advisories` is declared at the top level of `PublishMetaItemResponse`,
+    // which is what `inner` is once the dispatcher envelope (if any) is off.
+    this.emitAdvisories(inner, { type, name, door: 'publish', mode: 'publish' });
     return inner as any;
   }
 
@@ -1151,6 +1220,12 @@ export class MetadataClient {
    * `{ success, version, seq, message }`. Throws a `404 no_draft` if
    * nothing is pending and `409 metadata_conflict` if the published
    * overlay moved while the draft was sitting.
+   *
+   * Reports the runtime authoring gate's advisory findings through
+   * {@link MetadataClientConfig.onSaveAdvisory} when the response carries them
+   * (#5026 / objectstack#9176), with `door: 'publish'`. This is the door the
+   * Studio designer takes on every edit, so it is the one whose findings an
+   * author actually sees.
    */
   async publish<T = unknown>(
     type: string,
@@ -1182,7 +1257,18 @@ export class MetadataClient {
       body: JSON.stringify(options.message ? { message: options.message } : {}),
     });
     if (!res.ok) throw await parseError(res);
-    return (await res.json()) as T;
+    const body = await res.json();
+    // #5026 — the runtime authoring gate's advisory findings on the publish
+    // door (objectstack#9176). This is the door Studio's designer takes on
+    // every edit: it saves a draft (never gated — the gate's D1 early-return
+    // fires before a single rule runs) and then promotes it HERE, which is the
+    // write the gate actually grades. Wiring only the save door therefore left
+    // the one flow most tenants use silent, which is what this closes.
+    //
+    // `mode` is `'publish'` because the promotion lands the body in the active
+    // overlay; `door` is what distinguishes it from a direct active save.
+    this.emitAdvisories(body, { type, name, door: 'publish', mode: 'publish' });
+    return body as T;
   }
 
   /**

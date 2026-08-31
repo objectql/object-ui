@@ -78,12 +78,22 @@ function formatFinding(f: MetadataSaveAdvisoryEvent['advisories'][number]): stri
 }
 
 /**
- * Announce the gate's advisory findings for a save that SUCCEEDED.
+ * Announce the gate's advisory findings for a metadata write that SUCCEEDED.
  *
  * Says nothing when there is nothing to say: the server omits `advisories`
- * entirely on a clean save, so the common case never reaches here, and an event
- * that somehow carried an empty list is dropped rather than toasted as
+ * entirely on a clean write, so the common case never reaches here, and an
+ * event that somehow carried an empty list is dropped rather than toasted as
  * "0 findings".
+ *
+ * ## One renderer, two doors (#5026)
+ *
+ * The publish door reports through this same function, the same warning tier,
+ * the same duration and the same per-finding formatting — a second SOURCE, not
+ * a second surface. Only the frame's verb changes, and it has to: Save and
+ * Publish are two different buttons in this product, so "Saved" after a Publish
+ * would tell the author their change is still a draft. `ev.door` is what says
+ * which one, because `ev.mode` cannot — a direct active save and a draft
+ * promotion both report `mode: 'publish'`.
  */
 export function emitSaveAdvisories(
   ev: MetadataSaveAdvisoryEvent,
@@ -92,11 +102,19 @@ export function emitSaveAdvisories(
 ): void {
   if (!ev.advisories || ev.advisories.length === 0) return;
 
+  const title =
+    ev.door === 'publish'
+      ? t('console.publishAdvisoryTitle', {
+          count: ev.advisories.length,
+          defaultValue: 'Published — the authoring check raised {{count}} advisory finding(s)',
+        })
+      : t('console.saveAdvisoryTitle', {
+          count: ev.advisories.length,
+          defaultValue: 'Saved — the authoring check raised {{count}} advisory finding(s)',
+        });
+
   sink.warning(
-    t('console.saveAdvisoryTitle', {
-      count: ev.advisories.length,
-      defaultValue: 'Saved — the authoring check raised {{count}} advisory finding(s)',
-    }),
+    title,
     {
       description: ev.advisories.map(formatFinding).join('\n'),
       duration: ADVISORY_TOAST_MS,

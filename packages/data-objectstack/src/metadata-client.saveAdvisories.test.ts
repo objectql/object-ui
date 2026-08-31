@@ -73,6 +73,10 @@ describe('MetadataClient.save — runtime authoring gate advisories (#4133)', ()
     expect(events[0]).toEqual({
       type: 'flow',
       name: 'nightly_purge',
+      // #5026 — the event now names its door, and this is the SAVE one. The
+      // whole-object assertion is deliberate: it is what would catch the
+      // publish door's `door: 'publish'` leaking into a save.
+      door: 'save',
       mode: 'publish',
       advisories: [PURGE_ADVISORY],
     });

@@ -96,6 +96,9 @@ describe('ObjectStackAdapter.onSaveAdvisory — the second client class (#4237)'
       {
         type: 'flow',
         name: 'nightly_purge',
+        // #5026 — this interceptor wraps the SDK's `meta.saveItem`, so every
+        // event it emits comes through the save door by construction.
+        door: 'save',
         mode: 'publish',
         advisories: [PURGE_ADVISORY],
       },

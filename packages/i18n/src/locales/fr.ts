@@ -1384,6 +1384,7 @@ const fr = {
   },
   console: {
     saveAdvisoryTitle: "Enregistré — le contrôle de création a signalé {{count}} recommandation(s)",
+    publishAdvisoryTitle: "Publié — le contrôle de création a signalé {{count}} recommandation(s)",
     settingsHub: {
       title: "Paramètres",
       subtitle: "Configurez votre espace de travail, vos intégrations et vos indicateurs de fonctionnalité.",

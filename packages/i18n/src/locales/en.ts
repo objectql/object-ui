@@ -1576,6 +1576,7 @@ const en = {
   },
   console: {
     saveAdvisoryTitle: 'Saved — the authoring check raised {{count}} advisory finding(s)',
+    publishAdvisoryTitle: 'Published — the authoring check raised {{count}} advisory finding(s)',
     title: 'ObjectOS',
     initializing: 'Initializing application…',
     search: 'Search…',

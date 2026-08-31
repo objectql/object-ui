@@ -1382,6 +1382,7 @@ const de = {
   },
   console: {
     saveAdvisoryTitle: "Gespeichert — die Autorenprüfung ergab {{count}} Hinweis(e)",
+    publishAdvisoryTitle: "Veröffentlicht — die Autorenprüfung ergab {{count}} Hinweis(e)",
     settingsHub: {
       title: "Einstellungen",
       subtitle: "Konfigurieren Sie Ihren Workspace, Integrationen und Feature-Flags.",

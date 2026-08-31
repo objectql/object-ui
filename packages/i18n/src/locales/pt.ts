@@ -1381,6 +1381,7 @@ const pt = {
   },
   console: {
     saveAdvisoryTitle: "Salvo — a verificação de criação gerou {{count}} recomendação(ões)",
+    publishAdvisoryTitle: "Publicado — a verificação de criação gerou {{count}} recomendação(ões)",
     settingsHub: {
       title: "Configurações",
       subtitle: "Configure seu workspace, integrações e sinalizadores de recursos.",
