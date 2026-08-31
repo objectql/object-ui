@@ -1469,6 +1469,75 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               const names = list.map((f: any) => columnIdentity(f));
               return names.includes('id') ? list : ['id', ...list];
             };
+            // [objectui#6898] FIELD-LEVEL SECURITY ON THE PROJECTION — the FETCH
+            // half of the gap objectui#6799 closed on the RENDER half.
+            //
+            // objectui#6799 made `generateColumns()` drop a column naming a
+            // declared field the principal cannot read. That is what reaches the
+            // SCREEN. This is what goes on the WIRE: without this gate the same
+            // field name is still handed to the server in `$select`, so a
+            // backend that does not enforce FLS on the projection would return
+            // the value into `data` with no column on screen to reveal it.
+            //
+            // ⭐ MEASURED, not assumed (the escalation gate this card was graded
+            // on). ObjectStack's own server DOES enforce it — but on the RECORD,
+            // not on the projection. `plugin-security`'s read middleware runs
+            // `FieldMasker.maskResults`, whose `maskRecord` DELETES an unreadable
+            // key from every returned row, and `predicate-guard.ts` says in terms
+            // that the projection is deliberately NOT guarded because "selecting
+            // a hidden field is harmless because FieldMasker strips it from the
+            // result". Pinned end-to-end over real HTTP by objectstack's
+            // `showcase-fls-read-mask-strip.dogfood.test.ts`: an explicit
+            // `?select=name,<denied>` answers 200 with the denied key ABSENT.
+            // So against ObjectStack this gate is defence-in-depth (p2), exactly
+            // as triage graded it — it is NOT load-bearing for that backend, and
+            // this comment is what stops a future reader from concluding it is.
+            // It becomes load-bearing for any other backend, which is the same
+            // argument the objectui#6723 / objectui#6799 rulings accepted: the
+            // invariant must not rest on every future backend having enforced it.
+            //
+            // ⭐ THE DECLARED-KEY LIMIT IS THE SAME ONE, AND THE CARD IS RIGHT
+            // THAT THE REASONING DOES NOT TRANSFER AUTOMATICALLY — it has to be
+            // re-derived here, and it lands in the same place. On the render path
+            // an undeclared key is a legitimate derived / host-joined column. In
+            // a `$select` an undeclared key is what the host asked the SERVER
+            // for, so the question is genuinely different. It resolves the same
+            // way for a reason that is about `checkField`, not about drawing:
+            // `checkField` answers FALSE for a field the policy has never heard
+            // of, so judging an undeclared key is not a stricter reading of this
+            // rule — it is a different, wrong one, and it would strip a host's
+            // derived or joined column out of its own query. Undeclared ⇒ not
+            // this gate's business, on both halves.
+            //
+            // ⛔ NAVIGATION IS PRESERVED STRUCTURALLY, NOT BY A SPECIAL CASE:
+            // every call below composes `ensureId(...)` AFTER this gate, so `id`
+            // is re-added even in the pathological case where a policy marks it
+            // unreadable. A gate that filtered `id` out last would break row
+            // click / navigation for everyone — the naive-filter failure the
+            // card names by name. Keeping the restoration in the composition
+            // rather than in a branch here means it cannot drift out of one arm.
+            //
+            // Keyed on `objectName` (the object actually being FETCHED —
+            // `dataConfig.object` when a data block names one) rather than the
+            // render half's `schema.objectName`: the projection is judged against
+            // whatever object the server is about to read.
+            const passesProjectionGate = (entry: unknown): boolean => {
+              // Not loaded ⇒ nothing to ask yet; never filter on an unanswered
+              // policy. Same deferral as the render half — and the fetch effect
+              // re-runs on `perms.isLoaded` so the projection is rebuilt the
+              // moment the answer arrives (without that dep this gate would be
+              // dead on the first, and usually only, fetch).
+              if (!perms?.isLoaded || !objectName) return true;
+              const fieldName = columnIdentity(entry);
+              // No readable identity ⇒ nothing to ask the policy about.
+              if (!fieldName) return true;
+              // Undeclared ⇒ host-joined / derived / platform column ⇒ see above.
+              // `hasOwnProperty` rather than a truthiness read so an inherited
+              // name (`constructor`, `toString`) cannot be mistaken for a
+              // declared field and dropped out of the query.
+              if (!Object.prototype.hasOwnProperty.call(resolvedSchema?.fields ?? {}, fieldName)) return true;
+              return perms.checkField(objectName, fieldName, 'read');
+            };
             // Fields the view's PREDICATES read but no column shows
             // (objectui#3501). Without them the projection asks the
             // server for everything except the field a row action is gated on,
@@ -1529,6 +1598,18 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                   // pinned by `__tests__/gridNonAuthorKeys.test.tsx`.
                   userActions: (resolvedSchema as any)?.userActions,
                 })).filter((f) => isProjectableField(f, declared as Record<string, unknown>))
+                  // [objectui#6898] A predicate operand the principal cannot read
+                  // is dropped from the projection too. This costs nothing that
+                  // was working: against ObjectStack the server already DELETES
+                  // that key from every row (measured above), so the operand was
+                  // never arriving and the CEL predicate was already faulting
+                  // `No such key` and failing CLOSED. Dropping it from `$select`
+                  // changes what we ASK for, not what we got. Against a
+                  // non-enforcing backend it converts "the button works, and the
+                  // denied value sits in memory" into "the button hides" — which
+                  // is the correct direction for a predicate gated on a field
+                  // this principal may not read.
+                  .filter((f) => passesProjectionGate(f))
               : [];
             const withPredicates = (list: any[]): any[] => {
               if (predicateFields.length === 0) return list;
@@ -1536,9 +1617,12 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               const extra = predicateFields.filter((f) => !names.has(f));
               return extra.length > 0 ? [...list, ...extra] : list;
             };
-            if (schemaFields) return withPredicates(ensureId(schemaFields as any[]));
+            if (schemaFields) {
+              return withPredicates(ensureId((schemaFields as any[]).filter(passesProjectionGate)));
+            }
             if (schemaColumns && Array.isArray(schemaColumns)) {
               const fields = schemaColumns
+                .filter(passesProjectionGate)
                 .map((c: any) => columnIdentity(c))
                 .filter((v): v is string => !!v);
               return withPredicates(ensureId(fields));
@@ -1662,7 +1746,16 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, searchTerm, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
+  // `perms.isLoaded` (objectui#6898): the projection is FLS-gated above, and
+  // `/me/permissions` resolves asynchronously — on the first render it is still
+  // `false`, so the gate defers and the first request goes out ungated. Without
+  // this dep nothing would ever rebuild it and the gate would be dead on the
+  // only fetch most grids make. The boolean, not `perms` itself: it flips
+  // false -> true exactly once, so this costs at most one refetch, where the
+  // context object's identity would re-fetch the grid on every render.
+  // `PermissionProvider` reports `true` synchronously and the no-provider
+  // default stays `false` forever, so neither of those pays anything.
+  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, searchTerm, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey, perms.isLoaded]);
 
   // The same reset, for the path the loader above never runs on (objectui#4501
   // clause 2). "All N matching are selected" is a claim about ONE query, so it
