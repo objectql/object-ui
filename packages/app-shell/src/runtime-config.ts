@@ -71,9 +71,10 @@ export interface RuntimeFeatures {
    * SCIM-based user/group provisioning is available on this environment's
    * plan. Optional commercial flag — absent on self-hosted / vanilla
    * runtimes (treated as off). Server-derived from the plan entitlements,
-   * the same producer object as `customDomain` / `sso`. Declaration only:
-   * this keeps the interface in sync with the wire the producer already
-   * emits — no SPA read point or gate consumes it yet (future work, not
+   * the same producer object as `customDomain` / `sso`. Mapped through by
+   * `initRuntimeConfig` alongside its two siblings so the typed value
+   * matches the wire the producer already emits — no SPA read point or
+   * gate consumes it yet (any actual SCIM UI gating is future work, not
    * implied by this declaration).
    */
   scim?: boolean;
@@ -288,7 +289,7 @@ const defaults: AppShellRuntimeConfig = {
   singleEnvironment: false,
   defaultOrgId: null,
   defaultEnvironmentId: null,
-  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false },
+  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false, scim: false },
   // `stage: 'preview'` while the whole platform is pre-GA, so the badge shows
   // out of the box on any runtime that hasn't sent an explicit stage yet.
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview', brandColor: '#4F46E5', pwaThemeColor: '#4f46e5' },
@@ -374,6 +375,7 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           // them — never show a paid surface on an unknown/older runtime.
           customDomain: body.features.customDomain === true,
           sso: body.features.sso === true,
+          scim: body.features.scim === true,
         }
         : current.features,
       // Read off the RAW body, not off `body.telemetry`: the mirrored reader
