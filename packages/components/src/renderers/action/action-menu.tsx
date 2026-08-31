@@ -256,7 +256,8 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             // (objectui#5493). An overflow action must hop like its inline
             // twin, or the `action:bar` `maxVisible` split decides whether the
             // declared navigation runs.
-            onSuccess: (action as any).onSuccess,
+            // Uncast since objectui#5934 (legacy callback channel retired).
+            onSuccess: action.onSuccess,
           });
         } finally {
           setLoading(false);

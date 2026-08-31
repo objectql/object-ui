@@ -399,8 +399,9 @@ describe('a declared onSuccess block defers to the runner (objectui#5221)', () =
   });
 
   it('a legacy chained-callback onSuccess is NOT mistaken for a declared hop', async () => {
-    // `{ type: 'notify' }` is the runner's older `ActionDef` callback channel,
-    // not the spec block. The redirectUrl convention must still run.
+    // `{ type: 'notify' }` was the runner's older `ActionDef` callback channel
+    // (retired by objectui#5934), not the spec block — an unparsed row can
+    // still carry the shape. The redirectUrl convention must still run.
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(makeTab() as any);
     const navigate = vi.fn();
     const { handler } = makeHandler({

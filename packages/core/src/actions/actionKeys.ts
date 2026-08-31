@@ -75,10 +75,12 @@
  * rejection" into a compile error at no cost. Hand-copying would have quietly
  * re-legitimized two dead keys — which is why the types are derived.
  *
- * 17 keys `ActionDef` declares that the spec does not own — `actionType`, `api`,
+ * 16 keys `ActionDef` declares that the spec does not own — `actionType`, `api`,
  * `chain`, `chainMode`, `close`, `condition`, `confirm`, `endpoint`, `modal`,
- * `navigate`, `onClick`, `onFailure`, `onSuccess`, `redirect`, `reload`, `toast`,
- * `actionParams`. Step 2 marked `@deprecated`, with the spec spelling to use
+ * `navigate`, `onClick`, `onFailure`, `redirect`, `reload`, `toast`,
+ * `actionParams`. (`onSuccess` was the 17th until objectui#5934 retired the
+ * runner's chained-callback meaning; the key is now spec-owned and derived,
+ * like the 18 below.) Step 2 marked `@deprecated`, with the spec spelling to use
  * instead, ONLY the four the runner itself proves are aliases: `actionType` (→
  * `type`), `api` and `endpoint` (→ `target`; `executeAPI` resolves
  * `api || endpoint || target`), and `navigate` (→ flat `target`/`openIn`;
@@ -156,7 +158,6 @@ export const ACTION_DEF_KEYS = [
   'modal',
   'chain',
   'chainMode',
-  'onSuccess',
   'onFailure',
   'opensInNewTab',
   'newTabUrl',
@@ -181,6 +182,10 @@ export const ACTION_DEF_KEYS = [
   'recordIdField',
   'recordIdParam',
   'requiresFeature',
+  // Moved from the runner-native cluster above by objectui#5934: the legacy
+  // chained-callback meaning is retired and the key's type now derives the
+  // spec's `{ navigate, openIn }` block.
+  'onSuccess',
   'shortcut',
   'bulkEnabled',
 ] as const;
@@ -240,12 +245,9 @@ export const SPEC_ACTION_KEYS = [
   'newTabUrl',
   'objectName',
   // Declared by `ActionSchema` as of @objectstack/spec 17.1.0 (objectui#5328).
-  // Listing it here is a DIAGNOSTIC statement only — `KNOWN_ACTION_KEYS` feeds
-  // `warnOnUnknownActionKeys`, so without this row an author writing the key the
-  // spec now accepts would be warned it is unknown. It says nothing about the
-  // key being forwarded: the four declared action surfaces still drop it before
-  // the runner, tracked as KNOWN_GAPS in check-action-forward-parity.mjs and
-  // filed as objectui#5493.
+  // All four declared action surfaces forward it since objectui#5493/#6304, and
+  // `ActionDef` derives its type from the spec since objectui#5934 retired the
+  // runner's legacy chained-callback meaning for the same key.
   'onSuccess',
   'openIn',
   'opensInNewTab',

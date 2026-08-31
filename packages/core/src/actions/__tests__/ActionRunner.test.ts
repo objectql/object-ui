@@ -1019,17 +1019,29 @@ describe('ActionRunner', () => {
   // ==========================================================================
 
   describe('callbacks', () => {
-    it('should execute onSuccess callback after success', async () => {
+    // The `onSuccess` chained-callback channel (`ActionDef | ActionDef[]`) was
+    // retired by objectui#5934 (maintainer ruling 2026-08-31): the spec
+    // strict-refuses a callback shape inside `onSuccess` at parse, and the
+    // census found zero producers outside this file's own pins. The two tests
+    // that used to pin the channel now pin its ABSENCE — stored rows rehydrate
+    // UNPARSED (#3903), so the shapes still reach the runner as data, and must
+    // get no reading. `onFailure` is untouched: the spec declares no such key,
+    // so it keeps its one runner-native meaning.
+    it('a callback-shaped onSuccess is not dispatched — the channel is retired', async () => {
       const successHandler = vi.fn().mockResolvedValue({ success: true });
       runner.registerHandler('notify', successHandler);
 
-      await runner.execute({
+      const result = await runner.execute({
         onClick: vi.fn(),
+        // `as never`: since #5934 the declared type derives the spec's
+        // `{ navigate, openIn }` block, so the compiler refuses this shape at
+        // the authoring site — the cast reaches around it to pin the runtime.
         onSuccess: { type: 'notify', params: { msg: 'ok' } },
         toast: { showOnSuccess: false },
-      });
+      } as never);
 
-      expect(successHandler).toHaveBeenCalledOnce();
+      expect(result.success).toBe(true);
+      expect(successHandler).not.toHaveBeenCalled();
     });
 
     it('should execute onFailure callback after failure', async () => {
@@ -1045,20 +1057,21 @@ describe('ActionRunner', () => {
       expect(failureHandler).toHaveBeenCalledOnce();
     });
 
-    it('should support array of onSuccess callbacks', async () => {
+    it('an array of callback-shaped onSuccess entries is not dispatched either', async () => {
       const h1 = vi.fn().mockResolvedValue({ success: true });
       const h2 = vi.fn().mockResolvedValue({ success: true });
       runner.registerHandler('cb1', h1);
       runner.registerHandler('cb2', h2);
 
-      await runner.execute({
+      const result = await runner.execute({
         onClick: vi.fn(),
         onSuccess: [{ type: 'cb1' }, { type: 'cb2' }],
         toast: { showOnSuccess: false },
-      });
+      } as never);
 
-      expect(h1).toHaveBeenCalledOnce();
-      expect(h2).toHaveBeenCalledOnce();
+      expect(result.success).toBe(true);
+      expect(h1).not.toHaveBeenCalled();
+      expect(h2).not.toHaveBeenCalled();
     });
   });
 

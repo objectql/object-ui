@@ -276,7 +276,8 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           // See action-button.tsx — the declared post-success hop
           // (objectui#5493). The runner reads it off the forwarded def; dropped
           // here the action succeeds and the authored navigation never runs.
-          onSuccess: (action as any).onSuccess,
+          // Uncast since objectui#5934 (legacy callback channel retired).
+          onSuccess: action.onSuccess,
         });
       },
       [execute],

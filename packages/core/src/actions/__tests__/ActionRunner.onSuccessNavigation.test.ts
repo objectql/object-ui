@@ -253,23 +253,30 @@ describe('ActionSchema.onSuccess — the two openIn spellings stay apart', () =>
   });
 });
 
-describe('ActionSchema.onSuccess — the legacy chained-callback channel is untouched', () => {
-  it('still runs an ActionDef callback, and does not treat it as navigation', async () => {
-    // `ActionDef.onSuccess?: ActionDef | ActionDef[]` predates the spec key and
-    // is a RUNTIME channel: `@objectstack/spec` strict-refuses `{ type: … }`
-    // inside `onSuccess`, so no validated metadata can reach it. Retiring it is
-    // its own card; this pins that implementing the spec key did not silently
-    // take it away.
+describe('ActionSchema.onSuccess — the retired chained-callback channel gets no reading', () => {
+  it('neither dispatches a callback-shaped onSuccess nor treats it as navigation', async () => {
+    // `ActionDef.onSuccess?: ActionDef | ActionDef[]` predated the spec key as
+    // the runner's own chained-callback channel. objectui#5934 (maintainer
+    // ruling 2026-08-31) retired it: the spec strict-refuses `{ type: … }`
+    // inside `onSuccess` at parse, so no validated metadata could ever reach
+    // it, and the census found zero producers outside the channel's own pins.
+    // Stored rows rehydrate UNPARSED (#3903), so this pins the RUNTIME half of
+    // the retirement — the shape still reaches the runner as data, and gets NO
+    // reading: no handler dispatch, no navigation, and the action's own result
+    // is untouched. (`as never` is the test reaching around the compile-time
+    // half: the declared type now derives the spec block and refuses this
+    // shape at the authoring site.)
     const { runner, nav } = makeRunner({ id: 'rec_42' });
     const cb = vi.fn(async () => ({ success: true }));
     runner.registerHandler('notify', cb as never);
 
-    await runner.execute({
+    const result = await runner.execute({
       type: 'api', name: 'clone_record', target: '/api/v1/records/clone',
       onSuccess: { type: 'notify', name: 'ping' },
     } as never);
 
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(result.success).toBe(true);
+    expect(cb).not.toHaveBeenCalled();
     expect(nav).not.toHaveBeenCalled();
   });
 });

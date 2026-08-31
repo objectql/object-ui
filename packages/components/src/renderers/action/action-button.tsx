@@ -198,9 +198,13 @@ const ActionButtonRenderer = forwardRef<
           // the app's own `navigationHandler`). Dropped here, the action
           // succeeded and the declared hop silently never happened —
           // objectui#5493, the same shape as `bodyShape` / `resultDialog`
-          // above. Cast because the key is spec-owned and not spelled on
-          // `@object-ui/types`' renderer view, exactly as `resultDialog` is.
-          onSuccess: (schema as any).onSuccess,
+          // above. Uncast since objectui#5934 retired the runner's legacy
+          // chained-callback meaning: both ends now derive the spec block
+          // (`UIActionSchema.onSuccess` on the read side,
+          // `ActionDef.onSuccess` on the write side), so the forward
+          // type-checks against the one declared meaning instead of hiding
+          // behind `as any`.
+          onSuccess: schema.onSuccess,
         };
 
         await execute({ ...forwarded, ...localContext });

@@ -451,6 +451,26 @@ export interface UIActionSchema {
    */
   openIn?: 'self' | 'new-tab';
 
+  /**
+   * Declared post-success navigation — the spec's closed strict
+   * `{ navigate, openIn }` block (`ActionSchema.onSuccess`, authorable since
+   * `@objectstack/spec` 17.1.0). All four declared action renderers forward it
+   * to the runner (objectui#5493/#6304), which performs the hop through the
+   * app's own `navigationHandler`.
+   *
+   * DERIVED from the spec, never hand-copied — a hand-written duplicate of a
+   * spec shape is a second contract that drifts silently. Declared on the
+   * renderer view since objectui#5934 retired `ActionRunner`'s legacy
+   * chained-callback meaning for the same key: with the spec block as the
+   * key's only meaning, the forward sites type-check without an `as any` cast.
+   *
+   * Note the inner `openIn` spelling is `'self' | 'newTab'` — NOT the
+   * top-level {@link openIn}'s `'self' | 'new-tab'`. The spec refuses each
+   * crossover spelling; the derivation keeps the two from ever being merged
+   * by hand.
+   */
+  onSuccess?: SpecAction['onSuccess'];
+
   /** API endpoint (for type: 'api') */
   endpoint?: string;
   

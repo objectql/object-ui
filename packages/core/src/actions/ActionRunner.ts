@@ -320,8 +320,6 @@ export interface ActionDef {
   chain?: ActionDef[];
   /** Chain execution mode */
   chainMode?: 'sequential' | 'parallel';
-  /** Callback on success */
-  onSuccess?: ActionDef | ActionDef[];
   /** Callback on failure */
   onFailure?: ActionDef | ActionDef[];
   /** When true, the runner pre-opens about:blank synchronously on click so the
@@ -422,6 +420,26 @@ export interface ActionDef {
   recordIdParam?: SpecActionInput['recordIdParam'];
   /** Auth/tenancy feature the action requires before it is offered. */
   requiresFeature?: SpecActionInput['requiresFeature'];
+  /**
+   * Declared post-success navigation — the spec's closed strict
+   * `{ navigate, openIn }` block (`ActionSchema.onSuccess`, authorable since
+   * `@objectstack/spec` 17.1.0, objectui#5328). Read by `handlePostExecution`
+   * → `readOnSuccessNavigation` → `navigateOnSuccess`.
+   *
+   * This key carried a SECOND, older meaning until objectui#5934: the runner's
+   * own chained-callback channel, `ActionDef | ActionDef[]`, dispatched through
+   * `executeChain`. The maintainer retired that channel on 2026-08-31 — the
+   * spec strict-refuses a callback shape here (`{ type: … }` fails parse with
+   * `unrecognized_keys`, so no validated metadata could ever reach it), and the
+   * census found zero producers outside the channel's own pins. `onSuccess`
+   * now means exactly what the contract declares, nothing else; a callback
+   * shape gets NO reading (not a fallback, not an error — the same "a shape
+   * the spec refuses gets no new reading here" rule the discrimination branch
+   * used to apply, now with nothing left to discriminate). `onFailure`, in the
+   * runner-native section above, is untouched: the spec declares no such key,
+   * so it has only ever had its one runner-native meaning.
+   */
+  onSuccess?: SpecActionInput['onSuccess'];
   /**
    * @deprecated Retired in `@objectstack/spec` 17 as a `retiredKey()` tombstone —
    * authoring it is a hard parse rejection, so this resolves to `undefined` and
@@ -1225,26 +1243,21 @@ export class ActionRunner {
     // `type: 'api'` and `type: 'script'` — the two types whose success event
     // carries a server response for `${result.*}` to read.
     //
-    // This runner's OWN `ActionDef.onSuccess` predates that key and means
-    // something else entirely: `ActionDef | ActionDef[]`, chained callbacks.
-    // The two are told apart by the spec's own declaration — a non-array object
-    // whose `navigate` is a STRING is the spec block and nothing else can be:
-    // `navigate` on a callback ActionDef is the deprecated nested navigation
-    // ENVELOPE (`executeNavigation` reads `navigate.to`), so a string there has
-    // never been runnable. This is a NARROWING to the declared contract, not a
-    // lenient fallback: a shape the spec refuses gets no new reading here.
+    // That declared meaning is the key's ONLY meaning. The runner's older
+    // chained-callback channel (`onSuccess?: ActionDef | ActionDef[]`,
+    // dispatched through `executeChain`) was retired by objectui#5934
+    // (maintainer ruling 2026-08-31): the spec strict-refuses a callback shape
+    // at parse, so no validated metadata could ever reach it, and the census
+    // found zero producers outside the channel's own pins.
     //
-    // Before this branch existed, the ruled shape fell into the callback path,
-    // dispatched `{ navigate: '<string>' }` as an action, and failed inside
-    // `executeNavigation` with "No URL provided for navigation action" — the
-    // author got a red toast and no hop.
+    // `readOnSuccessNavigation` stays as the shape guard, not as a
+    // discriminator: stored rows are rehydrated UNPARSED (#3903), so the value
+    // is still read as data, and a shape the spec refuses gets no reading —
+    // no navigation, no callback dispatch, no lenient fallback.
     if (result.success && action.onSuccess) {
       const navigation = readOnSuccessNavigation(action.onSuccess);
       if (navigation) {
         this.navigateOnSuccess(navigation, action, result);
-      } else {
-        const callbacks = Array.isArray(action.onSuccess) ? action.onSuccess : [action.onSuccess];
-        await this.executeChain(callbacks, 'sequential');
       }
     }
     if (!result.success && action.onFailure) {
@@ -1999,15 +2012,14 @@ export interface OnSuccessNavigation {
 }
 
 /**
- * Is this `onSuccess` the SPEC's navigation block, or this runner's older
- * chained-callback channel (`ActionDef | ActionDef[]`)?
+ * Is this `onSuccess` the spec's navigation block?
  *
  * The test IS the spec's declaration: a non-array object carrying a STRING
- * `navigate`. Nothing else can produce that shape — the spec object is strict
- * with `navigate: z.string()` required, and on a callback `ActionDef`,
- * `navigate` is the deprecated nested navigation ENVELOPE that
- * `executeNavigation` reads `to`/`target`/`redirect` off, so a bare string
- * there has never been runnable.
+ * `navigate`. Stored rows are rehydrated UNPARSED (#3903), so the runner reads
+ * the value as data and anything else gets NO reading — since objectui#5934
+ * retired the legacy chained-callback channel (`ActionDef | ActionDef[]`),
+ * there is no other channel for an off-contract shape to fall into. This is a
+ * shape GUARD on unparsed data, not a discriminator between two meanings.
  */
 export function readOnSuccessNavigation(value: unknown): OnSuccessNavigation | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;

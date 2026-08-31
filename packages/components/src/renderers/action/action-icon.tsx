@@ -140,7 +140,8 @@ const ActionIconRenderer = forwardRef<
           // See action-button.tsx — the declared post-success hop
           // (objectui#5493). The runner reads it off the forwarded def; dropped
           // here the action succeeds and the authored navigation never runs.
-          onSuccess: (schema as any).onSuccess,
+          // Uncast since objectui#5934 (legacy callback channel retired).
+          onSuccess: schema.onSuccess,
         };
 
         await execute({ ...forwarded, ...localContext });
