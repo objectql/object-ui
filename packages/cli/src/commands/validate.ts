@@ -103,11 +103,32 @@ export async function validate(schemaPath: string) {
       // undefined and this loop threw a TypeError that the catch below
       // reported as "Error reading or parsing schema file", hiding the very
       // errors this command exists to print.
+      // Every issue gets a Path line, INCLUDING a root-level one (objectui#7004).
+      //
+      // The guard here used to be `issue.path.length > 0`, which dropped the
+      // line entirely for `path: []` — silent in exactly the case a reader
+      // most needs oriented. That case is not rare: `safeValidateSchema` runs
+      // `AnyComponentSchema`, which is a `z.union` of every component arm, so
+      // ANY document matching no arm reports one top-level issue at the root
+      // (`invalid_union` · `Invalid input` · `path: []`). Measured before this
+      // change, a menu carrying the retired `{ type: 'separator' }` divider
+      // spelling printed `1. Invalid input` and a Code line, and nothing said
+      // whether the whole document or some node inside it had been judged.
+      //
+      // `(root)` is parenthesised so it cannot be read as a real key literally
+      // named `root` — a genuine path to one would print as `root`.
+      //
+      // ⛔ Scope: this prints the top-level issue's own path and NOTHING more.
+      // The other half of objectui#7004 — whether a failing union should also
+      // surface its per-arm diagnoses, and if so which arm's — is an
+      // author-facing diagnostic contract awaiting a maintainer ruling, so
+      // `issue.errors` is deliberately NOT walked here.
       result.error.issues.forEach((issue, index) => {
         console.error(chalk.red(`\n${index + 1}. ${issue.message}`));
-        if (issue.path && issue.path.length > 0) {
-          console.error(chalk.gray(`   Path: ${issue.path.join(' → ')}`));
-        }
+        const path = issue.path ?? [];
+        console.error(
+          chalk.gray(`   Path: ${path.length > 0 ? path.join(' → ') : '(root)'}`)
+        );
         if (issue.code) {
           console.error(chalk.gray(`   Code: ${issue.code}`));
         }
