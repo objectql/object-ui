@@ -111,15 +111,56 @@ function renderList(props?: Record<string, unknown>) {
   return dataSource;
 }
 
+/**
+ * Gate 2 — the `getObjectSchema` chain (objectui#7007).
+ *
+ * Every verdict this file measures is a function of the FETCHED object schema:
+ * `withheldFromServerSort` reads `objectSchema.fields[field]`, and with nothing
+ * there it falls through to `isUnmaterializedFieldType(undefined)` — `false`,
+ * i.e. "offer the sort". So a block that has only settled the FETCH chain is
+ * reading the value one promise resolution too early: the row/table is
+ * committed and populated, and the schema-dependent half of it is not.
+ *
+ * Measured, not assumed: with the timing fact mutated and nothing else — the
+ * mock schema resolving after a 50ms delay instead of on the first microtask —
+ * the block's own gate passes, `Quantity`/`Unit Price`/`Sequence` are present,
+ * and `Total` is present too, so the assertions below go red. It is green on
+ * `main` only because that effect is declared before the fetch effect and both
+ * mocks resolve on the same microtask; nothing pins that ordering.
+ *
+ * ⚠️ The blocks KEEP their existing gate (objectui#6959's precedent, and its
+ * trap). The two gates prove different facts — the first that the view
+ * committed with rows at all, which is what makes a `queryBy…(…)).toBeNull()`
+ * below non-vacuous; the second that the schema the verdict is derived from has
+ * landed. Trading one for the other would leave the block blind on whichever
+ * side it dropped.
+ *
+ * ⛔ `expect(getObjectSchema).toHaveBeenCalled()` is NOT this gate, for the
+ * reason #6959 records: a mock CALL is ISSUED one resolution before its value
+ * reaches state. It is used here only to get hold of the promise; the gate is
+ * awaiting that same promise — the component registered its
+ * `.then(setObjectSchema)` on it first, so our continuation runs after that
+ * setter — and flushing the commit through `act`.
+ */
+async function settleObjectSchema(ds: ReturnType<typeof makeDataSource>) {
+  await waitFor(() => expect(ds.getObjectSchema).toHaveBeenCalled());
+  await React.act(async () => {
+    await Promise.all(ds.getObjectSchema.mock.results.map((r) => r.value));
+  });
+}
+
 beforeEach(() => {
   h.schema = null;
 });
 
 describe('RelatedList — column headers (#3950)', () => {
   it('withholds the header from a formula column while windowed', async () => {
-    renderList();
+    const dataSource = renderList();
     // A stored column stays sortable — which also proves the table rendered.
     await waitFor(() => expect(columnSortable('name')).toBe(true));
+    // …and `total`'s verdict rides the schema chain, which that gate does not
+    // cover (#7007). `name` is sortable either way, so it cannot stand in.
+    await settleObjectSchema(dataSource);
     expect(columnSortable('total')).toBe(false);
   });
 
@@ -142,8 +183,11 @@ describe('RelatedList — column headers (#3950)', () => {
 
 describe('RelatedList — the sort-button row for a `list` card (#3950)', () => {
   it('offers no button for a formula field while windowed', async () => {
-    renderList({ type: 'list' });
+    const dataSource = renderList({ type: 'list' });
     await waitFor(() => expect(h.schema?.type).toBe('data-list'));
+    // Second gate, second chain: `Total`'s absence is derived from the fetched
+    // schema, which the gate above does not settle (#7007).
+    await settleObjectSchema(dataSource);
 
     // Controls first: the row exists and carries the stored columns.
     expect(screen.getByRole('button', { name: /Quantity/ })).toBeTruthy();
