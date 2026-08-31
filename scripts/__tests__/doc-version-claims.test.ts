@@ -407,12 +407,11 @@ import { fileURLToPath } from 'node:url';
  *
  *   - The COUNT. Measured when objectui#6400 landed, and left stated AS OF that cut rather
  *     than re-taken as a reading of the tree today: 28 `node-version` declarations across
- *     23 files in
- *     `.github/workflows` - twice the 14 the sentence names - and 27 rather than all 28 are
- *     spelled `'22.x'`, because `half-state-patrol.yml` writes `'22'`, a spelling that
- *     sentence does not admit at all. (Control, same sweep, same directory: 20 `corepack
- *     enable` steps across 14 files. A non-zero second reading, so this is not a grep that
- *     found nothing and was read as agreement.)
+ *     23 files in `.github/workflows` - twice the 14 the sentence names - and 27 rather
+ *     than all 28 spelled `'22.x'`, because `half-state-patrol.yml` writes `'22'`, a
+ *     spelling that sentence does not admit at all. (Control, same sweep, same directory:
+ *     20 `corepack enable` steps across 14 files. A non-zero second reading, so this is
+ *     not a grep that found nothing and was read as agreement.)
  *   - The PIN TEST. `ci-cd-pipeline-doc.test.ts` contains no `node-version` and no `22`
  *     whatsoever (control, same file, same sweep: 28 mentions of `ci.yml`). It pins the
  *     PAGE; it does not pin this LINE. The second half was true of the file it named and
