@@ -231,7 +231,7 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 本仓库有**多个 agent 并行**修改 —— 分支会被切换、共享文件会在你工作时被改动(正常现象,不是 bug):
 
 - **只改你任务需要的文件**;别去"修"无关的 diff、回退或别人的在途编辑,也别管整棵工作树。
-- **必须一个任务一个 git worktree**(`git fetch origin main && git worktree add ../objectui-<task> -b <branch> origin/main`,新树里跑 `pnpm install`)做物理隔离 —— 这是强制而非「首选」。共享的 `main` checkout **不是**可用退路:HEAD 会被别的 agent 切换、你刚写的文件会在操作中途被 reset 掉。一个 **PreToolUse 钩子**(`.claude/hooks/guard-main-checkout.sh`)**强制**此规则:除非被编辑文件位于专属 **worktree** 否则拦截 `Edit`/`Write`/`NotebookEdit`——在共享 checkout 上开 feature 分支**也不行**(仍会被切走),且按**被编辑文件所属的仓库**判断(sibling 仓 `framework`/`cloud` 一并守住)(确属非任务的临时改动用 `OS_ALLOW_MAIN_EDITS=1` 放行)。即便在自己的 worktree 里,下面这些防御性条款仍然适用。
+- **必须一个任务一个 git worktree**(`git fetch origin main && git worktree add --no-track ../objectui-<task> -b <branch> origin/main`,新树里跑 `pnpm install`)做物理隔离 —— 这是强制而非「首选」。共享的 `main` checkout **不是**可用退路:HEAD 会被别的 agent 切换、你刚写的文件会在操作中途被 reset 掉。一个 **PreToolUse 钩子**(`.claude/hooks/guard-main-checkout.sh`)**强制**此规则:除非被编辑文件位于专属 **worktree** 否则拦截 `Edit`/`Write`/`NotebookEdit`——在共享 checkout 上开 feature 分支**也不行**(仍会被切走),且按**被编辑文件所属的仓库**判断(sibling 仓 `framework`/`cloud` 一并守住)(确属非任务的临时改动用 `OS_ALLOW_MAIN_EDITS=1` 放行)。即便在自己的 worktree 里,下面这些防御性条款仍然适用。
 - **绝不 `git stash` —— stash 栈不在上一条的 worktree 隔离范围内。** `git stash` 把栈存在**共享 `.git` 目录**里的 `refs/stash`,**每个 worktree 共用同一个 LIFO 栈**:上一条的物理隔离**不覆盖它**。两个 agent 各自在自己的 worktree 里 stash,push/pop 的是同一个栈 —— 你的 `pop` 取回的是对方刚压进去的改动,你自己的改动留在栈上等着被对方取走;而 `pop` **报成功**,唯一的症状是别人的文件出现在你的 `git status` 里,随后一次 `git add -A` 就把对方的在途工作合进了你的 PR。不是假想:objectui#3430 两个并行 agent 在反向验证中间踩实,双方在途改动都丢了(只能作为 unreachable commit 捞回)。替代做法只有下面这些 —— 都不碰共享状态,都在你自己的 worktree 内,且**首选先 commit 再还原**(上面反向验证那条已把它定为标准写法):
 
   ```bash
@@ -430,7 +430,7 @@ ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工�
 - **CI 全绿、已 review 都不构成例外。** 这类文件是后续每一次 dispatch 读的操作规程,绿灯说明不了它该不该成为规程。
 - **发现自己已经挂上了怎么办**:把 PR 转回 **draft** 是唯一能可靠退出合并队列的动作 —— 只调 `disable_pr_auto_merge` 会摘掉 auto-merge 但**不取消队列成员资格**,两个都要做。⚠️ 只回收**你自己**挂上的:本仓多 agent 共用同一 GitHub 身份,不是你设置的状态就属于别的 actor —— 去问、去报告,别替他回退。
 
-**本仓没有任何机械兜底,这一段就是全部。** 本仓没有 CODEOWNERS(核实:仓内不存在该文件),受管面上没有 required check、没有钩子,也没有事后审计把受管面的合并列出来给任何人看 —— 违规会**静默成功**,不会有任何人被通知。`../objectstack` 有一份 report-only 的合并后审计(`scripts/pm/check-governed-merges.mjs`),它只读那个仓自己的合并,**不覆盖本仓**。所以在本仓,这条规则的全部效力就在于你读到了它并照做。**本段没点名的兜底工具,就是不存在的工具**;哪天本仓真有了检测,它会写在这里。
+**本仓的机械兜底只有一件,而且它现在只报告、不拦截 —— 别读成一道拦得住的门,也别再读成「什么都没有」。** 本仓仍然没有 CODEOWNERS(核实:仓内不存在该文件),受管面上也没有钩子;但 `.github/workflows/governed-surface-guard.yml`(check 名 `Governed Surface Queue Guard`,判定逻辑在 `scripts/check-governed-queue-guard.mjs`)**是活的**:`pull_request` 腿是早期告警、**故意 exit 0**(受管 PR 停在 draft 正是健康终态,所以**绿不等于不受管**),`merge_group` 腿才是会拒绝的那条 —— 它要求 `GOVERNED_APPROVERS`(`os-zhuang` / `hotlong`)的 APPROVED review **钉在当前 head**。⚠️ 但它**尚未**是 required context:ruleset 开关只有维护者能翻(#6596,`pm:awaiting-maintainer`),**在翻转之前,那条拒绝腿只报告、不阻止队列**。事后一侧:`../objectstack` 的 report-only 合并后审计(`scripts/pm/check-governed-merges.mjs`)自 objectstack#9619 起**已覆盖本仓**(四个受管仓一次扫完),它把受管面的合并列出来,但同样不阻止任何事。⇒ 违规不再完全静默,但**仍然没有任何东西会替你拦下它**,这条规则的效力主要还是在于你读到了它并照做。**⛔ 别再把本段当成兜底工具的完整清单** —— 覆盖面以脚本自己的 `GOVERNED_SURFACES` 为准(它随树变化,本段不会);⚠️ 该清单与上面四项**并不一致**(脚本的集合含已发布 `skills/**`),这一分歧在 #6866 待维护者裁决,⛔ 不要据本段自行消解。
 
 ### 服务纪律(本仓库与 `../objectstack` 多 agent 并行开发)
 
