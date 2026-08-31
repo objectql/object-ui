@@ -33,11 +33,11 @@ refused at parse time rather than silently ignored.
 ```plaintext
 interface DropdownMenuCommandItem {
   label: string;
-  value?: string;
   icon?: string;                  // kebab-case Lucide icon name (e.g. "square-pen")
-  variant?: 'default' | 'destructive';
+  shortcut?: string;              // e.g. "Ctrl+S" — a single string, not an array
   disabled?: boolean;
   onClick?: () => void;           // Click handler
+  children?: DropdownMenuItem[];  // Submenu items — drawn as a nested submenu
 }
 
 interface DropdownMenuDividerItem {

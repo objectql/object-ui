@@ -30,10 +30,11 @@ refused at parse time rather than silently ignored.
 ```plaintext
 interface ContextMenuCommandItem {
   label: string;
-  value?: string;
   icon?: string;                  // kebab-case Lucide icon name (e.g. "trash")
+  shortcut?: string;              // e.g. "Ctrl+C" — a single string, not an array
   disabled?: boolean;
   onClick?: () => void;           // Click handler
+  children?: ContextMenuItem[];   // Submenu items — drawn as a nested submenu
 }
 
 interface ContextMenuDividerItem {
@@ -44,7 +45,7 @@ type ContextMenuItem = ContextMenuCommandItem | ContextMenuDividerItem;
 
 interface ContextMenuSchema {
   type: 'context-menu';
-  trigger: ComponentSchema;       // Trigger element
+  trigger?: ComponentSchema;      // Trigger element — a placeholder renders when absent
   items: ContextMenuItem[];       // Menu items
   className?: string;
 }
