@@ -40,6 +40,29 @@ export interface KanbanCard {
      */
     colorStyle?: React.CSSProperties;
   }>;
+  /**
+   * Synthesized card subtitle (e.g. "Account: Acme · Amount: $150K"). Rendered
+   * in preference to `description` so we don't have to overwrite the record's
+   * real `description` field — which would corrupt detail-view and edit-form
+   * displays once a card is opened.
+   *
+   * Read by `KanbanImpl`; absent on a board that renders plain descriptions.
+   */
+  cardSubtitle?: string;
+  /**
+   * Structured per-field cells. When provided, the card body renders each
+   * field via the unified `@object-ui/fields` cell-renderer pipeline (same
+   * as Grid/Gallery), so lookup/user/email/url/phone/boolean/etc. fields
+   * keep their semantic styling instead of being flattened to a text join.
+   *
+   * Takes precedence over `cardSubtitle` / `description` when present.
+   */
+  cardFieldCells?: Array<{ field: string; label?: string; node: React.ReactNode }>;
+  /**
+   * Resolved cover-image URL for the card, derived from the board's
+   * `coverImageField`. Read by both board implementations.
+   */
+  coverImage?: string;
   [key: string]: any;
 }
 
@@ -52,6 +75,11 @@ export interface KanbanColumn {
   cards: KanbanCard[];
   limit?: number;
   className?: string;
+  /**
+   * Whether the lane renders collapsed. Honoured by `KanbanEnhanced` (the
+   * implementation that ships column collapsing); the plain board ignores it.
+   */
+  collapsed?: boolean;
 }
 
 /**

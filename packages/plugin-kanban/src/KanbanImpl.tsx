@@ -29,6 +29,7 @@ import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Scrol
 import { useHasDndProvider, useDnd, usePredicateScope } from "@object-ui/react"
 import { resolveConditionalFormatting } from "@object-ui/core"
 import type { KanbanConditionalFormattingRule } from "@object-ui/types"
+import type { KanbanCard, KanbanColumn } from './types'
 import { createSafeTranslation } from "@object-ui/i18n"
 import { Plus } from "lucide-react"
 
@@ -48,43 +49,14 @@ const useKanbanT = createSafeTranslation(
 
 const UNCATEGORIZED_LANE = 'Uncategorized'
 
-export interface KanbanCard {
-  id: string
-  title: string
-  description?: string
-  /**
-   * Synthesized card subtitle (e.g. "Account: Acme · Amount: $150K"). Rendered
-   * in preference to `description` so we don't have to overwrite the record's
-   * real `description` field — which would corrupt detail-view and edit-form
-   * displays once a card is opened.
-   */
-  cardSubtitle?: string
-  /**
-   * Structured per-field cells. When provided, the card body renders each
-   * field via the unified `@object-ui/fields` cell-renderer pipeline (same
-   * as Grid/Gallery), so lookup/user/email/url/phone/boolean/etc. fields
-   * keep their semantic styling instead of being flattened to a text join.
-   *
-   * Takes precedence over `cardSubtitle` / `description` when present.
-   */
-  cardFieldCells?: Array<{ field: string; label?: string; node: React.ReactNode }>
-  /**
-   * `colorStyle` carries the CSS custom properties a hex-derived `colorClass`
-   * reads (objectui#5183) — see `KanbanCard.badges` in `./types` for how to
-   * derive the pair.
-   */
-  badges?: Array<{ label: string; variant?: "default" | "secondary" | "destructive" | "outline"; colorClass?: string; colorStyle?: React.CSSProperties }>
-  coverImage?: string
-  [key: string]: any
-}
-
-export interface KanbanColumn {
-  id: string
-  title: string
-  cards: KanbanCard[]
-  limit?: number
-  className?: string
-}
+// `KanbanCard` / `KanbanColumn` have ONE authority in this package: `./types`
+// (objectui#6172 / #6155). This file used to redeclare both, and the copies had
+// drifted — the local `KanbanCard` carried `cardSubtitle` / `cardFieldCells` /
+// `coverImage` that `./types` did not. Those members moved to the canonical
+// declaration (all optional, so nothing that type-checked before stopped), and
+// the re-export below keeps this module's export surface byte-for-byte what it
+// was for any importer. A re-export is not a second declaration.
+export type { KanbanCard, KanbanColumn } from './types'
 
 // Card formatting accepts the native `{ field, operator, value }` shape and the
 // spec `{ condition, style }` CEL shape (issue #1584) — see @object-ui/types.

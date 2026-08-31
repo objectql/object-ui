@@ -394,10 +394,29 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   // authority left the tree with the spec-bridge retirement (objectui#6366,
   // 2026-08-27 maintainer ruling), so app-shell's `form-spec.ts` is now the
   // one authority and the entries would fail the stale-baseline direction.
-  ['KanbanCard', ['packages/plugin-kanban/src/KanbanEnhanced.tsx', 'packages/plugin-kanban/src/KanbanImpl.tsx', 'packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // objectui#6155 — the ×4 that card measured
-  ['KanbanColumn', ['packages/plugin-kanban/src/KanbanEnhanced.tsx', 'packages/plugin-kanban/src/KanbanImpl.tsx', 'packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // the same four files; no family card named it
-  ['KanbanSchema', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // objectui#6172
-  ['MarkdownSchema', ['packages/plugin-markdown/src/types.ts', 'packages/types/src/data-display.ts']], // objectui#6172
+  // `KanbanCard` / `KanbanColumn` were the ×4 objectui#6155 measured. The THREE
+  // in-package copies converged (objectui#6172): `KanbanImpl.tsx` and
+  // `KanbanEnhanced.tsx` were strict-SUBSET copies of `./types` — an AST probe
+  // found nothing typed differently between them — so their members (`coverImage`,
+  // `cardSubtitle`, `cardFieldCells`, `collapsed`, all optional) moved onto the one
+  // in-package declaration and both files now re-point at it. Two sites remain, and
+  // they are the CROSS-package pair: the `@object-ui/types` copy is a different
+  // dialect (`items` where the plugin says `cards`, `labels` where it says
+  // `badges`), so collapsing it is a rename of a published name and needs an
+  // authority ruling the 2026-08-25 family ruling did not give for this pair — it
+  // named one only for the cross-package `FormField` clash. Escalated, not guessed.
+  ['KanbanCard', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']],
+  ['KanbanColumn', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']],
+  ['KanbanSchema', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // objectui#6172 — same cross-package pair, same escalation
+  // `MarkdownSchema` sat here, colliding between
+  // `packages/plugin-markdown/src/types.ts` and `packages/types/src/data-display.ts`.
+  // The copies differed on ONE member — `content`, required there and optional here —
+  // and that was measured to be DRIFT rather than a semantic difference: the plugin's
+  // own registration declares the `content` input `required: true` (pinned by its own
+  // test), its `MarkdownImplProps.content` is non-optional, the Zod mirror spells
+  // `z.string()`, and every authored `type: 'markdown'` NODE in the repo supplies it.
+  // So plugin-markdown re-points at the one authority in `@object-ui/types`
+  // (objectui#6172).
   ['MenuItem', ['packages/types/src/app.ts', 'packages/types/src/overlay.ts']],
   ['MetadataTypeStatus', ['packages/app-shell/src/providers/MetadataProvider.tsx', 'packages/react/src/context/AppShellContext.tsx']],
   ['NamedActionDef', ['packages/plugin-grid/src/resolveBulkActions.ts', 'packages/plugin-grid/src/resolveLegacyRowActions.ts']],

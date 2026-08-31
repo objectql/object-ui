@@ -50,23 +50,30 @@ const schema = {
 ```plaintext
 {
   type: 'markdown',
-  content?: string,    // Markdown content
+  content: string,     // Markdown content (required)
   className?: string   // Tailwind classes
 }
 ```
 
 ### MarkdownSchema
 
-Declared by `@object-ui/plugin-markdown`
-(`packages/plugin-markdown/src/types.ts`) — the plugin ships its own copy of
-this name, so read it there rather than the same-named interface in
-`@object-ui/types`. It extends `BaseSchema`, so the shared component properties
-are available on a `markdown` node as well as the ones below.
+Declared by `@object-ui/types` (`packages/types/src/data-display.ts`) and
+re-exported by `@object-ui/plugin-markdown`, so either import spelling resolves
+to the same type. The plugin used to ship a second declaration of this name;
+the two have been converged onto the one authority (objectui#6172). It extends
+`BaseSchema`, so the shared component properties are available on a `markdown`
+node as well as the ones below.
+
+`content` is **required**: the plugin registers it as a required input, the
+renderer's own props type takes a non-optional `string`, and the Zod mirror
+(`packages/types/src/zod/data-display.zod.ts`) validates it as `z.string()`.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `content` | string | `''` | Markdown content to render |
+| `content` | string | — (required) | Markdown content to render |
 | `className` | string | `''` | Additional Tailwind CSS classes |
+| `sanitize` | boolean | `true` | Declared on the schema; the renderer sanitizes unconditionally |
+| `components` | Record | — | Declared on the schema; not read by this renderer |
 
 ## Supported Markdown Features
 
