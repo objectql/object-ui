@@ -649,6 +649,49 @@ function MetadataResourceEditPageImpl({
   React.useEffect(() => {
     setSelection(null);
   }, [type, name]);
+  // ── Why the live client Zod `issues` are NOT a term in this gate ──
+  //
+  // Two author-time error sources reach this page and only one of them gates
+  // Save. The asymmetry is intended; it is recorded here because its absence
+  // read as a defect from outside (objectui#6980). The discriminator is
+  // whether the SERVER is a backstop for the class:
+  //
+  //  - Inspector issues (a CEL predicate that does not parse) have none.
+  //    objectui#4306 measured a dangling-operator formula saving 200 with a
+  //    success toast and publishing as the live field definition, and the
+  //    runtime authoring gate reports its findings only as ADVISORY on an
+  //    already-SUCCESSFUL save (#4133). The client is the only gate, so it
+  //    must block.
+  //  - Schema issues DO have one. `saveMetaItem` runs the same contract, and
+  //    `doSave` below already maps its refusal (422 / INVALID_METADATA /
+  //    INVALID_PAYLOAD) back into these same inline issues. A schema-invalid
+  //    draft cannot land, so the live Zod pass is a PREVIEW of the server's
+  //    verdict rather than the thing standing between the draft and storage.
+  //
+  // That leaves only the failure the client can cause by itself: being
+  // STRICTER than the server. objectui bundles `@objectstack/spec` on a caret
+  // range while the server ships its own copy, so the two skew — and skew in
+  // that direction is not hypothetical: objectstack#5316 (stored views
+  // carrying the platform's own `isPinned` / `sortOrder`), the `report`
+  // `objectName`/`columns` drift pinned by `clientValidation.skew.test.tsx`,
+  // and `FORWARD_COMPAT_FLOW_NODE_TYPES` are three landed instances.
+  //
+  // `clientValidation.ts`'s root-cure covers exactly ONE class of that skew: a
+  // TOP-LEVEL required field, absent from the draft, that the live server
+  // marks optional (`path.length === 1`). It cannot cover the rest. Measured
+  // on the bundled spec 17.2.0, 14 of the 15 wired schemas reject an
+  // undeclared key, and `unrecognized_keys` arrives at `path.length` 0 (root)
+  // or 2 (e.g. `nodes.0`) — which that filter passes straight through. So a
+  // server that gains one authorable key would, under a blocking gate,
+  // dead-bolt Save for every author using it, on a draft the server accepts,
+  // with no on-screen editor able to take the key back out. That is the same
+  // wedge every gate in this family is built to avoid — see the stamp on
+  // `blockingReport` below, and its siblings in `ObjectFieldInspector`,
+  // `ConditionBuilder` and `ConditionalFormattingEditor`.
+  //
+  // So schema issues are surfaced loudly — banner, inline field errors,
+  // `previewDiagnostics` — and left advisory; the server has the last word.
+  // Pinned by `ResourceEditPage.schemaAdvisory.test.tsx`.
   // Blocking author-time issues reported by the scoped inspector (e.g. a CEL
   // formula that does not parse) — Save must refuse them rather than publish a
   // malformed definition (objectui#4306).
@@ -1992,6 +2035,11 @@ function MetadataResourceEditPageImpl({
           <X className="h-3.5 w-3.5" />
         </Button>
       )}
+      {/* `inspectorBlocking` is the ONLY validation term here, and that is on
+          purpose — the live client Zod `issues` are advisory. The reasoning,
+          and the measurement behind it, is at `blockingReport` above
+          (objectui#4306 / #6980). Do not add `issues.length` to this gate
+          without reading it. */}
       {canWrite && (editing || createMode) && (
         <Button
           size="sm"
