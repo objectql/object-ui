@@ -18,34 +18,29 @@ The Button Group component groups multiple buttons together with consistent styl
   <SchemaExample id="components-basic-button-group/with-icons" />
 </DemoGrid>
 
-## Selection Mode
-
-<DemoGrid>
-  <SchemaExample id="components-basic-button-group/single-selection" />
-  <SchemaExample id="components-basic-button-group/multiple-selection" />
-</DemoGrid>
-
 ## Schema
 
 ```plaintext
 interface ButtonGroupButton {
-  label?: string;
-  value: string;
-  icon?: string;
-  disabled?: boolean;
+  label: string;                  // Button label (required)
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
+  disabled?: boolean;             // Whether this button is disabled
+  onClick?: () => void;           // Runtime handler; not authorable in JSON
+  className?: string;             // Per-button CSS class
 }
 
 interface ButtonGroupSchema {
   type: 'button-group';
-  buttons: ButtonGroupButton[];   // Button definitions
-  value?: string | string[];      // Selected value(s)
-  selectionMode?: 'single' | 'multiple' | 'none';
-  variant?: 'default' | 'outline' | 'ghost';
-  size?: 'sm' | 'default' | 'lg';
-  
+  buttons?: ButtonGroupButton[];  // Button definitions
+
+  // Defaults applied to every button that does not set its own
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
+
   // States
   disabled?: boolean;
-  
+
   // Styling
   className?: string;
 }
