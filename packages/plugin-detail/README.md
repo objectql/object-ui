@@ -259,8 +259,10 @@ lowered to ObjectQL through the repo's single filter sink, so no second dialect
 appears.
 
 **A third producer writes that same key: the relationship itself.** A `lookup` /
-`master_detail` field may declare `relatedListFilter` (`@objectstack/spec` 17.1.0
-— objectstack#8704 / PR #8955), a canonical Query-DSL `FilterCondition` such as
+`master_detail` field may declare `relatedListFilter` (added to `@objectstack/spec`
+in objectstack#8704 / PR #8955 — see this package's own `@objectstack/spec`
+dependency in `package.json` for the version in use), a canonical Query-DSL
+`FilterCondition` such as
 `{ status: { $ne: 'deleted' } }`. `RecordDetailView` derives the record page's
 related lists from the relationship graph and carries that value onto this node's
 `filter`, so an auto-derived page honours it without anyone authoring a page
