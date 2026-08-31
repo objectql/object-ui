@@ -1313,12 +1313,27 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         };
       }
       case 'calendar':
+        // objectui#7029: the SECOND route to `ObjectCalendar`. `generateViewSchema`
+        // runs precisely when no host supplied `renderListView` — the authored
+        // `object-view` element — so it never passes through `ListView`, and the
+        // deletion this card made in app-shell + plugin-list does not reach it.
+        // Left alone it would keep fabricating the same three bindings for a view
+        // that declared none, which is what makes the renderer's own refusal
+        // screen unreachable (it decides by asking whether a start-date binding
+        // is PRESENT). Ruled on objectstack#13748: ⛔ either way no invented field
+        // names — so both routes forward only what the author declared.
         return {
           type: 'object-calendar',
           ...baseProps,
-          startDateField: viewOptions.calendar?.startDateField || 'start_date',
-          endDateField: viewOptions.calendar?.endDateField || 'end_date',
-          titleField: viewOptions.calendar?.titleField || 'name',
+          ...(viewOptions.calendar?.startDateField
+            ? { startDateField: viewOptions.calendar.startDateField }
+            : {}),
+          ...(viewOptions.calendar?.endDateField
+            ? { endDateField: viewOptions.calendar.endDateField }
+            : {}),
+          ...(viewOptions.calendar?.titleField
+            ? { titleField: viewOptions.calendar.titleField }
+            : {}),
           ...(viewOptions.calendar || {}),
         };
       case 'gallery':

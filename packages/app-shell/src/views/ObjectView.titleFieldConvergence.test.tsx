@@ -43,6 +43,20 @@
  * honour" case goes RED for that kind alone (it reads `'headline'`), while both
  * control cases and the calendar/gantt columns stay green.
  *
+ * ⚠️ FIXTURE TRIAGE, objectui#7029. The `calendar` column below used to read
+ * `'name'` for a view that declared nothing, and was cited here as one of the
+ * two seams that "already used two rungs". objectui#7029 (ruled on
+ * objectstack#13748) deleted the calendar seam outright: a view with no
+ * `calendar:` block now yields NO `options.calendar` at all, because the
+ * fabricated `startDateField: 'due_date'` / `titleField: 'name'` pair made
+ * `ObjectCalendar`'s refusal screen unreachable. So this file's calendar column
+ * is `undefined` for an undeclared view — the assertions were RETARGETED, not
+ * respelled, and the seam count below dropped from seven to six. What objectui#6557
+ * actually owns is unchanged and still pinned: no seam reads `objectDef`, and
+ * every seam that still HAS a floor is a chain of view-declared rungs. The
+ * declared-config control two cases down is the one that proves the retarget
+ * did not simply delete coverage: `calendar: 'v_calendar'` still resolves.
+ *
  * The last case is structural rather than behavioural on purpose: the four
  * inline seams are closures inside `ObjectViewInner`, and "these five now have
  * the same SHAPE as those two" is a statement about the expressions, not about
@@ -221,7 +235,9 @@ describe('ObjectView view-config `titleField` — the middle rung is gone (objec
       map: 'name',
       gallery: 'name',
       tree: 'name',
-      calendar: 'name',
+      // objectui#7029: the calendar seam no longer exists — an undeclared view
+      // gets no `options.calendar` bag, so there is no title to floor.
+      calendar: undefined,
       gantt: 'name',
     });
   });
@@ -235,7 +251,9 @@ describe('ObjectView view-config `titleField` — the middle rung is gone (objec
       map: 'name',
       gallery: 'name',
       tree: 'name',
-      calendar: 'name',
+      // objectui#7029: the calendar seam no longer exists — an undeclared view
+      // gets no `options.calendar` bag, so there is no title to floor.
+      calendar: undefined,
       gantt: 'name',
     });
   });
@@ -291,8 +309,17 @@ describe('the seven seams share ONE expression shape (objectui#6557)', () => {
   /** Every `titleField:` / `labelField:` assignment in the file. */
   const seamLines = SOURCE.split('\n').filter((l) => /^\s*(titleField|labelField):/.test(l));
 
-  it('there are exactly seven of them', () => {
-    expect(seamLines).toHaveLength(7);
+  it('there are exactly six of them', () => {
+    // Seven until objectui#7029 removed the calendar seam. The count is the
+    // tripwire: a new view kind copied from a sibling shows up here first.
+    expect(seamLines).toHaveLength(6);
+  });
+
+  it('and the calendar seam is not one of them', () => {
+    // Pinned explicitly rather than left implicit in the count above, so a
+    // future edit that re-adds a calendar title floor fails with the reason
+    // rather than with an off-by-one (objectui#7029).
+    expect(seamLines.filter((l) => /calendar/.test(l))).toEqual([]);
   });
 
   it('none reads the object definition', () => {
