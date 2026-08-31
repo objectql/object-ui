@@ -116,6 +116,73 @@ describe('fence scanning', () => {
     expect(blocks).toHaveLength(0);
   });
 
+  it('collects a fence opened inside a blockquote and strips the quoting from its body', () => {
+    // objectui#7086: the opening anchor allowed leading spaces and tabs only, so a
+    // fence inside a callout was never collected and the gate compiled nothing for
+    // it. Silently — an uncollected block appears in no count, and the page still
+    // reports as covered.
+    const { blocks } = scanFences(
+      [
+        '> **Import:** All types are available from `@object-ui/types`.',
+        '>',
+        `> ${FENCE}typescript`,
+        "> import type { PageNodeSchema } from '@object-ui/types';",
+        `> ${FENCE}`,
+        '',
+        'Prose after the callout.',
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].language).toBe('typescript');
+    expect(blocks[0].body).toBe("import type { PageNodeSchema } from '@object-ui/types';");
+  });
+
+  it('closes a blockquoted fence at its own depth rather than running to end of file', () => {
+    const { blocks } = scanFences(
+      [
+        `> ${FENCE}ts`,
+        '> export const a = 1;',
+        `> ${FENCE}`,
+        '',
+        'export const notPartOfTheBlock = true;',
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe('export const a = 1;');
+  });
+
+  it('strips the opening depth only, so nesting and the snippet own indentation survive', () => {
+    const { blocks } = scanFences(
+      [
+        `> > ${FENCE}ts`,
+        '> > export const nested = {',
+        '> >   deep: true,',
+        '> > };',
+        `> > ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe(['export const nested = {', '  deep: true,', '};'].join('\n'));
+  });
+
+  it('does not let a quoted backtick line close an unquoted fence', () => {
+    // Depth 0 takes the identity path. This is what keeps every unquoted fence in
+    // the corpus collecting exactly as it did before blockquotes were recognised.
+    const { blocks } = scanFences(
+      [
+        `${FENCE}ts`,
+        '// a quoted fence, as prose inside a snippet:',
+        `> ${FENCE}`,
+        'export const a = 1;',
+        FENCE,
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe(
+      ['// a quoted fence, as prose inside a snippet:', `> ${FENCE}`, 'export const a = 1;'].join('\n'),
+    );
+  });
+
   it('attaches a fragment marker only to the fence directly beneath it', () => {
     const { blocks } = scanFences(
       [

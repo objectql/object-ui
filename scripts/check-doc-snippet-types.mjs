@@ -554,6 +554,31 @@ const UNGATED_DOCS = {
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
 
+/**
+ * One level of blockquote marker: the `>` a Markdown blockquote puts in front of
+ * every line it contains — the fences and the code between them alike. At most one
+ * space after the marker is consumed, per CommonMark, so indentation that belongs
+ * to the snippet survives the strip.
+ */
+const QUOTE_MARKER = /^[ \t]*>[ \t]?/;
+
+/**
+ * `line` with `depth` levels of blockquote marker removed. `depth === 0` returns
+ * the line unchanged, byte for byte; that identity path is what keeps every
+ * unquoted fence in the corpus collecting exactly as it did before. A line that
+ * runs out of markers early is returned as far as it stripped, which bounds a
+ * lazily-continued blockquote instead of letting its fence run to end of file.
+ */
+function stripQuotePrefix(line, depth) {
+  let out = line;
+  for (let d = 0; d < depth; d++) {
+    const m = QUOTE_MARKER.exec(out);
+    if (!m) break;
+    out = out.slice(m[0].length);
+  }
+  return out;
+}
+
 /** The declaration a fragment carries; see FRAGMENT_MARKER_EXAMPLES. */
 const FRAGMENT_MARKER =
   /^[ \t]*(?:\{\/\*|<!--)[ \t]*doc-snippet:[ \t]*fragment[ \t]*(?:—|--|-|:)[ \t]*(.+?)[ \t]*(?:\*\/\}|-->)[ \t]*$/;
@@ -576,6 +601,12 @@ export const FRAGMENT_MARKER_EXAMPLES = [
  * Every fenced block in one document, with the ts/tsx ones marked. Fences are
  * matched by their own run length so a ```` ```` ```` wrapper containing ``` does
  * not confuse the walk, and a block's opening info string is kept verbatim.
+ *
+ * A fence opened inside a blockquote is collected too. Its opener's quote depth
+ * is carried to the search for its closing fence and stripped from every body
+ * line, so the compiler sees the snippet the reader sees and not the `>` around
+ * it. Depth 0 — every unquoted fence — takes the identity path and scans exactly
+ * as it did before blockquotes were recognised.
  */
 export function scanFences(source) {
   const lines = source.split('\n');
@@ -584,12 +615,13 @@ export function scanFences(source) {
   for (let i = 0; i < lines.length; i++) {
     const marker = FRAGMENT_MARKER.exec(lines[i]);
     if (marker) markers.push({ line: i + 1, reason: marker[1].trim(), consumed: false });
-    const open = /^([ \t]*)(`{3,})(.*)$/.exec(lines[i]);
+    const open = /^([ \t]*(?:>[ \t]*)*)(`{3,})(.*)$/.exec(lines[i]);
     if (!open) continue;
     const ticks = open[2];
+    const depth = (open[1].match(/>/g) ?? []).length;
     let close = lines.length;
     for (let j = i + 1; j < lines.length; j++) {
-      const c = /^[ \t]*(`{3,})[ \t]*$/.exec(lines[j]);
+      const c = /^[ \t]*(`{3,})[ \t]*$/.exec(stripQuotePrefix(lines[j], depth));
       if (c && c[1].length >= ticks.length) {
         close = j;
         break;
@@ -606,7 +638,10 @@ export function scanFences(source) {
       blocks.push({
         fenceLine: i + 1,
         language,
-        body: lines.slice(i + 1, close).join('\n'),
+        body: lines
+          .slice(i + 1, close)
+          .map((line) => stripQuotePrefix(line, depth))
+          .join('\n'),
         fragmentReason: above ? above.reason : null,
       });
     }
