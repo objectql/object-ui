@@ -1474,6 +1474,9 @@ const zh = {
       unpinItem: '取消固定 {{name}}',
       dragToReorder: '拖动以重新排序',
       favorites: '收藏',
+      launcherLabel: '应用启动台',
+      menuLabel: '应用导航',
+      menuEmpty: '此应用没有你可以打开的导航项。',
     },
     settingsHub: {
       title: '设置',

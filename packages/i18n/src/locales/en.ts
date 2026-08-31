@@ -1591,6 +1591,9 @@ const en = {
       unpinItem: 'Unpin {{name}}',
       dragToReorder: 'Drag to reorder',
       favorites: 'Favorites',
+      launcherLabel: 'App launcher',
+      menuLabel: 'App navigation',
+      menuEmpty: 'This app has no navigation entries you can open.',
     },
     settingsHub: {
       title: 'Settings',

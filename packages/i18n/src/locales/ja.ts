@@ -1861,6 +1861,9 @@ const ja = {
       unpinItem: "{{name}} のピンを外す",
       dragToReorder: "ドラッグして並べ替え",
       favorites: "お気に入り",
+      launcherLabel: "アプリランチャー",
+      menuLabel: "アプリナビゲーション",
+      menuEmpty: "このアプリには開けるナビゲーション項目がありません。",
     },
   },
   auth: {

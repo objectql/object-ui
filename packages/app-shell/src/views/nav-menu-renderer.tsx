@@ -254,8 +254,12 @@ export const NavMenuRenderer: React.FC<NavMenuRendererProps> = ({
     [objectLabel, dashboardLabel, viewLabel, t],
   );
 
-  const renderItem = useCallback(
-    (item: NavigationItem, depth: number): React.ReactNode => {
+  // A plain (hoisted) function declaration, not a `useCallback`: it recurses
+  // into itself for `group` children, and a `const` arrow cannot be called from
+  // inside its own initializer without reading the binding before it is
+  // declared (`react-hooks/immutability`). Memoising would buy nothing anyway —
+  // `rows` below is recomputed on every render regardless.
+  function renderItem(item: NavigationItem): React.ReactNode {
       // The guard ORDER is `NavigationItemRenderer`'s and
       // `hasVisibleNavigationItems`'; keeping it identical is what makes the
       // derived-area predicate above agree with what actually renders.
@@ -274,7 +278,7 @@ export const NavMenuRenderer: React.FC<NavMenuRendererProps> = ({
 
       if (item.type === 'group') {
         const children = (item.children ?? [])
-          .map((child) => renderItem(child, depth + 1))
+          .map((child) => renderItem(child))
           .filter(Boolean);
         // A group whose children are all gated away contributes nothing a user
         // can navigate to, so it does not render its heading either.
@@ -337,16 +341,14 @@ export const NavMenuRenderer: React.FC<NavMenuRendererProps> = ({
           )}
         </li>
       );
-    },
-    [evalVis, checkPerm, checkCap, label, activeId, basePath, templateContext, dispatchNavAction],
-  );
+  }
 
-  const rows = items.map((item) => renderItem(item, 0)).filter(Boolean);
+  const rows = items.map((item) => renderItem(item)).filter(Boolean);
 
   return (
     <nav
       className={className}
-      aria-label={t('console.navMenu.label', { defaultValue: 'App navigation' }) as string}
+      aria-label={t('console.nav.menuLabel', { defaultValue: 'App navigation' }) as string}
       data-block="nav:menu"
       {...splitDesigner(props)}
     >
@@ -354,7 +356,7 @@ export const NavMenuRenderer: React.FC<NavMenuRendererProps> = ({
         <ul className="grid gap-0.5">{rows}</ul>
       ) : (
         <p className="px-2 py-1.5 text-sm text-muted-foreground">
-          {t('console.navMenu.empty', {
+          {t('console.nav.menuEmpty', {
             defaultValue: 'This app has no navigation entries you can open.',
           })}
         </p>

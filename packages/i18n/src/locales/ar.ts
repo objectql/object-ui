@@ -1866,6 +1866,9 @@ const ar = {
       unpinItem: "إلغاء تثبيت {{name}}",
       dragToReorder: "اسحب لإعادة الترتيب",
       favorites: "المفضلة",
+      launcherLabel: "مشغّل التطبيقات",
+      menuLabel: "تنقّل التطبيق",
+      menuEmpty: "لا توجد في هذا التطبيق عناصر تنقّل يمكنك فتحها.",
     },
   },
   auth: {

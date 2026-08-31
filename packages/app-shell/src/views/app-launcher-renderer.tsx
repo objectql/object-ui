@@ -126,7 +126,7 @@ export const AppLauncherRenderer: React.FC<AppLauncherRendererProps> = ({
   return (
     <nav
       className={className}
-      aria-label={t('console.appLauncher.label', { defaultValue: 'App launcher' }) as string}
+      aria-label={t('console.nav.launcherLabel', { defaultValue: 'App launcher' }) as string}
       data-block="app:launcher"
       {...splitDesigner(props)}
     >

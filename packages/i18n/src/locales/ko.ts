@@ -1859,6 +1859,9 @@ const ko = {
       unpinItem: "{{name}} 고정 해제",
       dragToReorder: "드래그하여 순서 변경",
       favorites: "즐겨찾기",
+      launcherLabel: "앱 런처",
+      menuLabel: "앱 탐색",
+      menuEmpty: "이 앱에는 열 수 있는 탐색 항목이 없습니다.",
     },
   },
   auth: {

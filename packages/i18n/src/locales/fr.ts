@@ -1861,6 +1861,9 @@ const fr = {
       unpinItem: "Désépingler {{name}}",
       dragToReorder: "Glisser pour réorganiser",
       favorites: "Favoris",
+      launcherLabel: "Lanceur d'applications",
+      menuLabel: "Navigation de l'application",
+      menuEmpty: "Cette application n'a aucune entrée de navigation que vous pouvez ouvrir.",
     },
   },
   auth: {

@@ -1863,6 +1863,9 @@ const es = {
       unpinItem: "Desfijar {{name}}",
       dragToReorder: "Arrastrar para reordenar",
       favorites: "Favoritos",
+      launcherLabel: "Lanzador de aplicaciones",
+      menuLabel: "Navegación de la aplicación",
+      menuEmpty: "Esta aplicación no tiene entradas de navegación que puedas abrir.",
     },
   },
   auth: {

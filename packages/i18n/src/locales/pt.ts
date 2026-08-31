@@ -1858,6 +1858,9 @@ const pt = {
       unpinItem: "Desafixar {{name}}",
       dragToReorder: "Arrastar para reordenar",
       favorites: "Favoritos",
+      launcherLabel: "Iniciador de aplicativos",
+      menuLabel: "Navegação do aplicativo",
+      menuEmpty: "Este aplicativo não tem entradas de navegação que você possa abrir.",
     },
   },
   auth: {

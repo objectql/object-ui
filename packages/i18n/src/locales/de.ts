@@ -1859,6 +1859,9 @@ const de = {
       unpinItem: "{{name}} loslösen",
       dragToReorder: "Zum Neuanordnen ziehen",
       favorites: "Favoriten",
+      launcherLabel: "App-Launcher",
+      menuLabel: "App-Navigation",
+      menuEmpty: "Diese App hat keine Navigationseinträge, die Sie öffnen können.",
     },
   },
   auth: {
