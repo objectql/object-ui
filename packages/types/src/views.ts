@@ -198,10 +198,31 @@ export interface DetailViewSection {
    */
   showBorder?: boolean;
   /**
-   * Header background color (Tailwind class)
+   * Header background tint, as one of six design-system tokens.
+   *
+   * Closed vocabulary — the same six `@object-ui/plugin-detail`'s
+   * `HEADER_COLOR_CLASSES` resolves, and the same six `@objectstack/spec`
+   * declares on its strict `record:details` section schema (maintainer ruling
+   * A, 2026-08-26, objectstack#12126). A value outside them is refused by the
+   * `DetailViewSectionSchema` mirror in `./zod/views.zod.ts`, whose `z.enum`
+   * is pinned one-to-one against that renderer module.
+   *
+   * The renderer additionally hands a value that is ALREADY a complete `bg-*`
+   * class straight through to the DOM. That pass-through is deliberately NOT
+   * declared here: it renders on the same terms as any `className` a schema
+   * carries — only if the host app's Tailwind build happens to emit that class
+   * — so declaring it would promise a capability the contract cannot keep
+   * (the ruling rejected declaring it for exactly that reason).
+   *
    * @example 'muted', 'primary/10'
    */
-  headerColor?: string;
+  headerColor?:
+    | 'muted'
+    | 'muted/50'
+    | 'accent'
+    | 'primary/10'
+    | 'secondary/10'
+    | 'destructive/10';
   /**
    * When true, hide fields whose value is null, undefined, or empty string.
    * If all fields are hidden, the entire section is hidden.

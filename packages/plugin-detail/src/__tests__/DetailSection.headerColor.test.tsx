@@ -32,6 +32,28 @@ const baseSection = (extra: Partial<DetailViewSection>): DetailViewSection =>
   ({ title: TITLE, fields: [{ name: 'amount', label: 'Amount' }], ...extra }) as DetailViewSection;
 
 /**
+ * A `headerColor` value the CONTRACT does not declare, handed to the renderer
+ * anyway.
+ *
+ * ⚠️ The cast is the POINT of the three tests that use it, not a workaround for
+ * them. objectui#6594 narrowed `DetailViewSection.headerColor` to the six ruled
+ * tokens, so an off-vocabulary value is a compile error at every authoring site
+ * — which is the guarantee that card bought, and `headerColor.contractPin-6594
+ * .test.ts` is where it is pinned. The renderer still has to behave sanely when
+ * one reaches it anyway, because metadata arrives as JSON over the wire where
+ * no compiler was ever involved, and because the pass-through for a value that
+ * is already a complete `bg-*` class is a deliberate UNDECLARED affordance
+ * (objectstack#12126 ruling A rejected declaring it: whether the class renders
+ * depends on the host app's Tailwind build, so declaring it would promise a
+ * capability the contract cannot keep).
+ *
+ * ⛔ Do not widen the declaration to make these three compile without the cast.
+ * That deletes the distinction the ruling drew.
+ */
+const offContract = (value: string): DetailViewSection['headerColor'] =>
+  value as DetailViewSection['headerColor'];
+
+/**
  * The header element, located by the two padding classes `DetailSection`
  * passes to `CardHeader` on both render branches. `getBy`-style: it throws
  * when the header did not render at all, so a negative assertion below cannot
@@ -84,7 +106,7 @@ describe('DetailSection headerColor -> a class the stylesheet can carry (objectu
     it('a value that is already a `bg-*` class passes through, not doubled', () => {
       const { container } = render(
         <DetailSection
-          section={baseSection({ ...extra, headerColor: 'bg-accent' })}
+          section={baseSection({ ...extra, headerColor: offContract('bg-accent') })}
           data={{ amount: 1 }}
         />,
       );
@@ -97,7 +119,7 @@ describe('DetailSection headerColor -> a class the stylesheet can carry (objectu
     it('an unmapped value contributes no class at all — never a fabricated one', () => {
       const { container, getByText } = render(
         <DetailSection
-          section={baseSection({ ...extra, headerColor: 'not-a-token' })}
+          section={baseSection({ ...extra, headerColor: offContract('not-a-token') })}
           data={{ amount: 1 }}
         />,
       );
@@ -114,7 +136,7 @@ describe('DetailSection headerColor -> a class the stylesheet can carry (objectu
     it('an inherited Object.prototype key is not a vocabulary entry', () => {
       const { container } = render(
         <DetailSection
-          section={baseSection({ ...extra, headerColor: 'constructor' })}
+          section={baseSection({ ...extra, headerColor: offContract('constructor') })}
           data={{ amount: 1 }}
         />,
       );

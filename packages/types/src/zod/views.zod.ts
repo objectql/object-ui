@@ -68,7 +68,20 @@ export const DetailViewSectionSchema = z.object({
   columns: z.number().optional().describe('Grid columns for field layout'),
   visible: z.union([z.boolean(), z.string()]).optional().describe('Section visibility condition'),
   showBorder: z.boolean().optional().describe('Show border around section'),
-  headerColor: z.string().optional().describe('Header background color (Tailwind class)'),
+  // Closed vocabulary — the six design-system tint tokens
+  // `@object-ui/plugin-detail`'s `HEADER_COLOR_CLASSES` resolves, and the six
+  // `@objectstack/spec` declares on its strict `record:details` section schema
+  // (maintainer ruling A, 2026-08-26, objectstack#12126). Pinned one-to-one
+  // against that renderer module by
+  // `packages/plugin-detail/src/__tests__/headerColor.contractPin-6594.test.ts`,
+  // which fails in BOTH directions — a token added to either side alone is red.
+  // The renderer's verbatim `bg-*` pass-through stays an UNDECLARED affordance:
+  // the ruling rejected declaring it, since it only renders where the host
+  // app's Tailwind build happens to emit that class.
+  headerColor: z
+    .enum(['muted', 'muted/50', 'accent', 'primary/10', 'secondary/10', 'destructive/10'])
+    .optional()
+    .describe('Header background tint (one of six design-system tokens)'),
 });
 
 /**
