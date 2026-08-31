@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { I18nLabelSchema } from '@objectstack/spec/ui';
+import { retirementTombstone } from './tombstone.zod.js';
 
 /**
  * A KEYED i18n label — the runtime mirror of `KeyedI18nLabel` in `../base.ts`.
@@ -299,11 +300,55 @@ export const ComponentInputSchema = z.object({
   ]).optional().describe('Enum options'),
   description: z.string().optional().describe('Help text'),
   advanced: z.boolean().optional().describe('Advanced option flag'),
+  /**
+   * ⚠️ NOT retired with the four tombstones below (objectui#5905):
+   * `plugin-markdown`'s registration authors it, so it is declared-and-DROPPED
+   * rather than declared-and-unread. See `ComponentInput.inputType` in
+   * `../base.ts` for the fork and what a ruling on it has to decide.
+   */
   inputType: z.string().optional().describe('Specific input type'),
-  min: z.number().optional().describe('Minimum value'),
-  max: z.number().optional().describe('Maximum value'),
-  step: z.number().optional().describe('Step value'),
-  placeholder: z.string().optional().describe('Placeholder text'),
+  /**
+   * ADR-0049 RETIREMENT TOMBSTONES (objectui#5905) — `min` / `max` / `step` /
+   * `placeholder`, the four `ComponentInput` keys measured with no reader on
+   * either the consumption or the publication path.
+   *
+   * `retirementTombstone()` (`./tombstone.zod.ts`) writes each guidance string
+   * ONCE into both author-facing channels — the parse-time issue message and
+   * `.describe()`, which feeds generated JSON-Schema and docs — so the two
+   * cannot drift. Without a tombstone the non-strict mirror would SILENTLY
+   * STRIP an authored value, trading one silent no-op for another; with it, a
+   * write from outside this repository (the half objectui#5905 could not
+   * measure) arrives as a NAMED REFUSAL carrying its own remedy.
+   *
+   * The accept set is the point, not a side effect: issue `code` stays
+   * `invalid_type` and the issue `path` names the key. A `refine`-based
+   * spelling would report `custom` and was rejected for exactly that reason
+   * (objectui#6105).
+   */
+  min: retirementTombstone(
+    'RETIRED (objectui#5905) — `ComponentInput.min` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; spell the numeric domain out in `description`, '
+    + 'which IS published.',
+  ),
+  max: retirementTombstone(
+    'RETIRED (objectui#5905) — `ComponentInput.max` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; spell the numeric domain out in `description`, '
+    + 'which IS published.',
+  ),
+  step: retirementTombstone(
+    'RETIRED (objectui#5905) — `ComponentInput.step` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; spell the numeric domain out in `description`, '
+    + 'which IS published.',
+  ),
+  placeholder: retirementTombstone(
+    'RETIRED (objectui#5905) — `ComponentInput.placeholder` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; put the hint in `description`, which IS '
+    + 'published. `BaseSchema.placeholder`, the node-level prop, is a DIFFERENT key and is unaffected.',
+  ),
 });
 
 /**

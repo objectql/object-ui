@@ -544,28 +544,86 @@ export interface ComponentInput {
 
   /**
    * Specific input type (e.g., 'email', 'password' for string)
+   *
+   * ⚠️ NOT retired alongside the four tombstones below (objectui#5905), and the
+   * difference is measured rather than stylistic. `plugin-markdown`'s
+   * registration AUTHORS this key — `inputs: [{ name: 'content', …, inputType:
+   * 'textarea' }]` in `packages/plugin-markdown/src/index.tsx`, pinned by that
+   * package's own test — while the manifest serializer still drops it. That is
+   * declared-and-DROPPED, a different defect from the declared-and-unread four
+   * below: retiring it would convert one registration's silent no-op into a
+   * build failure without first deciding what that registration should say
+   * instead (delete the line, or teach the publication path to carry it). The
+   * fork is recorded on objectui#5905 for a ruling; until then this stays a
+   * live, writable key that nothing publishes.
    */
   inputType?: string;
 
   /**
-   * Minimum value (for number/date)
+   * ADR-0049 RETIREMENT TOMBSTONES — `min` / `max` / `step` / `placeholder`
+   * (objectui#5905).
+   *
+   * `?: never` is this package's tombstone convention (see `crud.ts` `confirm`
+   * and {@link StaticTableColumn} in `data-display.ts`): the key stays
+   * DECLARED and becomes UNWRITABLE, so authoring one is a `tsc` error here and
+   * a named parse refusal in the Zod twin (`zod/base.zod.ts`
+   * `ComponentInputSchema`, via `retirementTombstone()`). Deleting the members
+   * outright would have been the quiet option — an undeclared key is silently
+   * stripped by the non-strict mirror, which trades one silent no-op for
+   * another.
+   *
+   * What was measured (objectui#5905, re-measured on the merge-base of the
+   * retiring PR): no consumer reads any of the four, and the manifest
+   * serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys
+   * per input — `name`, `type`, `required`, `enum`, `binding`, `description` —
+   * so a value authored here could not reach the published
+   * `sdui.manifest.json` even in principle. A structural census over every
+   * `inputs:` array in the repository found ZERO authoring sites for the four
+   * (the same pass counted 926 `name`, 926 `type` and 161 `description` sites,
+   * so the instrument was not blind). Authorship from OUTSIDE the repository is
+   * not measurable from here — the limit objectui#5674 recorded for
+   * `PluginComponentInput` — and converting such a write from a silent drop
+   * into a NAMED REFUSAL is exactly what these tombstones buy.
+   *
+   * ⚠️ Why a future reader must NOT read this as "these keys were a mistake":
+   * the neighbouring `type` field carries a maintainer ruling of 2026-08-17
+   * (quoted in full above) recording that giving `ComponentInput` real
+   * constraint slots was **DEFERRED, NOT REJECTED** — two sources of truth,
+   * free to drift, was the stated cost. `min` / `max` / `step` read exactly
+   * like the slots that ruling declined to add. What is retired is this inert
+   * spelling of them, not the idea; the ruling's own reopen condition (a
+   * measured case of an author shipping a spec-rejected value objectui's
+   * silence let through) is still the route back.
+   *
+   * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards six keys and this is not one of them. Spell
+   * the numeric domain out in `description`, which IS published.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  min?: number;
-
+  min?: never;
   /**
-   * Maximum value (for number/date)
+   * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards six keys and this is not one of them. Spell
+   * the numeric domain out in `description`, which IS published.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  max?: number;
-
+  max?: never;
   /**
-   * Step value (for number)
+   * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards six keys and this is not one of them. Spell
+   * the numeric domain out in `description`, which IS published.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  step?: number;
-
+  step?: never;
   /**
-   * Placeholder text
+   * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards six keys and this is not one of them. Put the
+   * hint in `description`, which IS published. `BaseSchema.placeholder` — the
+   * node-level prop a renderer does read — is a DIFFERENT key and is
+   * unaffected.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  placeholder?: string;
+  placeholder?: never;
 }
 
 /**
@@ -637,9 +695,39 @@ export interface ComponentMeta {
 }
 
 /**
- * Complete component configuration combining renderer and metadata.
+ * Complete component configuration combining renderer and metadata — the ONE
+ * declaration of this name (objectui#6298).
+ *
+ * ## Why it carries a type parameter
+ *
+ * `@object-ui/core` used to declare a SECOND `ComponentConfig` in
+ * `src/registry/Registry.ts`, and after objectui#6067 / PR #6297 single-sourced
+ * the `ComponentMeta` half, GENERICITY AND THE `component` SLOT was the whole
+ * of what still made the two same-named PUBLISHED exports genuinely different
+ * types: core's was `<T = any>` with a parameterised renderer slot, this one was
+ * non-generic with `component: any`. Core now RE-EXPORTS this declaration, so
+ * the parameter has to live here for that re-export to be lossless.
+ *
+ * The parameter is DEFAULTED, so every existing spelling keeps its meaning
+ * exactly: bare `ComponentConfig` is `ComponentConfig<any>`, whose `component`
+ * is `any` — the same slot this declaration has always published. Nothing that
+ * compiled against it before has to change.
+ *
+ * ⚠️ `T` is the RENDERER ITSELF, not a props type. Core's `ComponentRenderer<T>`
+ * is the IDENTITY alias (`export type ComponentRenderer<T = any> = T`), which is
+ * why `component: T` here says exactly what `component: ComponentRenderer<T>`
+ * said there — and why this convergence needed no `@object-ui/types` →
+ * `@object-ui/core` dependency edge, which would have been a cycle in the wrong
+ * direction (this package is the bottom layer; core depends on it). That
+ * identity is not assumed: it is pinned in
+ * `packages/core/src/registry/__tests__/component-config-single-declaration.test.ts`,
+ * and if `ComponentRenderer` ever stops being the identity this slot stops
+ * matching it and that pin goes red.
+ *
+ * @typeParam T - The renderer this configuration carries. Defaults to `any`,
+ *   the framework-agnostic slot this package published before it was named.
  */
-export interface ComponentConfig extends ComponentMeta {
+export interface ComponentConfig<T = any> extends ComponentMeta {
   /**
    * Unique component type identifier
    */
@@ -648,7 +736,7 @@ export interface ComponentConfig extends ComponentMeta {
   /**
    * The component renderer (framework-specific)
    */
-  component: any;
+  component: T;
 }
 
 /**

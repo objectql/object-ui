@@ -17,6 +17,7 @@
 
 import type { ChartType as SpecChartType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
+import type { BreadcrumbSchema } from './navigation.js';
 
 /**
  * Alert component
@@ -1111,9 +1112,35 @@ export interface TreeNode {
 export interface TreeViewSchema extends BaseSchema {
   type: 'tree-view';
   /**
-   * Tree data
+   * Tree data — the fallback spelling, read only when
+   * {@link TreeViewSchema.nodes} is absent.
+   *
+   * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:105`
+   * — `const rawNodes = boundData || schema.nodes || schema.data || []`.
    */
   data: TreeNode[];
+  /**
+   * Tree data — the spelling the renderer reads FIRST.
+   *
+   * READ SITE: `renderers/data-display/tree-view.tsx:105`, the middle limb of
+   * `boundData || schema.nodes || schema.data || []`, so `nodes` WINS over
+   * {@link TreeViewSchema.data} when both are authored (and a `bind`-resolved
+   * value wins over both).
+   *
+   * ⚠️ Declaring `nodes` does NOT by itself make `{ type: 'tree-view', nodes }`
+   * a legal document: {@link TreeViewSchema.data} stays REQUIRED on both faces,
+   * so the validator still demands `data`. Relaxing that is an accept-set
+   * change and a separate ruling — objectui#6150 declares the read, nothing
+   * more.
+   */
+  nodes?: TreeNode[];
+  /**
+   * Heading rendered above the tree.
+   *
+   * READ SITE: `renderers/data-display/tree-view.tsx:115` (presence gate) and
+   * `:117` (the `h3` body).
+   */
+  title?: string;
   /**
    * Default expanded node IDs
    */
@@ -1148,6 +1175,21 @@ export interface TreeViewSchema extends BaseSchema {
    * Node expand handler
    */
   onExpandChange?: (expandedIds: string[]) => void;
+  /**
+   * Node click handler — INVOKED, not merely read, so this is a call
+   * signature and not a value shape.
+   *
+   * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:98`
+   * (presence gate `if (schema.onNodeClick)`) and `:99` (the call
+   * `schema.onNodeClick(node)`), where `node` is the clicked
+   * {@link TreeNode}. The handler's return value is discarded.
+   *
+   * ⚠️ NOT mirrored in `../zod/data-display.zod.ts`, deliberately: a function
+   * cannot appear in an authored JSON document, so it is a runtime slot.
+   * objectui#6152 ruled that class never gets a mirror; it is recorded in
+   * `__tests__/zod-mirror-parity.test.ts`'s `RuntimeOnlyDeclared` instead.
+   */
+  onNodeClick?: (node: TreeNode) => void;
 }
 
 /**
@@ -1644,34 +1686,27 @@ export interface TimelineSchema extends BaseSchema {
 }
 
 /**
- * Breadcrumb item
+ * Breadcrumb — ONE authority, and it lives in `./navigation.ts`.
+ *
+ * This module declared its own `BreadcrumbItem` / `BreadcrumbSchema` until
+ * objectui#6349. They were not a second dialect, they were a stale COPY: a
+ * strict subset of the navigation declarations, missing `BreadcrumbItem.icon` /
+ * `onClick` / `siblings` and `BreadcrumbSchema.maxItems`, with no key declared
+ * differently on either side. Everything that actually reads a breadcrumb was
+ * already on the navigation declaration — `registry.ts` maps the `'breadcrumb'`
+ * component type to it, `packages/types/src/index.ts` re-exports it under the
+ * bare names, `zod/navigation.zod.ts` mirrors it, and
+ * `content/docs/components/data-display/breadcrumb.mdx` documents `icon` and
+ * `maxItems` on THIS page. The copy's only reach was the
+ * `@object-ui/types/data-display` subpath and the {@link DataDisplaySchema}
+ * union below, both of which under-declared what the renderer honours.
+ *
+ * A re-export is one declaration with a second export site, which is exactly
+ * how this monorepo is meant to fan a type out; the recurrence guard
+ * (`scripts/__tests__/one-authority-per-exported-name-6273.test.ts`) does not
+ * count it. 2026-08-25 family ruling, objectui#6172 decision 甲/A1.
  */
-export interface BreadcrumbItem {
-  /**
-   * Item label
-   */
-  label: string;
-  /**
-   * Item href/link
-   */
-  href?: string;
-}
-
-/**
- * Breadcrumb component
- */
-export interface BreadcrumbSchema extends BaseSchema {
-  type: 'breadcrumb';
-  /**
-   * Breadcrumb items
-   */
-  items: BreadcrumbItem[];
-  /**
-   * Separator character
-   * @default '/'
-   */
-  separator?: string;
-}
+export type { BreadcrumbItem, BreadcrumbSchema } from './navigation.js';
 
 /**
  * Keyboard key component
@@ -1686,6 +1721,63 @@ export interface KbdSchema extends BaseSchema {
    * Key labels (multiple keys)
    */
   keys?: string | string[];
+}
+
+/**
+ * Bar chart component (`bar-chart`), rendered by `@object-ui/plugin-charts`
+ * over Recharts.
+ *
+ * Declared here for the same reason `MarkdownSchema` above is: a registered
+ * component type that `AnyComponentSchema` (`./zod/index.zod.ts`) does not
+ * model cannot be validated at all — `objectui validate` refuses every document
+ * that names it, and `objectui check` reports it as unrecognised
+ * (objectui#6318). `@object-ui/types` has zero dependencies and cannot import
+ * the plugin's own `BarChartSchema`, so this is the twin-declaration shape the
+ * markdown and kanban components already carry.
+ *
+ * ⚠️ Derived from READ SITES, not from a view of what a bar chart should
+ * accept: `packages/plugin-charts/src/ChartRenderer.tsx:28-38`
+ * (`ChartBarRenderer`) forwards exactly `data`, `dataKey`, `xAxisKey`,
+ * `height`, `className` and `color` into the lazy chart implementation, and the
+ * registration's `inputs`/`defaultProps` (`plugin-charts/src/index.tsx:45-64`)
+ * name the same five authorable keys.
+ *
+ * ⛔ Not to be confused with {@link ChartSchema} (`type: 'chart'`), the
+ * multi-series component with its own `series`/`chartType` vocabulary. This one
+ * plots a single `dataKey` and is reached only under the `bar-chart` keyword.
+ */
+export interface BarChartSchema extends BaseSchema {
+  type: 'bar-chart';
+  /**
+   * Rows to plot. Each row supplies one bar: its category comes from
+   * {@link xAxisKey} and its magnitude from {@link dataKey}.
+   */
+  data?: Array<Record<string, any>>;
+  /**
+   * Row key holding the bar's value (the y axis).
+   *
+   * @default 'value'
+   */
+  dataKey?: string;
+  /**
+   * Row key holding the bar's category label (the x axis).
+   *
+   * @default 'name'
+   */
+  xAxisKey?: string;
+  /**
+   * Chart height in pixels. A number, not a CSS length — the registration
+   * declares `type: 'number'` and defaults it to 400.
+   *
+   * @default 400
+   */
+  height?: number;
+  /**
+   * Bar fill colour, forwarded to Recharts verbatim.
+   *
+   * @default '#8884d8'
+   */
+  color?: string;
 }
 
 /**
@@ -1706,7 +1798,8 @@ export type DataDisplaySchema =
   | HtmlSchema
   | StatisticSchema
   | BreadcrumbSchema
-  | KbdSchema;
+  | KbdSchema
+  | BarChartSchema;
 
 /**
  * Raw HTML component

@@ -8,21 +8,36 @@
 
 /**
  * TypeScript type definitions for @object-ui/plugin-charts
- * 
+ *
  * These types can be imported by applications using this plugin
  * to get full TypeScript support for chart schemas.
  */
 
-import type { BaseSchema } from '@object-ui/types';
-
 /**
  * Bar Chart component schema.
  * Renders a bar chart using Recharts library.
- * 
+ *
+ * ⚠️ RE-EXPORTED, not declared here. The authority is
+ * `BarChartSchema` in `@object-ui/types` (`packages/types/src/data-display.ts`),
+ * which is also where the zod mirror `AnyComponentSchema` validates against
+ * lives — so the type an author reads and the schema that accepts their
+ * document cannot drift apart.
+ *
+ * Why that direction and not the other (objectui#6273, the 2026-08-25 family
+ * ruling objectui#6172 / 甲-A1): `@object-ui/types` is the lower layer and
+ * cannot import from a plugin without creating a cycle, so of the two possible
+ * authorities only this one is legal.
+ *
+ * The two declarations were measured structurally before this re-point rather
+ * than assumed equivalent — same heritage (`BaseSchema`), same six members,
+ * same per-member types and optionality, mutually assignable in both
+ * directions — so nothing about the published shape changes here. The import
+ * path `@object-ui/plugin-charts` keeps working exactly as before.
+ *
  * @example
  * ```typescript
  * import type { BarChartSchema } from '@object-ui/plugin-charts';
- * 
+ *
  * const chartSchema: BarChartSchema = {
  *   type: 'bar-chart',
  *   data: [
@@ -34,35 +49,4 @@ import type { BaseSchema } from '@object-ui/types';
  * }
  * ```
  */
-export interface BarChartSchema extends BaseSchema {
-  type: 'bar-chart';
-  
-  /**
-   * Array of data points to display in the chart.
-   */
-  data?: Array<Record<string, any>>;
-  
-  /**
-   * Key in the data object for the Y-axis values.
-   * @default 'value'
-   */
-  dataKey?: string;
-  
-  /**
-   * Key in the data object for the X-axis labels.
-   * @default 'name'
-   */
-  xAxisKey?: string;
-  
-  /**
-   * Height of the chart in pixels.
-   * @default 400
-   */
-  height?: number;
-  
-  /**
-   * Color of the bars.
-   * @default '#8884d8'
-   */
-  color?: string;
-}
+export type { BarChartSchema } from '@object-ui/types';

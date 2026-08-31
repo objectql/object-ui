@@ -65,9 +65,11 @@
  *     Anything citing "121" as the mirroring debt is citing a number that changed
  *     meaning — the comparable figure is 97 + 1 mirrored + 23 reclassified. The
  *     full statement is on that ledger.
- *   - **6 entries** in `RuntimeOnlyDeclared`, **23 keys** across them — a strict
- *     subset of the 16 pairs above, so the "no entry in either" population is
- *     unchanged.
+ *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
+ *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
+ *     the first pair whose ONLY ledger entry is a runtime-only one
+ *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
+ *     "no entry in either" population dropped by one to 141.
  *   - 158 − 12 = **146**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
@@ -118,10 +120,10 @@ import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaS
 import { BlockEditorSchema, BlockInstanceSchema, BlockLibraryItemSchema, BlockLibrarySchema, BlockMetadataSchema, BlockSchema, BlockSlotSchema, BlockVariableSchema, ComponentSchema } from '../zod/blocks.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
-import { AlertSchema, AvatarSchema, BadgeSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
+import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
-import { ButtonSchema, CalendarSchema, CheckboxSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
+import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
 import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
 import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
 import { ObjectCalendarSchema, ObjectChartSchema, ObjectFormSchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
@@ -135,10 +137,10 @@ import type { BlockEditorSchema as Ts_BlockEditorSchema, BlockInstanceSchema as 
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
-import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
+import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
-import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
+import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, CodeEditorSchema as Ts_CodeEditorSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
 import type { AspectRatioSchema as Ts_AspectRatioSchema, BoxSchema as Ts_BoxSchema, CardSchema as Ts_CardSchema, ContainerSchema as Ts_ContainerSchema, DivSchema as Ts_DivSchema, FlexSchema as Ts_FlexSchema, GridSchema as Ts_GridSchema, IconSchema as Ts_IconSchema, ImageSchema as Ts_ImageSchema, PageNodeRegion as Ts_PageNodeRegion, PageNodeSchema as Ts_PageNodeSchema, ResizablePanel as Ts_ResizablePanel, ResizableSchema as Ts_ResizableSchema, ScrollAreaSchema as Ts_ScrollAreaSchema, SeparatorSchema as Ts_SeparatorSchema, StackSchema as Ts_StackSchema, TabItem as Ts_TabItem, TabsSchema as Ts_TabsSchema, TextSchema as Ts_TextSchema, TextSpanSchema as Ts_TextSpanSchema } from '../layout';
 import type { ButtonGroupButton as Ts_ButtonGroupButton, ButtonGroupSchema as Ts_ButtonGroupSchema, HeaderBarSchema as Ts_HeaderBarSchema, NavigationMenuSchema as Ts_NavigationMenuSchema, PaginationSchema as Ts_PaginationSchema, SidebarSchema as Ts_SidebarSchema } from '../navigation';
 import type { ObjectCalendarSchema as Ts_ObjectCalendarSchema, ObjectChartSchema as Ts_ObjectChartSchema, ObjectFormSchema as Ts_ObjectFormSchema, ObjectGanttSchema as Ts_ObjectGanttSchema, ObjectGridSchema as Ts_ObjectGridSchema, ObjectKanbanSchema as Ts_ObjectKanbanSchema, ObjectMapConfig as Ts_ObjectMapConfig, ObjectMapSchema as Ts_ObjectMapSchema, ObjectTreeSchema as Ts_ObjectTreeSchema, ObjectViewSchema as Ts_ObjectViewSchema, SortConfig as Ts_SortConfig } from '../objectql';
@@ -248,7 +250,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 142 of the 158. */
+/** …and so does a clean pair with no entry, which is the case for 141 of the 158. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -376,6 +378,7 @@ const MIRRORS = {
   'data-display.zod.ts#DataTableSchema': DataTableSchema,
   'data-display.zod.ts#HtmlSchema': HtmlSchema,
   'data-display.zod.ts#KbdSchema': KbdSchema,
+  'data-display.zod.ts#BarChartSchema': BarChartSchema,
   'data-display.zod.ts#ListItemSchema': ListItemSchema,
   'data-display.zod.ts#ListSchema': ListSchema,
   'data-display.zod.ts#MarkdownSchema': MarkdownSchema,
@@ -407,6 +410,7 @@ const MIRRORS = {
   'form.zod.ts#CommandGroupSchema': CommandGroupSchema,
   'form.zod.ts#CommandItemSchema': CommandItemSchema,
   'form.zod.ts#CommandSchema': CommandSchema,
+  'form.zod.ts#CodeEditorSchema': CodeEditorSchema,
   'form.zod.ts#DatePickerSchema': DatePickerSchema,
   'form.zod.ts#FieldConditionSchema': FieldConditionSchema,
   'form.zod.ts#FieldConstraintsSchema': FieldConstraintsSchema,
@@ -539,6 +543,7 @@ interface Declared {
   'data-display.zod.ts#DataTableSchema': Ts_DataTableSchema;
   'data-display.zod.ts#HtmlSchema': Ts_HtmlSchema;
   'data-display.zod.ts#KbdSchema': Ts_KbdSchema;
+  'data-display.zod.ts#BarChartSchema': Ts_BarChartSchema;
   'data-display.zod.ts#ListItemSchema': Ts_ListItem;
   'data-display.zod.ts#ListSchema': Ts_ListSchema;
   'data-display.zod.ts#MarkdownSchema': Ts_MarkdownSchema;
@@ -570,6 +575,7 @@ interface Declared {
   'form.zod.ts#CommandGroupSchema': Ts_CommandGroup;
   'form.zod.ts#CommandItemSchema': Ts_CommandItem;
   'form.zod.ts#CommandSchema': Ts_CommandSchema;
+  'form.zod.ts#CodeEditorSchema': Ts_CodeEditorSchema;
   'form.zod.ts#DatePickerSchema': Ts_DatePickerSchema;
   'form.zod.ts#FieldConditionSchema': Ts_FieldCondition;
   'form.zod.ts#FieldConstraintsSchema': Ts_FieldValidationRules;
@@ -1041,6 +1047,23 @@ interface RuntimeOnlyDeclared {
    */
   'objectql.zod.ts#ObjectViewSchema': 'onNavigate';
   /**
+   * `TreeViewSchema`'s ONLY entry in either ledger — the pair was clean before
+   * objectui#6150 and this key is the whole of its debt.
+   *
+   * OVERSIGHT group by mirror shape (`onSelectChange` and `onExpandChange` are
+   * mirrored beside it as `z.function()`), but it arrives here as a DECLARATION,
+   * not a discovery: objectui#6150's census measured `schema.onNodeClick` INVOKED
+   * at `renderers/data-display/tree-view.tsx:98,99` against a type that declared
+   * nothing, and the card declared it. A function cannot appear in an authored
+   * JSON document, so the key is a runtime slot and objectui#6152's ruling routes
+   * it here rather than to a mirror — the step-3 exception in the header above,
+   * used exactly as written.
+   *
+   * ⚠️ This is the first pair to sit in `RuntimeOnlyDeclared` without also sitting
+   * in `UnmirroredDeclared`; the two counts in the file header record that.
+   */
+  'data-display.zod.ts#TreeViewSchema': 'onNodeClick';
+  /**
    * 3 of `DetailViewSchema`'s former 14 — the exact three the 2026-07 audit named. By
    * mirror SHAPE this is the oversight group (`onBack` is mirrored, as `z.string()`),
    * but this is also the pair where "a props bag wearing a schema's clothes" was
@@ -1169,10 +1192,12 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
- * pairs with no entry in either (158 − 16; `RuntimeOnlyDeclared`'s 6 pairs are a
- * measured subset of `UnmirroredDeclared`'s 16, so the clean population is unchanged
- * by objectui#6152's reclassification).
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 141
+ * pairs with no entry in either (158 − 17). Six of `RuntimeOnlyDeclared`'s seven
+ * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
+ * reclassification left the clean population unchanged; objectui#6150 then added
+ * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 17
+ * pairs and not 16.
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
  * The exit code is a whole-file verdict, so it moves only while the rest of the

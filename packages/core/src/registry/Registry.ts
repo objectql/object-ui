@@ -7,12 +7,38 @@
  */
 
 import type { ComponentMeta as CanonicalComponentMeta } from '@object-ui/types';
+// Deliberately a SECOND import statement from the same module rather than a
+// widening of the line above: `__tests__/component-meta-derives-from-canonical.test.ts`
+// pins that line as an exact string (objectui#6067's source-identity assertion),
+// so adding a specifier to it would red a pin that has nothing to do with this
+// name. Two `import type` lines from one module is legal and costs nothing —
+// type imports are erased.
+import type { ComponentConfig } from '@object-ui/types';
 import {
   ELEMENT_DATA_SOURCE_INPUT,
   isElementDataSourceBlock,
 } from '../data-scope/element-data-source.js';
 import { PUBLIC_BLOCKS } from './public-blocks.js';
 
+/**
+ * The renderer a registration carries — the IDENTITY alias, deliberately.
+ *
+ * ⚠️ Load-bearing for objectui#6298, which is why it is documented rather than
+ * left as a bare line. `ComponentRenderer<T>` resolves to `T` and contributes
+ * NO type information: that is the entire reason `@object-ui/types` can declare
+ * the one `ComponentConfig` with `component: T` and mean exactly what this
+ * package used to mean by `component: ComponentRenderer<T>`, WITHOUT
+ * `@object-ui/types` needing to reach this declaration. It could not have
+ * reached it: `@object-ui/types` is the bottom layer (`packages/types/package.json`
+ * depends on `@objectstack/spec` and `zod` only) and this package depends on it,
+ * so an edge in that direction would be a cycle.
+ *
+ * The alias survives as the NAME this package's own renderer-shaped positions
+ * are spelled with ({@link withElementDataSourceInput}, {@link PublicComponentConfig}).
+ * If it is ever given real content, `component: T` over in `@object-ui/types`
+ * stops being the same slot — `__tests__/component-config-single-declaration.test.ts`
+ * asserts the identity so that change cannot pass unnoticed.
+ */
 export type ComponentRenderer<T = any> = T;
 
 /**
@@ -233,16 +259,71 @@ export type RegistryComponentMetaExtras = {
  */
 export type ComponentMeta = CanonicalComponentMeta & RegistryComponentMetaExtras;
 
-export type ComponentConfig<T = any> = ComponentMeta & {
-  type: string;
-  component: ComponentRenderer<T>;
-};
+/**
+ * ONE authority for `ComponentConfig` (objectui#6298) — this package RE-EXPORTS
+ * `@object-ui/types`' declaration instead of declaring a second one, the same
+ * disposition objectui#5671 gave `ComponentInput` a few lines above and
+ * objectui#4580 ruled for the whole family: *a structural copy would reproduce
+ * the defect the moment either side moved.*
+ *
+ * ## What was wrong
+ *
+ * Both spellings were PUBLISHED — `@object-ui/types`' `src/index.ts` exports its
+ * one, and this file reaches `@object-ui/core`'s public entry through
+ * `src/index.ts`'s `export * from './registry/Registry.js'`. An IDE auto-import
+ * therefore picked between two different types by alphabetical order. After
+ * objectui#6067 / PR #6297 single-sourced the `ComponentMeta` half, what still
+ * differed was GENERICITY AND THE `component` SLOT: `@object-ui/types`' was
+ * non-generic with `component: any`, this one was `<T = any>` with
+ * `component: ComponentRenderer<T>`.
+ *
+ * ⚠️ Measured on the EMITTED `.d.ts` of both packages immediately before this
+ * convergence, `Exact<TypesConfig, CoreConfig>` — mutual assignability — read
+ * `true` on the DIVERGED pair, because `component: any` absorbs everything and
+ * every other member is optional. An assignability assertion is a GHOST here,
+ * exactly as `__tests__/component-meta-derives-from-canonical.test.ts` records
+ * for the sibling type. The readings that actually moved were "is
+ * `@object-ui/types`' declaration generic" (`TS2315: Type 'ComponentConfig' is
+ * not generic` before, no error after) and the symmetric key-set difference.
+ *
+ * A re-export is not a second authority — `scripts/__tests__/one-authority-per-exported-name-6273.test.ts`
+ * counts declarations and ALIASING re-exports, never `export type { X } from …`
+ * — which is why this convergence takes `ComponentConfig` off that gate's
+ * `KNOWN_COLLISIONS` baseline. Deriving a new declaration here instead would
+ * NOT have: `ComponentMeta` was converged that way by PR #6297 and is still a
+ * row on that baseline today.
+ */
+export type { ComponentConfig } from '@object-ui/types';
+
+/**
+ * What the registry actually STORES and hands back — `ComponentConfig` plus the
+ * registry-only keys, as a NAMED extension (objectui#6298).
+ *
+ * This is type-identical to the `ComponentConfig` this file used to declare:
+ * `CanonicalComponentMeta & RegistryComponentMetaExtras & { type; component }`,
+ * reached from the other side. The two halves are named rather than restated —
+ * one declaration for the shared members ({@link ComponentConfig}, in
+ * `@object-ui/types`), a named extension for the rest
+ * ({@link RegistryComponentMetaExtras}) — which is the shape PR #6297 gave
+ * {@link ComponentMeta}.
+ *
+ * It exists because the extras are NOT optional decoration on a registry entry:
+ * {@link Registry.getNamespaceComponents} filters on `config.namespace`, and
+ * `tier` / `labelling` / `deprecated` are read off registrations elsewhere. A
+ * bare re-export as the entry type would have silently dropped them.
+ *
+ * ⚠️ `ComponentConfig` remains the AUTHORING vocabulary and the general name;
+ * registrations are checked against {@link ComponentMeta}, never against this.
+ * Nothing writes a `RegistryComponentConfig` literal — the registry builds them.
+ */
+export type RegistryComponentConfig<T = any> = ComponentConfig<T> &
+  RegistryComponentMetaExtras;
 
 /**
  * A CONTRACT-surface entry (ADR-0080), as returned by
  * {@link Registry.getPublicConfigs}.
  *
- * Same shape as {@link ComponentConfig} except `component` is absent while the
+ * Same shape as {@link RegistryComponentConfig} except `component` is absent while the
  * entry is still a pending `registerLazy` stub: the plugin module has not been
  * imported yet, so there is no renderer to hand out. Consumers render such an
  * entry through `SchemaRenderer`, which triggers the loader and shows a
@@ -314,7 +395,7 @@ export function withElementDataSourceInput<T>(
 }
 
 export class Registry<T = any> {
-  private components = new Map<string, ComponentConfig<T>>();
+  private components = new Map<string, RegistryComponentConfig<T>>();
   private lazyEntries = new Map<string, LazyEntry>();
   /**
    * Notifies subscribers that the registry has changed (new components
@@ -565,7 +646,7 @@ export class Registry<T = any> {
    * @param namespace - Optional namespace for lookup priority
    * @returns Component configuration or undefined
    */
-  getConfig(type: string, namespace?: string): ComponentConfig<T> | undefined {
+  getConfig(type: string, namespace?: string): RegistryComponentConfig<T> | undefined {
     // If namespace is explicitly provided, ONLY look in that namespace (no fallback)
     if (namespace) {
       const namespacedType = `${namespace}:${type}`;
@@ -686,7 +767,7 @@ export class Registry<T = any> {
    * 
    * @returns Array of all component configurations
    */
-  getAllConfigs(): ComponentConfig<T>[] {
+  getAllConfigs(): RegistryComponentConfig<T>[] {
     return Array.from(this.components.values());
   }
 
@@ -755,7 +836,7 @@ export class Registry<T = any> {
    * @param namespace - Namespace to filter by
    * @returns Array of component configurations in the namespace
    */
-  getNamespaceComponents(namespace: string): ComponentConfig<T>[] {
+  getNamespaceComponents(namespace: string): RegistryComponentConfig<T>[] {
     return Array.from(this.components.values()).filter(
       config => config.namespace === namespace
     );

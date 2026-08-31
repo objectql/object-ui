@@ -219,6 +219,16 @@ export interface WidgetSourceRegistry {
  *    these. Copying them here would mirror surface that nothing reads on the
  *    face it already lives on.
  *
+ *    ⚠️ FOUR of those five are now ADR-0049 RETIREMENT TOMBSTONES on
+ *    `ComponentInput` (`min` / `max` / `step` / `placeholder` — `?: never` plus
+ *    a named Zod refusal, objectui#5905), so what this clause records is no
+ *    longer "five keys this face declines to copy" but ONE live key
+ *    (`inputType`) plus four unwritable ones. Copying any of them here is now
+ *    doubly wrong: the four are REFUSED on the face they already live on, and
+ *    `inputType` is the open fork objectui#5905 reported — `plugin-markdown`
+ *    authors it and the serializer still drops it, which is a ruling to make,
+ *    not a surface to mirror.
+ *
  * Pin: `__tests__/widget-input-control-vocabulary.test.ts`.
  */
 export interface WidgetInput {

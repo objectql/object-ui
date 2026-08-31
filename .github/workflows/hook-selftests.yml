@@ -127,3 +127,19 @@ jobs:
       # Hermetic in the same sense. Exits non-zero on any failing case.
       - name: guard-shared-stash self-test
         run: .claude/hooks/guard-shared-stash.selftest.sh
+
+      # Hermetic in the same sense — it feeds the hook JSON payloads and needs
+      # no git fixture at all. Exits non-zero on any failing case.
+      #
+      # ⚠️ This step had to be ADDED BY HAND, and that is the standing cost of
+      # the shape above: the steps here are a hand-kept ENUMERATION of
+      # `.claude/hooks/*.selftest.sh`, so a new matrix ships uncalled unless
+      # someone remembers this file — the workflow name claims to be the
+      # standing caller for all of them, and nothing makes the claim true.
+      # objectstack's twin does not have this failure mode: its collector runs
+      # `find .claude/hooks -type f -name '*.selftest.sh'`, so a new self-test is
+      # picked up with no workflow edit. Converting this job to that shape is
+      # worth doing and is deliberately NOT done here (it is a change to the
+      # runner's design, not to the matrix it runs); it is filed separately.
+      - name: guard-tree-enum self-test
+        run: .claude/hooks/guard-tree-enum.selftest.sh

@@ -367,11 +367,23 @@ export interface ActionParam
 
 /**
  * Enhanced Action Schema (ObjectStack Spec v2.0.1)
- * 
- * This is the primary action schema that should be used for all new implementations.
- * The legacy ActionSchema in crud.ts is maintained for backward compatibility.
+ *
+ * This is the primary action schema that should be used for all new
+ * implementations. The legacy `ActionSchema` in `crud.ts` is maintained for
+ * backward compatibility.
+ *
+ * ⚠️ Named `UIActionSchema`, which is the name `packages/types/src/index.ts`
+ * has always PUBLISHED it under. It was declared as `ActionSchema` until
+ * objectui#6349 — a second authority for a name `crud.ts` also declares, so an
+ * IDE auto-import picked between two structurally unrelated types (9 shared
+ * keys out of 28 each; `type` is the literal `'action'` there and
+ * {@link ActionType} here) and the wrong pick surfaced as a remote `TS2322`.
+ * The declaration now spells the published name; nothing outside this file
+ * imported the old one, so the package's public surface is unchanged. See the
+ * 2026-08-25 family ruling (objectui#6172, decision 甲/A1) and the recurrence
+ * guard `scripts/__tests__/one-authority-per-exported-name-6273.test.ts`.
  */
-export interface ActionSchema {
+export interface UIActionSchema {
   /** Unique action identifier (snake_case) */
   name: string;
   
@@ -472,7 +484,7 @@ export interface ActionSchema {
    * `inline-action-api-params-to-body-extra` conversion (ADR-0087 D2).
    *
    * Declared here so the action renderers can forward it off a typed
-   * `ActionSchema` rather than through an `as any` cast — the renderers are the
+   * `UIActionSchema` rather than through an `as any` cast — the renderers are the
    * consumers this field exists for (objectstack#6837). Typed off the spec
    * rather than restated, so the shape cannot drift from the contract.
    */
@@ -491,7 +503,7 @@ export interface ActionSchema {
    * exactly that, so the key has one meaning everywhere it is honoured.
    *
    * Declared here for the same reason as {@link bodyExtra}: the action
-   * renderers forward it off a typed `ActionSchema` instead of an `as any`
+   * renderers forward it off a typed `UIActionSchema` instead of an `as any`
    * cast, and dropping it from those whitelists is what made a declared wrap
    * degrade silently to a flat body (objectstack#6938). Typed by derivation
    * from the spec so the union cannot drift from the contract.
@@ -583,7 +595,7 @@ export interface ActionGroup {
   icon?: string;
   
   /** Actions in this group */
-  actions: ActionSchema[];
+  actions: UIActionSchema[];
   
   /** Group visibility condition */
   visible?: string;
@@ -637,7 +649,7 @@ export interface ActionResult {
  * Action executor function type
  */
 export type ActionExecutor = (
-  action: ActionSchema,
+  action: UIActionSchema,
   context: ActionContext,
   params?: Record<string, any>
 ) => Promise<ActionResult>;
@@ -698,7 +710,7 @@ export interface TransactionConfig {
   /** Timeout in milliseconds */
   timeout?: number;
   /** Actions to execute within the transaction */
-  actions: ActionSchema[];
+  actions: UIActionSchema[];
   /** Rollback action on failure */
   rollbackAction?: string;
   /** Whether to auto-retry on conflict */

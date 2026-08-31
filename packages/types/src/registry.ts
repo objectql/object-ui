@@ -39,6 +39,7 @@ import type {
   CalendarSchema as FormCalendarSchema,
   InputOTPSchema,
   FormSchema,
+  CodeEditorSchema,
 } from './form.js';
 
 import type {
@@ -54,6 +55,7 @@ import type {
   TimelineSchema,
   HtmlSchema,
   StatisticSchema,
+  BarChartSchema,
 } from './data-display.js';
 
 import type {
@@ -134,6 +136,7 @@ export interface SchemaRegistry {
   'calendar': FormCalendarSchema;
   'input-otp': InputOTPSchema;
   'form': FormSchema;
+  'code-editor': CodeEditorSchema;
 
   // Data Display
   'alert': AlertSchema;
@@ -148,6 +151,7 @@ export interface SchemaRegistry {
   'timeline': TimelineSchema;
   'html': HtmlSchema;
   'statistic': StatisticSchema;
+  'bar-chart': BarChartSchema;
 
   // Feedback
   'loading': LoadingSchema;

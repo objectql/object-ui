@@ -76,7 +76,30 @@ export interface TextSpanSchema extends BaseSchema {
 export interface TextSchema extends BaseSchema {
   type: 'text';
   /**
-   * Text content to display
+   * Text content to display — the spelling the renderer reads FIRST.
+   *
+   * READ SITE: `packages/components/src/renderers/basic/text.tsx:51` (the
+   * wrapped `span` arm, taken when the node carries a designer id or a
+   * className) and `:56` (the bare fragment arm), both as
+   * `{schema.content || schema.value}`. `content` therefore WINS over
+   * {@link TextSchema.value} whenever both are authored.
+   *
+   * Declared by objectui#6150 (undeclared-but-consumed census). Before that
+   * card the renderer read this key through `BaseSchema`'s
+   * `[key: string]: any` (objectui#5155) and no shipped type mentioned it —
+   * the docs page was the only record of a capability that works.
+   *
+   * ⚠️ Two spellings for one slot is a dialect, not a design. Retiring one of
+   * them is an ADR-0049 enforce-or-remove question and is deliberately NOT
+   * decided here; this declaration records what the renderer does today.
+   */
+  content?: string;
+  /**
+   * Text content — the fallback spelling, read only when
+   * {@link TextSchema.content} is absent or falsy.
+   *
+   * READ SITE: `renderers/basic/text.tsx:51,56`, the right-hand side of
+   * `{schema.content || schema.value}`.
    */
   value?: string;
   /**
