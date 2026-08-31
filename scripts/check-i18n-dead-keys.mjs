@@ -94,6 +94,85 @@
  *     look at it before deleting, which is exactly what "AST-dead" alone cannot
  *     tell you.
  *
+ * ## The property-chain leg (objectui#6666)
+ *
+ * The full-key probe above has a blind spot with a name. A consumer that
+ * imports a locale PACK OBJECT and reads it by property access never spells
+ * the dotted key at all: the namespace segment is bound to a local variable,
+ * so the source says `myPack.someGroup.someLeaf` where the pack key is
+ * `topNamespace.someGroup.someLeaf`. The AST pass sees nothing either — there
+ * is no `t()`/`tt()` call to classify. Both legs are blind at once, and the
+ * key lands in CONFIRMED, the tier documented as the safest thing to delete,
+ * while a shipping screen renders it. (That example is synthetic on purpose;
+ * naming a real key here would make this file a textual hit for it — same
+ * trap `textFootprint()`'s own note below records.)
+ *
+ * So alongside the full dotted key, `textFootprint()` also probes the key's
+ * PROPERTY CHAIN: the key minus its leading namespace segment, leading dot
+ * kept (`propertyChainProbe()`). That is precisely the text a property-access
+ * reader DOES spell, whatever it named the variable holding the pack.
+ *
+ * Three boundaries, each load-bearing:
+ *
+ *   1. THREE SEGMENTS OR MORE, never two. A two-segment key's chain is a
+ *      single word (`.ok`, `.no`, `.empty`) that matches far too much to be
+ *      evidence of anything, and demoting on it would hollow out the top tier
+ *      instead of correcting it. `propertyChainProbe()` returns `null` below
+ *      three segments, so the leg does not apply there at all. For two-segment
+ *      keys the sound check is the enumerated importer list below, read by
+ *      hand — which is what objectui#6662 used.
+ *   2. The match must END at a property boundary: the next character may not
+ *      continue an identifier. Without it a chain would also match a LONGER
+ *      sibling leaf it merely prefixes, demoting a key on evidence about a
+ *      different one.
+ *   3. Recall over precision where the two still collide — the same direction
+ *      `dynamicHeads` above is deliberately wrong in. Two keys under different
+ *      namespaces can share a chain, so a reader of one demotes both. For a
+ *      DELETION sweep that is the right way to be wrong. To keep that from
+ *      reading as a lie, a hit found ONLY by this probe is reported with a
+ *      ` (via property chain)` suffix: the human reading the report then looks
+ *      for a property access instead of grepping the dotted key, finding
+ *      nothing, and concluding the tool is broken.
+ *
+ * ## The pack-object importers, enumerated (objectui#6666)
+ *
+ * The leg is only as good as the class it covers, so the class is written down
+ * rather than left to memory. Re-derive it — the specifier is kept off the
+ * `from '...'` shape here on purpose, so this comment is not itself read as an
+ * import edge:
+ *
+ *   grep -rn --include=*.ts --include=*.tsx -E \
+ *     "import \{[^}]*\b(en|zh|builtInLocales|ja|ko|de|fr|es|pt|ru|ar)\b[^}]*\}" \
+ *     packages apps examples e2e \
+ *     | grep "@object-ui/i18n" | grep -v '^packages/i18n/'
+ *
+ * NON-TEST importers — the ones that can keep a SHIPPED key alive (19 matches
+ * today, of which these four):
+ *
+ *   - `packages/app-shell/src/chrome/LoadingScreen.tsx` — the case this leg was
+ *     built for. Bootstrap-critical UI: it must render BEFORE i18n loads, which
+ *     is exactly the server-down boot it exists to explain, so it deliberately
+ *     does not call `useObjectTranslation` (its own comment says so). It reads
+ *     its pack subtree through a local binding. Covered BY DESIGN.
+ *   - `packages/app-shell/src/console/ai/outboundAgentText.ts` — indexes its
+ *     pack subtree DYNAMICALLY (`ai?.[key]`), so NEITHER leg sees the read: no
+ *     dotted key, no property chain, no call site. Its four keys land in
+ *     NEEDS-REVIEW anyway, but only because those property names happen to
+ *     appear as string literals in the `OutboundAgentTextKey` union a few lines
+ *     above them — BY LUCK, NOT BY DESIGN. Do NOT read this file as covered by
+ *     the leg. Replace that union with anything generated and all four keys
+ *     drop to CONFIRMED with a live consumer still reading them.
+ *   - `packages/plugin-grid/demo/main.tsx` and
+ *     `packages/plugin-grid/demo/bulk-actions.tsx` — whole-pack `resources`
+ *     wiring only, no per-key property reads: nothing for the leg to see and
+ *     nothing at risk.
+ *
+ * The rest of the matches are TEST-only importers, deliberately not listed one
+ * by one. A key read only by a test is not a key a user can see, so a test
+ * importer never establishes liveness — it only ever adds a textual footprint,
+ * which the full-key probe already catches. The re-derivation returns both
+ * sets; the split is the point, not the count.
+ *
  * ## Usage
  *
  *   node scripts/check-i18n-dead-keys.mjs             # report, exit 0 always
@@ -129,9 +208,58 @@ const TEXT_SWEEP_SKIP_DIRS = new Set([
  *  hit inside it is not evidence of a reference and must not count as one. */
 const LOCALES_DIR = 'packages/i18n/src/locales/';
 
+/** Appended to a hit path that only the property-chain probe matched, so the
+ *  report never sends a reader grepping for a dotted key that file does not
+ *  contain. A hit the full-key probe also found is reported unsuffixed — the
+ *  literal spelling is the stronger evidence and needs no explanation. */
+const PROPERTY_CHAIN_HIT_SUFFIX = ' (via property chain)';
+
+/** Characters that would continue a JS identifier, and therefore mean a
+ *  property-chain match landed in the MIDDLE of a longer property name. */
+const IDENTIFIER_CHAR = /[A-Za-z0-9_$]/;
+
+/**
+ * The property-chain probe for `key`: the key minus its leading namespace
+ * segment, leading dot kept (`ns.group.leaf` -> `.group.leaf`).
+ *
+ * This is the text a consumer that imported the PACK OBJECT and reads it by
+ * property access actually spells — the namespace segment is bound to a local
+ * variable, so the dotted key never appears. See the header section
+ * "The property-chain leg" for why both other legs are blind to that shape.
+ *
+ * @returns {string | null} `null` for keys of fewer than three segments, whose
+ *   chain would be a single generic word (`.ok`, `.no`) rather than evidence.
+ *   Callers must treat `null` as "the leg does not apply", never as "no match".
+ */
+export function propertyChainProbe(key) {
+  const parts = key.split('.');
+  if (parts.length < 3) return null;
+  return `.${parts.slice(1).join('.')}`;
+}
+
+/**
+ * Whether `probe` occurs in `content` ending at a property boundary — i.e. at
+ * least one occurrence is NOT immediately followed by an identifier character.
+ *
+ * `.group.leaf` is a substring of `.group.leafExtended`, so a plain
+ * `includes()` would demote a key on a reader of a longer sibling leaf. Every
+ * occurrence is checked, not just the first: one line can hold both shapes.
+ */
+function occursAtPropertyBoundary(content, probe) {
+  for (let from = 0; ; from += 1) {
+    const at = content.indexOf(probe, from);
+    if (at === -1) return false;
+    const next = content[at + probe.length];
+    if (next === undefined || !IDENTIFIER_CHAR.test(next)) return true;
+    from = at;
+  }
+}
+
 /**
  * Whether the literal dotted string of each `key` in `keys` occurs anywhere in
- * the repo outside `LOCALES_DIR`.
+ * the repo outside `LOCALES_DIR`, OR — for keys of three or more segments —
+ * its property chain does (`propertyChainProbe()`; header section "The
+ * property-chain leg").
  *
  * One `grep -rF` pass over the whole tree, not one subprocess per candidate —
  * a repo this size makes per-key greps the slow path. `-F` (fixed string) is
@@ -144,15 +272,24 @@ const LOCALES_DIR = 'packages/i18n/src/locales/';
  * target key here and self-polluted that key's report entry).
  *
  * @returns {Map<string, string[]>} key -> repo-relative file paths that
- *   mention it outside the locale packs (deduped, sorted). A key absent from
- *   the map, or mapped to `[]`, has no textual footprint at all.
+ *   mention it outside the locale packs (deduped, sorted). A path matched only
+ *   by the property-chain probe carries `PROPERTY_CHAIN_HIT_SUFFIX`. A key
+ *   absent from the map, or mapped to `[]`, has no textual footprint at all.
  */
 export function textFootprint(root, keys) {
   const result = new Map(keys.map((key) => [key, []]));
   if (keys.length === 0) return result;
 
+  // One probe set per key: the literal dotted key always, plus its property
+  // chain once the key is three segments deep. Both go into the SAME grep pass
+  // — the whole point of the patterns file is that a repo this size makes
+  // per-key greps the slow path, and that argument does not change because
+  // there are now up to twice as many fixed strings in it.
+  const probes = keys.map((key) => ({ key, chain: propertyChainProbe(key) }));
+  const patterns = [...new Set(probes.flatMap(({ key, chain }) => (chain === null ? [key] : [key, chain])))];
+
   const patternsFile = join(mkdtempSync(join(tmpdir(), 'i18n-dead-keys-')), 'patterns.txt');
-  writeFileSync(patternsFile, keys.join('\n') + '\n');
+  writeFileSync(patternsFile, patterns.join('\n') + '\n');
 
   const args = [
     '-rFn', // recursive, fixed-string, line-numbered
@@ -177,6 +314,12 @@ export function textFootprint(root, keys) {
   }
   rmSync(dirname(patternsFile), { recursive: true, force: true });
 
+  // key -> (file -> whether the LITERAL dotted key was seen in that file). The
+  // flag decides the suffix at the end: a file that also spells the key
+  // literally is reported plain, even if another line in it only matched the
+  // chain, because the literal spelling is the stronger evidence.
+  const perKey = new Map(keys.map((key) => [key, new Map()]));
+
   for (const line of output.split('\n')) {
     if (!line) continue;
     // `file:line:content` — content itself may contain further `:`, so split
@@ -188,12 +331,20 @@ export function textFootprint(root, keys) {
     const content = line.slice(secondColon + 1);
     const relFile = relative(root, file).split('\\').join('/');
     if (relFile.startsWith(LOCALES_DIR)) continue;
-    for (const key of keys) {
-      if (content.includes(key)) result.get(key).push(relFile);
+    for (const { key, chain } of probes) {
+      const literal = content.includes(key);
+      if (!literal && !(chain !== null && occursAtPropertyBoundary(content, chain))) continue;
+      const files = perKey.get(key);
+      files.set(relFile, (files.get(relFile) ?? false) || literal);
     }
   }
 
-  for (const [key, files] of result) result.set(key, [...new Set(files)].sort());
+  for (const [key, files] of perKey) {
+    result.set(
+      key,
+      [...files].map(([file, literal]) => (literal ? file : `${file}${PROPERTY_CHAIN_HIT_SUFFIX}`)).sort(),
+    );
+  }
   return result;
 }
 

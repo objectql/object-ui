@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { sweep, textFootprint } from '../check-i18n-dead-keys.mjs';
+import { propertyChainProbe, sweep, textFootprint } from '../check-i18n-dead-keys.mjs';
 
 /**
  * objectui#4658 — the behaviour test for `scripts/check-i18n-dead-keys.mjs`,
@@ -213,6 +213,192 @@ describe('textFootprint()', () => {
   it('returns an empty map without invoking grep when given no keys', () => {
     const root = fixtureRoot();
     expect(textFootprint(root, [])).toEqual(new Map());
+  });
+});
+
+/**
+ * objectui#6666 — the property-chain leg.
+ *
+ * A consumer that imports a locale PACK OBJECT and reads it by property access
+ * spells neither a `t()` call nor the dotted key, so BOTH of the gate's legs
+ * were blind to it and the key landed in CONFIRMED — the tier documented as
+ * the safest thing to delete — with a shipping screen rendering it.
+ *
+ * What is pinned below is not "the leg detects things" but that it
+ * DISCRIMINATES: a key a pack-object consumer really reads is found, and a key
+ * with no reader at all is still reported CONFIRMED. A leg that demoted
+ * everything would pass a detection-only test while destroying the top tier,
+ * which is the failure mode this file exists to make impossible to ship.
+ */
+
+/** A pack shaped like the real bootstrap case: a namespace read through a
+ *  local binding, siblings that nobody reads, and the two shapes the leg's own
+ *  boundaries turn on (a two-segment key, and a leaf that PREFIXES a longer
+ *  sibling leaf). */
+const PACK_READER_EN = `const en = {
+  splash: {
+    steps: { connecting: 'Connecting', loadingConfig: 'Loading configuration', connect: 'Connect' },
+    failure: { unreachable: 'Server unreachable', giveUp: 'Giving up' },
+  },
+  short: { ok: 'OK' },
+} as const;
+export default en;
+`;
+
+/** The LoadingScreen shape: imports the pack object, binds a namespace to a
+ *  local, reads leaves off it. No `t()`/`tt()` call anywhere, so the AST pass
+ *  visits nothing; the dotted key is never spelled, so the full-key probe
+ *  finds nothing. `response.ok` is the two-segment trap — the chain of
+ *  `short.ok` is exactly `.ok`, and it is present in this source. */
+const PACK_PROPERTY_READER = `
+import { en as enLocale } from '${I18N_PKG}';
+export function Splash(response: { ok: boolean }) {
+  const strings = enLocale.splash;
+  if (!response.ok) return null;
+  return [strings.steps.connecting, strings.steps.loadingConfig];
+}
+`;
+
+function packReaderRoot() {
+  return repoWith({
+    'packages/i18n/src/locales/en.ts': PACK_READER_EN,
+    'packages/x/src/Splash.tsx': PACK_PROPERTY_READER,
+  });
+}
+
+describe('propertyChainProbe()', () => {
+  it('drops the leading namespace segment and keeps the dot', () => {
+    expect(propertyChainProbe('ns.group.leaf')).toBe('.group.leaf');
+    expect(propertyChainProbe('ns.a.b.c')).toBe('.a.b.c');
+  });
+
+  it('returns null below three segments — the leg must NOT apply to two-segment keys', () => {
+    // A two-segment key's chain is a single generic word (`.ok`, `.no`,
+    // `.empty`). Probing on it would demote most of the pack on incidental
+    // property accesses and hollow out CONFIRMED instead of correcting it.
+    // Two-segment keys are checked against the enumerated importer list in the
+    // script header by hand — see objectui#6662, which did exactly that.
+    expect(propertyChainProbe('ns.leaf')).toBeNull();
+    expect(propertyChainProbe('leaf')).toBeNull();
+  });
+});
+
+describe('the property-chain leg discriminates (objectui#6666)', () => {
+  it('POSITIVE control: a key read only by property access is no longer CONFIRMED', () => {
+    const { confirmed, needsReview } = sweep(packReaderRoot());
+    expect(confirmed).not.toContain('splash.steps.connecting');
+    expect(confirmed).not.toContain('splash.steps.loadingConfig');
+    const entry = needsReview.find((f) => f.key === 'splash.steps.connecting');
+    expect(entry, 'splash.steps.connecting should be in needsReview').toBeDefined();
+    expect(entry!.hits).toEqual(['packages/x/src/Splash.tsx (via property chain)']);
+  });
+
+  it('NEGATIVE control: a key with no reader at all is STILL CONFIRMED', () => {
+    // The half that makes this a discriminator rather than a blanket
+    // demotion. These two live in the same pack, under a sibling namespace of
+    // the one the consumer binds, and nothing reads them by any route.
+    const { confirmed } = sweep(packReaderRoot());
+    expect(confirmed).toContain('splash.failure.unreachable');
+    expect(confirmed).toContain('splash.failure.giveUp');
+  });
+
+  it('does not demote a two-segment key whose one-word chain IS present in source', () => {
+    // `short.ok`'s chain would be `.ok`, and `PACK_PROPERTY_READER` spells
+    // `response.ok`. If the leg ever starts applying below three segments this
+    // is the assertion that catches it.
+    const { confirmed } = sweep(packReaderRoot());
+    expect(confirmed).toContain('short.ok');
+  });
+
+  it('does not demote a leaf merely because a LONGER sibling leaf is read', () => {
+    // `splash.steps.connect`'s chain `.steps.connect` is a prefix of the
+    // `.steps.connecting` the consumer actually reads. Without the
+    // property-boundary check, reading one leaf would demote the other.
+    const { confirmed } = sweep(packReaderRoot());
+    expect(confirmed).toContain('splash.steps.connect');
+  });
+
+  it('does not shrink the CONFIRMED tier to nothing', () => {
+    // The blunt guard against "make the tool conservative by demoting
+    // everything": that would pass every detection assertion above while
+    // making the strongest tier meaningless.
+    const { confirmed } = sweep(packReaderRoot());
+    expect(confirmed.length).toBeGreaterThan(0);
+  });
+});
+
+describe('textFootprint() marks a chain-only hit so the report cannot mislead', () => {
+  it('suffixes a file the full key does not appear in', () => {
+    const result = textFootprint(packReaderRoot(), ['splash.steps.connecting']);
+    expect(result.get('splash.steps.connecting')).toEqual([
+      'packages/x/src/Splash.tsx (via property chain)',
+    ]);
+  });
+
+  it('reports a file plainly when the literal key appears in it, even if the chain also does', () => {
+    // The literal spelling is the stronger evidence and needs no explanation;
+    // a suffix there would send the reader looking for a property access that
+    // is not the reason the file matched.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': PACK_READER_EN,
+      'packages/x/src/config.ts': `export const C = [{ labelKey: 'splash.steps.connecting' }];`,
+    });
+    expect(textFootprint(root, ['splash.steps.connecting']).get('splash.steps.connecting')).toEqual([
+      'packages/x/src/config.ts',
+    ]);
+  });
+});
+
+describe('both control groups from the card, measured on THIS repository (objectui#6666)', () => {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+  /**
+   * Assembled from segments rather than written as dotted strings ON PURPOSE,
+   * and it must stay that way. `textFootprint()` greps the whole repo
+   * including `scripts/`, so a dotted key spelled here would make THIS FILE a
+   * textual hit for it — the negative controls below would stop being
+   * reader-less because the test asserting they are reader-less mentioned
+   * them. `check-i18n-dead-keys.mjs` records the same trap on
+   * `textFootprint()` itself, where an earlier draft self-polluted a real key.
+   * Joining on the segment boundary keeps BOTH probes' spellings out of this
+   * file: neither the dotted key nor its property chain occurs contiguously.
+   */
+  const key = (group: string, leaf: string) => ['console', group, leaf].join('.');
+
+  /** Read by `packages/app-shell/src/chrome/LoadingScreen.tsx` through a local
+   *  binding — the five the card measured, plus two more the leg turned up
+   *  that the card did not list (the same file reads them the same way). */
+  const READ_BY_PROPERTY_ACCESS = [
+    key('loadingSteps', 'connecting'),
+    key('loadingSteps', 'loadingConfig'),
+    key('loadingSteps', 'preparingWorkspace'),
+    key('error', 'connectionFailed'),
+    key('error', 'checkServer'),
+    key('actions', 'retry'),
+    key('actions', 'retrying'),
+  ];
+
+  /** Sibling keys under the same namespace with no reader by any route. */
+  const READ_BY_NOBODY = [key('error', 'serverUnreachable'), key('error', 'timeout')];
+
+  it('POSITIVE: every property-access-read key names LoadingScreen.tsx as a hit', () => {
+    const found = textFootprint(repoRoot, READ_BY_PROPERTY_ACCESS);
+    for (const k of READ_BY_PROPERTY_ACCESS) {
+      expect(
+        found.get(k),
+        `${k} is rendered by LoadingScreen.tsx through a local binding, and the property-chain leg ` +
+          'is the only probe that can see that read',
+      ).toContain('packages/app-shell/src/chrome/LoadingScreen.tsx (via property chain)');
+    }
+  });
+
+  it('NEGATIVE: keys nothing reads still have no textual footprint at all', () => {
+    // The half that keeps the leg honest on the real tree. If someone
+    // "hardens" it into a blanket demotion this is what fails. If it ever
+    // fails honestly — a real reader for one of these appeared — the fix is to
+    // pick a still-reader-less sibling, never to loosen the assertion.
+    const found = textFootprint(repoRoot, READ_BY_NOBODY);
+    for (const k of READ_BY_NOBODY) expect(found.get(k), `${k} must have no reader`).toEqual([]);
   });
 });
 
