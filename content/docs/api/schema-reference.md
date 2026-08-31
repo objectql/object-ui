@@ -50,21 +50,36 @@ All schema types extend `BaseSchema`. These shared properties are available on e
 }
 ```
 
+One row per declared member, in declaration order, so the list can be checked against `BaseSchema` by reading the two side by side.
+
 | Property | Type | Description |
 |----------|------|-------------|
 | `type` | `string` | **Required.** Component type identifier (e.g. `"page"`, `"form"`, `"table"`). |
 | `id` | `string` | Unique instance identifier. |
 | `name` | `string` | Component name, used for form fields and data binding. |
-| `label` | `string` | Human-readable display label. |
-| `description` | `string` | Help text or tooltip content. |
+| `label` | `string \| I18nLabel` | Human-readable display label. `I18nLabel` is the spec's **inline locale map** (`string \| Record<string, string>`, keyed by BCP-47 locale tag such as `en` or `zh-CN`), resolved against the display locale by `resolveI18nLabel`. |
+| `description` | `string \| I18nLabel` | Help text or tooltip content. Same inline-locale-map vocabulary and resolver as `label`. |
+| `placeholder` | `string` | Hint text for input components. |
 | `className` | `string` | Tailwind CSS utility classes. |
+| `style` | `Record<string, string \| number>` | Inline CSS styles. Use sparingly — prefer `className`. |
+| `data` | `any` | Arbitrary data attached to the node. `any` because the shape is defined by the consuming component rather than by `BaseSchema`. |
+| `bind` | `string` | Data-scope path this node draws its rows or value from, resolved by `useDataScope()`. Honoured only by components that call it. |
 | `body` | `SchemaNode \| SchemaNode[]` | Child components rendered inside this component. |
 | `children` | `SchemaNode \| SchemaNode[]` | Alias for `body`. |
-| `visible` / `visibleOn` | `boolean` / `string` | Control visibility. `visibleOn` accepts expression strings. |
-| `hidden` / `hiddenOn` | `boolean` / `string` | Inverse of visible. |
-| `disabled` / `disabledOn` | `boolean` / `string` | Control disabled state. |
-| `testId` | `string` | Test identifier for automated testing. |
-| `ariaLabel` | `string` | Accessibility label. |
+| `visible` | `boolean \| string` | Visibility control. Accepts a boolean **or** a predicate expression string — the renderer evaluates this key rather than reading it as a boolean. |
+| `visibleWhen` | `string` | Canonical conditional-visibility predicate (ADR-0089); the element is shown when it evaluates truthy. Evaluated **before** `visible` and `visibleOn`, and outranks both. |
+| `visibleOn` | `string` | Expression for conditional visibility. **Deprecated** (ADR-0089) — use `visibleWhen`. |
+| `hidden` | `boolean` | Inverse of `visible`. Boolean only — unlike `visible`, this key takes no expression. |
+| `hiddenOn` | `string` | Expression for conditional hiding. |
+| `disabled` | `boolean \| string` | Disabled state. Accepts a boolean **or** a predicate expression string, on the same evaluated path as `visible`. |
+| `disabledOn` | `string` | Expression for conditional disabling. |
+| `testId` | `string` | Test identifier, rendered as `data-testid`. |
+| `ariaLabel` | `string \| KeyedI18nLabel` | Accessibility label, rendered as `aria-label`. `KeyedI18nLabel` is the **keyed** form (`{ key, defaultValue?, params? }`), resolved by `resolveKeyedI18nLabel` — **not** the `I18nLabel` that `label` and `description` carry. The two are structurally confusable and each returns nothing useful for the other's input. |
+
+Two things the table cannot show in a cell:
+
+- **A concrete schema may narrow an inherited member, and its own declaration wins.** Many component schemas restate `label`, `description` or `disabled` more narrowly than `BaseSchema` declares them, so the unions above are what a node gets when its own schema does not restate the key. Check the component's own property table before writing a predicate string or a locale map into an inherited slot.
+- **This list is exhaustive for *declared* members, not for *accepted* keys.** `BaseSchema` carries an index signature (`[key: string]: any`) and its Zod mirror is `.passthrough()`, so an undeclared key — a misspelling included — is still accepted by both halves. Absence from this table does not mean a key is rejected.
 
 ---
 
