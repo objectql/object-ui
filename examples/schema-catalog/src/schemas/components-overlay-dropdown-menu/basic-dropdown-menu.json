@@ -6,19 +6,16 @@
   },
   "items": [
     {
-      "label": "Profile",
-      "value": "profile"
+      "label": "Profile"
     },
     {
-      "label": "Settings",
-      "value": "settings"
+      "label": "Settings"
     },
     {
       "separator": true
     },
     {
-      "label": "Logout",
-      "value": "logout"
+      "label": "Logout"
     }
   ]
 }

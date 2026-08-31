@@ -8,17 +8,14 @@
   "items": [
     {
       "label": "Copy",
-      "value": "copy",
       "icon": "copy"
     },
     {
       "label": "Cut",
-      "value": "cut",
       "icon": "scissors"
     },
     {
       "label": "Paste",
-      "value": "paste",
       "icon": "clipboard"
     },
     {
@@ -26,7 +23,6 @@
     },
     {
       "label": "Delete",
-      "value": "delete",
       "icon": "trash"
     }
   ]

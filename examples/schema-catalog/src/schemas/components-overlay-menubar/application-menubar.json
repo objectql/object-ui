@@ -5,19 +5,16 @@
       "label": "File",
       "items": [
         {
-          "label": "New Tab",
-          "value": "new"
+          "label": "New Tab"
         },
         {
-          "label": "New Window",
-          "value": "window"
+          "label": "New Window"
         },
         {
           "separator": true
         },
         {
-          "label": "Exit",
-          "value": "exit"
+          "label": "Exit"
         }
       ]
     },
@@ -25,27 +22,22 @@
       "label": "Edit",
       "items": [
         {
-          "label": "Undo",
-          "value": "undo"
+          "label": "Undo"
         },
         {
-          "label": "Redo",
-          "value": "redo"
+          "label": "Redo"
         },
         {
           "separator": true
         },
         {
-          "label": "Cut",
-          "value": "cut"
+          "label": "Cut"
         },
         {
-          "label": "Copy",
-          "value": "copy"
+          "label": "Copy"
         },
         {
-          "label": "Paste",
-          "value": "paste"
+          "label": "Paste"
         }
       ]
     },
@@ -53,16 +45,13 @@
       "label": "View",
       "items": [
         {
-          "label": "Zoom In",
-          "value": "zoom-in"
+          "label": "Zoom In"
         },
         {
-          "label": "Zoom Out",
-          "value": "zoom-out"
+          "label": "Zoom Out"
         },
         {
-          "label": "Reset Zoom",
-          "value": "reset"
+          "label": "Reset Zoom"
         }
       ]
     }

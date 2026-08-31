@@ -8,17 +8,14 @@
   "items": [
     {
       "label": "Edit",
-      "value": "edit",
       "icon": "square-pen"
     },
     {
       "label": "Copy",
-      "value": "copy",
       "icon": "copy"
     },
     {
       "label": "Delete",
-      "value": "delete",
       "icon": "trash",
       "variant": "destructive"
     }
