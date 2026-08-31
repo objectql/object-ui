@@ -440,6 +440,19 @@ describe('non-vacuity — the population refuses to collapse', () => {
     expect(line).toContain('self-imports judged');
     expect(line).toContain('export symbol(s) read from');
   });
+
+  it('names that population as TRACKED, so a green is not read as a claim about the directory (objectui#6545)', () => {
+    // Both walks are `git ls-files -- packages/`. A brand-new
+    // `packages/<pkg>/README.md` that has not been `git add`-ed is OUTSIDE the
+    // population, and this gate reports OK without ever opening it -- measured:
+    // planting an untracked `packages/<pkg>/README.md` left `census.readmes`
+    // unchanged. The word is what stops a reader taking the count for a
+    // statement about the directory. Same wording as check-control-bytes,
+    // check-vi-mock-specifiers and check-vi-mock-inherit.
+    const line = summarise(scan(repoRoot, { readmes: [], packageDirs: [] }));
+    expect(line).toContain('tracked README(s) under packages/');
+    expect(line).toContain('tracked package(s)');
+  });
 });
 
 describe('repo state — assertions that hold whether or not the tree is built', () => {

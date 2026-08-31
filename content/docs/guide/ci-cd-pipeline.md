@@ -937,8 +937,8 @@ one of its jobs opens with the `id: relevant` short-circuit whose diff excludes 
 README-only pull request its expensive steps are skipped by design. A gate against fabricated README
 imports living behind that switch would rebuild the hole it exists to close.
 
-Runs `scripts/check-readme-exports.mjs` (`pnpm check:readme-exports`). For every `README.md` under
-`packages/`, it extracts the fenced code blocks, parses each one with the TypeScript parser, walks the
+Runs `scripts/check-readme-exports.mjs` (`pnpm check:readme-exports`). For every **tracked** `README.md`
+under `packages/`, it extracts the fenced code blocks, parses each one with the TypeScript parser, walks the
 `ImportDeclaration` nodes, and for every binding that names the README's **own** package checks the
 name against that package's real export surface.
 
@@ -977,7 +977,10 @@ nothing" would mark every import in its README fabricated, and skipping it would
 population with nothing in the output to say so.
 
 **It is green at rest, so its census is part of the verdict** — READMEs scanned, blocks parsed,
-bindings judged, packages whose exports were read — and the scan **fails when that population
+bindings judged, packages whose exports were read — and the census says **tracked** out loud,
+because the walk is `git ls-files`: a new README that has not been `git add`-ed is outside the
+population and a local run reports OK without opening it (objectui#6545). CI is unaffected — a
+committed tree has no untracked files — and the scan **fails when that population
 collapses**. The evidence that it can fail lives in `scripts/__tests__/check-readme-exports.test.ts`,
 which plants four mutations on a fixture tree: a fabricated name in a multi-line block, one in a
 trailing comment (which must **not** be reported), an `X as Y` with `X` fabricated, and one mid-block
