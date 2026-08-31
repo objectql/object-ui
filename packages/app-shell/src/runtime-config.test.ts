@@ -3,9 +3,9 @@
 /**
  * runtime-config commercial-feature parsing (cloud ADR-0011/0012).
  *
- * `customDomain` / `sso` are paid flags: they must default OFF and only turn on
- * when the server explicitly grants them, so an older/vanilla runtime that
- * omits them never surfaces a paid affordance.
+ * `customDomain` / `sso` / `scim` are paid flags: they must default OFF and
+ * only turn on when the server explicitly grants them, so an older/vanilla
+ * runtime that omits them never surfaces a paid affordance.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
@@ -24,31 +24,39 @@ afterEach(() => {
 });
 
 describe('runtime-config commercial features', () => {
-    it('defaults customDomain/sso OFF before init', () => {
+    it('defaults customDomain/sso/scim OFF before init', () => {
         resetRuntimeConfigForTesting();
         expect(getRuntimeConfig().features.customDomain).toBe(false);
         expect(getRuntimeConfig().features.sso).toBe(false);
+        expect(getRuntimeConfig().features.scim).toBe(false);
     });
 
-    it('grants customDomain/sso only when the server says true', async () => {
-        mockConfig({ customDomain: true, sso: false });
+    it('grants customDomain/sso only when the server says true (scim stays OFF when the server says false)', async () => {
+        mockConfig({ customDomain: true, sso: false, scim: false });
         await initRuntimeConfig();
         expect(getRuntimeConfig().features.customDomain).toBe(true);
         expect(getRuntimeConfig().features.sso).toBe(false);
+        // The negative leg that actually tests fail-closed: `scim: false` sits
+        // in the SAME payload as `customDomain: true`, so a hardcoded
+        // `scim: true` (or "any granted sibling flips scim on") would fail
+        // here even though it would pass the all-true case below.
+        expect(getRuntimeConfig().features.scim).toBe(false);
     });
 
-    it('business-tier grants both', async () => {
-        mockConfig({ customDomain: true, sso: true });
+    it('business-tier grants all three', async () => {
+        mockConfig({ customDomain: true, sso: true, scim: true });
         await initRuntimeConfig();
         expect(getRuntimeConfig().features.customDomain).toBe(true);
         expect(getRuntimeConfig().features.sso).toBe(true);
+        expect(getRuntimeConfig().features.scim).toBe(true);
     });
 
     it('older runtime omitting the flags keeps them OFF (no paid surface leak)', async () => {
-        mockConfig({ aiStudio: true }); // no customDomain/sso keys at all
+        mockConfig({ aiStudio: true }); // no customDomain/sso/scim keys at all
         await initRuntimeConfig();
         expect(getRuntimeConfig().features.customDomain).toBe(false);
         expect(getRuntimeConfig().features.sso).toBe(false);
+        expect(getRuntimeConfig().features.scim).toBe(false);
         // sanity: existing flags still parse
         expect(getRuntimeConfig().features.aiStudio).toBe(true);
     });
