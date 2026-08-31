@@ -47,7 +47,7 @@
     "@object-ui/test-support": "workspace:*",
     "@vitejs/plugin-react": "^6.0.5",
     "react-router-dom": "^7.18.2",
-    "vite": "^8.2.1",
+    "vite": "^8.2.2",
     "vite-plugin-dts": "^5.0.3",
     "vitest": "^4.1.10"
   },
