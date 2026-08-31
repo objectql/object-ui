@@ -1428,6 +1428,73 @@ export interface CommandSchema extends BaseSchema {
 }
 
 /**
+ * Code editor component (`code-editor`), rendered by `@object-ui/plugin-editor`
+ * over Monaco.
+ *
+ * Declared here — rather than only in the plugin — for the reason `markdown`
+ * and `kanban` already are: `AnyComponentSchema` in `./zod/index.zod.ts` is the
+ * validator `objectui validate` and `objectui check` read, and a registered
+ * component type absent from it validates as nothing at all (objectui#6318).
+ * `@object-ui/types` has zero dependencies, so it cannot import the plugin's
+ * own `CodeEditorSchema`; this is the same twin-declaration shape `markdown`
+ * carries, and the zod mirror below it is pinned to THIS declaration.
+ *
+ * ⚠️ Every key is taken from a READ SITE, not from a view of what a code editor
+ * ought to accept — `packages/plugin-editor/src/index.tsx:43-49` forwards
+ * exactly `value`, `language`, `theme`, `height`, `onChange`, `readOnly` and
+ * `className` into the lazy Monaco implementation, and the registration's own
+ * `inputs`/`defaultProps` (same file, 64-77) name the same set.
+ */
+export interface CodeEditorSchema extends BaseSchema {
+  type: 'code-editor';
+  /**
+   * The code content shown in the editor.
+   *
+   * Read at `plugin-editor/src/index.tsx:43` as `value ?? schema.value` — the
+   * host prop wins, so this is the authored default rather than a controlled
+   * value.
+   */
+  value?: string;
+  /**
+   * Monaco language id for syntax highlighting.
+   *
+   * Deliberately a bare `string` and not an enum: the renderer forwards it
+   * verbatim to Monaco, which resolves any registered language id, and the
+   * plugin's own declaration already widens its six-name list with `| string`.
+   * The registration's `inputs` offer `javascript`, `typescript`, `python`,
+   * `json`, `html` and `css` as the authoring shortlist — that is a picker
+   * hint, not the accepted set.
+   *
+   * @default 'javascript'
+   */
+  language?: string;
+  /**
+   * Editor colour theme. Closed, unlike `language`: these are the two spellings
+   * the plugin's `CodeEditorSchema` declares and the registration offers.
+   *
+   * @default 'vs-dark'
+   */
+  theme?: 'vs-dark' | 'light';
+  /**
+   * Editor height, forwarded to Monaco as a CSS length.
+   *
+   * @default '400px'
+   */
+  height?: string;
+  /**
+   * Whether the editor refuses edits.
+   *
+   * @default false
+   */
+  readOnly?: boolean;
+  /**
+   * Change handler. A runtime slot, not an authorable key — no JSON document
+   * can carry a function.
+   */
+  onChange?: (value: string | undefined) => void;
+}
+
+/**
  * Union type of all form schemas
  */
 export type FormComponentSchema =
@@ -1447,5 +1514,6 @@ export type FormComponentSchema =
   | FormSchema
   | LabelSchema
   | ComboboxSchema
-  | CommandSchema;
+  | CommandSchema
+  | CodeEditorSchema;
 

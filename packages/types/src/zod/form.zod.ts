@@ -652,6 +652,31 @@ export const FormSchema = BaseSchema.extend({
 /**
  * Form Component Schema Union - All form component schemas
  */
+/**
+ * Code Editor Schema — mirrors `CodeEditorSchema` in `../form.ts`.
+ *
+ * Closes the other half of objectui#6318's bucket B: `code-editor` is a
+ * REGISTERED component (`@object-ui/plugin-editor`) that no union member
+ * modelled, so every document naming it failed `safeValidateSchema` and three
+ * schema-catalog entries were reported as unrecognised content.
+ *
+ * Derived from the renderer's forwards
+ * (`plugin-editor/src/index.tsx:43-49`), not from a view of what a code editor
+ * ought to accept. `language` stays `z.string()` rather than the registration's
+ * six-name picker list, because the renderer hands the value straight to Monaco
+ * and the plugin's own declaration already widens that list with `| string`;
+ * `theme` stays closed because both declarations agree it is two spellings.
+ */
+export const CodeEditorSchema = BaseSchema.extend({
+  type: z.literal('code-editor'),
+  value: z.string().optional().describe('Code content'),
+  language: z.string().optional().describe('Monaco language id for syntax highlighting'),
+  theme: z.enum(['vs-dark', 'light']).optional().describe('Editor colour theme'),
+  height: z.string().optional().describe('Editor height as a CSS length'),
+  readOnly: z.boolean().optional().describe('Whether the editor refuses edits'),
+  onChange: z.function().optional().describe('Change handler'),
+});
+
 export const FormComponentSchema = z.discriminatedUnion('type', [
   ButtonSchema,
   InputSchema,
@@ -670,4 +695,5 @@ export const FormComponentSchema = z.discriminatedUnion('type', [
   LabelSchema,
   CommandSchema,
   FormSchema,
+  CodeEditorSchema,
 ]);

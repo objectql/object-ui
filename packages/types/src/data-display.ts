@@ -1689,6 +1689,63 @@ export interface KbdSchema extends BaseSchema {
 }
 
 /**
+ * Bar chart component (`bar-chart`), rendered by `@object-ui/plugin-charts`
+ * over Recharts.
+ *
+ * Declared here for the same reason `MarkdownSchema` above is: a registered
+ * component type that `AnyComponentSchema` (`./zod/index.zod.ts`) does not
+ * model cannot be validated at all — `objectui validate` refuses every document
+ * that names it, and `objectui check` reports it as unrecognised
+ * (objectui#6318). `@object-ui/types` has zero dependencies and cannot import
+ * the plugin's own `BarChartSchema`, so this is the twin-declaration shape the
+ * markdown and kanban components already carry.
+ *
+ * ⚠️ Derived from READ SITES, not from a view of what a bar chart should
+ * accept: `packages/plugin-charts/src/ChartRenderer.tsx:28-38`
+ * (`ChartBarRenderer`) forwards exactly `data`, `dataKey`, `xAxisKey`,
+ * `height`, `className` and `color` into the lazy chart implementation, and the
+ * registration's `inputs`/`defaultProps` (`plugin-charts/src/index.tsx:45-64`)
+ * name the same five authorable keys.
+ *
+ * ⛔ Not to be confused with {@link ChartSchema} (`type: 'chart'`), the
+ * multi-series component with its own `series`/`chartType` vocabulary. This one
+ * plots a single `dataKey` and is reached only under the `bar-chart` keyword.
+ */
+export interface BarChartSchema extends BaseSchema {
+  type: 'bar-chart';
+  /**
+   * Rows to plot. Each row supplies one bar: its category comes from
+   * {@link xAxisKey} and its magnitude from {@link dataKey}.
+   */
+  data?: Array<Record<string, any>>;
+  /**
+   * Row key holding the bar's value (the y axis).
+   *
+   * @default 'value'
+   */
+  dataKey?: string;
+  /**
+   * Row key holding the bar's category label (the x axis).
+   *
+   * @default 'name'
+   */
+  xAxisKey?: string;
+  /**
+   * Chart height in pixels. A number, not a CSS length — the registration
+   * declares `type: 'number'` and defaults it to 400.
+   *
+   * @default 400
+   */
+  height?: number;
+  /**
+   * Bar fill colour, forwarded to Recharts verbatim.
+   *
+   * @default '#8884d8'
+   */
+  color?: string;
+}
+
+/**
  * Union type of all data display schemas
  */
 export type DataDisplaySchema =
@@ -1706,7 +1763,8 @@ export type DataDisplaySchema =
   | HtmlSchema
   | StatisticSchema
   | BreadcrumbSchema
-  | KbdSchema;
+  | KbdSchema
+  | BarChartSchema;
 
 /**
  * Raw HTML component
