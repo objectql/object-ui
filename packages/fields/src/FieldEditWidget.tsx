@@ -8,6 +8,9 @@
 
 import React from 'react';
 import type { FieldWidgetComponentProps } from './widgets/types.js';
+// The package's own executor of the DOM pass-through declaration, reused here
+// rather than re-listed — see the note on this component's return statement.
+import { toDomProps } from './widgets/toDomProps.js';
 
 // The SAME dedicated widgets the form renders — reused for in-place editing
 // (e.g. the data grid's inline cell editor) so a select edits as a dropdown, a
@@ -249,19 +252,30 @@ const COMPACT_EDIT_TYPES = new Set<string>(['lookup', 'master_detail', 'user']);
  * `null` for types without a registered widget so the caller can fall back to
  * a plain editor.
  *
- * `autoFocus` is forwarded because an inline-edit host enters edit mode ON a
- * field and expects the caret to land there (objectui#4220 — the detail page's
- * delegation): each widget's own `toDomProps` whitelist already carries it onto
- * the real focusable control, so nothing here needs to know which element that
- * is. A host that passes nothing is unaffected.
+ * The host's DOM pass-through set is forwarded WHOLE (objectui#6909). This
+ * component's props are `FieldWidgetComponentProps`, so a caller may already
+ * pass `id`, `name`, `autoFocus`, `tabIndex`, `onBlur`, `onFocus`, `onClick`,
+ * any `aria-*` and any `data-*` with no type error — but the body used to
+ * destructure five keys and render the widget with those, so `autoFocus` was
+ * the ONLY survivor of the whole block and everything else was silently
+ * dropped. That is this package's own first-class defect class, named in
+ * `widgets/toDomProps.ts`: a key that type-checks, reads as supported, and
+ * silently never reaches the element (objectui#3290's `aria-required`,
+ * objectui#3222's validation slot). Forwarding is not a widening: the keys were
+ * already declared, and each widget still re-filters through its own
+ * `toDomProps` before anything reaches a DOM element.
+ *
+ * `autoFocus`' original reason survives inside that set — an inline-edit host
+ * enters edit mode ON a field and expects the caret to land there
+ * (objectui#4220, the detail page's delegation) — and so does its property:
+ * each widget's own whitelist carries these onto the real focusable control, so
+ * nothing here needs to know which element that is. A host that passes nothing
+ * is unaffected.
  */
-export function FieldEditWidget({
-  field,
-  value,
-  onChange,
-  readonly,
-  autoFocus,
-}: FieldWidgetComponentProps<any>): React.ReactElement | null {
+export function FieldEditWidget(
+  props: FieldWidgetComponentProps<any>,
+): React.ReactElement | null {
+  const { field, value, onChange, readonly } = props;
   // A RETIRED spelling never reaches a widget here, whatever the tables say,
   // and it says so out loud (objectui#4931). This branch is for the caller that
   // ignores `hasFieldEditWidget` and calls this component directly: without it
@@ -291,13 +305,32 @@ export function FieldEditWidget({
   // `compact` is a declared widget prop (objectui#3221 closed this type), so
   // the spread no longer needs an `any` escape hatch to get past it.
   const compactProps = resolved && COMPACT_EDIT_TYPES.has(resolved) ? { compact: true } : {};
+  // `toDomProps` — this package's own runtime executor of the declaration — is
+  // REUSED rather than re-listed here, and that reuse is the guard. Its
+  // direction-2 compile-time assertion already makes
+  // `keyof FieldWidgetDomProps extends DomPassThroughKey` an error to violate,
+  // so a key added to the declared DOM block now reaches the widget through
+  // this factory automatically. A private key list written out here would be a
+  // SECOND judge of the same declaration — exactly what `toDomProps.ts` argues
+  // against ("one mechanism, two declarations, each bound to the contract it
+  // executes — not two judges") — and would be free to drift, which is how this
+  // factory came to deliver one key out of seven in the first place.
+  //
+  // The set is a deliberate superset of `FieldWidgetDomProps`: it also carries
+  // `className` and `disabled`, declared on the controlled-input block and
+  // forwarded by the same executor for the reason stated there — withholding
+  // them makes it a silent styling- and interactivity-dropper.
+  //
+  // The semantic props stay explicit and come AFTER the spread. They are not in
+  // the whitelist, so there is no collision to resolve; ordering them this way
+  // states that this component OWNS them and a host cannot displace them.
   return (
     <Widget
+      {...toDomProps(props)}
       field={field}
       value={value}
       onChange={onChange}
       readonly={readonly}
-      autoFocus={autoFocus}
       {...compactProps}
     />
   );
