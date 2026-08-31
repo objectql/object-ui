@@ -587,12 +587,21 @@ export type ListViewExportFormat = 'csv' | 'xlsx' | 'json';
  *   `plugin-grid`'s `ObjectGrid.exportOptionsKeys.test.ts` reds.
  *
  * NOTE (objectui#4535): this restates the five keys rather than deriving them
- * from the spec symbol, because objectui still pins
- * `@objectstack/spec@17.0.0-rc.6`, whose `ListView.exportOptions` is the LEGACY
- * bare format array (`('csv' | 'xlsx' | 'json' | 'pdf')[]`) — the object form is
- * not importable from the pin yet. Deriving this type from the published spec
- * symbol becomes possible when the pin bumps; the shape below IS the new spec
- * shape, so nothing here changes when it does.
+ * from the spec symbol, and the reason is no longer the pin. objectui now
+ * installs `@objectstack/spec@17.2.0`, which DOES carry the object form — the
+ * bare format array lifts to `{ formats: [...] }` at parse and `'pdf'` is gone
+ * from the enum. What is missing is the SYMBOL: `ListViewExportOptionsSchema`
+ * is internal to the spec bundle and not among the package's public exports, so
+ * there is nothing to import. Only the enclosing `ListViewSchema` is exported,
+ * and its `exportOptions` is the two-branch union (legacy-array lift ∪ object),
+ * whose `z.infer` is a union — not this interface.
+ *
+ * So the mirror is restated but not unchecked: `export-options-spec-parity.test.ts`
+ * reads the object branch out of the INSTALLED spec at test time and asserts
+ * this key set, the format enum and the strictness against it. Prose claiming
+ * alignment is what went false last time; that test is what makes the claim
+ * falsifiable. When upstream exports the symbol, derive from it and delete the
+ * restatement — the shape below is already the spec's, so nothing else moves.
  */
 export interface ListViewExportOptions {
   /**
