@@ -7,8 +7,9 @@
  */
 
 /**
- * `data-table` reads the DECLARED `header`, not the undeclared `label`
- * (objectui#5351).
+ * `data-table` reads the DECLARED `header` and `accessorKey`, and NOTHING else
+ * — not the undeclared `label` (objectui#5351), not the undeclared `name`
+ * (objectui#5120).
  *
  * `TableColumn` (`packages/types/src/data-display.ts`) declares `header: string`
  * and `accessorKey: string`. It declares neither `label` nor `name`. The
@@ -26,14 +27,22 @@
  * purpose. Metadata vocabulary in, adapter vocabulary out; one translation, one
  * place — and that place is each producer, never here.
  *
- * SCOPE. The `label` alias retires here; the `name` alias is HELD, and the last
- * describe below pins it as still-read so the hold cannot be mistaken for the
- * retirement having happened. Two published skill guides teach a directly
- * authored `data-table` whose columns are spelled `{ name, label }`, and
+ * SCOPE. `label` retired in objectui#5351; `name` retires here, closing the
+ * family. The hold that kept `name` alive was never about the producers — all
+ * three resolve `accessorKey` themselves, measured — but about the INSTRUCTION
+ * CORPUS: two published skill guides taught a directly authored `data-table`
+ * whose columns were spelled `{ name, label }`, and
  * `skill-guide-data-table-binding.test.tsx` renders those blocks straight out of
- * the guide files — so `name` cannot retire until the instruction corpus moves.
- * That is objectui#5120's remaining step and is nobody's to take unbidden:
- * `skills/**` is a customer-published surface with its own owning seat.
+ * the guide files. Both guides migrated to `{ header, accessorKey }` in the same
+ * commit as this retirement, which is the only ordering in which the platform
+ * never refuses a spelling it still ships.
+ *
+ * WHAT NARROWS, precisely. A `{ name, label }` column arriving through
+ * `ObjectDataTable`, `RelatedList` or `ObjectGrid` is UNAFFECTED — its producer
+ * folds `name` into `accessorKey` via `columnIdentity` before delivery, so the
+ * adapter never sees the legacy spelling. What stops resolving is `name` on a
+ * column authored DIRECTLY onto a `data-table` node. That is the whole blast
+ * radius, and it is pinned below in both directions.
  *
  * The two aliases were DIFFERENT failure classes, which is why the cards were
  * filed apart: an unresolved `accessorKey` gives blank cells under a live
@@ -79,22 +88,47 @@ describe('data-table columns — the declared keys render (unchanged)', () => {
   });
 });
 
-describe('data-table columns — the `name` alias is still read, and that is a HOLD (#5120)', () => {
-  it('still resolves an accessor from the undeclared `name`', () => {
-    // NOT an endorsement — a receipt. The 2026-08-20 ruling retires this limb;
-    // what stops it today is that two published skill guides teach it and
-    // `skill-guide-data-table-binding.test.tsx` renders their bytes. Pinning the
-    // CURRENT behaviour means the day the guides move, this test goes red and
-    // names itself as the thing to delete, instead of the retirement quietly
-    // never happening.
+describe('data-table columns — the undeclared `name` alias is retired (#5120)', () => {
+  it('does not resolve an accessor from `name`', () => {
+    // The narrowing this card ships, and the receipt that replaces the HOLD pin
+    // that stood here while the instruction corpus still taught `name`.
+    // A DIFFERENT failure class from #5351's: the header is fine and the CELLS
+    // are what go blank.
     renderTable([{ header: 'Stage', name: 'stage' }]);
+    expect(headers()).toEqual(['Stage']);
+    expect(bodyCells()).toEqual(['', '']);
+  });
+
+  it('keeps an authored `accessorKey` winning over a divergent `name`', () => {
+    // Precedence, unchanged and load bearing: columns can arrive in the table
+    // library's own shape, and those must not be second-guessed. This passed
+    // before the retirement too — it is here so the two directions cannot drift.
+    renderTable([{ header: 'Stage', accessorKey: 'stage', name: 'nonsense' }]);
     expect(bodyCells()).toEqual(['Won', 'Lost']);
   });
 
-  it('keeps an authored `accessorKey` ahead of a divergent `name`', () => {
-    // Precedence, unchanged and load bearing: columns can arrive in the table
-    // library's own shape, and those must not be second-guessed.
-    renderTable([{ header: 'Stage', accessorKey: 'stage', name: 'nonsense' }]);
+  it('LEGIBILITY: an unresolvable column keeps its header and spares its neighbour', () => {
+    // Measured, not assumed, and deliberately pinned as the SHAPE OF THE BREAK:
+    // the column is not dropped and nothing throws — a live header sits over
+    // blank cells while the declared neighbour is untouched. This is the failure
+    // an author who kept the legacy spelling now gets, and it is the same
+    // illegible shape objectui#5349 measures against.
+    renderTable([
+      { header: 'Stage', name: 'stage' },
+      { header: 'Id', accessorKey: 'id' },
+    ]);
+    expect(headers()).toEqual(['Stage', 'Id']);
+    expect(bodyCells()).toEqual(['', '1', '', '2']);
+  });
+
+  it('a PRODUCER-resolved column is unaffected — the narrowing is adapter-only', () => {
+    // The blast-radius bound in one assertion. Producers fold `name` into
+    // `accessorKey` via `columnIdentity` BEFORE delivery (ObjectDataTable,
+    // RelatedList, ObjectGrid), so what reaches the adapter is already declared.
+    // Simulating that hand-off here keeps this file honest about what the
+    // retirement does and does not break, without importing a plugin package.
+    renderTable([{ header: 'Stage', name: 'stage', accessorKey: 'stage' }]);
+    expect(headers()).toEqual(['Stage']);
     expect(bodyCells()).toEqual(['Won', 'Lost']);
   });
 });

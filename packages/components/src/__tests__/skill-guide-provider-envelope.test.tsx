@@ -57,9 +57,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../../..');
 const skillsRoot = path.join(repoRoot, 'skills/objectui');
 
+// The DECLARED column keys (`TableColumn`: `header` + `accessorKey`). These
+// mirror the two published guides' `data-table` example, which is why they
+// moved when the guides did: objectui#5120 retired the adapter's undeclared
+// `col.name` alias, so the `{ name, label }` spelling this fixture used to
+// carry now resolves no accessor and every cell below would read ''. The rows
+// keep `name`/`email` as their own DATA keys — that is what `accessorKey`
+// points AT, and it is unrelated to the column vocabulary.
 const COLUMNS = [
-  { name: 'name', label: 'Name' },
-  { name: 'email', label: 'Email' },
+  { header: 'Name', accessorKey: 'name' },
+  { header: 'Email', accessorKey: 'email' },
 ];
 const ROWS = [
   { name: 'Ada Lovelace', email: 'ada@example.com' },

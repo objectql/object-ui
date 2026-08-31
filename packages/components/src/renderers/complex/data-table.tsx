@@ -832,9 +832,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     if (nonArrayDataMessage) console.warn(nonArrayDataMessage);
   }, [nonArrayDataMessage]);
 
-  // The adapter reads the column keys `TableColumn` DECLARES. The `label`
-  // alias is gone (objectui#5351); the `name` alias is HELD, and the hold is
-  // deliberate and documented rather than an oversight.
+  // The adapter reads ONLY the column keys `TableColumn` DECLARES. Both
+  // undeclared aliases are now retired: `label` (objectui#5351) and `name`
+  // (objectui#5120, this change).
   //
   // These two lines used to normalize each column as
   // `header: col.header || col.label` and
@@ -846,28 +846,33 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // ruling settled the direction for the whole family: retire the consumer-side
   // alias, unify the producers.
   //
-  // `header` has retired. Where its translation went — `columnHeader` in
-  // `@object-ui/core`, called by each producer before delivery:
+  // Where the translation went — `columnIdentity` / `columnHeader` in
+  // `@object-ui/core`, called by each producer BEFORE delivery:
   //   `ObjectDataTable.normalizeColumns`  (`@object-ui/plugin-dashboard`)
   //   `RelatedList.normalizeColumn`       (`@object-ui/plugin-detail`)
   //   `ObjectGrid.generateColumns`        (`@object-ui/plugin-grid`, since #5068)
-  // Metadata vocabulary in, adapter vocabulary out; one translation, one place.
+  // Metadata vocabulary in, adapter vocabulary out; one translation, one place —
+  // and that place is each producer, never here. A `{ name, label }` column
+  // arriving through any of the three still renders: its producer resolved the
+  // identity into `accessorKey` before the adapter ever saw it. What no longer
+  // resolves is `name` on a column authored DIRECTLY onto a `data-table` node,
+  // which is the accepted-set narrowing objectui#5120 rules and ships.
   //
-  // `accessorKey || col.name` STAYS, pending objectui#5120's remaining step. It
-  // is not that the producers still need it — all three resolve `accessorKey`
-  // themselves, measured — but that two PUBLISHED skill guides teach a directly
-  // authored `data-table` whose columns are spelled `{ name, label }`:
+  // The instruction corpus moved in the SAME commit, which is the whole reason
+  // this step could be taken: `skill-guide-data-table-binding.test.tsx` lifts the
+  // fenced JSON out of the published guides at run time and renders it, so the
+  // guides are executable fixtures rather than prose. Both now teach
+  // `{ header, accessorKey }`:
   //   skills/objectui/guides/data-integration.md
   //   skills/objectui/guides/schema-expressions.md
-  // `skill-guide-data-table-binding.test.tsx` lifts those blocks out of the real
-  // files at run time and renders them, so retiring `name` here turns that gate
-  // red until the guides move. Retiring the runtime ahead of the instruction
-  // would leave the platform refusing a spelling it still ships, and the failure
-  // it teaches into is the illegible one below: a header over blank cells.
+  // Retiring the runtime ahead of the instruction would have left the platform
+  // refusing a spelling it still shipped, and the failure it teaches into is the
+  // illegible one: a header over blank cells (pinned in
+  // `data-table-declared-column-keys.test.tsx`).
   const initialColumns = useMemo(() => {
     return rawColumns.map((col: any) => ({
       ...col,
-      accessorKey: col.accessorKey || col.name,
+      accessorKey: col.accessorKey,
     }));
   }, [rawColumns]);
 
@@ -876,10 +881,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     const widths: Record<string, number> = {};
     // Spelled identically to `initialColumns` above — the auto-width pass must
     // measure the SAME columns the table renders, so the two reads move
-    // together (objectui#5351 retired `header`'s alias; `name`'s is held).
+    // together (objectui#5351 retired `header`'s alias, objectui#5120 `name`'s).
     const cols = rawColumns.map((col: any) => ({
       header: col.header,
-      accessorKey: col.accessorKey || col.name,
+      accessorKey: col.accessorKey,
       width: col.width,
       fitContent: col.fitContent,
     }));

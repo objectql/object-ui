@@ -217,8 +217,8 @@ through is measured, with its open-question caveat, in
     { "name": "Grace Hopper", "email": "grace@example.com" }
   ],
   "columns": [
-    { "name": "name", "label": "Name" },
-    { "name": "email", "label": "Email" }
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Email", "accessorKey": "email" }
   ]
 }
 ```
