@@ -6,7 +6,12 @@ import {
   PageHeaderProps,
   RecordDetailsProps,
 } from '@objectstack/spec/ui';
-import { isShapeKeyTombstoned, listedShapeKeys, shapeMemberTypeName } from '@object-ui/test-support';
+import {
+  enumOptions,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  shapeMemberTypeName,
+} from '@object-ui/test-support';
 import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 import { t } from '../../i18n';
@@ -171,10 +176,7 @@ describe('record:details sections ↔ spec section-entry coverage (#3819)', () =
  * offered, or excluded with a documented reason.
  */
 describe('page palette ↔ spec PageComponentType coverage', () => {
-  const specNames: string[] = (() => {
-    const raw = (PageComponentType as unknown as { options?: readonly string[] }).options;
-    return Array.isArray(raw) ? [...raw] : [];
-  })();
+  const specNames: string[] = enumOptions(PageComponentType);
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read PageComponentType.options from the spec').not.toEqual([]);

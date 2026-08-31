@@ -60,24 +60,38 @@ code imports — nothing in `src/` of a released package may import this.
   (the last two converged off local structural-only copies by objectui#4947).
   No copy of the judgement is left in-tree: gates import this module, they do
   not write the criterion out again.
-- `src/spec-enum-options.ts` — the spec enum-vocabulary reader:
-  `shapeEnumOptions(schema, key)`. Answers "which names does this key of the
-  contract accept?" — the question four spec-parity suites each answered with a
-  byte-for-byte identical hand-written walk into Zod's `def.innerType`
-  (objectui#5872). Consumed by
-  `packages/components/src/__tests__/data-table-selection-mode.test.tsx`,
-  `packages/plugin-list/src/__tests__/add-record-position-spec-parity.test.tsx`,
-  `packages/plugin-list/src/__tests__/user-filter-arity-spec-parity.test.tsx`
-  and `packages/plugin-timeline/src/__tests__/timeline-scale-spec-parity.test.ts`.
-  No copy of this reader is left in-tree. The other Zod-internals reader classes
-  the same card censused — array-element unwrapping, the wrapper-key walk — are
-  NOT confined here yet and are still hand-copied; converting them is a separate
-  round, one reader class at a time.
+- `src/spec-enum-options.ts` — the spec enum-vocabulary reader. **Two exports,
+  ONE wrapper walk**: `enumOptions(node)` is the walk, and
+  `shapeEnumOptions(schema, key)` is the same walk entered through
+  `resolvePropsShape`. Both answer "which names does this contract accept?" —
+  the question spec-parity suites used to answer with a hand-written cast into
+  Zod internals.
+  - `shapeEnumOptions(schema, key)` — for an enum that sits INSIDE an object
+    schema, behind a wrapper. Replaced four byte-for-byte identical walks into
+    `def.innerType` (objectui#5872). Consumed by
+    `packages/components/src/__tests__/data-table-selection-mode.test.tsx`,
+    `packages/plugin-list/src/__tests__/add-record-position-spec-parity.test.tsx`,
+    `packages/plugin-list/src/__tests__/user-filter-arity-spec-parity.test.tsx`
+    and `packages/plugin-timeline/src/__tests__/timeline-scale-spec-parity.test.ts`.
+  - `enumOptions(node)` — for a node that IS the enum: a top-level `z.enum`
+    imported straight from `@objectstack/spec`, or a shape member the caller
+    already holds. Replaced 17 hand-written
+    `(Schema as { options?: readonly string[] }).options` casts across 16 files
+    in 11 workspace packages (objectui#6924) — a larger family than #5872's,
+    with the same quiet-permissive failure. It is an ENTRY POINT onto the walk
+    above, not a second reader: `shapeEnumOptions` delegates to it, so there is
+    exactly one wrapper walk in this repository and a third entry point must not
+    change that.
+  - The other Zod-internals reader classes #5872 censused — array-element
+    unwrapping, the wrapper-key walk — are NOT confined here yet and are still
+    hand-copied; converting them is a separate round, one reader class at a time.
 - `src/__tests__/spec-enum-options.test.ts` — the calibration for that reader:
   one synthetic fixture per wrapper spelling it claims to walk (bare enum,
   `.optional()`, `.default()`, a stack, and a `lazySchema()` thunk), the `[]`
   cases that keep a consuming suite's non-vacuity assertion from being a rubber
-  stamp, and a non-empty check against the four real `@objectstack/spec` pairs.
+  stamp, a non-empty check against the four real `@objectstack/spec` pairs, and
+  the same three halves again for `enumOptions` — including the pin that the two
+  entry points agree, which is what makes the delegation observable.
 - `src/__tests__/spec-tombstones.test.ts` — the calibration for that judge: one
   synthetic fixture per recognition channel (so neither can quietly stop
   working), plus a cross-check of the structural verdict against what the

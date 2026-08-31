@@ -17,6 +17,7 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import '@testing-library/jest-dom';
 import { NotificationPositionSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import { renderComponent } from './test-utils';
 import { TOASTER_POSITIONS } from '../renderers/feedback/toaster';
 // Registers the renderers at module scope, NOT inside a `beforeAll` — there the
@@ -39,8 +40,7 @@ vi.mock('../ui/sonner', () => ({
 }));
 
 describe('toaster covers the spec notification-position vocabulary', () => {
-  const rawOptions = (NotificationPositionSchema as unknown as { options?: readonly string[] }).options;
-  const specNames: string[] = Array.isArray(rawOptions) ? [...rawOptions] : [];
+  const specNames: string[] = enumOptions(NotificationPositionSchema);
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read NotificationPositionSchema.options from the spec').not.toEqual([]);

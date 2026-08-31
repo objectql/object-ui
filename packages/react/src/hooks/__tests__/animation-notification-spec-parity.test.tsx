@@ -43,6 +43,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { NotificationTypeSchema, NotificationPositionSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import {
   useAnimation,
   SUPPORTED_TRANSITION_PRESETS,
@@ -54,11 +55,6 @@ import {
   SUPPORTED_NOTIFICATION_DISPLAY_TYPES,
   SUPPORTED_NOTIFICATION_POSITIONS,
 } from '../../context/NotificationContext';
-
-function options(schema: unknown): string[] {
-  const raw = (schema as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-}
 
 function assertParity(specNames: string[], implemented: ReadonlySet<string>, what: string) {
   expect(specNames, `could not read the ${what} enum from the spec`).not.toEqual([]);
@@ -89,11 +85,11 @@ describe('react hooks cover the spec animation/notification vocabularies', () =>
   });
 
   it('notification display types match NotificationTypeSchema both ways', () => {
-    assertParity(options(NotificationTypeSchema), SUPPORTED_NOTIFICATION_DISPLAY_TYPES, 'notification display type');
+    assertParity(enumOptions(NotificationTypeSchema), SUPPORTED_NOTIFICATION_DISPLAY_TYPES, 'notification display type');
   });
 
   it('notification positions match NotificationPositionSchema both ways', () => {
-    assertParity(options(NotificationPositionSchema), SUPPORTED_NOTIFICATION_POSITIONS, 'notification position');
+    assertParity(enumOptions(NotificationPositionSchema), SUPPORTED_NOTIFICATION_POSITIONS, 'notification position');
   });
 
   // `NotificationActionButton.variant` was the shadcn Button vocabulary

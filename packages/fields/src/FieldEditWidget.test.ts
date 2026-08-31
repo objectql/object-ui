@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { FieldType } from '@objectstack/spec/data';
+import { enumOptions } from '@object-ui/test-support';
 import {
   FORM_FIELD_TYPES,
   INLINE_EXCLUDED_FIELD_TYPES,
@@ -108,9 +109,7 @@ describe('inline editor ↔ form widget parity', () => {
  * a documented exclusion.
  */
 describe('inline editor ↔ SPEC FieldType parity (#2942)', () => {
-  const specTypes: string[] = Array.isArray((FieldType as { options?: readonly string[] }).options)
-    ? [...(FieldType as { options: readonly string[] }).options]
-    : [];
+  const specTypes: string[] = enumOptions(FieldType);
 
   it('reads a non-empty enum from the spec', () => {
     expect(specTypes, 'could not read FieldType.options from the spec').not.toEqual([]);

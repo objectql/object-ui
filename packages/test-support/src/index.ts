@@ -41,4 +41,4 @@ export {
   tombstonedShapeKeys,
 } from './spec-tombstones';
 
-export { shapeEnumOptions } from './spec-enum-options';
+export { enumOptions, shapeEnumOptions } from './spec-enum-options';

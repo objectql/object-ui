@@ -21,6 +21,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { ChartTypeSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import {
   classifyWidgetType,
   CHART_TYPE_ALIASES,
@@ -29,10 +30,7 @@ import {
   TABLE_LIKE_TYPES,
 } from '../widgetDispatch';
 
-const specNames: string[] = (() => {
-  const raw = (ChartTypeSchema as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specNames: string[] = enumOptions(ChartTypeSchema);
 
 describe('widget dispatch covers the spec chart vocabulary', () => {
   it('reads a non-empty enum from the spec', () => {

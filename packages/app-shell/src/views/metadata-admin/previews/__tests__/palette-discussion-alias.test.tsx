@@ -43,6 +43,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { PageComponentType } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 // Side-effect import: registers `record:chatter` and `record:discussion`. The
 // app-shell test setup does not pull plugin-detail in, and relying on another
 // file having imported it first would make this suite order-dependent.
@@ -51,14 +52,20 @@ import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 
 afterEach(cleanup);
 
-const specNames: string[] = (() => {
-  const raw = (PageComponentType as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specNames: string[] = enumOptions(PageComponentType);
 
 const meta = BLOCK_TYPE_META as Record<string, { label: string; category: string } | undefined>;
 
 describe('page palette — the discussion/chatter pair points at the canonical name (#5495)', () => {
+  // The duty `@object-ui/test-support`'s reader leaves with every caller: `[]`
+  // is its "could not read", and the `not.toContain` probes below are satisfied
+  // by an empty list. The `toContain` probes would red on one — but they say
+  // "the spec dropped this member", which sends the next reader to the contract
+  // instead of to the reader. This one names the real cause (objectui#6924).
+  it('reads a non-empty enum from the spec', () => {
+    expect(specNames, 'could not read PageComponentType.options from the spec').not.toEqual([]);
+  });
+
   it('offers `record:discussion`, labelled for authors as "Discussion"', () => {
     expect(meta['record:discussion']).toBeDefined();
     expect(meta['record:discussion']!.label).toBe('Discussion');

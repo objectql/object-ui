@@ -82,6 +82,7 @@ import {
   ToastSchema,
   ToasterSchema,
 } from '@object-ui/types/zod';
+import { enumOptions } from '@object-ui/test-support';
 import { allExamples, getExample } from '../src/index.js';
 
 type Json = Record<string, unknown>;
@@ -94,14 +95,15 @@ const schemaOf = (id: string): Json => getExample(id).schema as unknown as Json;
  * SHIPPED enum rather than to a hand-copied string list is the point: if the
  * platform ever adds or drops a member, this file follows it instead of
  * asserting yesterday's vocabulary.
+ *
+ * The wrapper walk is `@object-ui/test-support`'s shared reader (objectui#6924);
+ * the THROW stays here, because that is this file's non-vacuity duty and the
+ * reader deliberately answers `[]` rather than raising.
  */
 function enumOptionsOf(field: unknown): readonly string[] {
-  let node = field as { options?: readonly string[]; unwrap?: () => unknown };
-  for (let i = 0; i < 4 && node && !node.options; i += 1) {
-    node = node.unwrap?.() as typeof node;
-  }
-  if (!node?.options) throw new Error('not an enum-bearing field');
-  return node.options;
+  const options = enumOptions(field);
+  if (options.length === 0) throw new Error('not an enum-bearing field');
+  return options;
 }
 
 const TOAST_FIXTURES = [

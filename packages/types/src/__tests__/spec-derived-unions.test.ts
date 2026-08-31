@@ -63,6 +63,7 @@ import type { z } from 'zod';
 import {
   FieldType as SpecFieldType,
 } from '@objectstack/spec/data';
+import { enumOptions } from '@object-ui/test-support';
 // The objectstack#4171 / #3177 pins must import the banned name to probe it —
 // this guard is a sanctioned importer (#3090 tripwire).
 /* eslint-disable no-restricted-imports -- reported at the specifier line, out of -next-line reach */
@@ -347,13 +348,19 @@ void _specFormFieldInputStillHasNoName; void _specFieldSlotIsStillAName;
 void _localFieldSlotIsStillAnObject; void _specDependsOnStillTakesNoArray;
 void _specOutputStillDropsVisibleOn;
 
-/** Read a spec enum's members, failing loudly if the shape ever changes. */
+/**
+ * Read a spec enum's members, failing loudly if the shape ever changes.
+ *
+ * The wrapper walk is `@object-ui/test-support`'s shared reader (objectui#6924);
+ * the THROW stays here, because that is this suite's non-vacuity duty and the
+ * reader deliberately answers `[]` rather than raising.
+ */
 const optionsOf = (schema: unknown, name: string): string[] => {
-  const raw = (schema as { options?: readonly string[] })?.options;
-  if (!Array.isArray(raw) || raw.length === 0) {
+  const raw = enumOptions(schema);
+  if (raw.length === 0) {
     throw new Error(`could not read ${name}.options from @objectstack/spec`);
   }
-  return [...raw];
+  return raw;
 };
 
 describe('unions derived from a spec vocabulary stay derived (#2944)', () => {

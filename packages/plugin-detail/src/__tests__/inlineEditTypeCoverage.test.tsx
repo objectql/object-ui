@@ -49,6 +49,7 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FieldType } from '@objectstack/spec/data';
+import { enumOptions } from '@object-ui/test-support';
 import { InlineEditProvider, useInlineEdit } from '@object-ui/react';
 import type { DetailViewSection } from '@object-ui/types';
 import { DetailSection } from '../DetailSection';
@@ -82,9 +83,7 @@ import { isComputedFieldType, isInlineExcludedDetailFieldType } from '../fieldEn
  * a member of the spec enum, which is the card's own premise — so it leaves
  * this universe entirely rather than moving between buckets.
  */
-const specTypes: string[] = Array.isArray((FieldType as { options?: readonly string[] }).options)
-  ? [...(FieldType as { options: readonly string[] }).options]
-  : [];
+const specTypes: string[] = enumOptions(FieldType);
 const ALL_TYPES = [...new Set([...FORM_FIELD_TYPES, ...specTypes])].sort();
 
 /** The hosts never even render an editor for these (the gates, not this switch). */

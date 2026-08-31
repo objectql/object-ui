@@ -33,21 +33,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ChartTypeSchema, ReportType } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import {
   DatasetReportRenderer,
   planReportChart,
   resolveReportPresentation,
 } from '../DatasetReportRenderer';
 
-const specChartTypes: string[] = (() => {
-  const raw = (ChartTypeSchema as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specChartTypes: string[] = enumOptions(ChartTypeSchema);
 
-const specReportTypes: string[] = (() => {
-  const raw = (ReportType as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specReportTypes: string[] = enumOptions(ReportType);
 
 describe('planReportChart covers the spec chart vocabulary', () => {
   it('reads a non-empty enum from the spec', () => {

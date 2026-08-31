@@ -36,16 +36,14 @@ import { render, screen, cleanup } from '@testing-library/react';
 // `@object-ui/types` (decision (a) of objectui#2561), so this is the supported
 // way to reach it.
 import { WidgetColorVariantSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import { DatasetWidget } from '../DatasetWidget';
 import { VARIANT_ICON_CLASSES, VARIANT_TEXT_CLASSES, metricAccentTextClass } from '../colorVariants';
 
 afterEach(cleanup);
 
 /** The spec's own token list, read at test time (see the parity block below). */
-const specVariants: string[] = (() => {
-  const raw = (WidgetColorVariantSchema as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specVariants: string[] = enumOptions(WidgetColorVariantSchema);
 
 /**
  * The metric card's markup with NO `colorVariant` declared, exactly as

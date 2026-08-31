@@ -14,11 +14,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { ColumnSummarySchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import { SUPPORTED_SUMMARY_TYPES } from '../useColumnSummary';
 
 describe('useColumnSummary covers the spec summary vocabulary', () => {
-  const rawOptions = (ColumnSummarySchema as unknown as { options?: readonly string[] }).options;
-  const specNames: string[] = Array.isArray(rawOptions) ? [...rawOptions] : [];
+  const specNames: string[] = enumOptions(ColumnSummarySchema);
 
   it('reads a non-empty enum from the spec', () => {
     // Guards the assertions below against silently passing on an empty list if

@@ -29,13 +29,11 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { ChartTypeSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import AdvancedChartImpl from '../AdvancedChartImpl';
 import { RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES } from '../normalizeChartSchema';
 
-const specNames: string[] = (() => {
-  const raw = (ChartTypeSchema as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specNames: string[] = enumOptions(ChartTypeSchema);
 
 describe('plugin-charts covers the spec chart-type vocabulary', () => {
   it('reads a non-empty enum from the spec', () => {

@@ -21,6 +21,7 @@ import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotificationTypeSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import {
   NOTIFICATION_PRESENTATIONS,
   NotificationProvider,
@@ -36,8 +37,7 @@ import { NotificationInline } from '../NotificationInline';
 import { notificationActionVariant, notificationIcon, notificationSeverityStyle } from '../severity';
 
 function specDisplayTypes(): string[] {
-  const raw = (NotificationTypeSchema as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
+  return enumOptions(NotificationTypeSchema);
 }
 
 type Notify = (input: Omit<NotificationItem, 'id' | 'createdAt' | 'read'>) => string;

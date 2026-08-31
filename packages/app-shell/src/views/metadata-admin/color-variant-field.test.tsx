@@ -22,12 +22,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { WidgetColorVariantSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import { COLOR_VARIANTS, colorVariantCss } from './color-variant-field';
 
-const specVariants: string[] = (() => {
-  const raw = (WidgetColorVariantSchema as unknown as { options?: readonly string[] }).options;
-  return Array.isArray(raw) ? [...raw] : [];
-})();
+const specVariants: string[] = enumOptions(WidgetColorVariantSchema);
 
 /**
  * The picker's canonical row — `ColorVariantPicker` renders exactly

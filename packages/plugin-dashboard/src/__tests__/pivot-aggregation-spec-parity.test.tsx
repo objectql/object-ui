@@ -26,6 +26,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { ChartAggregateFunctionSchema } from '@objectstack/spec/ui';
+import { enumOptions } from '@object-ui/test-support';
 import { PivotTable, PIVOT_AGGREGATIONS } from '../PivotTable';
 
 const baseSchema = {
@@ -41,8 +42,7 @@ const baseSchema = {
 };
 
 describe('PivotTable covers the spec UI aggregation vocabulary', () => {
-  const rawOptions = (ChartAggregateFunctionSchema as unknown as { options?: readonly string[] }).options;
-  const specNames: string[] = Array.isArray(rawOptions) ? [...rawOptions] : [];
+  const specNames: string[] = enumOptions(ChartAggregateFunctionSchema);
 
   it('reads a non-empty enum from the spec', () => {
     expect(specNames, 'could not read ChartAggregateFunctionSchema.options from the spec').not.toEqual([]);
