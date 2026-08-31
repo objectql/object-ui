@@ -19,7 +19,8 @@ import {
 } from '@object-ui/components';
 import { Activity, Plus, Pencil, Trash2, MessageSquare, Filter, Info } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import type { ActivityItem } from './activityItemType.js';
+import { UNMAPPED_ACTIVITY_ITEM_TYPE } from './activityItemType.js';
+import type { ActivityItem, ActivityItemType } from './activityItemType.js';
 
 /**
  * The item shape and its kind union live in `activityItemType.ts` with the
@@ -49,6 +50,43 @@ const typeConfig: Record<
   // of the bucket is that it does not claim the row was an update.
   system: { icon: Info, color: 'text-muted-foreground' },
 };
+
+/**
+ * Is this activity kind allowed through the notification filter?
+ *
+ * ⚠️ The question is PRESENCE, not truthiness — that distinction is the fix
+ * (objectui#6816). A bare `preferences[type]` lookup answers the same falsy
+ * value to two unrelated questions:
+ *
+ *  - the kind is IN the record and the user toggled it OFF ⇒ hide the row.
+ *    That is the feature, and it still hides.
+ *  - the kind is ABSENT from the record ⇒ the row used to vanish from the
+ *    panel. It now fails OPEN and renders.
+ *
+ * The second case is unreachable inside this repo — the preferences record is
+ * `Record<ActivityItemType, boolean>` and `tsc` forces every member — but
+ * `ActivityFeed` is published API (the package barrel exports it), so a host
+ * can mount it and pass rows whose `type` came from its own data.
+ * `sys_activity.type` is author-extensible (objectstack#11507, ruled
+ * 2026-08-24) and is not validated on write, so those kinds are real. Reading
+ * one as "off" made the row stored, queryable and invisible — the
+ * objectui#5840 failure mode reached from the reader side, and the least
+ * detectable kind of failure a feed can have.
+ *
+ * Asking `hasOwnProperty` rather than defaulting a bracket read is the same
+ * choice `activityItemTypeOf` makes on the mapping side (layout/
+ * activityItemType.ts), for the same reason: the question is about the record's
+ * OWN entries. A consumer kind spelled `toString` or `constructor` is absent
+ * here, but a bracket read finds a truthy `Object.prototype` member — the same
+ * verdict today, reached by accident, through a value that is not a boolean.
+ */
+function isKindEnabled(
+  preferences: Partial<Record<ActivityItemType, boolean>>,
+  type: ActivityItemType,
+): boolean {
+  if (!Object.prototype.hasOwnProperty.call(preferences, type)) return true;
+  return preferences[type] === true;
+}
 
 /** Format an ISO timestamp as a localized relative string (e.g. "2m ago"). */
 function formatRelativeTime(iso: string, t: (key: string, vars?: Record<string, unknown>) => string): string {
@@ -81,7 +119,7 @@ export function ActivityFeed({ activities = [], className }: ActivityFeedProps) 
     setNotificationPreferences(prev => ({ ...prev, [type]: !prev[type] }));
   };
 
-  const filteredActivities = activities.filter(a => notificationPreferences[a.type]);
+  const filteredActivities = activities.filter(a => isKindEnabled(notificationPreferences, a.type));
 
   /** Localized labels for activity type badges. */
   const typeLabels: Record<ActivityItem['type'], string> = {
@@ -131,7 +169,12 @@ export function ActivityFeed({ activities = [], className }: ActivityFeedProps) 
           <div className="flex flex-wrap gap-1.5 mt-3 px-1">
             {(Object.keys(typeConfig) as ActivityItem['type'][]).map(type => {
               const { icon: Icon, color } = typeConfig[type];
-              const active = notificationPreferences[type];
+              // Same predicate as the filter above. Behaviour-neutral today (this
+              // strip iterates `typeConfig`'s own keys, all of which the record
+              // carries), so it is a de-duplication rather than a second fix: one
+              // reading of "is this kind on", which the badge and the list cannot
+              // drift apart on later.
+              const active = isKindEnabled(notificationPreferences, type);
               return (
                 <Badge
                   key={type}
@@ -155,7 +198,15 @@ export function ActivityFeed({ activities = [], className }: ActivityFeedProps) 
         ) : (
           <ul className="mt-4 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
             {filteredActivities.map((item) => {
-              const { icon: Icon, color } = typeConfig[item.type];
+              // Fail-open's other half. The filter now lets an unrecognised kind
+              // through, so this lookup must have somewhere to land: destructuring
+              // `undefined` throws and takes the whole panel down with it, which is
+              // strictly worse than the row this card is here to stop losing.
+              // `UNMAPPED_ACTIVITY_ITEM_TYPE` is the presentation activityItemType.ts
+              // already declares for a value outside its table — neutral on purpose,
+              // and in particular not `update`.
+              const { icon: Icon, color } =
+                typeConfig[item.type] ?? typeConfig[UNMAPPED_ACTIVITY_ITEM_TYPE];
               return (
                 <li
                   key={item.id}
