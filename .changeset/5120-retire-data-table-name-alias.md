@@ -29,10 +29,21 @@ becomes
 ```
 
 **Who is NOT affected.** Columns reaching the table through `object-data-table`,
-a detail view's `related[]` list, or `object-grid` are unchanged: those
-producers already fold `name` into `accessorKey` via `columnIdentity` before
-delivery, so the adapter never sees the legacy spelling. Only the
-directly-authored node narrows.
+a detail view's `related[]` list, or `object-grid` are unchanged — the adapter
+never sees a legacy spelling from any of them. The reason differs by producer,
+and the difference matters if you are debugging one:
+
+- `object-data-table` and a detail view's `related[]` list **resolve** the
+  legacy spelling before delivery, stamping `accessorKey` from `name` (via
+  `columnIdentity`). A `name`-spelled column keeps working there.
+- `object-grid` **refuses** it instead: since objectui#5068 an authored column
+  must spell the declared `field`, and one that does not is dropped at intake
+  and never reaches the table. Its delivered columns carry `accessorKey`
+  stamped from `field`. So a `name`-spelled `object-grid` column does not
+  render today either — that is objectui#5352's open question, unchanged by
+  this release.
+
+Only the directly-authored `data-table` node narrows here.
 
 **How the break presents, so you can recognise it:** the column is not dropped
 and nothing is thrown — its header still renders over blank cells, and

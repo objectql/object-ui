@@ -38,11 +38,28 @@
  * never refuses a spelling it still ships.
  *
  * WHAT NARROWS, precisely. A `{ name, label }` column arriving through
- * `ObjectDataTable`, `RelatedList` or `ObjectGrid` is UNAFFECTED — its producer
- * folds `name` into `accessorKey` via `columnIdentity` before delivery, so the
- * adapter never sees the legacy spelling. What stops resolving is `name` on a
- * column authored DIRECTLY onto a `data-table` node. That is the whole blast
- * radius, and it is pinned below in both directions.
+ * `ObjectDataTable`, `RelatedList` or `ObjectGrid` is UNAFFECTED — but for two
+ * different reasons, and conflating them is a mistake this card's own ruling
+ * already made once:
+ *
+ *   - `ObjectDataTable` and `RelatedList` RESOLVE the legacy spelling, stamping
+ *     `accessorKey` from `columnIdentity(col)` before delivery.
+ *   - `ObjectGrid` does NOT fold. Since objectui#5068 it REFUSES undeclared
+ *     spellings at intake — `resolvesToDataColumn` requires a string `field`
+ *     (`columnSpellingDiagnostics.ts`), so a `name`-spelled entry is dropped
+ *     before delivery and never reaches this adapter at all (before AND after
+ *     this change; that silence is objectui#5352's territory). What it does
+ *     deliver carries `accessorKey` stamped from `field`.
+ *
+ * The 2026-08-20 ruling's item 2 told ObjectGrid to "connect to the same
+ * `columnIdentity` resolution"; objectui#5478 measured that following it would
+ * have RE-WIDENED what #5068 narrowed. Stated here because the claim has been
+ * restated wrongly more than once, and a third repetition would settle it.
+ *
+ * Either way the adapter never sees a legacy spelling from a producer. What
+ * stops resolving is `name` on a column authored DIRECTLY onto a `data-table`
+ * node. That is the whole blast radius, and it is pinned below in both
+ * directions.
  *
  * The two aliases were DIFFERENT failure classes, which is why the cards were
  * filed apart: an unresolved `accessorKey` gives blank cells under a live
@@ -122,11 +139,14 @@ describe('data-table columns — the undeclared `name` alias is retired (#5120)'
   });
 
   it('a PRODUCER-resolved column is unaffected — the narrowing is adapter-only', () => {
-    // The blast-radius bound in one assertion. Producers fold `name` into
-    // `accessorKey` via `columnIdentity` BEFORE delivery (ObjectDataTable,
-    // RelatedList, ObjectGrid), so what reaches the adapter is already declared.
-    // Simulating that hand-off here keeps this file honest about what the
-    // retirement does and does not break, without importing a plugin package.
+    // The blast-radius bound in one assertion: whatever a producer delivers
+    // already carries a declared `accessorKey`, so the retirement cannot reach
+    // it. ObjectDataTable and RelatedList get there by RESOLVING `name` through
+    // `columnIdentity`; ObjectGrid gets there by REFUSING undeclared spellings
+    // at intake and stamping from `field` (see the header — the two routes are
+    // not the same mechanism). Simulating the hand-off here keeps this file
+    // honest about what the retirement does and does not break, without
+    // importing a plugin package.
     renderTable([{ header: 'Stage', name: 'stage', accessorKey: 'stage' }]);
     expect(headers()).toEqual(['Stage']);
     expect(bodyCells()).toEqual(['Won', 'Lost']);
