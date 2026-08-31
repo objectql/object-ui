@@ -45,8 +45,8 @@ type ContextMenuItem = ContextMenuCommandItem | ContextMenuDividerItem;
 
 interface ContextMenuSchema {
   type: 'context-menu';
-  trigger?: ComponentSchema;      // Trigger element — a placeholder renders when absent
-  items: ContextMenuItem[];       // Menu items
+  trigger?: SchemaNode | SchemaNode[];  // Trigger element — a placeholder renders when absent
+  items: ContextMenuItem[];             // Menu items
   className?: string;
 }
 ```

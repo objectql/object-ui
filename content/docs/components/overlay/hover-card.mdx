@@ -14,12 +14,12 @@ The Hover Card component displays rich content when hovering over an element.
 ```plaintext
 interface HoverCardSchema {
   type: 'hover-card';
-  trigger: ComponentSchema;       // Trigger element
-  content: ComponentSchema;       // Card content
+  trigger: SchemaNode;                  // Trigger element
+  content: SchemaNode | SchemaNode[];   // Card content
   side?: 'top' | 'right' | 'bottom' | 'left';
   align?: 'start' | 'center' | 'end';
-  openDelay?: number;             // Delay before opening (ms)
-  closeDelay?: number;            // Delay before closing (ms)
+  openDelay?: number;                   // Delay before opening (ms)
+  closeDelay?: number;                  // Delay before closing (ms)
   className?: string;
 }
 ```
