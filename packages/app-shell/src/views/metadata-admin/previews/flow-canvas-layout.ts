@@ -86,6 +86,26 @@ export interface LegacyFlowNodeUI {
 export interface FlowDesignerNode {
   id: string;
   type: string;
+  /**
+   * Optional HERE and required by `FlowNodeSchema` — the layer difference this
+   * interface's own doc comment describes, and the settled answer to a question
+   * that has now been asked twice (objectui#6287, objectui#6331).
+   *
+   * ⛔ Making it required here catches nothing. Measured on `origin/main` in
+   * #6287: `tsc` exit 0, ZERO errors, because every node reaches the reader
+   * types through `as FlowNodeLike[]` / `as FlowDesignerNode[]` casts out of
+   * `Record<string, unknown>`, and **a cast bypasses a required member**. It is
+   * also mildly harmful — `node.label ?? ''` and `node.label || node.id` are
+   * guards the OPTIONAL type forces, while a required `label` would let
+   * `node.label.trim()` compile against a value that genuinely is absent (a
+   * stored flow, or a node mid-edit, can have none).
+   *
+   * What guarantees a node ACQUIRES one is therefore at the PRODUCER, where a
+   * cast cannot get in front of it: `flow-node-producers.label.test.tsx`
+   * censuses every construction site and refuses one that writes no label.
+   * ⛔ If that pin ever fails, write the label at the producer — do not narrow
+   * this member.
+   */
   label?: string;
   config?: Record<string, unknown>;
   /**
