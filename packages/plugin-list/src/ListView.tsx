@@ -2233,19 +2233,34 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...restKanban,
         };
       }
-      case 'calendar':
+      case 'calendar': {
+        // objectui#7029: only ever restate a binding the view actually
+        // DECLARED. These two keys used to be floored at 'start_date' /
+        // 'end_date' — field names no view had written and most objects do not
+        // carry. `ObjectCalendar` decides whether it has a usable configuration
+        // by asking whether a start-date binding is present, so a fabricated
+        // one short-circuited its own refusal screen and every record landed on
+        // today. The `titleField` rung next door has always been conditional;
+        // these two now match it, and the whole branch matches the sibling
+        // faces that never invent (`resolveTimelineDateBinding` above,
+        // app-shell's `calendarViewOptions` / `defaultCalendarFromObject`).
+        const startDateField =
+          schema.calendar?.startDateField || schema.options?.calendar?.startDateField;
+        const endDateField =
+          schema.calendar?.endDateField || schema.options?.calendar?.endDateField;
+        const titleField =
+          schema.calendar?.titleField || schema.options?.calendar?.titleField;
         return {
           type: 'object-calendar',
           ...baseProps,
-          startDateField: schema.calendar?.startDateField || schema.options?.calendar?.startDateField || 'start_date',
-          endDateField: schema.calendar?.endDateField || schema.options?.calendar?.endDateField || 'end_date',
-          ...(schema.calendar?.titleField || schema.options?.calendar?.titleField
-            ? { titleField: schema.calendar?.titleField || schema.options?.calendar?.titleField }
-            : {}),
+          ...(startDateField ? { startDateField } : {}),
+          ...(endDateField ? { endDateField } : {}),
+          ...(titleField ? { titleField } : {}),
           ...(schema.calendar?.defaultView ? { defaultView: schema.calendar.defaultView } : {}),
           ...(schema.options?.calendar || {}),
           ...(schema.calendar || {}),
         };
+      }
       case 'gallery': {
         // Merge spec config over legacy options into nested gallery prop
         const mergedGallery = {

@@ -172,6 +172,48 @@ export function timelineViewOptions(viewDef: any): Record<string, unknown> {
 }
 
 /**
+ * The `options.calendar` config this page hands to `ListView` — or NOTHING.
+ *
+ * objectui#7029 (ruled on objectstack#13748, director batch #19, option A).
+ * This face used to fabricate `startDateField: 'due_date'` and
+ * `titleField: 'name'` for EVERY object view, declared or not. Downstream that
+ * is indistinguishable from a real binding, and it is what made the calendar
+ * renderer's own refusal screen ("Calendar configuration required…",
+ * `ObjectCalendar.tsx`) unreachable from this route: the renderer decides by
+ * asking whether a start-date binding is PRESENT, and this face always said
+ * yes. Measured on hotcrm's `crm_leave_request` (real fields `start_date` /
+ * `end_date`, no `calendar:` block): all nine records piled onto today's cell
+ * with titles resolved through the display-name chain — a plausible, fully
+ * wrong screen with zero signal to the author.
+ *
+ * The same fabrication also fed two gates that read this bag:
+ * `ListView.availableViews` offered the Calendar toggle for every object view,
+ * and `resolveTimelineDateBinding` accepts a calendar binding as a legitimate
+ * timeline axis — so the invented name silently answered for the Timeline
+ * switcher too.
+ *
+ * What stays is the view's OWN declared block, forwarded verbatim (spread, not
+ * whitelisted, so every spec key survives), and `undefined` when the view
+ * declared none. Exactly the shape the sibling faces already converged on:
+ * `timelineViewOptions` above (objectui#3129 retired this very literal from the
+ * timeline axis), the kanban branch's `detectStatusField` (ADR-0085, "never
+ * invents a field the object doesn't have"), and `defaultCalendarFromObject`
+ * in `InterfaceListPage` (a binding or `undefined`, never a guess).
+ *
+ * ⚠️ A view that carried no `calendar:` block and happened to sit on an object
+ * with a real `due_date` field was rendering by luck; it now reaches the
+ * refusal screen instead. That is the ruled loud-over-silent direction.
+ *
+ * Exported for the regression suite.
+ */
+export function calendarViewOptions(viewDef: any): Record<string, unknown> | undefined {
+    const declared = viewDef?.calendar;
+    if (!declared || typeof declared !== 'object') return undefined;
+    // Forward what the author wrote — nothing invented, nothing floored.
+    return { ...declared };
+}
+
+/**
  * THE record-detail URL this list surface builds — one route shape, one place.
  *
  * Derived from the LIST's own pathname rather than re-assembled from route
@@ -2037,6 +2079,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // controls should be (#2219).
         warnSuppressedListNav(objectDef.name, viewDef.id || viewDef.name || '', viewDef as any, listSchema as any);
 
+        // objectui#7029: present only when the view actually declared one.
+        const calendarOptions = calendarViewOptions(viewDef);
+
         const fullSchema: ListViewSchema = {
             ...listSchema,
             // The active view's display label (same string the ViewTabBar
@@ -2216,14 +2261,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     titleField: viewDef.kanban?.titleField || 'name',
                     cardFields: viewDef.kanban?.columns,
                 },
-                calendar: {
-                    startDateField: viewDef.calendar?.startDateField || 'due_date',
-                    endDateField: viewDef.calendar?.endDateField,
-                    titleField: viewDef.calendar?.titleField || 'name',
-                    colorField: viewDef.calendar?.colorField,
-                    allDayField: viewDef.calendar?.allDayField,
-                    defaultView: viewDef.calendar?.defaultView,
-                },
+                // The calendar config the view DECLARED, or no calendar key at
+                // all — never an invented field name (objectui#7029). With the
+                // key absent, ListView's capability gate stops offering the
+                // Calendar toggle for a view that configured none, and a view
+                // forced onto the calendar renderer reaches its refusal screen.
+                ...(calendarOptions ? { calendar: calendarOptions } : {}),
                 // The date axis is resolved once, in ListView — this face only
                 // forwards what the view declared, floored at 'name'
                 // (objectui#3129, objectui#6557). See `timelineViewOptions`.
