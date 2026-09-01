@@ -1824,11 +1824,57 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           // and the grouping fields are covered by that superset. Passing an
           // array here unconditionally would NARROW that case to the grouping
           // fields alone.
+          //
+          // [objectui#7215] FIELD-LEVEL SECURITY ON `$expand` — the half
+          // objectui#6898 left open. That card gated `$select`, which asks for
+          // a denied lookup's BARE FOREIGN KEY; `$expand` asks the server to
+          // RESOLVE the same field and hand back the related record, so the
+          // larger of the two disclosures was the ungated one.
+          //
+          // Graded the same way #6898 was, and by measurement rather than
+          // assumption: against ObjectStack this is defence-in-depth, because
+          // `plugin-security`'s `FieldMasker.maskRecord` does `delete
+          // result[field]` on every unreadable key and objectql's expand path
+          // writes the resolved record back under THAT SAME KEY
+          // (`record[fieldName] = recordMap.get(...)`), so one statement
+          // deletes the expanded object and the bare id alike. It is
+          // load-bearing for a backend that does not strip.
+          //
+          // ⭐ THE GATE GOES ON THE OUTPUT, NOT ON THE COLUMN LIST, and both
+          // reasons are measured (`__tests__/expandFls-7215.test.tsx` pins
+          // each):
+          //
+          //  - `buildExpandFields` reads an EMPTY column list as "no column
+          //    restriction" and falls back to every declared relation, so
+          //    filtering its INPUT would WIDEN a view whose only relational
+          //    column is denied from that one field to all of them;
+          //  - the no-columns case passes `undefined`, so it has no input to
+          //    gate at all — and it is the case that expands the most.
+          //
+          // Gating the output also satisfies, structurally, the ordering the
+          // `$select` gate above spells out by hand (intersect with the
+          // DECLARED fields first, ask `checkField` only about survivors):
+          // `buildExpandFields` returns a subset of the object's declared
+          // reference-bearing fields, so every name judged here is declared by
+          // construction and the "`checkField` answers false for an undeclared
+          // key" trap is unreachable. That is why this gate is SHORTER than
+          // `passesProjectionGate` rather than a copy of it — no undeclared-key
+          // arm, and no identity read, because these are resolved root names
+          // rather than column entries.
+          //
+          // Deferral is the same as every other gate on this path: an
+          // unanswered policy filters nothing, and the effect re-runs on
+          // `perms.isLoaded`, so the expansion is rebuilt the moment the answer
+          // arrives.
+          const expandReadable = (fieldName: string): boolean => {
+            if (!perms?.isLoaded || !objectName) return true;
+            return perms.checkField(objectName, fieldName, 'read');
+          };
           const expandColumns = schemaColumns ?? schemaFields;
           const expand = buildExpandFields(
             resolvedSchema?.fields,
             expandColumns ? [...(expandColumns as any[]), ...groupingFieldRefs] : undefined,
-          );
+          ).filter(expandReadable);
           if (expand.length > 0) {
             params.$expand = expand;
           }

@@ -1427,6 +1427,17 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return () => { isMounted = false; };
   }, [schema.objectName, dataSource]);
 
+  // Permissions context — must be read before the `$expand` memo below AND
+  // before the data-fetch effect, so both can FLS-gate what they ask the server
+  // for (preventing it from returning denied fields). Also feeds the column-list
+  // gate further down the file.
+  //
+  // ⚠️ The position is load-bearing, not cosmetic: `useMemo` runs its callback
+  // DURING the render that declares it, so a memo above this line that read
+  // `perms` would hit the temporal dead zone and throw
+  // `Cannot access 'perms' before initialization` — not a stale value, a crash.
+  const perms = usePermissions();
+
   // Auto-compute $expand fields from objectDef (lookup / master_detail).
   //
   // Important: include not only the user-declared `schema.columns` (table
@@ -1485,13 +1496,48 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     // ("list view shows 'Initech Solutions' but kanban used to show
     // '8UY9zHWBfjYjYor4'"). Better than one `(empty)` bucket, still wrong.
     //
-    // Unguarded is safe HERE and only here: `buildExpandFields` returns a
-    // subset of the object's declared reference-bearing fields, so a grouping
-    // field the object does not have — or has as a non-relation — is dropped
-    // structurally. The `$select` half below needs a real gate, and takes one.
+    // Unguarded AGAINST UNKNOWN KEYS is safe here, and here only:
+    // `buildExpandFields` returns a subset of the object's declared
+    // reference-bearing fields, so a grouping field the object does not have —
+    // or has as a non-relation — is dropped structurally. The `$select` half
+    // below needs a real gate for that, and takes one. It is NOT unguarded
+    // against FLS: that gate is on this helper's OUTPUT, below (objectui#7215),
+    // where every route into the expand list — columns, view bindings and this
+    // grouping union alike — passes through it exactly once.
     for (const f of collectGroupingFieldRefs(groupingConfig)) collected.add(f);
     const augmented = collected.size > 0 ? Array.from(collected) : undefined;
-    return buildExpandFields(objectDef?.fields, augmented);
+    const expandable = buildExpandFields(objectDef?.fields, augmented);
+    // [objectui#7215] FIELD-LEVEL SECURITY ON `$expand`, the half objectui#6898
+    // left open on both projection sites. `$select` on a denied lookup asks for
+    // its BARE FOREIGN KEY; `$expand` asks the server to RESOLVE it and return
+    // the related record, so the larger disclosure was the ungated one.
+    //
+    // ON THIS SITE IT ALSO REOPENED `$select`, which is not a second defect but
+    // the measured reach of this one: the projection below gates the columns
+    // (`rawCols.filter(c => perms.checkField(...))`) and then adds these roots
+    // back unconditionally — `for (const e of expandFields) required.add(e)`,
+    // on the ground that they are "known-valid because `buildExpandFields()`
+    // derived them from the object schema". Valid, yes; READABLE, never asked.
+    // A denied lookup column walked straight back through that union, so
+    // objectui#6898's gate was being defeated here by the expand roots rather
+    // than by its own filter. Gating at this single point closes both halves.
+    //
+    // ⭐ THE GATE GOES ON THE OUTPUT, NOT ON `augmented`, for two measured
+    // reasons (`__tests__/ListView.expandFls-7215.test.tsx` pins both):
+    // `buildExpandFields` reads an EMPTY column list as "no column restriction"
+    // and falls back to every declared relation, so gating its INPUT would
+    // WIDEN a view whose collected columns are all denied from one expansion to
+    // all of them; and the no-columns case passes `undefined`, which has no
+    // input to gate at all. Gating the output also gives the required ordering
+    // structurally — this helper returns a subset of the object's DECLARED
+    // reference-bearing fields, so every name judged here is declared and the
+    // "`checkField` answers false for an undeclared key" trap is unreachable.
+    //
+    // An unanswered policy filters nothing, exactly as the `$select` gate
+    // defers; `perms` is in the dep list so the expansion is rebuilt the moment
+    // the answer arrives, and the fetch effect already depends on `perms` too.
+    if (!perms?.isLoaded || !schema.objectName) return expandable;
+    return expandable.filter((f) => perms.checkField(schema.objectName!, f, 'read'));
   }, [
     objectDef?.fields,
     groupingConfig,
@@ -1502,13 +1548,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     (schema as any).timeline,
     (schema as any).gantt,
     (schema as any).options,
+    perms,
+    schema.objectName,
   ]);
-
-  // Permissions context — must be read before the data-fetch effect so
-  // the effect can FLS-gate the `$select` projection (preventing the
-  // server from returning denied fields). Also feeds the column-list
-  // gate further down the file.
-  const perms = usePermissions();
 
   // A gantt view whose `data` names the api provider is fed by a composite
   // endpoint that ObjectGantt resolves itself (resolveDataSource →
