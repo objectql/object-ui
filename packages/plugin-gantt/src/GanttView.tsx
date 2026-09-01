@@ -322,10 +322,10 @@ export function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
  * defined: day/week band by month, month/quarter by year, year by decade, and
  * shift-segmented day mode by shift-day (the tier its bands group into).
  */
-export type GanttPeriodTier = 'shiftDay' | 'month' | 'year' | 'decade';
+type GanttPeriodTier = 'shiftDay' | 'month' | 'year' | 'decade';
 
 /** Mirror of the `groupBy` choice inside `headerGroups` — keep the two in step. */
-export function periodTierFor(mode: GanttViewMode, segmenting: boolean): GanttPeriodTier {
+function periodTierFor(mode: GanttViewMode, segmenting: boolean): GanttPeriodTier {
   if (segmenting) return 'shiftDay';
   if (mode === 'year') return 'decade';
   if (mode === 'month' || mode === 'quarter') return 'year';
@@ -333,7 +333,7 @@ export function periodTierFor(mode: GanttViewMode, segmenting: boolean): GanttPe
 }
 
 /** Start of the period `date` falls in, at `tier`. */
-export function startOfPeriod(date: Date, tier: GanttPeriodTier, dayStartMin = 0): Date {
+function startOfPeriod(date: Date, tier: GanttPeriodTier, dayStartMin = 0): Date {
   if (tier === 'shiftDay') return shiftDayStart(date, dayStartMin);
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -349,7 +349,7 @@ export function startOfPeriod(date: Date, tier: GanttPeriodTier, dayStartMin = 0
 }
 
 /** Step whole periods at `tier` — one unit of the toolbar's granularity. */
-export function addPeriods(date: Date, n: number, tier: GanttPeriodTier): Date {
+function addPeriods(date: Date, n: number, tier: GanttPeriodTier): Date {
   if (tier === 'shiftDay') return addUnits(date, n, 'day');
   if (tier === 'month') return addUnits(date, n, 'month');
   return addUnits(date, n * (tier === 'decade' ? 10 : 1), 'year');
@@ -361,7 +361,7 @@ export function addPeriods(date: Date, n: number, tier: GanttPeriodTier): Date {
  * beside the header's "Aug 2026") — a fuller form of the same month, never a
  * different one.
  */
-export function formatPeriodLabel(date: Date, tier: GanttPeriodTier, locale?: string): string {
+function formatPeriodLabel(date: Date, tier: GanttPeriodTier, locale?: string): string {
   if (tier === 'decade') return `${Math.floor(date.getFullYear() / 10) * 10}s`;
   if (tier === 'year') return String(date.getFullYear());
   if (tier === 'shiftDay') {

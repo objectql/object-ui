@@ -444,6 +444,21 @@ Drag snapping follows the active scale: bars snap to days in day view, weeks
 in week view, and whole calendar months/quarters (duration preserved) in the
 coarse views.
 
+### The toolbar period label and its steppers
+
+The label between the `‹` / `›` buttons names the period **currently on screen**,
+not the extent of the data: it reads the date at the left edge of the viewport
+and snaps it to the same tier the band header groups by — a month under day and
+week view, a year under month and quarter view, a decade under year view, and
+the shift-day under shift-segmented day view. So the label and the band header
+directly beneath it always name the same period, and the label moves as the
+chart is scrolled.
+
+`‹` / `›` step the visible window by one of those periods (one month in day and
+week view, one year in month and quarter view, a decade in year view), clamped
+to the ends of the timeline. They step the *label's* tier rather than a single
+column, so one click always changes what the label says.
+
 Set the initial scale with `viewMode`. It is read through the gantt config, so
 it needs the field mapping beside it (or a `gantt` block of its own):
 
