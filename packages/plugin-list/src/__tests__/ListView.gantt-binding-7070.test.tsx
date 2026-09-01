@@ -204,6 +204,24 @@ describe('ListView capability gate — the Gantt toggle follows the binding (obj
     await waitFor(() => expect(queryViewOption('Gantt')).toBeInTheDocument());
   });
 
+  it('does NOT offer Gantt for the exact bag the fixed object page now emits', async () => {
+    // ⭐ THE SECOND PREMISE, measured rather than assumed. #7070 asked whether
+    // ADR-0047's gate drops the Gantt toggle "for free" once the fabrication is
+    // gone, the way it did for calendar. The gate reads
+    // `schema.gantt?.startDateField || schema.options?.gantt?.startDateField`,
+    // and the fabrication it used to read came from the OBJECT PAGE, which put
+    // `options.gantt.startDateField: 'start_date'` on every view in the product.
+    // `{ gantt: { titleField: 'name' } }` is precisely what `ganttViewOptions`
+    // now emits for a view that declared nothing — a bag that still EXISTS but
+    // carries no axis. The answer is yes: no second mechanism was needed.
+    await mountSwitcher({
+      ...GRID,
+      appearance: { allowedVisualizations: ['grid', 'gantt'] },
+      options: { gantt: { titleField: 'name' } },
+    });
+    expect(queryViewOption('Gantt')).not.toBeInTheDocument();
+  });
+
   it('does NOT offer Gantt to a view that declared no gantt binding', async () => {
     // ADR-0047: offered only when the binding resolves. This is the second
     // premise objectui#7070 asked to be measured rather than assumed — that the
