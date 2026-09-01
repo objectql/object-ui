@@ -3582,6 +3582,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             empty state on slow networks. */}
         {loadError && data.length === 0 ? (
           <DataEmptyState
+            // This panel is NOT an empty state — it is the load FAILURE, and it
+            // borrows `DataEmptyState` only for its layout. Since objectui#7132
+            // that component defaults to `role="status"`, which would announce a
+            // 403 or an outage as a routine status update, so this call site
+            // declares what it actually is. (Measured: before #7132 neither this
+            // panel nor the empty state below carried any role, so "you don't
+            // have access" and "nothing here yet" were the same node shape.)
+            role="alert"
             data-testid="list-error-state"
             data-error-kind={loadErrorKind}
             className="h-full min-h-[200px] p-8 gap-1 [&>h3]:text-lg [&>h3]:font-medium [&>h3]:text-foreground [&>p]:max-w-md"

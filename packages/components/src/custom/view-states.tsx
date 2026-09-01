@@ -83,6 +83,31 @@ interface DataEmptyStateProps extends React.ComponentProps<"div"> {
   action?: React.ReactNode
 }
 
+/**
+ * `role` defaults to `"status"` (objectui#7132).
+ *
+ * The sibling states in this file each declare what they are — `DataLoadingState`
+ * is `role="status"`, `DataErrorState` is `role="alert"` — and the empty state
+ * alone declared nothing, so an empty box and a failed box were the same node
+ * shape to a screen reader and to any structural test. That is the exact
+ * property both the hotcrm#1212 (objectui#7063) and hotcrm#1247 (objectui#7064)
+ * rulings named first: an empty state must be *distinguishable from a load
+ * failure at a glance*.
+ *
+ * With no default, every surface that wanted the property had to type it at its
+ * own call site, and four independently did — `plugin-kanban`'s empty board,
+ * `plugin-dashboard`'s `WidgetEmptyState`, and `plugin-charts`' `ObjectChart` —
+ * while `plugin-list`, `plugin-detail`'s two timelines and the `ui:empty`
+ * renderer silently did not. Four hand-copies of one line is the per-app tax
+ * objectstack#13848 rules against, paid at the package level.
+ *
+ * It is a DEFAULT, not a fixed attribute: `role` is spread from `props` below,
+ * so a call site keeps the last word. That is what makes this change inert for
+ * the two ruled surfaces — both already pass `role="status"` explicitly and
+ * receive the identical attribute either way — and it is what lets a call site
+ * rendering something that is NOT empty say so (`plugin-list`'s load-error
+ * panel borrows this component and declares `role="alert"`).
+ */
 function DataEmptyState({
   className,
   icon,
@@ -102,6 +127,7 @@ function DataEmptyState({
 
   return (
     <div
+      role="status"
       data-slot="data-empty-state"
       className={cn(
         "flex flex-col items-center justify-center gap-3 p-6 text-center",
