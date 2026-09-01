@@ -40,11 +40,33 @@
  * `generateColumns()` hands `fieldMeta` to `CellRenderer` as the `field` prop,
  * and `getCellRenderer` dispatches a relational column into
  * `LookupCellRenderer` (`@object-ui/fields/src/index.tsx`). The grid's inline
- * editor dispatches the same bag into `LookupField` and `UserField`
- * (`@object-ui/fields/src/widgets/`). `UserField` reads a few keys itself and
+ * editor renders `LookupField` and `UserField`
+ * (`@object-ui/fields/src/widgets/`); `UserField` reads a few keys itself and
  * then spreads its whole meta into `LookupField` — so its own read set is a
  * subset and it adds nothing; it is swept anyway, because a key it read and
  * did NOT forward would otherwise be invisible here.
+ *
+ * ## ⚠️ Only the FIRST of those three is fed by this bag — objectui#7154
+ *
+ * This docblock used to say the inline editor "dispatches the same bag" into
+ * the two widgets. It does not, and the correction matters because it is what
+ * a whole class of card is filed against: `ObjectGrid.renderCellEditor` looks
+ * the field up in the object schema and spreads the WHOLE def into the widget
+ * (`{ name: ctx.column.accessorKey, ...fieldDef }`), so every key a def carries
+ * reaches `LookupField` regardless of this table. `fieldMeta` goes to
+ * `<CellRenderer>` and nowhere else.
+ *
+ * Both halves read `objectSchema?.fields?.[name]` — the same object — so there
+ * is no shape where copying could rescue an editor the schema read did not
+ * already serve: when that lookup misses, `renderCellEditor` returns `null` and
+ * `applyRelationalMeta` copies nothing, together.
+ *
+ * ⇒ A key whose only reader is one of the two EDITOR widgets gains nothing from
+ * being copied here, and copying it would write a member onto a bag its
+ * consumer does not read — the shape objectui#6711 and objectui#6874 retired.
+ * The four keys objectui#7154 asked about are measured arriving at the picker
+ * with this table unchanged, in
+ * `__tests__/lookupPickerKeys-7154.test.tsx`.
  *
  * ## ⭐ Why a key can be READ and still not be worth copying
  *
@@ -179,14 +201,18 @@ export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEnt
   // ── The picker's id column ──────────────────────────────────────────────
   id_field: { verdict: 'legacy-alias', note: 'Picker id column. Neither spelling is on FieldSchema (`idField` is absent too); kept for back-compat.' },
 
-  // ── Read on this path, producible, and NOT copied ───────────────────────
-  // Found by objectui#6875's re-sweep, outside the relational display/target
-  // contract this helper owns. Each is spec-declared with a measured reader —
-  // i.e. the same defect class as the three keys above, one seam over.
-  multiple: { verdict: 'deferred', note: 'FieldSchema.multiple — picker cardinality, not relational display/target meta.' },
-  allowCreate: { verdict: 'deferred', note: 'FieldSchema.allowCreate — picker quick-create affordance.' },
-  lookupPageSize: { verdict: 'deferred', note: 'FieldSchema.lookupPageSize — picker page size.' },
-  dependsOn: { verdict: 'deferred', note: 'FieldSchema.dependsOn — cascading picker filter.' },
+  // ── Read by the EDITOR widgets, producible, and NOT copied ──────────────
+  // Found by objectui#6875's re-sweep and left `deferred`. objectui#7154 then
+  // measured WHY copying them would reach nothing: their only reader is
+  // `LookupField`, which the grid's inline editor feeds from the schema def
+  // directly (see this file's docblock). All four already take effect in the
+  // picker with this table unchanged — pinned in
+  // `__tests__/lookupPickerKeys-7154.test.tsx`. `deferred` keeps the gate
+  // watching them; it is no longer a promise to copy them later.
+  multiple: { verdict: 'deferred', note: 'FieldSchema.multiple — picker cardinality. Read only by LookupField, which the grid feeds from the schema def, not from this bag: measured accumulating two picks in the inline picker with this table unchanged (objectui#7154).' },
+  allowCreate: { verdict: 'deferred', note: 'FieldSchema.allowCreate — picker quick-create affordance. Same route as `multiple`: `allowCreate: false` measured removing the create entry the control column offers (objectui#7154).' },
+  lookupPageSize: { verdict: 'deferred', note: 'FieldSchema.lookupPageSize — picker page size. Same route: a declared 3 measured scoping the picker dialog to 3 rows against a control of 10 (objectui#7154).' },
+  dependsOn: { verdict: 'deferred', note: 'FieldSchema.dependsOn — cascading picker filter. Same route, and it ARRIVES: the declared column renders the gated trigger. The grid supplies no dependent values, so that gate is permanent — objectui#2215’s grid-side residue, filed separately (objectui#7154).' },
 
   // ── Read on this path, no producer ──────────────────────────────────────
   allow_create: { verdict: 'no-producer', note: 'Runtime twin of `allowCreate`. Not on FieldSchema.' },
