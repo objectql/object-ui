@@ -97,23 +97,46 @@ function formatFieldChange(entry: ActivityEntry, t: ActivityTranslate): string {
   return t('detail.activityUpdated');
 }
 
+/** Chip order — what `Object.keys(FILTER_LABELS)` used to supply. */
+const FILTER_ORDER: readonly ActivityFilterType[] = [
+  'all',
+  'field_change',
+  'create',
+  'delete',
+  'comment',
+  'status_change',
+];
+
 /**
- * Filter chip type -> the pack key that names it. Insertion order is still the
- * chip order, exactly as the old label map's was.
+ * The pack key naming each chip.
+ *
+ * Deliberately STATIC `t()` calls rather than a `type -> key` map read as
+ * `t(KEYS[type])`: a key that only ever appears as a map value has no call site
+ * `check:i18n-keys` or `check-i18n-dead-keys` can resolve, so it reads as an
+ * unreferenced key even while it renders. Same shape as the sibling
+ * `RecordActivityTimeline`'s `getFilterOptions`.
  *
  * `field_change` and `comment` reuse keys whose `en` values are byte-identical
- * to the literals they replace (`detail.fieldChangesFilter` = 'Field Changes',
- * `detail.comments` = 'Comments'), so those two are a pure lookup swap rather
- * than a new spelling of copy the packs already carry.
+ * to the literals they replace, so those two are a pure lookup swap rather than
+ * a new spelling of copy the packs already carry.
  */
-const FILTER_LABEL_KEYS: Record<ActivityFilterType, string> = {
-  all: 'detail.allFilter',
-  field_change: 'detail.fieldChangesFilter',
-  create: 'detail.createsFilter',
-  delete: 'detail.deletesFilter',
-  comment: 'detail.comments',
-  status_change: 'detail.statusChangesFilter',
-};
+function filterLabel(type: ActivityFilterType, t: ActivityTranslate): string {
+  switch (type) {
+    case 'field_change':
+      return t('detail.fieldChangesFilter');
+    case 'create':
+      return t('detail.createsFilter');
+    case 'delete':
+      return t('detail.deletesFilter');
+    case 'comment':
+      return t('detail.comments');
+    case 'status_change':
+      return t('detail.statusChangesFilter');
+    case 'all':
+    default:
+      return t('detail.allFilter');
+  }
+}
 
 export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
   activities,
@@ -144,7 +167,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         {/* Filter controls */}
         {filterable && (
           <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label={t('detail.filterActivity')}>
-            {(Object.keys(FILTER_LABEL_KEYS) as ActivityFilterType[]).map(type => (
+            {FILTER_ORDER.map(type => (
               <button
                 key={type}
                 type="button"
@@ -158,7 +181,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 aria-pressed={activeFilter === type}
               >
                 {type !== 'all' && React.createElement(ACTIVITY_ICONS[type] || Edit, { className: 'h-3 w-3' })}
-                {t(FILTER_LABEL_KEYS[type])}
+                {filterLabel(type, t)}
               </button>
             ))}
           </div>
