@@ -130,15 +130,26 @@ describe('objectui#6459 — the schema slot annotation is an instrument, not a d
   });
 
   /**
-   * The two HELD schema-level keys — the whole census, measured on `38a123cac`
-   * by diffing the 46 flat-literal keys (+ the 8 group-literal keys) against
-   * `DataTableSchema` + `BaseSchema` declared members. Each has a live reader
-   * in `data-table.tsx` (`renderCellEditor` via its `(schema as any)` cast,
-   * `cellClassName` via destructuring into every body cell's class), so the
-   * seam must ACCEPT them; whether `DataTableSchema` should DECLARE them is
-   * the ruling this card files, not this suite's call.
+   * The two schema-level keys that were the whole census, measured on
+   * `38a123cac` by diffing the 46 flat-literal keys (+ the 8 group-literal
+   * keys) against `DataTableSchema` + `BaseSchema` declared members.
+   *
+   * ⚠️ They are no longer HELD, and this assertion is why nobody noticed:
+   * objectui#6882 (2026-08-30) DECLARED both on `DataTableSchema`, and the
+   * assertion below stays green either way. It pins that the seam ACCEPTS the
+   * two keys — true while they are held here, equally true once they arrive
+   * through `DeclaredDataTableSchema`. An acceptance pin cannot express a hold's
+   * ENTRY CONDITION, so this suite could never have gone red at the moment of
+   * loss. Re-derived by objectui#7196; the diff now leaves ZERO undeclared keys,
+   * and `ObjectGrid.tsx`'s `ObjectGridDataTableSchemaHolds` carries the full
+   * record. The guard that WOULD have caught it is the column-level twin's:
+   * `columnHoldsExpiry-6424.test.ts` asserts `TableColumn` does not declare
+   * `pinned`. Filed by #7196 as a separate finding, ⛔ deliberately not a rider.
+   *
+   * The assertion itself keeps its value unchanged: both keys must remain
+   * writable at this seam, whichever side declares them.
    */
-  it('accepts the two held keys — renderCellEditor and cellClassName', () => {
+  it('accepts both schema-level keys — renderCellEditor and cellClassName', () => {
     const held: ObjectGridDataTableSchema = {
       type: 'data-table',
       columns,
