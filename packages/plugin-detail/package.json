@@ -55,12 +55,12 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
+    "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "^6.0.5",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vite-plugin-dts": "^5.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "keywords": [
     "objectui",
