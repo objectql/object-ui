@@ -2151,6 +2151,26 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // The active view's display label (same string the ViewTabBar
             // shows) — ListView appends it to export download filenames.
             label: viewDef.label ?? listSchema.label,
+            /**
+             * The active view's own description — the sentence the author wrote
+             * to caveat THIS view (scope, staleness, "this lens is for
+             * browsing, the dashboard is authoritative"), which is exactly the
+             * text a per-view description is wanted for (objectui#7199).
+             *
+             * It was the one key of this relay's set with no rung, so
+             * `schema.description` at the `ListView` end could only ever be the
+             * object-level list's description and a per-view one was
+             * unreachable — authored, validated, built and served, then
+             * silently dropped here. Nothing errored: the value simply never
+             * arrived, and the only symptom was a sentence missing from the
+             * screen.
+             *
+             * ⚠️ NOT the object's own `objectDef.description`, which this page
+             * renders as the `PageHeader` subtitle further down. Crossing the
+             * two would put a view's caveat where the object's blurb belongs.
+             * Same two-rung shape as `label` above.
+             */
+            description: viewDef.description ?? listSchema.description,
             // Propagate appearance/view-config properties for live preview
             rowHeight: viewDef.rowHeight ?? listSchema.rowHeight,
             densityMode: viewDef.densityMode ?? listSchema.densityMode,
