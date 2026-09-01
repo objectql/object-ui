@@ -54,24 +54,35 @@
  * load-bearing in both directions: it proves the picker path is reached and
  * that the difference is the declared key rather than the fixture.
  *
- * ## ⚠️ `dependsOn` arrives and GATES — objectui#2215's grid-side residue
+ * ## ⚠️ `dependsOn` arrives — it used to GATE FOREVER (objectui#7165)
+ *
+ * ⭐ THIS SECTION WAS REWRITTEN, AND THE CASE BELOW UPDATED RATHER THAN
+ * DELETED. When this file was written the `dependsOn` case pinned the DEFECT:
+ * the column rendered a permanently gated, disabled trigger. objectui#7165
+ * fixed that, so the pin now states the fixed behaviour. It is updated in place
+ * on purpose — a deleted pin is indistinguishable from a pin that never
+ * existed, and this case is still the only place the four keys are compared
+ * against a live control in one render.
  *
  * objectui#2215 ("cascading lookup broken in forms; table picker bypasses the
  * dependent filter") was closed COMPLETED by PR objectui#2216, which fixed two
  * halves: the FORM renderer injects its live watched record as
  * `dependentValues`, and every picker surface takes the `dependsOn` chain as a
- * hard `baseFilter`. Only the second half is host-independent. `LookupField`
- * resolves `dependentValues ?? ctx.formValues ?? ctx.data ?? {}`, and the grid's
- * inline editor supplies none of the three — `renderCellEditor`'s context object
- * is `{ column, row, value, stage, commit, cancel }` and nothing forwards `row`.
+ * hard `baseFilter`. Only the second half is host-independent, and the grid
+ * never got the first: `LookupField` resolves
+ * `dependentValues ?? ctx.formValues ?? ctx.data ?? {}` and this grid's inline
+ * editor supplied none of the three, so the resolved record was `{}` for every
+ * row and the gate never lifted — a field that could never be filled.
  *
- * So a `dependsOn` lookup column in an editable grid renders a PERMANENTLY
- * gated, disabled trigger ("Select region first") even when the row carries the
- * parent value. That is the current behaviour, it is pinned below as such, and
- * it is a separate defect from this card — filed rather than fixed here,
- * because whether the grid should feed the SAVED row or the row's in-flight
- * staged edits is a design question objectui#2215's form fix answered one way
- * (live values) that the grid cannot copy without a staged-value channel.
+ * objectui#7165 supplies the missing input: `renderCellEditor` now passes
+ * `dependentValues={ctx.row}`. The cascade itself is unchanged (half 2 was
+ * always live here), which is why this case needs no new data source.
+ *
+ * ⚠️ INTERIM — `ctx.row` is the SAVED record, so a parent edited but not yet
+ * saved in the same row does not re-scope the child. Carrying the staged record
+ * needs a seventh member on `renderCellEditor`'s published context type, which
+ * is objectui#7188. That staleness is pinned — deliberately, as the current
+ * behaviour — in `gridDependentValues-7165.test.tsx`, not here.
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -297,7 +308,7 @@ describe('objectui#7154 — the four picker keys reach the grid’s inline picke
     });
   });
 
-  it('`dependsOn` — the declared column gates; the control does not (objectui#2215’s grid-side residue)', async () => {
+  it('`dependsOn` — the declared column is USABLE and scoped; the control is unscoped (objectui#7165)', async () => {
     const rows = [{ id: 't1', title: 'Task one', region: 'north', owner: null, regional_owner: null }];
     const ds = makeDataSource(
       {
@@ -320,15 +331,28 @@ describe('objectui#7154 — the four picker keys reach the grid’s inline picke
     expect(plainTrigger.getAttribute('data-testid')).toBe('lookup-trigger-owner');
     expect(plainTrigger.disabled).toBe(false);
 
-    // Declared `dependsOn: ['region']` — the key ARRIVES (the gate is proof it
-    // was read) and the picker is gated. The row carries `region: 'north'`, so
-    // the gate is not "the parent is empty": the grid feeds the widget no
-    // dependent values at all, which is why this state is permanent.
-    const gatedTrigger = await openEditor(cellAt(container, 3));
-    expect(gatedTrigger.getAttribute('data-testid')).toBe('lookup-trigger-gated');
-    expect(gatedTrigger.disabled).toBe(true);
-    expect(gatedTrigger.textContent).toMatch(/region/i);
-    // The browse-all button next to it is gated too (PR objectui#2216).
-    expect(within(cellAt(container, 3)).getByTestId('browse-all-records')).toBeDisabled();
+    // Declared `dependsOn: ['region']`. ⭐ UPDATED BY objectui#7165 — this used
+    // to assert `lookup-trigger-gated` / `disabled === true`, which pinned the
+    // defect: the grid fed the widget NO dependent values, so the gate could
+    // never lift however the row was filled. The grid now passes
+    // `dependentValues={ctx.row}`, the row carries `region: 'north'`, so the
+    // dependency is satisfied and the picker is an ordinary usable trigger.
+    //
+    // The key still ARRIVES off the field def — which is this file's whole
+    // claim — and the proof is no longer the gate but the SCOPING asserted
+    // below: an unscoped picker would list all twelve people.
+    const dependentTrigger = await openEditor(cellAt(container, 3));
+    expect(dependentTrigger.getAttribute('data-testid')).toBe('lookup-trigger-regional_owner');
+    expect(dependentTrigger.disabled).toBe(false);
+    // The browse-all button next to it is live too (it shared the gate before).
+    expect(within(cellAt(container, 3)).getByTestId('browse-all-records')).not.toBeDisabled();
+
+    // The `dependsOn` chain reaches the query as a hard `$filter` (PR
+    // objectui#2216's half 2, which was always live here — it just never had
+    // an input). `region: 'north'` → only the six north people are offered.
+    fireEvent.click(dependentTrigger);
+    await waitFor(() => expect(screen.getByText('Person 01')).toBeInTheDocument());
+    expect(screen.queryByText('Person 07')).not.toBeInTheDocument();
+    expect(ds.refQueries.some((q: any) => q?.$filter?.region === 'north')).toBe(true);
   });
 });
