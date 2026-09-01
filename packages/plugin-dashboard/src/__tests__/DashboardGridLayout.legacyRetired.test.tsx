@@ -31,6 +31,9 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { render, screen, cleanup } from '@testing-library/react';
 import type { DashboardComponentSchema } from '@object-ui/types';
@@ -46,16 +49,46 @@ afterEach(cleanup);
 const dash = (widget: Record<string, unknown>): DashboardComponentSchema =>
   ({ type: 'dashboard', widgets: [widget] }) as unknown as DashboardComponentSchema;
 
+/**
+ * The catalog entry the two annotated rows below were transcribed from, named
+ * once so the prose and the derived block at the bottom cannot drift apart.
+ */
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const CATALOG_FIXTURE = path.join(
+  REPO_ROOT,
+  'examples/schema-catalog/src/schemas/plugin-dashboard/filtered-dashboard.json',
+);
+const catalogWidgets = (
+  JSON.parse(fs.readFileSync(CATALOG_FIXTURE, 'utf8')) as { widgets: Record<string, unknown>[] }
+).widgets;
+
 describe('DashboardGridLayout retired legacy widgets (#4612)', () => {
   it.each([
     ['chart', { id: 'w1', type: 'bar', object: 'invoices', categoryField: 'month', valueField: 'amount', aggregate: 'sum' }],
-    // Byte-for-byte `examples/schema-catalog/src/schemas/plugin-dashboard/
-    // filtered-dashboard.json` → `widgets[0]`: the real stored shape, not a
-    // fixture invented to match the detector.
+    // Transcribed from `filtered-dashboard.json` → `widgets[0]` as that fixture
+    // stood at `8640cec19`, the commit that added this file. It was byte-for-byte
+    // then — same keys, same order, same values — and it is NOT byte-for-byte
+    // now: `e028dfcd8` (objectui#4600, PR #4615) migrated the `filtered-*`
+    // entries off the retired shape 66 minutes later, so `widgets[0]` on disk is
+    // `{ id, title, type, options: { xField, yField, data } }` today.
+    //
+    // ⚠️ This row therefore does NOT carry the independent-corpus property the
+    // original annotation claimed for it. It is a HISTORICAL specimen of stored
+    // metadata, not a live transcription — which is the right thing to pin (a
+    // renderer cannot refuse to receive stored metadata) but is worth strictly
+    // less as evidence, so it is stated rather than left to be re-derived. No
+    // live specimen can replace it; the derived block at the bottom measures
+    // that, instead of asserting it here in prose the way this comment once did.
     ['catalog bar', { id: 'invoices_by_status', title: 'Invoices by Status', type: 'bar', object: 'invoices', categoryField: 'status', aggregate: 'count' }],
     // The pivot family, whose legacy spelling names `rowField`/`columnField`.
     ['pivot', { id: 'w1', type: 'pivot', object: 'invoices', rowField: 'region', valueField: 'amount' }],
-    // `widgets[2]` of the same catalog entry.
+    // The same fixture's `widgets[2]` at that same commit, and a LOOSER claim
+    // than the row above ever made: its retired binding verbatim (`type`,
+    // `object`, `aggregate`), with `id` genericised to `w1` and `title` /
+    // `filterBindings` dropped. So this row was never byte-for-byte and never
+    // said it was. `e028dfcd8` retired that widget's shape too — `widgets[2]` is
+    // `{ id, title, type, options: { value }, filterBindings }` today — so the
+    // same ⚠️ above applies to it.
     ['metric', { id: 'w1', type: 'metric', object: 'invoices', aggregate: 'count' }],
   ])('renders the visible placeholder for a legacy %s widget', (_kind, widget) => {
     render(<DashboardGridLayout schema={dash(widget)} />);
@@ -115,5 +148,65 @@ describe('DashboardGridLayout retired legacy widgets (#4612)', () => {
     // would have retired a working branch.
     renderOne({ id: 'w1', type: 'pivot', options: { data: [{ region: 'EMEA', amount: 1 }] } });
     expect(screen.queryByText(/retired data format/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * The corpus half — DERIVED from the fixture, not transcribed from it
+   * (objectui#7151).
+   *
+   * Two of the rows above are hand-written literals introduced by comments
+   * naming a fixture. Those comments were TRUE when written and stopped being
+   * true 66 minutes later, and nothing noticed for months: a comment cannot
+   * detect the file it names changing, which is exactly what a test can do. So
+   * the relationship stops being prose here and becomes a read.
+   *
+   * It reads the file off disk rather than importing it because this package's
+   * `tsconfig.test.json` declares `"types": ["node"]` — the precondition
+   * `packages/types/src/__tests__/timeline-catalog-fixture-migrated.test.ts`
+   * could not meet in `packages/plugin-timeline` and had to relocate for. The
+   * root Vitest config aliases `@object-ui/*` to sibling `src/`, so this file
+   * needs no built dependency closure to resolve either half.
+   *
+   * What this block deliberately does NOT do is restore the independent-corpus
+   * property the annotations above lost, because that property is no longer
+   * obtainable. Measured across every JSON document in the repo: 28 dashboard
+   * widgets, ZERO carrying the retired top-level binding, against live controls
+   * of 15 `options`-shaped and 2 `dataset`-shaped widgets. That zero is by
+   * DESIGN, not by accident — the retirement's whole content is that no
+   * authoring surface emits the shape (`WidgetConfigPanel` scrubs it on save via
+   * `LEGACY_ANALYTICS_KEYS`), and the catalog is an authoring corpus. A specimen
+   * reappearing there is therefore a catalog regression, which is the second
+   * thing this block catches.
+   */
+  describe('the catalog entry those two rows name (objectui#7151)', () => {
+    it('is on disk, and holds the widgets the derived rows below iterate', () => {
+      // Asserted before anything consumes `catalogWidgets`: an emptied or
+      // renamed `widgets` array turns the `it.each` below into ZERO tests and a
+      // green run — the vacuous pass this whole block exists to end.
+      expect(fs.existsSync(CATALOG_FIXTURE), `fixture not found at ${CATALOG_FIXTURE}`).toBe(true);
+      expect(catalogWidgets.length).toBeGreaterThan(0);
+    });
+
+    it('carries NO widget in the retired shape — which is why those rows are hand-written', () => {
+      expect(catalogWidgets.length).toBeGreaterThan(0);
+      const retired = catalogWidgets.filter(
+        (w) => 'object' in w || 'categoryField' in w || 'valueField' in w || 'aggregate' in w,
+      );
+      expect(
+        retired,
+        'a shipped catalog widget authors the retired pre-ADR-0021 binding again — either the catalog regressed, or there is finally a live corpus specimen to transcribe into the annotated rows above',
+      ).toEqual([]);
+    });
+
+    // The independent-corpus property, restored on the side where the corpus
+    // still HAS specimens: these are the real shipped documents, and the
+    // detector must fire on none of them.
+    it.each(catalogWidgets.map((w, i) => [`widgets[${i}]`, w] as [string, Record<string, unknown>]))(
+      'does NOT show the placeholder for shipped catalog %s',
+      (_where, widget) => {
+        renderOne(widget);
+        expect(screen.queryByText(/retired data format/i)).not.toBeInTheDocument();
+      },
+    );
   });
 });
