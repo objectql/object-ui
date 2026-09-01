@@ -123,7 +123,16 @@ const DOM_PASS_THROUGH_KEYS = [
   'disabled',
 ] as const;
 
-type DomPassThroughKey = (typeof DOM_PASS_THROUGH_KEYS)[number];
+/**
+ * The keys this helper forwards.
+ *
+ * Exported so the SIBLING executor — `toHostProps`, which carries the declared
+ * NON-DOM keys (objectui#7008) — can subtract this set from the contract and
+ * assert that the two together cover every declared key exactly once. Without
+ * that subtraction there is no way to state "these keys are handled elsewhere"
+ * as a compile-time fact rather than as a comment.
+ */
+export type DomPassThroughKey = (typeof DOM_PASS_THROUGH_KEYS)[number];
 
 /**
  * Compile-time link to the declaration, direction 1 of 2: every key forwarded

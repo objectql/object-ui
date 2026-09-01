@@ -114,9 +114,23 @@ export function RequiredFieldsDialog({
             const isMissing = isMissingForRequired(values[f.name]);
             return (
               // A wrapping `label` gives the control its accessible name
-              // implicitly — `FieldEditWidget` renders the widget itself and
-              // takes no `id` to associate with, and widening its contract
-              // belongs to `@object-ui/fields`, not to a caller.
+              // implicitly. This used to be justified with "`FieldEditWidget`
+              // renders the widget itself and takes no `id` to associate with,
+              // and widening its contract belongs to `@object-ui/fields`" —
+              // FALSE since objectui#7009 put `id` in `DOM_PASS_THROUGH_KEYS`:
+              // the factory takes an `id` and lands it on the real control.
+              // The reason is corrected rather than the markup changed
+              // (objectui#7008), because a dead constraint left in a comment is
+              // how the next reader concludes it still binds.
+              //
+              // The wrapping form is still the right choice here, for a reason
+              // that IS still true: this dialog renders whatever field types the
+              // target column made required, and several of them resolve to
+              // COMPOSITE controls with no single labelable element for a
+              // `htmlFor` to point at — `RadioField` renders `<div
+              // role="radiogroup">`, `CheckboxesField` `<div role="group">`,
+              // `AddressField` a set of sibling inputs. One wrapping `label`
+              // covers every type uniformly and mints no ids.
               <label key={f.name} className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium">
                   {f.label}
@@ -129,6 +143,17 @@ export function RequiredFieldsDialog({
                     setValues((prev) => ({ ...prev, [f.name]: v }))
                   }
                   readonly={submitting}
+                  // The a11y half of the red text below (objectui#7008). The
+                  // dialog has always COMPUTED this state and shown it to a
+                  // sighted user; until `FieldEditWidget` forwarded the declared
+                  // `error` key there was no way to hand it to the control, so
+                  // `aria-invalid` was never set and a screen-reader user was
+                  // told nothing. Same string as the visible hint, deliberately:
+                  // a widget reads `error` ONLY to drive `aria-invalid` (the
+                  // #3222 contract — the message TEXT stays with the host), so
+                  // this cannot double-display, and one definition of the
+                  // message cannot drift from the other.
+                  error={showErrors && isMissing ? tt('common.required', 'Required') : undefined}
                 />
                 {showErrors && isMissing && (
                   <span className="text-xs text-destructive">

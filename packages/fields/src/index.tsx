@@ -3347,6 +3347,15 @@ export { withFieldCarrier } from './withFieldCarrier.js';
 export { toDomProps } from './widgets/toDomProps.js';
 export type { DomProps } from './widgets/toDomProps.js';
 
+// The sibling executor for the NON-DOM half of the same declaration
+// (objectui#7008): `error` plus the "Host plumbing" block, forwarded as
+// COMPONENT props because none of them is DOM-legal. Exported alongside
+// `toDomProps` because a host factory authored outside this repo needs the
+// pair — reaching for only the first one is how `FieldEditWidget` came to
+// deliver half the contract it declares.
+export { toHostProps } from './widgets/toHostProps.js';
+export type { HostProps } from './widgets/toHostProps.js';
+
 // The native date/time control value adapters (objectui#3127). `DateTimeField`
 // is ISO-canonical on BOTH sides — it takes the record's ISO instant and hands
 // an ISO instant back, which is also the wire form the platform's `datetime`

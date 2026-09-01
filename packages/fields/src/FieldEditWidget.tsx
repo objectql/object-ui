@@ -11,6 +11,9 @@ import type { FieldWidgetComponentProps } from './widgets/types.js';
 // The package's own executor of the DOM pass-through declaration, reused here
 // rather than re-listed — see the note on this component's return statement.
 import { toDomProps } from './widgets/toDomProps.js';
+// The package's own executor of the NON-DOM half of the same declaration
+// (objectui#7008) — a separate function because those keys are not DOM-legal.
+import { toHostProps } from './widgets/toHostProps.js';
 
 // The SAME dedicated widgets the form renders — reused for in-place editing
 // (e.g. the data grid's inline cell editor) so a select edits as a dropdown, a
@@ -271,6 +274,40 @@ const COMPACT_EDIT_TYPES = new Set<string>(['lookup', 'master_detail', 'user']);
  * each widget's own whitelist carries these onto the real focusable control, so
  * nothing here needs to know which element that is. A host that passes nothing
  * is unaffected.
+ *
+ * The host's NON-DOM set is forwarded WHOLE too (objectui#7008), through the
+ * sibling executor `toHostProps`. The DOM fix left the other half of the
+ * contract undelivered: `error`, `onUploadingChange` and the "Host plumbing"
+ * block (`dataSource`, `dependentValues`, `dependsOn`, `dependsOnLabels`,
+ * `emptyHint`, `onSelectRecord`, `onCreateNew`) still type-checked, read as
+ * supported, and never reached the widget. `error` was the live one:
+ * `InlineFieldInput` has passed `error={error}` since PR #7109 and this factory
+ * dropped it, so a control that had failed validation never reported
+ * `aria-invalid`. Forwarding is not a widening — every one of those keys is
+ * already declared on `FieldWidgetComponentProps`, the same argument #7009
+ * landed on in this file.
+ *
+ * ⛔ They do NOT go through `toDomProps`. None of them is DOM-legal, and that
+ * whitelist is closed for exactly this reason — a `dataSource` adapter routed
+ * there becomes `dataSource="[object Object]"` on an `<input>`, the leak the
+ * helper exists to prevent. `toHostProps`' direction-3 assertion makes the two
+ * sets provably disjoint, so the order of the two spreads below is not a
+ * question anyone has to answer again.
+ *
+ * ## `dataSource` precedence: the explicit prop WINS
+ *
+ * Delivering `dataSource` can change behaviour where before it could not
+ * arrive, because the relational widgets fall back to `SchemaRendererContext`
+ * (which the grid already provides). The precedence is therefore STATED rather
+ * than left to emerge: **a host's explicit `dataSource` prop wins over the
+ * context**. That is not a new decision — `LookupField` already resolves
+ * `props.dataSource ?? lookupField?.dataSource ?? fieldMeta?.dataSource ??
+ * contextDataSource` and documents that order on the line that does it. This
+ * factory is a CONDUIT and resolves nothing: adding a resolution here would
+ * give `dataSource` a second author, the `field || schema` shape objectui#3233
+ * removed. A host that passes no `dataSource` keeps reading the context exactly
+ * as before, so no in-repo host changes behaviour. The full per-key precedence
+ * table lives on `toHostProps`, next to the list it governs.
  */
 export function FieldEditWidget(
   props: FieldWidgetComponentProps<any>,
@@ -324,9 +361,17 @@ export function FieldEditWidget(
   // The semantic props stay explicit and come AFTER the spread. They are not in
   // the whitelist, so there is no collision to resolve; ordering them this way
   // states that this component OWNS them and a host cannot displace them.
+  //
+  // `toHostProps` is the same reuse argument applied to the other half of the
+  // declaration (objectui#7008): the declared NON-DOM keys — `error` and the
+  // "Host plumbing" block — travel as COMPONENT props, never through the DOM
+  // whitelist, which is closed against exactly them. The two executors are
+  // asserted disjoint at compile time, so neither spread can shadow the other,
+  // and `compact` below still wins because the factory owns it.
   return (
     <Widget
       {...toDomProps(props)}
+      {...toHostProps(props)}
       field={field}
       value={value}
       onChange={onChange}
