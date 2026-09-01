@@ -183,12 +183,11 @@ function cleanError(err: any): string {
  * which input it belongs beside. Adding a rule check here would be the second
  * validation implementation the ruling forbids.
  *
- * Exported for its pin test to reach, and deliberately NOT re-exported from
- * `src/index.tsx` — which lists every published name explicitly — so the
- * package's public surface is unchanged (the same treatment `BuildConflict`
- * gets above).
+ * Module-local on purpose: its pin drives it through the rendered bar, which is
+ * how the mapping is actually reached, so exporting it would widen the module's
+ * name surface (and its fast-refresh footprint) for nothing.
  */
-export function attributeInlineRefusal(
+function attributeInlineRefusal(
   err: unknown,
   inFlightField?: string,
 ): WriteFieldError[] | null {
