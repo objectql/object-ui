@@ -61,6 +61,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, extname, sep } from 'node:path';
 
+import { isEntrypoint } from './invoked-as.mjs';
+
 // ── The measured population ────────────────────────────────────────────────
 //
 // BODY_ONLY: registrations whose renderer reads `renderChildren(schema.body)`
@@ -485,4 +487,16 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+// The ONE entry-guard predicate (`scripts/invoked-as.mjs`), never a hand-typed
+// `process.argv[1]` comparison. This file shipped the percent-encoding spelling
+// its header names: ``import.meta.url === `file://${process.argv[1]}` `` builds
+// a URL WITHOUT the encoding `pathToFileURL` applies, so a checkout path
+// containing a character that needs encoding — a `#` in any parent directory is
+// enough, no symlink required — makes the two sides disagree, the guard answer
+// false, and the census print nothing and exit 0.
+//
+// ⇒ That is a FOURTH silent zero on this card, in the harness around the
+// scanner rather than in the scanner itself, and the same shape as the three
+// the differential control caught inside it: a clean read and a tool that never
+// ran are indistinguishable from the exit code alone.
+if (isEntrypoint(import.meta.url)) main();
