@@ -1613,6 +1613,68 @@ function asDroppedFieldsNotice(
 }
 
 /**
+ * What the batch path writes for `object` / `resource` when the response did
+ * not let it attribute the strip to an operation (objectui#7160).
+ *
+ * {@link ObjectStackAdapter.notifyBatchDroppedFields} resolves the object a
+ * cross-object strip is about from the wire entry's own `object`, else from the
+ * operation its `index` addresses. When the wire named no object AND the index
+ * addresses no operation in the request WE sent, nothing is left to name it
+ * with: the adapter knows every operation in its own batch, so an index outside
+ * that list cannot be healed the way a missing `object` is healed on the
+ * single-record path (there the fallback is the resource the caller passed in,
+ * which is always a real name).
+ *
+ * REACHABILITY — only from a response that is off-spec twice over. The spec's
+ * `CrossObjectBatchDroppedFieldsSchema` declares BOTH `object: z.string()` and
+ * `index: z.number()` REQUIRED, and the batch response documents `results` as
+ * index-aligned with the request's `operations`. A conformant server therefore
+ * cannot produce this entry; it takes one that omits (or non-strings) `object`
+ * AND sends an index naming no operation, in the same entry. Nothing in this
+ * repo emits that shape, and whether a deployed backend does is not answerable
+ * from here. Unlike objectui#6889's exotic case this is not structurally
+ * impossible — the payload arrives as parsed JSON, and a non-conformant server
+ * can send it.
+ *
+ * WHY THE ENTRY IS STILL EMITTED rather than refused. Measured end to end
+ * through the real chain (`onWriteWarning` into `app-shell`'s
+ * `emitWriteWarning`, with the real `t` and the real `fieldLabel`): the user
+ * still gets the whole warning — the save acknowledgement, the field list and
+ * the reason sentence — with fields named by their api key instead of their
+ * label. Refusing the entry would replace a truthful, useful warning with
+ * silence for a strip the server really did report, which is objectui#3484's
+ * failure and the reason neither `object` nor `reason` is gated on above.
+ *
+ * WHY IT IS NOT WIDENED AWAY EITHER. Letting the notice say "no object" means
+ * making `object` optional on {@link DroppedFieldsNotice}, whose canonical arm
+ * IS the spec's `DroppedFieldsEvent` (objectui#3160). That writes "servers may
+ * omit `object`" into our published client type to accommodate a producer
+ * violating two REQUIRED spec fields — the lenient consumer-side fallback
+ * AGENTS.md #0.1 bans, fossilising the producer's bug into a second de-facto
+ * contract. The contract-first repair for an off-spec response is at the
+ * producer.
+ *
+ * So this is neither the skew arm's "tolerate" (objectui#4934 — a `reason` from
+ * the future is the producer running AHEAD of us, expected version skew) nor
+ * `fields`' "refuse" (objectui#6889 — an off-spec element that would otherwise
+ * reach a consumer typed as a field name). There is no producer value to keep
+ * or drop here: the question is only what WE write when the response supplied
+ * nothing. The answer is a DECLARED placeholder rather than a bare literal that
+ * reads as a name.
+ *
+ * IT MUST STAY FALSY, and that is why it is not exported. The sole consumer
+ * (`app-shell`'s `writeWarningToast`, reached through `AdapterProvider`) gates
+ * label resolution on `adapter && ev.resource`, so an empty resource skips the
+ * schema lookup and names fields by their api key — the truthful fallback. A
+ * namespaced sentinel like {@link UNRECOGNIZED_DROP_REASON} would be TRUTHFUL
+ * but TRUTHY, and would send that consumer to `getObjectSchema('objectui:...')`
+ * and `fieldLabel('objectui:...', ...)`. No consumer should branch on this
+ * value's identity; the falsiness check is the whole correct handling, and
+ * `droppedFieldsUnattributed.boundary.test.ts` pins both halves.
+ */
+const UNATTRIBUTED_STRIP_OBJECT = '';
+
+/**
  * Emitted after a create/update whose response carried `droppedFields`
  * (framework #3431/#3455). The write SUCCEEDED — this is a warning that some
  * supplied fields never landed, so the UI can tell the user rather than let it
@@ -2675,12 +2737,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       // `resource` — they used to be computed separately, so a wire entry with
       // a non-string `object` could put one value on the notice and another on
       // the event describing it.
+      //
+      // The last arm is NOT a name — see {@link UNATTRIBUTED_STRIP_OBJECT} for
+      // what makes it reachable, why such a strip is still emitted rather than
+      // refused, and why the placeholder is not widened away (objectui#7160).
       const object =
         typeof e.object === 'string'
           ? e.object
           : typeof op?.object === 'string'
             ? op.object
-            : '';
+            : UNATTRIBUTED_STRIP_OBJECT;
       // Same no-op suppression as the single-record path (#3484). The echoed
       // row for the originating op is the "stored" side; when the batch echoed
       // nothing usable, `withoutNoOpDrops` keeps every field.
@@ -2699,8 +2765,19 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         stored,
       );
       if (!live) continue;
-      // `delete` never drops fields; anything unexpected reads as an update,
-      // which is the truthful default for a batch that echoed a strip.
+      // An op carrying any action other than `create` reads as an update:
+      // `delete` never drops fields, so that is the truthful default for a
+      // batch that echoed a strip.
+      //
+      // An entry whose `index` resolved to NO operation has no action to read
+      // at all, and lands on `create` — a claim nothing establishes, the same
+      // trigger as `UNATTRIBUTED_STRIP_OBJECT` one field over. It is tracked
+      // separately (objectui#7170) rather than repaired here: unlike the object
+      // name there is no correct value to fall back to, and `operation` is
+      // REQUIRED `'create' | 'update'` on the published `WriteWarningEvent`, so
+      // saying "unattributed" would move that surface. Today's sole consumer
+      // does not read `operation`, and the boundary suite pins the current
+      // value so a change to it cannot land unnoticed.
       const operation: 'create' | 'update' = (op?.action ?? 'create') === 'create' ? 'create' : 'update';
       this.emitWriteWarning({
         operation,
