@@ -1576,7 +1576,19 @@ export function InterfacesPillar({
       <div className="mb-3 flex shrink-0 items-center gap-2">
         {/* objectui#5800 — the 设计⇄运行 switch replaces the static 实时预览
             chip: same renderer either way, the switch only adds/removes the
-            design affordances. */}
+            design affordances.
+
+            objectui#7121 — ...but only where a renderer READS the mode. `editing`
+            is handed to exactly one canvas branch (`Preview`, below); a
+            studio-canvas leaf renders `StudioCanvas`, whose props
+            (`StudioCanvasPreviewProps`) carry no `editing` by contract — it is
+            the running app, not an editable draft. So on those leaves the
+            switch moved `canvasMode` and nothing else: a live-looking control
+            wired to nothing. Gated on `StudioCanvas` — the SAME value that
+            selects the canvas branch — and deliberately NOT on `isEditable`,
+            which is `!!Preview && !StudioCanvas` and would also strip the
+            switch from the no-designer leaves that #6795 part C pinned. */}
+        {!StudioCanvas && (
         <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-1" data-testid="canvas-mode-toggle">
           <button
             type="button"
@@ -1601,6 +1613,7 @@ export function InterfacesPillar({
             {t('engine.studio.if.modeRun', locale)}
           </button>
         </div>
+        )}
         {current && (
           <span className="text-[11px] text-muted-foreground">
             {current.type} · {current.name}
@@ -1693,7 +1706,13 @@ export function InterfacesPillar({
       <SlidersHorizontal className="h-3.5 w-3.5" />
       <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
       <div className="ml-auto flex items-center gap-0.5">
-        {selection && (
+        {/* objectui#7121 — same gate as the rail branch: on a studio-canvas
+            leaf `selection` can only be a leftover from the previous leaf, so
+            offering "clear selection" here would contradict the rail beside it,
+            which states this canvas has no blocks. (The leftover STATE itself
+            outlives every non-editable leaf change, not just these — filed
+            separately rather than swept in here.) */}
+        {selection && !StudioCanvas && (
           <button
             type="button"
             onClick={() => setSelection(null)}
@@ -1745,6 +1764,34 @@ export function InterfacesPillar({
           onNavPatch={onNavPatch}
           onClear={() => setNavSel(null)}
         />
+      </div>
+    ) : StudioCanvas && current ? (
+      // ⭐ objectui#7121 — a studio-canvas leaf has no block tree, so the
+      // generic "click a block on the canvas" invitation below instructs the
+      // author to do something impossible: `StudioCanvasPreviewProps` carries
+      // no `selection`/`onSelectionChange` by contract, so this canvas can
+      // never produce one. Measured with the designer registry POPULATED
+      // (`listMetadataPreviewTypes() === ['dashboard']`), which is what makes
+      // this a different cause from #6795 part C's empty-registry states.
+      //
+      // Ordered BEFORE the `selection` branch on purpose. `selection` is state
+      // that outlives a leaf change (the load effect clears it only on the
+      // editable path), so arriving here with a block selected on the PREVIOUS
+      // leaf otherwise opens the scoped inspector for a block this canvas does
+      // not contain — measured: `ObjectFieldInspector` handed
+      // `object:showcase_task:block:blk_1`. This ordering mirrors the canvas
+      // chain, where `StudioCanvas` also wins.
+      //
+      // ⛔ Says what is true and promises no recovery — no "loading…", no "try
+      // again". Same constraint part C established: these registries are plain
+      // `Map`s read during render with no subscription. Here the statement is
+      // not even about registration — this canvas has no blocks by contract,
+      // so there is nothing to wait for.
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+          <Eye className="h-5 w-5" />
+          {t('engine.studio.inspector.studioCanvasNoBlocks', locale)}
+        </div>
       </div>
     ) : selection && Inspector && current ? (
       <div className="min-h-0 flex-1 overflow-auto p-3">

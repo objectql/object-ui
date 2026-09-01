@@ -1777,6 +1777,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.inspector.tabSource': 'Source',
   'engine.studio.inspector.emptyLine1': 'Click a block on the canvas,',
   'engine.studio.inspector.emptyLine2': 'and edit its properties right here.',
+  // objectui#7121 — the rail beside a studio-canvas leaf (a
+  // `registerStudioCanvasPreview` type: the running app, not a block tree).
+  // States what the canvas IS; promises no recovery, because there is nothing
+  // to wait for — `StudioCanvasPreviewProps` carries no selection by contract.
+  'engine.studio.inspector.studioCanvasNoBlocks':
+    'This canvas renders the running app, not a block tree — it has no blocks to select, and nothing here is edited from this panel.',
   'engine.studio.inspector.designersMissing':
     'No metadata designers are registered in this session, so there is nothing to edit here.',
   'engine.studio.inspector.noPageSchema': 'Page settings are unavailable — the page schema could not be loaded.',
@@ -3639,6 +3645,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.inspector.tabSource': '源码',
   'engine.studio.inspector.emptyLine1': '在画布里点选一个积木,',
   'engine.studio.inspector.emptyLine2': '它的属性会在这里直接编辑。',
+  'engine.studio.inspector.studioCanvasNoBlocks':
+    '此画布渲染的是运行态应用，而不是积木树 —— 这里没有可选中的积木，也没有可在本面板编辑的内容。',
   'engine.studio.inspector.designersMissing': '本次会话没有注册任何元数据设计器,这里没有可编辑的内容。',
   'engine.studio.inspector.noPageSchema': '页面设置不可用——无法加载页面 schema。',
   'engine.studio.inspector.sourcePageLine1': '这个页面是 {kind} 源码,不是积木树 ——',
