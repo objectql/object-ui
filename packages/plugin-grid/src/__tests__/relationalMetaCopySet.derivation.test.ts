@@ -50,6 +50,24 @@
  * `LookupField`'s own source. Its extracted set being a subset is a RESULT
  * here, not an assumption.
  *
+ * ## ⛔ THE LIMIT THAT MATTERS MOST — this gate cannot judge a COPY
+ *
+ * The read set below is a UNION over three consumers, and only the FIRST is fed
+ * the copied bag. So a key's presence in it means "some consumer reads this
+ * key" and never "this bag is how that consumer gets it". A copy-set entry
+ * asserts the second. objectui#6875 read the first as the second and shipped
+ * two keys onto a bag their only reader never consults; objectui#7166 measured
+ * that and retired three (`descriptionField`, `lookupColumns`, `lookupFilters`).
+ *
+ * ⚠️ Every one of them is STILL in the extracted read set, so every derived
+ * assertion here passes whichever verdict they carry — this gate would not go
+ * red if they were put back. Their absence is pinned by a hand-written
+ * assertion below and, behaviourally, by
+ * `relationalMetaCopySet-7166.test.tsx`. Re-scoping the derivation around the
+ * cell alone (editor widgets classified separately) is what would make this
+ * mechanical; that is a design change to objectui#6875's mechanism, filed
+ * rather than made.
+ *
  * ## ⛔ The extractor is bounded, and says so
  *
  * It reads member accesses off named receivers. A key that reaches a consumer
@@ -211,18 +229,61 @@ describe('objectui#6875 — the copy set is derived from the consumers, not rest
     }
   });
 
-  it('the copy set is exactly the copied verdicts, and includes the three keys objectui#6875 measured missing', () => {
+  it('the copy set is exactly the copied verdicts, and still carries the one key objectui#6875 delivered', () => {
     const expected = Object.entries(RELATIONAL_META_READ_SET)
       .filter(([, e]) => e.verdict === 'spec' || e.verdict === 'adapter-stamped' || e.verdict === 'legacy-alias')
       .map(([k]) => k);
     expect([...RELATIONAL_META_KEYS].sort()).toEqual(expected.sort());
-    for (const key of ['displayField', 'descriptionField', 'lookupColumns']) {
-      expect(RELATIONAL_META_KEYS).toContain(key);
-    }
+    // objectui#6875 shipped three keys; ONE of them is genuinely delivered on
+    // this bag, and it is the one that arrived with a rendering test.
+    // `lookupDisplayFieldSpelling-6875.test.tsx` renders the difference it makes.
+    expect(RELATIONAL_META_KEYS).toContain('displayField');
     // The two named keys that are NOT reachable stay out — copying them would
     // write a member no producer can fill (objectui#6711's reasoning).
     for (const key of ['reference_field', 'lookup_columns']) {
       expect(RELATIONAL_META_KEYS).not.toContain(key);
+    }
+  });
+
+  it('proves each `deferred` verdict is spec-declared — the class is "reaches the editor anyway", not "unproducible"', () => {
+    const deferred = Object.entries(RELATIONAL_META_READ_SET)
+      .filter(([, e]) => e.verdict === 'deferred')
+      .map(([k]) => k);
+    // Control: the bucket is populated, so the loop below is a reading.
+    expect(deferred.length).toBeGreaterThan(0);
+    for (const key of deferred) {
+      expect(
+        specProps.has(key),
+        `${key} is classified deferred but FieldSchema does not declare it — a key no producer `
+          + 'can emit belongs under `no-producer`, whose verdict carries the opposite proof.',
+      ).toBe(true);
+    }
+  });
+
+  it('⛔ objectui#7166 — the three retired keys stay OUT of the copy set, and the derivation cannot enforce that', () => {
+    const retired = ['descriptionField', 'lookupColumns', 'lookupFilters'];
+    // Control: the copy set is populated, so "not contained" is a reading.
+    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(5);
+    expect(RELATIONAL_META_KEYS).toContain('displayField');
+    for (const key of retired) {
+      expect(
+        RELATIONAL_META_KEYS,
+        `${key} is back on the copy set. objectui#7166 measured it having NO reader on this bag: `
+          + 'its only reader is an editor widget, which `renderCellEditor` feeds from the schema '
+          + 'def. Put it back and you write a member nothing on the cell path reads.',
+      ).not.toContain(key);
+    }
+
+    // ⭐ THE POINT OF THIS ASSERTION, and why it is hand-written rather than
+    // derived. All three are STILL in the extracted read set — the editor
+    // widgets do read them — so every derived assertion in this file passes
+    // whichever verdict they carry. Read-set membership means "a consumer reads
+    // this key"; it never meant "this bag is how that consumer gets it", and
+    // only the second claim justifies a copy. Mistaking the first for the
+    // second is what put two of these three here (objectui#6875).
+    const readSet = [...extractReadSet().all];
+    for (const key of retired) {
+      expect(readSet, `${key} left the read set — then this pin is stale, not load-bearing`).toContain(key);
     }
   });
 

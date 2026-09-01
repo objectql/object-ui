@@ -68,6 +68,55 @@
  * with this table unchanged, in
  * `__tests__/lookupPickerKeys-7154.test.tsx`.
  *
+ * ## ⭐ THREE KEYS LEFT THIS COPY SET BY THAT RULE — objectui#7166
+ *
+ * objectui#7154 stated the rule for keys that had never been copied. Applied
+ * BACKWARDS, to keys already on the list, the same rule retires three of them:
+ * `descriptionField`, `lookupColumns` and `lookupFilters`. Each is read off a
+ * field meta only by `LookupField` (and `lookupFilters` also by `UserField`) —
+ * the two EDITOR widgets — so on the cell path each write landed on a bag whose
+ * consumer never looks at it. Re-measured on `47035ce79`, and stated as
+ * receivers rather than as a count: `packages/fields/src/index.tsx`, the file
+ * that holds EVERY `CellRenderer`, contains zero occurrences of any of the
+ * three, against a control of 22 occurrences of the `display_field` /
+ * `displayField` / `reference_to` spellings the cell does read.
+ *
+ * ⇒ The retirement is behaviour-preserving, and that is the half worth pinning:
+ * all three still take effect in the inline picker with them OFF this table,
+ * because `renderCellEditor` hands the widget the whole schema def.
+ * `__tests__/relationalMetaCopySet-7166.test.tsx` renders both halves.
+ *
+ * ## ⚠️ THE TWO POPULATIONS — why three keys went and three stayed
+ *
+ * Six copied keys have no reader on this bag; only three left. The other three
+ * — `description_field`, `lookup_filters`, `id_field` — are the snake_case
+ * `legacy-alias` spellings, recorded that way PRECISELY because a host
+ * `DataSource` outside these two repos may hand-feed them. That is a
+ * PRODUCER-side argument, and every measurement above is READER-side. Retiring
+ * them on this evidence would answer a question nobody asked.
+ *
+ * Their reader-side verdict is now on the table anyway, so the next pass
+ * inherits a measurement instead of a silence. ⛔ The question still OPEN — and
+ * which no evidence gathered in these two repos can close — is the producer
+ * one: does any host outside them put these spellings on a field def? Closing
+ * it needs a producer survey, not another sweep of this repo.
+ *
+ * ## ⛔ THE DERIVATION GATE CANNOT SEE THIS CLASS — its green is not cover
+ *
+ * The gate re-extracts a read set that is the UNION over three consumers, two
+ * of which are not fed this bag. Membership there means "some consumer reads
+ * this key" — never "this bag is how that consumer gets it". Those are
+ * different claims, and the second is the one a copy-set entry asserts. All
+ * three retired keys REMAIN in the extracted read set, because the editor
+ * widgets still read them, so the derivation stays green whichever verdict they
+ * carry: it would not go red if someone put them back tomorrow.
+ *
+ * ⇒ What guards this retirement is the rendering test plus the explicit
+ * non-membership pin in the gate — not the derivation. Re-scoping the
+ * derivation around the cell alone, with the editor widgets classified
+ * separately, would close that gap; it is a design change to objectui#6875's
+ * mechanism and is filed rather than made here.
+ *
  * ## ⭐ Why a key can be READ and still not be worth copying
  *
  * `@objectstack/spec` 17.2.0's `FieldSchema` is a **strict** object of 71
@@ -154,7 +203,11 @@ export type RelationalMetaVerdict =
   | 'no-producer'
   /** Producible and read, but written onto the meta by another block already. */
   | 'handled-elsewhere'
-  /** Producible and read, but outside this helper's contract — see `note`. */
+  /**
+   * Producible and read, but read ONLY by an editor widget — which
+   * `ObjectGrid.renderCellEditor` feeds from the schema def, not from this bag.
+   * Copying such a key onto `fieldMeta` reaches nothing. See `note` per key.
+   */
   | 'deferred';
 
 /** Verdicts whose keys ARE copied. Everything else is deliberately skipped. */
@@ -187,19 +240,23 @@ export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEnt
   display_field: { verdict: 'legacy-alias', note: 'Runtime spelling, first leg of every display chain. Not on FieldSchema; kept for back-compat.' },
 
   // ── The picker's secondary line ─────────────────────────────────────────
-  descriptionField: { verdict: 'spec', note: 'FieldSchema.descriptionField. ⭐ Added by objectui#6875.' },
-  description_field: { verdict: 'legacy-alias', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat.' },
+  // ⛔ The camel spelling LEFT the copy set in objectui#7166 while its snake
+  // twin stayed. That asymmetry is deliberate and is explained under "the two
+  // populations" in this file's docblock: the retirement is a READER-side
+  // finding, and only the snake spellings carry a producer-side argument.
+  descriptionField: { verdict: 'deferred', note: "FieldSchema.descriptionField. Added by objectui#6875, RETIRED from the copy set by objectui#7166: its only reader is LookupField, which the inline editor feeds from the schema def, so the copy reached nothing. Measured by rendering — the picker's secondary line still appears with this table unchanged." },
+  description_field: { verdict: 'legacy-alias', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag either — it survives on the UNANSWERED producer question below, not on a measured reader.' },
 
   // ── The picker's table ──────────────────────────────────────────────────
-  lookupColumns: { verdict: 'spec', note: 'FieldSchema.lookupColumns. ⭐ Added by objectui#6875.' },
+  lookupColumns: { verdict: 'deferred', note: "FieldSchema.lookupColumns. Added by objectui#6875, RETIRED from the copy set by objectui#7166 on the same measurement as `descriptionField`. Measured by rendering — the declared columns still shape the picker with this table unchanged." },
   lookup_columns: { verdict: 'no-producer', note: 'Runtime twin of `lookupColumns`, read but never producible. Not on FieldSchema. objectui#6875.' },
 
   // ── The picker's base scoping ───────────────────────────────────────────
-  lookupFilters: { verdict: 'spec', note: 'FieldSchema.lookupFilters.' },
-  lookup_filters: { verdict: 'legacy-alias', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat.' },
+  lookupFilters: { verdict: 'deferred', note: "FieldSchema.lookupFilters. RETIRED from the copy set by objectui#7166: read off a field meta only by LookupField and UserField, both fed by the editor's schema spread. Measured by rendering — the declared filter still scopes the picker's candidates with this table unchanged." },
+  lookup_filters: { verdict: 'legacy-alias', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
 
   // ── The picker's id column ──────────────────────────────────────────────
-  id_field: { verdict: 'legacy-alias', note: 'Picker id column. Neither spelling is on FieldSchema (`idField` is absent too); kept for back-compat.' },
+  id_field: { verdict: 'legacy-alias', note: 'Picker id column. Neither spelling is on FieldSchema (`idField` is absent too); kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
 
   // ── Read by the EDITOR widgets, producible, and NOT copied ──────────────
   // Found by objectui#6875's re-sweep and left `deferred`. objectui#7154 then
