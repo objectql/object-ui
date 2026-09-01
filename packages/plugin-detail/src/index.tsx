@@ -425,10 +425,18 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // Documented member keys are exactly the spec's four (`name`, `label`,
   // `columns`, `fields`) — deliberately NOT the extras `RecordDetailsRenderer`
   // also honours on a section (`title`, `showBorder`, `hideEmpty`). Those are
-  // undeclared upstream, so the spec's section object STRIPS them on parse:
-  // publishing them here would advertise keys the contract throws away, the
-  // same trap as declaring a top-level `readonly` on `record:highlights`
-  // below. The renderer tolerating them is not a licence to teach them.
+  // undeclared upstream, and the spec's section object REFUSES them on parse
+  // rather than stripping them: `RecordDetailsProps.safeParse` on a section
+  // carrying any of the three returns `success: false` with
+  // `unrecognized_keys` naming the key (measured on the installed pin, 17.2.0,
+  // against a control — `columns: 2` — that parses and whose value survives).
+  // So publishing them here would advertise keys that make the whole document
+  // fail to validate, not keys the contract quietly throws away — the same
+  // trap as declaring a top-level `readonly` on `record:highlights` below. The
+  // renderer tolerating them is not a licence to teach them. (This said
+  // "STRIPS" until objectui#7127: that was the pre-#4001-batch-A behaviour the
+  // spec's own refusal message still recounts, and the `layout` paragraph
+  // above already said `rejects`.)
   inputs: [
     { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
     { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Authoring `sections` at all makes it the only source of the detail body; omit it and the body falls back to the object\'s highlightFields.' },
@@ -556,17 +564,23 @@ ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   // `RecordHighlightsProps` has exactly three top-level keys (fields, layout,
   // aria). A top-level `{ name: 'readonly', type: 'boolean' }` here would look
   // like the fix for "the manifest never mentions readonly" and would instead
-  // publish a key the platform silently discards: the generated
+  // publish a key the platform does not accept: the generated
   // `sdui.manifest.json` and `sdui-intrinsics.d.ts` would advertise
   // `<RecordHighlights readonly>`, the manifest gate validates top-level props
-  // only and would raise no diagnostic, the spec strips the unknown key on
-  // parse without error, and the renderer — which reads `field.readonly` per
-  // entry — would never see it. An author who trusted that surface would be
-  // left with the machine-owned column still hand-editable and nothing
-  // anywhere saying why. `ComponentInput` is flat by design (`name` = "must
-  // match schema property"), so an array-of-objects input publishes its member
-  // keys in prose, the same way `record:path.stages` and `record:alert.action`
-  // do. objectui#3407 / objectstack#5176.
+  // only and would raise no diagnostic, the spec REFUSES the unknown key on
+  // parse rather than stripping it — `RecordHighlightsProps.safeParse` returns
+  // `success: false` with `unrecognized_keys: ['readonly']` (measured on the
+  // installed pin, 17.2.0, against a control — `layout: 'vertical'` — that
+  // parses and whose value survives) — and the renderer, which reads
+  // `field.readonly` per entry, would never see it either. An author who
+  // trusted that surface would be left with the machine-owned column still
+  // hand-editable and their page refused by the contract wherever it is
+  // parsed. (This said "strips the unknown key on parse without error" until
+  // objectui#7127: the pre-#4001-batch-A behaviour, the same stale claim the
+  // `record:details` block above carried.) `ComponentInput` is flat by design
+  // (`name` = "must match schema property"), so an array-of-objects input
+  // publishes its member keys in prose, the same way `record:path.stages` and
+  // `record:alert.action` do. objectui#3407 / objectstack#5176.
   inputs: [
     { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?,readonly?}. Set readonly: true on an entry to render that chip read-only — it suppresses the inline-edit affordance and the HeaderHighlight editability gate enforces it. Use it for hook/automation-maintained columns that must not be hand-edited from the record header; marking the OBJECT field readonly instead would also strip the hook\'s own write-back.' },
     { name: 'layout', type: 'enum', label: 'Layout', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', description: 'Layout orientation for highlight fields' },
