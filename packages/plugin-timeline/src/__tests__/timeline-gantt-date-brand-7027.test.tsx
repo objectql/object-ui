@@ -37,9 +37,20 @@
  *      own headline was wrong: `Array.isArray` is not the last non-total
  *      operation on the PATH, only inside that function (objectui#7153).
  *
+ *   6. objectui#7153: the UPSTREAM reads. That card said five sites; driven in
+ *      render there are six in `findUnusableGanttDate` and three more in
+ *      `calculateDateRange`, and a tenth is NOT MEASURED. It took the same
+ *      stated-and-exercised branch for the six (`pin 5`) after re-testing the
+ *      `catch` argument rather than inheriting it — measured, a `catch`
+ *      upstream reads the PATH half and still substitutes the VALUE half, and
+ *      buys 3 of 9. And it falsified the class claim as well as the count: the
+ *      three in `calculateDateRange` are plain JSON, not exotica, so they are
+ *      pinned as a DEFECT (`pin 6`, objectui#7164) and not as an exclusion.
+ *
  * ⚠️ So this file's input set is not a claim of totality either. It is the
- * boundary that has actually been exercised, and the sixth card will be the
- * one that says where it ends.
+ * boundary that has actually been exercised, and the seventh card will be the
+ * one that says where it ends. Every entry above was written as the settled
+ * answer; five of the six were moved by the next card's measurement.
  *
  * ## What "a defined outcome" means here — two kinds, and never a third
  *
@@ -437,6 +448,235 @@ describe('pin 4 — the ONE documented EXCLUSION, exercised not asserted (object
     const text = diagnosticOf(container) ?? '';
     expect(text).toContain(PATH);
     expect(text).toContain('is an object');
+    expect(barCountOf(container)).toBe(0);
+  });
+});
+
+/**
+ * A proxy that refuses ONE named operation and is honest about the rest, so
+ * the thrown message identifies WHICH read died. `Reflect.get` for everything
+ * else keeps the value ordinary right up to the site under test.
+ */
+const trapOn = (target: object, key: string, message: string) =>
+  new Proxy(target, {
+    get(t, p, r) {
+      if (p === key) throw new Error(message);
+      return Reflect.get(t, p, r);
+    },
+  }) as any;
+
+/** One ordinary gantt row, as the hostile rows' non-hostile twin. */
+const GOOD_ITEM = { title: 'T', startDate: '2024-01-01', endDate: '2024-03-01' };
+const goodRow = () => ({ label: 'R', items: [{ ...GOOD_ITEM }] });
+
+const REVOKED_GET = /Cannot perform 'get' on a proxy that has been revoked/;
+
+describe('pin 5 — the SIX non-total reads UPSTREAM of the speller (objectui#7153)', () => {
+  /**
+   * objectui#7036 documented `spellGanttDateValue`'s `Array.isArray` as the
+   * one exclusion on the gantt date path and pointed at this card for the
+   * reads that run BEFORE the speller is entered. objectui#7153's card named
+   * five of them; driven in render on 51449a043 there are SIX in
+   * `findUnusableGanttDate` alone, and three more in `calculateDateRange`
+   * (pin 6 below, a different reachability class entirely).
+   *
+   * ## Why these are PINNED AS THROWS rather than repaired
+   *
+   * Same three grounds objectui#7036 recorded for its own site, and the middle
+   * one was RE-TESTED here rather than inherited, because upstream is not the
+   * same shape as the speller:
+   *
+   * 1. Unreachable from an authored document — JSON spells neither a getter
+   *    nor a proxy. Re-swept on 51449a043 with a comment-stripped instrument:
+   *    `Proxy.revocable`, `new Proxy`, the bare word `Proxy` and
+   *    `Object.setPrototypeOf` are each 0 across every package `src/` outside
+   *    tests, beside live controls of `Object.assign` 19 and `JSON.parse` 105
+   *    on that same instrument; the SAME query widened to the whole repo returns 1, 21
+   *    and 105 (tests only), which is what makes the narrow zeros readings.
+   * 2. A `catch` upstream reads HALF of what it would need, which is more than
+   *    the speller's `catch` reads and still not enough. Measured by ablation:
+   *    a `try` around U6 reporting the path from the loop counters came back
+   *    NAMED `items[0].items[0].endDate` — exact, because the path is built
+   *    from indices and never touches the value, unlike at the speller where
+   *    the `catch` holds only the value it cannot read. But the VALUE half is
+   *    still substitution (the diagnostic read `is "UNREADABLE"`), so a real
+   *    repair needs a value-less diagnostic and therefore a new i18n key
+   *    across ten locale packs.
+   * 3. It would buy 3 of 9. That same ablation converted U5, U6 and the
+   *    throwing-getter item and left U1 through U4 throwing upstream of it and
+   *    `calculateDateRange`'s three throwing downstream — the "1 of 6" trade
+   *    objectui#7036's triage refused, at a different site.
+   *
+   * ## The assertions name the MESSAGE, and the messages name the SITE
+   *
+   * A bare `toThrow()` passes for any error from any line, so it would stay
+   * green through exactly the relocation this path has performed four times.
+   * Four of the six rows drive a proxy that refuses ONE named operation, so
+   * the message identifies the read that died. A row goes red both if its site
+   * is repaired and if the crash moves — either of which must come with a
+   * docblock edit.
+   */
+
+  const sites: [string, () => Record<string, unknown>, RegExp][] = [
+    [
+      'U1 `items.length` — the row loop condition',
+      () => ({ items: trapOn([goodRow()], 'length', 'U1: items.length trap') }),
+      /U1: items\.length trap/,
+    ],
+    [
+      'U2 `items[rowIndex]` — the row index get',
+      () => ({ items: trapOn([goodRow()], '0', 'U2: items[0] trap') }),
+      /U2: items\[0\] trap/,
+    ],
+    [
+      'U3 `items[rowIndex]?.items` — reading `items` off the row',
+      () => ({ items: [trapOn(goodRow(), 'items', 'U3: row.items getter trap')] }),
+      /U3: row\.items getter trap/,
+    ],
+    [
+      'U4 `rowItems.length` — the item loop condition',
+      () => ({ items: [{ label: 'R', items: trapOn([{ ...GOOD_ITEM }], 'length', 'U4: rowItems.length trap') }] }),
+      /U4: rowItems\.length trap/,
+    ],
+    [
+      'U5 `rowItems[itemIndex]` — the item index get',
+      () => ({ items: [{ label: 'R', items: trapOn([{ ...GOOD_ITEM }], '0', 'U5: rowItems[0] trap') }] }),
+      /U5: rowItems\[0\] trap/,
+    ],
+    [
+      'U6 `rowItems[itemIndex]?.[key]` — the date read itself',
+      () => ({ items: [{ label: 'R', items: [trapOn({ ...GOOD_ITEM }, 'endDate', 'U6: endDate getter trap')] }] }),
+      /U6: endDate getter trap/,
+    ],
+  ];
+
+  for (const [label, make, message] of sites) {
+    it(`${label} is NOT total — it throws, by design`, () => {
+      expect(() => gantt(make())).toThrow(message);
+    });
+  }
+
+  /**
+   * The revoked `Proxy` reaches four of those six sites depending on WHERE it
+   * is pinned, and all four share one message because the language writes it.
+   * They are separate rows so that repairing one site turns exactly one red.
+   */
+  const revokedPositions: [string, () => Record<string, unknown>][] = [
+    ['as `items` itself (dies at U1)', () => ({ items: revokedProxy([]) })],
+    ['as a ROW (dies at U3)', () => ({ items: [revokedProxy()] })],
+    ["as a row's `items` (dies at U4)", () => ({ items: [{ label: 'R', items: revokedProxy([]) }] })],
+    ['as an ITEM (dies at U6)', () => ({ items: [{ label: 'R', items: [revokedProxy()] }] })],
+  ];
+
+  for (const [label, make] of revokedPositions) {
+    it(`a revoked Proxy ${label}`, () => {
+      expect(() => gantt(make())).toThrow(REVOKED_GET);
+    });
+  }
+
+  it('CONTROL — a LIVE Proxy at every one of those positions still DRAWS', () => {
+    // Without this the ten rows above would also pass if the gantt branch had
+    // simply broken. These are the same positions, proxied and not hostile, so
+    // the rows above are about REVOCATION and THROWING TRAPS and nothing else.
+    const live: [string, Record<string, unknown>][] = [
+      ['items', { items: new Proxy([goodRow()], {}) }],
+      ['a row', { items: [new Proxy(goodRow(), {})] }],
+      ["a row's items", { items: [{ label: 'R', items: new Proxy([{ ...GOOD_ITEM }], {}) }] }],
+      ['an item', { items: [{ label: 'R', items: [new Proxy({ ...GOOD_ITEM }, {})] }] }],
+    ];
+    for (const [where, schema] of live) {
+      const { container } = gantt(schema);
+      expect(diagnosticOf(container), `a live Proxy at ${where} was refused`).toBeNull();
+      expect(barCountOf(container), `a live Proxy at ${where} drew no bar`).toBe(1);
+      expect(axisOf(container)).toEqual(['Jan 2024', 'Feb 2024', 'Mar 2024']);
+    }
+  });
+});
+
+describe('pin 6 — `calculateDateRange`’s three reads: a DEFECT, pinned (objectui#7164)', () => {
+  /**
+   * ⛔ READ THIS BEFORE READING THE ROWS. Unlike pin 4 and pin 5, these throws
+   * are NOT adjudicated as acceptable and are NOT an excluded exotic class.
+   * They are a live defect, objectui#7164, and they are pinned here so the
+   * class is EXERCISED rather than asserted — because on this path an
+   * enumeration written only in prose has been wrong five times running.
+   *
+   * These rows are expected to go RED when objectui#7164 is repaired. That is
+   * their purpose: the repair cannot land quietly, and whoever lands it has to
+   * come back and rewrite this block and the two docblocks it points at.
+   *
+   * ## Why they are a different class from pin 5
+   *
+   * `findUnusableGanttDate` reads the row walk with `?.` and `|| []` and SKIPS
+   * a row it cannot index. `calculateDateRange` re-walks the same rows BARE.
+   * Everything in the gap crashes, and all of it is ordinary JSON:
+   *
+   *     items: [null]                 -> TypeError, at `row.items`
+   *     items: [{ items: 5 }]         -> TypeError, at `(row.items || []).flatMap`
+   *     items: {}                     -> TypeError, at `items.flatMap`
+   *
+   * `items: [null]` and `items: [{ items: 5 }]` also PASS the declared zod
+   * mirror, whose element type is `z.any()`, and `ObjectTimeline` hands
+   * authored rows through on a truthiness check alone. So "JSON cannot spell
+   * this", the argument that excuses pin 4 and pin 5, is simply false here.
+   *
+   * ## And why the repair is not attempted in this file's card
+   *
+   * Measured by ablation on 51449a043: making `calculateDateRange` tolerant
+   * closes none of the three and MOVES all three into the render loop
+   * (`items.map`, `row.label`, `(row.items || []).map`), with the ordinary-row
+   * control drawing its single bar on both sides of the mutation. The real
+   * repair spans three sites and first has to decide what a malformed ROW
+   * means — refuse the chart through a new i18n key, or skip the row, which is
+   * the consumer-side tolerance #6750 and #6759 both refused.
+   */
+
+  const defects: [string, Record<string, unknown>, RegExp][] = [
+    ['a `null` ROW', { items: [null] }, /Cannot read properties of null \(reading 'items'\)/],
+    ['a `null` row BESIDE a good one', { items: [goodRow(), null] }, /Cannot read properties of null \(reading 'items'\)/],
+    ["a row whose `items` is a number", { items: [{ label: 'R', items: 5 }] }, /flatMap is not a function/],
+    ["a row whose `items` is a plain object", { items: [{ label: 'R', items: {} }] }, /flatMap is not a function/],
+    ["a row whose `items` is `true`", { items: [{ label: 'R', items: true }] }, /flatMap is not a function/],
+    [
+      "a row whose `items` is ARRAY-LIKE — judged USABLE, then dies",
+      { items: [{ label: 'R', items: { length: 1, 0: { ...GOOD_ITEM } } }] },
+      /flatMap is not a function/,
+    ],
+    ['`items` itself a plain object', { items: {} }, /items\.flatMap is not a function/],
+    ['`items` itself a string', { items: 'x' }, /items\.flatMap is not a function/],
+    ['`items` itself a number', { items: 5 }, /items\.flatMap is not a function/],
+  ];
+
+  for (const [label, schema, message] of defects) {
+    it(`DEFECT — ${label} crashes the render`, () => {
+      expect(() => gantt(schema)).toThrow(message);
+    });
+  }
+
+  it('CONTROL — the row shapes NEXT TO the defect all still reach a defined outcome', () => {
+    // The live controls that make the nine rows above readings rather than a
+    // broken harness, and that fence the defect: these are the neighbouring
+    // shapes, and every one of them DRAWS or is NAMED.
+    const drawn: [string, Record<string, unknown>][] = [
+      ['an ordinary row', { items: [goodRow()] }],
+      ['an empty items list', { items: [] }],
+      ['a row with no `items` key', { items: [{ label: 'R' }] }],
+      ['a row whose `items` is null', { items: [{ label: 'R', items: null }] }],
+      ['a row whose `items` is an empty array', { items: [{ label: 'R', items: [] }] }],
+      ['a row that is the number 0', { items: [0] }],
+      ['a row that is an empty array', { items: [[]] }],
+    ];
+    for (const [label, schema] of drawn) {
+      const { container } = gantt(schema);
+      expect(diagnosticOf(container), `${label} was refused`).toBeNull();
+      expect(axisOf(container).length, `${label} drew no axis`).toBeGreaterThan(0);
+    }
+
+    // The one non-array `items` that does NOT crash: a string is
+    // index-readable, so the walk reaches `'x'[0]?.startDate`, reads
+    // `undefined`, and takes the ordinary refusal. Nobody designed that.
+    const { container } = gantt({ items: [{ label: 'R', items: 'x' }] });
+    expect(diagnosticOf(container) ?? '').toContain('items[0].items[0].startDate');
     expect(barCountOf(container)).toBe(0);
   });
 });

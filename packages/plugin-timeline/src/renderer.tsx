@@ -238,7 +238,50 @@ function emptyGanttDateRange(): { minDate: string; maxDate: string } {
   return { minDate: today, maxDate: today };
 }
 
-// Helper function to calculate date range from items
+/**
+ * THE ROW WALK, READ A SECOND TIME AND READ DIFFERENTLY — objectui#7153.
+ *
+ * This function re-walks exactly what `findUnusableGanttDate` just walked, and
+ * the two do not agree about how to read it. That function uses `?.` and
+ * `|| []` and SKIPS a row it cannot index; this one assumes an array at every
+ * level. Every input in the gap between them reaches a `TypeError`:
+ *
+ *     D1  items.flatMap                  243   items is a truthy non-array
+ *     D2  row.items          (bare, no ?.) 244   items: [null]
+ *     D3  (row.items || []).flatMap      244   row.items is a truthy non-array
+ *                                              (5, true, {}, or array-LIKE)
+ *
+ * ⛔ THESE THREE ARE NOT THE EXCLUDED EXOTIC CLASS. The revoked proxies and
+ * throwing getters enumerated on `findUnusableGanttDate` are unreachable from
+ * an authored document because JSON cannot spell them. `items: [null]` is
+ * JSON. So is `items: [{ label: 'R', items: 5 }]`, and both PASS the declared
+ * zod mirror, whose element type is `z.any()`. `ObjectTimeline` hands authored
+ * rows through on a truthiness check alone. Measured in render on
+ * `51449a043`, beside five live drawing controls.
+ *
+ * The array-LIKE row is the sharpest reading of the disagreement:
+ * `findUnusableGanttDate` walks `{ length: 1, 0: { startDate, endDate } }`
+ * happily, JUDGES both dates USABLE, and the very next line dies on
+ * `.flatMap`. And `items: [{ items: 'x' }]` does NOT crash, because a string
+ * is index-readable and takes the ordinary refusal — an asymmetry nobody
+ * designed.
+ *
+ * ⛔ AND DO NOT REPAIR IT HERE, which is the part worth reading twice.
+ * Measured by ablation on `51449a043`: making this function tolerant
+ * (`Array.isArray(items) ? items : []` plus `row?.items`) closes ZERO of the
+ * three. It MOVES all three into the render loop below — `items.map` at 1235,
+ * `row.label` at 1237, `(row.items || []).map` at 1246 — with the ordinary-row
+ * control still drawing its 1 bar over a 3-cell axis on both sides of the
+ * mutation. Relocating a crash class while a docblock reports it closed is the
+ * mistake this code path has now made four times, so it is written down here
+ * rather than repeated.
+ *
+ * The repair spans this function, `findUnusableGanttDate` AND the render loop,
+ * and it first has to decide what a malformed ROW means — refuse the chart
+ * through a new diagnostic key (ten locale packs), or skip the row (the
+ * consumer-side tolerance #6750 and #6759 both refused). That adjudication is
+ * objectui#7164; it is not made here, and no code below pretends it was.
+ */
 function calculateDateRange(items: any[]): { minDate: string; maxDate: string } {
   const allDates = items.flatMap((row: any) =>
     (row.items || []).flatMap((item: any) => [item.startDate, item.endDate])
@@ -514,23 +557,33 @@ const isDate = (value: unknown): value is Date => {
  * 3. It would buy no invariant, because of the paragraph below.
  *
  * ⛔ `Array.isArray` IS NOT THE LAST NON-TOTAL OPERATION ON THE GANTT DATE
- * PATH, and this function cannot make the path total. Measured in the same
- * run: five further crash sites, every one of them reached BEFORE this
- * function is entered, in the property reads that FETCH the date out of the
- * authored document (`findUnusableGanttDate`'s `items[i]?.items` and
- * `rowItems[j]?.[key]`) —
+ * PATH, and this function cannot make the path total. The true and much
+ * narrower sentence is that `Array.isArray` is the last non-total operation
+ * INSIDE THIS FUNCTION. Everything upstream of it — the property reads that
+ * FETCH the date out of the authored document — is enumerated on
+ * `findUnusableGanttDate` and on `calculateDateRange`, which is where a reader
+ * asking "how far does this go?" should go next.
  *
- *     items[0].items[0] with a throwing `endDate` getter -> THREW
- *     items[0].items[0] is a revoked Proxy               -> THREW
- *     items[0]          is a revoked Proxy               -> THREW
- *     items[0].items    is a revoked Proxy               -> THREW
- *     items[0] with a throwing `items` getter            -> THREW
+ * ⚠️ objectui#7153 — TWO CORRECTIONS to the paragraph that used to stand here,
+ * both of them measurements, and the second one matters much more than the
+ * first.
  *
- * They are the same reachability class (JSON spells neither a getter nor a
- * proxy) and they are enumerated in objectui#7153 rather than repaired here —
- * they are a different function's surface. The true and much narrower
- * sentence is that `Array.isArray` is the last non-total operation INSIDE
- * THIS FUNCTION.
+ * It said FIVE upstream crash sites. Driven in render on `51449a043` the count
+ * is NINE: six in `findUnusableGanttDate` (its `items.length`, `items[i]`,
+ * `items[i]?.items`, `rowItems.length`, `rowItems[j]` and `rowItems[j]?.[key]`)
+ * and three in `calculateDateRange`. A tenth is identified by reading and
+ * recorded as NOT MEASURED. Five was written after a real measurement, and it
+ * was short — which is the fifth time prose on this path has been.
+ *
+ * It also said the upstream sites "are the same reachability class (JSON
+ * spells neither a getter nor a proxy)". That is TRUE of the six and FALSE of
+ * the three. `calculateDateRange` reads the same walk BARE — `items.flatMap`
+ * and `row.items` with no optional chaining — so an authored `items: [null]`,
+ * or a row whose `items` is a truthy non-array, crashes the render from
+ * ordinary JSON that the declared zod mirror accepts. That is a live defect,
+ * objectui#7164, not an excluded exotic. The exclusion argument this docblock
+ * makes for its own `Array.isArray` covers the six and must not be borrowed
+ * for the three.
  *
  * ⚠️ Whatever totality this docblock claims is bounded by an EXERCISED input
  * set — the rows in `__tests__/timeline-gantt-date-brand-7027.test.tsx`,
@@ -791,6 +844,113 @@ const isGanttDateType = (value: unknown): value is string | number | Date =>
   (typeof value === 'number' && Number.isFinite(value)) ||
   isDate(value);
 
+/**
+ * WHAT THE ROW WALK BELOW READS, AND WHERE THAT READING IS NOT TOTAL —
+ * objectui#7153, the enumeration objectui#7036's docblock pointed at.
+ *
+ * ## Read this as a BOUNDED READING, not as a totality claim
+ *
+ * Five cards before this one made a totality claim about this code path
+ * (#6759 -> #6905 -> #6907 -> #7027 -> #7036) and FOUR were falsified by the
+ * next card's measurement. #7153 is the fourth falsification: it measured that
+ * `spellGanttDateValue`'s `Array.isArray` is not "the last non-total operation
+ * on the gantt date path", only the last one inside that function.
+ *
+ * So this block does not say the walk is total, and it does not say the list
+ * below is complete. It says: these are the operations that were DRIVEN, in
+ * render, through `TimelineRenderer` on `51449a043`, and this is what each one
+ * did. Everything outside that input set is unmeasured, which is a third thing
+ * and not a quiet green.
+ *
+ * ## THE SITES, each with the input that drove it and the frame it threw from
+ *
+ * `?.` guards `null` and `undefined`. It does not guard a getter that throws
+ * or a revoked `Proxy`: those crash INSIDE the read, before any value exists
+ * to judge, so the type gate above never sees them.
+ *
+ *     U1  items.length                 818  items is a revoked Proxy;
+ *                                           items has a throwing length trap
+ *     U2  items[rowIndex]              819  items has a throwing index trap
+ *     U3  items[rowIndex]?.items       819  the ROW is a revoked Proxy;
+ *                                           the row has a throwing items getter
+ *     U4  rowItems.length              820  row.items is a revoked Proxy;
+ *                                           row.items has a throwing length trap
+ *     U5  rowItems[itemIndex]          822  row.items has a throwing index trap
+ *     U6  rowItems[itemIndex]?.[key]   822  the ITEM is a revoked Proxy;
+ *                                           the item has a throwing date getter
+ *
+ * SIX here, and THREE more in `calculateDateRange` (see that function). NINE
+ * measured, where #7153's card said five and #7036's docblock repeated it. The
+ * count was never the point, but it is the evidence that prose counting on
+ * this path is a hypothesis: both numbers were written after a real
+ * measurement, and both were short.
+ *
+ * A tenth read — `item.startDate` / `item.endDate` inside
+ * `calculateDateRange`'s inner `flatMap` — is bare and would throw on a `null`
+ * item, but it is SHADOWED here: U6's `?.` turns a `null` item into
+ * `undefined`, which the type gate refuses, so the render never reaches it.
+ * That shadow is an accident of two functions written apart, not a guard, and
+ * it is recorded as NOT MEASURED: no input was found that reaches it.
+ *
+ * ## TWO REACHABILITY CLASSES, and they must not be merged
+ *
+ * 1. THE SIX ABOVE — unreachable from an authored document. ObjectUI metadata
+ *    is JSON and JSON spells neither a getter nor a proxy. Re-swept on
+ *    `51449a043` with the comment-stripped instrument, each zero beside a live
+ *    control on that same instrument: across every package `src/` excluding
+ *    tests, `Proxy.revocable` 0, `new Proxy` 0, the bare word `Proxy` 0, and
+ *    `Object.setPrototypeOf` 0 — against `Object.assign` 19 and `JSON.parse`
+ *    105. Widened to the whole repo the SAME query returns `Proxy.revocable`
+ *    1, `new Proxy` 21 and `Proxy` 105 (all in tests, one of them this file's
+ *    own factory), which is what makes the narrow zeros readings rather than a
+ *    broken query.
+ *
+ * 2. `calculateDateRange`'s THREE — ordinary JSON, and a live defect
+ *    (objectui#7164). They are NOT this class, they are not p3, and the note
+ *    on that function carries them. Do not let the paragraph above be read as
+ *    covering them: the sentence "JSON cannot spell this" is true of the six
+ *    and false of the three, and collapsing the two is how this docblock would
+ *    start overclaiming again.
+ *
+ * ## WHY A `catch` IS NOT PUT HERE — re-tested, not inherited from #7036
+ *
+ * #7036 refused a `catch` at the speller because it would SUBSTITUTE `an
+ * object` for a failure rather than read anything, the opposite of `isDate`'s
+ * `catch` (which IS the read, because the language exposes `[[DateValue]]`
+ * only by throwing). #7153's dispatch required that argument to be re-tested
+ * upstream rather than assumed, because upstream is not the same shape. It was
+ * tested, by ablation, and it comes out DIFFERENTLY — in half:
+ *
+ * A `try` around U6 alone, reporting the path built from the loop counters,
+ * was measured in-render. The PATH half is a genuine READ: the throwing-getter
+ * input came back NAMED as `items[0].items[0].endDate`, exact, including the
+ * key whose getter threw — because the path is built from `rowIndex`,
+ * `itemIndex` and `key` and never touches the value. The speller's `catch` has
+ * no such thing; it holds only the value it cannot read.
+ *
+ * The VALUE half is still substitution. The measured diagnostic read `...
+ * endDate is "UNREADABLE", which is not a valid date` — a placeholder standing
+ * in the `{value}` hole of `timeline.gantt.unusableRange.malformedDate`. There
+ * is no true spelling for a value that cannot be touched, so a real repair
+ * needs a value-less diagnostic, which is a new i18n key across ten locale
+ * packs: the file surface #7036 deferred as a separate decision.
+ *
+ * And the coverage is the same shape of error #7036's triage caught. That
+ * `catch` converted THREE of the nine measured sites (U5, U6, and the
+ * throwing-getter item) and left the other six throwing — U1 through U4 are
+ * upstream of it, and `calculateDateRange`'s three are downstream. The PASSING
+ * control held either way: an ordinary row drew 1 bar over a 3-cell axis
+ * before and after. One `catch` here would buy 3 of 9 while a docblock went on
+ * implying the walk was safe, which is exactly the "1 of 6" trade #7036 was
+ * stopped from making.
+ *
+ * ## So this is STATED AND EXERCISED, on #7036's terms
+ *
+ * The rows are in `./__tests__/timeline-gantt-date-brand-7027.test.tsx`, pin
+ * 5, asserting each throw's own MESSAGE so the pin fails if a site MOVES as
+ * well as if it is repaired — a bare `toThrow()` would stay green through
+ * exactly the relocation this path has performed four times.
+ */
 function findUnusableGanttDate(
   items: any[],
   pinnedMinDate: unknown,
