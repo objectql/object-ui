@@ -87,7 +87,14 @@ const UNITS: Array<[string, number]> = [
   ['Riverside Depot', 1],
 ];
 
-const buildRows = (interleaved: boolean): any[] => {
+interface Row {
+  id: string;
+  subject: string;
+  business_unit: string;
+  region: string;
+}
+
+const buildRows = (interleaved: boolean): Row[] => {
   const buckets = UNITS.map(([unit, n]) =>
     Array.from({ length: n }, (_, i) => ({
       id: `${unit}-${i}`,
@@ -97,7 +104,7 @@ const buildRows = (interleaved: boolean): any[] => {
     })),
   );
   if (!interleaved) return buckets.flat();
-  const out: any[] = [];
+  const out: Row[] = [];
   for (let i = 0; ; i++) {
     let took = false;
     for (const b of buckets) {
@@ -114,10 +121,10 @@ expect(ALL_186).toHaveLength(186);
  * A data source that honours `$top`/`$skip`. `total` is optional so the
  * "no total is reachable" branch can be measured rather than assumed.
  */
-const makeDataSource = (rows: any[], opts?: { withTotal?: boolean }) => ({
-  find: vi.fn(async (_object: string, params: any) => {
-    const skip = params.$skip ?? 0;
-    const top = params.$top ?? rows.length;
+const makeDataSource = (rows: Row[], opts?: { withTotal?: boolean }) => ({
+  find: vi.fn(async (_object: string, params: Record<string, unknown>) => {
+    const skip = (params.$skip as number | undefined) ?? 0;
+    const top = (params.$top as number | undefined) ?? rows.length;
     const page = rows.slice(skip, skip + top);
     return opts?.withTotal === false
       ? { data: page }
