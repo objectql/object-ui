@@ -21,7 +21,7 @@
  *
  * ## Why the assertion is shaped this way
  *
- * The interesting direction is cheap to get wrong. Three hazards, each with its
+ * The interesting direction is cheap to get wrong. Four hazards, each with its
  * own guard below:
  *
  *  1. **A degenerate (empty) registry passes every negative assertion.** If the
@@ -38,14 +38,58 @@
  *     contains a no-renderer claim to check` fails in that case.
  *  3. **Scope is bounded by the import set.** A renderer registered in a
  *     package NOT imported here reads as unregistered, which would let a false
- *     "no renderer" pass. The imports below are therefore the packages that
- *     could plausibly register a page block for the excluded types
- *     (`@object-ui/components` for `element:*`, `@object-ui/plugin-chatbot` for
- *     the AI surface, `@object-ui/plugin-form` for the form family). Widen the
- *     set — and its positive probes — when a new package starts registering
- *     page blocks.
+ *     "no renderer" pass.
+ *  4. **The import set drifting behind the registrations** — hazard 3 coming
+ *     true silently, which is what objectui#7117 measured and what the last
+ *     guard below now refuses. See the next section.
+ *
+ * ## objectui#7117 — the import set had already drifted, and nothing said so
+ *
+ * Hazard 3 was stated in prose here ("widen the set when a new package starts
+ * registering page blocks") and prose was not enough. `app-shell` became such a
+ * package twice — #6757 (`global:search`, `global:notifications`) and #7091
+ * (`app:launcher`, `nav:menu`) — and the set was not widened either time, so
+ * for two ledger keys this file could not see a renderer that exists. Measured
+ * on `44ea62d29`: setting `PALETTE_EXCLUSIONS['app:launcher']` to
+ * `'no renderer ZZMUTZZ'` — a string that DOES match {@link CLAIMS_NO_RENDERER}
+ * — still passed 4/4, while `views/app-launcher-renderer.tsx` registers a
+ * renderer for it. A guard passing the exact false claim it exists to refuse.
+ *
+ * Two things follow, and the second is the one that keeps this from recurring:
+ *
+ *  - The set is widened to every package that registers a renderer for a
+ *    CURRENT ledger key: the six `views/*-renderer.tsx` leaves of this package,
+ *    and `@object-ui/plugin-detail` (which registers `record:chatter` — blind
+ *    here for the same reason, measured the same way).
+ *  - The app-shell half of the import set is CHECKED rather than trusted. `the
+ *    import set covers every page block app-shell registers` derives the leaf
+ *    list from the directory and fails when a leaf is not imported here — so
+ *    the seventh renderer leaf reds this file instead of quietly shrinking its
+ *    coverage. A hand-maintained list is exactly what drifted; deriving it is
+ *    the point.
+ *
+ * Why the leaves and not the package barrel: `../../../../index.js` would track
+ * the package automatically, but it costs 6105ms to load against 553ms for the
+ * leaves (measured on `44ea62d29`, same harness) because it drags the console,
+ * marketplace, cloud and diagnostics graphs in with it. This file is a
+ * pure-logic gate in the cheap `unit` project, whose whole design point is not
+ * paying for graphs it does not touch (`vitest.config.mts`). The derived guard
+ * buys the barrel's one real advantage — tracking the package — for 0ms.
+ *
+ * ## What is deliberately NOT imported
+ *
+ * `registerPlaceholders()`. It registers the whole `PROTOCOL_COMPONENTS`
+ * vocabulary against `PlaceholderRenderer` under `namespace:
+ * 'protocol-placeholder'`, which would make this file answer "has a renderer"
+ * for types that have only the dashed "Component Placeholder" scaffold —
+ * `user:profile` is one (measured). This repo's own language is clear that the
+ * scaffold is not a renderer: `views/app-launcher-renderer.tsx` describes the
+ * state before it existed as "nothing rendered it, so a page that authored it
+ * drew a dashed box", with placeholders registered the whole time. Opting in
+ * would make the guard assert a falsehood in the opposite direction.
  */
 
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 // Side-effect imports: these register the components under test. The app-shell
@@ -54,6 +98,21 @@ import { ComponentRegistry } from '@object-ui/core';
 import '@object-ui/components';
 import '@object-ui/plugin-chatbot';
 import '@object-ui/plugin-form';
+// `record:chatter` is a ledger key whose renderer lives here (registered
+// alongside `record:discussion` against the same component). Both sibling
+// suites in this directory already import it for the same reason.
+import '@object-ui/plugin-detail';
+// This package's own page-block registrations (#6757, #7091). All six
+// `views/*-renderer.tsx` leaves, not just the two currently in the ledger:
+// which of them the ledger names is a palette decision that has moved before,
+// and `the import set covers every page block app-shell registers` below holds
+// this list to the directory.
+import '../../../app-launcher-renderer.js';
+import '../../../global-notifications-renderer.js';
+import '../../../global-search-renderer.js';
+import '../../../nav-menu-renderer.js';
+import '../../../record-approvals-renderer.js';
+import '../../../record-attachments-renderer.js';
 import { PALETTE_EXCLUSIONS } from '../block-types';
 
 /**
@@ -67,11 +126,29 @@ const claimingNoRenderer = Object.entries(PALETTE_EXCLUSIONS).filter(([, reason]
   CLAIMS_NO_RENDERER.test(reason),
 );
 
+/** Where this package keeps its page-block registrations, one block per file. */
+const VIEWS_DIR = new URL('../../../', import.meta.url);
+
+/**
+ * The page blocks this package registers, derived from the leaf files rather
+ * than restated — see the header. `register('menu', C, { namespace: 'nav' })`
+ * writes the key `nav:menu`, so the two captures spell the key the ledger and
+ * the registry both use.
+ */
+const appShellRegistrations = readdirSync(VIEWS_DIR)
+  .filter((f) => f.endsWith('-renderer.tsx'))
+  .map((file) => {
+    const src = readFileSync(new URL(file, VIEWS_DIR), 'utf8');
+    const m = /ComponentRegistry\.register\(\s*'([^']+)'[\s\S]{0,400}?namespace:\s*'([^']+)'/.exec(src);
+    return { file, key: m ? `${m[2]}:${m[1]}` : null };
+  });
+
 describe('objectui#6071 — PALETTE_EXCLUSIONS reasons that claim "no renderer"', () => {
   it('the registry under test is actually populated (guards a vacuous green)', () => {
     // One probe per side-effect import above. If any of these is falsy the
     // negative assertion below proves nothing, so it must fail LOUDLY here
-    // rather than passing quietly there.
+    // rather than passing quietly there. (The six app-shell leaves get their
+    // probes from the derived guard below, which cannot be forgotten.)
     expect(
       ComponentRegistry.get('element:text'),
       '@object-ui/components did not register — every "not registered" check below would pass vacuously',
@@ -84,6 +161,46 @@ describe('objectui#6071 — PALETTE_EXCLUSIONS reasons that claim "no renderer"'
       ComponentRegistry.get('object-form'),
       '@object-ui/plugin-form did not register — the form family is not actually covered',
     ).toBeTruthy();
+    expect(
+      ComponentRegistry.get('record:chatter'),
+      '@object-ui/plugin-detail did not register — `record:chatter` is a ledger key and would read as unregistered',
+    ).toBeTruthy();
+  });
+
+  it('the import set covers every page block app-shell registers (objectui#7117)', () => {
+    // The guard the prose maintenance rule failed to be. A new
+    // `views/<block>-renderer.tsx` that this file does not import reads as
+    // unregistered, which is precisely how #6757 and #7091 left two ledger keys
+    // unguarded for two releases.
+    //
+    // Control first: a derivation that finds nothing would pass every check
+    // under it vacuously, and this file's whole subject is a guard that stopped
+    // seeing its population.
+    expect(
+      appShellRegistrations.length,
+      'no views/*-renderer.tsx leaves were found — this coverage check has stopped checking',
+    ).toBeGreaterThan(0);
+    expect(
+      appShellRegistrations.filter((r) => r.key === null).map((r) => r.file),
+      'a renderer leaf whose ComponentRegistry.register(...) call could not be read — the key below cannot be derived',
+    ).toEqual([]);
+    // Anchor the derivation on the two keys objectui#7117 measured, so a
+    // regex that silently stops matching cannot leave this green.
+    expect(
+      appShellRegistrations.map((r) => r.key),
+      'the derived registration list no longer contains the keys #7117 was filed about',
+    ).toEqual(expect.arrayContaining(['app:launcher', 'global:notifications']));
+
+    for (const { file, key } of appShellRegistrations) {
+      expect(
+        ComponentRegistry.get(key as string),
+        `views/${file} registers '${key}' and this file does not import it, so '${key}' reads as UNREGISTERED here. ` +
+          "Add `import '../../../" +
+          file.replace(/\.tsx$/, '.js') +
+          "';` to the side-effect imports above. Until then, an exclusion reason claiming " +
+          `'no renderer' over '${key}' would pass this suite — the defect objectui#7117 filed.`,
+      ).toBeTruthy();
+    }
   });
 
   it('the ledger still contains a no-renderer claim to check (guards a vacuous loop)', () => {
