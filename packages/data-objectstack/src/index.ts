@@ -1513,11 +1513,26 @@ export type DroppedFieldsNotice = DroppedFieldsEvent | UnrecognizedDropReasonEve
 
 /**
  * A `droppedFields` entry as it comes OFF THE WIRE: everything a structural
- * check can honestly claim about it, and no more. `reason` is `unknown` because
- * nothing has parsed it yet — writing `DroppedFieldsEvent` here is the exact
- * assertion objectui#4934 exists to delete.
+ * check can honestly claim about it, and no more. Every field is `unknown`
+ * until something parses it — writing `DroppedFieldsEvent` for any of them here
+ * is the exact assertion objectui#4934 exists to delete.
+ *
+ * It used to be `Omit<DroppedFieldsEvent, 'reason'> & { reason?: unknown }`,
+ * which was honest about `reason` and dishonest about the other two
+ * (objectui#6889). `Omit` carried the spec's `fields: string[]` and its
+ * REQUIRED `object: string` through untouched, while the structural gate below
+ * read neither: `fields: [42]` and an entry with no `object` at all both passed
+ * and reached subscribers typed as if they had been checked. Required is what
+ * makes `object` a gap here, not what closes it — an optional `object` would
+ * have had nothing to over-claim.
+ *
+ * So the declaration now states exactly what {@link isWireDroppedFieldsEntry}
+ * establishes and nothing else, and {@link asDroppedFieldsNotice} PARSES the
+ * rest. The published surface — {@link DroppedFieldsNotice},
+ * {@link WriteWarningEvent} — is unchanged: a subscriber's `fields: string[]`
+ * stays `string[]` and is now TRUE rather than asserted.
  */
-type WireDroppedFieldsEntry = Omit<DroppedFieldsEvent, 'reason'> & { reason?: unknown };
+type WireDroppedFieldsEntry = { object?: unknown; fields: unknown[]; reason?: unknown };
 
 /** Whether the wire's `reason` is an arm the installed spec pin declares. */
 function isRecognizedDropReason(reason: unknown): reason is DroppedFieldsEvent['reason'] {
@@ -1525,19 +1540,73 @@ function isRecognizedDropReason(reason: unknown): reason is DroppedFieldsEvent['
 }
 
 /**
- * Classify ONE wire entry by parsing its `reason` against the spec enum
- * (objectui#4934).
+ * The structural gate: is this wire value an entry that names at least one
+ * field?
  *
- * A recognized entry is passed through by reference — unchanged, extra
- * server-sent keys and all — so this is a classification, not a rewrite; only
- * the skew case builds a new object. The cast on that path is the one kind this
- * seam may still make: `reason` has just been PARSED, so the claim is proven
- * rather than assumed.
+ * `fields` must be an array (so `unknown[]` is established) carrying at least
+ * one string (so the parsed notice below names something). An array holding no
+ * string at all — `fields: [42]`, `fields: []` — reports no field name, and an
+ * entry that names no field has nothing truthful to tell the user; the
+ * pre-objectui#6889 gate already dropped the empty case for exactly that
+ * reason, and this is the same rule one level deeper.
+ *
+ * `object` and `reason` are deliberately NOT gated on. Nothing is dropped for
+ * them: both are parsed afterwards, so a missing `object` or an unnameable
+ * `reason` still reaches the user as the warning it is (objectui#3484's
+ * silence is the worse failure).
  */
-function asDroppedFieldsNotice(entry: WireDroppedFieldsEntry): DroppedFieldsNotice {
-  if (isRecognizedDropReason(entry.reason)) return entry as DroppedFieldsEvent;
+function isWireDroppedFieldsEntry(e: unknown): e is WireDroppedFieldsEntry {
+  return (
+    !!e &&
+    typeof e === 'object' &&
+    Array.isArray((e as { fields?: unknown }).fields) &&
+    ((e as { fields: unknown[] }).fields).some((f) => typeof f === 'string')
+  );
+}
+
+/**
+ * Parse ONE wire entry into a notice (objectui#4934, objectui#6889).
+ *
+ * Three parses, one per field the gate above does not establish, and the
+ * result is built rather than asserted — so the last cast in this seam is gone:
+ *
+ * - **`reason`** — checked against the spec enum; anything the installed pin
+ *   cannot name goes to the explicit skew arm with the wire value preserved
+ *   verbatim in `unrecognizedReason` (objectui#4934).
+ * - **`fields`** — narrowed to its string elements. Deliberately NOT given a
+ *   skew arm like `reason`: a reason from the future is the EXPECTED direction
+ *   of version skew, whereas `fields` is `z.array(z.string())` in the spec and
+ *   cannot grow a non-string element without a breaking change. A non-string
+ *   element is off-spec input, so the contract-first answer (AGENTS.md #0.1) is
+ *   to refuse it here and fix the producer — not to invent a rendering for it.
+ *   Measured on the one reader (`app-shell`'s `writeWarningToast`): today such
+ *   an element degrades to a wrong label — `42`, `[object Object]`, `true`, or
+ *   an empty entry for `null` — never a throw, which is why this is repaired as
+ *   an honesty defect rather than a crash.
+ * - **`object`** — taken from the wire when it is a string, otherwise from
+ *   `fallbackObject`, which is the object the adapter just wrote to. That is
+ *   not a lenient alias: the caller KNOWS the resource, and the batch path has
+ *   always healed the same hole this way for the event's `resource`. Narrowing
+ *   the gate on `object` instead would drop the entry — and no reader depends
+ *   on it (`writeWarningToast` names fields off `WriteWarningEvent.resource`),
+ *   so dropping would trade a silent user-facing warning for nothing.
+ *
+ * Extra server-sent keys still ride along: the spread preserves them, and only
+ * the three parsed keys are rewritten.
+ */
+function asDroppedFieldsNotice(
+  entry: WireDroppedFieldsEntry,
+  fallbackObject: string,
+): DroppedFieldsNotice {
+  const fields = entry.fields.filter((f): f is string => typeof f === 'string');
+  const object = typeof entry.object === 'string' ? entry.object : fallbackObject;
+  if (isRecognizedDropReason(entry.reason)) {
+    return { ...entry, object, fields, reason: entry.reason };
+  }
   return {
     ...entry,
+    object,
+    fields,
     reason: UNRECOGNIZED_DROP_REASON,
     unrecognizedReason: entry.reason,
   };
@@ -2549,10 +2618,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * whose response type predates `droppedFields`: the field is read structurally
    * and validated, so an older client (or a backend that never drops) is a no-op.
    *
-   * SHAPE decides whether an entry is an event at all (it must carry a non-empty
-   * `fields`); `reason` is then PARSED against the spec enum and an unrecognized
-   * one routed to the skew arm — never asserted into the union, and never
-   * dropped (objectui#4934).
+   * SHAPE decides whether an entry is an event at all (it must name at least one
+   * field); `object`, `fields` and `reason` are then PARSED — an unrecognized
+   * reason routed to the skew arm, a non-string field element refused, a missing
+   * `object` healed from `resource` — never asserted into the union, and the
+   * entry itself never dropped for them (objectui#4934, objectui#6889).
    */
   private notifyDroppedFields(
     operation: 'create' | 'update',
@@ -2564,14 +2634,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     const dropped = (result as { droppedFields?: unknown } | null | undefined)?.droppedFields;
     if (!Array.isArray(dropped) || dropped.length === 0) return;
     const valid = dropped
-      .filter(
-        (e): e is WireDroppedFieldsEntry =>
-          !!e &&
-          typeof e === 'object' &&
-          Array.isArray((e as WireDroppedFieldsEntry).fields) &&
-          (e as WireDroppedFieldsEntry).fields.length > 0,
-      )
-      .map(asDroppedFieldsNotice);
+      .filter(isWireDroppedFieldsEntry)
+      .map((e) => asDroppedFieldsNotice(e, resource));
     // A strip that changed nothing is not news — see withoutNoOpDrops (#3484).
     const stored = (result as { record?: Record<string, unknown> } | null | undefined)?.record;
     const droppedFields = withoutNoOpDrops(valid, sent, stored);
@@ -2599,12 +2663,24 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     if (!Array.isArray(dropped) || dropped.length === 0) return;
     const results = (payload as { results?: unknown[] } | null | undefined)?.results;
     for (const entry of dropped) {
-      if (!entry || typeof entry !== 'object') continue;
-      // The cast claims only the structure this loop checks; `reason` stays
-      // unparsed until `asDroppedFieldsNotice` below (objectui#4934).
+      // Same gate as the single-record path, so the two agree on what an entry
+      // even is. The remaining cast adds only `index`, which this loop reads
+      // and the gate has no opinion about (objectui#4934, objectui#6889).
+      if (!isWireDroppedFieldsEntry(entry)) continue;
       const e = entry as WireDroppedFieldsEntry & { index?: number };
-      if (!Array.isArray(e.fields) || e.fields.length === 0) continue;
       const op = typeof e.index === 'number' ? operations[e.index] : undefined;
+      // Which object this strip is about. The wire's own `object` wins; the
+      // originating op is the fallback when the wire omitted it or sent a
+      // non-string. ONE spelling, used for both the notice and the event's
+      // `resource` — they used to be computed separately, so a wire entry with
+      // a non-string `object` could put one value on the notice and another on
+      // the event describing it.
+      const object =
+        typeof e.object === 'string'
+          ? e.object
+          : typeof op?.object === 'string'
+            ? op.object
+            : '';
       // Same no-op suppression as the single-record path (#3484). The echoed
       // row for the originating op is the "stored" side; when the batch echoed
       // nothing usable, `withoutNoOpDrops` keeps every field.
@@ -2612,12 +2688,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         typeof e.index === 'number' && Array.isArray(results)
           ? (results[e.index] as Record<string, unknown> | undefined)
           : undefined;
-      // `reason` is parsed against the spec enum here too — the batch path used
-      // to re-assert the wire value into the union via the cast above
-      // (objectui#4934). `index` is deliberately not carried onto the notice:
-      // it addresses an operation in THIS response, not the strip.
+      // `object`, `fields` and `reason` are parsed here too — the batch path
+      // used to re-assert all three into the union via the cast above
+      // (objectui#4934, objectui#6889). `index` is deliberately not carried onto
+      // the notice: it addresses an operation in THIS response, not the strip,
+      // which is why the entry is rebuilt rather than spread.
       const [live] = withoutNoOpDrops(
-        [asDroppedFieldsNotice({ object: e.object, fields: e.fields, reason: e.reason })],
+        [asDroppedFieldsNotice({ fields: e.fields, reason: e.reason }, object)],
         op?.data as Record<string, unknown> | undefined,
         stored,
       );
@@ -2627,7 +2704,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const operation: 'create' | 'update' = (op?.action ?? 'create') === 'create' ? 'create' : 'update';
       this.emitWriteWarning({
         operation,
-        resource: e.object ?? op?.object ?? '',
+        resource: object,
         ...(op?.id !== undefined && op?.id !== null ? { id: op.id } : {}),
         droppedFields: [live],
       });
