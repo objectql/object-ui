@@ -267,7 +267,7 @@ read them under the `page.` scope, keyed by the filter's `name`:
 ```json
 {
   "type": "text",
-  "value": "Region: ${page.region || 'All'}"
+  "content": "Region: ${page.region || 'All'}"
 }
 ```
 

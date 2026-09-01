@@ -11,7 +11,7 @@ Expressions are JavaScript-like code snippets embedded in schemas using the `${}
 ```json
 {
   "type": "text",
-  "value": "Hello, ${user.name}!"
+  "content": "Hello, ${user.name}!"
 }
 ```
 
@@ -31,7 +31,7 @@ Access data properties using dot notation:
 ```json
 {
   "type": "text",
-  "value": "${user.firstName}"
+  "content": "${user.firstName}"
 }
 ```
 
@@ -42,7 +42,7 @@ Access nested objects:
 ```json
 {
   "type": "text",
-  "value": "${user.address.city}"
+  "content": "${user.address.city}"
 }
 ```
 
@@ -53,7 +53,7 @@ Access array elements:
 ```json
 {
   "type": "text",
-  "value": "${users[0].name}"
+  "content": "${users[0].name}"
 }
 ```
 
@@ -64,7 +64,7 @@ Mix expressions with static text:
 ```json
 {
   "type": "text",
-  "value": "Welcome, ${user.firstName} ${user.lastName}!"
+  "content": "Welcome, ${user.firstName} ${user.lastName}!"
 }
 ```
 
@@ -75,7 +75,7 @@ Mix expressions with static text:
 ```json
 {
   "type": "text",
-  "value": "Total: ${price * quantity}"
+  "content": "Total: ${price * quantity}"
 }
 ```
 
@@ -108,7 +108,7 @@ Supported: `&&`, `||`, `!`
 ```json
 {
   "type": "text",
-  "value": "${count > 0 ? count + ' items' : 'No items'}"
+  "content": "${count > 0 ? count + ' items' : 'No items'}"
 }
 ```
 
@@ -169,7 +169,7 @@ const data = {
 ```json
 {
   "type": "text",
-  "value": "Theme: ${settings.theme}"
+  "content": "Theme: ${settings.theme}"
 }
 ```
 
@@ -199,7 +199,7 @@ Access the current index in loops:
   "items": "${users}",
   "itemTemplate": {
     "type": "text",
-    "value": "#${index + 1}: ${item.name}"
+    "content": "#${index + 1}: ${item.name}"
   }
 }
 ```
@@ -211,7 +211,7 @@ Access the current index in loops:
 ```json
 {
   "type": "text",
-  "value": "${user.name.toUpperCase()}"
+  "content": "${user.name.toUpperCase()}"
 }
 ```
 
@@ -229,14 +229,14 @@ Available:
 ```json
 {
   "type": "text",
-  "value": "Total users: ${users.length}"
+  "content": "Total users: ${users.length}"
 }
 ```
 
 ```json
 {
   "type": "text",
-  "value": "${users.map(u => u.name).join(', ')}"
+  "content": "${users.map(u => u.name).join(', ')}"
 }
 ```
 
@@ -254,7 +254,7 @@ Available:
 ```json
 {
   "type": "text",
-  "value": "Price: ${price.toFixed(2)}"
+  "content": "Price: ${price.toFixed(2)}"
 }
 ```
 
@@ -268,7 +268,7 @@ Available:
 ```json
 {
   "type": "text",
-  "value": "${Math.round(average)}"
+  "content": "${Math.round(average)}"
 }
 ```
 
@@ -283,7 +283,7 @@ Available: All standard `Math` functions
 ```json
 {
   "type": "text",
-  "value": "${new Date().toLocaleDateString()}"
+  "content": "${new Date().toLocaleDateString()}"
 }
 ```
 
@@ -321,7 +321,7 @@ Available: All standard `Math` functions
 ```json
 {
   "type": "text",
-  "value": "${
+  "content": "${
     users
       .filter(u => u.isActive)
       .map(u => u.name)
@@ -337,7 +337,7 @@ Available: All standard `Math` functions
 ```json
 {
   "type": "text",
-  "value": "${
+  "content": "${
     new Date().getHours() < 12 ? 'Good morning' :
     new Date().getHours() < 18 ? 'Good afternoon' :
     'Good evening'
@@ -365,7 +365,7 @@ Available: All standard `Math` functions
 ```json
 {
   "type": "text",
-  "value": "$${(price * quantity).toFixed(2)}"
+  "content": "$${(price * quantity).toFixed(2)}"
 }
 ```
 
@@ -465,7 +465,7 @@ Expressions are re-evaluated when data changes. Avoid expensive operations:
 // ❌ Bad: Complex computation in expression
 {
   "type": "text",
-  "value": "${users.map(u => expensiveOperation(u)).join(', ')}"
+  "content": "${users.map(u => expensiveOperation(u)).join(', ')}"
 }
 
 // ✅ Good: Pre-compute in data
@@ -510,7 +510,7 @@ Invalid expressions show helpful error messages:
 ```json
 {
   "type": "text",
-  "value": "${user.invalidProperty}"
+  "content": "${user.invalidProperty}"
 }
 ```
 

@@ -123,7 +123,7 @@ A backend system sends a JSON schema:
   "title": "Welcome",
   "body": {
     "type": "text",
-    "value": "Hello, ${user.name}!"
+    "content": "Hello, ${user.name}!"
   }
 }
 ```
@@ -148,7 +148,7 @@ const schema: BaseSchema = {
   title: 'Welcome',
   body: {
     type: 'text',
-    value: 'Hello, ${user.name}!',
+    content: 'Hello, ${user.name}!',
   },
 }
 
@@ -180,7 +180,7 @@ The registered component renders with evaluated props:
 <!-- doc-snippet: fragment — the JSX the registry produces for step 1's schema; CardComponent and TextComponent are the placeholder components registered in the block above -->
 ```tsx
 <CardComponent title="Welcome">
-  <TextComponent value="Hello, Alice!" />
+  <TextComponent content="Hello, Alice!" />
 </CardComponent>
 ```
 
@@ -234,7 +234,7 @@ ObjectUI includes a powerful expression engine for dynamic UIs:
 ```json
 {
   "type": "text",
-  "value": "Welcome, ${user.firstName} ${user.lastName}!"
+  "content": "Welcome, ${user.firstName} ${user.lastName}!"
 }
 ```
 

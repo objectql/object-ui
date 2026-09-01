@@ -67,7 +67,7 @@ interface BaseSchema {
   "visibleOn": "${user.role === 'admin'}",
   "body": {
     "type": "text",
-    "value": "Total Users: ${stats.totalUsers}"
+    "content": "Total Users: ${stats.totalUsers}"
   }
 }
 ```
@@ -93,7 +93,7 @@ Use expression syntax `${}` to reference data:
 ```json
 {
   "type": "text",
-  "value": "Welcome, ${user.name}!"
+  "content": "Welcome, ${user.name}!"
 }
 ```
 
@@ -174,7 +174,7 @@ Object UI includes a powerful expression system for dynamic behavior:
 ```json
 {
   "type": "text",
-  "value": "${user.firstName} ${user.lastName}"
+  "content": "${user.firstName} ${user.lastName}"
 }
 ```
 
