@@ -1052,6 +1052,21 @@ const de = {
     showEmptyFields: "{{count}} leere Felder anzeigen",
     hideEmptyFields: "Leere Felder ausblenden",
     noValue: "Kein Wert",
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: 'Versionsverlauf',
+    noRevisions: 'Keine Versionen aufgezeichnet',
+    revisionFieldsChanged: '{{count}} Felder geändert',
+    revisionFieldsChangedOne: '{{count}} Feld geändert',
+    revisionPreview: 'Versionsvorschau',
+    revisionSnapshot: 'Datensatzstand zu diesem Zeitpunkt',
+    restoreConfirm: 'Dadurch wird der Datensatz auf seinen Stand von {{when}} zurückgesetzt. Fortfahren?',
+    restoring: 'Wird wiederhergestellt…',
+    confirmRestore: 'Wiederherstellung bestätigen',
+    restoreToPoint: 'Auf diesen Zeitpunkt zurücksetzen',
   },
   chart: {
     loading: "Diagramm wird geladen…",

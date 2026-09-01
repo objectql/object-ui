@@ -1091,6 +1091,21 @@ const zh = {
     showEmptyFields: '显示 {{count}} 个空字段',
     hideEmptyFields: '隐藏空字段',
     noValue: '无',
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: '修订历史',
+    noRevisions: '暂无修订记录',
+    revisionFieldsChanged: '已更改 {{count}} 个字段',
+    revisionFieldsChangedOne: '已更改 {{count}} 个字段',
+    revisionPreview: '修订预览',
+    revisionSnapshot: '此时间点的记录状态',
+    restoreConfirm: '这会将记录恢复到 {{when}} 时的状态。是否继续?',
+    restoring: '正在恢复…',
+    confirmRestore: '确认恢复',
+    restoreToPoint: '恢复到此时间点',
   },
   chart: {
     loading: '图表加载中…',
