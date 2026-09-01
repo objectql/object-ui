@@ -117,11 +117,19 @@ describe('ui:dropdown-menu item icon resolution (objectui#5930)', () => {
     // The fixture is a live specimen AND a declared AI few-shot retrieval
     // source, so every name it ships must actually draw. `square-pen` is the
     // identity-derived live key for the retired `edit` this fixture carried.
+    //
+    // ⛔ No `value` key here, and its absence is deliberate — same reason as
+    // the twin block in `context-menu-item-icon.test.tsx`, which carries the
+    // long form. In short: no arm of the `MenuItem` union declares `value`
+    // (objectui#6523), no menu renderer reads it, objectui#7072 removed it
+    // from the fixtures and objectui#7102 from these copies — and re-adding
+    // it could not go red, because `MenuItemSchema` is non-strict and strips
+    // the key while reporting success.
     it('draws a glyph for every icon name it declares', () => {
       renderMenu([
-        { label: 'Edit', value: 'edit', icon: 'square-pen' },
-        { label: 'Copy', value: 'copy', icon: 'copy' },
-        { label: 'Delete', value: 'delete', icon: 'trash' },
+        { label: 'Edit', icon: 'square-pen' },
+        { label: 'Copy', icon: 'copy' },
+        { label: 'Delete', icon: 'trash' },
       ]);
       for (const label of ['Edit', 'Copy', 'Delete']) {
         expect(glyphFor(label), `${label} should draw a glyph`).not.toBeNull();

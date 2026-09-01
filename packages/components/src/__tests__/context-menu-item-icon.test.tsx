@@ -164,13 +164,23 @@ describe('ui:context-menu item icon resolution (objectui#6278)', () => {
     // specimen AND a declared AI few-shot retrieval source, so every name it
     // ships must draw. Spelling drift is the gate's job (see the header);
     // this row is the renderer's half of that contract.
+    //
+    // ⛔ No `value` key here, and its absence is deliberate. These items are a
+    // TRANSCRIPTION of the fixture, so a key the fixture does not carry is a
+    // spelling the next author copies out of here. No arm of the `MenuItem`
+    // union declares `value` — objectui#6523 narrowed that union on purpose —
+    // and no menu renderer reads it; objectui#7072 deleted it from the four
+    // catalog fixtures and objectui#7102 from these copies. Re-adding it would
+    // NOT go red: `MenuItemSchema`'s arms are non-strict `z.object`s, so zod
+    // strips the key and reports success. Hence this note rather than a pin —
+    // a parse-based pin here could not fail.
     it('draws a distinct glyph for each of the four authored names', () => {
       renderMenu([
-        { label: 'Copy', value: 'copy', icon: 'copy' },
-        { label: 'Cut', value: 'cut', icon: 'scissors' },
-        { label: 'Paste', value: 'paste', icon: 'clipboard' },
+        { label: 'Copy', icon: 'copy' },
+        { label: 'Cut', icon: 'scissors' },
+        { label: 'Paste', icon: 'clipboard' },
         { separator: true },
-        { label: 'Delete', value: 'delete', icon: 'trash' },
+        { label: 'Delete', icon: 'trash' },
       ]);
       for (const [label, name] of [
         ['Copy', 'copy'],
