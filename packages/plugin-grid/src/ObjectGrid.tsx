@@ -527,12 +527,24 @@ function normalizeColumns(
  * Consumers measured for THIS producer — two of them, because the array is read
  * twice before it reaches the slot:
  *
- *   - `data-table.tsx`, comments stripped, every `col.<key>` read: `accessorKey`,
- *     `width`, `align`, `header`, `className`, `cellClassName`, `sortable`,
- *     `resizable`, `editable`, `type`, `cell`, `headerIcon`, `fitContent`, `name`.
+ *   - `data-table.tsx`, comments stripped, every `col.<key>` read — THIRTEEN:
+ *     `accessorKey`, `width`, `align`, `header`, `className`, `cellClassName`,
+ *     `sortable`, `resizable`, `editable`, `type`, `cell`, `headerIcon`,
+ *     `fitContent`. ⚠️ This said fourteen until objectui#7196 re-derived it:
+ *     `name` was the fourteenth and was correct when written, but objectui#6963
+ *     (2026-08-31) retired the `col.name` alias — the last undeclared spelling
+ *     the adapter accepted — so the key left the consumer's read set that day.
  *   - THIS FILE's own downstream passes, which read the array before handing it
- *     on: `pinned` (the left/right reorder + the frozen-column verdict),
- *     `accessorKey`, `header`, `width`, `type`, `fitContent`.
+ *     on — TEN: `pinned` (the left/right reorder + the frozen-column verdict),
+ *     `accessorKey`, `header`, `width`, `type`, `fitContent`, plus the four the
+ *     chrome passes read in order to RE-EXPRESS them: `className` and
+ *     `cellClassName` (`applyDensity`, and again in the right-pinned literal),
+ *     `sortable` (`withSortability`), `cell` (the mobile card renderer).
+ *     ⚠️ Those four were missing from this list from the day it was written —
+ *     all three passes already existed at that commit — so this is an
+ *     incompleteness, not drift. They change no verdict: each is declared on
+ *     `TableColumn` and read by `data-table.tsx` as well. Recorded because a
+ *     list presented as MEASURED has to be one.
  *
  * Verdicts, each with the read-count behind it:
  *
@@ -567,7 +579,10 @@ function normalizeColumns(
  *     fold still stands. It is the one member whose vocabulary differs between
  *     the two types below.
  *   - `name` — not emitted by this producer at all, so objectui#5120's alias
- *     needs no hold here. Tombstoned only in the sense that nothing writes it.
+ *     never needed a hold here. Tombstoned only in the sense that nothing writes
+ *     it — and since objectui#6963 (2026-08-31) nothing READS it either: the
+ *     consumer-side alias is retired, so the key is absent from BOTH ends of
+ *     this seam and the verdict now rests on two measurements, not one.
  *
  * `essential` is absent from both types on purpose: objectui#6004's suggested
  * key list named it, but it was READ off the authored column and turned into a
@@ -627,10 +642,19 @@ export interface ObjectGridColumnHolds {
 /**
  * What `generateColumns()` returns: everything final EXCEPT `type`, which is
  * still the producer's raw inference vocabulary (`@objectstack/spec`'s
- * `FieldType`, 49 values) rather than the 7-literal union `TableColumn`
- * declares. objectui#5853 folds it downstream, in a pass that is deliberately
- * separate from the enrichment map — so the pre-fold shape needs a name, and
- * this is it.
+ * `FieldType`, 49 values) rather than the EIGHT-literal union `TableColumn`
+ * declares (`TABLE_COLUMN_TYPES`: `text`, `number`, `date`, `datetime`,
+ * `currency`, `percent`, `boolean`, `action`). objectui#5853 folds it
+ * downstream, in a pass that is deliberately separate from the enrichment map —
+ * so the pre-fold shape needs a name, and this is it.
+ *
+ * ⚠️ This said "7-literal" until objectui#7196 re-derived it. `action` joined
+ * the union at objectui#6370 on 2026-08-25 — a day BEFORE this docblock was
+ * written, and that commit's own subject line reads "make the 8-literal union
+ * the one canonical TableColumn.type" — so the count was never right here; it
+ * was mis-copied, not drifted. Both numbers are now measured rather than
+ * recited: `TABLE_COLUMN_TYPES` in `@object-ui/types` has 8 members and
+ * `@objectstack/spec`'s `FieldType` enum has 49.
  */
 /**
  * ⭐ `options` — RETIRED at this emit (objectui#6004), and this explicit
@@ -720,30 +744,62 @@ export type ObjectGridColumn =
  * tombstones remain the instrument for a key RETIRED by ruling, but an open
  * census cannot be tombstoned, because a tombstone needs the key's name.
  *
- * ## The census this annotation surfaced (the substance, per the card)
+ * ## The census this annotation surfaced — CLOSED, re-derived by objectui#7196
  *
  * Diffing the 46 keys the flat literal writes (plus the 8 the group literal
- * re-writes) against `DataTableSchema` + `BaseSchema` declared members leaves
- * exactly TWO undeclared keys — the card's speculative list (`pagination`,
- * `manualPagination`, `rowCount`, `frozenColumns`, `singleClickEdit`,
- * `selectionResetKey`, `disableInnerScroll`, `borderless`) has since been
- * declared on `DataTableSchema`, and only these survive:
+ * re-writes) against `DataTableSchema` + `BaseSchema` declared members left
+ * exactly TWO undeclared keys when this was written. Re-derived on 2026-09-01
+ * against the same two literals (still 46 and 8), it now leaves **ZERO**. Both
+ * halves closed:
  *
- *   - `renderCellEditor` — HELD. Live: `data-table.tsx` reads it via its own
- *     `(schema as any).renderCellEditor` cast and hands cell editing to the
- *     returned widget; absent, cells fall back to the built-in text/number/date
- *     inputs. Undocumented at schema level. Whether `DataTableSchema` should
- *     declare it is a `packages/types` (human-floor) ruling, not this card's —
- *     declared here at the seam meanwhile, so the hold is visible.
- *   - `cellClassName` — HELD. Live: `data-table.tsx` destructures it off the
- *     schema and folds it into every body cell's `className` (this is the
- *     SCHEMA-level key; the column-level twin IS declared, on `TableColumn`).
- *     Absent, the grid's row-height density styling stops reaching cells.
- *     Undocumented at schema level; same pending ruling as above.
+ *   - the card's speculative list (`pagination`, `manualPagination`, `rowCount`,
+ *     `frozenColumns`, `singleClickEdit`, `selectionResetKey`,
+ *     `disableInnerScroll`, `borderless`) was already declared then, and is
+ *     still declared now;
+ *   - the two keys that survived that diff, `renderCellEditor` and
+ *     `cellClassName`, were DECLARED by objectui#6882 (maintainer ruling
+ *     2026-08-30) on three surfaces:
+ *       · `packages/types/src/data-display.ts` — the members themselves
+ *       · `packages/types/src/zod/data-display.zod.ts` — the Zod mirror
+ *       · `packages/types/src/__tests__/data-table-declared-keys-6882.test.ts`
+ *         — an `Equal` (not `extends`) exact-shape pin
  *
- * ⛔ Do not "fix" either hold by declaring the key on `DataTableSchema` as a
- * rider — that package is published surface with its own review floor, and the
- * census above is filed for a ruling on exactly that question.
+ * ⇒ The ruling this census was filed for HAPPENED, and it went the declare way.
+ * `ObjectGridDataTableSchemaHolds` below is therefore redundant rather than
+ * load-bearing — the position `headerIcon` reached at objectui#6615 — and
+ * removing it is the same separate, MEASURED step objectui#6424 took there. Its
+ * docblock carries what #7196 measured toward that.
+ *
+ * ### What the two entries used to say, and what is true instead
+ *
+ *   - `renderCellEditor` — said HELD, read "via its own `(schema as any)`
+ *     cast", and called the `packages/types` ruling still open. All three are
+ *     over: the key is declared, the cast went with the declaration
+ *     (`data-table.tsx` reads `schema.renderCellEditor` directly; the line where
+ *     the cast stood still spells it, as a quotation inside its own
+ *     correction), and the ruling landed. BEHAVIOUR is unchanged and always
+ *     was — a returned widget takes the cell, `null` falls through to the
+ *     built-in text / number / date inputs.
+ *   - `cellClassName` — said HELD, and described the key as folded "into every
+ *     body cell's `className`". The hold is over (declared by the same #6882);
+ *     the DESCRIPTION was wrong from the day it was written, which is the more
+ *     useful half of this correction. Measured: `data-table.tsx` folds the
+ *     SCHEMA-level key at exactly three sites and every one is a UTILITY cell —
+ *     the selection checkbox, the row-number cell, the row-actions cell. It
+ *     never reaches a data cell; a data cell folds `col.cellClassName`, the
+ *     per-column twin declared on `TableColumn`. The two class slots style
+ *     DISJOINT cells and never combine on one. So what breaks when the schema
+ *     key is absent is NOT "density stops reaching cells": data cells keep
+ *     their density, because `applyDensity` below puts the same class on every
+ *     column. What breaks is the checkbox / row-number / row-actions cells
+ *     falling out of height alignment with the data beside them, which is why
+ *     this grid sets BOTH slots. #6882's declaration is where the authoritative
+ *     version of this now lives; this is the local copy agreeing with it.
+ *
+ * ⛔ The old closing note ("do not fix either hold by declaring the key on
+ * `DataTableSchema` as a rider — that package is published surface with its own
+ * review floor") governs nothing now. It was asking for the ruling to be taken
+ * deliberately at that package's floor, and that is exactly how #6882 took it.
  */
 type RemoveIndexSignature<T> = {
   [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K];
@@ -753,12 +809,50 @@ type RemoveIndexSignature<T> = {
 export type DeclaredDataTableSchema = RemoveIndexSignature<DataTableSchema>;
 
 /**
- * The undeclared-but-live SCHEMA-level keys this grid holds at the seam — the
- * schema-slot sibling of `ObjectGridColumnHolds`. Shapes mirror the CONSUMER's
- * reads in `data-table.tsx`, not what this file happens to pass.
+ * The SCHEMA-level keys this grid holds at the seam — the schema-slot sibling
+ * of `ObjectGridColumnHolds`. Shapes mirror the CONSUMER's reads in
+ * `data-table.tsx`, not what this file happens to pass.
+ *
+ * ⚠️ "Undeclared by `DataTableSchema`" was this type's ENTRY CONDITION, and —
+ * exactly as `ObjectGridColumnHolds` warns about its own — it is a claim about
+ * ANOTHER package that can stop being true with nothing going red here. It
+ * stopped being true on 2026-08-30: objectui#6882 declared BOTH members. As of
+ * objectui#7196 this type holds nothing; every member is redundant with
+ * `DeclaredDataTableSchema`.
+ *
+ * ⛔ Kept rather than deleted, because deleting a member of an EXPORTED type is
+ * a change of a different kind and gets its own card — the order objectui#6615
+ * → #6424 took for `headerIcon`. What #7196 measured, so that card can start
+ * from a reading instead of a guess:
+ *
+ *   - each member's shape is `Equal` (not merely assignable) to the upstream
+ *     declared member, so removing it cannot narrow or widen the seam;
+ *   - the seam's `cellClassName` is already reduced (`string & string` is
+ *     `string`), while its `renderCellEditor` resolves to the SAME signature
+ *     intersected with itself. That is inert — mutually assignable with the
+ *     declared member, measured in both directions — but it is the one visible
+ *     trace the redundant hold leaves, and it is what the exact-shape pin in
+ *     `packages/types` would report if pointed at the seam type;
+ *   - unlike `ObjectGridColumnHolds.pinned`, neither member is its own ONLY
+ *     declaration on the emitted type, so deleting them deletes nothing from
+ *     it. That is precisely the ⛔ contrast `ObjectGridColumnHolds` spells out,
+ *     and this type is now on the other side of it.
+ *
+ * ⛔ Nothing above is mechanically checked, which is how it went stale unseen.
+ * `dataTableSchemaSlot-6459.test.ts` pins that the seam ACCEPTS both keys — an
+ * assertion that stays green whether they are held HERE or declared THERE, so
+ * it could not have caught this. The column-level twin IS guarded
+ * (`columnHoldsExpiry-6424.test.ts` asserts `TableColumn` does NOT declare
+ * `pinned`), and that is the shape a guard for this type would take. #7196
+ * files it as a separate finding; ⛔ do not add it as a rider here.
  */
 export type ObjectGridDataTableSchemaHolds = {
-  /** HELD (objectui#6459) — `data-table` calls it to render a host cell editor. */
+  /**
+   * REDUNDANT since objectui#6882 (2026-08-30) — `DataTableSchema` declares this
+   * key itself now, with a shape measured `Equal` to this one. `data-table`
+   * calls it to render a host cell editor; returning `null` falls through to the
+   * built-in text / number / date inputs.
+   */
   renderCellEditor?: (ctx: {
     column: any;
     row: any;
@@ -767,7 +861,13 @@ export type ObjectGridDataTableSchemaHolds = {
     commit: (v?: any) => void;
     cancel: () => void;
   }) => React.ReactNode;
-  /** HELD (objectui#6459) — `data-table` folds it into every body cell's class. */
+  /**
+   * REDUNDANT since objectui#6882 (2026-08-30) — `DataTableSchema` declares this
+   * key itself now, with a shape measured `Equal` to this one. `data-table`
+   * folds it into the three UTILITY body cells (selection, row-number,
+   * row-actions) and never into a data cell, which folds
+   * `TableColumn.cellClassName` instead.
+   */
   cellClassName?: string;
 };
 
