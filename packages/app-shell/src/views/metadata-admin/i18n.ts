@@ -1748,7 +1748,26 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.if.tabCanvas': 'Canvas',
   'engine.studio.if.noAppTitle': 'This package has no app yet',
   'engine.studio.if.noAppHint': 'Create an app to design its navigation and interfaces.',
-  'engine.studio.if.readonlyPreview': '{type} shows a read-only preview for now; design support is in progress.',
+  /* objectui#6795 part C — the three designer registries (`preview-registry`,
+   * `inspector-registry`, `default-inspector-registry`) are plain `Map`s filled
+   * by a module-scope side effect, with no change notification. A consumer that
+   * reads one before that registration has landed gets `undefined` and NEVER
+   * recovers — measured on this card: `fallback before registration: true |
+   * still fallback after registration: true | late inspector rendered: false`.
+   * So every string in this family states what is TRUE and must NOT promise
+   * recovery: no "loading…", no "try again", no spinner. That would replace one
+   * false statement with another; making recovery real is part A of #6795.
+   *
+   * The retired `engine.studio.if.readonlyPreview` ("{type} shows a read-only
+   * preview for now; design support is in progress.") was false twice over: this
+   * branch renders NO preview at all, and page design support exists — the
+   * sentence blamed the platform's roadmap for a chunk that did not load. It is
+   * split in two because the two causes are genuinely different and
+   * `listMetadataPreviewTypes()` tells them apart. */
+  'engine.studio.if.designersMissing':
+    'No metadata designers are registered in this session, so {type} cannot be previewed or designed here.',
+  'engine.studio.if.noDesigner':
+    'No designer is registered for {type}, so it cannot be previewed or designed here.',
   'engine.studio.if.objectHintPre': 'Runtime list preview · edit fields / structure in the ',
   'engine.studio.if.objectHintPost': ' pillar',
   'engine.studio.inspector.props': 'Properties',
@@ -1758,6 +1777,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.inspector.tabSource': 'Source',
   'engine.studio.inspector.emptyLine1': 'Click a block on the canvas,',
   'engine.studio.inspector.emptyLine2': 'and edit its properties right here.',
+  'engine.studio.inspector.designersMissing':
+    'No metadata designers are registered in this session, so there is nothing to edit here.',
   'engine.studio.inspector.noPageSchema': 'Page settings are unavailable — the page schema could not be loaded.',
   'engine.studio.inspector.sourcePageLine1': 'This page is {kind} source, not a block tree —',
   'engine.studio.inspector.sourcePageLine2': 'edit it in the Source tab; the canvas shows the live preview.',
@@ -1792,6 +1813,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // Actions view
   'engine.studio.actions.none': 'No actions on this object.',
   'engine.studio.actions.pick': 'Select an action to edit its properties.',
+  'engine.studio.actions.editorMissing':
+    'No action editor is registered in this session, so this action’s properties cannot be edited here.',
   'engine.studio.actions.newLabel': 'New action',
   'engine.studio.actions.delete': 'Delete',
   // API view
@@ -1835,6 +1858,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
     '“Preview” renders the published runtime form, but this object isn’t published yet. Confirm the draft in “Layout”, then click “Publish” in the top bar to preview.',
   'engine.studio.data.fieldProps': 'Field properties',
   'engine.studio.data.groupProps': 'Group properties',
+  'engine.studio.data.fieldInspectorMissing':
+    'No field inspector is registered in this session, so this field’s properties cannot be edited here.',
   'engine.studio.designer.group.kind': 'Group',
   'engine.studio.designer.group.settings': 'Group settings',
   'engine.studio.designer.group.nameLabel': 'Group name',
@@ -1870,6 +1895,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.auto.config': 'Configuration',
   'engine.studio.auto.emptyLine1': 'Click a node on the canvas,',
   'engine.studio.auto.emptyLine2': 'and its configuration appears here.',
+  'engine.studio.auto.designersMissing':
+    'No metadata designers are registered in this session, so this flow cannot be designed here.',
   // Access pillar
   'engine.studio.access.created': 'Permission set “{label}” created',
   'engine.studio.access.title': 'Permission matrix',
@@ -3601,7 +3628,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.if.tabCanvas': '画布',
   'engine.studio.if.noAppTitle': '这个软件包还没有应用',
   'engine.studio.if.noAppHint': '创建一个应用来设计它的导航与界面。',
-  'engine.studio.if.readonlyPreview': '{type} 暂用只读预览,设计能力建设中。',
+  'engine.studio.if.designersMissing': '本次会话没有注册任何元数据设计器,因此无法在这里预览或设计 {type}。',
+  'engine.studio.if.noDesigner': '没有为 {type} 注册设计器,因此无法在这里预览或设计。',
   'engine.studio.if.objectHintPre': '运行态列表预览 · 改字段 / 结构请到 ',
   'engine.studio.if.objectHintPost': ' 支柱',
   'engine.studio.inspector.props': '属性',
@@ -3611,6 +3639,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.inspector.tabSource': '源码',
   'engine.studio.inspector.emptyLine1': '在画布里点选一个积木,',
   'engine.studio.inspector.emptyLine2': '它的属性会在这里直接编辑。',
+  'engine.studio.inspector.designersMissing': '本次会话没有注册任何元数据设计器,这里没有可编辑的内容。',
   'engine.studio.inspector.noPageSchema': '页面设置不可用——无法加载页面 schema。',
   'engine.studio.inspector.sourcePageLine1': '这个页面是 {kind} 源码,不是积木树 ——',
   'engine.studio.inspector.sourcePageLine2': '请在「源码」标签页里编辑,画布展示实时预览。',
@@ -3644,6 +3673,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // Actions view
   'engine.studio.actions.none': '该对象没有操作。',
   'engine.studio.actions.pick': '选择一个操作以编辑其属性。',
+  'engine.studio.actions.editorMissing': '本次会话没有注册操作编辑器,因此无法在这里编辑该操作的属性。',
   'engine.studio.actions.newLabel': '新操作',
   'engine.studio.actions.delete': '删除',
   // API view
@@ -3683,6 +3713,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
     '「预览」渲染已发布的运行态表单,而这个对象还未发布。在「布局」里确认草稿,点顶栏「发布」后即可预览。',
   'engine.studio.data.fieldProps': '字段属性',
   'engine.studio.data.groupProps': '分组属性',
+  'engine.studio.data.fieldInspectorMissing': '本次会话没有注册字段检查器,因此无法在这里编辑该字段的属性。',
   'engine.studio.designer.group.kind': '分组',
   'engine.studio.designer.group.settings': '分组设置',
   'engine.studio.designer.group.nameLabel': '分组名称',
@@ -3718,6 +3749,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.auto.config': '配置',
   'engine.studio.auto.emptyLine1': '在画布里点选一个节点,',
   'engine.studio.auto.emptyLine2': '它的配置会在这里显示。',
+  'engine.studio.auto.designersMissing': '本次会话没有注册任何元数据设计器,因此无法在这里设计该流程。',
   // Access pillar
   'engine.studio.access.created': '权限集「{label}」已创建',
   'engine.studio.access.title': '权限矩阵',

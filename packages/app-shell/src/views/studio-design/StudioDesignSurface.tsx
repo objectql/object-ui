@@ -40,6 +40,7 @@ import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectForm } from '@object-ui/plugin-form';
 import {
+  Ban,
   Boxes,
   FileText,
   Database,
@@ -73,11 +74,18 @@ import {
   PanelRightOpen,
   type LucideIcon,
 } from 'lucide-react';
-import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry.js';
+import {
+  getMetadataPreview,
+  listMetadataPreviewTypes,
+  type MetadataSelection,
+} from '../metadata-admin/preview-registry.js';
 import { getStudioCanvasPreview } from './studio-canvas-preview.js';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor.js';
 import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel.js';
-import { getMetadataInspector } from '../metadata-admin/inspector-registry.js';
+import {
+  getMetadataInspector,
+  listMetadataInspectorTypes,
+} from '../metadata-admin/inspector-registry.js';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
 import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata.js';
 import {
@@ -1400,6 +1408,25 @@ export function InterfacesPillar({
   // block tree, so `selection` never populates; without this the panel would
   // sit permanently on the "click a block" empty state.
   const DefaultInspector = getMetadataDefaultInspector(current?.type ?? '');
+  // objectui#6795 part C — WHY the three reads above can be `undefined` decides
+  // what this pillar may truthfully say, and there are exactly two causes:
+  //   1. no designer is registered for THIS type (others are) — a product fact;
+  //   2. the registries are empty wholesale, because the module-scope
+  //      registration side effect has not run — an environment fact.
+  // The retired copy asserted (2)'s cause with (1)'s wording ("design support is
+  // in progress") on a branch that renders no preview at all, so it was false
+  // either way. `list*Types()` is a read of the SAME already-imported registry
+  // module, so telling the two apart costs nothing and invents no state.
+  //
+  // ⛔ Neither branch may promise recovery. These registries are plain `Map`s
+  // with no change notification and every read here happens during render with
+  // no subscription, so a consumer that reads an empty registry never recovers
+  // when registration lands later (measured on #6795: "still fallback after
+  // registration: true | late inspector rendered: false"). "Loading…" / "try
+  // again" would swap one false statement for another; making recovery real is
+  // part A of that card.
+  const designersUnregistered =
+    listMetadataPreviewTypes().length === 0 && listMetadataInspectorTypes().length === 0;
   // Blocking author-time issues the right-rail inspector is showing — a CEL
   // predicate that does not parse must not be saveable here either
   // (objectui#4527). #4306 wired the Data pillar only, which left the SAME
@@ -1643,7 +1670,13 @@ export function InterfacesPillar({
           />
         ) : (
           <div className="py-12 text-center text-xs text-muted-foreground">
-            {tFormat('engine.studio.if.readonlyPreview', locale, { type: current.type })}
+            {tFormat(
+              designersUnregistered
+                ? 'engine.studio.if.designersMissing'
+                : 'engine.studio.if.noDesigner',
+              locale,
+              { type: current.type },
+            )}
           </div>
         )}
       </div>
@@ -1783,6 +1816,18 @@ export function InterfacesPillar({
           readOnly={false}
           locale={locale}
         />
+      </div>
+    ) : designersUnregistered ? (
+      // ⭐ #6795 part C. "Click a block on the canvas, and edit its properties
+      // right here" instructs the author to do something impossible: with the
+      // registries unpopulated the canvas beside this rail is the
+      // designers-missing notice, not a block tree, so there is nothing to
+      // click and nothing this rail could open if they did.
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+          <Ban className="h-5 w-5" />
+          {t('engine.studio.inspector.designersMissing', locale)}
+        </div>
       </div>
     ) : (
       <div className="min-h-0 flex-1 overflow-auto p-3">
@@ -3073,7 +3118,17 @@ export function DataPillar({
         {/* Right rail — property inspector. Fields reuse the shared
           * ObjectFieldInspector; a selected group opens ObjectGroupInspector
           * (label + collapse behaviour). */}
-        {current && fieldSel && (fieldSel.kind === 'group' || inspector) && (
+        {/* ⭐ objectui#6795 part C — this guard used to read
+          * `(fieldSel.kind === 'group' || inspector)`, so with
+          * `getMetadataInspector('object')` undefined and a FIELD selected the
+          * whole rail was dropped: measured `aside` count 0, i.e. clicking a
+          * field did literally nothing while the designer above it went on
+          * saying "click a field to edit its properties". A selection the author
+          * just made must always open its rail; whether an EDITOR exists for it
+          * is a question the rail body answers, not a reason to swallow the
+          * click. (Unreachable in production today only because registration is
+          * eager — the very thing part A wants to make lazy.) */}
+        {current && fieldSel && (
           <aside className="flex w-80 shrink-0 flex-col border-l">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -3099,8 +3154,7 @@ export function DataPillar({
                   readOnly={readOnly}
                   locale={locale}
                 />
-              ) : (
-                inspector &&
+              ) : inspector ? (
                 React.createElement(inspector, {
                   type: 'object',
                   name: current.name,
@@ -3114,6 +3168,16 @@ export function DataPillar({
                   readOnly,
                   locale,
                 })
+              ) : (
+                /* No field inspector registered. ⛔ Not "loading…" — these
+                 * registries have no change notification and this read happens
+                 * during render with no subscription, so a late registration
+                 * never reaches this component (measured on #6795). State the
+                 * fact; recovery is part A. */
+                <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+                  <Ban className="h-5 w-5" />
+                  {t('engine.studio.data.fieldInspectorMissing', locale)}
+                </div>
               )}
             </div>
           </aside>
@@ -3206,7 +3270,7 @@ export function FlowStatusDot({ state, locale }: { state?: { enabled: boolean; b
   );
 }
 
-function AutomationsPillar({
+export function AutomationsPillar({
   packageId,
   publishNonce = 0,
   onDraftSaved,
@@ -3245,6 +3309,15 @@ function AutomationsPillar({
   const Preview = getMetadataPreview(current?.type ?? '');
   const inspector = getMetadataInspector('flow');
   const isEditable = !!Preview;
+  // objectui#6795 part C — the FOURTH site, found by sweeping past the three the
+  // ruling named. Same class as the Interfaces rail: with the registries
+  // unpopulated the canvas below degrades to a raw JSON dump, and both the
+  // header chip ("click a node to configure") and the rail ("Click a node on the
+  // canvas, and its configuration appears here") went on instructing the author
+  // to click nodes that are not rendered. Same constraint on the wording — ⛔ no
+  // "loading…"/"try again": a late registration never reaches this render.
+  const designersUnregistered =
+    listMetadataPreviewTypes().length === 0 && listMetadataInspectorTypes().length === 0;
 
   // Runtime enable/bound state per flow (GET /automation/_status). Persisted
   // `status` is intent; this is what's actually live in the engine — the truth
@@ -3517,7 +3590,10 @@ function AutomationsPillar({
         <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
           <div className="mb-3 flex shrink-0 items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Workflow className="h-3 w-3" /> {t('engine.studio.auto.canvasHint', locale)}
+              <Workflow className="h-3 w-3" />{' '}
+              {isEditable
+                ? t('engine.studio.auto.canvasHint', locale)
+                : t('engine.studio.auto.designersMissing', locale)}
             </span>
             {current && <span className="text-[11px] text-muted-foreground">flow · {current.name}</span>}
           </div>
@@ -3583,6 +3659,11 @@ function AutomationsPillar({
                 readOnly: false,
                 locale,
               })
+            ) : designersUnregistered ? (
+              <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+                <Ban className="h-5 w-5" />
+                {t('engine.studio.auto.designersMissing', locale)}
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                 <MousePointer2 className="h-5 w-5" />

@@ -23,7 +23,7 @@
  */
 
 import React from 'react';
-import { Zap, Plus, Trash2 } from 'lucide-react';
+import { Ban, Zap, Plus, Trash2 } from 'lucide-react';
 import { getIcon } from '../../utils/getIcon.js';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
 import { t, useMetadataLocale } from '../metadata-admin/i18n.js';
@@ -266,8 +266,23 @@ export function ObjectActionsPanel({
             />
           </>
         ) : (
-          <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] text-muted-foreground">
-            {labelText(sel.label, String(sel.name ?? ''))}
+          /* objectui#6795 part C — this branch used to render the action's own
+           * label and nothing else, which reads as "this action has no
+           * properties": the pane looked like a finished answer rather than a
+           * missing editor. Keep the label (it says WHICH action is selected)
+           * and add the reason there is no form under it.
+           *
+           * ⛔ Not "loading…" / "try again". `getMetadataDefaultInspector` reads
+           * a plain `Map` with no change notification, during render, with no
+           * subscription — measured on #6795, a registration that lands later
+           * never reaches this component, so promising recovery would just swap
+           * one false statement for another. Making recovery real is part A. */
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-[12px] text-muted-foreground">
+            <Ban className="h-5 w-5" />
+            <span className="font-medium text-foreground">
+              {labelText(sel.label, String(sel.name ?? ''))}
+            </span>
+            <span>{t('engine.studio.actions.editorMissing', locale)}</span>
           </div>
         )}
       </div>
