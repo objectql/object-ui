@@ -21,7 +21,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
@@ -1475,10 +1475,26 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     collectViewFields((schema as any).options?.timeline);
     collectViewFields((schema as any).gantt);
     collectViewFields((schema as any).options?.gantt);
+    // [objectui#7179] The GRID's grouping block, which this collector had no
+    // arm for: it reads `groupByField` (kanban / gantt / timeline) but the grid
+    // groups through `grouping.fields[]`, a different key with a different
+    // shape. Without this, a grid grouped by a LOOKUP gets the field into
+    // `$select` but never into `populate`, so every row carries the bare
+    // foreign key and the groups bucket by raw id instead of by name — the
+    // exact failure the comment above this memo records for kanban
+    // ("list view shows 'Initech Solutions' but kanban used to show
+    // '8UY9zHWBfjYjYor4'"). Better than one `(empty)` bucket, still wrong.
+    //
+    // Unguarded is safe HERE and only here: `buildExpandFields` returns a
+    // subset of the object's declared reference-bearing fields, so a grouping
+    // field the object does not have — or has as a non-relation — is dropped
+    // structurally. The `$select` half below needs a real gate, and takes one.
+    for (const f of collectGroupingFieldRefs(groupingConfig)) collected.add(f);
     const augmented = collected.size > 0 ? Array.from(collected) : undefined;
     return buildExpandFields(objectDef?.fields, augmented);
   }, [
     objectDef?.fields,
+    groupingConfig,
     schema.columns,
     (schema as any).kanban,
     (schema as any).calendar,
@@ -1704,6 +1720,38 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           // everyone. Routed through addSpeculative for the same reason the view
           // bindings are: a typo'd predicate must not put an unknown column in
           // `$select` and zero the whole list.
+          // [objectui#7179] The GRID's grouping fields. `collectViewFields`
+          // above covers every OTHER view kind's grouping — they all spell it
+          // `groupByField`, a plain string — but the grid spells it
+          // `grouping.fields[]`, so it had no arm here and its projection was
+          // built from `columns` alone. The measured symptom: one group
+          // labelled `(empty)` holding every row, no error, no warning.
+          //
+          // Through `addSpeculative` for the reason stated at its definition,
+          // which applies to a `grouping.fields[]` entry more sharply than to
+          // anything else routed through it: this card's whole premise is that
+          // the grouping field is NOT a column, so it has never been through
+          // column validation, and `GroupingFieldSchema.field` is a bare
+          // string. Unioned unguarded on a backend that rejects unknown
+          // `$select` keys with an empty result set, it would turn one
+          // `(empty)` group holding 186 rows into ZERO rows, just as silently.
+          //
+          // FLS-gated on top (objectui#6898): the grid half of this same fix
+          // takes `passesProjectionGate`, and a grouping field can name a
+          // denied field exactly as a column can. Safe to ask `checkField`
+          // here precisely BECAUSE `addSpeculative` ran first — everything
+          // reaching this point is a field the object declares, so the
+          // "`checkField` answers false for an undeclared key" trap that makes
+          // this gate wrong on derived columns cannot fire.
+          const addGroupingField = (f: string) => {
+            if (perms?.isLoaded && schema.objectName
+                && knownObjectFields?.has(f)
+                && !PLATFORM_RECORD_COLUMNS.has(f)
+                && !perms.checkField(schema.objectName, f, 'read')) return;
+            addSpeculative(f);
+          };
+          for (const f of collectGroupingFieldRefs(groupingConfig)) addGroupingField(f);
+
           for (const f of collectPredicateFieldRefs(listViewPredicates({
             conditionalFormatting: schema.conditionalFormatting as unknown[] | undefined,
             rowActionDefs: (schema as any).rowActionDefs,

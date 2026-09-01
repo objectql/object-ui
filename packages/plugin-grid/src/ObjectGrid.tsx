@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -1341,6 +1341,22 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
 
   const schemaFields = schema.fields;
   const schemaColumns = schema.columns;
+  // [objectui#7179] The fetch effect's dep on the grouping block, as a CONTENT
+  // key over the field NAMES alone.
+  //
+  // Not `schema.grouping` itself: hosts rebuild that object literal every
+  // render (`plugin-list` spreads a fresh `{ grouping: groupingConfig }` into
+  // the node it hands down), so naming it here would re-issue the query on
+  // every render — the identity-churn refetch storm objectui#6697 recorded for
+  // `expandFields`.
+  //
+  // Names ONLY, not the whole block: `order` and `collapsed` are render-time
+  // concerns the projection cannot see, so a user collapsing a group must not
+  // cost a round trip. What the query depends on is exactly this list.
+  const groupingProjectionKey = useMemo(
+    () => JSON.stringify(collectGroupingFieldRefs(schema.grouping)),
+    [schema.grouping],
+  );
   // The view's declared filter, lowered ONCE through the repo's single filter
   // sink for both consumers below (the fetch and the server-side export).
   //
@@ -1485,6 +1501,19 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
 
         // --- Step 2: Fetch data ---
         if (dataSource && objectName) {
+          // [objectui#7179] The fields the view GROUPS BY. `grouping` is a
+          // sibling of `columns` in the spec, not a subset of it, so a grid may
+          // legitimately group by a field it never shows — and until this
+          // harvest existed, `$select` (built from `columns` alone) never asked
+          // for it, so every row carried `undefined` and `useGroupedData`
+          // labelled ONE group `(empty)` holding every record.
+          //
+          // Raw here, GATED at each of its two use sites below, because the two
+          // sites need different gates: the projection has to intersect with
+          // the declared fields (an unknown `$select` key ZEROES the list on
+          // backends that reject rather than ignore it), while `$expand` is
+          // gated structurally by `buildExpandFields` itself.
+          const groupingFieldRefs = collectGroupingFieldRefs(schema.grouping);
           const getSelectFields = () => {
             // Always include 'id' so row click / navigation handlers can resolve
             // the record key — without it `record.id` is undefined and the
@@ -1639,21 +1668,50 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                   // this principal may not read.
                   .filter((f) => passesProjectionGate(f))
               : [];
-            const withPredicates = (list: any[]): any[] => {
-              if (predicateFields.length === 0) return list;
+            // [objectui#7179] The GROUPING fields, through the SAME two gates
+            // the predicate operands take, for the same two measured reasons.
+            //
+            // `isProjectableField` first: a `grouping.fields[]` entry is
+            // SPECULATIVE in exactly the sense that gate exists for. Its
+            // `field` is a bare `z.ZodString` and this card's whole premise is
+            // that it is NOT among the columns, so nothing has validated it.
+            // Some backends answer an unknown `$select` key with an EMPTY
+            // RESULT SET rather than ignoring it (the cloud multi-tenant
+            // runtime does exactly that), so an unguarded union would trade
+            // this card's bug — one `(empty)` group holding all the rows — for
+            // a strictly worse one: NO rows, equally silently. The current bug
+            // at least shows the data.
+            //
+            // `passesProjectionGate` second (objectui#6898): a grouping field
+            // names a field just as capable of being denied as a column is, and
+            // this is the half that goes on the WIRE. Gating here rather than
+            // after the union is what keeps that card closed.
+            const groupingFields = declared
+              ? groupingFieldRefs
+                  .filter((f) => isProjectableField(f, declared as Record<string, unknown>))
+                  .filter((f) => passesProjectionGate(f))
+              : [];
+            // A UNION, never an append: a grouping field that IS also a column
+            // must not produce a duplicate `$select` entry.
+            const extraFields = [...predicateFields, ...groupingFields];
+            const withHarvestedFields = (list: any[]): any[] => {
+              if (extraFields.length === 0) return list;
               const names = new Set(list.map((f: any) => columnIdentity(f)));
-              const extra = predicateFields.filter((f) => !names.has(f));
+              const seen = new Set<string>();
+              const extra = extraFields.filter(
+                (f) => !names.has(f) && !seen.has(f) && (seen.add(f), true),
+              );
               return extra.length > 0 ? [...list, ...extra] : list;
             };
             if (schemaFields) {
-              return withPredicates(ensureId((schemaFields as any[]).filter(passesProjectionGate)));
+              return withHarvestedFields(ensureId((schemaFields as any[]).filter(passesProjectionGate)));
             }
             if (schemaColumns && Array.isArray(schemaColumns)) {
               const fields = schemaColumns
                 .filter(passesProjectionGate)
                 .map((c: any) => columnIdentity(c))
                 .filter((v): v is string => !!v);
-              return withPredicates(ensureId(fields));
+              return withHarvestedFields(ensureId(fields));
             }
             return undefined;
           };
@@ -1741,7 +1799,27 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           }
 
           // Auto-inject $expand for lookup/master_detail fields
-          const expand = buildExpandFields(resolvedSchema?.fields, schemaColumns ?? schemaFields);
+          //
+          // [objectui#7179] The grouping fields ride along. `$select` alone
+          // fetches a lookup as its BARE FOREIGN KEY, so a grid grouped by a
+          // lookup would bucket by raw id ("8UY9zHWBfjYjYor4") instead of by
+          // name — better than one `(empty)` bucket, still not right, and the
+          // identical failure `expandFields` in `plugin-list` already records
+          // for kanban. No `isProjectableField` gate is needed on THIS half:
+          // `buildExpandFields` returns a subset of the object's declared
+          // reference-bearing fields, so an unknown or non-relational grouping
+          // field is dropped structurally and cannot reach the query.
+          //
+          // Only augment when a column list actually narrows the expansion —
+          // with no columns, `buildExpandFields` already expands every relation
+          // and the grouping fields are covered by that superset. Passing an
+          // array here unconditionally would NARROW that case to the grouping
+          // fields alone.
+          const expandColumns = schemaColumns ?? schemaFields;
+          const expand = buildExpandFields(
+            resolvedSchema?.fields,
+            expandColumns ? [...(expandColumns as any[]), ...groupingFieldRefs] : undefined,
+          );
           if (expand.length > 0) {
             params.$expand = expand;
           }
@@ -1783,7 +1861,13 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // context object's identity would re-fetch the grid on every render.
   // `PermissionProvider` reports `true` synchronously and the no-provider
   // default stays `false` forever, so neither of those pays anything.
-  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, searchTerm, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey, perms.isLoaded]);
+  // `groupingProjectionKey` (objectui#7179): the grouping fields are part of
+  // the projection now, and grouping is RUNTIME-MUTABLE (the toolbar popover
+  // rewrites it), so without this dep switching the grouping field would leave
+  // the query asking for the OLD one and the new grouping would read
+  // `undefined` on every row — the very `(empty)` bucket this card fixes,
+  // reachable a second way.
+  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, headerSort, searchTerm, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey, perms.isLoaded, groupingProjectionKey]);
 
   // The same reset, for the path the loader above never runs on (objectui#4501
   // clause 2). "All N matching are selected" is a claim about ONE query, so it
