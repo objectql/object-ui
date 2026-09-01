@@ -202,12 +202,27 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
         // flat sections stay borderless so the page chrome alone provides
         // containment. Authors can override explicitly via `showBorder`.
         showBorder: s.showBorder ?? (translatedTitle ? true : false),
-        // Phase N: default to hide-empty so pages don't render as label
-        // graveyards on first load. Authors can opt back in to showing
-        // empty rows by setting `hideEmpty: false` explicitly. The
-        // "显示 N 个空字段" toggle in DetailSection still works as the
-        // user-facing escape hatch.
-        hideEmpty: s.hideEmpty ?? true,
+        // Deliberately NOT defaulted. The authored value passes through
+        // verbatim, so an UNAUTHORED section reaches DetailSection as
+        // `undefined` and that component's own stated heuristic decides:
+        // auto-hide empty rows only while the section still has at least one
+        // filled row, and never on an all-empty section — there the labels
+        // ARE the structural skeleton a sparse or brand-new record needs.
+        //
+        // This slot used to force `s.hideEmpty ?? true`, which overrode
+        // exactly the case that heuristic reserves: a hand-created record
+        // collapsed to a two-row body and whole sections vanished, and every
+        // app had to hand-write `hideEmpty: false` per section to stop looking
+        // broken. That is per-app tax for a platform concern (maintainer
+        // ruling 2026-08-31: this is a platform problem; metadata
+        // applications should not have to think about these details).
+        //
+        // An AUTHORED value is still honoured exactly as before —
+        // `hideEmpty: true` remains the explicit opt-in to hiding, and
+        // `hideEmpty: false` the explicit opt-out. Only the unauthored
+        // default flips. DetailSection's "Show N empty fields" toggle remains
+        // the user-facing escape hatch wherever the heuristic does hide rows.
+        hideEmpty: s.hideEmpty,
         fields: dropHidden(normaliseList(filterList(s.fields))),
       });
       })
