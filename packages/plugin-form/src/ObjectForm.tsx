@@ -290,8 +290,33 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // compiling and silently copy `undefined` — the exact silent-drop
             // failure this line exists to fix.
             visibleWhen: s.visibleWhen,
-            className: (s as any).className,
-            gridClassName: (s as any).gridClassName,
+            // ⛔ `className` / `gridClassName` are DELIBERATELY not copied here
+            // or at any of the six sibling sites below — objectstack#13626,
+            // maintainer ruling 2026-09-01 (director decision batch C):
+            // "retire the reads".
+            //
+            // The two keys sit on the SDUI-only side of the authorable
+            // boundary: `@objectstack/spec` deliberately does NOT declare them
+            // on the form-view/section surface (see the "Deliberately NOT
+            // declared" note in its `component.zod.ts`), and the
+            // authorable-surface ledger carries no entry for them. They were
+            // nevertheless reached off the parsed view through `as any` — the
+            // boundary declared on one side and crossed on the other.
+            //
+            // Declaring them instead was weighed and NOT adopted: it would
+            // formally invite free Tailwind strings into authored metadata,
+            // the exact class the boundary exists to keep out — and per
+            // ADR-0065 / ADR-0080 (rev. 2026-06-30) utility classNames in
+            // runtime metadata are never scanned by the build-time Tailwind,
+            // so they silently produce no CSS. If per-view styling becomes a
+            // real product need it gets an explicit controlled token surface,
+            // not two leaked keys.
+            //
+            // ⚠️ Re-adding the read does NOT require a cast to compile:
+            // `ObjectFormSection` (this repo's own `@object-ui/types`) still
+            // declares both keys, so a plain `className: s.className` type
+            // -checks. The omission is therefore pinned behaviourally, not by
+            // a source grep — `__tests__/sectionStyleKeysRetired-13626.test.tsx`.
           })),
           defaultTab: schema.defaultTab,
           tabPosition: schema.tabPosition,
@@ -322,8 +347,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
-            className: (s as any).className,
-            gridClassName: (s as any).gridClassName,
+            // `className` / `gridClassName`: deliberately not copied — see the
+            // tabbed arm above (objectstack#13626, ruled 2026-09-01).
           })),
           allowSkip: schema.allowSkip,
           showStepIndicator: schema.showStepIndicator,
@@ -356,8 +381,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // ADR-0089 section predicate (#6111) — same reason as `pane` above:
             // a key this map does not copy never reaches the layout at all.
             visibleWhen: (s as any).visibleWhen,
-            className: (s as any).className,
-            gridClassName: (s as any).gridClassName,
+            // `className` / `gridClassName`: deliberately not copied — see the
+            // tabbed arm above (objectstack#13626, ruled 2026-09-01).
           })),
           splitDirection: schema.splitDirection,
           splitSize: schema.splitSize,
@@ -389,7 +414,9 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
             // uncopied key is silently dropped before DrawerForm ever sees it.
             visibleWhen: (s as any).visibleWhen,
-            className: (s as any).className,
+            // `className`: deliberately not copied — see the tabbed arm above
+            // (objectstack#13626, ruled 2026-09-01). DrawerForm's own divider
+            // site stops reading it in the same pass.
           })),
           open: schema.open,
           onOpenChange: schema.onOpenChange,
@@ -420,8 +447,8 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // ADR-0089 section predicate (#6111) — key-by-key rebuild, so an
             // uncopied key is silently dropped before ModalForm ever sees it.
             visibleWhen: (s as any).visibleWhen,
-            className: (s as any).className,
-            gridClassName: (s as any).gridClassName,
+            // `className` / `gridClassName`: deliberately not copied — see the
+            // tabbed arm above (objectstack#13626, ruled 2026-09-01).
           })),
           open: schema.open,
           onOpenChange: schema.onOpenChange,
@@ -1290,7 +1317,8 @@ const SimpleObjectForm: React.FC<ObjectFormComponentProps> = ({
           onToggle: section.collapsible
             ? () => setCollapsedSections(prev => ({ ...prev, [sectionKey]: !isCollapsed }))
             : undefined,
-          className: (section as any).className,
+          // `className`: deliberately not read — see the tabbed arm above
+          // (objectstack#13626, ruled 2026-09-01 "retire the reads").
         } as FormField);
       }
 
