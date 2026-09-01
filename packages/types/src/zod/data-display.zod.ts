@@ -241,7 +241,7 @@ export const DataTableSchema = BaseSchema.extend({
   type: z.literal('data-table'),
   caption: z.string().optional().describe('Table caption'),
   borderless: z.boolean().optional().describe('Render the table without its outer rounded border (for embedding inside grouped rows or other containers).'),
-  toolbar: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Toolbar content'),
+  toolbar: retirementTombstone('RETIRED (objectui#6881) — never mounted by the data-table renderer; use the built-in toolbar chrome (searchable / exportable), or compose nodes beside the table'),
   columns: z.array(TableColumnSchema).describe('Table columns'),
   data: z.array(z.any()).describe('Table data'),
   pagination: z.boolean().optional().describe('Enable pagination'),

@@ -670,9 +670,31 @@ export interface DataTableSchema extends BaseSchema {
    */
   caption?: string;
   /**
-   * Table toolbar actions/content
+   * ADR-0049 RETIREMENT TOMBSTONE — `toolbar` (objectui#6881, maintainer
+   * ruling 2026-08-31: retire, do NOT wire).
+   *
+   * What was measured (objectui#6881, re-measured on the retiring PR's base):
+   * declared on both published faces, documented, mirrored — and read by
+   * NOTHING. `data-table.tsx`, the registered renderer for `type:
+   * 'data-table'`, contains the word only in two prose comments and never
+   * reads `schema.toolbar`; the sibling `emptyAction` slot on this same
+   * interface IS mounted through `SchemaRenderer`, so the zero is a reading,
+   * not a blind query. An author who wrote a toolbar got a green document and
+   * a blank result, with no signal anywhere that said so.
+   *
+   * `?: never` is this package's tombstone convention (see `crud.ts`
+   * `confirm`, {@link StaticTableColumn}, `TimelineSchema`'s `timeScale`), NOT
+   * a deletion: `BaseSchema`'s `[key: string]: any` would admit a deleted key
+   * as `any` again — the same silence one layer over. The Zod twin refuses it
+   * loudly via `retirementTombstone()` (`zod/data-display.zod.ts`).
+   *
+   * RETIRED (objectui#6881, ADR-0049) — never mounted by the data-table
+   * renderer. Use the built-in toolbar chrome instead (`searchable` /
+   * `exportable`), or compose your own nodes beside the table. A real
+   * toolbar slot must arrive as a redesigned proposal WITH its enforcing
+   * reader, per the ruling — not by reviving this key.
    */
-  toolbar?: SchemaNode[];
+  toolbar?: never;
   /**
    * Table columns
    */
