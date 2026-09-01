@@ -363,6 +363,14 @@ const ja = {
     yes: "はい",
     no: "いいえ",
     systemFields: "システム",
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: "一部",
+      partialNotice:
+        "{{total}} 件中、読み込み済みの先頭 {{loaded}} 件のみでグループ化しています。グループの件数は読み込み済みのページだけの集計で、レコードがすべて読み込み範囲の外にあるグループはここに表示されません。",
+      partialNoticeUnknownTotal:
+        "読み込み済みの {{loaded}} 件のみでグループ化しています。このビューに該当するレコードはさらに存在する可能性があるため、グループの件数が不完全であったり、グループが表示されないことがあります。",
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.

@@ -367,6 +367,14 @@ const es = {
     yes: "Sí",
     no: "No",
     systemFields: "Sistema",
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: "Parcial",
+      partialNotice:
+        "Agrupado sobre los primeros {{loaded}} de {{total}} registros. Los recuentos por grupo se limitan a la página cargada y un grupo cuyos registros quedan todos fuera de las filas cargadas no aparece aquí.",
+      partialNoticeUnknownTotal:
+        "Agrupado sobre los {{loaded}} registros cargados. Puede haber más registros que coincidan con esta vista, por lo que los recuentos por grupo pueden ser parciales y puede faltar algún grupo.",
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.

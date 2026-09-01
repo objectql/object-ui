@@ -363,6 +363,14 @@ const de = {
     yes: "Ja",
     no: "Nein",
     systemFields: "System",
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: "Teilweise",
+      partialNotice:
+        "Gruppiert über die ersten {{loaded}} von {{total}} Datensätzen. Gruppenanzahlen gelten nur für die geladene Seite; eine Gruppe, deren Datensätze alle jenseits der geladenen Zeilen liegen, fehlt hier.",
+      partialNoticeUnknownTotal:
+        "Gruppiert über die {{loaded}} geladenen Datensätze. Möglicherweise passen weitere Datensätze zu dieser Ansicht, daher können Gruppenanzahlen unvollständig sein und eine Gruppe kann hier fehlen.",
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.

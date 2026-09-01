@@ -363,6 +363,14 @@ const ko = {
     yes: "예",
     no: "아니요",
     systemFields: "시스템",
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: "일부",
+      partialNotice:
+        "전체 {{total}}개 중 불러온 처음 {{loaded}}개 레코드만으로 그룹화했습니다. 그룹 개수는 불러온 페이지 기준이며, 레코드가 모두 불러온 행 밖에 있는 그룹은 여기에 표시되지 않습니다.",
+      partialNoticeUnknownTotal:
+        "불러온 {{loaded}}개 레코드만으로 그룹화했습니다. 이 뷰에 해당하는 레코드가 더 있을 수 있으므로 그룹 개수가 일부일 수 있고 일부 그룹이 표시되지 않을 수 있습니다.",
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.
