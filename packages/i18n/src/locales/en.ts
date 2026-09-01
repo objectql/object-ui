@@ -1202,6 +1202,21 @@ const en = {
     showEmptyFields: 'Show {{count}} empty fields',
     hideEmptyFields: 'Hide empty fields',
     noValue: 'No value',
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: 'Revision History',
+    noRevisions: 'No revisions recorded',
+    revisionFieldsChanged: '{{count}} fields changed',
+    revisionFieldsChangedOne: '{{count}} field changed',
+    revisionPreview: 'Revision Preview',
+    revisionSnapshot: 'Record state at this point',
+    restoreConfirm: 'This will restore the record to its state at {{when}}. Continue?',
+    restoring: 'Restoring…',
+    confirmRestore: 'Confirm Restore',
+    restoreToPoint: 'Restore to this point',
   },
   chart: {
     loading: 'Loading chart…',

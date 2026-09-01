@@ -1059,6 +1059,21 @@ const ar = {
     showEmptyFields: "إظهار {{count}} حقل(حقول) فارغة",
     hideEmptyFields: "إخفاء الحقول الفارغة",
     noValue: "لا قيمة",
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: 'سجل المراجعات',
+    noRevisions: 'لا توجد مراجعات مسجلة',
+    revisionFieldsChanged: 'تم تغيير {{count}} حقول',
+    revisionFieldsChangedOne: 'تم تغيير {{count}} حقل',
+    revisionPreview: 'معاينة المراجعة',
+    revisionSnapshot: 'حالة السجل في هذه النقطة',
+    restoreConfirm: 'سيؤدي هذا إلى استعادة السجل إلى حالته في {{when}}. هل تريد المتابعة؟',
+    restoring: 'جارٍ الاستعادة…',
+    confirmRestore: 'تأكيد الاستعادة',
+    restoreToPoint: 'الاستعادة إلى هذه النقطة',
   },
   chart: {
     loading: "جارٍ تحميل الرسم البياني…",

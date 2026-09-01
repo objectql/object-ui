@@ -22,22 +22,37 @@ export interface RecordCommentsProps {
   className?: string;
 }
 
+type CommentsTranslate = (key: string, options?: Record<string, unknown>) => string;
+
 /**
  * Format a timestamp string into a human-readable relative time or date string.
+ *
+ * objectui#7163 — the four relative-time branches were hardcoded English, so a
+ * zh session read a translated comment card with an English `5m ago` inside it.
+ * They now resolve from the packs through the same four keys the siblings in
+ * this package already use (`RecordActivityTimeline`, `RecordMetaFooter`,
+ * `ThreadedReplies`, and `ActivityTimeline` since objectui#7162) — reused, not
+ * forked: each key's `en` value is byte-identical to the literal it replaces,
+ * so this is a lookup swap with no copy change and no new key in any pack.
+ *
+ * `t` is threaded in as a parameter rather than the helper being made a hook:
+ * it is called from inside a `.map()` over the comment list.
  */
-function formatTimestamp(timestamp: string): string {
+function formatTimestamp(timestamp: string, t: CommentsTranslate): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return t('detail.justNow');
+    if (diffMins < 60) return t('detail.minutesAgo', { count: diffMins });
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return t('detail.hoursAgo', { count: diffHours });
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 7) return t('detail.daysAgo', { count: diffDays });
+    // Past a week this is a DATE, not a relative phrase: `toLocaleDateString`
+    // already localizes it, so there is no literal here to key.
     return date.toLocaleDateString();
   } catch {
     return timestamp;
@@ -184,7 +199,7 @@ export const RecordComments: React.FC<RecordCommentsProps> = ({
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm font-medium truncate">{comment.author}</span>
                     <span className="text-xs text-muted-foreground">
-                      {formatTimestamp(comment.createdAt)}
+                      {formatTimestamp(comment.createdAt, t)}
                     </span>
                     {comment.pinned && (
                       <span className="text-xs text-amber-600 flex items-center gap-0.5">

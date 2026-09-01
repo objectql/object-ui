@@ -1062,6 +1062,21 @@ const ru = {
     showEmptyFields: "Показать {{count}} пустых полей",
     hideEmptyFields: "Скрыть пустые поля",
     noValue: "Нет значения",
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: 'История версий',
+    noRevisions: 'Нет зарегистрированных версий',
+    revisionFieldsChanged: 'Изменено полей: {{count}}',
+    revisionFieldsChangedOne: 'Изменено полей: {{count}}',
+    revisionPreview: 'Предпросмотр версии',
+    revisionSnapshot: 'Состояние записи на этот момент',
+    restoreConfirm: 'Запись будет восстановлена до состояния на {{when}}. Продолжить?',
+    restoring: 'Восстановление…',
+    confirmRestore: 'Подтвердить восстановление',
+    restoreToPoint: 'Восстановить до этого момента',
   },
   chart: {
     loading: "Загрузка графика…",

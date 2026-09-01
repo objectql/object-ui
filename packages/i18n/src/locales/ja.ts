@@ -1052,6 +1052,21 @@ const ja = {
     showEmptyFields: "{{count}} 件の空フィールドを表示",
     hideEmptyFields: "空フィールドを非表示",
     noValue: "値なし",
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: 'リビジョン履歴',
+    noRevisions: 'リビジョンの記録なし',
+    revisionFieldsChanged: '{{count}} 件のフィールドを変更',
+    revisionFieldsChangedOne: '{{count}} 件のフィールドを変更',
+    revisionPreview: 'リビジョンのプレビュー',
+    revisionSnapshot: 'この時点のレコード状態',
+    restoreConfirm: 'レコードを {{when}} の状態に復元します。続行しますか?',
+    restoring: '復元中…',
+    confirmRestore: '復元を確認',
+    restoreToPoint: 'この時点に復元',
   },
   chart: {
     loading: "チャート読み込み中…",
