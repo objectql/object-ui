@@ -35,9 +35,14 @@
  * `getCellRenderer` dispatches a relational column to `LookupCellRenderer`
  * (`@object-ui/fields/src/index.tsx`), which reads its keys through
  * `(field as { k?: T }).k` casts — the untyped-read shape this seam uses. The
- * inline editor dispatches the same bag into `LookupField` (receiver
- * `fieldMeta`) and `UserField` (receiver `meta`), which use optional-chained
- * member reads.
+ * inline editor renders `LookupField` (receiver `fieldMeta`) and `UserField`
+ * (receiver `meta`), which use optional-chained member reads.
+ *
+ * ⚠️ Those two are swept, but they are NOT fed this bag — `renderCellEditor`
+ * spreads the schema def into them directly (objectui#7154, measured in
+ * `lookupPickerKeys-7154.test.tsx`). So a key that only they read is
+ * classified here without ever being a candidate for copying, and the verdict
+ * column is where that decision is recorded.
  *
  * ⚠️ `UserField` is swept even though it forwards its whole meta into
  * `LookupField` via a spread. A delegating consumer is exactly where a false

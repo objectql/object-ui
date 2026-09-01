@@ -424,11 +424,18 @@ function getDataConfig(schema: ObjectGridSchema): ViewData | null {
 /**
  * The relational copy set and `applyRelationalMeta` moved to
  * `./relationalMetaKeys` for objectui#6875. The list there is DERIVED from a
- * table classifying every key the grid's own cell renderer and inline picker
- * read off this bag, and a gate re-derives that read set from the consumer
- * sources — so the copy set can no longer drift into being a strict subset of
- * what its consumers read, which is what it had silently become. Read that
- * file's docblock before adding, removing or re-spelling a key.
+ * table classifying every key swept off the three `@object-ui/fields` consumers,
+ * and a gate re-derives that read set from their sources — so the copy set can
+ * no longer drift into being a strict subset of what those consumers read,
+ * which is what it had silently become. Read that file's docblock before
+ * adding, removing or re-spelling a key.
+ *
+ * ⚠️ What this bag actually feeds is ONE of those three: the read-only cell.
+ * `fieldMeta` is handed to `<CellRenderer field={…}>` and nowhere else in this
+ * file. The inline picker is the OTHER seam — `renderCellEditor` below looks
+ * the field up in `objectSchema` and spreads the whole def into the widget, so
+ * a picker key reaches `LookupField` whether or not it is on the copy set.
+ * Measured in `__tests__/lookupPickerKeys-7154.test.tsx` (objectui#7154).
  */
 
 /**
@@ -2134,7 +2141,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               if (objectDefField.options) fieldMeta.options = translateOptions(schema.objectName, col.field, objectDefField.options);
             }
             // Preserve relational metadata (reference_to, display_field, …) so
-            // lookup cells resolve ids to names and the inline picker can query.
+            // lookup CELLS resolve ids to names. ⛔ Not the inline picker — that
+            // reads the schema def directly, see `renderCellEditor` (objectui#7154).
             applyRelationalMeta(fieldMeta, objectDefField as any);
             // Auto-generate options from data for inferred select without existing options
             if (inferredType === 'select' && !fieldMeta.options) {
@@ -2326,7 +2334,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             if (fieldDef.options) fieldMeta.options = translateOptions(schema.objectName, fieldName, fieldDef.options);
           }
           // Preserve relational metadata (reference_to, display_field, …) so
-          // lookup cells resolve ids to names and the inline picker can query.
+          // lookup CELLS resolve ids to names. ⛔ Not the inline picker — that
+          // reads the schema def directly, see `renderCellEditor` (objectui#7154).
           applyRelationalMeta(fieldMeta, fieldDef as any);
           // Auto-generate select options from data when no options defined
           if (resolvedType === 'select' && !fieldMeta.options) {
@@ -2483,7 +2492,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
             if (fieldDef.options) fieldMeta.options = translateOptions(schema.objectName, fieldName, fieldDef.options);
           }
           // Preserve relational metadata (reference_to, display_field, …) so
-          // lookup cells resolve ids to names and the inline picker can query.
+          // lookup CELLS resolve ids to names. ⛔ Not the inline picker — that
+          // reads the schema def directly, see `renderCellEditor` (objectui#7154).
           applyRelationalMeta(fieldMeta, fieldDef as any);
           // Auto-generate select options from data when no options defined
           if (resolvedType === 'select' && !fieldMeta.options) {
