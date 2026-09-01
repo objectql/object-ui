@@ -1052,6 +1052,21 @@ const ko = {
     showEmptyFields: "{{count}}개의 빈 필드 표시",
     hideEmptyFields: "빈 필드 숨기기",
     noValue: "값 없음",
+    // objectui#7163 — PointInTimeRestore's revision-history chrome. The file
+    // used no translation hook at all, so every one of these read English in
+    // every session; swept in one pass rather than converting the timestamps
+    // alone. `Cancel`, `(empty)` and the empty-value dash reuse the keys this
+    // namespace already has, so only these ten are new.
+    revisionHistory: '수정 기록',
+    noRevisions: '기록된 수정 없음',
+    revisionFieldsChanged: '필드 {{count}}개 변경됨',
+    revisionFieldsChangedOne: '필드 {{count}}개 변경됨',
+    revisionPreview: '수정 미리보기',
+    revisionSnapshot: '이 시점의 레코드 상태',
+    restoreConfirm: '레코드를 {{when}} 시점의 상태로 복원합니다. 계속하시겠습니까?',
+    restoring: '복원 중…',
+    confirmRestore: '복원 확인',
+    restoreToPoint: '이 시점으로 복원',
   },
   chart: {
     loading: "차트 로딩 중…",

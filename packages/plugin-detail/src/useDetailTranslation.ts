@@ -266,6 +266,22 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // any other current/completed stage, so naming it apart would hand a screen
   // reader a distinction the screen does not make.
   'detail.pathStageWonUpcoming': '{{stage}}, goal stage, not reached',
+  // objectui#7163 — `PointInTimeRestore`'s chrome. That file used no hook at
+  // all, so a provider-less host had no English to fall back TO; these rows are
+  // byte-identical to the `en` pack (`defaults-maps-mirror-en-pack` enforces
+  // it). The field-count pair follows the repo's two-key plural convention
+  // (`reactionCount`/`reactionCountOne`), never an i18next `_one` suffix —
+  // `fallbackT` resolves `defaults[key]` literally and appends no suffix.
+  'detail.revisionHistory': 'Revision History',
+  'detail.noRevisions': 'No revisions recorded',
+  'detail.revisionFieldsChanged': '{{count}} fields changed',
+  'detail.revisionFieldsChangedOne': '{{count}} field changed',
+  'detail.revisionPreview': 'Revision Preview',
+  'detail.revisionSnapshot': 'Record state at this point',
+  'detail.restoreConfirm': 'This will restore the record to its state at {{when}}. Continue?',
+  'detail.restoring': 'Restoring…',
+  'detail.confirmRestore': 'Confirm Restore',
+  'detail.restoreToPoint': 'Restore to this point',
 };
 
 /**

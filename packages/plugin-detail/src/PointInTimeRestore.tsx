@@ -16,6 +16,7 @@ import {
   CardContent,
 } from '@object-ui/components';
 import { History, RotateCcw, Eye, ChevronRight } from 'lucide-react';
+import { useDetailTranslation } from './useDetailTranslation';
 
 export interface RevisionEntry {
   id: string;
@@ -33,17 +34,36 @@ export interface PointInTimeRestoreProps {
   className?: string;
 }
 
-function formatTimestamp(timestamp: string): string {
+type RestoreTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * Format a revision timestamp as a relative phrase, falling through to an
+ * absolute date-time once it is more than a day old.
+ *
+ * objectui#7163 — the three relative branches were hardcoded English. They now
+ * resolve from the packs through the same keys the rest of this package already
+ * uses; each key's `en` value is byte-identical to the literal it replaced.
+ *
+ * ⚠️ This is NOT the same helper `RecordComments`/`ActivityTimeline` carry, and
+ * the card's "byte-identical copy" premise is false for this file: those two
+ * have a fourth `d ago` branch and fall through to `toLocaleDateString()`,
+ * while this one stops at hours and falls through to `toLocaleString()` —
+ * a revision list wants the time of day, a comment list does not. Keeping the
+ * tails apart is deliberate; unifying them would silently restyle one surface.
+ */
+function formatTimestamp(timestamp: string, t: RestoreTranslate): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return t('detail.justNow');
+    if (diffMins < 60) return t('detail.minutesAgo', { count: diffMins });
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return t('detail.hoursAgo', { count: diffHours });
+    // Past a day this is a DATE-TIME, not a relative phrase: `toLocaleString`
+    // already localizes it, so there is no literal here to key.
     return date.toLocaleString();
   } catch {
     return timestamp;
@@ -56,6 +76,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
   onRestore,
   className,
 }) => {
+  const { t } = useDetailTranslation();
   const [selectedRevisionId, setSelectedRevisionId] = React.useState<string | null>(null);
   const [isConfirming, setIsConfirming] = React.useState(false);
   const [isRestoring, setIsRestoring] = React.useState(false);
@@ -93,7 +114,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <History className="h-4 w-4" />
-          Revision History
+          {t('detail.revisionHistory')}
           <span className="text-sm font-normal text-muted-foreground">
             ({revisions.length})
           </span>
@@ -102,7 +123,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
       <CardContent>
         {revisions.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No revisions recorded
+            {t('detail.noRevisions')}
           </p>
         ) : (
           <div className="flex flex-col lg:flex-row gap-4">
@@ -146,12 +167,13 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{revision.user}</span>
                             <span className="text-xs text-muted-foreground">
-                              {formatTimestamp(revision.timestamp)}
+                              {formatTimestamp(revision.timestamp, t)}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {revision.changes.length} field{revision.changes.length !== 1 ? 's' : ''}{' '}
-                            changed
+                            {revision.changes.length === 1
+                              ? t('detail.revisionFieldsChangedOne', { count: revision.changes.length })
+                              : t('detail.revisionFieldsChanged', { count: revision.changes.length })}
                           </p>
                         </div>
                       </button>
@@ -166,7 +188,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
               <div className="lg:w-80 border rounded-md p-3 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Eye className="h-4 w-4 text-muted-foreground" />
-                  Revision Preview
+                  {t('detail.revisionPreview')}
                 </div>
 
                 {/* Field changes */}
@@ -178,11 +200,11 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                       </span>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="line-through text-red-600 dark:text-red-400 truncate max-w-[120px]">
-                          {change.oldValue != null ? String(change.oldValue) : '(empty)'}
+                          {change.oldValue != null ? String(change.oldValue) : t('detail.activityEmptyValue')}
                         </span>
                         <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="text-green-600 dark:text-green-400 truncate max-w-[120px]">
-                          {change.newValue != null ? String(change.newValue) : '(empty)'}
+                          {change.newValue != null ? String(change.newValue) : t('detail.activityEmptyValue')}
                         </span>
                       </div>
                     </div>
@@ -193,14 +215,14 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                 {selectedRevision.snapshot && (
                   <div className="border-t pt-2 space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">
-                      Record state at this point
+                      {t('detail.revisionSnapshot')}
                     </p>
                     <div className="max-h-40 overflow-y-auto space-y-1">
                       {Object.entries(selectedRevision.snapshot).map(([key, val]) => (
                         <div key={key} className="flex justify-between text-xs gap-2">
                           <span className="text-muted-foreground truncate">{key}</span>
                           <span className="font-mono truncate max-w-[140px]">
-                            {val != null ? String(val) : '–'}
+                            {val != null ? String(val) : t('detail.emptyValue')}
                           </span>
                         </div>
                       ))}
@@ -214,8 +236,9 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                     {isConfirming ? (
                       <>
                         <p className="text-xs text-amber-600 dark:text-amber-400">
-                          This will restore the record to its state at{' '}
-                          {formatTimestamp(selectedRevision.timestamp)}. Continue?
+                          {t('detail.restoreConfirm', {
+                            when: formatTimestamp(selectedRevision.timestamp, t),
+                          })}
                         </p>
                         <div className="flex gap-2">
                           <Button
@@ -226,7 +249,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                             disabled={isRestoring}
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
-                            {isRestoring ? 'Restoring…' : 'Confirm Restore'}
+                            {isRestoring ? t('detail.restoring') : t('detail.confirmRestore')}
                           </Button>
                           <Button
                             variant="ghost"
@@ -234,7 +257,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                             onClick={handleCancelConfirm}
                             disabled={isRestoring}
                           >
-                            Cancel
+                            {t('detail.cancel')}
                           </Button>
                         </div>
                       </>
@@ -246,7 +269,7 @@ export const PointInTimeRestore: React.FC<PointInTimeRestoreProps> = ({
                         onClick={handleRestore}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                        Restore to this point
+                        {t('detail.restoreToPoint')}
                       </Button>
                     )}
                   </div>
