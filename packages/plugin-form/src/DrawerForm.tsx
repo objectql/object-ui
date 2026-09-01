@@ -595,7 +595,12 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           onToggle: section.collapsible
             ? () => setCollapsedSections(prev => ({ ...prev, [sectionKey]: !isCollapsed }))
             : undefined,
-          className: (section as any).className,
+          // ⛔ `className` deliberately not read — objectstack#13626, maintainer
+          // ruling 2026-09-01 (batch C) "retire the reads". The key is on the
+          // SDUI-only side of the authorable boundary; `ObjectForm`'s drawer map
+          // stops copying it in the same pass. Full rationale at the tabbed arm
+          // in `ObjectForm.tsx`; pinned by
+          // `__tests__/sectionStyleKeysRetired-13626.test.tsx`.
         } as any);
 
         if (isCollapsed) {
