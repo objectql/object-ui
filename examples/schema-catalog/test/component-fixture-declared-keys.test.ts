@@ -661,3 +661,149 @@ describe('catalog corpus: every menubar item uses the declared MenuItem spelling
     expect(MenuItemSchema.safeParse({ label: 'Section', type: 'label' }).success).toBe(false);
   });
 });
+
+/**
+ * objectui#7072 — the four overlay-menu fixtures authored a `value` key on 21
+ * of their items. No arm of the shipped `MenuItem` union declares it
+ * (`MenuCommandItem` at `packages/types/src/overlay.ts:363-401`,
+ * `MenuDividerItem` at `:409-419`) and none of the three menu renderers reads
+ * one, so the key rendered nothing and cost nothing — it was simply a spelling
+ * the catalog taught. `MenuItemSchema` builds both arms from bare, non-strict
+ * `z.object`s, so zod STRIPS the key and reports success; that is the #5250
+ * blindness, and it is why nothing red ever covered these 21.
+ *
+ * ## Why this is a SEPARATE block from the `menubar` sweep above
+ *
+ * ⛔ This is deliberately not a widening of `objectui#6249`'s sweep, and the
+ * two must not be merged. That block walks ONE node shape (`{ type: 'menubar',
+ * menus: [{ items }] }`) and its header states on purpose that extending it to
+ * `dropdown-menu` / `context-menu` is "a separate verification surface this fix
+ * does not need". It is still scoped that way and still correct.
+ *
+ * But `value` was authored across all THREE containers, so a menubar-scoped pin
+ * would have covered 11 of the 21 while READING as though it covered the class
+ * — the failure mode that is worse than no pin at all. Hence a second, honestly
+ * named block whose population is the whole overlay-menu corpus.
+ *
+ * ## What this pins that the schema-level control above does NOT
+ *
+ * ⭐ The declared-key controls in the `menubar` block already feed
+ * `{ label, icon, disabled, shortcut, value }` to `MenuItemSchema` and assert
+ * only the first four survive. That pins the TYPE-LEVEL fact — `value` is not
+ * declared — and it was already green while all 21 keys sat in the corpus.
+ * A stripping schema cannot see an authored key, so the type-level probe is
+ * structurally incapable of catching this. The gap was only ever the CORPUS
+ * assertion, and that is exactly what this block adds.
+ *
+ * Per the objectui#6810 ruling (2026-08-30): no family-wide read-set extractor
+ * is being built here — this is the ruled `逐例修 + 补钉` shape, one named pin
+ * with its own counter-probe for a key the class has actually regenerated on.
+ */
+describe('catalog corpus: no overlay-menu item authors the undeclared `value` key (objectui#7072)', () => {
+  type Located = { where: string; item: Json };
+
+  /** The three containers that hold `MenuItem`s. They share one `MenuItem` type. */
+  const MENU_CONTAINER_TYPES = new Set(['menubar', 'dropdown-menu', 'context-menu']);
+
+  /** Depth-first over an items array, descending through submenu `children`. */
+  function collectFrom(items: unknown, where: string, acc: Located[]): void {
+    if (!Array.isArray(items)) return;
+    items.forEach((raw, i) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+      const item = raw as Json;
+      acc.push({ where: `${where}[${i}]`, item });
+      collectFrom(item.children, `${where}[${i}].children`, acc);
+    });
+  }
+
+  /**
+   * Every `MenuItem` of every menu container in the corpus, at any depth.
+   * `menubar` nests its items one level deeper (`menus[].items[]`) than
+   * `dropdown-menu` / `context-menu` (`items[]`) — reading only one of the two
+   * shapes is how a sweep silently returns a short list, so both are walked
+   * here and the non-vacuity assertion below pins the resulting count.
+   */
+  function collectMenuItems(node: unknown, where: string, acc: Located[] = []): Located[] {
+    if (Array.isArray(node)) {
+      node.forEach((n, i) => collectMenuItems(n, `${where}[${i}]`, acc));
+      return acc;
+    }
+    if (!node || typeof node !== 'object') return acc;
+    const record = node as Json;
+    if (typeof record.type === 'string' && MENU_CONTAINER_TYPES.has(record.type)) {
+      if (record.type === 'menubar' && Array.isArray(record.menus)) {
+        (record.menus as Json[]).forEach((menu, m) => {
+          collectFrom((menu as Json)?.items, `${where}.menus[${m}].items`, acc);
+        });
+      } else {
+        collectFrom(record.items, `${where}.items`, acc);
+      }
+    }
+    for (const [key, value] of Object.entries(record)) {
+      collectMenuItems(value, `${where}.${key}`, acc);
+    }
+    return acc;
+  }
+
+  const authoredValueKeys = (items: Located[]) =>
+    items.filter(({ item }) => 'value' in item).map(({ where }) => `${where}.value`);
+
+  const items = allExamples().flatMap((e) => collectMenuItems(e.schema, e.id));
+
+  it('the sweep reaches all three container shapes and every one of their items — non-vacuity', () => {
+    // Pinned so a walker that silently stops matching one container shape (or
+    // one nesting depth) fails loudly here rather than reporting a clean zero
+    // below. 25 items = menubar 13 + basic-context-menu 5 + basic-dropdown-menu
+    // 4 + with-icons 3.
+    expect(items).toHaveLength(25);
+    expect(allExamples().length).toBeGreaterThan(400);
+
+    // One representative position per container shape, including the deeper
+    // `menus[].items[]` nesting only `menubar` has.
+    expect(items.map((i) => i.where)).toEqual(
+      expect.arrayContaining([
+        'components-overlay-menubar/application-menubar.menus[0].items[0]',
+        'components-overlay-context-menu/basic-context-menu.items[0]',
+        'components-overlay-dropdown-menu/basic-dropdown-menu.items[0]',
+        'components-overlay-dropdown-menu/with-icons.items[0]',
+      ]),
+    );
+  });
+
+  it('no overlay-menu item authors `value`', () => {
+    expect(authoredValueKeys(items)).toEqual([]);
+
+    // The zero above is only a reading if the same sweep still SEES the items
+    // it is judging: a corpus that stopped parsing, or a walker that returned
+    // nothing, would also report "no `value`". `label` is the comparable
+    // declared key and must stay non-zero.
+    const labelled = items.filter(({ item }) => 'label' in item);
+    expect(labelled).toHaveLength(21);
+    const dividers = items.filter(({ item }) => item.separator === true);
+    expect(dividers).toHaveLength(4);
+  });
+
+  it('counter-probe: the same sweep DOES flag a `value` key put back into a real fixture', () => {
+    // ⛔ Not a synthetic menu and NOT a `.safeParse` probe. `MenuItemSchema`
+    // strips `value` and returns success, so a schema-level probe is blind to
+    // the authored key by construction — it stayed green through all 21 of
+    // them. This re-authors the key into a REAL fixture, taken from the corpus
+    // the pin above judges, and asserts the identical sweep reports it.
+    const fixture = JSON.parse(
+      JSON.stringify(schemaOf('components-overlay-dropdown-menu/basic-dropdown-menu')),
+    ) as Json;
+    ((fixture.items as Json[])[0] as Json).value = 'profile';
+
+    const reintroduced = collectMenuItems(fixture, 'counter-probe');
+    expect(authoredValueKeys(reintroduced)).toEqual(['counter-probe.items[0].value']);
+
+    // ...and the untouched fixture at the same position is clean, so the probe
+    // is reading the mutation rather than always reporting a hit.
+    const pristine = collectMenuItems(
+      schemaOf('components-overlay-dropdown-menu/basic-dropdown-menu'),
+      'pristine',
+    );
+    expect(authoredValueKeys(pristine)).toEqual([]);
+    expect(reintroduced).toHaveLength(pristine.length);
+  });
+});
