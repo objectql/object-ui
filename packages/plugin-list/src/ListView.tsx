@@ -1523,6 +1523,47 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     !Array.isArray(schema.data) &&
     (schema.data as any).provider === 'api';
 
+  /**
+   * Does the surface rendered below draw the rows THIS component fetched?
+   *
+   * objectui#7210. The record-count bar at the foot of this component reports
+   * this component's own paged query — `data.length` (or `serverTotal`), the
+   * `dataLimitReached` warning that goes with `$top: effectivePageSize`, and a
+   * rows-per-page selector that re-issues it. It is the only paging disclosure
+   * on the screen, so a reader takes it as describing whatever is drawn above
+   * it.
+   *
+   * On `gantt` that reading is false, and the bar is then worse than no bar.
+   * MEASURED rather than inferred: the registered `object-gantt` renderer
+   * (`plugin-gantt/src/index.tsx`) resolves to
+   * `< ObjectGantt schema={bound} dataSource={dataSource} / >` and forwards no
+   * other prop — unlike `object-grid` / `object-kanban` / `object-calendar` /
+   * `object-map` / `object-tree`, whose wrappers all spread `{...props}`. The
+   * `data` handed to the SchemaRenderer below therefore never reaches the
+   * chart, `ObjectGantt.reload` issues its OWN query, and that query carries no
+   * `$top` at all. Harness: 18 rows, `pagination.pageSize: 6` — the chart drew
+   * 18 rows while this bar read "6 records · Showing first 6 records. More data
+   * may be available." The same harness on `grid` ("18 records", the server
+   * total, no warning) and on `kanban` ("6 records …", and the board really is
+   * drawing those 6) is why this is scoped to `gantt` alone: everywhere else
+   * the bar is telling the truth and must keep telling it.
+   *
+   * ⛔ The correction is NOT to forward `data` to the chart. That would cap a
+   * gantt at one page, turning a complete schedule into a quietly truncated one
+   * that still looks like a schedule. Whether a non-grid view may fetch
+   * unbounded is an open maintainer decision (objectui#7210, half 2) — this
+   * line is correct whichever way that lands, which is why it did not wait for
+   * it.
+   *
+   * ⛔ Nor does suppressing the bar make this component's query dead: `data`
+   * still gates the loading skeleton and the load-error panel (so it decides
+   * whether the chart mounts at all), feeds `UserFilters`' option counts, and
+   * is what the client-side CSV/JSON export writes out. Measured with the paged
+   * response delayed: while it was in flight the skeleton was up and the chart
+   * had 0 rows, though its own unbounded response had already arrived.
+   */
+  const surfaceDrawsFetchedRows = currentView !== 'gantt';
+
   // Fetch data effect — supports schema.data (ViewDataSchema) provider modes
   React.useEffect(() => {
     let isMounted = true;
@@ -3886,7 +3927,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       )}
 
       {/* Record count status bar (Airtable-style) */}
-      {!loading && data.length > 0 && schema.showRecordCount !== false && (
+      {!loading && data.length > 0 && surfaceDrawsFetchedRows && schema.showRecordCount !== false && (
         <div
           className="border-t px-4 py-2 flex items-center gap-3 text-xs text-muted-foreground bg-background shrink-0"
           data-testid="record-count-bar"
