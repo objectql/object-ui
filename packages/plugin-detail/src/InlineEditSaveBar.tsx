@@ -25,12 +25,56 @@
  * and **Cmd/Ctrl+Enter** saves — both respecting `saving`/`locked`.
  *
  * The bar renders nothing unless the record is actively being edited.
+ *
+ * ## Validation authority on this surface: the SERVER (objectui#6868)
+ *
+ * ⚖️ Ruled by the maintainer on 2026-08-31 (decision batch #13, on
+ * https://github.com/objectstack-ai/objectui/issues/6868). Recorded here
+ * because, until that ruling, the inline-edit surface's lack of client-side
+ * validation was an ABSENCE, and an absence and a decision look identical in
+ * code. This comment is the difference.
+ *
+ * The ruling, in its own words:
+ *
+ *   1. 正式记录:行内编辑面的校验权威是**服务端**…此前这是一个「缺席」,现在是
+ *      一个「决定」——在相应模块注释写明并指向本裁定。
+ *   2. 交付物:把服务端 `VALIDATION_FAILED` 拒绝**映射为就地字段提示**(拒绝信息
+ *      已含字段与规则,缺的只是呈现层)——用户不再看到原始服务器错误。
+ *   3. ⛔ 不抽取共享求值器。
+ *   4. ⛔ 照旧不写第二套校验实现——服务端是唯一规则源,前端只做呈现。
+ *
+ * What that means for anyone editing this module:
+ *
+ *   - ⛔ Do NOT add a client-side rule evaluator here, and do NOT call
+ *     `buildValidationRules` from this surface. The form surface's producer
+ *     emits a react-hook-form rule DESCRIPTOR, not a verdict; RHF is the only
+ *     evaluator in the repo, and this package depends on neither. Wiring one
+ *     up would create a second rule source that can disagree with the server —
+ *     which is precisely how AI-authored metadata gets a green form and a
+ *     rejected write.
+ *   - ✅ DO present what the server already decided. The refusal envelope is
+ *     field-scoped: `@objectstack/objectql`'s validators throw
+ *     `VALIDATION_FAILED` with `fields[]`, and `@object-ui/react`'s
+ *     `extractFieldErrors` is the ONE in-repo normaliser for it (the same one
+ *     `form.tsx` uses). This module reads that normaliser and renders per-field
+ *     reasons; it never re-derives a rule.
+ *
+ * The rule kinds the engine refuses on this surface were measured on a real
+ * ObjectQL engine before the ruling: `required` (empty AND null), `minLength`,
+ * `maxLength`, `email`, `url`, `min`, `max` — every one a `VALIDATION_FAILED`
+ * with the prior value left in storage. So no invalid value reachable here
+ * survives the write; the only defect was the SHAPE of the refusal the user saw.
  */
 
 import * as React from 'react';
 import { Button, cn } from '@object-ui/components';
 import { Check, X, Loader2 } from 'lucide-react';
-import { useInlineEdit } from '@object-ui/react';
+import {
+  useInlineEdit,
+  extractFieldErrors,
+  extractWriteErrorMessage,
+  type WriteFieldError,
+} from '@object-ui/react';
 import { useDetailTranslation } from './useDetailTranslation';
 import {
   ConcurrentUpdateDialog,
@@ -97,12 +141,65 @@ export type BuildConflict = (
   err: ConcurrentUpdateErrorShape,
 ) => ConcurrentUpdateConflict;
 
-/** Strip noisy backend prefixes so the inline error reads cleanly. */
+/**
+ * Strip noisy backend prefixes so the inline error reads cleanly.
+ *
+ * The LAST-RESORT channel since objectui#6868: it is what the user sees only
+ * when the refusal is not field-scoped (a transport failure, a permission
+ * denial, a bare `Error`). A `VALIDATION_FAILED` never reaches it — that path
+ * goes through {@link attributeInlineRefusal} and renders per field.
+ */
 function cleanError(err: any): string {
   const raw = err?.message || err?.error || String(err ?? 'Save failed');
   return String(raw)
     .replace(/^\[[^\]]+\]\s*/, '')
     .replace(/^[A-Z][A-Z0-9_]+:\s*/, '');
+}
+
+/**
+ * Attribute a rejected inline save to the FIELDS it is about, or answer `null`
+ * when it is not field-scoped (objectui#6868 deliverable 2).
+ *
+ * Two sources, in strict order, and neither of them guesses:
+ *
+ *  1. **The envelope.** `extractFieldErrors` — `@object-ui/react`'s single
+ *     in-repo normaliser, the same one `form.tsx` reads — accepts the three
+ *     shapes a `VALIDATION_FAILED` can arrive in (`validationErrors` from
+ *     `@object-ui/data-objectstack`'s re-wrap, `details.fields` from the raw
+ *     `@objectstack/client` error, or a bare `fields`) and drops any entry with
+ *     no usable `field`. That drop is the point: a wrong mark on an innocent
+ *     input is worse than the undirected string it replaces. This is the ONLY
+ *     source for the DataSource path, whose write is one atomic multi-key
+ *     update — nothing else there can say which key the server refused.
+ *
+ *  2. **The call shape, in callback mode only.** The drawer's persistence
+ *     contract loops `onFieldSave(field, value)` one field at a time, so a
+ *     rejection from that call belongs to that field by CONSTRUCTION, not by
+ *     inference — the write in flight carried exactly one key. `inFlightField`
+ *     is passed only from that loop; the atomic path passes `undefined`, so a
+ *     multi-key write can never be attributed this way.
+ *
+ * ⚠️ This function evaluates NOTHING. It reads the server's verdict and says
+ * which input it belongs beside. Adding a rule check here would be the second
+ * validation implementation the ruling forbids.
+ *
+ * Exported for its pin test to reach, and deliberately NOT re-exported from
+ * `src/index.tsx` — which lists every published name explicitly — so the
+ * package's public surface is unchanged (the same treatment `BuildConflict`
+ * gets above).
+ */
+export function attributeInlineRefusal(
+  err: unknown,
+  inFlightField?: string,
+): WriteFieldError[] | null {
+  const fromEnvelope = extractFieldErrors(err);
+  if (fromEnvelope) return fromEnvelope;
+  if (!inFlightField) return null;
+  // Field-scoped by the call shape, but the envelope carried no per-field text
+  // — fall back to the envelope's top-level reason rather than marking an input
+  // with no reason next to it (the rule `form.tsx` applies to the same case).
+  const message = extractWriteErrorMessage(err) || cleanError(err);
+  return [{ field: inFlightField, message }];
 }
 
 /**
@@ -146,6 +243,19 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
   const inline = useInlineEdit();
   const [conflict, setConflict] = React.useState<ConcurrentUpdateConflict | null>(null);
   const [conflictBusy, setConflictBusy] = React.useState(false);
+  /**
+   * Per-field reasons for the last refusal, or `null` when it was not
+   * field-scoped (objectui#6868). Rendered ONLY while `inline.error` is set —
+   * the context clears that on `enter()` and on teardown, so this local state
+   * can never outlive its session and re-appear over a later edit.
+   */
+  const [refusals, setRefusals] = React.useState<WriteFieldError[] | null>(null);
+
+  /** User-facing name for a rejected field; the machine name when the host resolves none. */
+  const labelForField = React.useCallback(
+    (name: string) => fieldLabelFor?.(name) || name,
+    [fieldLabelFor],
+  );
 
   const canAtomic = !!dataSource && !!objectName && recordId != null;
 
@@ -198,14 +308,21 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
     }
     inline.setSaving(true);
     inline.setError(null);
+    setRefusals(null);
+    // Callback mode persists ONE key per call, so the key in flight is what a
+    // rejection is about. Stays `undefined` on the atomic path, where the write
+    // carries every edited key at once and only the envelope can attribute it.
+    let inFlightField: string | undefined;
     try {
       if (onFieldSave) {
         // Callback mode (drawer): persist each edited field sequentially so a
         // single backend rejection short-circuits, preserving the caller's
         // per-field contract.
         for (const [field, value] of entries) {
+          inFlightField = field;
           await onFieldSave(field, value);
         }
+        inFlightField = undefined;
       } else if (canAtomic) {
         // DataSource mode (record page): ONE atomic write of only the edited
         // keys, OCC-guarded by the record's current updated_at.
@@ -220,12 +337,21 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
         // Stay in edit mode; the dialog drives reload / overwrite.
         setConflict(buildConflict(draft, err));
       } else {
-        inline.setError(cleanError(err));
+        // objectui#6868: the server is the validation authority here, so a
+        // refusal is PRESENTED, never re-derived. A field-scoped one becomes a
+        // per-field reason; everything else keeps the cleaned string.
+        const attributed = attributeInlineRefusal(err, inFlightField);
+        setRefusals(attributed);
+        inline.setError(
+          attributed
+            ? attributed.map((r) => `${labelForField(r.field)}: ${r.message}`).join('; ')
+            : cleanError(err),
+        );
       }
     } finally {
       inline.setSaving(false);
     }
-  }, [inline, onFieldSave, canAtomic, data, dataSource, objectName, recordId, refresh, buildConflict]);
+  }, [inline, onFieldSave, canAtomic, data, dataSource, objectName, recordId, refresh, buildConflict, labelForField]);
 
   const closeConflict = React.useCallback(() => {
     setConflict(null);
@@ -258,11 +384,19 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
       await refresh?.();
       inline?.reset();
     } catch (err) {
-      inline?.setError(cleanError(err));
+      // Same presentation contract as the first save — an overwrite the server
+      // refuses on validation grounds gets per-field reasons, not a raw string.
+      const attributed = attributeInlineRefusal(err);
+      setRefusals(attributed);
+      inline?.setError(
+        attributed
+          ? attributed.map((r) => `${labelForField(r.field)}: ${r.message}`).join('; ')
+          : cleanError(err),
+      );
     } finally {
       closeConflict();
     }
-  }, [conflict, canAtomic, inline, dataSource, objectName, recordId, refresh, closeConflict]);
+  }, [conflict, canAtomic, inline, dataSource, objectName, recordId, refresh, closeConflict, labelForField]);
 
   // Record-level keyboard shortcuts for the shared edit session
   // (objectui#2572 item 5): Cmd/Ctrl+Enter commits the draft, Esc cancels.
@@ -316,12 +450,29 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
         role="region"
         aria-label={t('detail.editFieldsInline')}
       >
+        {/* objectui#6868 deliverable 2: a field-scoped refusal is rendered as
+            one reason PER FIELD, named by the field's own label, instead of the
+            raw server string the user used to get. `refusals` is gated on
+            `inline.error` so a stale attribution from an earlier session can
+            never surface — the context clears `error` on enter/teardown. */}
         {inline.error && (
           <div
             role="alert"
             className="mr-auto max-w-md rounded-md border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs text-destructive"
           >
-            {inline.error}
+            {refusals ? (
+              <ul className="space-y-0.5">
+                {refusals.map((r) => (
+                  <li key={r.field} data-inline-field-error={r.field}>
+                    <span className="font-medium">{labelForField(r.field)}</span>
+                    {': '}
+                    {r.message}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              inline.error
+            )}
           </div>
         )}
         {/* The lock REASON is surfaced by DetailView's approval-lock band; here

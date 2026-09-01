@@ -220,6 +220,36 @@ export interface InlineFieldInputProps {
  * Editability GATING (computed types, `readonly`, system fields, object
  * lifecycle) stays with the host — this component only renders the editor once
  * the host has decided the field is editable.
+ *
+ * ## Why there is no validation in this component (objectui#6868)
+ *
+ * ⚖️ This is a DECISION, not an omission. The maintainer ruled on 2026-08-31
+ * (decision batch #13, on
+ * https://github.com/objectstack-ai/objectui/issues/6868) that **the server is
+ * the validation authority on the inline-edit surface**. Recorded here because
+ * this component is where the question gets asked: it imports from
+ * `@object-ui/fields` but never calls `buildValidationRules`, and it takes no
+ * `error` prop — which for two years read as an oversight and is now a ruling.
+ *
+ * ⛔ Do NOT "fix" that by adding rules here. The ruling refuses both an
+ * extracted shared evaluator and a second validation implementation on this
+ * surface: the server is the only rule source, and the front end only presents
+ * its verdict. Every rule kind reachable through this component was measured
+ * against a real ObjectQL engine and refused server-side with
+ * `VALIDATION_FAILED` (`required` empty and null, `minLength`, `maxLength`,
+ * `email`, `url`, `min`, `max`), with the prior value left in storage.
+ *
+ * ✅ The presentation half lives in `<InlineEditSaveBar>`, which turns the
+ * server's field-scoped refusal into a reason per field. See that module's
+ * header for the ruling in full.
+ *
+ * ⚠️ One measured caveat for anyone extending this later: the widgets'
+ * published `error` slot (objectui#3222) marks `aria-invalid` — it does NOT
+ * render the message. Measured at 2c3cd1b: `NumberField` given `error` sets
+ * `aria-invalid="true"` and renders no text, exactly as on the form surface
+ * where `form.tsx` — not the widget — draws the visible message. So threading
+ * `error` through here would buy the a11y marking, and the visible hint would
+ * still be this package's markup to render.
  */
 export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   field,
