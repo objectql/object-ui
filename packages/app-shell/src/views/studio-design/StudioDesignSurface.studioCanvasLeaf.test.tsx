@@ -240,8 +240,19 @@ describe('Interfaces pillar — affordances beside a studio-canvas leaf (#7121)'
       timeout: 4000,
     });
 
-    // ...then walk to the studio-canvas leaf. The pillar's load effect clears
-    // `selection` only on the editable path, so the selection is still live.
+    // ...then walk to the studio-canvas leaf.
+    //
+    // ⚠️ This step's premise CHANGED under objectui#7137. When this test landed,
+    // the pillar's load effect cleared `selection` only on the editable path, so
+    // the selection was still live here and the two absences below measured
+    // #7121's gating against it. #7137 keyed `selection` to its leaf, so it is
+    // now already null on arrival and those two absences hold for that stronger
+    // reason instead — belt-and-braces rather than the sole guard. Kept as-is
+    // (it is still the end-to-end statement "a block picked on another leaf
+    // opens nothing here"), but #7121's gating is independently pinned by the
+    // three tests ABOVE, which assert it with no selection in play at all —
+    // those are the ones that go red if the gate is removed or re-fenced on
+    // `isEditable`.
     fireEvent.click(screen.getByTitle('object · showcase_task'));
     await waitFor(() => expect(bodyText()).toContain('Runtime list preview'), { timeout: 4000 });
 

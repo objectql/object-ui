@@ -1253,7 +1253,40 @@ export function InterfacesPillar({
   // blocks to inspect). Non-source surfaces never show the tab strip.
   const [inspectorTab, setInspectorTab] = React.useState<'props' | 'source'>('source');
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
-  const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
+  // objectui#7137 — the block selection is STAMPED with the leaf it was made
+  // on, so it expires BY CONSTRUCTION when the leaf changes — the same shape
+  // `blockingReport` already uses against `inspectorKey` below, and the reason
+  // that one cannot be stranded either.
+  //
+  // The previous shape was a bare `MetadataSelection | null` whose ONLY clear
+  // lived inside the draft-load effect, *after* its
+  // `if (!current || !isEditable) … return` guard. So the clear never ran on any
+  // leaf where `isEditable` is false, and `isEditable = !!Preview && !StudioCanvas`
+  // is a conjunction — that is a studio-canvas leaf OR a leaf whose own type has
+  // no registered designer. Walking to either carried a selection describing a
+  // block on the PREVIOUS leaf's canvas. Measured before the repair: the scoped
+  // inspector mounted three times as `page:home_page:block:blk_1` with `blk_1` a
+  // dashboard block, and in the folded layout `hasInspectorTarget` stayed true
+  // across the leaf change so `nextCenterTab` saw no edge and stranded the author
+  // on Properties ("expected 'Properties' to be 'Canvas'").
+  //
+  // ⛔ Deliberately NOT repaired by hoisting that imperative clear above the
+  // guard. Two reasons, the first measured: a clear in an effect runs one
+  // COMMITTED render after the leaf change, so the foreign-block inspector still
+  // mounts and runs its effects before being torn down — keying it to the leaf
+  // makes `selection` null in the SAME render. And an imperative clear is what
+  // this defect was: a guard added later stranded it, and the next guard could
+  // strand it again.
+  const leafKey = `${current?.type ?? ''}:${current?.name ?? ''}`;
+  const [selectionState, setSelectionState] = React.useState<{
+    key: string;
+    value: MetadataSelection | null;
+  }>({ key: '', value: null });
+  const selection = selectionState.key === leafKey ? selectionState.value : null;
+  const setSelection = React.useCallback(
+    (next: MetadataSelection | null) => setSelectionState({ key: leafKey, value: next }),
+    [leafKey],
+  );
   // ADR-0057 P3c — the folded-layout center tab (canvas | properties). The
   // auto-switch below reacts to inspector-target EDGES (select a block → jump
   // to Properties; deselect → back to Canvas) while preserving a manual choice
@@ -1437,9 +1470,7 @@ export function InterfacesPillar({
   // selection changes, when the rail swaps scoped for default, or when the leaf
   // changes — an unmounted inspector can never retract its last verdict.
   const [blockingReport, setBlockingReport] = React.useState({ key: '', count: 0 });
-  const inspectorKey = `${current?.type ?? ''}:${current?.name ?? ''}:${
-    selection ? `${selection.kind}:${selection.id}` : 'default'
-  }`;
+  const inspectorKey = `${leafKey}:${selection ? `${selection.kind}:${selection.id}` : 'default'}`;
   const inspectorBlocking = blockingReport.key === inspectorKey ? blockingReport.count : 0;
   // A studio-canvas surface (e.g. object → runtime records grid) renders the
   // running app, not an editable draft — schema editing is the Data pillar's
@@ -1470,6 +1501,12 @@ export function InterfacesPillar({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    // A LEAF CHANGE no longer needs this — `selection` is keyed to the leaf and
+    // is already null by the time this runs (objectui#7137). What is left is the
+    // narrower case this effect also fires for: a RELOAD of the same leaf
+    // (`publishNonce` bumped, or a new `client`), where the leaf key is unchanged
+    // and a block selected against the pre-publish draft should not carry into
+    // the reloaded one.
     setSelection(null);
     (async () => {
       try {
@@ -1706,12 +1743,14 @@ export function InterfacesPillar({
       <SlidersHorizontal className="h-3.5 w-3.5" />
       <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
       <div className="ml-auto flex items-center gap-0.5">
-        {/* objectui#7121 — same gate as the rail branch: on a studio-canvas
-            leaf `selection` can only be a leftover from the previous leaf, so
-            offering "clear selection" here would contradict the rail beside it,
-            which states this canvas has no blocks. (The leftover STATE itself
-            outlives every non-editable leaf change, not just these — filed
-            separately rather than swept in here.) */}
+        {/* objectui#7121 — same gate as the rail branch: offering "clear
+            selection" on a studio-canvas leaf would contradict the rail beside
+            it, which states this canvas has no blocks. (The leftover STATE that
+            once reached here is gone since objectui#7137 keyed `selection` to
+            its leaf; this gate stays because it is the RAIL's consistency rule,
+            and a studio-canvas leaf can never produce a selection to clear
+            either way — `StudioCanvasPreviewProps` carries no
+            `onSelectionChange` by contract.) */}
         {selection && !StudioCanvas && (
           <button
             type="button"
@@ -1774,13 +1813,18 @@ export function InterfacesPillar({
       // (`listMetadataPreviewTypes() === ['dashboard']`), which is what makes
       // this a different cause from #6795 part C's empty-registry states.
       //
-      // Ordered BEFORE the `selection` branch on purpose. `selection` is state
-      // that outlives a leaf change (the load effect clears it only on the
-      // editable path), so arriving here with a block selected on the PREVIOUS
-      // leaf otherwise opens the scoped inspector for a block this canvas does
-      // not contain — measured: `ObjectFieldInspector` handed
-      // `object:showcase_task:block:blk_1`. This ordering mirrors the canvas
-      // chain, where `StudioCanvas` also wins.
+      // Ordered BEFORE the `selection` branch on purpose, mirroring the canvas
+      // chain where `StudioCanvas` also wins. When this ordering landed it was
+      // also load-bearing against a second defect: `selection` outlived a leaf
+      // change (the load effect cleared it only on the editable path), so
+      // arriving here with a block selected on the PREVIOUS leaf opened the
+      // scoped inspector for a block this canvas does not contain — measured,
+      // `ObjectFieldInspector` handed `object:showcase_task:block:blk_1`.
+      // objectui#7137 fixed that at the source by keying `selection` to its
+      // leaf, so this branch is no longer the thing standing between an author
+      // and a foreign block. Keep the order anyway: it states which branch is
+      // TRUE for this leaf, and it does not depend on the state lifecycle
+      // staying correct.
       //
       // ⛔ Says what is true and promises no recovery — no "loading…", no "try
       // again". Same constraint part C established: these registries are plain
