@@ -312,10 +312,17 @@ const DATA_SOURCE_ONLY_WIDGET_TYPES = new Set([
  * claimed the two "mirror" each other; by then they had drifted apart in both
  * directions — `user` only in core, the three picker names only here — and the
  * gap was live, not theoretical: a `user` field got NONE of the three props.
- * `dataSource` and `dependentValues` each have a `SchemaRendererContext`
- * fallback inside the widget so the picker limped along, but `dependsOnLabels`
- * has none, so a dependent user picker interpolated raw API names into its
- * "select … first" hint — the very leak objectstack#5407 fixed for lookups.
+ * `dataSource` has a `SchemaRendererContext` fallback inside the widget, so the
+ * picker limped along; `dependentValues` and `dependsOnLabels` have none, so a
+ * dependent user picker was left unscoped AND interpolated raw API names into
+ * its "select … first" hint — the very leak objectstack#5407 fixed for lookups.
+ *
+ * ⚠️ This used to credit `dependentValues` with a context fallback too. The
+ * widgets spell one (`?? ctx.formValues ?? ctx.data`), but
+ * `SchemaRendererContextType` declares exactly `dataSource` / `debug` /
+ * `debugFlags` / `apiFetch`, so it is unconditionally empty — unsettable, not
+ * merely unset (objectui#7206). Of the three props above, only `dataSource` is
+ * really served by the context.
  * The widget contract has always named `user` among the types this renderer
  * injects `dataSource` for (`fields/src/widgets/types.ts`).
  *

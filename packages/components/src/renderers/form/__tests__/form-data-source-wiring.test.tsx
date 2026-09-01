@@ -115,12 +115,17 @@ describe('form renderer — data-source wiring covers the core reference family'
   });
 
   it('threads them to `user` — the member the private copy never had', () => {
-    // Before objectui#4790 a `user` field received NONE of the three. Two of
-    // them have a `SchemaRendererContext` fallback inside the widget, so the
-    // person picker limped along; `dependsOnLabels` has no fallback at all, so
-    // a dependency-gated user picker interpolated the raw API name into its
-    // "select … first" hint — the leak objectstack#5407 closed for lookups and
-    // left open here. `user` is also named in the widget contract's own
+    // Before objectui#4790 a `user` field received NONE of the three. ONE of
+    // them — `dataSource` — has a `SchemaRendererContext` fallback inside the
+    // widget, so the person picker limped along; `dependentValues` and
+    // `dependsOnLabels` have none, so a dependency-gated user picker was left
+    // unscoped AND interpolated the raw API name into its "select … first" hint
+    // — the leak objectstack#5407 closed for lookups and left open here.
+    //
+    // ⚠️ This used to credit two of the three with a context fallback. The
+    // widgets spell one for `dependentValues` (`?? ctx.formValues ?? ctx.data`),
+    // but `SchemaRendererContextType` declares exactly `dataSource` / `debug` /
+    // `debugFlags` / `apiFetch`, so it is unconditionally empty (objectui#7206). `user` is also named in the widget contract's own
     // `dataSource` doc (`fields/src/widgets/types.ts`) as a type this renderer
     // injects for, so the omission contradicted the published contract too.
     expect(EXPANDABLE_FIELD_TYPES.has('user')).toBe(true);

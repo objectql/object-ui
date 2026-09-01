@@ -30,9 +30,18 @@ export function useCascadingOptions<T extends OptionLike>(
   dependentValues: Record<string, unknown> | undefined,
 ): CascadingOptionsResult<T> {
   // Live form values for cascading options — injected by the form renderer as
-  // `dependentValues` (same channel dependent lookups use), falling back to the
-  // record on SchemaRendererContext. `current_user` etc. come from the global
-  // predicate scope so role/context predicates resolve too.
+  // `dependentValues` (same channel dependent lookups use). `current_user` etc.
+  // come from the global predicate scope so role/context predicates resolve too.
+  //
+  // ⚠️ This used to say the chain falls back to "the record on
+  // SchemaRendererContext". There is no such record. `SchemaRendererContextType`
+  // declares exactly `dataSource` / `debug` / `debugFlags` / `apiFetch`, so the
+  // `?? ctx?.formValues ?? ctx?.data` tail below is unconditionally `{}` in
+  // production — unsettable, not merely unset, because no host can populate a
+  // member the type does not declare. `dependentValues` is today the only
+  // channel that can carry a record; reached without it, a `dependsOn` option
+  // list stays gated. The reads are left in place: objectui#7206 owns the open
+  // question of whether that channel becomes real or is retired.
   const ctx = useContext(SchemaRendererContext) as any;
   const record = useMemo<Record<string, unknown>>(() => {
     return (dependentValues ?? ctx?.formValues ?? ctx?.data ?? {}) as Record<string, unknown>;

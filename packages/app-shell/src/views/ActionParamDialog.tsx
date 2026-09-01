@@ -327,22 +327,32 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
             // predicates are resolved against (objectui#3765, maintainer ruling
             // 2026-08-11, Option B: "the dialog is a small form"). Until this
             // prop existed the dialog passed nothing, so `useCascadingOptions`
-            // fell through to `SchemaRendererContext`'s `formValues` / `data` —
-            // the OUTER page's record — and a `visibleWhen` written against a
+            // resolved the EMPTY record — and a `visibleWhen` written against a
             // sibling PARAM could never see the value the user had just picked
             // in this same dialog. The evaluator is untouched: it already reads
             // `dependentValues ?? formValues ?? data`; this is the supply half
             // that was missing.
             //
+            // ⚠️ This used to say the fall-through reached "`SchemaRendererContext`'s
+            // `formValues` / `data` — the OUTER page's record". It did not, and
+            // no host could have made it: `SchemaRendererContextType` declares
+            // exactly `dataSource` / `debug` / `debugFlags` / `apiFetch`, so
+            // that tail is unconditionally `{}` — unsettable, not merely unset
+            // (objectui#7206). The fall-through reached `{}`, which is why the
+            // predicate came back UNRESOLVABLE rather than resolved against
+            // some outer record.
+            //
             // Ruled cost, recorded rather than worked around: because a
             // supplied record wins that chain outright, a predicate naming a
-            // ROW field the dialog has no param for (`record.owner_id`) no
-            // longer resolves against the host page here. It becomes
-            // unresolvable, which `resolveVisibleOptions` fails OPEN — the
-            // option is offered, never wrongly hidden. Merging the two records
-            // (`{ ...row, ...values }`) was option C on the card and was NOT
-            // ruled: it invents a third scope dialect that would have to be
-            // written into the contract first.
+            // ROW field the dialog has no param for (`record.owner_id`) does not
+            // resolve against the host page here. It becomes unresolvable, which
+            // `resolveVisibleOptions` fails OPEN — the option is offered, never
+            // wrongly hidden. ⚠️ Measured, that cost is not a loss: the same
+            // predicate was ALREADY unresolvable before this prop existed,
+            // because the chain's tail could not reach a host record then
+            // either. Merging the two records (`{ ...row, ...values }`) was
+            // option C on the card and was NOT ruled: it invents a third scope
+            // dialect that would have to be written into the contract first.
             const cascadeProps = CASCADE_OPTION_WIDGET_TYPES.has(field.type)
               ? { dependentValues: values }
               : {};
