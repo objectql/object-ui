@@ -2314,7 +2314,27 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...(schema.timeline?.scale ? { scale: schema.timeline.scale } : {}),
         };
       }
-      case 'gantt':
+      case 'gantt': {
+        // objectui#7070: only ever restate a binding the view actually DECLARED
+        // — the same correction objectui#7029 made to the calendar branch above,
+        // which fenced this one out and reported it separately. These two keys
+        // used to be floored at 'start_date' / 'end_date', field names no view
+        // had written and most objects do not carry. `ObjectGantt.getGanttConfig`
+        // takes its flat branch as soon as BOTH date props are present, so a
+        // fabricated pair short-circuited the renderer's own refusal screen and
+        // produced a plausible, fully wrong chart instead. MEASURED first, since
+        // #7029's mechanic is only correct where a refusal path exists:
+        // ObjectGantt REFUSES an absent binding (it does not render empty and
+        // does not throw) — pinned in
+        // `plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070.test.tsx`.
+        //
+        // ⛔ `progressField` / `dependenciesField` keep their floors here: they
+        // are NOT date axes, their absent-value semantics differ, and #7070
+        // scoped them out deliberately. Leaving them cannot resurrect a config —
+        // `getGanttConfig` gates on the two date fields alone (pinned in the same
+        // file), so the refusal stays reachable with the pair still present.
+        const startDateField = schema.gantt?.startDateField || schema.options?.gantt?.startDateField;
+        const endDateField = schema.gantt?.endDateField || schema.options?.gantt?.endDateField;
         return {
           type: 'object-gantt',
           ...baseProps,
@@ -2322,14 +2342,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           // read, write}` (composite endpoint) must reach ObjectGantt, whose
           // getDataConfig prefers schema.data over the objectName fallback.
           ...(schema.data ? { data: schema.data } : {}),
-          startDateField: schema.gantt?.startDateField || schema.options?.gantt?.startDateField || 'start_date',
-          endDateField: schema.gantt?.endDateField || schema.options?.gantt?.endDateField || 'end_date',
+          ...(startDateField ? { startDateField } : {}),
+          ...(endDateField ? { endDateField } : {}),
           progressField: schema.gantt?.progressField || schema.options?.gantt?.progressField || 'progress',
           dependenciesField: schema.gantt?.dependenciesField || schema.options?.gantt?.dependenciesField || 'dependencies',
           ...(schema.gantt?.titleField ? { titleField: schema.gantt.titleField } : {}),
           ...(schema.options?.gantt || {}),
           ...(schema.gantt || {}),
         };
+      }
       case 'map': {
         // Whitelisted flatten (objectui#5177) — see `FLAT_MAP_CONFIG_KEYS`.
         // `schema.options.map` is an untyped bag; a raw spread here forwarded

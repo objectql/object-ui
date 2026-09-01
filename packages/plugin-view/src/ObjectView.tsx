@@ -1356,11 +1356,29 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           ...(viewOptions.timeline || {}),
         };
       case 'gantt':
+        // objectui#7070: only ever restate a binding the view actually DECLARED
+        // — the same correction objectui#7029 made to the calendar branch above.
+        // `startDateField` / `endDateField` used to be floored at 'start_date' /
+        // 'end_date', field names no view had written and most objects do not
+        // carry. `ObjectGantt.getGanttConfig` takes its flat branch as soon as
+        // BOTH date props are present, so a fabricated pair short-circuited the
+        // renderer's own refusal screen. ObjectGantt REFUSES an absent binding
+        // (measured — it does not render empty and does not throw); pinned in
+        // `plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070.test.tsx`.
+        //
+        // ⛔ `progressField` / `dependenciesField` keep their floors: not date
+        // axes, different absent-value semantics, scoped out of #7070. They
+        // cannot resurrect a config on their own — `getGanttConfig` gates on the
+        // two date fields alone.
         return {
           type: 'object-gantt',
           ...baseProps,
-          startDateField: viewOptions.gantt?.startDateField || 'start_date',
-          endDateField: viewOptions.gantt?.endDateField || 'end_date',
+          ...(viewOptions.gantt?.startDateField
+            ? { startDateField: viewOptions.gantt.startDateField }
+            : {}),
+          ...(viewOptions.gantt?.endDateField
+            ? { endDateField: viewOptions.gantt.endDateField }
+            : {}),
           progressField: viewOptions.gantt?.progressField || 'progress',
           dependenciesField: viewOptions.gantt?.dependenciesField || 'dependencies',
           ...(viewOptions.gantt || {}),

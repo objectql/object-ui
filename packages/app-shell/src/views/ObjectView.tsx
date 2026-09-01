@@ -148,13 +148,38 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
  * fallback entirely. The result on a calendar-bound view was a Timeline the
  * switcher offered and the renderer bucketed wholly into "No date" (objectui#3129).
  *
- * What stays here is the view's OWN declared config, floored at `'name'` — the
- * same two-rung shape the calendar and gantt branches below already use. An
+ * What stays here is the view's OWN declared config, floored at `'name'`. An
  * object-level `objectDef.titleField` leg used to sit in the middle of that
  * chain; it was removed in objectui#6557 because `@objectstack/spec`'s object
  * schema is a `strictObject` that REJECTS the key with `unrecognized_keys`, so
  * no legal object metadata could ever reach it (objectui#6531 established the
  * measurement, and dropped the twin read inside `getRecordDisplayName`).
+ *
+ * ⚠️ WHAT THE SIBLING BRANCHES BELOW ACTUALLY DO (objectui#7070). The sentence
+ * above used to end "— the same two-rung shape the calendar and gantt branches
+ * below already use", and for gantt that was FALSE the whole time it stood: the
+ * gantt branch floored `startDateField` / `endDateField` at `'start_date'` /
+ * `'end_date'`, which is precisely the one-rung fabrication this note declares
+ * retired. A note is the authority the next fixer consults, so it vouched for
+ * the lines that were broken. Each branch is therefore stated as MEASURED, not
+ * as a family:
+ *
+ *   - `calendarViewOptions` below — forwards a declared block or emits no
+ *     `calendar` key at all; it never floors a date axis (objectui#7029).
+ *   - `ganttViewOptions` below — forwards the declared block, title floored at
+ *     `'name'`, and invents neither date field. Its `'start_date'` / `'end_date'`
+ *     floors were deleted by objectui#7070; that is what makes `ObjectGantt`'s
+ *     own "Gantt configuration required" screen reachable from this route.
+ *   - ⛔ STILL FABRICATING, and deliberately NOT fixed by objectui#7070: the
+ *     TIMELINE axis at the two SIBLING FACES. `plugin-list/ListView.tsx` and
+ *     `plugin-view/ObjectView.tsx` both floor `startDateField` at `'created_at'`
+ *     — the very literal objectui#3129 retired HERE. `ListView` carries it as a
+ *     stated decision ("`created_at` stays the last resort for a view that
+ *     declares no date axis anywhere"), so the two faces hold contradictory
+ *     DOCUMENTED postures on one literal. objectui#7070 routes that to a single
+ *     ruling instead of settling it per-face. Until it is answered: this note
+ *     describes the timeline axis at THIS face only, and says nothing about the
+ *     other two.
  *
  * Exported for the regression suite.
  */
@@ -211,6 +236,45 @@ export function calendarViewOptions(viewDef: any): Record<string, unknown> | und
     if (!declared || typeof declared !== 'object') return undefined;
     // Forward what the author wrote — nothing invented, nothing floored.
     return { ...declared };
+}
+
+/**
+ * The `options.gantt` config this page hands to `ListView`.
+ *
+ * objectui#7070 — the same class objectui#7029 removed from the calendar branch,
+ * reported separately by PR #7062 rather than fixed alongside it. This face used
+ * to floor `startDateField` at `'start_date'` and `endDateField` at `'end_date'`
+ * for EVERY object view, declared or not — field names no view had written and
+ * most objects do not carry. Downstream that is indistinguishable from a real
+ * binding, and it is what made `ObjectGantt`'s own refusal screen ("Gantt
+ * configuration required. Please specify startDateField, endDateField, and
+ * titleField.") unreachable from this route: `getGanttConfig` takes its flat
+ * branch as soon as BOTH date props are present, and this face always supplied
+ * both. It also answered the ADR-0047 capability gate in `ListView.availableViews`
+ * (`schema.options?.gantt?.startDateField`), so the Gantt toggle was live on
+ * every object view in the product.
+ *
+ * ⚠️ MEASURED BEFORE THE DELETION, because #7029's mechanic is only correct
+ * where a refusal path exists: `ObjectGantt` REFUSES an absent binding — it does
+ * not render empty and does not throw. Pinned as the seam in
+ * `plugin-gantt/src/ObjectGantt.unconfiguredRefusal-7070.test.tsx`.
+ *
+ * What stays is the view's OWN declared block, spread whole so every spec key
+ * the renderer reads survives (parentField/typeField for the summary→step
+ * hierarchy, baseline*, groupByField, resourceView/assignee*, tooltipFields,
+ * quickFilters, …) — a bare whitelist here once dropped every field past
+ * colorField and flattened the chart. `titleField` keeps its `'name'` floor:
+ * that is a display-name default, not a date axis, and it is the same rung
+ * `timelineViewOptions` above carries.
+ *
+ * Exported for the regression suite.
+ */
+export function ganttViewOptions(viewDef: any): Record<string, unknown> {
+    return {
+        ...(viewDef?.gantt || {}),
+        // Only ever restates what the view declared — no date field is floored.
+        titleField: viewDef?.gantt?.titleField || 'name',
+    };
 }
 
 /**
@@ -2289,20 +2353,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     coverField: viewDef.gallery?.coverField || viewDef.gallery?.imageField,
                     titleField: viewDef.gallery?.titleField || 'name',
                 },
-                gantt: {
-                    // Spread the full view-defined gantt config first so the
-                    // renderer's extended fields (parentField/typeField for the
-                    // summary→step hierarchy, baseline*, groupByField,
-                    // resourceView/assignee*, tooltipFields, quickFilters, …)
-                    // survive; then layer the three required defaults last so an
-                    // omitted source value still falls back. (Mirrors the gallery
-                    // branch above — a bare whitelist here was dropping every
-                    // field past colorField and flattening the chart.)
-                    ...(viewDef.gantt || {}),
-                    startDateField: viewDef.gantt?.startDateField || 'start_date',
-                    endDateField: viewDef.gantt?.endDateField || 'end_date',
-                    titleField: viewDef.gantt?.titleField || 'name',
-                },
+                // The gantt config the view DECLARED, title floored at 'name' —
+                // never an invented date field (objectui#7070). With no date
+                // binding to forward, ListView's capability gate stops offering
+                // the Gantt toggle to a view that configured none, and a view
+                // forced onto the gantt renderer reaches its refusal screen.
+                // See `ganttViewOptions`.
+                gantt: ganttViewOptions(viewDef),
                 tree: {
                     // Self-referencing tree-grid config (plugin-tree). Spread the
                     // full view-defined tree first so parentField/fields/

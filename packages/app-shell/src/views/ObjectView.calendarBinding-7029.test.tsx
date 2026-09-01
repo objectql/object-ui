@@ -130,12 +130,44 @@ describe('no invented calendar field name survives in the source (objectui#7029)
     expect(CODE.filter((l) => /calendar\?\.titleField \|\| 'name'/.test(l))).toEqual([]);
   });
 
-  it('CONTROL: the scan can still see a literal that IS there', () => {
-    // Without this the two cases above are green on any tree where the filter
-    // simply matches nothing — the failure mode that made the first spelling of
-    // this scan a phantom check. The gantt branch still carries its own
-    // `'start_date'` floor (same class, separately reported, deliberately NOT
-    // touched by this card), so it is the honest positive control.
-    expect(CODE.filter((l) => l.includes("'start_date'")).length).toBeGreaterThan(0);
+  /**
+   * ⭐ THE POSITIVE CONTROL — read this before changing either case below.
+   *
+   * Without a control the two cases above are green on any tree where the filter
+   * simply matches nothing: the failure mode that made the first spelling of
+   * this scan a phantom check. This control was originally a single case
+   * anchored on the gantt branch's own `'start_date'` floor ("same class,
+   * separately reported, deliberately NOT touched by this card").
+   *
+   * objectui#7070 is that separate report, and fixing it deleted the anchor —
+   * `'start_date'` is now absent from this face's CODE, so the original control
+   * would have gone red. ⛔ It was NOT simply removed: a scan whose last live
+   * control is dropped becomes a test that passes over nothing, which is the
+   * exact class this whole card family is about. It is re-expressed as TWO
+   * controls that answer two different questions:
+   */
+
+  it('CONTROL (machinery): the scan can see a literal that IS there', () => {
+    // Can this filter return a non-empty result at all? Anchored on `'name'`,
+    // which is DELIBERATELY permanent here — the display-name floor the
+    // objectui#3129 note above the seams describes as what stays. It is not a
+    // fabricated field name, so no future card of this family retires it, and
+    // this control cannot go red as a side effect of the next fix.
+    expect(CODE.filter((l) => l.includes("'name'")).length).toBeGreaterThan(0);
+  });
+
+  it('CONTROL (same class): the scan still sees a REMAINING fabricated field name', () => {
+    // Can this filter see the specific thing it exists to hunt — a one-rung
+    // `|| 'literal'` field-name floor? Anchored on the gallery branch's
+    // `imageField: … || 'image'`, which is the same class, is still there, and
+    // is out of scope for both objectui#7029 and objectui#7070.
+    //
+    // ⚠️ TO WHOEVER RETIRES `'image'`: this going red is the mechanic working,
+    // not a broken test. RE-ANCHOR it onto whatever fabrication legitimately
+    // remains in this file — do not delete it, and do not weaken it to the
+    // machinery control above. If nothing of this class remains anywhere in this
+    // face, say so in the PR body and convert this case into the assertion that
+    // NONE remains, so the scan keeps making a claim about the tree.
+    expect(CODE.filter((l) => l.includes("'image'")).length).toBeGreaterThan(0);
   });
 });
