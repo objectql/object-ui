@@ -77,7 +77,10 @@ import {
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
 import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
-import { BarChart3, AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+// objectui#7063 — the default empty state is stated ONCE for the dashboard
+// surface (see that component's header for why it is dashboard-local).
+import { WidgetEmptyState } from './WidgetEmptyState';
 import { useFilterScope } from '@object-ui/react';
 import { resolveFilterPlaceholders, computeMetricDelta } from './utils';
 import { metricAccentTextClass } from './colorVariants';
@@ -720,11 +723,26 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       </div>
     );
   }
-  // A metric (single value) over an empty dataset is 0, not "No rows" — the
-  // latter reads as broken for KPIs like "Total Books" on a fresh app. Charts
-  // and tables keep the empty state (there is genuinely nothing to plot).
+  // A metric (single value) over an empty dataset is 0, not an empty state —
+  // the latter reads as broken for KPIs like "Total Books" on a fresh app.
+  // Charts and tables keep the empty state (there is genuinely nothing to
+  // plot).
+  //
+  // objectui#7063: this used to be a one-line `dashboard.noRows` fragment in a
+  // dashed box — 'No rows' / `暂无数据行` — with no role, no explanation and no
+  // mention of WHAT was empty, which is why a legitimately young tile read as
+  // "the dashboard failed to load" beside eleven populated ones. `datasetName`
+  // is `widget.dataset` and is non-empty on every path that reaches here (a
+  // widget with no dataset never mounts this component), but it is passed
+  // defensively so a blank binding degrades to the un-sourced copy rather than
+  // printing an empty label.
   if (state.rows.length === 0 && !isMetric) {
-    return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" />{tt('dashboard.noRows', 'No rows')}</div>;
+    return (
+      <WidgetEmptyState
+        className="rounded border border-dashed bg-muted/20"
+        source={datasetName || undefined}
+      />
+    );
   }
 
   // Measure metadata (label + format + currency) + header-label resolution,

@@ -1046,6 +1046,17 @@ const ja = {
   },
   dashboard: {
     noRows: "行がありません",
+    // objectui#7063 — the DEFAULT empty state every dashboard widget renders
+    // when its query SUCCEEDED and returned nothing. `noRows` above is the
+    // terse fragment it replaces at the render site; the copy here has to
+    // read as a state rather than a failure, which is why it says the widget
+    // loaded. `sourceLabel` carries its own punctuation so the call site
+    // concatenates no separator (see `WidgetEmptyState`).
+    empty: {
+      title: "まだデータがありません",
+      message: "このウィジェットは正常に読み込まれましたが、クエリはまだレコードを返していません。",
+      sourceLabel: "データソース:",
+    },
     loading: "読み込み中…",
     pickMeasures: "このデータセットウィジェットの指標（値）を選択してください。",
     datasetUnsupported: "このデータソースはデータセットクエリに対応していません。",

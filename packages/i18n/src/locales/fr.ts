@@ -1048,6 +1048,17 @@ const fr = {
   },
   dashboard: {
     noRows: "Aucune ligne",
+    // objectui#7063 — the DEFAULT empty state every dashboard widget renders
+    // when its query SUCCEEDED and returned nothing. `noRows` above is the
+    // terse fragment it replaces at the render site; the copy here has to
+    // read as a state rather than a failure, which is why it says the widget
+    // loaded. `sourceLabel` carries its own punctuation so the call site
+    // concatenates no separator (see `WidgetEmptyState`).
+    empty: {
+      title: "Pas encore de données",
+      message: "Ce widget s'est chargé correctement, mais la requête n'a encore renvoyé aucun enregistrement.",
+      sourceLabel: "Source de données :",
+    },
     loading: "Chargement…",
     pickMeasures: "Choisissez des mesures (valeurs) pour ce widget de dataset.",
     datasetUnsupported: "Cette source de données ne prend pas en charge les requêtes de dataset.",

@@ -1119,6 +1119,17 @@ const zh = {
     noDataAvailable: '暂无数据',
     noDataSourceFor: '没有可用的数据源：',
     noRows: '暂无数据行',
+    // objectui#7063 — the DEFAULT empty state every dashboard widget renders
+    // when its query SUCCEEDED and returned nothing. `noRows` above is the
+    // terse fragment it replaces at the render site; the copy here has to
+    // read as a state rather than a failure, which is why it says the widget
+    // loaded. `sourceLabel` carries its own punctuation so the call site
+    // concatenates no separator (see `WidgetEmptyState`).
+    empty: {
+      title: '暂时还没有数据',
+      message: '该组件已成功加载，只是查询目前没有返回任何记录。',
+      sourceLabel: '数据源：',
+    },
     loading: '加载中…',
     pickMeasures: '请为该数据集组件选择度量（值）。',
     datasetUnsupported: '当前数据源不支持数据集查询。',

@@ -286,12 +286,18 @@ export const ObjectPivotTable: React.FC<ObjectPivotTableProps> = ({ schema, data
 
   return (
     <>
+      {/* objectui#7063 — `sourceLabel` is the object this pivot is bound to,
+          named by the shared default empty state. Passed as a PROP because
+          `finalSchema` is a `PivotTableSchema`, which declares no
+          `objectName`; it survives the spread above only by accident and
+          reading it there would be reading a key the type denies. */}
       <PivotTable
         schema={finalSchema}
         className={className}
         rowLabels={rowLabels}
         columnLabels={colLabels}
         rowFieldLabel={rowFieldLabel}
+        sourceLabel={schema.objectName}
         onDrillDown={handleDrillDown}
       />
       {renderDrillDrawer()}

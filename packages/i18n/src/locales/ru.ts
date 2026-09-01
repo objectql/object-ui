@@ -1056,6 +1056,17 @@ const ru = {
   },
   dashboard: {
     noRows: "Нет строк",
+    // objectui#7063 — the DEFAULT empty state every dashboard widget renders
+    // when its query SUCCEEDED and returned nothing. `noRows` above is the
+    // terse fragment it replaces at the render site; the copy here has to
+    // read as a state rather than a failure, which is why it says the widget
+    // loaded. `sourceLabel` carries its own punctuation so the call site
+    // concatenates no separator (see `WidgetEmptyState`).
+    empty: {
+      title: "Данных пока нет",
+      message: "Виджет успешно загружен, но запрос пока не вернул ни одной записи.",
+      sourceLabel: "Источник данных:",
+    },
     loading: "Загрузка…",
     pickMeasures: "Выберите меры (значения) для этого виджета набора данных.",
     datasetUnsupported: "Этот источник данных не поддерживает запросы к наборам данных.",

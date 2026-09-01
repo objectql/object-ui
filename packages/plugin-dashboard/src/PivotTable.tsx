@@ -8,16 +8,13 @@
 
 import React, { useMemo } from 'react';
 import type { PivotTableSchema, PivotAggregation } from '@object-ui/types';
-import { cn, DataEmptyState } from '@object-ui/components';
+import { cn } from '@object-ui/components';
 import { isDrillEnabled, type DrillEvent } from '@object-ui/core';
 import { useSafeTranslate } from '@object-ui/i18n';
+import { WidgetEmptyState } from './WidgetEmptyState';
 
 function useTotalLabel(): string {
   return useSafeTranslate()('dashboard.total', 'Total');
-}
-
-function useNoDataLabel(): string {
-  return useSafeTranslate()('dashboard.noDataAvailable', 'No data available');
 }
 
 export interface PivotTableProps {
@@ -34,6 +31,15 @@ export interface PivotTableProps {
   columnLabels?: Record<string, string>;
   /** Optional display label for the row field name (e.g. "Stage" for "stage"). */
   rowFieldLabel?: string;
+  /**
+   * What this pivot is bound to, named in the default empty state
+   * (objectui#7063). `ObjectPivotTable` passes its `schema.objectName`; a pivot
+   * over inline `schema.data` has no source to name and omits it. NOT read off
+   * `schema`: `PivotTableSchema` declares no `objectName`, so reading one would
+   * be reading a key the type says cannot be there — it survives
+   * `ObjectPivotTable`'s spread only by accident.
+   */
+  sourceLabel?: string;
   /**
    * Drill-down click handler. When provided **and** `schema.drillDown` is
    * enabled, cells / row & column headers / totals become interactive.
@@ -160,7 +166,7 @@ function aggregate(values: number[], fn: PivotAggregation): number {
  * Renders a matrix where rows correspond to `rowField`, columns to
  * `columnField`, and cells show the aggregated `valueField`.
  */
-export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLabels, columnLabels, rowFieldLabel, onDrillDown }) => {
+export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLabels, columnLabels, rowFieldLabel, sourceLabel, onDrillDown }) => {
   const {
     title,
     rowField,
@@ -176,7 +182,6 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLa
     drillDown,
   } = schema;
   const totalLabel = useTotalLabel();
-  const noDataLabel = useNoDataLabel();
 
   const drillEnabled = isDrillEnabled(drillDown) && typeof onDrillDown === 'function';
   const fireDrill = (ev: DrillEvent) => {
@@ -296,21 +301,11 @@ export const PivotTable: React.FC<PivotTableProps> = ({ schema, className, rowLa
         {title && (
           <h3 className="text-sm font-semibold mb-2">{title}</h3>
         )}
-        <DataEmptyState
-          data-testid="pivot-empty-state"
-          className="py-8 gap-2 [&>h3]:hidden"
-          icon={
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
-          }
-          iconWrapperClassName=""
-          title=""
-          description={noDataLabel}
-        />
+        {/* objectui#7063 — the shared dashboard default. The title used to be
+            suppressed outright (`title=""` plus `[&>h3]:hidden`), leaving a
+            grid glyph over a bare `dashboard.noDataAvailable` line: exactly
+            the "reads as a load failure" shape the ruling is about. */}
+        <WidgetEmptyState testId="pivot-empty-state" source={sourceLabel} className="py-8" />
       </div>
     );
   }

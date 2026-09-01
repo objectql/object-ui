@@ -253,13 +253,16 @@ describe('DatasetWidget', () => {
   // as empty/0 (a 0-value axis / blank table) instead of "loading".
   const pendingSource = () => ({ queryDataset: vi.fn(() => new Promise<{ rows: any[] }>(() => {})) });
 
-  it('shows a chart skeleton (not "No rows", not a 0-axis) while a chart query is pending', () => {
+  it('shows a chart skeleton (not the empty state, not a 0-axis) while a chart query is pending', () => {
     const src = pendingSource();
     const { container } = render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
     expect(screen.getByTestId('dataset-loading')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="chart-skeleton"]')).toBeInTheDocument();
     // The empty state must NOT show while loading — that was the bug.
-    expect(screen.queryByText('No rows')).not.toBeInTheDocument();
+    // Selected by test id, not by the copy: objectui#7063 replaced the bare
+    // 'No rows' string, and a `queryByText` for a string that no longer exists
+    // anywhere passes for the wrong reason.
+    expect(screen.queryByTestId('widget-empty-state')).not.toBeInTheDocument();
   });
 
   it('shows a row (grid) skeleton while a table query is pending', () => {
@@ -284,14 +287,14 @@ describe('DatasetWidget', () => {
     expect(screen.getByTestId('dataset-loading')).toBeInTheDocument();
     // …then it clears once data arrives (status → ok, rows present).
     await waitFor(() => expect(screen.queryByTestId('dataset-loading')).not.toBeInTheDocument());
-    expect(screen.queryByText('No rows')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('widget-empty-state')).not.toBeInTheDocument();
   });
 
-  it('shows 0 (not "No rows") for a metric over an empty dataset', async () => {
+  it('shows 0 (not an empty state) for a metric over an empty dataset', async () => {
     const src = makeSource(async () => ({ rows: [] }));
     render(<DatasetWidget widget={{ type: 'metric', dataset: 'books', values: ['count'] }} dataSource={src} />);
     expect(await screen.findByText('0')).toBeInTheDocument();
-    expect(screen.queryByText('No rows')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('widget-empty-state')).not.toBeInTheDocument();
   });
 
   it('formats the empty-metric zero (e.g. $0) using the measure format', async () => {
@@ -303,10 +306,52 @@ describe('DatasetWidget', () => {
     expect(await screen.findByText('$0')).toBeInTheDocument();
   });
 
-  it('still shows "No rows" for a dimensioned chart over an empty dataset', async () => {
+  // ── objectui#7063: the DEFAULT empty state is self-explaining ────────────
+  // Maintainer ruling 2026-08-31 (hotcrm#1212): a legitimately young widget
+  // must not read as a load failure, and it must say what is empty without any
+  // authored copy. The measured shape was a bare `暂无数据行` / 'No rows'
+  // fragment mid-dashboard beside eleven populated tiles.
+  //
+  // These pin the three properties the ruling fixes, NOT the exact sentence
+  // (copy is review's to move): the state announces itself as a STATUS rather
+  // than an alert, it carries an explanation as well as a title, and it names
+  // the widget's data source.
+  it('renders a self-explaining empty state for a dimensioned chart over an empty dataset', async () => {
     const src = makeSource(async () => ({ rows: [] }));
-    render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
-    expect(await screen.findByText('No rows')).toBeInTheDocument();
+    render(<DatasetWidget widget={{ type: 'bar', dataset: 'crm_forecast', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
+    const panel = await screen.findByTestId('widget-empty-state');
+    // (1) a state, not a failure. The error branch of this same component is
+    // `role="alert"`; before this card the empty branch carried NO role at all,
+    // so assistive tech could not tell the two apart either.
+    expect(panel).toHaveAttribute('role', 'status');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    // (2) title AND explanation — the placeholder was a single fragment.
+    expect(panel.textContent).toContain('No data yet');
+    expect(panel.textContent).toContain('loaded successfully');
+    // (3) it names WHAT is empty, with zero authored copy on the widget.
+    expect(screen.getByTestId('widget-empty-source').textContent).toContain('crm_forecast');
+  });
+
+  it('the empty state degrades to un-sourced copy rather than printing a blank source', async () => {
+    // `dataset` is what every path into this component carries, so this is the
+    // defensive half: a blank binding must drop the source LINE, not render
+    // "Source:" with nothing after it.
+    const src = makeSource(async () => ({ rows: [] }));
+    render(<DatasetWidget widget={{ type: 'bar', dataset: '', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
+    const panel = await screen.findByTestId('widget-empty-state');
+    expect(panel.textContent).toContain('No data yet');
+    expect(screen.queryByTestId('widget-empty-source')).not.toBeInTheDocument();
+  });
+
+  it('a load FAILURE still reads as a failure, not as an empty state', async () => {
+    // The other half of property (1), measured on the same component: the card
+    // is only satisfied if empty and failed remain distinguishable, so a fix
+    // that softened the error path would defeat it.
+    const src = { queryDataset: vi.fn(async () => { throw new Error('dataset service unreachable'); }) };
+    render(<DatasetWidget widget={{ type: 'bar', dataset: 'crm_forecast', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('dataset service unreachable');
+    expect(screen.queryByTestId('widget-empty-state')).not.toBeInTheDocument();
   });
 
   // ── #2 header labels ────────────────────────────────────────────────────

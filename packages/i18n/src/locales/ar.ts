@@ -1053,6 +1053,17 @@ const ar = {
   },
   dashboard: {
     noRows: "لا توجد صفوف",
+    // objectui#7063 — the DEFAULT empty state every dashboard widget renders
+    // when its query SUCCEEDED and returned nothing. `noRows` above is the
+    // terse fragment it replaces at the render site; the copy here has to
+    // read as a state rather than a failure, which is why it says the widget
+    // loaded. `sourceLabel` carries its own punctuation so the call site
+    // concatenates no separator (see `WidgetEmptyState`).
+    empty: {
+      title: "لا توجد بيانات بعد",
+      message: "تم تحميل هذه الأداة بنجاح، لكن الاستعلام لم يُرجع أي سجلات بعد.",
+      sourceLabel: "مصدر البيانات:",
+    },
     loading: "جارٍ التحميل…",
     pickMeasures: "اختر المقاييس (القيم) لأداة مجموعة البيانات هذه.",
     datasetUnsupported: "مصدر البيانات هذا لا يدعم استعلامات مجموعات البيانات.",

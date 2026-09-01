@@ -1248,6 +1248,17 @@ const en = {
     noDataAvailable: 'No data available',
     noDataSourceFor: 'No data source available for',
     noRows: 'No rows',
+    // objectui#7063 — the DEFAULT empty state every dashboard widget renders
+    // when its query SUCCEEDED and returned nothing. `noRows` above is the
+    // terse fragment it replaces at the render site; the copy here has to
+    // read as a state rather than a failure, which is why it says the widget
+    // loaded. `sourceLabel` carries its own punctuation so the call site
+    // concatenates no separator (see `WidgetEmptyState`).
+    empty: {
+      title: 'No data yet',
+      message: 'This widget loaded successfully and its query returned no records yet.',
+      sourceLabel: 'Source:',
+    },
     loading: 'Loading…',
     pickMeasures: 'Pick measures (values) for this dataset widget.',
     datasetUnsupported: 'This data source does not support dataset queries.',

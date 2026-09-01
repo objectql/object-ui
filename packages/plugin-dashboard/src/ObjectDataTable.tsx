@@ -30,6 +30,7 @@ import {
   isLookupType,
 } from './recordFields';
 import { RecordDetailDrawer } from './RecordDetailDrawer';
+import { WidgetEmptyState } from './WidgetEmptyState';
 
 export interface ObjectDataTableProps {
   schema: {
@@ -612,15 +613,18 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   const dataSource = propDataSource || context?.dataSource;
   const boundData = useDataScope(schema.bind);
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
-  let noDataLabel = 'No data available';
   let noDataSourceLabel = 'No data source available for';
   // useObjectTranslation is provider-safe (react-i18next falls back to the
   // global instance and never throws), so call it directly — no try/catch,
-  // which would make the hook conditional. The English defaults above stand
+  // which would make the hook conditional. The English default above stands
   // until a translation resolves.
+  //
+  // objectui#7063 removed this surface's second lookup (`noDataLabel` /
+  // `dashboard.noDataAvailable`): the empty branch now renders the shared
+  // `WidgetEmptyState`, which resolves its own copy. The no-data-SOURCE label
+  // below is a different state — a misconfigured binding, not an empty result
+  // — and keeps its own string.
   const { t } = useObjectTranslation();
-  const a = t('dashboard.noDataAvailable');
-  if (a && a !== 'dashboard.noDataAvailable') noDataLabel = a;
   const b = t('dashboard.noDataSourceFor');
   if (b && b !== 'dashboard.noDataSourceFor') noDataSourceLabel = b;
 
@@ -928,18 +932,19 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     );
   }
 
-  // Empty state
+  // Empty state — the shared dashboard default (objectui#7063). It used to be a
+  // grid glyph over a bare `dashboard.noDataAvailable` line ('No data
+  // available' / `暂无数据`) with no role and no explanation, which is the
+  // same "reads as a load failure" shape the ruling is about — and it sat
+  // directly above an error block that DOES announce itself (`role="alert"`,
+  // destructive colours). `schema.objectName` is what this surface can name:
+  // the object the table is bound to. The wrapper keeps `table-empty-state`,
+  // which `ObjectDataTable.stableEmptyRows` and app-shell's widget DOM leak
+  // sweep both select on.
   if (finalData.length === 0) {
     return (
       <div className={cn('overflow-auto', className)} data-testid="table-empty-state">
-        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <line x1="3" y1="9" x2="21" y2="9" />
-            <line x1="9" y1="21" x2="9" y2="9" />
-          </svg>
-          <p className="text-xs">{noDataLabel}</p>
-        </div>
+        <WidgetEmptyState source={schema.objectName || undefined} className="py-8" />
       </div>
     );
   }
