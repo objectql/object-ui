@@ -46,6 +46,7 @@
     "check:dist-completeness": "node scripts/check-dist-completeness.mjs --all",
   "check:esm-specifiers": "node scripts/check-node-esm-load.mjs --specifiers-only",
   "check:node-esm-load": "node scripts/check-node-esm-load.mjs",
+    "census:body-dialect": "node scripts/body-dialect-census.mjs",
     "check:control-bytes": "node scripts/check-control-bytes.mjs",
     "check:published-dist": "node scripts/check-published-dist-tooling.mjs",
     "check:spec-floors": "node scripts/check-spec-range-floors.mjs",
