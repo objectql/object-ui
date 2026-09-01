@@ -408,6 +408,146 @@ function ChartFootnote({ note, children }: { note?: React.ReactNode; children: R
 }
 
 /**
+ * How many rows a MAGNITUDE chart can actually give area to (objectui#7147).
+ *
+ * ## The third mechanism, and why neither landed answer reaches it
+ *
+ * Three distinct mechanisms on this surface produce ONE reader-facing symptom —
+ * a tile that says nothing, or says something false, about rows it was handed:
+ *
+ *   - an early return that emits a bare `div`  — objectui#7140 / objectui#7146
+ *   - a silent row DROP before the plot        — objectui#7148
+ *   - DEGENERATE GEOMETRY, which is this one   — objectui#7147
+ *
+ * The rows here are never filtered. `data` reaches `<Pie>`, `<Funnel>` and
+ * `<Treemap>` whole — the sankey arm's is the only row-dropping filter in this
+ * file — and what happens instead is that a row whose measure is not above zero
+ * is given no area. objectui#7148's count (`data.length - rows.length`) is
+ * therefore exactly ZERO against these three families, so hoisting that
+ * footnote here would render nothing at all while looking like coverage. Zero
+ * area is not zero elements, and neither is a dropped row.
+ *
+ * ## The measurement that decided fix-over-decline, per family
+ *
+ * 56 tiles in real Chromium (`/opt/pw-browsers/chromium`) at `origin/main`
+ * 40c4711d6 — six families x nine datasets — each tile screenshotted, MD5'd,
+ * and pixel-diffed against a literally empty `div` of the same 520x240 box.
+ * `measured-and-declined` was genuinely on the table for all three families,
+ * as the card says, and survived for none of them:
+ *
+ *   - pie / donut, all-zero, all-null, all-negative: ZERO non-white pixels out
+ *     of 124,800. Not blank-LOOKING — byte-identical to the empty div, while
+ *     the DOM carried 31 descendants and a real `svg`.
+ *   - pie / donut, `40` beside a `null`: a FULL circle in the first category's
+ *     colour, 99.35% pixel-identical to a legitimately one-row dataset (diff
+ *     0.654%, and that residue is the `paddingAngle` hairline, not
+ *     information). The picture asserts "Alpha is 100%" of a dataset in which
+ *     Beta was never measured at all.
+ *   - funnel, `40` beside a `null`: 178 ink pixels — ZERO segments and ONE
+ *     label, and the label is "Beta", the row with NO value. The row carrying
+ *     40 draws nothing whatsoever.
+ *   - funnel, all-negative: a large, healthy-looking two-band funnel whose mark
+ *     area (220,320) EXCEEDS the all-positive control's (111,881).
+ *   - treemap, `40` beside a `null`, `40` beside a `0`, and mixed-sign
+ *     `40 / -25 / -12`: all three BYTE-IDENTICAL (diff 0.000%) to a genuinely
+ *     one-row treemap — one full-bleed leaf labelled "Alpha". Four datasets,
+ *     one image.
+ *   - treemap, all-zero: one full-bleed leaf labelled "Beta" — the LAST
+ *     category — asserting that one of two equal-zero categories is the entire
+ *     composition.
+ *
+ * The controls are what make those zeros readable. On the same instrument an
+ * all-zero BAR drew 5,128 ink pixels of axes and ticks — which is why bar is
+ * deliberately NOT touched here: its reader can already tell. A two-row pie
+ * differed from a one-row pie by 9.683% of its pixels and a two-row treemap
+ * from a one-row treemap by 38.301%, so the instrument separates these datasets
+ * easily whenever the renderer does.
+ *
+ * ## Why the predicate is `> 0`, and why the copy names it
+ *
+ * The reason `no-positive-flow`'s docstring gives. Five shapes reach here — a
+ * genuine zero, a negative, `null`, an unparseable string, and a missing key —
+ * and naming any ONE of them is a sentence that is false for the other four.
+ * A strictly positive, finite measure is the single test all three families'
+ * layouts effectively apply, so the copy names THAT.
+ *
+ * `Number.isFinite(v) && v > 0` rather than the sankey arm's `Number(...) || 0`
+ * idiom: this predicate must also reject `Infinity`, which has no finite area
+ * to occupy anywhere and which `|| 0` lets straight through.
+ */
+function countSizableRows(rows: unknown[], dataKey: string): { sizable: number; total: number } {
+  let sizable = 0;
+  for (const row of rows) {
+    const v = Number((row as Record<string, unknown> | null | undefined)?.[dataKey]);
+    if (Number.isFinite(v) && v > 0) sizable += 1;
+  }
+  return { sizable, total: rows.length };
+}
+
+/**
+ * The refusal a magnitude chart renders when NO row can be sized.
+ *
+ * The same shell and the same shape of sentence as `no-positive-flow`, and
+ * deliberately a DIFFERENT code: that one is the sankey arm's and answers rows
+ * being DROPPED, this one answers geometry that collapses with every row still
+ * present. Sharing a code would make the two indistinguishable to the pins that
+ * exist to keep them apart.
+ *
+ * Callers gate it on `total > 0`, for the reason objectui#7146 gives: handed NO
+ * rows, "no row's measure is above zero" is a sentence about rows that do not
+ * exist. That is the empty-RESULT question (objectui#7130), answered upstream in
+ * `ObjectChart` where the query outcome is known — so every no-rows tile is left
+ * byte-for-byte as it was.
+ */
+function MagnitudeRefusal({ dataKey, className }: { dataKey: string; className?: string }) {
+  return (
+    <ChartRefusal code="no-positive-magnitude" className={className}>
+      This chart has nothing to size: no row&apos;s{' '}
+      <code className="font-mono">{dataKey}</code> is above zero.
+    </ChartRefusal>
+  );
+}
+
+/**
+ * The note a magnitude chart carries when SOME rows can be sized and some cannot.
+ *
+ * Returns `null` when every row is sizable, and that is the gate which keeps
+ * healthy charts byte-identical: `ChartFootnote` with no note renders its
+ * children untouched, so no existing caller gains a wrapper element.
+ *
+ * ## Why it does NOT say "showing N of M rows"
+ *
+ * objectui#7148's sankey note can say that, because there the missing rows are
+ * genuinely absent from the plot. Here they are not. A mixed-sign pie PAINTS a
+ * sector for every row — measured: `40 / -25 / -12` drew 3 sectors — it just
+ * paints them at a scale that means nothing, and a funnel handed the same rows
+ * drew 3 trapezoids. "Showing 1 of 3" would be a false statement about what is
+ * on the screen. What IS true of every one of them is that the chart sizes by
+ * value and these rows carry no value it can size, so that is what the copy
+ * says.
+ *
+ * `rows` is an unconditional plural because the note cannot render with fewer
+ * than two: reaching it at all means at least one row was sized (otherwise the
+ * refusal returned first) and at least one was not.
+ *
+ * No console warning, matching the two sankey answers and unlike the two guards
+ * at the bottom of this file: those carry a diagnostic PAIR that does not fit on
+ * screen, whereas this sentence already names the key, the test it failed, and
+ * how many rows failed it.
+ */
+function unsizedRowsNote(sizable: number, total: number, dataKey: string): React.ReactNode {
+  const unsized = total - sizable;
+  if (unsized <= 0) return null;
+  return (
+    <p role="note" data-chart-note="unsized-rows" className="px-1 text-xs text-muted-foreground">
+      {unsized} of {total} rows {unsized === 1 ? 'has' : 'have'} no{' '}
+      <code className="font-mono">{dataKey}</code> above zero &mdash; this chart sizes by value, so{' '}
+      {unsized === 1 ? 'that row is' : 'those rows are'} not drawn to scale.
+    </p>
+  );
+}
+
+/**
  * AdvancedChartImpl - The heavy implementation that imports Recharts with full features
  * This component is lazy-loaded to avoid including Recharts in the initial bundle
  */
@@ -937,6 +1077,16 @@ function AdvancedChartImplInner({
   if (chartType === 'pie' || chartType === 'donut') {
     const innerRadius = chartType === 'donut' ? '52%' : 0;
     const palette = getPalette();
+    // objectui#7147 — see `countSizableRows`. A slice's angle is its share of
+    // the positive total, so a row that is zero, negative, null or unparseable
+    // is drawn as nothing at all while staying in `data`. Measured: all-zero,
+    // all-null and all-negative pies each put ZERO non-white pixels on a
+    // 520x240 tile, byte-identical to an empty div.
+    const pieDataKey = series[0]?.dataKey || 'value';
+    const pieSizable = countSizableRows(data, pieDataKey);
+    if (pieSizable.total > 0 && pieSizable.sizable === 0) {
+      return <MagnitudeRefusal dataKey={pieDataKey} className={className} />;
+    }
     // Augment the chart config with one entry per category value so that
     // `ChartLegendContent` (which resolves item labels via `config[key]`)
     // can render the slice labels next to the color swatches. Without
@@ -954,13 +1104,13 @@ function AdvancedChartImplInner({
         };
       }
     });
-    return (
+    const pieChart = (
       <ChartContainer config={pieConfig} className={className} {...containerProps}>
         <PieChart>
           <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
           <Pie
             data={data}
-            dataKey={series[0]?.dataKey || 'value'}
+            dataKey={pieDataKey}
             nameKey={xAxisKey || 'name'}
             innerRadius={innerRadius}
             strokeWidth={5}
@@ -986,12 +1136,31 @@ function AdvancedChartImplInner({
         </PieChart>
       </ChartContainer>
     );
+    // A pie that drew SOME of its rows says how many it could not size. With
+    // every row sizable the note is `null` and `ChartFootnote` returns the
+    // container untouched, so healthy pies keep their exact DOM.
+    return (
+      <ChartFootnote note={unsizedRowsNote(pieSizable.sizable, pieSizable.total, pieDataKey)}>
+        {pieChart}
+      </ChartFootnote>
+    );
   }
 
   // Funnel chart — uses recharts FunnelChart (single series only)
   if (chartType === 'funnel') {
     const dataKey = series[0]?.dataKey || 'value';
     const palette = getPalette();
+    // objectui#7147 — see `countSizableRows`. Recharts derives each segment's
+    // upper and lower width from ITS value and the NEXT one, so a single
+    // unsizable row does not merely omit itself: measured, `40` beside a `null`
+    // drew ZERO segments and one label reading "Beta" — the row with no value —
+    // while the row carrying 40 drew nothing at all. All-negative is the mirror
+    // image: a confident two-band funnel with MORE mark area than the
+    // all-positive control.
+    const funnelSizable = countSizableRows(data, dataKey);
+    if (funnelSizable.total > 0 && funnelSizable.sizable === 0) {
+      return <MagnitudeRefusal dataKey={dataKey} className={className} />;
+    }
     const handleFunnelClick = onChartClick
       ? (entry: any) => {
           if (!entry) return;
@@ -1031,7 +1200,7 @@ function AdvancedChartImplInner({
           const bv = Number(b?.[dataKey] ?? 0);
           return bv - av;
         });
-    return (
+    const funnelChart = (
       <ChartContainer config={config} className={className} {...containerProps}>
         <FunnelChart>
           <ChartTooltip content={<ChartTooltipContent />} />
@@ -1050,6 +1219,11 @@ function AdvancedChartImplInner({
         </FunnelChart>
       </ChartContainer>
     );
+    return (
+      <ChartFootnote note={unsizedRowsNote(funnelSizable.sizable, funnelSizable.total, dataKey)}>
+        {funnelChart}
+      </ChartFootnote>
+    );
   }
 
   // Treemap — composition by relative size. Recharts <Treemap> is itself the
@@ -1058,17 +1232,32 @@ function AdvancedChartImplInner({
   if (chartType === 'treemap') {
     const dataKey = series[0]?.dataKey || 'value';
     const palette = getPalette();
+    // objectui#7147 — see `countSizableRows`. A treemap's leaf area IS its
+    // value, so an unsizable row collapses to nothing and its neighbours expand
+    // to fill the box. Measured: `40 / null`, `40 / 0` and `40 / -25 / -12` all
+    // rendered ONE full-bleed leaf labelled "Alpha", byte-identical to each
+    // other AND to a genuinely one-row treemap. All-zero rows paint one
+    // full-bleed leaf labelled with the LAST category.
+    const treemapSizable = countSizableRows(data, dataKey);
+    if (treemapSizable.total > 0 && treemapSizable.sizable === 0) {
+      return <MagnitudeRefusal dataKey={dataKey} className={className} />;
+    }
     const tmData = data.map((row, idx) => ({
       name: String(row?.[xAxisKey] ?? ''),
       size: Number(row?.[dataKey]) || 0,
       fill: resolveColor(palette[idx % palette.length]),
     }));
-    return (
+    const treemapChart = (
       <ChartContainer config={config} className={className} {...containerProps}>
         <Treemap data={tmData} dataKey="size" nameKey="name" {...animProps} content={<TreemapCell />} {...treemapClickProps}>
           <Tooltip />
         </Treemap>
       </ChartContainer>
+    );
+    return (
+      <ChartFootnote note={unsizedRowsNote(treemapSizable.sizable, treemapSizable.total, dataKey)}>
+        {treemapChart}
+      </ChartFootnote>
     );
   }
 
