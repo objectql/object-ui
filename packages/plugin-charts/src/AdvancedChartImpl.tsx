@@ -1048,7 +1048,45 @@ function AdvancedChartImplInner({
     const nodes = [{ name: rootName }, ...rows.map((r) => ({ name: String(r?.[xAxisKey] ?? '') }))];
     const links = rows.map((r, i) => ({ source: 0, target: i + 1, value: Number(r?.[dataKey]) || 0 }));
     if (links.length === 0) {
-      return <div className={className} />;
+      // Rows ARRIVED and the filter above kept none of them, so there is no
+      // flow to draw. This used to return a bare `<div>` — objectui#7140.
+      //
+      // Measured in Chromium before it was changed, against a populated
+      // control that drew 1 `<svg>` / 7 `<path>`: the all-zero, all-null,
+      // all-negative and unparseable-measure tiles each rendered ONE element
+      // and nothing else (`descendantCount: 1`, `svg: 0`, `textContent: ''`),
+      // and their screenshots were byte-identical to each other. No marks, no
+      // text, no `role` — the one path in this file that put nothing at all on
+      // the page, and pixel-identical to a render that crashed. A reader could
+      // not tell a genuinely all-zero flow from a broken widget, which is the
+      // distinction every other refusal here exists to make.
+      //
+      // Gated on rows being present for the same reason `hasNoCategoryKey` and
+      // `hasNoPlottableSeries` are: handed NO rows the sentence below would be
+      // false — there is no row whose measure could be anything. That is the
+      // empty-RESULT question (objectui#7130), answered upstream in
+      // `ObjectChart` where the query outcome is known, so this arm leaves the
+      // no-rows case byte-for-byte as it was.
+      //
+      // ONE code and ONE sentence, for the reason `hasNoPlottableSeries`'
+      // docstring gives: three causes reach here — a genuinely all-zero flow,
+      // values a flow cannot represent because they are negative, and
+      // unparseable measures that `Number(…) || 0` folds to zero — and naming
+      // any ONE of them is a sentence that is false for the other two. The
+      // predicate the filter actually applies is true for all three, so the
+      // copy names THAT. No console warning either, unlike the two refusals
+      // below: those carry a diagnostic pair that does not fit on screen,
+      // whereas this message already names the key and the exact test it
+      // failed.
+      if (data.length === 0) {
+        return <div className={className} />;
+      }
+      return (
+        <ChartRefusal code="no-positive-flow" className={className}>
+          This chart has no flow to draw: no row&apos;s{' '}
+          <code className="font-mono">{dataKey}</code> is above zero.
+        </ChartRefusal>
+      );
     }
     return (
       <ChartContainer config={config} className={className} {...containerProps}>
