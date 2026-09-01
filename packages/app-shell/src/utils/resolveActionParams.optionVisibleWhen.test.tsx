@@ -33,7 +33,9 @@
  * (`current_user`), the role-gating case ADR-0058 opens — plus, in the last two
  * tests, what a record-relative predicate does on each side of that prop:
  * supplied (the dialog's values narrow the list) and absent (the evaluator's
- * documented fallback chain still reaches `SchemaRendererContext`).
+ * `?? ctx.formValues` link, which this file can reach ONLY by casting a member
+ * onto the context that `SchemaRendererContextType` does not declare — see the
+ * note on `records` below, and objectui#7206).
  */
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
@@ -80,9 +82,16 @@ function renderInheritedSelect(
   /**
    * The two record channels `useCascadingOptions` reads, in its own precedence
    * order. `dependentValues` is what a HOST supplies (the dialog now supplies
-   * its in-progress param values on it — objectui#3765); `ctxFormValues` is the
-   * `SchemaRendererContext` fallback the hook drops to when no host supplied
-   * one. Both default to absent, which is the "no record at all" case.
+   * its in-progress param values on it — objectui#3765); `ctxFormValues` drives
+   * the hook's `?? ctx.formValues` link.
+   *
+   * ⚠️ That second link is NOT reachable in production, and this used to call it
+   * "the `SchemaRendererContext` fallback the hook drops to".
+   * `SchemaRendererContextType` declares exactly `dataSource` / `debug` /
+   * `debugFlags` / `apiFetch`, so the only way to exercise it is the cast the
+   * provider below performs (objectui#7206). Both default to absent, which is
+   * the "no record at all" case — and the PRODUCTION case whenever no host
+   * passes `dependentValues`.
    */
   records?: { dependentValues?: Record<string, unknown>; ctxFormValues?: Record<string, unknown> },
 ) {
@@ -199,12 +208,18 @@ describe('field-inherited option predicates reach the dialog control (objectui#3
 
   it('falls back to the context record when the host supplies none, and fails OPEN when neither exists', () => {
     // The evaluator was NOT touched by objectui#3765 — the ruling was "supply
-    // the record, do not change the reader" — so its documented chain
-    // (`dependentValues ?? ctx.formValues ?? ctx.data ?? {}`) must still work
-    // from the second link down for every widget rendered outside a dialog.
-    // Pinned here because the dialog is now the loudest producer of the FIRST
-    // link, and a wiring change that quietly bypassed the rest of the chain
-    // would look identical from the dialog's side.
+    // the record, do not change the reader" — so its chain
+    // (`dependentValues ?? ctx.formValues ?? ctx.data ?? {}`) still consults the
+    // second link. ⚠️ This used to say that link "must still work … for every
+    // widget rendered outside a dialog". It cannot:
+    // `SchemaRendererContextType` declares exactly `dataSource` / `debug` /
+    // `debugFlags` / `apiFetch`, so outside a dialog that tail is
+    // unconditionally `{}`, and this case is reachable only through the cast the
+    // helper performs (objectui#7206). What is pinned here is the READER's
+    // precedence — that the second link is still consulted at all — not a route
+    // any host can take today. Pinned because the dialog is the loudest producer
+    // of the FIRST link, and a wiring change that quietly bypassed the rest of
+    // the chain would look identical from the dialog's side.
     renderInheritedSelect(PROVINCE, ['admin'], undefined, { ctxFormValues: { country: 'us' } });
     expect(screen.getByTestId('select-empty-tier')).toBeInTheDocument();
 

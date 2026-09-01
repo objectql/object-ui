@@ -336,7 +336,8 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
     [dependsOn, dependsOnLabelsProp, t],
   );
 
-  // Resolve dependent field values from explicit prop or SchemaRendererContext.data
+  // Resolve dependent field values from the explicit prop. See the resolver
+  // below for why the context leg of that chain cannot fire (objectui#7206).
   const dependentValuesProp = props.dependentValues;
 
   // Resolve DataSource: explicit prop > field-level > wrapper field > SchemaRendererContext > none
@@ -345,8 +346,27 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
   const dataSource: DataSource | null =
     (props.dataSource as DataSource | null | undefined) ?? lookupField?.dataSource ?? fieldMeta?.dataSource ?? contextDataSource;
 
-  /** Resolve dependent values from the explicit prop (preferred), the form-data
-   *  context provided by @object-ui/react, or finally `ctx.data` (record scope). */
+  /** Resolve dependent values from the explicit prop — today the ONLY channel
+   *  that can carry a record.
+   *
+   *  ⚠️ This comment used to call `ctx.data` the "record scope" channel and
+   *  `ctx.formValues` a "form-data context provided by @object-ui/react".
+   *  Neither member exists. `SchemaRendererContextType`
+   *  (`@object-ui/react`, `context/SchemaRendererContext.tsx`) declares exactly
+   *  `dataSource`, `debug`, `debugFlags` and `apiFetch`, and
+   *  `SchemaRendererProvider` accepts no other prop — so the
+   *  `?? ctx?.formValues ?? ctx?.data` tail below is UNCONDITIONALLY `{}` in
+   *  production. Unsettable, not merely unset: no host can populate a member
+   *  the type does not declare. A widget reached without `dependentValues`
+   *  therefore resolves `{}`, which for a `dependsOn` lookup renders a
+   *  permanently gated picker — the shared root of objectui#7165 (the grid's
+   *  inline column) and objectui#7190 (the detail page), both of which were
+   *  first read as independent host bugs because this comment said a host
+   *  could supply the record through the context.
+   *
+   *  ⛔ The tail is left exactly as it is. Whether the channel should be made
+   *  real or retired is OPEN on objectui#7206 and is not decided here; do not
+   *  read this note as either outcome. */
   const resolvedDependentValues: Record<string, any> = useMemo(() => {
     if (dependentValuesProp) return dependentValuesProp;
     return (ctx?.formValues ?? ctx?.data ?? {}) as Record<string, any>;

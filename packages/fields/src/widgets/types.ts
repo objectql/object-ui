@@ -180,7 +180,14 @@ export type FieldWidgetComponentProps<T = any> = {
   /**
    * Live sibling-field values driving cascading / role-gated options and
    * dependent lookups (ADR-0058, #2215/#2284). The form renderer passes the
-   * in-progress record; widgets fall back to `SchemaRendererContext`.
+   * in-progress record.
+   *
+   * ⚠️ This used to add "widgets fall back to `SchemaRendererContext`". They
+   * spell such a fallback (`?? ctx.formValues ?? ctx.data`), but
+   * `SchemaRendererContextType` declares exactly `dataSource` / `debug` /
+   * `debugFlags` / `apiFetch`, so neither member can be supplied by any host and
+   * the fallback is unconditionally empty. This prop is today the only channel
+   * that can carry a record (objectui#7206).
    */
   dependentValues?: Record<string, unknown>;
   /**

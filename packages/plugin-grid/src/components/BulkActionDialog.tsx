@@ -619,11 +619,18 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChang
   // taken on objectui#3765, "the dialog is a small form", implemented for the
   // single-record dialog in PR objectui#4756). Until this prop existed the bulk
   // dialog passed nothing, so `useCascadingOptions` fell through its chain
-  // (`dependentValues ?? ctx.formValues ?? ctx.data ?? {}`) to whatever record
-  // the HOST GRID PAGE happened to publish — and a `visibleWhen` written
-  // against a sibling PARAM could never see the value the user had just picked
-  // in this same dialog. The shared evaluator is untouched: it already reads
-  // that chain; this is the supply half that was missing.
+  // (`dependentValues ?? ctx.formValues ?? ctx.data ?? {}`) to the EMPTY record
+  // — and a `visibleWhen` written against a sibling PARAM could never see the
+  // value the user had just picked in this same dialog. The shared evaluator is
+  // untouched: it already reads that chain; this is the supply half that was
+  // missing.
+  //
+  // ⚠️ This used to say the fall-through reached "whatever record the HOST GRID
+  // PAGE happened to publish". No page publishes one, and none can:
+  // `SchemaRendererContextType` declares exactly `dataSource` / `debug` /
+  // `debugFlags` / `apiFetch`, so the last two links of that chain are
+  // unconditionally empty — unsettable, not merely unset (objectui#7206).
+  // `dependentValues` is today the only channel that can carry a record.
   //
   // Bulk is where the ruling costs least, which is why it needed no separate
   // decision. An action dialog over N selected rows has NO single row record to

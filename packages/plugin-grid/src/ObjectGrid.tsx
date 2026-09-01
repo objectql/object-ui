@@ -3852,7 +3852,12 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               // The record a dependent widget scopes itself by. `LookupField`
               // resolves `dependentValues ?? ctx.formValues ?? ctx.data ?? {}`
               // and this grid supplied NONE of the three, so the resolved record
-              // was `{}` for every row. A column declaring `dependsOn` therefore
+              // was `{}` for every row. ⚠️ Only the FIRST link was ever
+              // suppliable, by this host or any other:
+              // `SchemaRendererContextType` declares exactly `dataSource` /
+              // `debug` / `debugFlags` / `apiFetch`, so the tail is
+              // unconditionally empty repo-wide (objectui#7206). That is why the
+              // repair has to be this prop and could not have been a provider. A column declaring `dependsOn` therefore
               // rendered a permanently gated, disabled trigger ("Select region
               // first") even when the row carried the parent value — a field
               // that could never be filled, with no diagnostic. PR objectui#2216
