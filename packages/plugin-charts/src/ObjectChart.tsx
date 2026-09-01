@@ -3,8 +3,8 @@ import React, { useState, useEffect, useContext, useCallback, useMemo } from 're
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation, useFilterScope, ElementDataSourceGate, type ElementDataSourceMapping } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
-import { AlertCircle, ArrowUpRight } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton, DataEmptyState } from '@object-ui/components';
+import { AlertCircle, ArrowUpRight, Inbox } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import type { DrillDownConfig } from '@object-ui/types';
 
@@ -917,6 +917,80 @@ export const ObjectChart = (props: any) => {
 
   if (!dataSource && schema.objectName && finalData.length === 0) {
       return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')} data-testid="chart-no-datasource">No data source available for &ldquo;{schema.objectName}&rdquo;</div>;
+  }
+
+  // Query succeeded and returned nothing → a self-describing empty state, NOT
+  // the bare frame this used to fall through to (objectui#7130).
+  //
+  // ## What the bare frame actually rendered — measured, not assumed
+  //
+  // The card was filed on the hypothesis that "a chart frame with axes is
+  // arguably self-describing": an empty table is a blank rectangle, but an
+  // empty chart still draws labelled axes telling the reader what WOULD have
+  // been plotted. Rendered in a real browser at 220c18d05, that is false.
+  // Recharts derives its ticks FROM the data, so with `data: []` there is no
+  // domain and no tick to label: the bar/line families emit an SVG containing
+  // two hairline axis rules and ZERO `<text>` nodes, and pie/donut emit an
+  // empty `<svg>` with no marks at all. Measured against a populated control
+  // in the same render, which emitted eight `<text>` nodes. So the frame is
+  // not self-describing — it is a blank tile beside a `chart-error` box that
+  // at least says something, which is precisely the hotcrm#1212 failure:
+  // nothing on screen says whether the chart failed or is simply young.
+  //
+  // ## Why this is not the KPI carve-out
+  //
+  // `DatasetWidget` deliberately exempts metric families — "a metric (single
+  // value) over an empty dataset is 0, not an empty state" — and names charts
+  // on the OTHER side of that line in the same comment: "Charts and tables
+  // keep the empty state (there is genuinely nothing to plot)." A KPI's `0` is
+  // a datum; a chart's blank frame is an absence. So a dataset-bound chart has
+  // rendered this state since #7124 and the object-bound one did not: same
+  // family, same empty result, two answers. This is the surface that ruling
+  // did not reach, not a new judgement.
+  //
+  // ## Why `DataEmptyState` and not `WidgetEmptyState`
+  //
+  // The seam #7124 built is `plugin-dashboard`-local and unexported (absent
+  // from that package's `index.tsx`), and `plugin-charts` does not depend on
+  // `plugin-dashboard`. Reaching it would mean promoting it to public API for
+  // a foreign plugin — the cross-surface abstraction objectui#7132 owns.
+  // `DataEmptyState` is instead the primitive that is ALREADY shared and
+  // already consumed by plugin-list / plugin-kanban / plugin-detail and by
+  // `WidgetEmptyState` itself, out of `@object-ui/components`, which this
+  // package already depends on. Nothing is promoted, no dependency edge is
+  // added, and when #7132 converges the defaults this call site collapses the
+  // same way the other four do.
+  //
+  // The copy is the keys #7124 landed in all ten packs — no new key, and no
+  // promise of recovery: it states that the load SUCCEEDED, which is the one
+  // fact the reader of a blank tile cannot otherwise get. `role="status"`
+  // against the `role="alert"` on the `chart-error` box above is the machine
+  // check that the two states are distinct.
+  //
+  // Gated on a QUERY-backed chart: a chart handed inline `data: []` by its
+  // author never ran a query, so "its query returned no records" would be
+  // false of it, and those charts render byte-for-byte as before.
+  const isQueryBacked = !!(schema.objectName || schema.dataset);
+  if (isQueryBacked && !boundData && !schema.data && finalData.length === 0) {
+      return (
+        <DataEmptyState
+          role="status"
+          data-testid="chart-empty-state"
+          className={"h-full w-full gap-2 p-4 [&>h3]:text-sm [&>h3]:font-medium [&>p]:text-xs " + (schema.className || '')}
+          icon={<Inbox className="h-5 w-5 text-muted-foreground/70" />}
+          iconWrapperClassName="flex size-9 items-center justify-center rounded-lg bg-muted"
+          title={tt('dashboard.empty.title', 'No data yet')}
+          description={tt(
+            'dashboard.empty.message',
+            'This widget loaded successfully and its query returned no records yet.',
+          )}
+        >
+          <p className="text-xs text-muted-foreground/80" data-testid="chart-empty-source">
+            <span>{tt('dashboard.empty.sourceLabel', 'Source:')}</span>{' '}
+            <span className="font-mono">{schema.dataset || schema.objectName}</span>
+          </p>
+        </DataEmptyState>
+      );
   }
 
   const internalChartClick = isDrillEnabled(drillDown)
