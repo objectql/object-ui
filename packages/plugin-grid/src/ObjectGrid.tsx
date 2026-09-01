@@ -3727,7 +3727,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // handing DataTable an editor factory would leave the built-in fallback
     // editors as the only reachable ones if any future path re-opened the mode.
     renderCellEditor: inlineEditable
-      ? (ctx: { column: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
+      ? (ctx: { column: any; row: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
           const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
           if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
           const discrete = DISCRETE_EDIT_TYPES.has(fieldDef.type);
@@ -3747,6 +3747,45 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               field={field}
               value={ctx.value}
               onChange={(v: any) => (discrete ? ctx.commit(v) : ctx.stage(v))}
+              // ⚠️ INTERIM (objectui#7165) — the SAVED row, not the staged one.
+              //
+              // The record a dependent widget scopes itself by. `LookupField`
+              // resolves `dependentValues ?? ctx.formValues ?? ctx.data ?? {}`
+              // and this grid supplied NONE of the three, so the resolved record
+              // was `{}` for every row. A column declaring `dependsOn` therefore
+              // rendered a permanently gated, disabled trigger ("Select region
+              // first") even when the row carried the parent value — a field
+              // that could never be filled, with no diagnostic. PR objectui#2216
+              // gave the FORM renderer exactly this injection (its live watched
+              // record); only that half was per-host, and the grid never got it.
+              // The other half — every picker taking the `dependsOn` chain as a
+              // hard `baseFilter` — is host-independent and was already live
+              // here, so this line supplies a missing INPUT and re-implements no
+              // cascade.
+              //
+              // ⛔ WHAT IS STILL WRONG, precisely: `ctx.row` is the PERSISTED
+              // record. A parent edited but NOT YET SAVED in this same row does
+              // not re-scope the child — the picker keeps listing candidates for
+              // the parent's saved value, and stays gated if that saved value is
+              // empty. objectui#2215's form fix was explicitly the LIVE record,
+              // so picking a parent re-scopes the child immediately. Matching
+              // that is objectui#7188, and it is the finished shape.
+              //
+              // Why the interim ships instead of the finished shape: the staged
+              // values live in `data-table`'s `pendingChanges` — in scope at the
+              // call site, so this is not a plumbing problem — and carrying them
+              // across needs a SEVENTH member on `renderCellEditor`'s context.
+              // `@object-ui/types` declares that context (objectui#6882,
+              // maintainer ruling 2026-08-30, replacing a `(schema as any)` cast)
+              // and pins its shape by EXACT type equality. That is a
+              // published-surface contract change with its own review floor, so
+              // it belongs to objectui#7188, not to this line.
+              //
+              // ⛔ Do NOT read this as settled. "Never fillable" → "scoped by
+              // the saved parent" is strictly better and strictly not finished;
+              // whether the user should be TOLD the scope came from the saved row
+              // is an OPEN question on objectui#7188, not a closed one.
+              dependentValues={ctx.row}
             />
           );
         }
