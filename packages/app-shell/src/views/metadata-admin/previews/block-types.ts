@@ -148,7 +148,7 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
  */
 export const PALETTE_EXCLUSIONS: Record<string, string> = {
   // Shell singletons — chrome the app shell owns, not page content.
-  'app:launcher': 'shell singleton — the app shell renders it, not a page',
+  'app:launcher': 'shell singleton — lives in the app shell chrome',
   'global:notifications': 'shell singleton — lives in the app shell header',
   'user:profile': 'shell singleton — lives in the app shell header',
   // No renderer, by decision — and these two are the ones that MEASURE that way.
