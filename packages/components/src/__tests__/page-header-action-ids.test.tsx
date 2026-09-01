@@ -166,6 +166,9 @@ const objectAuthored = { type: 'page:header', title: 'Lead', actions: AUTHORED.m
 
 describe('page:header — declared action-id lookup (objectui#6252)', () => {
   let warn: ReturnType<typeof vi.spyOn>;
+  /** Every string this render passed to `console.warn`, first argument only. */
+  const warnMessages = (): string[] =>
+    (warn.mock.calls as unknown[][]).map((c) => String(c[0]));
 
   beforeEach(() => {
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -234,8 +237,7 @@ describe('page:header — declared action-id lookup (objectui#6252)', () => {
     expect(buttonNames(container)).toEqual(['Convert Lead']);
 
     await waitFor(() => expect(warn).toHaveBeenCalled());
-    const messages = warn.mock.calls.map((c) => String(c[0]));
-    const hits = messages.filter((m) => m.includes('covert_lead'));
+    const hits = warnMessages().filter((m) => m.includes('covert_lead'));
     expect(hits.length).toBe(1);
     expect(hits[0]).toContain('[page:header]');
     // The message names what the object DOES declare — the fix is usually one
@@ -255,7 +257,7 @@ describe('page:header — declared action-id lookup (objectui#6252)', () => {
     await Promise.resolve();
     await waitFor(() => expect(container.querySelector('h1, [data-page-actions-slot]')).toBeTruthy());
     expect(buttonNames(container)).toEqual([]);
-    expect(warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('[page:header] action id'))).toEqual([]);
+    expect(warnMessages().filter((m) => m.includes('[page:header] action id'))).toEqual([]);
   });
 
   it('keeps the inline object shape working during the transition, including mixed arrays', async () => {
