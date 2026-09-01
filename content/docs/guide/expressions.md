@@ -588,12 +588,12 @@ language's own. A membership test is written with the array method:
 ```json
 // ❌ Bad: Too complex
 {
-  "value": "${users.filter(u => u.age > 18).map(u => ({...u, isAdult: true})).reduce((acc, u) => acc + u.score, 0)}"
+  "content": "${users.filter(u => u.age > 18).map(u => ({...u, isAdult: true})).reduce((acc, u) => acc + u.score, 0)}"
 }
 
 // ✅ Good: Pre-compute complex logic
 {
-  "value": "${adultUsersScore}"
+  "content": "${adultUsersScore}"
 }
 ```
 
@@ -616,12 +616,12 @@ language's own. A membership test is written with the array method:
 ```json
 // ❌ Bad: Might throw error
 {
-  "value": "${user.address.city}"
+  "content": "${user.address.city}"
 }
 
 // ✅ Good: Safe access
 {
-  "value": "${user.address?.city || 'N/A'}"
+  "content": "${user.address?.city || 'N/A'}"
 }
 ```
 
