@@ -30,10 +30,17 @@
  *
  * `SelectField` computes `aria-invalid={!!error}`, so it reports an explicit
  * `"false"` when valid: the pin reads a two-state signal rather than the mere
- * presence of an attribute. NOT every inline widget reads `error` — `TextField`,
- * `BooleanField`, `DateField`, `DateTimeField` and `TimeField` do not, so for
- * those types delivering the key is inert today. That is a separate, reported
- * gap one layer down in `@object-ui/fields`, not something this dialog can fix.
+ * presence of an attribute.
+ *
+ * ⚠️ This paragraph used to continue: "NOT every inline widget reads `error` —
+ * `TextField`, `BooleanField`, `DateField`, `DateTimeField` and `TimeField` do
+ * not, so for those types delivering the key is inert today." That was true
+ * when this file landed and is NOT true any more — objectui#7126 made all five
+ * read it. The sentence is corrected here rather than deleted, because it is
+ * the reason `select` was chosen and a reader who finds the choice unexplained
+ * will assume the other types still cannot be pinned. They can: the `text`
+ * case, and the whole population, are pinned next door in
+ * `RequiredFieldsDialog.ariaInvalidText-7126.test.tsx`.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';

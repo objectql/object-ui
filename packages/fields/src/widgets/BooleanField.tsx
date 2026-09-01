@@ -7,7 +7,7 @@ import { toDomProps } from './toDomProps.js';
  * BooleanField - Toggle input supporting switch and checkbox variants
  * Renders as Switch or Checkbox based on field widget configuration
  */
-export function BooleanField({ value, onChange, field, readonly, ...props }: FieldWidgetComponentProps<boolean>) {
+export function BooleanField({ value, onChange, field, readonly, error, ...props }: FieldWidgetComponentProps<boolean>) {
   const config = field as any;
   // Use simple type assertion for arbitrary custom properties not in BaseFieldMetadata
   const widget = config?.widget;
@@ -56,6 +56,26 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
 
   const domProps = toDomProps(props);
 
+  /**
+   * WHICH ELEMENT carries `aria-invalid`, since this widget is the one of the
+   * five in objectui#7126 that renders a composite: a control plus its
+   * `sr-only` label inside a flex `div`.
+   *
+   * It goes on the Radix `Checkbox` / `Switch` -- each renders a real
+   * `<button role="checkbox">` / `<button role="switch">`, which is the
+   * focusable element a keyboard user lands on and the one assistive tech
+   * reads control state from. `aria-invalid` is a GLOBAL ARIA attribute, valid
+   * on both roles. The wrapper `div` is deliberately NOT the target: marking it
+   * satisfies a row-wide query while telling a screen-reader user nothing,
+   * which is exactly the hole objectui#5223 closed in the registry sweep and
+   * the move that sweep now forbids by requiring a FOCUSABLE carrier.
+   *
+   * Written AFTER the DOM spread in both branches so this widget's own
+   * computation wins (the objectui#3222 idiom, shared with `SelectField` /
+   * `EmailField` / `NumberField`), and `!!undefined` yields an explicit
+   * `"false"` so a valid field says so rather than staying mute. MARKING only:
+   * the message TEXT stays with the host.
+   */
   if (widget === 'checkbox') {
      return (
         <div className="flex items-center space-x-2">
@@ -65,6 +85,7 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
                 checked={!!value}
                 onCheckedChange={(checked) => onChange(!!checked)}
                 disabled={readonly || domProps.disabled}
+                aria-invalid={!!error}
             />
             {emitOwnLabel && <Label htmlFor={id} className="sr-only">{label}</Label>}
         </div>
@@ -79,6 +100,7 @@ export function BooleanField({ value, onChange, field, readonly, ...props }: Fie
             checked={!!value}
             onCheckedChange={onChange}
             disabled={readonly || domProps.disabled}
+            aria-invalid={!!error}
         />
         {emitOwnLabel && <Label htmlFor={id} className="sr-only">{label}</Label>}
     </div>
