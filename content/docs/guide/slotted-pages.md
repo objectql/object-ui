@@ -103,9 +103,47 @@ Delete) as a button row. Up to **`maxVisible`** actions render inline,
 side by side (default **3** on desktop, **`mobileMaxVisible`**, default
 **1**, on mobile); the rest collapse into a `⋯` "More actions" menu.
 
+### Naming the actions: `page:header.actions` holds IDS
+
+`PageHeaderProps.actions` is a list of **action ids** — the `name` of an
+action declared on the object's own metadata. The header resolves each id
+against that object, which is the same lookup `record:quick_actions`
+performs, and keeps the definitions in exactly one place: change an action
+once on the object and every page that names it follows.
+
+```ts
+// on the object: the definitions
+actions: [
+  { name: 'convert_lead', label: 'Convert', locations: ['record_header'] },
+  { name: 'export_pdf',   label: 'Export',  locations: ['record_more'] },
+]
+```
+
+<!-- doc-snippet: fragment — a metadata excerpt: the bare slots: key is one fragment of a page schema, shown without the document that would contain it -->
+```ts
+// on the page: the header names them
+slots: {
+  header: {
+    type: 'page:header',
+    properties: {
+      title: '{name}',
+      actions: ['convert_lead', 'export_pdf'],
+    },
+  },
+}
+```
+
+An id that names no action on the object renders nothing and says so once in
+the console — a mistyped id is not a silently shorter header.
+
+> Inline `ActionDef` objects in this array still render, so pages written
+> before the ids contract are not stranded. That is renderer tolerance for the
+> migration, not a second declared shape: the contract is
+> `z.array(z.string())`, and only ids are validated.
+
 ### Declaring placement
 
-An authored action renders here only if its **`locations`** declares
+A named action renders here only if its **`locations`** declares
 `record_header` (inline) or `record_more` (straight into the `⋯` menu).
 There is no default: an action that declares no location renders in **no**
 located surface — not here, not the list toolbar, not the row menu. That
@@ -113,13 +151,6 @@ one rule is shared by every surface that places actions by location
 (`action:bar`, `action:group`, `record:quick_actions`, related lists, the
 metadata-admin toolbars and the action engine), so an action behaves the
 same wherever it is drawn.
-
-```ts
-actions: [
-  { name: 'convert_lead', label: 'Convert', locations: ['record_header'] },
-  { name: 'export_pdf',   label: 'Export',  locations: ['record_more'] },
-]
-```
 
 Two placements come from somewhere other than `locations`, and neither
 needs an entry here:

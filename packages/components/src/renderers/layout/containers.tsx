@@ -22,7 +22,7 @@ import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
 import { actionRendersAt } from '@object-ui/types';
-import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
+import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, useMetadataItem, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -995,8 +995,8 @@ ComponentRegistry.register('section', PageSectionRenderer, {
 
 // ---------------------------------------------------------------------------
 // page:header — title row + optional subtitle + breadcrumb/action slots.
-// Action ids are intentionally not resolved here; that will land alongside
-// the upcoming `record:quick_actions` renderer.
+// `actions` entries are ACTION IDS, resolved against the object's own metadata
+// (objectstack#11592 ruling, objectui#6252) — see `resolvedHeaderActions`.
 // ---------------------------------------------------------------------------
 
 /**
@@ -1077,6 +1077,54 @@ function warnMissingRecordFields(name: unknown, source: string, record: unknown)
     `or partial read ($select, an embedded card, a custom page passing a projected ` +
     `record) will not include them — so the predicate fails closed and the action ` +
     `stays hidden.`,
+  );
+}
+
+/**
+ * Warn-once ledger for a declared header action id that resolved to nothing
+ * (objectui#6252). Keyed by `object::id::reason` so one page cannot spam the
+ * console across re-renders, mirroring `_warnedHeaderPredicates` above.
+ */
+const _warnedHeaderActionIds = new Set<string>();
+
+/**
+ * Report a `page:header.actions` id that the object's own metadata does not
+ * define.
+ *
+ * ⛔ Deliberately LOUD rather than a silent drop. A dropped id is invisible by
+ * construction — the header simply renders one button fewer, which is exactly
+ * what an author who mistyped `covert_lead` sees, and exactly what an author
+ * whose action is correctly gated by `visible` sees too. The silent-loss class
+ * this avoids is the one this repo keeps re-filing (objectui#7146/#7147/#7148);
+ * the resolution step is the only place that can still tell the two apart, so
+ * it says so here.
+ *
+ * The object's registered names are named in the message because the fix is
+ * almost always one of them.
+ */
+function warnUnresolvedHeaderActionId(
+  id: string,
+  objectName: string | undefined,
+  reason: 'no-object' | 'no-metadata' | 'not-found',
+  available: string[],
+): void {
+  const key = `${objectName ?? ''}::${id}::${reason}`;
+  if (_warnedHeaderActionIds.has(key)) return;
+  _warnedHeaderActionIds.add(key);
+  const why =
+    reason === 'no-object'
+      ? 'this header is not bound to an object (no RecordContext `objectName`), so ids cannot be resolved at all'
+      : reason === 'no-metadata'
+        ? `no metadata could be read for object "${String(objectName)}" (no MetadataProvider in scope, or the object does not exist)`
+        : `object "${String(objectName)}" declares no action by that name. Declared: ${
+            available.length > 0 ? available.join(', ') : '(none)'
+          }`;
+  console.warn(
+    `[page:header] action id "${id}" did not resolve — ${why}. ` +
+    'Nothing is rendered for it. `PageHeaderProps.actions` is a list of ACTION IDS ' +
+    "(@objectstack/spec: `z.array(z.string())`, \"Action IDs to show in header\"), " +
+    "resolved against the object's own `actions` metadata the same way " +
+    '`record:quick_actions` resolves them.',
   );
 }
 
@@ -1182,6 +1230,106 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // synthesised. Authored pages may opt out by omitting them at the host
   // or by adding a name-clashing action of their own.
   const hostSystemActions = (ctx as any)?.headerSystemActions as any[] | undefined;
+
+  // ── Declared action IDS — the contract of record (objectstack#11592) ───────
+  //
+  // `@objectstack/spec`'s `PageHeaderProps.actions` is
+  // `z.array(z.string()).describe('Action IDs to show in header')`, and has been
+  // for as long as the key has existed. This renderer read the array as
+  // `ActionDef` OBJECTS and resolved nothing, so metadata that satisfied the
+  // published contract rendered ZERO buttons here — the defect objectstack#11592
+  // reports and its ruling (maintainer, 2026-08-25, 「全部同意」 on recommendation
+  // B) settles in favour of ids. Two sibling surfaces already implement that
+  // reading: `record:quick_actions`
+  // (`plugin-detail/src/renderers/record-quick-actions.tsx`) resolves a
+  // string-valued `actions` out of the object's own metadata, and
+  // `layout:page-header` reaches the same resolver by delegating its `actions`
+  // to a `record:quick_actions` node.
+  //
+  // Resolution happens HERE, at the top of the pipeline, so exactly ONE filter
+  // chain runs below: `actionRendersAt` placement, the capability gate,
+  // `visible` / `hidden` and `order` all see uniformly object-shaped defs and
+  // are untouched by this. That is also what makes the equivalence claim
+  // testable — an id-authored header and an object-authored header converge on
+  // the same array before a single filter runs.
+  //
+  // The object shape survives as RENDERER TOLERANCE for the transition (the
+  // card's licence: "keep the existing object-shape handling working during the
+  // transition if it is cheap"). It stays UNDECLARED — widening the spec's type
+  // to `string | ActionDef` would change what the contract accepts, which is a
+  // different (contract-review) change and is not this one.
+  //
+  // ⚠️ One deliberate difference from `record:quick_actions`: that renderer
+  // switches on the whole array (`rawActions.every(a => typeof a === 'string')`),
+  // this one normalizes PER ELEMENT, so a half-migrated `['convert', { … }]`
+  // resolves the id and passes the object through. Same mechanism (the object's
+  // `actions`, keyed by `name`), wider arity — a page mid-migration is exactly
+  // the state this card creates.
+  const headerActionIds = React.useMemo<string[]>(
+    () => (Array.isArray(rawHeaderActions)
+      ? rawHeaderActions.filter((a: unknown): a is string => typeof a === 'string' && a.trim() !== '')
+      : []),
+    [rawHeaderActions],
+  );
+  // `useMetadataItem` is the SAME entry `record:quick_actions` resolves through
+  // — not a second lookup path. Passing `null` for the name is its documented
+  // no-op, so a header with no ids (or no object bound) does not fetch.
+  const needsActionLookup = headerActionIds.length > 0 && !!headerObjectName;
+  const { item: headerActionsObjectMeta, loading: headerActionsMetaLoading } = useMetadataItem(
+    'object',
+    needsActionLookup ? headerObjectName : null,
+  );
+  const resolvedHeaderActions = React.useMemo<any[]>(() => {
+    if (!Array.isArray(rawHeaderActions)) return [];
+    // No ids in the array — the object-shape path, byte-for-byte as before.
+    if (headerActionIds.length === 0) return rawHeaderActions;
+    // The lookup has not answered yet. Render the ids as nothing rather than as
+    // "unresolved" — the metadata read is in flight, and warning here would fire
+    // on every first paint. Same visible behaviour as `record:quick_actions`,
+    // which renders an empty `byName` map until its own `useMetadataItem`
+    // settles.
+    const settled = !needsActionLookup || !headerActionsMetaLoading;
+    const registered: any[] = Array.isArray(headerActionsObjectMeta?.actions)
+      ? (headerActionsObjectMeta as any).actions
+      : [];
+    // Keyed by `name`, the identity `record:quick_actions` keys on and the one
+    // the spec makes required — "id" in the spec's wording is the action's
+    // machine name, not a second key. One convention, not two.
+    const byName = new Map<string, any>();
+    for (const def of registered) {
+      const key = typeof def?.name === 'string' ? def.name : '';
+      if (key && !byName.has(key)) byName.set(key, def);
+    }
+    const out: any[] = [];
+    for (const el of rawHeaderActions) {
+      if (typeof el !== 'string') {
+        out.push(el); // transition tolerance: an inline def passes through
+        continue;
+      }
+      const id = el.trim();
+      if (id === '') continue;
+      const def = byName.get(id);
+      if (def) {
+        out.push(def);
+        continue;
+      }
+      if (!settled) continue;
+      warnUnresolvedHeaderActionId(
+        id,
+        headerObjectName,
+        !headerObjectName ? 'no-object' : (!headerActionsObjectMeta ? 'no-metadata' : 'not-found'),
+        [...byName.keys()],
+      );
+    }
+    return out;
+  }, [
+    rawHeaderActions,
+    headerActionIds,
+    headerActionsObjectMeta,
+    headerActionsMetaLoading,
+    needsActionLookup,
+    headerObjectName,
+  ]);
 
   // ── Action predicates: ONE dialect, ONE entry (objectui#3521) ──────────────
   //
@@ -1351,9 +1499,9 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // (buildDefaultPageSchema.ts), so the leniency contradicted both.
     const placedOnHeader = (a: any): boolean =>
       actionRendersAt(a, 'record_header') || actionRendersAt(a, 'record_more');
-    const authored = Array.isArray(rawHeaderActions)
-      ? rawHeaderActions.filter(a => placedOnHeader(a) && filterAction(a))
-      : [];
+    // `resolvedHeaderActions` — ids already resolved to defs, inline defs passed
+    // through — so this chain is shape-uniform and unchanged by objectui#6252.
+    const authored = resolvedHeaderActions.filter(a => placedOnHeader(a) && filterAction(a));
     // Host-injected chrome (Edit / Share / Delete / Open-in-new-tab) is placed
     // by the HOST, not authored — so it is not location-filtered, matching
     // `action:bar`'s `systemActions` carve-out. Before #3142 this slot WAS
@@ -1393,7 +1541,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // `evalHeaderPredicate` closes over `predicateScope` (via
     // `headerPredicateScope`) and the object's fields, so it replaces the raw
     // scope in this list rather than adding to it.
-  }, [rawHeaderActions, hostSystemActions, ctx?.data, evalHeaderPredicate]);
+  }, [resolvedHeaderActions, hostSystemActions, ctx?.data, evalHeaderPredicate]);
 
   /**
    * Localize the surviving actions ONCE, here, so the button text and the
@@ -1828,7 +1976,7 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
     // map form this description tells the author to write.
     { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
     { name: 'subtitle', type: ['string', 'object'], label: 'Subtitle', description: 'Same interpolation as Title' },
-    { name: 'actions', type: 'array', label: 'Actions', description: 'Action buttons rendered in the header, before any host-injected system actions' },
+    { name: 'actions', type: 'array', label: 'Actions', description: "Action IDS — the names of actions declared on the object's own metadata — rendered in the header before any host-injected system actions. An id whose action declares neither record_header nor record_more in its locations renders nowhere." },
     { name: 'breadcrumb', type: 'boolean', label: 'Breadcrumb', defaultValue: true },
     { name: 'recordChrome', type: 'boolean', label: 'Record Chrome', defaultValue: true, description: 'Set false for the bare h1 header on non-record pages' },
     { name: 'showStar', type: 'boolean', label: 'Show Follow Star', defaultValue: true },
