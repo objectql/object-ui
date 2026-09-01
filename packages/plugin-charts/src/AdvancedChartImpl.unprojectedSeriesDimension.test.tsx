@@ -134,12 +134,37 @@ describe('AdvancedChartImpl — an unprojected SECOND dimension refuses (objectu
     warn.mockRestore();
   });
 
+  it('scatter handed a CATEGORY column refuses under objectui#7171, never under this guard', () => {
+    // The seam, pinned from this side too. Before objectui#7171 this dataset
+    // drew an axis frame with no marks and said nothing — six such datasets
+    // shared one image. It is still not a `no-plottable-series` failure: the
+    // `value` fallback works exactly as this file says it does, and what is
+    // missing is a plottable X, which is a different sentence.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = render(
+      <AdvancedChartImpl
+        chartType="scatter"
+        data={[{ name: 'Backlog', value: 12 }, { name: 'Done', value: 30 }]}
+        xAxisKey="name"
+        series={[]}
+        isAnimationActive={false}
+      />,
+    );
+    expect(refusal(container), 'not this guard').toBeNull();
+    expect(
+      container.querySelector('[data-chart-error="no-plottable-points"]'),
+      'objectui#7171 answers it instead',
+    ).not.toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('stays out of the way of families that draw from a `value` column', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     // pie / donut / funnel / radar / scatter / treemap / sankey all fall back to
     // `series[0]?.dataKey || 'value'`, so no series is not no chart there — a
     // refusal would blank a working one.
-    for (const chartType of ['pie', 'donut', 'funnel', 'radar', 'scatter']) {
+    for (const chartType of ['pie', 'donut', 'funnel', 'radar']) {
       const { container } = render(
         <AdvancedChartImpl
           chartType={chartType as any}
@@ -153,6 +178,26 @@ describe('AdvancedChartImpl — an unprojected SECOND dimension refuses (objectu
       expect(container.querySelector('svg'), `${chartType} paints`).not.toBeNull();
       cleanup();
     }
+
+    // SCATTER holds the same property, but only a dataset it can actually plot
+    // shows it. Its axes are BOTH `type="number"`, so the category column this
+    // loop hands the others is not a scatter dataset at all — it was measured
+    // drawing zero marks (objectui#7171), which is why the assertion below uses
+    // a two-measure fixture. `series: []` still falls back to `value`, and that
+    // fallback is what this test is about.
+    const { container: scatter } = render(
+      <AdvancedChartImpl
+        chartType="scatter"
+        data={[{ x: 12, value: 30 }, { x: 20, value: 45 }]}
+        xAxisKey="x"
+        series={[]}
+        isAnimationActive={false}
+      />,
+    );
+    expect(refusal(scatter), 'scatter draws').toBeNull();
+    expect(scatter.querySelector('svg'), 'scatter paints').not.toBeNull();
+    cleanup();
+
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
