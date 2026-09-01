@@ -98,6 +98,10 @@ export * from './utils/predicate-record.js';
 // The other half of a view's field appetite: the fields its PREDICATES read,
 // which the column-derived `$select` never asked the server for.
 export * from './utils/predicate-fields.js';
+// The THIRD source of a view's field appetite: the fields it GROUPS BY. The
+// spec's `grouping` block is a sibling of `columns`, not a subset, so a grid
+// may group by a field it never shows (objectui#7179).
+export * from './utils/grouping-fields.js';
 export * from './utils/normalize-list-view.js';
 // The single home for the VALUE fallback prettifier (a stored value becomes a
 // display string when nothing resolves it). `@object-ui/fields` and

@@ -241,7 +241,7 @@ export const DataTableSchema = BaseSchema.extend({
   type: z.literal('data-table'),
   caption: z.string().optional().describe('Table caption'),
   borderless: z.boolean().optional().describe('Render the table without its outer rounded border (for embedding inside grouped rows or other containers).'),
-  toolbar: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Toolbar content'),
+  toolbar: retirementTombstone('RETIRED (objectui#6881) — never mounted by the data-table renderer; use the built-in toolbar chrome (searchable / exportable), or compose nodes beside the table'),
   columns: z.array(TableColumnSchema).describe('Table columns'),
   data: z.array(z.any()).describe('Table data'),
   pagination: z.boolean().optional().describe('Enable pagination'),
@@ -338,10 +338,25 @@ export const ChartTypeSchema = SpecChartTypeSchema;
  * dataset-bound series (no `data`, plus `type`/`stack`/`yAxis`/`variant`), so a
  * consumer importing `ChartSeriesSchema` from `@object-ui/types` could not tell
  * which contract they had.
+ *
+ * ⚠️ Since objectui#6896 this twin carries no inline numbers either: `data` is a
+ * retirement tombstone. The distinction the rename drew is now one of ROLE, not
+ * of payload — this is the STATIC SDUI node's series, the spec's is the
+ * dataset-bound one, and neither carries values.
  */
 export const ChartDataSeriesSchema = z.object({
   name: z.string().describe('Series name'),
-  data: z.array(z.number()).describe('Series data points'),
+  // ADR-0049 RETIREMENT TOMBSTONE (objectui#6896). Deleting the member was the
+  // option NOT taken: `ChartDataSeriesSchema` is a non-strict `z.object`, which
+  // STRIPS an undeclared key in silence — the same silent no-op the retirement
+  // exists to end. Kept declared and unwritable, so an authored value is a
+  // NAMED refusal carrying its own remedy.
+  data: retirementTombstone(
+    'RETIRED (objectui#6896) — `ChartDataSeries.data` was never read: '
+    + '`normalizeChartSchema` takes rows from the chart node\'s chart-level `data` and picks a '
+    + 'column with the series\' `name`/`dataKey`, so an authored array was dropped in silence. '
+    + 'Delete the key; put the rows on the chart-level `data` and the category axis on `xAxisKey`.',
+  ),
   // Mirrors `ChartDataSeries.type` (objectui#6121). The three families are the
   // ones `normalizeChartSchema` actually honours as a per-series override; see
   // the TS declaration for the read this narrowness is taken from.
@@ -357,7 +372,15 @@ export const ChartSchema = BaseSchema.extend({
   chartType: ChartTypeSchema.describe('Chart type'),
   title: z.string().optional().describe('Chart title'),
   description: z.string().optional().describe('Chart description'),
-  categories: z.array(z.string()).optional().describe('X-axis categories'),
+  // NOT axis labels — `normalizeChartSchema` reads `categories` as an
+  // ALTERNATIVE SERIES LIST, used only when `series` is absent (objectui#6896).
+  categories: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Alternative series list — column names to plot, used only when `series` is absent. '
+      + 'NOT axis labels: the category axis comes from `xAxisKey`/`xAxis`.',
+    ),
   series: z.array(ChartDataSeriesSchema).describe('Chart data series'),
   height: z.union([z.string(), z.number()]).optional().describe('Chart height'),
   width: z.union([z.string(), z.number()]).optional().describe('Chart width'),

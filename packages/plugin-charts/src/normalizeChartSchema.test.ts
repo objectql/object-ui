@@ -288,3 +288,68 @@ describe('domainFor', () => {
     expect(domainFor(undefined)).toBeUndefined();
   });
 });
+
+/**
+ * `categories` is an ALTERNATIVE SERIES LIST, not axis labels (objectui#6896).
+ *
+ * `@object-ui/types` declared this key as "X-axis labels/categories" while this
+ * normalizer read it as a fallback series list, so an author following the
+ * documentation got a different chart from the documented one. The maintainer
+ * ruled prose follows machine (2026-08-31): the declaration was corrected to
+ * this reading, and these are the pins that make the reading a contract instead
+ * of an accident. If any of these change, `ChartSchema.categories`' docblock and
+ * its zod `.describe()` are the other half of the edit.
+ */
+describe('normalizeChartSchema — `categories` is a series list (objectui#6896)', () => {
+  it('reads each category as a COLUMN NAME when `series` is absent', () => {
+    const out = normalizeChartSchema({
+      type: 'bar',
+      xAxisKey: 'month',
+      categories: ['revenue', 'expenses'],
+    });
+    // Bare strings go through `normalizeSeries`' shorthand branch as `{ dataKey }`.
+    expect(out.series).toEqual([{ dataKey: 'revenue' }, { dataKey: 'expenses' }]);
+  });
+
+  it('does NOT put categories on the category axis — that is `xAxisKey`/`xAxis`', () => {
+    const out = normalizeChartSchema({
+      type: 'bar',
+      xAxisKey: 'month',
+      categories: ['Jan', 'Feb', 'Mar'],
+    });
+    // The axis is untouched by `categories`; the month names became series.
+    expect(out.xAxisKey).toBe('month');
+    expect(out.series).toEqual([{ dataKey: 'Jan' }, { dataKey: 'Feb' }, { dataKey: 'Mar' }]);
+  });
+
+  it('leaves the axis unset when `categories` is the only axis-ish key present', () => {
+    // The shape an author following the OLD docblock would have written: month
+    // names in `categories`, expecting an x-axis. They get series bindings and
+    // no axis at all — the divergence objectui#6896 recorded, pinned so the
+    // corrected prose cannot drift back.
+    const out = normalizeChartSchema({ type: 'bar', categories: ['Jan', 'Feb'] });
+    expect(out.xAxisKey).toBeUndefined();
+    expect(out.series).toEqual([{ dataKey: 'Jan' }, { dataKey: 'Feb' }]);
+  });
+
+  it('IGNORES `categories` entirely when `series` is present', () => {
+    const out = normalizeChartSchema({
+      type: 'bar',
+      categories: ['Jan', 'Feb', 'Mar'],
+      series: [{ name: 'revenue' }],
+    });
+    expect(out.series).toEqual([{ dataKey: 'revenue' }]);
+  });
+
+  it('drops a series\' retired inline `data` — the read objectui#6896 retired', () => {
+    // The tombstone lives in `@object-ui/types`; this is the renderer-side fact
+    // that made it a tombstone rather than a missing feature. `data` reaches
+    // `normalizeSeries` and comes out nowhere.
+    const out = normalizeChartSchema({
+      type: 'bar',
+      series: [{ name: 'revenue', data: [1, 2, 3] }],
+    });
+    expect(out.series).toEqual([{ dataKey: 'revenue' }]);
+    expect(out.series?.[0]).not.toHaveProperty('data');
+  });
+});

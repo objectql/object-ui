@@ -298,6 +298,17 @@ export function normalizeChartSchema(schema: unknown): NormalizedChartSchema {
   if (yAxes.length) out.yAxes = yAxes;
 
   // ── series ──────────────────────────────────────────────────────────────
+  // ⚠️ `categories` is an ALTERNATIVE SERIES LIST here, not axis labels, and
+  // this branch is the whole of its meaning: it is consulted only when `series`
+  // is absent, and each entry then goes through `normalizeSeries`, whose bare-
+  // string branch reads it as `{ dataKey }` — a COLUMN NAME. The category axis
+  // is resolved separately, from `xAxisKey` / `xAxis` above.
+  //
+  // `@object-ui/types` documented this key as "X-axis labels/categories" until
+  // objectui#6896; the declaration was corrected to this reading rather than
+  // this reading to the declaration (maintainer ruling 2026-08-31 — prose
+  // follows machine). Pinned in `normalizeChartSchema.test.ts`; if you change
+  // what `categories` means here, that docblock is the other half of the edit.
   const rawSeries = Array.isArray(schema.series)
     ? schema.series
     : Array.isArray(schema.categories)

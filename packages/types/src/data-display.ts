@@ -670,9 +670,31 @@ export interface DataTableSchema extends BaseSchema {
    */
   caption?: string;
   /**
-   * Table toolbar actions/content
+   * ADR-0049 RETIREMENT TOMBSTONE — `toolbar` (objectui#6881, maintainer
+   * ruling 2026-08-31: retire, do NOT wire).
+   *
+   * What was measured (objectui#6881, re-measured on the retiring PR's base):
+   * declared on both published faces, documented, mirrored — and read by
+   * NOTHING. `data-table.tsx`, the registered renderer for `type:
+   * 'data-table'`, contains the word only in two prose comments and never
+   * reads `schema.toolbar`; the sibling `emptyAction` slot on this same
+   * interface IS mounted through `SchemaRenderer`, so the zero is a reading,
+   * not a blind query. An author who wrote a toolbar got a green document and
+   * a blank result, with no signal anywhere that said so.
+   *
+   * `?: never` is this package's tombstone convention (see `crud.ts`
+   * `confirm`, {@link StaticTableColumn}, `TimelineSchema`'s `timeScale`), NOT
+   * a deletion: `BaseSchema`'s `[key: string]: any` would admit a deleted key
+   * as `any` again — the same silence one layer over. The Zod twin refuses it
+   * loudly via `retirementTombstone()` (`zod/data-display.zod.ts`).
+   *
+   * RETIRED (objectui#6881, ADR-0049) — never mounted by the data-table
+   * renderer. Use the built-in toolbar chrome instead (`searchable` /
+   * `exportable`), or compose your own nodes beside the table. A real
+   * toolbar slot must arrive as a redesigned proposal WITH its enforcing
+   * reader, per the ruling — not by reviving this key.
    */
-  toolbar?: SchemaNode[];
+  toolbar?: never;
   /**
    * Table columns
    */
@@ -1205,9 +1227,16 @@ export interface TreeViewSchema extends BaseSchema {
 export type ChartType = SpecChartType;
 
 /**
- * One inline-data series of the objectui `ChartSchema` node — a display name
- * plus the literal numbers to plot, positionally aligned with the chart's
- * `categories`.
+ * One series of the objectui `ChartSchema` node — a display name that also
+ * NAMES THE COLUMN to plot, plus that column's presentation options.
+ *
+ * ⚠️ It carries no numbers of its own. Rows come from the chart node's
+ * chart-level `data`, `name` (or `dataKey`) selects the column within each row,
+ * and the category axis comes from `xAxisKey` / `xAxis`. That is the model
+ * `normalizeChartSchema` in `@object-ui/plugin-charts` implements, and the only
+ * one it has ever implemented. This header described an inline `data` array
+ * indexed by the chart's `categories` until objectui#6896 measured that no such
+ * reader exists; `data` is now a retirement tombstone — see the member below.
  *
  * Renamed off `ChartSeries` (objectstack#4115): `@objectstack/spec/ui` owns that
  * name for a **dataset-bound series descriptor** — `{ name, label?, type?,
@@ -1223,9 +1252,20 @@ export interface ChartDataSeries {
    */
   name: string;
   /**
-   * Series data points
+   * RETIRED (objectui#6896, ADR-0049 enforce-or-remove) — the inline-data model
+   * this key belonged to was never implemented. `normalizeChartSchema`'s
+   * `normalizeSeries` reads `dataKey`/`name`, `label`, `chartType`/`type`,
+   * `variant`, `opacity`, `dashArray`, `stack`, `yAxis` and `color`; `data` is
+   * not among them, so an authored array was dropped in silence — while the
+   * declaration made it REQUIRED, so no author could leave it out.
+   *
+   * Put the rows on the chart node's own chart-level `data`, name the column
+   * with this series' `name` (or `dataKey`), and put the category axis on
+   * `xAxisKey`. Maintainer ruling 2026-08-31: immediate tombstone, no
+   * dual-reading window.
+   * @deprecated Not part of `ChartDataSeries`' contract — the value was inert.
    */
-  data: number[];
+  data?: never;
   /**
    * Per-series chart family override, for a combo chart: this series draws as a
    * line (or bar, or area) on a chart whose own `chartType` is something else.
@@ -1273,7 +1313,17 @@ export interface ChartSchema extends BaseSchema {
    */
   description?: string;
   /**
-   * X-axis labels/categories
+   * An ALTERNATIVE SERIES LIST — not axis labels.
+   *
+   * ⚠️ Read this before authoring. `normalizeChartSchema` consumes `categories`
+   * only when `series` is absent, and then runs each entry through the same
+   * series normalizer, where a bare string means `{ dataKey }`. So these strings
+   * name COLUMNS TO PLOT, exactly as `series` does — they do not label the
+   * category axis, and when `series` IS present they are ignored outright.
+   *
+   * The category axis comes from `xAxisKey` / `xAxis`. This docblock read
+   * "X-axis labels/categories" until objectui#6896 measured the read that has
+   * always been there (maintainer ruling 2026-08-31 — prose follows machine).
    */
   categories?: string[];
   /**
