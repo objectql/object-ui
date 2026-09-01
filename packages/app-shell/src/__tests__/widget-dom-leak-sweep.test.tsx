@@ -431,6 +431,14 @@ const AUTHORED_PROPS = {
  * #4428 shipped a six-key first pass because a schema-only measurement cannot
  * see it. Answering with empty results keeps every data-bound target on its
  * real render path rather than an error state.
+ *
+ * ⚠️ That last sentence has ONE measured exception, and it is not an error
+ * state: since objectui#7130 an empty result is a real render path for
+ * `ObjectChart` that is not its CHART markup — it renders a self-describing
+ * empty state. The two object-bound chart targets therefore author their own
+ * rows; see {@link OBJECT_CHART_EXTRAS}. Read that before widening this
+ * adapter: handing rows to all ~200 targets would move many of them off the
+ * branch they are pinned on.
  */
 const FAKE_ADAPTER = {
   find: async () => [],
@@ -473,11 +481,36 @@ const CHART_DATA = [
   { name: 'Feb', sales: 300, revenue: 139, value: 300 },
 ];
 const CHART_SERIES = [{ dataKey: 'sales' }, { dataKey: 'revenue' }];
+/**
+ * The two OBJECT-BOUND chart targets (`plugin-charts:object-chart`,
+ * `view:chart`). They stay object-bound — `objectName` is what makes them a
+ * different registry path from the six inline chart targets above, which reach
+ * `ObjectChart` through `ObjectChartBlock` and its `ElementDataSourceGate`.
+ *
+ * `data` / `series` are authored on TOP of that binding (`data` is a declared
+ * registry input on this component: "Optional static data") because
+ * {@link FAKE_ADAPTER} answers every query with no rows, and since objectui#7130
+ * `ObjectChart` renders a self-describing empty state on an empty result
+ * instead of an empty chart frame. Without rows these two targets stop at that
+ * empty state, `[data-slot="chart"]` never matches, and the readiness guard
+ * below refuses to scan — correctly, because an empty state is not the chart
+ * markup this sweep exists to scan.
+ *
+ * This is objectui#5630's lesson in a third dress: a data-bound target whose
+ * clean reading would otherwise cover only its empty-state placeholder. That
+ * card answered it with a populated host where a host was needed, and with a
+ * plain `schemaExtras` change where the populated branch was reachable from
+ * pure schema (`element:definition-list`'s `items`). This is the latter case,
+ * and it also makes these two scan STRICTLY MORE markup than before: the
+ * pre-#7130 reading swept a chart frame with no marks in it.
+ */
 const OBJECT_CHART_EXTRAS = {
   objectName: 'accounts',
   chartType: 'bar',
   categoryField: 'name',
   valueField: 'amount',
+  data: CHART_DATA,
+  series: CHART_SERIES,
 };
 const CALENDAR_OBJECT_EXTRAS = {
   objectName: 'accounts',
