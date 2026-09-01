@@ -548,6 +548,197 @@ function unsizedRowsNote(sizable: number, total: number, dataKey: string): React
 }
 
 /**
+ * Whether a value can be PLACED on one of scatter's two numeric axes
+ * (objectui#7171).
+ *
+ * ## Why this is NOT `countSizableRows` with a different name
+ *
+ * Pie, funnel and treemap size a mark BY its measure, so `> 0` is the whole
+ * test there. Scatter plots POSITION: a negative or zero coordinate is
+ * perfectly ordinary data — temperatures, profit deltas, a variance around a
+ * mean — and mechanically reusing objectui#7147's predicate here would REFUSE
+ * correct charts, which is worse than the silence this card was opened about.
+ * Measured on the sweep below rather than argued: an all-negative scatter drew
+ * 3 of 3 marks, an all-zero scatter drew 2 of 2, and a mixed-sign scatter drew
+ * 3 of 3 — three datasets `no-positive-magnitude` would have blanked outright.
+ *
+ * ## Every clause here was forced by a measurement, not by `Number()`
+ *
+ * `Number(v)` alone gets three of these WRONG, in both directions, which is why
+ * the two rejections below are spelled out and the acceptance is not:
+ *
+ *   - `null` — `Number(null) === 0`, which is finite, so `Number()` alone calls
+ *     it plottable. Recharts draws NOTHING for it (measured: 0 of 2 marks, and
+ *     the axis renders no scale at all). REJECTED here.
+ *   - `''` — the mirror-image trap. It LOOKS like a null and reads like one,
+ *     and `Number('') === 0`. Recharts DOES plot it, at zero (measured: 2 of 2
+ *     marks, x ticks `0,1,2,3,4`). So it stays PLOTTABLE: rejecting it would
+ *     blank a chart that draws, which is the failure mode this whole guard
+ *     exists to avoid.
+ *
+ * `Number.isFinite` covers the rest as measured: `'10'` plots (2 of 2 marks),
+ * `'n/a'` and `'Infinity'` and an absent key do not (0 of 2 each).
+ *
+ * ## The one shape this predicate deliberately does NOT reject, and why
+ *
+ * A BOOLEAN coordinate was rejected in the first draft of this function — the
+ * browser sweep had measured an all-boolean x drawing 0 of 2 marks, so it
+ * looked like a sibling of `null`. Pinning it turned that red: a boolean beside
+ * a genuinely numeric row draws EVERY mark (measured: 3 of 3). Recharts needs
+ * one real number to build the scale and then coerces the booleans onto it, so
+ * whether a boolean places depends on the OTHER rows.
+ *
+ * Rejecting it is therefore the worse error of the two available. The all-
+ * boolean tile would gain a correct refusal, but the mixed tile would gain a
+ * footnote reading "2 of 3 rows ... are not drawn" while all three are on
+ * screen — a sentence that is simply false about the picture, which is the
+ * failure this whole family of answers exists to remove. Accepting it leaves
+ * the all-boolean case exactly as silent as it is today: a narrow hole, not a
+ * regression, and one whose real answer belongs upstream where a boolean column
+ * bound to a numeric measure could be refused at authoring time.
+ */
+function isPlottableCoord(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  return Number.isFinite(Number(v));
+}
+
+/**
+ * How many rows scatter can actually PLACE — a point needs BOTH coordinates
+ * (objectui#7171).
+ *
+ * ## The fourth mechanism on this surface
+ *
+ * Four distinct mechanisms now produce one reader-facing symptom, a tile that
+ * says nothing or says something false about the rows it was handed:
+ *
+ *   - an early return emitting a bare `div`  — objectui#7140 / objectui#7146
+ *   - a silent row DROP before the plot      — objectui#7148
+ *   - degenerate GEOMETRY, magnitude         — objectui#7147
+ *   - an unplaceable POINT, position         — this one
+ *
+ * It is genuinely a fourth. objectui#7147's rows are never filtered and are
+ * painted at a meaningless scale; scatter's unplaceable rows are simply ABSENT
+ * from the picture — measured, a 3-row dataset with one plottable pair emitted
+ * exactly ONE `path.recharts-symbols`. That difference is why this note can
+ * honestly say the points are "not drawn" where objectui#7147's deliberately
+ * cannot.
+ *
+ * ## The measurement that decided fix-over-decline
+ *
+ * 33 tiles in real Chromium (`/opt/pw-browsers/chromium`) at `origin/main`
+ * 899730e0a, one page load each, screenshotted, MD5'd and pixel-diffed against
+ * a literally empty `div` of the same 520x360 box — a box above the chart's own
+ * `CHART_MIN_HEIGHT` floor of 280, without which no footnote is visible at all.
+ * The whole reason this card exists is that objectui#7147's sweep read scatter
+ * through a SINGLE-measure fixture, so its all-positive control drew zero marks
+ * and none of its zeros carried information. This fixture binds both axes and
+ * its control DREW: 3 of 3 marks, 245px of mark area. What it then found:
+ *
+ *   - rows whose x AND y are both unplaceable render BYTE-IDENTICALLY (diff
+ *     0.000%) to a scatter handed NO ROWS AT ALL. The reader is shown the
+ *     empty-result picture for a query that returned rows.
+ *   - `null` x, absent x, `'n/a'` x, `'Infinity'` x, boolean x, and
+ *     objectui#7147's own category-column fixture — SIX datasets, ONE image
+ *     (`51957063d9c2`): an axis frame with a confident y scale and no marks.
+ *     Five of those six are answered below; the boolean one deliberately is
+ *     not, for the reason `isPlottableCoord` gives.
+ *   - one plottable row among three is 99.75% pixel-identical to a genuinely
+ *     one-row scatter (diff 0.250%), the same shape of collision that decided
+ *     pie in objectui#7147. Two rows vanish and the picture says "one point".
+ *
+ * ## Measured and DECLINED, so it is not guarded here
+ *
+ *   - ZERO VARIANCE — three rows at the same coordinate. A2.3 expected axis
+ *     domain collapse; there is none. Recharts pads the domain exactly as it
+ *     does for one row (x ticks `0,3,6,9,12` in both), draws 3 symbols, and the
+ *     tile is 99.98% identical to a one-row scatter because three coincident
+ *     points ARE one dot. That is overplotting, a property of the form itself,
+ *     and the picture is TRUE — so there is nothing here to refuse.
+ *   - a CONSTANT x or a constant y with the other varying: both draw every
+ *     mark, with full scales on both axes.
+ */
+function countPlottablePoints(
+  rows: unknown[],
+  xKey: string,
+  yKey: string,
+): { plottable: number; total: number } {
+  let plottable = 0;
+  for (const row of rows) {
+    const r = row as Record<string, unknown> | null | undefined;
+    if (isPlottableCoord(r?.[xKey]) && isPlottableCoord(r?.[yKey])) plottable += 1;
+  }
+  return { plottable, total: rows.length };
+}
+
+/**
+ * The refusal scatter renders when NO row can be placed.
+ *
+ * Its OWN code, for the reason objectui#7147 gives about its own: sharing one
+ * with the magnitude families would make the two indistinguishable to the pins
+ * that exist to keep them apart, and they answer different questions — that one
+ * is about area, this one about position.
+ *
+ * It names BOTH keys because a point needs both, and it names the PREDICATE
+ * rather than a cause: five shapes reach here (a `null`, an absent key, an
+ * unparseable string, `Infinity`, and a category column on a numeric axis) and
+ * naming any one of them is a sentence false for the other four.
+ *
+ * The caller gates it on `total > 0` — handed no rows, "no row carries a
+ * number" is a sentence about rows that do not exist. That is the empty-RESULT
+ * question (objectui#7130), answered upstream in `ObjectChart`.
+ *
+ * No console warning, matching all three landed answers in this file.
+ */
+function PositionRefusal({
+  xKey,
+  yKey,
+  className,
+}: { xKey: string; yKey: string; className?: string }) {
+  return (
+    <ChartRefusal code="no-plottable-points" className={className}>
+      This chart has nothing to place: no row carries a number for both{' '}
+      <code className="font-mono">{xKey}</code> and{' '}
+      <code className="font-mono">{yKey}</code>.
+    </ChartRefusal>
+  );
+}
+
+/**
+ * The note scatter carries when SOME rows can be placed and some cannot.
+ *
+ * Returns `null` when every row is plottable, and that gate is what keeps
+ * healthy charts byte-identical: `ChartFootnote` with no note renders its
+ * children untouched, so no existing caller gains a wrapper element.
+ *
+ * ## Why this one CAN say the points are not drawn
+ *
+ * objectui#7147's note deliberately does not, because a mixed-sign pie PAINTS a
+ * sector for every row and only scales them meaninglessly. Scatter is the other
+ * case and it was measured: a 3-row dataset with one plottable pair emitted
+ * exactly ONE `path.recharts-symbols`, and the resulting tile was 99.75%
+ * pixel-identical to a genuinely one-row scatter. The rows really are absent
+ * from the picture, so saying so is a true statement about what is on screen —
+ * and the COUNT is the half a reader cannot recover from it.
+ */
+function unplottedPointsNote(
+  plottable: number,
+  total: number,
+  xKey: string,
+  yKey: string,
+): React.ReactNode {
+  const unplotted = total - plottable;
+  if (unplotted <= 0) return null;
+  return (
+    <p role="note" data-chart-note="unplotted-points" className="px-1 text-xs text-muted-foreground">
+      {unplotted} of {total} rows {unplotted === 1 ? 'has' : 'have'} no number for both{' '}
+      <code className="font-mono">{xKey}</code> and{' '}
+      <code className="font-mono">{yKey}</code> &mdash; this chart plots by position, so{' '}
+      {unplotted === 1 ? 'that point is' : 'those points are'} not drawn.
+    </p>
+  );
+}
+
+/**
  * AdvancedChartImpl - The heavy implementation that imports Recharts with full features
  * This component is lazy-loaded to avoid including Recharts in the initial bundle
  */
@@ -1425,7 +1616,20 @@ function AdvancedChartImplInner({
 
   // Scatter chart
   if (chartType === 'scatter') {
+    // objectui#7171 — see `countPlottablePoints`. Scatter is the file's only
+    // two-measure POSITIONAL family: `xAxisKey` feeds a `type="number"` XAxis
+    // and `series[0]` a `type="number"` YAxis, so a point exists only if BOTH
+    // are numbers. The y key is bound once here and handed to both the
+    // predicate and the axis below, so the two cannot drift apart.
+    const scatterYKey = series[0]?.dataKey || 'value';
+    const points = countPlottablePoints(data, xAxisKey, scatterYKey);
+    if (points.total > 0 && points.plottable === 0) {
+      return <PositionRefusal xKey={xAxisKey} yKey={scatterYKey} className={className} />;
+    }
     return (
+      <ChartFootnote
+        note={unplottedPointsNote(points.plottable, points.total, xAxisKey, scatterYKey)}
+      >
       <ChartContainer config={config} className={className} {...containerProps}>
         <ScatterChart>
           <CartesianGrid vertical={false} />
@@ -1439,7 +1643,7 @@ function AdvancedChartImplInner({
           />
           <YAxis 
             type="number"
-            dataKey={series[0]?.dataKey || 'value'}
+            dataKey={scatterYKey}
             name={String(config[series[0]?.dataKey]?.label || series[0]?.dataKey)}
             tickLine={false}
             axisLine={false}
@@ -1470,6 +1674,7 @@ function AdvancedChartImplInner({
           })}
         </ScatterChart>
       </ChartContainer>
+      </ChartFootnote>
     );
   }
 

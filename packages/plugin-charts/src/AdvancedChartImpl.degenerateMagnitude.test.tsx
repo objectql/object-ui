@@ -257,25 +257,54 @@ describe('objectui#7147 — the seam with the two landed sankey answers, pinned 
     expect(noteOf(container)).toBeNull();
   });
 
-  it('the three codes are mutually exclusive on every dataset in the sweep', () => {
+  it('the codes are mutually exclusive on every dataset in the sweep', () => {
+    // Extended by objectui#7171 rather than duplicated beside: scatter and its
+    // two codes join the SAME exclusivity assertion, so a sixth answer cannot
+    // be added later without this test having an opinion about it.
     const datasets: Row[][] = [
       [{ stage: 'Alpha', amount: 0 }, { stage: 'Beta', amount: 0 }],
       [{ stage: 'Alpha', amount: 40 }, { stage: 'Beta', amount: null }],
       [{ stage: 'Alpha', amount: 40 }, { stage: 'Beta', amount: 25 }],
       [],
     ];
-    for (const family of [...MAGNITUDE_FAMILIES, 'sankey', 'bar']) {
-      for (const data of datasets) {
+    // Scatter reads TWO measures, so the sweep's single-measure rows are also
+    // the dataset that leaves it unplaceable — which is exactly the pair this
+    // assertion has to keep apart.
+    const scatterDatasets: Row[][] = [
+      ...datasets,
+      [{ stage: 1, amount: 40 }, { stage: 2, amount: 25 }],
+      [{ stage: 1, amount: 40 }, { stage: 2, amount: null }],
+    ];
+    for (const family of [...MAGNITUDE_FAMILIES, 'sankey', 'bar', 'scatter']) {
+      for (const data of family === 'scatter' ? scatterDatasets : datasets) {
         const { container } = renderChart(family, data);
         const codes = [
           container.querySelector('[data-chart-error="no-positive-flow"]'),
           container.querySelector('[data-chart-error="no-positive-magnitude"]'),
+          container.querySelector('[data-chart-error="no-plottable-points"]'),
           container.querySelector('[data-chart-note="omitted-rows"]'),
           container.querySelector('[data-chart-note="unsized-rows"]'),
+          container.querySelector('[data-chart-note="unplotted-points"]'),
         ].filter(Boolean).length;
-        expect(codes).toBeLessThanOrEqual(1);
+        expect(codes, `${family} / ${JSON.stringify(data)}`).toBeLessThanOrEqual(1);
         cleanup();
       }
     }
+  });
+
+  it('scatter never receives a MAGNITUDE code, and a magnitude family never receives scatter\'s', () => {
+    // objectui#7171. Same fence as the sankey pair above: pie sizes by
+    // magnitude and scatter plots by position, so an all-negative dataset is a
+    // refusal for one and perfectly ordinary data for the other.
+    const negatives: Row[] = [{ stage: -10, amount: -40 }, { stage: -20, amount: -25 }];
+    const { container: scatter } = renderChart('scatter', negatives);
+    expect(scatter.querySelector('[data-chart-error="no-plottable-points"]')).toBeNull();
+    expect(refusalOf(scatter)).toBeNull();
+    expect(noteOf(scatter)).toBeNull();
+    cleanup();
+
+    const { container: pie } = renderChart('pie', negatives);
+    expect(refusalOf(pie)).not.toBeNull();
+    expect(pie.querySelector('[data-chart-error="no-plottable-points"]')).toBeNull();
   });
 });
