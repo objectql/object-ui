@@ -135,10 +135,11 @@ describe('objectui#6121 — ChartDataSeries declares the per-series family overr
   >;
 
   it('accepts the series shape the documentation authors', () => {
+    // `data` was authored here until objectui#6896 retired it — the series
+    // NAMES a column on the chart-level `data`, it does not carry numbers.
     const series: ChartDataSeries = {
       name: 'Revenue',
       type: 'line',
-      data: [120000, 145000, 132000],
     };
     expect(series.type).toBe('line');
     // The zod twin moves in lockstep — an unmirrored key is what
@@ -148,14 +149,16 @@ describe('objectui#6121 — ChartDataSeries declares the per-series family overr
 
   it('rejects a family the normalizer would silently drop', () => {
     // @ts-expect-error 'pie' is not a per-series override the renderer performs
-    const bad: ChartDataSeries = { name: 'Revenue', type: 'pie', data: [1] };
+    const bad: ChartDataSeries = { name: 'Revenue', type: 'pie' };
     expect(bad).toBeTruthy();
-    expect(ChartDataSeriesSchema.safeParse({ name: 'Revenue', type: 'pie', data: [1] }).success)
+    // No `data` here: it would make this refusal ambiguous between the family
+    // union and objectui#6896's tombstone, and this pin is about the union.
+    expect(ChartDataSeriesSchema.safeParse({ name: 'Revenue', type: 'pie' }).success)
       .toBe(false);
   });
 
   it('leaves the override optional — a plain inline series still parses', () => {
-    const plain: ChartDataSeries = { name: 'Revenue', data: [1, 2, 3] };
+    const plain: ChartDataSeries = { name: 'Revenue' };
     expect(ChartDataSeriesSchema.parse(plain).type).toBeUndefined();
   });
 });
