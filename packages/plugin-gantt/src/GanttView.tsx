@@ -308,6 +308,68 @@ export function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
   return d;
 }
 
+/**
+ * The tier the toolbar's period label and its prev/next steppers work in.
+ *
+ * It is deliberately the SAME tier `headerGroups` bands the timeline by, so the
+ * toolbar and the band header four pixels below it can never name different
+ * periods (objectui#7203: the toolbar formatted `timelineRange.start` — the memo
+ * spanning the whole dataset — and so read "January 2026" over columns the band
+ * header correctly called "Aug 2026", and could not change at any scroll
+ * position because it was not derived from scroll position at all).
+ *
+ * Every `GanttViewMode` has a natural unit here, so "step one period" is always
+ * defined: day/week band by month, month/quarter by year, year by decade, and
+ * shift-segmented day mode by shift-day (the tier its bands group into).
+ */
+export type GanttPeriodTier = 'shiftDay' | 'month' | 'year' | 'decade';
+
+/** Mirror of the `groupBy` choice inside `headerGroups` — keep the two in step. */
+export function periodTierFor(mode: GanttViewMode, segmenting: boolean): GanttPeriodTier {
+  if (segmenting) return 'shiftDay';
+  if (mode === 'year') return 'decade';
+  if (mode === 'month' || mode === 'quarter') return 'year';
+  return 'month';
+}
+
+/** Start of the period `date` falls in, at `tier`. */
+export function startOfPeriod(date: Date, tier: GanttPeriodTier, dayStartMin = 0): Date {
+  if (tier === 'shiftDay') return shiftDayStart(date, dayStartMin);
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  if (tier === 'month') {
+    d.setDate(1);
+  } else if (tier === 'year') {
+    d.setMonth(0, 1);
+  } else {
+    d.setMonth(0, 1);
+    d.setFullYear(Math.floor(d.getFullYear() / 10) * 10);
+  }
+  return d;
+}
+
+/** Step whole periods at `tier` — one unit of the toolbar's granularity. */
+export function addPeriods(date: Date, n: number, tier: GanttPeriodTier): Date {
+  if (tier === 'shiftDay') return addUnits(date, n, 'day');
+  if (tier === 'month') return addUnits(date, n, 'month');
+  return addUnits(date, n * (tier === 'decade' ? 10 : 1), 'year');
+}
+
+/**
+ * Toolbar wording for a period start. The year and decade tiers reuse the band
+ * header's exact strings; the month tier spells the month out ("August 2026"
+ * beside the header's "Aug 2026") — a fuller form of the same month, never a
+ * different one.
+ */
+export function formatPeriodLabel(date: Date, tier: GanttPeriodTier, locale?: string): string {
+  if (tier === 'decade') return `${Math.floor(date.getFullYear() / 10) * 10}s`;
+  if (tier === 'year') return String(date.getFullYear());
+  if (tier === 'shiftDay') {
+    return date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  return date.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+}
+
 /** Custom vertical timeline marker (deadline, sprint boundary, release…). */
 export interface GanttMarker {
   date: Date | string
@@ -1984,12 +2046,15 @@ export function GanttView({
     [timeColumns, colStartMs, colRealMs, colOffsets, folding, segmenting],
   );
 
-  // x (px) → date. Inverse of dateToX, used by drag/resize to read the date
-  // under the pointer. Never returns a folded (non-working) instant.
-  const xToDate = React.useCallback(
-    (x: number): Date => {
+  // Index of the column that OWNS pixel x — the largest i with
+  // colOffsets[i] <= x. Shared by `xToDate` (which then interpolates inside the
+  // column) and by the toolbar's visible-period label (which must not
+  // interpolate: a week column straddling a month boundary belongs, header-group
+  // and label alike, to the month its START falls in).
+  const colIndexAtX = React.useCallback(
+    (x: number): number => {
       const n = timeColumns.length;
-      if (n === 0) return new Date(timelineRange.start);
+      if (n === 0) return -1;
       let lo = 0;
       let hi = n - 1;
       let i = 0;
@@ -2002,11 +2067,22 @@ export function GanttView({
           hi = m - 1;
         }
       }
+      return i;
+    },
+    [timeColumns, colOffsets],
+  );
+
+  // x (px) → date. Inverse of dateToX, used by drag/resize to read the date
+  // under the pointer. Never returns a folded (non-working) instant.
+  const xToDate = React.useCallback(
+    (x: number): Date => {
+      const i = colIndexAtX(x);
+      if (i < 0) return new Date(timelineRange.start);
       const w = timeColumns[i].width || 1;
       const frac = (x - colOffsets[i]) / w;
       return new Date(colStartMs[i] + frac * (colRealMs[i] || MS_PER_DAY));
     },
-    [timeColumns, colStartMs, colRealMs, colOffsets, timelineRange],
+    [colIndexAtX, timeColumns, colStartMs, colRealMs, colOffsets, timelineRange],
   );
 
   // Switch granularity *without* the date window jumping. The scroll container
@@ -2266,6 +2342,51 @@ export function GanttView({
     return { startIdx, endIdx };
   }, [scrollPos.top, viewport.height, rowHeight, rows.length]);
   const totalRowsHeight = rows.length * rowHeight;
+
+  // --- Toolbar period: label + prev/next steppers ---------------------------
+  // Both are derived from the VISIBLE WINDOW, never from `timelineRange` — the
+  // whole-dataset memo, whose start is the first unit of the entire result set
+  // and does not move when the chart is scrolled, because it is not a function
+  // of scroll position at all (objectui#7203). The left edge of the viewport
+  // picks the owning column; that column's own start date, snapped to the tier
+  // `headerGroups` bands by, is the period on screen — so the toolbar label and
+  // the band header four pixels below it agree by construction rather than by
+  // two parallel derivations that can drift apart.
+  const periodTier = periodTierFor(viewMode, segmenting);
+  const visiblePeriodStart = React.useMemo(() => {
+    const i = colIndexAtX(scrollPos.left);
+    // Snap the COLUMN's start, not the interpolated instant under the pixel: a
+    // week column straddling a month boundary belongs to the month its start
+    // falls in, which is exactly how `headerGroups` keys it.
+    const anchor = i >= 0 ? timeColumns[i].date : timelineRange.start;
+    return startOfPeriod(anchor, periodTier, shiftSegments?.dayStartMin ?? 0);
+  }, [colIndexAtX, scrollPos.left, timeColumns, timelineRange, periodTier, shiftSegments]);
+
+  const periodLabel = React.useMemo(
+    () => formatPeriodLabel(visiblePeriodStart, periodTier, dateLocale),
+    [visiblePeriodStart, periodTier, dateLocale],
+  );
+
+  // Scroll the visible window one period backwards/forwards — what the toolbar's
+  // ChevronLeft/ChevronRight drive. Clamped against the same totalWidth/viewport
+  // pair the virtualization windows use, so the two never disagree about where
+  // the content ends. `scrollPos` is pushed here as well as from the scroll
+  // event because that event is queued (async) and a clamped assignment at
+  // either end of the range fires none at all — the label has to follow the
+  // move either way. Same "drive virtualization directly" reason as
+  // `handleListScroll` below.
+  const stepPeriod = React.useCallback(
+    (delta: number) => {
+      const el = scrollAreaRef.current;
+      if (!el) return;
+      const target = addPeriods(visiblePeriodStart, delta, periodTier);
+      const maxLeft = Math.max(0, totalWidth - viewport.width);
+      const left = Math.max(0, Math.min(Math.round(dateToX(target)), maxLeft));
+      el.scrollLeft = left;
+      setScrollPos((prev) => (prev.left === left ? prev : { ...prev, left }));
+    },
+    [visiblePeriodStart, periodTier, totalWidth, viewport.width, dateToX],
+  );
 
   // --- Fullscreen -----------------------------------------------------------
   const [isFullscreen, setIsFullscreen] = React.useState(false);
@@ -3178,14 +3299,30 @@ export function GanttView({
               already exposes a fully-fielded create form for this
               object, and the toolbar's quick-create only set 3 fields
               which was confusing for required-field-heavy schemas. */}
-          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('gantt.toolbar.prevPeriod')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t('gantt.toolbar.prevPeriod')}
+            data-testid="gantt-toolbar-prev-period"
+            onClick={() => stepPeriod(-1)}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('gantt.toolbar.nextPeriod')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t('gantt.toolbar.nextPeriod')}
+            data-testid="gantt-toolbar-next-period"
+            onClick={() => stepPeriod(1)}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <span className="font-semibold text-xs sm:text-sm">
-            {timelineRange.start.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
+          {/* The period ON SCREEN, not the start of the dataset — see
+              `visiblePeriodStart`. */}
+          <span className="font-semibold text-xs sm:text-sm" data-testid="gantt-toolbar-period">
+            {periodLabel}
           </span>
           {effectiveReadOnly && (
             <span
