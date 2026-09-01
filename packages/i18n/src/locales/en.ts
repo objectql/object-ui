@@ -435,6 +435,20 @@ const en = {
     yes: 'Yes',
     no: 'No',
     systemFields: 'System',
+    // objectui#7189 — the grouped grid says, where the group counts are, that
+    // it grouped a PAGE. `useGroupedData` buckets only the rows the browser
+    // holds, so a group beyond the page boundary is absent entirely and every
+    // count is a page slice. The paging footer is not a statement about what
+    // was grouped, and it demonstrably did not prevent the wrong reading.
+    // Two sentences because two conditions: a known total states the fact
+    // with both numbers; a full window with no total can only say "may".
+    grouping: {
+      partialBadge: 'Partial',
+      partialNotice:
+        'Grouped over the first {{loaded}} of {{total}} records. Group counts are page-scoped, and a group whose records all fall beyond the loaded rows is missing here.',
+      partialNoticeUnknownTotal:
+        'Grouped over the {{loaded}} records loaded. More may match this view, so group counts may be partial and a group may be missing here.',
+    },
     // Column-footer aggregate prefixes, keyed by the spec's `ColumnSummary`
     // vocabulary (objectui#4024). The footer already formatted its NUMBER
     // through the locale-aware formatter and then put a hardcoded English

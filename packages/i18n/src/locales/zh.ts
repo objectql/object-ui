@@ -349,6 +349,14 @@ const zh = {
     yes: '是',
     no: '否',
     systemFields: '系统字段',
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: '部分',
+      partialNotice:
+        '仅按已加载的前 {{loaded}} 条(共 {{total}} 条)记录分组。分组计数只统计当前页,记录全部落在已加载行之外的分组不会出现在这里。',
+      partialNoticeUnknownTotal:
+        '仅按已加载的 {{loaded}} 条记录分组。可能还有更多记录符合此视图,因此分组计数可能不完整,某个分组也可能不会出现在这里。',
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.

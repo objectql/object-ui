@@ -367,6 +367,14 @@ const ar = {
     yes: "نعم",
     no: "لا",
     systemFields: "النظام",
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: "جزئي",
+      partialNotice:
+        "تم التجميع على أول {{loaded}} سجل من أصل {{total}}. أعداد المجموعات تخص الصفحة المحمَّلة فقط، وأي مجموعة تقع كل سجلاتها خارج الصفوف المحمَّلة لا تظهر هنا.",
+      partialNoticeUnknownTotal:
+        "تم التجميع على {{loaded}} سجل محمَّل. قد تتطابق سجلات أخرى مع هذا العرض، لذا قد تكون أعداد المجموعات جزئية وقد لا تظهر إحدى المجموعات هنا.",
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.

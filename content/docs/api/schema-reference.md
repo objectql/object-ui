@@ -746,7 +746,7 @@ A data grid that auto-fetches from an ObjectQL object definition. Includes searc
 | `operations` | `object` | Enabled CRUD operations. |
 | `rowActions` / `bulkActions` | `string[]` | Action identifiers for rows and batch selection. `bulkActions` is the spec-aligned key; `batchActions` is a legacy alias that takes precedence when both are set. |
 | `editable` | `boolean` | Enable inline cell editing. |
-| `grouping` | `GroupingConfig` | Row grouping configuration. |
+| `grouping` | `GroupingConfig` | Row grouping configuration. **Page-scoped**: the grid groups the rows it has fetched, so group counts are page slices and a group beyond the page is absent — the grid marks the grouping partial when it can tell. |
 | `frozenColumns` | `number` | Number of columns frozen on scroll. |
 | `navigation` | `ViewNavigationConfig` | SPA navigation configuration. |
 

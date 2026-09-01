@@ -221,6 +221,15 @@ const GRID_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.yes': 'Yes',
   'grid.no': 'No',
   'grid.systemFields': 'System',
+  // Grouped-view partial-grouping disclosure (objectui#7189). Both sentences
+  // must exist HERE as well as in the locale packs: a provider-less host (a
+  // standalone grid, this package's own tests) never reaches them, and this
+  // is a statement about whether the numbers on screen are true.
+  'grid.grouping.partialBadge': 'Partial',
+  'grid.grouping.partialNotice':
+    'Grouped over the first {{loaded}} of {{total}} records. Group counts are page-scoped, and a group whose records all fall beyond the loaded rows is missing here.',
+  'grid.grouping.partialNoticeUnknownTotal':
+    'Grouped over the {{loaded}} records loaded. More may match this view, so group counts may be partial and a group may be missing here.',
   // Reused by the grouped-view pager (falls back here when no I18nProvider).
   'table.rowsPerPage': 'Rows per page',
   'table.pageInfo': 'Page {{current}} of {{total}}',
@@ -3824,6 +3833,55 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     ? hostOnPageSizeChange
     : (size: number) => { setServerPageSize(size); setServerPage(1); };
 
+  // ── Is the grouping on screen page-scoped? (objectui#7189) ───────────────
+  //
+  // `useGroupedData` buckets the rows THIS COMPONENT HOLDS and computes every
+  // per-group aggregate from that same array, so both the set of groups and
+  // every number in a group header are properties of the fetched page rather
+  // than of the query. That is a correct implementation of client-side
+  // grouping and is deliberately untouched here; what was missing is any
+  // statement that client-side grouping is what you are looking at. A group
+  // whose records all fall beyond the page does not appear AT ALL — and a
+  // wrong number invites a second look where an absent row invites none.
+  //
+  // Two knowable conditions, deliberately different in strength, because the
+  // wording each one can honestly support differs with it:
+  //
+  //  1. A real match total to compare against — `resolvedTotalMatching`, the
+  //     same ONE derived value the pager and both bulk-bar sites read (do not
+  //     re-spell the `externalManualPagination` conditional here; two copies
+  //     of it is how one of them got missed in #4464). Exceeding the rows in
+  //     hand makes the grouping partial as a FACT, with both numbers.
+  //  2. No total, but we asked the server for a window and it came back full.
+  //     `plugin-list`'s own footer draws exactly this inference when no total
+  //     is known (`items.length >= effectivePageSize`), and it can only ever
+  //     say "may": a result set that exactly fills the window trips it too.
+  //
+  // Rows handed to us inline are NOT a page — nothing was asked for and
+  // nothing was withheld — so `hasInlineData` gates condition 2 out. The
+  // host-driven paging mode still reaches condition 1, through `hostRowCount`.
+  // A result set that fits leaves the grid silent, and that silence is what
+  // makes the marker mean something when it does appear.
+  const groupingRowsLoaded = data.length;
+  const groupingTotalKnown = typeof resolvedTotalMatching === 'number';
+  const groupingPartialWithTotal =
+    groupingTotalKnown && (resolvedTotalMatching as number) > groupingRowsLoaded;
+  const groupingPartialWindowFull =
+    !groupingTotalKnown && !hasInlineData && groupingRowsLoaded >= serverPageSize;
+  const groupingIsPartial =
+    isGrouped && (groupingPartialWithTotal || groupingPartialWindowFull);
+  // ONE sentence, used in both places it belongs: the notice above the group
+  // list, and the accessible name of the marker beside every group count.
+  const groupingPartialNotice = groupingIsPartial
+    ? (groupingPartialWithTotal
+      ? t('grid.grouping.partialNotice', {
+        loaded: groupingRowsLoaded,
+        total: resolvedTotalMatching,
+      })
+      : t('grid.grouping.partialNoticeUnknownTotal', { loaded: groupingRowsLoaded }))
+    : undefined;
+  const groupingPartialLabel = groupingIsPartial ? t('grid.grouping.partialBadge') : undefined;
+
   // Before anyone clicks, the headers show the sort the view was authored with
   // — read with the same `schemaSort` → `defaultSort` precedence the fetch path
   // above uses, so the arrow on screen and the `$orderby` on the wire are the
@@ -4676,6 +4734,8 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
           fieldLabel={group.depth === 0 ? fieldLabel : undefined}
           labelColorClass={labelColorClass}
           labelColorStyle={labelColorStyle}
+          partialLabel={groupingPartialLabel}
+          partialTitle={groupingPartialNotice}
           onToggle={toggleGroup}
         >
           {group.subgroups.length > 0 ? (
@@ -4741,6 +4801,19 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // bottom of an overflow-hidden ancestor and clips it.
   const gridContent = isGrouped ? (
     <div className="flex flex-col flex-1 min-h-0">
+      {/* The partial-grouping disclosure sits INSIDE the grouped region,
+          directly above the first group header — not in the paging footer.
+          The footer is paging chrome and says nothing about what was
+          grouped; the number a reader trusts is the one next to the group's
+          name, so the statement has to be where that number is. */}
+      {groupingIsPartial && (
+        <div
+          data-testid="grouping-partial-notice"
+          className="border-b bg-muted/30 px-3 sm:px-4 py-1.5 text-xs text-muted-foreground grouping-partial-notice"
+        >
+          {groupingPartialNotice}
+        </div>
+      )}
       {/* Single shared horizontal scroll container: every group's sub-table
           overflows into this one scroller (disableInnerScroll), so columns
           stay aligned and there is exactly one x-axis scrollbar. */}

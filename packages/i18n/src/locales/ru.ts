@@ -369,6 +369,14 @@ const ru = {
     yes: "Да",
     no: "Нет",
     systemFields: "Система",
+    // objectui#7189 — partial-grouping disclosure for the grouped grid.
+    grouping: {
+      partialBadge: "Частично",
+      partialNotice:
+        "Группировка выполнена по первым {{loaded}} из {{total}} записей. Счётчики групп относятся только к загруженной странице, а группа, все записи которой находятся за пределами загруженных строк, здесь отсутствует.",
+      partialNoticeUnknownTotal:
+        "Группировка выполнена по {{loaded}} загруженным записям. Этому представлению могут соответствовать и другие записи, поэтому счётчики групп могут быть неполными, а какая-либо группа может здесь отсутствовать.",
+    },
     // objectui#4024 — column-footer aggregate prefixes, keyed by the spec's
     // `ColumnSummary` vocabulary. `pattern` owns the label/value join so this
     // pack controls its own separator and word order.
