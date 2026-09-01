@@ -79,11 +79,11 @@ const MANAGER_DEF = {
   reference_to_field: 'x',
 };
 
-/** The seven keys that survive both retirements — the control. */
+/** The six keys that survive every retirement so far — the control. */
 const SURVIVING_KEYS = [
   'reference_to', 'reference',
   'display_field', 'id_field', 'description_field',
-  'lookup_filters', 'lookupFilters',
+  'lookup_filters',
 ] as const;
 
 const ROWS = [{ id: 'r1', name: 'Tower T1', manager: 'u1' }];
@@ -172,13 +172,18 @@ describe('objectui#6874 — ObjectGrid no longer copies `titleFormat` onto field
       expect(meta).not.toHaveProperty('titleFormat');
     });
 
-    it(`still copies the seven surviving relational keys (${name})`, async () => {
+    it(`still copies the six surviving relational keys (${name})`, async () => {
       const meta = await renderAndCaptureMeta(schemaExtra);
       for (const key of SURVIVING_KEYS) {
         expect(meta).toHaveProperty(key);
       }
       expect(meta.reference_to).toBe('users');
       expect(meta.display_field).toBe('name');
+      // objectui#7166 retired `lookupFilters` from the copy set — its only
+      // reader is an editor widget, which `renderCellEditor` feeds from the
+      // schema def. The fixture above still declares it, so this absence is a
+      // reading and not a fixture that never offered the key.
+      expect(meta).not.toHaveProperty('lookupFilters');
     });
   }
 });
