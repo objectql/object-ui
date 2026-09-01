@@ -427,7 +427,7 @@ const isDate = (value: unknown): value is Date => {
  * worse than naming a category: it costs the author a search for a fault that
  * is not there.
  *
- * ## The branches, and why each is total
+ * ## The branches, and how far each one's totality reaches
  *
  * - `string` -> quoted (#6759's pin; empty and space-padded stay visible).
  * - `undefined` / `null` -> themselves (#6759 / #6770's pins; how an author
@@ -455,7 +455,10 @@ const isDate = (value: unknown): value is Date => {
  *   `Array.isArray` and `typeof`, which read no author-controlled property.
  *   Deliberately NOT `Object.prototype.toString.call`: that consults
  *   `Symbol.toStringTag`, which can be a throwing getter (measured), so the
- *   more informative spelling is the non-total one.
+ *   more informative spelling is the non-total one. `Array.isArray` reads no
+ *   property and is STILL not total — on a revoked `Proxy` it throws. That is
+ *   the one exclusion this docblock claims, and it is stated and exercised
+ *   rather than repaired: see the objectui#7036 note below.
  *
  * All eight `typeof` results are covered and no branch falls through to author
  * code. The single reflective operation it performs is the Date test, which is
@@ -470,6 +473,69 @@ const isDate = (value: unknown): value is Date => {
  * 7fc5c3c12). Both sites now ask `isDate`, which is total, so the shared
  * operation adds no throw site because it HAS none — not because the gate
  * absorbed it first.
+ *
+ * ⚠️ objectui#7036 — READ THE TWO PARAGRAPHS ABOVE AS A SEQUENCE, NOT AS A
+ * CONCLUSION. Each was written as the settled answer and the next card's
+ * measurement moved it (#6759 -> #6905 -> #6907 -> #7027). This is the fifth
+ * entry and it is deliberately NOT a fifth claim of totality. The sentence it
+ * falsifies is the one directly above the #7027 note: this function DOES add
+ * a throw site the accept gate does not have, and it is `Array.isArray`.
+ *
+ * THE EXCLUSION, measured in-render on dd35800af through `TimelineRenderer`
+ * itself — not a replica of these branch bodies:
+ *
+ *     endDate: <a revoked Proxy, over any target>
+ *         -> THREW TypeError: Cannot perform 'IsArray' on a proxy that has
+ *            been revoked                     (here, at `Array.isArray`)
+ *
+ * `IsArray` recurses into `[[ProxyTarget]]`, which a revoked proxy does not
+ * have, so this throws on an INTERNAL condition while still reading no
+ * author-controlled property. All four target shapes throw (`{}`, `[]`, a
+ * function, a real `Date`), and so does a revoked proxy pinned as
+ * `schema.minDate` / `maxDate`. `typeof` does not separate it out — it
+ * answers `'object'` (or `'function'`) without throwing.
+ *
+ * WHY IT IS LEFT, and none of the three reasons is cost:
+ *
+ * 1. It is not reachable from an authored document — ObjectUI metadata is
+ *    JSON and JSON cannot spell a proxy. Re-swept on dd35800af: zero
+ *    `Proxy.revocable` in the repo, zero `Object.setPrototypeOf` calls in
+ *    any package `src/`, each read beside a live control on the same
+ *    instrument
+ *    (52 `Proxy` mentions, 19 `Object.assign` calls) so the zeros are
+ *    readings and not a broken query. The `__proto__` hits are denylists.
+ * 2. A `catch` here would be SUBSTITUTION, not a read — the opposite of
+ *    `isDate`'s. `isDate` catches because the language exposes the
+ *    `[[DateValue]]` bit ONLY by throwing, so its catch IS the read. A
+ *    revoked proxy has no array-ness to read, so catching would discard a
+ *    failure and substitute `an object`: consumer-side tolerance, which is
+ *    what #6750 and #6759 both refused. A second `catch` beside `isDate`'s
+ *    would erase the distinction this file is built on.
+ * 3. It would buy no invariant, because of the paragraph below.
+ *
+ * ⛔ `Array.isArray` IS NOT THE LAST NON-TOTAL OPERATION ON THE GANTT DATE
+ * PATH, and this function cannot make the path total. Measured in the same
+ * run: five further crash sites, every one of them reached BEFORE this
+ * function is entered, in the property reads that FETCH the date out of the
+ * authored document (`findUnusableGanttDate`'s `items[i]?.items` and
+ * `rowItems[j]?.[key]`) —
+ *
+ *     items[0].items[0] with a throwing `endDate` getter -> THREW
+ *     items[0].items[0] is a revoked Proxy               -> THREW
+ *     items[0]          is a revoked Proxy               -> THREW
+ *     items[0].items    is a revoked Proxy               -> THREW
+ *     items[0] with a throwing `items` getter            -> THREW
+ *
+ * They are the same reachability class (JSON spells neither a getter nor a
+ * proxy) and they are enumerated in objectui#7153 rather than repaired here —
+ * they are a different function's surface. The true and much narrower
+ * sentence is that `Array.isArray` is the last non-total operation INSIDE
+ * THIS FUNCTION.
+ *
+ * ⚠️ Whatever totality this docblock claims is bounded by an EXERCISED input
+ * set — the rows in `__tests__/timeline-gantt-date-brand-7027.test.tsx`,
+ * which now include the revoked proxy — and by nothing else. On this path
+ * prose has been a hypothesis four times running.
  *
  * ## What this deliberately does NOT do
  *

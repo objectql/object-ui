@@ -30,6 +30,17 @@
  * about being a Date, each one asserted to reach a DEFINED outcome. That is
  * what #7026 gave the speller and what the gate did not have.
  *
+ *   5. objectui#7036: the gate's repair held, and the SPELLER still was not
+ *      total — `Array.isArray` throws on a revoked `Proxy`. That card did not
+ *      repair it; it ruled the exclusion STATED AND EXERCISED, which is what
+ *      `pin 4` at the foot of this file is. It also measured that the card's
+ *      own headline was wrong: `Array.isArray` is not the last non-total
+ *      operation on the PATH, only inside that function (objectui#7153).
+ *
+ * ⚠️ So this file's input set is not a claim of totality either. It is the
+ * boundary that has actually been exercised, and the sixth card will be the
+ * one that says where it ends.
+ *
  * ## What "a defined outcome" means here — two kinds, and never a third
  *
  * ⚠️ Not every row below is a refusal, and forcing them all to be one would
@@ -180,6 +191,17 @@ class HijackedGetTime extends Date {
     throw new Error('getTime hijacked by the authored document');
   }
 }
+
+/**
+ * A REVOKED proxy — the one input `spellGanttDateValue` is documented NOT to
+ * survive (objectui#7036). `Proxy.revocable` is the only way to spell it, and
+ * nothing in any package `src/` calls it: this is a test-only value.
+ */
+const revokedProxy = (target: object = {}) => {
+  const { proxy, revoke } = Proxy.revocable(target, {});
+  revoke();
+  return proxy as unknown;
+};
 
 /** An object whose `Symbol.toStringTag` is a throwing getter. */
 const throwingToStringTag = () =>
@@ -345,5 +367,76 @@ describe('pin 3 — the ACCEPT SET is unchanged: #6781’s ruling does not move 
       expect(diagnosticOf(container) ?? '', `${label} was accepted`).toContain(PATH);
       expect(barCountOf(container), `${label} drew a bar`).toBe(0);
     }
+  });
+});
+
+describe('pin 4 — the ONE documented EXCLUSION, exercised not asserted (objectui#7036)', () => {
+  /**
+   * `spellGanttDateValue`'s `Array.isArray` is not total: `IsArray` recurses
+   * into `[[ProxyTarget]]` and a REVOKED proxy has none, so it throws while
+   * naming the value. objectui#7036 adjudicated this as STATED-AND-EXERCISED
+   * rather than repaired, on three grounds recorded in that function's
+   * docblock: it is unreachable from an authored document (JSON cannot spell
+   * a proxy), a `catch` here would SUBSTITUTE `an object` for a failure
+   * rather than read anything the way `isDate`'s catch does, and it would not
+   * make the PATH total anyway — five reads that FETCH the date throw first
+   * (objectui#7153).
+   *
+   * ## Why a THROW is pinned here, and why not with a bare `toThrow()`
+   *
+   * This file exists because four prose totality claims on this path were
+   * each falsified by the next card's measurement. A docblock sentence saying
+   * "except a revoked proxy" would be a fifth claim of the same species. The
+   * rows below make the exclusion a MEASUREMENT instead, and they assert the
+   * throw's own MESSAGE: a bare `toThrow()` passes for any error from any
+   * line, so it would stay green if the crash moved to `instanceof`, to
+   * `Object.prototype.toString`, or upstream into the row walk — which is
+   * precisely what has happened on this path four times. The message names
+   * both the operation (`IsArray`) and the cause (`revoked`), so the pin
+   * fails if the site moves and fails if the exclusion is ever repaired,
+   * either of which must come with a docblock edit.
+   */
+
+  const REVOKED_ISARRAY = /Cannot perform 'IsArray' on a proxy that has been revoked/;
+
+  // Every target shape: the throw is about revocation, not about the target.
+  const targets: [string, () => object][] = [
+    ['{}', () => ({})],
+    ['[]', () => []],
+    ['a function', () => function noop() {}],
+    ['a real Date', () => new Date('2024-03-01')],
+  ];
+
+  for (const [label, makeTarget] of targets) {
+    it(`a revoked Proxy over ${label} throws at \`Array.isArray\`, by design`, () => {
+      expect(() =>
+        gantt({ items: rowWith({ startDate: '2024-01-01', endDate: revokedProxy(makeTarget()) }) }),
+      ).toThrow(REVOKED_ISARRAY);
+    });
+  }
+
+  it('a revoked Proxy pinned as `minDate` reaches the same site', () => {
+    // The pinned limb takes the same speller, so the exclusion is not
+    // confined to a row item. `value &&` is ToBoolean and does not throw.
+    expect(() =>
+      gantt({
+        items: rowWith({ startDate: '2024-01-01', endDate: '2024-03-01' }),
+        minDate: revokedProxy(),
+      }),
+    ).toThrow(REVOKED_ISARRAY);
+  });
+
+  it('CONTROL — a LIVE Proxy is still NAMED `an object`, so the rows above are about REVOCATION', () => {
+    // Without this the four rows above would also pass if the whole gantt
+    // branch had broken. `typeof` does not separate a revoked proxy out
+    // either: it answers `'object'` for one, exactly as it does here.
+    const { container } = gantt({
+      items: rowWith({ startDate: '2024-01-01', endDate: new Proxy({}, {}) }),
+    });
+
+    const text = diagnosticOf(container) ?? '';
+    expect(text).toContain(PATH);
+    expect(text).toContain('is an object');
+    expect(barCountOf(container)).toBe(0);
   });
 });
