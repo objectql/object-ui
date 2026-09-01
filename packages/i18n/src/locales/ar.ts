@@ -960,6 +960,19 @@ const ar = {
     tasksOnly: "المهام فقط",
     leaveCommentPlaceholder: "اترك تعليقاً… (Ctrl+Enter للإرسال)",
     noActivity: "لا يوجد نشاط مسجل",
+    // objectui#7149 — the rest of `ActivityTimeline`. The four chip labels the
+    // `detail.*` pack did not already name, and the `formatFieldChange`
+    // sentences, which are assembled in code and so need interpolation holes.
+    allFilter: 'الكل',
+    createsFilter: 'عمليات الإنشاء',
+    deletesFilter: 'عمليات الحذف',
+    statusChangesFilter: 'تغييرات الحالة',
+    activityEmptyValue: '(فارغ)',
+    activityFieldChanged: 'غيّر {{field}} من "{{old}}" إلى "{{new}}"',
+    activityCreated: 'أنشأ هذا السجل',
+    activityDeleted: 'حذف هذا السجل',
+    activityStatusChanged: 'غيّر الحالة إلى "{{value}}"',
+    activityUpdated: 'حدّث السجل',
     loadMore: "تحميل المزيد",
     edited: "(معدل)",
     via: "عبر {{source}}",

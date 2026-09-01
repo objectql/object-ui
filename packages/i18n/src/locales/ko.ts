@@ -954,6 +954,19 @@ const ko = {
     tasksOnly: "작업만",
     leaveCommentPlaceholder: "댓글 남기기… (Ctrl+Enter로 제출)",
     noActivity: "기록된 활동 없음",
+    // objectui#7149 — the rest of `ActivityTimeline`. The four chip labels the
+    // `detail.*` pack did not already name, and the `formatFieldChange`
+    // sentences, which are assembled in code and so need interpolation holes.
+    allFilter: '전체',
+    createsFilter: '생성',
+    deletesFilter: '삭제',
+    statusChangesFilter: '상태 변경',
+    activityEmptyValue: '(비어 있음)',
+    activityFieldChanged: '{{field}}을(를) "{{old}}"에서 "{{new}}"(으)로 변경했습니다',
+    activityCreated: '이 레코드를 만들었습니다',
+    activityDeleted: '이 레코드를 삭제했습니다',
+    activityStatusChanged: '상태를 "{{value}}"(으)로 변경했습니다',
+    activityUpdated: '레코드를 업데이트했습니다',
     loadMore: "더 보기",
     edited: "(수정됨)",
     via: "{{source}} 통해",

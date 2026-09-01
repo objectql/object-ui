@@ -958,6 +958,19 @@ const es = {
     tasksOnly: "Solo tareas",
     leaveCommentPlaceholder: "Deja un comentario… (Ctrl+Enter para enviar)",
     noActivity: "Sin actividad registrada",
+    // objectui#7149 — the rest of `ActivityTimeline`. The four chip labels the
+    // `detail.*` pack did not already name, and the `formatFieldChange`
+    // sentences, which are assembled in code and so need interpolation holes.
+    allFilter: 'Todo',
+    createsFilter: 'Creaciones',
+    deletesFilter: 'Eliminaciones',
+    statusChangesFilter: 'Cambios de estado',
+    activityEmptyValue: '(vacío)',
+    activityFieldChanged: 'Cambió {{field}} de "{{old}}" a "{{new}}"',
+    activityCreated: 'Creó este registro',
+    activityDeleted: 'Eliminó este registro',
+    activityStatusChanged: 'Cambió el estado a "{{value}}"',
+    activityUpdated: 'Actualizó el registro',
     loadMore: "Cargar más",
     edited: "(editado)",
     via: "vía {{source}}",

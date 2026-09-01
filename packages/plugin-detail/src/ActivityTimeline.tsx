@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { cn, Card, CardHeader, CardTitle, CardContent, DataEmptyState } from '@object-ui/components';
-import { Activity, Edit, PlusCircle, Trash2, MessageSquare, ArrowRightLeft, Filter } from 'lucide-react';
+import { Activity, Edit, PlusCircle, Trash2, MessageSquare, ArrowRightLeft } from 'lucide-react';
 import type { ActivityEntry } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 
@@ -39,52 +39,80 @@ const ACTIVITY_COLORS: Record<ActivityEntry['type'], string> = {
   status_change: 'bg-amber-100 text-amber-600',
 };
 
-function formatTimestamp(timestamp: string): string {
+/**
+ * The `t` the module-level formatters below take.
+ *
+ * They are plain functions, not hooks, so the component reads the hook once and
+ * passes `t` down — the same shape and the same reason as the sibling
+ * `RecordActivityTimeline`, which has always done this correctly.
+ */
+type ActivityTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+function formatTimestamp(timestamp: string, t: ActivityTranslate): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return t('detail.justNow');
+    if (diffMins < 60) return t('detail.minutesAgo', { count: diffMins });
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return t('detail.hoursAgo', { count: diffHours });
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 7) return t('detail.daysAgo', { count: diffDays });
+    // Past a week this is a DATE, not a relative phrase: `toLocaleDateString`
+    // already localizes it, so there is no literal here to key. Byte-identical
+    // to the sibling's own tail for the same reason.
     return date.toLocaleDateString();
   } catch {
     return timestamp;
   }
 }
 
-function formatFieldChange(entry: ActivityEntry): string {
+function formatFieldChange(entry: ActivityEntry, t: ActivityTranslate): string {
   if (entry.description) return entry.description;
 
+  // The one value repeated across three branches, resolved once.
+  const emptyValue = t('detail.activityEmptyValue');
+
   if (entry.type === 'field_change' && entry.field) {
+    // `entry.field` is a schema field NAME — runtime data, not copy — so this
+    // stays a code-side transform and rides in through the `{{field}}` hole.
     const fieldLabel = entry.field.charAt(0).toUpperCase() + entry.field.slice(1).replace(/_/g, ' ');
-    const oldVal = entry.oldValue != null ? String(entry.oldValue) : '(empty)';
-    const newVal = entry.newValue != null ? String(entry.newValue) : '(empty)';
-    return `Changed ${fieldLabel} from "${oldVal}" to "${newVal}"`;
+    const oldVal = entry.oldValue != null ? String(entry.oldValue) : emptyValue;
+    const newVal = entry.newValue != null ? String(entry.newValue) : emptyValue;
+    // The quotes live INSIDE each pack's value, so every locale punctuates the
+    // quoted span its own way (de `„“`, zh `“”`, ja `「」`, fr/ru `«»`).
+    return t('detail.activityFieldChanged', { field: fieldLabel, old: oldVal, new: newVal });
   }
 
-  if (entry.type === 'create') return 'Created this record';
-  if (entry.type === 'delete') return 'Deleted this record';
+  if (entry.type === 'create') return t('detail.activityCreated');
+  if (entry.type === 'delete') return t('detail.activityDeleted');
   if (entry.type === 'status_change' && entry.field) {
-    const newVal = entry.newValue != null ? String(entry.newValue) : '(empty)';
-    return `Changed status to "${newVal}"`;
+    const newVal = entry.newValue != null ? String(entry.newValue) : emptyValue;
+    return t('detail.activityStatusChanged', { value: newVal });
   }
 
-  return 'Updated record';
+  return t('detail.activityUpdated');
 }
 
-const FILTER_LABELS: Record<ActivityFilterType, string> = {
-  all: 'All',
-  field_change: 'Field Changes',
-  create: 'Creates',
-  delete: 'Deletes',
-  comment: 'Comments',
-  status_change: 'Status Changes',
+/**
+ * Filter chip type -> the pack key that names it. Insertion order is still the
+ * chip order, exactly as the old label map's was.
+ *
+ * `field_change` and `comment` reuse keys whose `en` values are byte-identical
+ * to the literals they replace (`detail.fieldChangesFilter` = 'Field Changes',
+ * `detail.comments` = 'Comments'), so those two are a pure lookup swap rather
+ * than a new spelling of copy the packs already carry.
+ */
+const FILTER_LABEL_KEYS: Record<ActivityFilterType, string> = {
+  all: 'detail.allFilter',
+  field_change: 'detail.fieldChangesFilter',
+  create: 'detail.createsFilter',
+  delete: 'detail.deletesFilter',
+  comment: 'detail.comments',
+  status_change: 'detail.statusChangesFilter',
 };
 
 export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
@@ -106,7 +134,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Activity className="h-4 w-4" />
-          Activity
+          {t('detail.activity')}
           <span className="text-sm font-normal text-muted-foreground">
             ({filteredActivities.length})
           </span>
@@ -115,8 +143,8 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
       <CardContent>
         {/* Filter controls */}
         {filterable && (
-          <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Activity type filter">
-            {(Object.keys(FILTER_LABELS) as ActivityFilterType[]).map(type => (
+          <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label={t('detail.filterActivity')}>
+            {(Object.keys(FILTER_LABEL_KEYS) as ActivityFilterType[]).map(type => (
               <button
                 key={type}
                 type="button"
@@ -130,7 +158,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 aria-pressed={activeFilter === type}
               >
                 {type !== 'all' && React.createElement(ACTIVITY_ICONS[type] || Edit, { className: 'h-3 w-3' })}
-                {FILTER_LABELS[type]}
+                {t(FILTER_LABEL_KEYS[type])}
               </button>
             ))}
           </div>
@@ -165,11 +193,11 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         <span className="font-medium">{entry.user}</span>
                         {' '}
                         <span className="text-muted-foreground">
-                          {formatFieldChange(entry)}
+                          {formatFieldChange(entry, t)}
                         </span>
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {formatTimestamp(entry.timestamp)}
+                        {formatTimestamp(entry.timestamp, t)}
                       </p>
                     </div>
                   </div>

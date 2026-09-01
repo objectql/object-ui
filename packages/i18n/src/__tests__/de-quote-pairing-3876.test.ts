@@ -268,8 +268,13 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // 55 once objectui#6655 added `timeline.unsupported.objectBoundGantt`, the
     // object-bound timeline's refusal of `variant: gantt`, which names the
     // refused variant — „gantt“, a literal span, because the quoted thing is an
-    // authoring value the author typed rather than data the runtime filled in.
-    expect(okSpans, 'correctly paired spans').toBe(55);
+    // authoring value the author typed rather than data the runtime filled in,
+    // 58 once objectui#7149 gave `ActivityTimeline`'s assembled sentences pack
+    // keys: `detail.activityFieldChanged` quotes the OLD and NEW field values
+    // („{{old}}“ / „{{new}}“, two spans in one value, like `navigationSync.
+    // renamedPage` above) and `detail.activityStatusChanged` the new status
+    // („{{value}}“) — three interpolated spans, all runtime data.
+    expect(okSpans, 'correctly paired spans').toBe(58);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -289,11 +294,12 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // 53 / 53 / 0 after objectui#5232 added
     // `console.objectView.viewConfigPermissionDenied`; 54 / 54 / 0 after
     // objectui#6301 added `packagedAutomation.cloneCreated`; 55 / 55 / 0 after
-    // objectui#6655 added `timeline.unsupported.objectBoundGantt`. `rdq` staying
-    // at 0 is the load-bearing half: each new value added a MATCHED „…“ pair,
-    // not a stray closer that would have made `close === open` true for the
-    // wrong reason.
-    expect({ open, close, rdq }).toEqual({ open: 55, close: 55, rdq: 0 });
+    // objectui#6655 added `timeline.unsupported.objectBoundGantt`; 58 / 58 / 0
+    // after objectui#7149 added the two quoted `ActivityTimeline` sentences
+    // (three spans between them). `rdq` staying at 0 is the load-bearing half:
+    // each new value added a MATCHED „…“ pair, not a stray closer that would
+    // have made `close === open` true for the wrong reason.
+    expect({ open, close, rdq }).toEqual({ open: 58, close: 58, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);

@@ -1057,6 +1057,19 @@ const zh = {
     tasksOnly: '仅任务',
     leaveCommentPlaceholder: '留下评论… (Ctrl+Enter 提交)',
     noActivity: '暂无活动记录',
+    // objectui#7149 — the rest of `ActivityTimeline`. The four chip labels the
+    // `detail.*` pack did not already name, and the `formatFieldChange`
+    // sentences, which are assembled in code and so need interpolation holes.
+    allFilter: '全部',
+    createsFilter: '创建',
+    deletesFilter: '删除',
+    statusChangesFilter: '状态变更',
+    activityEmptyValue: '(空)',
+    activityFieldChanged: '将 {{field}} 从“{{old}}”改为“{{new}}”',
+    activityCreated: '创建了此记录',
+    activityDeleted: '删除了此记录',
+    activityStatusChanged: '将状态改为“{{value}}”',
+    activityUpdated: '更新了记录',
     loadMore: '加载更多',
     edited: '(已编辑)',
     via: '通过 {{source}}',

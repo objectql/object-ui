@@ -965,6 +965,19 @@ const ja = {
     tasksOnly: "タスクのみ",
     leaveCommentPlaceholder: "コメントを入力… (Ctrl+Enterで送信)",
     noActivity: "アクティビティの記録なし",
+    // objectui#7149 — the rest of `ActivityTimeline`. The four chip labels the
+    // `detail.*` pack did not already name, and the `formatFieldChange`
+    // sentences, which are assembled in code and so need interpolation holes.
+    allFilter: 'すべて',
+    createsFilter: '作成',
+    deletesFilter: '削除',
+    statusChangesFilter: 'ステータス変更',
+    activityEmptyValue: '(空)',
+    activityFieldChanged: '{{field}} を「{{old}}」から「{{new}}」に変更しました',
+    activityCreated: 'このレコードを作成しました',
+    activityDeleted: 'このレコードを削除しました',
+    activityStatusChanged: 'ステータスを「{{value}}」に変更しました',
+    activityUpdated: 'レコードを更新しました',
     loadMore: "さらに読み込む",
     edited: "(編集済み)",
     via: "{{source}} 経由",

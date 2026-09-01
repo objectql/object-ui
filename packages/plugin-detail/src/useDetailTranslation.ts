@@ -186,6 +186,20 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.tasksOnly': 'Tasks Only',
   'detail.leaveCommentPlaceholder': 'Leave a comment… (Ctrl+Enter to submit)',
   'detail.noActivity': 'No activity recorded',
+  // objectui#7149 — the rest of `ActivityTimeline`'s copy. Byte-identical to
+  // the `en` pack rows (this map mirrors it; `defaults-maps-mirror-en-pack`
+  // enforces that), so a provider-less host reads the same English the console
+  // does instead of a raw key.
+  'detail.allFilter': 'All',
+  'detail.createsFilter': 'Creates',
+  'detail.deletesFilter': 'Deletes',
+  'detail.statusChangesFilter': 'Status Changes',
+  'detail.activityEmptyValue': '(empty)',
+  'detail.activityFieldChanged': 'Changed {{field}} from "{{old}}" to "{{new}}"',
+  'detail.activityCreated': 'Created this record',
+  'detail.activityDeleted': 'Deleted this record',
+  'detail.activityStatusChanged': 'Changed status to "{{value}}"',
+  'detail.activityUpdated': 'Updated record',
   'detail.loadMore': 'Load more',
   'detail.edited': '(edited)',
   'detail.via': 'via {{source}}',

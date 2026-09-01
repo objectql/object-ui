@@ -973,6 +973,19 @@ const ru = {
     tasksOnly: "Только задачи",
     leaveCommentPlaceholder: "Оставить комментарий… (Ctrl+Enter для отправки)",
     noActivity: "Нет зарегистрированной активности",
+    // objectui#7149 — the rest of `ActivityTimeline`. The four chip labels the
+    // `detail.*` pack did not already name, and the `formatFieldChange`
+    // sentences, which are assembled in code and so need interpolation holes.
+    allFilter: 'Все',
+    createsFilter: 'Создания',
+    deletesFilter: 'Удаления',
+    statusChangesFilter: 'Изменения статуса',
+    activityEmptyValue: '(пусто)',
+    activityFieldChanged: 'Изменено поле {{field}} с «{{old}}» на «{{new}}»',
+    activityCreated: 'Создал эту запись',
+    activityDeleted: 'Удалил эту запись',
+    activityStatusChanged: 'Изменил статус на «{{value}}»',
+    activityUpdated: 'Обновил запись',
     loadMore: "Загрузить ещё",
     edited: "(изменено)",
     via: "через {{source}}",
