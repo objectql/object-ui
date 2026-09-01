@@ -10,6 +10,7 @@ import * as React from 'react';
 import { cn, Card, CardHeader, CardTitle, CardContent, DataEmptyState } from '@object-ui/components';
 import { Activity, Edit, PlusCircle, Trash2, MessageSquare, ArrowRightLeft, Filter } from 'lucide-react';
 import type { ActivityEntry } from '@object-ui/types';
+import { useDetailTranslation } from './useDetailTranslation';
 
 export type ActivityFilterType = ActivityEntry['type'] | 'all';
 
@@ -92,6 +93,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
   defaultFilter = 'all',
   className,
 }) => {
+  const { t } = useDetailTranslation();
   const [activeFilter, setActiveFilter] = React.useState<ActivityFilterType>(defaultFilter);
 
   const filteredActivities = React.useMemo(() => {
@@ -135,7 +137,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         )}
 
         {filteredActivities.length === 0 ? (
-          <DataEmptyState title="No activity recorded" className="py-6" />
+          <DataEmptyState title={t('detail.noActivity')} className="py-6" />
         ) : (
           <div className="relative">
             {/* Timeline line */}
