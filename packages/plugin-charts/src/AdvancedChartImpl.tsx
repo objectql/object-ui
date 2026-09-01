@@ -374,6 +374,40 @@ function ChartFrame({ title, subtitle, children }: { title?: string; subtitle?: 
 }
 
 /**
+ * `ChartFrame`'s mirror image: chrome BELOW the plot, for a chart that drew
+ * something but did not draw all of it (objectui#7148).
+ *
+ * Same construction, and deliberately so, because the construction is the whole
+ * difficulty. A footnote cannot simply be rendered as a SIBLING of
+ * `ChartContainer`: measured in Chromium in the dashboard shape — a fixed,
+ * clipping card whose chart carries `h-full` — the container takes the card's
+ * full height and a following `<p>` lands at y=327 in a box that ends at y=316,
+ * i.e. entirely outside the clip. A note invisible in dashboards is no note at
+ * all, and dashboards are where these charts live.
+ *
+ * Nor can it be a plain wrapper `<div className={className}>` around the
+ * container: the consumer's className is the chart's height contract and it has
+ * to keep reaching the element Recharts measures (see `CHART_MIN_HEIGHT` in
+ * `ChartContainerImpl` for the measurement of what happens when it does not —
+ * a permanently zero box and an invisible chart, with no refusal and no empty
+ * state).
+ *
+ * So the plot keeps its own `className` and gains a definite height through the
+ * flex chain instead: `h-full` outer, `min-h-0 flex-1` around the plot,
+ * `shrink-0` under it. With no footnote this returns the chart untouched, so no
+ * existing caller gains a wrapper element — the same gate `ChartFrame` uses.
+ */
+function ChartFootnote({ note, children }: { note?: React.ReactNode; children: React.ReactNode }) {
+  if (!note) return <>{children}</>;
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="min-h-0 flex-1">{children}</div>
+      <div className="mt-1 shrink-0">{note}</div>
+    </div>
+  );
+}
+
+/**
  * AdvancedChartImpl - The heavy implementation that imports Recharts with full features
  * This component is lazy-loaded to avoid including Recharts in the initial bundle
  */
@@ -1088,18 +1122,84 @@ function AdvancedChartImplInner({
         </ChartRefusal>
       );
     }
+    // A PARTIAL flow SAYS it is partial — objectui#7148, the branch next door
+    // to the refusal above.
+    //
+    // The filter is unconditional, so a dataset where only SOME rows survive it
+    // draws a normal, healthy, confident sankey of a fraction of itself, and
+    // nothing in the output carried that fact. Measured in Chromium at
+    // origin/main fd11e1644 across 27 tiles: the card's own dataset
+    // (`New business 40 / Refunds -25 / Chargebacks -12`) rendered `svg: 1`,
+    // `path: 3`, 18 descendants, no `role`, no text, and — against a live
+    // console control that did fire on the same instrument — ZERO console
+    // output. Its screenshot hashed `13237e6e19a7072a`, BYTE-IDENTICAL to a
+    // genuinely one-row dataset `[{ New business: 40 }]` and to three other
+    // thinned shapes (one positive among zeros, positive + nulls, positive +
+    // unparseable). Six datasets, one image. A reader had no bit of information
+    // distinguishing a complete flow from a third of one, and nobody re-reads a
+    // dataset that renders fine.
+    //
+    // ## Why a note beside the chart, and not a refusal
+    //
+    // Not a style preference — a refusal is unavailable here. objectui#7146
+    // pins "one positive row among zeros still draws", and that fixture
+    // (`0 / 7 / 0`) is ITSELF a thinned dataset: it lands in this branch, and
+    // hashes identical to the mixed-sign tile above. Refusing on a thinned flow
+    // would blank the chart that pin requires drawn.
+    //
+    // The drop is also not the defect. A flow has no negative width, so
+    // discarding those rows is the only thing this arm CAN do with them. What
+    // was missing was saying so — which is the whole change: the plot is the
+    // element this arm already returned, unchanged, with one line of prose
+    // under it.
+    //
+    // ## Why the copy names the PREDICATE and a COUNT, not a cause
+    //
+    // The reason the refusal above gives, and this branch is where that family
+    // actually lives: `Number(…) || 0` folds negatives, zeros, `null`,
+    // unparseable strings and a missing key into ONE discard, and all five were
+    // measured reaching here beside a survivor. Naming any one of them is a
+    // sentence that is false for the other four, so the copy names the
+    // predicate the filter actually applies, which is true of all of them.
+    //
+    // The COUNT is the half a reader cannot recover from the picture. "Some
+    // rows were dropped" still leaves a thinned flow indistinguishable from a
+    // complete one; `1 of 3` is the bit that was missing.
+    //
+    // No console warning, matching the refusal above and unlike the two guards
+    // at the bottom of this file: those carry a diagnostic PAIR that does not
+    // fit on screen, whereas this sentence already names the key, the test it
+    // failed, and how many rows failed it.
+    const omittedRowCount = data.length - rows.length;
     return (
-      <ChartContainer config={config} className={className} {...containerProps}>
-        <Sankey
-          data={{ nodes, links }}
-          nodePadding={24}
-          link={{ stroke: 'hsl(var(--muted-foreground))', strokeOpacity: 0.25 }}
-          node={{ fill: 'hsl(var(--chart-1))' } as any}
-          {...sankeyClickProps}
-        >
-          <Tooltip />
-        </Sankey>
-      </ChartContainer>
+      <ChartFootnote
+        note={
+          omittedRowCount > 0 ? (
+            <p
+              role="note"
+              data-chart-note="omitted-rows"
+              className="px-1 text-xs text-muted-foreground"
+            >
+              Showing {rows.length} of {data.length} rows &mdash; {omittedRowCount}{' '}
+              {omittedRowCount === 1 ? 'row has' : 'rows have'} no{' '}
+              <code className="font-mono">{dataKey}</code> above zero, which a flow cannot
+              draw.
+            </p>
+          ) : null
+        }
+      >
+        <ChartContainer config={config} className={className} {...containerProps}>
+          <Sankey
+            data={{ nodes, links }}
+            nodePadding={24}
+            link={{ stroke: 'hsl(var(--muted-foreground))', strokeOpacity: 0.25 }}
+            node={{ fill: 'hsl(var(--chart-1))' } as any}
+            {...sankeyClickProps}
+          >
+            <Tooltip />
+          </Sankey>
+        </ChartContainer>
+      </ChartFootnote>
     );
   }
 
