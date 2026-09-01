@@ -1,5 +1,6 @@
 ---
 '@object-ui/plugin-detail': patch
+'@object-ui/react': minor
 ---
 
 Inline edit: a rejected save now says WHICH field the server refused, and why.
@@ -22,6 +23,18 @@ where persistence loops `onFieldSave(field, value)` one key at a time, a
 rejection is attributed to the key that was in flight — a fact about the write,
 not an inference. Anything that is not field-scoped (a network failure, a
 permission denial) keeps the cleaned single-line message it had before.
+
+`@object-ui/react` gains one additive public API member to carry this, and it
+is the reason that package's entry is `minor` rather than `patch`:
+`InlineEditContextValue` now has **`fieldErrors`** — a nullable map of field
+machine name to the server's reason — alongside a **`setFieldErrors`** setter,
+the exact companions of the `error` / `setError` pair that interface already
+carried. Nothing is removed and nothing changes shape, so every existing host
+and consumer compiles and behaves as before; a host that never reads the new
+member sees no difference. It exists because the save bar and the field rows
+are SIBLINGS under `InlineEditProvider` in both persistence modes, so before
+this there was no channel between the component that receives a refusal and the
+components that render the fields it is about.
 
 Also recorded in code, per the maintainer's ruling on objectui#6868: **the
 server is the validation authority on the inline-edit surface.** That was

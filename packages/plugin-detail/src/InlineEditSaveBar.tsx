@@ -242,14 +242,6 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
   const inline = useInlineEdit();
   const [conflict, setConflict] = React.useState<ConcurrentUpdateConflict | null>(null);
   const [conflictBusy, setConflictBusy] = React.useState(false);
-  /**
-   * Per-field reasons for the last refusal, or `null` when it was not
-   * field-scoped (objectui#6868). Rendered ONLY while `inline.error` is set —
-   * the context clears that on `enter()` and on teardown, so this local state
-   * can never outlive its session and re-appear over a later edit.
-   */
-  const [refusals, setRefusals] = React.useState<WriteFieldError[] | null>(null);
-
   /** User-facing name for a rejected field; the machine name when the host resolves none. */
   const labelForField = React.useCallback(
     (name: string) => fieldLabelFor?.(name) || name,
@@ -257,6 +249,34 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
   );
 
   const canAtomic = !!dataSource && !!objectName && recordId != null;
+
+  /**
+   * Present a rejected save. A field-scoped refusal is published to the shared
+   * session as a per-field map, which the field renderers (`DetailSection`,
+   * `HeaderHighlight`) draw beside the input the server named — the in-place
+   * hint objectui#6868 asks for. The record-level `error` is set either way, so
+   * the bar keeps a summary for a field that is collapsed or scrolled out of
+   * view, the same reason `form.tsx` keeps its banner.
+   *
+   * Publishing through the context rather than local state is also what makes
+   * the attribution unable to outlive its session: `enter()` and teardown clear
+   * both slots, so a stale hint cannot reappear over a later edit.
+   */
+  const presentRefusal = React.useCallback(
+    (err: unknown, inFlightField?: string) => {
+      if (!inline) return;
+      const attributed = attributeInlineRefusal(err, inFlightField);
+      if (!attributed) {
+        inline.setFieldErrors(null);
+        inline.setError(cleanError(err));
+        return;
+      }
+      const labelOf = (name: string) => fieldLabelFor?.(name) || name;
+      inline.setFieldErrors(Object.fromEntries(attributed.map((r) => [r.field, r.message])));
+      inline.setError(attributed.map((r) => `${labelOf(r.field)}: ${r.message}`).join('; '));
+    },
+    [inline, fieldLabelFor],
+  );
 
   /**
    * Build the conflict payload for `<ConcurrentUpdateDialog>` from a 409. A
@@ -307,7 +327,7 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
     }
     inline.setSaving(true);
     inline.setError(null);
-    setRefusals(null);
+    inline.setFieldErrors(null);
     // Callback mode persists ONE key per call, so the key in flight is what a
     // rejection is about. Stays `undefined` on the atomic path, where the write
     // carries every edited key at once and only the envelope can attribute it.
@@ -337,20 +357,13 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
         setConflict(buildConflict(draft, err));
       } else {
         // objectui#6868: the server is the validation authority here, so a
-        // refusal is PRESENTED, never re-derived. A field-scoped one becomes a
-        // per-field reason; everything else keeps the cleaned string.
-        const attributed = attributeInlineRefusal(err, inFlightField);
-        setRefusals(attributed);
-        inline.setError(
-          attributed
-            ? attributed.map((r) => `${labelForField(r.field)}: ${r.message}`).join('; ')
-            : cleanError(err),
-        );
+        // refusal is PRESENTED, never re-derived.
+        presentRefusal(err, inFlightField);
       }
     } finally {
       inline.setSaving(false);
     }
-  }, [inline, onFieldSave, canAtomic, data, dataSource, objectName, recordId, refresh, buildConflict, labelForField]);
+  }, [inline, onFieldSave, canAtomic, data, dataSource, objectName, recordId, refresh, buildConflict, presentRefusal]);
 
   const closeConflict = React.useCallback(() => {
     setConflict(null);
@@ -385,17 +398,11 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
     } catch (err) {
       // Same presentation contract as the first save — an overwrite the server
       // refuses on validation grounds gets per-field reasons, not a raw string.
-      const attributed = attributeInlineRefusal(err);
-      setRefusals(attributed);
-      inline?.setError(
-        attributed
-          ? attributed.map((r) => `${labelForField(r.field)}: ${r.message}`).join('; ')
-          : cleanError(err),
-      );
+      presentRefusal(err);
     } finally {
       closeConflict();
     }
-  }, [conflict, canAtomic, inline, dataSource, objectName, recordId, refresh, closeConflict, labelForField]);
+  }, [conflict, canAtomic, inline, dataSource, objectName, recordId, refresh, closeConflict, presentRefusal]);
 
   // Record-level keyboard shortcuts for the shared edit session
   // (objectui#2572 item 5): Cmd/Ctrl+Enter commits the draft, Esc cancels.
@@ -449,23 +456,24 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
         role="region"
         aria-label={t('detail.editFieldsInline')}
       >
-        {/* objectui#6868 deliverable 2: a field-scoped refusal is rendered as
-            one reason PER FIELD, named by the field's own label, instead of the
-            raw server string the user used to get. `refusals` is gated on
-            `inline.error` so a stale attribution from an earlier session can
-            never surface — the context clears `error` on enter/teardown. */}
+        {/* objectui#6868: a field-scoped refusal reads as one reason PER FIELD,
+            named by the field's own label, instead of the raw server string.
+            The SAME reasons are drawn beside each input by the field renderers
+            (they read `fieldErrors` off this session); this summary stays
+            because a rejected field can be collapsed or scrolled out of view —
+            the reason `form.tsx` keeps its banner too. */}
         {inline.error && (
           <div
             role="alert"
             className="mr-auto max-w-md rounded-md border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs text-destructive"
           >
-            {refusals ? (
+            {inline.fieldErrors ? (
               <ul className="space-y-0.5">
-                {refusals.map((r) => (
-                  <li key={r.field} data-inline-field-error={r.field}>
-                    <span className="font-medium">{labelForField(r.field)}</span>
+                {Object.entries(inline.fieldErrors).map(([field, message]) => (
+                  <li key={field} data-inline-field-error={field}>
+                    <span className="font-medium">{labelForField(field)}</span>
                     {': '}
-                    {r.message}
+                    {message}
                   </li>
                 ))}
               </ul>

@@ -25,7 +25,7 @@ import {
   LazyIcon,
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, Pencil } from 'lucide-react';
-import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
+import { SchemaRenderer, toRenderableSchema, useInlineEdit } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
@@ -143,6 +143,14 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   const [showEmptyOverride, setShowEmptyOverride] = React.useState(false);
   const { t } = useDetailTranslation();
   const { fieldLabel, translateOptions } = useSafeFieldLabel();
+  /**
+   * The SERVER's per-field refusals from the last rejected inline save
+   * (objectui#6868), read straight off the shared edit session so the reason
+   * lands beside the input the server named. `null` outside an
+   * `<InlineEditProvider>` — a bare / read-only `DetailSection` simply has no
+   * session to read, exactly as it has no draft.
+   */
+  const serverFieldErrors = useInlineEdit()?.fieldErrors ?? null;
 
   const handleCopyField = React.useCallback((fieldName: string, value: any) => {
     const textValue = value !== null && value !== undefined ? String(value) : '';
@@ -336,7 +344,24 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
               onChange={(v) => onFieldChange?.(field.name, v)}
               dataSource={dataSource}
               autoFocus={autoFocusField === field.name}
+              error={serverFieldErrors?.[field.name]}
             />
+            {/* The SERVER's reason for refusing this field, in place
+                (objectui#6868). Published by `<InlineEditSaveBar>` onto the
+                shared session after a rejected save; the widget's #3222 slot
+                only marks `aria-invalid`, so the visible text is drawn here —
+                exactly as `form.tsx` draws it on the form surface rather than
+                leaving it to the widget. Nothing on this path evaluates a
+                rule: the server is the validation authority on this surface. */}
+            {serverFieldErrors?.[field.name] && (
+              <p
+                role="alert"
+                data-inline-field-hint={field.name}
+                className="mt-1 text-xs text-destructive"
+              >
+                {serverFieldErrors[field.name]}
+              </p>
+            )}
           </div>
         ) : (
         <div

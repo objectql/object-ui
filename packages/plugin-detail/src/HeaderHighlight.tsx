@@ -189,13 +189,29 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                 </span>
 
                 {editorActive ? (
-                  <InlineFieldInput
-                    field={enrichedField}
-                    value={value}
-                    onChange={(v) => inline!.setField(field.name, v)}
-                    dataSource={dataSource}
-                    autoFocus={inline!.autoFocusField === field.name}
-                  />
+                  <>
+                    <InlineFieldInput
+                      field={enrichedField}
+                      value={value}
+                      onChange={(v) => inline!.setField(field.name, v)}
+                      dataSource={dataSource}
+                      autoFocus={inline!.autoFocusField === field.name}
+                      error={inline!.fieldErrors?.[field.name]}
+                    />
+                    {/* The SERVER's reason for refusing this field, in place
+                        (objectui#6868) — the highlights strip shares ONE edit
+                        session with the details body, so a refusal marks the
+                        field wherever the user is editing it. */}
+                    {inline!.fieldErrors?.[field.name] && (
+                      <p
+                        role="alert"
+                        data-inline-field-hint={field.name}
+                        className="mt-1 text-xs text-destructive"
+                      >
+                        {inline!.fieldErrors[field.name]}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <div
                     className={cn(

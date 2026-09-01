@@ -142,6 +142,34 @@ export interface InlineEditContextValue {
   saving: boolean;
   /** Last save error message, or null (driven by the save bar). */
   error: string | null;
+  /**
+   * Per-field reasons from the last rejected save, keyed by field MACHINE NAME
+   * — or `null` when the refusal was not field-scoped (objectui#6868).
+   *
+   * The record-level companion to `error`, and driven by the same component:
+   * `<InlineEditSaveBar>` reads the server's `VALIDATION_FAILED` envelope
+   * through `extractFieldErrors` and publishes the result here, so the field
+   * renderers (`DetailSection`, `HeaderHighlight`) can draw the reason beside
+   * the input the server actually refused. Before this slot existed the save
+   * bar and the field rows had no channel between them — they are SIBLINGS
+   * under this provider in both persistence modes — so an attributed refusal
+   * could only be shown record-level, which is not the in-place hint the
+   * objectui#6868 ruling asked for.
+   *
+   * ⚠️ PRESENTATION ONLY. These are the SERVER's verdicts, transported. The
+   * ruling makes the server the validation authority on the inline-edit
+   * surface: nothing may populate this slot from a client-side rule check, and
+   * nothing may read it as an authorization or acceptance decision. It is text
+   * to render beside an input, nothing more.
+   *
+   * Keyed by machine name because that is what both ends already use — the
+   * draft key the field renderers set, and the `field` the server names — so
+   * no spelling translation sits between the refusal and the input.
+   *
+   * Cleared by `enter()` and by teardown, exactly like `error`, so an
+   * attribution can never outlive the session that produced it.
+   */
+  fieldErrors: Record<string, string> | null;
   /** Enter inline-edit mode, optionally focused on `field`. No-op when `!canEdit`. */
   enter: (field?: string) => void;
   /** Stage a single field edit into the draft. */
@@ -154,6 +182,11 @@ export interface InlineEditContextValue {
   setSaving: (saving: boolean) => void;
   /** Set or clear the save error message (used by the save bar). */
   setError: (error: string | null) => void;
+  /**
+   * Publish or clear the per-field reasons for a rejected save (used by the
+   * save bar). Pass `null` when the refusal was not field-scoped.
+   */
+  setFieldErrors: (errors: Record<string, string> | null) => void;
 }
 
 const InlineEditContext = React.createContext<InlineEditContextValue | null>(null);
@@ -215,6 +248,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
   const [autoFocusField, setAutoFocusField] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string> | null>(null);
 
   const enter = React.useCallback(
     (field?: string) => {
@@ -224,6 +258,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       setAutoFocusField(field ?? null);
       setEditing(true);
       setError(null);
+      setFieldErrors(null);
     },
     [canEdit],
   );
@@ -242,6 +277,7 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
     setAutoFocusField(null);
     setSaving(false);
     setError(null);
+    setFieldErrors(null);
   }, []);
 
   const value = React.useMemo<InlineEditContextValue>(
@@ -257,14 +293,16 @@ export const InlineEditProvider: React.FC<InlineEditProviderProps> = ({
       autoFocusField,
       saving,
       error,
+      fieldErrors,
       enter,
       setField,
       cancel: teardown,
       reset: teardown,
       setSaving,
       setError,
+      setFieldErrors,
     }),
-    [editing, canEdit, locked, pending, approvalProgress, approvalIsSubmitter, lockedReason, draft, autoFocusField, saving, error, enter, setField, teardown],
+    [editing, canEdit, locked, pending, approvalProgress, approvalIsSubmitter, lockedReason, draft, autoFocusField, saving, error, fieldErrors, enter, setField, teardown],
   );
 
   return <InlineEditContext.Provider value={value}>{children}</InlineEditContext.Provider>;

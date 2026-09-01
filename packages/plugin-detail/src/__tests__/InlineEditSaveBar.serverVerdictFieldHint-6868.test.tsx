@@ -33,6 +33,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { InlineEditProvider, useInlineEdit } from '@object-ui/react';
 import { InlineEditSaveBar } from '../InlineEditSaveBar';
+import { DetailSection } from '../DetailSection';
+import { HeaderHighlight } from '../HeaderHighlight';
 
 /** The raw server text the user must STOP seeing once the mapping is in place. */
 const RAW_SERVER_TEXT = 'VALIDATION_FAILED: Validation failed for crm_opportunity';
@@ -219,5 +221,137 @@ describe('objectui#6868 — callback (drawer) mode attributes from the CALL SHAP
 
     // `status` was in flight, but the server said `budget` — the server wins.
     await waitFor(() => expect(hints()).toEqual({ budget: 'Budget: Budget must be at least 0' }));
+  });
+});
+
+/**
+ * The hint IN PLACE — beside the input, which is what the ruling's 就地字段提示
+ * actually asks for. The save bar and the field renderers are SIBLINGS under
+ * one `InlineEditProvider`, exactly as both real hosts mount them
+ * (`app-shell/RecordDetailView.tsx:2340`/`:2509`, `RecordDetailDrawer.tsx:346`/
+ * `:398`), so these drive the real transport rather than a stand-in for it.
+ */
+describe('objectui#6868 — the reason renders beside the input it is about', () => {
+  const objectSchema = { fields: { status: { type: 'text' }, budget: { type: 'number' } } };
+  const section = {
+    fields: [
+      { name: 'status', label: 'Stage' },
+      { name: 'budget', label: 'Budget' },
+    ],
+  } as any;
+
+  /** One session: the details body and the save bar, as the record page mounts them. */
+  function renderBodyAndBar(update: ReturnType<typeof vi.fn>) {
+    function Body() {
+      const inline = useInlineEdit()!;
+      return (
+        <DetailSection
+          section={section}
+          data={{ status: 'open', budget: 10 }}
+          objectSchema={objectSchema}
+          isEditing={inline.editing}
+          onFieldChange={(f, v) => inline.setField(f, v)}
+          autoFocusField={inline.autoFocusField}
+        />
+      );
+    }
+    return render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <Body />
+        <InlineEditSaveBar
+          dataSource={{ update }}
+          objectName="crm_opportunity"
+          recordId="o1"
+          data={{ updated_at: 'v1' }}
+          refresh={vi.fn()}
+          fieldLabelFor={(n) => LABELS[n]}
+        />
+      </InlineEditProvider>,
+    );
+  }
+
+  const inPlaceHint = (field: string) =>
+    document.querySelector(`[data-inline-field-hint="${field}"]`);
+
+  it('draws the server reason under the refused field, and only under that field', async () => {
+    const update = vi.fn().mockRejectedValue(
+      validationRefusal([{ field: 'budget', code: 'min', message: 'Budget must be at least 0' }]),
+    );
+    const { container } = renderBodyAndBar(update);
+    stageBoth();
+    // CONTROL that must hit: the body really rendered editors for both fields,
+    // so a later zero on `status` is a real absence and not an empty harness.
+    expect(container.querySelectorAll('input').length).toBeGreaterThanOrEqual(2);
+    save();
+
+    await waitFor(() => expect(inPlaceHint('budget')?.textContent).toBe('Budget must be at least 0'));
+    // The field the server did NOT refuse carries no hint.
+    expect(inPlaceHint('status')).toBeNull();
+    // ...and it is announced, not merely printed.
+    expect(inPlaceHint('budget')?.getAttribute('role')).toBe('alert');
+  });
+
+  it('marks the refused input aria-invalid, and leaves the accepted one unmarked', async () => {
+    const update = vi.fn().mockRejectedValue(
+      validationRefusal([{ field: 'budget', message: 'Budget must be at least 0' }]),
+    );
+    renderBodyAndBar(update);
+    stageBoth();
+    save();
+
+    await waitFor(() => expect(inPlaceHint('budget')).not.toBeNull());
+    const marked = Array.from(document.querySelectorAll('[aria-invalid="true"]'));
+    expect(marked.length).toBe(1);
+  });
+
+  it('clears the in-place hint when the session is cancelled and re-entered', async () => {
+    const update = vi.fn().mockRejectedValue(
+      validationRefusal([{ field: 'budget', message: 'Budget must be at least 0' }]),
+    );
+    renderBodyAndBar(update);
+    stageBoth();
+    save();
+    await waitFor(() => expect(inPlaceHint('budget')).not.toBeNull());
+
+    fireEvent.click(screen.getByText('edit-cancel'));
+    fireEvent.click(screen.getByText('edit-enter'));
+    expect(inPlaceHint('budget')).toBeNull();
+    expect(document.querySelectorAll('[aria-invalid="true"]').length).toBe(0);
+  });
+
+  it('reaches the highlights strip too — one session, both surfaces', async () => {
+    const update = vi.fn().mockRejectedValue(
+      validationRefusal([{ field: 'budget', message: 'Budget must be at least 0' }]),
+    );
+    function Strip() {
+      return (
+        <HeaderHighlight
+          fields={[{ name: 'budget', label: 'Budget', type: 'number' }] as any}
+          data={{ budget: 10 }}
+          objectSchema={objectSchema}
+        />
+      );
+    }
+    render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <Strip />
+        <InlineEditSaveBar
+          dataSource={{ update }}
+          objectName="crm_opportunity"
+          recordId="o1"
+          data={{ updated_at: 'v1' }}
+          refresh={vi.fn()}
+          fieldLabelFor={(n) => LABELS[n]}
+        />
+      </InlineEditProvider>,
+    );
+    stageBoth();
+    save();
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(inPlaceHint('budget')?.textContent).toBe('Budget must be at least 0'),
+    );
   });
 });
