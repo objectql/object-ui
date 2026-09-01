@@ -193,7 +193,8 @@ const grid: ObjectGridSchema = {
 | `editable` / `singleClickEdit` | `boolean` | Inline editing — see [Inline Editing](#inline-editing). |
 | `navigation` | `NavigationConfig` | What a row click does, `{ mode: 'page' \| 'drawer' \| 'modal' \| 'split' \| 'none', … }`. |
 | `operations` | `object` | Toggles the built-in CRUD/export/import affordances, e.g. `{ delete: false }`. |
-| `rowHeight`, `frozenColumns`, `resizable`, `reorderableColumns`, `showColumnTypeIcons`, `rowColor`, `conditionalFormatting`, `grouping`, `aggregations`, `exportOptions`, `className` | | The rest of the declared surface. |
+| `rowHeight`, `frozenColumns`, `resizable`, `reorderableColumns`, `showColumnTypeIcons`, `rowColor`, `conditionalFormatting`, `aggregations`, `exportOptions`, `className` | | The rest of the declared surface. |
+| `grouping` | `GroupingConfig` | Row grouping — **page-scoped**, see [Grouping is page-scoped](#grouping-is-page-scoped). |
 
 **There is no `sortable`, `filterable`, `onRowClick`, `onSelectionChange`,
 `onCellChange`, `onRowSave`, `onBatchSave` or `object` on this schema.** The
@@ -405,6 +406,38 @@ const schema: ObjectGridSchema = {
 `pageSizeOptions` — there is no `showSizeChanger`, and none is needed: the pager
 always carries a rows-per-page picker, and `pageSizeOptions` only replaces the
 choices it offers with your own.
+
+### Grouping is page-scoped
+
+`grouping` groups **the records the browser has already fetched** — one page —
+not the whole result set. The grid buckets the rows in hand and computes every
+per-group count and aggregation from that same array, so both the set of groups
+and every number in a group header are properties of the page, not of the query.
+
+Two consequences, and the second is the one to decide against before you ship
+the view:
+
+- Every group count is a page slice, so it can be lower than the group's real
+  size.
+- **A group whose records all fall beyond the page does not appear at all.** On
+  a grid read as an org lens ("what is outstanding, per business unit"), a unit
+  that is silently absent is a wrong answer that looks like good news.
+
+Since objectui#7189 the grid says so on screen rather than leaving it silent.
+When the result set is larger than the rows loaded, a short `Partial` marker
+appears beside **every group count** — where the authoritative-looking number
+is — and a line above the group list carries the whole sentence, e.g.
+*"Grouped over the first 100 of 186 records…"*. When no match total is
+reachable the wording weakens honestly to *"Grouped over the 100 records
+loaded. More may match this view…"*. A grouped grid whose result set fits in
+one page shows neither: the marker is conditional, which is what makes it worth
+reading.
+
+The disclosure is not a fix for the scoping — it makes it visible. If a view
+needs true totals per group today, the working options are to narrow the query
+until the result set fits one page (a `filter` that scopes the lens), to raise
+`pagination.pageSize` past the result set, or to compute the aggregation server
+side and render it from a dataset rather than from grid grouping.
 
 ## Integration with Data Sources
 
