@@ -260,6 +260,14 @@ describe('objectui#6694 — buildFieldMeta copies the cell-read relational keys 
     reference_to: 'project',
     reference: 'project',
     display_field: 'project_code',
+    // The SPEC spelling of the same pointer (objectui#6875). `FieldSchema`
+    // declares `displayField` and none of the snake twins, so this is the leg a
+    // live `getObjectSchema` actually serves — it must be copied.
+    displayField: 'project_code',
+    // The chain's third leg. Read by `LookupCellRenderer`, but `FieldSchema`
+    // refuses it with `unrecognized_keys`, so no producer can emit it and
+    // copying it would reach nothing (objectui#6711's reasoning). NOT copied.
+    reference_field: 'x',
     // Six keys with no reader on this path. FOUR of them the grid still copies
     // (its picker-only keys); the other two it has since retired as well —
     // `reference_to_field` (objectui#6711) and `titleFormat` (objectui#6874).
@@ -273,11 +281,14 @@ describe('objectui#6694 — buildFieldMeta copies the cell-read relational keys 
     titleFormat: '{project_code}',
   };
 
-  it('copies reference_to / reference / display_field', () => {
+  it('copies reference_to / reference / display_field / displayField', () => {
     const meta = buildFieldMeta({ accessorKey: 'project', label: 'Project', def }) as any;
     expect(meta.reference_to).toBe('project');
     expect(meta.reference).toBe('project');
     expect(meta.display_field).toBe('project_code');
+    // objectui#6875 — the spec-declared spelling, previously dropped here and in
+    // `ObjectGrid` at the same time.
+    expect(meta.displayField).toBe('project_code');
   });
 
   it('does NOT copy the picker-only keys', () => {
@@ -285,6 +296,9 @@ describe('objectui#6694 — buildFieldMeta copies the cell-read relational keys 
     for (const k of [
       'reference_to_field', 'id_field', 'description_field',
       'lookup_filters', 'lookupFilters', 'titleFormat',
+      // Read by `LookupCellRenderer`, but unproducible under the strict
+      // `FieldSchema` — objectui#6875 measured it and left it out on purpose.
+      'reference_field',
     ]) {
       expect(meta).not.toHaveProperty(k);
     }
@@ -294,7 +308,7 @@ describe('objectui#6694 — buildFieldMeta copies the cell-read relational keys 
     const meta = buildFieldMeta({
       accessorKey: 'amount', label: 'Amount', def: { type: 'currency' },
     }) as any;
-    for (const k of ['reference_to', 'reference', 'display_field']) {
+    for (const k of ['reference_to', 'reference', 'display_field', 'displayField']) {
       expect(meta).not.toHaveProperty(k);
     }
   });

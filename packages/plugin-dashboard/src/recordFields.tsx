@@ -112,8 +112,27 @@ export const NUMERIC_FIELD_TYPES = new Set([
  * the module `getCellRenderer` dispatches into — the complete set of relational
  * keys read off a cell's `field` prop is:
  *
- *  - `reference_to`, `reference`, `display_field` — read by
+ *  - `reference_to`, `reference`, `display_field`, `displayField` — read by
  *    `LookupCellRenderer` itself. ✅ COPIED.
+ *
+ *    ⭐ `displayField` ARRIVED with objectui#6875. The enumeration above used
+ *    to name three keys, because it was written from the FIRST leg of each
+ *    chain rather than from the whole chain: `LookupCellRenderer` resolves the
+ *    display pointer as `display_field || displayField || reference_field`, and
+ *    the two extra spellings in that one chain were missed here and in the
+ *    grid's own list at the same time. `displayField` is the spelling
+ *    `@objectstack/spec` 17.2.0's strict `FieldSchema` DECLARES — so on a live
+ *    path served through `getObjectSchema` it is the only one that can arrive,
+ *    and a lookup cell here rendered the referenced record's generic `.name`
+ *    instead of the author's pointer. The grid's twin of this defect is pinned
+ *    behaviourally in `plugin-grid/src/__tests__/lookupDisplayFieldSpelling-6875.test.tsx`.
+ *
+ *  - `reference_field` — the chain's third leg, and still ⛔ NOT copied.
+ *    `FieldSchema` does not declare it (it parses to `unrecognized_keys`) and
+ *    the producer repo has zero occurrences of the identifier, against a
+ *    `displayField` control that hits 68 files. Copying it would write a member
+ *    from the def on every call that no producer can fill — objectui#6711's
+ *    reasoning, unchanged.
  *  - `id_field`, `description_field`, `lookup_filters`, `lookupFilters` — ZERO
  *    mentions in that module; read only by `fields/src/widgets/LookupField.tsx`
  *    and `UserField.tsx`, both EDITORS. ⛔ NOT copied.
@@ -136,7 +155,7 @@ export const NUMERIC_FIELD_TYPES = new Set([
  * picker keys. The boundary is pinned in
  * `__tests__/lookupRelationalMeta-6694.test.tsx`.
  */
-const CELL_RELATIONAL_META_KEYS = ['reference_to', 'reference', 'display_field'] as const;
+const CELL_RELATIONAL_META_KEYS = ['reference_to', 'reference', 'display_field', 'displayField'] as const;
 
 /**
  * Copy {@link CELL_RELATIONAL_META_KEYS} off a schema field def, with
@@ -228,6 +247,13 @@ export interface FieldMeta {
   reference?: string;
   /** Author-declared display field on the lookup — beats every resolver in the cell. */
   display_field?: string;
+  /**
+   * Same pointer, SPEC spelling (`FieldSchema.displayField`) — the second leg of
+   * `LookupCellRenderer`'s `display_field || displayField || reference_field`
+   * chain, and the only leg a spec-compliant producer can actually emit
+   * (objectui#6875).
+   */
+  displayField?: string;
 }
 
 /**

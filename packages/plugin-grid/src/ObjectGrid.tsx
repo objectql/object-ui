@@ -46,6 +46,7 @@ import { useColumnSummary } from './useColumnSummary';
 import { resolveRowCrudAffordances, resolveRowRecordCrudAffordance } from './rowCrudAffordances';
 import { useRecordCrudVerdicts } from './hooks/useRecordCrudVerdicts';
 import { resolveLegacyRowActions } from './resolveLegacyRowActions';
+import { applyRelationalMeta } from './relationalMetaKeys';
 import { resolveBulkActions } from './resolveBulkActions';
 import { partitionBulkRows } from './bulkEligibility';
 import { resolvesToDataColumn, describeUnresolvedColumns } from './columnSpellingDiagnostics';
@@ -421,84 +422,14 @@ function getDataConfig(schema: ObjectGridSchema): ViewData | null {
 }
 
 /**
- * Relational field metadata that a lookup / master_detail / user cell needs to
- * (a) resolve a bare foreign-key id to a display name (LookupCellRenderer →
- * `field.reference_to`) and (b) drive the inline picker's query (LookupField
- * reads reference_to/reference, display_field, id_field, description_field,
- * lookup_filters). These are dropped if we only copy the scalar-display props
- * (label/currency/precision/…), which is why an inline-edited lookup showed the
- * raw id after moving to another row. Copy them from the object-schema field
- * definition onto the built `fieldMeta` for every column-building path.
- *
- * ## ⛔ Two keys were in this list and are RETIRED
- *
- * Every key here has to have a measured reader on this grid's own render path —
- * the cell renderers and inline editors in `@object-ui/fields` that
- * `getCellRenderer` dispatches into. Two keys had none, for two different
- * reasons, and each retirement was its own adjudication.
- *
- * ### `reference_to_field` — objectui#6711
- *
- * Swept across `packages/` and `apps/` (and again across the producer repo), the
- * only occurrences of the identifier anywhere were this array literal — the
- * write — and prose recording that nothing reads it. No member access, no
- * destructuring, no bracket read. `@objectstack/spec`'s FieldSchema does not
- * declare it either, so nothing authorable produces it.
- *
- * ### `titleFormat` — objectui#6874
- *
- * A zero of a different kind, and a stronger one. `titleFormat` is a real, live
- * key with plenty of readers — it simply has no FIELD-meta reader. The sweep did
- * not fail to find readers; it found every member read of the identifier across
- * `packages/` and `apps/` (tests included) and classified each one by receiver:
- *
- *  - `objectDef` / `objectSchema` / `objSchema` — `core/utils/record-title.ts`,
- *    `components/.../containers.tsx`, `plugin-detail/DetailView.tsx`,
- *    `ObjectKanban.tsx`, `ObjectCalendar.tsx`, `react/hooks/useRecordSearch.ts`.
- *    OBJECT schema, every one.
- *  - `refObjectSchema?.titleFormat` — `fields/widgets/LookupField.tsx`: the
- *    REFERENCED object's schema, fetched by `getSchema(referenceTo)`. Also an
- *    OBJECT schema, and the one that matters here — it is what this grid's own
- *    inline picker reads.
- *  - `param.titleFormat` — `app-shell/utils/paramToField.ts`, off a resolved
- *    `ActionParamDef`; the field-def read next to it is `field.title_format`,
- *    a different spelling on a different surface.
- *
- * `RecordPickerDialog` and `lookupColumnDisplay` receive it as a PROP, and the
- * repo's single `titleFormat=` pass is `titleFormat={refTitleFormat}` —
- * object-schema sourced. ⇒ copying `reference_to` is what makes `titleFormat`
- * work on this path; copying `titleFormat` onto the meta reached nothing.
- * `plugin-dashboard/src/recordFields.tsx` recorded this same measurement first
- * and declined to copy the key, so it was a measured no-op in two seams and had
- * been retired from only one.
- *
- * ### The control that makes both zeros a reading
- *
- * Not an artefact of how the sweep was written: the same sweep over the
- * surviving list-mates finds a real FIELD-meta reader for every one of them —
- * `reference_to` / `reference` / `display_field` off the cell's `field` prop in
- * `LookupCellRenderer` (`fields/src/index.tsx`), and `id_field` /
- * `description_field` / `lookup_filters` / `lookupFilters` off `fieldMeta?.…`
- * in `LookupField` / `UserField`. There is no third reader-less key: all seven
- * survivors are read off a field meta.
- *
- * ⚠️ The sweep bounds these two repos. A host application outside them could
- * still be reading either key off `fieldMeta`; the repo's own contract is what
- * these retirements are about.
- *
- * ⛔ Do not re-add a key for symmetry with the object-schema field def. A
- * member written from the def on every column build and read by nothing is
- * exactly what objectui#6625 (`decimals`) and objectui#6597 (`referenceTo`)
- * retired from the sibling producer. Add a key when a reader on THIS path is
- * measured, not before. Both absences are pinned, at all three call sites —
- * `__tests__/relationalMetaCopySet-6711.test.tsx` and
- * `__tests__/relationalMetaCopySet-6874.test.tsx`.
+ * The relational copy set and `applyRelationalMeta` moved to
+ * `./relationalMetaKeys` for objectui#6875. The list there is DERIVED from a
+ * table classifying every key the grid's own cell renderer and inline picker
+ * read off this bag, and a gate re-derives that read set from the consumer
+ * sources — so the copy set can no longer drift into being a strict subset of
+ * what its consumers read, which is what it had silently become. Read that
+ * file's docblock before adding, removing or re-spelling a key.
  */
-const RELATIONAL_META_KEYS = [
-  'reference_to', 'reference',
-  'display_field', 'id_field', 'description_field',
-  'lookup_filters', 'lookupFilters',
-] as const;
 
 /**
  * Content signature of a host's find-params, used as the query-change signal for
@@ -515,16 +446,6 @@ function findParamsSignature(params: Record<string, unknown> | null | undefined)
   return JSON.stringify(
     Object.keys(params).sort().map((k) => [k, params[k] ?? null]),
   );
-}
-
-function applyRelationalMeta(
-  fieldMeta: Record<string, any>,
-  fieldDef: Record<string, any> | undefined | null,
-): void {
-  if (!fieldDef) return;
-  for (const key of RELATIONAL_META_KEYS) {
-    if (fieldDef[key] !== undefined) fieldMeta[key] = fieldDef[key];
-  }
 }
 
 /**
