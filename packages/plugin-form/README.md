@@ -229,7 +229,7 @@ here too. Two that a reader might expect, and that are **not** declared:
 | Not a `FormField` key | Write this instead |
 |---|---|
 | `defaultValue` | `FormSchema.defaultValues` at form level. An object-bound form seeds from the object field's own declared `defaultValue` — see [What a create form opens with](#what-a-create-form-opens-with) |
-| `className` | `span` / `colSpan` for width, `FormSchema.fieldContainerClass` for the grid. (An undeclared key still rides the props spread down to whichever component the field resolves to, so a field-level `className` can visibly land on a built-in control — but nothing in the contract promises that, and a registered widget honours it only if it happens to spread its leftover props. The renderer reads it *explicitly* on exactly one pseudo-field, `type: 'section-divider'`, where it styles the inline section header.) |
+| `className` | `span` / `colSpan` for width, `FormSchema.fieldContainerClass` for the grid. (An undeclared key still rides the props spread down to whichever component the field resolves to, so a field-level `className` can visibly land on a built-in control — but nothing in the contract promises that, and a registered widget honours it only if it happens to spread its leftover props. The renderer reads it *explicitly* nowhere: it used to stamp the `type: 'section-divider'` pseudo-field from an authored section's `className`, and that read was **retired** in objectstack#13626 — see [Section styling is not authorable](#section-styling-is-not-authorable).) |
 
 There is no `ValidationRule` type in this repo, under any spelling.
 
@@ -375,6 +375,36 @@ viewport, so each step keeps its own authored width.)
 The grid is applied to the field container **inside** the form, never wrapped
 around the `<form>` (which would put the whole form in cell 1 and leave the other
 columns empty — #2128).
+
+### Section styling is not authorable
+
+`className` and `gridClassName` on a form-view **section** do nothing. Authoring
+them is not an error and not a compile failure — the renderer simply does not
+read them.
+
+This is deliberate. Both keys sit on the SDUI-only side of the authorable
+boundary: `@objectstack/spec` does not declare either on the form-view/section
+surface, and the authorable-surface ledger carries no entry for them. The
+renderer nevertheless reached them through `as any` at seven sites until
+objectstack#13626 (maintainer ruling 2026-09-01) retired those reads — the
+boundary had been declared on one side and crossed on the other.
+
+Declaring the keys instead was weighed and rejected: it would invite free
+Tailwind strings into authored metadata, which is the class the boundary exists
+to keep out, and per ADR-0065 / ADR-0080 utility classNames in runtime metadata
+are never scanned by the build-time Tailwind — so they silently produce no CSS
+even when they are read. If per-view styling becomes a real product need it will
+get an explicit controlled token surface rather than two leaked keys.
+
+**What still works:** the form ROOT `className` (`FormSchema.className`) is a
+different key on a different node and is unaffected; section *layout* stays
+authorable through `columns` (above); and a host application styles sections
+through its own CSS.
+
+> Note for contributors: `ObjectFormSection` in `@object-ui/types` still declares
+> both keys, so a plain `className: s.className` would type-check and silently
+> restore consumption. The non-consumption is therefore pinned behaviourally, in
+> `src/__tests__/sectionStyleKeysRetired-13626.test.tsx`, across all seven arms.
 
 ### Tabbed field layout (`fieldTabs`)
 
