@@ -22,7 +22,7 @@ import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
-import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale, pickLocalized } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
 // `resolveI18nLabel`: it resolves the INLINE per-locale map
@@ -2893,6 +2893,31 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
    */
   const ariaLabel = resolveInlineI18nLabel(schema.aria?.ariaLabel, displayLocale);
 
+  /**
+   * The view's description, resolved — not type-tested (objectui#7199).
+   *
+   * `ListViewSchema.description` is `I18nLabel`, the same vocabulary as the
+   * sibling `label`: a plain string **or** an inline locale map
+   * (`{ en: 'Open work only', 'zh-CN': '仅未完成' }`). This read site used to
+   * be `typeof schema.description === 'string' ? schema.description : ''`,
+   * which is not a resolution — it is a type test that answers the empty
+   * string for every map an author is entitled to write. So a locale-map
+   * description rendered as a blank strip in EVERY locale, which is the same
+   * silent-blank symptom as the dropped relay one layer up, reached by a
+   * second route.
+   *
+   * `pickLocalized` is the spelling a TEXT NODE wants (`''` on a miss) — the
+   * same helper `TabBar.tsx` resolves the sibling `label` with, one component
+   * tree away. The attribute next door deliberately uses the spec's resolver
+   * instead, for its `undefined`; the two agree limb for limb, pinned by
+   * `i18nLabel-resolver-parity.test.ts` in this package.
+   *
+   * Guarding on the RESOLVED text rather than on `schema.description` is what
+   * keeps a map with no usable entry from rendering an empty strip: the raw
+   * value is a truthy object, its resolution is `''`.
+   */
+  const viewDescription = pickLocalized(schema.description, displayLocale);
+
   return (
     <div
       ref={pullRef}
@@ -2913,9 +2938,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         </div>
       )}
       {/* View Description (single line, no border duplication) */}
-      {schema.description && (schema.appearance?.showDescription !== false) && (
+      {viewDescription && (schema.appearance?.showDescription !== false) && (
         <div className="px-4 pt-1.5 text-xs text-muted-foreground bg-background" data-testid="view-description">
-          {typeof schema.description === 'string' ? schema.description : ''}
+          {viewDescription}
         </div>
       )}
 
