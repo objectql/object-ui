@@ -73,14 +73,16 @@ import { FormPage } from './FormPage';
  *
  * This module's graph is the first VALUE request for `@object-ui/app-shell` in
  * the file (`FormPage` only `import type`s it), so it is what runs the
- * `vi.mock('@object-ui/app-shell')` factory's `importOriginal()` below — and
- * that specifier is aliased to `packages/app-shell/src`
- * (`apps/console/vite.config.ts`), a barrel carrying eight side-effect imports,
- * transformed on demand. Measured on an IDLE machine it cost **10204ms** of
- * `hop1SessionPrincipal`'s 15000ms budget; the render and the assertions cost
- * ~12ms, the same as the seven cases above. Nothing was wrong with the test —
- * it was racing the module loader, and lost whenever the transform pipeline was
- * saturated by a full-project run.
+ * `vi.mock('@object-ui/app-shell')` factory below — and that specifier is
+ * aliased to `packages/app-shell/src` (`apps/console/vite.config.ts`), a barrel
+ * carrying thirteen side-effect imports, transformed on demand. While that
+ * factory still called `importOriginal()` the load cost **10204ms** of
+ * `hop1SessionPrincipal`'s 15000ms budget on an IDLE machine, against ~12ms for
+ * the render and the assertions. Nothing was wrong with the test — it was
+ * racing the module loader, and lost whenever the transform pipeline was
+ * saturated by a full-project run. objectui#6580 took the barrel out of the
+ * factory; the module-scope import below is what keeps the remaining load out
+ * of a bounded window.
  *
  * Module scope moves that cost into the IMPORT phase, which no test or hook
  * timeout bounds. `beforeAll` would not do: it is bounded by `hookTimeout`
@@ -342,10 +344,23 @@ describe('#6110 controls — green before AND after the fix, by construction', (
  * `vi.mock` calls are hoisted above every import in the file, so the factories
  * are registered before that import executes.
  */
-vi.mock('@object-ui/app-shell', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
+// The barrel is aliased to `packages/app-shell/src`, so an `importOriginal()`
+// on it transforms that whole graph on demand — 10204ms when objectui#6567
+// instrumented it, 10019ms re-measured for objectui#6580. The three submodules
+// below carry every name this file's graph reads from the barrel and cost a few
+// ms together: `ExpressionProvider`, `buildExpressionUser` (`expressionUser`)
+// and `resolveHostAppSegment` (`utils/`).
+vi.mock('@object-ui/app-shell', async () => {
   return {
-    ...actual,
+    ...(await vi.importActual<Record<string, unknown>>(
+      '../../../../packages/app-shell/src/providers/ExpressionProvider'
+    )),
+    ...(await vi.importActual<Record<string, unknown>>(
+      '../../../../packages/app-shell/src/providers/expressionUser'
+    )),
+    ...(await vi.importActual<Record<string, unknown>>(
+      '../../../../packages/app-shell/src/utils/index'
+    )),
     useMetadata: () => ({ apps: [] }),
     useNavigationContext: () => ({ currentAppName: undefined }),
     DefaultHomeLayout: ({ children }: { children?: unknown }) => children as never,

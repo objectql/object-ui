@@ -90,8 +90,18 @@ vi.mock('../../../../packages/auth/src/useAuth', async (importOriginal) => ({
 const builderLanding = vi.fn();
 const designSurface = vi.fn();
 
-vi.mock('@object-ui/app-shell', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
+// `@object-ui/app-shell` is aliased to `packages/app-shell/src`
+// (`apps/console/vite.config.ts`), so an `importOriginal()` on it transforms the
+// whole barrel graph on demand: measured on this tree at **10019ms**, against
+// 237ms for `@object-ui/auth` in this same file (objectui#6580). Every name this
+// file's graph reads from the barrel is either overridden below or lives in
+// `chrome/`, so the factory pulls that ONE submodule (**549ms**) instead.
+// `RedirectWithSplash` is the only real export left standing: `ProtectedRoute`
+// renders it for the unauthenticated case, which this file asserts.
+vi.mock('@object-ui/app-shell', async () => ({
+  ...(await vi.importActual<Record<string, unknown>>(
+    '../../../../packages/app-shell/src/chrome/index'
+  )),
   // Pass-through: the provider stack is not what decides this question.
   ConnectedShell: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   RequireOrganization: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
