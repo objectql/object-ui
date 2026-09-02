@@ -882,8 +882,19 @@ markdown-only change is exactly the shape `ci.yml` and `lint.yml` skip their exp
 appears in the checks list as **Shell Escape Residue Scan**.
 
 Runs `scripts/check-shell-escape-residue.mjs`. It walks `AGENTS.md`, `CLAUDE.md`, every `.md`/`.mdx`
-under `skills/` and every one under `content/docs/`, and fails when a **fenced code block** contains
-one of the enumerated machine-produced shell-quote escape runs.
+under `skills/`, every one under `.claude/skills/` and every one under `content/docs/`, and fails when
+a **fenced code block** contains one of the enumerated machine-produced shell-quote escape runs.
+
+The contributor tree `.claude/skills/` joined that list in
+[#7403](https://github.com/objectstack-ai/objectui/issues/7403). It is not published, but it is
+agent-**written** and agent-**read**, which is both halves of the mechanism this gate exists for — and
+[#7251](https://github.com/objectstack-ai/objectui/issues/7251) had moved two contributor guides there
+out of `skills/objectui/`, taking 18 fenced blocks off the surface in one commit with nothing turning
+red. Nothing could have turned red: the `skills` row's file floor is a **collapse** detector, and 16
+files stayed behind to satisfy it while the two that left went unmeasured. A floor measures the roots
+that are declared, never the tree that walked out of them, so a move and its `SCAN_ROOTS` row belong
+in one change. The sibling gate `check-skills-paths` lost 55 stated paths to the same move and was
+widened the same way in [#7358](https://github.com/objectstack-ai/objectui/issues/7358).
 
 **Why it needed a gate.** In [#5150](https://github.com/objectstack-ai/objectui/issues/5150) the
 `git commit -F -` example in `AGENTS.md` §9 shipped with its heredoc terminator wrapped in the
@@ -912,9 +923,12 @@ required — rather than pinned as a sentence, so the claim cannot rot into a fa
 **It is green at rest, so its census is part of the verdict.** There are zero occurrences in the tree
 and there should stay zero, which means the run's output alone cannot distinguish a working gate from
 one that matches nothing. The verdict line therefore prints the **per-root population** — files and
-fenced blocks for each of the four roots — rather than a bare `OK`, and the scan **fails when that
+fenced blocks for each of the five roots — rather than a bare `OK`, and the scan **fails when that
 population collapses**: a root that does not resolve, a root that walks to fewer documents than its
-floor, or a total fence count under the floor is a broken walk, not a clean tree. A scan root that has
+floor, or a total fence count under the floor is a broken walk, not a clean tree. The document floors
+are **per root** and deliberately never a whole-surface total: on a day the four-file `.claude/skills`
+root reads zero, the other four still return 203 of today's 207 files, so a total floor stays green
+through the entire outage. A scan root that has
 moved or been mistyped is reported **by name**, because a mistyped root and a clean root produce
 identical output otherwise. The evidence that the gate works is the ablation in its test suite, which
 replants #5150's exact line in each root on a fixture tree.
@@ -924,8 +938,9 @@ census and not judged**, because documentation about this defect class has to be
 literal. That is a known narrowing, and the census figure is what keeps it visible.
 
 **If it fails:** it names the file, line and column, the fence language and the line the fence opened
-on. Note that `AGENTS.md`, `CLAUDE.md` and `skills/**` are **governed surface** — a finding in one of
-those is reported for a human to fix in its own change, not folded into an unrelated pull request. A
+on. Note that `AGENTS.md`, `CLAUDE.md`, `skills/**` and `.claude/**` are **governed surface** — a finding
+in one of those is reported for a human to fix in its own change, not folded into an unrelated pull
+request. A
 finding under `content/docs/**` is an ordinary docs fix. Run it locally with
 `pnpm check:shell-escape-residue`, or `node scripts/check-shell-escape-residue.mjs --list` to see the
 per-root census. It needs no install and no build.
