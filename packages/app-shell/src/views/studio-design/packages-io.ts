@@ -4,11 +4,27 @@
  * Package-list helpers shared by the Studio package switcher and the builder
  * landing page.
  *
- * Writability is a DISPLAY heuristic — kernel packages (scope system/cloud)
- * are hidden, `scope: 'project'` marks a read-only code package (authoring is
- * refused server-side by the ADR-0070 D4 gate), and a scope-less entry is a
- * database base package (writable). The gate stays the authority; this only
- * sets expectations up front.
+ * Writability is the SERVER's verdict, not a shape we derive. Every row of
+ * `GET /api/v1/packages` carries a top-level `writable: boolean` computed by
+ * `isWritablePackage` (ADR-0070 D2, objectstack#14375) — the same predicate the
+ * server's authoring (`saveMetaItem`) and lifecycle (`DELETE` / `disable`) gates
+ * enforce, so the badge and the gate cannot disagree. Read it; do not re-derive
+ * it.
+ *
+ * The `scope !== 'project'` expression below is ONLY the fallback for servers
+ * that predate that field, and it is WRONG for one row: a `type: module`
+ * sub-package of a multi-package artifact (ADR-0130 D4) normally omits `scope`
+ * — the schema default is applied at PARSE time, while the artifact load path
+ * deliberately hands the RAW manifest body to `registerApp`, so the served row
+ * has no `scope` key at all. The heuristic reads that as a writable database
+ * base, yet the server refuses every write to it (it is in `engine.manifests`).
+ * Nothing in the raw row separates it from a scope-less Studio-created base,
+ * which really is writable — only the server's `engine.manifests` does, which is
+ * why the client cannot compute this and a "missing scope means read-only" rule
+ * would have flipped every Studio base read-only.
+ *
+ * Kernel packages (scope `system` / `cloud`) are hidden here whatever their
+ * verdict says: that filter is about visibility, not writability.
  */
 
 import { deriveNamespaceFromPackageId, validateObjectNamespacePrefix } from '@objectstack/spec/kernel';
@@ -39,7 +55,10 @@ export function parsePackages(payload: unknown): PkgEntry[] {
     if (scope === 'system' || scope === 'cloud') continue; // kernel — not app packages
     const namespace =
       typeof m.namespace === 'string' && m.namespace ? m.namespace : deriveNamespaceFromPackageId(id);
-    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project', namespace });
+    // Server first, heuristic only when the key is absent (see the module doc).
+    // A non-boolean value is not a verdict, so it falls back too.
+    const writable = typeof p.writable === 'boolean' ? p.writable : scope !== 'project';
+    out.push({ id, name: String(m.name ?? id), writable, namespace });
   }
   return out;
 }
