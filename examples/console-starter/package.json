@@ -35,7 +35,7 @@
     "@object-ui/sdui-parser": "workspace:*",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-router-dom": "^7.18.2",
+    "react-router-dom": "^7.18.3",
     "sonner": "^2.0.8"
   },
   "devDependencies": {
