@@ -104,10 +104,6 @@ export interface CollapsibleSchema extends BaseSchema {
    */
   open?: boolean;
   /**
-   * Whether collapsible is disabled
-   */
-  disabled?: boolean;
-  /**
    * Open state change handler
    */
   onOpenChange?: (open: boolean) => void;
@@ -167,10 +163,6 @@ export interface ToggleGroupSchema extends BaseSchema {
    * Controlled selected value(s)
    */
   value?: string | string[];
-  /**
-   * Whether toggle group is disabled
-   */
-  disabled?: boolean;
   /**
    * Change handler
    */
