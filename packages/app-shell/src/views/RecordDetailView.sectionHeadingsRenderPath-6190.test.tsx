@@ -21,6 +21,9 @@
  * the renderer's alias limb dropped — the two-step edit set that was pinned at
  * the time — that pin stayed **GREEN** while the "More details" heading
  * degraded to the literal `details` on every default record detail page.
+ * Re-measured here while landing the fix: put the "More details" producer alone
+ * back on `title` and the #6241 pin passes 3/3 while this file fails 4/4 on a
+ * heading a tenant reads.
  *
  * **A red pin proves the ends are out of sync. A green pin does NOT prove they
  * are in sync.** The #6241 pin renders `buildDefaultPageSchema(objectDef)` with
