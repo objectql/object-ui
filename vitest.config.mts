@@ -148,6 +148,70 @@ const heavyDomTests = [
   'packages/plugin-list/src/__tests__/ListView.inlineFlsNoop-6723.test.tsx',
 ];
 
+/**
+ * The `dist` project's population (objectui#7183): built-artifact pins, and
+ * nothing else. A pin here imports its package's BUILT bundle by an explicit
+ * relative path, bypassing the `resolve.alias` map below — which is what makes
+ * "does the shipped bundle still do X" answerable at all, since every alias
+ * entry redirects a package specifier to its `src`.
+ *
+ * The `.dist.spec.tsx` suffix keeps these files out of `unit` (`*.test.ts`),
+ * `dom` (`*.test.tsx`) and `dom-heavy` (an explicit file list) BY
+ * CONSTRUCTION, so none of those three projects needed a single character
+ * changed. It also keeps them out of each package's `tsconfig.test.json`,
+ * whose include names `*.test.ts` / `*.test.tsx` — deliberately, because
+ * turbo's `type-check` waits on `^build` (the DEPENDENCIES' builds) and must
+ * never be handed a program that reads the package's own `dist`
+ * (objectui#4801 removed a self-referencing `paths` entry for that reason).
+ */
+const DIST_PIN_GLOB = 'packages/*/src/**/*.dist.spec.tsx';
+
+/**
+ * The `dist` project is OPT-IN, and that is a load-bearing half of
+ * objectui#7183 rather than a convenience.
+ *
+ * CI's test job runs `pnpm test` — `vitest run`, with no build step anywhere in
+ * it (by design: building every package for every test run is the cost the
+ * ruling on #7183 explicitly refused). An unconditional fourth project would
+ * therefore be collected by that run with no `dist` on disk, and its
+ * precondition would fail the whole suite on every PR. Declaring it only when
+ * asked for keeps `pnpm test` the run it is today, and confines the build cost
+ * to the one lane that needs it.
+ *
+ * The opt-in is an ENV VAR rather than the `--project dist` flag because the
+ * flag lives in `process.argv`, which is meaningful only in the process that
+ * parsed the CLI, while the env var is inherited by everything Vitest spawns.
+ * `pnpm test:dist` sets it; see `packages/components/package.json`.
+ */
+const DIST_PINS_ENABLED = process.env.OBJECTUI_DIST_PINS === '1';
+
+/**
+ * ...which leaves exactly one way to get a FALSE GREEN out of the opt-in, and
+ * it is closed here rather than documented. `vitest run --project dist` without
+ * the env var would match no project at all; that is a run with nothing in it,
+ * and `passWithNoTests` is true for a run that names no files — a green that
+ * measured nothing, which is the exact outcome this card exists to prevent.
+ * Refuse it instead, and say how.
+ */
+const DIST_PROJECT_NAMED = process.argv.some(
+  (arg, i) => arg === '--project=dist' || (arg === '--project' && process.argv[i + 1] === 'dist'),
+);
+if (DIST_PROJECT_NAMED && !DIST_PINS_ENABLED) {
+  throw new Error(
+    [
+      'vitest --project dist was requested, but OBJECTUI_DIST_PINS is not "1", so the',
+      '`dist` project is NOT declared and this run would collect ZERO files and exit GREEN.',
+      '',
+      'The `dist` project holds built-artifact pins, which need their package BUILT first.',
+      'Reach it through the task that guarantees that:',
+      '',
+      '  pnpm test:dist    # turbo builds the package under test, then runs this project',
+      '',
+      'See vitest.config.mts (DIST_PINS_ENABLED) and turbo.json (the `test:dist` task).',
+    ].join('\n'),
+  );
+}
+
 export default defineConfig({
   test: {
     globals: true,
@@ -233,6 +297,31 @@ export default defineConfig({
           include: [...heavyDomTests],
         },
       },
+      // The built-artifact lane (objectui#7183). Deliberately scarce: a project
+      // that is awkward to reach for stays reserved for genuine published-
+      // artifact claims instead of drifting into a second default test surface.
+      //
+      // The LIGHT dom setup is not a cost optimisation here, it is what makes
+      // the lane's live control possible. `vitest.setup.dom.tsx` registers
+      // `page:header` and friends from SOURCE; under it a pin would stay green
+      // with the built bundle removed entirely, measuring the aliased `src` it
+      // was written to avoid. Under the light setup nothing registers those
+      // types, so a pin's own `dist` import is the only thing that can make it
+      // pass — which is what its live control asserts.
+      ...(DIST_PINS_ENABLED
+        ? [
+            {
+              extends: true,
+              test: {
+                name: 'dist',
+                environment: 'happy-dom',
+                setupFiles: [path.resolve(__dirname, 'vitest.setup.dom-light.tsx')],
+                include: [DIST_PIN_GLOB],
+                exclude: sharedExclude,
+              },
+            },
+          ]
+        : []),
       path.resolve(__dirname, './apps/console/vitest.config.ts'),
     ],
     // Tolerate an empty collection ONLY for unfiltered runs (a `--project`

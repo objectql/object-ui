@@ -45,6 +45,10 @@
         "!**/CHANGELOG.md"
       ]
     },
+    "test:dist": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "test:watch": {
       "cache": false,
       "persistent": true
