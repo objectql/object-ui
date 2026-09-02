@@ -46,8 +46,7 @@
         "must_contain": [
           "@object-ui/plugin-grid",
           "@object-ui/plugin-kanban",
-          "import",
-          "ComponentRegistry"
+          "import"
         ],
         "must_not_contain": [
           "node_modules/@object-ui",

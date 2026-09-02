@@ -4,14 +4,14 @@
     {
       "id": 1,
       "prompt": "My ObjectUI dashboard looks broken on mobile phones — cards stack but the sidebar takes up the whole screen. How do I make it responsive?",
-      "expected_output": "Provides responsive grid schema with Tailwind mobile-first classes, useBreakpoint hook usage, and sidebar responsive pattern.",
+      "expected_output": "Provides responsive grid schema with Tailwind mobile-first classes, useBreakpoint hook usage, and the ResponsiveContainer breakpoint gate for the sidebar — @object-ui/mobile ships no mobile widgets, only that gate.",
       "files": [],
       "assertions": {
         "must_contain": [
           "useBreakpoint",
           "grid-cols-1",
           "md:",
-          "sidebar"
+          "ResponsiveContainer"
         ],
         "must_not_contain": [
           "window.innerWidth <"
