@@ -424,7 +424,12 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   //
   // Documented member keys are exactly the spec's four (`name`, `label`,
   // `columns`, `fields`) — deliberately NOT the extras `RecordDetailsRenderer`
-  // also honours on a section (`title`, `showBorder`, `hideEmpty`). Those are
+  // also honours on a section (`showBorder`, `hideEmpty`), nor `title`, which
+  // it honoured as an ALIAS of `label` until objectui#6190 converged the
+  // heading on the one declared slot. `title` stays named here because the
+  // never-teach set is about what the description may say, not about what the
+  // renderer happens to read: the spec refuses it either way, and the three
+  // producers that emitted it moved to `label` in that same change. Those are
   // undeclared upstream, and the spec's section object REFUSES them on parse
   // rather than stripping them: `RecordDetailsProps.safeParse` on a section
   // carrying any of the three returns `success: false` with

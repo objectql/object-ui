@@ -1878,7 +1878,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
               },
               {
                 name: 'details',
-                title: sectionLabel(objectDef.name, 'details', t('detail.sectionMoreDetails', 'More details')),
+                // The heading rides `label` — the one slot `record:details`
+                // reads and `@object-ui/types` declares (objectui#6190). This
+                // section is authored HERE, not emitted by the synthesizer, so
+                // it has to carry the declared slot at its own source.
+                label: sectionLabel(objectDef.name, 'details', t('detail.sectionMoreDetails', 'More details')),
                 collapsible: true,
                 defaultCollapsed: false,
                 showBorder: true as const,
@@ -1903,7 +1907,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
               }
               return [{
                 ...sec,
-                title: sectionLabel(objectDef.name, sec.name, sec.title),
+                // Re-resolve the derived heading through the per-object i18n
+                // convention. Reads and writes the same one slot the
+                // synthesizer emits and `record:details` consumes —
+                // `label` (objectui#6190).
+                label: sectionLabel(objectDef.name, sec.name, sec.label),
                 showBorder: true as const,
               }];
             });
