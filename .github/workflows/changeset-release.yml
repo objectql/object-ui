@@ -572,8 +572,38 @@ jobs:
       # comment here trips it — deliberately the safe direction (a false red, never
       # a false green), which is why this comment spells the attribute form.
 
-      - name: Turbo Cache
-        uses: actions/cache@v6
+      # ── Cache bookkeeping cannot void a recorded verdict (objectui#7048) ──
+      # THE ORDERING, carried here from the type-check split in `ci.yml`
+      # (objectui#6577, PR #7047) because it is what a future reader needs in
+      # order to judge whether these steps may be touched: the verdict is
+      # recorded by the checking steps; everything after them is bookkeeping,
+      # and bookkeeping must never discard an answer the gate already produced.
+      # In this job the answer at stake is the publish/refresh outcome and the
+      # post-version tree validation below it.
+      #
+      # Why the SPLIT rather than a timeout on one step: combined
+      # `actions/cache` declares `main: dist/restore/index.js` plus
+      # `post: dist/save/index.js`, so its save is a step the RUNNER generates
+      # at job end (`Post Turbo Cache`). No workflow syntax attaches
+      # `timeout-minutes` or `continue-on-error` to a generated post step.
+      # Measured once, on `ci.yml`'s type-check cache: a 1-second save took
+      # 789s and ran that job into its ceiling (objectui#6577).
+      # `actions/cache`'s own `save-always` deprecation text points at this
+      # same split.
+      #
+      # ⚠️ This job declares NO `timeout-minutes`, so its ceiling is GitHub's
+      # default of 360 minutes — and this is the PUBLISH lane, where a job that
+      # hangs after `Publish to npm` has already shipped and the concurrency
+      # note above records what a long-running release job does to the pushes
+      # behind it. ⛔ Adding a ceiling is NOT the fix and is not attempted here:
+      # the release act must never be truncated by a clock. The bound below is
+      # on the bookkeeping step alone, which runs after every release step.
+      #
+      # The restore half is deliberately left UNBOUNDED: a restore stall fails
+      # BEFORE anything is published, which is the honest failure.
+      - name: Restore Turbo Cache
+        id: turbo-cache
+        uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-${{ github.sha }}
@@ -1116,3 +1146,46 @@ jobs:
           commit: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The bookkeeping half of the split documented at the restore step above,
+      # placed HERE — last in the job, after publish, after the post-version
+      # tree validation and after the refresh — because that is exactly where
+      # the post phase it replaces already ran. Nothing this job publishes,
+      # validates or restores moves with it, and no step above it is touched.
+      #
+      # `timeout-minutes: 5` is DERIVED, and the derivation is weaker here than
+      # at the other six sites — said plainly rather than dressed up.
+      # objectui#7048 fences inheriting PR #7047's 5, so: this cache is
+      # `.turbo/cache` under the same `turbo-${{ runner.os }}-${{ github.sha }}`
+      # key shape as `lint.yml` and `performance-budget.yml`, and the saves of
+      # THAT cache measured 1s, 2s, 5s and 6s across four jobs on 2026-09-02
+      # (`Bundle Analysis` 100096569559, `Type Check` 100096569872,
+      # `Build Docs` 100094597253, `Lint` 100097466846). A same-SITE save was
+      # not observable in the sampled runs: this job runs on `push` to `main`
+      # only when the version is not yet on npm, and on the 6-hourly `schedule`
+      # the primary key is an exact hit, so `Post Turbo Cache` measured 0s on
+      # the sampled scheduled run (job 99021319583, 2026-08-29) with its
+      # restore at 4s. 5 minutes is 50x the slowest of the four same-cache
+      # saves; if a directly measured save of this site ever lands and lies
+      # outside that range, re-derive rather than defend this number.
+      #
+      # `continue-on-error: true` is the other half. A cache that failed to
+      # upload costs the next run some build time; it says nothing about
+      # whether the release succeeded, so it must not be able to redden a job
+      # that has already published.
+      #
+      # Behaviour preserved, spelled out so the equivalence is checkable:
+      #   - `cache-hit != 'true'` reproduces the combined action's own "exact
+      #     hit on the primary key ⇒ do not save" skip — which is precisely the
+      #     path the scheduled run above took.
+      #   - the condition names no status function, so the implicit `success()`
+      #     still applies — matching the combined action's `post-if: success()`.
+      #   - same `path` and same `key` as the restore step above.
+      - name: Save Turbo Cache
+        if: steps.turbo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}

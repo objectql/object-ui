@@ -378,9 +378,11 @@ columns empty — #2128).
 
 ### Section styling is not authorable
 
-`className` and `gridClassName` on a form-view **section** do nothing. Authoring
-them is not an error and not a compile failure — the renderer simply does not
-read them.
+`className` and `gridClassName` on a form-view **section** do nothing. In JSON
+metadata, authoring them is not a parse error — the renderer simply does not
+read them. In TypeScript they are a compile error: `ObjectFormSection` in
+`@object-ui/types` does not declare either key (objectui#7200), matching the
+spec's strict `FormSectionSchema`.
 
 This is deliberate. Both keys sit on the SDUI-only side of the authorable
 boundary: `@objectstack/spec` does not declare either on the form-view/section
@@ -401,10 +403,14 @@ different key on a different node and is unaffected; section *layout* stays
 authorable through `columns` (above); and a host application styles sections
 through its own CSS.
 
-> Note for contributors: `ObjectFormSection` in `@object-ui/types` still declares
-> both keys, so a plain `className: s.className` would type-check and silently
-> restore consumption. The non-consumption is therefore pinned behaviourally, in
-> `src/__tests__/sectionStyleKeysRetired-13626.test.tsx`, across all seven arms.
+> Note for contributors: `ObjectFormSection` in `@object-ui/types` no longer
+> declares either key (objectui#7200), so an uncast `className: s.className` fails
+> to compile — but a cast read (the shape the seven retired sites had) still
+> would, and JSON metadata carries whatever an author wrote. The non-consumption
+> is therefore pinned behaviourally, in
+> `src/__tests__/sectionStyleKeysRetired-13626.test.tsx`, across all seven arms;
+> the declaration side is pinned in `@object-ui/types`'
+> `object-form-section-style-keys-undeclared.test.ts`.
 
 ### Tabbed field layout (`fieldTabs`)
 

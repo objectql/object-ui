@@ -1125,17 +1125,24 @@ export interface ObjectFormSection {
    */
   visibleWhen?: string | { dialect?: string; source: string };
 
-  /**
-   * Custom CSS class for the section's wrapper (Card, when the form variant
-   * renders sections as cards; the divider header, for the flat/simple path).
-   */
-  className?: string;
-
-  /**
-   * Custom CSS class for the section's field grid. Only used by form variants
-   * that render sections as Card chrome (Modal/Split/Tabbed/Wizard).
-   */
-  gridClassName?: string;
+  // `className` / `gridClassName` are deliberately NOT declared here
+  // (objectui#7200 — the declared-but-inert remainder of objectstack#13626,
+  // maintainer ruling 2026-09-01: "retire the reads … Declaring the keys was
+  // weighed and not adopted: it would formally invite free Tailwind strings
+  // into authored metadata, the exact class the boundary exists to keep out").
+  // This is the AUTHORED-metadata section type; `@objectstack/spec`'s
+  // `FormSectionSchema` is a strictObject with neither key, and the renderer
+  // reads neither off an authored section. An annotated literal carrying one
+  // now fails at the authoring site instead of type-checking into a no-op.
+  //
+  // The per-layout config types in @object-ui/plugin-form
+  // (`ModalFormSectionConfig`, `SplitFormSectionConfig`, TabbedForm's
+  // `FormSectionConfig`, `WizardStepConfig`, `DrawerFormSectionConfig`) keep
+  // their own members: those are read for programmatic React mounts, which the
+  // authorable boundary does not govern. Pinned at the type level in
+  // `__tests__/object-form-section-style-keys-undeclared.test.ts`; the
+  // behavioural half (an authored string never reaches the DOM) stays in
+  // plugin-form's `__tests__/sectionStyleKeysRetired-13626.test.tsx`.
 }
 
 /**

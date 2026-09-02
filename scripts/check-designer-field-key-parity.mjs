@@ -11,6 +11,26 @@
  * object-level keys (`group`, `sortOrder`, `relationships`) that `ObjectSchema`
  * refuses by name, sitting on the wire the whole time the gate was green.
  *
+ * A THIRD and FOURTH oracle, because the permission matrix is a SECOND
+ * authoring surface carrying the same two ingredients (objectui#6606). Its
+ * statically declared shapes are in
+ * `packages/app-shell/src/views/metadata-admin/permission-slice.ts`:
+ * `PermissionSetDraft` is the record `PermissionMatrixEditor.doSave` hands to
+ * `client.save`, and `ObjectPerm` is one authorization row inside that
+ * record's `objects` map — nested exactly as a field shape is nested in the
+ * object document. They are judged by `PermissionSetSchema` and
+ * `ObjectPermissionSchema`. Nothing in this repo watched that surface before:
+ * objectui#6595 (the retired `allowRestore` / `allowPurge` checkboxes) is an
+ * instance of precisely this gate's class, and it arrived as a hand-written
+ * card from the upstream retirement (objectstack#12497) rather than from CI.
+ *
+ * The permission entries are the same EMIT-SIDE check as everywhere else, and
+ * deliberately so: `ObjectPerm` is a hand-written SUBSET of the spec's
+ * `ObjectPermission` (it omits `allowExport`, `readScope`, `writeScope` —
+ * objectui#6605). Under-coverage is a different question from the one this gate
+ * answers and stays a separate card; a key the shape can EMIT that the schema
+ * refuses is this one.
+ *
  * The failure class (objectui#5761): a designer offers a control that
  * writes a key the spec refuses BY NAME. The author sees the control work
  * — and, in metadata-admin, sees the preview render it — then
@@ -54,6 +74,9 @@
  * one of those interfaces. That is enough to have caught all three instances
  * above: `indexed` was a declared property of the designer field definition,
  * `distance_metric` a declared property, `placeholder` a declared property.
+ * On the permission surface it is what will show `allowRestore` / `allowPurge`
+ * on `ObjectPerm` the moment the spec bump carrying their retirement lands —
+ * the return direction the filing card named.
  *
  * NOT COVERED — four ways a key can reach the payload without ever appearing as
  * a declared property:
@@ -81,19 +104,30 @@
  *      refinement) is green here and still a 422 in production.
  *
  * ── The accept set is read from the schema, never listed here ───────────────
- * `FieldSchema` and `ObjectSchema` are strict zod objects: they refuse unknown
- * keys with `unrecognized_keys` rather than stripping them (objectstack#4001
- * closed the silent-drop shape). Each accept set is read off the schema's own
- * `shape` at run time.
+ * All four oracles are strict zod objects: they refuse unknown keys with
+ * `unrecognized_keys` rather than stripping them (objectstack#4001 closed the
+ * silent-drop shape). Each accept set is read off the schema's own `shape` at
+ * run time.
+ *
+ * WHICH SUBPATH each is read from is itself declared, in
+ * {@link ORACLE_SPECIFIERS}, because it is not one subpath: measured against
+ * `@objectstack/spec` 17.2.0, `/data` exports `FieldSchema` / `ObjectSchema`
+ * and neither permission schema, while `/security` exports both permission
+ * schemas. An oracle that map does not carry is an extraction ERROR —
+ * defaulting to `/data` would silently read the wrong module and pass over
+ * everything.
  *
  * It is read through a dynamic `import()`, NOT `createRequire`, and that is
  * load-bearing rather than stylistic. `@objectstack/spec` is a dual-package
  * build: `require` lands on `dist/data/index.js`, `import` on
- * `dist/data/index.mjs`. Those are two different module instances of the same
+ * `dist/data/index.mjs`, and `/security` carries the identical export map
+ * (`dist/security/index.js` vs `dist/security/index.mjs`), so this reasoning
+ * applies to the permission oracles unchanged. Those are two different module instances of the same
  * schema, so a CJS-resolving gate cannot be proven — by identity — to be
  * reading the build the app bundles against, and the two could drift with
  * nothing to notice. Importing makes the self-test's `===` against a plain
- * `import { FieldSchema } from '@objectstack/spec/data'` a real proof of
+ * `import { FieldSchema } from '@objectstack/spec/data'` — and, for the
+ * permission oracles, from `@objectstack/spec/security` — a real proof of
  * provenance, which is the assertion that rules out the whole
  * wrong-symbol failure mode. This is why the exported functions are async. A hardcoded copy would be the stale second definition this whole
  * family of gates exists to prevent, and — worse for a parity check — a wrongly
@@ -254,6 +288,33 @@ export const PAYLOAD_SHAPES = [
     reach: "ui",
     writer: "ObjectManager (in-memory model)",
   },
+  {
+    id: "PermissionSetDraft",
+    file: "packages/app-shell/src/views/metadata-admin/permission-slice.ts",
+    interface: "PermissionSetDraft",
+    schema: "PermissionSetSchema",
+    reach: "wire",
+    // `PermissionMatrixEditor.doSave` writes it with
+    // `client.save(type, name, toSave)`. At package scope `mergePermissionSlice`
+    // first rebuilds it from a freshly-read base (ADR-0086 P0) — the merged
+    // result is still this shape, so the declared keys are the same body either
+    // way. Carries an index signature (coverage note 2), which here is a stated
+    // contract rather than an oversight: a key this editor does not model is
+    // carried through save untouched.
+    writer: "PermissionMatrixEditor.doSave",
+  },
+  {
+    id: "ObjectPerm",
+    file: "packages/app-shell/src/views/metadata-admin/permission-slice.ts",
+    interface: "ObjectPerm",
+    schema: "ObjectPermissionSchema",
+    reach: "wire",
+    // One authorization row inside `PermissionSetDraft.objects`, so it reaches
+    // the very same saved body one level down — the field-in-object nesting
+    // again, which is why it needs its own oracle rather than riding on the
+    // record's.
+    writer: "PermissionMatrixEditor.doSave (objects[name] row)",
+  },
 ];
 
 /**
@@ -324,24 +385,58 @@ export const KNOWN_UNPARSEABLE_KEYS = {
   // gate still reports below.
 };
 
+/**
+ * Oracle name -> the PUBLISHED SUBPATH its schema is exported from.
+ *
+ * Declared here rather than inlined at the import because it is the seam that
+ * decides WHICH MODULE INSTANCE judges a payload, and it is not one subpath:
+ * the permission schemas are not on `/data` (measured, `@objectstack/spec`
+ * 17.2.0). `/security` has the same dual-package export map as `/data`, so the
+ * header's provenance argument carries over verbatim and the self-test pins
+ * each of the four by reference identity against a plain `import` from the
+ * subpath named here.
+ *
+ * An oracle a shape names and this map does not carry is an
+ * {@link ExtractionError} — never a default. Falling back to `/data` for an
+ * unknown oracle is the confident-green failure this whole file exists to
+ * prevent.
+ */
+export const ORACLE_SPECIFIERS = {
+  FieldSchema: "@objectstack/spec/data",
+  ObjectSchema: "@objectstack/spec/data",
+  PermissionSetSchema: "@objectstack/spec/security",
+  ObjectPermissionSchema: "@objectstack/spec/security",
+};
+
 /** The oracle names a shape may name, in the order they are reported. */
-export const ORACLES = ["FieldSchema", "ObjectSchema"];
+export const ORACLES = Object.keys(ORACLE_SPECIFIERS);
 
 /**
  * The keys the INSTALLED schema named by `exportName` accepts, read off the
  * schema itself.
  *
- * Resolved through `@objectstack/spec/data` — the published subpath, the same
- * one the runtime parses with — so this is the schema that actually judges a
- * `PUT`, not a local look-alike. Extraction failure throws; see the header.
+ * Resolved through the published subpath {@link ORACLE_SPECIFIERS} names for
+ * that oracle — the same entry point the runtime parses with — so this is the
+ * schema that actually judges a save, not a local look-alike. Extraction
+ * failure throws; see the header.
  */
 export async function schemaAcceptSet(exportName, importSpec = (id) => import(id)) {
+  const specifier = Object.prototype.hasOwnProperty.call(ORACLE_SPECIFIERS, exportName)
+    ? ORACLE_SPECIFIERS[exportName]
+    : null;
+  if (!specifier) {
+    fail(
+      `no spec subpath is declared for the oracle \`${exportName}\` — add it to ORACLE_SPECIFIERS.\n` +
+        "    Falling back to another subpath would resolve the wrong module (or nothing) and\n" +
+        "    pass over every key the real schema refuses."
+    );
+  }
   let data;
   try {
-    data = await importSpec("@objectstack/spec/data");
+    data = await importSpec(specifier);
   } catch (err) {
     fail(
-      "cannot resolve @objectstack/spec/data — run `pnpm install` first.\n" +
+      `cannot resolve ${specifier} — run \`pnpm install\` first.\n` +
         "    This gate reads the spec's own schema; it has no hardcoded fallback by design.\n" +
         `    (${err && err.message})`
     );
@@ -349,14 +444,14 @@ export async function schemaAcceptSet(exportName, importSpec = (id) => import(id
   const schema = data[exportName];
   if (!schema) {
     fail(
-      `@objectstack/spec/data no longer exports \`${exportName}\` — the accept set cannot be derived.\n` +
+      `${specifier} no longer exports \`${exportName}\` — the accept set cannot be derived.\n` +
         "    Re-point this gate at the schema that judges that payload; do NOT hardcode a key list."
     );
   }
   const keys = shapeKeys(schema);
   if (!keys || keys.length === 0) {
     fail(
-      `could not resolve \`${exportName}\`'s shape from @objectstack/spec/data.\n` +
+      `could not resolve \`${exportName}\`'s shape from ${specifier}.\n` +
         "    The schema's internal representation changed. Fix the walk — falling back to a\n" +
         "    hardcoded key list would make this gate the stale copy it exists to prevent."
     );
@@ -586,7 +681,7 @@ async function main() {
   console.log(`  oracle: ${origin}`);
   for (const { shape, keys, indexSignature } of shapes) {
     console.log(
-      `  ${shape.id.padEnd(24)} ${String(keys.length).padStart(2)} declared  [${shape.reach}] vs ${(shape.schema ?? "FieldSchema").padEnd(12)}` +
+      `  ${shape.id.padEnd(24)} ${String(keys.length).padStart(2)} declared  [${shape.reach}] vs ${(shape.schema ?? "FieldSchema").padEnd(22)}` +
         (indexSignature ? "  (+ index signature — see coverage note 2)" : "")
     );
   }

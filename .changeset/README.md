@@ -44,6 +44,30 @@ $ pnpm changeset
 Add support for custom validators in form components
 ```
 
+### ⚠️ Rename the generated file — don't ship the `adjective-animal-verb` name
+
+`pnpm changeset` writes the file above under a randomly generated name like
+`olive-donkeys-smile.md`. **Before committing it, rename it to
+`.changeset/<issue>-<slug>.md`** — the issue number the change settles, a short
+slug, `.md` (e.g. `6439-changeset-naming-readme.md`).
+
+**Why this matters, not just style:** `pnpm changeset` allocates its
+`adjective-animal-verb` names against the files *already present* in this
+directory, so it cannot collide. A hand-picked or copy-pasted name has no such
+guarantee — pick one that another pending changeset already uses and you
+**overwrite that file**, silently deleting a third party's release
+declaration. The cost lands on them, not you, and nothing catches it at the
+time: `git status` shows ` M` (modified) rather than `??` (untracked), so it
+reads like your own new file landing, and a deleted release declaration is
+flagged by nothing downstream — the affected package simply never gets
+bumped (objectui#6336). An issue-number-prefixed name cannot collide with
+another pending changeset, because no two open issues share a number.
+
+A report-only gate (`scripts/check-changeset-overwrite.mjs`, wired into
+`changeset-guard.yml`) flags it after the fact if this still happens — but by
+then the damage (a silently dropped release declaration) is already done.
+Renaming the file before you commit is what actually prevents it.
+
 ### When to Create a Changeset
 
 ✅ **DO** create a changeset for:

@@ -312,11 +312,13 @@ export const ObjectForm: React.FC<ObjectFormComponentProps> = ({
             // real product need it gets an explicit controlled token surface,
             // not two leaked keys.
             //
-            // ⚠️ Re-adding the read does NOT require a cast to compile:
-            // `ObjectFormSection` (this repo's own `@object-ui/types`) still
-            // declares both keys, so a plain `className: s.className` type
-            // -checks. The omission is therefore pinned behaviourally, not by
-            // a source grep — `__tests__/sectionStyleKeysRetired-13626.test.tsx`.
+            // ⚠️ `ObjectFormSection` (this repo's own `@object-ui/types`) no
+            // longer declares either key (objectui#7200), so an uncast
+            // `className: s.className` fails to compile here. A CAST read —
+            // the shape the seven retired sites had — still would, and JSON
+            // metadata carries whatever an author wrote. The omission is
+            // therefore pinned behaviourally, not by a source grep —
+            // `__tests__/sectionStyleKeysRetired-13626.test.tsx`.
           })),
           defaultTab: schema.defaultTab,
           tabPosition: schema.tabPosition,
