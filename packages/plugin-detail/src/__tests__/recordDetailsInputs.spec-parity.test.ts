@@ -106,11 +106,19 @@ const specSectionKeys = (): string[] =>
   listedShapeKeys(arrayElement(shapeMember(RecordDetailsProps, 'sections')));
 
 /**
- * Section keys `RecordDetailsRenderer` honours beyond the spec's four. Read off
- * `renderers/record-details.tsx` (`s.title ?? s.label`, `s.showBorder`,
- * `s.hideEmpty`) — a hand-kept list, but the ASSERTION filters it through the
- * spec at runtime, so the day upstream declares one of these it drops out of
- * the forbidden set on its own instead of pinning a stale prohibition.
+ * Section keys the `sections` description may NOT teach. Read off
+ * `renderers/record-details.tsx`: `s.showBorder` and `s.hideEmpty` are honoured
+ * there beyond the spec's four, and `title` was honoured as a strict-priority
+ * ALIAS of the heading slot (`s.title ?? s.label`) until objectui#6190
+ * converged on the declared `label` and dropped the limb.
+ *
+ * `title` stays in this list on purpose, and dropping it would weaken the file.
+ * Membership is not "keys the renderer reads today" — it is "keys the spec
+ * refuses that the description must not advertise", and the spec refuses
+ * `title` whether or not anything reads it. A hand-kept list, but the ASSERTION
+ * filters it through the spec at runtime, so the day upstream declares one of
+ * these it drops out of the forbidden set on its own instead of pinning a stale
+ * prohibition.
  */
 const RENDERER_ONLY_SECTION_KEYS = ['title', 'showBorder', 'hideEmpty'];
 
