@@ -9,7 +9,6 @@
       "assertions": {
         "must_contain": [
           "navigation",
-          "\"type\": \"object\"",
           "objectName",
           "viewName",
           "dashboard"
@@ -27,12 +26,12 @@
       "files": [],
       "assertions": {
         "must_contain": [
+          "objectName",
           "viewName",
-          "\"type\": \"object\"",
           "view"
         ],
         "must_not_contain": [
-          "\"type\": \"page\"",
+          "pageName",
           "\"path\":"
         ]
       }
@@ -44,8 +43,8 @@
       "files": [],
       "assertions": {
         "must_contain": [
-          "\"type\": \"object\"",
           "objectName",
+          "type",
           "id"
         ],
         "must_not_contain": [
@@ -63,10 +62,10 @@
           "filters",
           "/data",
           "{current_user_id}",
-          "\"type\": \"object\""
+          "objectName"
         ],
         "must_not_contain": [
-          "\"type\": \"page\"",
+          "pageName",
           "viewName"
         ]
       }

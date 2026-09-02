@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "My Object UI dashboard looks broken on mobile phones — cards stack but the sidebar takes up the whole screen. How do I make it responsive?",
+      "prompt": "My ObjectUI dashboard looks broken on mobile phones — cards stack but the sidebar takes up the whole screen. How do I make it responsive?",
       "expected_output": "Provides responsive grid schema with Tailwind mobile-first classes, useBreakpoint hook usage, and sidebar responsive pattern.",
       "files": [],
       "assertions": {
@@ -20,7 +20,7 @@
     },
     {
       "id": 2,
-      "prompt": "I need my Object UI app to work offline — users should be able to view cached data and queue form submissions when there's no network.",
+      "prompt": "I need my ObjectUI app to work offline — users should be able to view cached data and queue form submissions when there's no network.",
       "expected_output": "Provides useOffline hook usage with queue management, sync state UI indicators, and offline-first data flow pattern.",
       "files": [],
       "assertions": {
@@ -34,13 +34,14 @@
     },
     {
       "id": 3,
-      "prompt": "How do I add swipe-to-delete and long-press context menus to my Object UI list items on mobile?",
-      "expected_output": "Provides useSwipe and useLongPress hook usage from @object-ui/mobile with threshold and delay configuration.",
+      "prompt": "How do I add swipe-to-delete and long-press context menus to my ObjectUI list items on mobile?",
+      "expected_output": "Provides useGesture from @object-ui/mobile, one hook per gesture, with type 'swipe-left' / 'long-press' and a threshold; the hook returns a ref to attach, not a handler bag.",
       "files": [],
       "assertions": {
         "must_contain": [
-          "useSwipe",
-          "useLongPress",
+          "useGesture",
+          "swipe-left",
+          "long-press",
           "@object-ui/mobile"
         ],
         "must_not_contain": []

@@ -1,11 +1,6 @@
----
-name: objectui-project-setup
-description: Set up, configure, and build Object UI projects — from initializing new apps to configuring the monorepo build system. Use this skill when the user asks to create a new Object UI project, set up a Vite + React app with Object UI, configure pnpm workspace, run the CLI (objectui init/dev/build/serve/studio), debug build issues, configure Turbo pipelines, set up ObjectStack config files, or deploy an Object UI app. Also applies when the user asks about monorepo structure, package dependencies, build order, dev server setup, or "how do I start a new project with Object UI".
----
-
 # ObjectUI Project Setup
 
-Use this skill to set up new Object UI projects, configure the build system, and manage the monorepo development workflow.
+Setting up a new ObjectUI project and configuring its build.
 
 ## Quick start: new project from scratch
 
@@ -123,8 +118,9 @@ export default {
 
 ### src/index.css (ObjectUI stylesheets)
 
-This file is critical — without it, Object UI components render unstyled. There is no
-`tailwind.config.js` step: ObjectUI is Tailwind 4, configured in CSS.
+This file is critical -- without it, ObjectUI components render unstyled.
+There is no `tailwind.config.js` step: ObjectUI is Tailwind 4, configured in
+CSS.
 
 ```css
 @import "tailwindcss";
@@ -132,36 +128,9 @@ This file is critical — without it, Object UI components render unstyled. Ther
 @import "@object-ui/fields/style.css";
 ```
 
-That is the whole of the styling setup. Each `style.css` is a real package export, mapped
-to that package's `dist/index.css` and compiled at build time from the package's own
-sources: the components sheet carries every utility its components use **and** the
-`@theme` block those utilities are built on, so the whole Shadcn palette
-(`bg-background`, `bg-primary`, `border-input`, `ring-ring`) and the `:root` / `.dark`
-token defaults arrive with it. You do not restate those tokens in a `@theme` block of your
-own.
-
-The order matters: `@object-ui/fields/style.css` is a supplement compiled against the
-components theme, with every rule that sheet already ships subtracted from it. Imported
-first, or alone, its rules resolve against tokens that are not there yet.
-
-Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
-v4 `@source` line nor a v3 `content` entry. The published tarballs carry `dist` only, and
-the `@theme` block the themed utilities come from lives in package source, which is not
-published — so scanning them regenerates shape-only utilities the two sheets already carry
-and cannot produce the themed ones at all. Your own `@source` lines (or Tailwind's
-defaults) go on covering *your* source, exactly as before.
-
-To recolour, override the token values rather than the utilities — they are Shadcn HSL
-channel triples, not finished colours:
-
-```css
-:root {
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-}
-```
-
-See `content/docs/guide/theming.md` for the full token list and the `ThemeProvider` route.
+That is the whole of the styling setup. Why the order is load-bearing, why you
+do not point Tailwind at the packages in `node_modules`, and how to recolour by
+overriding the token values: [`rules/styling.md`](../rules/styling.md).
 
 ### tsconfig.json
 
@@ -249,95 +218,6 @@ export default defineConfig({
 });
 ```
 
-## Monorepo structure
-
-The ObjectUI monorepo uses pnpm workspaces + Turborepo:
-
-```yaml
-# pnpm-workspace.yaml
-packages:
-  - 'packages/*'
-  - 'apps/*'
-  - 'examples/*'
-```
-
-### Build order (Turbo pipeline)
-
-Turbo respects `^build` dependencies: packages build before apps that depend on them.
-
-```
-@object-ui/types        → (no deps)
-@object-ui/core         → types
-@object-ui/components   → (no deps from core)
-@object-ui/fields       → components, types
-@object-ui/layout       → components
-@object-ui/react        → core, types
-@object-ui/plugin-*     → components, core, react, types
-apps/console            → all packages
-```
-
-### Common monorepo commands
-
-```bash
-# Root commands
-pnpm dev                    # Start all dev servers
-pnpm build                  # Build all packages (excl. site)
-pnpm build:all              # Build everything including site
-pnpm test                   # Run all tests
-pnpm lint                   # Lint all packages
-pnpm type-check             # TypeScript check all
-
-# Scoped commands
-pnpm --filter @object-ui/core build       # Build single package
-pnpm --filter "apps/*" dev                # Dev all apps
-
-# Scoped tests — always from the repo root, paths relative to it, no `--`
-pnpm exec vitest run packages/core/                  # Test single package
-pnpm exec vitest run packages/core/src/<file>.test.ts   # Test single file
-
-# Setup from clean clone
-./scripts/setup.sh                        # Full automated setup
-# Or manually:
-pnpm install
-pnpm build
-pnpm test
-```
-
-Note that tests are scoped by a **path filter from the repo root**, not by
-`pnpm --filter <pkg> test`. The `--filter` form (and `turbo run test`, and
-`cd packages/x && pnpm exec vitest`) makes vitest treat the package directory as its
-root: the root-level `unit`/`dom`/`dom-heavy` projects declare their `include` globs
-relative to that root and match nothing, while the `apps/console` project — brought in
-by absolute path — still resolves. The run then executes console's 22 files, reports
-`Test Files 22 passed (22)`, and never touches the package you asked for. A guard rejects
-those invocations with a non-zero exit and prints the correct form. It is wired into
-`vitest.config.mts` and into each standalone per-package config
-(`packages/plugin-grid/vitest.config.ts` and its sixteen siblings), since Vitest loads
-whichever config sits in the directory it was launched from (objectui#5406):
-
-```
-vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)
-...
-正确跑法 —— 一律在【仓库根目录】执行,路径前【不要】加 `--`:
-  pnpm exec vitest run packages/<pkg>/src/<file>.test.ts   # 只跑一个文件
-  pnpm exec vitest run packages/<pkg>/   # 只跑一个包
-  pnpm test   # 全量(CI 跑的就是它)
-```
-
-The same guard rejects a path placed behind `--` (`pnpm --filter <pkg> test --
---run <path>`), which pnpm forwards verbatim and vitest's CLI parser discards.
-
-### Adding a workspace package as dependency
-
-```bash
-# In any package.json
-{
-  "@object-ui/core": "workspace:*"
-}
-```
-
-Then `pnpm install` to link.
-
 ## Runtime & integration packages
 
 ObjectUI ships three integration layers for third-party apps. Pick the smallest one that fits.
@@ -404,13 +284,10 @@ App-shell is router-agnostic — wire it into React Router / Next.js / TanStack 
 
 ### `@object-ui/runner` — universal runtime
 
-Standalone runtime + dev server that ships with `plugin-charts` and `plugin-kanban` pre-registered. Useful for:
-
-- Running a schema as a one-off app (no project scaffolding).
-- Embedding a "play with this schema" sandbox.
-- Reproducing bugs against a known-good runtime.
-
-Typical usage is via the `objectui dev` CLI (which wraps the same renderer).
+Standalone runtime + dev server with `plugin-charts` and `plugin-kanban`
+pre-registered, for running a schema as a one-off app with no project
+scaffolding. Usually reached through the `objectui dev` CLI, which wraps the
+same renderer; no app in this repo's `apps/` or `examples/` imports it directly.
 
 ### Decision matrix
 
@@ -428,19 +305,8 @@ Typical usage is via the `objectui dev` CLI (which wraps the same renderer).
 ### Vite production build
 
 ```bash
-pnpm build            # Builds all packages
-cd apps/console
 pnpm build            # Produces dist/
 pnpm preview          # Serve dist/ locally
-```
-
-### Vercel deployment
-
-`apps/console/vercel.json`:
-```json
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
 ```
 
 ### Environment variables

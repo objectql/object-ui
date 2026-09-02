@@ -1,11 +1,6 @@
----
-name: objectui-plugin-development
-description: Create, register, and publish custom Object UI plugins. Use this skill when the user wants to build a new plugin for Object UI, register custom components in ComponentRegistry, implement field widgets with FieldWidgetComponentProps, scaffold a plugin package with create-plugin, or extend the Object UI renderer with custom component types. Also applies when the user asks about component registration, plugin architecture, namespace conflicts, or how to package heavy third-party dependencies (maps, charts, editors) as Object UI plugins.
----
-
 # ObjectUI Plugin Development
 
-Use this skill to build custom plugins that extend Object UI's rendering capabilities. Plugins are the extension mechanism for adding heavy or specialized components (grids, charts, maps, editors, kanbans) to the schema-driven UI engine.
+Building custom plugins that extend ObjectUI's rendering. Plugins are the extension mechanism for adding heavy or specialized components (grids, charts, maps, editors, kanbans) to the schema-driven UI engine.
 
 ## When to create a plugin vs. a component
 

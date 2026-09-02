@@ -1,11 +1,6 @@
----
-name: objectui-mobile
-description: Implement mobile-responsive features in Object UI apps. Use this skill when the user asks to implement responsive mobile views, optimize touch interactions, handle mobile viewport issues, add offline support, build mobile-first pages, or configure PWA features. Also applies when the user mentions useBreakpoint, touch gestures, swipe actions, bottom sheets, mobile navigation, breakpoint-based layouts, pull-to-refresh, or asks "how to make this work on mobile" or "it looks broken on phones".
----
-
 # ObjectUI Mobile
 
-Use this skill to add mobile-responsive features to Object UI applications via the `@object-ui/mobile` package.
+Mobile-responsive behaviour via `@object-ui/mobile`.
 
 ## useBreakpoint hook
 
@@ -99,13 +94,12 @@ Use responsive column configurations in grid layouts:
 }
 ```
 
-`columns` takes a number or a breakpoint object (`xs` / `sm` / `md` / `lg` /
-`xl`), with `xs` as the base — the schema above renders
-`grid-cols-1 md:grid-cols-2 lg:grid-cols-4`. The spec's map also declares
-`2xl`, but the `grid` renderer reads only those five: a `2xl` entry parses and
-is then silently dropped, so stop at `xl`. Keys belong on the node, not in a
-`props` wrapper: `"props": { "cols": … }` leaves both the columns *and* the card
-titles unread (objectui#4001).
+`columns` takes a number or a breakpoint object -- the schema above renders
+`grid-cols-1 md:grid-cols-2 lg:grid-cols-4`. The breakpoint keys the `grid`
+renderer actually reads, the `2xl` entry the spec accepts and the renderer
+drops, and the `cols` / `props` spellings that render nothing are in
+[`rules/protocol.md`](../rules/protocol.md) under "Rule: Layout
+Responsiveness".
 
 ## Mobile-first Tailwind classes in schemas
 

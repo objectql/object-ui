@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Write unit tests for my custom Object UI plugin that registers a 'weather-card' component. I need to test the registration, the rendering with mock data, and expression evaluation.",
+      "prompt": "Write unit tests for my custom ObjectUI plugin that registers a 'weather-card' component. I need to test the registration, the rendering with mock data, and expression evaluation.",
       "expected_output": "Provides Vitest tests: registration test checking ComponentRegistry, rendering test with SchemaRendererProvider and mock dataSource, and expression-based visibility test.",
       "files": [],
       "assertions": {
@@ -21,7 +21,7 @@
     },
     {
       "id": 2,
-      "prompt": "Write RTL component tests for an Object UI form plugin that has create, edit, and view modes.",
+      "prompt": "Write RTL component tests for an ObjectUI form plugin that has create, edit, and view modes.",
       "expected_output": "Provides Vitest + React Testing Library tests with SchemaRendererProvider wrapping, mock dataSource, and a test case per form mode (create / edit / view) asserting fields render and submit behavior matches the mode.",
       "files": [],
       "assertions": {

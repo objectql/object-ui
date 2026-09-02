@@ -1,11 +1,6 @@
----
-name: objectui-auth-permissions
-description: Implement authentication, authorization, and role-based access control in Object UI apps. Use this skill when the user asks to add login/signup flows, protect routes with auth guards, implement RBAC (role-based access control), configure field-level or row-level permissions, integrate auth tokens with data fetching, or debug permission evaluation. Also applies when the user mentions AuthProvider, PermissionProvider, user roles, access control, or "only admins should see this".
----
-
 # ObjectUI Auth & Permissions
 
-Use this skill to implement authentication and authorization in Object UI applications. The auth system is built on two independent but composable packages: `@object-ui/auth` and `@object-ui/permissions`.
+Authentication and authorization for an ObjectUI app. The auth system is built on two independent but composable packages: `@object-ui/auth` and `@object-ui/permissions`.
 
 ## Architecture
 
