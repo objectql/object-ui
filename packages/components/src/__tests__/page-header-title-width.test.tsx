@@ -56,7 +56,9 @@ function renderRecordHeader(actions: any[] = WIDE_ACTIONS) {
         recordId="rec-1"
         data={{ id: 'rec-1', name: 'Specimen — Full' }}
         objectSchema={{ name: 'showcase_field_zoo', label: 'Field Zoo' }}
-        onRefresh={vi.fn()}
+        // A host `refresh` puts the `⟳` chrome in the tail, which is part of
+        // what made the measured tail 641.5px wide.
+        refresh={vi.fn()}
       >
         <PageHeader schema={{ type: 'page:header', actions }} />
       </RecordContextProvider>
