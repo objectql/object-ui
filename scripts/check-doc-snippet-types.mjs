@@ -444,30 +444,15 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
-  'content/docs/guide/objectos-integration.mdx':
-    '36 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; ' +
-    '10 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the ' +
-    'page never defines; 7 unresolved-module diagnostic(s); plus TS2339x1 — candidate real defects, ' +
-    'un-triaged. This entry read TS2305x1 until objectui#5160, whose last name was the ' +
-    '`AppManifest` annotation on an `objectstack.config.ts` literal. That block is gone rather ' +
-    'than re-typed: the file is a server-project config this repo neither owns nor builds, so the ' +
-    'section links to the ObjectStack documentation instead of restating its shape here. Covering ' +
-    'this page still needs the 8 parse-failing blocks re-fenced or declared, the undefined-name ' +
-    'blocks made self-contained, and the `@objectstack/*` runtime imports resolvable — none of ' +
-    'which this repo can do from here.',
   'content/docs/plugins/plugin-calendar-view.mdx':
     '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
     '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
     'it means declaring those blocks, which is a judgement about the page rather than a mechanical ' +
     'edit — the one entry here that would be closed by declaring blocks rather than by fixing them.',
-  'content/docs/plugins/plugin-chatbot.mdx':
-    '21 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'content/docs/plugins/plugin-detail.mdx':
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-kanban.mdx':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 8 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/plugins/plugin-map.mdx':
-    '43 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-timeline.mdx':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'content/docs/utilities/create-plugin.mdx':
