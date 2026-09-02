@@ -31,6 +31,14 @@ import { deriveNamespaceFromPackageId, validateObjectNamespacePrefix } from '@ob
 
 export interface PkgEntry {
   id: string;
+  /**
+   * The package's HUMAN name — what the Studio top bar shows the author.
+   *
+   * Falls back to the id, which is what the switcher renders when the producer
+   * declared no name at all. That fallback is the honest degradation; reading
+   * the name from only ONE of the two shapes this endpoint serves was not
+   * (objectui#7254) — see {@link parsePackages}.
+   */
   name: string;
   writable: boolean;
   /**
@@ -42,6 +50,32 @@ export interface PkgEntry {
   namespace: string | null;
 }
 
+/**
+ * `GET /api/v1/packages` merges TWO producers into one array, and they carry
+ * their fields in two different positions:
+ *
+ *  - the durable half (`PackageService.list()`, published artifacts) nests
+ *    everything under `manifest`;
+ *  - the registry half (`protocol.getMetaItems({ type: 'package' })`) hands
+ *    back the package METADATA DOCUMENT, whose fields are top-level.
+ *
+ * That is not an inference: the server's own list handler reads
+ * `item.manifest?.id || item.id` on BOTH halves, i.e. the producer declares
+ * both positions for the same field. This reader already matched it for `id`
+ * — and only for `id`. `name` was read as `manifest.name ?? id`, so every
+ * registry-shaped entry lost its human name and the Studio top bar showed the
+ * reverse-domain package id (`app.b2r4`) where the author expected the app's
+ * name (objectui#7254). Closing the asymmetry inside the one reader that
+ * already declares both positions — not a new tolerant dialect.
+ *
+ * `writable` reads only the TOP level, and that is not the same asymmetry: it
+ * is the server's own computed verdict (see the module doc), a field the
+ * manifest does not and should not carry.
+ *
+ * `scope` is deliberately left manifest-only: widening it would change which
+ * packages the switcher HIDES, which is a different question from what it
+ * NAMES and is not this card's.
+ */
 export function parsePackages(payload: unknown): PkgEntry[] {
   const root = (payload as { data?: unknown })?.data ?? payload;
   const raw = Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? []);
@@ -58,7 +92,12 @@ export function parsePackages(payload: unknown): PkgEntry[] {
     // Server first, heuristic only when the key is absent (see the module doc).
     // A non-boolean value is not a verdict, so it falls back too.
     const writable = typeof p.writable === 'boolean' ? p.writable : scope !== 'project';
-    out.push({ id, name: String(m.name ?? id), writable, namespace });
+    // Same two positions as `id` above, same order (objectui#7254). An empty
+    // string is not a name — it falls through to the id like an absent one.
+    const declaredName =
+      (typeof m.name === 'string' && m.name.trim() ? m.name : undefined) ??
+      (typeof p.name === 'string' && p.name.trim() ? p.name : undefined);
+    out.push({ id, name: declaredName ?? id, writable, namespace });
   }
   return out;
 }

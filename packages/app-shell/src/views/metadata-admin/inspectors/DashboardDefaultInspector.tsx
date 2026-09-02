@@ -130,7 +130,9 @@ export function DashboardDefaultInspector({
     () =>
       mergeServerFields({
         bundledSchema: getDashboardSchema(),
-        bundledForm: getDashboardForm(),
+        // objectui#7254 — the spec form is English; the locale overlay lives
+        // inside `getDashboardForm` so every consumer of it gets the same copy.
+        bundledForm: getDashboardForm(locale),
         serverSchema,
         excludeFields: DASHBOARD_CURATED_FIELDS,
         sectionTitle: t('engine.inspector.moreFields', locale),

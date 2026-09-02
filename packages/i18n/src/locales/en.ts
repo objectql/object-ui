@@ -3199,6 +3199,80 @@ const en = {
     sourceInherits: 'same as build/ask',
     sourcePinned: 'pinned by {{source}}',
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: 'Aggregate data',
+      get_record: 'Get record',
+      query_data: 'Query data',
+      query_records: 'Query records',
+      search_knowledge: 'Search knowledge',
+      visualize_data: 'Visualize data',
+      add_field: 'Add field',
+      apply_blueprint: 'Apply blueprint',
+      apply_edit: 'Apply edit',
+      create_metadata: 'Create metadata',
+      create_object: 'Create object',
+      create_package: 'Create package',
+      create_seed: 'Create seed',
+      delete_field: 'Delete field',
+      describe_metadata: 'Describe metadata',
+      describe_object: 'Describe object',
+      get_active_package: 'Get active package',
+      get_metadata_schema: 'Get metadata schema',
+      get_package: 'Get package',
+      list_metadata: 'List metadata',
+      list_objects: 'List objects',
+      list_packages: 'List packages',
+      modify_field: 'Modify field',
+      propose_blueprint: 'Propose blueprint',
+      set_active_package: 'Set active package',
+      suggest_builder: 'Suggest builder',
+      todo_write: 'Todo write',
+      update_metadata: 'Update metadata',
+      validate_expression: 'Validate expression',
+      verify_build: 'Verify build',
+    },
+    toolState: {
+      agentActivity: 'Agent activity',
+      pending: 'Pending',
+      running: 'Running',
+      awaitingApproval: 'Awaiting approval',
+      responded: 'Responded',
+      completed: 'Completed',
+      error: 'Error',
+      denied: 'Denied',
+      failed: 'Failed',
+    },
+    plan: {
+      countObjects: '{{count}} objects',
+      countObjects_one: '{{count}} object',
+      countViews: '{{count}} views',
+      countViews_one: '{{count}} view',
+      countDashboards: '{{count}} dashboards',
+      countDashboards_one: '{{count}} dashboard',
+      countSeedData: 'sample data',
+    },
+  },
   chatbotError: {
     title: 'Response failed',
     fallbackDetail: 'Something went wrong. Please try again.',

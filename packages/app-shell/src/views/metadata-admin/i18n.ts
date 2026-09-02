@@ -1737,6 +1737,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.nav.noObjects': 'This package has no objects yet — create one in the Data pillar first.',
   // Interfaces pillar
   'engine.studio.if.pickLeft': 'Select a menu item on the left',
+  // objectui#7254 — the tooltip that keeps the DEVELOPER identity reachable
+  // after the breadcrumb/caption stopped printing it beside a localized
+  // label. Prefixed rather than bare: `dashboard · customer_dashboard` on
+  // its own does not say what it is, and it is also what the rail item's
+  // own tooltip carries — three elements sharing one tooltip string is a
+  // page nothing (a person or a test) can address unambiguously.
+  'engine.studio.if.internalId': 'Internal id',
   'engine.studio.if.navHeading': '{app} · Navigation',
   'engine.studio.if.editNavTitle': 'Edit navigation (drag to reorder / rename / add-remove)',
   'engine.studio.if.doneEditTitle': 'Done editing',
@@ -3623,6 +3630,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.nav.noObjects': '这个软件包还没有对象 — 先到 Data 支柱创建。',
   // Interfaces pillar
   'engine.studio.if.pickLeft': '从左侧选择一个菜单项',
+  'engine.studio.if.internalId': '内部标识',
   'engine.studio.if.navHeading': '{app} · 导航',
   'engine.studio.if.editNavTitle': '编辑导航(拖拽排序 / 重命名 / 增删)',
   'engine.studio.if.doneEditTitle': '完成编辑',

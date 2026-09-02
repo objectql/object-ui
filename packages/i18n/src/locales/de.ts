@@ -2846,6 +2846,80 @@ const de = {
     sourceInherits: "wie build/ask",
     sourcePinned: "festgelegt durch {{source}}",
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "Daten aggregieren",
+      get_record: "Datensatz lesen",
+      query_data: "Daten abfragen",
+      query_records: "Datensätze abfragen",
+      search_knowledge: "Wissensdatenbank durchsuchen",
+      visualize_data: "Diagramm erstellen",
+      add_field: "Feld hinzufügen",
+      apply_blueprint: "App erstellen",
+      apply_edit: "Änderungen anwenden",
+      create_metadata: "Metadaten anlegen",
+      create_object: "Objekt anlegen",
+      create_package: "Paket anlegen",
+      create_seed: "Beispieldaten erzeugen",
+      delete_field: "Feld löschen",
+      describe_metadata: "Metadaten ansehen",
+      describe_object: "Objektstruktur ansehen",
+      get_active_package: "Aktives Paket lesen",
+      get_metadata_schema: "Metadatenschema lesen",
+      get_package: "Paket lesen",
+      list_metadata: "Metadaten auflisten",
+      list_objects: "Objekte auflisten",
+      list_packages: "Pakete auflisten",
+      modify_field: "Feld ändern",
+      propose_blueprint: "App-Entwurf erstellen",
+      set_active_package: "Aktives Paket wechseln",
+      suggest_builder: "Vorgehen vorschlagen",
+      todo_write: "Aufgaben notieren",
+      update_metadata: "Metadaten aktualisieren",
+      validate_expression: "Ausdruck prüfen",
+      verify_build: "Aufbau prüfen",
+    },
+    toolState: {
+      agentActivity: "Agentenaktivität",
+      pending: "Ausstehend",
+      running: "Läuft",
+      awaitingApproval: "Wartet auf Freigabe",
+      responded: "Beantwortet",
+      completed: "Abgeschlossen",
+      error: "Fehler",
+      denied: "Abgelehnt",
+      failed: "Fehlgeschlagen",
+    },
+    plan: {
+      countObjects: "{{count}} Objekte",
+      countObjects_one: "{{count}} Objekt",
+      countViews: "{{count}} Ansichten",
+      countViews_one: "{{count}} Ansicht",
+      countDashboards: "{{count}} Dashboards",
+      countDashboards_one: "{{count}} Dashboard",
+      countSeedData: "Beispieldaten",
+    },
+  },
   chatbotError: {
     title: "Antwort fehlgeschlagen",
     fallbackDetail: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",

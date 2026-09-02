@@ -2848,6 +2848,80 @@ const ja = {
     sourceInherits: "build/ask と同じ",
     sourcePinned: "{{source}} で固定",
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "データを集計",
+      get_record: "レコードを取得",
+      query_data: "データを照会",
+      query_records: "レコードを照会",
+      search_knowledge: "ナレッジを検索",
+      visualize_data: "グラフを作成",
+      add_field: "項目を追加",
+      apply_blueprint: "アプリを構築",
+      apply_edit: "変更を適用",
+      create_metadata: "メタデータを作成",
+      create_object: "オブジェクトを作成",
+      create_package: "パッケージを作成",
+      create_seed: "サンプルデータを生成",
+      delete_field: "項目を削除",
+      describe_metadata: "メタデータを確認",
+      describe_object: "オブジェクト構造を確認",
+      get_active_package: "現在のパッケージを取得",
+      get_metadata_schema: "メタデータ構造を取得",
+      get_package: "パッケージを取得",
+      list_metadata: "メタデータ一覧",
+      list_objects: "オブジェクト一覧",
+      list_packages: "パッケージ一覧",
+      modify_field: "項目を変更",
+      propose_blueprint: "アプリ設計案を作成",
+      set_active_package: "現在のパッケージを切替",
+      suggest_builder: "構築方法を提案",
+      todo_write: "タスクを記録",
+      update_metadata: "メタデータを更新",
+      validate_expression: "式を検証",
+      verify_build: "構築結果を検証",
+    },
+    toolState: {
+      agentActivity: "エージェントの動作",
+      pending: "待機中",
+      running: "実行中",
+      awaitingApproval: "承認待ち",
+      responded: "応答済み",
+      completed: "完了",
+      error: "エラー",
+      denied: "拒否",
+      failed: "失敗",
+    },
+    plan: {
+      countObjects: "{{count}} 件のオブジェクト",
+      countObjects_one: "{{count}} 件のオブジェクト",
+      countViews: "{{count}} 件のビュー",
+      countViews_one: "{{count}} 件のビュー",
+      countDashboards: "{{count}} 件のダッシュボード",
+      countDashboards_one: "{{count}} 件のダッシュボード",
+      countSeedData: "サンプルデータ",
+    },
+  },
   chatbotError: {
     title: "応答に失敗しました",
     fallbackDetail: "問題が発生しました。もう一度お試しください。",

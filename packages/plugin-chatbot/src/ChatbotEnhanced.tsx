@@ -30,6 +30,7 @@ import {
   parseAiQuotaError,
   summarizeChatError,
   unwrapToolResult,
+  type ToolTitleTranslator,
 } from './tool-display';
 import {
   Conversation,
@@ -67,6 +68,7 @@ import {
   ToolContent,
   ToolInput,
   ToolOutput,
+  type ToolStatusLabels,
 } from './elements/tool';
 import {
   Reasoning,
@@ -970,6 +972,61 @@ export function getToolState(tool: ChatToolInvocation): ToolSummaryState {
 }
 
 /**
+ * How far a confirm-gate proposal card has actually got — the SINGLE producer
+ * of that fact (objectui#7254).
+ *
+ * The card BODY already renders a terminal badge from four separate memos:
+ * `builtPlanIds` (已搭建), `approvedPlanIds` (building), `confirmedChangeIds`
+ * (已确认) and `replayOutcomeByProposalId` (已生效 / 已暂存为草稿 / 未生效).
+ * The HEADER badge read none of them: it derived from `isProposalResult(result)`
+ * alone, which is a fact about the tool's *own* output and never changes once
+ * the tool has returned. So a card whose body said 已搭建 / 已生效 kept a header
+ * reading "Awaiting Approval" forever — the same class of divergence recorded on
+ * cloud#787, mirrored. Fixing it in the header's own branch would have made a
+ * FIFTH producer of the same fact; this function is the one both sides read.
+ *
+ * Precedence is "what actually happened" over "what was asked for": a replay
+ * verdict is the server's own answer and outranks the positional heuristics,
+ * and `built`/`confirmed` (a later commit was observed in the stream) outrank
+ * `approved` (the user clicked, nothing has landed yet).
+ */
+export type ProposalCardState = 'pending' | 'in-progress' | 'settled' | 'failed';
+
+export function resolveProposalCardState(input: {
+  /** A replay verdict for this proposal, when one has arrived. */
+  replayOutcome?: { kind: 'published' | 'drafted' | 'failed' | 'applying' };
+  /** An `apply_blueprint` ran after this plan card (`builtPlanIds`). */
+  built?: boolean;
+  /** A later same-tool commit followed this proposal (`confirmedChangeIds`). */
+  confirmed?: boolean;
+  /** The user approved, but no result has come back yet (`approvedPlanIds`). */
+  approved?: boolean;
+}): ProposalCardState {
+  const kind = input.replayOutcome?.kind;
+  if (kind === 'failed') return 'failed';
+  if (kind === 'published' || kind === 'drafted') return 'settled';
+  if (kind === 'applying') return 'in-progress';
+  if (input.built || input.confirmed) return 'settled';
+  if (input.approved) return 'in-progress';
+  return 'pending';
+}
+
+/**
+ * The header badge state each {@link ProposalCardState} maps to. Kept as a
+ * table rather than a chain so the header can never grow a fifth state the
+ * body does not have.
+ */
+const PROPOSAL_HEADER_STATE: Record<
+  ProposalCardState,
+  NonNullable<ChatToolInvocation['state']>
+> = {
+  pending: 'approval-requested',
+  'in-progress': 'input-available',
+  settled: 'output-available',
+  failed: 'output-error',
+};
+
+/**
  * English display names for the change verbs. Overridable per-consumer via the
  * `changeVerbLabels` prop — the console passes the translated set. These were
  * hard-coded Chinese until objectui#2884.
@@ -1146,7 +1203,68 @@ function isToolCallPlaceholder(content: string): boolean {
   return /^\((?:called [^)]*|tool call|no content)\)$/.test(content.trim());
 }
 
-function summarizeTools(tools: ChatToolInvocation[]): ToolSummaryGroup[] {
+/**
+ * The "1 object · 1 view · 1 dashboard" strip under a proposed plan / a live
+ * design panel, localized (objectui#7254).
+ *
+ * It was assembled by string concatenation with an English `+ 's'` plural, so
+ * it read as English inside an otherwise Chinese conversation AND could only
+ * ever be right for the two-form languages. Each noun is a plural FAMILY (base
+ * key + `_one`): i18next asks `Intl.PluralRules` for the one suffix the active
+ * language needs and lands on the base key for every category a pack does not
+ * enumerate, so `ru` (few/many) and `ar` (two/few/many/zero) stay in their own
+ * language instead of falling through to English — the rule
+ * `all-locales-key-parity.test.ts` states for plural families.
+ *
+ * Returned as a hook-bound formatter because both call sites live in different
+ * components (the proposed-plan card body and `BlueprintProgressPanel`), and
+ * two hand-rolled copies is how they drifted in the first place.
+ */
+function useMetadataCountBits(): (counts: {
+  objects?: number;
+  views?: number;
+  dashboards?: number;
+  seedData?: number;
+}) => string[] {
+  const { t } = useObjectTranslation();
+  return React.useCallback(
+    (counts) => {
+      const bits: string[] = [];
+      if (counts?.objects)
+        bits.push(
+          t('chatbot.plan.countObjects', {
+            count: counts.objects,
+            defaultValue: '{{count}} objects',
+          }),
+        );
+      if (counts?.views)
+        bits.push(
+          t('chatbot.plan.countViews', { count: counts.views, defaultValue: '{{count}} views' }),
+        );
+      if (counts?.dashboards)
+        bits.push(
+          t('chatbot.plan.countDashboards', {
+            count: counts.dashboards,
+            defaultValue: '{{count}} dashboards',
+          }),
+        );
+      if (counts?.seedData)
+        bits.push(t('chatbot.plan.countSeedData', { defaultValue: 'sample data' }));
+      return bits;
+    },
+    [t],
+  );
+}
+
+function summarizeTools(
+  tools: ChatToolInvocation[],
+  /**
+   * objectui#7254 — the activity chips name the same tools the detailed cards
+   * do, so they take the same `chatbot.tool.*` lookup. Optional so a
+   * provider-less caller keeps the English title-caser it always had.
+   */
+  translateToolTitle?: ToolTitleTranslator,
+): ToolSummaryGroup[] {
   const groups = new Map<string, ToolSummaryGroup>();
 
   for (const tool of tools) {
@@ -1160,7 +1278,7 @@ function summarizeTools(tools: ChatToolInvocation[]): ToolSummaryGroup[] {
     }
     groups.set(key, {
       key,
-      title: humanizeToolName(tool.toolName) || tool.toolName,
+      title: humanizeToolName(tool.toolName, translateToolTitle) || tool.toolName,
       rawName: tool.toolName,
       count: 1,
       state,
@@ -1341,7 +1459,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // re-render while the error sits in state).
     const restoredErrorRef = React.useRef<unknown>(null);
 
-    // Resolve localizable strings once, English defaults preserved.
+    // The localized "N objects · N views · N dashboards" strip, shared with
+    // `BlueprintProgressPanel` so the plan card and the live design panel can
+    // not word the same counts differently (objectui#7254).
+    const countBitsOf = useMetadataCountBits();
+
+    // objectui#7254 — the pack lookup for every string this component owns.
+    // `useSafeTranslate` is provider-safe: with no I18nProvider (tests,
+    // standalone hosts) each call returns the English fallback passed beside
+    // it, so nothing below can render a raw key.
+    const tt = useSafeTranslate();
+
+    // Resolve localizable strings once. Precedence is host `labels` prop ->
+    // locale pack -> the English default this component always shipped, so a
+    // console that already translates a string keeps winning and a host that
+    // passes nothing now gets the user's language instead of English.
     const L = React.useMemo(
       () => ({
         emptyTitle: labels?.emptyTitle ?? 'Start a conversation',
@@ -1350,11 +1482,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           'Ask anything — the assistant has access to your current app context.',
         clear: labels?.clear ?? 'Clear',
         sendHint: labels?.sendHint ?? 'to send',
-        agentActivity: labels?.agentActivity ?? 'Agent activity',
-        toolCompleted: labels?.toolCompleted ?? 'Completed',
-        toolRunning: labels?.toolRunning ?? 'Running',
-        toolAwaitingApproval: labels?.toolAwaitingApproval ?? 'Awaiting approval',
-        toolFailed: labels?.toolFailed ?? 'Failed',
+        agentActivity: labels?.agentActivity ?? tt('chatbot.toolState.agentActivity', 'Agent activity'),
+        toolCompleted: labels?.toolCompleted ?? tt('chatbot.toolState.completed', 'Completed'),
+        toolRunning: labels?.toolRunning ?? tt('chatbot.toolState.running', 'Running'),
+        toolAwaitingApproval:
+          labels?.toolAwaitingApproval ?? tt('chatbot.toolState.awaitingApproval', 'Awaiting approval'),
+        toolFailed: labels?.toolFailed ?? tt('chatbot.toolState.failed', 'Failed'),
+        // The vendored `ToolHeader` badge's own vocabulary (objectui#7254). It
+        // carried a private English table, so a fully Chinese conversation
+        // still read "Awaiting Approval" / "Completed" on every card header
+        // while the summary chips beside it were translated.
+        toolPending: tt('chatbot.toolState.pending', 'Pending'),
+        toolResponded: tt('chatbot.toolState.responded', 'Responded'),
+        toolDenied: tt('chatbot.toolState.denied', 'Denied'),
+        toolError: tt('chatbot.toolState.error', 'Error'),
         toolDetailsHidden:
           labels?.toolDetailsHidden ??
           'Detailed tool inputs and outputs are hidden in this view.',
@@ -1381,7 +1522,23 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         // to deliberately disable the rotation while keeping the lead-in label.
         designingPlanHints: labels?.designingPlanHints ?? DEFAULT_DESIGNING_PLAN_HINTS,
       }),
-      [labels],
+      [labels, tt],
+    );
+
+    // The vendored `ToolHeader`'s badge vocabulary, keyed by the AI-SDK state
+    // it renders. Same strings as the activity chips read from `L`, so the two
+    // surfaces can no longer disagree about what "Completed" is called.
+    const toolStatusLabels: ToolStatusLabels = React.useMemo(
+      () => ({
+        'input-streaming': L.toolPending,
+        'input-available': L.toolRunning,
+        'approval-requested': L.toolAwaitingApproval,
+        'approval-responded': L.toolResponded,
+        'output-available': L.toolCompleted,
+        'output-error': L.toolError,
+        'output-denied': L.toolDenied,
+      }),
+      [L],
     );
 
     // Draft tool calls this chat has published (auto or via the manual button),
@@ -1913,7 +2070,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         state === 'approval-requested' && Boolean(onToolApprove) && !decision;
       const hidePendingPayload =
         state === 'approval-requested' && Boolean(tool.pendingActionId);
-      const friendlyTitle = humanizeToolName(tool.toolName);
+      // objectui#7254 / cloud#1658 — `humanizeToolName`'s translator seam has
+      // existed since the tool titles were found untranslatable, but no call
+      // site ever passed one, so every card header read English
+      // ("Propose blueprint", "Apply edit", "Verify build") inside an otherwise
+      // Chinese conversation. Unknown/custom tools still fall back to the same
+      // English title-caser.
+      const friendlyTitle = humanizeToolName(tool.toolName, tt);
       const renderableResult = unwrapToolResult(tool.result);
       const showRawName =
         processVisibility === 'debug' &&
@@ -1949,9 +2112,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       // "Awaiting Approval", not "Completed": nothing was applied, it's waiting
       // for the user. Only the header badge is remapped — the local `state`
       // (which gates payload display / HITL) is untouched.
+      //
+      // objectui#7254 — "waiting for the user" is only true until the user acts.
+      // The header used to stop reading here, so a card whose BODY had already
+      // collapsed to 已搭建 / 已生效 / 未生效 kept saying "Awaiting Approval".
+      // `resolveProposalCardState` is now the one producer both sides read.
+      const proposalCardState = resolveProposalCardState({
+        replayOutcome: replayOutcomeByProposalId.get(tool.toolCallId),
+        built: builtPlanIds.has(tool.toolCallId),
+        confirmed: confirmedChangeIds.has(tool.toolCallId),
+        approved: approvedPlanIds.has(tool.toolCallId),
+      });
       const headerState =
         state === 'output-available' && isProposalResult(tool.result)
-          ? ('approval-requested' as typeof state)
+          ? PROPOSAL_HEADER_STATE[proposalCardState]
           : state;
       const titleNode = (
         <span className="inline-flex min-w-0 items-center gap-2">
@@ -1995,7 +2169,12 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             isUnstructuredBuildProposal(tool)
           }
         >
-          <ToolHeader type={partType} state={headerState} title={titleNode} />
+          <ToolHeader
+            type={partType}
+            state={headerState}
+            title={titleNode}
+            statusLabels={toolStatusLabels}
+          />
           <ToolContent>
             {showPayload && tool.args !== undefined ? (
               <ToolInput input={tool.args} />
@@ -2330,13 +2509,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   </div>
                 ) : null}
                 {(() => {
-                  const c = tool.proposedPlan!.counts;
-                  const bits: string[] = [];
-                  if (c.objects) bits.push(`${c.objects} object${c.objects === 1 ? '' : 's'}`);
-                  if (c.views) bits.push(`${c.views} view${c.views === 1 ? '' : 's'}`);
-                  if (c.dashboards)
-                    bits.push(`${c.dashboards} dashboard${c.dashboards === 1 ? '' : 's'}`);
-                  if (c.seedData) bits.push('sample data');
+                  const bits = countBitsOf(tool.proposedPlan!.counts);
                   return bits.length ? (
                     <span className="text-[11px] text-muted-foreground">{bits.join(' · ')}</span>
                   ) : null;
@@ -2951,7 +3124,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       ) : null}
                       {!isUser && processVisibility === 'summary' && summaryTools.length > 0 ? (
                         <ToolActivitySummary
-                          groups={summarizeTools(summaryTools)}
+                          groups={summarizeTools(summaryTools, tt)}
                           labels={L}
                         />
                       ) : null}
@@ -3707,6 +3880,7 @@ function BlueprintProgressPanel({
   offlineLabel?: string;
 }) {
   const { phase, summary, appLabel, targetApp, objects, counts, seq } = progress;
+  const countBitsOf = useMetadataCountBits();
   const isDone = phase === 'done';
   // Real activity key, mirroring BuildProgressPanel: prefer the server's
   // monotonic `seq` (it also advances on keep-alive heartbeats, where the
@@ -3718,12 +3892,7 @@ function BlueprintProgressPanel({
   // designing, the localized "Designing your app…" lead-in pairs with the
   // summary shown on its own line below.
   const headerText = isDone ? summary || appLabel || designingLabel : designingLabel;
-  const countBits: string[] = [];
-  if (counts?.objects)
-    countBits.push(`${counts.objects} object${counts.objects === 1 ? '' : 's'}`);
-  if (counts?.views) countBits.push(`${counts.views} view${counts.views === 1 ? '' : 's'}`);
-  if (counts?.dashboards)
-    countBits.push(`${counts.dashboards} dashboard${counts.dashboards === 1 ? '' : 's'}`);
+  const countBits = countBitsOf(counts ?? {});
   return (
     <div className="rounded-lg border bg-muted/30 p-3 text-sm" data-testid="blueprint-progress">
       <div className="mb-2 flex items-center gap-2 font-medium">

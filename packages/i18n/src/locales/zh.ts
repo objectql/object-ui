@@ -2983,6 +2983,80 @@ const zh = {
     sourceInherits: '与 build/ask 相同',
     sourcePinned: '被 {{source}} 钉住',
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: '汇总数据',
+      get_record: '读取记录',
+      query_data: '查询数据',
+      query_records: '查询记录',
+      search_knowledge: '搜索知识库',
+      visualize_data: '生成图表',
+      add_field: '添加字段',
+      apply_blueprint: '搭建应用',
+      apply_edit: '应用修改',
+      create_metadata: '新建元数据',
+      create_object: '新建对象',
+      create_package: '新建应用包',
+      create_seed: '生成示例数据',
+      delete_field: '删除字段',
+      describe_metadata: '查看元数据',
+      describe_object: '查看对象结构',
+      get_active_package: '读取当前应用包',
+      get_metadata_schema: '读取元数据结构',
+      get_package: '读取应用包',
+      list_metadata: '列出元数据',
+      list_objects: '列出对象',
+      list_packages: '列出应用包',
+      modify_field: '修改字段',
+      propose_blueprint: '设计应用方案',
+      set_active_package: '切换当前应用包',
+      suggest_builder: '推荐搭建方式',
+      todo_write: '记录待办',
+      update_metadata: '更新元数据',
+      validate_expression: '校验表达式',
+      verify_build: '校验搭建结果',
+    },
+    toolState: {
+      agentActivity: '智能体活动',
+      pending: '等待中',
+      running: '运行中',
+      awaitingApproval: '待确认',
+      responded: '已回复',
+      completed: '已完成',
+      error: '出错',
+      denied: '已拒绝',
+      failed: '失败',
+    },
+    plan: {
+      countObjects: '{{count}} 个对象',
+      countObjects_one: '{{count}} 个对象',
+      countViews: '{{count}} 个视图',
+      countViews_one: '{{count}} 个视图',
+      countDashboards: '{{count}} 个仪表板',
+      countDashboards_one: '{{count}} 个仪表板',
+      countSeedData: '示例数据',
+    },
+  },
   chatbotError: {
     title: '响应失败',
     fallbackDetail: '出了点问题，请重试。',

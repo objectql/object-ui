@@ -47,6 +47,52 @@ describe('parsePackages — namespace resolution', () => {
   });
 });
 
+/**
+ * objectui#7254 — the Studio top bar showed `app.b2r4` where the author
+ * expected the app's name.
+ *
+ * `GET /api/v1/packages` merges two producers: the durable half nests fields
+ * under `manifest`, the registry half (`getMetaItems({type:'package'})`) hands
+ * back the package metadata DOCUMENT with its fields top-level. The server's
+ * own list handler reads `item.manifest?.id || item.id` on both halves, so
+ * both positions are declared. This reader matched that for `id` and only for
+ * `id`; `name` was manifest-only and every registry-shaped entry degraded to
+ * showing its reverse-domain id as if that were its name.
+ */
+describe('parsePackages — the human name, from either declared position', () => {
+  it('reads a manifest-nested name (the durable half)', () => {
+    const [pkg] = parsePackages(wrap([{ manifest: { id: 'app.b2r4', name: '客户管理' } }]));
+    expect(pkg.name).toBe('客户管理');
+  });
+
+  it('reads a top-level name (the registry half) instead of falling back to the id', () => {
+    const [pkg] = parsePackages(wrap([{ id: 'app.b2r4', name: '客户管理' }]));
+    expect(pkg.id).toBe('app.b2r4');
+    expect(pkg.name).toBe('客户管理');
+  });
+
+  it('prefers the manifest position when both carry a name', () => {
+    const [pkg] = parsePackages(
+      wrap([{ id: 'app.b2r4', name: 'stale', manifest: { id: 'app.b2r4', name: '客户管理' } }]),
+    );
+    expect(pkg.name).toBe('客户管理');
+  });
+
+  it('falls back to the id only when NO name is declared anywhere', () => {
+    // The honest degradation: the producer wrote no name, so there is none to
+    // show. Contract-first — the gap closes at the producer, not here.
+    const [pkg] = parsePackages(wrap([{ manifest: { id: 'app.b2r4' } }]));
+    expect(pkg.name).toBe('app.b2r4');
+  });
+
+  it('treats a blank / whitespace name as absent rather than rendering an empty top bar', () => {
+    expect(parsePackages(wrap([{ manifest: { id: 'app.b2r4', name: '   ' } }]))[0].name).toBe(
+      'app.b2r4',
+    );
+    expect(parsePackages(wrap([{ id: 'app.b2r4', name: '' }]))[0].name).toBe('app.b2r4');
+  });
+});
+
 describe('prefixObjectName', () => {
   it('prepends the namespace to a prefix-less name', () => {
     expect(prefixObjectName('ticket', 'hr')).toBe('hr_ticket');

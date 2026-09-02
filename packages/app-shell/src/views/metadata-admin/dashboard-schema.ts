@@ -24,6 +24,8 @@
 import { z } from 'zod';
 import { DashboardSchema, dashboardForm as specDashboardForm } from '@objectstack/spec/ui';
 import type { FormViewSpec } from './SchemaForm.js';
+import type { SupportedLocale } from './i18n.js';
+import { localizeMetadataForm } from './metadata-form-i18n.js';
 
 type JsonSchema = Record<string, any>;
 
@@ -54,16 +56,28 @@ export function getDashboardSchema(): JsonSchema | undefined {
   return _dashboardDocSchema;
 }
 
-let _dashboardForm: FormViewSpec | undefined;
+/**
+ * Per-locale, because the form now carries LOCALIZED copy (objectui#7254) and
+ * a single slot would have served whichever locale asked first to everyone
+ * after it — a cache that is right until someone switches language.
+ */
+const _dashboardForm = new Map<string, FormViewSpec | undefined>();
 
 /**
  * The canonical authoring FormView, with the fields the curated inspector
  * owns directly (widgets / label / description / name) pruned from every
  * section so they are not double-rendered. Everything else — layout,
  * filters, performance — flows through verbatim from the spec.
+ *
+ * The spec authors these strings in English. `localizeMetadataForm` overlays
+ * the active locale on top (objectui#7254) through the platform's own
+ * `metadataForms.<type>` convention, so the panel speaks the same language as
+ * the Studio around it. A locale the overlay does not carry gets the spec's
+ * English, exactly as before.
  */
-export function getDashboardForm(): FormViewSpec | undefined {
-  if (_dashboardForm) return _dashboardForm;
+export function getDashboardForm(locale?: SupportedLocale | string): FormViewSpec | undefined {
+  const cacheKey = String(locale ?? '');
+  if (_dashboardForm.has(cacheKey)) return _dashboardForm.get(cacheKey);
   if (!specDashboardForm || typeof specDashboardForm !== 'object') return undefined;
   try {
     const clone = JSON.parse(JSON.stringify(specDashboardForm)) as FormViewSpec;
@@ -77,12 +91,19 @@ export function getDashboardForm(): FormViewSpec | undefined {
     clone.sections = (clone.sections ?? []).filter(
       (s: any) => (s.fields ?? []).length > 0,
     );
-    _dashboardForm = clone;
+    // Localize AFTER pruning: the overlay only has to reach what renders, and
+    // pruning cannot drop a section the overlay just renamed.
+    const localized = localizeMetadataForm(
+      clone as unknown as Record<string, unknown>,
+      'dashboard',
+      locale,
+    ) as unknown as FormViewSpec;
+    _dashboardForm.set(cacheKey, localized);
+    return localized;
   } catch (err) {
     if (typeof console !== 'undefined') {
       console.warn('[dashboard-schema] failed to prepare dashboardForm from spec', err);
     }
     return undefined;
   }
-  return _dashboardForm;
 }

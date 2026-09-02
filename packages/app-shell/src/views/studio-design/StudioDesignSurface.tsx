@@ -107,7 +107,7 @@ import { useSurfaceDeepLink, resolveSurfaceDeepLink, type SurfaceTarget } from '
 import { SurfaceDeepLinkProvider, useRequestedSurface } from './surfaceDeepLinkChannel.js';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons.js';
 import { OWD_CREATE_MODELS, OWD_DEFAULT, type OwdCreateModel } from './owd-sharing.js';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { t, tFormat, translateMetadataType, useMetadataLocale } from '../metadata-admin/i18n.js';
 import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel.js';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas.js';
 import {
@@ -975,6 +975,7 @@ function NavTree({
   /** object name → its metadata icon, so object nav items show their own glyph. */
   objectIcons?: Record<string, string | undefined>;
 }): React.ReactElement {
+  const locale = useMetadataLocale();
   return (
     <>
       {nodes.map((node, i) => {
@@ -1009,10 +1010,17 @@ function NavTree({
             }
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 truncate">{node.label}</span>
+            {/* objectui#7254 — a nav item with no declared label used to render
+                an EMPTY row; the internal name is a poor label but an honest
+                one, and it beats a blank the author cannot click by name. */}
+            <span className="flex-1 truncate">{node.label || surface?.name}</span>
             {surface && surface.type !== 'page' && (
-              <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">
-                {surface.type}
+              // The kind chip was the raw English metadata type in an otherwise
+              // localized rail. `uppercase` is dropped with it: it is a
+              // Latin-script affordance that does nothing for CJK and mangles
+              // nothing else only by luck.
+              <span className="text-[9px] tracking-wide text-muted-foreground/60">
+                {translateMetadataType(surface.type, locale)}
               </span>
             )}
           </button>
@@ -1651,9 +1659,20 @@ export function InterfacesPillar({
           </button>
         </div>
         )}
+        {/* objectui#7254 — the canvas caption names WHAT you are editing, in
+            the author's own vocabulary: the item's metadata label plus its
+            translated KIND ("客户仪表盘 · 仪表板"). The internal `type · name`
+            pair it used to print verbatim is developer identity and moves to
+            the tooltip, which the ruling keeps as its allowed home. With no
+            label declared the internal name is still shown — a blank caption
+            would be worse, and the gap is the producer's to close. */}
         {current && (
-          <span className="text-[11px] text-muted-foreground">
-            {current.type} · {current.name}
+          <span
+            className="text-[11px] text-muted-foreground"
+            title={`${t('engine.studio.if.internalId', locale)}: ${current.type} · ${current.name}`}
+            data-testid="if-canvas-caption"
+          >
+            {current.label || current.name} · {translateMetadataType(current.type, locale)}
           </span>
         )}
       </div>
@@ -1942,11 +1961,21 @@ export function InterfacesPillar({
         >
           <Menu className="h-4 w-4" />
         </button>
+        {/* objectui#7254 — the breadcrumb's chip carried the raw
+            `dashboard · customer_dashboard` beside a Chinese label, so the same
+            strip spoke two vocabularies at once. The chip now carries the
+            translated KIND; the internal identity is on the tooltip. */}
         {current ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="text-[13px] font-medium text-foreground">{current.label}</span>
+          <span
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+            title={`${t('engine.studio.if.internalId', locale)}: ${current.type} · ${current.name}`}
+            data-testid="if-breadcrumb"
+          >
+            <span className="text-[13px] font-medium text-foreground">
+              {current.label || current.name}
+            </span>
             <span className="rounded bg-muted px-1.5 py-0.5">
-              {current.type} · {current.name}
+              {translateMetadataType(current.type, locale)}
             </span>
           </span>
         ) : (
