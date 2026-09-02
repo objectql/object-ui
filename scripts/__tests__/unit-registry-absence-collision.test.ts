@@ -210,13 +210,21 @@ describe('the unit project shares one ComponentRegistry, and this gate is what k
 
     const writers: Array<{ file: string; keys: string[] }> = [...population.ownWriters];
     for (const key of suspects) {
-      // Only now — on the expensive path — pay for attribution: bisect the
-      // specifier list for the one that registers this key, then name the files
-      // that import it. The message has to name a file an author can go and edit.
-      const specId = await bisectForKey(key, population.importIds);
-      const importers = specId ? (population.filesBySpecId.get(specId) ?? []) : [];
-      const via = specId ? ` (via ${path.relative(repoRoot, specId)})` : '';
-      for (const importer of importers) writers.push({ file: `${importer}${via}`, keys: [key] });
+      for (const reader of population.readers.filter((r) => r.keys.includes(key))) {
+        // Attribution runs only on this expensive path, and it runs over the
+        // specifiers SOME OTHER file imports. Measuring the whole union instead
+        // would let the reader's own closure answer for the key — a file that
+        // registers what it then asserts absent is hermetic, not a collision,
+        // and reporting one would be a false red.
+        const othersIds = population.importIds.filter((id) =>
+          (population.filesBySpecId.get(id) ?? []).some((f) => f !== reader.file),
+        );
+        const specId = await bisectForKey(key, othersIds);
+        if (!specId) continue;
+        const importers = (population.filesBySpecId.get(specId) ?? []).filter((f) => f !== reader.file);
+        const via = ` (via ${path.relative(repoRoot, specId)})`;
+        for (const importer of importers) writers.push({ file: `${importer}${via}`, keys: [key] });
+      }
     }
 
     const collisions = findCollisions(
