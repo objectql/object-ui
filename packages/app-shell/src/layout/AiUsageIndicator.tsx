@@ -99,6 +99,20 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
   const { t } = useObjectTranslation();
   const { usage } = useAiUsage({ apiBase, enabled });
 
+  // "Now", read OUTSIDE render (react-hooks/purity forbids `Date.now()` in the
+  // render body — it is non-deterministic and the compiler assumes render can
+  // re-run any number of times). `null` until the mount effect measures it —
+  // the render body itself never calls `Date.now()`, only reads this state —
+  // then refreshed periodically so a long-open popover's "N days/hours" stays
+  // roughly current; the countdown is day/hour-grained, so a minute of drift
+  // is invisible.
+  const [now, setNow] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const meters = React.useMemo<RenderableMeter[]>(() => {
     if (!usage) return [];
     const out: RenderableMeter[] = [];
@@ -126,11 +140,12 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
   };
 
   // `resetKind: 'weekly'` (the free plan's rolling 7-day window, cloud PR #1852):
-  // "N days" (or "N hours" inside the final day), derived from `resetsAt`.
+  // "N days" (or "N hours" inside the final day), derived from `resetsAt` and
+  // the `now` state above — PURE given those two inputs, no clock read here.
   // Contract-first (objectui#7371) — `resetsAt` is the ONE source of the reset
   // instant; never re-derive or guess it client-side.
-  const weeklyResetLabel = (resetsAt: string): string => {
-    const diffMs = new Date(resetsAt).getTime() - Date.now();
+  const weeklyResetLabel = (resetsAt: string, nowMs: number): string => {
+    const diffMs = new Date(resetsAt).getTime() - nowMs;
     if (diffMs <= ONE_DAY_MS) {
       const hours = Math.max(1, Math.ceil(diffMs / ONE_HOUR_MS));
       return t('console.ai.usage.resetsWeeklyHours', { count: hours, defaultValue: 'Resets in {{count}} hours' });
@@ -141,13 +156,16 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
 
   // `null` = render nothing for this line — an unrecognized `resetKind` (a
   // future backend value this build doesn't know yet) fails soft instead of
-  // crashing or showing stale/wrong copy, and a `weekly` meter with no
-  // `resetsAt` yet (nothing counted) is never guessed at (objectui#7371).
+  // crashing or showing stale/wrong copy, a `weekly` meter with no `resetsAt`
+  // yet (nothing counted) is never guessed at (objectui#7371), and `now` not
+  // yet measured (the one frame before the mount effect above runs) is the
+  // same "nothing to show yet" as any other missing input.
   const resetLabel = (meter: AiMeterUsage): string | null => {
     if (meter.resetKind === 'daily') return t('console.ai.usage.resetsDaily', { defaultValue: 'Resets tonight' });
     if (meter.resetKind === 'monthly')
       return t('console.ai.usage.resetsMonthly', { defaultValue: 'Resets next cycle' });
-    if (meter.resetKind === 'weekly') return meter.resetsAt ? weeklyResetLabel(meter.resetsAt) : null;
+    if (meter.resetKind === 'weekly')
+      return meter.resetsAt && now !== null ? weeklyResetLabel(meter.resetsAt, now) : null;
     return null;
   };
 
