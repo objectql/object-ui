@@ -47,10 +47,17 @@
  * ## Reverse verification (prediction first, measured in this PR)
  *
  *   - set `INBOX_POLL_MS` to 2_000 — the cadence the card reported — and the
- *     two counting cases go RED (25 reads against the bound of 7) while every
- *     other inbox pin, `twoSurfaces` included, stays GREEN. That asymmetry is
- *     the point: it is the exact defect the card described, and the existing
- *     suite cannot see it.
+ *     three counting cases go RED (`expected 31 to be 7`, and `expected 32 to
+ *     be 8` for the return-to-tab window) while every other inbox pin,
+ *     `twoSurfaces` included, stays GREEN: 1 file failed, 1 passed, 3 tests
+ *     failed of 18. That asymmetry is the point — it is the exact defect the
+ *     card described, and the existing suite cannot see it. Predicted two red
+ *     cases and measured three: the return-to-tab case counts a window too, so
+ *     it fails on the same arithmetic.
+ *   - the hidden-tab case stays GREEN under that same mutation, correctly: the
+ *     backgrounded delay is `max(HIDDEN_POLL_MS, backoff)`, which a faster
+ *     FOREGROUND constant cannot move. It pins a different clock, which is why
+ *     it is a separate case.
  *   - give `useHomeInbox` a second scheduler of its own and
  *     "one feed's cadence, not one per consumer" goes RED while the single-
  *     consumer case stays green — a second scheduler is not a faster one.
