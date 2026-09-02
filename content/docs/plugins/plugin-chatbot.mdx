@@ -49,9 +49,10 @@ npm install @object-ui/plugin-chatbot
 ```tsx
 // Import once in your app entry point
 import '@object-ui/plugin-chatbot'
+import type { ChatbotSchema } from '@object-ui/types'
 
 // Use in schemas
-const schema = {
+const schema: ChatbotSchema = {
   type: 'chatbot',
   messages: [
     {
@@ -171,9 +172,11 @@ The chatbot supports two modes, automatically selected based on the `api` field:
 When `api` is not set, the chatbot operates in local mode with optional auto-response:
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
-  messages: [...],
+  messages: [], // seed with your own ChatMessage values
   autoResponse: true,
   autoResponseText: 'Thanks!',
   autoResponseDelay: 1000,
@@ -185,7 +188,9 @@ const schema = {
 When `api` is set, the chatbot uses `@ai-sdk/react` for real SSE streaming:
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
   api: '/api/v1/ai/chat',
   model: 'gpt-4o',
@@ -202,12 +207,14 @@ const schema = {
 Messages from the user appear on the right side with primary styling:
 
 ```tsx
-{
+import type { ChatMessage } from '@object-ui/types';
+
+const userMessage: ChatMessage = {
   id: '1',
   role: 'user',
   content: 'Hello!',
-  timestamp: '10:30 AM'
-}
+  timestamp: '10:30 AM',
+};
 ```
 
 ### Assistant Messages
@@ -215,12 +222,14 @@ Messages from the user appear on the right side with primary styling:
 Messages from the assistant appear on the left side:
 
 ```tsx
-{
+import type { ChatMessage } from '@object-ui/types';
+
+const assistantMessage: ChatMessage = {
   id: '2',
   role: 'assistant',
   content: 'Hi! How can I help?',
-  timestamp: '10:30 AM'
-}
+  timestamp: '10:30 AM',
+};
 ```
 
 ### System Messages
@@ -228,11 +237,13 @@ Messages from the assistant appear on the left side:
 System messages appear centered with muted styling:
 
 ```tsx
-{
+import type { ChatMessage } from '@object-ui/types';
+
+const systemMessage: ChatMessage = {
   id: '3',
   role: 'system',
-  content: 'Chat session started'
-}
+  content: 'Chat session started',
+};
 ```
 
 ### Tool Messages (AI Mode)
@@ -252,7 +263,9 @@ states. Reasoning, tool parameters, and raw tool results are not stored in this
 cache.
 
 ```tsx
-{
+import type { ChatMessage } from '@object-ui/types';
+
+const toolMessage: ChatMessage = {
   id: '4',
   role: 'assistant',
   content: 'The weather in SF is 68°F.',
@@ -263,9 +276,9 @@ cache.
       args: { city: 'San Francisco' },
       result: { temp: 68, condition: 'Sunny' },
       state: 'result',
-    }
-  ]
-}
+    },
+  ],
+};
 ```
 
 ## Examples
@@ -273,7 +286,9 @@ cache.
 ### Simple AI Chat
 
 ```tsx
-const aiChat = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const aiChat: ChatbotSchema = {
   type: 'chatbot',
   messages: [
     {
@@ -382,12 +397,14 @@ const multiAgentChat = {
 ### Avatar Images
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
   userAvatarUrl: 'https://example.com/user-avatar.jpg',
   assistantAvatarUrl: 'https://example.com/bot-avatar.jpg',
-  messages: [...]
-}
+  messages: [], // seed with your own ChatMessage values
+};
 ```
 
 ### Avatar Fallbacks
@@ -395,12 +412,14 @@ const schema = {
 When images aren't available, fallback text is displayed:
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
-  userAvatarFallback: 'JD',  // User initials
-  assistantAvatarFallback: 'AI',  // Bot identifier
-  messages: [...]
-}
+  userAvatarFallback: 'JD', // User initials
+  assistantAvatarFallback: 'AI', // Bot identifier
+  messages: [], // seed with your own ChatMessage values
+};
 ```
 
 ### Per-message Avatars
@@ -408,13 +427,15 @@ const schema = {
 Override avatars for individual messages:
 
 ```tsx
-{
+import type { ChatMessage } from '@object-ui/plugin-chatbot';
+
+const message: ChatMessage = {
   id: '1',
   role: 'assistant',
   content: 'Message content',
   avatar: 'https://example.com/special-avatar.jpg',
-  avatarFallback: 'SP'
-}
+  avatarFallback: 'SP',
+};
 ```
 
 ## Event Handling
@@ -424,20 +445,22 @@ Override avatars for individual messages:
 Handle message sending in your application:
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
-  messages: [...],
+  messages: [], // seed with your own ChatMessage values
   onSend: (content, allMessages) => {
     console.log('User sent:', content);
     console.log('All messages:', allMessages);
-    
+
     // Send to your backend
     fetch('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ message: content })
+      body: JSON.stringify({ message: content }),
     });
-  }
-}
+  },
+};
 ```
 
 ## Customization
@@ -445,23 +468,27 @@ const schema = {
 ### Container Styling
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
   className: 'w-full max-w-2xl mx-auto border-2 rounded-xl shadow-lg',
   maxHeight: '600px',
-  messages: [...]
-}
+  messages: [], // seed with your own ChatMessage values
+};
 ```
 
 ### Responsive Heights
 
 ```tsx
-const schema = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const schema: ChatbotSchema = {
   type: 'chatbot',
   maxHeight: '400px', // or use Tailwind: 'h-96'
   className: 'sm:max-h-[500px] lg:max-h-[600px]',
-  messages: [...]
-}
+  messages: [], // seed with your own ChatMessage values
+};
 ```
 
 ## TypeScript Support

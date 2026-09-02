@@ -50,6 +50,8 @@ pnpm add @object-ui/plugin-form @object-ui/plugin-grid
 
 ### 2. Set Up ObjectStack Kernel
 
+{/* doc-snippet: fragment — this file belongs to the ObjectStack SERVER project, not to an ObjectUI app. `@objectstack/runtime`, `@objectstack/objectql`, `@objectstack/plugin-app` and `@objectstack/plugin-hono-server` are dependencies of that project and are not declared by any package in this repository, so they do not resolve in this gate's program (measured: TS2307 x4). Correct documentation the gate cannot reach — the authoritative reference is the ObjectStack side, linked in the section below */}
+
 ```typescript
 // src/kernel.ts
 import { Kernel } from '@objectstack/runtime';
@@ -156,18 +158,27 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 ### Multi-Tenancy Support
 
+The adapter's constructor takes no `headers` option. Per-request headers go
+through its `fetch` hook, which it uses for every call it makes:
+
 ```typescript
 // Configure tenant isolation
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
 const adapter = new ObjectStackAdapter({
   baseUrl: 'http://localhost:3000/api',
-  headers: {
-    'X-Tenant-ID': 'tenant-123',
-    'X-Workspace-ID': 'workspace-456'
+  fetch: (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set('X-Tenant-ID', 'tenant-123');
+    headers.set('X-Workspace-ID', 'workspace-456');
+    return globalThis.fetch(input, { ...init, headers });
   }
 });
 ```
 
 ### Role-Based Access Control (RBAC)
+
+{/* doc-snippet: fragment — a SHAPE excerpt of the ObjectStack SERVER's object metadata (the `objects` map of `defineStack()`), not an expression: a bare object literal at statement position parses as a block with labels (measured: TS1005 x4, TS1109 x1, TS1128 x1). This repo declares no type for it — ObjectUI is a pure consumer of what the server publishes */}
 
 ```typescript
 // Define permissions in object schema
@@ -203,16 +214,25 @@ const adapter = new ObjectStackAdapter({
 ObjectOS provides system objects like `sys_user`, `sys_organization`, `sys_role`, etc. Integrate them in your UI:
 
 ```typescript
-{
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { ObjectViewSchema } from '@object-ui/types';
+
+const objectStackAdapter = new ObjectStackAdapter({
+  baseUrl: 'http://localhost:3000/api'
+});
+
+const sysUserView: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'sys_user',
   dataSource: objectStackAdapter,
-  viewTypes: ['grid'],
-  fieldNames: ['username', 'email', 'role', 'status', 'last_login']
-}
+  defaultViewType: 'grid',
+  columns: ['username', 'email', 'role', 'status', 'last_login']
+};
 ```
 
 ### Workflow Integration
+
+{/* doc-snippet: fragment — a SHAPE excerpt of the ObjectStack SERVER's object metadata, not an expression: a bare object literal at statement position parses as a block with labels (measured: TS1005 x4, TS1128 x1). `workflow` is a server-side object concern; this repo declares no type for it */}
 
 ```typescript
 // Define workflow-enabled object
@@ -277,7 +297,7 @@ go through `useViewData` from `@object-ui/react`, which resolves the adapter
 from context and hands back both the rows and the `DataSource` to write with.
 
 ```typescript
-import { useViewData } from '@object-ui/react';
+import { SchemaRenderer, useViewData } from '@object-ui/react';
 
 function ContactList() {
   const { data, loading, error, dataSource, refresh } = useViewData({
@@ -315,6 +335,8 @@ function ContactList() {
 
 Deploy ObjectUI and ObjectStack together in a single Node.js process:
 
+{/* doc-snippet: fragment — `./kernel` and `./console-plugin` are the READER's own project files (the kernel module is the one built in step 2 above), so the relative specifiers resolve nowhere in this gate's program (measured: TS2307 x2) */}
+
 ```typescript
 // server.ts
 import { createKernel } from './kernel';
@@ -338,6 +360,9 @@ start();
 Deploy ObjectUI (frontend) and ObjectStack (backend) separately:
 
 **Backend (ObjectStack API):**
+
+{/* doc-snippet: fragment — `./kernel` is the READER's own project file (the kernel module built in step 2 above), so the relative specifier resolves nowhere in this gate's program (measured: TS2307 x1) */}
+
 ```typescript
 // backend/server.ts
 import { createKernel } from './kernel';
@@ -351,6 +376,9 @@ start();
 ```
 
 **Frontend (ObjectUI):**
+
+{/* doc-snippet: fragment — two files in one block, and it is `import.meta.env` that cannot compile here: the `env` member is a Vite ambient declaration carried by the READER's `vite/client` types, which this repository's gate program does not load (measured: TS2339 x1, plus TS2304 x1 for the adapter the second file imports in the reader's own entry point) */}
+
 ```typescript
 // frontend/src/config.ts
 export const config = {
@@ -424,6 +452,8 @@ spec:
 
 ### Custom Component Registration
 
+{/* doc-snippet: fragment — `MyCustomWidget` is the READER's own component, and the block closes with a bare `{ type: 'my-custom-widget' }` SHAPE excerpt showing where the registered name is then used, which at statement position parses as a block with labels (measured: TS1005 x1) */}
+
 ```typescript
 // Register custom components with ObjectUI
 import { ComponentRegistry } from '@object-ui/core';
@@ -443,6 +473,8 @@ ComponentRegistry.register('my-custom-widget', MyCustomWidget, {
 ```
 
 ### Event Handling & Callbacks
+
+{/* doc-snippet: fragment — a SHAPE excerpt continuing the "Using ObjectQL for Queries" block above, which is where `dataSource` is constructed: a bare object literal at statement position parses as a block with labels (measured: TS1005 x3) */}
 
 ```typescript
 {
@@ -464,30 +496,37 @@ ComponentRegistry.register('my-custom-widget', MyCustomWidget, {
 }
 ```
 
-### Real-time Updates with WebSockets
+### Reacting to Data Changes
+
+⚠️ `@object-ui/data-objectstack` has **no WebSocket transport and no server-push
+subscription**. What it offers is `onMutation`: a notification of the writes
+*this adapter instance* performed, which is what a view needs to refresh itself
+after its own create/update/delete. It returns its own unsubscribe function.
 
 ```typescript
-// Configure WebSocket connection
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
 const adapter = new ObjectStackAdapter({
-  baseUrl: 'http://localhost:3000/api',
-  websocket: {
-    enabled: true,
-    url: 'ws://localhost:3000/ws'
+  baseUrl: 'http://localhost:3000/api'
+});
+
+// Fires for writes this adapter performed. Filter by `resource` for one object.
+const unsubscribe = adapter.onMutation((event) => {
+  if (event.resource !== 'contact') return;
+  if (event.type === 'create' || event.type === 'update') {
+    // Refresh the view holding this object's rows
   }
 });
 
-// Subscribe to real-time updates
-adapter.subscribe('contact', (event) => {
-  if (event.type === 'create' || event.type === 'update') {
-    // Refresh grid
-    gridRef.current?.refresh();
-  }
-});
+// Later, when the view unmounts:
+unsubscribe();
 ```
 
 ## Migration from Other Platforms
 
 ### From Retool
+
+{/* doc-snippet: fragment — a SHAPE excerpt showing the ObjectUI half of a side-by-side migration comparison; `dataSource` continues the "Using ObjectQL for Queries" block above, and a bare object literal at statement position parses as a block with labels (measured: TS1005 x4) */}
 
 ```typescript
 // Retool table → ObjectUI Grid
@@ -502,6 +541,8 @@ adapter.subscribe('contact', (event) => {
 ```
 
 ### From Appsmith
+
+{/* doc-snippet: fragment — a SHAPE excerpt showing the ObjectUI half of a side-by-side migration comparison; `dataSource` continues the "Using ObjectQL for Queries" block above, and a bare object literal at statement position parses as a block with labels (measured: TS1005 x4) */}
 
 ```typescript
 // Appsmith form → ObjectUI form
@@ -518,6 +559,8 @@ adapter.subscribe('contact', (event) => {
 ```
 
 ### From Mendix
+
+{/* doc-snippet: fragment — a SHAPE excerpt showing the ObjectUI half of a side-by-side migration comparison, with every slot body elided as a prose comment, so the object literal cannot parse as TypeScript (measured: TS1005 x2, TS1128 x2) */}
 
 ```typescript
 // Mendix page → ObjectUI page
@@ -555,15 +598,13 @@ await plugins.grid();
 ### Caching Strategy
 
 ```typescript
+import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
 const adapter = new ObjectStackAdapter({
   baseUrl: 'http://localhost:3000/api',
   cache: {
-    enabled: true,
     ttl: 60000, // 1 minute
-    strategies: {
-      'contact': 'stale-while-revalidate',
-      'sys_user': 'cache-first'
-    }
+    maxSize: 500 // entries retained
   }
 });
 ```
@@ -571,6 +612,8 @@ const adapter = new ObjectStackAdapter({
 ## Testing & Quality Assurance
 
 ### Unit Tests
+
+{/* doc-snippet: fragment — a test body: `test` / `expect` are the RUNNER's globals (Vitest or Jest, injected by the reader's own test config, not imported here) and `mockDataSource` is the reader's own fixture, so none of the three resolves in this gate's program (measured: TS2593 x1, TS2304 x2) */}
 
 ```typescript
 import { render } from '@testing-library/react';
