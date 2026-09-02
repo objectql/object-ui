@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { extractRecords } from '@object-ui/core';
-import { createSafeTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, en } from '@object-ui/i18n';
 
 /**
  * The platform's hard row ceiling for a NON-GRID visualisation — gantt,
@@ -136,25 +136,6 @@ export function applyNonGridRowCeiling<T = any>(result: unknown): NonGridCeiling
 }
 
 /**
- * The provider-less fallback for the two keys above — `createSafeTranslation`'s
- * stand-in for the pack value, so a host with no `I18nProvider` renders the
- * sentence rather than the raw key. `check:i18n-call-site-keys` holds these
- * byte-identical to the `en` pack.
- *
- * ⚠️ This copy ships TWICE in the eagerly-loaded `framework` chunk — once here
- * and once in the `en` pack — and that chunk's gzip ceiling had 0.9 KB of
- * headroom when this landed (measured: `origin/main` 510.8 KB against a 511.7
- * KB per-chunk ceiling). Keep both sentences terse; the ruling's own form is
- * "showing first N of M records; narrow the filter", which is what they say.
- */
-const NOTE_DEFAULTS = {
-  'common.rowCeilingNote': 'Showing the first {{shown}} of {{total}} records. Narrow the filter.',
-  'common.rowCeilingNoteUnknownTotal': 'Showing the first {{shown}} records. Narrow the filter.',
-};
-
-const useCeilingNoteTranslation = createSafeTranslation(NOTE_DEFAULTS, 'common.rowCeilingNote');
-
-/**
  * The loud footnote a non-grid view shows when it drew only the first
  * {@link NON_GRID_ROW_CEILING} rows of a larger result set (objectui#7210).
  *
@@ -188,12 +169,37 @@ export function NonGridRowCeilingNote({
   truncated: boolean;
   className?: string;
 }) {
-  const { t } = useCeilingNoteTranslation();
+  // ⚠️ A HOOK AT RENDER, never a module-scope `createSafeTranslation(...)`
+  // factory, and that is a correctness constraint rather than taste. This
+  // module is re-exported from `@object-ui/react`'s entry, so anything at its
+  // module scope runs on IMPORT for every consumer that touches the barrel —
+  // and a factory call there throws inside any test that partially mocks
+  // `@object-ui/i18n` with an object literal instead of `importOriginal`,
+  // before a single assertion runs. Two such files went red in CI on exactly
+  // that, and the population is repo-wide rather than knowable from here, so
+  // the call moved to where it cannot fire at import time. `en` is likewise
+  // dereferenced HERE, at render, not in a module-scope constant.
+  //
+  // `useObjectTranslation` is the one that interpolates on the provider-less
+  // path too (objectui#6219), so `{{shown}}` / `{{total}}` are filled whether
+  // or not the host mounted an `I18nProvider`. The `defaultValue` is read from
+  // the `en` pack rather than retyped: both sit in the same eagerly-loaded
+  // chunk, so a hand copy would ship identical bytes twice, and reading the
+  // pack makes an inline default that disagrees with `en` unrepresentable
+  // instead of merely policed.
+  const { t } = useObjectTranslation();
   if (!truncated) return null;
   const text =
     typeof total === 'number'
-      ? t('common.rowCeilingNote', { shown: drawn, total })
-      : t('common.rowCeilingNoteUnknownTotal', { shown: drawn });
+      ? t('common.rowCeilingNote', {
+          shown: drawn,
+          total,
+          defaultValue: en.common.rowCeilingNote,
+        })
+      : t('common.rowCeilingNoteUnknownTotal', {
+          shown: drawn,
+          defaultValue: en.common.rowCeilingNoteUnknownTotal,
+        });
   return (
     <p
       role="note"
