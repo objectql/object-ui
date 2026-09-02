@@ -35,12 +35,13 @@
     {
       "id": 3,
       "prompt": "How do I add swipe-to-delete and long-press context menus to my Object UI list items on mobile?",
-      "expected_output": "Provides useSwipe and useLongPress hook usage from @object-ui/mobile with threshold and delay configuration.",
+      "expected_output": "Provides useGesture from @object-ui/mobile, one hook per gesture, with type 'swipe-left' / 'long-press' and a threshold; the hook returns a ref to attach, not a handler bag.",
       "files": [],
       "assertions": {
         "must_contain": [
-          "useSwipe",
-          "useLongPress",
+          "useGesture",
+          "swipe-left",
+          "long-press",
           "@object-ui/mobile"
         ],
         "must_not_contain": []

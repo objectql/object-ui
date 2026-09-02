@@ -48,9 +48,11 @@ For the full table of contents (rules + guides links), see the **Quick Reference
 
 ## Coverage map
 
-The skill stays in sync with the `packages/` tree:
+The published packages this skill covers. Nothing checks this list against the
+`packages/` tree, so read it as a snapshot rather than a guarantee:
 
 - **Core renderer:** `@object-ui/types`, `core`, `components`, `fields`, `layout`, `react`
+- **Parsing & runtime:** `@object-ui/sdui-parser`, `react-runtime`
 - **Integration:** `@object-ui/app-shell`, `providers`, `runner`, `data-objectstack`
 - **Platform features:** `@object-ui/auth`, `permissions`, `i18n`, `mobile`, `collaboration`
 - **Plugins (19):** `plugin-{grid, list, detail, form, kanban, calendar, timeline, gantt, dashboard, report, charts, map, editor, markdown, view, tree, designer, ai, chatbot}`

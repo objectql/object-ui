@@ -28,12 +28,12 @@
       "assertions": {
         "must_contain": [
           "visible",
-          "props",
           "admin",
           "section"
         ],
         "must_not_contain": [
-          "role === 'admin' ? <Button"
+          "role === 'admin' ? <Button",
+          "\"props\": {"
         ]
       }
     },

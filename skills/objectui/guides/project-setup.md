@@ -284,13 +284,10 @@ App-shell is router-agnostic — wire it into React Router / Next.js / TanStack 
 
 ### `@object-ui/runner` — universal runtime
 
-Standalone runtime + dev server that ships with `plugin-charts` and `plugin-kanban` pre-registered. Useful for:
-
-- Running a schema as a one-off app (no project scaffolding).
-- Embedding a "play with this schema" sandbox.
-- Reproducing bugs against a known-good runtime.
-
-Typical usage is via the `objectui dev` CLI (which wraps the same renderer).
+Standalone runtime + dev server with `plugin-charts` and `plugin-kanban`
+pre-registered, for running a schema as a one-off app with no project
+scaffolding. Usually reached through the `objectui dev` CLI, which wraps the
+same renderer; no app in this repo's `apps/` or `examples/` imports it directly.
 
 ### Decision matrix
 
