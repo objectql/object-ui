@@ -56,3 +56,24 @@ ar**, and the provider-less path separately, in its own file (`createI18n` insta
 itself as react-i18next's module-level global, so a provider-less render in a file
 that has already mounted a provider silently reads that pack instead of the defaults
 map). No inline `defaultValue` anywhere (objectui#3517).
+
+Two consequences of the sweep, both landed here rather than left for CI to find:
+
+`packages/app-shell/src/console/ai/__tests__/ConversationsSidebar.test.tsx` froze its
+`vi.mock('@object-ui/i18n', ...)` factory to a hand-written object. Its import graph
+reaches `plugin-chatbot`, which now resolves `createSafeTranslation` at module scope, so
+the frozen surface made that read `undefined` and the file died during COLLECTION — the
+objectui#6849 shape, which does not look like a test failure. It now spreads
+`importOriginal()` and overrides only `useObjectTranslation`. Measured, not guessed: of
+the 41 frozen `@object-ui/i18n` factories in the repo, running every one of them showed
+this to be the only file whose graph reaches the package.
+
+The ten pack blocks are locale DATA, and locale data lands in the console's eager
+`framework` chunk, so `scripts/check-eager-closure-budget.mjs` raises that chunk's
+ceiling from 512,000 to 524,000 gzipped bytes and re-pins its baseline onto a fresh
+measurement (502,405 to 514,863). Attributed by three console builds: the merge parent
+reads 510,192, this branch with the ten `aiApprovals` blocks cut reads 510,192 again, and
+this branch reads 514,863 — so the whole 4,671-byte delta is the pack data and nothing
+else. Headroom is kept at the line's own convention (9,137 bytes, 0.10x the regression
+the gate must catch) rather than widened; most of the overage was pre-existing drift, with
+the merge parent already at 510,192 of the 512,000 allowed.

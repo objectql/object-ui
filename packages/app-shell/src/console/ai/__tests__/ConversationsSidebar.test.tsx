@@ -30,7 +30,15 @@ vi.mock('../../../hooks/useConversationList', () => ({
   }),
 }));
 
-vi.mock('@object-ui/i18n', () => ({
+// `importOriginal` spread, not a hand-written object: this file's import graph
+// reaches `@object-ui/plugin-chatbot`, whose `AiPendingActionsInbox` resolves
+// `createSafeTranslation` from this package AT MODULE SCOPE. A frozen factory
+// makes that read `undefined` and the file dies during COLLECTION — before a
+// single test runs, so it does not look like a test failure (objectui#6849,
+// the shape `scripts/check-vi-mock-inherit.mjs` exists to stop). Only
+// `useObjectTranslation` is overridden; everything else is the real module.
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string) => ({
       'common.loading': 'Loading…',
