@@ -1085,6 +1085,7 @@ const es = {
   chart: {
     loading: "Cargando gráfico…",
     nullCategory: "(Sin especificar)",
+    scatterOneMeasure: "Un gráfico de dispersión traza una sola medida. Conserve una sola serie:",
   },
   dashboard: {
     noRows: "Sin filas",

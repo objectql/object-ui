@@ -1091,6 +1091,7 @@ const ru = {
   chart: {
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
+    scatterOneMeasure: "Точечная диаграмма строит только одну меру. Оставьте один ряд:",
   },
   dashboard: {
     noRows: "Нет строк",

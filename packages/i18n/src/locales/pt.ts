@@ -1080,6 +1080,7 @@ const pt = {
   chart: {
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
+    scatterOneMeasure: "Um gráfico de dispersão traça uma única medida. Mantenha apenas uma série:",
   },
   dashboard: {
     noRows: "Sem linhas",

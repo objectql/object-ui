@@ -1083,6 +1083,7 @@ const fr = {
   chart: {
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
+    scatterOneMeasure: "Un nuage de points trace une seule mesure. Ne conservez qu’une série :",
   },
   dashboard: {
     noRows: "Aucune ligne",

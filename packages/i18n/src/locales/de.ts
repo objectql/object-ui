@@ -1081,6 +1081,7 @@ const de = {
   chart: {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
+    scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
   },
   dashboard: {
     noRows: "Keine Zeilen",

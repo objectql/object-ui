@@ -1237,6 +1237,12 @@ const en = {
   chart: {
     loading: 'Loading chart…',
     nullCategory: '(None)',
+    // The refusal a scatter renders when handed more than one series
+    // (objectui#7194): it binds ONE measure, so a second series was painted at
+    // the first one's y values. One short sentence on purpose — this pack is
+    // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
+    // headroom; the series keys are rendered by the chart as data, after it.
+    scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
   },
   report: {
     total: 'Total',

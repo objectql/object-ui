@@ -1120,6 +1120,7 @@ const zh = {
   chart: {
     loading: '图表加载中…',
     nullCategory: '(未指定)',
+    scatterOneMeasure: '散点图只绘制一个度量。请只保留一个系列：',
   },
   report: {
     total: '总计',

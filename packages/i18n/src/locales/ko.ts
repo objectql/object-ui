@@ -1081,6 +1081,7 @@ const ko = {
   chart: {
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
+    scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
   },
   dashboard: {
     noRows: "행 없음",
