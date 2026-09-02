@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { ObjectValidationEngine, type ObjectValidationContext } from '../validators/object-validation-engine';
+import { ObjectValidationEngine } from '../validators/object-validation-engine';
 import type {
   ScriptValidation,
   UniquenessValidation,

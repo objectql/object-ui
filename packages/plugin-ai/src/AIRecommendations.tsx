@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge } from '@object-ui/components';
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@object-ui/components';
 import type { AIRecommendationsSchema, AIRecommendationItem } from '@object-ui/types';
 import { Sparkles, Star, ExternalLink, X, ThumbsUp, ThumbsDown } from 'lucide-react';
 

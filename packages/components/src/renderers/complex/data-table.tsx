@@ -20,7 +20,6 @@ import {
   Table, 
   TableHeader, 
   TableBody, 
-  TableFooter, 
   TableHead, 
   TableRow, 
   TableCell, 
@@ -52,7 +51,6 @@ import {
   Save,
   X,
   Plus,
-  Expand,
   MoreHorizontal,
   AlertCircle,
 } from 'lucide-react';

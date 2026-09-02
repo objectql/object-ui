@@ -48,7 +48,7 @@ import { useRecentItems } from '../hooks/useRecentItems.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useNavPins } from '../hooks/useNavPins.js';
 import { useNavActionDispatch } from '../hooks/useNavActionDispatch.js';
-import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils/index.js';
+import { matchAppBySegment, appRouteSegment } from '../utils/index.js';
 // Aliased for symmetry with objectui's own `resolveKeyedI18nLabel` above (the
 // names stopped colliding in objectui#4167): this is the spec's resolver (new in
 // @objectstack/spec 17.0.0-rc.6) for the INLINE per-locale map form of

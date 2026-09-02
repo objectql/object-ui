@@ -22,7 +22,6 @@ import {
   LayoutDashboard,
   FileText,
   BarChart3,
-  Database,
   Moon,
   Sun,
   Monitor,

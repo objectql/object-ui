@@ -6,7 +6,6 @@
 import { ComponentRegistry } from '@object-ui/core';
 import { PageHeader } from './PageHeader';
 import { PageCard } from './PageCard';
-import { SidebarNav } from './SidebarNav';
 import { ResponsiveGrid } from './ResponsiveGrid';
 import { NavigationRenderer } from './NavigationRenderer';
 import { AppSchemaRenderer } from './AppSchemaRenderer';

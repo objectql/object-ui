@@ -12,7 +12,6 @@ import {
   executeAction,
   type ActionDef,
   type ActionContext,
-  type ActionResult,
 } from '../ActionRunner';
 
 describe('ActionRunner', () => {

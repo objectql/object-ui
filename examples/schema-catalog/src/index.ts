@@ -10,7 +10,7 @@
  * src/catalog-meta.json — that file is the hand-curated one, and the
  * generator only ever reads it.
  */
-import type { Example, ExampleMeta } from './types.js';
+import type { Example } from './types.js';
 
 import actions_action_button_variants from './schemas/actions/action-button-variants.json' with { type: 'json' };
 import actions_action_toolbar from './schemas/actions/action-toolbar.json' with { type: 'json' };

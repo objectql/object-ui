@@ -21,7 +21,6 @@ import {
   TableHead,
   TableRow,
   TableCell,
-  Separator,
   Skeleton,
 } from '@object-ui/components';
 import {
@@ -54,7 +53,6 @@ import {
   resolveSchemaOptions,
   buildLookupColumnDescriptors,
   renderLookupColumnValue,
-  type SchemaOption,
   type LookupCellRendererResolver,
 } from './lookupColumnDisplay.js';
 

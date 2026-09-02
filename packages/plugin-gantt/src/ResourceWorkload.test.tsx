@@ -15,7 +15,7 @@
  * the peak caption, and the empty state.
  */
 import React from 'react';
-import { render, within } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { ResourceWorkload } from './ResourceWorkload';
 import type { GanttTask } from './GanttView';
