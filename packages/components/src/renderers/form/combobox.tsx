@@ -12,7 +12,10 @@ import { Combobox } from '../../custom';
 import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('combobox', 
-  ({ schema, ...props }: { schema: ComboboxSchema; [key: string]: any }) => {
+  ({ schema, disabled: hostDisabled, ...props }: { schema: ComboboxSchema; disabled?: boolean; [key: string]: any }) => {
+  // `hostDisabled` is `SchemaRenderer`'s EVALUATED verdict on `disabled` /
+  // `disabledOn`, not the raw authored key — which may be a predicate STRING,
+  // truthy however it evaluates (objectui#7238, precedent objectui#6169).
     const { 
         'data-obj-id': dataObjId, 
         'data-obj-type': dataObjType,
@@ -25,7 +28,7 @@ ComponentRegistry.register('combobox',
         options={schema.options || []}
         placeholder={schema.placeholder}
         value={schema.value}
-        disabled={schema.disabled}
+        disabled={hostDisabled}
         className={schema.className} 
         {...toFormControlDomProps(comboboxProps)}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}

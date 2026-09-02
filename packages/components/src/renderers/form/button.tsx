@@ -19,7 +19,14 @@ import { resolveIcon } from '../action/resolve-icon';
 // argument — mechanism note on `action:bar` (objectui#4422), pinned by
 // `__tests__/forwardref-props-annotation.guard.test.ts`.
 const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema }>(
-  ({ schema, ...props }: { schema: ButtonSchema; [key: string]: any }, ref) => {
+  // `disabled` is the host-EVALUATED verdict, taken by name. `SchemaRenderer`
+  // evaluates the node's `disabled` / `disabledOn` (either may be a predicate
+  // STRING), strips the raw key from the props it spreads, and forwards the
+  // verdict as a real `disabled` prop. Consuming it here rather than re-reading
+  // `schema.disabled` keeps one carrier for one question (AGENTS.md #0.1,
+  // objectui#7238; precedent `plugin-chatbot`, objectui#6169) — and taking it
+  // OFF `props` is the load-bearing half, see `isDisabled` below.
+  ({ schema, disabled: hostDisabled, ...props }: { schema: ButtonSchema; disabled?: boolean; [key: string]: any }, ref) => {
     // Extract designer-related props
     const { 
         'data-obj-id': dataObjId, 
@@ -38,8 +45,16 @@ const ButtonRenderer = forwardRef<HTMLButtonElement, { schema: ButtonSchema }>(
     // Determine loading state
     const isLoading = schema.loading || props.loading;
     
-    // Determine disabled state
-    const isDisabled = schema.disabled || props.disabled || isLoading;
+    // Determine disabled state. This used to be
+    // `schema.disabled || props.disabled || isLoading`, and the `loading` leg of
+    // that OR never reached the element: `disabled` also rode `buttonProps` into
+    // `toFormControlDomProps` below, which forwards it BY NAME and keeps the key
+    // even when the value is `undefined` (`pickDomProps` iterates `Object.keys`).
+    // Spread after `disabled={isDisabled}`, it overwrote the computed value with
+    // the host's verdict — so a `loading` button with no authored predicate
+    // rendered its spinner on a live, clickable control. Destructuring `disabled`
+    // out of `props` above removes that second writer; this is now the only one.
+    const isDisabled = hostDisabled || isLoading;
 
     return (
     <Button 
