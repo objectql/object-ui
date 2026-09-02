@@ -1,11 +1,6 @@
----
-name: objectui-sdui-page-builder
-description: Build and integrate Schema-Driven UI pages in third-party projects using Object UI. Use this skill whenever the user asks to create app pages from JSON schemas, wire SchemaRenderer into an existing React app, implement CRUD/dashboard/form/list/detail pages with Object UI, or migrate handwritten React pages to schema-driven rendering. Use it even if the user does not explicitly mention "skill" or "SchemaRenderer" but describes metadata-driven page development, console-like page composition, or JSON-to-UI workflows.
----
-
 # ObjectUI SDUI Page Builder
 
-Use this skill to guide app developers (not framework maintainers) to build production pages with Object UI's Schema-Driven UI Engine.
+Building production pages with the Schema-Driven UI engine, for app developers.
 
 ## What this skill should optimize for
 

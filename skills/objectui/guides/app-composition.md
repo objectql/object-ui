@@ -1,8 +1,3 @@
----
-name: objectui-app-composition
-description: Choose the right metadata construct when composing an app — object navigation vs named views vs custom pages vs dashboards. Use this skill whenever generating or reviewing app navigation, deciding between a view / page / dashboard / report for a requirement, or authoring `navigation` items in an app schema. This is the canonical decision guide for AI app generation and for human authors in the metadata studio.
----
-
 # App Composition: Choosing the Right Metadata
 
 This guide answers **"which construct do I reach for?"** — not "how do I build it."

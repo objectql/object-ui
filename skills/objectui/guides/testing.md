@@ -1,11 +1,6 @@
----
-name: objectui-testing
-description: Write and run tests for Object UI components, plugins, schemas, and pages. Use this skill when the user asks to test ObjectUI components, write unit tests with Vitest, write Playwright E2E tests, test schema rendering, test expression evaluation, test component registration, test data binding, debug test failures, or set up test infrastructure. Also applies when the user mentions test coverage, snapshot testing, or asks "how do I test this component/plugin/page".
----
-
 # ObjectUI Testing
 
-Use this skill to write tests across all layers of the Object UI framework: unit tests (Vitest + React Testing Library) and end-to-end tests (Playwright).
+Testing components, plugins, schemas and pages: Vitest + React Testing Library for units, Playwright for end-to-end.
 
 ## Unit test patterns
 

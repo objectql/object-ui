@@ -1,11 +1,6 @@
----
-name: objectui-console-development
-description: Develop features for the Object UI Console application — the reference admin interface. Use this skill when the user works on apps/console code, adds admin pages, modifies the metadata management system, extends the metadata-admin resource registry, creates schema-driven detail pages with PageSchema factories, modifies the UnifiedSidebar or navigation, works with ConsoleLayout/HomeLayout, builds system hub pages, or debugs console-specific routing. Also applies when the user mentions metadata types, object management, admin panel, system settings, app management, or console navigation patterns.
----
-
 # ObjectUI Console Development
 
-Use this skill when working on the Console application (`apps/console/`), the reference admin interface for Object UI. The Console demonstrates schema-driven patterns at scale and serves as the blueprint for enterprise admin interfaces.
+Working on the Console application (`apps/console/`), this repo's reference admin interface. The Console demonstrates schema-driven patterns at scale and serves as the blueprint for enterprise admin interfaces.
 
 > **`apps/console` is a reference assembly, not the engine.** The shell, the layouts,
 > the home pages, the navigation and the whole metadata admin live in

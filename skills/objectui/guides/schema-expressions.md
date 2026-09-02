@@ -1,11 +1,6 @@
----
-name: objectui-schema-expressions
-description: Write, debug, and optimize expression bindings in Object UI schemas. Use this skill when the user works with dynamic expressions in JSON schemas — conditional visibility (hidden/visible), disabled states, template strings with ${} syntax, data binding, formula functions (SUM, IF, CONCAT), or when expressions aren't evaluating as expected. Also use it when the user mentions computed values, dynamic props, expression errors, or schema conditions that aren't working. Even if the user just says something like "my value shows ${data.x} literally" or "hidden isn't working", this skill applies.
----
-
 # ObjectUI Schema Expressions
 
-Use this skill to write correct dynamic expressions in Object UI schemas and to debug expression-related issues. The expression system is the core of Object UI's dynamic behavior — it controls visibility, disabled states, computed content, and data-driven props.
+Writing and debugging dynamic expressions in ObjectUI schemas. The expression system is the core of Object UI's dynamic behavior — it controls visibility, disabled states, computed content, and data-driven props.
 
 ## Architecture overview
 

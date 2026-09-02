@@ -1,11 +1,6 @@
----
-name: objectui-mobile
-description: Implement mobile-responsive features in Object UI apps. Use this skill when the user asks to implement responsive mobile views, optimize touch interactions, handle mobile viewport issues, add offline support, build mobile-first pages, or configure PWA features. Also applies when the user mentions useBreakpoint, touch gestures, swipe actions, bottom sheets, mobile navigation, breakpoint-based layouts, pull-to-refresh, or asks "how to make this work on mobile" or "it looks broken on phones".
----
-
 # ObjectUI Mobile
 
-Use this skill to add mobile-responsive features to Object UI applications via the `@object-ui/mobile` package.
+Mobile-responsive behaviour via `@object-ui/mobile`.
 
 ## useBreakpoint hook
 

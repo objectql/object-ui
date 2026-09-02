@@ -1,11 +1,6 @@
----
-name: objectui-project-setup
-description: Set up, configure, and build Object UI projects — from initializing new apps to configuring the monorepo build system. Use this skill when the user asks to create a new Object UI project, set up a Vite + React app with Object UI, configure pnpm workspace, run the CLI (objectui init/dev/build/serve/studio), debug build issues, configure Turbo pipelines, set up ObjectStack config files, or deploy an Object UI app. Also applies when the user asks about monorepo structure, package dependencies, build order, dev server setup, or "how do I start a new project with Object UI".
----
-
 # ObjectUI Project Setup
 
-Use this skill to set up new Object UI projects, configure the build system, and manage the monorepo development workflow.
+Setting up a new ObjectUI project and configuring its build.
 
 ## Quick start: new project from scratch
 
