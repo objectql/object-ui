@@ -277,13 +277,35 @@ When `SchemaRendererProvider` receives
 
 ### Which components read `bind`
 
-`useDataScope` is called by `list`, `tree-view` and the `object-*` plugin
-widgets; every other component ignores `bind` silently. `data-table` is the one
-that catches authors out -- it reads its rows from an inline `data` array on the
-node, so a bound `data-table` renders its header over an empty body with nothing
-thrown and nothing logged. The full reader list and the four measured legs are
-in [`rules/protocol.md`](../rules/protocol.md); the route is the same as
-everywhere else here -- the host resolves the array and puts it on the node.
+`useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
+and by the `object-*` widgets the plugin packages register (`object-grid`,
+`object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
+`object-timeline`, `object-pivot`). Every other component ignores `bind`
+completely — no error, no warning, nothing in the console.
+
+`data-table` is the one that catches authors out. It takes its rows from an
+inline `data` array on the node and never calls `useDataScope`, so a `bind` on
+it resolves nothing: the table renders its header over the "No results found"
+empty state. Nothing is thrown and nothing is logged — a table that looks built
+and is blank is the whole failure.
+
+```json
+{
+  "type": "data-table",
+  "data": [
+    { "name": "Ada Lovelace", "email": "ada@example.com" },
+    { "name": "Grace Hopper", "email": "grace@example.com" }
+  ],
+  "columns": [
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Email", "accessorKey": "email" }
+  ]
+}
+```
+
+To show *provider* data in a `data-table`, resolve the array in the host and put
+it on the node — the same "expand in the host" route the next section describes
+for per-record nodes.
 
 ## No per-item template iteration (`list` is data-as-nodes)
 

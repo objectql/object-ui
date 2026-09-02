@@ -195,16 +195,35 @@ A component reads the `bind` field only if it calls `useDataScope`:
 Inside the component: `const data = useDataScope("customerNames")` resolves to
 the `customerNames` array from the dataSource.
 
-`useDataScope` is called by `list`, `tree-view` and the `object-*` plugin
-widgets; every other component ignores `bind` silently -- no error, no warning.
-`data-table` is not among the readers, which is the trap worth knowing by name:
-it takes its rows from an inline `data` array on the node, so a bound
-`data-table` renders a correct-looking header over an empty body. Pointing the
-node's own `data` key at an expression fails the same silent way, since node
-keys are not expression-evaluated. **The host resolves the array and puts it on
-the node.** The full reader list, the four measured legs and the one spelling
-that does carry a provider expression through (with its open-question caveat)
-are in [`../rules/protocol.md`](../rules/protocol.md).
+`useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
+and by the `object-*` widgets the plugin packages register (`object-grid`,
+`object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
+`object-timeline`, `object-pivot`). Every other component ignores `bind`
+completely — no error, no warning, nothing in the console.
+
+`data-table` is not among them, which is the trap worth knowing by name: it
+takes its rows from an inline `data` array on the node, so a bound `data-table`
+renders a correct-looking header over an empty body, with nothing thrown and
+nothing logged. Pointing the node's own `data` key at an expression
+(`"data": "${data.customers}"`) fails the same silent way — node keys are not
+expression-evaluated — so **the host resolves the array and puts it on the
+node**, as below. The one spelling that does carry a provider expression
+through is measured, with its open-question caveat, in
+[`../rules/protocol.md`](../rules/protocol.md).
+
+```json
+{
+  "type": "data-table",
+  "data": [
+    { "name": "Ada Lovelace", "email": "ada@example.com" },
+    { "name": "Grace Hopper", "email": "grace@example.com" }
+  ],
+  "columns": [
+    { "header": "Name", "accessorKey": "name" },
+    { "header": "Email", "accessorKey": "email" }
+  ]
+}
+```
 
 ### Via expressions on the node
 

@@ -316,9 +316,20 @@ describe('repo state — the gate is green on this tree', () => {
     // The empty-verdict trap: a broken extractor or a moved scan root satisfies
     // both assertions above by finding nothing. Floors, not exact counts, so
     // ordinary guide edits do not touch this file — measured at 18 files and
-    // 86 assertions on main@6422aa891.
+    // 86 assertions on main@6422aa891, then at 16 files and 27 assertions after
+    // objectui#7251 moved the contributor-only guides out of `skills/`.
+    //
+    // The `checked` floor dropped from 50 to 20 because that move took 55 of
+    // the 93 assertions with it: 49 in `console-development.md` and 6 in
+    // `no-touch-zones.md`, both now under `.claude/skills/`, which SCAN_ROOT
+    // does not reach. Lowering a floor is normally how a gate rots, so the
+    // reason is recorded here and the follow-up is named: widening SCAN_ROOT to
+    // cover `.claude/skills` would bring those 55 back under the gate, and that
+    // is a deliberate decision with its own measurement (see the docblock's
+    // "The prefix allow-list is a decision, not an accident"), not a rider on
+    // the move.
     expect(result.files).toBeGreaterThanOrEqual(15);
-    expect(result.checked).toBeGreaterThan(50);
+    expect(result.checked).toBeGreaterThan(20);
     expect(result.resolved).toBe(result.checked - result.exempt.length);
   });
 
@@ -344,26 +355,39 @@ describe('repo state — the gate is green on this tree', () => {
 });
 
 describe('objectui#3713 / #3730 — the guide those two rounds corrected by hand', () => {
-  const GUIDE = 'skills/objectui/guides/console-development.md';
-  const result = scan(repoRoot);
-  const inGuide = <T extends { file: string }>(rows: T[]) => rows.filter((r) => r.file === GUIDE);
+  // That guide is `console-development.md`, and objectui#7251 moved it out of
+  // the scan root to `.claude/skills/objectui-contributor/guides/` because it
+  // addresses a maintainer of this repo, not a customer of the published
+  // bundle. So the three pins this block used to carry cannot be restated as
+  // they were: `scan(repoRoot)` no longer sees the file, and a filter on its
+  // old path would pass by finding nothing — the exact empty-verdict failure
+  // the block above exists to catch.
+  //
+  // What survives is the half that never needed the scan: the file still
+  // states path coordinates, `extractPathTokens` still reads them, and #3730
+  // alone corrected 13 of them by hand. Pinning the count keeps that fact
+  // visible, and keeps the follow-up honest — the day SCAN_ROOT covers
+  // `.claude/skills`, these coordinates come back under the gate and this
+  // block can go back to asserting `result.missing` on them.
+  const MOVED_GUIDE = '.claude/skills/objectui-contributor/guides/console-development.md';
 
-  it('states no dead path any more', () => {
-    expect(inGuide(result.missing).map((m: { line: number; token: string }) => `${m.line} ${m.token}`)).toEqual([]);
+  it('still lives where the move put it', () => {
+    expect(fs.existsSync(path.join(repoRoot, MOVED_GUIDE))).toBe(true);
   });
 
-  it('is still the densest guide, so the assertion above is not vacuous', () => {
-    // #3730 alone corrected 13 coordinates in this one file. If its path-bearing
-    // prose ever collapses to nothing, the pin above would pass for the wrong
-    // reason.
-    const stated = extractPathTokens(fs.readFileSync(path.join(repoRoot, GUIDE), 'utf8')).filter(
+  it('is still dense in stated paths, which is why it needed a gate', () => {
+    const stated = extractPathTokens(fs.readFileSync(path.join(repoRoot, MOVED_GUIDE), 'utf8')).filter(
       (h: Hit) => !h.pattern,
     );
     expect(stated.length).toBeGreaterThan(40);
   });
 
-  it('carries exactly the one exemption, the deliberate negative sentence', () => {
-    expect(inGuide(result.exempt).map((e: { token: string }) => e.token)).toEqual(['apps/console/src/context/']);
+  it('is NOT covered by the gate today, and that is the open follow-up', () => {
+    // Red the day someone widens SCAN_ROOT: delete this and restore the
+    // `result.missing` assertion above it.
+    const result = scan(repoRoot);
+    expect(result.missing.map((m: { file: string }) => m.file)).not.toContain(MOVED_GUIDE);
+    expect(result.exempt.map((e: { file: string }) => e.file)).not.toContain(MOVED_GUIDE);
   });
 });
 
