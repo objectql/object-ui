@@ -18,15 +18,16 @@
     "Not everything unresolvable needs an entry. A token containing whitespace, a",
     "glob metacharacter or a placeholder segment is excluded by RULE, because it is",
     "not a claim that a file exists -- see the script's docblock. Reach for this file",
-    "only when the prose really does assert the absence of a real coordinate."
+    "only when the prose really does assert the absence of a real coordinate.",
+    "",
+    "EMPTY as of objectui#7251. The one entry was the negative sentence in",
+    "skills/objectui/guides/console-development.md, and that guide moved out of the",
+    "scan root to .claude/skills/objectui-contributor/ -- contributor-only content that",
+    "a customer install has no use for. The gate demanded the deletion in its own",
+    "words: \"1 baseline entry the scan never met ... Delete the entry from",
+    "scripts/skills-path-baseline.json\". An empty map is the correct resting state",
+    "for a ratchet with nothing to exempt, not a missing file."
   ],
 
-  "allowedMissing": {
-    "skills/objectui/guides/console-development.md": {
-      "apps/console/src/context/": {
-        "reason": "Deliberate negative statement. The Key contexts section exists to correct the recurring wrong guess that the five contexts live in the console app: 'there is no apps/console/src/context/ directory at all'. If this directory is ever created, that sentence must be rewritten before the entry is removed.",
-        "issue": "objectui#3735"
-      }
-    }
-  }
+  "allowedMissing": {}
 }

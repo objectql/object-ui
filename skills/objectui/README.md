@@ -22,8 +22,7 @@ skills/objectui/
 ├── rules/        # Non-negotiable global constraints
 │   ├── protocol.md
 │   ├── styling.md
-│   ├── composition.md
-│   └── no-touch-zones.md
+│   └── composition.md
 ├── guides/       # Domain-specific deep dives
 │   ├── architecture.md
 │   ├── app-composition.md
@@ -35,8 +34,7 @@ skills/objectui/
 │   ├── testing.md
 │   ├── i18n.md
 │   ├── mobile.md
-│   ├── auth-permissions.md
-│   └── console-development.md
+│   └── auth-permissions.md
 └── evals/        # Evaluation prompts (one per guide)
 ```
 

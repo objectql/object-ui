@@ -83,7 +83,6 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 
 **✅ Choose the right integration package:**
 
-- **Building the full ObjectUI Console?** → use `apps/console` patterns (see `guides/console-development.md`).
 - **Embedding ObjectUI into a third-party React app with your own router/shell?** → use `@object-ui/app-shell` + `@object-ui/providers`.
 - **Running a schema as a standalone app?** → use `@object-ui/runner` or the `objectui` CLI.
 - **Custom rendering only (no shell)?** → use `@object-ui/react` (`SchemaRenderer`) directly.

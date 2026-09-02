@@ -86,12 +86,6 @@ Layouts are just components that render children. Treat `Grid`, `Stack`, `Contai
 - **Registry:** map type strings (`"type": "button"`) to React components via `ComponentRegistry`.
 - **No `eval()` or runtime dynamic imports** for component resolution — security risk.
 
-### 8. The "No-Touch" Zones (Shadcn Purity)
-
-**Protected path:** `packages/components/src/ui/**/*.tsx` — these are upstream 3rd-party files overwritten by sync scripts. You are FORBIDDEN from modifying their logic or styles. To customize a primitive, wrap it in `packages/components/src/custom/` instead.
-
-See `rules/no-touch-zones.md` for the full list and rationale.
-
 ## Tech Stack (Strict Constraints)
 
 - **Core:** React 18+ (Hooks), TypeScript 5.0+ (Strict).
@@ -119,14 +113,12 @@ See `rules/no-touch-zones.md` for the full list and rationale.
 - **Multi-language support** → [`guides/i18n.md`](./guides/i18n.md)
 - **Mobile & responsive design** → [`guides/mobile.md`](./guides/mobile.md)
 - **Auth, roles, tenants & permissions** → [`guides/auth-permissions.md`](./guides/auth-permissions.md)
-- **Console development (`apps/console`, `app-shell`, providers, MSW debugging)** → [`guides/console-development.md`](./guides/console-development.md)
 
 ### Critical Global Rules
 
 - **JSON protocol compliance** → [`rules/protocol.md`](./rules/protocol.md)
 - **Styling & Tailwind usage** → [`rules/styling.md`](./rules/styling.md)
 - **Component composition patterns** → [`rules/composition.md`](./rules/composition.md)
-- **No-touch zones (Shadcn upstream)** → [`rules/no-touch-zones.md`](./rules/no-touch-zones.md)
 
 ## Common Mistakes to Avoid
 
