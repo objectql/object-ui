@@ -137,15 +137,16 @@
  *     and this rule stays out of the way entirely. A verdict fabricated from
  *     ignorance of the spec would flag every citation in the repo at once.
  *
- * ── The boundary BOTH rules share: exported declarations only (objectui#5899) ─
- * Everything above is scoped by one filter that neither rule's account of its
- * own failure class mentions: each scanner skips any statement without an
- * `export` modifier (`hasExportModifier`, once per scanner). The class is
+ * ── The boundary the rules USED to share: exported only (objectui#5899) ─────
+ * Everything above was once scoped by one filter that neither rule's account of
+ * its own failure class mentions: each scanner skipped any statement without an
+ * `export` modifier (`hasExportModifier`, once per scanner). The class was
  * therefore NOT fully covered by rule 1 plus rule 2. A module-local declaration
- * is outside the jurisdiction of both, whatever it is named and whatever its
- * doc comment claims.
+ * sat outside the jurisdiction of both, whatever it was named and whatever its
+ * doc comment claimed. Rule 2's half of that filter is gone as of
+ * objectui#6291; read on for what it cost.
  *
- * The filter is defensible on this script's own terms: an unexported type
+ * The filter was defensible on this script's own terms: an unexported type
  * cannot be imported by another package under the spec's name, so it cannot
  * become a planted premise through the package's public surface. objectui#5652
  * measured the other half. Three hand-written mirrors of the `FormViewSchema`
@@ -192,17 +193,35 @@
  *   `DashboardWidget` aliases an `@object-ui/types` schema that is itself
  *   spec-derived.
  *
- * So the hole is real rather than theoretical, and it is not a one-line change
- * for RULE 1: dropping the filter there turns the gate red on 29 sites at once,
- * against this header's own standard that an ALLOW map with dozens of entries
- * is not a guard. It IS a clean one-liner for RULE 2, whose entire additional
- * population is two declarations, both real mirrors, one with measured drift.
- * Which of those lands — and whether rule 1 instead gets the two structural
- * narrowings that would retire half the false positives (apply `isRendererLike`
- * to rule 1 too; count a pure alias to one identifier as derivation) — is
- * objectui#5899's decision to make, not this script's. What is corrected here
- * is only the account above, which read as though rule 1 plus rule 2 covered
- * the class.
+ * That census forced the split ruled in objectui#6291: rule 2's filter is a
+ * clean one-liner, rule 1's is a scoped change, and doing both at once would
+ * land 29 reds and four avoidable waivers against this header's own standard
+ * that an ALLOW map with dozens of entries is not a guard.
+ *
+ * ── Rule 2's half of the split: SHIPPED (objectui#6291) ─────────────────────
+ * `scanFileForClaims` no longer filters on `export`. Re-measured on the
+ * implementing commit against `@objectstack/spec@17.2.0` — the a76b18cf2
+ * figures above had already moved, which is exactly why they are re-taken
+ * rather than transcribed:
+ *
+ *   rule 2   18 unbacked claims → 19   (+1 module-local declaration)
+ *
+ * ONE, not the two measured at a76b18cf2. `CURATED_CAPABILITY_LABELS`
+ * (packages/fields) was the other, and objectui#6285 fixed it in the interval:
+ * its comment no longer claims alignment in prose, because
+ * `CapabilityMultiSelectField.specParity-6285.test.tsx` now CHECKS the equality
+ * against `PLATFORM_CAPABILITIES` in both directions. That is the burn-down
+ * this rule exists to provoke, and it took the site out of the population
+ * before this change could reach it.
+ *
+ * The one that remains, `CONTEXT_TOKEN_SUGGESTIONS` (@object-ui/core), is a
+ * real mirror and goes to CLAIM_DEBT — see the note there for why a
+ * shrink-only block is allowed to grow on a jurisdiction widening. Zero
+ * legitimate-local fallout, zero CLAIM_ALLOW entries, and the named pin in
+ * `scripts/__tests__/check-spec-symbol-derivation.test.ts` was REWRITTEN
+ * rather than deleted: it now asserts that a module-local claim IS flagged,
+ * beside a second case proving the precision rules — not the `export` keyword
+ * — are what keep module-local shapes green.
  *
  * These figures are a SNAPSHOT. When they move, re-take them and re-name the
  * commit and the spec version — never edit the numbers in place under the old
@@ -645,6 +664,19 @@ export const CLAIM_ALLOW = {
 //   - keep the copy and move it to CLAIM_ALLOW with the reason it exists;
 //   - or delete the claim from the comment, because it is not true here.
 //
+// The block GREW once, at objectui#6291, and that is not a ratchet failure: rule
+// 2 stopped skipping module-local declarations in the same commit, so
+// `CONTEXT_TOKEN_SUGGESTIONS` (@object-ui/core) is a pre-existing claim the rule
+// could not previously SEE, not a new one somebody wrote. It is a real mirror —
+// byte-identical to `@objectstack/spec/data`'s nine-entry map — and 25 lines
+// above it the same file explains that its neighbour `CONTEXT_TOKENS` became a
+// re-export precisely because "the copy was byte-identical, so every value
+// comparison and every behavioural test passed while it sat here". Burning it
+// down is the same edit that fixed the neighbour; it is listed rather than
+// excused because nothing about it is deliberate. Widening a rule's
+// jurisdiction is the ONLY sanctioned way this block grows, and it must be
+// mechanically regenerated (`--claim-ledger`) in that same commit.
+//
 // Eight entries left by that last route in objectui#4597 — the i18n formatters'
 // four and views.ts's four, which cited `DateFormatSchema`, `NumberFormatSchema`,
 // `PluralRuleSchema`, `LocaleConfigSchema`, `FieldChangeEntrySchema`,
@@ -679,10 +711,20 @@ const CLAIM_DEBT = {
     "RecordRelatedListComponentProps",
     "SubmitBehavior",
   ],
-  "@object-ui/core": ["ResultDialogFieldSpec", "ViewDataConfig"],
-  "@object-ui/app-shell": ["RecordLookupBinding"],
-  "@object-ui/plugin-view": ["ROW_HEIGHT_OPTIONS"],
-  "@object-ui/react": ["DensityModeValue"],
+  "@object-ui/core": [
+    "CONTEXT_TOKEN_SUGGESTIONS",
+    "ResultDialogFieldSpec",
+    "ViewDataConfig",
+  ],
+  "@object-ui/app-shell": [
+    "RecordLookupBinding",
+  ],
+  "@object-ui/plugin-view": [
+    "ROW_HEIGHT_OPTIONS",
+  ],
+  "@object-ui/react": [
+    "DensityModeValue",
+  ],
 };
 
 // ── 1. Enumerate every `@objectstack/spec` export name, per subpath ──────────
@@ -953,7 +995,11 @@ export function scanFileForClaims(file, specNames = new Map()) {
 
   const findings = [];
   for (const stmt of sf.statements) {
-    if (!hasExportModifier(stmt)) continue;
+    // No export filter: a module-local declaration carrying a spec-alignment
+    // claim is the same planted premise as an exported one (objectui#6291).
+    // The claim is read by the next agent editing the FILE, not by an importer,
+    // so the package boundary was never what made it dangerous. Measured cost of
+    // dropping it here: see the header's rule-2 line.
 
     let nameNode = null;
     if (

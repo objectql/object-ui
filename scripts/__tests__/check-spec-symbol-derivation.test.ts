@@ -310,7 +310,23 @@ export interface UnrelatedLocalShape {
     );
   });
 
-  it('an unexported declaration — it publishes no surface to be mistaken for the spec', () => {
+  // ── Rewritten deliberately, not deleted (objectui#6291) ──────────────────
+  // This slot held the INVERSE pin — *"an unexported declaration — it publishes
+  // no surface to be mistaken for the spec"* — asserting `scan()` returns `[]`
+  // for the fixture below. It was a designed assertion, and its premise was
+  // measured false (objectui#5899, census in PR #6284): a spec-alignment claim
+  // is read by the next agent editing the FILE, not by an importer, so the
+  // package boundary was never what made it dangerous. The three module-local
+  // mirrors in `packages/react/src/spec-bridge/bridges/form-view.ts`
+  // (objectui#5652) had drifted on three keys and INVERTED one arm — admitting
+  // only the value the contract rejects — with this gate green throughout.
+  //
+  // The old fixture is kept verbatim below because it makes the point sharper
+  // than any new one could: it re-exported the declaration on the very next
+  // line (`export type { InternalNavigationConfig }`), so it DID publish a
+  // surface. `hasExportModifier` never saw it, because the export was a
+  // separate statement. The pin's own fixture contradicted the pin's own name.
+  it('a module-local declaration carrying a claim IS flagged (objectui#6291)', () => {
     withFixture(
       {
         'internal.ts': `
@@ -323,7 +339,44 @@ export const NAVIGATION_MODES = ['page', 'drawer'] as const;
 export type { InternalNavigationConfig };
 `,
       },
-      ({ 'internal.ts': file }) => expect(scan(file)).toEqual([])
+      ({ 'internal.ts': file }) => {
+        const found = scan(file);
+        expect(found.map((f: { name: string }) => f.name)).toEqual(['InternalNavigationConfig']);
+        expect(found[0].phrase.toLowerCase()).toContain('aligned with');
+      }
+    );
+  });
+
+  // The half the retired pin was really holding: rule 2 must stay quiet on
+  // module-local shapes, but for its OWN reasons — the renderer skip, the tie
+  // test, and the absence of a claim — never because of an `export` keyword.
+  // Each of the three below is module-local, and each is green on a different
+  // precision rule. If dropping the export filter had widened the rule beyond
+  // its stated boundary, these would have turned red with it.
+  it('…and the precision rules, not the export keyword, are what keep locals green', () => {
+    withFixture(
+      {
+        'locals.tsx': `
+import type { NavigationConfig } from '@objectstack/spec/ui';
+
+/** Local nav row. Aligned with @objectstack/spec ListView. */
+interface LocalTiedShape {
+  navigation?: NavigationConfig;
+}
+
+/** Local picker. Aligned with @objectstack/spec ReactionSchema. */
+const LocalReactionPicker = () => null;
+
+/** Fully resolved navigation state after defaults are applied. */
+interface LocalNoClaim {
+  mode: 'page' | 'drawer';
+}
+
+export type { LocalTiedShape, LocalNoClaim };
+export { LocalReactionPicker };
+`,
+      },
+      ({ 'locals.tsx': file }) => expect(scan(file)).toEqual([])
     );
   });
 });
