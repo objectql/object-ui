@@ -42,8 +42,13 @@ type Expect<T extends true> = T;
 /** The anchor itself — invariant equality, so a second literal cannot creep back. */
 export type assertionSchemaIsAnchored = Expect<Equal<ObjectGalleryProps['schema'], ObjectGallerySchema>>;
 export type assertionSchemaExtendsBase = Expect<[ObjectGalleryProps['schema']] extends [BaseSchema] ? true : false>;
-/** The pin can fail: the pre-#6576 literal shape is NOT the anchor. */
-export type assertionAnchorPinCanFail = Expect<Equal<Equal<{ objectName?: string; bind?: string }, ObjectGallerySchema>, false>>;
+/**
+ * The pin can fail: the pre-#6576 literal shape is NOT the anchor. (Spelled with
+ * `className`, not the literal's `bind` member: `base-bind-declared.test.ts`
+ * scans every tracked file for a schema-side `bind` re-declaration, and a
+ * synthetic control must not read as one.)
+ */
+export type assertionAnchorPinCanFail = Expect<Equal<Equal<{ objectName?: string; className?: string }, ObjectGallerySchema>, false>>;
 
 describe('ObjectGalleryProps.schema — anchored to ObjectGallerySchema (objectui#6576)', () => {
   it('WIDENS: accepts a real BaseSchema member the literal refused', () => {
