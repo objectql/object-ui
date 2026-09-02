@@ -981,6 +981,33 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const [editValue, setEditValue] = useState<any>('');
   // Track pending changes for multi-cell editing: rowIndex -> { columnKey -> newValue }
   const [pendingChanges, setPendingChanges] = useState<Map<number, Record<string, any>>>(new Map());
+
+  // objectui#7188 — the row merged with its STAGED edits, handed to the host
+  // editor as `pendingRow` next to the persisted `row`. Cached per row object
+  // and rebuilt whenever `pendingChanges` is replaced (every stage / save /
+  // cancel builds a new Map), so the merged record keeps its IDENTITY across
+  // renders that stage nothing. That matters: `LookupField` keys its
+  // `dependentFilter` / `popoverFilter` memos on the identity of the record it
+  // is handed, and its recent-ids effect keys on `popoverFilter`, so a fresh
+  // object per render would re-issue that query on every table re-render while
+  // the picker is open (`useRecordQuery` itself is immune — it keys on a JSON
+  // signature). `row` is identity-stable for the same reason; a row with
+  // nothing staged is handed `row` itself.
+  const pendingRows = useMemo(() => {
+    const byRow = new WeakMap<object, any>();
+    return {
+      /** `row` merged with its staged edits — or `row` itself when it has none. */
+      of(row: any, rowIndex: number): any {
+        const changes = pendingChanges.get(rowIndex);
+        if (!changes || row === null || typeof row !== 'object') return row;
+        const hit = byRow.get(row);
+        if (hit !== undefined) return hit;
+        const merged = { ...row, ...changes };
+        byRow.set(row, merged);
+        return merged;
+      },
+    };
+  }, [pendingChanges]);
   const [isSaving, setIsSaving] = useState(false);
   // Last save failure message (server validation text, etc.) shown in the
   // toolbar; null when the last save attempt succeeded or nothing's been saved.
@@ -1025,8 +1052,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   //
   // The listener is still needed, for a different reason: NOTHING EVER HANDS
   // THE WIDGET ONE. The wrapper below carries `onKeyDown` alone, and the
-  // context object `renderCellEditor` receives — `{ column, row, value, stage,
-  // commit, cancel }` — has no DOM-props slot to put an `onBlur` in.
+  // context object `renderCellEditor` receives — `{ column, row, pendingRow,
+  // value, stage, commit, cancel }` — has no DOM-props slot to put an `onBlur` in.
   //
   // ⚠️ The second half of that reason is GONE (objectui#6909). The in-repo
   // factory behind the seam, `@object-ui/fields`' `FieldEditWidget`, used to
@@ -2320,6 +2347,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   const node = injectEditor({
                                     column: col,
                                     row,
+                                    // The persisted row with this row's staged,
+                                    // unsaved edits merged over it (objectui#7188);
+                                    // the SAME object as `row` when nothing is
+                                    // staged, so `row === pendingRow` reads as
+                                    // "clean" on the host side.
+                                    pendingRow: rowHasChanges ? pendingRows.of(row, rowIndex) : row,
                                     value: editValue,
                                     stage: stageEdit,
                                     commit: (v?: any) => saveEdit(true, v),
