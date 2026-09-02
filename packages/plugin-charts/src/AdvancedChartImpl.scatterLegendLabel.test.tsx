@@ -121,6 +121,21 @@ describe('objectui#7248 — the scatter legend names its series', () => {
     expect(legendEntries(container)).toEqual([{ hasSwatch: true, text: 'avg_estimate' }]);
   });
 
+  it('resolves the legend entry through the CONFIG, not just the series name', () => {
+    // What `nameKey` buys, pinned separately because the `item.value` fallback
+    // masks it on the label: with the key collapsed to `'value'` the config
+    // lookup can never hit, so `itemConfig.icon` is dead for scatter and a
+    // config-declared legend icon is silently ignored — while every other
+    // family honours it. Measured via the icon because that is the one branch
+    // the fallback cannot stand in for.
+    const Icon = () => <svg data-testid="legend-icon" />;
+    const { container } = renderScatter({
+      config: { progress: { label: 'Progress' }, avg_estimate: { label: 'Avg Estimate', icon: Icon } },
+    });
+    expect(container.querySelector('[data-testid="legend-icon"]')).not.toBeNull();
+    expect(legendEntries(container)).toEqual([{ hasSwatch: false, text: 'Avg Estimate' }]);
+  });
+
   it('never paints a swatch with no text — the invariant, across families', () => {
     // The class this card belongs to, not just its one instance. A legend entry
     // that cannot be named is worse than no legend: it adds an anonymous mark
