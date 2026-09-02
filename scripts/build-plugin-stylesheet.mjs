@@ -214,8 +214,12 @@ export function indexSheet(rootNode) {
  * those exact bytes are part of a published artifact (objectui#6405). Wording
  * that would be an improvement everywhere else is a diff in a published file
  * there. A package with no such history passes no `header` and inherits this.
+ *
+ * Exported (objectui#7044) so `scripts/__tests__/plugin-published-stylesheet.test.ts`
+ * can pin the emitted banner against the real default instead of a second,
+ * hand-spelled copy that would be free to drift from it while staying green.
  */
-function defaultHeader(packageName) {
+export function defaultHeader(packageName) {
   return [
     `/*! ${packageName} — utilities this package adds on top of @object-ui/components.`,
     ' *',
