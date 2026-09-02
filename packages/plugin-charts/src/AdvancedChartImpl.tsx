@@ -1046,6 +1046,49 @@ function AdvancedChartImplInner({
     [data, xAxisKey],
   );
 
+  // objectui#7247 — a CATEGORICAL x axis with few buckets draws every label.
+  //
+  // On a band (categorical) axis a tick is the bar's NAME, not a sample of a
+  // continuum: drop it and the reader cannot recover it, because there is
+  // nothing to interpolate between neighbours and a single-series bar chart has
+  // no legend to fall back on. On a time axis the opposite holds — a reader
+  // reconstructs the skipped dates — which is why the thinning policy below is
+  // right there and wrong here. Measured in the dashboard shape (3-column grid
+  // in an ~800px console, widget ≈200px): 3 bars drew 1 label, 5 bars drew 2.
+  //
+  // Where the bound comes from (so it is a derivation, not a taste):
+  //
+  //   plot width at the narrowest shipped widget
+  //     = 200 (widget) − 48 (`YAxis width`, below) − 5 − 5 (chart margins) = 142px
+  //   rotated tick labels are PARALLEL lines, so adjacent ones collide only
+  //   when their perpendicular separation drops under one line box:
+  //     separation = bandWidth · sin(35°) = 0.574 · (142 / buckets)
+  //   one 12px line box ≈ 14px  ⇒  buckets ≤ 5.8
+  //
+  // So at 5 buckets or fewer every label is guaranteed to fit at the narrowest
+  // width the product ships, with no measurement — which is why `interval={0}`
+  // is safe HERE and was not safe as the blanket setting it used to be (a
+  // hundreds-of-points series painted a dense black bar). Above the bound
+  // nothing changes: recharts keeps thinning against its own measured text.
+  const X_AXIS_ALL_LABELS_MAX_BUCKETS = 5;
+
+  /**
+   * Longest rotated x label kept before it is ellipsised, so a label this
+   * branch newly forces into view cannot overrun the 60px the axis reserves:
+   * 12 chars ≈ 78px of text, × sin(35°) ≈ 45px of height, inside 60 − 10
+   * (`tickMargin`). Scoped to the forced branch — charts above the bound keep
+   * rendering their labels exactly as before.
+   */
+  const ROTATED_X_LABEL_MAX_CHARS = 12;
+
+  /** Every bucket gets a name (see the derivation above). */
+  const labelEveryBucket = data.length > 0 && data.length <= X_AXIS_ALL_LABELS_MAX_BUCKETS;
+
+  // Rotation is what BUYS the complete axis, so in the forced branch it applies
+  // on mobile too: drawing every label without rotating is the horizontal
+  // overlap the old thinning avoided. Above the bound the trigger is unchanged.
+  const rotateXLabels = labelEveryBucket ? hasLongLabels : (!isMobile && hasLongLabels);
+
   // Helper function to get color palette. An explicit `colors` prop (set by the
   // page/dashboard) wins; otherwise fall back to the theme's --chart-1..5 vars.
   const getPalette = () => (Array.isArray(colors) && colors.length > 0 ? colors : [
