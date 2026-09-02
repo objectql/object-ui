@@ -137,12 +137,21 @@ describe('objectui#7194 — a scatter handed two or more series refuses', () => 
     expect(codes).toEqual(['ym', 'zm', 'xm']);
   });
 
-  it('a `compareTo` overlay is a second series and refuses like any other', () => {
+  it('a `compareTo` overlay currently refuses too — it reaches the guard as a second series', () => {
     // `ObjectChart` and `DatasetWidget` both synthesise a `variant:
     // 'comparison'` series for a compared measure, and on scatter it was
     // painted at the primary's y values by the very mechanism this card fixes
-    // — the overlay never read its own column. The ruling counts series, not
-    // variants, and so does the guard; this pin makes that deliberate.
+    // — the overlay never read its own column.
+    //
+    // ⚠️ This pins CURRENT behaviour, and that behaviour is NOT ruled. The
+    // guard counts series and cannot see that one of them was synthesised; the
+    // ruling says only "a `chartType: 'scatter'` with two or more `series`" and
+    // never mentions `compareTo` or `variant`. Whether refusing is the right
+    // answer on this path is open in objectui#7402. If that card excludes
+    // scatter from `compareTo` (its shape (b), as pie/donut/funnel already
+    // are), the overlay is never synthesised, this path stops arising in
+    // product and THIS PIN INVERTS — that is the decision landing, not a
+    // regression. Until it rules, the pin records what ships.
     const rows: Row[] = [{ xm: 10, ym: 40, ym__comparison: 30 }, { xm: 20, ym: 25, ym__comparison: 20 }];
     const { container } = renderScatter(
       [{ dataKey: 'ym', label: 'Y', variant: 'current' }, { dataKey: 'ym__comparison', label: 'Previous period', variant: 'comparison' }],
@@ -198,8 +207,20 @@ describe('objectui#7194 — a scatter handed two or more series refuses', () => 
 
 describe('objectui#7194 — the copy lives in the locale packs', () => {
   it('the `en` pack carries the sentence the provider-less fallback renders', () => {
-    // The gate `check:i18n-keys` enforces this equality too; pinned here so
-    // the two strings cannot drift apart between gate runs.
+    // ⛔ NO gate covers this equality — this assertion is the only thing
+    // holding the inline fallback and the `en` pack value together, so deleting
+    // it as redundant silently un-guards them.
+    //
+    // `check:i18n-keys` compares an inline default against its pack value only
+    // when it is written as an options bag: `inlineDefaultValue`
+    // (`scripts/check-i18n-call-site-keys.mjs`) reads a `defaultValue` property
+    // off an object literal, and `interpolationOptions` skips a positional
+    // string outright. This call site passes the English POSITIONALLY —
+    // `tt('chart.scatterOneMeasure', 'A scatter plots one measure. …')` — so no
+    // gate ever sees the pair. Measured on this head: with the inline fallback
+    // changed to `Keep ONE series:`, all three i18n gates (`check:i18n-keys`,
+    // `check:i18n-drift`, `check:i18n-dead-keys`) still exit 0. This test is
+    // what goes red.
     expect(builtInLocales.en.chart.scatterOneMeasure).toBe(EN_COPY);
     const { container } = renderScatter(TWO_SERIES);
     expect(arityRefusalOf(container)!.textContent).toContain(EN_COPY);
