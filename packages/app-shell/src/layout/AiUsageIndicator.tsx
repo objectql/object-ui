@@ -25,6 +25,9 @@ import { cloudConsoleUrl } from '../console/marketplace/marketplaceApi.js';
 /** Fraction at/above which a meter is "running low" (amber + CTA). */
 export const NEAR_FULL = 0.8;
 
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+
 type Tone = 'ok' | 'low' | 'full';
 
 function toneFor(fraction: number): Tone {
@@ -96,6 +99,20 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
   const { t } = useObjectTranslation();
   const { usage } = useAiUsage({ apiBase, enabled });
 
+  // "Now", read OUTSIDE render (react-hooks/purity forbids `Date.now()` in the
+  // render body — it is non-deterministic and the compiler assumes render can
+  // re-run any number of times). `null` until the mount effect measures it —
+  // the render body itself never calls `Date.now()`, only reads this state —
+  // then refreshed periodically so a long-open popover's "N days/hours" stays
+  // roughly current; the countdown is day/hour-grained, so a minute of drift
+  // is invisible.
+  const [now, setNow] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const meters = React.useMemo<RenderableMeter[]>(() => {
     if (!usage) return [];
     const out: RenderableMeter[] = [];
@@ -122,10 +139,35 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
     return t('console.ai.usage.statusOk', { defaultValue: 'Plenty left' });
   };
 
-  const resetLabel = (meter: AiMeterUsage): string =>
-    meter.resetKind === 'daily'
-      ? t('console.ai.usage.resetsDaily', { defaultValue: 'Resets tonight' })
-      : t('console.ai.usage.resetsMonthly', { defaultValue: 'Resets next cycle' });
+  // `resetKind: 'weekly'` (the free plan's rolling 7-day window, cloud PR #1852):
+  // "N days" (or "N hours" inside the final day), derived from `resetsAt` and
+  // the `now` state above — PURE given those two inputs, no clock read here.
+  // Contract-first (objectui#7371) — `resetsAt` is the ONE source of the reset
+  // instant; never re-derive or guess it client-side.
+  const weeklyResetLabel = (resetsAt: string, nowMs: number): string => {
+    const diffMs = new Date(resetsAt).getTime() - nowMs;
+    if (diffMs <= ONE_DAY_MS) {
+      const hours = Math.max(1, Math.ceil(diffMs / ONE_HOUR_MS));
+      return t('console.ai.usage.resetsWeeklyHours', { count: hours, defaultValue: 'Resets in {{count}} hours' });
+    }
+    const days = Math.ceil(diffMs / ONE_DAY_MS);
+    return t('console.ai.usage.resetsWeeklyDays', { count: days, defaultValue: 'Resets in {{count}} days' });
+  };
+
+  // `null` = render nothing for this line — an unrecognized `resetKind` (a
+  // future backend value this build doesn't know yet) fails soft instead of
+  // crashing or showing stale/wrong copy, a `weekly` meter with no `resetsAt`
+  // yet (nothing counted) is never guessed at (objectui#7371), and `now` not
+  // yet measured (the one frame before the mount effect above runs) is the
+  // same "nothing to show yet" as any other missing input.
+  const resetLabel = (meter: AiMeterUsage): string | null => {
+    if (meter.resetKind === 'daily') return t('console.ai.usage.resetsDaily', { defaultValue: 'Resets tonight' });
+    if (meter.resetKind === 'monthly')
+      return t('console.ai.usage.resetsMonthly', { defaultValue: 'Resets next cycle' });
+    if (meter.resetKind === 'weekly')
+      return meter.resetsAt && now !== null ? weeklyResetLabel(meter.resetsAt, now) : null;
+    return null;
+  };
 
   // Worst meter drives the trigger accent + the inline "running low" hint.
   const worst = meters.reduce((a, b) => (b.fraction > a.fraction ? b : a));
@@ -170,6 +212,7 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
             // No upstream cloud named by the runtime ⇒ no control plane to
             // send anyone to, so no CTA (objectui#7253).
             const showCta = tone !== 'ok' && (meter.upgrade || meter.topUp) && !!cloudConsoleUrl();
+            const reset = resetLabel(meter);
             return (
               <li key={key} className="flex items-start gap-2.5">
                 <MeterRing fraction={fraction} tone={tone} size={22} />
@@ -189,7 +232,7 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
                       {statusLabel(tone)}
                     </span>
                   </div>
-                  <div className="text-xs text-muted-foreground">{resetLabel(meter)}</div>
+                  {reset ? <div className="text-xs text-muted-foreground">{reset}</div> : null}
                   {showCta ? (
                     <Button
                       variant="link"
