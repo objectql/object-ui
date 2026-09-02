@@ -963,10 +963,26 @@ export interface DataTableSchema extends BaseSchema {
    * did so through a `(schema as any)` cast, which existed for no reason other
    * than this declaration's absence and is gone with it. Nothing new runs; a
    * misspelling is now caught at authoring time instead of failing silently.
+   *
+   * The context carries the row TWICE, deliberately (objectui#7188): `row` is
+   * the PERSISTED record and `pendingRow` is that record with the row's
+   * staged-but-unsaved edits merged over it. A widget that scopes itself by a
+   * sibling field (a `dependsOn` lookup) wants the staged one, so picking a
+   * parent re-scopes the child before anything is saved — the form's
+   * live-record semantics (PR objectui#2216). `row` was NOT redefined to mean
+   * the merged record: that would silently change an already-published member,
+   * and a host that needs the persisted value would have lost its only source.
    */
   renderCellEditor?: (ctx: {
     column: any;
+    /** The PERSISTED record — what the data source last returned for this row. */
     row: any;
+    /**
+     * `row` shallow-merged with this row's staged, unsaved edits (the table's
+     * `pendingChanges` entry). The same object as `row` when nothing is staged.
+     * The record a dependent widget should scope itself by (objectui#7188).
+     */
+    pendingRow: any;
     value: any;
     stage: (v: any) => void;
     commit: (v?: any) => void;
