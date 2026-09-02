@@ -219,6 +219,7 @@ strict pnpm workspace.)
 2. **Register it** with a side-effect import in `src/App.tsx`, alongside the two
    pre-installed plugins:
 
+{/* doc-snippet: fragment — names `@object-ui/plugin-yourplugin`, the package the reader is being walked through creating, so the specifier resolves nowhere here (TS2882). The two real imports it stands in for are compiled on this page under "Plugin Not Loading". */}
 ```typescript
 import '@object-ui/plugin-yourplugin'
 ```
@@ -228,6 +229,7 @@ import '@object-ui/plugin-yourplugin'
    closure. Skipping this is what the `vite.config.ts` section above describes: the dev
    server answers HTTP 500 for every module on the import chain.
 
+{/* doc-snippet: fragment — one property out of `resolve.alias` in `vite.config.ts`, quoted where it belongs rather than as a whole config; a bare object entry is not a module and does not parse on its own (TS1005, TS1109). */}
 ```typescript
 "@object-ui/plugin-yourplugin": path.resolve(__dirname, "../../packages/plugin-yourplugin/src"),
 ```
@@ -255,11 +257,16 @@ import '@object-ui/plugin-yourplugin'
 
 Test new plugins in a full application context:
 
-```typescript
-// src/App.tsx
-import '@object-ui/plugin-myplugin'
+Register the plugin in `src/App.tsx`:
 
-// src/app-data/pages/index.json — the page served at "/"
+{/* doc-snippet: fragment — names `@object-ui/plugin-myplugin`, the plugin the reader is developing, so the specifier resolves nowhere here (TS2882). */}
+```typescript
+import '@object-ui/plugin-myplugin'
+```
+
+…then give it a page to render, as `src/app-data/pages/index.json` — the page served at `/`:
+
+```json
 {
   "type": "page",
   "title": "Plugin test",
@@ -462,7 +469,7 @@ for how a route maps to a file or a request.
 The package ships no components of its own, so create the file wherever you like under
 `src/` — this example uses a `components/` directory you add yourself:
 
-```typescript
+```tsx
 // src/components/MyComponent.tsx
 export const MyComponent = () => {
   return <div>My Custom Component</div>
@@ -471,6 +478,7 @@ export const MyComponent = () => {
 
 Register with the ComponentRegistry:
 
+{/* doc-snippet: fragment — continues the block above by importing `./components/MyComponent`, the file the reader has just been told to create, so the relative specifier resolves nowhere here (TS2307). The `@object-ui/core` half of it is real and compiles. */}
 ```typescript
 import { ComponentRegistry } from '@object-ui/core'
 import { MyComponent } from './components/MyComponent'
@@ -532,12 +540,15 @@ other dynamic expressions, then looking the component type up in the registry �
 outside it, so a throw there propagates past the inner boundary. Wrap `SchemaRenderer`
 itself to catch that class of failure:
 
-```typescript
-import { SchemaErrorBoundary } from '@object-ui/react'
+```tsx
+import { SchemaErrorBoundary, SchemaRenderer } from '@object-ui/react'
+import type { BaseSchema } from '@object-ui/types'
 
-<SchemaErrorBoundary>
-  <SchemaRenderer schema={schema} />
-</SchemaErrorBoundary>
+export const Page = ({ schema }: { schema: BaseSchema }) => (
+  <SchemaErrorBoundary>
+    <SchemaRenderer schema={schema} />
+  </SchemaErrorBoundary>
+)
 ```
 
 Two optional props tune it: `componentType` names the component in the fallback text, and
@@ -557,6 +568,8 @@ Two optional props tune it: `componentType` names the component in the fallback 
 Change port in `vite.config.ts`:
 
 ```typescript
+import { defineConfig } from 'vite'
+
 export default defineConfig({
   server: {
     port: 3000, // Use different port
@@ -571,6 +584,7 @@ only mounts the root component and imports no plugin at all — not even the two
 pre-installed ones — so looking there can neither confirm nor rule anything out. Open
 `src/App.tsx` and check yours sits with the two known-good imports:
 
+{/* doc-snippet: fragment — the first two imports are real and resolve; the third names `@object-ui/plugin-yourplugin`, the reader's own package, so the block as a whole cannot compile here (TS2882). Showing yours beside the two known-good ones is the point of the block. */}
 ```typescript
 import '@object-ui/plugin-kanban';
 import '@object-ui/plugin-charts';

@@ -455,16 +455,10 @@ const UNGATED_DOCS = {
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-gantt.mdx':
     '31 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/plugins/plugin-kanban.mdx':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 8 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/plugins/plugin-timeline.mdx':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'content/docs/utilities/create-plugin.mdx':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
   'content/docs/utilities/data-objectstack.mdx':
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2391x1 — candidate real defects, un-triaged',
-  'content/docs/utilities/runner.mdx':
-    '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
   'packages/app-shell/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/auth/README.md':
