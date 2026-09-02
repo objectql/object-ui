@@ -99,13 +99,12 @@ Use responsive column configurations in grid layouts:
 }
 ```
 
-`columns` takes a number or a breakpoint object (`xs` / `sm` / `md` / `lg` /
-`xl`), with `xs` as the base — the schema above renders
-`grid-cols-1 md:grid-cols-2 lg:grid-cols-4`. The spec's map also declares
-`2xl`, but the `grid` renderer reads only those five: a `2xl` entry parses and
-is then silently dropped, so stop at `xl`. Keys belong on the node, not in a
-`props` wrapper: `"props": { "cols": … }` leaves both the columns *and* the card
-titles unread (objectui#4001).
+`columns` takes a number or a breakpoint object -- the schema above renders
+`grid-cols-1 md:grid-cols-2 lg:grid-cols-4`. The breakpoint keys the `grid`
+renderer actually reads, the `2xl` entry the spec accepts and the renderer
+drops, and the `cols` / `props` spellings that render nothing are in
+[`rules/protocol.md`](../rules/protocol.md) under "Rule: Layout
+Responsiveness".
 
 ## Mobile-first Tailwind classes in schemas
 

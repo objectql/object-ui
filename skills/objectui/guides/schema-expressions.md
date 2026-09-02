@@ -27,77 +27,31 @@ Key files (for reference, not for editing):
 
 ## What gets expression-evaluated
 
-SchemaRenderer evaluates these fields before passing props to the resolved component:
-
-### Automatically evaluated fields
-
-Evaluation and *readback* are two different gates. A value is only visible if
-`SchemaRenderer` evaluates it **and** the renderer reads the key it sits on —
-see "The `props` envelope is evaluated but not read" below.
-
-| Schema field | Evaluation type | Return type | Example |
-|---|---|---|---|
-| `content` | Template (`${}`) | string | `"content": "Total: ${data.total}"` |
-| `hidden` | Condition | boolean | `"hidden": "${data.role !== 'admin'}"` |
-| `hiddenOn` | Condition | boolean | `"hiddenOn": "data.status === 'draft'"` |
-| `visible` | Condition | boolean | `"visible": "${data.isActive}"` |
-| `visibleOn` | Condition | boolean | `"visibleOn": "data.permissions.canView"` |
-| `disabled` | Condition | boolean | `"disabled": "${form.isSubmitting}"` |
-| `disabledOn` | Condition | boolean | `"disabledOn": "!data.hasPermission"` |
-| `title` / `label` / `value` / `description` | Template (`${}`) | Preserves original type | **Declared types only** — `statistic` (`label`/`value`/`description`), `card` (`title`/`description`), `button` (`label`). Closed set, declared in `@objectstack/spec` (objectui#4795). |
-
-**Precedence rule:** `visible` takes priority over `hidden`. If both are present, `visible` wins.
-
-### NOT evaluated (passed as raw strings)
-
-These top-level schema fields are **not** processed by ExpressionEvaluator:
-
-- `value`, `label`, `description`, `title` **on a type that does not declare
-  them** (see the row above) — read by the renderers, but not template-evaluated
-  there. Resolve them in the host before rendering, or carry the bound text on a
-  `text` node's `content`.
-- `className` — always a static Tailwind class string
-- `id` — always a static string
-- `type` — component type identifier
-- `bind` — data scope path (resolved by `useDataScope`, not by expressions)
-
-### The `props` envelope is evaluated but not read
-
-`SchemaRenderer` **does** run every value inside `props` through the evaluator —
-and then spreads the object as React props rather than merging it into the node.
-Every `ui:*` / `page:*` renderer reads `schema.title` / `schema.content` /
-`schema.columns` off the node itself, so the evaluated value is discarded: the
-component paints an empty frame and the envelope lands in the DOM as the invalid
-attribute `props="[object Object]"`.
-
-So `props` is not an escape hatch for the unevaluated keys above — it trades a
-literal `${...}` on screen for nothing on screen. Put keys on the node.
+Evaluation and *readback* are two separate gates: a value is visible only if
+`SchemaRenderer` evaluates it **and** the renderer reads the key it sits on. The
+full boundary tables -- the evaluated fields, the raw ones, `visible` over
+`hidden` precedence, and what `props` versus `properties` each do with a value
+-- are in [`rules/protocol.md`](../rules/protocol.md), which is the anchor for
+this rule. The four cases that decide most schemas:
 
 ```json
-// ❌ Evaluated, then dropped — renders an empty card
+// Evaluated, then dropped -- renders an empty card
 { "type": "card", "props": { "title": "${data.customer.name}" } }
 
-// ✅ `card` declares `title`, so on the node it is evaluated AND read
+// `card` declares `title`, so on the node it is evaluated AND read
 { "type": "card", "title": "${data.customer.name}" }
 
-// ❌ `text` does not declare `value` — renders the literal "${data.customer.name}"
+// `text` does not declare `value` -- renders the literal "${data.customer.name}"
 { "type": "text", "value": "${data.customer.name}" }
 
-// ✅ `content` is evaluated on every component type
+// `content` is evaluated on every component type
 { "type": "text", "content": "${data.customer.name}" }
 ```
 
-The `element:*` namespace is where `props` is read: those components take their
-config out of `properties` / `props`, so the envelope is required there.
-
-`properties` is not the same envelope as `props`. `SchemaRenderer` evaluates it
-and then **hoists its keys onto the node**, so it is read by every namespace —
-measured, `{ "type": "card", "properties": { "title": "${data.customer.name}" } }`
-does render the evaluated name. Whether that is an authoring channel for
-`ui:*` / `page:*` is an open contract question (objectui#4795); the measurement
-and the failing legs beside it are in
-[`rules/protocol.md`](../rules/protocol.md). Until it is ruled, the route this
-guide teaches is unchanged: `content`, or resolve the value in the host.
+`title` / `label` / `value` / `description` are template-evaluated on the types
+that declare them -- `statistic` (`label` / `value` / `description`), `card`
+(`title` / `description`), `button` (`label`) -- and read raw everywhere else.
+The set is closed and declared in `@objectstack/spec` (objectui#4795).
 
 ## Template expression syntax (`${}`)
 
@@ -420,35 +374,13 @@ When `SchemaRendererProvider` receives
 
 ### Which components read `bind`
 
-`useDataScope` is called by `list` and `tree-view` in `@object-ui/components`,
-and by the `object-*` widgets the plugin packages register (`object-grid`,
-`object-kanban`, `object-chart`, `object-data-table`, `object-gallery`,
-`object-timeline`, `object-pivot`). Every other component ignores `bind`
-completely — no error, no warning, nothing in the console.
-
-`data-table` is the one that catches authors out. It takes its rows from an
-inline `data` array on the node and never calls `useDataScope`, so a `bind` on
-it resolves nothing: the table renders its header over the "No results found"
-empty state. Nothing is thrown and nothing is logged — a table that looks built
-and is blank is the whole failure.
-
-```json
-{
-  "type": "data-table",
-  "data": [
-    { "name": "Ada Lovelace", "email": "ada@example.com" },
-    { "name": "Grace Hopper", "email": "grace@example.com" }
-  ],
-  "columns": [
-    { "header": "Name", "accessorKey": "name" },
-    { "header": "Email", "accessorKey": "email" }
-  ]
-}
-```
-
-To show *provider* data in a `data-table`, resolve the array in the host and put
-it on the node — the same "expand in the host" route the next section describes
-for per-record nodes.
+`useDataScope` is called by `list`, `tree-view` and the `object-*` plugin
+widgets; every other component ignores `bind` silently. `data-table` is the one
+that catches authors out -- it reads its rows from an inline `data` array on the
+node, so a bound `data-table` renders its header over an empty body with nothing
+thrown and nothing logged. The full reader list and the four measured legs are
+in [`rules/protocol.md`](../rules/protocol.md); the route is the same as
+everywhere else here -- the host resolves the array and puts it on the node.
 
 ## No per-item template iteration (`list` is data-as-nodes)
 

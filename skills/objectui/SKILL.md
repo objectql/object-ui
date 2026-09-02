@@ -78,7 +78,7 @@ Actions are defined **as data**, not functions. Example:
 
 ### 6. Layout as Components
 
-Layouts are just components that render children. Treat `Grid`, `Stack`, `Container` as first-class citizens. Layout schemas declare responsive columns on the node as `columns` — a number, or a breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl`, with `xs` as the base (e.g. `columns: { xs: 1, md: 2, lg: 4 }`). The spec also accepts `2xl`, which the `grid` renderer never reads ([`rules/protocol.md`](./rules/protocol.md)).
+Layouts are components that render children. Responsive column counts go on the node as `columns` — a number, or a breakpoint object ([`rules/protocol.md`](./rules/protocol.md) has the keys the renderer reads and the one it drops).
 
 ### 7. Type Safety over Magic
 
@@ -128,8 +128,7 @@ Layouts are just components that render children. Treat `Grid`, `Stack`, `Contai
 - Registering components without a namespace in plugin-heavy projects.
 - Skipping docs updates for newly introduced schema patterns.
 - Expecting a `${...}` on a top-level `value` / `label` to evaluate, or "fixing" it by moving it under `props` — the first renders the literal, the second renders nothing at all. Resolve the value in the host, or carry it on a `text` node's `content` ([`rules/protocol.md`](./rules/protocol.md)).
-- Missing the published stylesheet imports — `@object-ui/components/style.css` then `@object-ui/fields/style.css`, in that order — components render but look completely unstyled. The components sheet carries the theme tokens and the `:root` / `.dark` defaults; the fields sheet is a subtracted supplement that resolves against them.
-- Pointing Tailwind at the installed ObjectUI packages instead of importing those two sheets: the published tarballs carry `dist` only, so the theme block the themed utilities are built on is not there to scan. Inside the ObjectUI workspace the reverse holds — packages are linked to their sources, an app scans them and declares the theme itself. See [`rules/styling.md`](./rules/styling.md) for both cases; do not keep a second copy of the answer here.
+- Missing the published stylesheet imports — `@object-ui/components/style.css` then `@object-ui/fields/style.css`, in that order. Components render but look completely unstyled ([`rules/styling.md`](./rules/styling.md)).
 
 ## Fast Triage Playbook for Ambiguous Requests
 

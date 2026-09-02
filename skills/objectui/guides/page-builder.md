@@ -172,46 +172,27 @@ When users ask for a "console-like" experience, prefer:
 
 ## Expression evaluation boundaries
 
-Understanding what gets evaluated and what does not is critical for correct schemas.
+A key must clear **two independent gates** to reach the screen: the renderer has
+to *read* it, and `SchemaRenderer` has to *evaluate* it. Both lists -- what is
+evaluated, what is read raw, and what `props` / `properties` each do -- are in
+[`rules/protocol.md`](../rules/protocol.md). Two consequences shape almost every
+page:
 
-A key must clear **two independent gates** to reach the screen: the renderer
-has to *read* it, and `SchemaRenderer` has to *evaluate* it. Keys on the node
-clear the first gate; only the short list below clears the second.
-
-**Evaluated by SchemaRenderer automatically:**
-
-| Field | What happens |
-|-------|-------------|
-| `content` | Template-evaluated **and** read by the text renderers. `"content": "Hello ${user.name}"` works end to end. |
-| `hidden` / `hiddenOn` | Boolean expression. Component removed from DOM when true. |
-| `visible` / `visibleOn` | Boolean expression. `visible` takes priority over `hidden`. |
-| `disabled` / `disabledOn` | Boolean expression. Passed as prop to component. |
-| `props.*` | Template-evaluated, but handed to the component as React props — a `ui:*` / `page:*` renderer never reads the result back, so the evaluated value is discarded. Only `element:*` components consume it. Do not use it as an expression carrier. |
-| `properties.*` | Template-evaluated **and hoisted onto the node**, so unlike `props` the result is read — by every namespace. Its status as an authoring channel is open (objectui#4795); see [`rules/protocol.md`](../rules/protocol.md) before reaching for it. |
-| `title` / `label` / `value` / `description` | Template-evaluated **on the component types that declare them** — `statistic` (`label`/`value`/`description`), `card` (`title`/`description`), `button` (`label`). The list is closed and declared in `@objectstack/spec`; see [`rules/protocol.md`](../rules/protocol.md). |
-
-**NOT evaluated (raw strings passed through):**
-
-| Field | What to do instead |
-|-------|-----------|
-| `title` / `label` / `value` / `description` **on any other type** | Read by the renderer, but not template-evaluated there — an inline `${...}` reaches the screen as literal text. Moving it under `props` does not help: it gets evaluated there and then dropped. Resolve the value in the host **before** handing the schema to `SchemaRenderer` (the same pattern the i18n guide uses for `t(...)`), or carry it on a `text` node's `content`. |
-| `className` | Not expression-evaluated. Use static Tailwind classes only. |
-| `id` | Static string. No expressions. |
-
-**Correct pattern** — a `statistic`'s text keys sit on the node. Static values
-work as-is, and so do expressions (`statistic` declares all three):
+**A `statistic` carries its own text keys**, so both static values and
+expressions work on the node (`statistic` declares `label` / `value` /
+`description`):
 ```json
 {
   "type": "statistic",
   "label": "Active Users",
-  "value": "42",
+  "value": "${data.metrics.activeUsers}",
   "description": "+5% from last month",
   "trend": "up"
 }
 ```
 
-**Correct pattern on a type that does NOT declare the key** — `content` is
-evaluated on every component type, so a `text` child carries the binding:
+**A type that does not declare the key needs a `text` child**, because `content`
+is evaluated on every component type:
 ```json
 {
   "type": "card",
@@ -222,86 +203,18 @@ evaluated on every component type, so a `text` child carries the binding:
 }
 ```
 
-**Wrong pattern (renders an empty card — the envelope is never read):**
-```json
-{
-  "type": "statistic",
-  "props": {
-    "label": "Active Users",
-    "value": "${data.metrics.activeUsers}"
-  }
-}
-```
+Never reach for `props` to make an expression work: it is evaluated there and
+then dropped, so the trade is a literal `${...}` on screen for nothing on
+screen. Full syntax -- operators, formula functions, the security model -- is
+[`guides/schema-expressions.md`](./schema-expressions.md).
 
-**Right, since objectui#4795 — `statistic` declares `value` and `label`, so
-these are evaluated on the node and read back:**
-```json
-{
-  "type": "statistic",
-  "value": "${data.metrics.activeUsers}",
-  "label": "${data.labels.title}"
-}
-```
+## Stylesheets
 
-⚠️ The same two keys on a type with no declaration (e.g. `text`) still reach the
-screen as literal `${...}`. The declaring types are listed in
-[`rules/protocol.md`](../rules/protocol.md).
-
-For the full expression syntax reference (operators, formula functions, security model), see the `objectui-schema-expressions` skill.
-
-## CSS theming template for third-party apps
-
-Object UI components render unstyled unless the app's Tailwind entry brings in the
-packages' styles. How it does that depends on where the packages come from — installed
-from npm, or linked inside the ObjectUI workspace. The two cases are not interchangeable.
-
-### Installed from npm (the third-party case)
-
-Import the published stylesheets. There is no `tailwind.config.js` step, and no scanning
-of `node_modules`.
-
-**Required `src/index.css`:**
-```css
-@import "tailwindcss";
-@import "@object-ui/components/style.css";
-@import "@object-ui/fields/style.css";
-```
-
-Each `style.css` is a real package export, mapped to that package's `dist/index.css` and
-compiled at build time from the package's own sources. The components sheet carries every
-utility its components use **and** the `@theme` block those utilities are built on, so the
-whole Shadcn palette and the `:root` / `.dark` token defaults arrive with that one import
-— you do not restate those tokens in a `@theme` block of your own. The order is
-load-bearing: the fields sheet is a supplement compiled against the components theme with
-every rule that sheet already ships subtracted from it, so imported first or alone its
-rules resolve against tokens that are not there yet. `@object-ui/fields` is a separate
-dependency, not a transitive one — install it, or leave that second line out.
-
-Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
-v4 `@source` line nor a v3 `content` entry: the published tarballs carry `dist` only, and
-the `@theme` block the themed utilities come from lives in package source, which is not
-published. To recolour, override the token values (Shadcn HSL channel triples) rather than
-the utilities — see `content/docs/guide/theming.md`.
-
-### Inside the ObjectUI workspace
-
-Here the packages are linked to their sources, so Tailwind scans them directly and the app
-owns the theme declaration:
-
-```css
-@import "tailwindcss";
-
-/* Workspace packages are linked to their sources — scan them */
-@source "../../packages/components/src/**/*.tsx";
-@source "../../packages/fields/src/**/*.tsx";
-@source "../../packages/layout/src/**/*.tsx";
-@source "../../packages/react/src/**/*.tsx";
-```
-
-Adjust those paths to your app's location relative to the monorepo root, and add a
-`@source` line per plugin package the app renders. Because the app owns the Tailwind entry
-in this case, it also declares the `@theme` mapping and the `:root` token values;
-`apps/console/src/index.css` is the maintained reference for both.
+A page renders unstyled unless the app imports
+`@object-ui/components/style.css` then `@object-ui/fields/style.css`, in that
+order. Both cases -- installed from npm, and linked inside the ObjectUI
+workspace -- are in [`rules/styling.md`](../rules/styling.md); this guide keeps
+no second copy.
 
 ## Plugin integration in page schemas
 

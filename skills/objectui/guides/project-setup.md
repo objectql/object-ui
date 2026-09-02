@@ -123,8 +123,9 @@ export default {
 
 ### src/index.css (ObjectUI stylesheets)
 
-This file is critical — without it, Object UI components render unstyled. There is no
-`tailwind.config.js` step: ObjectUI is Tailwind 4, configured in CSS.
+This file is critical -- without it, ObjectUI components render unstyled.
+There is no `tailwind.config.js` step: ObjectUI is Tailwind 4, configured in
+CSS.
 
 ```css
 @import "tailwindcss";
@@ -132,36 +133,9 @@ This file is critical — without it, Object UI components render unstyled. Ther
 @import "@object-ui/fields/style.css";
 ```
 
-That is the whole of the styling setup. Each `style.css` is a real package export, mapped
-to that package's `dist/index.css` and compiled at build time from the package's own
-sources: the components sheet carries every utility its components use **and** the
-`@theme` block those utilities are built on, so the whole Shadcn palette
-(`bg-background`, `bg-primary`, `border-input`, `ring-ring`) and the `:root` / `.dark`
-token defaults arrive with it. You do not restate those tokens in a `@theme` block of your
-own.
-
-The order matters: `@object-ui/fields/style.css` is a supplement compiled against the
-components theme, with every rule that sheet already ships subtracted from it. Imported
-first, or alone, its rules resolve against tokens that are not there yet.
-
-Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
-v4 `@source` line nor a v3 `content` entry. The published tarballs carry `dist` only, and
-the `@theme` block the themed utilities come from lives in package source, which is not
-published — so scanning them regenerates shape-only utilities the two sheets already carry
-and cannot produce the themed ones at all. Your own `@source` lines (or Tailwind's
-defaults) go on covering *your* source, exactly as before.
-
-To recolour, override the token values rather than the utilities — they are Shadcn HSL
-channel triples, not finished colours:
-
-```css
-:root {
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-}
-```
-
-See `content/docs/guide/theming.md` for the full token list and the `ThemeProvider` route.
+That is the whole of the styling setup. Why the order is load-bearing, why you
+do not point Tailwind at the packages in `node_modules`, and how to recolour by
+overriding the token values: [`rules/styling.md`](../rules/styling.md).
 
 ### tsconfig.json
 
