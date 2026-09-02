@@ -1141,9 +1141,37 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Playwright browsers
+      # ── Cache bookkeeping cannot void a recorded verdict (objectui#7048) ──
+      # THE ORDERING, carried here from the type-check split (objectui#6577,
+      # PR #7047) because it is what a future reader needs in order to judge
+      # whether these steps may be touched: the verdict is recorded by the
+      # checking steps; everything after them is bookkeeping, and bookkeeping
+      # must never discard an answer the gate already produced.
+      #
+      # Why the SPLIT rather than a timeout on one step: combined
+      # `actions/cache` declares `main: dist/restore/index.js` plus
+      # `post: dist/save/index.js`, so its save is a step the RUNNER generates
+      # at job end (`Post Cache Playwright browsers`). No workflow syntax
+      # attaches `timeout-minutes` or `continue-on-error` to a generated post
+      # step, so an upload stall runs the job into `timeout-minutes: 30`, the
+      # job goes `cancelled`, and the merge queue cannot tell `cancelled` from
+      # `failure` — an all-green pull request is ejected and every lane pays
+      # the ceiling in head-of-line blocking. Measured once, on the type-check
+      # cache: a 1-second save took 789s (objectui#6577). Splitting moves the
+      # save into the main phase, where both keys are ordinary documented step
+      # keys; `actions/cache`'s own `save-always` deprecation text points at
+      # this same split.
+      #
+      # ⛔ Raising `timeout-minutes: 30` is the ruled-out non-fix: a larger
+      # ceiling only buys a longer hang, still ends in `cancelled`, and lifting
+      # a gate's ceiling weakens the gate.
+      #
+      # The restore half is deliberately left UNBOUNDED, as at the type-check
+      # site: a restore stall fails BEFORE any verdict exists — a gate that did
+      # not run, which is honest — rather than a recorded verdict discarded.
+      - name: Restore Playwright browsers
         if: steps.relevant.outputs.should_run == 'true'
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -1217,6 +1245,54 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+      # The bookkeeping half of the split documented at the restore step above,
+      # placed HERE — last in the job — because that is exactly where the post
+      # phase it replaces already ran. Nothing about which commits this job
+      # accepts or rejects moves with it.
+      #
+      # `timeout-minutes: 8` is DERIVED FOR THIS CACHE, not inherited from the
+      # type-check site's 5 (objectui#7048 fences that explicitly). This cache
+      # is Playwright's browser binaries — ~269 MB, two orders of magnitude
+      # larger than `.turbo/cache` — and upload time scales with size, so the
+      # bound has to be sized against a measurement of THIS artefact:
+      #   - restores of this exact archive, same runner class: 3s (job
+      #     100096569775) and 3s (job 100094597323) here, 5s in `live-e2e.yml`
+      #     (job 100097466897) ⇒ the cache service moves it at ~54-90 MB/s.
+      #   - a save is only observable after a Playwright version bump (an exact
+      #     key hit skips it, and `Post Cache Playwright browsers` measured 0s
+      #     on every sampled run), so the honest save is bounded from the
+      #     restore rather than read directly — stated plainly rather than
+      #     dressed up as a direct measurement.
+      #   - taking a deliberately pessimistic 20x penalty on the slowest
+      #     observed restore gives ~1m40s for an honest save. 8 minutes is
+      #     ~4.8x that, and demands only 0.56 MB/s sustained to finish.
+      # And it stays clear of the ceiling in both directions: 8 x 2 = 16 <= 30,
+      # so bookkeeping cannot crowd out the checking steps, whose whole verdict
+      # path measured 56s wall clock end to end on job 100096569775.
+      #
+      # `continue-on-error: true` is the other half, and without it the bound
+      # would only trade a `cancelled` gate for a red one. A cache that failed
+      # to upload costs the next run a re-download from Playwright's CDN — a
+      # path this job already takes on a miss — and says nothing whatsoever
+      # about the code under test, so it must not be allowed to speak for it.
+      #
+      # Behaviour preserved, spelled out so the equivalence is checkable:
+      #   - `cache-hit != 'true'` reproduces the combined action's own "exact
+      #     hit on the primary key ⇒ do not save" skip.
+      #   - the condition names no status function, so the implicit `success()`
+      #     still applies — matching the combined action's `post-if: success()`.
+      #   - same `path` and same `key` as the restore step above.
+      - name: Save Playwright browsers
+        if: >-
+          steps.relevant.outputs.should_run == 'true'
+          && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        timeout-minutes: 8
+        continue-on-error: true
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
   docs:
     name: Build Docs
@@ -1306,9 +1382,37 @@ jobs:
       # `scripts/__tests__/docs-links-workflow.test.ts` pins the gate to exactly
       # one home.
 
-      - name: Turbo Cache
+      # ── Cache bookkeeping cannot void a recorded verdict (objectui#7048) ──
+      # THE ORDERING, carried here from the type-check split (objectui#6577,
+      # PR #7047) because it is what a future reader needs in order to judge
+      # whether these steps may be touched: the verdict is recorded by the
+      # checking steps; everything after them is bookkeeping, and bookkeeping
+      # must never discard an answer the gate already produced.
+      #
+      # Why the SPLIT rather than a timeout on one step: combined
+      # `actions/cache` declares `main: dist/restore/index.js` plus
+      # `post: dist/save/index.js`, so its save is a step the RUNNER generates
+      # at job end (`Post Turbo Cache`). No workflow syntax attaches
+      # `timeout-minutes` or `continue-on-error` to a generated post step, so
+      # an upload stall runs the job into `timeout-minutes: 15` — the TIGHTEST
+      # ceiling of this workflow's three cached jobs — the job goes
+      # `cancelled`, and the merge queue cannot tell `cancelled` from
+      # `failure`. Measured once, on the type-check cache: a 1-second save took
+      # 789s and ejected an all-green pull request (objectui#6577).
+      # `actions/cache`'s own `save-always` deprecation text points at this
+      # same split.
+      #
+      # ⛔ Raising `timeout-minutes: 15` is the ruled-out non-fix: a larger
+      # ceiling only buys a longer hang, still ends in `cancelled`, and lifting
+      # a gate's ceiling weakens the gate.
+      #
+      # The restore half is deliberately left UNBOUNDED: a restore stall fails
+      # BEFORE any verdict exists — a gate that did not run, which is honest —
+      # rather than a recorded verdict discarded.
+      - name: Restore Turbo Cache
+        id: turbo-cache
         if: steps.docs-changes.outputs.should_run == 'true'
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-docs-${{ github.sha }}
@@ -1323,3 +1427,44 @@ jobs:
       - name: Build Site
         if: steps.docs-changes.outputs.should_run == 'true'
         run: pnpm turbo run build --filter='@object-ui/site'
+
+      # The bookkeeping half of the split documented at the restore step above,
+      # placed HERE — after `Build Site`, the step that records this job's
+      # verdict — because that is exactly where the post phase it replaces
+      # already ran. Nothing about which commits this job accepts or rejects
+      # moves with it.
+      #
+      # `timeout-minutes: 5` is DERIVED FOR THIS SITE, and landing on the same
+      # number PR #7047 chose is a result rather than a copy — objectui#7048
+      # fences inheriting that 5, so here is this site's own arithmetic. This
+      # cache is `.turbo/cache`, and this job's own save of it measured 5s on
+      # 2026-09-02 (`Post Turbo Cache`, job 100094597253, a `merge_group` build
+      # where this job's steps actually run — on a pull request without
+      # `apps/site/` or `content/` changes they all skip). 5 minutes is 60x
+      # that, so it cannot fire on a working runner.
+      # Ceiling check: 5 x 2 = 10 <= 15, so bookkeeping cannot crowd out the
+      # checking steps — whose whole verdict path measured 4m26s on that job.
+      #
+      # `continue-on-error: true` is the other half, and without it the bound
+      # would only trade a `cancelled` gate for a red one. A cache that failed
+      # to upload costs the next run some time; it says nothing whatsoever
+      # about the code under test, so it must not be allowed to speak for it.
+      #
+      # Behaviour preserved, spelled out so the equivalence is checkable:
+      #   - `cache-hit != 'true'` reproduces the combined action's own "exact
+      #     hit on the primary key ⇒ do not save" skip. Note this is the EXACT
+      #     hit only: a `restore-keys` prefix match leaves `cache-hit` false
+      #     and the save still runs, which is what the combined action did.
+      #   - the condition names no status function, so the implicit `success()`
+      #     still applies — matching the combined action's `post-if: success()`.
+      #   - same `path` and same `key` as the restore step above.
+      - name: Save Turbo Cache
+        if: >-
+          steps.docs-changes.outputs.should_run == 'true'
+          && steps.turbo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-docs-${{ github.sha }}

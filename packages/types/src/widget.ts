@@ -27,17 +27,37 @@ import type { ComponentInputControlType } from './base.js';
  * A manifest provides all metadata needed to discover, load, and render
  * a widget without requiring an upfront import of its code.
  *
- * Renamed off the spec's `WidgetManifest` name (objectstack#4115): the spec's
- * is the **field-widget plugin** manifest that sits beside its
- * `FieldWidgetProps` — `{ fieldTypes, category: input|display|picker|editor,
- * lifecycle: { onMount, onValidate, … }, events, properties, implementation,
- * screenshots, license, aria, performance }`. This one is the **SDUI component**
- * manifest: `type` is a schema-renderer component key, and it carries `source`,
- * `defaultProps`, `inputs`, `isContainer` and `capabilities`, none of which the
- * spec's models. The only keys the two share are `name`/`label`/`version`/
- * `icon`/`description`.
+ * Today this is objectui's ONLY widget-registration contract: no published
+ * `@objectstack/spec` schema models one.
  *
- * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ * HISTORY — why the `Runtime` prefix exists, and why it stays.
+ * `@objectstack/spec/ui` ONCE exported a **field-widget plugin**
+ * `WidgetManifest` (beside its `FieldWidgetProps`), and this interface was
+ * renamed off that name to end the collision (objectstack#4115). ⚠️ That schema
+ * is GONE — its keys are deliberately no longer enumerated here, and the
+ * prefix is not evidence that a spec twin exists: protocol 17 retired the whole
+ * widget-registration vocabulary — `WidgetManifest`, `WidgetLifecycle`,
+ * `WidgetEvent`, `WidgetProperty`, `WidgetSource` — under ADR-0049
+ * enforce-or-remove (objectstack#5055, maintainer ruling 2026-08-06). There is
+ * no tombstone key to migrate, because there was never a carrier key: the
+ * record is the D3 `SemanticMigration` `ui-widget-i18n-family-retired` plus
+ * `ui/WidgetManifest` in the spec's `RETIRED_DEFS_BY_MAJOR` for 17. That entry
+ * states the relationship these two types always had, verbatim: "objectui's
+ * registry has always carried its own runtime manifest for that
+ * (`RuntimeWidgetManifest` / `RuntimeWidgetSource` in `@object-ui/types`,
+ * objectui#3161 / #4115), which models different keys and never derived from
+ * these". `field.widget` is still what it always was — a `z.string()` naming a
+ * component the RENDERER has registered.
+ *
+ * So the bare name is now owned by NOBODY, and the prefix is kept BY CHOICE: a
+ * freed word is not a reason to spend a second breaking rename taking it back
+ * (objectstack#4988 precedent; the unlock is recorded, not taken —
+ * objectui#4164).
+ *
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`. Its "the spec no
+ * longer owns `WidgetManifest`" row is the LIVE assertion of that vacancy —
+ * read it, not this comment, for what the spec owns today; it goes red if the
+ * spec ever re-publishes the name while this package holds it.
  *
  * @example
  * ```ts
@@ -106,20 +126,25 @@ export interface RuntimeWidgetManifest {
 /**
  * Describes how to load the widget's code at runtime.
  *
- * Renamed off the spec's `WidgetSource` name (objectstack#4115). Both are
- * discriminated unions on `type`, which is what makes the collision dangerous:
- * they share the member name `inline` and mean opposite things by it. The
- * spec's `inline` carries source **code** to evaluate (`{ type: 'inline', code:
- * string }`), objectui's carries an **already-resolved component**
- * ({@link WidgetSourceInline}). The other members do not overlap at all — the
- * spec has `npm`/`remote`, objectui has `module`/`registry` — so a value of one
- * union is never a valid value of the other.
+ * HISTORY — the same rename as {@link RuntimeWidgetManifest}, and the more
+ * dangerous half of the collision it ended. `@objectstack/spec/ui` ONCE
+ * exported a `WidgetSource` union too (objectstack#4115). Both WERE
+ * discriminated unions on `type` that shared the member name `inline` and meant
+ * opposite things by it:
+ * the spec's `inline` carried source **code** to evaluate (`{ type: 'inline',
+ * code: string }`), objectui's carries an **already-resolved component**
+ * ({@link WidgetSourceInline}). The other members never overlapped — the spec
+ * had `npm`/`remote`, objectui has `module`/`registry` — so a value of one
+ * union was never a valid value of the other. ⚠️ The spec's union was retired
+ * with the rest of the widget-registration vocabulary (objectstack#5055): the
+ * union declared below is objectui's own, and never derived from it.
  *
- * The variant interfaces keep their `WidgetSource…` names: the spec does not
- * export those, and renaming them would churn the public surface without
+ * The variant interfaces keep their `WidgetSource…` names: the spec never
+ * exported those, and renaming them would churn the public surface without
  * removing a collision.
  *
- * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
+ * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` — its "the spec no
+ * longer owns `WidgetSource`" row pins the vacancy.
  */
 export type RuntimeWidgetSource =
   | WidgetSourceModule
