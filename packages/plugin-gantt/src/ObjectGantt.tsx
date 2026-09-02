@@ -33,6 +33,7 @@ import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
 import {
   useNavigationOverlay,
+  useSettledSchema,
   SchemaRendererContext,
   NON_GRID_ROW_CEILING,
   NON_GRID_ROW_CEILING_TOP,
@@ -580,7 +581,6 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [objectSchema, setObjectSchema] = useState<any>(null);
   /**
    * Did the platform row ceiling bite on the rows currently drawn, and how
    * large was the whole filtered result set (objectui#7210)?
@@ -658,6 +658,31 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // so an empty string is fine there.
   const resource =
     dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName ?? '';
+
+  /**
+   * The object schema, and whether the read for THIS object has SETTLED —
+   * one piece of state, through the shared hook (objectui#7225, maintainer
+   * ruling B; the gantt gating is ask 2 of that card, handled here with
+   * objectui#7210 because it is the same component).
+   *
+   * This replaces a local `useState` plus an effect whose exits — `if
+   * (!effectiveDataSource) return;`, `if (!resource) return;`, and its
+   * `catch` — returned WITHOUT settling anything (objectui#7232). That was
+   * harmless only while the record query was ungated: nothing was listening.
+   * The gate below listens, and an exit that never settles would hold the
+   * chart's query open forever — a chart that never loads, on a code path
+   * that reads as correct. The hook settles on every exit by construction,
+   * which is why the gate can be added at all.
+   *
+   * An inline `value` data set reads no metadata and never did, so it is
+   * expressed as "there is no source to read from" (`dataSource: undefined`)
+   * rather than as a second enable flag — the recipe the hook's doc comment
+   * prescribes.
+   */
+  const { ready: objectSchemaReady, def: objectSchema } = useSettledSchema<any>(
+    resource,
+    hasInlineData ? undefined : effectiveDataSource,
+  );
 
   // Load (and re-load) data through the resolved adapter. `silent: true`
   // re-reads the source WITHOUT flipping `loading`, so GanttView stays mounted
@@ -749,31 +774,39 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
   }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema]);
 
+  /**
+   * Does the query this effect is about to issue DERIVE anything from the
+   * object schema? Only the adapter branch does. A host-supplied `data` array
+   * and an inline `value` set both paint with no metadata read at all, so
+   * gating them would hold a paint on a resolution that buys them nothing.
+   * Same scoping ObjectCalendar's gate uses, and for the same reason.
+   */
+  const hasHostData = Array.isArray((rest as any).data);
+  const recordQueryDerivesExpand = !hasHostData && !hasInlineData;
+
+  // ⭐ objectui#7225 ask 2 (objectui#6482's undischarged gating half) — the
+  // object schema GATES this query; it does not refine it afterwards.
+  //
+  // Before this line the gantt issued TWO unbounded queries per load: `reload`
+  // lists `objectSchema` in its dependency list, so the effect ran once with
+  // the schema still unresolved (`buildExpandFields` saw no fields, so the
+  // query carried no `$expand` at all) and again once it landed. Measured on
+  // this component with an instrumented adapter, three latency profiles — 2
+  // `find` calls and 1 `getObjectSchema` per load, expand sets `[null,
+  // ['owner']]` — the cost is NOT the mild "round trip bought and thrown
+  // away" the kanban showed: whenever the metadata read is the slower of the
+  // two, which is the common case on a cold `MetadataCache`, the user sees the
+  // full THREE-STEP PAINT — raw foreign-key ids, back to the loading
+  // placeholder, then the expanded rows. That is the profile #6482's
+  // per-component standard names as the one where gating pays.
+  //
+  // ⛔ Gating is not capping. The row ceiling is objectui#7210's ruling and
+  // lives on the query itself (`$top` above); this decides WHEN the query
+  // fires, not how many rows it may bring back.
   useEffect(() => {
+    if (recordQueryDerivesExpand && !objectSchemaReady) return;
     reload();
-  }, [reload]);
-
-  // Fetch object schema for field metadata
-  useEffect(() => {
-    const fetchObjectSchema = async () => {
-      try {
-        if (!effectiveDataSource) return;
-        if (!resource) return;
-
-        const schemaData = await effectiveDataSource.getObjectSchema(resource);
-        setObjectSchema(schemaData);
-      } catch (err) {
-        console.error('Failed to fetch object schema:', err);
-      }
-    };
-
-    if (!hasInlineData && effectiveDataSource) {
-      fetchObjectSchema();
-    }
-    // `dataConfig` was listed here but never read in this effect (`resource`
-    // already carries the one field — `object` — this effect needs from
-    // it); dropped rather than re-keyed (objectui#6592).
-  }, [resource, effectiveDataSource, hasInlineData]);
+  }, [reload, recordQueryDerivesExpand, objectSchemaReady]);
 
   // Transform data to gantt tasks
   const tasks = useMemo(() => {

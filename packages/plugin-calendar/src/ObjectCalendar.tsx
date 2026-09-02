@@ -32,6 +32,7 @@ import {
   extractWriteErrorMessage,
   isPermissionError,
   declaredUserMessage,
+  useSettledSchema,
   NON_GRID_ROW_CEILING,
   NON_GRID_ROW_CEILING_TOP,
   applyNonGridRowCeiling,
@@ -181,12 +182,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const [data, setData] = useState<any[]>(hasExternalData ? externalData! : []);
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : true);
   const [error, setError] = useState<Error | null>(null);
-  // The object-schema read and the fact that it has SETTLED are ONE piece of
-  // state, keyed by the object it belongs to (objectui#6453). The derived
-  // `objectSchema` / `objectSchemaReady` pair lives further down, next to
-  // `dataConfig`, because the key is the object the RECORD QUERY will use.
-  const [schemaResolution, setSchemaResolution] =
-    useState<{ key: string; def: any } | null>(null);
   /**
    * Did the platform row ceiling bite, and how large was the whole filtered
    * result set (objectui#7210)? Carried from the response that knew it —
@@ -294,8 +289,21 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
    * forever. "Settled with nothing" and "not yet settled" are different states
    * and only the second may hold the query.
    */
-  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
-  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
+  //
+  // Since objectui#7225 (maintainer ruling B, 2026-09-02) this is the SHARED
+  // `useSettledSchema`. `ObjectCalendar` was #6482's named obstacle to that
+  // convergence, and the obstacle turned out to be about the GATE half, which
+  // the hook deliberately leaves local (the record effect below still gates
+  // only its `object`-provider branch). The RESOLUTION half fits via the
+  // recipe the hook's own doc comment prescribes for this component by name:
+  // an inline `value` data set issues no metadata read, so it is expressed as
+  // "there is no source to read from" — `dataSource: undefined` — rather than
+  // as a second "should fetch" flag. The hook settles-with-`null` on that
+  // path, which is exactly what the hand copy's `hasInlineData` exit did.
+  const { ready: objectSchemaReady, def: objectSchema } = useSettledSchema<any>(
+    schemaKey,
+    hasInlineData ? undefined : dataSource,
+  );
 
   // Sync external data/loading changes from parent (e.g. ObjectView re-fetches after filter change)
   useEffect(() => {
@@ -400,38 +408,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     return () => { isMounted = false; };
   }, [hasExternalData, dataProvider, schemaObjectName, dataItems, dataSource, hasInlineData,
       schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema]);
-
-  // Fetch object schema for field metadata.
-  //
-  // Every exit settles the resolution — success, failure, and "there is nothing
-  // to read from" alike — because the record query above WAITS on this
-  // (objectui#6453). A path that returned without settling would not merely
-  // skip the expansion, it would hold that query open forever.
-  useEffect(() => {
-    let isMounted = true;
-    const key = schemaKey;
-    const fetchObjectSchema = async () => {
-      // No source for a schema — including an inline (`value`) data set, which
-      // issues no metadata read here and did not before. Settle with none, so
-      // anything gated on this still runs (unexpanded: with no schema there is
-      // no expand set to derive, which is the same query these cases produced
-      // before).
-      if (hasInlineData || !dataSource || !key || typeof dataSource.getObjectSchema !== 'function') {
-        if (isMounted) setSchemaResolution({ key, def: null });
-        return;
-      }
-      try {
-        const schemaData = await dataSource.getObjectSchema(key);
-        if (isMounted) setSchemaResolution({ key, def: schemaData });
-      } catch (err) {
-        console.error('Failed to fetch object schema:', err);
-        if (isMounted) setSchemaResolution({ key, def: null });
-      }
-    };
-
-    fetchObjectSchema();
-    return () => { isMounted = false; };
-  }, [schemaKey, dataSource, hasInlineData]);
 
   // Transform data to calendar events
   const events = useMemo(() => {
