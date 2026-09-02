@@ -646,6 +646,24 @@ jobs:
       - name: Run tests (shard ${{ matrix.shard }}/4)
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm test --shard=${{ matrix.shard }}/4
+      # The built-artifact lane (objectui#7183). The step above resolves every
+      # workspace package to its `src` — that is what the root alias map is for
+      # — so no test in it can observe its own package's BUILT output. This is
+      # the only place a `dist`-importing pin runs, and `turbo run test:dist`
+      # carries `dependsOn: ["build"]` for the package under test, so the bundle
+      # exists before the pin reads it. Before this step such a pin could not be
+      # committed at all: it landed with no `dist` to import, which is
+      # NOT MEASURED rather than a red pin, and the usual repair (delete it, or
+      # let it skip) leaves a green suite that measures nothing.
+      #
+      # Shard 1 only, and NOT sharded itself. The four shards are independent
+      # runners, so running this on all four would pay for the same build four
+      # times to measure the same bundle; the lane is a handful of files, so it
+      # runs whole, here. No `timeout-minutes` change and no heavy-test
+      # allowlist entry: the cost is one package build in one shard.
+      - name: Run built-artifact pins (dist project)
+        if: steps.relevant.outputs.should_run == 'true' && matrix.shard == 1
+        run: pnpm test:dist
 
   # Push to main/develop: the coverage lane, sharded 4 ways with a blob-report
   # merge (objectui#5403). The comment that used to sit here declined to shard
