@@ -255,10 +255,16 @@ const schema = {
   startDateField: string,     // Field containing event start date
   endDateField?: string,      // Field containing event end date
   titleField: string,         // Field to use as event title
-  colorField?: string,        // Field for color coding
-  descriptionField?: string   // Field for event description
+  colorField?: string         // Field for color coding
 }
 ```
+
+`CalendarConfig` is `@objectstack/spec`'s `CalendarConfigSchema`, and that schema
+is **strict**: these four are the whole of it, and a fifth key is rejected rather
+than ignored. `ObjectCalendar` destructures exactly
+`{ startDateField, endDateField, titleField, colorField }`
+(`ObjectCalendar.tsx`), so the list above is also the whole of what the renderer
+reads.
 
 ## Configuration
 
@@ -402,7 +408,6 @@ const appointmentCalendar: ObjectCalendarSchema = {
     startDateField: 'appointmentDate',
     endDateField: 'appointmentEnd',
     titleField: 'patientName',
-    descriptionField: 'notes',
     colorField: 'appointmentType'
   },
   onEventClick: (appointment: any) => {
