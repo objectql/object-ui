@@ -22,7 +22,7 @@
 import * as React from 'react';
 import { AI_USAGE_REFRESH_EVENT } from '@object-ui/plugin-chatbot';
 
-export type AiUsageResetKind = 'daily' | 'monthly';
+export type AiUsageResetKind = 'daily' | 'weekly' | 'monthly';
 export type AiUsagePlanType = 'free' | 'paid';
 
 /** One meter's D5-safe usage signal (mirrors the cloud endpoint). */
@@ -33,7 +33,12 @@ export interface AiMeterUsage {
   /** No finite cap (usage-based) — the UI would draw spend, not a ring. */
   unmetered: boolean;
   resetKind: AiUsageResetKind;
-  /** Best-effort reset instant (ISO); null when unknown (e.g. monthly cycle anchor). */
+  /**
+   * Best-effort reset instant (ISO); null when unknown. Weekly (the free
+   * plan's rolling 7-day window, cloud PR #1852): null while nothing is
+   * counted yet — never guessed client-side (objectui#7371). Monthly: null,
+   * the billing-cycle anchor is not known at this layer.
+   */
   resetsAt: string | null;
   /** Free-tier upgrade CTA applies. */
   upgrade: boolean;
