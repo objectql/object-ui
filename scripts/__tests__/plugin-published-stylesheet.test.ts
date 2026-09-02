@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import * as gridStylesheet from '../../packages/plugin-grid/scripts/build-css.mjs';
 import * as kanbanStylesheet from '../../packages/plugin-kanban/scripts/build-css.mjs';
 import * as fieldsStylesheet from '../../packages/fields/scripts/build-css.mjs';
-import { classesOf, COMPONENTS_ENTRY, REPO_ROOT } from '../build-plugin-stylesheet.mjs';
+import { classesOf, COMPONENTS_ENTRY, REPO_ROOT, defaultHeader } from '../build-plugin-stylesheet.mjs';
 
 /**
  * objectui#4929: `@object-ui/plugin-grid` and `@object-ui/plugin-kanban` now
@@ -198,6 +198,24 @@ describe('published supplement stylesheets (objectui#4929, objectui#6438)', () =
 
   describe.each(SUBJECTS.map(({ name }) => name))('%s', (name) => {
     const themed = CARD_THEMED[name];
+
+    /**
+     * objectui#7044: the emitted sheet's banner is part of the published
+     * artifact (objectui#6405's acceptance gate was byte-identity of that
+     * file), yet nothing here read it. The expected value is read from the
+     * subject's OWN build script export — `mod.buildOptions.header` for the
+     * package that declares one (`fields`, objectui#4059/#6405), else the
+     * shared `defaultHeader(mod.PACKAGE_NAME)` this module now exports for
+     * exactly this — never a second, hand-spelled copy of either wording,
+     * which would be free to drift from the real one while staying green.
+     */
+    it('opens the emitted sheet with the banner it declares', () => {
+      const { css } = built.get(name) as Built;
+      const { mod } = SUBJECTS.find((s) => s.name === name)!;
+      const declaredHeader = (mod.buildOptions as { header?: string }).header;
+      const expectedHeader = declaredHeader ?? defaultHeader(mod.PACKAGE_NAME);
+      expect(css.startsWith(`${expectedHeader}\n`)).toBe(true);
+    });
 
     it('emits the themed utilities only this build can produce', () => {
       const { classes } = built.get(name) as Built;
