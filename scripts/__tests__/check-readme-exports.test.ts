@@ -769,6 +769,65 @@ describe('the interface pin — BOTH directions, because one of them is green fo
     expect(result.census.typesUnjudgeable).toBe(1);
   });
 
+
+  describe('the shrink-only rule is SUSPENDED where nothing was compared (objectui#6214, caught by CI)', () => {
+    // The regression: "this entry suppressed no omission" has two causes that
+    // are indistinguishable from the outside — the README caught up (stale,
+    // delete it), or the declaration could not be judged at all (still true,
+    // keep it). The first version reported both as `stale-excerpt-entry`, and
+    // because the test shards run `pnpm install` then `pnpm test` and NEVER
+    // build, CI took the second cause and printed the first verdict on all
+    // three real ledger entries. On the fixture tree here, so the claim does
+    // not depend on whether the machine happens to be built.
+    const unbuiltRoot = fixtureTree({ 'packages/pin/package.json': manifest('@fix/pin', './dist/index.d.ts') });
+    const partial = 'interface Widget {\n  id: string;\n  label?: string;\n}';
+    const runUnbuilt = (body: string, excerpts: Record<string, string> = {}) =>
+      scan(unbuiltRoot, {
+        readmes: [PIN_README],
+        packageDirs: PIN_PACKAGES,
+        readmeOverrides: { [PIN_README]: writeReadme(unbuiltRoot, body) },
+        floors: {},
+        excerpts,
+      });
+    const entry = { [`${PIN_README}::Widget`]: 'objectui#0000 -- a recorded reason' };
+
+    it('does not call a LEDGER entry stale when its declaration could not be judged', () => {
+      const result = runUnbuilt(block(partial), entry);
+      expect(kinds(result)).toEqual(['unjudgeable-type']);
+      expect(result.findings.filter((f) => f.verdict === 'stale-excerpt-entry')).toEqual([]);
+      expect(result.census.excerptsNotJudged).toBe(1);
+    });
+
+    it('does not call a MARKER stale either, for the same reason', () => {
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n' + `\`\`\`ts\n${partial}\n\`\`\`\n`;
+      const result = runUnbuilt(body);
+      expect(kinds(result)).toEqual(['unjudgeable-type']);
+      expect(result.findings.filter((f) => f.verdict === 'stale-partial-marker')).toEqual([]);
+      expect(result.census.excerptsNotJudged).toBe(1);
+    });
+
+    it('counts NOTHING when the unjudged declaration carries no excerpt at all', () => {
+      // The census number must mean "claims this run could not check", not
+      // "declarations this run could not judge" — `typesUnjudgeable` already
+      // says the latter, and inflating this one would read as excerpt debt
+      // that does not exist.
+      const result = runUnbuilt(block(partial));
+      expect(result.census.typesUnjudgeable).toBe(1);
+      expect(result.census.excerptsNotJudged).toBe(0);
+    });
+
+    it('MUST-FAIL CONTROL: the same entry on a BUILT tree is still reported stale', () => {
+      // Without this leg the three above would also pass if the suspension had
+      // swallowed the shrink-only rule outright, which is the opposite defect
+      // and the more expensive one — a ledger that can never shrink again.
+      const complete = block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}');
+      const result = run(complete, entry);
+      expect(kinds(result)).toEqual(['stale-excerpt-entry']);
+      expect(result.census.excerptsNotJudged).toBe(0);
+    });
+  });
+
   describe('the pin walk breaches ITS floors independently of the import walk', () => {
     const floors = { packagesRead: 1, exportSymbols: 4, typeDeclarations: 1, typesResolved: 1, keysCompared: 4 };
     const healthy = scan(root, {
@@ -838,6 +897,11 @@ describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
     } else {
       expect(off.findings.some((f) => f.verdict === 'unjudgeable-type')).toBe(true);
       expect(off.findings.every((f) => f.verdict === 'unjudgeable-type' || f.verdict === 'unjudgeable')).toBe(true);
+      // With the ledger OFF there is nothing for the sweep to call stale, so
+      // this leg cannot see the objectui#6214 regression on its own — the one
+      // in the `repo state` block below, with the ledger ON, is the leg that
+      // does. Stated so the pair is not mistaken for one assertion twice.
+      expect(off.census.excerptsNotJudged).toBe(0);
     }
   });
 });
@@ -859,14 +923,31 @@ describe('repo state — assertions that hold whether or not the tree is built',
     // locally, after a build, it takes the first. BOTH branches assert — a
     // conditional that let the unbuilt tree through silently would be this
     // gate's own defect.
-    const judged = result.findings.filter((f) => f.verdict !== 'unjudgeable');
+    // The could-not-judge class has TWO verdicts since objectui#6214 added the
+    // interface pin: `unjudgeable` for a self-import and `unjudgeable-type` for
+    // a documented type. Both mean the same single thing — the package's export
+    // surface is not on disk — so both are excluded here, exactly as the one
+    // did before. This is the filter being kept correct as a new member of the
+    // class arrived, NOT an exemption widened to make a red go green: the
+    // assertion below still requires the unbuilt tree to FAIL.
+    const CANNOT_JUDGE = ['unjudgeable', 'unjudgeable-type'];
+    const judged = result.findings.filter((f) => !CANNOT_JUDGE.includes(f.verdict));
     if (built) {
       expect(judged, `unexpected README drift: ${JSON.stringify(judged, null, 2)}`).toEqual([]);
       expect(result.census.selfBindings).toBeGreaterThanOrEqual(FLOORS.selfBindings);
       expect(result.census.exportSymbols).toBeGreaterThanOrEqual(FLOORS.exportSymbols);
       expect(result.vacuous).toEqual([]);
     } else {
-      expect(judged).toEqual([]);
+      expect(judged, `unbuilt tree reported a verdict it could not have judged: ${JSON.stringify(judged, null, 2)}`).toEqual([]);
+      // The specific regression this line exists for (objectui#6214, caught by
+      // `Test (shard 2/4)`): the three `PARTIAL_EXCERPTS` entries came back
+      // `stale-excerpt-entry` on CI, because they had suppressed nothing — and
+      // they had suppressed nothing only because NOTHING WAS COMPARED. Named
+      // explicitly rather than left to the `toEqual([])` above, so a future
+      // reader sees which verdict must never appear here and why.
+      expect(result.findings.filter((f) => f.verdict === 'stale-excerpt-entry')).toEqual([]);
+      expect(result.findings.filter((f) => f.verdict === 'stale-partial-marker')).toEqual([]);
+      expect(result.census.excerptsNotJudged).toBe(Object.keys(PARTIAL_EXCERPTS).length);
       expect(
         result.findings.length + result.vacuous.length,
         'on an unbuilt tree the gate must FAIL (unjudgeable self-imports and/or a breached floor), never report OK',

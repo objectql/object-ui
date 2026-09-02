@@ -212,6 +212,19 @@
  * `fabricated-key`. An excerpt may leave a key out; it may not invent one, and
  * there is no reason a ledger entry should be able to hide that.
  *
+ * THE SHRINK-ONLY RULE IS SUSPENDED WHERE NOTHING WAS COMPARED. "This entry
+ * suppressed no omission" has two causes that look identical from the outside:
+ * the README caught up (stale -- delete it), or the declaration could not be
+ * judged at all because the package is unbuilt (still true -- keep it). Reading
+ * the second as the first tells a reader to delete a correct entry, and it is
+ * the reading CI gets by default: the test shards run `pnpm install` then
+ * `pnpm test` and NEVER build, so on CI every declaration is unjudgeable.
+ * Measured -- this gate's own first CI run went red exactly there. So a
+ * declaration that comes back `unjudgeable-type` suspends the rule for its
+ * marker and its ledger entry, both are counted as `not judged` in the census,
+ * and the run still FAILS -- under `unjudgeable-type`, which names the real
+ * problem, instead of under a stale-entry verdict that names the wrong one.
+ *
  * ## Deliberately out of scope
  *
  * ### Compiling the blocks
@@ -918,6 +931,14 @@ export function scan(
   const findings = [];
   const documentedTypes = [];
   const usedExcerpts = new Set();
+  /**
+   * Declarations that could not be judged at all, keyed the two ways the two
+   * excerpt mechanisms are: `<readme>::<Name>` for the ledger,
+   * `<fence line>::<Name>` for a marker. Membership SUSPENDS the shrink-only
+   * rule rather than satisfying it -- see the `unjudgeable-type` branch.
+   */
+  const notJudged = new Set();
+  const notJudgedMarkers = new Set();
   const counters = {
     codeBlocks: 0,
     codeBlocksParsed: 0,
@@ -947,6 +968,7 @@ export function scan(
     partialLedgered: 0,
     partialMarkers: 0,
     excerptsOutOfPopulation: 0,
+    excerptsNotJudged: 0,
   };
 
   for (const { readme, record, blocks, markers } of documents) {
@@ -1007,6 +1029,28 @@ export function scan(
           counters.typesUnjudgeable++;
           documentedTypes.push({ ...site, verdict: 'unjudgeable-type' });
           findings.push({ ...site, verdict: 'unjudgeable-type', reason: record.state, declaredEntry: record.declaredEntry });
+          // AND the shrink-only rule is suspended for whatever declared this
+          // declaration an excerpt. An entry or a marker here suppressed nothing
+          // -- but only because NOTHING WAS COMPARED, not because the README
+          // caught up, and those two are opposite facts that must not share a
+          // verdict. Reporting `stale-excerpt-entry` on an unbuilt tree tells a
+          // reader to DELETE a ledger entry that is still true, and it is the
+          // reading CI gets: the test shards run `pnpm install` then
+          // `pnpm test` and never build, so on CI every declaration here is
+          // unjudgeable. Measured on objectui#6214's own first CI run --
+          // `Test (shard 2/4)` red with three of them.
+          const unjudgedLedgerKey = `${readme}::${declared.name}`;
+          const unjudgedMarkerKey = `${block.startLine}::${declared.name}`;
+          notJudged.add(unjudgedLedgerKey);
+          notJudgedMarkers.add(unjudgedMarkerKey);
+          // Counted only where an excerpt was actually DECLARED. Incrementing on
+          // every unjudgeable declaration would make the census read as excerpt
+          // debt that does not exist -- the number has to mean "claims this run
+          // could not check", not "declarations this run could not judge", which
+          // `typesUnjudgeable` already says.
+          if (excerptFor.has(unjudgedMarkerKey) || Object.prototype.hasOwnProperty.call(excerpts, unjudgedLedgerKey)) {
+            counters.excerptsNotJudged++;
+          }
           continue;
         }
         const surface = surfaces.get(record.entryPath) ?? new Map();
@@ -1146,6 +1190,7 @@ export function scan(
     // Same shrink-only rule as the ledger below.
     for (const [key, excerpt] of excerptFor) {
       if (usedMarkers.has(key)) continue;
+      if (notJudgedMarkers.has(key)) continue; // suspended, not satisfied -- see above
       findings.push({
         verdict: 'stale-partial-marker',
         file: readme,
@@ -1172,6 +1217,7 @@ export function scan(
   const walked = new Set(documents.map((document) => document.readme));
   for (const key of Object.keys(excerpts)) {
     if (usedExcerpts.has(key)) continue;
+    if (notJudged.has(key)) continue; // suspended, not satisfied -- see above
     const [file, typeName] = key.split('::');
     const entry = { file: file ?? key, line: 0, package: null, typeName: typeName ?? null, reason: excerpts[key] };
     if (walked.has(entry.file)) {
@@ -1232,7 +1278,8 @@ export function summarise({ census }) {
     `${census.typesUnjudgeable} unjudgeable), ` +
     `${census.keysCompared} key(s) compared both ways ` +
     `(${census.fabricatedKeys} fabricated, ${census.staleOmissions} stale omission(s); ` +
-    `${census.partialDeclared} excerpt(s) declared by marker, ${census.partialLedgered} by ledger; ` +
+    `${census.partialDeclared} excerpt(s) declared by marker, ${census.partialLedgered} by ledger, ` +
+    `${census.excerptsNotJudged} not judged; ` +
     `${census.typesComparedOverZeroKeys} compared over ZERO documented keys)`
   );
 }
