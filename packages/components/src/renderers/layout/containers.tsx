@@ -1896,15 +1896,40 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       (objectLabel && data?.id ? `${objectLabel} ${String(data.id).slice(0, 8)}` : '') ||
       objectLabel ||
       '';
+    // Width arbitration between the title column and the action tail
+    // (objectui#7244). The tail is `shrink-0` — correct, buttons must not be
+    // squeezed into unreadable slivers — so in a `nowrap` row it takes what it
+    // needs and the title column, being the only flexible item, absorbs the
+    // entire deficit. Measured at a 799px viewport on a Field Zoo record
+    // (3 labelled record_header actions + `⋯` + `⟳`): header 687px, tail
+    // 641.5px, `gap-4` 16px, leaving the title column **29.5px** for an h1
+    // whose `scrollWidth` was 180px — the title rendered as "S…" while the
+    // breadcrumb still showed the full "Specimen — Full".
+    //
+    // Two utilities settle it, both scoped to `sm:` so the sub-640px column
+    // layout stays byte-for-byte what it was:
+    //   - `sm:min-w-48` gives the title column a 12rem floor it will not
+    //     yield, so the deficit has nowhere to go but the tail;
+    //   - `sm:flex-wrap` gives the deficit somewhere to go — the tail drops to
+    //     its own line instead of overflowing the header.
+    // The h1 still ellipsises, but now at a width you can read a name from.
+    //
+    // The floor is deliberately NOT a `min-w-0` removal: `min-w-0` is what lets
+    // `truncate` clip at all, and the chip's own inner column keeps it. This
+    // only stops the OUTER column from being driven below a readable width.
+    //
+    // Headers whose tail already fits are unaffected — an Account record
+    // (edit + `⋯` + `⟳`) needs 192 + 16 + ~180px of a 687px header, so it stays
+    // on one line exactly as before.
     return (
       <header
         className={cn(
-          'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b',
+          'flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b',
           className,
         )}
         {...designer}
       >
-        <div className="flex flex-col min-w-0 flex-1">
+        <div className="flex flex-col min-w-0 sm:min-w-48 flex-1">
           {breadcrumb && (
             <div
               className="text-xs text-muted-foreground mb-1"
