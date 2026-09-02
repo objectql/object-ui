@@ -53,8 +53,9 @@ The `@object-ui/plugin-map` plugin provides map visualization for ObjectQL data 
 
 ```tsx
 import '@object-ui/plugin-map'
+import type { ObjectMapSchema } from '@object-ui/types'
 
-const schema = {
+const schema: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'locations',  // Your ObjectQL object
   map: {
@@ -137,7 +138,9 @@ const schema = {
 When your data has separate latitude and longitude fields:
 
 ```tsx
-{
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const storeMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'stores',
   map: {
@@ -146,7 +149,7 @@ When your data has separate latitude and longitude fields:
     titleField: 'storeName',
     descriptionField: 'storeAddress'
   }
-}
+};
 ```
 
 ### Field Mapping - Combined Location
@@ -154,7 +157,9 @@ When your data has separate latitude and longitude fields:
 When your data has a combined location field:
 
 ```tsx
-{
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const placeMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'places',
   map: {
@@ -162,7 +167,7 @@ When your data has a combined location field:
     titleField: 'placeName',
     descriptionField: 'description'
   }
-}
+};
 ```
 
 ### Initial Camera
@@ -185,7 +190,9 @@ Two cases sit outside the fit:
 Declare either one to take the camera over and opt this view out of the auto-fit:
 
 ```tsx
-{
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const cameraMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'locations',
   map: {
@@ -195,7 +202,7 @@ Declare either one to take the camera over and opt this view out of the auto-fit
     zoom: 12,                    // Zoom level (1-20)
     center: [37.7749, -122.4194] // [latitude, longitude]
   }
-}
+};
 ```
 
 Declaring only one half keeps the other derived: `zoom` on its own is applied at
@@ -206,7 +213,9 @@ the centre of the records, `center` on its own at a continental zoom.
 ### Object Provider (Database)
 
 ```tsx
-{
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const retailStores: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'retail_stores',
   map: {
@@ -215,13 +224,13 @@ the centre of the records, `center` on its own at a continental zoom.
     titleField: 'store_name',
     descriptionField: 'store_address'
   }
-}
+};
 ```
 
 ### Value Provider (Static)
 
 ```tsx
-{
+const staticLocations = {
   type: 'object-map',
   staticData: [
     { id: 1, name: 'Location 1', lat: 37.7749, lng: -122.4194 },
@@ -232,7 +241,7 @@ the centre of the records, `center` on its own at a continental zoom.
     longitudeField: 'lng',
     titleField: 'name'
   }
-}
+};
 ```
 
 ### API Provider — not implemented
@@ -251,7 +260,9 @@ already hold with the **Value Provider**.
 ### Marker Click
 
 ```tsx
-{
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const clickableMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'locations',
   map: {
@@ -259,13 +270,13 @@ already hold with the **Value Provider**.
     longitudeField: 'lng',
     titleField: 'name'
   },
-  onMarkerClick: (location) => {
+  onMarkerClick: (location: Record<string, unknown>) => {
     console.log('Marker clicked:', location);
     // Show location details
     // Navigate to location page
     // Open directions
   }
-}
+};
 ```
 
 ## Examples
@@ -273,7 +284,9 @@ already hold with the **Value Provider**.
 ### Store Locator
 
 ```tsx
-const storeLocator = {
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const storeLocator: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'retail_locations',
   map: {
@@ -284,7 +297,7 @@ const storeLocator = {
     zoom: 10,
     center: [37.7749, -122.4194]  // San Francisco
   },
-  onMarkerClick: (store) => {
+  onMarkerClick: (store: Record<string, unknown>) => {
     // Show store details
     // Display hours, phone, etc.
   }
@@ -294,7 +307,9 @@ const storeLocator = {
 ### Delivery Tracking
 
 ```tsx
-const deliveryMap = {
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const deliveryMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'active_deliveries',
   map: {
@@ -303,7 +318,7 @@ const deliveryMap = {
     titleField: 'driver_name',
     descriptionField: 'delivery_address'
   },
-  onMarkerClick: (delivery) => {
+  onMarkerClick: (delivery: Record<string, unknown>) => {
     // Show delivery details
     // Contact driver
   }
@@ -313,7 +328,9 @@ const deliveryMap = {
 ### Real Estate Listings
 
 ```tsx
-const propertyMap = {
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const propertyMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'properties',
   map: {
@@ -323,7 +340,7 @@ const propertyMap = {
     descriptionField: 'property_details',
     zoom: 12
   },
-  onMarkerClick: (property) => {
+  onMarkerClick: (property: Record<string, unknown>) => {
     // Show property details
     // Display photos, price, etc.
   }
@@ -365,7 +382,7 @@ const venueMap = {
     descriptionField: 'details',
     zoom: 11
   },
-  onMarkerClick: (venue) => {
+  onMarkerClick: (venue: Record<string, unknown>) => {
     // Show venue details
     // Book venue
   }
@@ -375,7 +392,9 @@ const venueMap = {
 ### Field Service Map
 
 ```tsx
-const serviceMap = {
+import type { ObjectMapSchema } from '@object-ui/types';
+
+const serviceMap: ObjectMapSchema = {
   type: 'object-map',
   objectName: 'service_calls',
   map: {
@@ -385,7 +404,7 @@ const serviceMap = {
     descriptionField: 'service_type',
     zoom: 10
   },
-  onMarkerClick: (serviceCall) => {
+  onMarkerClick: (serviceCall: Record<string, unknown>) => {
     // Show service call details
     // Assign technician
     // Get directions
@@ -407,6 +426,8 @@ const serviceMap = {
 
 ### Separate Fields
 
+{/* doc-snippet: fragment — a SHAPE excerpt of one of the READER's own data records, not an expression: a bare object literal at statement position parses as a block with labels (measured: TS1005 x3). No ObjectUI type describes it — these are the caller's own row fields, named by `map.latitudeField` / `map.longitudeField` above */}
+
 ```tsx
 {
   id: 1,
@@ -418,6 +439,8 @@ const serviceMap = {
 
 ### Combined String
 
+{/* doc-snippet: fragment — a SHAPE excerpt of one of the READER's own data records, not an expression: a bare object literal at statement position parses as a block with labels (measured: TS1005 x2). No ObjectUI type describes it — `coordinates` is the caller's own field, named by `map.locationField` above */}
+
 ```tsx
 {
   id: 1,
@@ -427,6 +450,8 @@ const serviceMap = {
 ```
 
 ### Object Format
+
+{/* doc-snippet: fragment — a SHAPE excerpt of one of the READER's own data records, not an expression: a bare object literal at statement position parses as a block with labels (measured: TS1005 x3). No ObjectUI type describes it — `location` is the caller's own field, named by `map.locationField` above */}
 
 ```tsx
 {
