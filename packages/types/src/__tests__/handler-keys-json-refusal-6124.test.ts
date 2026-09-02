@@ -47,8 +47,10 @@
  *     every non-metadata schema key as a React prop, so a renderer that reads
  *     `schema.onX`, calls `props.onX`, or spreads leftover props onto a Radix
  *     root / DOM listener slot is a live channel (36 sites, `RUNTIME_SLOT`
- *     below). A key nothing reads gets the `?: never` tombstone (22 sites,
- *     `RETIRED` below; the `crud.ts` `confirm` / `base.ts` convention).
+ *     below — 37 since objectui#6576 minted `ObjectDataTableSchema` with an
+ *     `onRowClick` arm, the first on an `objectql` mirror). A key nothing reads
+ *     gets the `?: never` tombstone (22 sites, `RETIRED` below; the `crud.ts`
+ *     `confirm` / `base.ts` convention).
  *
  * ## Predictions, written before the first run (red-first)
  *
@@ -72,6 +74,10 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
 import { retirementTombstone } from '../zod/tombstone.zod';
+// objectui#6576 — the first handler arm on an `objectql` mirror, ledgered here
+// like the 58 it joins.
+import { ObjectDataTableSchema as ObjectDataTableZod } from '../zod/objectql.zod';
+import type { ObjectDataTableSchema } from '../objectql';
 import {
   CalendarViewSchema as CalendarViewZod,
   CarouselSchema as CarouselZod,
@@ -236,6 +242,8 @@ const RUNTIME_SLOT: readonly Site[] = [
   ['layout.zod.ts', 'CardSchema', 'onClick', CardZod],
   ['layout.zod.ts', 'TabsSchema', 'onValueChange', TabsZod],
   ['navigation.zod.ts', 'PaginationSchema', 'onPageChange', PaginationZod],
+  // objectui#6576 / #6914 — `ObjectDataTable.tsx` forwards `schema.onRowClick` into the `data-table` it renders.
+  ['objectql.zod.ts', 'ObjectDataTableSchema', 'onRowClick', ObjectDataTableZod],
   ['overlay.zod.ts', 'DialogSchema', 'onOpenChange', DialogZod],
   ['overlay.zod.ts', 'AlertDialogSchema', 'onOpenChange', AlertDialogZod],
   ['overlay.zod.ts', 'SheetSchema', 'onOpenChange', SheetZod],
@@ -283,8 +291,10 @@ const RETIRED: readonly Site[] = [
 
 const ALL_SITES: readonly Site[] = [...RUNTIME_SLOT, ...RETIRED];
 
-/** The eight mirror files the census covers; `base.zod.ts` holds only
- *  `EventHandlersSchema` (a record, objectui#6910's card) and no named key. */
+/** The nine mirror files the census covers; `base.zod.ts` holds only
+ *  `EventHandlersSchema` (a record, objectui#6910's card) and no named key.
+ *  `objectql.zod.ts` joined with objectui#6576 — it declared no handler key
+ *  at all until `ObjectDataTableSchema.onRowClick`. */
 const MIRROR_FILES = [
   'complex.zod.ts',
   'data-display.zod.ts',
@@ -293,6 +303,7 @@ const MIRROR_FILES = [
   'form.zod.ts',
   'layout.zod.ts',
   'navigation.zod.ts',
+  'objectql.zod.ts',
   'overlay.zod.ts',
 ] as const;
 
@@ -340,11 +351,13 @@ describe('census: no on* key in the eight mirrors is declared z.function() (obje
     ]);
   });
 
-  it('58 sites are ledgered, 36 runtime slots + 22 retired, with no key filed twice', () => {
-    expect(RUNTIME_SLOT).toHaveLength(36);
+  it('59 sites are ledgered, 37 runtime slots + 22 retired, with no key filed twice', () => {
+    // 58 from objectui#6124; the 59th is `ObjectDataTableSchema.onRowClick`,
+    // minted with its arm by objectui#6576 / #6914.
+    expect(RUNTIME_SLOT).toHaveLength(37);
     expect(RETIRED).toHaveLength(22);
     const ids = ALL_SITES.map(([file, schema, key]) => `${file}#${schema}.${key}`);
-    expect(new Set(ids).size).toBe(58);
+    expect(new Set(ids).size).toBe(59);
   });
 
   it.each(ALL_SITES)('%s %s.%s is DECLARED on the mirror shape, with the objectui#6124 guidance as its description', (_file, _schema, key, mirror) => {
@@ -520,6 +533,7 @@ export type assertionRuntimeSlotsKeepTheirFunctionType = [
   Expect<KeepsFunction<CardSchema['onClick']>>,
   Expect<KeepsFunction<TabsSchema['onValueChange']>>,
   Expect<KeepsFunction<PaginationSchema['onPageChange']>>,
+  Expect<KeepsFunction<ObjectDataTableSchema['onRowClick']>>,
   Expect<KeepsFunction<DialogSchema['onOpenChange']>>,
   Expect<KeepsFunction<AlertDialogSchema['onOpenChange']>>,
   Expect<KeepsFunction<SheetSchema['onOpenChange']>>,

@@ -14,7 +14,7 @@ import {
   columnIdentity,
   columnHeader,
 } from '@object-ui/core';
-import type { DrillDownConfig, TableColumn } from '@object-ui/types';
+import type { ObjectDataTableSchema, TableColumn } from '@object-ui/types';
 import { normalizeTableColumnType } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
@@ -33,19 +33,14 @@ import { RecordDetailDrawer } from './RecordDetailDrawer';
 import { WidgetEmptyState } from './WidgetEmptyState';
 
 export interface ObjectDataTableProps {
-  schema: {
-    type: string;
-    objectName?: string;
-    dataProvider?: { provider: string; object?: string };
-    bind?: string;
-    filter?: any;
-    data?: any[];
-    columns?: any[];
-    searchable?: boolean;
-    pagination?: boolean;
-    className?: string;
-    [key: string]: any;
-  };
+  /**
+   * The `object-data-table` node — anchored to the exported schema type
+   * (objectui#6576 / #6914). The hand-rolled literal that stood here carried
+   * its own string index signature and had drifted: `drillDown` and
+   * `onRowClick` were read behind casts and declared nowhere. Both are declared
+   * on the schema type now; `bind` / `className` are inherited from `BaseSchema`.
+   */
+  schema: ObjectDataTableSchema;
   dataSource?: any;
   className?: string;
 }
@@ -644,7 +639,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // record in a detail drawer (the row already IS a record, so there is no
   // filter to derive). Opt-in via `schema.drillDown` — DashboardRenderer
   // defaults object-backed table/list widgets to `{ enabled: true }`.
-  const drillDown = schema.drillDown as DrillDownConfig | undefined;
+  const drillDown = schema.drillDown;
   const recordDrillEnabled = isDrillEnabled(drillDown) && (drillDown?.mode ?? 'record') === 'record';
   const [drillRecord, setDrillRecord] = useState<Record<string, any> | null>(null);
   const handleRowClick = useCallback((row: Record<string, any>) => {
@@ -970,7 +965,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     type: 'data-table',
     data: finalData,
     columns: derivedColumns,
-    onRowClick: (schema as any).onRowClick ?? (recordDrillEnabled ? handleRowClick : undefined),
+    onRowClick: schema.onRowClick ?? (recordDrillEnabled ? handleRowClick : undefined),
   };
 
   // A `${event.*}` template (filter-mode title) is meaningless for a single
