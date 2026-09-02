@@ -325,7 +325,13 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * with a measured reason is what a page that cannot pass yet is owed — and that
  * card then walked every one of them back OFF this list rather than re-wording its
  * reason. The direction on that card was entries LEAVING, and it finished: what
- * remains here is 12 `.mdx` pages and 32 package READMEs.
+ * remains here is `.mdx` pages under `content/docs` plus package READMEs, and the
+ * ENTRIES BELOW are that list — re-derived every run and shrink-only, so the names
+ * in it are the count. This sentence carried the literal `12 .mdx pages and 32
+ * package READMEs` until objectui#5174's batch 7, by which point BOTH halves had
+ * drifted: the README count has been 31 since objectui#5259, and the `.mdx` count
+ * moves with every batch. Nothing fails on a stale number written here, which is
+ * why it is a pointer to the list now rather than a copy of its length.
  *
  * Batch 1 took ten: `api/schema-reference`, `plugins/index`, and the `guide/` pages
  * `architecture-overview`, `deployment`, `expressions`, `notifications`,
