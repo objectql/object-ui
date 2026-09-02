@@ -132,10 +132,21 @@ function derive(): Population {
   };
 }
 
+/**
+ * `@object-ui/core` by computed specifier, like every other import below it.
+ * `tsconfig.scripts.json` has no path mapping into the workspace packages, and
+ * adding one to type ONE line would put every `scripts/` file on a different
+ * module resolution than the one CI type-checks them with.
+ */
+const CORE_SPECIFIER = '@object-ui/core';
+type Singleton = { getAllTypes(): string[] };
+
 /** Import `ids` into a private module graph and report what they registered. */
 async function registryAfterImporting(ids: string[]) {
   vi.resetModules();
-  const { ComponentRegistry } = await import('@object-ui/core');
+  const { ComponentRegistry } = (await import(/* @vite-ignore */ CORE_SPECIFIER)) as {
+    ComponentRegistry: Singleton;
+  };
   const before = new Set<string>(ComponentRegistry.getAllTypes());
   const failures: Array<{ id: string; message: string }> = [];
   let imported = 0;
@@ -147,7 +158,7 @@ async function registryAfterImporting(ids: string[]) {
       failures.push({ id, message: String((error as Error)?.message ?? error).split('\n')[0].slice(0, 160) });
     }
   }
-  const added = ComponentRegistry.getAllTypes().filter((k: string) => !before.has(k));
+  const added = ComponentRegistry.getAllTypes().filter((k) => !before.has(k));
   return { added, failures, imported, startedEmpty: before.size === 0 };
 }
 
