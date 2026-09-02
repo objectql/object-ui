@@ -132,15 +132,107 @@
  * files, or refusing to run on a dirty worktree, would change what this gate
  * MEANS and is deliberately not done here -- that is a decision, not a patch.
  *
+ * ## The second judgement: documented `interface` blocks, BOTH directions
+ *
+ * A README that writes out a type it also EXPORTS is making a second claim, and
+ * the name check above cannot reach it. `interface GanttTask { ... }` standing
+ * in a fenced block is a LOCAL declaration: it is unrelated to the shipped
+ * `GanttTask`, it compiles green no matter what it says, and a tier that only
+ * compiled the block would be green for the wrong reason (objectui#6214). So
+ * every fenced block that declares `interface X { ... }` (or
+ * `type X = { ... }`) where `X` is an export of that README's OWN package has
+ * its documented property names compared against the shipped declaration's, in
+ * BOTH directions:
+ *
+ *   fabricated-key   a key the block documents that the shipped type does not
+ *                    have. A reader who copies it writes code that does not
+ *                    type-check. Judged against the type's FULL property set,
+ *                    inherited members included -- documenting a key that
+ *                    arrives through `extends` is correct, not a fabrication.
+ *   stale-omission   a key the shipped type has that the block never mentions.
+ *                    This is the direction that makes the pin bidirectional,
+ *                    and it is judged against the interface's OWN declared
+ *                    members only: an excerpt of a type that extends a large
+ *                    base is not stale for leaving the base's keys to the base's
+ *                    own documentation.
+ *
+ * ONE DIRECTION PINS ONLY HALF, which is why both are here. `real -> doc` alone
+ * misses optional keys the block invents; `doc -> real` alone misses required
+ * keys the block drops. And a RENAME is only visible as the pair: the new
+ * spelling reads as `fabricated-key` and the old one as `stale-omission` in the
+ * same declaration, which no single direction reports.
+ *
+ * ### The bound this pin exists to cover, stated because it is narrow
+ *
+ * Measured on objectui#6214 and recorded on the card: THE TYPED-EXAMPLE HALF
+ * CANNOT CARRY THE KEY-RENAME CLASS. Given
+ * `const task: GanttTask = { name: ..., start: '2024-01-01' }`, TypeScript
+ * reports two `TS2322` for the property-level type errors and NEVER the missing
+ * `title` -- a property-level assignment error short-circuits the
+ * missing-property detail. So compiling typed examples, however strictly, does
+ * not see a renamed key on this family of blocks. THIS pin is what covers
+ * renames on `interface` blocks, and nothing here promises more than that.
+ *
+ * ### Where it deliberately stops (first cut)
+ *
+ *   - METHOD SIGNATURES and INDEX SIGNATURES are counted and skipped, on both
+ *     sides. `packages/types/README.md`'s `DataSource` is entirely method
+ *     signatures, so it is resolved and compared over ZERO keys -- the census
+ *     says so rather than letting it read as a verified declaration.
+ *   - Property TYPES are not compared, only NAMES. That half belongs to a
+ *     compile tier (see "Compiling the blocks" below).
+ *   - `X` is resolved against the README's OWN package only. Measured on
+ *     objectui#6214: widening to any workspace package would pull in
+ *     `packages/plugin-detail/README.md`'s `DetailViewSchema` (owned by
+ *     `@object-ui/types`) at 36 omissions in one declaration, most of them
+ *     inherited `BaseSchema` members. That widening needs its own inheritance
+ *     policy and its own card, not a quiet flag here.
+ *
+ * ### Declaring a deliberate excerpt -- two homes, two different claims
+ *
+ * A README may document part of a type on purpose. Two mechanisms, and they do
+ * NOT mean the same thing:
+ *
+ *   PARTIAL_MARKER    an HTML comment in the README itself, above the fence,
+ *                     naming the interface and carrying a reason. It says
+ *                     "this excerpt is DELIBERATE". Grammar is deliberately the
+ *                     same family as `check-doc-snippet-types.mjs`'s
+ *                     `FRAGMENT_MARKER` (marker word, an em/en dash or colon,
+ *                     then a reason of real length) so a reader who knows one
+ *                     knows the other; the verb differs because the claim does
+ *                     -- `doc-snippet: fragment` says a block cannot compile,
+ *                     which must not double as permission to omit a key.
+ *   PARTIAL_EXCERPTS  a ledger in THIS file. It says "this is DRIFT, it is
+ *                     owed to a content card, and it is recorded rather than
+ *                     inherited". Shrink-only: an entry naming a declaration
+ *                     that no longer exists, or that no longer omits anything,
+ *                     FAILS as stale, so the list can only get shorter.
+ *
+ * BOTH suppress `stale-omission` for one declaration and NEITHER suppresses
+ * `fabricated-key`. An excerpt may leave a key out; it may not invent one, and
+ * there is no reason a ledger entry should be able to hide that.
+ *
  * ## Deliberately out of scope
  *
- * Extracting the code blocks and COMPILING them (objectui#5043's "stronger
- * tier", with the bidirectional pins for documented `interface` blocks) is a
- * separate card: the entry price is a batch of pre-existing reds that need a
- * baseline decision first. This gate answers one question -- does the imported
- * NAME exist -- and says so rather than implying more.
+ * ### Compiling the blocks
  *
- * Also invisible to it, and documented on the card: authorable-JSON KEY
+ * Extracting the code blocks and COMPILING them (objectui#5043's "stronger
+ * tier") is NOT done here, and by objectui#6214's measurement it does not need
+ * a second implementation: `scripts/check-doc-snippet-types.mjs` already
+ * collects every `packages/<name>/README.md` into its scan surface and compiles
+ * the ts/tsx blocks of the ones that are covered. Measured on that card:
+ * 39 package READMEs in that gate's surface, 8 compiled today, 31 named in its
+ * `UNGATED_DOCS` ledger with a reason -- a shrink-only debt list that
+ * objectui#5174's batches are burning down. Building a second README compiler
+ * here would duplicate that gate and split its ledger in two.
+ *
+ * The pin above is orthogonal to compilation and cheap: a documented
+ * `interface` block compiles green whether or not it matches the shipped type,
+ * so no amount of progress on that ledger reaches this class.
+ *
+ * ### The authorable-JSON key surface
+ *
+ * Invisible to both judgements, and documented on the card: authorable-JSON KEY
  * surfaces. `BaseSchema` carries an index signature and its Zod mirror is
  * `.passthrough()`, so no amount of type checking rejects an invented schema
  * key. That needs a third instrument, not a wider version of this one.
@@ -185,6 +277,74 @@ export const FLOORS = Object.freeze({
   selfBindings: 40,
   packagesRead: 25,
   exportSymbols: 400,
+  // The interface-pin walk, floored SEPARATELY so that it collapsing on its own
+  // -- a change to `findDocumentedTypes`, a shape resolution that stops
+  // returning properties -- fails and names itself, instead of hiding behind a
+  // healthy import walk. These are an order smaller than the counters above
+  // because the population genuinely is: measured on objectui#6214, 6
+  // declarations in 5 blocks, 4 of them resolving to a shipped object type of
+  // their own package, 52 keys compared. Floored well under that, because the
+  // job is catching a walk that went to ZERO and not pinning today's numbers.
+  typeDeclarations: 3,
+  typesResolved: 2,
+  keysCompared: 20,
+});
+
+/**
+ * The declaration a README carries to say an excerpt is DELIBERATE.
+ *
+ *   <!-- readme-exports: partial GanttTask - why only these keys are shown -->
+ *
+ * Deliberately the same grammar family as `check-doc-snippet-types.mjs`'s
+ * `FRAGMENT_MARKER`: a marker word, a dash or colon, then a reason that has to
+ * be long enough to be one. Only the HTML spelling exists here -- these are
+ * `README.md` files, not MDX, so the MDX expression-comment form that gate also
+ * accepts (it cannot even be quoted inside a block comment like this one, which
+ * is why `FRAGMENT_MARKER_EXAMPLES` is a string array over there) would render
+ * as literal text to a reader on npm.
+ *
+ * It names the INTERFACE, which `FRAGMENT_MARKER` has no need to do: one fenced
+ * block can declare several types (`packages/plugin-kanban/README.md` declares
+ * `KanbanColumn` and `KanbanCard` in one block), and a marker that silenced a
+ * whole block would silence the neighbour nobody looked at.
+ */
+export const PARTIAL_MARKER =
+  /^[ \t]*<!--[ \t]*readme-exports:[ \t]*partial[ \t]+([A-Za-z_$][A-Za-z0-9_$]*)[ \t]*(?:\u2014|\u2013|--|-|:)[ \t]*(.+?)[ \t]*-->[ \t]*$/;
+
+/** The marker, spelled out once, so a reader never has to read the regex. */
+export const PARTIAL_MARKER_EXAMPLE =
+  '<!-- readme-exports: partial GanttTask \u2014 why this block documents only some keys -->';
+
+/** A reason shorter than this is a placeholder, not a reason. Same value, and
+ *  the same argument, as `check-doc-snippet-types.mjs`'s `MIN_REASON_LENGTH`. */
+export const MIN_PARTIAL_REASON = 12;
+
+/**
+ * Declarations whose `stale-omission` is RECORDED DEBT rather than a deliberate
+ * excerpt, keyed `<readme path>::<InterfaceName>`.
+ *
+ * This is the other half of the pair described in the header: the marker above
+ * lives in the README and says "deliberate"; this ledger lives here and says
+ * "drift, owed to a content card". objectui#6214 wired this pin and was
+ * explicitly not allowed to edit README CONTENT, so the drift its first run
+ * found is written down here with the card number instead of being inherited
+ * silently or fixed in the gate's own PR.
+ *
+ * SHRINK-ONLY, enforced rather than asked for: an entry whose declaration is no
+ * longer in the README, or that no longer omits anything, FAILS as a stale
+ * entry. Adding one is an edit a reviewer sees; removing one happens by fixing
+ * the README.
+ *
+ * It suppresses `stale-omission` for that declaration and NOTHING else. A
+ * `fabricated-key` is never excludable here -- see the header.
+ */
+export const PARTIAL_EXCERPTS = Object.freeze({
+  'packages/plugin-gantt/README.md::GanttTask':
+    'objectui#6214 -- omits `fields` and `hasOwnDates`, which the prose immediately BELOW the block already names as populated by ObjectGantt itself. Genuinely an excerpt, so it wants the in-README PARTIAL_MARKER rather than this ledger; that one-line README edit was deliberately not made in the gate\'s own PR.',
+  'packages/plugin-kanban/README.md::KanbanColumn':
+    'objectui#6214 -- omits `collapsed`. Nothing in the page says the block is partial, so this is staleness, not an excerpt. Filed as a content follow-up.',
+  'packages/plugin-kanban/README.md::KanbanCard':
+    'objectui#6214 -- omits `cardSubtitle`, `cardFieldCells` and `coverImage`. Same page, same class as `KanbanColumn` above: the block reads as the whole card shape and is three keys behind it.',
 });
 
 /** The NUL that `git ls-files -z` delimits with, built from its code point. */
@@ -382,6 +542,117 @@ export function findImportBindings(body, { jsx = false } = {}) {
 }
 
 /**
+ * Every type this code block DECLARES, as the AST reports them.
+ *
+ * Two shapes count, because READMEs use both for the same job:
+ *   `interface X { ... }`   an `InterfaceDeclaration`.
+ *   `type X = { ... }`      a `TypeAliasDeclaration` over a type LITERAL. An
+ *                           alias to a union, a mapped type or a conditional is
+ *                           not a property list, so it is not one of these and
+ *                           is not counted as one.
+ *
+ * Members are separated rather than merged, so the census can say what was
+ * skipped instead of a green implying it was checked:
+ *   `keys`     property signatures -- the only ones compared.
+ *   `methods`  method signatures. Skipped on both sides (see the header), but
+ *              a documented method name still counts as "mentioned", so a
+ *              shipped member with that name is not reported as omitted.
+ *   `other`    index signatures, call/construct signatures, `get`/`set`. Only
+ *              counted.
+ *
+ * Nested declarations are deliberately NOT walked: only top-level statements of
+ * the block are read. A type declared inside a function body in an example is
+ * the example's own scaffolding, not a claim about the package's surface.
+ *
+ * @returns {{ name: string, kind: 'interface' | 'type', keys: string[],
+ *             methods: string[], other: number, line: number }[]}
+ *   `line` is 1-based WITHIN the block body, the same convention
+ *   `findImportBindings` uses.
+ */
+export function findDocumentedTypes(body, { jsx = false } = {}) {
+  const source = ts.createSourceFile(
+    jsx ? 'block.tsx' : 'block.ts',
+    body,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    jsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+
+  const out = [];
+  for (const statement of source.statements) {
+    let name = null;
+    let kind = null;
+    let members = null;
+    if (ts.isInterfaceDeclaration(statement)) {
+      name = statement.name.text;
+      kind = 'interface';
+      members = statement.members;
+    } else if (ts.isTypeAliasDeclaration(statement) && ts.isTypeLiteralNode(statement.type)) {
+      name = statement.name.text;
+      kind = 'type';
+      members = statement.type.members;
+    }
+    if (name === null) continue;
+
+    const keys = [];
+    const methods = [];
+    let other = 0;
+    for (const member of members) {
+      const memberName =
+        member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) ? member.name.text : null;
+      if (memberName !== null && ts.isPropertySignature(member)) keys.push(memberName);
+      else if (memberName !== null && ts.isMethodSignature(member)) methods.push(memberName);
+      else other++;
+    }
+
+    out.push({
+      name,
+      kind,
+      keys,
+      methods,
+      other,
+      line: source.getLineAndCharacterOfPosition(statement.getStart(source)).line + 1,
+    });
+  }
+  return out;
+}
+
+/**
+ * Every `PARTIAL_MARKER` line in a README, with the fence it declares.
+ *
+ * BINDING RULE, stated because the failure mode of getting it wrong is a marker
+ * that silently declares nothing: a marker binds to the next fenced block whose
+ * OPENING fence is the first following line that is neither blank nor another
+ * marker. So a run of markers can sit above one block -- which a block
+ * declaring two types needs -- and a marker stranded in prose binds to nothing
+ * and is reported as `stray-partial-marker` rather than being ignored.
+ *
+ * @param {string} markdown
+ * @param {{ startLine: number }[]} blocks Blocks from `extractCodeBlocks`.
+ * @returns {{ line: number, name: string, reason: string, fence: number | null }[]}
+ *   `line` is the 1-based README line of the marker; `fence` is the
+ *   `startLine` of the block it binds to, or `null` when it binds to nothing.
+ */
+export function findPartialMarkers(markdown, blocks) {
+  const lines = markdown.split('\n');
+  const fences = new Set(blocks.map((block) => block.startLine));
+  const markers = [];
+  for (let i = 0; i < lines.length; i++) {
+    const match = PARTIAL_MARKER.exec(lines[i]);
+    if (!match) continue;
+    let j = i + 1;
+    while (j < lines.length && (lines[j].trim() === '' || PARTIAL_MARKER.test(lines[j]))) j++;
+    markers.push({
+      line: i + 1,
+      name: match[1],
+      reason: match[2].trim(),
+      fence: j < lines.length && fences.has(j + 1) ? j + 1 : null,
+    });
+  }
+  return markers;
+}
+
+/**
  * The type entry a consumer of this package resolves, as the package itself
  * declares it. Derived, never assumed to be `dist/index.d.ts`: `test-support`
  * points its `exports['.'].types` straight at `src/index.ts`, and reading that
@@ -424,11 +695,73 @@ const PROGRAM_OPTIONS = Object.freeze({
 });
 
 /**
- * `entryPath -> Map<exportName, { isValue, isType, alias }>`, from ONE program
- * over every entry at once (the packages import each other, so a program per
- * package would re-read the same declaration files 39 times).
+ * The property names a shipped export declares, in the two sets the two pin
+ * directions need. `null` when the export is not a type with properties at all
+ * (a value, a union alias, a function type), which is a fact about the export
+ * and never a failure.
+ *
+ * `all` is `getPropertiesOfType`, so it INCLUDES inherited members; `own` is
+ * read off the symbol's own declarations, so it does not. The header says why
+ * each direction takes a different one. Interface MERGING is handled for free:
+ * every declaration the symbol carries contributes to `own`.
+ *
+ * @returns {{ all: Set<string>, own: Set<string>, ownMethods: Set<string>,
+ *             methods: Set<string> } | null}
  */
-export function readExportSurfaces(entryPaths) {
+function shapeOf(checker, symbol) {
+  if (!(symbol.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.TypeAlias))) return null;
+  let type;
+  try {
+    type = checker.getDeclaredTypeOfSymbol(symbol);
+  } catch {
+    return null;
+  }
+  if (!type || !(type.flags & ts.TypeFlags.Object)) return null;
+
+  const all = new Set();
+  const methods = new Set();
+  for (const property of checker.getPropertiesOfType(type)) {
+    all.add(property.name);
+    const isMethod = property.declarations?.some(
+      (declaration) => ts.isMethodSignature(declaration) || ts.isMethodDeclaration(declaration),
+    );
+    if (isMethod) methods.add(property.name);
+  }
+
+  const own = new Set();
+  const ownMethods = new Set();
+  for (const declaration of symbol.declarations ?? []) {
+    let members = null;
+    if (ts.isInterfaceDeclaration(declaration)) members = declaration.members;
+    else if (ts.isTypeAliasDeclaration(declaration) && ts.isTypeLiteralNode(declaration.type)) {
+      members = declaration.type.members;
+    }
+    if (members === null) continue;
+    for (const member of members) {
+      const name =
+        member.name && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) ? member.name.text : null;
+      if (name === null) continue;
+      if (ts.isPropertySignature(member)) own.add(name);
+      else if (ts.isMethodSignature(member)) ownMethods.add(name);
+    }
+  }
+  return { all, own, ownMethods, methods };
+}
+
+/**
+ * `entryPath -> Map<exportName, { isValue, isType, alias, shape }>`, from ONE
+ * program over every entry at once (the packages import each other, so a
+ * program per package would re-read the same declaration files 39 times).
+ *
+ * `shape` is `null` unless the name is listed for that entry in `shapesFor`.
+ * Resolving a declared type is the expensive part and only the handful of names
+ * a README actually writes out need it -- 6 of the 3292 export symbols on the
+ * tree this landed against.
+ *
+ * @param {string[]} entryPaths
+ * @param {{ shapesFor?: Map<string, Set<string>> }} [options]
+ */
+export function readExportSurfaces(entryPaths, { shapesFor = new Map() } = {}) {
   const surfaces = new Map();
   if (entryPaths.length === 0) return surfaces;
 
@@ -438,6 +771,7 @@ export function readExportSurfaces(entryPaths) {
   for (const entry of entryPaths) {
     const names = new Map();
     surfaces.set(entry, names);
+    const wanted = shapesFor.get(entry) ?? new Set();
     const sourceFile = program.getSourceFile(entry);
     if (!sourceFile) continue;
     const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
@@ -460,6 +794,7 @@ export function readExportSurfaces(entryPaths) {
         isValue: Boolean(resolved.flags & ts.SymbolFlags.Value),
         isType: Boolean(resolved.flags & (ts.SymbolFlags.Type | ts.SymbolFlags.TypeAlias | ts.SymbolFlags.Interface)),
         alias,
+        shape: wanted.has(symbol.name) ? shapeOf(checker, resolved) : null,
       });
     }
   }
@@ -487,9 +822,14 @@ function readJson(path) {
  *   README path (`packages/plugin-gantt/README.md`) to a file that stands in
  *   for it -- which is how the planted-mutation self-test runs without ever
  *   writing to the working tree. `floors` overrides `FLOORS`; pass `{}` to
- *   switch the collapse check off for a fixture tree.
+ *   switch the collapse check off for a fixture tree. `excerpts` overrides
+ *   `PARTIAL_EXCERPTS`; pass `{}` to judge the tree with the debt ledger OFF,
+ *   which is how the ablation below shows a red the ledger is not hiding.
  */
-export function scan(root, { readmes = null, packageDirs = null, readmeOverrides = {}, floors = FLOORS } = {}) {
+export function scan(
+  root,
+  { readmes = null, packageDirs = null, readmeOverrides = {}, floors = FLOORS, excerpts = PARTIAL_EXCERPTS } = {},
+) {
   const readmeFiles = readmes ?? trackedReadmes(root);
 
   // 1. Every package, its declared type entry, and its state. The whole
@@ -522,9 +862,41 @@ export function scan(root, { readmes = null, packageDirs = null, readmeOverrides
     packages.get(packageDir).readmes.push(readme);
   }
 
-  // 2. One program over every entry that is actually on disk.
+  // 2. Read every README ONCE, up front. The interface pin needs to know which
+  //    names to resolve declared types for BEFORE the program is built (see
+  //    `readExportSurfaces`), and re-reading and re-parsing every block for a
+  //    second walk would double the cost of the expensive half of this gate.
+  const documents = [];
+  const shapesFor = new Map(); // entryPath -> Set<name>
+  for (const readme of readmeFiles) {
+    const record = packages.get(ownerOf.get(readme));
+    if (!record) continue; // an orphan README -- counted, never judged
+    const override = readmeOverrides[readme];
+    let markdown;
+    try {
+      markdown = readFileSync(override ?? join(root, readme), 'utf8');
+    } catch {
+      continue;
+    }
+    const blocks = extractCodeBlocks(markdown).map((block) => ({
+      ...block,
+      code: LANG_SET.has(block.lang),
+      jsx: JSX_LANGS.has(block.lang),
+    }));
+    for (const block of blocks) {
+      block.documentedTypes = block.code ? findDocumentedTypes(block.body, { jsx: block.jsx }) : [];
+      if (record.state !== 'read' || record.entryPath === null) continue;
+      for (const declared of block.documentedTypes) {
+        if (!shapesFor.has(record.entryPath)) shapesFor.set(record.entryPath, new Set());
+        shapesFor.get(record.entryPath).add(declared.name);
+      }
+    }
+    documents.push({ readme, record, markdown, blocks, markers: findPartialMarkers(markdown, blocks) });
+  }
+
+  // 3. One program over every entry that is actually on disk.
   const entryPaths = [...packages.values()].filter((p) => p.state === 'read').map((p) => p.entryPath);
-  const surfaces = readExportSurfaces(entryPaths);
+  const surfaces = readExportSurfaces(entryPaths, { shapesFor });
 
   /** `exportName -> package names that export it`, for the wrong-path verdict. */
   const nameOwners = new Map();
@@ -540,9 +912,11 @@ export function scan(root, { readmes = null, packageDirs = null, readmeOverrides
     }
   }
 
-  // 3. Walk each README.
+  // 4. Walk each README.
   const bindings = [];
   const findings = [];
+  const documentedTypes = [];
+  const usedExcerpts = new Set();
   const counters = {
     codeBlocks: 0,
     codeBlocksParsed: 0,
@@ -557,28 +931,152 @@ export function scan(root, { readmes = null, packageDirs = null, readmeOverrides
     real: 0,
     fabricated: 0,
     wrongPath: 0,
+    typeDeclarations: 0,
+    typeBlocks: 0,
+    typesResolved: 0,
+    typesLocal: 0,
+    typesNotAShape: 0,
+    typesUnjudgeable: 0,
+    typesCompared: 0,
+    typesComparedOverZeroKeys: 0,
+    keysCompared: 0,
+    fabricatedKeys: 0,
+    staleOmissions: 0,
+    partialDeclared: 0,
+    partialLedgered: 0,
+    partialMarkers: 0,
+    excerptsOutOfPopulation: 0,
   };
 
-  for (const readme of readmeFiles) {
-    const record = packages.get(ownerOf.get(readme));
-    if (!record) continue; // an orphan README -- counted, never judged
-    const override = readmeOverrides[readme];
-    const onDisk = override ?? join(root, readme);
-    let markdown;
-    try {
-      markdown = readFileSync(onDisk, 'utf8');
-    } catch {
-      continue;
+  for (const { readme, record, blocks, markers } of documents) {
+    const excerptFor = new Map(); // `<fence line>::<name>` -> { source, reason, line }
+    const usedMarkers = new Set();
+    for (const marker of markers) {
+      counters.partialMarkers++;
+      if (marker.fence === null) {
+        findings.push({
+          verdict: 'stray-partial-marker',
+          file: readme,
+          line: marker.line,
+          package: record.name,
+          typeName: marker.name,
+          reason: marker.reason,
+        });
+        continue;
+      }
+      if (marker.reason.length < MIN_PARTIAL_REASON) {
+        findings.push({
+          verdict: 'partial-marker-no-reason',
+          file: readme,
+          line: marker.line,
+          package: record.name,
+          typeName: marker.name,
+          reason: marker.reason,
+        });
+        continue;
+      }
+      excerptFor.set(`${marker.fence}::${marker.name}`, { source: 'marker', reason: marker.reason, line: marker.line });
     }
 
-    for (const block of extractCodeBlocks(markdown)) {
+    for (const block of blocks) {
       counters.codeBlocks++;
       if (!block.terminated) counters.codeBlocksUnterminated++;
       if (block.lang === '') counters.codeBlocksUntagged++;
-      if (!LANG_SET.has(block.lang)) continue;
+      if (!block.code) continue;
       counters.codeBlocksParsed++;
 
-      for (const binding of findImportBindings(block.body, { jsx: JSX_LANGS.has(block.lang) })) {
+      // ── the interface pin ────────────────────────────────────────────────
+      if (block.documentedTypes.length > 0) counters.typeBlocks++;
+      for (const declared of block.documentedTypes) {
+        counters.typeDeclarations++;
+        const site = {
+          file: readme,
+          line: block.startLine + declared.line,
+          package: record.name,
+          typeName: declared.name,
+          kind: declared.kind,
+        };
+        if (record.state !== 'read') {
+          // Tier 1's rule, and for the same reason one paragraph over: with no
+          // export surface on disk EVERY documented type would read as a local
+          // helper, so the pin would report a serene `local-declaration` for a
+          // block it never judged. Scoped exactly as the import side is -- it
+          // only fails where the missing surface would have changed a verdict,
+          // which is precisely "this block declares a type".
+          counters.typesUnjudgeable++;
+          documentedTypes.push({ ...site, verdict: 'unjudgeable-type' });
+          findings.push({ ...site, verdict: 'unjudgeable-type', reason: record.state, declaredEntry: record.declaredEntry });
+          continue;
+        }
+        const surface = surfaces.get(record.entryPath) ?? new Map();
+        const hit = surface.get(declared.name);
+        if (!hit) {
+          // Not an export of THIS package. A README is free to declare a local
+          // helper type of any name, so this is a fact for the census and never
+          // a failure. (Whether a name owned by ANOTHER package should be
+          // judged here is measured in the header and deliberately not done.)
+          counters.typesLocal++;
+          documentedTypes.push({ ...site, verdict: 'local-declaration' });
+          continue;
+        }
+        if (!hit.shape) {
+          counters.typesNotAShape++;
+          documentedTypes.push({ ...site, verdict: 'not-a-property-type' });
+          continue;
+        }
+        counters.typesResolved++;
+
+        const documentedKeys = new Set(declared.keys);
+        const mentioned = new Set([...declared.keys, ...declared.methods]);
+        const fabricated = declared.keys.filter((key) => !hit.shape.all.has(key));
+        const omitted = [...hit.shape.own].filter((key) => !mentioned.has(key));
+        counters.typesCompared++;
+        counters.keysCompared += documentedKeys.size + hit.shape.own.size;
+        if (documentedKeys.size === 0) counters.typesComparedOverZeroKeys++;
+
+        const ledgerKey = `${readme}::${declared.name}`;
+        const markerKey = `${block.startLine}::${declared.name}`;
+        const excerpt =
+          excerptFor.get(markerKey) ??
+          (Object.prototype.hasOwnProperty.call(excerpts, ledgerKey)
+            ? { source: 'ledger', reason: excerpts[ledgerKey] }
+            : null);
+
+        if (fabricated.length > 0) {
+          // NEVER suppressed by an excerpt declaration -- see the header.
+          counters.fabricatedKeys += fabricated.length;
+          findings.push({ ...site, verdict: 'fabricated-key', keys: fabricated, shipped: [...hit.shape.all] });
+        }
+        if (omitted.length > 0) {
+          // A declaration is only "used" when it actually SUPPRESSED something.
+          // Marking it used on a match would let an entry whose drift is already
+          // fixed sit here forever, which is the stale-entry case one line down.
+          if (excerpt === null) {
+            counters.staleOmissions += omitted.length;
+            findings.push({ ...site, verdict: 'stale-omission', keys: omitted });
+          } else if (excerpt.source === 'marker') {
+            counters.partialDeclared++;
+            usedMarkers.add(markerKey);
+          } else {
+            counters.partialLedgered++;
+            usedExcerpts.add(ledgerKey);
+          }
+        }
+        documentedTypes.push({
+          ...site,
+          verdict: fabricated.length > 0 ? 'fabricated-key' : omitted.length === 0 ? 'matches' : excerpt === null ? 'stale-omission' : `partial-${excerpt.source}`,
+          documented: declared.keys.length,
+          documentedMethods: declared.methods.length,
+          otherMembers: declared.other,
+          shippedOwn: hit.shape.own.size,
+          shippedAll: hit.shape.all.size,
+          fabricated,
+          omitted,
+          excerpt: excerpt === null ? null : excerpt.source,
+        });
+      }
+
+      for (const binding of findImportBindings(block.body, { jsx: block.jsx })) {
         // `...binding` FIRST: it carries its own block-relative `line`, and
         // spreading it last silently overwrote the README line number with it.
         const site = { ...binding, file: readme, line: block.startLine + binding.line, package: record.name };
@@ -640,6 +1138,48 @@ export function scan(root, { readmes = null, packageDirs = null, readmeOverrides
         }
       }
     }
+
+    // A marker whose declaration matches the shipped type is a stale marker: it
+    // reads as "this excerpt is deliberate" over a block that is now complete,
+    // and leaving it there is how a declaration outlives the fact it declared.
+    // Same shrink-only rule as the ledger below.
+    for (const [key, excerpt] of excerptFor) {
+      if (usedMarkers.has(key)) continue;
+      findings.push({
+        verdict: 'stale-partial-marker',
+        file: readme,
+        line: excerpt.line,
+        package: record.name,
+        typeName: key.split('::')[1] ?? null,
+        reason: excerpt.reason,
+      });
+    }
+  }
+
+  // A ledger entry that no longer describes a drifting declaration is a stale
+  // entry, and stale entries are how a shrink-only list quietly stops shrinking.
+  // Same rule, and the same reason, as `check-doc-snippet-types.mjs` re-deriving
+  // `UNGATED_DOCS` on every run.
+  //
+  // SCOPED TO THE POPULATION THIS SCAN ACTUALLY WALKED, which is not a
+  // convenience: an entry naming a README the walk never opened has not been
+  // shown to be stale, it has not been LOOKED at, and reporting the two the
+  // same way is the silent-skip defect this gate exists to catch, inverted. On
+  // the full tracked walk the distinction still bites -- there, a README that
+  // is not in the population is one that no longer exists or is no longer
+  // tracked, so the entry is dead and says so under its own verdict.
+  const walked = new Set(documents.map((document) => document.readme));
+  for (const key of Object.keys(excerpts)) {
+    if (usedExcerpts.has(key)) continue;
+    const [file, typeName] = key.split('::');
+    const entry = { file: file ?? key, line: 0, package: null, typeName: typeName ?? null, reason: excerpts[key] };
+    if (walked.has(entry.file)) {
+      findings.push({ ...entry, verdict: 'stale-excerpt-entry' });
+    } else if (readmes === null) {
+      findings.push({ ...entry, verdict: 'orphan-excerpt-entry' });
+    } else {
+      counters.excerptsOutOfPopulation++;
+    }
   }
 
   const states = { read: 0, unbuilt: 0, 'no-type-entry': 0 };
@@ -662,7 +1202,7 @@ export function scan(root, { readmes = null, packageDirs = null, readmeOverrides
     if (census[counter] < floor) vacuous.push({ counter, value: census[counter], floor });
   }
 
-  return { census, packages: [...packages.values()], orphans, bindings, findings, vacuous };
+  return { census, packages: [...packages.values()], orphans, bindings, documentedTypes, findings, vacuous };
 }
 
 function repoRoot() {
@@ -681,7 +1221,18 @@ export function summarise({ census }) {
     `(${census.packagesWithReadme} carry a README) ` +
     `(${census.packagesUnbuilt} unbuilt, ${census.packagesNoTypeEntry} declare no types); ` +
     `${census.sideEffect} side-effect import(s), ${census.namespace} namespace, ${census.deepSelf} deep self-path, ` +
-    `${census.external} to other packages`
+    `${census.external} to other packages; ` +
+    // The interface pin, censused in the same line and with the same rule: the
+    // numbers that say what was SKIPPED travel beside the ones that say what was
+    // judged, so a green cannot be read as more coverage than it is.
+    `${census.typeDeclarations} documented type(s) in ${census.typeBlocks} block(s) ` +
+    `(${census.typesResolved} resolve to a shipped shape of their own package, ` +
+    `${census.typesLocal} local, ${census.typesNotAShape} not a property type, ` +
+    `${census.typesUnjudgeable} unjudgeable), ` +
+    `${census.keysCompared} key(s) compared both ways ` +
+    `(${census.fabricatedKeys} fabricated, ${census.staleOmissions} stale omission(s); ` +
+    `${census.partialDeclared} excerpt(s) declared by marker, ${census.partialLedgered} by ledger; ` +
+    `${census.typesComparedOverZeroKeys} compared over ZERO documented keys)`
   );
 }
 
@@ -711,6 +1262,15 @@ function main(overrides) {
   const fabricated = findings.filter((f) => f.verdict === 'fabricated');
   const wrongPath = findings.filter((f) => f.verdict === 'wrong-path');
   const unjudgeable = findings.filter((f) => f.verdict === 'unjudgeable');
+  const fabricatedKeys = findings.filter((f) => f.verdict === 'fabricated-key');
+  const staleOmissions = findings.filter((f) => f.verdict === 'stale-omission');
+  const markerProblems = findings.filter(
+    (f) => f.verdict === 'stray-partial-marker' || f.verdict === 'partial-marker-no-reason' || f.verdict === 'stale-partial-marker',
+  );
+  const staleEntries = findings.filter(
+    (f) => f.verdict === 'stale-excerpt-entry' || f.verdict === 'orphan-excerpt-entry',
+  );
+  const unjudgeableTypes = findings.filter((f) => f.verdict === 'unjudgeable-type');
 
   if (fabricated.length > 0) {
     console.error(`❌  check-readme-exports: ${fabricated.length} README import name(s) NO package exports\n`);
@@ -749,6 +1309,76 @@ defect this gate exists to catch, one level up.
 `);
   }
 
+  if (fabricatedKeys.length > 0) {
+    console.error(`❌  check-readme-exports: ${fabricatedKeys.length} documented type(s) declare a key the shipped type does NOT have\n`);
+    console.error('  The block writes the type out, so a reader takes these keys as the shape.');
+    console.error('  A rename shows up here AND as a stale omission on the same declaration:\n');
+    for (const f of fabricatedKeys) {
+      console.error(`    - ${f.file}:${f.line} -- ${f.kind} ${f.typeName} documents ${f.keys.map((k) => `\`${k}\``).join(', ')}, not on the shipped type`);
+    }
+    console.error('\n  Fix the README, or add the key. This is NEVER excludable: an excerpt may');
+    console.error('  leave a key out, it may not invent one.\n');
+  }
+
+  if (staleOmissions.length > 0) {
+    console.error(`❌  check-readme-exports: ${staleOmissions.length} documented type(s) are behind the shipped declaration\n`);
+    console.error('  The shipped type declares these keys and the block never mentions them:\n');
+    for (const f of staleOmissions) {
+      console.error(`    - ${f.file}:${f.line} -- ${f.kind} ${f.typeName} omits ${f.keys.map((k) => `\`${k}\``).join(', ')}`);
+    }
+    console.error(`
+Two honest ways out, and neither is widening the check. If the block is a
+DELIBERATE excerpt, declare it in the README above the fence:
+
+  ${PARTIAL_MARKER_EXAMPLE}
+
+If it is drift owed to a content card, record it in \`PARTIAL_EXCERPTS\` in this
+script with the card number. Both suppress this direction only, both are
+shrink-only, and both fail once the declaration stops being true.
+`);
+  }
+
+  if (markerProblems.length > 0) {
+    console.error(`❌  check-readme-exports: ${markerProblems.length} partial-excerpt marker(s) declare nothing\n`);
+    for (const f of markerProblems) {
+      const why =
+        f.verdict === 'stray-partial-marker'
+          ? 'binds to no fenced block -- it must sit directly above the fence, blank lines and other markers aside'
+          : f.verdict === 'partial-marker-no-reason'
+            ? `carries no real reason (needs at least ${MIN_PARTIAL_REASON} characters)`
+            : 'declares an excerpt that omits nothing any more -- delete the marker';
+      console.error(`    - ${f.file}:${f.line} -- \`${f.typeName}\` ${why}`);
+    }
+    console.error('');
+  }
+
+  if (unjudgeableTypes.length > 0) {
+    console.error(`❌  check-readme-exports: ${unjudgeableTypes.length} documented type(s) could not be judged\n`);
+    for (const f of unjudgeableTypes) {
+      const why =
+        f.reason === 'unbuilt'
+          ? `its type entry \`${f.declaredEntry}\` is not on disk -- run \`pnpm build\` first`
+          : 'its package declares no `types` entry at all';
+      console.error(`    - ${f.file}:${f.line} -- ${f.kind} ${f.typeName} in ${f.package}, but ${why}`);
+    }
+    console.error(`
+A FAILURE and not a skip, exactly as on the import side above: with no export
+surface to read, every documented type would read as a local helper and the pin
+would report a serene green over blocks it never judged.
+`);
+  }
+
+  if (staleEntries.length > 0) {
+    console.error(`❌  check-readme-exports: ${staleEntries.length} stale \`PARTIAL_EXCERPTS\` entry(ies)\n`);
+    console.error('  Each names a declaration that no longer exists, or no longer omits anything.');
+    console.error('  The ledger is shrink-only, so this is the good failure: delete the entry.\n');
+    for (const f of staleEntries) {
+      const why = f.verdict === 'orphan-excerpt-entry' ? '  (that README is not in the tracked population at all)' : '';
+      console.error(`    - ${f.file}::${f.typeName}${why}`);
+    }
+    console.error('');
+  }
+
   if (vacuous.length > 0) {
     console.error('\n❌  check-readme-exports: the population COLLAPSED -- this run proves nothing\n');
     for (const v of vacuous) {
@@ -771,13 +1401,29 @@ if (isEntrypoint(import.meta.url)) {
   const overrides = parseReadmeOverrides(process.argv.slice(2));
   if (process.argv.includes('--json')) {
     const result = scan(repoRoot(), { readmeOverrides: overrides });
-    console.log(JSON.stringify({ census: result.census, findings: result.findings, vacuous: result.vacuous }, null, 2));
+    console.log(
+      JSON.stringify(
+        { census: result.census, documentedTypes: result.documentedTypes, findings: result.findings, vacuous: result.vacuous },
+        null,
+        2,
+      ),
+    );
   } else if (process.argv.includes('--list')) {
     const result = scan(repoRoot(), { readmeOverrides: overrides });
     for (const b of result.bindings) {
       if (b.verdict === 'not-self') continue;
-      const mark = b.verdict.padEnd(11);
+      const mark = b.verdict.padEnd(17);
       console.log(`${mark}  ${b.file}:${b.line}  ${b.exportName ?? `(${b.kind})`}  <- ${b.specifier}`);
+    }
+    for (const t of result.documentedTypes) {
+      const mark = t.verdict.padEnd(17);
+      const detail =
+        t.verdict === 'local-declaration' || t.verdict === 'not-a-property-type'
+          ? ''
+          : `  doc ${t.documented} key(s) + ${t.documentedMethods} method(s) vs own ${t.shippedOwn} of ${t.shippedAll}` +
+            (t.fabricated.length > 0 ? `  fabricated: ${t.fabricated.join(', ')}` : '') +
+            (t.omitted.length > 0 ? `  omitted: ${t.omitted.join(', ')}` : '');
+      console.log(`${mark}  ${t.file}:${t.line}  ${t.kind} ${t.typeName}${detail}`);
     }
     console.log(`\n${summarise(result)}`);
   } else {
