@@ -239,52 +239,133 @@ function emptyGanttDateRange(): { minDate: string; maxDate: string } {
 }
 
 /**
- * THE ROW WALK, READ A SECOND TIME AND READ DIFFERENTLY — objectui#7153.
- *
- * This function re-walks exactly what `findUnusableGanttDate` just walked, and
- * the two do not agree about how to read it. That function uses `?.` and
- * `|| []` and SKIPS a row it cannot index; this one assumes an array at every
- * level. Every input in the gap between them reaches a `TypeError`:
- *
- *     D1  items.flatMap                  243   items is a truthy non-array
- *     D2  row.items          (bare, no ?.) 244   items: [null]
- *     D3  (row.items || []).flatMap      244   row.items is a truthy non-array
- *                                              (5, true, {}, or array-LIKE)
- *
- * ⛔ THESE THREE ARE NOT THE EXCLUDED EXOTIC CLASS. The revoked proxies and
- * throwing getters enumerated on `findUnusableGanttDate` are unreachable from
- * an authored document because JSON cannot spell them. `items: [null]` is
- * JSON. So is `items: [{ label: 'R', items: 5 }]`, and both PASS the declared
- * zod mirror, whose element type is `z.any()`. `ObjectTimeline` hands authored
- * rows through on a truthiness check alone. Measured in render on
- * `51449a043`, beside five live drawing controls.
- *
- * The array-LIKE row is the sharpest reading of the disagreement:
- * `findUnusableGanttDate` walks `{ length: 1, 0: { startDate, endDate } }`
- * happily, JUDGES both dates USABLE, and the very next line dies on
- * `.flatMap`. And `items: [{ items: 'x' }]` does NOT crash, because a string
- * is index-readable and takes the ordinary refusal — an asymmetry nobody
- * designed.
- *
- * ⛔ AND DO NOT REPAIR IT HERE, which is the part worth reading twice.
- * Measured by ablation on `51449a043`: making this function tolerant
- * (`Array.isArray(items) ? items : []` plus `row?.items`) closes ZERO of the
- * three. It MOVES all three into the render loop below — `items.map` at 1235,
- * `row.label` at 1237, `(row.items || []).map` at 1246 — with the ordinary-row
- * control still drawing its 1 bar over a 3-cell axis on both sides of the
- * mutation. Relocating a crash class while a docblock reports it closed is the
- * mistake this code path has now made four times, so it is written down here
- * rather than repeated.
- *
- * The repair spans this function, `findUnusableGanttDate` AND the render loop,
- * and it first has to decide what a malformed ROW means — refuse the chart
- * through a new diagnostic key (ten locale packs), or skip the row (the
- * consumer-side tolerance #6750 and #6759 both refused). That adjudication is
- * objectui#7164; it is not made here, and no code below pretends it was.
+ * One gantt ROW after `classifyGanttRows` has judged its shape — the ONLY form
+ * the three readers below it (`findUnusableGanttDate`, `calculateDateRange`,
+ * the render loop) accept, so that no reader re-reads the raw shape.
  */
-function calculateDateRange(items: any[]): { minDate: string; maxDate: string } {
-  const allDates = items.flatMap((row: any) =>
-    (row.items || []).flatMap((item: any) => [item.startDate, item.endDate])
+interface GanttRow {
+  /** The row exactly as authored — handed to `onItemClick` untouched. */
+  readonly authored: any;
+  /** `row.label` as authored, read once here and never off `authored` again. */
+  readonly label: any;
+  /**
+   * `row.items` as authored when it is an array; `[]` when it is absent or
+   * falsy (a row with no bars yet is the same ordinary empty state
+   * objectui#6750 ruled for `items: []`, and a CONTROL on objectui#7164). A
+   * TRUTHY non-array never reaches this type — `classifyGanttRows` refuses it.
+   */
+  readonly items: readonly any[];
+}
+
+/** What `classifyGanttRows` hands back: rows to draw, or the first malformed shape. */
+type GanttRowsVerdict =
+  | { readonly ok: true; readonly rows: readonly GanttRow[] }
+  | { readonly ok: false; readonly path: string; readonly value: unknown };
+
+/**
+ * THE ROW WALK, READ ONCE — objectui#7164 (maintainer ruling 2026-09-02, A+).
+ *
+ * ## What was wrong
+ *
+ * The gantt branch used to read the authored rows twice and read them
+ * differently: `findUnusableGanttDate` walked them with `?.` and `|| []` and
+ * SKIPPED whatever it could not index, while `calculateDateRange` re-walked the
+ * same rows BARE. Every input in the gap crashed the render with a `TypeError`,
+ * and all of it is ordinary JSON that the declared zod mirror accepted:
+ *
+ *     items: [null]                              at `row.items`
+ *     items: [{ items: 5 }]  (or true, {}, or    at `(row.items || []).flatMap`
+ *            an array-LIKE { length: 1, 0: … })
+ *     items: {} / 'x' / 5                        at `items.flatMap`
+ *
+ * Measured in render on `a67abdc88`, beside five live drawing controls.
+ *
+ * ⛔ And a guard in any ONE reader does not close the class — it MOVES it.
+ * Measured by ablation on `51449a043` (the card) and re-measured here: a
+ * tolerant `calculateDateRange` relocated all three crashes into the render
+ * loop's `items.map`, `row.label` and `(row.items || []).map`, with the
+ * ordinary-row control drawing on both sides of the mutation. That is the
+ * relocation this path had performed four times, which is why this function
+ * is the ONLY place the raw shape is read and why the three readers below
+ * consume its `GanttRow[]` rather than `schema.items`.
+ *
+ * ## The three refusals, in walk order
+ *
+ *   1. `items` is not an array         -> path `items`
+ *   2. a row is `null` (or `undefined`) -> path `items[i]`
+ *   3. `row.items` is a TRUTHY non-array -> path `items[i].items`
+ *
+ * Each names the authored location and the value — spelled by
+ * `spellGanttDateValue`, so no author code runs to describe it — through
+ * `timeline.gantt.unusableRange.malformedRow`, a key of its own. It is never
+ * the `malformedDate` copy: "items[0] is null, which is not a valid date"
+ * names the wrong fault for a row that is not a row, and objectui#6781's ruled
+ * date accept set does not answer a question about rows. The first malformed
+ * shape wins — rows are judged as rows before their dates are judged as dates.
+ *
+ * ## The accept set is the ruling's, not a wider one
+ *
+ * REFUSE, not skip: drawing the well-formed rows and dropping the malformed
+ * one silently is the consumer-side tolerance objectui#6750 and objectui#6759
+ * both refused, and the ruling declined it (option B). Nor is the set widened
+ * past the three lines above. The shapes NEXT to them keep drawing, as
+ * measured before the change and pinned as CONTROLS: `items: []`, a row with
+ * no `items` key, a row whose `items` is `null` (both the empty row), and a
+ * row that is a non-null primitive or an array (`[0]`, `[[]]`), which has no
+ * `.items` and draws as an unlabelled empty row. The zod mirror
+ * (`@object-ui/types`, `TimelineSchema.items`) refuses those last two at
+ * AUTHORING time — an element must be an object — so the door a document
+ * meets first is the stricter one; the renderer is only ever more lenient than
+ * `validate`, never the reverse, and never crashes on what `validate` admits.
+ *
+ * ## What this does to the exotic exclusion (objectui#7153, pin 5)
+ *
+ * The three reads objectui#7153 measured as U1–U3 (`items.length`,
+ * `items[rowIndex]`, `row.items`) now happen HERE, once, and they are still
+ * not total for a throwing trap — the pinned messages are unchanged because the
+ * trap writes them. `Array.isArray` is a NEW non-total site for a revoked
+ * `Proxy` (it throws `Cannot perform 'IsArray' …`, the same class
+ * `spellGanttDateValue` already declares), so a revoked proxy handed as `items`
+ * or as a row's `items` now dies here rather than at U1 / U4. Both moves are
+ * stated and exercised in `timeline-gantt-date-brand-7027.test.tsx`, and the
+ * reachability argument is unchanged: JSON cannot spell a proxy.
+ *
+ * Pinned by `./__tests__/timeline-gantt-malformed-row-7164.test.tsx`, which
+ * re-runs the card's THREW table (now REFUSED, each naming its path) with the
+ * five drawing controls unchanged.
+ */
+function classifyGanttRows(items: unknown): GanttRowsVerdict {
+  if (!Array.isArray(items)) return { ok: false, path: 'items', value: items };
+
+  const rows: GanttRow[] = [];
+  for (let rowIndex = 0; rowIndex < items.length; rowIndex++) {
+    const row = items[rowIndex];
+    if (row == null) return { ok: false, path: `items[${rowIndex}]`, value: row };
+
+    const rowItems = row.items;
+    if (rowItems && !Array.isArray(rowItems)) {
+      return { ok: false, path: `items[${rowIndex}].items`, value: rowItems };
+    }
+    rows.push({ authored: row, label: row.label, items: rowItems || [] });
+  }
+  return { ok: true, rows };
+}
+
+/**
+ * The date range computed from the rows — read off `classifyGanttRows`'s
+ * verdict, never off `schema.items`.
+ *
+ * Before objectui#7164 this function re-walked the authored rows BARE
+ * (`items.flatMap`, `row.items` with no `?.`) one line after
+ * `findUnusableGanttDate` had walked them defensively, and every shape in the
+ * gap between the two readings crashed here — see `classifyGanttRows` above
+ * for the table, and for why the repair was not a guard on this line. Every
+ * `row.items` reaching this reduce is an array by construction; every date in
+ * it parses, because the caller refuses an unparseable one first.
+ */
+function calculateDateRange(rows: readonly GanttRow[]): { minDate: string; maxDate: string } {
+  const allDates = rows.flatMap((row) =>
+    row.items.flatMap((item: any) => [item.startDate, item.endDate])
   );
 
   // objectui#6750 — the empty list is an ordinary state, not an error. Guarding
@@ -598,6 +679,12 @@ const isDate = (value: unknown): value is Date => {
  * `timeline.gantt.unusableRange.malformedDate` hole, so no new i18n key is
  * added and the ten locale packs are not opened. A spelling repair that needed
  * a new key would be a different file surface and a separate decision.
+ *
+ * (objectui#7164 later took that decision for a DIFFERENT fault — a malformed
+ * ROW, not a date spelling — and opened the packs for `malformedRow`. This
+ * function's spelling fills that key's `{{value}}` hole as well, for the same
+ * reason it fills `malformedDate`'s: a value is named, never rendered, and no
+ * author code runs. See `classifyGanttRows`.)
  */
 function spellGanttDateValue(value: unknown): string {
   // Primitives — the language fixes the spelling, so it is the author's own.
@@ -885,6 +972,15 @@ const isGanttDateType = (value: unknown): value is string | number | Date =>
  * this path is a hypothesis: both numbers were written after a real
  * measurement, and both were short.
  *
+ * ⚠️ objectui#7164 MOVED U1–U3 out of this function: `items.length`,
+ * `items[rowIndex]` and `row.items` are now read ONCE, in `classifyGanttRows`,
+ * and this walk iterates the `GanttRow[]` that function built. The trap
+ * messages pinned for U1–U3 are unchanged (the trap writes them), U4–U6 still
+ * fire here on the authored `row.items` array, and `Array.isArray` in
+ * `classifyGanttRows` is a NEW site where a revoked proxy dies (`IsArray`
+ * rather than `get`) — see that function, and the re-attributed rows in pin 5.
+ * The three in `calculateDateRange` are REPAIRED, not moved: see class 2 below.
+ *
  * A tenth read — `item.startDate` / `item.endDate` inside
  * `calculateDateRange`'s inner `flatMap` — is bare and would throw on a `null`
  * item, but it is SHADOWED here: U6's `?.` turns a `null` item into
@@ -905,12 +1001,14 @@ const isGanttDateType = (value: unknown): value is string | number | Date =>
  *    own factory), which is what makes the narrow zeros readings rather than a
  *    broken query.
  *
- * 2. `calculateDateRange`'s THREE — ordinary JSON, and a live defect
- *    (objectui#7164). They are NOT this class, they are not p3, and the note
- *    on that function carries them. Do not let the paragraph above be read as
- *    covering them: the sentence "JSON cannot spell this" is true of the six
- *    and false of the three, and collapsing the two is how this docblock would
- *    start overclaiming again.
+ * 2. `calculateDateRange`'s THREE — ordinary JSON, and a live defect until
+ *    objectui#7164 REPAIRED it: `classifyGanttRows` now refuses `items` that is
+ *    not an array, a `null` row and a truthy non-array `row.items` through
+ *    `timeline.gantt.unusableRange.malformedRow`, and every reader below it
+ *    consumes that verdict. They were never this class and never p3, and the
+ *    repair does not change that: the sentence "JSON cannot spell this" is
+ *    true of the six and was false of the three, and collapsing the two is how
+ *    this docblock would start overclaiming again.
  *
  * ## WHY A `catch` IS NOT PUT HERE — re-tested, not inherited from #7036
  *
@@ -952,7 +1050,7 @@ const isGanttDateType = (value: unknown): value is string | number | Date =>
  * exactly the relocation this path has performed four times.
  */
 function findUnusableGanttDate(
-  items: any[],
+  rows: readonly GanttRow[],
   pinnedMinDate: unknown,
   pinnedMaxDate: unknown,
 ): UnusableGanttDate | undefined {
@@ -975,8 +1073,12 @@ function findUnusableGanttDate(
   const isUnusable = (value: unknown) =>
     !isGanttDateType(value) || Number.isNaN(new Date(value).getTime());
 
-  for (let rowIndex = 0; rowIndex < items.length; rowIndex++) {
-    const rowItems = (items[rowIndex]?.items || []) as any[];
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    // `rows` is the normalized array `classifyGanttRows` built, so this loop
+    // condition and index no longer touch the authored `items` (U1 / U2 moved
+    // there). `rowItems` IS the authored `row.items` array, by reference —
+    // U4 through U6 below still read it, exactly as objectui#7153 measured.
+    const rowItems = rows[rowIndex].items;
     for (let itemIndex = 0; itemIndex < rowItems.length; itemIndex++) {
       for (const key of ['startDate', 'endDate'] as const) {
         const value = rowItems[itemIndex]?.[key];
@@ -1266,6 +1368,28 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
     // Gantt/Airtable-style Timeline
     if (variant === 'gantt') {
       /**
+       * objectui#7164 — the rows are judged as ROWS, once, before anything
+       * reads them. `items` not an array, a `null` row, or a row whose `items`
+       * is a truthy non-array refuses the chart through its own key, naming the
+       * authored path and the value; see `classifyGanttRows` for the table,
+       * the accept set and why a guard in one reader only relocated the crash.
+       * The refusal surface is the one #6759 established below (same element,
+       * same channel) — one `role="alert"` for every way a gantt cannot draw.
+       */
+      const verdict = classifyGanttRows(items);
+      if (!verdict.ok) {
+        return (
+          <div className="p-4 text-destructive" data-testid="timeline-unusable-date-range" role="alert">
+            {t('timeline.gantt.unusableRange.malformedRow', {
+              path: verdict.path,
+              value: spellGanttDateValue(verdict.value),
+            })}
+          </div>
+        );
+      }
+      const rows = verdict.rows;
+
+      /**
        * objectui#6759 — an UNUSABLE date range refuses loudly, naming the value
        * that made it unusable.
        *
@@ -1283,9 +1407,11 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
        * with a `role="alert"` diagnostic. So this is that neighbour's shape,
        * copied rather than invented.
        *
-       * ## Why HERE, above everything
+       * ## Why HERE — above everything except the row verdict
        *
-       * Placed before `calculateDateRange` and before
+       * Placed after `classifyGanttRows` (objectui#7164: a row has to BE a row
+       * before its dates can be asked to parse, and `rows` is the only shape
+       * this scan reads), before `calculateDateRange` and before
        * `generateTimeScaleHeaders`, and it establishes an invariant for both:
        * every date reaching them parses, and the resolved range is not
        * inverted. That matters most for `generateTimeScaleHeaders`, whose own
@@ -1307,7 +1433,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
        * believable render is precisely case 2's disease. An EMPTY list stays an
        * ordinary state with a sentinel; an UNPARSEABLE value is refused.
        */
-      const unusableDate = findUnusableGanttDate(items, schema.minDate, schema.maxDate);
+      const unusableDate = findUnusableGanttDate(rows, schema.minDate, schema.maxDate);
       if (unusableDate) {
         return (
           <div className="p-4 text-destructive" data-testid="timeline-unusable-date-range" role="alert">
@@ -1320,7 +1446,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
       }
 
       // Calculate date range from all items
-      const dateRange = calculateDateRange(items);
+      const dateRange = calculateDateRange(rows);
       const minDate = schema.minDate || dateRange.minDate;
       const maxDate = schema.maxDate || dateRange.maxDate;
 
@@ -1391,7 +1517,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
           <div>
             <div className="flex">
               <TimelineGanttRowLabels>
-                {items.map((row: any, rowIndex: number) => (
+                {rows.map((row, rowIndex) => (
                   <TimelineGanttRow key={rowIndex}>
                     <TimelineGanttLabel title={row.label} className="truncate">
                       {row.label}
@@ -1400,9 +1526,9 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                 ))}
               </TimelineGanttRowLabels>
               <TimelineGanttGrid className="relative">
-                {items.map((row: any, rowIndex: number) => (
+                {rows.map((row, rowIndex) => (
                   <TimelineGanttRow key={rowIndex} className="relative">
-                    {(row.items || []).map((item: any, itemIndex: number) => {
+                    {row.items.map((item: any, itemIndex: number) => {
                       const dimensions = calculateBarDimensions(
                         item.startDate,
                         item.endDate,
@@ -1416,7 +1542,7 @@ export const TimelineRenderer = ({ schema, className, ...props }: { schema: Time
                           start={dimensions.start}
                           width={dimensions.width}
                           variant={item.variant || 'default'}
-                          onClick={() => onItemClick?.(item, row, rowIndex, itemIndex)}
+                          onClick={() => onItemClick?.(item, row.authored, rowIndex, itemIndex)}
                           title={`${item.title || ''}\n${formatDate(item.startDate, dateFormat, displayLocale)} - ${formatDate(item.endDate, dateFormat, displayLocale)}`}
                         >
                           <TimelineGanttBarContent>

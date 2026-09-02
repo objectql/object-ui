@@ -716,6 +716,8 @@ const zh = {
       unusableRange: {
         malformedDate:
           '甘特图日期区间不可用 —— {{path}} 的值是 {{value}}，无法解析为日期。每个甘特图日期都必须能被解析：每行条目的 startDate 与 endDate，以及 schema 上钉住的 minDate / maxDate。',
+        malformedRow:
+          '甘特图行不可用 —— {{path}} 的值是 {{value}}，不是行的形状。甘特图把 items 读作行的列表，每一行是带 label 和自身 items 的对象，每一行的 items 是条形的列表；这些位置上出现 null、数字、字符串或普通对象都无法绘制。',
         inverted:
           '甘特图日期区间不可用 —— minDate {{minDate}} 晚于 maxDate {{maxDate}}。钉住的 minDate / maxDate 会覆盖由行数据算出的区间，因此该坐标轴没有任何列，也无法放置任何条形；请对调这两个值。',
       },

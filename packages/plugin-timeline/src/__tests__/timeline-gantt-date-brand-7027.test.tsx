@@ -44,8 +44,16 @@
  *      `catch` argument rather than inheriting it — measured, a `catch`
  *      upstream reads the PATH half and still substitutes the VALUE half, and
  *      buys 3 of 9. And it falsified the class claim as well as the count: the
- *      three in `calculateDateRange` are plain JSON, not exotica, so they are
+ *      three in `calculateDateRange` are plain JSON, not exotica, so they were
  *      pinned as a DEFECT (`pin 6`, objectui#7164) and not as an exclusion.
+ *
+ *   7. objectui#7164 (maintainer ruling 2026-09-02, A+): the defect is
+ *      REPAIRED — `classifyGanttRows` reads the raw shape once and refuses a
+ *      malformed row through its own key, and the three readers consume its
+ *      verdict. `pin 6` below now pins the REFUSAL, and two rows of `pin 5`
+ *      moved with the reads they exercise: a revoked proxy handed as `items`
+ *      or as a row's `items` now dies at `Array.isArray` in that function
+ *      (`IsArray`, the class pin 4 already states) rather than at U1 / U4.
  *
  * ⚠️ So this file's input set is not a claim of totality either. It is the
  * boundary that has actually been exercised, and the seventh card will be the
@@ -381,6 +389,13 @@ describe('pin 3 — the ACCEPT SET is unchanged: #6781’s ruling does not move 
   });
 });
 
+/**
+ * The message `Array.isArray` throws on a revoked `Proxy` — the language's, so
+ * it is matched, not paraphrased. Module-scoped because two pins read it: pin 4
+ * (the speller's site) and, since objectui#7164, pin 5 (the row walk's).
+ */
+const REVOKED_ISARRAY = /Cannot perform 'IsArray' on a proxy that has been revoked/;
+
 describe('pin 4 — the ONE documented EXCLUSION, exercised not asserted (objectui#7036)', () => {
   /**
    * `spellGanttDateValue`'s `Array.isArray` is not total: `IsArray` recurses
@@ -408,7 +423,6 @@ describe('pin 4 — the ONE documented EXCLUSION, exercised not asserted (object
    * either of which must come with a docblock edit.
    */
 
-  const REVOKED_ISARRAY = /Cannot perform 'IsArray' on a proxy that has been revoked/;
 
   // Every target shape: the throw is about revocation, not about the target.
   const targets: [string, () => object][] = [
@@ -478,7 +492,11 @@ describe('pin 5 — the SIX non-total reads UPSTREAM of the speller (objectui#71
    * reads that run BEFORE the speller is entered. objectui#7153's card named
    * five of them; driven in render on 51449a043 there are SIX in
    * `findUnusableGanttDate` alone, and three more in `calculateDateRange`
-   * (pin 6 below, a different reachability class entirely).
+   * (pin 6 below, a different reachability class entirely — and REPAIRED by
+   * objectui#7164, which also moved U1–U3 into `classifyGanttRows`; the trap
+   * messages below are unchanged because the trap writes them, so these rows
+   * hold across that move, and the two revoked-proxy rows that changed site
+   * say so).
    *
    * ## Why these are PINNED AS THROWS rather than repaired
    *
@@ -561,16 +579,21 @@ describe('pin 5 — the SIX non-total reads UPSTREAM of the speller (objectui#71
    * is pinned, and all four share one message because the language writes it.
    * They are separate rows so that repairing one site turns exactly one red.
    */
-  const revokedPositions: [string, () => Record<string, unknown>][] = [
-    ['as `items` itself (dies at U1)', () => ({ items: revokedProxy([]) })],
-    ['as a ROW (dies at U3)', () => ({ items: [revokedProxy()] })],
-    ["as a row's `items` (dies at U4)", () => ({ items: [{ label: 'R', items: revokedProxy([]) }] })],
-    ['as an ITEM (dies at U6)', () => ({ items: [{ label: 'R', items: [revokedProxy()] }] })],
+  const revokedPositions: [string, () => Record<string, unknown>, RegExp][] = [
+    // objectui#7164: `classifyGanttRows` asks `Array.isArray(items)` before
+    // U1 can read `items.length`, and `Array.isArray(row.items)` before U4 can
+    // read its `length`. A revoked proxy dies at the FIRST operation that
+    // touches it, so these two now throw `IsArray` (pin 4's class) instead of
+    // `get`. Same reachability argument, same exclusion; the site moved.
+    ['as `items` itself (dies at `Array.isArray` in `classifyGanttRows`, upstream of U1)', () => ({ items: revokedProxy([]) }), REVOKED_ISARRAY],
+    ['as a ROW (dies at U3 — now read in `classifyGanttRows`)', () => ({ items: [revokedProxy()] }), REVOKED_GET],
+    ["as a row's `items` (dies at `Array.isArray` in `classifyGanttRows`, upstream of U4)", () => ({ items: [{ label: 'R', items: revokedProxy([]) }] }), REVOKED_ISARRAY],
+    ['as an ITEM (dies at U6)', () => ({ items: [{ label: 'R', items: [revokedProxy()] }] }), REVOKED_GET],
   ];
 
-  for (const [label, make] of revokedPositions) {
+  for (const [label, make, message] of revokedPositions) {
     it(`a revoked Proxy ${label}`, () => {
-      expect(() => gantt(make())).toThrow(REVOKED_GET);
+      expect(() => gantt(make())).toThrow(message);
     });
   }
 
@@ -593,70 +616,75 @@ describe('pin 5 — the SIX non-total reads UPSTREAM of the speller (objectui#71
   });
 });
 
-describe('pin 6 — `calculateDateRange`’s three reads: a DEFECT, pinned (objectui#7164)', () => {
+describe('pin 6 — `calculateDateRange`’s three reads: the DEFECT, now REPAIRED (objectui#7164)', () => {
   /**
-   * ⛔ READ THIS BEFORE READING THE ROWS. Unlike pin 4 and pin 5, these throws
-   * are NOT adjudicated as acceptable and are NOT an excluded exotic class.
-   * They are a live defect, objectui#7164, and they are pinned here so the
-   * class is EXERCISED rather than asserted — because on this path an
-   * enumeration written only in prose has been wrong five times running.
+   * These rows were pinned as THROWS with a note saying they were EXPECTED to go
+   * red when objectui#7164 landed, so that the repair could not land quietly.
+   * It landed (maintainer ruling 2026-09-02, A+), they went red, and this is
+   * the rewrite that note demanded.
    *
-   * These rows are expected to go RED when objectui#7164 is repaired. That is
-   * their purpose: the repair cannot land quietly, and whoever lands it has to
-   * come back and rewrite this block and the two docblocks it points at.
+   * ## What they pin now
    *
-   * ## Why they are a different class from pin 5
+   * The same nine inputs — still ordinary JSON — each REFUSED through
+   * `timeline.gantt.unusableRange.malformedRow`, naming the authored path and
+   * the value, and never through `malformedDate`. The full table, the
+   * before/after readings, the controls and the key are in
+   * `./timeline-gantt-malformed-row-7164.test.tsx`; this block keeps the rows
+   * HERE so that this file's boundary stays exercised in one place, and so a
+   * future relocation of the refusal (a guard that moves instead of closes —
+   * the failure this path performed four times) reddens both files.
    *
-   * `findUnusableGanttDate` reads the row walk with `?.` and `|| []` and SKIPS
-   * a row it cannot index. `calculateDateRange` re-walks the same rows BARE.
-   * Everything in the gap crashes, and all of it is ordinary JSON:
+   * ## Why it is still a different class from pin 5
    *
-   *     items: [null]                 -> TypeError, at `row.items`
-   *     items: [{ items: 5 }]         -> TypeError, at `(row.items || []).flatMap`
-   *     items: {}                     -> TypeError, at `items.flatMap`
-   *
-   * `items: [null]` and `items: [{ items: 5 }]` also PASS the declared zod
-   * mirror, whose element type is `z.any()`, and `ObjectTimeline` hands
-   * authored rows through on a truthiness check alone. So "JSON cannot spell
-   * this", the argument that excuses pin 4 and pin 5, is simply false here.
-   *
-   * ## And why the repair is not attempted in this file's card
-   *
-   * Measured by ablation on 51449a043: making `calculateDateRange` tolerant
-   * closes none of the three and MOVES all three into the render loop
-   * (`items.map`, `row.label`, `(row.items || []).map`), with the ordinary-row
-   * control drawing its single bar on both sides of the mutation. The real
-   * repair spans three sites and first has to decide what a malformed ROW
-   * means — refuse the chart through a new i18n key, or skip the row, which is
-   * the consumer-side tolerance #6750 and #6759 both refused.
+   * Nothing about reachability changed. `findUnusableGanttDate` read the walk
+   * with `?.` and `|| []` and SKIPPED a row it could not index, while
+   * `calculateDateRange` re-walked the same rows BARE; everything in the gap
+   * crashed, and all of it was spellable in JSON and green through the
+   * declared zod mirror. "JSON cannot spell this", the argument that excuses
+   * pin 4 and pin 5, was false here — which is why these were a defect and
+   * those are an exclusion. The repair reads the raw shape ONCE
+   * (`classifyGanttRows`) and hands every reader the same verdict; the mirror
+   * now refuses a non-object element and a non-array `row.items` at authoring
+   * time as well (`@object-ui/types`, `timeline-items-row-shape-7164.test.ts`).
    */
 
-  const defects: [string, Record<string, unknown>, RegExp][] = [
-    ['a `null` ROW', { items: [null] }, /Cannot read properties of null \(reading 'items'\)/],
-    ['a `null` row BESIDE a good one', { items: [goodRow(), null] }, /Cannot read properties of null \(reading 'items'\)/],
-    ["a row whose `items` is a number", { items: [{ label: 'R', items: 5 }] }, /flatMap is not a function/],
-    ["a row whose `items` is a plain object", { items: [{ label: 'R', items: {} }] }, /flatMap is not a function/],
-    ["a row whose `items` is `true`", { items: [{ label: 'R', items: true }] }, /flatMap is not a function/],
+  const ROW_CLAUSE = 'which is not a row shape';
+
+  const refused: [string, Record<string, unknown>, string][] = [
+    ['a `null` ROW', { items: [null] }, 'items[0] is null'],
+    ['a `null` row BESIDE a good one', { items: [goodRow(), null] }, 'items[1] is null'],
+    ["a row whose `items` is a number", { items: [{ label: 'R', items: 5 }] }, 'items[0].items is 5'],
+    ["a row whose `items` is a plain object", { items: [{ label: 'R', items: {} }] }, 'items[0].items is an object'],
+    ["a row whose `items` is `true`", { items: [{ label: 'R', items: true }] }, 'items[0].items is true'],
     [
-      "a row whose `items` is ARRAY-LIKE — judged USABLE, then dies",
+      "a row whose `items` is ARRAY-LIKE — the old walk judged it USABLE, then died",
       { items: [{ label: 'R', items: { length: 1, 0: { ...GOOD_ITEM } } }] },
-      /flatMap is not a function/,
+      'items[0].items is an object',
     ],
-    ['`items` itself a plain object', { items: {} }, /items\.flatMap is not a function/],
-    ['`items` itself a string', { items: 'x' }, /items\.flatMap is not a function/],
-    ['`items` itself a number', { items: 5 }, /items\.flatMap is not a function/],
+    ['`items` itself a plain object', { items: {} }, 'items is an object'],
+    ['`items` itself a string', { items: 'x' }, 'items is "x"'],
+    ['`items` itself a number', { items: 5 }, 'items is 5'],
   ];
 
-  for (const [label, schema, message] of defects) {
-    it(`DEFECT — ${label} crashes the render`, () => {
-      expect(() => gantt(schema)).toThrow(message);
+  for (const [label, schema, head] of refused) {
+    it(`REPAIRED — ${label} is REFUSED, naming the row`, () => {
+      expect(() => gantt(schema)).not.toThrow();
+      const { container } = gantt(schema);
+      const text = diagnosticOf(container) ?? '';
+      expect(text).toContain(head);
+      expect(text).toContain(ROW_CLAUSE);
+      expect(text).not.toContain('which is not a valid date');
+      expect(barCountOf(container)).toBe(0);
     });
   }
 
-  it('CONTROL — the row shapes NEXT TO the defect all still reach a defined outcome', () => {
+  it('CONTROL — the row shapes NEXT TO the repaired class all still DRAW', () => {
     // The live controls that make the nine rows above readings rather than a
-    // broken harness, and that fence the defect: these are the neighbouring
-    // shapes, and every one of them DRAWS or is NAMED.
+    // broken harness, and that fence the accept set: every one of these drew
+    // before the repair and draws after it. The ruling refused the three lines
+    // above and nothing wider; a non-null primitive row (`0`) and an array row
+    // (`[]`) have no `.items` and draw as an unlabelled empty row, exactly as
+    // they did — the zod mirror is the door that refuses those, at authoring.
     const drawn: [string, Record<string, unknown>][] = [
       ['an ordinary row', { items: [goodRow()] }],
       ['an empty items list', { items: [] }],
@@ -672,11 +700,15 @@ describe('pin 6 — `calculateDateRange`’s three reads: a DEFECT, pinned (obje
       expect(axisOf(container).length, `${label} drew no axis`).toBeGreaterThan(0);
     }
 
-    // The one non-array `items` that does NOT crash: a string is
-    // index-readable, so the walk reaches `'x'[0]?.startDate`, reads
-    // `undefined`, and takes the ordinary refusal. Nobody designed that.
+    // The string that did NOT crash before — index-readable, so the old walk
+    // named `items[0].items[0].startDate is undefined` through the DATE copy
+    // by accident. A string is a truthy non-array, which is the ruling's row
+    // door, so it now takes the ROW refusal and names the fault a reader can
+    // act on. Recorded here because it is the one table row whose outcome
+    // changed rather than its crash.
     const { container } = gantt({ items: [{ label: 'R', items: 'x' }] });
-    expect(diagnosticOf(container) ?? '').toContain('items[0].items[0].startDate');
+    expect(diagnosticOf(container) ?? '').toContain('items[0].items is "x"');
+    expect(diagnosticOf(container) ?? '').toContain(ROW_CLAUSE);
     expect(barCountOf(container)).toBe(0);
   });
 });

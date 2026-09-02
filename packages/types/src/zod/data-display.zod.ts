@@ -416,6 +416,47 @@ export const TimelineEventSchema = z.object({
 const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', 'year']);
 
 /**
+ * One element of `TimelineSchema.items` — a feed item, or a gantt ROW when
+ * `variant` is `gantt` (objectui#7164, maintainer ruling 2026-09-02 A+).
+ *
+ * ## What this refuses, and why it is declared at all
+ *
+ * The mirror used to declare `items: z.array(z.any())`, which accepted a `null`
+ * element and any element value. `TimelineRenderer`'s gantt branch then read
+ * `row.items` bare, so `items: [null]` and `items: [{ items: 5 }]` — ordinary
+ * JSON, green through `validate` — crashed the render with a `TypeError`. The
+ * ruling put a door at both ends: the renderer refuses those shapes through
+ * `timeline.gantt.unusableRange.malformedRow`, and this schema refuses them
+ * HERE, before a renderer is ever reached:
+ *
+ *   - an element that is not an object — `null`, a number, a string, an array —
+ *     is refused (`z.object` refuses every one of those);
+ *   - `items` on a row, when present, has to be an array. `.optional()` is
+ *     deliberate: a row with no bars yet is the same ordinary empty state
+ *     objectui#6750 ruled for `items: []`, and the renderer draws it.
+ *
+ * Nothing else is narrowed. The two element shapes (`{ time, title, … }` for a
+ * feed, `{ label, items: [{ title, startDate, endDate }] }` for a gantt row) are
+ * discriminated by `variant` and read dynamically by the renderer, so the
+ * element stays `.passthrough()` and the bars stay `z.any()` — a feed item
+ * carries no `items` key and parses green here unchanged. Measured before the
+ * narrowing: every in-repo `type: 'timeline'` fixture (the three schema-catalog
+ * documents, the docs page's examples, `examples/data-display-examples.json`)
+ * parses green on both sides of it.
+ *
+ * Deliberately NOT exported, for the reason `TimelineScaleSchema` above gives:
+ * every exported const here has to be registered in `zod-mirror-parity.test.ts`,
+ * and the TS twin declares no separate row interface to pair it with — its
+ * `items?: any[]` docblock carries both shapes in prose. Pinned by
+ * `../__tests__/timeline-items-row-shape-7164.test.ts`.
+ */
+const TimelineRowSchema = z
+  .object({
+    items: z.array(z.any()).optional().describe('A gantt row\'s bars — an array when present'),
+  })
+  .passthrough();
+
+/**
  * Timeline Schema - Timeline component
  *
  * Mirrors `TimelineSchema` in `../data-display.ts`, which objectui#6170 aligned
@@ -437,7 +478,7 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
   variant: z.enum(['vertical', 'horizontal', 'gantt']).optional().describe('Layout variant'),
-  items: z.array(z.any()).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt'),
+  items: z.array(TimelineRowSchema).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt; every element an object, and a gantt row\'s own `items` an array when present'),
   dateFormat: z.enum(['short', 'long', 'iso']).optional().describe('How item dates are rendered'),
   scale: TimelineScaleSchema.optional().describe('Gantt axis bucket size (canonical spelling — the spec key)'),
   // RETIRED (objectui#6355, ruling 2026-08-27): the pre-spec alias for `scale`.

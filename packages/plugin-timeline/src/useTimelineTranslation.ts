@@ -49,6 +49,15 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
     'Unusable gantt date range — {{path}} is {{value}}, which is not a valid date. Every gantt date has to parse: the startDate and endDate on every row item, plus any minDate / maxDate pinned on the schema.',
   'timeline.gantt.unusableRange.inverted':
     'Unusable gantt date range — minDate {{minDate}} is after maxDate {{maxDate}}. A pinned minDate / maxDate overrides the range computed from the rows, so this axis has no columns and no bar can be placed on it; swap the two values.',
+  // objectui#7164 — a malformed ROW is refused through a THIRD string, never
+  // through `malformedDate`: "items[0] is null, which is not a valid date"
+  // names the wrong fault for a row that is not a row. Same two holes as
+  // `malformedDate` — `{{path}}` is the authored location (`items`,
+  // `items[2]`, `items[2].items`) and `{{value}}` the value spelled by
+  // `spellGanttDateValue`, so no author code runs to describe it. This copy is
+  // the byte-identical twin of `en.ts`'s, as the two strings above are.
+  'timeline.gantt.unusableRange.malformedRow':
+    'Unusable gantt rows — {{path}} is {{value}}, which is not a row shape. A gantt draws items as a list of rows, every row as an object with a label and its own items, and every row\'s items as a list of bars; a null, a number, a string or a plain object in any of those places cannot be drawn.',
   // objectui#6655 — the object-bound path REFUSES `variant: 'gantt'`.
   //
   // It composes one flat FEED item per record; the renderer's gantt branch
