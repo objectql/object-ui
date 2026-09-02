@@ -606,23 +606,16 @@ export const ObjectTreeSchema = BaseSchema.extend({
 
 /**
  * objectui's own `GanttConfig` extensions — everything `../objectql.ts` declares
- * on {@link GanttConfig} beyond the spec's `GanttConfigSchema` (objectui#6051
+ * on {@link GanttConfig} beyond the spec's `SpecGanttConfigSchema` (objectui#6051
  * lifted nine of them out of `plugin-gantt`'s package-private `GanttConfigEx`;
  * `timeSegments` was already there).
  *
  * Held as ONE field map rather than inlined, so the flattened top-level spelling
  * below is built from a single source — the same way the TS side derives its
  * flattened members from `GanttConfig`. It is also the shape the nested `gantt`
- * block is built from (objectui#6475), one line extending the spec's gantt
- * config schema with this map — so both authoring faces share one vocabulary
- * and cannot fork from each other.
- *
- * ⚠️ Keep this docstring free of a literal `Spec` + capital-letter token: it
- * sits between the `ObjectTreeSchema` and `ObjectGanttSchema` export
- * boundaries, and `zod-mirror-parity.test.ts`'s `SPEC_DERIVED_PAIRS` re-check
- * scans raw text between export boundaries for `\bSpec[A-Z]\w*` — a match here
- * is misattributed to `ObjectTreeSchema`, which references no spec schema at
- * all (measured: this comment alone flipped that test red).
+ * block is built from (objectui#6475): one line extending `SpecGanttConfigSchema`
+ * with this map — so both authoring faces share one vocabulary and cannot fork
+ * from each other.
  *
  * Not exported: the parity census in `__tests__/zod-mirror-parity.test.ts` reads
  * `^export const` out of this directory and would require a registered TS
