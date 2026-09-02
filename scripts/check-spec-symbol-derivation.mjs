@@ -137,15 +137,16 @@
  *     and this rule stays out of the way entirely. A verdict fabricated from
  *     ignorance of the spec would flag every citation in the repo at once.
  *
- * ── The boundary BOTH rules share: exported declarations only (objectui#5899) ─
- * Everything above is scoped by one filter that neither rule's account of its
- * own failure class mentions: each scanner skips any statement without an
- * `export` modifier (`hasExportModifier`, once per scanner). The class is
+ * ── The boundary the rules USED to share: exported only (objectui#5899) ─────
+ * Everything above was once scoped by one filter that neither rule's account of
+ * its own failure class mentions: each scanner skipped any statement without an
+ * `export` modifier (`hasExportModifier`, once per scanner). The class was
  * therefore NOT fully covered by rule 1 plus rule 2. A module-local declaration
- * is outside the jurisdiction of both, whatever it is named and whatever its
- * doc comment claims.
+ * sat outside the jurisdiction of both, whatever it was named and whatever its
+ * doc comment claimed. BOTH halves of that filter are gone as of objectui#6291;
+ * read on for what each cost.
  *
- * The filter is defensible on this script's own terms: an unexported type
+ * The filter was defensible on this script's own terms: an unexported type
  * cannot be imported by another package under the spec's name, so it cannot
  * become a planted premise through the package's public surface. objectui#5652
  * measured the other half. Three hand-written mirrors of the `FormViewSchema`
@@ -192,17 +193,85 @@
  *   `DashboardWidget` aliases an `@object-ui/types` schema that is itself
  *   spec-derived.
  *
- * So the hole is real rather than theoretical, and it is not a one-line change
- * for RULE 1: dropping the filter there turns the gate red on 29 sites at once,
- * against this header's own standard that an ALLOW map with dozens of entries
- * is not a guard. It IS a clean one-liner for RULE 2, whose entire additional
- * population is two declarations, both real mirrors, one with measured drift.
- * Which of those lands — and whether rule 1 instead gets the two structural
- * narrowings that would retire half the false positives (apply `isRendererLike`
- * to rule 1 too; count a pure alias to one identifier as derivation) — is
- * objectui#5899's decision to make, not this script's. What is corrected here
- * is only the account above, which read as though rule 1 plus rule 2 covered
- * the class.
+ * That census forced the split ruled in objectui#6291: rule 2's filter is a
+ * clean one-liner, rule 1's is a scoped change, and doing both at once would
+ * land 29 reds and four avoidable waivers against this header's own standard
+ * that an ALLOW map with dozens of entries is not a guard.
+ *
+ * ── Rule 2's half of the split: SHIPPED (objectui#6291) ─────────────────────
+ * `scanFileForClaims` no longer filters on `export`. Re-measured on the
+ * implementing commit against `@objectstack/spec@17.2.0` — the a76b18cf2
+ * figures above had already moved, which is exactly why they are re-taken
+ * rather than transcribed:
+ *
+ *   rule 2   18 unbacked claims → 19   (+1 module-local declaration)
+ *
+ * ONE, not the two measured at a76b18cf2. `CURATED_CAPABILITY_LABELS`
+ * (packages/fields) was the other, and objectui#6285 fixed it in the interval:
+ * its comment no longer claims alignment in prose, because
+ * `CapabilityMultiSelectField.specParity-6285.test.tsx` now CHECKS the equality
+ * against `PLATFORM_CAPABILITIES` in both directions. That is the burn-down
+ * this rule exists to provoke, and it took the site out of the population
+ * before this change could reach it.
+ *
+ * The one that remains, `CONTEXT_TOKEN_SUGGESTIONS` (@object-ui/core), is a
+ * real mirror and goes to CLAIM_DEBT — see the note there for why a
+ * shrink-only block is allowed to grow on a jurisdiction widening. Zero
+ * legitimate-local fallout, zero CLAIM_ALLOW entries, and the named pin in
+ * `scripts/__tests__/check-spec-symbol-derivation.test.ts` was REWRITTEN
+ * rather than deleted: it now asserts that a module-local claim IS flagged,
+ * beside a second case proving the precision rules — not the `export` keyword
+ * — are what keep module-local shapes green.
+ *
+ * ── Rule 1's half of the split: SHIPPED (objectui#6291) ────────────────────
+ * `scanFile` no longer filters on `export` either, and the population it
+ * surfaces was scoped first by the two structural narrowings the ruling
+ * required. Re-measured on the implementing commit against
+ * `@objectstack/spec@17.2.0`:
+ *
+ *   rule 1, filter dropped, NO narrowings   0 untriaged → 25   (+25)
+ *   rule 1, filter dropped, narrowings on   0 untriaged → 19   (+19)
+ *
+ * 25, not the 29 measured at a76b18cf2. Four sites left the population in the
+ * interval, and reading why is the whole argument for re-taking rather than
+ * transcribing: `ActionParam` twice (b84dc18 consolidated the two copies that
+ * already disagreed with each other), `SelectOption`, and
+ * `EXPLAIN_BATCH_MAX_RECORD_IDS` (objectui#6286 — the one whose own comment
+ * said it existed only until the spec pin exported the constant).
+ *
+ * The two narrowings, and what each measurably retires:
+ *
+ *   `rendersJsx`   — 2 module-local React `Field` components (metadata-admin
+ *                    inspectors). ⚠️ NOT `isRendererLike`, which rule 2 uses;
+ *                    see that function's own comment for the two REAL MIRRORS a
+ *                    blanket "functions are renderers" would have silenced.
+ *   `isPureAlias`  — 4 aliases: the `FlowNode`/`FlowEdge` pair in FlowPreview,
+ *                    and the pair in FlowNodeInspector, which became aliases in
+ *                    the interval too (the census had them as real mirrors, one
+ *                    of them declaring a `description` key the spec's `.strict()`
+ *                    schema rejects; that is fixed at the site now).
+ *
+ * The remaining 19 split 4 / 15:
+ *
+ *   4 are different-concept name collisions and got reasoned ALLOW entries —
+ *   `SearchResult` (a result ROW, where the spec's is the search RESPONSE),
+ *   `Dimension` (the spec's cube dimension REQUIRES `sql` and REJECTS this
+ *   shape's own `field`/`dateGranularity` — probed, not guessed), `ModelConfig`
+ *   (a model SELECTION against a model REGISTRY RECORD), and `DashboardWidget`
+ *   (already derived one hop out, deliberately widened).
+ *
+ *   15 findings under 14 names are real mirrors and were seeded into DEBT
+ *   mechanically by `--ledger`, anchored on objectui#7265.
+ *
+ * Two ALLOW entries were DELETED by the same commit, and this is the part that
+ * exceeded what the ruling predicted: `@object-ui/auth:AuthProvider` and
+ * `@object-ui/plugin-list:UserFilters` stopped matching anything, because
+ * `rendersJsx` now makes structurally the judgement those entries made by hand.
+ * Ratchet 3 requires deleting an entry that excuses nothing — a stale entry
+ * reserves the name for a future fork under it — so the narrowing SHRANK the
+ * hand-written part of the map while the collisions grew it. Both deletions are
+ * documented in place, with what each entry carried beyond the waiver. Net:
+ * 16 declared dialects → 18.
  *
  * These figures are a SNAPSHOT. When they move, re-take them and re-name the
  * commit and the spec version — never edit the numbers in place under the old
@@ -329,29 +398,24 @@ const ALLOW = {
       "is imported from the spec at its declaration in objectql.ts.",
     issue: 3334,
   },
-  "@object-ui/auth:AuthProvider": {
-    reason:
-      "A REACT CONTEXT PROVIDER COMPONENT, not a type — `<AuthProvider authUrl=…>` is the " +
-      "documented entry point of this package and of every app that mounts it. The spec's " +
-      "`AuthProvider` is a `z.ZodEnum` of provider IDENTIFIERS (local | google | github | " +
-      "microsoft | ldap | saml); nothing about a JSX element could be mistaken for it, which " +
-      "is why this one collision is excused where its own config type was NOT — that config " +
-      "was renamed to `AuthProviderOptions` because `AuthProviderConfig` names the spec's " +
-      "OAuth registration shape `{ id, clientId, clientSecret, scope? }`, the same domain and " +
-      "the same words, and IS readable as canonical by the next session. Renaming the " +
-      "component would break the React `<XProvider>` convention and every consumer's JSX for " +
-      "no defect. Pinned by packages/auth/src/__tests__/auth-spec-parity.test.ts, which fails " +
-      "if the spec's `AuthProvider` ever stops being an enum of provider ids.",
-    issue: 4115,
-  },
-  // ── objectstack#4115 batch 8/8 (objectui#3162) ───────────────────────────────
-  // These three were the last DEBT entries. The ledger filed them as "blocked on
-  // objectstack#4171, burn down when the upstream `any` erasure lifts"; #4171
-  // closed completed 2026-07-30, and the re-measurement it licensed found none of
-  // them burnable — for reasons that are NOT the one the ledger recorded. They are
-  // deliberate dialects, so they belong here with the reason written down, rather
-  // than in a debt bucket implying work that measurement says must not happen.
-  // Every verdict below was measured in the BUILT dist at spec 17.2.0.
+  // `@object-ui/auth:AuthProvider` sat here until objectui#6291. It is gone
+  // because the guard now makes its judgement STRUCTURALLY, not because the
+  // judgement changed: `rendersJsx` skips a declaration that literally contains
+  // JSX, so `export function AuthProvider(…) { return <Ctx.Provider …/> }` is no
+  // longer a finding to excuse. The entry's own reason said as much — "a REACT
+  // CONTEXT PROVIDER COMPONENT, not a type … nothing about a JSX element could
+  // be mistaken for [a `z.ZodEnum` of provider identifiers]". Ratchet 3 requires
+  // deleting an entry that excuses nothing; leaving it would reserve the name
+  // for a future non-component fork under it.
+  //
+  // ⚠️ What the entry carried beyond the waiver is NOT lost, and must not be:
+  // packages/auth/src/__tests__/auth-spec-parity.test.ts still fails if the
+  // spec's `AuthProvider` stops being an enum of provider ids, and
+  // `AuthProviderConfig` is still RENAMED to `AuthProviderOptions` rather than
+  // excused, because that one names the spec's OAuth registration shape and IS
+  // readable as canonical by the next session. A structural skip covers the
+  // component; it does not cover the config, and nothing here should be read as
+  // saying components are exempt in general.
   "@object-ui/types:NavigationItem": {
     reason:
       "Precise upstream, still not bindable — guard header case 2c. objectstack#4171 landed and " +
@@ -447,16 +511,72 @@ const ALLOW = {
       "component that consumes it.",
     issue: 4115,
   },
-  "@object-ui/plugin-list:UserFilters": {
+  // `@object-ui/plugin-list:UserFilters` sat here, on the same judgement, until
+  // objectui#6291 — `export function UserFilters(…)` returns JSX, so
+  // `rendersJsx` skips it and ratchet 3 required the entry's deletion. Its pin
+  // (the same spec-symbol-batch6.test.tsx) still asserts
+  // `UserFiltersProps['config']` accepts the spec's authored `UserFilters`.
+  //
+  // `ListView` above SURVIVED the same narrowing, and the asymmetry is worth
+  // reading before anyone "tidies" it: the finding it now matches is not the
+  // component at ListView.tsx:747 (that one is skipped too) but the bare
+  // `export { ListView, … }` in packages/plugin-list/src/index.tsx. The barrel
+  // skip a dozen lines into `scanFile` only fires when the re-export carries a
+  // module specifier (`export { X } from './x'`); a bare `export { X }` over a
+  // local import has none, so it is recorded at the barrel rather than at the
+  // declaration. That is a pre-existing hole, not something objectui#6291
+  // opened, and it is filed rather than fixed here.
+  // ── Different-concept name collisions, module-local (objectui#6291) ───────
+  // The four the export-filter drop surfaced that are NOT mirrors. Each was
+  // read at its site and, where the spec's symbol is a schema, probed with
+  // `safeParse` on this commit rather than judged by name.
+  "@object-ui/app-shell:SearchResult": {
     reason:
-      "Same judgement as `ListView` directly above, and the same package. The spec's " +
-      "`UserFilters` is the ADR-0047 quick-filter CONFIG (`{ element, fields, tabs, … }`, " +
-      "type-only); this is the filter bar that renders it, and it takes that config as a prop " +
-      "— `UserFiltersProps.config` is `NonNullable<ListViewSchema['userFilters']>`, so the " +
-      "spec's shape is what this component is typed against rather than something it restates. " +
-      "Nothing here declares a filter shape, so nothing here can drift from one. Pinned by the " +
-      "same test file, which asserts `UserFiltersProps['config']` still accepts the spec's " +
-      "authored `UserFilters`.",
+      "A ROW is not a RESPONSE — the `InboxNotification` judgement above, one layer over. " +
+      "`@objectstack/spec/contracts`' `SearchResult` is what `ISearchService.search()` " +
+      "RESOLVES TO: `{ hits: SearchHit[], totalHits, processingTimeMs?, facets? }`. This is one " +
+      "rendered result row in the search page's flat list — `{ id, label, href, type: " +
+      "'object'|'dashboard'|'page'|'report', description? }` — built from the navigation tree, " +
+      "not from a search service at all. The two share no key. Deriving one from the other " +
+      "would be a type error, not a tightening.",
+    issue: 4115,
+  },
+  "@object-ui/app-shell:Dimension": {
+    reason:
+      "Different vocabularies, measured. `@objectstack/spec/data`'s `DimensionSchema` is the " +
+      "semantic-layer CUBE dimension — keys `{name, label, description, type, sql, " +
+      "granularities}` — and it REQUIRES `sql`. The dataset inspector's local shape is the " +
+      "authored dataset field `{name?, label?, field?, type?, dateGranularity?}`. Probed on " +
+      "this commit: the local instance fails the spec schema with `invalid_type` on `sql` and " +
+      "`unrecognized_keys: [\"field\", \"dateGranularity\"]` — the two keys that carry this " +
+      "shape's whole meaning are the two the spec rejects. The spec exports no `DatasetSchema` " +
+      "for the inspector to bind against, so there is nothing to derive from either.",
+    issue: 4115,
+  },
+  "@object-ui/app-shell:ModelConfig": {
+    reason:
+      "A model SELECTION is not a model REGISTRY RECORD. `@objectstack/spec/ai`'s " +
+      "`ModelConfigSchema` describes a model the platform offers — `{id, name, version, " +
+      "provider, capabilities, limits, pricing, endpoint, apiKey, secretRef, region, …}`, with " +
+      "`id`/`name`/`version`/`capabilities`/`limits` all REQUIRED. `AgentPreview`'s local " +
+      "shape is an agent's CHOICE among them, `{provider?, model?, temperature?, maxTokens?}`, " +
+      "read off a draft for a preview panel. Probed on this commit: the local instance fails " +
+      "the spec schema on all five required keys, and `model`/`temperature`/`maxTokens` are " +
+      "not registry keys at all.",
+    issue: 4115,
+  },
+  "@object-ui/app-shell:DashboardWidget": {
+    reason:
+      "ALREADY derived, one hop outside where rule 1 looks, and deliberately wider. " +
+      "`type DashboardWidget = DashboardWidgetSchema & { id: string }` where " +
+      "`DashboardWidgetSchema` is `@object-ui/types`' interface, itself declared " +
+      "`extends Omit<Partial<SpecDashboardWidget>, …>` — so every spec key flows in through " +
+      "that `extends` and tracks the protocol. The intersection restores `id` to REQUIRED, " +
+      "which the `Partial<>` had relaxed for stored legacy widgets that omit it; the inspector " +
+      "only ever handles widgets it has already keyed. Deliberately NOT covered by the " +
+      "`isPureAlias` narrowing — that one is the narrowest possible reading (a bare type " +
+      "reference, nothing else), and an intersection that WIDENS a spec shape is exactly the " +
+      "case this map exists to make someone write a reason for.",
     issue: 4115,
   },
   // The three theme document types (`Theme`, `ThemeMode`, `ColorPalette`,
@@ -550,13 +670,58 @@ const ALLOW = {
 // AUTHORING input. `FormFieldSchema` is exactly that — identical `_output`,
 // divergent `_input` — so re-exporting it would silently change what parses.
 // Compare `_input` too before touching a schema const.
-const DEBT_ISSUE = 4115;
-// EMPTY since objectui#3162 (objectstack#4115 batch 8/8). The last three entries
-// were not burned down — they were MEASURED not-burnable and moved to ALLOW as
-// declared dialects, each carrying its own release condition as a pin. Re-adding
-// a name here means "collides, not yet triaged"; a name whose triage concluded
-// "deliberate divergence" belongs in ALLOW instead.
-const DEBT = {};
+// Re-anchored at objectui#6291. It was `4115` (objectstack#4115) while the block
+// was EMPTY — burned down in objectui#3162, and objectstack#4115 itself closed by
+// objectstack#6883. A ledger whose anchor is CLOSED makes the stale-entry message
+// below ("…and close #N once the ledger is empty") a dead instruction, and #6291
+// could not serve either, being the card its own PR closes. objectui#7265 is the
+// open burn-down card for the population seeded here.
+// ⚠️ `CLAIM_DEBT_ISSUE` a few screens down has the same defect — objectui#4592 is
+// closed while its 19-entry block is live — and is deliberately NOT changed here,
+// because rule 2's ledger is not what objectui#6291 widened.
+const DEBT_ISSUE = 7265;
+// Re-seeded at objectui#6291, mechanically (`--ledger`), when rule 1 stopped
+// skipping module-local declarations. ⚠️ The block is SHRINK-ONLY and this is the
+// one sanctioned way it grows: the rule's JURISDICTION widened, so these are
+// pre-existing mirrors it could not previously SEE, not forks anybody wrote. A
+// name may not be added here for any other reason.
+//
+// All 13 are real mirrors, classified by reading each site — the four
+// different-concept collisions the same widening surfaced went to ALLOW with
+// reasons instead, and the two carrying standalone defects beyond the mirroring
+// already have cards (objectui#6286, objectui#6287). Re-adding a name here still
+// means "collides, not yet triaged"; a name whose triage concluded "deliberate
+// divergence" belongs in ALLOW instead.
+const DEBT = {
+  "@object-ui/app-shell": [
+    "AdminScope",
+    "AppLike",
+    "FlowEdge",
+    "FlowRuntimeState",
+    "ObjectLike",
+    "RemoteTable",
+  ],
+  "@object-ui/core": [
+    "CONTEXT_TOKEN_SUGGESTIONS",
+    "isContextToken",
+  ],
+  "@object-ui/types": [
+    "UserFilterFieldSchema",
+    "UserFiltersSchema",
+  ],
+  "@object-ui/components": [
+    "SortDirection",
+  ],
+  "@object-ui/data-objectstack": [
+    "normalizeFilterOperator",
+  ],
+  "@object-ui/plugin-detail": [
+    "RecordAlertProps",
+  ],
+  "@object-ui/plugin-tree": [
+    "TreeConfig",
+  ],
+};
 
 // Files under these paths are not objectui's own authored surface.
 //   - `ui/` is the Shadcn no-touch zone (AGENTS.md #7): upstream 3rd-party files
@@ -645,6 +810,19 @@ export const CLAIM_ALLOW = {
 //   - keep the copy and move it to CLAIM_ALLOW with the reason it exists;
 //   - or delete the claim from the comment, because it is not true here.
 //
+// The block GREW once, at objectui#6291, and that is not a ratchet failure: rule
+// 2 stopped skipping module-local declarations in the same commit, so
+// `CONTEXT_TOKEN_SUGGESTIONS` (@object-ui/core) is a pre-existing claim the rule
+// could not previously SEE, not a new one somebody wrote. It is a real mirror —
+// byte-identical to `@objectstack/spec/data`'s nine-entry map — and 25 lines
+// above it the same file explains that its neighbour `CONTEXT_TOKENS` became a
+// re-export precisely because "the copy was byte-identical, so every value
+// comparison and every behavioural test passed while it sat here". Burning it
+// down is the same edit that fixed the neighbour; it is listed rather than
+// excused because nothing about it is deliberate. Widening a rule's
+// jurisdiction is the ONLY sanctioned way this block grows, and it must be
+// mechanically regenerated (`--claim-ledger`) in that same commit.
+//
 // Eight entries left by that last route in objectui#4597 — the i18n formatters'
 // four and views.ts's four, which cited `DateFormatSchema`, `NumberFormatSchema`,
 // `PluralRuleSchema`, `LocaleConfigSchema`, `FieldChangeEntrySchema`,
@@ -679,10 +857,20 @@ const CLAIM_DEBT = {
     "RecordRelatedListComponentProps",
     "SubmitBehavior",
   ],
-  "@object-ui/core": ["ResultDialogFieldSpec", "ViewDataConfig"],
-  "@object-ui/app-shell": ["RecordLookupBinding"],
-  "@object-ui/plugin-view": ["ROW_HEIGHT_OPTIONS"],
-  "@object-ui/react": ["DensityModeValue"],
+  "@object-ui/core": [
+    "CONTEXT_TOKEN_SUGGESTIONS",
+    "ResultDialogFieldSpec",
+    "ViewDataConfig",
+  ],
+  "@object-ui/app-shell": [
+    "RecordLookupBinding",
+  ],
+  "@object-ui/plugin-view": [
+    "ROW_HEIGHT_OPTIONS",
+  ],
+  "@object-ui/react": [
+    "DensityModeValue",
+  ],
 };
 
 // ── 1. Enumerate every `@objectstack/spec` export name, per subpath ──────────
@@ -926,6 +1114,78 @@ function isRendererLike(stmt) {
 }
 
 /**
+ * Rule 1's narrower cousin: does this declaration actually RENDER? (objectui#6291)
+ *
+ * `isRendererLike` above is rule 2's, and rule 2 can afford it: that scanner
+ * drops function and class declarations one line earlier (`if (!nameNode)
+ * continue`), so the predicate only ever judges a `const` initialised with a
+ * call or a function. Rule 1 has no such pre-filter — it RECORDS every exported
+ * function with `derived: false` — so reusing `isRendererLike` verbatim would
+ * skip every spec-named function in the tree.
+ *
+ * Measured, that is not the same set. On the objectui#6291 commit, dropping
+ * rule 1's export filter surfaces four module-local functions: two React
+ * components named `Field` (metadata-admin inspectors, wrapping a child in a
+ * `<div>` with a hint line), and `isContextToken` / `normalizeFilterOperator` —
+ * a type-guard predicate and an alias-table normalizer, both classified REAL
+ * MIRRORS by the census and both carrying the drift this guard exists to catch
+ * (`normalizeFilterOperator` is a SECOND normalizer over the spec's, and two
+ * normalizers disagreeing about filter operators is the silent over-fetch class
+ * of objectstack#3948). A blanket "functions are renderers" would have made
+ * those two invisible rather than DEBT entries — silently, and for good.
+ *
+ * So the narrowing here tests the judgement the header actually states — "a
+ * component that RENDERS the spec's shape is not a second declaration of it" —
+ * literally: the declaration must contain JSX. A predicate returning `boolean`
+ * does not; a component returning `<div>` does. Nested functions are not
+ * excluded from the walk on purpose: a helper that builds JSX inside a
+ * non-rendering function is vanishingly rarer than the false negative that
+ * excluding it would buy, and the fallback for a genuine miss is an ALLOW entry
+ * with a reason — which is the governance this file wants anyway.
+ */
+function rendersJsx(node) {
+  let found = false;
+  const visit = (n) => {
+    if (found || !n) return;
+    if (
+      ts.isJsxElement(n) ||
+      ts.isJsxSelfClosingElement(n) ||
+      ts.isJsxFragment(n)
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
+/**
+ * A pure alias to a single identifier is derivation BY DELEGATION (objectui#6291).
+ *
+ * `type FlowNode = FlowDesignerNode` restates nothing. It names one thing, and
+ * whatever that thing is gets judged at its own declaration site — which is the
+ * judgement this scanner already makes one screen down for barrels: a re-export
+ * through a relative path or an `@object-ui/*` sibling "is not a second
+ * finding … reporting the barrel too would just make one fork look like four,
+ * and would make the fix land in the barrel rather than at the declaration".
+ * The same sentence is true of an alias, and it is the change the tree itself
+ * made in objectui#3202 when it deleted two restated copies of the flow shapes
+ * in favour of exactly this form.
+ *
+ * Deliberately the narrowest possible reading — a bare `TypeReferenceNode`,
+ * one identifier, no type arguments, no qualified name. `A & { id: string }`
+ * is NOT this (it is a deliberate widening, which belongs in ALLOW with its
+ * reason written down), and neither is `A<B>` or a union.
+ */
+function isPureAlias(stmt) {
+  if (!ts.isTypeAliasDeclaration(stmt)) return false;
+  const t = stmt.type;
+  return ts.isTypeReferenceNode(t) && ts.isIdentifier(t.typeName) && !t.typeArguments;
+}
+
+/**
  * Rule 2's scan: exported declarations whose doc comment claims spec alignment
  * while the declaration itself references nothing spec-bound.
  */
@@ -953,7 +1213,11 @@ export function scanFileForClaims(file, specNames = new Map()) {
 
   const findings = [];
   for (const stmt of sf.statements) {
-    if (!hasExportModifier(stmt)) continue;
+    // No export filter: a module-local declaration carrying a spec-alignment
+    // claim is the same planted premise as an exported one (objectui#6291).
+    // The claim is read by the next agent editing the FILE, not by an importer,
+    // so the package boundary was never what made it dangerous. Measured cost of
+    // dropping it here: see the header's rule-2 line.
 
     let nameNode = null;
     if (
@@ -1000,7 +1264,13 @@ export function scanFileForClaims(file, specNames = new Map()) {
   return findings;
 }
 
-function scanFile(file, specNames) {
+/**
+ * Rule 1's scan. Exported for the same reason `scanFileForClaims` is — the two
+ * structural narrowings above (`rendersJsx`, `isPureAlias`) are judgement calls
+ * about what this rule may NOT see, and a narrowing with no discrimination
+ * proof is how a guard quietly stops guarding (objectui#6291).
+ */
+export function scanFile(file, specNames) {
   const text = readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, /\.tsx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
 
@@ -1049,10 +1319,21 @@ function scanFile(file, specNames) {
       continue;
     }
 
-    if (!hasExportModifier(stmt)) continue;
+    // No export filter (objectui#6291). A module-local declaration under a spec
+    // export's name is still READ by the next agent editing that file, and it
+    // still drifts — objectui#5652's three mirrors were all module-local
+    // `interface`s. Two structural narrowings above (`rendersJsx`, `isPureAlias`)
+    // carry the judgement this widening needs; the header records the measured
+    // population.
+
+    // A component that RENDERS the spec's shape is not a second declaration of
+    // it — the judgement rule 2 and three ALLOW entries already make, applied
+    // here to declarations that literally contain JSX. See `rendersJsx`.
+    if ((ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt) || ts.isVariableStatement(stmt)) && rendersJsx(stmt))
+      continue;
 
     if (ts.isTypeAliasDeclaration(stmt)) {
-      record(stmt.name.text, "type", referencesSpec(stmt, specBindings, true, stmt.name), stmt);
+      record(stmt.name.text, "type", isPureAlias(stmt) || referencesSpec(stmt, specBindings, true, stmt.name), stmt);
     } else if (ts.isInterfaceDeclaration(stmt)) {
       // Only `extends` counts — see the header.
       const extendsSpec = (stmt.heritageClauses ?? []).some((h) => referencesSpec(h, specBindings, false));

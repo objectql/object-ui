@@ -1223,3 +1223,220 @@ describe('performance-budget.yml + vite.config.ts contract', () => {
     expect(body).not.toMatch(/for \(const \w+ of [^)]*dynamicImports/);
   });
 });
+
+/**
+ * The prose attached to the two baselines, CHECKED rather than argued
+ * (objectui#7046).
+ *
+ * {@link VERDICT_CEILING_CONSTANTS} deliberately excludes `BASELINE` and
+ * `PER_CHUNK_BASELINE` — no verdict is computed from them, so the freshness
+ * check that guards every other constant in this file structurally cannot see
+ * them, and the only thing describing them is a comment. objectui#6778 is what
+ * that costs: one paragraph attached to `PER_CHUNK_BASELINE` named a commit
+ * three re-baselines out of date as what `BASELINE` carried, computed its
+ * arithmetic against that retired reading, and drew the REVERSE of the verdict
+ * the same script printed in the same run. It survived long enough to be copied
+ * verbatim into a second card.
+ *
+ * Everything here is a POSITIVE pin: a live value the prose claims must equal
+ * the value the module actually exports. The blanket negative pin the card
+ * offered as (b) — "the attached block carries no OTHER commit hash" — was
+ * measured and deliberately NOT shipped: both blocks legitimately cite
+ * superseded hashes as history (`bd2a7ec50` under `BASELINE`, and every one of
+ * the five under `PER_CHUNK_BASELINE`, which carries no commit of its own), so
+ * (b) is red on an honest file before any mutation and no marker distinguishes
+ * the two senses without rewriting the narrative comments. See the PR body for
+ * the full reading.
+ */
+describe('the prose attached to the baselines (objectui#7046)', () => {
+  const checkerSource = fs.readFileSync(checkerPath, 'utf8');
+
+  /**
+   * The documentation ATTACHED to one exported constant, located structurally —
+   * never by a line number, which objectui#6778 demonstrated three times over
+   * rots within days.
+   *
+   * "Attached" is the JSDoc block ending immediately before the
+   * `export const NAME` declaration PLUS every comment lexically inside that
+   * declaration, with the code itself stripped out. Both halves are load-bearing
+   * and neither is a convenience:
+   *
+   *   - the leading block alone is not enough. Measured on `main` when this was
+   *     written, `BASELINE`'s leading block carries no commit hash at all — the
+   *     sentence naming the commit the measurement was taken on is the JSDoc on
+   *     the `gzipBytes` FIELD, inside the object literal. Scoping there would
+   *     make the positive pin below red on an honest file.
+   *   - the declaration TEXT is too much. `commit: '...'` would satisfy the pin
+   *     by restating the constant — the prose about the value passing because it
+   *     contains the value, which is this card's own defect one layer up.
+   */
+  function attachedDocs(source: string, exportName: string): { prose: string; code: string } {
+    const declaration = new RegExp(String.raw`^export const ${exportName}\b`, 'm').exec(source);
+    if (!declaration) throw new Error(`no \`export const ${exportName}\` in the checker`);
+    const declStart = declaration.index;
+
+    const before = source.slice(0, declStart).replace(/\s+$/, '');
+    if (!before.endsWith('*/')) {
+      throw new Error(`\`export const ${exportName}\` is not preceded by a block comment`);
+    }
+    const open = before.lastIndexOf('/**');
+    if (open === -1) throw new Error(`unterminated JSDoc above \`export const ${exportName}\``);
+
+    // Walk the initializer, skipping comments and string literals, until the
+    // brackets it opened close again. Comments met on the way are the per-field
+    // prose; everything else is code.
+    const inner: string[] = [];
+    let i = source.indexOf('=', declStart) + 1;
+    let depth = 0;
+    let opened = false;
+    while (i < source.length) {
+      const two = source.slice(i, i + 2);
+      if (two === '/*') {
+        const end = source.indexOf('*/', i + 2);
+        if (end === -1) throw new Error(`unterminated comment inside ${exportName}`);
+        inner.push(source.slice(i, end + 2));
+        i = end + 2;
+        continue;
+      }
+      if (two === '//') {
+        const end = source.indexOf('\n', i);
+        inner.push(source.slice(i, end));
+        i = end;
+        continue;
+      }
+      const c = source[i];
+      if (c === "'" || c === '"' || c === '`') {
+        i += 1;
+        while (i < source.length && source[i] !== c) i += source[i] === '\\' ? 2 : 1;
+        i += 1;
+        continue;
+      }
+      if (c === '(' || c === '{' || c === '[') {
+        depth += 1;
+        opened = true;
+      } else if (c === ')' || c === '}' || c === ']') {
+        depth -= 1;
+        if (opened && depth === 0) {
+          i += 1;
+          break;
+        }
+      } else if (!opened && c === ';') {
+        break;
+      }
+      i += 1;
+    }
+
+    return { prose: [before.slice(open), ...inner].join('\n'), code: source.slice(declStart, i) };
+  }
+
+  /** Commit strings a constant carries AS DATA, found by walking its values. */
+  function commitsCarriedBy(value: unknown): string[] {
+    const found: string[] = [];
+    const walk = (v: unknown): void => {
+      if (typeof v === 'string') {
+        if (/^[0-9a-f]{7,40}$/.test(v)) found.push(v);
+        return;
+      }
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+    };
+    walk(value);
+    return [...new Set(found)];
+  }
+
+  /**
+   * A sentence claiming what `BASELINE` CARRIES — present tense, the sense that
+   * must be current — as opposed to a bare hash, which in this file is usually
+   * history and correct as such. The distinction is grammatical, not statistical,
+   * which is why this is a positive pin with no false-positive surface: nobody
+   * writes "BASELINE's `x`" about a hash it used to carry.
+   *
+   * `(?<![A-Za-z0-9_])` is not decoration: without it `PER_CHUNK_BASELINE` in a
+   * `{@link}` matches as `BASELINE`.
+   */
+  const CITES_BASELINE_COMMIT =
+    /(?<![A-Za-z0-9_])(?:\{@link\s+BASELINE\}|BASELINE)(?:['’]s)?\s*\(?\s*`([0-9a-f]{7,40})`/g;
+
+  const BASELINES = ['BASELINE', 'PER_CHUNK_BASELINE'] as const;
+
+  it('locates the block attached to each baseline, and only that block', () => {
+    const baseline = attachedDocs(checkerSource, 'BASELINE');
+    const perChunk = attachedDocs(checkerSource, 'PER_CHUNK_BASELINE');
+
+    // Controls that MUST hit: phrases verified to be inside each attached
+    // block. A locator that quietly found the wrong span would pass every pin
+    // below by scanning prose that says nothing about these constants.
+    expect(baseline.prose).toContain('the previous baseline');
+    expect(perChunk.prose).toContain('Provenance is per KEY');
+
+    // ...and the neighbours are not swept in. Each baseline sits directly under
+    // the ceiling it was measured for, whose block is much the larger of the two.
+    expect(baseline.prose).not.toContain('Re-baselined DOWNWARD three times');
+    expect(perChunk.prose).not.toContain('## Raising one');
+
+    // The code is not prose. Without this the positive pin below would be
+    // satisfiable by the `commit:` line itself.
+    expect(baseline.code).toContain(`commit: '${BASELINE.commit}'`);
+    expect(baseline.prose).not.toContain(`commit: '${BASELINE.commit}'`);
+  });
+
+  /**
+   * (a), the positive pin: what the constant carries must be what its own prose
+   * says it carries. Vacuous for `PER_CHUNK_BASELINE` today, which is a measured
+   * fact about that constant and is pinned as such in the next case.
+   */
+  it.each(BASELINES)('pins every commit %s carries into its own attached prose', (name) => {
+    const { prose } = attachedDocs(checkerSource, name);
+    const carried = commitsCarriedBy(name === 'BASELINE' ? BASELINE : PER_CHUNK_BASELINE);
+    expect(carried.filter((commit) => !prose.includes(commit))).toEqual([]);
+  });
+
+  /**
+   * What each baseline carries AS DATA, recorded so the pin above cannot go
+   * vacuous in silence. Measured on `main`: `BASELINE` carries exactly one
+   * commit string; `PER_CHUNK_BASELINE` carries NONE — its per-key provenance
+   * commits live only in prose, with no exported value to check them against,
+   * which is why the pin above says nothing about it and the claim pin below is
+   * what guards its block. Add a `commit` field there and this reds, and the pin
+   * above starts covering it.
+   */
+  it('records what each baseline carries as data, so the pin cannot go vacuous', () => {
+    expect(commitsCarriedBy(BASELINE)).toEqual([BASELINE.commit]);
+    expect(commitsCarriedBy(PER_CHUNK_BASELINE)).toEqual([]);
+  });
+
+  /**
+   * The objectui#6778 defect itself, as an assertion. The stale hash was in a
+   * sentence in `PER_CHUNK_BASELINE`'s block about what `BASELINE` carried —
+   * a cross-constant claim, which is precisely the shape the pin above cannot
+   * see, because the block making the claim carries no commit of its own.
+   */
+  it('holds every "BASELINE carries X" claim in the attached prose to the live value', () => {
+    const claims = BASELINES.flatMap((name) =>
+      [...attachedDocs(checkerSource, name).prose.matchAll(CITES_BASELINE_COMMIT)].map((m) => ({
+        name,
+        text: m[0],
+        cited: m[1] as string,
+      })),
+    );
+
+    // Presence first: a rewrite that drops the sentence must red here rather
+    // than silently unpin the block objectui#6778's stale claim lived in.
+    expect(claims.map((claim) => claim.name)).toContain('PER_CHUNK_BASELINE');
+
+    expect(claims.map((claim) => `${claim.name}: ${claim.text}`)).toEqual(
+      claims.map((claim) => `${claim.name}: ${claim.text.replace(claim.cited, BASELINE.commit)}`),
+    );
+  });
+
+  /**
+   * `PER_CHUNK_BASELINE` carries no commit, but it does carry three chunk NAMES,
+   * and its block assigns provenance per key — "Provenance is per KEY, not per
+   * file, and saying so is the point". A key added or renamed without touching
+   * that list is the same drift one column over: a measurement nothing explains.
+   */
+  it('pins every chunk name PER_CHUNK_BASELINE carries into its own attached prose', () => {
+    const { prose } = attachedDocs(checkerSource, 'PER_CHUNK_BASELINE');
+    expect(Object.keys(PER_CHUNK_BASELINE).filter((chunk) => !prose.includes(chunk))).toEqual([]);
+  });
+});

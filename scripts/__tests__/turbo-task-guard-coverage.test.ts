@@ -29,6 +29,7 @@ import { repoRoot } from './helpers/turbo-inputs';
  *     test        cached   guarded by turbo-test-inputs.test.ts        (#4178)
  *     lint        cached   guarded by turbo-lint-inputs.test.ts        (#4184)
  *     type-check  cached   guarded by turbo-type-check-inputs.test.ts  (#3514)
+ *     test:dist   cache: false               nothing to replay
  *     test:watch  cache: false, persistent   nothing to replay
  *     clean       cache: false               nothing to replay
  *     dev         cache: false, persistent   nothing to replay
