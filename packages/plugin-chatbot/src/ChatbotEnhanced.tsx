@@ -1617,6 +1617,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const handleSuggestionClick = React.useCallback(
       (text: string) => {
         lastApprovedPlanIdRef.current = null;
+        // Not typed by the user — nothing to restore if this send is rejected
+        // (see the send-failure effect below).
+        lastSubmittedRef.current = '';
         onSendMessage?.(text);
       },
       [onSendMessage]
@@ -1642,6 +1645,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const lastApprovedPlanIdRef = React.useRef<string | null>(null);
     const handlePlanApprove = React.useCallback(
       (hasOpenQuestions: boolean, toolCallId?: string) => {
+        // Canned approval text, not the user's typing — see `handleSubmit`.
+        lastSubmittedRef.current = '';
         if (toolCallId) {
           lastApprovedPlanIdRef.current = toolCallId;
           setApprovedPlanIds((prev) => {
@@ -1663,8 +1668,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       () => new Set<string>(),
     );
     const lastConfirmedChangeIdRef = React.useRef<string | null>(null);
+    // objectui#7253 — cards whose confirm was refused by the AI quota guardrail
+    // (429), keyed to the refusal that blocked them. UI-owned and terminal for
+    // this mount: the refusal never reached the server, so no message-stream
+    // envelope will ever speak for it, and the paywall does not lift on a retry.
+    // The error is KEPT (not just a flag) so the card's next step still reads
+    // correctly after `error` clears — the user typing again must not silently
+    // strip the reason off a card that is still blocked.
+    const [quotaBlockedChanges, setQuotaBlockedChanges] = React.useState<
+      ReadonlyMap<string, unknown>
+    >(() => new Map<string, unknown>());
     const handleChangesConfirm = React.useCallback(
       (toolCallId?: string) => {
+        // Canned confirmation text, not the user's typing — see `handleSubmit`.
+        lastSubmittedRef.current = '';
         if (toolCallId) {
           lastConfirmedChangeIdRef.current = toolCallId;
           setConfirmPendingIds((prev) => {
@@ -1709,7 +1726,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           return next;
         });
       }
-      // Same rollback for an unsent 确认修改 approval (objectui#5695).
+      // Same rollback for an unsent 确认修改 approval (objectui#5695) — with one
+      // split (objectui#7253): a QUOTA refusal is not a retry, so the card must
+      // not quietly re-offer the buttons that just failed. Returning them is
+      // right for a transient failure (rate limit, offline) and a dead end for a
+      // paywall — the user clicks Confirm again and hits the same 429, with the
+      // card still reading "awaiting approval". A quota refusal parks the card
+      // in an explicit blocked state carrying the next step instead.
       if (lastConfirmedChangeIdRef.current) {
         const failedId = lastConfirmedChangeIdRef.current;
         lastConfirmedChangeIdRef.current = null;
@@ -1719,7 +1742,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           next.delete(failedId);
           return next;
         });
+        if (parseAiQuotaError(error)) {
+          setQuotaBlockedChanges((prev) => {
+            if (prev.has(failedId)) return prev;
+            const next = new Map(prev);
+            next.set(failedId, error);
+            return next;
+          });
+        }
       }
+      // Only text the user TYPED here is restorable. `lastSubmittedRef` is
+      // written by `handleSubmit` alone and cleared by every card-driven send,
+      // because those send a canned message the user never typed — leaving the
+      // ref stale refilled the composer with the user's PREVIOUS prompt, a
+      // message that had already been delivered and answered, reading as
+      // "resend this" (objectui#7253).
       const text = lastSubmittedRef.current;
       if (!text) return;
       const textarea = promptInputWrapRef.current?.querySelector('textarea');
@@ -2612,6 +2649,30 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                             {publishDraftsLabel}
                           </button>
                         ) : null}
+                      </div>
+                    );
+                  }
+                  // objectui#7253 — the confirm never reached the server: the AI
+                  // quota guardrail refused it with a 429. No replay envelope
+                  // will ever arrive for it, so this state is UI-owned, and it
+                  // is terminal rather than a rollback to the buttons: clicking
+                  // Confirm again buys the same refusal. Ranked below the three
+                  // server verdicts above — a real outcome always outranks a
+                  // client-side refusal.
+                  if (quotaBlockedChanges.has(tool.toolCallId)) {
+                    return (
+                      <div className="flex flex-col items-start gap-1 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                          data-testid="proposed-changes-quota-blocked"
+                        >
+                          <XCircle className="size-3.5" />
+                          {changesFailedLabel}
+                        </span>
+                        <QuotaBlockedNextStep
+                          error={quotaBlockedChanges.get(tool.toolCallId)}
+                          onUpgrade={onUpgrade}
+                        />
                       </div>
                     );
                   }
@@ -4040,6 +4101,73 @@ function SendErrorNotice({
   );
 }
 
+/**
+ * The server-owned AI-quota refusal copy, resolved for the console's ACTIVE
+ * language, plus the verb its next step calls for. `null` when the error is not
+ * a quota refusal.
+ *
+ * Shared by the composer banner and the confirm card's blocked state
+ * (objectui#7253) so one 429 can never be described by two different sentences
+ * on the same screen. The server sends both a localized `message` (zh) and
+ * `messageEn`; that pair is server-owned, so we still choose between them — by
+ * the in-app locale, not `navigator.language`, which ignored the locale
+ * switcher entirely (objectui#2871).
+ */
+function useAiQuotaCopy(error: unknown): { text: string; cta: string } | null {
+  const { language } = useObjectTranslation();
+  const tt = useSafeTranslate();
+  const quota = React.useMemo(() => parseAiQuotaError(error), [error]);
+  if (!quota) return null;
+  const isZh = language.toLowerCase().startsWith('zh');
+  return {
+    text:
+      (isZh ? quota.message : quota.messageEn ?? quota.message) ||
+      tt('chatbotQuota.fallbackMessage', 'You have reached your AI quota.'),
+    cta: quota.topUp
+      ? tt('chatbotQuota.buyCredits', 'Buy a credit pack')
+      : tt('chatbotQuota.upgradePlan', 'Upgrade plan'),
+  };
+}
+
+/**
+ * The next step under a confirm card that a quota refusal blocked
+ * (objectui#7253): what happened (the server's own sentence — it names both
+ * exits, "resets tomorrow" and "upgrade to keep designing") and, when the host
+ * wired one, the upgrade action. Renders nothing when the blocking error is not
+ * a quota refusal, so the badge above it degrades to a bare "not applied"
+ * rather than to an invented explanation.
+ */
+function QuotaBlockedNextStep({
+  error,
+  onUpgrade,
+}: {
+  error: unknown;
+  onUpgrade?: () => void;
+}) {
+  const copy = useAiQuotaCopy(error);
+  if (!copy) return null;
+  return (
+    <>
+      <span
+        className="text-[11px] leading-snug text-muted-foreground"
+        data-testid="proposed-changes-quota-reason"
+      >
+        {copy.text}
+      </span>
+      {onUpgrade ? (
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="inline-flex h-7 items-center rounded-md border border-amber-400/50 bg-background px-2 text-xs font-medium text-amber-700 hover:bg-amber-100/60 dark:text-amber-300"
+          data-testid="proposed-changes-quota-upgrade"
+        >
+          {copy.cta}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 function ErrorBanner({
   error,
   onReload,
@@ -4053,27 +4181,16 @@ function ErrorBanner({
   // when things are already broken, including in hosts that mount the chat
   // WITHOUT an I18nProvider — where a bare `t(key)` returns the raw key and the
   // user would read "chatbotError.title" instead of an error message.
-  const { language } = useObjectTranslation();
   const tt = useSafeTranslate();
-  const quota = React.useMemo(() => parseAiQuotaError(error), [error]);
+  const quota = useAiQuotaCopy(error);
   const { summary, details } = React.useMemo(() => summarizeChatError(error), [error]);
   const [expanded, setExpanded] = React.useState(false);
 
   // AI quota refusal (429 from the cloud token guardrail) -> friendly upgrade /
-  // top-up CTA instead of a red "Response failed" banner.
+  // top-up CTA instead of a red "Response failed" banner. Copy resolved by the
+  // shared helper, which the confirm card's blocked state reads too.
   if (quota) {
-    // The server sends both a localized `message` (zh) and `messageEn`; that
-    // pair is server-owned, so we still choose between them — but by the
-    // console's active language, not `navigator.language`, which ignored the
-    // in-app locale switcher entirely (objectui#2871). The banner's own copy
-    // now comes from the locale packs.
-    const isZh = language.toLowerCase().startsWith('zh');
-    const text =
-      (isZh ? quota.message : quota.messageEn ?? quota.message) ||
-      tt('chatbotQuota.fallbackMessage', 'You have reached your AI quota.');
-    const cta = quota.topUp
-      ? tt('chatbotQuota.buyCredits', 'Buy a credit pack')
-      : tt('chatbotQuota.upgradePlan', 'Upgrade plan');
+    const { text, cta } = quota;
     const title = tt('chatbotQuota.title', 'Upgrade needed');
     return (
       <div className="border-t bg-background px-3 py-2 text-sm" role="alert">
