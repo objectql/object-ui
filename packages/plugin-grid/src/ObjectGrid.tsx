@@ -40,7 +40,7 @@ import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, bui
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
-import { useGroupedData } from './useGroupedData';
+import { useGroupedData, usableGroupingFields } from './useGroupedData';
 import { GroupRow } from './GroupRow';
 import { useColumnSummary } from './useColumnSummary';
 import { resolveRowCrudAffordances, resolveRowRecordCrudAffordance } from './rowCrudAffordances';
@@ -2034,14 +2034,21 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // readable label for select/boolean fields rather than the raw value
   // (e.g. "In Progress" instead of "in_progress", "Yes" instead of "true").
   const groupValueFormatter = React.useMemo(() => {
-    const grouping = schema.grouping;
-    if (!grouping?.fields?.length) return undefined;
+    // [objectui#7217] ONE normalized entry list, shared with the
+    // `useGroupedData` call below. Reading `grouping.fields` raw here threw
+    // `TypeError: Cannot read properties of null (reading 'field')` on a null
+    // hole — the whole grid gone, during render, before any projection was
+    // built. `usableGroupingFields` admits exactly the entries
+    // `collectGroupingFieldRefs` harvests into the projection, so the grid can
+    // never group by an entry the query never asked for.
+    const groupingFields = usableGroupingFields(schema.grouping?.fields);
+    if (!groupingFields.length) return undefined;
 
     // Per-field { value -> label } lookup, plus a per-field type so we can
     // handle booleans / dates / users without dedicated option lists.
     const lookup = new Map<string, { type?: string; options?: Map<string, string> }>();
 
-    for (const gf of grouping.fields) {
+    for (const gf of groupingFields) {
       const fieldName = gf.field;
       const objectDefField = objectSchema?.fields?.[fieldName];
       // Try to find a column override matching this field for type/options
