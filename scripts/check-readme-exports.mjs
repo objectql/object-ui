@@ -340,11 +340,11 @@ export const MIN_PARTIAL_REASON = 12;
  */
 export const PARTIAL_EXCERPTS = Object.freeze({
   'packages/plugin-gantt/README.md::GanttTask':
-    'objectui#6214 -- omits `fields` and `hasOwnDates`, which the prose immediately BELOW the block already names as populated by ObjectGantt itself. Genuinely an excerpt, so it wants the in-README PARTIAL_MARKER rather than this ledger; that one-line README edit was deliberately not made in the gate\'s own PR.',
+    'objectui#6214, content fix objectui#7302 -- omits `fields` and `hasOwnDates`, which the prose immediately BELOW the block already names as populated by ObjectGantt itself. Genuinely an excerpt, so it wants the in-README PARTIAL_MARKER rather than this ledger; that one-line README edit was deliberately not made in the gate\'s own PR.',
   'packages/plugin-kanban/README.md::KanbanColumn':
-    'objectui#6214 -- omits `collapsed`. Nothing in the page says the block is partial, so this is staleness, not an excerpt. Filed as a content follow-up.',
+    'objectui#6214, content fix objectui#7302 -- omits `collapsed`. Nothing in the page says the block is partial, so this is staleness, not an excerpt.',
   'packages/plugin-kanban/README.md::KanbanCard':
-    'objectui#6214 -- omits `cardSubtitle`, `cardFieldCells` and `coverImage`. Same page, same class as `KanbanColumn` above: the block reads as the whole card shape and is three keys behind it.',
+    'objectui#6214, content fix objectui#7302 -- omits `cardSubtitle`, `cardFieldCells` and `coverImage`. Same page, same class as `KanbanColumn` above: the block reads as the whole card shape and is three keys behind it. objectui#6155 may move this set: these are read from what `@object-ui/plugin-kanban` exports, and that card records four disagreeing declarations of the pair.',
 });
 
 /** The NUL that `git ls-files -z` delimits with, built from its code point. */
