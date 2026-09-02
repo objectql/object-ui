@@ -7,7 +7,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import { SchemaRenderer } from '@object-ui/react';
 import {
   renderComponent,
   validateComponentRegistration,
@@ -158,12 +159,18 @@ describe('Form Renderers - Display Issue Detection', () => {
       expect(error).toBeTruthy();
     });
 
+    // Through the REAL renderer, not `renderComponent`. An authored `disabled`
+    // is `boolean | string` and is EVALUATED by `SchemaRenderer`, which strips
+    // the raw key and forwards the verdict as a `disabled` prop; the widget
+    // consumes that prop and no longer re-reads `schema.disabled` beside it
+    // (objectui#7238). `renderComponent` mounts the registration with no host in
+    // front of it, so it can only ever assert the raw read this card removed —
+    // the predicate half of the same key is pinned in
+    // `disabled-verdict-one-carrier.test.tsx`.
     it('should handle disabled state', () => {
-      const { container } = renderComponent({
-        type: 'input',
-        label: 'Field',
-        disabled: true,
-      });
+      const { container } = render(
+        <SchemaRenderer schema={{ type: 'input', label: 'Field', disabled: true } as never} />,
+      );
 
       const input = container.querySelector('input');
       expect(input?.hasAttribute('disabled')).toBe(true);
