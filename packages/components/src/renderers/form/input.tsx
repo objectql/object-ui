@@ -13,7 +13,14 @@ import { Input, Label } from '../../ui';
 import { cn } from '../../lib/utils';
 import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
-const InputRenderer = ({ schema, className, onChange, value, ...props }: { schema: InputSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
+const InputRenderer = ({ schema, className, onChange, value, disabled: hostDisabled, ...props }: { schema: InputSchema; className?: string; onChange?: (val: any) => void; value?: any; disabled?: boolean; [key: string]: any }) => {
+  // `disabled` is NOT read off `schema` here. `SchemaRenderer` evaluates the
+  // node's `disabled` / `disabledOn` (either may be a predicate STRING), strips
+  // the raw key from the props it spreads, and forwards the VERDICT as a real
+  // `disabled` prop — `hostDisabled` below. One carrier for one question
+  // (AGENTS.md #0.1, objectui#7238): the authored value is truthy however it
+  // evaluates, so re-reading it beside the verdict is a second, wrong answer.
+  // The precedent is `plugin-chatbot`'s renderer (objectui#6169).
   // Handle change for both raw inputs and form-bound inputs
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (onChange) {
@@ -45,7 +52,7 @@ const InputRenderer = ({ schema, className, onChange, value, ...props }: { schem
         placeholder={schema.placeholder} 
         className={className}
         required={schema.required}
-        disabled={schema.disabled}
+        disabled={hostDisabled}
         readOnly={schema.readOnly}
         value={value ?? schema.value ?? ''} // Controlled if value provided
         defaultValue={value === undefined ? schema.defaultValue : undefined}

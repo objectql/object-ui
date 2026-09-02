@@ -994,11 +994,11 @@ describe('deriveFieldGroupDetailSections (#2148)', () => {
   it('returns sections in declared order with collapse passthrough, dropping empty groups', () => {
     const sections = deriveFieldGroupDetailSections(groupedDef)!;
     expect(sections.map((s: any) => s.name)).toEqual(['basic', 'finance', undefined]);
-    expect(sections[0].title).toBe('基本信息');
+    expect(sections[0].label).toBe('基本信息');
     expect(sections[0].fields.map((f: any) => f.name)).toEqual(['name', 'industry']);
     expect(sections[1]).toMatchObject({
       name: 'finance',
-      title: '财务',
+      label: '财务',
       collapsible: true,
       defaultCollapsed: true,
     });
@@ -1010,7 +1010,7 @@ describe('deriveFieldGroupDetailSections (#2148)', () => {
     const sections = deriveFieldGroupDetailSections(groupedDef)!;
     const trailing = sections[sections.length - 1];
     expect(trailing.name).toBeUndefined();
-    expect(trailing.title).toBeUndefined();
+    expect(trailing.label).toBeUndefined();
     expect(trailing.fields.map((f: any) => f.name)).toEqual(['website']);
   });
 
@@ -1085,13 +1085,13 @@ describe('resolveDetailSections priority (ADR-0085)', () => {
   };
 
   it('explicit options.sections wins', () => {
-    const explicit = [{ title: 'Explicit', fields: ['a'] }];
+    const explicit = [{ label: 'Explicit', fields: ['a'] }];
     expect(resolveDetailSections(groupedDef, explicit)).toBe(explicit);
   });
 
   it('derives from fieldGroups last, else undefined', () => {
     const derived = resolveDetailSections(groupedDef)!;
-    expect(derived[0]).toMatchObject({ name: 'g', title: 'G' });
+    expect(derived[0]).toMatchObject({ name: 'g', label: 'G' });
     expect(resolveDetailSections(leadDef)).toBeUndefined();
     expect(resolveDetailSections(undefined)).toBeUndefined();
   });
@@ -1116,7 +1116,7 @@ describe('buildDefaultPageSchema integration (#2148)', () => {
     const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
     const details = tabItems(tabs)[0].children[0];
     expect(details.type).toBe('record:details');
-    expect(props(details).sections[0]).toMatchObject({ name: 'basic', title: 'Basic' });
+    expect(props(details).sections[0]).toMatchObject({ name: 'basic', label: 'Basic' });
   });
 
   it('stageField: false drops record:path', () => {

@@ -185,9 +185,19 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   const filteredFields = dropHidden(normaliseList(filterList(schema.fields as any[])));
   const filteredSections = Array.isArray(schema.sections)
     ? (schema.sections as any[]).map((s) => {
-        // Authored titles may carry inline translations (`{ en, 'zh-CN' }`) —
+        // Authored labels may carry inline translations (`{ en, 'zh-CN' }`) —
         // resolve via pickLocalized before any convention-based lookup.
-        const rawTitleSrc = s.title ?? s.label;
+        //
+        // `label` is the ONE heading slot (objectui#6190). This used to read
+        // `s.title ?? s.label`: a second spelling of the same slot, with
+        // byte-identical localization on both limbs and strict priority for
+        // `title`, so a producer emitting both silently disagreed with itself
+        // and `title` won. The spec face refuses `title` on sections
+        // (objectstack#11902 pins that refusal) and `@object-ui/types` and the
+        // authoring inspector declare only `label`, so the alias limb served no
+        // accepted spelling; the three producers that still emitted `title`
+        // moved to `label` in the same change that removed it.
+        const rawTitleSrc = s.label;
         const rawTitle = rawTitleSrc != null ? pickLocalized(rawTitleSrc, language) : undefined;
         // Translate the section label when authors provided a stable `name`.
         // Convention: `{ns}.objects.{objectName}._sections.{name}.label`.
