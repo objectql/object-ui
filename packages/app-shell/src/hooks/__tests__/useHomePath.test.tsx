@@ -15,8 +15,10 @@
  * homes, two voices.
  *
  * These assert the hook's ANSWER. That the four chrome sites actually consume
- * it is pinned separately by `homeAffordancesFollowDeclaration-7256.test.ts`;
- * neither file replaces the other.
+ * it is pinned by `homeAffordancesFollowDeclaration-7256.test.ts`, and that `/`
+ * resolves to the same place by
+ * `apps/console/src/components/landingHomeParity-7256.test.ts`. None of the
+ * three replaces another.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';

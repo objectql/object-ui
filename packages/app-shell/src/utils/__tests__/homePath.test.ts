@@ -2,8 +2,8 @@
  * ObjectUI
  * Copyright (c) 2024-present ObjectStack Inc.
  *
- * objectui#7256 — `resolveDeclaredHomePath`, the ONE reader of the product's
- * declared landing (`app.isDefault`).
+ * objectui#7256 — `resolveDeclaredHomePath`, the chrome's reader of the
+ * product's declared landing (`app.isDefault`).
  *
  * The defect this policy closes: the console chrome named `/home` literally, so
  * a deployment that declares a landing showed two homes. On cloud's control
@@ -11,11 +11,14 @@
  * from a template" act on an environment the control plane does not have, and
  * its "Your apps" tiles are the control plane's own internal management apps.
  *
- * `null` (not `/home`) is the "no declaration" answer on purpose: the two
- * callers layer DIFFERENT things on it — `/`'s resolver has a
- * single-visible-app emptiness heuristic to try next, the chrome has nothing —
- * so the fallback cannot be baked in here without one of them inheriting the
- * other's policy.
+ * `null` (not `/home`) is the "no declaration" answer on purpose: "the product
+ * declared nothing" and "go to the launcher" are different facts, and only the
+ * caller knows what to try next — `/`'s resolver has a single-visible-app
+ * emptiness heuristic, the chrome has nothing. Baking the fallback in here
+ * would hand one of them the other's policy.
+ *
+ * That the `/` resolver agrees with this one on every declared list is pinned
+ * by `apps/console/src/components/landingHomeParity-7256.test.ts`.
  */
 import { describe, it, expect } from 'vitest';
 import { HOME_LAUNCHER_PATH, resolveDeclaredHomePath } from '../homePath';

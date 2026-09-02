@@ -34,6 +34,10 @@
  * error-recovery paths, not Home affordances, and retargeting them moves a
  * `/home` expectation that a dozen existing tests pin — a separate change with
  * its own measurement.
+ *
+ * And it does not cover `apps/console`'s `/` resolver, which keeps its own
+ * reading of the declaration — `landingHomeParity-7256.test.ts` compares the two
+ * shipped answers directly, which is stronger than any scan of either file.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -98,12 +102,17 @@ describe('objectui#7256 — chrome Home affordances follow the declared landing'
     expect(src).toMatch(/to=\{homePath\}[^\n]*data-testid="mobile-sidebar-home"/);
   });
 
-  it("apps/console's `/` resolver reads the SAME declaration reader", () => {
-    // The whole point is that the post-login landing and the logo cannot name
-    // two different homes — which only holds while both read one policy.
-    const src = stripComments(read('apps/console/src/components/RootLandingRedirect.tsx'));
-    expect(src).toMatch(/resolveDeclaredHomePath/);
-    expect(src).toMatch(/HOME_LAUNCHER_PATH/);
-    expect(src).not.toMatch(LAUNCHER_LITERAL);
+  it("apps/console's `/` resolver keeps its parity guard", () => {
+    // The point of the whole change is that the post-login landing and the logo
+    // cannot name two different homes. `/`'s resolver keeps its own reading of
+    // the declaration on purpose (its routing tests mock `@object-ui/app-shell`
+    // wholesale, so an import would put the fixture under test) — which makes
+    // the behavioural parity matrix the thing holding the two together. Deleting
+    // that file must not be a silent act.
+    // Asserted on the raw source: the pointer to the guard lives in a comment
+    // beside rule 1, which is the only place a reader of that rule will look.
+    const src = read('apps/console/src/components/RootLandingRedirect.tsx');
+    expect(src).toMatch(/landingHomeParity-7256\.test\.ts/);
+    expect(() => read('apps/console/src/components/landingHomeParity-7256.test.ts')).not.toThrow();
   });
 });

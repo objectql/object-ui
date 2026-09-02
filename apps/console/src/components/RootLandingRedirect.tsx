@@ -40,8 +40,6 @@ import {
   RedirectWithSplash,
   SETUP_APP_PACKAGE_ID,
   SETUP_APP_NAME,
-  HOME_LAUNCHER_PATH,
-  resolveDeclaredHomePath,
 } from '@object-ui/app-shell';
 import type { MetadataTypeStatus } from '@object-ui/app-shell';
 
@@ -74,13 +72,19 @@ function isPlatformSetupApp(app: LandingApp): boolean {
 export function resolveLandingPath(apps: readonly LandingApp[] | null | undefined): string {
   const list = (apps ?? []).filter((a): a is LandingApp & { name: string } => Boolean(a?.name));
 
-  // 1. The App the product declared as default (isDefault now ROUTES, not just
-  //    badges). Read through app-shell's `resolveDeclaredHomePath` — the ONE
-  //    reader of that declaration (objectui#7256), shared with the chrome's
-  //    Home affordances so `/` and the top-bar logo cannot name two different
-  //    homes. The target is unchanged: `/apps/<name>`.
-  const declared = resolveDeclaredHomePath(list);
-  if (declared) return declared;
+  // 1. The App the product declared as default (isDefault now ROUTES, not just badges).
+  //
+  //    The console CHROME asks the same question — the top-bar logo and every
+  //    "Home" affordance follow the declared landing rather than the launcher
+  //    (objectui#7256, `app-shell`'s `resolveDeclaredHomePath` / `useHomePath`).
+  //    Two readers of one declaration is exactly the drift this repo rules
+  //    against, so `landingHomeParity-7256.test.ts` pins the two answers equal
+  //    across a matrix. It is a real behavioural check rather than an import:
+  //    this module's own routing tests replace `@object-ui/app-shell` with a
+  //    chrome-free hand-rolled mock, so importing the policy from there would
+  //    make the fixture, not the shipped function, the thing under test.
+  const defaultApp = list.find((a) => a.isDefault === true);
+  if (defaultApp) return `/apps/${defaultApp.name}`;
 
   // 2. A single-app deployment lands straight in that App (no one-tile
   //    launcher) — but Setup alone is NOT a one-app deployment.
@@ -110,7 +114,7 @@ export function resolveLandingPath(apps: readonly LandingApp[] | null | undefine
   if (visible.length === 1 && !isPlatformSetupApp(visible[0])) return `/apps/${visible[0].name}`;
 
   // 3. Multi-app default: the workspace launcher.
-  return HOME_LAUNCHER_PATH;
+  return '/home';
 }
 
 /**

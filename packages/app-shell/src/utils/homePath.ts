@@ -27,13 +27,19 @@
  * in this file on purpose: baking one product's identity into the shared bundle
  * is exactly what the declaration replaced.
  *
- * Layering, so the declaration is read in one place and one place only:
- *   - this module answers "did the product declare a landing?";
- *   - `resolveLandingPath` (apps/console, the `/` entry) layers its
- *     single-visible-app EMPTINESS heuristic on top of that answer;
- *   - `useHomePath()` (the chrome) layers nothing — a persistent "go home"
- *     affordance follows the declaration or the launcher, never a heuristic
- *     about how many apps happen to be visible.
+ * Two surfaces ask this question, and they must always get the same answer:
+ *   - this module, read by `useHomePath()` for the chrome — no heuristic on
+ *     top, because a persistent "go home" affordance must not change target
+ *     with the number of visible apps;
+ *   - `resolveLandingPath` (apps/console, the `/` entry), which layers a
+ *     single-visible-app EMPTINESS heuristic on its own reading of the same
+ *     declaration (objectui#4048).
+ *
+ * `/`'s resolver deliberately does NOT import this function: its routing tests
+ * replace `@object-ui/app-shell` wholesale with a chrome-free hand-rolled mock,
+ * so the import would put that fixture under test instead of the shipped
+ * policy. What holds the two together is a behavioural matrix comparing both
+ * shipped answers — `apps/console/src/components/landingHomeParity-7256.test.ts`.
  *
  * @module
  */
