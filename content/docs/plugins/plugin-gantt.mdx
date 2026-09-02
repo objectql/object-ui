@@ -58,8 +58,9 @@ The `@object-ui/plugin-gantt` plugin provides Gantt chart visualization for Obje
 
 ```tsx
 import '@object-ui/plugin-gantt'
+import type { ObjectGanttSchema } from '@object-ui/types'
 
-const schema = {
+const schema: ObjectGanttSchema = {
   type: 'object-gantt',
   objectName: 'tasks',  // Your ObjectQL object
   gantt: {
@@ -150,7 +151,9 @@ config, so it applies alongside a `gantt` block or the flat `*Field` keys.
 Map your database fields to Gantt properties:
 
 ```tsx
-{
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const fieldMappedGantt: ObjectGanttSchema = {
   type: 'object-gantt',
   objectName: 'project_tasks',
   gantt: {
@@ -160,13 +163,14 @@ Map your database fields to Gantt properties:
     progressField: 'percent_done', // Database field for progress
     dependenciesField: 'depends_on' // Database field for dependencies
   }
-}
+};
 ```
 
 ### Progress Field
 
 The progress field should contain a number between 0-100 representing the completion percentage:
 
+{/* doc-snippet: fragment — a SHAPE excerpt of one of the READER's own task RECORDS, not an expression: a bare object literal at statement position parses as a block with labels (measured: TS1005 x4, TS1128 x1). No ObjectUI type describes it — `taskName` / `completion` are the caller's own record fields, named by `gantt.titleField` / `gantt.progressField` above */}
 ```tsx
 {
   id: 1,
@@ -181,6 +185,7 @@ The progress field should contain a number between 0-100 representing the comple
 
 The dependencies field should contain an array of task IDs that this task depends on:
 
+{/* doc-snippet: fragment — a SHAPE excerpt of the READER's own task RECORDS, not an expression: a bare array literal at statement position is an expression statement whose element object literals parse as labelled blocks (measured: TS1005 x4). No ObjectUI type describes it — `dependencies` is the caller's own record field, named by `gantt.dependenciesField` above */}
 ```tsx
 [
   {
@@ -212,7 +217,9 @@ The dependencies field should contain an array of task IDs that this task depend
 ### Object Provider (Database)
 
 ```tsx
-{
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const objectProviderGantt: ObjectGanttSchema = {
   type: 'object-gantt',
   objectName: 'project_tasks',
   gantt: {
@@ -221,13 +228,13 @@ The dependencies field should contain an array of task IDs that this task depend
     titleField: 'title',
     progressField: 'progress'
   }
-}
+};
 ```
 
 ### Value Provider (Static)
 
 ```tsx
-{
+const valueProviderGantt = {
   type: 'object-gantt',
   staticData: [
     { id: 1, title: 'Task 1', start: '2024-01-01', end: '2024-01-15' },
@@ -238,13 +245,13 @@ The dependencies field should contain an array of task IDs that this task depend
     endDateField: 'end',
     titleField: 'title'
   }
-}
+};
 ```
 
 ### API Provider
 
 ```tsx
-{
+const apiProviderGantt = {
   type: 'object-gantt',
   data: {
     provider: 'api',
@@ -258,7 +265,7 @@ The dependencies field should contain an array of task IDs that this task depend
     titleField: 'taskName',
     progressField: 'percentComplete'
   }
-}
+};
 ```
 
 When the view renders inside a `SchemaRendererProvider` that supplies an
@@ -275,22 +282,29 @@ The click handler is a **React prop**, not a schema key — the schema stays
 serializable:
 
 ```tsx
-<ObjectGantt
-  schema={{
-    type: 'object-gantt',
-    objectName: 'tasks',
-    gantt: {
-      startDateField: 'start',
-      endDateField: 'end',
-      titleField: 'name'
-    }
-  }}
-  dataSource={dataSource}
-  onTaskClick={(task) => {
-    console.log('Task clicked:', task);
-    // Open task details / edit / show dependencies
-  }}
-/>
+import { ObjectGantt } from '@object-ui/plugin-gantt';
+import type { DataSource } from '@object-ui/types';
+
+export function ProjectGantt({ dataSource }: { dataSource: DataSource }) {
+  return (
+    <ObjectGantt
+      schema={{
+        type: 'object-gantt',
+        objectName: 'tasks',
+        gantt: {
+          startDateField: 'start',
+          endDateField: 'end',
+          titleField: 'name'
+        }
+      }}
+      dataSource={dataSource}
+      onTaskClick={(task) => {
+        console.log('Task clicked:', task);
+        // Open task details / edit / show dependencies
+      }}
+    />
+  );
+}
 ```
 
 Rendered through the registered `object-gantt` type there is usually nothing to
@@ -301,7 +315,9 @@ wire: clicking a row already opens the standard detail drawer.
 ### Software Project
 
 ```tsx
-const softwareProject = {
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const softwareProject: ObjectGanttSchema = {
   type: 'object-gantt',
   objectName: 'sprint_tasks',
   gantt: {
@@ -317,7 +333,9 @@ const softwareProject = {
 ### Construction Project
 
 ```tsx
-const constructionGantt = {
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const constructionGantt: ObjectGanttSchema = {
   type: 'object-gantt',
   objectName: 'construction_phases',
   gantt: {
