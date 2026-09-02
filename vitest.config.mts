@@ -311,7 +311,14 @@ export default defineConfig({
       ...(DIST_PINS_ENABLED
         ? [
             {
-              extends: true,
+              // `as const` is load-bearing, not style. Inside this conditional
+              // array the literal `true` widens to `boolean`, while
+              // TestProjectConfiguration.extends is `string | true | undefined`;
+              // the element then matches no overload of defineConfig and the
+              // whole `projects` array degrades to `never[]`, which also takes
+              // down apps/console/vitest.config.ts (it merges THIS config, so
+              // its own type-check is where CI reported it).
+              extends: true as const,
               test: {
                 name: 'dist',
                 environment: 'happy-dom',
