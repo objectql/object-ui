@@ -462,7 +462,7 @@ const taskCalendar: ObjectCalendarSchema = {
 
 You can also import and use the components directly in React:
 
-{/* doc-snippet: fragment — the `ObjectCalendar` half cannot compile against the SHIPPED prop type: `ObjectCalendarComponentProps.schema` is declared `ObjectGridSchema | CalendarSchema`, and neither admits an `object-calendar` node — `ObjectGridSchema.type` is the literal `'object-grid'` and `CalendarSchema` is the FORM date picker (`type: 'calendar'`). The renderer registered for `object-calendar` passes exactly this shape (`index.tsx`), and `ObjectCalendar.tsx` reads `objectName` / `calendar` / `staticData` off it, so the runtime path is real and the declaration is the stale half — filed rather than papered over with a cast (measured: TS2322 x1) */}
+{/* doc-snippet: fragment — the `ObjectCalendar` half cannot compile against the SHIPPED prop type: `ObjectCalendarComponentProps.schema` is declared `ObjectGridSchema | CalendarSchema`, and neither admits an `object-calendar` node — `ObjectGridSchema.type` is the literal `'object-grid'` and `CalendarSchema` is the FORM date picker (`type: 'calendar'`). The renderer registered for `object-calendar` passes exactly this shape (`index.tsx`), and `ObjectCalendar.tsx` reads `objectName` / `calendar` / `staticData` off it, so the runtime path is real and the declaration is the stale half — filed as objectui#7311 rather than papered over with a cast (measured: TS2322 x1) */}
 ```tsx
 import { CalendarView, ObjectCalendar } from '@object-ui/plugin-calendar';
 import type { DataSource } from '@object-ui/types';
