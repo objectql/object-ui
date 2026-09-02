@@ -51,7 +51,7 @@ import {
   listLocalInstalls,
   listCloudEnvironments,
   listInstallableOrgIds,
-  cloudInstallDeepLink,
+  cloudConsoleUrl,
   getCloudInstallationInfo,
   reseedSampleData,
   purgeSampleData,
@@ -900,12 +900,17 @@ export function MarketplacePackagePage() {
                 <AlertCircle className="h-4 w-4 mt-0.5 text-amber-600" aria-hidden="true" />
                 <div className="flex-1">{envsError}</div>
               </div>
-              <a href={cloudInstallDeepLink(pkg.id)} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="sm" className="w-full">
-                  <ExternalLink className="h-4 w-4 mr-1.5" aria-hidden="true" />
-                  {t('marketplace.action.openOnCloud')}
-                </Button>
-              </a>
+              {/* Only when the runtime named an upstream cloud. An empty base
+                  used to fall back to a composed vendor URL that 404'd
+                  (objectui#7253); an `href=""` would reload this page. */}
+              {cloudConsoleUrl() ? (
+                <a href={cloudConsoleUrl()} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" className="w-full">
+                    <ExternalLink className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                    {t('marketplace.action.openOnCloud')}
+                  </Button>
+                </a>
+              ) : null}
             </div>
           ) : getRuntimeConfig().defaultEnvironmentId ? (
             <div className="flex items-center gap-2">

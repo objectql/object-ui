@@ -18,7 +18,7 @@ vi.mock('@object-ui/i18n', () => ({
 }));
 const openMock = vi.fn();
 vi.mock('../../console/marketplace/marketplaceApi', () => ({
-  cloudPricingDeepLink: () => 'https://cloud.example/upgrade',
+  cloudConsoleUrl: () => 'https://cloud.example',
 }));
 vi.mock('../../hooks/useAiUsage', () => ({ useAiUsage: vi.fn() }));
 
@@ -90,6 +90,6 @@ describe('AiUsageIndicator', () => {
     fireEvent.click(screen.getByTestId('ai-usage-indicator'));
     const cta = screen.getByTestId('ai-usage-cta-build');
     fireEvent.click(cta);
-    expect(openMock).toHaveBeenCalledWith('https://cloud.example/upgrade', '_blank', 'noopener,noreferrer');
+    expect(openMock).toHaveBeenCalledWith('https://cloud.example', '_blank', 'noopener,noreferrer');
   });
 });

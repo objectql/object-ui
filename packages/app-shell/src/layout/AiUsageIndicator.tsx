@@ -12,7 +12,7 @@
  *
  * Near-full (≥ {@link NEAR_FULL}) a meter turns amber and, on click, the popover
  * shows "running low — resets tonight/next cycle" plus the SAME upgrade / top-up CTA
- * the 429 error banner uses ({@link cloudPricingDeepLink}). When usage is unknown
+ * the 429 error banner uses ({@link cloudConsoleUrl}). When usage is unknown
  * (endpoint absent on an older backend, OSS, no seat) the whole indicator renders
  * nothing — a missing endpoint degrades to no widget, never a broken one.
  */
@@ -20,7 +20,7 @@ import * as React from 'react';
 import { cn, Button, Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAiUsage, type AiMeterUsage } from '../hooks/useAiUsage.js';
-import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi.js';
+import { cloudConsoleUrl } from '../console/marketplace/marketplaceApi.js';
 
 /** Fraction at/above which a meter is "running low" (amber + CTA). */
 export const NEAR_FULL = 0.8;
@@ -167,7 +167,9 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
         </div>
         <ul className="space-y-3">
           {meters.map(({ key, meter, fraction, tone }) => {
-            const showCta = tone !== 'ok' && (meter.upgrade || meter.topUp);
+            // No upstream cloud named by the runtime ⇒ no control plane to
+            // send anyone to, so no CTA (objectui#7253).
+            const showCta = tone !== 'ok' && (meter.upgrade || meter.topUp) && !!cloudConsoleUrl();
             return (
               <li key={key} className="flex items-start gap-2.5">
                 <MeterRing fraction={fraction} tone={tone} size={22} />
@@ -195,7 +197,7 @@ export function AiUsageIndicator({ apiBase, enabled = true, className }: AiUsage
                       className="mt-1 h-auto p-0 text-xs"
                       data-testid={`ai-usage-cta-${key}`}
                       onClick={() =>
-                        window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')
+                        window.open(cloudConsoleUrl(), '_blank', 'noopener,noreferrer')
                       }
                     >
                       {meter.upgrade

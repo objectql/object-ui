@@ -415,22 +415,49 @@ export async function listInstallableOrgIds(): Promise<Set<string>> {
   return ids;
 }
 
-export function cloudInstallDeepLink(packageId: string): string {
-  const base = getCloudBase() || 'https://cloud.objectos.app';
-  return `${base}/apps/cloud-control/sys_package/${encodeURIComponent(packageId)}`;
-}
-
 /**
- * Deep-link to the cloud upgrade entry point: the environments list, where each
- * environment's "Upgrade Plan" action opens Stripe checkout. Surfaced from the
- * tenant SPA when an AI quota refusal (429) offers an upgrade / top-up CTA.
- * Centralized so the target can be re-pointed (dedicated pricing or credit-pack
- * page) as the cloud billing UI evolves. Same `cloud-control` app slug as
- * cloudInstallDeepLink above.
+ * The upstream control plane's front door — the cloud base URL the RUNTIME
+ * told us about (`/api/v1/runtime/config` → `cloudUrl`), with NO path appended.
+ * `''` when this runtime has no upstream cloud, which callers MUST read as
+ * "render no link at all".
+ *
+ * ## Why nothing is appended (objectui#7253)
+ *
+ * This used to compose `${base}/apps/cloud-control/sys_environment` (upgrade)
+ * and `${base}/apps/cloud-control/sys_package/<id>` (install). Both were dead:
+ * on the rig the upgrade CTA landed on the control plane's API 404,
+ * `{"success":false,"error":{"code":"ENDPOINT_NOT_FOUND"}}`. The composition
+ * guessed THREE control-plane-owned facts and got all three wrong —
+ *
+ *   - the console's MOUNT: the SPA is served under `/_console/`, injected by
+ *     the host; a path starting at the origin hits the API router instead.
+ *   - the app SLUG: the Cloud app's `name` is `cloud_control`, not
+ *     `cloud-control`.
+ *   - the ROUTE: the plan/billing entry is a Page, not the `sys_environment`
+ *     object list.
+ *
+ * None of these are knowable from a tenant runtime: they are properties of the
+ * deployment that serves the CONTROL PLANE's console, and the only thing the
+ * runtime config tells us about it is its origin. Composing them here is the
+ * same class of guess whichever page we aim at, so this returns the origin and
+ * stops. That origin is a real destination: the console mount claims `/` and
+ * 302s to `/_console/` (objectos-runtime `mountConsoleStatic`, `rootRedirect`
+ * default on), landing the user in the Cloud app whose nav carries Billing.
+ *
+ * ⛔ Do NOT re-add a path here "temporarily". The durable fix is a
+ * control-plane-DECLARED URL — the pattern this repo already uses for the one
+ * cloud route it does navigate to, `CloudOnboardingNext`'s `environmentsRoute`,
+ * which arrives from cloud page metadata. Until the control plane publishes an
+ * equivalent for the tenant SPA (reported alongside this fix), the origin is
+ * the most specific target we are entitled to name.
+ *
+ * The former `|| 'https://cloud.objectos.app'` default is gone with it: a
+ * runtime with no upstream cloud has no control plane to send anyone to, and
+ * bouncing a self-hosted or air-gapped user to the vendor's SaaS is a worse
+ * answer than showing no link.
  */
-export function cloudPricingDeepLink(): string {
-  const base = getCloudBase() || 'https://cloud.objectos.app';
-  return `${base}/apps/cloud-control/sys_environment`;
+export function cloudConsoleUrl(): string {
+  return getCloudBase();
 }
 
 /**

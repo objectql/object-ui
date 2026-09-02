@@ -107,7 +107,7 @@ import { emitMetadataRefresh } from '../../assistant/assistantBus.js';
 import { getRuntimeConfig, isAiStudioEnabled } from '../../runtime-config.js';
 import { makerConvergedOnBuild, makerVisibleAgents } from '../../hooks/surfaceAgent.js';
 import { useCanAuthorMetadata } from '../../hooks/useCanAuthorMetadata.js';
-import { cloudPricingDeepLink } from '../marketplace/marketplaceApi.js';
+import { cloudConsoleUrl } from '../marketplace/marketplaceApi.js';
 import { useNavigationContext } from '../../context/NavigationContext.js';
 import {
   fetchConversation,
@@ -2242,7 +2242,15 @@ export function ChatPane({
       >
       <ChatbotEnhanced
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
-        onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
+        // The paywall exit. Wired only when this runtime named an upstream
+        // cloud — an undefined `onUpgrade` renders NO upgrade button, which is
+        // the honest state for a runtime with no control plane behind it
+        // (objectui#7253).
+        onUpgrade={
+          cloudConsoleUrl()
+            ? () => window.open(cloudConsoleUrl(), '_blank', 'noopener,noreferrer')
+            : undefined
+        }
         onOpenBuilder={openBuilder}
         onOpenRecord={openRecord}
         surface="plain"
