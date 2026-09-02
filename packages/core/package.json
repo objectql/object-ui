@@ -40,7 +40,7 @@
   "devDependencies": {
     "@object-ui/test-support": "workspace:*",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "keywords": [
     "objectui",
