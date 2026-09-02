@@ -13,7 +13,10 @@ import { cn } from '../../lib/utils';
 import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import React from 'react';
 
-const CheckboxRenderer = ({ schema, className, onChange, value, ...props }: { schema: CheckboxSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
+const CheckboxRenderer = ({ schema, className, onChange, value, disabled: hostDisabled, ...props }: { schema: CheckboxSchema; className?: string; onChange?: (val: any) => void; value?: any; disabled?: boolean; [key: string]: any }) => {
+  // `hostDisabled` is `SchemaRenderer`'s EVALUATED verdict on `disabled` /
+  // `disabledOn`, not the raw authored key — which may be a predicate STRING,
+  // truthy however it evaluates (objectui#7238, precedent objectui#6169).
   // Extract designer-related props
   const { 
       'data-obj-id': dataObjId, 
@@ -41,7 +44,7 @@ const CheckboxRenderer = ({ schema, className, onChange, value, ...props }: { sc
         checked={value ?? schema.checked ?? false}
         defaultChecked={value === undefined ? schema.defaultChecked : undefined}
         onCheckedChange={handleCheckedChange}
-        disabled={schema.disabled}
+        disabled={hostDisabled}
         required={schema.required}
         name={schema.name}
         {...toFormControlDomProps(checkboxProps)}

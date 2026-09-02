@@ -52,7 +52,6 @@ export const CollapsibleSchema = BaseSchema.extend({
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Collapsible content'),
   defaultOpen: z.boolean().optional().describe('Default open state'),
   open: z.boolean().optional().describe('Controlled open state'),
-  disabled: z.boolean().optional().describe('Whether collapsible is disabled'),
   onOpenChange: z.function().optional().describe('Open change handler'),
 });
 
@@ -76,7 +75,6 @@ export const ToggleGroupSchema = BaseSchema.extend({
   items: z.array(ToggleGroupItemSchema).optional().describe('Toggle group items'),
   defaultValue: z.union([z.string(), z.array(z.string())]).optional().describe('Default value(s)'),
   value: z.union([z.string(), z.array(z.string())]).optional().describe('Controlled value(s)'),
-  disabled: z.boolean().optional().describe('Whether toggle group is disabled'),
   onValueChange: z.function().optional().describe('Value change handler'),
 });
 

@@ -68,8 +68,26 @@ vi.mock('../../../../packages/app-shell/src/providers/MetadataProvider', async (
   useMetadata: () => ({ apps, objects: [], loading: false, error: null, refresh: async () => {} }),
 }));
 
-vi.mock('@object-ui/app-shell', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
+// `@object-ui/app-shell` is aliased to `packages/app-shell/src`
+// (`apps/console/vite.config.ts`), so an `importOriginal()` on it transforms the
+// whole barrel graph on demand — measured on this tree at **10019ms**
+// (objectui#6580). The three submodules below carry every name this file's graph
+// reads from the barrel and cost ~2.0s together: `chrome/` has
+// `RedirectWithSplash`, `console/ConsoleShell` has `SetupRedirect`,
+// `SETUP_APP_PACKAGE_ID` and `SETUP_APP_NAME`.
+vi.mock('@object-ui/app-shell', async () => ({
+  ...(await vi.importActual<Record<string, unknown>>(
+    '../../../../packages/app-shell/src/chrome/index'
+  )),
+  ...(await vi.importActual<Record<string, unknown>>(
+    '../../../../packages/app-shell/src/console/ConsoleShell'
+  )),
+  // `RootLandingRedirect` reads `useMetadata` through the BARREL, so the
+  // provider mock above — which only reaches importers of the provider module
+  // itself — does not cover it. The whole-barrel spread this factory used to do
+  // covered it by re-exporting the already-mocked provider; spelling the same
+  // stub out here keeps that, and is why the two must stay in step.
+  useMetadata: () => ({ apps, objects: [], loading: false, error: null, refresh: async () => {} }),
   // Pass-through: the provider stack is not what decides this question.
   ConnectedShell: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   RequireOrganization: ({ children }: { children?: React.ReactNode }) => <>{children}</>,

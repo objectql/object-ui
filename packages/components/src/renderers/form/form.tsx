@@ -967,7 +967,7 @@ function BuiltinTextarea({
 
 // Form renderer component - Airtable-style feature-complete form
 ComponentRegistry.register('form',
-  ({ schema, className, onAction, ...props }: { schema: FormSchema; className?: string; onAction?: (action: any) => void; [key: string]: any }) => {
+  ({ schema, className, onAction, disabled: hostDisabled, ...props }: { schema: FormSchema; className?: string; onAction?: (action: any) => void; disabled?: boolean; [key: string]: any }) => {
     const { t } = useSafeFormTranslation();
     // Prefix for the label ids the GROUP-labelled fields need (objectui#3961).
     // Owned here, not derived from `<FormItem>`'s own `useId()`: that id lives in
@@ -1005,8 +1005,22 @@ ComponentRegistry.register('form',
       onCancel: onCancelProp,
       resetOnSubmit = false,
       validationMode = 'onSubmit',
-      disabled = false,
     } = schema;
+
+    // The form-wide enablement verdict, and NOT `schema.disabled` beside it.
+    // `SchemaRenderer` evaluates the node's `disabled` / `disabledOn` — either
+    // may be a predicate STRING — strips the raw key from the props it spreads,
+    // and forwards the answer as a real `disabled` prop. The raw value is truthy
+    // HOWEVER it evaluates, so destructuring it off `schema` here greyed out
+    // every field, the submit button and the cancel button on any form that
+    // authored a predicate — a FALSE verdict included (objectui#7238). One
+    // carrier for one question, AGENTS.md #0.1; the precedent is
+    // `plugin-chatbot`'s renderer (objectui#6169).
+    //
+    // `=== true` rather than a truthy read: the verdict channel carries exactly
+    // `true` or `undefined` (`disabled: __disabled || undefined`), and the three
+    // consumers below OR this into a boolean.
+    const disabled = hostDisabled === true;
 
     // ── Spec-vocabulary boundary (#3090) ──────────────────────────────────
     // `{ field: 'x' }` is the spec form-VIEW vocabulary — a reference to an
@@ -2801,7 +2815,9 @@ ComponentRegistry.register('form',
           layout: _layout,
           columns: _columns,
           validationMode: _validationMode,
-          disabled: _disabledProp,
+          // (`disabled` is not listed here: the component signature consumes the
+          // host verdict by name, so it never reaches `props` — see `const
+          // disabled` above.)
           fieldTabs: _fieldTabs,
           defaultFieldTab: _defaultFieldTab,
           fieldTabsPosition: _fieldTabsPosition,

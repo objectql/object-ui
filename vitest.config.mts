@@ -247,14 +247,49 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          // The unit project is node-env pure logic with no ComponentRegistry
-          // or DOM state to leak across files, so it can share a module graph
-          // per worker instead of re-executing it per file. Measured 3.2x
-          // faster (38s -> 12s for the project) with zero failures, holding
-          // green across repeated and shuffled runs. The `dom`/`dom-heavy`
-          // projects keep `isolate: true` — they DO leak (registry overrides,
-          // happy-dom nodes); relaxing them needs the hermeticity fixes tracked
-          // separately.
+          // Share a module graph per worker instead of re-executing it per
+          // file. Measured 3.2x faster (38s -> 12s for the project) with zero
+          // failures, holding green across repeated and shuffled runs.
+          //
+          // What that buys is paid for by an INVARIANT, not by a property of
+          // the files (objectui#7134). The premise written here used to be
+          // "node-env pure logic with no ComponentRegistry or DOM state to leak
+          // across files". It was false in both directions and had been for
+          // some time: this project holds files whose import closure REGISTERS
+          // into the `ComponentRegistry` singleton — measured over `ec0a7b846`,
+          // its 811 files import 551 distinct modules whose closures register
+          // 505 keys into it —
+          // and files that assert a key is ABSENT from it. A shared graph makes
+          // each visible to the other, so the constraint that actually has to
+          // hold is:
+          //
+          //     a key one file asserts ABSENT from the ComponentRegistry must
+          //     be registered by no other file in this project.
+          //
+          // Nothing about a breach of it fails safe. The outcome is ORDER
+          // dependent — whether the absence assertion runs before or after the
+          // writer in its worker decides it — so a collision surfaces as a
+          // failure in a file that did nothing wrong, in some shards and not
+          // others, and says nothing about the code under test.
+          //
+          // So it is ENFORCED rather than left written down here, because this
+          // comment is the only thing a future author consults before adding a
+          // registering import to this project, and it had already gone false
+          // without anyone noticing:
+          //
+          //     scripts/__tests__/unit-registry-absence-collision.test.ts
+          //
+          // That gate derives both populations from this file's own `include`
+          // and `domTsTests` on every run and fails naming both files and the
+          // key. It EXECUTES the closures in a fresh module graph to learn what
+          // they register, because the writers' keys cannot be read off the
+          // source: the live field path registers from data (`registerAllFields()`
+          // walks a map), so `field:multiselect` exists at runtime and appears
+          // in no `register('field:multiselect')` call site anywhere.
+          //
+          // The `dom`/`dom-heavy` projects keep `isolate: true` — they DO leak
+          // in ways nothing checks (registry overrides, happy-dom nodes);
+          // relaxing them needs the hermeticity fixes tracked separately.
           isolate: false,
           setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
           // `eslint-rules/**` holds the local ESLint plugin's RuleTester specs.

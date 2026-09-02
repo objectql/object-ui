@@ -62,10 +62,13 @@ React wiring lives in `@object-ui/react`, not here. Wrap your tree in
 ```tsx
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { ObjectGridSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
 });
+
+const mySchema: ObjectGridSchema = { type: 'object-grid', objectName: 'user' };
 
 function App() {
   return (
@@ -107,6 +110,7 @@ Factory returning a `DataSource` backed by an ObjectStack backend.
 
 **Config:**
 
+{/* doc-snippet: fragment — a SIGNATURE excerpt of the factory, quoted from its declaration so the config members can be annotated one by one: a `function` declaration with no body and a `DataSource` return type this reference block does not import (measured: TS2391 x1, TS2304 x1). Checked against the shipped `packages/data-objectstack/dist/index.d.ts`: every member listed here is declared there with the same type */}
 ```typescript
 function createObjectStackAdapter<T = unknown>(config: {
   /** ObjectStack server base URL */
@@ -148,6 +152,8 @@ const dataSource = createObjectStackAdapter({
 Pass a record type to get typed results — the default is `unknown`:
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
 type User = { id: string; name: string; email: string };
 
 const dataSource = createObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
@@ -162,6 +168,8 @@ adapter's surface is not on that interface:
 
 ```typescript
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+type User = { id: string; name: string; email: string };
 
 const adapter = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
 ```
@@ -199,6 +207,7 @@ A schema node's `dataSource` key is the spec's `ElementDataSource` (validated by
 `ElementDataSourceSchema` in `@objectstack/spec`) — plain JSON metadata, **not**
 the adapter object:
 
+{/* doc-snippet: fragment — a SHAPE excerpt restating `@objectstack/spec`'s own `ElementDataSource`, whose `filter` member is typed `FilterCondition` — a spec type that is NOT re-exported from `@objectstack/spec`'s root entry, so neither this block nor a reader can import the name (measured: TS2304 x1). Verified member for member against `ElementDataSourceSchema` in the installed `@objectstack/spec`: `object` required, `view` / `filter` / `sort` / `limit` optional, `sort` an array of `{ field, order: 'asc' | 'desc' }`, and the object strict */}
 ```typescript
 interface ElementDataSource {
   /** Object to query (required) */
@@ -285,6 +294,7 @@ passed to `createObjectStackAdapter` in code. Sourcing those values from the
 environment is your bundler's business (`process.env.*` under Node or webpack,
 `import.meta.env.*` under Vite):
 
+{/* doc-snippet: fragment — `process` is a NODE global carried by the reader's own `@types/node`, which this gate's program does not load, and the paragraph above says so in words: sourcing config from the environment is the reader's bundler's business (measured: TS2591 x2) */}
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
@@ -303,6 +313,8 @@ const dataSource = createObjectStackAdapter({
 Pass your own `fetch` to route requests through a proxy or attach extra headers:
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.objectstack.dev',
   fetch: (input, init) =>
@@ -318,6 +330,11 @@ Call the adapter directly for queries a block does not cover. Query parameters
 are OData-style (`$filter`, `$orderby`, `$top`, `$skip`, `$select`, `$expand`):
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
+const startDate = '2024-01-01';
+
 const [users, orders] = await Promise.all([
   dataSource.find('user', {
     $filter: { createdAt: { $gte: startDate } },
@@ -337,6 +354,8 @@ console.log(users.data.length, users.total);
 ### Mutations
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
 type User = { id: string; name: string; email: string };
 
 const dataSource = createObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
@@ -355,6 +374,8 @@ feature-detect) before calling them:
 
 ```typescript
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+type User = { id: string; name: string; email: string };
 
 const adapter = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
 
@@ -376,10 +397,13 @@ The adapter throws typed errors with stable codes:
 
 ```typescript
 import {
+  createObjectStackAdapter,
   MetadataNotFoundError,
   AuthenticationError,
   ConnectionError,
 } from '@object-ui/data-objectstack';
+
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 try {
   const schema = await dataSource.getObjectSchema('user');

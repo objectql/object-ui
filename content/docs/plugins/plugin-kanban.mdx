@@ -38,9 +38,10 @@ This package publishes a stylesheet. Import it after the base sheets, or the boa
 ```tsx
 // Import once in your app entry point
 import '@object-ui/plugin-kanban'
+import type { KanbanSchema } from '@object-ui/plugin-kanban'
 
 // Use in schemas
-const schema = {
+const schema: KanbanSchema = {
   type: 'kanban',
   columns: [
     {
@@ -154,7 +155,7 @@ board renders every fetched record into a lane and offers no pagination control,
 so this is the author's window on the object rather than a page size:
 
 ```tsx
-{
+const board = {
   type: 'object-kanban',
   objectName: 'opportunity',
   groupBy: 'stage',
@@ -177,7 +178,9 @@ The `dataSource` binding sets it too — its own `limit`, or the
 ### Project Task Board
 
 ```tsx
-const taskBoard = {
+import type { KanbanSchema } from '@object-ui/plugin-kanban'
+
+const taskBoard: KanbanSchema = {
   type: 'kanban',
   columns: [
     {
@@ -231,7 +234,9 @@ const taskBoard = {
 ### Support Ticket Board
 
 ```tsx
-const ticketBoard = {
+import type { KanbanSchema } from '@object-ui/plugin-kanban'
+
+const ticketBoard: KanbanSchema = {
   type: 'kanban',
   columns: [
     {
@@ -268,7 +273,9 @@ const ticketBoard = {
 ### Sales Pipeline
 
 ```tsx
-const salesPipeline = {
+import type { KanbanSchema } from '@object-ui/plugin-kanban'
+
+const salesPipeline: KanbanSchema = {
   type: 'kanban',
   columns: [
     {
@@ -309,7 +316,9 @@ const salesPipeline = {
 Use badges to show card status, priority, or categories:
 
 ```tsx
-const card = {
+import type { KanbanCard } from '@object-ui/plugin-kanban'
+
+const card: KanbanCard = {
   id: 'task-1',
   title: 'Important Task',
   badges: [
@@ -333,11 +342,15 @@ const card = {
 Set maximum cards per column to enforce work-in-progress limits:
 
 ```tsx
-const column = {
+import type { KanbanColumn } from '@object-ui/plugin-kanban'
+
+const column: KanbanColumn = {
   id: 'in-progress',
   title: 'In Progress',
   limit: 3,  // Max 3 cards
-  cards: [...]
+  cards: [
+    { id: 'task-2', title: 'Implement authentication' }
+  ]
 }
 ```
 
@@ -348,16 +361,30 @@ When the limit is reached, the column shows visual feedback.
 Handle card movements to update your backend or state:
 
 ```tsx
-const schema = {
-  type: 'kanban',
-  columns: [...],
-  onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
-    // Update database
-    await updateCardColumn(cardId, toColumnId, newIndex)
-    
-    // Update local state
-    setCards(prev => moveCard(prev, cardId, toColumnId, newIndex))
+import { useState } from 'react'
+import type { KanbanColumn, KanbanSchema } from '@object-ui/plugin-kanban'
+
+declare function updateCardColumn(cardId: string, toColumnId: string, newIndex: number): Promise<void>
+declare function moveCard(columns: KanbanColumn[], cardId: string, toColumnId: string, newIndex: number): KanbanColumn[]
+
+export function useBoard(initialColumns: KanbanColumn[]) {
+  const [columns, setColumns] = useState<KanbanColumn[]>(initialColumns)
+
+  const schema: KanbanSchema = {
+    type: 'kanban',
+    columns,
+    // `onCardMove` returns void, so the callback cannot be awaited by the board:
+    // start the write and update local state without blocking the drop.
+    onCardMove: (cardId, fromColumnId, toColumnId, newIndex) => {
+      // Update database
+      void updateCardColumn(cardId, toColumnId, newIndex)
+
+      // Update local state
+      setColumns((prev) => moveCard(prev, cardId, toColumnId, newIndex))
+    },
   }
+
+  return schema
 }
 ```
 
