@@ -817,7 +817,8 @@ function readJson(path) {
  * @param {{ readmes?: string[] | null,
  *           packageDirs?: string[] | null,
  *           readmeOverrides?: Record<string, string>,
- *           floors?: Record<string, number> }} [options]
+ *           floors?: Record<string, number>,
+ *           excerpts?: Record<string, string> }} [options]
  *   `readmes` and `packageDirs` override the two `git ls-files` walks. `readmeOverrides` maps a
  *   README path (`packages/plugin-gantt/README.md`) to a file that stands in
  *   for it -- which is how the planted-mutation self-test runs without ever
