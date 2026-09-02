@@ -923,8 +923,6 @@ A drag-and-drop Kanban board with columns and cards.
 | `draggable` | `boolean` | Enable drag-and-drop between columns. |
 | `onCardMove` | `function` | Callback when a card is moved: `(cardId, fromColumn, toColumn, position)`. |
 | `onCardClick` | `function` | Callback when a card is clicked. |
-| `onColumnAdd` | `function` | Callback when a new column is added. |
-| `onCardAdd` | `function` | Callback when a new card is added to a column. |
 
 **Related:** [ObjectViewSchema](#objectviewschema), [ObjectGridSchema](#objectgridschema)
 

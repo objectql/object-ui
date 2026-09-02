@@ -43,9 +43,7 @@ interface TreeViewSchema {
   showLines?: boolean;                  // Show connecting lines (default: true)
   
   // Events
-  onSelectChange?: (selectedIds: string[]) => void;  // Selection change handler
-  onExpandChange?: (expandedIds: string[]) => void;  // Expand change handler
-  onNodeClick?: (node: TreeNode) => void;            // Node click handler
+  onNodeClick?: (node: TreeNode) => void; // Node click handler
   
   // Styling
   className?: string;                   // Tailwind CSS classes
