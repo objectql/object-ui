@@ -202,12 +202,27 @@ describe('published supplement stylesheets (objectui#4929, objectui#6438)', () =
     /**
      * objectui#7044: the emitted sheet's banner is part of the published
      * artifact (objectui#6405's acceptance gate was byte-identity of that
-     * file), yet nothing here read it. The expected value is read from the
-     * subject's OWN build script export — `mod.buildOptions.header` for the
-     * package that declares one (`fields`, objectui#4059/#6405), else the
-     * shared `defaultHeader(mod.PACKAGE_NAME)` this module now exports for
-     * exactly this — never a second, hand-spelled copy of either wording,
-     * which would be free to drift from the real one while staying green.
+     * file), yet nothing here read it. Two checks, deliberately independent
+     * of each other, because the obvious single check is vacuous: recomputing
+     * "expected" by calling the very function that ALSO produced "actual"
+     * (`defaultHeader`, or fields' own `buildOptions.header`) can never be
+     * surprised by a mutation to that function's wording — both sides move
+     * together. Neither check below has that shape:
+     *
+     *   1. the emitted sheet starts with the header this subject is
+     *      CONFIGURED to use — its own declared `buildOptions.header` when it
+     *      has one (`fields`, objectui#4059/#6405), else the shared
+     *      `defaultHeader(PACKAGE_NAME)` this module now exports for exactly
+     *      this. Catches the ASSEMBLY breaking (`header` no longer prepended,
+     *      or some third, unrelated value used) — never a second hand-spelled
+     *      copy of either wording, which would be free to drift from the real
+     *      one while staying green.
+     *   2. that header actually NAMES this package: `mod.PACKAGE_NAME` is a
+     *      plain string constant each build script declares independently
+     *      (never derived from `defaultHeader`), so a broken interpolation
+     *      inside `defaultHeader` cannot hide behind (1)'s self-consistent
+     *      recomputation — this is what gives (1) teeth against a mutation to
+     *      `defaultHeader` itself, for the two subjects that inherit it.
      */
     it('opens the emitted sheet with the banner it declares', () => {
       const { css } = built.get(name) as Built;
@@ -215,7 +230,22 @@ describe('published supplement stylesheets (objectui#4929, objectui#6438)', () =
       const declaredHeader = (mod.buildOptions as { header?: string }).header;
       const expectedHeader = declaredHeader ?? defaultHeader(mod.PACKAGE_NAME);
       expect(css.startsWith(`${expectedHeader}\n`)).toBe(true);
+      expect(css.slice(0, expectedHeader.length)).toContain(mod.PACKAGE_NAME);
     });
+
+    // fields-only: the control that (1) above cannot provide, because
+    // dropping fields' `header` override moves both its "expected" and
+    // "actual" to the shared default IN LOCKSTEP — exactly the failure mode
+    // objectui#7044 was filed over ("an accidental drop of fields' per-package
+    // `header`, would ship silently"). This checks the emitted sheet against
+    // the OTHER branch's value, independent of whichever branch (1) took.
+    if (name === 'fields') {
+      it('does not fall back to the shared default banner', () => {
+        const { css } = built.get('fields') as Built;
+        const { mod } = SUBJECTS.find((s) => s.name === 'fields')!;
+        expect(css.startsWith(`${defaultHeader(mod.PACKAGE_NAME)}\n`)).toBe(false);
+      });
+    }
 
     it('emits the themed utilities only this build can produce', () => {
       const { classes } = built.get(name) as Built;
