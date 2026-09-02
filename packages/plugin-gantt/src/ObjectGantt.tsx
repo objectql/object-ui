@@ -31,7 +31,14 @@ import { GanttConfigSchema } from '@objectstack/spec/ui';
 // ref, `resolveKeyedI18nLabel` in `@object-ui/react`), and neither accepts the
 // other's shape. This one resolves the spec's INLINE locale MAP.
 import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui';
-import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
+import {
+  useNavigationOverlay,
+  SchemaRendererContext,
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
+} from '@object-ui/react';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
@@ -574,6 +581,19 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
+  /**
+   * Did the platform row ceiling bite on the rows currently drawn, and how
+   * large was the whole filtered result set (objectui#7210)?
+   *
+   * State rather than a value derived from `data.length`: once the rows are
+   * capped, `data.length === NON_GRID_ROW_CEILING` is exactly what a result
+   * set of exactly the ceiling ALSO looks like, so the fact has to be carried
+   * from the response that knew it. Every path that sets `data` sets this too
+   * — a host `data` prop and an inline `value` set are never truncated by us.
+   */
+  const [rowCeiling, setRowCeiling] = useState<{ truncated: boolean; total?: number }>({
+    truncated: false,
+  });
   // Tenant default currency (ADR-0053) for currency tooltips lacking a code.
   const { currency: tenantCurrency } = useLocalization();
   // The one date/number locale resolver: tenant regional default → active UI
@@ -656,12 +676,18 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       else setLoading(true);
       // 1. Check for data prop (Unified ListView)
       if ((rest as any).data && Array.isArray((rest as any).data)) {
-        if (isCurrent()) setData((rest as any).data);
+        if (isCurrent()) {
+          setData((rest as any).data);
+          setRowCeiling({ truncated: false });
+        }
         return;
       }
 
       if (hasInlineData && dataProvider === 'value') {
-        if (isCurrent()) setData(dataItems as any[]);
+        if (isCurrent()) {
+          setData(dataItems as any[]);
+          setRowCeiling({ truncated: false });
+        }
         return;
       }
 
@@ -676,9 +702,23 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       const result = await effectiveDataSource.find(resource, {
         $filter: schema.filter,
         $orderby: convertSortToQueryParams(schema.sort),
+        // The platform ceiling (objectui#7210, ruling a′). The gantt still
+        // fetches the whole FILTERED result set — a truthful
+        // `min(start) → max(end)` range and the group rollups need all of it,
+        // which is why paging this at `pagination.pageSize` was rejected — but
+        // "the whole result set" now stops at a number instead of at whatever
+        // the table happens to hold. One probe row past the ceiling is what
+        // makes the cut DETECTABLE; `applyNonGridRowCeiling` slices it back off.
+        // ⛔ Not authorable: an authored `limit` / `pagination.pageSize` still
+        // cannot reach this query, by the same ruling.
+        $top: NON_GRID_ROW_CEILING_TOP,
         ...(expand.length > 0 ? { $expand: expand } : {}),
       });
-      if (isCurrent()) setData(extractRecords(result));
+      const capped = applyNonGridRowCeiling(result);
+      if (isCurrent()) {
+        setData(capped.rows);
+        setRowCeiling({ truncated: capped.truncated, total: capped.total });
+      }
     } catch (err) {
       if (silent) {
         // Background refresh failure keeps the last good data on screen.
@@ -1792,6 +1832,19 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         />
         )}
       </div>
+      {/* objectui#7210 — the ceiling must never be crossed quietly. A gantt
+          drawn from the first N rows of a larger result set is still a
+          confident-looking schedule with a plausible range; the note is the
+          only thing on screen that distinguishes it from a complete one.
+          `shrink-0` beneath the `flex-1` chart pane, so it cannot be clipped
+          out of a fixed-height host the way a plain sibling would be
+          (the construction objectui#7148's `ChartFootnote` measured). */}
+      <NonGridRowCeilingNote
+        drawn={NON_GRID_ROW_CEILING}
+        total={rowCeiling.total}
+        truncated={rowCeiling.truncated}
+        className="shrink-0 px-1 py-1 text-xs text-muted-foreground"
+      />
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
         const rec = navigation.selectedRecord as Record<string, any>;
         const detail = recordDetailHref(rec);

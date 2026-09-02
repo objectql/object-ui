@@ -149,6 +149,13 @@ const en = {
     record: 'Record',
     retry: 'Retry',
     printDialogHint: 'Opens your browser’s print dialog (not a PDF export)',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys, not one,
+    // because there are two conditions: an adapter that reported a `total`
+    // states the fact with BOTH numbers; one that reported none still gets a
+    // definite sentence — the probe row proves more rows exist — it just
+    // cannot name how many. Same split as `grid.grouping.partialNotice`.
+    rowCeilingNote: 'Showing the first {{shown}} of {{total}} records — narrow the filter to see the rest.',
+    rowCeilingNoteUnknownTotal: 'Showing the first {{shown}} records — more records match this view. Narrow the filter to see the rest.',
   },
   actions: {
     decisionOutput: {

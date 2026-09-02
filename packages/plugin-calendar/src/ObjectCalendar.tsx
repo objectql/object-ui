@@ -32,6 +32,10 @@ import {
   extractWriteErrorMessage,
   isPermissionError,
   declaredUserMessage,
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
@@ -48,7 +52,6 @@ import {
   toast,
 } from '@object-ui/components';
 import {
-  extractRecords,
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
@@ -184,6 +187,15 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   // `dataConfig`, because the key is the object the RECORD QUERY will use.
   const [schemaResolution, setSchemaResolution] =
     useState<{ key: string; def: any } | null>(null);
+  /**
+   * Did the platform row ceiling bite, and how large was the whole filtered
+   * result set (objectui#7210)? Carried from the response that knew it —
+   * `data.length === NON_GRID_ROW_CEILING` cannot tell a capped result set
+   * apart from one that is exactly that size.
+   */
+  const [rowCeiling, setRowCeiling] = useState<{ truncated: boolean; total?: number }>({
+    truncated: false,
+  });
   const [currentDate, setCurrentDate] = useState(new Date());
   const isMobile = useIsMobile();
   const schemaDefaultView = (schema as any).defaultView as 'month' | 'week' | 'day' | undefined;
@@ -329,6 +341,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
         if (hasInlineData && dataProvider === 'value') {
           if (isMounted) {
             setData(dataItems as any[]);
+            setRowCeiling({ truncated: false });
             setLoading(false);
           }
           return;
@@ -352,13 +365,21 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            // The platform ceiling (objectui#7210, ruling a′). A calendar
+            // still fetches the whole FILTERED set — it cannot lay out a month
+            // from a page whose rows all fall in one week — but the fetch now
+            // stops at a number. The one probe row past the ceiling is what
+            // makes the cut detectable; `applyNonGridRowCeiling` slices it off.
+            // ⛔ Not authorable: no view key reaches this `$top`.
+            $top: NON_GRID_ROW_CEILING_TOP,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
 
-          const items: any[] = extractRecords(result);
+          const capped = applyNonGridRowCeiling(result);
 
           if (isMounted) {
-            setData(items);
+            setData(capped.rows);
+            setRowCeiling({ truncated: capped.truncated, total: capped.total });
           }
         } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectCalendar');
@@ -736,6 +757,14 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           onTimeRangeSelect={handleTimeRangeSelectDefault}
         />
       </div>
+      {/* objectui#7210 — a month drawn from the first N rows of a larger set
+          still reads as a complete month; the note is the only thing that says
+          otherwise. Placement follows objectui#7148's chart footnote. */}
+      <NonGridRowCeilingNote
+        drawn={NON_GRID_ROW_CEILING}
+        total={rowCeiling.total}
+        truncated={rowCeiling.truncated}
+      />
 
       {/* Quick-create dialog: opens when the user clicks an empty day cell.
           Pre-fills start_date (and end_date) with the clicked day; only the
