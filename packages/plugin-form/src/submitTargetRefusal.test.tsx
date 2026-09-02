@@ -87,7 +87,10 @@ vi.mock('@object-ui/components', async (orig) => {
   const actual = await (orig as any)();
   return {
     ...actual,
+    // Inherit the real toast surface and override only what this file spies
+    // on — a hand-listed double leaves every other sonner method undefined.
     toast: {
+      ...actual.toast,
       success: (...a: any[]) => toastSuccess(...a),
       error: (...a: any[]) => toastError(...a),
     },

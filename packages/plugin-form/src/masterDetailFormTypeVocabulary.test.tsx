@@ -70,7 +70,9 @@ import './index';
 
 vi.mock('@object-ui/components', async (orig) => {
   const actual = await (orig as any)();
-  return { ...actual, toast: { success: vi.fn(), error: vi.fn() } };
+  // Inherit the real toast surface (see MasterDetailForm.test.tsx): a
+  // hand-listed double leaves every other sonner method undefined.
+  return { ...actual, toast: { ...actual.toast, success: vi.fn(), error: vi.fn() } };
 });
 
 registerAllFields();

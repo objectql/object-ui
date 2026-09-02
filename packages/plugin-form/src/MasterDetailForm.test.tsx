@@ -8,7 +8,11 @@ import { MasterDetailForm } from './MasterDetailForm';
 const { toastSuccess, toastError } = vi.hoisted(() => ({ toastSuccess: vi.fn(), toastError: vi.fn() }));
 vi.mock('@object-ui/components', async (orig) => {
   const actual = await (orig as any)();
-  return { ...actual, toast: { success: toastSuccess, error: toastError } };
+  // Inherit the real toast surface and override only what this file asserts:
+  // a hand-listed double freezes sonner's methods at whatever was typed that
+  // day, and the next one the form calls (`dismiss`, objectui#7345) resolves
+  // to undefined — the `check:vi-mock-inherit` defect, one level down.
+  return { ...actual, toast: { ...actual.toast, success: toastSuccess, error: toastError } };
 });
 
 registerAllFields();
