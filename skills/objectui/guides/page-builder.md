@@ -2,36 +2,6 @@
 
 Building production pages with the Schema-Driven UI engine, for app developers.
 
-## What this skill should optimize for
-
-- Deliver working page features quickly with JSON-first design.
-- Keep architecture aligned with Object UI conventions.
-- Keep third-party projects backend-agnostic through DataSource interfaces.
-- Produce outputs that are immediately usable in app codebases.
-
-## When to use this skill
-
-Use this skill when requests include:
-
-- "Build a page with Object UI / SchemaRenderer"
-- "Create a CRUD/dashboard/form/detail page from JSON"
-- "Integrate Object UI in an existing React/Vite/Next app"
-- "Design a metadata-driven page similar to console"
-- "Move an existing React page to schema-driven rendering"
-
-Do not use this skill for:
-
-- Modifying Shadcn upstream primitives under `packages/components/src/ui/**`.
-- Core engine internals that belong to `@object-ui/core` maintenance.
-- Non-UI backend implementation unrelated to schema rendering.
-
-## Required mindset
-
-1. JSON first, React second.
-2. Protocol compatibility before convenience shortcuts.
-3. Reusable schema blocks before one-off page code.
-4. DataSource abstraction over hardcoded transport logic.
-
 ## Standard workflow
 
 ### 1. Frame the page contract first
@@ -326,33 +296,3 @@ It exposes `ObjectView`, `RecordDetailView`, `PageView`, `DashboardView`,
 reachable only through the `page` / `app` / `utility` / `home` / `record`
 registry keys it registers, never as an import. See
 `guides/project-setup.md` for the decision matrix.
-
-## Common mistakes to avoid
-
-- Writing large bespoke React JSX trees before schema definition.
-- Hardcoding API calls directly inside visual renderers.
-- Introducing package coupling (for example, UI package depending on business logic package).
-- Registering components without namespace in plugin-heavy projects.
-- Skipping docs updates for newly introduced schema patterns.
-- Expecting a `${...}` on top-level `value` / `label` to evaluate — it does not, and moving it under `props` renders nothing at all. Resolve it in the host, or carry it on a `text` node's `content`.
-- Missing Shadcn CSS variables — components render but look completely unstyled.
-- Forgetting the `@object-ui/components/style.css` and `@object-ui/fields/style.css` imports, or importing them in the wrong order — ObjectUI's utilities never reach the page.
-
-## Fast triage playbook for ambiguous requests
-
-If the request is underspecified:
-
-1. Infer likely page category (list/detail/form/dashboard).
-2. Produce a minimal viable schema first.
-3. Mark assumptions clearly.
-4. Provide one conservative and one advanced variant.
-
-This keeps momentum while inviting focused user feedback.
-
-## Example prompts this skill should handle well
-
-- "In our CRM app, create a customer detail page with tabs, related orders, and action buttons using SchemaRenderer."
-- "Migrate this existing React order list to Object UI schema, keep filters and bulk actions."
-- "Set up a dashboard page in a Vite app with Object UI cards + chart plugin and role-based visibility."
-- "My ObjectUI components are rendering but look completely unstyled — help me fix the CSS setup."
-- "Add a kanban board to my existing schema-driven project page."
