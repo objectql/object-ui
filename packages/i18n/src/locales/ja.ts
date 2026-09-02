@@ -692,6 +692,8 @@ const ja = {
       unusableRange: {
         malformedDate:
           "ガントの日付範囲が使用できません — {{path}} が {{value}} で、有効な日付として解析できません。ガントのすべての日付は解析可能である必要があります: 各行アイテムの startDate と endDate、およびスキーマで固定した minDate / maxDate。",
+        malformedRow:
+          "ガントの行が使用できません — {{path}} が {{value}} で、行の形ではありません。ガントは items を行のリストとして、各行を label と自身の items を持つオブジェクトとして、各行の items をバーのリストとして読み取ります。これらの位置にある null、数値、文字列、プレーンなオブジェクトは描画できません。",
         inverted:
           "ガントの日付範囲が使用できません — minDate {{minDate}} が maxDate {{maxDate}} より後です。固定した minDate / maxDate は行から計算した範囲より優先されるため、この軸には列がなくバーを配置できません。2 つの値を入れ替えてください。",
       },

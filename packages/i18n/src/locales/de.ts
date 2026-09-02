@@ -692,6 +692,8 @@ const de = {
       unusableRange: {
         malformedDate:
           "Unbrauchbarer Gantt-Datumsbereich — {{path}} ist {{value}} und damit kein gültiges Datum. Jedes Gantt-Datum muss parsebar sein: startDate und endDate jedes Zeilenelements sowie ein am Schema gesetztes minDate / maxDate.",
+        malformedRow:
+          "Unbrauchbare Gantt-Zeilen — {{path}} ist {{value}} und damit keine Zeilenform. Ein Gantt liest items als Liste von Zeilen, jede Zeile als Objekt mit label und eigenen items und die items jeder Zeile als Liste von Balken; ein null, eine Zahl, ein String oder ein einfaches Objekt an einer dieser Stellen kann nicht gezeichnet werden.",
         inverted:
           "Unbrauchbarer Gantt-Datumsbereich — minDate {{minDate}} liegt nach maxDate {{maxDate}}. Ein gesetztes minDate / maxDate überschreibt den aus den Zeilen berechneten Bereich, daher hat diese Achse keine Spalten und es kann kein Balken platziert werden; vertauschen Sie die beiden Werte.",
       },

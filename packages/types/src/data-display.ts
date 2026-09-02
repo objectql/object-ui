@@ -1697,6 +1697,12 @@ export interface TimelineSchema extends BaseSchema {
    *   `{ label, items: [{ title, startDate, endDate, variant? }] }`
    *
    * `content/docs/plugins/plugin-timeline.mdx` carries both in full.
+   *
+   * The zod mirror (`./zod/data-display.zod.ts`, objectui#7164) declares what
+   * both shapes share and nothing more: every element is an OBJECT, and a gantt
+   * row's own `items`, when present, is an ARRAY. `validate` refuses a `null`
+   * element and a row whose `items` is a number, a string or a plain object —
+   * the inputs that used to crash the gantt renderer from ordinary JSON.
    */
   items?: any[];
   /**

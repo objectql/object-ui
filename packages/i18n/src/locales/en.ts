@@ -809,6 +809,8 @@ const en = {
       unusableRange: {
         malformedDate:
           'Unusable gantt date range — {{path}} is {{value}}, which is not a valid date. Every gantt date has to parse: the startDate and endDate on every row item, plus any minDate / maxDate pinned on the schema.',
+        malformedRow:
+          'Unusable gantt rows — {{path}} is {{value}}, which is not a row shape. A gantt draws items as a list of rows, every row as an object with a label and its own items, and every row\'s items as a list of bars; a null, a number, a string or a plain object in any of those places cannot be drawn.',
         inverted:
           'Unusable gantt date range — minDate {{minDate}} is after maxDate {{maxDate}}. A pinned minDate / maxDate overrides the range computed from the rows, so this axis has no columns and no bar can be placed on it; swap the two values.',
       },

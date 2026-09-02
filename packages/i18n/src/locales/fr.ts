@@ -692,6 +692,8 @@ const fr = {
       unusableRange: {
         malformedDate:
           "Plage de dates du gantt inutilisable — {{path}} vaut {{value}}, ce qui n'est pas une date valide. Toutes les dates du gantt doivent être analysables : startDate et endDate de chaque élément de ligne, ainsi que tout minDate / maxDate fixé sur le schéma.",
+        malformedRow:
+          "Lignes du gantt inutilisables — {{path}} vaut {{value}}, ce qui n'est pas la forme d'une ligne. Un gantt lit items comme une liste de lignes, chaque ligne comme un objet avec un label et ses propres items, et les items de chaque ligne comme une liste de barres ; un null, un nombre, une chaîne ou un objet simple à l'un de ces emplacements ne peut pas être dessiné.",
         inverted:
           "Plage de dates du gantt inutilisable — minDate {{minDate}} est postérieur à maxDate {{maxDate}}. Un minDate / maxDate fixé l'emporte sur la plage calculée à partir des lignes ; cet axe n'a donc aucune colonne et aucune barre ne peut y être placée. Intervertissez les deux valeurs.",
       },

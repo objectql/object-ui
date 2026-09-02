@@ -692,6 +692,8 @@ const ko = {
       unusableRange: {
         malformedDate:
           "사용할 수 없는 간트 날짜 범위 — {{path}}은(는) {{value}}이며 유효한 날짜가 아닙니다. 모든 간트 날짜는 파싱할 수 있어야 합니다: 각 행 항목의 startDate와 endDate, 그리고 스키마에 고정한 minDate / maxDate.",
+        malformedRow:
+          "사용할 수 없는 간트 행 — {{path}}은(는) {{value}}이며 행의 형태가 아닙니다. 간트는 items를 행 목록으로, 각 행을 label과 자체 items를 가진 객체로, 각 행의 items를 막대 목록으로 읽습니다. 이 위치에 있는 null, 숫자, 문자열 또는 일반 객체는 그릴 수 없습니다.",
         inverted:
           "사용할 수 없는 간트 날짜 범위 — minDate {{minDate}}이(가) maxDate {{maxDate}}보다 뒤입니다. 고정한 minDate / maxDate는 행에서 계산한 범위보다 우선하므로 이 축에는 열이 없고 막대를 배치할 수 없습니다. 두 값을 서로 바꾸세요.",
       },
