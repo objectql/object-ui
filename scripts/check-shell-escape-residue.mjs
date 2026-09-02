@@ -13,7 +13,7 @@
  * ## ⛔ WHAT THIS GATE DOES NOT DO -- read this before citing it as coverage
  *
  * It checks ONE ENUMERATED LITERAL (`RESIDUE_PATTERNS`, currently a single
- * entry) inside fenced blocks in four roots. That is the whole of it.
+ * entry) inside fenced blocks in five roots. That is the whole of it.
  *
  *   ⛔ It does NOT make fenced shell examples executable-by-construction, and
  *      nothing in this repository does. A ```bash block may be syntactically
@@ -64,9 +64,13 @@
  *      HANGS. A reader will not attribute a hung terminal to the document, and
  *      will fall back to exactly the workaround the clause argues against.
  *   2. **Agent-facing text is re-read once per session.** `AGENTS.md`,
- *      `CLAUDE.md` and `skills/**` are inputs to every seat, so a bad example is
- *      not paid once -- it is paid by every reader. Those three are also where
- *      this repository does most of its shell demonstrating.
+ *      `CLAUDE.md`, `skills/**` and `.claude/skills/**` are inputs to every
+ *      seat, so a bad example is not paid once -- it is paid by every reader.
+ *      Those are also where this repository does most of its shell
+ *      demonstrating. ⭐ The contributor tree under `.claude/skills/**` is on
+ *      this surface for exactly that reason and no other (objectui#7403): it is
+ *      not published, but it is agent-WRITTEN and agent-READ, which is both
+ *      halves of the generating mechanism below.
  *
  * And the GENERATING MECHANISM IS FIXED AND REPRODUCIBLE: an agent writing a
  * file through a shell heredoc that is itself nested inside a single-quoted
@@ -123,15 +127,17 @@
  * and the first speculative entry spends that.
  *
  * The measured population of the current entry across the four roots, at the
- * commit this landed on, is ZERO inside fences and ZERO outside them.
+ * commit this landed on, is ZERO inside fences and ZERO outside them. Still
+ * ZERO on both counts across five roots when objectui#7403 added
+ * `.claude/skills` -- 20 fences in 4 files arrived clean.
  *
  * ## ⚠️ The literal is legitimate shell -- so the claim here is narrower
  *
  * `'` + `"` + `'` + `"` + `'` is the standard way to put a literal single quote
  * inside a single-quoted string, and a hand-written one-liner may use it
  * correctly. This gate does not claim otherwise. It claims something smaller and
- * checkable: in THESE FOUR ROOTS the sequence has never once been intentional,
- * and every occurrence so far was a write-path leak.
+ * checkable: in THESE ROOTS the sequence has never once been intentional, and
+ * every occurrence so far was a write-path leak.
  *
  * If a deliberate instance is ever genuinely needed in a documented example, the
  * equivalent `'\''` spelling is not matched here and is the documented remedy.
@@ -184,22 +190,64 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
 
 /**
  * The scan surface, declared -- objectui#5151's dispatch ruling, verbatim:
- * `AGENTS.md`, `CLAUDE.md`, `skills/**`, `content/docs/**`.
+ * `AGENTS.md`, `CLAUDE.md`, `skills/**`, `content/docs/**`; widened to
+ * `.claude/skills/**` by objectui#7403, for the reason recorded below.
  *
  * `kind` and `minFiles` exist for the "loud, never a silent zero" rule above.
  * `minFiles` is a COLLAPSE floor set with room, not today's count: the point is
  * to catch a walk that broke, not to pin figures that move every day. Measured
  * when this landed: 1 / 1 / 18 / 184 files, 12 / 2 / 235 / 1056 fences.
  *
- * ⚠️ `AGENTS.md`, `CLAUDE.md` and `skills/**` are GOVERNED SURFACE (AGENTS.md
- * §受管面). This gate READS them and never writes: a finding in one of those is
- * reported for a human to act on, and fixing it is a separate, human-merged
- * change. That is a property of the remedy, not of the scan.
+ * ## ⭐ objectui#7403 -- a per-root floor measures the roots that are DECLARED,
+ * never the tree that walked out of them
+ *
+ * objectui#7251 moved two contributor guides from `skills/objectui/` into
+ * `.claude/skills/objectui-contributor/`. No row reached the new location, so 18
+ * fenced blocks left this gate's surface in one commit and NOTHING WENT RED: the
+ * `skills` row carries `minFiles: 5` and 16 files stayed behind it, so the floor
+ * was satisfied by the tree that REMAINED while the tree that LEFT went
+ * unmeasured. A floor is a collapse detector, not a coverage detector, and no
+ * floor can be made to do the second job -- the only thing that catches a move
+ * is declaring the new location, which is why a move and its `SCAN_ROOTS` row
+ * belong in one change (the unresolved-root text in `main()` says the same for a
+ * root that vanishes; this is its blind side). The sibling gate
+ * `check-skills-paths.mjs` lost 55 stated paths to the same move and was widened
+ * the same way in objectui#7358.
+ *
+ * Measured for the widening (objectui#7403, `6aeba67`): 4 files, 20 fences under
+ * `.claude/skills` --
+ * `objectui-contributor/guides/console-development.md` 9,
+ * `objectui-contributor/rules/no-touch-zones.md` 9, `verify/SKILL.md` 2,
+ * `objectui-contributor/SKILL.md` 0. The first two carry the 18 blocks
+ * objectui#7251 moved; the other two had never been on this surface at all. All
+ * four arrived with zero residue, inside fences and outside them.
+ *
+ * ⛔ `minFiles: 3` for that row -- PER ROOT, never a whole-surface floor, which
+ * is the shape that failed: on a day this four-file root reads ZERO the other
+ * four roots still return 203 of today's 207 files, so any total floor is green
+ * through the whole outage. Seeded the way the others were, under today's count
+ * with room for ordinary movement, and still red for the shape that caused this
+ * card -- the `objectui-contributor` tree leaving reads 1, the two guides alone
+ * leaving reads 2.
+ *
+ * ⚠️ The row is `.claude/skills`, not `.claude` -- and the difference is only
+ * about files that do not exist yet. Every `.md`/`.mdx` under `.claude/` today
+ * is under `.claude/skills/` (4 of 4), so the two specs read the same tree; the
+ * narrower one was declared because it is the subtree whose contents are
+ * agent-read prose by construction. ⛔ It therefore does NOT reach a future
+ * `.claude/agents/*.md` or `.claude/commands/*.md` -- which is this card's own
+ * class one step out, and is objectui#7413 rather than pre-solved here.
+ *
+ * ⚠️ `AGENTS.md`, `CLAUDE.md`, `skills/**` and `.claude/**` are GOVERNED SURFACE
+ * (AGENTS.md §受管面). This gate READS them and never writes: a finding in one of
+ * those is reported for a human to act on, and fixing it is a separate,
+ * human-merged change. That is a property of the remedy, not of the scan.
  */
 export const SCAN_ROOTS = Object.freeze([
   { spec: 'AGENTS.md', kind: 'file', minFiles: 1 },
   { spec: 'CLAUDE.md', kind: 'file', minFiles: 1 },
   { spec: 'skills', kind: 'dir', minFiles: 5 },
+  { spec: '.claude/skills', kind: 'dir', minFiles: 3 },
   { spec: 'content/docs', kind: 'dir', minFiles: 100 },
 ]);
 
@@ -430,10 +478,10 @@ function main() {
     const remedies = [...new Set(hits.map((h) => RESIDUE_PATTERNS.find((p) => p.id === h.patternId).remedy))];
     console.error(`\n${remedies.map((r) => `  ${r}`).join('\n\n')}`);
     console.error(`
-⚠️  AGENTS.md, CLAUDE.md and skills/** are GOVERNED SURFACE. A finding in one of
-those is for a human to fix in its own change -- report it, do not fold the fix
-into an unrelated pull request. A finding under content/docs/** is an ordinary
-docs fix.
+⚠️  AGENTS.md, CLAUDE.md, skills/** and .claude/** are GOVERNED SURFACE. A
+finding in one of those is for a human to fix in its own change -- report it, do
+not fold the fix into an unrelated pull request. A finding under content/docs/**
+is an ordinary docs fix.
 
 ⛔ This gate checks an enumerated literal. It does NOT check that fenced shell
 examples are executable -- nothing does. See this script's header.`);
