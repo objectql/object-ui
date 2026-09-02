@@ -24,41 +24,47 @@
  * half of that measurement; `data-objectstack/src/filter-dialect-wire-7221.test.ts`
  * is the wire half.
  *
- * ## The answer, in one line
+ * ## The answer, in one line — and what became of it
  *
- * On the card's own filter the two dialects agree — and they agree because
- * `matchesASTFilter` evaluates NEITHER of them. Change the operator to one the
- * in-memory matcher implements and they part: the flat dialect applies no filter
- * at all while the `and`-wrapped one filters correctly. So the equivalence the
- * card hoped to establish does NOT hold in general, and the case it was observed
- * on is the accidentally-benign one.
+ * MEASURED (objectui#7221, this file as filed): on the card's own filter the two
+ * dialects agreed — and they agreed because `matchesASTFilter` evaluated NEITHER
+ * of them. Changing the operator to one the in-memory matcher implemented parted
+ * them: the flat dialect applied no filter at all while the `and`-wrapped one
+ * filtered correctly. So the equivalence the card hoped to establish did NOT hold
+ * in general, and the case it was observed on was the accidentally-benign one.
  *
- * ## Why the flat dialect is inert here
+ * REPAIRED (objectui#7349): the matcher now reads the flat implicit-AND array —
+ * at top level and as a child of `and` / `or` — and implements the null-ness
+ * operators, so the two dialects select the same rows for the right reason. The
+ * two `it.fails` cases below became plain `it` in that PR, and the row sets in
+ * sections 2 and 3 were RE-MEASURED against the repaired matcher. Each one keeps
+ * its pre-repair number in a comment, because those numbers are the evidence
+ * objectui#7221's severity was graded on.
  *
- * `matchesASTFilter` (`../../adapters/ValueDataSource.ts`) recognises exactly two
+ * ## What the flat dialect used to be inert against
+ *
+ * `matchesASTFilter` (`../../adapters/ValueDataSource.ts`) recognised exactly two
  * node shapes: a logical `['and'|'or', ...children]` head, and a THREE-element
  * comparison `[field, operator, value]`. A legacy flat array of condition nodes —
  * `[[…], […]]`, the implicit-AND shape `toFilterNode` returns for a lone source —
- * matches neither, so it reaches the closing `return true` and every row passes.
- * The same fall-through swallows it as a CHILD of an `and`, which is the shape
+ * matched neither, so it reached the closing `return true` and every row passed.
+ * The same fall-through swallowed it as a CHILD of an `and`, which is the shape
  * `ElementDataSourceGate` produces from two surviving sources.
  *
- * Two separate reasons the card's own filter is inert, and both are recorded
- * below: the flat shape is unread AS A SHAPE, and `is_not_null` / `isnotnull` are
- * unimplemented AS OPERATORS (the `switch` has no null-ness arm, so its `default`
- * returns true for the wrapped dialect too).
+ * Two separate reasons the card's own filter was inert, and both are recorded
+ * below: the flat shape was unread AS A SHAPE, and `is_not_null` / `isnotnull`
+ * were unimplemented AS OPERATORS (the `switch` had no null-ness arm, so its
+ * `default` returned true for the wrapped dialect too).
  *
  * ## Reading a red in this file
  *
- * - An `it.fails` case going RED means the divergence was repaired — the two
- *   dialects now agree. That is the good day; delete the `.fails` and keep the
- *   assertion.
- * - A plain case going red means the measured behaviour moved. Re-measure before
- *   changing the expectation: these numbers are the evidence objectui#7221's
- *   severity was graded on.
+ * A case going red means the measured behaviour moved — re-measure before
+ * changing the expectation. Note the change of status the repair brought: the two
+ * equivalence assertions are now plain `it`, so they are a CONTRACT rather than
+ * an observation, and a red there is a regression of objectui#7349.
  *
- * ⛔ No product code is changed by this card. Which dialect wins is a ruling, not
- * a test's decision.
+ * The vocabulary the repair taught the matcher is pinned separately, in
+ * `../../adapters/__tests__/ValueDataSource.astFilterVocabulary.test.ts`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -163,6 +169,23 @@ const EDGE_ROWS: Array<Record<string, unknown>> = [
 
 const ALL_EDGE_IDS = EDGE_ROWS.map((r) => r.id as string);
 
+/**
+ * What both dialects keep once the null-ness operators are IMPLEMENTED
+ * (objectui#7349): every edge value that is neither `null` nor `undefined`
+ * survives `is_not_null` — `''`, `0` and `false` included, since the operator
+ * asks about PRESENCE and not about truthiness — while the `null` row, the
+ * `undefined` row and the row carrying no such key are excluded.
+ *
+ * `NaN` is excluded, and NOT because of the operator. `ValueDataSource`'s
+ * constructor deep-clones its items with `JSON.parse(JSON.stringify(items))`,
+ * and `JSON.stringify` writes `NaN` as `null` — so by the time any filter runs,
+ * that row genuinely holds `null`. Measured while repairing objectui#7349;
+ * before the repair nothing was ever excluded, so the round-trip was invisible
+ * here. (`undefined` is dropped by the same round-trip, which is why the
+ * `undefined` row and the `missing-key` row are indistinguishable below.)
+ */
+const PRESENT_EDGE_IDS = ['empty-string', 'zero', 'false', 'array', 'object', 'real'];
+
 async function selectedIds(
   filter: unknown,
   rows: Array<Record<string, unknown>> = EDGE_ROWS,
@@ -173,37 +196,52 @@ async function selectedIds(
 }
 
 describe('objectui#7221 — row sets through ValueDataSource, the card’s filter', () => {
-  it('dialect A selects EVERY row, including the ones the filter exists to exclude', async () => {
-    // The measured behaviour of path A, on its own. A flat array is not a shape
-    // `matchesASTFilter` reads, so nothing is excluded — not the null row, not
+  it('dialect A excludes exactly the rows the filter exists to exclude', async () => {
+    // BEFORE objectui#7349 this was ALL_EDGE_IDS: a flat array was not a shape
+    // `matchesASTFilter` read, so nothing was excluded — not the null row, not
     // the row that has no such key.
-    expect(await selectedIds(DIALECT_A)).toEqual(ALL_EDGE_IDS);
+    expect(await selectedIds(DIALECT_A)).toEqual(PRESENT_EDGE_IDS);
   });
 
-  it('dialect B selects EVERY row too — for a different reason', async () => {
-    // Path B's shape IS read: `and` recurses, each child is a 3-element
-    // comparison node. It is the OPERATOR that is unimplemented — the `switch`
-    // has no `isnotnull` arm and its `default` returns true.
-    expect(await selectedIds(DIALECT_B)).toEqual(ALL_EDGE_IDS);
+  it('dialect B selects the same rows — and now for the same reason', async () => {
+    // BEFORE objectui#7349 this was ALL_EDGE_IDS too, but for a DIFFERENT reason
+    // than dialect A: path B's shape WAS read (`and` recurses, each child is a
+    // 3-element comparison node) and it was the OPERATOR that was unimplemented —
+    // the `switch` had no `isnotnull` arm and its `default` returned true.
+    expect(await selectedIds(DIALECT_B)).toEqual(PRESENT_EDGE_IDS);
   });
 
-  it('so the two dialects agree here — at "no filter applied", on both sides', async () => {
+  it('so the two dialects agree here — now at the SAME APPLIED filter', async () => {
     expect(await selectedIds(DIALECT_A)).toEqual(await selectedIds(DIALECT_B));
+  });
+
+  it('and they no longer agree at "no filter applied", which is what changed', async () => {
+    // `ALL_EDGE_IDS` was the measured answer for BOTH dialects before
+    // objectui#7349, so naming it here keeps the regression visible: a return
+    // of the fall-through to `true` takes exactly this shape. The repaired
+    // matcher only ever EXCLUDES rows, so the kept set stays a subset.
+    expect(await selectedIds(DIALECT_A)).not.toEqual(ALL_EDGE_IDS);
+    expect(await selectedIds(DIALECT_B)).not.toEqual(ALL_EDGE_IDS);
+    expect(PRESENT_EDGE_IDS.every((id) => ALL_EDGE_IDS.includes(id))).toBe(true);
   });
 
   it('the null-ness operators never read their value slot, in any spelling', async () => {
     // The card asked specifically whether the matcher reads the value slot for
-    // the null-ness operators. It does not — but only because it does not reach
-    // the value at all. Filler, `null`, or an absent slot: same rows.
+    // the null-ness operators. It does not — and since objectui#7349 that is a
+    // real answer rather than an artefact of never reaching the value at all.
+    // Filler, `null`, or an absent slot: same rows.
+    //
+    // BEFORE objectui#7349 every line below was `['null-row', 'real-row']` —
+    // the whole set, i.e. no filter applied in any spelling.
     const rows = [
       { id: 'null-row', visible_from: null },
       { id: 'real-row', visible_from: '2026-01-01' },
     ];
-    const both = ['null-row', 'real-row'];
-    expect(await selectedIds(['visible_from', 'isnotnull', null], rows)).toEqual(both);
-    expect(await selectedIds(['visible_from', 'isnotnull', 'FILLER'], rows)).toEqual(both);
-    expect(await selectedIds(['visible_from', 'is_not_null'], rows)).toEqual(both);
-    expect(await selectedIds(['and', ['visible_from', 'isnotnull', null]], rows)).toEqual(both);
+    const onlyReal = ['real-row'];
+    expect(await selectedIds(['visible_from', 'isnotnull', null], rows)).toEqual(onlyReal);
+    expect(await selectedIds(['visible_from', 'isnotnull', 'FILLER'], rows)).toEqual(onlyReal);
+    expect(await selectedIds(['visible_from', 'is_not_null'], rows)).toEqual(onlyReal);
+    expect(await selectedIds(['and', ['visible_from', 'isnotnull', null]], rows)).toEqual(onlyReal);
   });
 });
 
@@ -234,40 +272,44 @@ const CONTROL_GATE_TWO_SOURCE = ['and', CONTROL_A, ['id', '!=', 'zzz']];
 const CONTROL_GATE_FLATTENED = ['and', ['role', '=', 'admin'], ['age', '>', 24], ['id', '!=', 'zzz']];
 
 describe('objectui#7221 — the dialects on an operator the matcher implements', () => {
-  it('dialect A’s shape applies NO filter — every row comes back', async () => {
-    expect(await selectedIds(CONTROL_A, CONTROL_ROWS)).toEqual(['a', 'b', 'c']);
+  it('dialect A’s shape applies the filter — one row of three', async () => {
+    // BEFORE objectui#7349: ['a', 'b', 'c'] — no filter applied at all.
+    expect(await selectedIds(CONTROL_A, CONTROL_ROWS)).toEqual(['a']);
   });
 
-  it('a single-rule flat array is inert too — it is the SHAPE, not the count', async () => {
-    expect(await selectedIds([['role', '=', 'admin']], CONTROL_ROWS)).toEqual(['a', 'b', 'c']);
+  it('a single-rule flat array filters too — it was the SHAPE, not the count', async () => {
+    // BEFORE objectui#7349: ['a', 'b', 'c'].
+    expect(await selectedIds([['role', '=', 'admin']], CONTROL_ROWS)).toEqual(['a', 'c']);
   });
 
   it('dialect B’s shape filters correctly — one row of three', async () => {
     expect(await selectedIds(CONTROL_B, CONTROL_ROWS)).toEqual(['a']);
   });
 
-  it('the gate’s two-source shape loses its nested authored rules', async () => {
-    // Only the sibling tuple child is evaluated; the nested flat child is
-    // swallowed by the same fall-through.
-    expect(await selectedIds(CONTROL_GATE_TWO_SOURCE, CONTROL_ROWS)).toEqual(['a', 'b', 'c']);
+  it('the gate’s two-source shape keeps its nested authored rules', async () => {
+    // BEFORE objectui#7349 only the sibling tuple child was evaluated and the
+    // nested flat child was swallowed by the fall-through, so the first line
+    // was ['a', 'b', 'c'] while the second was already ['a'].
+    expect(await selectedIds(CONTROL_GATE_TWO_SOURCE, CONTROL_ROWS)).toEqual(['a']);
     expect(await selectedIds(CONTROL_GATE_FLATTENED, CONTROL_ROWS)).toEqual(['a']);
   });
 
-  it.fails(
-    'the two dialects select the same rows — diverges — objectui#7221',
+  it(
+    'the two dialects select the same rows — repaired — objectui#7349',
     async () => {
-      // GREEN today BECAUSE IT FAILS: dialect A returns a,b,c and dialect B
-      // returns a. Remove the `.fails` the day one lowered form is agreed on and
-      // `matchesASTFilter` reads it.
+      // Was `it.fails`: dialect A returned a,b,c while dialect B returned a.
+      // objectui#7349 taught `matchesASTFilter` to read the flat form, so both
+      // return a and this is now an ordinary passing contract.
       expect(await selectedIds(CONTROL_A, CONTROL_ROWS))
         .toEqual(await selectedIds(CONTROL_B, CONTROL_ROWS));
     },
   );
 
-  it.fails(
-    'nesting an authored array under `and` preserves its rules — diverges — objectui#7221',
+  it(
+    'nesting an authored array under `and` preserves its rules — repaired — objectui#7349',
     async () => {
-      // The gate's own output versus the same conditions unnested.
+      // The gate's own output versus the same conditions unnested. Was
+      // `it.fails`; the nested child is evaluated since objectui#7349.
       expect(await selectedIds(CONTROL_GATE_TWO_SOURCE, CONTROL_ROWS))
         .toEqual(await selectedIds(CONTROL_GATE_FLATTENED, CONTROL_ROWS));
     },
