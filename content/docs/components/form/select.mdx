@@ -19,6 +19,6 @@ interface SelectSchema {
   options: { label: string; value: string | number }[];
   placeholder?: string;
   required?: boolean;
-  disabled?: boolean;
+  disabled?: boolean | string;   // boolean, or a predicate expression
 }
 ```

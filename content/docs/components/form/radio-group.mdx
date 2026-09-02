@@ -50,7 +50,7 @@ interface RadioGroupSchema {
   onChange?: (value: string | number) => void;
   
   // States
-  disabled?: boolean;
+  disabled?: boolean | string;   // boolean, or a predicate expression
   
   // Styling
   className?: string;

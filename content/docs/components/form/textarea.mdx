@@ -19,6 +19,6 @@ interface TextareaSchema {
   placeholder?: string;
   rows?: number;
   required?: boolean;
-  disabled?: boolean;
+  disabled?: boolean | string;   // boolean, or a predicate expression
 }
 ```

@@ -36,7 +36,7 @@ interface CalendarSchema {
   // Constraints
   minDate?: Date | string;                  // Minimum selectable date
   maxDate?: Date | string;                  // Maximum selectable date
-  disabled?: boolean;                       // Whether calendar is disabled
+  disabled?: boolean | string;              // boolean, or a predicate expression
   
   // Events
   onChange?: (date: Date | Date[] | undefined) => void;  // Date change handler
