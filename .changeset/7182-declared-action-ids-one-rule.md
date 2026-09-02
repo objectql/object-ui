@@ -30,9 +30,10 @@ each array whole — every element an id naming an action declared on the
 object — never one element at a time.
 
 New on `@object-ui/types`, beside `actionRendersAt`: the pure
-`resolveDeclaredActionIds(elements, registeredActions)` (and its shape half,
-`classifyDeclaredActions`), with the `DeclaredActionsShape` /
-`DeclaredActionsResolution` / `DeclaredActionsRefusal` result types. Both
+`resolveDeclaredActionIds(elements, registeredActions)`, with the
+`DeclaredActionsResolution` / `DeclaredActionsRefusal` result types (the shape
+classifier stays module-internal: called with no registry, the function already
+returns the registry-independent verdict a renderer needs before its lookup). Both
 renderers call it; the whole-array switch in `record-quick-actions.tsx` and the
 per-element normalisation in `containers.tsx` are gone. The rule is closed: a
 string is an id, a non-null non-array object is an inline definition, and any
@@ -40,3 +41,12 @@ other element (`null`, a number, a nested array) is refused at its index too.
 An all-id array resolves by `name` in authored order, first registration
 winning on a duplicate name; ids that name nothing are reported back with their
 index for the caller to warn about once its lookup has settled.
+
+**Three further behaviour changes ride on the one rule, all on published
+packages:** on `page:header`, a padded id (`' convert '`) no longer resolves — it
+was previously trimmed before the lookup, and ids are now compared exactly as
+authored; on `page:header`, a blank `''` id is now reported by the unresolved-id
+warning instead of being silently skipped; on `record:quick_actions`, an all-id
+`actions` array with no object bound now renders nothing (the ordinary empty
+placeholder) instead of handing the bare strings to the action engine as action
+definitions.

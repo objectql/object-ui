@@ -21,7 +21,7 @@
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
-import { actionRendersAt, classifyDeclaredActions, resolveDeclaredActionIds } from '@object-ui/types';
+import { actionRendersAt, resolveDeclaredActionIds } from '@object-ui/types';
 import type { DeclaredActionsRefusal } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, useMetadataItem, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
@@ -1302,8 +1302,12 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     () => (Array.isArray(rawHeaderActions) ? rawHeaderActions : []),
     [rawHeaderActions],
   );
+  // Registry-independent verdict first — the same function, called with no
+  // registry: `kind` and `ids` are final from the shape alone, which is all
+  // the hook-order question below needs (`useMetadataItem` runs every render,
+  // so the read is requested or skipped before the registry exists).
   const headerActionsShape = React.useMemo(
-    () => classifyDeclaredActions(authoredHeaderActions),
+    () => resolveDeclaredActionIds<any>(authoredHeaderActions, undefined),
     [authoredHeaderActions],
   );
   // `useMetadataItem` is the SAME entry `record:quick_actions` resolves through

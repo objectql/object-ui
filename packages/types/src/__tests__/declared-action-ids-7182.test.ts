@@ -7,8 +7,7 @@
  */
 
 /**
- * `resolveDeclaredActionIds` / `classifyDeclaredActions` — the ONE rule for an
- * authored action array (objectui#7182, maintainer ruling 2026-09-02, option C:
+ * `resolveDeclaredActionIds` — the ONE rule for an authored action array (objectui#7182, maintainer ruling 2026-09-02, option C:
  * 「7189 A  其他同意」, "其他同意" covering this card's recommendation C).
  *
  * The rule, in the ruling's words: an `actions` array on `page:header` or
@@ -26,7 +25,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { actionRendersAt, classifyDeclaredActions, resolveDeclaredActionIds } from '../ui-action';
+import { actionRendersAt, resolveDeclaredActionIds } from '../ui-action';
 import * as barrel from '../index';
 
 const CONVERT = { name: 'convert', label: 'Convert Lead', locations: ['record_header'] };
@@ -93,7 +92,7 @@ describe('resolveDeclaredActionIds — all inline objects (transition tolerance)
 
   it('an empty array has nothing to classify and passes through as an empty object list', () => {
     expect(resolveDeclaredActionIds([], REGISTERED)).toEqual({ kind: 'objects', actions: [] });
-    expect(classifyDeclaredActions([])).toEqual({ kind: 'objects', objects: [] });
+    expect(resolveDeclaredActionIds([], undefined)).toEqual({ kind: 'objects', actions: [] });
   });
 });
 
@@ -145,8 +144,14 @@ describe('resolveDeclaredActionIds — a mixed array is REFUSED, naming the offe
   });
 });
 
-describe('classifyDeclaredActions — the shape half, on its own', () => {
-  it('agrees with resolveDeclaredActionIds on the verdict for every population', () => {
+describe('the registry-independent verdict — what a renderer reads BEFORE its lookup', () => {
+  /**
+   * A renderer must decide whether to request a metadata read before it has
+   * the registry to resolve against (hooks run every render). The contract
+   * review on objectui#7182 kept the shape classifier module-internal: the
+   * ONE public function answers that question when called with no registry.
+   */
+  it('called with no registry, kind and ids are already final and agree with the resolved call', () => {
     const populations: unknown[][] = [
       ['convert'],
       ['convert', 'qualify'],
@@ -159,28 +164,39 @@ describe('classifyDeclaredActions — the shape half, on its own', () => {
       ['convert', 7],
     ];
     for (const elements of populations) {
-      const shape = classifyDeclaredActions(elements);
-      const resolved = resolveDeclaredActionIds(elements, REGISTERED);
-      expect(shape.kind, JSON.stringify(elements)).toBe(resolved.kind);
-      if (shape.kind === 'refused' && resolved.kind === 'refused') {
-        expect(shape.index).toBe(resolved.index);
-        expect(shape.message).toBe(resolved.message);
+      const before = resolveDeclaredActionIds(elements, undefined);
+      const after = resolveDeclaredActionIds(elements, REGISTERED);
+      expect(before.kind, JSON.stringify(elements)).toBe(after.kind);
+      if (before.kind === 'ids' && after.kind === 'ids') expect(before.ids).toEqual(after.ids);
+      if (before.kind === 'refused' && after.kind === 'refused') {
+        expect(before.index).toBe(after.index);
+        expect(before.message).toBe(after.message);
       }
     }
   });
 
-  it('answers "is a lookup needed?" from the shape alone: ids carry their ids, objects carry the objects', () => {
-    expect(classifyDeclaredActions(['convert', 'qualify'])).toEqual({ kind: 'ids', ids: ['convert', 'qualify'] });
-    expect(classifyDeclaredActions([CONVERT])).toEqual({ kind: 'objects', objects: [CONVERT] });
+  it('answers "is a lookup needed?" from the shape alone: ids carry their ids (all unresolved), objects carry the objects', () => {
+    expect(resolveDeclaredActionIds(['convert', 'qualify'], undefined)).toEqual({
+      kind: 'ids',
+      ids: ['convert', 'qualify'],
+      actions: [],
+      unresolved: [{ index: 0, id: 'convert' }, { index: 1, id: 'qualify' }],
+    });
+    expect(resolveDeclaredActionIds([CONVERT], undefined)).toEqual({ kind: 'objects', actions: [CONVERT] });
   });
 });
 
 describe('published beside actionRendersAt on the @object-ui/types barrel', () => {
-  it('exports both functions as values (the control, actionRendersAt, must hit too)', () => {
+  it('exports the one function as a value (the control, actionRendersAt, must hit too)', () => {
     expect(typeof barrel.resolveDeclaredActionIds).toBe('function');
-    expect(typeof barrel.classifyDeclaredActions).toBe('function');
     expect(barrel.resolveDeclaredActionIds).toBe(resolveDeclaredActionIds);
-    expect(barrel.classifyDeclaredActions).toBe(classifyDeclaredActions);
     expect(barrel.actionRendersAt).toBe(actionRendersAt);
+  });
+
+  it('does NOT publish the shape classifier — one public function, by contract review', () => {
+    // The pre-lookup need is served by `resolveDeclaredActionIds(elements,
+    // undefined)` (cases above); a second published function would be a
+    // permanent surface for a need the first already covers.
+    expect('classifyDeclaredActions' in barrel).toBe(false);
   });
 });

@@ -21,7 +21,7 @@ import { usePermissions } from '@object-ui/permissions';
 import { Button, cn, hasDeclaredVisibilityGate } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import type { ActionDef, ActionLocation } from '@object-ui/core';
-import { classifyDeclaredActions, resolveDeclaredActionIds } from '@object-ui/types';
+import { resolveDeclaredActionIds } from '@object-ui/types';
 import type { DeclaredActionsRefusal } from '@object-ui/types';
 
 const splitDesigner = (props: Record<string, any>) => {
@@ -133,10 +133,14 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
   // authored array, two meanings.
   const declaredKey: 'actionNames' | 'actions' = actionNames.length > 0 ? 'actionNames' : 'actions';
   const declaredElements = actionNames.length > 0 ? actionNames : rawActions;
-  const declaredShape = classifyDeclaredActions(declaredElements);
+  // Registry-independent verdict first — the same function, called with no
+  // registry: `kind` and `ids` are final from the shape alone, which is all
+  // the hook-order question needs (`useMetadataItem` runs every render, so the
+  // read is requested or skipped before the registry exists; `null` is its
+  // documented no-op).
+  const declaredShape = resolveDeclaredActionIds<ActionDef>(declaredElements, undefined);
   // Lookup-by-name path: resolve the ActionDef[] from the object's own
   // metadata. Keeps page schemas DRY — actions stay defined once on the object.
-  // `useMetadataItem` runs every render (hook order); `null` is its no-op.
   const needsLookup = declaredShape.kind === 'ids' && declaredShape.ids.length > 0 && !!objectName;
   const { item: objectMeta } = useMetadataItem('object', needsLookup ? objectName : null);
   const declared = resolveDeclaredActionIds<ActionDef>(

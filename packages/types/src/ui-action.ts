@@ -118,7 +118,10 @@ export interface DeclaredActionsRefusal {
 }
 
 /**
- * The SHAPE of an authored action array, judged before any lookup.
+ * The SHAPE of an authored action array, judged before any lookup — the
+ * module-internal verdict behind {@link DeclaredActionsResolution}, which is
+ * the published face (objectui#7182 contract review: one public function, one
+ * public result type).
  *
  * Exactly three verdicts, closed on purpose (objectui#7182, maintainer ruling
  * 2026-09-02, option C): the array is all action IDS, all inline action
@@ -132,15 +135,22 @@ export interface DeclaredActionsRefusal {
  * empty list, so a caller's "do I need a metadata lookup?" question is
  * answered `false` without a special case.
  */
-export type DeclaredActionsShape =
+type DeclaredActionsShape =
   | { readonly kind: 'ids'; readonly ids: readonly string[] }
   | { readonly kind: 'objects'; readonly objects: readonly object[] }
   | DeclaredActionsRefusal;
 
 /**
- * What `resolveDeclaredActionIds` hands back: the same three verdicts as
- * {@link DeclaredActionsShape}, with the id arm RESOLVED against the object's
- * registered actions.
+ * What `resolveDeclaredActionIds` hands back: the array's shape verdict — all
+ * ids, all inline objects, or refused at an index — with the id arm RESOLVED
+ * against the object's registered actions.
+ *
+ * Called with `registeredActions` `undefined` (no registry yet) the verdict is
+ * registry-independent: `kind` and `ids` are final, `actions` is empty and
+ * every id is `unresolved`. That is how a renderer decides whether to request
+ * a metadata read at all — React hooks run every render, so the read is
+ * requested or skipped before the registry exists — without a second public
+ * function for the shape alone.
  *
  *   - `ids`: `actions` holds the resolved definitions in AUTHORED order, one
  *     per id that named a registered action; `unresolved` lists every id that
@@ -172,10 +182,12 @@ function describeDeclaredActionElement(el: unknown): string {
 
 /**
  * Classify an authored action array as all ids, all inline objects, or refused
- * — the shape half of {@link resolveDeclaredActionIds}, exported on its own
- * because a renderer must know whether a lookup is needed BEFORE it has the
- * registry to resolve against (React hooks run every render, so the metadata
- * read is requested or skipped from the shape alone).
+ * — the shape half of {@link resolveDeclaredActionIds}, and module-internal on
+ * purpose (objectui#7182 contract review): a renderer that must know whether
+ * a lookup is needed BEFORE it has the registry gets the same
+ * registry-independent verdict from `resolveDeclaredActionIds(elements,
+ * undefined)`, so a second public function would be a permanent surface for
+ * a need the first already serves.
  *
  * Element rule, closed: a string is an action id; a non-null, non-array
  * object is an inline action definition; anything else (`null`, a number, a
@@ -188,7 +200,7 @@ function describeDeclaredActionElement(el: unknown): string {
  * shared rule grows per-caller variants and stops being shared (the same
  * reasoning `actionRendersAt` records for its `locations` parameter).
  */
-export function classifyDeclaredActions(elements: readonly unknown[]): DeclaredActionsShape {
+function classifyDeclaredActions(elements: readonly unknown[]): DeclaredActionsShape {
   const shapeOf = (el: unknown): 'id' | 'object' | null =>
     typeof el === 'string'
       ? 'id'
