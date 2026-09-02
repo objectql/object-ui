@@ -23,6 +23,7 @@ import { Empty, EmptyTitle, EmptyDescription, NavigationOverlay } from '@object-
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { isSystemManagedField } from '@object-ui/types';
+import { leadWithNameField } from '@object-ui/core';
 import type { ListViewSchema } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider.js';
 import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
@@ -75,10 +76,19 @@ function resolveSourceView(objectDef: any, sourceView?: string): any | undefined
 /**
  * Default column set when the resolved view carries none — mirrors
  * ObjectView's data-mode fallback so an interface page never renders a
- * column-less grid. Priority: the `highlightFields` semantic role
- * (ADR-0085), else the first business fields — framework-managed
- * system/audit/ownership columns (including the injected, editable `owner_id`)
- * are excluded via the shared `isSystemManagedField` classifier.
+ * column-less grid. Priority: the object's name field always leads
+ * (`leadWithNameField`, objectui#7245 — `highlightFields` is ADR-0085's
+ * "most important fields" role, which the detail highlight strip deliberately
+ * strips the title out of, so well-authored metadata often omits it and the
+ * synthesized list had no column identifying the row); then the
+ * `highlightFields` semantic role (ADR-0085), else the first business fields —
+ * framework-managed system/audit/ownership columns (including the injected,
+ * editable `owner_id`) are excluded via the shared `isSystemManagedField`
+ * classifier.
+ *
+ * The lead is applied on BOTH branches, and before the slice on the fallback
+ * walk, exactly as in `ObjectView.defaultListColumnsFromObject` — the two are
+ * documented as mirrors, so they must not drift on this.
  *
  * `opts.orgAttribution` (ADR-0105 group posture): reads span every
  * organization the member belongs to, so cross-org rows need attribution —
@@ -95,15 +105,19 @@ export function defaultColumnsFromObject(
       : cols;
   const curated = objectDef?.highlightFields;
   if (Array.isArray(curated) && curated.length > 0) {
-    return withOrgAttribution(curated.filter((n: string) => objectDef.fields?.[n]));
+    return withOrgAttribution(
+      leadWithNameField(objectDef, curated.filter((n: string) => objectDef.fields?.[n])),
+    );
   }
   const fields = objectDef?.fields;
   if (fields && typeof fields === 'object') {
     return withOrgAttribution(
-      Object.entries(fields)
-        .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
-        .map(([name]) => name)
-        .slice(0, 6),
+      leadWithNameField(
+        objectDef,
+        Object.entries(fields)
+          .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
+          .map(([name]) => name),
+      ).slice(0, 6),
     );
   }
   return [];
