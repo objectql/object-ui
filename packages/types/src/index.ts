@@ -1039,6 +1039,9 @@ export type {
   ResolvableParamFieldType,
   ActionParam,
   UIActionSchema,
+  DeclaredActionsRefusal,
+  DeclaredActionsShape,
+  DeclaredActionsResolution,
   ActionGroup,
   ActionContext,
   ActionResult,
@@ -1060,6 +1063,8 @@ export {
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
   ACTION_PARAM_FIELD_TYPES,
   actionRendersAt,
+  classifyDeclaredActions,
+  resolveDeclaredActionIds,
 } from './ui-action.js';
 
 // ============================================================================
