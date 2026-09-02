@@ -15,10 +15,13 @@ import {
   ORACLES,
   ORACLE_SPECIFIERS,
   PAYLOAD_SHAPES,
+  RETIRED_KEY_REGISTRY_FILE,
+  SITES_WITH_NO_DECLARED_SHAPE,
   analyze,
   declaredKeys,
   fieldSchemaAcceptSet,
   objectSchemaAcceptSet,
+  readRetiredKeyRegistry,
   schemaAcceptSet,
 } from '../check-designer-field-key-parity.mjs';
 
@@ -46,11 +49,67 @@ import {
 const here = path.dirname(new URL(import.meta.url).pathname);
 const repoRoot = path.resolve(here, '..', '..');
 
-/** Writes fixture sources to a throwaway dir and runs the REAL extractor over them. */
-async function withFixture<T>(files: Record<string, string>, run: (dir: string) => Promise<T>): Promise<T> {
+/** One fixture tombstone. `key`/`retiredBy` are optional so the malformed cases can omit them. */
+type FixtureTombstone = { key?: string; retiredBy?: string; sites: Record<string, boolean> };
+
+/**
+ * A synthetic registry source, in the shape `readRetiredKeyRegistry` walks
+ * (`as const satisfies …` and all). Fixture registries name sites from the REAL
+ * site vocabulary, because the gate's site-coverage check is a statement about
+ * the gate's own declared surface rather than about the fixture tree.
+ */
+function registrySource(sites: string[], tombstones: FixtureTombstone[]): string {
+  const entries = tombstones.map((t) => {
+    const columns = Object.entries(t.sites)
+      .map(([site, on]) => `      ${site}: ${on},`)
+      .join('\n');
+    return [
+      '  {',
+      t.key === undefined ? '' : `    key: '${t.key}',\n`,
+      t.retiredBy === undefined ? '' : `    retiredBy: '${t.retiredBy}',\n`,
+      '    sites: {\n',
+      `${columns}\n`,
+      '    },\n',
+      '  }',
+    ].join('');
+  });
+  return [
+    `export const RETIRED_FIELD_KEY_SITES = [\n${sites.map((s) => `  '${s}',`).join('\n')}\n] as const;\n`,
+    `\nexport const RETIRED_FIELD_KEY_TOMBSTONES = [\n${entries.join(',\n')},\n] as const satisfies readonly unknown[];\n`,
+  ].join('');
+}
+
+/**
+ * The registry every fixture tree gets unless it writes its own.
+ *
+ * The gate now REQUIRES a registry to run (objectui#6699 — an unreadable one is
+ * an ExtractionError, never a pass), so a fixture tree has to carry one. This
+ * default is deliberately inert: its one tombstone names a key no fixture shape
+ * declares, at the one site that has no payload shape, so it cannot change any
+ * verdict the other cases in this file measure.
+ */
+const DEFAULT_FIXTURE_REGISTRY = registrySource(
+  ['metadataAdminFieldsReadDoor'],
+  [{ key: 'zzzFixtureRetiredKey', retiredBy: 'objectui#0000', sites: { metadataAdminFieldsReadDoor: true } }],
+);
+
+/**
+ * Writes fixture sources to a throwaway dir and runs the REAL extractor over them.
+ *
+ * `options.registry` overrides the default registry source; `null` writes none
+ * at all, which is how the missing-registry extraction failure is probed.
+ */
+async function withFixture<T>(
+  files: Record<string, string>,
+  run: (dir: string) => Promise<T>,
+  options: { registry?: string | null } = {},
+): Promise<T> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'designer-field-parity-'));
+  const registry = options.registry === undefined ? DEFAULT_FIXTURE_REGISTRY : options.registry;
+  const withRegistry =
+    registry === null ? files : { [RETIRED_KEY_REGISTRY_FILE]: registry, ...files };
   try {
-    for (const [name, contents] of Object.entries(files)) {
+    for (const [name, contents] of Object.entries(withRegistry)) {
       const full = path.join(dir, name);
       fs.mkdirSync(path.dirname(full), { recursive: true });
       fs.writeFileSync(full, contents);
@@ -580,6 +639,387 @@ describe('the ledger ratchets in both directions', () => {
         ledger: { placeholder: { card: 'objectui#4676', spec: null, note: 'fixture' } },
       });
       expect(staleLedger).toEqual([{ key: 'placeholder', reason: '`FieldSchema` now accepts it' }]);
+    });
+  });
+});
+
+describe('the tombstone registry is the single source for retirement — objectui#6699', () => {
+  // objectui#6527 converged three drifted per-site retired-key literals into
+  // one registry. A registry with no gate pinning it is a convention, so this
+  // block is the mechanical half: the gate READS it, and the per-site asymmetry
+  // the registry deliberately encodes survives every step of that read.
+  //
+  // The registry file and the three strip sites are NOT edited by these cases:
+  // the fixtures either synthesise a registry or copy the real one into a
+  // throwaway tree, so the ablation never touches a shipped strip site.
+
+  /** The real registry's own source, copied into fixture trees verbatim. */
+  const REAL_REGISTRY = fs.readFileSync(path.join(repoRoot, RETIRED_KEY_REGISTRY_FILE), 'utf8');
+
+  /** A fixture wire shape that IS one of the registry's strip sites. */
+  const atSite = (stripSite: string) => ({ ...WIRE_SHAPE, id: `Fixture@${stripSite}`, stripSite });
+
+  const fieldRow = { card: 'objectui#0000', oracle: 'FieldSchema', spec: null, note: 'fixture' };
+  const declaring = (key: string) =>
+    `export interface FixturePayload {\n  type?: string;\n  label?: string;\n  ${key}?: string;\n}\n`;
+
+  describe('extraction — a registry this gate cannot read is never a pass', () => {
+    it('reads every tombstone key and every site NAME off the real registry', () => {
+      // The non-vacuity floor. A walk that silently returned nothing would make
+      // every retirement rule below trivially satisfied while reading green —
+      // "nothing is retired" is exactly the drift objectui#6527 closed.
+      const registry = readRetiredKeyRegistry(repoRoot);
+      expect(registry.file).toBe(RETIRED_KEY_REGISTRY_FILE);
+      // Sites EXACTLY: the gate's coverage of them is exact by construction (a
+      // site accounted for nowhere is an ExtractionError), so this is the same
+      // statement, said where a reader will see it.
+      expect(registry.sites).toEqual([
+        'metadataAdminFieldsReadDoor',
+        'metadataServiceCarryOver',
+        'metadataFieldsPageCarryOver',
+      ]);
+      // Keys as a FLOOR rather than a census — the census is the registry's own
+      // test's to keep; what must not happen here is a key going missing.
+      const keys = registry.tombstones.map((t) => t.key);
+      expect(keys).toEqual(
+        expect.arrayContaining(['indexed', 'referenceTo', 'formula', 'isSystem', 'sortOrder']),
+      );
+      // Control terms: a walk that scooped up every string literal, or every
+      // property name, would pass the floor above and fail here.
+      expect(keys).not.toContain('label');
+      expect(keys).not.toContain('specEquivalent');
+      expect(registry.sites).not.toContain('zzzNotASite');
+      for (const t of registry.tombstones) expect(t.retiredBy).toMatch(/^objectui#\d+$/);
+    });
+
+    it('throws when the registry file is gone', async () => {
+      await withFixture(
+        { 'payload.ts': 'export interface FixturePayload {\n  label?: string;\n}\n' },
+        async (dir) => {
+          await expect(analyze(dir, { shapes: [WIRE_SHAPE], ledger: {} })).rejects.toThrow(
+            /retired-field-key registry .* does not exist/,
+          );
+        },
+        { registry: null },
+      );
+    });
+
+    it('throws when the tombstone constant is gone — an empty read is not "nothing is retired"', async () => {
+      await withFixture(
+        { 'payload.ts': 'export interface FixturePayload {\n  label?: string;\n}\n' },
+        async (dir) => {
+          await expect(analyze(dir, { shapes: [WIRE_SHAPE], ledger: {} })).rejects.toThrow(
+            /`RETIRED_FIELD_KEY_TOMBSTONES` is not an array literal/,
+          );
+        },
+        { registry: "export const RETIRED_FIELD_KEY_SITES = ['metadataAdminFieldsReadDoor'] as const;\n" },
+      );
+    });
+
+    it('throws on a tombstone with no `key` — a nameless tombstone retires nothing', async () => {
+      await withFixture(
+        { 'payload.ts': 'export interface FixturePayload {\n  label?: string;\n}\n' },
+        async (dir) => {
+          await expect(analyze(dir, { shapes: [WIRE_SHAPE], ledger: {} })).rejects.toThrow(
+            /declares no string `key`/,
+          );
+        },
+        {
+          registry: registrySource(
+            ['metadataAdminFieldsReadDoor'],
+            [{ retiredBy: 'objectui#0000', sites: { metadataAdminFieldsReadDoor: true } }],
+          ),
+        },
+      );
+    });
+
+    it('throws when a `sites` record names a site the registry does not declare', async () => {
+      // The two halves of the registry drifting apart. Reading past it would
+      // evaluate a retirement against a site that does not exist — a column
+      // that can never be `true`, i.e. a silently disabled rule.
+      await withFixture(
+        { 'payload.ts': 'export interface FixturePayload {\n  label?: string;\n}\n' },
+        async (dir) => {
+          await expect(analyze(dir, { shapes: [WIRE_SHAPE], ledger: {} })).rejects.toThrow(
+            /names the site `zzzGhostSite`, which `RETIRED_FIELD_KEY_SITES` does not declare/,
+          );
+        },
+        {
+          registry: registrySource(
+            ['metadataAdminFieldsReadDoor'],
+            [
+              {
+                key: 'zzzGhostSited',
+                retiredBy: 'objectui#0000',
+                sites: { metadataAdminFieldsReadDoor: true, zzzGhostSite: true },
+              },
+            ],
+          ),
+        },
+      );
+    });
+
+    it('⭐ throws when the registry grows a site this gate accounts for nowhere', async () => {
+      // This is what makes the registry the single SOURCE rather than a single
+      // copy: it cannot gain a strip site while the gate goes on judging only
+      // the sites it already knew, in silence.
+      await withFixture(
+        { 'payload.ts': 'export interface FixturePayload {\n  label?: string;\n}\n' },
+        async (dir) => {
+          await expect(analyze(dir, { shapes: [WIRE_SHAPE], ledger: {} })).rejects.toThrow(
+            /declares strip site\(s\) `zzzUnadjudicatedSite` this gate accounts for nowhere/,
+          );
+        },
+        {
+          registry: registrySource(
+            ['metadataServiceCarryOver', 'zzzUnadjudicatedSite'],
+            [
+              {
+                key: 'zzzSomeKey',
+                retiredBy: 'objectui#0000',
+                sites: { metadataServiceCarryOver: true, zzzUnadjudicatedSite: true },
+              },
+            ],
+          ),
+        },
+      );
+    });
+
+    it('throws when a shape names a strip site the registry does not declare', async () => {
+      // The other direction of the same link: a renamed site must not leave a
+      // shape quietly enforcing nothing.
+      await withFixture(
+        { 'payload.ts': declaring('indexed') },
+        async (dir) => {
+          await expect(
+            analyze(dir, { shapes: [atSite('metadataFieldsPageCarryOver')], ledger: {} }),
+          ).rejects.toThrow(/names the strip site `metadataFieldsPageCarryOver`, which .* does not declare/);
+        },
+        {
+          registry: registrySource(
+            ['metadataServiceCarryOver'],
+            [{ key: 'indexed', retiredBy: 'objectui#4644', sites: { metadataServiceCarryOver: true } }],
+          ),
+        },
+      );
+    });
+  });
+
+  describe('a retirement is not waivable at a site that strips the key', () => {
+    it('⭐ refuses the ledger row, and cites the registry entry instead', async () => {
+      // The rule with teeth, measured against the REAL registry: `formula` is
+      // retired (objectui#6043) and `metadataServiceCarryOver` strips it, so a
+      // KNOWN_UNPARSEABLE_KEYS row cannot quiet a re-declaration there. Its
+      // resolution already happened, on the card the tombstone names; a fresh
+      // ledger row would re-open a settled retirement in silence.
+      await withFixture(
+        { [RETIRED_KEY_REGISTRY_FILE]: REAL_REGISTRY, 'payload.ts': declaring('formula') },
+        async (dir) => {
+          const { violations, staleLedger } = await analyze(dir, {
+            shapes: [atSite('metadataServiceCarryOver')],
+            ledger: { formula: fieldRow },
+          });
+          expect(violations.map((v) => `${v.key}:${v.waiverRefused}`)).toEqual(['formula:true']);
+          expect(violations[0].retired!.retiredBy).toBe('objectui#6043');
+          expect(violations[0].retired!.inForce).toBe(true);
+          // ...and the row itself is reported, with the registry's reason
+          // rather than the generic "unreachable" one.
+          expect(staleLedger.map((s) => s.key)).toEqual(['formula']);
+          expect(staleLedger[0].reason).toContain('objectui#6043');
+          expect(staleLedger[0].reason).toContain('a retirement cannot be waived by a ledger row');
+        },
+      );
+    });
+
+    it('the citation carries the per-site columns VERBATIM, never flattened', async () => {
+      // `formula`'s read-door column is `false` — RULED, objectui#6526 option B
+      // (`ObjectFieldInspector` seeds its CEL editor from
+      // `def.expression ?? def.formula`, and stripping on read destroys the
+      // authored text). The gate reproduces that column on the NOT-stripped
+      // side; it never inverts it into a claim that the read door strips it.
+      await withFixture(
+        { [RETIRED_KEY_REGISTRY_FILE]: REAL_REGISTRY, 'payload.ts': declaring('formula') },
+        async (dir) => {
+          const { violations } = await analyze(dir, {
+            shapes: [atSite('metadataServiceCarryOver')],
+            ledger: {},
+          });
+          expect(violations[0].retired!.strippedAt).toEqual([
+            'metadataServiceCarryOver',
+            'metadataFieldsPageCarryOver',
+          ]);
+          expect(violations[0].retired!.notStrippedAt).toEqual(['metadataAdminFieldsReadDoor']);
+        },
+      );
+    });
+
+    it('⭐ the SAME key at a site whose column is `false` stays an ordinary, ledgerable violation', async () => {
+      // The anti-flattening proof, on the real registry: `sortOrder` is `true`
+      // at `metadataServiceCarryOver` and `false` at
+      // `metadataFieldsPageCarryOver` (objectui#6045's recorded verdict — the
+      // registry's one defensive, single-site entry). One key, one ledger row,
+      // two sites, two different verdicts. A gate holding one flat "retired"
+      // set could not produce this pair.
+      const files = { [RETIRED_KEY_REGISTRY_FILE]: REAL_REGISTRY, 'payload.ts': declaring('sortOrder') };
+
+      await withFixture(files, async (dir) => {
+        const strips = await analyze(dir, {
+          shapes: [atSite('metadataServiceCarryOver')],
+          ledger: { sortOrder: fieldRow },
+        });
+        expect(strips.violations.map((v) => `${v.key}:${v.waiverRefused}`)).toEqual(['sortOrder:true']);
+        expect(strips.staleLedger.map((s) => s.key)).toEqual(['sortOrder']);
+      });
+
+      await withFixture(files, async (dir) => {
+        const doesNotStrip = await analyze(dir, {
+          shapes: [atSite('metadataFieldsPageCarryOver')],
+          ledger: { sortOrder: fieldRow },
+        });
+        // The registry makes no claim to enforce the retirement at THIS site,
+        // so the ordinary ledger path applies and the row is honoured.
+        expect(doesNotStrip.violations).toEqual([]);
+        expect(doesNotStrip.staleLedger).toEqual([]);
+      });
+    });
+
+    it('still cites a tombstone at a site that does not strip it, marked not-in-force', async () => {
+      // Not silence: the reader is told the key is retired and which sites
+      // strip it, so an unledgered re-declaration is adjudicated with the
+      // registry in hand rather than from scratch.
+      await withFixture(
+        { [RETIRED_KEY_REGISTRY_FILE]: REAL_REGISTRY, 'payload.ts': declaring('sortOrder') },
+        async (dir) => {
+          const { violations } = await analyze(dir, {
+            shapes: [atSite('metadataFieldsPageCarryOver')],
+            ledger: {},
+          });
+          expect(violations.map((v) => v.key)).toEqual(['sortOrder']);
+          expect(violations[0].retired!.retiredBy).toBe('objectui#6045');
+          expect(violations[0].retired!.inForce).toBe(false);
+          expect(violations[0].waiverRefused).toBe(false);
+        },
+      );
+    });
+
+    it('a shape that is no strip site at all carries the citation but never the ban', async () => {
+      await withFixture(
+        { [RETIRED_KEY_REGISTRY_FILE]: REAL_REGISTRY, 'payload.ts': declaring('indexed') },
+        async (dir) => {
+          const { violations } = await analyze(dir, {
+            shapes: [WIRE_SHAPE],
+            ledger: { indexed: fieldRow },
+          });
+          expect(violations).toEqual([]);
+        },
+      );
+    });
+
+    it('⭐ the FIELD registry never reaches the OBJECT oracle — same spelling, two cards', async () => {
+      // `sortOrder` is refused at BOTH levels by two different schemas and is
+      // two different cards (objectui#6045 field-level, objectui#6223
+      // object-level, still the Object Manager's display order). A registry of
+      // FIELD tombstones that leaked across the oracle boundary would refuse
+      // the object-level card's own ledger row.
+      const OBJECT_AT_SITE = {
+        id: 'FixtureObjectPayload',
+        file: 'object-payload.ts',
+        interface: 'FixtureObjectPayload',
+        schema: 'ObjectSchema' as const,
+        reach: 'wire' as const,
+        writer: 'fixture',
+        stripSite: 'metadataServiceCarryOver',
+      };
+      await withFixture(
+        {
+          [RETIRED_KEY_REGISTRY_FILE]: REAL_REGISTRY,
+          'object-payload.ts':
+            'export interface FixtureObjectPayload {\n  name?: string;\n  label?: string;\n  sortOrder?: number;\n}\n',
+        },
+        async (dir) => {
+          const ledgered = await analyze(dir, {
+            shapes: [OBJECT_AT_SITE],
+            ledger: {
+              sortOrder: { card: 'objectui#6223', oracle: 'ObjectSchema', spec: null, note: 'fixture' },
+            },
+          });
+          expect(ledgered.violations).toEqual([]);
+          expect(ledgered.staleLedger).toEqual([]);
+          const bare = await analyze(dir, { shapes: [OBJECT_AT_SITE], ledger: {} });
+          expect(bare.violations.map((v) => `${v.key}:${v.oracle}`)).toEqual(['sortOrder:ObjectSchema']);
+          expect(bare.violations[0].retired).toBeNull();
+        },
+      );
+    });
+  });
+
+  describe('the per-site map, on the real tree', () => {
+    it('accounts for every registry site exactly once — shaped or declared shapeless', async () => {
+      const registry = readRetiredKeyRegistry(repoRoot);
+      const shaped = PAYLOAD_SHAPES.map((s) => s.stripSite).filter(Boolean);
+      expect(shaped).toEqual(['metadataServiceCarryOver', 'metadataFieldsPageCarryOver']);
+      expect(Object.keys(SITES_WITH_NO_DECLARED_SHAPE)).toEqual(['metadataAdminFieldsReadDoor']);
+      expect([...shaped, ...Object.keys(SITES_WITH_NO_DECLARED_SHAPE)].sort()).toEqual(
+        [...registry.sites].sort(),
+      );
+      // Every shape answers the column — an omitted one would opt out of the
+      // retirement rule in silence, the way an unnamed oracle used to fall back
+      // to the field schema (objectui#6223).
+      for (const shape of PAYLOAD_SHAPES) {
+        expect(Object.prototype.hasOwnProperty.call(shape, 'stripSite'), `${shape.id} omits stripSite`).toBe(
+          true,
+        );
+      }
+    });
+
+    it('maps each site onto the file the registry says it is — a crossed map applies the wrong column', () => {
+      // The paths come from the registry's own site docblock. Swapping the two
+      // `stripSite` values would leave every other assertion here green while
+      // each site was judged by the other's columns.
+      const siteFiles: Record<string, string> = {
+        metadataServiceCarryOver: 'packages/app-shell/src/services/MetadataService.ts',
+        metadataFieldsPageCarryOver: 'packages/plugin-designer/src/MetadataFieldsPage.tsx',
+      };
+      for (const shape of PAYLOAD_SHAPES.filter((s) => s.stripSite)) {
+        expect(shape.file, `${shape.id} is mapped to the wrong site`).toBe(siteFiles[shape.stripSite!]);
+      }
+    });
+
+    it('⭐ judges NOTHING at the read door — objectui#6526 option B, kept structural', async () => {
+      // The ruling: `formula` must NOT be stripped at the read door, because
+      // `ObjectFieldInspector` seeds its CEL editor from
+      // `def.expression ?? def.formula` and the first edit migrates it. The
+      // read door also declares no payload shape at all (coverage note 3), so
+      // this gate has nothing there to judge — and that is recorded rather than
+      // left to chance. If a shape ever names the read door as its strip site,
+      // this is what says so before the gate starts asserting strips there.
+      expect(PAYLOAD_SHAPES.map((s) => s.stripSite)).not.toContain('metadataAdminFieldsReadDoor');
+      expect(SITES_WITH_NO_DECLARED_SHAPE.metadataAdminFieldsReadDoor).toContain(
+        'no statically declared payload shape',
+      );
+      const { violations, uiOnly } = await analyze(repoRoot);
+      for (const entry of [...violations, ...uiOnly]) {
+        expect(entry.retired?.site ?? null, `${entry.key} judged at the read door`).not.toBe(
+          'metadataAdminFieldsReadDoor',
+        );
+      }
+    });
+
+    it('annotates the retired keys still declared on the UI model, and stays green', async () => {
+      // `isSystem` (objectui#6044) and `referenceTo` (objectui#6041) are
+      // tombstoned keys the designer's in-memory model still declares; the
+      // converters strip them, so they are `uiOnly` and NOT violations. The
+      // citation makes that visible in the run log instead of leaving two
+      // retired spellings looking like ordinary UI keys.
+      const { uiOnly, violations } = await analyze(repoRoot);
+      const cited = uiOnly.filter((u) => u.retired).map((u) => `${u.key}:${u.retired!.retiredBy}`);
+      expect(cited).toEqual(
+        expect.arrayContaining(['isSystem:objectui#6044', 'referenceTo:objectui#6041']),
+      );
+      // The object-level `sortOrder` on `ObjectDefinition` is a DIFFERENT card
+      // and must not be annotated with the field registry's tombstone.
+      expect(uiOnly.find((u) => u.key === 'sortOrder' && u.oracle === 'ObjectSchema')?.retired).toBeNull();
+      expect(violations).toEqual([]);
     });
   });
 });
