@@ -27,12 +27,19 @@
  *
  * ## Why this pin is BEHAVIOURAL and not a source grep
  *
- * ⚠️ The retired reads did not actually need their casts. `ObjectFormSection`
- * (this repo's own `@object-ui/types`) still declares both keys, so a later
- * "cleanup" writing a plain `className: s.className` — no `as any` in sight —
- * type-checks and silently restores consumption. A grep for `as any` would stay
- * green through exactly the regression this file exists to catch. So each row
- * authors the keys and asserts the strings never reach the DOM.
+ * ⚠️ When this file was written the retired reads did not need their casts:
+ * `ObjectFormSection` (this repo's own `@object-ui/types`) still declared both
+ * keys, so a "cleanup" writing a plain `className: s.className` type-checked
+ * and silently restored consumption. objectui#7200 has since removed the two
+ * members (pinned at the type level in @object-ui/types'
+ * `object-form-section-style-keys-undeclared.test.ts`), so an UNCAST read now
+ * fails to compile — but a cast one (`(s as any).className`, the exact shape
+ * the seven retired sites had) still compiles, and metadata arriving as JSON
+ * carries whatever an author wrote regardless of the TypeScript face. A grep
+ * for `as any` would stay green through exactly the regression this file
+ * exists to catch. So each row authors the keys — as UNDECLARED keys, through
+ * a fixture type widened at this boundary and nowhere else — and asserts the
+ * strings never reach the DOM.
  *
  * ## The liveness control — why every row asserts something PRESENT
  *
@@ -62,6 +69,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import React from 'react';
 import { registerAllFields } from '@object-ui/fields';
+import type { ObjectFormSection } from '@object-ui/types';
 import { ObjectForm } from '../ObjectForm';
 import { DrawerForm } from '../DrawerForm';
 
@@ -82,7 +90,19 @@ const GRID_CLASS = 'os13626-authored-grid-class';
  * against the stacked layout — measured, not assumed: it was a one-section
  * fixture that made the tabbed and wizard rows fail their liveness wait here.
  */
-const sections = () => [
+/**
+ * The authored fixture shape: `ObjectFormSection` plus the two keys it no
+ * longer declares (objectui#7200). Widened HERE, at the fixture boundary, and
+ * nowhere else — the pin's subject is that an author CAN still put these keys
+ * into JSON metadata and the renderer must not honour them. Deleting the keys
+ * from the fixture instead would make every row below pass for free.
+ */
+type AuthoredSectionWithRetiredStyleKeys = ObjectFormSection & {
+  className: string;
+  gridClassName: string;
+};
+
+const sections = (): AuthoredSectionWithRetiredStyleKeys[] => [
   {
     name: 'always',
     label: 'Always',
