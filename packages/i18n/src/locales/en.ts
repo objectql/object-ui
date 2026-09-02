@@ -3135,6 +3135,53 @@ const en = {
     openProduction: 'Open Production',
     manageEnvironments: 'Manage environments',
   },
+  // The AI HITL approval inbox (`@object-ui/plugin-chatbot`'s
+  // `AiPendingActionsInbox`) — objectui#7173. Its four relative-time phrases
+  // are NOT here: it borrows `detail.justNow` / `minutesAgo` / `hoursAgo` /
+  // `daysAgo`, already translated in all ten packs, the way `ObjectGrid` and
+  // `ObjectKanban` borrow `detail.recordDetail`. Distinct from
+  // `approvalsInbox` above, which is the human approval-PROCESS inbox:
+  // different surface, different feature, so no rows are shared with it.
+  aiApprovals: {
+    title: 'AI Approvals',
+    description: 'Actions an AI agent proposed that need a human review before execution.',
+    tabPending: 'Pending',
+    tabDecided: 'Decided',
+    tabAll: 'All',
+    statusPending: 'Pending',
+    statusApproved: 'Approved',
+    statusExecuted: 'Executed',
+    statusFailed: 'Failed',
+    statusRejected: 'Rejected',
+    colTool: 'Tool',
+    colAction: 'Action',
+    colObject: 'Object',
+    colStatus: 'Status',
+    colProposed: 'Proposed',
+    colDecision: 'Decision',
+    emptyTitle: 'No actions waiting',
+    emptyDescription: 'When the AI proposes a sensitive action it will appear here for review.',
+    view: 'View',
+    approve: 'Approve',
+    reject: 'Reject',
+    working: 'Working…',
+    approveAndExecute: 'Approve & Execute',
+    outcomeApprove: 'Approve for {{id}}: {{message}}',
+    outcomeReject: 'Reject for {{id}}: {{message}}',
+    outcomeExecuteFailed: 'Action failed during execution',
+    drawerFallbackTitle: 'Pending action',
+    drawerSubtitle: 'Tool {{tool}} on {{object}}',
+    fieldProposedBy: 'Proposed by',
+    fieldDecidedBy: 'Decided by',
+    fieldConversation: 'Conversation',
+    fieldToolInput: 'Tool input',
+    fieldResult: 'Result',
+    fieldError: 'Error',
+    fieldRejectionReason: 'Rejection reason',
+    rejectTitle: 'Reject this action?',
+    rejectBody: 'The reason is shown back to the AI so it can adjust its next response.',
+    rejectPlaceholder: "Optional reason (e.g. 'Wrong record id — please confirm with the user first.')",
+  },
   aiModelStatus: {
     summary: 'Build / Ask uses {{conversational}} ({{conversationalSource}}); structured uses {{structured}} ({{structuredSource}}).',
     summaryRouting: 'Routing policy: free plans → {{free}}, paid plans → {{paid}}.',

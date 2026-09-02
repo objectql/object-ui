@@ -273,8 +273,13 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // keys: `detail.activityFieldChanged` quotes the OLD and NEW field values
     // („{{old}}“ / „{{new}}“, two spans in one value, like `navigationSync.
     // renamedPage` above) and `detail.activityStatusChanged` the new status
-    // („{{value}}“) — three interpolated spans, all runtime data.
-    expect(okSpans, 'correctly paired spans').toBe(58);
+    // („{{value}}“) — three interpolated spans, all runtime data,
+    // 59 once objectui#7173 gave `AiPendingActionsInbox` pack keys:
+    // `aiApprovals.rejectPlaceholder` quotes the EXAMPLE rejection reason the
+    // placeholder suggests („Falsche Datensatz-ID — …“) — one LITERAL span, like
+    // `timeline.unsupported.objectBoundGantt` above rather than the interpolated
+    // ones, because the quoted thing is sample prose this pack authored.
+    expect(okSpans, 'correctly paired spans').toBe(59);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -298,8 +303,9 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // after objectui#7149 added the two quoted `ActivityTimeline` sentences
     // (three spans between them). `rdq` staying at 0 is the load-bearing half:
     // each new value added a MATCHED „…“ pair, not a stray closer that would
-    // have made `close === open` true for the wrong reason.
-    expect({ open, close, rdq }).toEqual({ open: 58, close: 58, rdq: 0 });
+    // have made `close === open` true for the wrong reason. 59 / 59 / 0 after
+    // objectui#7173 added `aiApprovals.rejectPlaceholder`, one more matched pair.
+    expect({ open, close, rdq }).toEqual({ open: 59, close: 59, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);

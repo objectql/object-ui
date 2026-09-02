@@ -352,6 +352,40 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * and that nobody could say which side moved it, is objectui#6631; this card
  * does not close it and deliberately leaves the other two entries alone.
  *
+ * ## Why `framework` moved again — objectui#7173, +4,671 bytes
+ *
+ * `AiPendingActionsInbox` (the AI HITL approval inbox) was the fifth untranslated
+ * copy of the relative-time helper in this repo AND had no translation wiring at
+ * all, so it was swept whole: every string it shows now resolves from the locale
+ * packs. Thirty-eight new keys, translated in all ten languages — an `aiApprovals`
+ * namespace in `packages/i18n`. That is what the bytes buy: the AI approvals inbox
+ * reads in the session's language instead of English, headings, tabs, status
+ * badges, empty state, drawer labels, reject dialog and all.
+ *
+ * The COMPONENT costs this budget nothing: `plugin-chatbot` is lazy and is not in
+ * the eager closure. Every byte is `packages/i18n` locale data, which lands in
+ * this chunk — the same mechanism as objectui#6759's twenty strings above.
+ *
+ * ATTRIBUTED, not assumed. Three console builds, the two extremes byte-identical
+ * in the two chunks that did not move:
+ *
+ *   | build                                              | `framework` gzip |
+ *   | merge parent `c93b4d5f3`                           |          510,192 |
+ *   | this branch with the ten `aiApprovals` blocks cut  |          510,192 |
+ *   | this branch                                        |          514,863 |
+ *
+ * The ablated build reproduces the merge parent's figure exactly, so the whole
+ * 4,671-byte delta is the pack blocks and nothing else — not the new
+ * `useAiApprovalsTranslation.ts` module, not the converted component.
+ * `vendor-objectstack` is 947,931 on both; `ui-components` moves one byte.
+ *
+ * Most of the overage was drift, again: the merge parent already stood at 510,192
+ * of the 512,000 the previous ceiling allowed — 1,808 bytes left, 0.02x the
+ * regression this gate must catch — so a 4.6 KB addition put it 2,863 bytes over.
+ * The new pair re-pins the gauge onto a fresh measurement and KEEPS the line's own
+ * headroom convention rather than widening it: 9,137 bytes (0.10x), against the
+ * 9,595 (0.11x) the retired pair carried. objectui#6631 still owns the drift.
+ *
  * ## Raising one
  *
  * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
@@ -367,7 +401,7 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  */
 export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   'vendor-objectstack': 967_000,
-  framework: 512_000,
+  framework: 524_000,
   'ui-components': 399_000,
 });
 
@@ -378,8 +412,10 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * three numbers taken on two is the drift objectui#6631 is open about:
  *
  *   - `vendor-objectstack`, `ui-components` — `2c8474c04` (objectui#5490).
- *   - `framework` — `a64e96ca8` (objectui#6759); see "Why `framework` moved"
- *     above. Safe to state rather than hope, for the reason {@link BASELINE}
+ *   - `framework` — the merged head of objectui#7173's branch; see "Why
+ *     `framework` moved again" above for the three-build attribution. It
+ *     supersedes `a64e96ca8` (objectui#6759), whose reading the paragraph above
+ *     that one still explains. Safe to state rather than hope, for the reason {@link BASELINE}
  *     gives about its own commit: the console build's turbo `inputs` cover
  *     `scripts/vite-*.ts`, not `scripts/check-*.mjs`, so the commit that
  *     records this figure cannot have changed the figure.
@@ -446,7 +482,7 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  */
 export const PER_CHUNK_BASELINE = Object.freeze({
   'vendor-objectstack': 948_461,
-  framework: 502_405,
+  framework: 514_863,
   'ui-components': 391_095,
 });
 
