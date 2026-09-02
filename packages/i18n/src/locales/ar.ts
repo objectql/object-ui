@@ -2853,6 +2853,80 @@ const ar = {
     sourceInherits: "مثل build/ask",
     sourcePinned: "مثبّت بواسطة {{source}}",
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "تجميع البيانات",
+      get_record: "جلب السجل",
+      query_data: "الاستعلام عن البيانات",
+      query_records: "الاستعلام عن السجلات",
+      search_knowledge: "البحث في قاعدة المعرفة",
+      visualize_data: "إنشاء رسم بياني",
+      add_field: "إضافة حقل",
+      apply_blueprint: "بناء التطبيق",
+      apply_edit: "تطبيق التغييرات",
+      create_metadata: "إنشاء بيانات وصفية",
+      create_object: "إنشاء كائن",
+      create_package: "إنشاء حزمة",
+      create_seed: "توليد بيانات تجريبية",
+      delete_field: "حذف حقل",
+      describe_metadata: "عرض البيانات الوصفية",
+      describe_object: "عرض بنية الكائن",
+      get_active_package: "جلب الحزمة النشطة",
+      get_metadata_schema: "جلب مخطط البيانات الوصفية",
+      get_package: "جلب الحزمة",
+      list_metadata: "سرد البيانات الوصفية",
+      list_objects: "سرد الكائنات",
+      list_packages: "سرد الحزم",
+      modify_field: "تعديل حقل",
+      propose_blueprint: "تصميم خطة التطبيق",
+      set_active_package: "تبديل الحزمة النشطة",
+      suggest_builder: "اقتراح طريقة البناء",
+      todo_write: "تدوين المهام",
+      update_metadata: "تحديث البيانات الوصفية",
+      validate_expression: "التحقق من التعبير",
+      verify_build: "التحقق من البناء",
+    },
+    toolState: {
+      agentActivity: "نشاط الوكيل",
+      pending: "قيد الانتظار",
+      running: "قيد التنفيذ",
+      awaitingApproval: "بانتظار الموافقة",
+      responded: "تمت الاستجابة",
+      completed: "مكتمل",
+      error: "خطأ",
+      denied: "مرفوض",
+      failed: "فشل",
+    },
+    plan: {
+      countObjects: "{{count}} كائنات",
+      countObjects_one: "{{count}} كائن",
+      countViews: "{{count}} طرق عرض",
+      countViews_one: "{{count}} طريقة عرض",
+      countDashboards: "{{count}} لوحات معلومات",
+      countDashboards_one: "{{count}} لوحة معلومات",
+      countSeedData: "بيانات تجريبية",
+    },
+  },
   chatbotError: {
     title: "فشل الرد",
     fallbackDetail: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",

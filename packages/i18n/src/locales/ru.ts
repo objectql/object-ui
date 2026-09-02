@@ -2859,6 +2859,80 @@ const ru = {
     sourceInherits: "как у build/ask",
     sourcePinned: "закреплено через {{source}}",
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "Сводка данных",
+      get_record: "Получить запись",
+      query_data: "Запросить данные",
+      query_records: "Запросить записи",
+      search_knowledge: "Поиск по базе знаний",
+      visualize_data: "Построить график",
+      add_field: "Добавить поле",
+      apply_blueprint: "Собрать приложение",
+      apply_edit: "Применить изменения",
+      create_metadata: "Создать метаданные",
+      create_object: "Создать объект",
+      create_package: "Создать пакет",
+      create_seed: "Сгенерировать примеры данных",
+      delete_field: "Удалить поле",
+      describe_metadata: "Посмотреть метаданные",
+      describe_object: "Посмотреть структуру объекта",
+      get_active_package: "Получить активный пакет",
+      get_metadata_schema: "Получить схему метаданных",
+      get_package: "Получить пакет",
+      list_metadata: "Список метаданных",
+      list_objects: "Список объектов",
+      list_packages: "Список пакетов",
+      modify_field: "Изменить поле",
+      propose_blueprint: "Спроектировать приложение",
+      set_active_package: "Сменить активный пакет",
+      suggest_builder: "Предложить способ сборки",
+      todo_write: "Записать задачи",
+      update_metadata: "Обновить метаданные",
+      validate_expression: "Проверить выражение",
+      verify_build: "Проверить сборку",
+    },
+    toolState: {
+      agentActivity: "Действия агента",
+      pending: "Ожидание",
+      running: "Выполняется",
+      awaitingApproval: "Ожидает подтверждения",
+      responded: "Отвечено",
+      completed: "Завершено",
+      error: "Ошибка",
+      denied: "Отклонено",
+      failed: "Ошибка выполнения",
+    },
+    plan: {
+      countObjects: "объектов: {{count}}",
+      countObjects_one: "{{count}} объект",
+      countViews: "представлений: {{count}}",
+      countViews_one: "{{count}} представление",
+      countDashboards: "дашбордов: {{count}}",
+      countDashboards_one: "{{count}} дашборд",
+      countSeedData: "демоданные",
+    },
+  },
   chatbotError: {
     title: "Ошибка ответа",
     fallbackDetail: "Что-то пошло не так. Попробуйте ещё раз.",

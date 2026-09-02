@@ -2845,6 +2845,80 @@ const ko = {
     sourceInherits: "build/ask와 동일",
     sourcePinned: "{{source}}에 의해 고정됨",
   },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "데이터 집계",
+      get_record: "레코드 가져오기",
+      query_data: "데이터 조회",
+      query_records: "레코드 조회",
+      search_knowledge: "지식 검색",
+      visualize_data: "차트 생성",
+      add_field: "필드 추가",
+      apply_blueprint: "앱 생성",
+      apply_edit: "변경 사항 적용",
+      create_metadata: "메타데이터 생성",
+      create_object: "오브젝트 생성",
+      create_package: "패키지 생성",
+      create_seed: "샘플 데이터 생성",
+      delete_field: "필드 삭제",
+      describe_metadata: "메타데이터 확인",
+      describe_object: "오브젝트 구조 확인",
+      get_active_package: "현재 패키지 가져오기",
+      get_metadata_schema: "메타데이터 구조 가져오기",
+      get_package: "패키지 가져오기",
+      list_metadata: "메타데이터 목록",
+      list_objects: "오브젝트 목록",
+      list_packages: "패키지 목록",
+      modify_field: "필드 수정",
+      propose_blueprint: "앱 설계안 작성",
+      set_active_package: "현재 패키지 전환",
+      suggest_builder: "구축 방법 제안",
+      todo_write: "할 일 기록",
+      update_metadata: "메타데이터 업데이트",
+      validate_expression: "표현식 검증",
+      verify_build: "빌드 검증",
+    },
+    toolState: {
+      agentActivity: "에이전트 활동",
+      pending: "대기 중",
+      running: "실행 중",
+      awaitingApproval: "승인 대기",
+      responded: "응답함",
+      completed: "완료",
+      error: "오류",
+      denied: "거부됨",
+      failed: "실패",
+    },
+    plan: {
+      countObjects: "오브젝트 {{count}}개",
+      countObjects_one: "오브젝트 {{count}}개",
+      countViews: "뷰 {{count}}개",
+      countViews_one: "뷰 {{count}}개",
+      countDashboards: "대시보드 {{count}}개",
+      countDashboards_one: "대시보드 {{count}}개",
+      countSeedData: "샘플 데이터",
+    },
+  },
   chatbotError: {
     title: "응답 실패",
     fallbackDetail: "문제가 발생했습니다. 다시 시도해 주세요.",
