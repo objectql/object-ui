@@ -1728,8 +1728,28 @@ function AdvancedChartImplInner({
           />
           <ZAxis type="number" range={[60, 400]} />
           <ChartTooltip content={<ChartTooltipContent />} />
+          {/* `nameKey` is REQUIRED here, for a reason unique to scatter
+              (objectui#7248). `ChartLegendContent` resolves a label as
+              `config[nameKey || item.dataKey || 'value']`, and a `<Scatter>`
+              carries NO `dataKey` — scatter's keys live on the two axes, not on
+              the mark. So the key collapsed to the literal `'value'`, missed a
+              config keyed by measure name, and the entry rendered its colour
+              swatch with NO TEXT beside it.
+
+              What that looks like on screen is the whole card: an 8x8 dot in
+              `--chart-1` — the SAME colour as the marks — sitting under the
+              x-axis, which reads as a seventh data point plotted outside the
+              plot area. Measured on the showcase Chart Gallery in real
+              Chromium: swatch at cy 341 against a plot area ending at cy 295,
+              on a y scale of 4.835 px per unit, i.e. y = -9.5 — which is
+              exactly the "x≈40, y≈-10" the card reported as a stray point.
+
+              The y DOMAIN was never the defect and is deliberately not touched:
+              the same run measured all six marks inside the plot area, and
+              mixed-sign and all-negative fixtures draw every mark inside too,
+              because recharts extends the domain to cover negatives. */}
           <ChartLegend
-            content={<ChartLegendContent />}
+            content={<ChartLegendContent nameKey={scatterYKey} />}
             {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
           />
           {series.map((s: any, index: number) => {
