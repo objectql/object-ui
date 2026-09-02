@@ -56,6 +56,78 @@ describe('defaultListColumnsFromObject', () => {
     expect(cols).toEqual(['invoice_no', 'owner_id']);
   });
 
+  // objectui#7245. `highlightFields` is ADR-0085's "most important fields", not
+  // a column list — the detail highlight strip, its first consumer, strips the
+  // title field out because the page H1 above it already shows one. A grid has
+  // no H1, so a curated list that (correctly) omits the name left every row
+  // unidentifiable. The synthesized default therefore always leads with the
+  // object's name field.
+  describe('#7245: the synthesized default always leads with the name field', () => {
+    // The served `showcase_account`: `nameField: "name"`, three curated
+    // highlight fields that do not include it, and no list views at all.
+    const showcaseAccount = {
+      nameField: 'name',
+      highlightFields: ['status', 'industry', 'annual_revenue'],
+      fields: {
+        name: { type: 'text', label: 'Account Name', required: true },
+        industry: { type: 'select', label: 'Industry' },
+        annual_revenue: { type: 'currency', label: 'Annual Revenue' },
+        status: { type: 'select', label: 'Lifecycle' },
+        organization_id: { type: 'lookup', system: true, hidden: true },
+      },
+    };
+
+    it('THE REPRO: prepends nameField to a curated list that omits it', () => {
+      expect(defaultListColumnsFromObject(showcaseAccount, 5)).toEqual([
+        'name',
+        'status',
+        'industry',
+        'annual_revenue',
+      ]);
+    });
+
+    it('does not duplicate a nameField the curated list already carries', () => {
+      const cols = defaultListColumnsFromObject(
+        { ...showcaseAccount, highlightFields: ['name', 'status'] },
+        5,
+      );
+      expect(cols).toEqual(['name', 'status']);
+    });
+
+    it('moves a late-listed nameField to the front', () => {
+      const cols = defaultListColumnsFromObject(
+        { ...showcaseAccount, highlightFields: ['status', 'name', 'industry'] },
+        5,
+      );
+      expect(cols).toEqual(['name', 'status', 'industry']);
+    });
+
+    it('still appends the org attribution column last', () => {
+      const cols = defaultListColumnsFromObject(showcaseAccount, 5, { orgAttribution: true });
+      expect(cols).toEqual(['name', 'status', 'industry', 'annual_revenue', 'organization_id']);
+    });
+
+    it('leads the derived walk too, and BEFORE the limit slice', () => {
+      // The walk is declaration-ordered, so a nameField declared after `limit`
+      // other fields used to fall off the end of the slice entirely.
+      const fields: Record<string, any> = {};
+      for (let i = 0; i < 8; i++) fields[`b_${i}`] = { type: 'text' };
+      fields.headline = { type: 'text' };
+      const cols = defaultListColumnsFromObject({ nameField: 'headline', fields }, 5);
+      expect(cols).toHaveLength(5);
+      expect(cols[0]).toBe('headline');
+      expect(cols).toEqual(['headline', 'b_0', 'b_1', 'b_2', 'b_3']);
+    });
+
+    it('does not lead with a nameField the object has no field def for', () => {
+      const cols = defaultListColumnsFromObject(
+        { nameField: 'ghost', highlightFields: ['status'], fields: showcaseAccount.fields },
+        5,
+      );
+      expect(cols).toEqual(['status']);
+    });
+  });
+
   it('caps the auto-derived business columns at the requested limit', () => {
     const fields: Record<string, any> = { owner_id: { type: 'lookup', system: true } };
     for (let i = 0; i < 10; i++) fields[`b_${i}`] = { type: 'text' };

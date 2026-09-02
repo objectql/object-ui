@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -2788,8 +2788,30 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     if (schemaFields) {
       fieldsToShow = schemaFields;
     } else if (highlightFields?.length) {
-      fieldsToShow = highlightFields.filter((n) => objectSchema.fields?.[n]);
+      // Lead with the object's name field (objectui#7245). `highlightFields` is
+      // ADR-0085's "most important fields" role, not a column list — the detail
+      // highlight strip, its first consumer, deliberately drops the title field
+      // because the page H1 above it already shows one. A grid has no H1, so a
+      // declared list like `["status", "industry", "annual_revenue"]` left rows
+      // with nothing to tell them apart. `leadWithNameField` is the shared
+      // helper the two app-shell synthesis faces use, so all three agree.
+      //
+      // Only the SYNTHESIZED branch. `schemaFields` above is author-declared and
+      // is never reordered — that would be the renderer second-guessing metadata
+      // (AGENTS.md Commandment #0.1).
+      fieldsToShow = leadWithNameField(
+        objectSchema,
+        highlightFields.filter((n) => objectSchema.fields?.[n]),
+      );
     } else {
+      // No name-field lead here, and that is measured, not an oversight: this
+      // branch takes EVERY visible field with no cap, so — unlike the two
+      // app-shell faces, which slice to 5 / 6 — the name field cannot fall off
+      // the end. It is already present; only its position could differ, and a
+      // row that carries its name column somewhere is still identifiable. The
+      // objectui#7245 defect is "no name column at all", which is unreachable
+      // from here.
+      //
       // Drop hidden + readonly system-managed fields, then push the remaining
       // system/audit/ownership columns (e.g. the injected, editable `owner_id`)
       // to the end as a fallback so business fields lead.
