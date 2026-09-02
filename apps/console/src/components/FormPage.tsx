@@ -103,7 +103,7 @@
  * sibling of `@object-ui/plugin-form`'s `omitServerResolvedDefaults`.
  */
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -1578,6 +1578,23 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
   const [loaded, setLoaded] = useState<LoadedForm | null>(null);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * The sonner id this form's submit OUTCOME is published under — one id for
+   * the confirmation and for the refusal, so the later of the two SUPERSEDES
+   * the earlier instead of stacking beside it (objectui#7252).
+   *
+   * The `error` banner above is already cleared at the top of every attempt;
+   * its toast was not, because it went out under sonner's auto-generated id and
+   * nothing here held a handle on it. A refused submit therefore left its toast
+   * on screen, and the success toast of the retry landed next to it — the form
+   * ending on a screen that asserted both outcomes at once.
+   *
+   * ⚠️ The redirect REFUSAL below deliberately does NOT share this id. That one
+   * is not a submit outcome: the write succeeded and only the declared
+   * destination is out of contract, so it has to be readable BESIDE the
+   * confirmation this id carries, exactly as objectui#4190 ruled.
+   */
+  const outcomeToastId = `form-outcome:${useId()}`;
   const [submitted, setSubmitted] = useState(false);
   /**
    * The outcome of a `redirect` submit behaviour: the in-app route to go to
@@ -1681,7 +1698,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
         mode === 'public'
           ? await submitPublic(identifier, payload)
           : await submitInternal(loaded.object, payload, editingId);
-      toast.success('Submitted');
+      toast.success('Submitted', { id: outcomeToastId });
       // Behaviour after submit
       switch (behavior.kind) {
         case 'created-record': {
@@ -1766,7 +1783,7 @@ export function FormPage({ mode, recordPath }: FormPageProps) {
     } catch (err: any) {
       const msg = err?.message ?? String(err);
       setError(msg);
-      toast.error(msg);
+      toast.error(msg, { id: outcomeToastId });
     } finally {
       setSubmitting(false);
     }
