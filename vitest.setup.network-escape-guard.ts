@@ -50,7 +50,10 @@
  * `KNOWN_ESCAPES` is the 21 files measured on `67dadd6`. They are not excused:
  * each still emits, and now prints an ATTRIBUTED line naming itself, so a
  * reader who meets a bare stack in a truncated run can tell whose it is. The
- * list may only SHRINK — a file removed from it can never come back green, and
+ * list may only SHRINK — enforced mechanically by the reconcile pin in
+ * `scripts/__tests__/network-escape-ledger.test.ts`, which is the only reason
+ * the word "only" here is a fact rather than a hope: a file removed from it can
+ * never come back green, and
  * a NEW escape in any other file is red on its first run. Fix one by serving
  * the probe from a double (see `DatasetReportRenderer.test.tsx` for the shape),
  * then delete its line here.
@@ -108,7 +111,7 @@ const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
  * Files measured escaping on 67dadd6 (objectui#6640). ONLY SHRINKS.
  * The comment on each line is the endpoint it reached.
  */
-const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
+export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   // /api/v1/security/explain
   "examples/schema-catalog/test/catalog-gallery-render.test.tsx",
   // /api/v1/meta/_drafts
