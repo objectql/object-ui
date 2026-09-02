@@ -1,87 +1,13 @@
 # Architecture & Implementation Patterns
 
-Deep reference for the ObjectUI monorepo: package topology, the JSON protocol, the runtime patterns that glue them, and the AI workflows for extending the engine.
+The JSON node shape every renderer reads, and the two runtime patterns built on it:
+the registry that maps a `type` string to a component, and the recursion that turns a
+schema tree into React. Read it before writing a custom renderer, or when choosing which
+integration package to install. Day-to-day schema authoring is
+[`page-builder.md`](./page-builder.md); packaging a renderer as a plugin is
+[`plugin-development.md`](./plugin-development.md).
 
-Load this guide when:
-
-- Picking which package a new component / hook / type belongs in.
-- Writing or extending the `ComponentRegistry`, `SchemaRenderer`, or any other core wiring.
-- Choosing an integration approach for a third-party consumer.
-- Onboarding to the layered package strategy.
-
-For day-to-day schema authoring, see `guides/page-builder.md`. For plugin packaging specifics, see `guides/plugin-development.md`.
-
-## Monorepo Topology
-
-ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weight**, never one-package-per-component.
-
-### Core layers
-
-| Package | Role | Responsibility | 🔴 Strict Constraints |
-|---|---|---|---|
-| `@object-ui/types` | The Protocol | Pure JSON Interfaces (ComponentSchema, ActionSchema). | ZERO dependencies. No React code. |
-| `@object-ui/core` | The Engine | Schema Registry, Validation, Expression Evaluation, Action Engine, Plugin System. | No UI library dependencies. Logic Only. |
-| `@object-ui/components` | The Atoms | Shadcn Primitives (Button, Badge, Card) & Icons. | Pure UI. No business logic. |
-| `@object-ui/fields` | The Inputs | Standard Field Renderers (Text, Number, Select). | Must implement FieldWidgetComponentProps. |
-| `@object-ui/layout` | The Shell | Page Structure (Header, Sidebar, AppShell). | Routing-aware composition. |
-| `@object-ui/react` | The Runtime | `<SchemaRenderer>`, hooks, spec bridge, `LazyPluginLoader`. | Bridges Core and Components. |
-
-### Integration layer (third-party / console embedders)
-
-| Package | Role | Responsibility |
-|---|---|---|
-| `@object-ui/app-shell` | Minimal Shell | Framework-agnostic `AppShell`, `ObjectView`, `DashboardView`, `PageView`. Bring-your-own-router. |
-| `@object-ui/providers` | Context Stack | Reusable `DataSourceProvider`, `MetadataProvider`, `ThemeProvider`. Console-free. |
-| `@object-ui/runner` | Universal Runtime | Standalone runtime + dev server for schema-driven apps. Pre-wires popular plugins. |
-| `@object-ui/data-*` | Data Adapters | Connectors for REST, ObjectQL, GraphQL (e.g. `@object-ui/data-objectstack`). |
-
-### Platform features (opt-in)
-
-| Package | Role |
-|---|---|
-| `@object-ui/auth` | `AuthProvider`, `useAuth`, `AuthGuard`, login/signup forms, `createAuthenticatedFetch`. |
-| `@object-ui/permissions` | RBAC engine, `PermissionProvider`, object/field/row-level permission guards. |
-| `@object-ui/i18n` | i18n: 10+ language packs, RTL, date/currency formatters. |
-| `@object-ui/mobile` | Mobile/PWA: responsive primitives, touch gestures, install prompts. |
-| `@object-ui/collaboration` | Realtime: presence, live cursors, comment threads, conflict resolution. |
-
-### Plugins (heavy / specialized widgets)
-
-| Plugin | Purpose |
-|---|---|
-| `@object-ui/plugin-grid` | Schema-driven data grid (sorting, filtering, virtualization). |
-| `@object-ui/plugin-list` / `plugin-detail` / `plugin-form` | List, Detail, Form view renderers. |
-| `@object-ui/plugin-kanban` | Drag-and-drop kanban boards. |
-| `@object-ui/plugin-calendar` / `plugin-timeline` / `plugin-gantt` | Time-based views. |
-| `@object-ui/plugin-dashboard` / `plugin-report` | Dashboards and reports. |
-| `@object-ui/plugin-charts` | Chart rendering (recharts-based). |
-| `@object-ui/plugin-map` | Map widgets. |
-| `@object-ui/plugin-editor` / `plugin-markdown` | Rich text + markdown editors. |
-| `@object-ui/plugin-view` | View switcher / saved views. |
-| `@object-ui/plugin-designer` | Visual schema designer canvas. |
-| `@object-ui/plugin-tree` | Hierarchy / tree views (`tree`, `object-tree`). |
-| `@object-ui/plugin-ai` / `plugin-chatbot` | AI assistant + chatbot UI. |
-
-### Tooling
-
-| Package | Purpose |
-|---|---|
-| `@object-ui/cli` | `objectui` CLI: `init`, `serve`, `dev`, `build`, `start`, `studio`, `validate`, `check`, `lint`, `test`, `generate`, `add`, `doctor`, `analyze`, `create plugin`. |
-| `@object-ui/create-plugin` | `pnpm create-plugin <name>` scaffolder for new `plugin-*` packages. |
-| `@object-ui/vscode-extension` | VSCode extension: syntax highlighting, IntelliSense, validation for ObjectUI JSON schemas. |
-
-## Architectural Strategy
-
-**❌ Do NOT create a package for every component.**
-
-**✅ Group by Dependency Weight:**
-
-1. **Atoms (`@object-ui/components`):** Shadcn Primitives. Zero heavy 3rd-party deps.
-2. **Fields (`@object-ui/fields`):** Standard Inputs.
-3. **Layouts (`@object-ui/layout`):** Page Skeletons.
-4. **Plugins (`@object-ui/plugin-*`):** Heavy Widgets (>50KB) or specialized libraries (Maps, Editors, Charts).
-
-**✅ Choose the right integration package:**
+## Choosing an integration package
 
 - **Embedding ObjectUI into a third-party React app with your own router/shell?** → use `@object-ui/app-shell` + `@object-ui/providers`.
 - **Running a schema as a standalone app?** → use `@object-ui/runner` or the `objectui` CLI.
@@ -166,23 +92,3 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
   );
 };
 ```
-
-## AI Workflow Instructions
-
-### On "Create New Component" (e.g. `DataTable`)
-
-1. **Type Definition:** Update `@object-ui/types`. Define `DataTableSchema` (columns, sorting, pagination).
-2. **Shadcn Mapping:** Look at `shadcn/ui/table`. Create `DataTableRenderer` in `@object-ui/components`.
-3. **Data Scope:** Use `useDataScope()` to get the array data. Do not fetch data inside the component.
-4. **Registration:** Register `"type": "table"` in the core registry.
-
-### On "Action Logic" (e.g. `OpenModal`)
-
-1. **Define Schema:** Add `OpenModalAction` interface to `@object-ui/types`.
-2. **Implement Handler:** Add the logic to the ActionEngine in `@object-ui/core`.
-3. **Visuals:** Ensure the triggering component calls `useActionRunner()`.
-
-### On "Documentation"
-
-1. **JSON First:** Always show the JSON configuration before any React code.
-2. **Visuals:** Describe how Tailwind classes (`className`) affect the rendered component.

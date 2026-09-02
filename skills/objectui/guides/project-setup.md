@@ -249,95 +249,6 @@ export default defineConfig({
 });
 ```
 
-## Monorepo structure
-
-The ObjectUI monorepo uses pnpm workspaces + Turborepo:
-
-```yaml
-# pnpm-workspace.yaml
-packages:
-  - 'packages/*'
-  - 'apps/*'
-  - 'examples/*'
-```
-
-### Build order (Turbo pipeline)
-
-Turbo respects `^build` dependencies: packages build before apps that depend on them.
-
-```
-@object-ui/types        → (no deps)
-@object-ui/core         → types
-@object-ui/components   → (no deps from core)
-@object-ui/fields       → components, types
-@object-ui/layout       → components
-@object-ui/react        → core, types
-@object-ui/plugin-*     → components, core, react, types
-apps/console            → all packages
-```
-
-### Common monorepo commands
-
-```bash
-# Root commands
-pnpm dev                    # Start all dev servers
-pnpm build                  # Build all packages (excl. site)
-pnpm build:all              # Build everything including site
-pnpm test                   # Run all tests
-pnpm lint                   # Lint all packages
-pnpm type-check             # TypeScript check all
-
-# Scoped commands
-pnpm --filter @object-ui/core build       # Build single package
-pnpm --filter "apps/*" dev                # Dev all apps
-
-# Scoped tests — always from the repo root, paths relative to it, no `--`
-pnpm exec vitest run packages/core/                  # Test single package
-pnpm exec vitest run packages/core/src/<file>.test.ts   # Test single file
-
-# Setup from clean clone
-./scripts/setup.sh                        # Full automated setup
-# Or manually:
-pnpm install
-pnpm build
-pnpm test
-```
-
-Note that tests are scoped by a **path filter from the repo root**, not by
-`pnpm --filter <pkg> test`. The `--filter` form (and `turbo run test`, and
-`cd packages/x && pnpm exec vitest`) makes vitest treat the package directory as its
-root: the root-level `unit`/`dom`/`dom-heavy` projects declare their `include` globs
-relative to that root and match nothing, while the `apps/console` project — brought in
-by absolute path — still resolves. The run then executes console's 22 files, reports
-`Test Files 22 passed (22)`, and never touches the package you asked for. A guard rejects
-those invocations with a non-zero exit and prints the correct form. It is wired into
-`vitest.config.mts` and into each standalone per-package config
-(`packages/plugin-grid/vitest.config.ts` and its sixteen siblings), since Vitest loads
-whichever config sits in the directory it was launched from (objectui#5406):
-
-```
-vitest 调用被拒绝:从包目录跑 vitest 会静默跑错测试集 (objectui#3378)
-...
-正确跑法 —— 一律在【仓库根目录】执行,路径前【不要】加 `--`:
-  pnpm exec vitest run packages/<pkg>/src/<file>.test.ts   # 只跑一个文件
-  pnpm exec vitest run packages/<pkg>/   # 只跑一个包
-  pnpm test   # 全量(CI 跑的就是它)
-```
-
-The same guard rejects a path placed behind `--` (`pnpm --filter <pkg> test --
---run <path>`), which pnpm forwards verbatim and vitest's CLI parser discards.
-
-### Adding a workspace package as dependency
-
-```bash
-# In any package.json
-{
-  "@object-ui/core": "workspace:*"
-}
-```
-
-Then `pnpm install` to link.
-
 ## Runtime & integration packages
 
 ObjectUI ships three integration layers for third-party apps. Pick the smallest one that fits.
@@ -428,19 +339,8 @@ Typical usage is via the `objectui dev` CLI (which wraps the same renderer).
 ### Vite production build
 
 ```bash
-pnpm build            # Builds all packages
-cd apps/console
 pnpm build            # Produces dist/
 pnpm preview          # Serve dist/ locally
-```
-
-### Vercel deployment
-
-`apps/console/vercel.json`:
-```json
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
 ```
 
 ### Environment variables
