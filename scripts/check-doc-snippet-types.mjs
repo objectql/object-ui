@@ -325,7 +325,13 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * with a measured reason is what a page that cannot pass yet is owed — and that
  * card then walked every one of them back OFF this list rather than re-wording its
  * reason. The direction on that card was entries LEAVING, and it finished: what
- * remains here is 12 `.mdx` pages and 32 package READMEs.
+ * remains here is `.mdx` pages under `content/docs` plus package READMEs, and the
+ * ENTRIES BELOW are that list — re-derived every run and shrink-only, so the names
+ * in it are the count. This sentence carried the literal `12 .mdx pages and 32
+ * package READMEs` until objectui#5174's batch 7, by which point BOTH halves had
+ * drifted: the README count has been 31 since objectui#5259, and the `.mdx` count
+ * moves with every batch. Nothing fails on a stale number written here, which is
+ * why it is a pointer to the list now rather than a copy of its length.
  *
  * Batch 1 took ten: `api/schema-reference`, `plugins/index`, and the `guide/` pages
  * `architecture-overview`, `deployment`, `expressions`, `notifications`,
@@ -451,14 +457,8 @@ const UNGATED_DOCS = {
     'edit — the one entry here that would be closed by declaring blocks rather than by fixing them.',
   'content/docs/plugins/plugin-detail.mdx':
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/plugins/plugin-kanban.mdx':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 8 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/plugins/plugin-timeline.mdx':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'content/docs/utilities/create-plugin.mdx':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'content/docs/utilities/runner.mdx':
-    '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
   'packages/app-shell/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/auth/README.md':

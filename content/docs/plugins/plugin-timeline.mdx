@@ -36,9 +36,10 @@ npm install @object-ui/plugin-timeline
 ```tsx
 // Import once in your app entry point
 import '@object-ui/plugin-timeline'
+import type { TimelineSchema } from '@object-ui/types'
 
 // Use in schemas - Vertical Timeline
-const schema = {
+const schema: TimelineSchema = {
   type: 'timeline',
   variant: 'vertical',
   items: [
@@ -165,7 +166,9 @@ const item = {
 ### Product Roadmap
 
 ```tsx
-const roadmap = {
+import type { TimelineSchema } from '@object-ui/types'
+
+const roadmap: TimelineSchema = {
   type: 'timeline',
   variant: 'horizontal',
   dateFormat: 'long',
@@ -198,7 +201,9 @@ const roadmap = {
 ### Project Schedule (Gantt)
 
 ```tsx
-const schedule = {
+import type { TimelineSchema } from '@object-ui/types'
+
+const schedule: TimelineSchema = {
   type: 'timeline',
   variant: 'gantt',
   scale: 'week',
@@ -239,7 +244,9 @@ const schedule = {
 ### Company History
 
 ```tsx
-const history = {
+import type { TimelineSchema } from '@object-ui/types'
+
+const history: TimelineSchema = {
   type: 'timeline',
   variant: 'vertical',
   dateFormat: 'long',
@@ -281,14 +288,11 @@ const history = {
 The timeline component supports three date formats:
 
 ```tsx
-// Short format: "1/15/2024"
-{ dateFormat: 'short' }
+import type { TimelineSchema } from '@object-ui/types'
 
-// Long format: "January 15, 2024"
-{ dateFormat: 'long' }
-
-// ISO format: "2024-01-15"
-{ dateFormat: 'iso' }
+const short: TimelineSchema['dateFormat'] = 'short'  // "1/15/2024"
+const long: TimelineSchema['dateFormat'] = 'long'    // "January 15, 2024"
+const iso: TimelineSchema['dateFormat'] = 'iso'      // "2024-01-15"
 ```
 
 ## Time Scales (Gantt)
@@ -296,14 +300,11 @@ The timeline component supports three date formats:
 For Gantt-style timelines, choose the appropriate time scale:
 
 ```tsx
-// Day scale - for short projects
-{ scale: 'day' }
+import type { TimelineSchema } from '@object-ui/types'
 
-// Week scale - for medium projects
-{ scale: 'week' }
-
-// Month scale - for long projects
-{ scale: 'month' }
+const shortProject: TimelineSchema['scale'] = 'day'    // short projects
+const mediumProject: TimelineSchema['scale'] = 'week'  // medium projects
+const longProject: TimelineSchema['scale'] = 'month'   // long projects
 ```
 
 ## Customization
@@ -324,11 +325,15 @@ const item = {
 Use Tailwind CSS classes for additional styling:
 
 ```tsx
-const schema = {
+import type { TimelineSchema } from '@object-ui/types'
+
+const schema: TimelineSchema = {
   type: 'timeline',
   variant: 'vertical',
   className: 'max-w-4xl mx-auto',
-  items: [...]
+  items: [
+    { time: '2024-01-15', title: 'Milestone', variant: 'success' }
+  ]
 }
 ```
 
