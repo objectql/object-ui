@@ -131,7 +131,7 @@
     "react-router-dom": "^7.18.2",
     "sonner": "^2.0.8",
     "typescript": "^6.0.3",
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   },
   "keywords": [
     "objectui",
