@@ -49,6 +49,7 @@ import { useFavorites } from '../hooks/useFavorites.js';
 import { useNavPins } from '../hooks/useNavPins.js';
 import { useNavActionDispatch } from '../hooks/useNavActionDispatch.js';
 import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils/index.js';
+import { useHomePath } from '../hooks/useHomePath.js';
 // Aliased for symmetry with objectui's own `resolveKeyedI18nLabel` above (the
 // names stopped colliding in objectui#4167): this is the spec's resolver (new in
 // @objectstack/spec 17.0.0-rc.6) for the INLINE per-locale map form of
@@ -196,6 +197,9 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
 
   const { apps: metadataApps, objects: metadataObjects } = useMetadata();
   const apps = metadataApps || [];
+  // objectui#7256 — every "Home" row below follows the product's DECLARED
+  // landing, so the sidebar cannot offer a second home the top bar disowns.
+  const homePath = useHomePath();
   // Filter switcher to non-hidden apps; active-app lookup spans all so
   // direct navigation to /apps/account still renders.
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
@@ -316,7 +320,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   // Non-admins get just Home — system administration is owner/admin-gated.
   const homeNavigation: NavigationItem[] = React.useMemo(() => {
     const items: NavigationItem[] = [
-      { id: 'home-dashboard', label: t('home.nav', { defaultValue: 'Home' }), type: 'url' as const, url: '/home', icon: 'home' },
+      { id: 'home-dashboard', label: t('home.nav', { defaultValue: 'Home' }), type: 'url' as const, url: homePath, icon: 'home' },
       // Package documentation portal (ADR-0046) — visible to all users, not
       // just workspace admins, so it lives in the base items rather than the
       // admin cluster below.
@@ -378,7 +382,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
       });
     }
     return items;
-  }, [t, isWorkspaceAdmin]);
+  }, [t, isWorkspaceAdmin, homePath]);
 
   // Determine which navigation to show based on context
   const navigationItems = context === 'home' ? homeNavigation : appNavigation;
@@ -453,7 +457,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild className="min-h-[44px] text-[15px] font-medium rounded-xl">
-                <Link to="/home" onClick={() => setOpenMobile(false)} data-testid="mobile-sidebar-home">
+                <Link to={homePath} onClick={() => setOpenMobile(false)} data-testid="mobile-sidebar-home">
                   <Home className="h-5 w-5" />
                   <span>{t('home.nav', { defaultValue: 'Home' })}</span>
                 </Link>

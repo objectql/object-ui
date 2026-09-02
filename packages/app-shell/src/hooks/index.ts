@@ -33,6 +33,7 @@ export {
   type UrlOverlayControls,
 } from './useUrlOverlay.js';
 export { useTenancyPosture } from './useTenancyPosture.js';
+export { useHomePath } from './useHomePath.js';
 export { useTrackRouteAsRecent, type UseTrackRouteAsRecentOptions } from './useTrackRouteAsRecent.js';
 export {
   sanitizeChatMessagesForCache,
