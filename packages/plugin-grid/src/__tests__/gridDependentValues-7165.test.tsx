@@ -29,21 +29,22 @@
  * re-implements no cascade, and `test 2` below is what proves that distinction
  * rather than asserting it.
  *
- * ## ⚠️ INTERIM — this ships option A, and option A is not the conclusion
+ * ## objectui#7188 — the STAGED record crosses the seam too (option B)
  *
- * `renderCellEditor` now passes `dependentValues={ctx.row}`, and `ctx.row` is
- * the SAVED record. A parent edited but not yet saved in the same row does not
- * re-scope the child. That is strictly better than a field that can never be
- * filled and strictly not finished — the form's answer to objectui#2215 was the
- * LIVE record. Carrying the staged record needs a seventh member on
- * `renderCellEditor`'s context, which `@object-ui/types` declares (objectui#6882,
- * maintainer ruling 2026-08-30) and pins by EXACT type equality — a
- * published-surface contract change, filed as objectui#7188.
+ * objectui#7165 shipped option A as a labelled interim: `dependentValues={ctx.row}`,
+ * the SAVED record, so a parent edited but not yet saved in the same row did
+ * not re-scope the child — strictly better than never fillable, strictly not
+ * the form's answer to objectui#2215 (the LIVE record). objectui#7188 finished
+ * it: `renderCellEditor`'s context (declared by objectui#6882, pinned by exact
+ * type equality in `@object-ui/types`) gained a seventh member, `pendingRow` —
+ * the persisted row shallow-merged with the row's `pendingChanges` entry — and
+ * the grid scopes by `ctx.pendingRow ?? ctx.row`.
  *
- * ⭐ `test 4` pins that staleness AS CURRENT BEHAVIOUR, with its own proof that
- * the staging actually happened (otherwise "still scoped by north" is true for
- * the trivial reason that nothing was ever staged). objectui#7188 flips it, and
- * it is the assertion that fails if someone later "simplifies" B back to A.
+ * ⭐ `test 4` is the assertion only B can pass and tests 1–3 cannot see: their
+ * rows carry no staged edits, so `pendingRow` and `row` coincide there. It
+ * carries its own proof that the staging happened AND that nothing was saved
+ * (otherwise "scoped by south" could be true because the parent was persisted),
+ * and it is the test that goes RED if anyone later "simplifies" B back to A.
  *
  * ## Why every test carries a live control
  *
@@ -245,12 +246,16 @@ describe('objectui#7165 — the grid feeds the inline editor its row as dependen
     expect(openTrigger.disabled).toBe(false);
   });
 
-  it('4 — ⚠️ INTERIM (objectui#7188): a STAGED parent does NOT re-scope the child', async () => {
-    // ⛔ This pins what option A gets WRONG, as current behaviour. `ctx.row` is
-    // the SAVED record, so staging `region: 'south'` in this same row leaves the
-    // child scoped by the persisted `'north'`. objectui#7188 carries the staged
-    // record across the `renderCellEditor` seam and flips this test; until then
-    // the staleness is written down rather than left to be discovered.
+  it('4 — ⭐ objectui#7188: a STAGED parent re-scopes the child before anything is saved', async () => {
+    // Under option A (objectui#7165) this test pinned the OPPOSITE as current
+    // behaviour: `dependentValues={ctx.row}` is the SAVED record, so staging
+    // `region: 'south'` in this same row left the child scoped by the persisted
+    // 'north'. objectui#7188 carries the staged record across the seam —
+    // `data-table` passes `pendingRow` (the row merged with its `pendingChanges`
+    // entry) and the grid scopes by `ctx.pendingRow ?? ctx.row` — so this is
+    // the assertion that goes RED if anyone "simplifies" B back to A. Tests 1–3
+    // cannot see that regression: their rows carry no staged edits, so
+    // `pendingRow` and `row` coincide there.
     const rows = [ROW_NORTH];
     const ds = makeDataSource(rows);
     const { container } = renderGrid(ds, rows);
@@ -271,20 +276,25 @@ describe('objectui#7165 — the grid feeds the inline editor its row as dependen
     // Open the child. Clicking another cell moves the edit; the staged value
     // stays in `pendingChanges`.
     fireEvent.click(await openEditor(cellAt(container, 0, 3)));
-    await waitFor(() => expect(screen.getByText('Person 01')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Person 07')).toBeInTheDocument());
 
-    // ⭐ PROOF THE STAGING LANDED — without it this test passes for the trivial
-    // reason that nothing was ever staged. The region cell renders its PENDING
-    // value ('south') while the saved record still says 'north'.
+    // ⭐ PROOF THE STAGING LANDED AND NOTHING WAS SAVED. Without the first half
+    // this test could pass for a trivial reason (nothing staged, the saved
+    // parent honoured as in test 2); without the second, a save would make the
+    // staged and persisted parents coincide and the test could not tell A from
+    // B. The region cell renders its PENDING value ('south') while the saved
+    // record still says 'north' and the data source saw no write.
     await waitFor(() => {
       expect(cellAt(container, 0, 1).textContent).toMatch(/south/);
     });
     expect(rows[0].region).toBe('north');
+    expect(ds.update).not.toHaveBeenCalled();
 
-    // The interim's staleness: scoped by the SAVED 'north', not the staged
-    // 'south'. Person 01 is north (offered); Person 07 is south (not offered).
-    expect(screen.queryByText('Person 07')).not.toBeInTheDocument();
-    expect(ds.refQueries.some((q: any) => q?.$filter?.region === 'north')).toBe(true);
-    expect(ds.refQueries.some((q: any) => q?.$filter?.region === 'south')).toBe(false);
+    // Scoped by the STAGED 'south', not the saved 'north': Person 07 is south
+    // (offered); Person 01 is north (not offered). The query carried the staged
+    // value as its hard `$filter`, and the persisted value never reached it.
+    expect(screen.queryByText('Person 01')).not.toBeInTheDocument();
+    expect(ds.refQueries.some((q: any) => q?.$filter?.region === 'south')).toBe(true);
+    expect(ds.refQueries.some((q: any) => q?.$filter?.region === 'north')).toBe(false);
   });
 });

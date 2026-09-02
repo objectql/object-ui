@@ -104,10 +104,19 @@ type _CellClassNameIsDeclared = Expect<IsDeclaredOn<'cellClassName'>>;
  * transcribed from its call site. Declaring the key with any other shape is a
  * different (and false) statement about the renderer, so the shape is pinned,
  * not just the membership.
+ *
+ * objectui#7188 added a SEVENTH member, `pendingRow` — the persisted `row`
+ * shallow-merged with the row's staged, unsaved edits — so a `dependsOn`
+ * widget can scope itself by a parent edited in the same row before it is
+ * saved. `row` keeps meaning the persisted record. This pin went red on that
+ * change by design (it is an `Equal`, not an `extends`) and was EXTENDED in the
+ * same change, not weakened; `_SixMemberShapeIsRefused` below is the proof that
+ * the instrument can tell the seventh member's presence from its absence.
  */
 type CellEditorContext = {
   column: any;
   row: any;
+  pendingRow: any;
   value: any;
   stage: (v: any) => void;
   commit: (v?: any) => void;
@@ -120,6 +129,19 @@ type _RenderCellEditorShape = Expect<
     ((ctx: CellEditorContext) => React.ReactNode) | undefined
   >
 >;
+
+/** The six-member context objectui#6882 pinned — a CONTROL now, not the shape. */
+type CellEditorContextBefore7188 = {
+  column: any;
+  row: any;
+  value: any;
+  stage: (v: any) => void;
+  commit: (v?: any) => void;
+  cancel: () => void;
+};
+
+// @ts-expect-error objectui#7188 — the pre-#7188 six-member context must NOT read as equal to the declared shape. If it did, `Equal` could not see the seventh member and the pin above would be vacuous for exactly the change it was extended for. (One line: the directive covers only the next line, and `tsc` reports the constraint failure on the `Expect<…>` argument.)
+type _SixMemberShapeIsRefused = Expect<Equal<Declared<DataTableSchema>['renderCellEditor'], ((ctx: CellEditorContextBefore7188) => React.ReactNode) | undefined>>;
 
 /** Matches `TableColumn.cellClassName` and `BaseSchema.className` — both `string`. */
 type _CellClassNameShape = Expect<Equal<Declared<DataTableSchema>['cellClassName'], string | undefined>>;
@@ -137,7 +159,9 @@ describe('objectui#6882 — DataTableSchema declares the two keys data-table rea
       columns: [{ header: 'Name', accessorKey: 'name' }],
       data: [],
       cellClassName: 'px-3 py-1',
-      renderCellEditor: ({ value }) => (value == null ? null : null),
+      // `pendingRow` is addressable next to `row` (objectui#7188) — destructured
+      // here so an author reaching for it compiles against the declaration.
+      renderCellEditor: ({ value, row, pendingRow }) => (value == null && row === pendingRow ? null : null),
     };
 
     expect(authored.cellClassName).toBe('px-3 py-1');

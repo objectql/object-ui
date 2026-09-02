@@ -49,7 +49,8 @@ interface DataTableSchema {
   singleClickEdit?: boolean;             // Enter edit mode on single click (default: false)
   renderCellEditor?: (ctx: {             // Host-supplied editor widget; null -> built-in input
     column: any;
-    row: any;
+    row: any;                            // the persisted record
+    pendingRow: any;                     // row + this row's staged, unsaved edits (#7188)
     value: any;
     stage: (v: any) => void;
     commit: (v?: any) => void;
@@ -123,6 +124,13 @@ The returned node is wrapped by the table so it inherits the exit-edit
 affordances the built-in editors have: Enter commits from a single-line input,
 Escape cancels, and a click outside commits. Use `stage` to record a value while
 staying in edit mode, `commit` to save, and `cancel` to discard.
+
+The context carries the row twice, on purpose: `row` is the persisted record, and
+`pendingRow` is that record with the row's staged, unsaved edits merged over it
+(the same object as `row` when nothing is staged). A widget that scopes itself by
+a sibling field — a `dependsOn` lookup — should read `pendingRow`, so a parent
+edited in the same row re-scopes the child before anything is saved; `row` stays
+the place to read what the data source last returned.
 
 ## Examples
 
