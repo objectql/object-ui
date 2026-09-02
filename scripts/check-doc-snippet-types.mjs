@@ -460,14 +460,10 @@ const UNGATED_DOCS = {
     '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
     'it means declaring those blocks, which is a judgement about the page rather than a mechanical ' +
     'edit — the one entry here that would be closed by declaring blocks rather than by fixing them.',
-  'content/docs/plugins/plugin-calendar.mdx':
-    '25 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 6 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 2 unresolved-module diagnostic(s); plus TS2322x1 — candidate real defects, un-triaged',
   'content/docs/plugins/plugin-chatbot.mdx':
     '21 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'content/docs/plugins/plugin-detail.mdx':
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/plugins/plugin-gantt.mdx':
-    '31 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-kanban.mdx':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 8 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'content/docs/plugins/plugin-map.mdx':
@@ -476,8 +472,6 @@ const UNGATED_DOCS = {
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'content/docs/utilities/create-plugin.mdx':
     '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'content/docs/utilities/data-objectstack.mdx':
-    '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2391x1 — candidate real defects, un-triaged',
   'content/docs/utilities/runner.mdx':
     '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
   'packages/app-shell/README.md':
