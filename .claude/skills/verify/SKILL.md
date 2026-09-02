@@ -24,13 +24,15 @@ their hardcoded defaults — that IS the offline path, not an error.
 ## Driving it headlessly
 
 The chrome-devtools MCP may lack a Chrome binary in remote sessions. Use the
-repo's own Playwright instead — the pre-installed executable is at
-`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (probe with
-`find /opt/pw-browsers -name chrome` if the version moved):
+repo's own Playwright instead — the pre-installed executable is the stable
+alias `/opt/pw-browsers/chromium`. ⛔ Never copy the versioned
+`chromium-NNNN/chrome-linux/chrome` spelling out of a probe: the alias is what
+survives an image bump, and a dead versioned path reads as "no browser here"
+when the browser is in fact present.
 
 ```js
 import { chromium } from '@playwright/test';
-const browser = await chromium.launch({ executablePath: '<probed path>' });
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 ```
 
 Gotcha: a driver script must live **inside** the repo (e.g.
