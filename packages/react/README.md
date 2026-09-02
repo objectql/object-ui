@@ -188,10 +188,11 @@ again importing `elementDataSourceBlock` from `@object-ui/core`.
 
 ### useSettledSchema
 
-The settled-schema RESOLUTION half shared by `ObjectKanban` / `ObjectView` /
-`ObjectCalendar`'s fetch-gate hand copies (objectui#6482). Tracks whether an
-object's definition has finished resolving FOR THE KEY THE CURRENT RENDER IS
-ASKING ABOUT — `ready` and `def` are two views of one piece of state, so a
+The settled-schema RESOLUTION half, shared by every view that gates a record
+query on its object definition — `ObjectKanban`, `ObjectView`,
+`ObjectCalendar`, `ObjectTree` and `ObjectGantt` (objectui#6482, converged in
+objectui#7225). Tracks whether an object's definition has finished resolving
+FOR THE KEY THE CURRENT RENDER IS ASKING ABOUT — `ready` and `def` are two views of one piece of state, so a
 stale key can never read as ready. GATE PLACEMENT — which effect actually
 waits on `ready` — stays a per-component decision; this hook only owns the
 resolution.
@@ -213,6 +214,40 @@ function ObjectSomething({ schema, dataSource }) {
 Pass `dataSource: undefined` for a render that should settle immediately with
 no definition (e.g. a provider that issues no metadata read at all) instead of
 adding a separate enable flag.
+
+### NON_GRID_ROW_CEILING
+
+The platform's hard row ceiling for a NON-GRID visualisation — gantt, calendar,
+map and tree (objectui#7210). Those four fetch the whole FILTERED result set,
+because a truthful range or layout needs all of it, but the fetch is bounded:
+past the ceiling they draw the first N rows and say so.
+
+```tsx
+import {
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
+} from '@object-ui/react'
+
+const result = await dataSource.find(objectName, {
+  $filter: schema.filter,
+  $top: NON_GRID_ROW_CEILING_TOP, // the ceiling plus ONE probe row
+})
+const { rows, total, truncated } = applyNonGridRowCeiling(result)
+// …draw `rows`, then:
+<NonGridRowCeilingNote drawn={NON_GRID_ROW_CEILING} total={total} truncated={truncated} />
+```
+
+`NON_GRID_ROW_CEILING_TOP` is the ceiling plus one deliberately: the probe row
+is what makes truncation a fact about the rows in hand, since `QueryResult.total`
+is optional and a bare-array response carries none. The note renders `null` when
+nothing was truncated, so it can be mounted unconditionally.
+
+⛔ The ceiling is not authorable and must not become so. Silent truncation is
+the failure it exists to prevent — a cut-off schedule still looks like a
+schedule — so a view that caps rows without rendering the note is a defect, not
+an optimisation.
 
 ### ComponentRegistry
 
