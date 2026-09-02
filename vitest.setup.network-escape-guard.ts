@@ -56,10 +56,50 @@
  * then delete its line here.
  */
 import { afterEach, expect } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
 
-const REPO_ROOT = path.resolve(import.meta.dirname);
+// No `node:*` imports, no `process` typings and no `import.meta.dirname` here,
+// deliberately: `tsconfig.vitest-setup.json` — the gate that compiles this file
+// — ships NO `@types/node` on purpose (it documents the measurement: adding it
+// costs 12 errors inside third-party declarations). Every Node touch below goes
+// through a locally-declared structural type instead, so the gate stays green
+// without weakening it for the other root setup files.
+
+/**
+ * This file sits at the repo root, so its own directory IS the repo root.
+ *
+ * Derived by STRING SURGERY on `import.meta.url`, not with `new URL('.',
+ * import.meta.url)`: Vite statically rewrites that exact pattern at transform
+ * time, and the value that survives into the run is `/@fs/...`, not a real path.
+ * Measured — it silently turned every path relative-isation into a miss, which
+ * failed all 21 known escapes at once.
+ */
+const REPO_ROOT = (() => {
+  const withoutScheme = import.meta.url.replace(/^file:\/\//, '');
+  const dir = withoutScheme.replace(/\/[^/]*$/, '/');
+  try {
+    return decodeURIComponent(dir);
+  } catch {
+    return dir;
+  }
+})();
+
+/** The sliver of `process` this file uses, declared rather than imported. */
+type StderrHost = { process?: { stderr?: { write(chunk: string): void } } };
+
+/**
+ * The attribution line goes to process stderr, NOT through `console`: under
+ * happy-dom `globalThis.console` is the window's virtual console and never
+ * reaches the terminal (measured — the line vanished entirely). Node writes the
+ * real ECONNREFUSED stack to process stderr, so this is also the only way to put
+ * the attribution in the SAME stream, beside the stack it explains.
+ */
+function writeStderr(message: string): void {
+  try {
+    (globalThis as StderrHost).process?.stderr?.write(message);
+  } catch {
+    /* the instrument must never break a run */
+  }
+}
 
 /** The origin happy-dom hands every relative URL when no test owns port 3000. */
 const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
@@ -117,11 +157,10 @@ type Escape = { file: string; test: string; url: string };
 /** Escapes seen since the current test started. */
 let pending: Escape[] = [];
 
-const LEDGER = process.env.OBJECTUI_NETWORK_ESCAPE_LEDGER;
-
 function relative(p: string | undefined): string {
   if (!p) return '<unknown-test-file>';
-  return path.relative(REPO_ROOT, p).split(path.sep).join('/');
+  const normalised = p.replace(/\\/g, '/');
+  return normalised.startsWith(REPO_ROOT) ? normalised.slice(REPO_ROOT.length) : normalised;
 }
 
 const realFetch = globalThis.fetch;
@@ -154,33 +193,16 @@ globalThis.fetch = function guardedFetch(input: any, init?: any) {
     };
     pending.push(escape);
 
-    if (LEDGER) {
-      try {
-        fs.appendFileSync(LEDGER, JSON.stringify(escape) + '\n');
-      } catch {
-        /* the instrument must never break a run */
-      }
-    }
-
     // Known escapes get an ATTRIBUTED line next to the anonymous stack the real
     // request is about to print. This is the half that cures the reported harm:
     // a bare ECONNREFUSED in a truncated log no longer reads as an unowned red.
-    // Written straight to process stderr, NOT via `console` — under happy-dom
-    // `globalThis.console` is the window's virtual console and never reaches the
-    // terminal (measured: the line vanished entirely). The real ECONNREFUSED
-    // stack is written to process stderr by Node, so this is also the only way
-    // to put the attribution in the SAME stream, next to the stack it explains.
     if (KNOWN_ESCAPES.has(escape.file)) {
-      try {
-        process.stderr.write(
-          `[network-escape - known - objectui#6640] ${escape.file} -> ${escape.url}\n` +
-            `  The ECONNREFUSED stack near this line belongs to that file. Serve the\n` +
-            `  probe from a double, then delete its line from KNOWN_ESCAPES in\n` +
-            `  vitest.setup.network-escape-guard.ts.\n`,
-        );
-      } catch {
-        /* the instrument must never break a run */
-      }
+      writeStderr(
+        `[network-escape - known - objectui#6640] ${escape.file} -> ${escape.url}\n` +
+          `  The ECONNREFUSED stack near this line belongs to that file. Serve the\n` +
+          `  probe from a double, then delete its line from KNOWN_ESCAPES in\n` +
+          `  vitest.setup.network-escape-guard.ts.\n`,
+      );
     }
   }
 
