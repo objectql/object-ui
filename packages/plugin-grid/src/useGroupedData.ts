@@ -208,9 +208,18 @@ function compareGroups(a: string, b: string, order: 'asc' | 'desc'): number {
 }
 
 /**
- * One entry of the spec's `grouping.fields[]` — `{ field, order?, collapsed? }`.
+ * One entry of the spec's `grouping.fields[]` as AUTHORED — `field` plus the
+ * optional `order` / `collapsed`.
+ *
+ * ⚠️ NOT the same type as `@object-ui/components`' `GroupingFieldEntry`, which
+ * is the grouping EDITOR's fully-populated value shape and requires `order`
+ * and `collapsed`. This one is `z.input` of the spec schema, where both carry
+ * defaults and are therefore optional, so the two are structurally different
+ * and each keeps its own name (objectui#6273 — one authority per exported
+ * name; a shared spelling for two shapes is the collision that gate exists to
+ * catch).
  */
-export type GroupingFieldEntry = NonNullable<GroupingConfig['fields']>[number];
+export type UsableGroupingField = NonNullable<GroupingConfig['fields']>[number];
 
 /**
  * The `grouping.fields[]` entries a grid can actually group by (objectui#7217).
@@ -247,9 +256,9 @@ export type GroupingFieldEntry = NonNullable<GroupingConfig['fields']>[number];
  *   intact — the harvester answers with field NAMES, which is why this cannot
  *   simply route through it.
  */
-export function usableGroupingFields(fields: unknown): GroupingFieldEntry[] {
+export function usableGroupingFields(fields: unknown): UsableGroupingField[] {
   if (!Array.isArray(fields)) return [];
-  return fields.filter((entry): entry is GroupingFieldEntry => {
+  return fields.filter((entry): entry is UsableGroupingField => {
     if (entry === null || typeof entry !== 'object') return false;
     const name = (entry as { field?: unknown }).field;
     return typeof name === 'string' && name.trim() !== '';
