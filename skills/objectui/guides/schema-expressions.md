@@ -204,150 +204,58 @@ The `On` variants accept raw expressions without `${}` wrapping — the entire s
 { "disabledOn": "!data.canPerformAction || data.isLocked" }
 ```
 
-## Field-level conditional rules (CEL — `visibleWhen` / `readonlyWhen` / `requiredWhen`)
+## Field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`)
 
-> **Different engine, different layer.** The `${}` / `On` conditions above are
-> the *schema/widget* tier and run on the recursive-descent
-> `SafeExpressionParser`. The three rules below are the **data-model tier**:
-> they live on the **object's field metadata**, are written in **CEL**, and are
-> evaluated by the canonical `@objectstack/formula` engine — the *same* engine
-> the server uses. Use these when the rule belongs to the field itself and must
-> hold everywhere the object is edited (and, for `readonlyWhen`/`requiredWhen`,
-> be enforced server-side too). See ADR-0036.
+These live on the **object's field metadata**, are written in CEL, and are
+evaluated by `@objectstack/formula` -- a different tier from the `${}` / `On`
+conditions above, which are schema/widget-level and run on the recursive-descent
+`SafeExpressionParser`. **How to author them is the `objectstack-data` skill's
+job**, under "Conditional Field Rules": the predicate scope, the client-only vs
+client-and-server enforcement split, the invariant-vs-transition-gate choice,
+and the protocol-17 removal of the `conditionalRequired` alias are all there.
+Author them in the canonical tagged-template form that skill teaches
+(``requiredWhen: P`record.status == 'paid'` ``), not as a bare string.
 
-```ts
-// On the object's Field definition (server-side metadata):
-issued_on: Field.date({ requiredWhen: "record.status in ['sent', 'paid']" }),
-tax_rate:  Field.number({ readonlyWhen: "record.status == 'paid'" }),
-paid_on:   Field.date({
-  visibleWhen:  "record.status == 'paid'",   // UX-only — hide until paid
-  requiredWhen: "record.status == 'paid'",   // enforced client AND server
-}),
-```
+Renderer-side, and only here: the form renderer **re-evaluates these reactively
+as the user edits**, via `resolveFieldRuleState` in `@object-ui/core`. A static
+`required: true` / `readonly: true` is a floor a FALSE predicate cannot weaken.
+Evaluation is **fail-open** -- a broken predicate never hides content, never
+blocks submit and never locks a field -- so `visibleWhen` is never a security
+boundary on the client.
 
-| Rule           | Predicate TRUE ⇒          | Where it's enforced     |
-| -------------- | ------------------------- | ----------------------- |
-| `visibleWhen`  | field shown (else hidden) | client only (UX)        |
-| `readonlyWhen` | field read-only           | **client + server**     |
-| `requiredWhen` | field required            | **client + server**     |
+## CEL predicates over a row record
 
-- Predicate scope is `record` (the live/merged record) and `previous` (the
-  prior persisted record, for transition rules like
-  `"record.status == 'paid' && previous.status != 'paid'"`).
-- A predicate is `string` (treated as CEL) or `{ dialect: 'cel', source }`.
-- `requiredWhen` is the **only** required-predicate slot. The old
-  `conditionalRequired` alias was **removed** in `@objectstack/spec` 17
-  (#3855): authoring it is a `tsc` error and a parse rejection, and nothing in
-  ObjectUI reads it. Rename the key (the CEL value is unchanged), or run
-  `os migrate meta --from 16` to rewrite it automatically.
-- The form renderer re-evaluates these **reactively** as the user edits, via
-  `resolveFieldRuleState` (`@object-ui/core`). Static `required: true` /
-  `readonly: true` is a floor a FALSE predicate can't weaken.
-- **Gotchas:** CEL throws on a *missing* map key but compares cleanly against
-  `null` — author predicates against fields that exist (the renderer seeds
-  declared fields to `null` so unregistered fields don't fault). Evaluation is
-  **fail-open**: a broken predicate never hides content, never blocks submit,
-  never locks a field. `visibleWhen` is client-only — never rely on it for
-  security; use `readonlyWhen`/`requiredWhen` (or a validation rule) for guarantees.
+Conditional formatting on a list/grid/kanban, a row action's `visible` /
+`disabled`, and `SelectOption.visibleWhen` are all **CEL over `record.*`**,
+evaluated by `@objectstack/formula` -- not by the `${}` evaluator above.
+**The predicate language, the surfaces that take one, and the authoring rules
+are the `objectstack-formula` skill's job**, under "Surfaces that take an
+Expression"; the cascading-select and options-vs-lookup decision is
+`objectstack-data`'s.
 
-## List-view conditional tier (CEL — conditional formatting + row-action visibility)
+Three renderer-side facts that live nowhere else:
 
-> **Same engine as the data-model tier.** Conditional formatting on a
-> list/grid/kanban, and a row action's `visible` / `disabled`, are **CEL
-> predicates over the row record**, evaluated by the canonical
-> `@objectstack/formula` engine — *not* the `${}` schema/widget evaluator
-> (issue #1584, framework ADR-0058). Per `@objectstack/spec` these were always
-> typed as CEL (`ListViewSchema.conditionalFormatting[].condition` and
-> `ActionSchema.visible` are `ExpressionInputSchema`); ObjectUI now honors that
-> at runtime. Authors reuse the same `record.*` predicates everywhere.
-
-**Conditional formatting** — first matching rule wins; author it the spec way:
-
-```jsonc
-{ "type": "list-view", "objectName": "invoice",
-  "conditionalFormatting": [
-    { "condition": "record.status == 'overdue'", "style": { "backgroundColor": "#fee2e2", "color": "#991b1b" } },
-    { "condition": "record.amount > 10000",       "style": { "backgroundColor": "#fef9c3" } }
-  ]
-}
-```
-
-The predicate binds the row three ways — `record.status` (**canon**), bare
-`status` and `data.status` (both **deprecated** here: still bound, warned
-once in dev, retiring after a stored-metadata survey — see
-`packages/core/src/evaluator/rowPredicateCanon.ts`) — plus the host
-predicate scope (`features.*`, `user.*`). `data.*` is the trap: the server's
-authoring oracle accepts it silently, then binds nothing at runtime — a
-constant `false`, not an error. The legacy ObjectUI shapes still work and are
-translated to CEL transparently: the native `{ field, operator, value }` form
-(`operator` ∈ `equals` / `not_equals` / `greater_than` / `less_than` /
-`contains` / `in`) and the `{ expression: "${…}" }` template form. A string
-carrying legacy-only syntax (`${…}`, `===`, `?.`, `.includes()`) is routed to
-the old engine **with a one-time deprecation warning** — rewrite it in CEL.
-
-**Row-action visibility** — a row/list_item action's `visible` (and `disabled`)
-is CEL over the row:
-
-```jsonc
-{ "name": "resume", "label": "Resume",
-  "visible": "record.status in ['paused', 'stopped']" }   // `in` needs the CEL engine
-```
-
-- `visible` **fails closed** (broken predicate → action hidden + warn), matching
-  the record-header `ActionEngine`; `disabled` fails soft (not disabled + warn).
-- The CEL `in` operator, list membership, and `has()` — none of which the legacy
-  JS evaluator parsed — now work; `===` / `?.` / `.includes()` do **not** (use
-  `==` / `record.x` / `.contains()`).
-
-**Legacy form-field `condition`.** `FormField.condition: { field, equals/notEquals/in }`
-is retired in favor of `visibleWhen` (it is now translated to CEL internally, so
-existing metadata keeps working). Prefer authoring `visibleWhen: "record.type == 'lookup'"`.
-
-## Cascading & role-gated select options (`option.visibleWhen` + `dependsOn`)
-
-For dependent selects (country → province → city) and role-gated options, do
-**not** invent a `validFor` / `controllingField` matrix. Reuse the two primitives
-you already have — the mechanism is uniform with dependent lookups, so both
-humans and AI author it correctly by pattern-matching:
-
-- **`SelectOption.visibleWhen`** — a per-option CEL predicate; the option is
-  offered only when TRUE. Evaluated against the live `record` **plus
-  `current_user`** (same engine/env as a field-level `visibleWhen`).
-- **`field.dependsOn`** — declares the sibling field(s) the option list reacts
-  to. While any is empty the control is **gated** ("Select country first"); a
-  parent change re-evaluates the list and **auto-clears** a now-invalid value.
-
-```jsonc
-{ "type": "form", "fields": [
-  { "name": "country", "type": "select", "options": [
-    { "label": "China", "value": "cn" }, { "label": "United States", "value": "us" }
-  ]},
-  { "name": "province", "type": "select", "dependsOn": "country", "options": [
-    { "label": "Zhejiang",   "value": "zj", "visibleWhen": "record.country == 'cn'" },
-    { "label": "California", "value": "ca", "visibleWhen": "record.country == 'us'" }
-  ]},
-  // role gating — same predicate, references current_user instead of a sibling:
-  { "name": "tier", "type": "select", "options": [
-    { "label": "Standard",   "value": "standard" },
-    { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.positions" }
-  ]}
-]}
-```
-
-**Decision rule — options vs. lookup.** Use `option.visibleWhen` only for
-**small, static dictionaries** (a handful of provinces, category → subcategory).
-When the data is large, changes over time, or is shared across forms (real
-country/province/city tables, org units, product catalogs) model each level as a
-**`lookup`** with `depends_on` — the candidate query is filtered and paginated
-server-side. Wrong tool = a 4000-row `<select>`.
-
-**Security.** Option `visibleWhen` only hides the choice on the client; the value
-is still submittable. When an option is gated for **authorization**, the server
-must also reject writes of that value (the rule-validator evaluates the picked
-value's `visibleWhen`). Use it freely for cascades/UX; pair it with server
-enforcement for access control. Multi-field conditions (`record.country == 'cn'
-&& current_user.department == 'sales'`) work — just list every referenced sibling
-in `dependsOn`.
+- **Failure direction is not uniform.** A row action's `visible` **fails
+  closed** (a broken predicate hides the action and warns), matching the
+  record-header `ActionEngine`; `disabled` fails soft (not disabled, warns);
+  a field-level `visibleWhen` fails open. Do not generalise from one to another.
+- **Legacy shapes are translated, with a one-time warning.** The native
+  `{ field, operator, value }` form (`operator` in `equals` / `not_equals` /
+  `greater_than` / `less_than` / `contains` / `in`) and the
+  `{ expression: "${…}" }` template form still work and are rewritten to CEL
+  transparently. A string carrying legacy-only syntax (`${…}`, `===`, `?.`,
+  `.includes()`) is routed to the old engine with a **one-time deprecation
+  warning** -- rewrite it as CEL (`==`, `record.x`, `.contains()`).
+- **`data.*` is the trap in a row predicate.** The row binds three ways --
+  `record.status` (canonical), bare `status` and `data.status`, the last two
+  deprecated and warned once in dev
+  (`packages/core/src/evaluator/rowPredicateCanon.ts`). The authoring oracle
+  accepts `data.*` silently and then binds nothing at runtime: a constant
+  `false`, not an error.
+- **`field.dependsOn` gates the control, not just the list.** While any declared
+  parent is empty the select is gated ("Select country first"); a parent change
+  re-evaluates the option list and **auto-clears** a value that is no longer
+  valid.
 
 ## Data binding with `bind`
 
