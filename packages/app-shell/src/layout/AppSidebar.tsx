@@ -78,6 +78,7 @@ import { useRecentItems } from '../hooks/useRecentItems.js';
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useNavPins } from '../hooks/useNavPins.js';
 import { resolveKeyedI18nLabel, matchAppBySegment, appRouteSegment } from '../utils/index.js';
+import { useHomePath } from '../hooks/useHomePath.js';
 // Two resolvers, two vocabularies, and since objectui#4167 the NAMES carry the
 // distinction rather than a comment: `resolveKeyedI18nLabel` above is objectui's
 // own and resolves a TRANSLATION-KEY ref (`{ key, defaultValue, params }`)
@@ -171,6 +172,9 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { user, signOut, isAuthEnabled, activeOrganization } = useAuth();
   const { isAdmin: isWorkspaceAdmin } = useWorkspaceAdminStatus();
   const navigate = useNavigate();
+  // objectui#7256 — the app switcher's "Home" entry follows the product's
+  // DECLARED landing, the same target as the top-bar logo.
+  const homePath = useHomePath();
   const location = useLocation();
   const { t, language } = useObjectTranslation();
   const { objectLabel: resolveNavObjectLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
@@ -447,7 +451,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate('/home')} data-testid="home-link-btn">
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(homePath)} data-testid="home-link-btn">
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                     <Home className="size-4" />
                   </div>
