@@ -686,8 +686,24 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         setError(err as Error);
       }
     } finally {
-      if (silent) setRefreshing(false);
-      else setLoading(false);
+      // Only the NEWEST reload owns the loading flags, for the same reason
+      // the result writes above are guarded. An unguarded clear here let a
+      // SUPERSEDED reload release the placeholder while the fresh query was
+      // still in flight, so the chart painted empty in between
+      // (objectui#7231).
+      //
+      // The current reload clears BOTH flags, not just the one its own
+      // `silent` mode set: reaching this point as the current run means
+      // nothing is in flight any more — a newer reload would have made this
+      // one stale, and an older one has no claim on the flags. Clearing only
+      // this run's own mode would strand the other one whenever the
+      // superseded reload ran in the OTHER mode (a silent toolbar refresh
+      // overtaken by a filter-change reload would leave `refreshing` on for
+      // the life of the component).
+      if (isCurrent()) {
+        setRefreshing(false);
+        setLoading(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
   }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema]);
