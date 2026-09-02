@@ -52,6 +52,7 @@ import {
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
+  createFieldColorResolver,
 } from '@object-ui/core';
 
 export interface CalendarSchema {
@@ -418,6 +419,14 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     }
 
     const { startDateField, endDateField, titleField, colorField } = calendarConfig;
+    // `colorField` NAMES A FIELD to derive a colour from (objectui#7243). The
+    // shared ladder answers the two rungs that depend only on the field's own
+    // metadata — the option `color` the author declared for this value, then
+    // the value itself when it already IS a colour literal. Built once for the
+    // whole dataset, not per record.
+    const resolveColorFieldValue = createFieldColorResolver(
+      (objectSchema?.fields as Record<string, any> | undefined)?.[colorField ?? ''],
+    );
     const resolveTitle = (record: Record<string, any>): string => {
       // 1. Explicit titleField wins when present on the record.
       if (titleField) {
@@ -437,7 +446,14 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       const startDate = record[startDateField];
       const endDate = endDateField ? record[endDateField] : null;
       const title = resolveTitle(record);
-      const color = colorField ? record[colorField] : undefined;
+      // Last rung stays where it was: a value no option colours is handed on
+      // RAW, so `CalendarView.resolveEventColor` still recognises a Tailwind
+      // utility string and still hashes a plain category label onto its
+      // theme-aware 8-stop palette. Retiring that would repaint every existing
+      // calendar whose `colorField` points at a plain categorical field, which
+      // is well beyond this fix.
+      const colorRaw = colorField ? record[colorField] : undefined;
+      const color = resolveColorFieldValue(colorRaw) ?? colorRaw;
 
       return {
         id: record.id || record._id || `event-${index}`,

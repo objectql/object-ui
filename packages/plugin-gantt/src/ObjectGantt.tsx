@@ -51,6 +51,7 @@ import {
   convertSortToQueryParams,
   getRecordDisplayName,
   resolveDataSource,
+  createFieldColorResolver,
 } from '@object-ui/core';
 import {
   getSemanticColorName,
@@ -742,6 +743,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
     const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, borderColorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField, quickFilters } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+    // One resolver per declared colour field, built once for the whole
+    // dataset rather than per row: rung 1 (the field's own option colour)
+    // plus rung 2 (the value already IS a colour literal). See
+    // `@object-ui/core#createFieldColorResolver` (objectui#7243).
+    const resolveColorFieldValue = createFieldColorResolver(fieldDefs[colorField ?? '']);
+    const resolveBorderColorFieldValue = createFieldColorResolver(fieldDefs[borderColorField ?? '']);
 
     // Fallback value→label maps from the view's quickFilters config. When the
     // data comes from an `api` provider there is no object schema, so select
@@ -929,12 +936,33 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       const title = resolveTitle(record);
       const progress = progressField ? record[progressField] : 0;
       const dependencies = dependenciesField ? record[dependenciesField] : [];
-      // Bar color resolution:
-      //   1. explicit `colorField` value (hex or semantic name) — metadata wins.
-      //   2. fall back to the record's status / state / priority field so
-      //      the timeline reflects the same color story as list/kanban.
-      //   3. if neither exists, GanttView paints the platform default blue.
-      let color = colorField ? record[colorField] : undefined;
+      // Bar color resolution (objectui#7243). `colorField` NAMES A FIELD to
+      // derive a colour from — it is not itself a colour, and the value stored
+      // in that field usually isn't one either. The rungs, shared with
+      // plugin-timeline and plugin-calendar via `createFieldColorResolver`:
+      //   1. the field's own option `color` for this record's value —
+      //      the colour the author actually declared;
+      //   2. the value itself when it already IS a colour literal;
+      //   3. the semantic-token derivation, which also maps a palette NAME
+      //      ('red') to that palette's hex — what the key's contract has always
+      //      promised ("hex or semantic name").
+      // Only when `colorField` is absent or its value is empty do we fall back
+      // to the record's status / state / priority so the chart reflects the
+      // same colour story as list/kanban; if neither exists GanttView paints
+      // the platform default blue.
+      //
+      // ⛔ The raw value must never reach `color` again. That was this card's
+      // defect: `backgroundColor: "open"` is not a colour, so the browser
+      // dropped the declaration and every bar rendered identically — DECLARING
+      // the documented key was strictly worse than omitting it, silently.
+      const colorValue = colorField ? record[colorField] : undefined;
+      let color = resolveColorFieldValue(colorValue);
+      if (!color && colorValue != null && colorValue !== '') {
+        // Rung 3 for the declared field's own value. `getSemanticColorName`
+        // always answers for a non-empty value (semantic map, else its stable
+        // hash), so a declared `colorField` always paints something real.
+        color = getSemanticHex(getSemanticColorName(String(colorValue), colorValue));
+      }
       if (!color) {
         const fallbackVal =
           record.status ?? record.state ?? record.priority ?? record.severity;
@@ -943,12 +971,19 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           if (name) color = getSemanticHex(name);
         }
       }
-      // Alert stroke: semantic palette names map to their hex;
-      // anything else (hex, css color) passes through untouched.
+      // Alert stroke: the option colour first (same rung 1 as the bar — an
+      // authored option colour is an authored option colour whichever slot it
+      // paints), then today's behaviour: semantic palette names map to their
+      // hex, anything else (hex, css color) passes through untouched.
+      //
+      // Deliberately NO rung 3 here. The stroke is opt-in and exceptional —
+      // deriving one for every record would draw an alert on records that have
+      // none, which is a repaint, not a fix.
       const borderColorRaw = borderColorField ? record[borderColorField] : undefined;
       const borderColor =
         borderColorRaw != null && borderColorRaw !== ''
-          ? getSemanticHex(String(borderColorRaw), String(borderColorRaw))
+          ? resolveBorderColorFieldValue(borderColorRaw)
+            ?? getSemanticHex(String(borderColorRaw), String(borderColorRaw))
           : undefined;
 
       return {
