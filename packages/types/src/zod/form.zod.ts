@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 import { SelectOptionSchema as SpecSelectOptionSchema } from '@objectstack/spec/data';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
@@ -175,9 +176,7 @@ export const ButtonSchema = BaseSchema.extend({
   loading: z.boolean().optional().describe('Whether button is in loading state'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
   iconPosition: z.enum(['left', 'right']).optional().default('left').describe('Icon position'),
-  onClick: z.function()
-    .optional()
-    .describe('Click handler'),
+  onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
   buttonType: z.enum(['button', 'submit', 'reset'])
     .optional()
     .default('button')
@@ -206,7 +205,7 @@ export const InputSchema = BaseSchema.extend({
   readOnly: z.boolean().optional().describe('Whether field is read-only'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   min: z.number().optional().describe('Minimum value (for number type)'),
   max: z.number().optional().describe('Maximum value (for number type)'),
   step: z.number().optional().describe('Step value (for number type)'),
@@ -229,7 +228,7 @@ export const TextareaSchema = BaseSchema.extend({
   readOnly: z.boolean().optional().describe('Whether field is read-only'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   maxLength: z.number().optional().describe('Maximum length'),
 });
 
@@ -247,7 +246,7 @@ export const SelectSchema = BaseSchema.extend({
   required: z.boolean().optional().describe('Whether field is required'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
 /**
@@ -263,7 +262,7 @@ export const CheckboxSchema = BaseSchema.extend({
     .describe("Required affordance, read at renderers/form/checkbox.tsx:45 (`required=` on the Radix Checkbox) and :49 (gates the label's `*` marker) (objectui#6150)"),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
 /**
@@ -279,7 +278,7 @@ export const RadioGroupSchema = BaseSchema.extend({
   orientation: z.enum(['horizontal', 'vertical']).optional().describe('Layout orientation'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
 /**
@@ -292,7 +291,7 @@ export const SwitchSchema = BaseSchema.extend({
   defaultChecked: z.boolean().optional().describe('Default checked state'),
   checked: z.boolean().optional().describe('Controlled checked state'),
   description: z.string().optional().describe('Help text'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
 /**
@@ -305,7 +304,7 @@ export const ToggleSchema = BaseSchema.extend({
   pressed: z.boolean().optional().describe('Controlled pressed state'),
   variant: z.enum(['default', 'outline']).optional().describe('Toggle variant'),
   size: z.enum(['default', 'sm', 'lg']).optional().describe('Toggle size'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -322,7 +321,7 @@ export const SliderSchema = BaseSchema.extend({
   max: z.number().optional().describe('Maximum value'),
   step: z.number().optional().describe('Step value'),
   description: z.string().optional().describe('Help text'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
 /**
@@ -342,7 +341,7 @@ export const FileUploadSchema = BaseSchema.extend({
   maxFiles: z.number().optional().describe('Maximum number of files'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
 /**
@@ -360,7 +359,7 @@ export const DatePickerSchema = BaseSchema.extend({
   format: z.string().optional().describe('Date format string'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
 /**
@@ -373,7 +372,7 @@ export const CalendarSchema = BaseSchema.extend({
   mode: z.enum(['single', 'multiple', 'range']).optional().describe('Selection mode'),
   minDate: z.union([z.string(), z.date()]).optional().describe('Minimum date'),
   maxDate: z.union([z.string(), z.date()]).optional().describe('Maximum date'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
 /**
@@ -388,8 +387,8 @@ export const InputOTPSchema = BaseSchema.extend({
   value: z.string().optional().describe('Controlled value'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
-  onComplete: z.function().optional().describe('Complete handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
+  onComplete: handlerKeyRefusal('onComplete', 'retired', 'Complete handler'),
 });
 
 /**
@@ -405,7 +404,7 @@ export const ComboboxSchema = BaseSchema.extend({
   value: z.string().optional().describe('Controlled value'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
 /**
@@ -426,7 +425,7 @@ export const CommandSchema = BaseSchema.extend({
   placeholder: z.string().optional().describe('Search placeholder'),
   emptyText: z.string().optional().describe('Empty state text'),
   groups: z.array(CommandGroupSchema).describe('Command groups'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
 /**
@@ -634,9 +633,9 @@ export const FormSchema = BaseSchema.extend({
   resetOnSubmit: z.boolean().optional().describe('Reset form on successful submit'),
   mode: z.enum(['create', 'edit', 'view']).optional().describe('Form mode'),
   actions: z.array(z.any()).optional().describe('Custom actions'),
-  onSubmit: z.function().optional().describe('Submit handler'),
-  onChange: z.function().optional().describe('Change handler'),
-  onCancel: z.function().optional().describe('Cancel handler'),
+  onSubmit: handlerKeyRefusal('onSubmit', 'runtime-slot', 'Submit handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
+  onCancel: handlerKeyRefusal('onCancel', 'runtime-slot', 'Cancel handler'),
   showActions: z.boolean().optional().describe('Show action buttons'),
 });
 
@@ -665,7 +664,7 @@ export const CodeEditorSchema = BaseSchema.extend({
   theme: z.enum(['vs-dark', 'light']).optional().describe('Editor colour theme'),
   height: z.string().optional().describe('Editor height as a CSS length'),
   readOnly: z.boolean().optional().describe('Whether the editor refuses edits'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
 export const FormComponentSchema = z.discriminatedUnion('type', [

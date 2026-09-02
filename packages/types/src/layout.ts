@@ -389,6 +389,12 @@ export interface CardSchema extends BaseSchema {
   clickable?: boolean;
   /**
    * Click handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the `<Card>` element by the renderer's `{...cardProps}` (it
+   * also drives `isClickable`).
    */
   onClick?: () => void;
 }
@@ -417,6 +423,12 @@ export interface TabsSchema extends BaseSchema {
   items: TabItem[];
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `Tabs` root by the renderer's `{...tabsProps}`, after
+   * its own `onValueChange`.
    */
   onValueChange?: (value: string) => void;
 }

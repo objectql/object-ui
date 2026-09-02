@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-import { retirementTombstone } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
@@ -32,7 +32,7 @@ export const AlertSchema = BaseSchema.extend({
   variant: z.enum(['default', 'destructive']).optional().describe('Alert variant'),
   icon: z.string().optional().describe('Alert icon'),
   dismissible: z.boolean().optional().describe('Whether alert can be dismissed'),
-  onDismiss: z.function().optional().describe('Dismiss handler'),
+  onDismiss: handlerKeyRefusal('onDismiss', 'retired', 'Dismiss handler'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -81,7 +81,7 @@ export const ListItemSchema = z.object({
   icon: z.string().optional().describe('Item icon'),
   avatar: z.string().optional().describe('Item avatar URL'),
   disabled: z.boolean().optional().describe('Whether item is disabled'),
-  onClick: z.function().optional().describe('Click handler'),
+  onClick: handlerKeyRefusal('onClick', 'retired', 'Click handler'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Custom content'),
 });
 
@@ -254,8 +254,8 @@ export const DataTableSchema = BaseSchema.extend({
   rowActions: z.array(z.any()).optional().describe('Row action buttons'),
   resizableColumns: z.boolean().optional().describe('Allow column resizing'),
   reorderableColumns: z.boolean().optional().describe('Allow column reordering'),
-  onRowEdit: z.function().optional().describe('Row edit handler'),
-  onRowDelete: z.function().optional().describe('Row delete handler'),
+  onRowEdit: handlerKeyRefusal('onRowEdit', 'runtime-slot', 'Row edit handler'),
+  onRowDelete: handlerKeyRefusal('onRowDelete', 'runtime-slot', 'Row delete handler'),
   rowEditPredicates: z.object({
     visibleWhen: z.unknown().optional(),
     disabledWhen: z.unknown().optional(),
@@ -264,8 +264,8 @@ export const DataTableSchema = BaseSchema.extend({
     visibleWhen: z.unknown().optional(),
     disabledWhen: z.unknown().optional(),
   }).optional().describe('Per-record CEL predicates for the built-in row Delete item (objectui#2614)'),
-  onSelectionChange: z.function().optional().describe('Selection change handler'),
-  onColumnsReorder: z.function().optional().describe('Column reorder handler'),
+  onSelectionChange: handlerKeyRefusal('onSelectionChange', 'runtime-slot', 'Selection change handler'),
+  onColumnsReorder: handlerKeyRefusal('onColumnsReorder', 'runtime-slot', 'Column reorder handler'),
   cellClassName: z.string().optional().describe('Extra classes folded into the utility body cells only — the selection, row-number and row-actions cells; data cells fold the per-column `cellClassName` instead, so row density has to be set on both (objectui#6882)'),
   renderCellEditor: z.function().optional().describe('Host-supplied inline cell editor; returning null falls through to the built-in text/number/date inputs (objectui#6882). Its context carries `row` (the persisted record) and `pendingRow` (that record with the row\'s staged, unsaved edits merged over it — objectui#7188); `z.function()` encodes no parameter shape, so the member on `DataTableSchema` is the authority for it'),
   frozenColumns: z.number().optional().describe('Number of frozen columns'),
@@ -315,8 +315,8 @@ export const TreeViewSchema = BaseSchema.extend({
   selectedIds: z.array(z.string()).optional().describe('Controlled selected node IDs'),
   multiSelect: z.boolean().optional().describe('Allow multiple selection'),
   showLines: z.boolean().optional().describe('Show connecting lines'),
-  onSelectChange: z.function().optional().describe('Selection change handler'),
-  onExpandChange: z.function().optional().describe('Expand change handler'),
+  onSelectChange: handlerKeyRefusal('onSelectChange', 'retired', 'Selection change handler'),
+  onExpandChange: handlerKeyRefusal('onExpandChange', 'retired', 'Expand change handler'),
 });
 
 /**

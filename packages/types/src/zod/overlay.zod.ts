@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-import { retirementTombstone } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 
 /**
  * Dialog Schema - Dialog/modal component
@@ -33,7 +33,7 @@ export const DialogSchema = BaseSchema.extend({
   open: z.boolean().optional().describe('Controlled open state'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Dialog footer'),
   modal: z.boolean().optional().describe('Whether dialog is modal'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -49,9 +49,9 @@ export const AlertDialogSchema = BaseSchema.extend({
   cancelLabel: z.string().optional().describe('Cancel button label'),
   confirmLabel: z.string().optional().describe('Confirm button label'),
   confirmVariant: z.enum(['default', 'destructive']).optional().describe('Confirm button variant'),
-  onConfirm: z.function().optional().describe('Confirm handler'),
-  onCancel: z.function().optional().describe('Cancel handler'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onConfirm: handlerKeyRefusal('onConfirm', 'retired', 'Confirm handler'),
+  onCancel: handlerKeyRefusal('onCancel', 'retired', 'Cancel handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -67,7 +67,7 @@ export const SheetSchema = BaseSchema.extend({
   open: z.boolean().optional().describe('Controlled open state'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Sheet position'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Sheet footer'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -82,7 +82,7 @@ export const DrawerSchema = BaseSchema.extend({
   defaultOpen: z.boolean().optional().describe('Default open state'),
   open: z.boolean().optional().describe('Controlled open state'),
   direction: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Drawer direction'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -96,7 +96,7 @@ export const PopoverSchema = BaseSchema.extend({
   open: z.boolean().optional().describe('Controlled open state'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Popover side'),
   align: z.enum(['start', 'center', 'end']).optional().describe('Popover alignment'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -125,7 +125,7 @@ export const HoverCardSchema = BaseSchema.extend({
     .describe('Alignment against the trigger, read at renderers/overlay/hover-card.tsx:24 — `align={schema.align}` on HoverCardContent, beside the already-declared `side` (objectui#6150)'),
   openDelay: z.number().optional().describe('Delay before opening (ms)'),
   closeDelay: z.number().optional().describe('Delay before closing (ms)'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -150,7 +150,7 @@ export const MenuItemSchema: z.ZodType<any> = z.lazy(() =>
       label: z.string().describe('Menu item label'),
       icon: z.string().optional().describe('Menu item icon'),
       disabled: z.boolean().optional().describe('Whether item is disabled'),
-      onClick: z.function().optional().describe('Click handler'),
+      onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
       shortcut: z.string().optional().describe('Keyboard shortcut'),
       children: z.array(MenuItemSchema).optional().describe('Submenu items'),
       separator: z.literal(false).optional().describe('Not a divider'),
@@ -178,7 +178,7 @@ export const DropdownMenuSchema = BaseSchema.extend({
   open: z.boolean().optional().describe('Controlled open state'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Menu side'),
   align: z.enum(['start', 'center', 'end']).optional().describe('Menu alignment'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**

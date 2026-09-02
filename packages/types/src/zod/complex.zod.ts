@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 import {
   ChartTypeSchema as SpecChartTypeSchema,
   DashboardSchema as SpecDashboardSchema,
@@ -64,10 +65,10 @@ export const KanbanSchema = BaseSchema.extend({
   type: z.literal('kanban'),
   columns: z.array(KanbanColumnSchema).describe('Kanban columns'),
   draggable: z.boolean().optional().describe('Whether cards are draggable'),
-  onCardMove: z.function().optional().describe('Card move handler'),
-  onCardClick: z.function().optional().describe('Card click handler'),
-  onColumnAdd: z.function().optional().describe('Column add handler'),
-  onCardAdd: z.function().optional().describe('Card add handler'),
+  onCardMove: handlerKeyRefusal('onCardMove', 'runtime-slot', 'Card move handler'),
+  onCardClick: handlerKeyRefusal('onCardClick', 'runtime-slot', 'Card click handler'),
+  onColumnAdd: handlerKeyRefusal('onColumnAdd', 'retired', 'Column add handler'),
+  onCardAdd: handlerKeyRefusal('onCardAdd', 'retired', 'Card add handler'),
 });
 
 /**
@@ -145,7 +146,7 @@ export const CalendarViewSchema = BaseSchema.extend({
     .function()
     .optional()
     .describe('Host-only event click handler (authored JSON cannot produce a function)'),
-  onViewChange: z.function().optional().describe('Host-only view change handler'),
+  onViewChange: handlerKeyRefusal('onViewChange', 'runtime-slot', 'Host-only view change handler'),
 });
 
 /**
@@ -211,7 +212,7 @@ export const FilterBuilderSchema = BaseSchema.extend({
   fields: z.array(FilterFieldSchema).describe('Available filter fields'),
   defaultValue: z.union([FilterBuilderConditionSchema, FilterGroupSchema]).optional().describe('Default filter value'),
   value: z.union([FilterBuilderConditionSchema, FilterGroupSchema]).optional().describe('Controlled filter value'),
-  onChange: z.function().optional().describe('Change handler'),
+  onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   allowGroups: z.boolean().optional().describe('Allow grouped conditions'),
   maxDepth: z.number().optional().describe('Maximum nesting depth'),
   wrapperClass: z.string().optional()
@@ -244,7 +245,7 @@ export const CarouselSchema = BaseSchema.extend({
   loop: z.boolean().optional().describe('Enable infinite loop'),
   itemsPerView: z.number().optional().describe('Items per view'),
   gap: z.number().optional().describe('Gap between items'),
-  onSlideChange: z.function().optional().describe('Slide change handler'),
+  onSlideChange: handlerKeyRefusal('onSlideChange', 'retired', 'Slide change handler'),
 });
 
 /**
@@ -300,7 +301,7 @@ export const ChatbotSchema = BaseSchema.extend({
   messages: z.array(ChatMessageSchema).describe('Chat messages'),
   placeholder: z.string().optional().describe('Input placeholder'),
   loading: z.boolean().optional().describe('Whether chat is loading'),
-  onSendMessage: z.function().optional().describe('Send message handler'),
+  onSendMessage: handlerKeyRefusal('onSendMessage', 'retired', 'Send message handler'),
   showAvatars: z.boolean().optional().describe('Show user avatars'),
   userAvatar: z.string().optional().describe('User avatar URL'),
   assistantAvatar: z.string().optional().describe('Assistant avatar URL'),
@@ -317,7 +318,7 @@ export const ChatbotSchema = BaseSchema.extend({
   /** @deprecated objectui#5605 — inert; nothing reads it. Cap loops on the agent (`planning.maxIterations`). Slated for removal. */
   maxToolRoundtrips: z.number().optional()
     .describe('DEPRECATED (inert, slated for removal) — Max tool-calling round-trips. Nothing reads this; cap tool loops on the agent via planning.maxIterations'),
-  onError: z.function().optional().describe('Error callback'),
+  onError: handlerKeyRefusal('onError', 'runtime-slot', 'Error callback'),
   // --- Local display + legacy auto-response fields (objectui#6169) ---
   // Mirrors the TS declaration added at ../complex.ts in lockstep, so these
   // ten keys move from the pre-existing "declared but unmirrored, rides
@@ -332,7 +333,7 @@ export const ChatbotSchema = BaseSchema.extend({
   autoResponse: z.boolean().optional().describe('Enable local auto-response (demo/playground) mode'),
   autoResponseText: z.string().optional().describe('Text of the local auto-response'),
   autoResponseDelay: z.number().optional().describe('Delay in milliseconds before the local auto-response is sent'),
-  onSend: z.function().optional().describe('Called after a message is sent, in both API and local auto-response mode'),
+  onSend: handlerKeyRefusal('onSend', 'runtime-slot', 'Called after a message is sent, in both API and local auto-response mode'),
 });
 
 /**

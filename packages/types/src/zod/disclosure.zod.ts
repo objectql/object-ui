@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
@@ -39,7 +40,7 @@ export const AccordionSchema = BaseSchema.extend({
   collapsible: z.boolean().optional().describe('Whether items can be collapsed'),
   defaultValue: z.union([z.string(), z.array(z.string())]).optional().describe('Default open item(s)'),
   value: z.union([z.string(), z.array(z.string())]).optional().describe('Controlled open item(s)'),
-  onValueChange: z.function().optional().describe('Value change handler'),
+  onValueChange: handlerKeyRefusal('onValueChange', 'runtime-slot', 'Value change handler'),
   variant: z.enum(['default', 'bordered', 'separated']).optional().describe('Accordion variant'),
 });
 
@@ -52,7 +53,7 @@ export const CollapsibleSchema = BaseSchema.extend({
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Collapsible content'),
   defaultOpen: z.boolean().optional().describe('Default open state'),
   open: z.boolean().optional().describe('Controlled open state'),
-  onOpenChange: z.function().optional().describe('Open change handler'),
+  onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),
 });
 
 /**
@@ -75,7 +76,7 @@ export const ToggleGroupSchema = BaseSchema.extend({
   items: z.array(ToggleGroupItemSchema).optional().describe('Toggle group items'),
   defaultValue: z.union([z.string(), z.array(z.string())]).optional().describe('Default value(s)'),
   value: z.union([z.string(), z.array(z.string())]).optional().describe('Controlled value(s)'),
-  onValueChange: z.function().optional().describe('Value change handler'),
+  onValueChange: handlerKeyRefusal('onValueChange', 'runtime-slot', 'Value change handler'),
 });
 
 /**

@@ -72,6 +72,11 @@ export interface AccordionSchema extends BaseSchema {
   value?: string | string[];
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `Accordion` root by the renderer's `{...props}`.
    */
   onValueChange?: (value: string | string[]) => void;
   /**
@@ -105,6 +110,11 @@ export interface CollapsibleSchema extends BaseSchema {
   open?: boolean;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `Collapsible` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -165,6 +175,12 @@ export interface ToggleGroupSchema extends BaseSchema {
   value?: string | string[];
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `ToggleGroup` root by the renderer's
+   * `{...toggleGroupProps}`.
    */
   onValueChange?: (value: string | string[]) => void;
 }
