@@ -9,6 +9,11 @@
 /**
  * `objectui validate` and the ROOT-LEVEL issue (objectui#7004, mechanical half).
  *
+ * The arm-selection half of the same card landed later, on the 2026-09-02
+ * ruling; its contract lives in `validate-union-arm-selection.test.ts`. The last
+ * describe block here was the boundary pin that made that landing an explicit
+ * edit, and now restates the new semantics from this file's point of view.
+ *
  * The printer used to guard its Path line with `issue.path.length > 0`, so an
  * issue at the document root (`path: []`) printed no Path line at all — silent
  * in precisely the case a reader most needs oriented.
@@ -181,27 +186,40 @@ describe('objectui validate — a real path is still a real path', () => {
   });
 });
 
-describe('objectui validate — the arm-selection half is deliberately NOT done here', () => {
+describe('objectui validate — the arm-selection half, now that it is ruled', () => {
   /**
-   * ⚠️ This case pins a BOUNDARY, not a desired end state. objectui#7004 splits
-   * into the root-path line (done, above) and the question of whether a failing
-   * union should also surface its per-arm diagnoses — and if so, which arm's.
-   * The second is an author-facing diagnostic contract and is awaiting a
-   * maintainer ruling, so this file records that the printer walks only the
-   * top level today.
+   * ⚠️ This case USED to pin the opposite. It was written as a deliberate
+   * boundary: while the arm-selection question was with the maintainer, it
+   * asserted that the printer walked only the top level — `not.toContain
+   * ('RETIRED (objectui#6523)')`, `not.toContain('Path: items')` — so that when
+   * the ruling landed it would land as an explicit edit against a RED test
+   * rather than as a silent widening.
    *
-   * When that ruling lands, this case is EXPECTED to change with it. It exists
-   * so the change is a deliberate edit rather than a silent widening.
+   * The 2026-09-02 ruling landed (option B: the arm the document's `type`
+   * selects, nothing from the others), so the boundary moved and these
+   * assertions are inverted. That is the mechanism working, not a test being
+   * loosened: the pin forced this file to be opened and the semantics restated
+   * by hand.
+   *
+   * The full contract lives in `validate-union-arm-selection.test.ts`. What
+   * stays HERE is the part this file has always been about — that widening the
+   * printer did not cost the root-path line, and did not turn one top-level
+   * issue into many.
    */
-  it('prints one top-level entry for a union, not the per-arm remediation text', async () => {
+  it('surfaces the selected arm\'s diagnosis without multiplying top-level entries', async () => {
     await validate(writeSchema('menu.json', MENU_WITH_RETIRED_DIVIDER));
 
     const text = printed();
-    // The arm issues carry the objectui#6523 tombstone guidance. Nothing here
-    // reads `issue.errors`, so none of it is printed.
-    expect(text).not.toContain('RETIRED (objectui#6523)');
-    expect(text).not.toContain('Path: items');
-    // Exactly one numbered issue — an arm walk would multiply this.
+    // Was `not.toContain` until the ruling. The objectui#6523 tombstone text
+    // rides the per-arm issues, which is exactly why it never reached an author.
+    expect(text).toContain('RETIRED (objectui#6523)');
+    expect(text).toContain('Path: items → 0 → type');
+    // Unchanged, and load-bearing: the top-level entry still carries the root
+    // path line this file exists for.
+    expect(text).toContain('Path: (root)');
+    // Still exactly one NUMBERED issue. Arm entries are `1.1`-shaped, so a
+    // reader (and this assertion) can still count the top-level failures — an
+    // arm walk that emitted them as `2.`, `3.` … would have multiplied this.
     const numbered = printed()
       .split('\n')
       .filter((line) => /^\d+\. /.test(line.trim()));
