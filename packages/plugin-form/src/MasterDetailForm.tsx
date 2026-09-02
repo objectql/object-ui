@@ -714,6 +714,31 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const saveGuardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The sonner id BOTH save outcomes of THIS form are published under.
+   *
+   * `handleSaved` and `handleError` below each raised their toast under
+   * sonner's auto-generated id, so nothing here held a handle on the previous
+   * attempt's. A save the server refused left its error toast on screen, and
+   * when the user corrected the input and saved again inside that toast's
+   * lifetime the confirmation landed BESIDE the refusal — the form ending on a
+   * screen that asserted both outcomes at once (objectui#7345, the
+   * objectui#7252 defect class).
+   *
+   * One stable id closes both halves. Reusing an id sonner already holds
+   * UPDATES that toast rather than stacking a second one, so the later outcome
+   * supersedes the earlier; and the dismissal at the top of `handleSave`
+   * retires it the moment a new attempt starts — which is the half that matters
+   * when a host supplies `onSuccess`, because the built-in confirmation is then
+   * skipped and a shared id alone would leave the stale refusal standing over a
+   * save that succeeded.
+   *
+   * Scoped to this form instance (`React.useId()`) on purpose: a blanket
+   * `toast.dismiss()` would take unrelated toasts down with it. Same spelling
+   * the form renderer and the console's `FormPage` publish under (#7342).
+   */
+  const formInstanceId = React.useId();
+  const outcomeToastId = `form-outcome:${formInstanceId}`;
   const releaseSave = useCallback(() => {
     savingRef.current = false;
     setSaving(false);
@@ -828,7 +853,9 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     async (parent: any) => {
       releaseSave();
       if (!schema.onSuccess) {
-        toast.success(isEdit ? (schema.title ? `${schema.title} saved` : 'Saved') : 'Created');
+        toast.success(isEdit ? (schema.title ? `${schema.title} saved` : 'Saved') : 'Created', {
+          id: outcomeToastId,
+        });
       }
       if (!isEdit) {
         // Every collection back to empty for the next entry. Dropping the whole
@@ -840,17 +867,17 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       await schema.onSuccess?.(parent);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isEdit, schema.onSuccess, schema.title, entries.length, releaseSave],
+    [isEdit, schema.onSuccess, schema.title, entries.length, releaseSave, outcomeToastId],
   );
 
   /** Surface failures (validation / network / atomic rollback) to the user. */
   const handleError = useCallback(
     (err: Error) => {
       releaseSave();
-      toast.error(err?.message || 'Save failed');
+      toast.error(err?.message || 'Save failed', { id: outcomeToastId });
       schema.onError?.(err);
     },
-    [schema, releaseSave],
+    [schema, releaseSave, outcomeToastId],
   );
 
   // Persistence ALWAYS goes through dataSource.batchTransaction: the parent and
@@ -950,6 +977,10 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     if (!form) return;
     savingRef.current = true;
     setSaving(true);
+    // The previous attempt's outcome belongs to the previous attempt: retire it
+    // the moment a new one starts, so no host can confirm a success while this
+    // form's last refusal is still on screen (objectui#7345).
+    toast.dismiss(outcomeToastId);
     // IMPORTANT: defer the submit out of this click's React dispatch AND
     // re-query the <form> inside the timer. Calling requestSubmit()
     // synchronously inside the onClick (or on a form reference captured before
@@ -965,7 +996,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     // onSuccess/onError, which would otherwise leave the button stuck. Release
     // the guard after a beat so the user can correct fields and retry.
     saveGuardTimer.current = setTimeout(() => releaseSave(), 1500);
-  }, [releaseSave]);
+  }, [releaseSave, outcomeToastId]);
 
   useEffect(() => () => { if (saveGuardTimer.current) clearTimeout(saveGuardTimer.current); }, []);
 
