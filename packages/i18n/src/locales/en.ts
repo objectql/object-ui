@@ -1805,6 +1805,17 @@ const en = {
         statusFull: 'Limit reached',
         resetsDaily: 'Resets tonight',
         resetsMonthly: 'Resets next cycle',
+        // `resetKind: 'weekly'` (free plan's rolling 7-day window, cloud PR
+        // #1852): "N days" (or "N hours" inside the final day). A REAL
+        // i18next plural family — see the `unsavedCount` note above — so the
+        // BASE key carries no suffix and must stay in every pack's lookup
+        // chain (`all-locales-key-parity.test.ts`'s base-key rule).
+        resetsWeeklyDays: 'Resets in {{count}} days',
+        resetsWeeklyDays_one: 'Resets in {{count}} day',
+        resetsWeeklyDays_other: 'Resets in {{count}} days',
+        resetsWeeklyHours: 'Resets in {{count}} hours',
+        resetsWeeklyHours_one: 'Resets in {{count}} hour',
+        resetsWeeklyHours_other: 'Resets in {{count}} hours',
         ctaUpgrade: 'Upgrade to keep going',
         ctaTopUp: 'Add credits to continue',
         ariaLabel: 'AI usage: {{status}}',
