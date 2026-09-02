@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "We have a React + Vite internal app for inventory. Please create a schema-driven list page for products with search, status filter, row actions, and a create-product action. Use Object UI patterns and include integration snippets.",
+      "prompt": "We have a React + Vite internal app for inventory. Please create a schema-driven list page for products with search, status filter, row actions, and a create-product action. Use ObjectUI patterns and include integration snippets.",
       "expected_output": "Produces a complete page schema JSON for list/grid behavior, includes integration wiring steps for SchemaRenderer and component registration, and provides a validation checklist.",
       "files": [],
       "assertions": {
@@ -39,7 +39,7 @@
     },
     {
       "id": 3,
-      "prompt": "Build a console-like analytics dashboard page in an existing Object UI project: KPI cards on top, trend chart in the middle, and recent activity list at the bottom. Also include action definitions for refresh and navigate-to-report.",
+      "prompt": "Build a console-like analytics dashboard page in an existing ObjectUI project: KPI cards on top, trend chart in the middle, and recent activity list at the bottom. Also include action definitions for refresh and navigate-to-report.",
       "expected_output": "Generates dashboard schema with layout composition, plugin-oriented chart usage, action definitions as data, and testing guidance for responsiveness and interaction.",
       "files": [],
       "assertions": {

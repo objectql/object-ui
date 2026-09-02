@@ -1,10 +1,10 @@
 # ObjectUI Schema Expressions
 
-Writing and debugging dynamic expressions in ObjectUI schemas. The expression system is the core of Object UI's dynamic behavior — it controls visibility, disabled states, computed content, and data-driven props.
+Writing and debugging dynamic expressions in ObjectUI schemas. The expression system is the core of ObjectUI's dynamic behavior — it controls visibility, disabled states, computed content, and data-driven props.
 
 ## Architecture overview
 
-Object UI uses a two-tier expression evaluator:
+ObjectUI uses a two-tier expression evaluator:
 
 1. **Template expressions** — strings containing `${...}` placeholders: `"Hello ${user.name}"`
 2. **Condition expressions** — raw boolean expressions without wrappers: `data.role === 'admin'`
