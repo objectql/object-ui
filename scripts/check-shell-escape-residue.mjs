@@ -230,6 +230,14 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
  * card -- the `objectui-contributor` tree leaving reads 1, the two guides alone
  * leaving reads 2.
  *
+ * ⚠️ The row is `.claude/skills`, not `.claude` -- and the difference is only
+ * about files that do not exist yet. Every `.md`/`.mdx` under `.claude/` today
+ * is under `.claude/skills/` (4 of 4), so the two specs read the same tree; the
+ * narrower one was declared because it is the subtree whose contents are
+ * agent-read prose by construction. ⛔ It therefore does NOT reach a future
+ * `.claude/agents/*.md` or `.claude/commands/*.md` -- which is this card's own
+ * class one step out, and is objectui#7413 rather than pre-solved here.
+ *
  * ⚠️ `AGENTS.md`, `CLAUDE.md`, `skills/**` and `.claude/**` are GOVERNED SURFACE
  * (AGENTS.md §受管面). This gate READS them and never writes: a finding in one of
  * those is reported for a human to act on, and fixing it is a separate,
