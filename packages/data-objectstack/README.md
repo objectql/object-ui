@@ -23,6 +23,9 @@ npm install @object-ui/data-objectstack
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 import { SchemaRenderer } from '@object-ui/react';
+import type { ComponentSchema } from '@object-ui/types';
+
+declare const mySchema: ComponentSchema;
 
 // 1. Create the adapter
 const dataSource = createObjectStackAdapter({
@@ -44,6 +47,8 @@ function App() {
 ### Advanced Configuration
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
   token: 'your-api-token',
@@ -78,6 +83,10 @@ ObjectStack's native query format, so a schema never has to be written in the
 protocol's own shape:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Query with filters (MongoDB-like operators)
 const result = await dataSource.find('tasks', {
   $filter: {
@@ -92,7 +101,7 @@ const result = await dataSource.find('tasks', {
 // Escape hatch: reach the underlying ObjectStack client for anything
 // the DataSource interface does not cover
 const client = dataSource.getClient();
-const metadata = await client.meta.getObject('task');
+const metadata = await client.meta.getItem('object', 'task');
 ```
 
 ### Query Parameter Mapping
@@ -186,6 +195,10 @@ array that the spec's own `isFilterAST` gate rejects is refused here rather
 than shipped:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // ✅ lowered — reaches the wire unchanged
 await dataSource.aggregate('opportunity', {
   groupBy: ['stage'],
@@ -215,6 +228,10 @@ declares), and an empty array (`[]` means "no filter").
 ### Sorting
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // OData-style
 await dataSource.find('users', {
   $orderby: {
@@ -231,6 +248,10 @@ await dataSource.find('users', {
 The adapter includes built-in metadata caching to improve performance when fetching schemas:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Get cache statistics
 const stats = dataSource.getCacheStats();
 console.log(`Cache hit rate: ${stats.hitRate * 100}%`);
@@ -257,6 +278,10 @@ dataSource.clearCache();
 The adapter provides real-time connection state monitoring with automatic reconnection:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Monitor connection state changes
 const unsubscribe = dataSource.onConnectionStateChange((event) => {
   console.log('Connection state:', event.state);
@@ -301,6 +326,12 @@ The adapter automatically attempts to reconnect on connection failures:
 Track progress of bulk operations in real-time:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
+declare const largeDataset: Array<Record<string, unknown>>;
+
 // Monitor batch operation progress
 const unsubscribe = dataSource.onBatchProgress((event) => {
   console.log(`${event.operation}: ${event.percentage.toFixed(1)}%`);
@@ -358,24 +389,36 @@ import {
 ### Error Handling Example
 
 ```typescript
+import {
+  ObjectStackError,
+  MetadataNotFoundError,
+  ConnectionError,
+  AuthenticationError,
+  type ObjectStackAdapter,
+} from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 try {
   const schema = await dataSource.getObjectSchema('users');
 } catch (error) {
   if (error instanceof MetadataNotFoundError) {
-    console.error(`Schema not found: ${error.details.objectName}`);
+    console.error(`Schema not found: ${error.details?.objectName}`);
   } else if (error instanceof ConnectionError) {
     console.error(`Connection failed to: ${error.url}`);
   } else if (error instanceof AuthenticationError) {
     console.error('Authentication required');
   }
-  
-  // All errors have consistent structure
-  console.error({
-    code: error.code,
-    message: error.message,
-    statusCode: error.statusCode,
-    details: error.details
-  });
+
+  // Every error this adapter throws carries the same shape
+  if (error instanceof ObjectStackError) {
+    console.error({
+      code: error.code,
+      message: error.message,
+      statusCode: error.statusCode,
+      details: error.details,
+    });
+  }
 }
 ```
 
@@ -384,6 +427,12 @@ try {
 Bulk operations provide detailed error reporting with partial success information:
 
 ```typescript
+import { BulkOperationError, type ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
+declare const records: Array<Record<string, unknown>>;
+
 try {
   await dataSource.bulk('users', 'update', records);
 } catch (error) {
@@ -420,6 +469,10 @@ All errors include unique error codes for programmatic handling:
 The adapter supports optimized batch operations with automatic fallback:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Batch create
 const newUsers = await dataSource.bulk('users', 'create', [
   { name: 'Alice', email: 'alice@example.com' },
@@ -453,6 +506,10 @@ writes as a single all-or-nothing unit — the master-detail case, where a paren
 and its children must commit or roll back together — use `batchTransaction`:
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Create a parent and a child that references it, atomically.
 // `{ $ref: 0 }` resolves to the id minted by operation 0 (the parent).
 await dataSource.batchTransaction([
@@ -515,8 +572,11 @@ In addition to the main `DataSource` adapter, this package ships
 persist per-user UI state (favorites, recent items) into ObjectStack.
 
 ```typescript
-import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackUserStateAdapter, type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { useAttachUserStateAdapters } from '@object-ui/app-shell';
+
+declare const dataSource: ObjectStackAdapter;
+declare const user: { id: string };
 
 const favoritesAdapter = createObjectStackUserStateAdapter({
   dataSource,             // the ObjectStack DataSource
@@ -525,6 +585,8 @@ const favoritesAdapter = createObjectStackUserStateAdapter({
   // resource: 'sys_user_preference',  // default — the unified per-user KV store
   // onError: (op, err) => console.warn(`[user-state] ${op} failed`, err),
 });
+
+const attach = useAttachUserStateAdapters();
 
 attach('favorites', favoritesAdapter);
 ```
@@ -559,6 +621,8 @@ for the full design.
 ### ObjectStackAdapter
 
 #### Constructor
+
+<!-- doc-snippet: fragment — the constructor SIGNATURE in prose notation, not a statement: `new ObjectStackAdapter(config: { ... })` names the parameter type where a call would carry a value. Measured TS1005x10. -->
 
 ```typescript
 new ObjectStackAdapter(config: {
@@ -613,6 +677,10 @@ new ObjectStackAdapter(config: {
 #### Schema Not Found
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Error: MetadataNotFoundError
 // Solution: Verify object name and ensure schema exists on server
 const schema = await dataSource.getObjectSchema('correct_object_name');
@@ -621,6 +689,8 @@ const schema = await dataSource.getObjectSchema('correct_object_name');
 #### Connection Errors
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
 // Error: ConnectionError
 // Solution: Check baseUrl and network connectivity
 const dataSource = createObjectStackAdapter({
@@ -632,6 +702,10 @@ const dataSource = createObjectStackAdapter({
 #### Cache Issues
 
 ```typescript
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+
+declare const dataSource: ObjectStackAdapter;
+
 // Clear cache if stale data is being returned
 dataSource.clearCache();
 

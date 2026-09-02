@@ -481,8 +481,6 @@ const UNGATED_DOCS = {
     'the documented override flow did not compile. It now returns `DeepMutable<T>` and that ' +
     'diagnostic is gone. Covering this page still needs the 5 undefined-name blocks made ' +
     'self-contained or declared, plus a way to declare a block whose rejection IS the point.',
-  'packages/data-objectstack/README.md':
-    '10 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 41 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/fields/README.md':
     '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
   'packages/i18n/README.md':
@@ -509,8 +507,6 @@ const UNGATED_DOCS = {
     '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-editor/README.md':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-form/README.md':
-    '12 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-gantt/README.md':
     '9 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-kanban/README.md':
@@ -525,8 +521,6 @@ const UNGATED_DOCS = {
     '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS1108x1 — candidate real defects, un-triaged',
   'packages/plugin-tree/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-view/README.md':
-    '14 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/providers/README.md':
     '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/react-runtime/README.md':

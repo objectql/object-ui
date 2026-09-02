@@ -229,6 +229,8 @@ schema.pageSize`; `if (schema.selection?.type) … else if (schema.selectable
 the pair itself:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'products',
@@ -259,7 +261,9 @@ from `table.fields` (objectui#5269, open).
 Toggle between multiple view configurations:
 
 ```typescript
-{
+import type { ViewSwitcherSchema } from '@object-ui/types';
+
+const viewSwitcher: ViewSwitcherSchema = {
   type: 'view-switcher',
   views: [
     { type: 'grid', label: 'Grid', schema: { type: 'text', content: 'Grid content' } },
@@ -270,7 +274,7 @@ Toggle between multiple view configurations:
   position: 'top',
   persistPreference: true,
   storageKey: 'my-view-switcher'
-}
+};
 ```
 
 ### FilterUI
@@ -278,7 +282,9 @@ Toggle between multiple view configurations:
 Render a filter toolbar with multiple field types:
 
 ```typescript
-{
+import type { FilterUISchema } from '@object-ui/types';
+
+const filterUi: FilterUISchema = {
   type: 'filter-ui',
   layout: 'popover',
   showApply: true,
@@ -291,7 +297,7 @@ Render a filter toolbar with multiple field types:
     ] },
     { field: 'created_at', label: 'Created', type: 'date-range' }
   ]
-}
+};
 ```
 
 ### SortUI
@@ -299,7 +305,9 @@ Render a filter toolbar with multiple field types:
 Configure sorting with dropdowns or buttons:
 
 ```typescript
-{
+import type { SortUISchema } from '@object-ui/types';
+
+const sortUi: SortUISchema = {
   type: 'sort-ui',
   variant: 'dropdown',
   multiple: true,
@@ -308,7 +316,7 @@ Configure sorting with dropdowns or buttons:
     { field: 'created_at', label: 'Created At' }
   ],
   sort: [{ field: 'name', direction: 'asc' }]
-}
+};
 ```
 
 ## Examples
@@ -319,6 +327,8 @@ The list is always rendered; `defaultViewType` picks which renderer draws it,
 and `table` configures the grid:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'users',
@@ -341,6 +351,8 @@ Create and edit share one record surface. `layout` chooses where it opens and
 no authored `mode`:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'users',
@@ -364,6 +376,11 @@ row. `navigation.mode` decides how, and `onNavigate` is what hands a page-mode
 record off to your router:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
+// your application's router
+declare const router: { push: (href: string) => void };
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'users',
@@ -392,6 +409,8 @@ not wire handlers for them — you switch them on or off with `operations`, and
 Both default to on, and the new-record form opens on the `layout` surface:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'products',
@@ -411,6 +430,8 @@ Search, filter and sort are toolbar toggles; column set, filter, sort and page
 size live in `table`:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'products',
@@ -430,6 +451,8 @@ Saved views are `listViews`, keyed by view name, with `defaultListView`
 selecting which opens first:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'products',
@@ -451,6 +474,8 @@ Editing is reached from a row's edit action; `operations.update` is what gates
 it. The edited record is chosen by the click, never by an authored `recordId`:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'products',
@@ -468,6 +493,8 @@ Under `layout: 'page'` this becomes `onNavigate(recordId, 'edit')`.
 no `enableDelete` key and no `onDelete` callback:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'products',
@@ -518,6 +545,8 @@ that is what makes the view "automatic". What the schema node chooses is
 **which** fields appear and how they are grouped:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'users',
@@ -547,6 +576,8 @@ There is no `nestedFields` key. A child collection is declared as a **subform**
 on the record form, which is where an order's line items belong:
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'orders',
@@ -576,6 +607,8 @@ the **saved-view** tab bar: declare the views and render `<ViewTabBar>` (or let
 a host such as `@object-ui/app-shell` do it):
 
 ```typescript
+import type { ObjectViewSchema } from '@object-ui/types';
+
 const schema: ObjectViewSchema = {
   type: 'object-view',
   objectName: 'users',
