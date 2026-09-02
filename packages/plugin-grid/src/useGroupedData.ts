@@ -208,6 +208,55 @@ function compareGroups(a: string, b: string, order: 'asc' | 'desc'): number {
 }
 
 /**
+ * One entry of the spec's `grouping.fields[]` — `{ field, order?, collapsed? }`.
+ */
+export type GroupingFieldEntry = NonNullable<GroupingConfig['fields']>[number];
+
+/**
+ * The `grouping.fields[]` entries a grid can actually group by (objectui#7217).
+ *
+ * ## Why this exists
+ *
+ * `grouping` is authored JSON and reaches the renderer unparsed — `ObjectGrid`
+ * reads `schema.grouping` straight off its props and `@object-ui/core`'s
+ * `validateSchema` is structural and never looks at the key. A `null` hole in
+ * the array (a trailing comma, a sparse generator, an agent-written block) was
+ * therefore dereferenced twice with no guard: once by `ObjectGrid`'s
+ * `groupValueFormatter` memo and once by this hook's `buildLevel`. Both threw
+ * `TypeError: Cannot read properties of null (reading 'field')` and took the
+ * whole grid down during render.
+ *
+ * ## The admission rule is the harvester's, deliberately
+ *
+ * An entry is usable when it is an object carrying a non-empty string `field`
+ * — exactly the entries `collectGroupingFieldRefs` (`@object-ui/core`) harvests
+ * into the projection. Keeping the two sets equal is the point: an entry the
+ * grid grouped by but the projection ignored would be fetched as `undefined`
+ * on every row and bucket every record into one `(empty)` group, which is the
+ * silent wrong answer objectui#7179 closed. This is a defensive normalizer,
+ * NOT a lenient alias — no off-spec spelling is taught to mean anything here;
+ * unusable entries are dropped, never coerced.
+ *
+ * ## Dropping the entry, not the grouping
+ *
+ * One bad entry must not flatten a working grouped view: the usable entries
+ * still group, at the levels they still occupy.
+ *
+ * @param fields - `grouping.fields` in any authored state.
+ * @returns The usable entries, in order, with their `order` / `collapsed`
+ *   intact — the harvester answers with field NAMES, which is why this cannot
+ *   simply route through it.
+ */
+export function usableGroupingFields(fields: unknown): GroupingFieldEntry[] {
+  if (!Array.isArray(fields)) return [];
+  return fields.filter((entry): entry is GroupingFieldEntry => {
+    if (entry === null || typeof entry !== 'object') return false;
+    const name = (entry as { field?: unknown }).field;
+    return typeof name === 'string' && name.trim() !== '';
+  });
+}
+
+/**
  * Hook that groups a flat data array by the fields specified in GroupingConfig.
  *
  * Supports multi-level grouping, per-field sort order, and per-field default
@@ -227,14 +276,19 @@ export function useGroupedData(
   aggregations?: AggregationConfig[],
   formatValue?: GroupValueFormatter,
 ): UseGroupedDataResult {
-  const fields = config?.fields;
-  const isGrouped = !!(fields && fields.length > 0);
+  // [objectui#7217] The SAME normalized list `ObjectGrid`'s formatter memo
+  // reads. Memoized on the raw array rather than on `config`: hosts rebuild
+  // the `{ grouping }` object literal every render, so keying on `config`
+  // would hand `groups` a fresh array identity on every render.
+  const rawFields = config?.fields;
+  const fields = useMemo(() => usableGroupingFields(rawFields), [rawFields]);
+  const isGrouped = fields.length > 0;
 
   // Track which group keys have been explicitly toggled by the user.
   const [toggledKeys, setToggledKeys] = useState<Record<string, boolean>>({});
 
   const groups: GroupEntry[] = useMemo(() => {
-    if (!isGrouped || !fields) return [];
+    if (!isGrouped) return [];
 
     /**
      * Recursively build a tree of groups for the slice of rows at the current
@@ -308,7 +362,7 @@ export function useGroupedData(
       const lastSegment = key.split('__').pop() || '';
       const depthMatch = /^(\d+):/.exec(lastSegment);
       const depth = depthMatch ? Number(depthMatch[1]) : 0;
-      const fieldDefault = !!fields?.[depth]?.collapsed;
+      const fieldDefault = !!fields[depth]?.collapsed;
       return {
         ...prev,
         [key]: prev[key] !== undefined ? !prev[key] : !fieldDefault,
