@@ -44,6 +44,16 @@ function App() {
 }
 ```
 
+> **Reaching the adapter-only API from TypeScript.** `createObjectStackAdapter`
+> declares `DataSource` as its return type, so the members below that belong to the
+> adapter rather than to every data source — `getClient`, the cache methods, the
+> connection-state and batch-progress subscriptions — are not on the type the factory
+> hands back, even though they are on the object it hands back. Until
+> [#7323](https://github.com/objectstack-ai/objectui/issues/7323) is settled, hold the
+> adapter as `ObjectStackAdapter` (the exported class, whose constructor is documented
+> under **API Reference** below) wherever you use those members; the examples in this
+> README do exactly that.
+
 ### Advanced Configuration
 
 ```typescript
