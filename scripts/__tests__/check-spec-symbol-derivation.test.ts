@@ -12,6 +12,7 @@ import {
   CLAIM_WINDOW,
   findClaim,
   normalizeDoc,
+  scanFile,
   scanFileForClaims,
 } from '../check-spec-symbol-derivation.mjs';
 
@@ -706,5 +707,136 @@ describe('the guard file itself', () => {
     for (const fragment of ['aligned with', 'mirrors', 'canonical', 'source of truth', 'conforms to']) {
       expect(header.toLowerCase(), fragment).toContain(fragment);
     }
+  });
+});
+
+
+// ── Rule 1's module-local boundary and its two narrowings (objectui#6291) ────
+
+/**
+ * Rule 1 skipped every non-exported declaration until objectui#6291. The
+ * measured cost of that filter (objectui#5899's census, PR #6284, re-taken on
+ * the implementing commit): 25 module-local declarations under spec export
+ * names, of which the four different-concept collisions got reasoned ALLOW
+ * entries and 15 findings under 14 names went to the DEBT ledger.
+ *
+ * Dropping it is only safe because two structural narrowings landed with it, and
+ * a narrowing is a statement about what this guard may NOT see. These cases are
+ * that statement's proof — one red per widening, and one green per narrowing,
+ * with the RED case for each narrowing's near neighbour sitting beside it. The
+ * No fixture below re-exports its declaration. That is deliberate and worth a
+ * line: a bare `export { X }` over a local import carries no module specifier,
+ * so the barrel skip in `scanFile` (which fires only on
+ * `export { X } from './x'`) misses it and records a SECOND finding at the
+ * barrel. That hole predates objectui#6291 — it is why
+ * `@object-ui/plugin-list:ListView` still matches an ALLOW entry while its two
+ * renderer siblings' entries were deleted — and it is filed, not fixed here.
+ * Re-exporting in a fixture would measure that hole instead of these narrowings.
+ *
+ * The near neighbours are the point: `rendersJsx` must not become "functions are
+ * exempt" (that would silence `isContextToken` and `normalizeFilterOperator`,
+ * both real mirrors), and `isPureAlias` must not become "type aliases are
+ * exempt" (that would silence every hand-written union under a spec name).
+ */
+describe("rule 1 sees module-local declarations, and the narrowings say which it may not", () => {
+  const RULE1_SPEC_NAMES = new Map<string, Set<string>>([
+    ['ListView', new Set(['@objectstack/spec/ui'])],
+    ['NavigationConfig', new Set(['@objectstack/spec/ui'])],
+    ['isContextToken', new Set(['@objectstack/spec/data'])],
+  ]);
+  const scan1 = (file: string) =>
+    (scanFile(file, RULE1_SPEC_NAMES) as { name: string; kind: string }[]).map((f) => ({
+      name: f.name,
+      kind: f.kind,
+    }));
+
+  it('a module-local hand-written declaration under a spec export name IS flagged', () => {
+    // The objectui#5652 shape: an `interface` the spec owns the name of, never
+    // exported, read by the next agent editing the file and drifting there.
+    withFixture(
+      {
+        'local.ts': `
+interface NavigationConfig {
+  mode: string;
+  view?: string;
+}
+`,
+      },
+      ({ 'local.ts': file }) =>
+        expect(scan1(file)).toEqual([{ name: 'NavigationConfig', kind: 'interface' }])
+    );
+  });
+
+  it('a module-local component that RENDERS the spec shape is not a second declaration of it', () => {
+    withFixture(
+      {
+        'renderer.tsx': `
+function ListView({ schema }: { schema: unknown }) {
+  return <div data-schema={String(schema)} />;
+}
+const NavigationConfig = () => <span />;
+`,
+      },
+      ({ 'renderer.tsx': file }) => expect(scan1(file)).toEqual([])
+    );
+  });
+
+  it('…but a module-local FUNCTION that renders nothing is still a fork', () => {
+    // The near neighbour that keeps `rendersJsx` from decaying into
+    // `isRendererLike`. `isContextToken` (@object-ui/core) and
+    // `normalizeFilterOperator` (@object-ui/data-objectstack) are the live
+    // instances: non-exported functions under spec export names, both real
+    // mirrors, both DEBT entries today. A blanket "functions are renderers"
+    // would have made them invisible instead — silently, and for good.
+    withFixture(
+      {
+        'predicate.ts': `
+function isContextToken(token: string): boolean {
+  return ['current_user_id', 'current_org_id'].includes(token);
+}
+`,
+      },
+      ({ 'predicate.ts': file }) =>
+        expect(scan1(file)).toEqual([{ name: 'isContextToken', kind: 'function' }])
+    );
+  });
+
+  it('a pure alias to a single identifier is derivation by delegation', () => {
+    // `type FlowNode = FlowDesignerNode` restates nothing, and whatever it names
+    // is judged at its own declaration site — the judgement this scanner already
+    // makes for barrels, and the change the tree made in objectui#3202.
+    withFixture(
+      {
+        'alias.ts': `
+import type { CanvasNavigation } from './canvas.js';
+
+type NavigationConfig = CanvasNavigation;
+`,
+      },
+      ({ 'alias.ts': file }) => expect(scan1(file)).toEqual([])
+    );
+  });
+
+  it('…but an alias that WIDENS, or restates anything, is not', () => {
+    // The near neighbour that keeps `isPureAlias` from decaying into "type
+    // aliases are exempt". `DashboardWidget = DashboardWidgetSchema & { id }`
+    // (app-shell) is the live widening — it carries an ALLOW entry with its
+    // reason rather than a structural pass, which is the governance this map
+    // exists for.
+    withFixture(
+      {
+        'widen.ts': `
+import type { CanvasNavigation } from './canvas.js';
+
+type NavigationConfig = CanvasNavigation & { id: string };
+type ListView = 'table' | 'kanban' | 'calendar';
+`,
+      },
+      ({ 'widen.ts': file }) =>
+        expect(scan1(file)).toEqual([
+          { name: 'NavigationConfig', kind: 'type' },
+          { name: 'ListView', kind: 'type' },
+        ])
+    );
   });
 });
