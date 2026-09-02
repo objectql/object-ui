@@ -9,6 +9,7 @@
 
 import { vi } from 'vitest';
 import { installI18nGlobalReset } from './vitest.setup.i18n-global';
+import './vitest.setup.network-escape-guard';
 
 // objectui#4514 — put react-i18next's GLOBAL default-instance pointer back
 // after every test, so a provider-less render resolves the same way whether it
