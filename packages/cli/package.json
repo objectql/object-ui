@@ -65,7 +65,7 @@
     "express": "^4.22.2",
     "express-rate-limit": "^8.6.2",
     "glob": "^13.0.6",
-    "js-yaml": "^5.2.3",
+    "js-yaml": "^5.4.1",
     "jsonc-parser": "^3.3.1",
     "vite": "^8.2.1"
   },
