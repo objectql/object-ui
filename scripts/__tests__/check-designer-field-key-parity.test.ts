@@ -3,17 +3,23 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { FieldSchema, ObjectSchema } from '@objectstack/spec/data';
+// The permission oracles are NOT on `/data` (objectui#6606) — the identity
+// proof below has to import them from the subpath the gate reads them from.
+import { ObjectPermissionSchema, PermissionSetSchema } from '@objectstack/spec/security';
 
 // Plain-JS CI helper. Its types are INFERRED from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here.
 import {
   ExtractionError,
   KNOWN_UNPARSEABLE_KEYS,
+  ORACLES,
+  ORACLE_SPECIFIERS,
   PAYLOAD_SHAPES,
   analyze,
   declaredKeys,
   fieldSchemaAcceptSet,
   objectSchemaAcceptSet,
+  schemaAcceptSet,
 } from '../check-designer-field-key-parity.mjs';
 
 /**
@@ -370,6 +376,174 @@ describe('the second oracle — objectui#6223', () => {
   });
 });
 
+describe('the permission oracles — objectui#6606', () => {
+  // The permission matrix is the SECOND authoring surface with both of this
+  // gate's ingredients, and it was in none of the six original shapes.
+  // objectui#6595 (retired `allowRestore` / `allowPurge` checkboxes) is an
+  // instance of exactly this gate's class that reached the repo as a
+  // hand-written card rather than as a red gate.
+  const PERM_ROW_WIRE = {
+    id: 'FixturePermRow',
+    file: 'perm-row.ts',
+    interface: 'FixturePermRow',
+    schema: 'ObjectPermissionSchema' as const,
+    reach: 'wire' as const,
+    writer: 'fixture',
+  };
+  const PERM_SET_WIRE = {
+    id: 'FixturePermSet',
+    file: 'perm-set.ts',
+    interface: 'FixturePermSet',
+    schema: 'PermissionSetSchema' as const,
+    reach: 'wire' as const,
+    writer: 'fixture',
+  };
+
+  it('resolves the very same schema objects `@objectstack/spec/security` exports', async () => {
+    // Reference identity, as for the other two oracles: a structural check
+    // could not tell the installed schema from a look-alike, `===` can, and it
+    // is also what pins these to the ESM build for the dual-package reason.
+    expect((await schemaAcceptSet('ObjectPermissionSchema')).schema).toBe(ObjectPermissionSchema);
+    expect((await schemaAcceptSet('PermissionSetSchema')).schema).toBe(PermissionSetSchema);
+  });
+
+  it('reads them from `/security`, because `/data` does not export them', async () => {
+    // The subpath decides WHICH MODULE judges a save, so the measurement the
+    // map records is asserted rather than trusted. If these ever move onto
+    // `/data`, `ORACLE_SPECIFIERS` has to move with them and this fails first.
+    const data = await import('@objectstack/spec/data');
+    expect(data).not.toHaveProperty('ObjectPermissionSchema');
+    expect(data).not.toHaveProperty('PermissionSetSchema');
+    expect(ORACLE_SPECIFIERS.ObjectPermissionSchema).toBe('@objectstack/spec/security');
+    expect(ORACLE_SPECIFIERS.PermissionSetSchema).toBe('@objectstack/spec/security');
+  });
+
+  it('reads accept sets that are REAL and DIFFERENT from each other', async () => {
+    // Two oracles that resolved to the same schema would make one of the two
+    // checks vacuous while looking like it ran.
+    const { accept: rowKeys } = await schemaAcceptSet('ObjectPermissionSchema');
+    const { accept: setKeys } = await schemaAcceptSet('PermissionSetSchema');
+    const { accept: fieldKeys } = await fieldSchemaAcceptSet();
+    expect(rowKeys.has('allowRead')).toBe(true);
+    expect(rowKeys.has('objects')).toBe(false);
+    expect(setKeys.has('objects')).toBe(true);
+    expect(setKeys.has('allowRead')).toBe(false);
+    expect(rowKeys.has('zzzDefinitelyNotAKey')).toBe(false);
+    expect(rowKeys.size).not.toBe(setKeys.size);
+    expect(setKeys.size).not.toBe(fieldKeys.size);
+  });
+
+  it('both are STRICT — an unknown key is refused, not stripped', () => {
+    const row = ObjectPermissionSchema.safeParse({ allowRead: true, zzzDefinitelyNotAKey: 1 });
+    expect(row.success).toBe(false);
+    expect(row.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+    const set = PermissionSetSchema.safeParse({ name: 'admin', objects: {}, zzzDefinitelyNotAKey: 1 });
+    expect(set.success).toBe(false);
+    expect(set.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+    // The same body without the extra key parses, so the failure above is the
+    // unknown key and not an unrelated invalid base.
+    expect(PermissionSetSchema.safeParse({ name: 'admin', objects: {} }).success).toBe(true);
+  });
+
+  it('goes red on a field-permission key sitting on an object-permission row', async () => {
+    // Realistic rather than bogus: `readable` / `editable` are the `FieldPerm`
+    // facets one level over, and an object row refuses them by name.
+    await withFixture(
+      { 'perm-row.ts': 'export interface FixturePermRow {\n  allowRead?: boolean;\n  readable?: boolean;\n}\n' },
+      async (dir) => {
+        const { violations } = await analyze(dir, { shapes: [PERM_ROW_WIRE], ledger: {} });
+        expect(violations.map((v) => `${v.key}:${v.oracle}`)).toEqual(['readable:ObjectPermissionSchema']);
+      },
+    );
+  });
+
+  it('the same key really is refused by the real schema, with `unrecognized_keys`', () => {
+    const parsed = ObjectPermissionSchema.safeParse({ allowRead: true, readable: true });
+    expect(parsed.success).toBe(false);
+    const issue = parsed.error?.issues.find((i) => i.code === 'unrecognized_keys');
+    expect((issue as { keys: string[] }).keys).toContain('readable');
+  });
+
+  it('routes each shape to ITS OWN oracle — `objects` is legal on the record and refused on a row', async () => {
+    // The record/row pair is the same trap the field/object pair carries:
+    // a pooled accept set would let a row-level key hide behind the record
+    // shape that legitimately declares that spelling.
+    await withFixture(
+      {
+        'perm-set.ts': 'export interface FixturePermSet {\n  name?: string;\n  objects?: unknown;\n}\n',
+        'perm-row.ts': 'export interface FixturePermRow {\n  allowRead?: boolean;\n  objects?: unknown;\n}\n',
+      },
+      async (dir) => {
+        const { violations } = await analyze(dir, {
+          shapes: [PERM_SET_WIRE, PERM_ROW_WIRE],
+          ledger: {},
+        });
+        expect(violations.map((v) => `${v.key}:${v.oracle}`)).toEqual(['objects:ObjectPermissionSchema']);
+      },
+    );
+  });
+
+  it('throws when a permission oracle cannot be resolved — a missing schema is never a pass', async () => {
+    await expect(
+      analyze(repoRoot, { shapes: [PERM_ROW_WIRE], ledger: {}, importSpec: async () => ({}) }),
+    ).rejects.toThrow(/no longer exports `ObjectPermissionSchema`/);
+  });
+
+  it('throws when a shape names an oracle no subpath is declared for', async () => {
+    // The failure mode the per-oracle subpath map introduces. Defaulting an
+    // unknown oracle to `/data` would resolve the wrong module — or nothing —
+    // and hand back the confident green this file exists to prevent.
+    const unmapped = { ...PERM_ROW_WIRE, schema: 'NotAnOracleSchema' as const };
+    await expect(analyze(repoRoot, { shapes: [unmapped], ledger: {} })).rejects.toThrow(ExtractionError);
+    await expect(analyze(repoRoot, { shapes: [unmapped], ledger: {} })).rejects.toThrow(
+      /no spec subpath is declared for the oracle `NotAnOracleSchema`/,
+    );
+  });
+
+  it('carries both permission shapes on the real tree, each judged by its own oracle', () => {
+    const perm = PAYLOAD_SHAPES.filter((s) => s.file.endsWith('permission-slice.ts'));
+    expect(perm.map((s) => `${s.id}:${s.schema}:${s.reach}`).sort()).toEqual([
+      'ObjectPerm:ObjectPermissionSchema:wire',
+      'PermissionSetDraft:PermissionSetSchema:wire',
+    ]);
+  });
+
+  it('sees the index signature on `PermissionSetDraft` — coverage note 2 applies here too', () => {
+    // `[extra: string]: unknown` is this shape's stated contract (a key the
+    // editor does not model is carried through save untouched), which is
+    // precisely the hole the gate records rather than hides.
+    const draft = PAYLOAD_SHAPES.find((s) => s.id === 'PermissionSetDraft')!;
+    expect(declaredKeys(repoRoot, draft).indexSignature).toBe(true);
+  });
+
+  it('every key the permission shapes can EMIT is accepted, on the real tree', async () => {
+    for (const id of ['PermissionSetDraft', 'ObjectPerm']) {
+      const shape = PAYLOAD_SHAPES.find((s) => s.id === id)!;
+      const { accept } = await schemaAcceptSet(shape.schema);
+      const { keys } = declaredKeys(repoRoot, shape);
+      expect(keys.filter((k: string) => !accept.has(k)), `${id} emits a refused key`).toEqual([]);
+    }
+  });
+
+  it('stays EMIT-SIDE — a spec key the shape omits is not reported', async () => {
+    // objectui#6605: `ObjectPerm` is a hand-written SUBSET of the spec's
+    // `ObjectPermission`. Under-coverage is a different question from the one
+    // this gate answers and stays a separate card, so the gate must be silent
+    // about the omissions. If that charter ever widens, this is the assertion
+    // that has to argue for it rather than be quietly deleted.
+    const { accept } = await schemaAcceptSet('ObjectPermissionSchema');
+    const shape = PAYLOAD_SHAPES.find((s) => s.id === 'ObjectPerm')!;
+    const { keys } = declaredKeys(repoRoot, shape);
+    const omitted = [...accept].filter((k) => !keys.includes(k));
+    expect(omitted).toContain('allowExport');
+    const { violations, uiOnly } = await analyze(repoRoot);
+    for (const key of omitted) {
+      expect(violations.map((v) => v.key), `${key} reported as a violation`).not.toContain(key);
+      expect(uiOnly.map((u) => u.key), `${key} reported as uiOnly`).not.toContain(key);
+    }
+  });
+});
+
 describe('the ledger ratchets in both directions', () => {
   const LEDGER = { zzzLedgeredKey: { card: 'objectui#0000', spec: null, note: 'fixture' } };
 
@@ -431,11 +605,33 @@ describe('extraction failure is an error, never a silent pass', () => {
 });
 
 describe('the real shapes, on the real tree', () => {
+  /**
+   * One key per shape that identifies THE INTERFACE, not merely some interface
+   * — the non-vacuity guard this file used to spell as a literal `label` on
+   * every shape. `label` cannot carry it everywhere: an authorization row
+   * (`ObjectPerm`, objectui#6606) has no label, while a walk that silently read
+   * some other seven-key interface would still have to miss `allowRead`. Every
+   * entry in `PAYLOAD_SHAPES` must appear here, so a shape cannot be added
+   * unwitnessed and read as verified.
+   */
+  const SHAPE_WITNESS: Record<string, string> = {
+    FieldMetadataPayload: 'label',
+    ServerFieldSchema: 'label',
+    DesignerFieldDefinition: 'label',
+    ObjectMetadataPayload: 'label',
+    ServerObjectSchema: 'label',
+    ObjectDefinition: 'label',
+    PermissionSetDraft: 'objects',
+    ObjectPerm: 'allowRead',
+  };
+
   it('finds every declared shape and reads a non-trivial key set from each', async () => {
     for (const shape of PAYLOAD_SHAPES) {
       const { keys } = declaredKeys(repoRoot, shape);
       expect(keys.length, `${shape.id} declared no keys`).toBeGreaterThan(5);
-      expect(keys, `${shape.id} is missing \`label\``).toContain('label');
+      const witness = SHAPE_WITNESS[shape.id];
+      expect(witness, `${shape.id} has no witness key in SHAPE_WITNESS`).toBeTruthy();
+      expect(keys, `${shape.id} is missing \`${witness}\``).toContain(witness);
     }
   });
 
@@ -515,9 +711,11 @@ describe('the real shapes, on the real tree', () => {
     const validate = (key: string, entry: { card?: string; note?: string; oracle?: string }) => {
       expect(entry.card, `${key} has no card`).toMatch(/^objectui#\d+$/);
       expect(entry.note, `${key} has no note`).toBeTruthy();
-      // objectui#6223: with two oracles, an entry that names none silently
-      // defaults to the field one and can absorb an object-level key.
-      expect(['FieldSchema', 'ObjectSchema'], `${key} names no oracle`).toContain(entry.oracle);
+      // objectui#6223: with more than one oracle, an entry that names none
+      // silently defaults to the field one and can absorb another level's key.
+      // Read from `ORACLES` rather than re-listed, so adding an oracle
+      // (objectui#6606 added two) cannot leave this list behind.
+      expect(ORACLES, `${key} names no oracle`).toContain(entry.oracle);
     };
 
     // Non-vacuity, on a fixture rather than on the real tree: the loop body
