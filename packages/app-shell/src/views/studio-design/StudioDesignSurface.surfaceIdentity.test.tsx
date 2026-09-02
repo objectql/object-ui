@@ -95,23 +95,23 @@ describe('Interfaces workbench — labels on screen, internal names on the toolt
 
   it('the breadcrumb reads label + translated kind, with the internal pair on its tooltip', async () => {
     renderZhPillar();
-    // The rail item, the breadcrumb and the caption all carry the internal
-    // pair as their tooltip now — the rail one is first in document order.
-    fireEvent.click((await screen.findAllByTitle('dashboard · b2r4_customer_dashboard'))[0]);
+    fireEvent.click(await screen.findByTitle('dashboard · b2r4_customer_dashboard'));
     const crumb = await waitFor(() => screen.getByTestId('if-breadcrumb'), { timeout: 4000 });
     expect(crumb).toHaveTextContent('客户仪表盘');
     expect(crumb).toHaveTextContent('仪表板');
     // The pair is reachable, but not printed at the customer.
-    expect(crumb).toHaveAttribute('title', 'dashboard · b2r4_customer_dashboard');
+    // Prefixed, so the tooltip SAYS what the pair is — and so the rail item,
+    // the breadcrumb and the caption stop sharing one addressable string.
+    expect(crumb).toHaveAttribute('title', '内部标识: dashboard · b2r4_customer_dashboard');
     expect(crumb.textContent).not.toContain('b2r4_customer_dashboard');
   });
 
   it('the canvas caption follows the same rule', async () => {
     renderZhPillar();
-    fireEvent.click((await screen.findAllByTitle('dashboard · b2r4_customer_dashboard'))[0]);
+    fireEvent.click(await screen.findByTitle('dashboard · b2r4_customer_dashboard'));
     const caption = await waitFor(() => screen.getByTestId('if-canvas-caption'), { timeout: 4000 });
     expect(caption).toHaveTextContent('客户仪表盘');
-    expect(caption).toHaveAttribute('title', 'dashboard · b2r4_customer_dashboard');
+    expect(caption).toHaveAttribute('title', '内部标识: dashboard · b2r4_customer_dashboard');
     expect(caption.textContent).not.toContain('b2r4_customer_dashboard');
   });
 });

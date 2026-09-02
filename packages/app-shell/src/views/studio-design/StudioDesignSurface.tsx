@@ -1669,7 +1669,7 @@ export function InterfacesPillar({
         {current && (
           <span
             className="text-[11px] text-muted-foreground"
-            title={`${current.type} · ${current.name}`}
+            title={`${t('engine.studio.if.internalId', locale)}: ${current.type} · ${current.name}`}
             data-testid="if-canvas-caption"
           >
             {current.label || current.name} · {translateMetadataType(current.type, locale)}
@@ -1968,7 +1968,7 @@ export function InterfacesPillar({
         {current ? (
           <span
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
-            title={`${current.type} · ${current.name}`}
+            title={`${t('engine.studio.if.internalId', locale)}: ${current.type} · ${current.name}`}
             data-testid="if-breadcrumb"
           >
             <span className="text-[13px] font-medium text-foreground">
