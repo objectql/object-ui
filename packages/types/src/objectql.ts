@@ -19,6 +19,7 @@
  */
 
 import type { BaseSchema } from './base.js';
+import type { DrillDownConfig } from './data-display.js';
 import type { BulkActionOperation } from '@objectstack/spec/ui';
 import type { FormField } from './form.js';
 // ListView type is now derived from the zod schema (issue #2231) — see ListViewSchema below.
@@ -2744,6 +2745,89 @@ export interface ObjectChartSchema extends BaseSchema {
   dimensions?: string[];
   /** Dataset measure names */
   values?: string[];
+}
+
+/**
+ * Object Gallery Component Schema (objectui#6576)
+ *
+ * The node `plugin-list`'s `ObjectGallery` renders — registered as
+ * `object-gallery` — and the anchor of the published `ObjectGalleryProps.schema`.
+ * Minted by the 2026-08-31 ruling on objectui#6576 (option A): the prop type
+ * used to declare this shape as a hand-rolled inline literal with no
+ * `BaseSchema` in its ancestry, so every base member had to be hand-copied in
+ * (`bind`, `className` were) and a real base key such as `visibleWhen` was a
+ * compile error. Anchoring here WIDENS that published accept set to every
+ * `BaseSchema` member and makes `type` required.
+ *
+ * Every key below has a read site in `plugin-list/src/ObjectGallery.tsx` (the
+ * read census is pinned in `__tests__/widget-schema-anchors-6576.test.ts`);
+ * `bind` and `className` are inherited, not restated.
+ */
+export interface ObjectGallerySchema extends BaseSchema {
+  type: 'object-gallery';
+  /** ObjectQL object name; omitted when the records arrive through `bind` or `data` */
+  objectName?: string;
+  /** Query filter, forwarded verbatim as `$filter` */
+  filter?: unknown;
+  /** Inline records — rendered ahead of a fetch when present */
+  data?: Record<string, unknown>[];
+  /** Gallery configuration — aligned with @objectstack/spec `GalleryConfig` */
+  gallery?: GalleryConfig;
+  /** Navigation config for item click behavior */
+  navigation?: ViewNavigationConfig;
+  /** Grouping configuration for sectioned display */
+  grouping?: GroupingConfig;
+  /** @deprecated Use `gallery.coverField` instead */
+  imageField?: string;
+  /** @deprecated Use `gallery.titleField` instead */
+  titleField?: string;
+}
+
+/**
+ * Object Data Table Component Schema (objectui#6576 / objectui#6914)
+ *
+ * The node `plugin-dashboard`'s `ObjectDataTable` renders — registered as
+ * `object-data-table` — and the anchor of `ObjectDataTableProps.schema`. That
+ * prop type used to be a hand-rolled inline literal carrying its own
+ * `[key: string]: any`, which is how it drifted: the widget read `drillDown`
+ * and `onRowClick` behind casts and declared neither (objectui#6914). Both are
+ * declared here with the types measured where they were declared before
+ * (`DrillDownConfig` on `ChartSchema` / `PivotTableSchema`, `onRowClick` on
+ * `DataTableSchema`), and the literal's index signature is gone — a NARROWING
+ * of a prop type the plugin index does not export.
+ *
+ * `bind` and `className` are inherited from `BaseSchema`, not restated. The
+ * widget spreads this node into the `data-table` it renders (overwriting
+ * `type`, `data`, `columns` and `onRowClick`), so `searchable` / `pagination`
+ * reach `DataTableSchema` unchanged.
+ */
+export interface ObjectDataTableSchema extends BaseSchema {
+  type: 'object-data-table';
+  /** ObjectQL object name; omitted when the rows arrive through `bind` or `data` */
+  objectName?: string;
+  /** Data-provider binding, carried from the dashboard widget definition */
+  dataProvider?: { provider: string; object?: string };
+  /** Query filter, resolved through the filter scope and forwarded as `$filter` */
+  filter?: any;
+  /** Inline rows — rendered ahead of a fetch when non-empty */
+  data?: any[];
+  /** Column definitions (names or column objects), normalized by the widget */
+  columns?: any[];
+  /** Forwarded to the rendered `data-table` */
+  searchable?: boolean;
+  /** Forwarded to the rendered `data-table` */
+  pagination?: boolean;
+  /**
+   * Drill-to-record: clicking a row opens that record in a detail drawer.
+   * `DashboardRenderer` defaults object-backed table widgets to `{ enabled: true }`.
+   */
+  drillDown?: DrillDownConfig;
+  /**
+   * Row click handler — a RUNTIME SLOT a React host supplies through this
+   * interface, never through authored JSON (objectui#6124; the zod mirror
+   * refuses the key by name). When present it overrides drill-to-record.
+   */
+  onRowClick?: (row: any) => void;
 }
 
 /**

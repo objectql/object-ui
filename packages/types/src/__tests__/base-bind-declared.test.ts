@@ -43,9 +43,15 @@
  * hazard: "two copies of one key list is how a list becomes two disagreeing
  * lists". Exactly ONE of the four was a true duplicate of a base member —
  * `ObjectPivotTable`'s, whose `PivotTableSchema & {…}` intersection does extend
- * `BaseSchema`; it is removed by this card. The other three are load-bearing:
- * their containing types never reference `BaseSchema`, so deleting the member
- * deletes the declaration rather than inheriting it. They are ratcheted below.
+ * `BaseSchema`; it is removed by this card. The other three were load-bearing
+ * at the time: their containing types never referenced `BaseSchema`, so
+ * deleting the member would have deleted the declaration rather than
+ * inheriting it. Two of them — the hand-rolled `schema` prop literals of
+ * `ObjectGallery` and `ObjectDataTable` — were ratcheted here until
+ * objectui#6576 anchored both to exported schema types that extend
+ * `BaseSchema` (ruling 2026-08-31), at which point their local members became
+ * true duplicates and were removed exactly as `ObjectPivotTable`'s was. The one
+ * that remains is ratcheted below.
  *
  * `placeholder` is the standing precedent for a cross-cutting key declared here
  * and honoured by a subset: every node may write it, only inputs read it.
@@ -166,13 +172,21 @@ describe('BaseSchema (TS) — compile-time pin on `bind`', () => {
  */
 describe('`bind` is declared in exactly one place (objectui#6357)', () => {
   /**
-   * Every allowed non-home declaration, WITH ITS REASON.
+   * The one allowed non-home declaration, WITH ITS REASON.
    *
-   * None of the three is a schema shape, which is why none of them inherits the
-   * declaration and none could simply be deleted. Two are hand-rolled inline
-   * `schema` prop types with no `BaseSchema` in their ancestry — a real defect,
-   * but objectui#5155 / objectui#6269's, filed and not fixed here. The third is
-   * a DOM-strip props type. An entry here is a declared decision; a file that is
+   * It is not a schema shape, which is why it does not inherit the declaration
+   * and could not simply be deleted. Two more entries stood here from
+   * objectui#6357 to objectui#6576 — the hand-rolled inline `schema` prop
+   * literals of `ObjectGallery` and `ObjectDataTable`, RATCHETED because their
+   * containing types never reached `BaseSchema`, so dropping the member would
+   * have deleted the declaration instead of inheriting it. Those entries
+   * attributed the defect to objectui#5155 / objectui#6269; that was wrong —
+   * #5155 is about `BaseSchema`'s index signature leaving EXTENDERS open to
+   * misspellings, and these two types never extended it at all. The defect was
+   * objectui#6576's, and its 2026-08-31 ruling closed it by anchoring both to
+   * `ObjectGallerySchema` / `ObjectDataTableSchema` (each `extends BaseSchema`),
+   * so `bind` is inherited there now and the scan below is what keeps a local
+   * copy from coming back. An entry here is a declared decision; a file that is
    * in neither this map nor the home fails the scan.
    */
   const ALLOWED = new Map<string, string>([
@@ -180,19 +194,6 @@ describe('`bind` is declared in exactly one place (objectui#6357)', () => {
       'packages/plugin-dashboard/src/schemaHostProps.ts',
       'DOM-strip props type, not a schema shape — all seven members are `unknown` by design, '
         + 'because the type exists to be destructured out and never read (objectui#4357).',
-    ],
-    [
-      'packages/plugin-dashboard/src/ObjectDataTable.tsx',
-      'RATCHET, not an endorsement. `ObjectDataTableProps.schema` is an inline object type that '
-        + 'never references `BaseSchema`, so this member is load-bearing rather than duplicated — '
-        + 'removing it would not inherit the declaration, it would delete it. The disconnected '
-        + 'hand-rolled schema prop type is objectui#5155 / objectui#6269 territory, not this card.',
-    ],
-    [
-      'packages/plugin-list/src/ObjectGallery.tsx',
-      'RATCHET, same shape as the entry above — `ObjectGalleryProps.schema` is a hand-rolled inline '
-        + 'type with no `BaseSchema` in its ancestry and (unlike that one) no index signature, so '
-        + 'dropping the member is a compile error rather than an inheritance.',
     ],
   ]);
 

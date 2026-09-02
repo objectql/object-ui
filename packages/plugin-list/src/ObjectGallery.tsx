@@ -10,27 +10,17 @@ import React, { useState, useEffect, useCallback, useMemo, useContext } from 're
 import { useDataScope, SchemaRendererContext, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { ComponentRegistry, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { cn, Card, CardContent, NavigationOverlay } from '@object-ui/components';
-import type { GalleryConfig, ViewNavigationConfig, GroupingConfig } from '@object-ui/types';
+import type { GalleryConfig, ObjectGallerySchema } from '@object-ui/types';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { getCellRenderer, resolveCellRendererType, readFileValues } from '@object-ui/fields';
 
 export interface ObjectGalleryProps {
-    schema: {
-        objectName?: string;
-        bind?: string;
-        filter?: unknown;
-        data?: Record<string, unknown>[];
-        className?: string;
-        gallery?: GalleryConfig;
-        /** Navigation config for item click behavior */
-        navigation?: ViewNavigationConfig;
-        /** Grouping configuration for sectioned display */
-        grouping?: GroupingConfig;
-        /** @deprecated Use gallery.coverField instead */
-        imageField?: string;
-        /** @deprecated Use gallery.titleField instead */
-        titleField?: string;
-    };
+    /**
+     * The `object-gallery` node — anchored to the exported schema type
+     * (objectui#6576). Every `BaseSchema` member is writable, `bind` and
+     * `className` included; the widget's own keys are declared there.
+     */
+    schema: ObjectGallerySchema;
     data?: Record<string, unknown>[];
     dataSource?: { find: (name: string, query: unknown) => Promise<unknown> };
     onCardClick?: (record: Record<string, unknown>) => void;

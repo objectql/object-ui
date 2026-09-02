@@ -23,6 +23,7 @@ import {
   GanttConfigSchema as SpecGanttConfigSchema,
   CalendarConfigSchema as SpecCalendarConfigSchema,
   GalleryConfigSchema as SpecGalleryConfigSchema,
+  GroupingConfigSchema as SpecGroupingConfigSchema,
   TimelineConfigSchema as SpecTimelineConfigSchema,
   HttpMethodSubsetSchema as SpecHttpMethodSubsetSchema,
   HttpRequestSchema as SpecHttpRequestSchema,
@@ -35,6 +36,7 @@ import {
   NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -840,6 +842,55 @@ export const ObjectChartSchema = BaseSchema.extend({
     z.array(z.string()),
     z.record(z.string(), z.string()),
   ]).optional().describe('Positional palette (string[]) OR a value→color map ({ value: color }, kanban-style). Select/lookup option colors and explicit maps win over the palette per category.'),
+});
+
+/**
+ * ObjectGallery Schema (objectui#6576)
+ *
+ * Mirrors the `ObjectGallerySchema` interface in `objectql.ts` key for key;
+ * every key has a read site in `plugin-list/src/ObjectGallery.tsx`. `gallery`,
+ * `navigation` and `grouping` are the spec's own schemas by reference, which is
+ * how the TS declaration types them.
+ */
+export const ObjectGallerySchema = BaseSchema.extend({
+  type: z.literal('object-gallery'),
+  objectName: z.string().optional().describe('ObjectQL object name'),
+  filter: z.unknown().optional().describe('Query filter, forwarded verbatim as $filter'),
+  data: z.array(z.record(z.string(), z.unknown())).optional().describe('Inline records'),
+  gallery: SpecGalleryConfigSchema.optional().describe('Gallery configuration (@objectstack/spec GalleryConfig)'),
+  navigation: SpecNavigationConfigSchema.optional().describe('Record navigation behaviour (drawer/dialog/page)'),
+  grouping: SpecGroupingConfigSchema.optional().describe('Grouping configuration for sectioned display'),
+  imageField: z.string().optional().describe('DEPRECATED — use gallery.coverField'),
+  titleField: z.string().optional().describe('DEPRECATED — use gallery.titleField'),
+});
+
+/**
+ * ObjectDataTable Schema (objectui#6576 / objectui#6914)
+ *
+ * Mirrors the `ObjectDataTableSchema` interface in `objectql.ts`. Two keys
+ * follow the parity ledger's discipline rather than the literal shape:
+ *
+ *   - `onRowClick` is a RUNTIME SLOT — a host-supplied function the widget
+ *     forwards into `data-table` — so the mirror refuses it BY NAME
+ *     (`handlerKeyRefusal`, the objectui#6124 shape) while the TS twin stays
+ *     callable; `KnownDrift` in `zod-mirror-parity.test.ts` records the
+ *     divergence.
+ *   - `drillDown` is declared on the TS face and deliberately NOT mirrored:
+ *     `DrillDownConfig` has no zod mirror in this package (`ChartSchema.drillDown`
+ *     is in the same state), and minting one is a new export outside the
+ *     objectui#6576 ruling. `UnmirroredDeclared` records it.
+ */
+export const ObjectDataTableSchema = BaseSchema.extend({
+  type: z.literal('object-data-table'),
+  objectName: z.string().optional().describe('ObjectQL object name'),
+  dataProvider: z.object({ provider: z.string(), object: z.string().optional() }).optional()
+    .describe('Data-provider binding carried from the dashboard widget definition'),
+  filter: z.any().optional().describe('Query filter, resolved through the filter scope and forwarded as $filter'),
+  data: z.array(z.any()).optional().describe('Inline rows'),
+  columns: z.array(z.any()).optional().describe('Column definitions (names or column objects)'),
+  searchable: z.boolean().optional().describe('Forwarded to the rendered data-table'),
+  pagination: z.boolean().optional().describe('Forwarded to the rendered data-table'),
+  onRowClick: handlerKeyRefusal('onRowClick', 'runtime-slot', 'Row click handler (overrides drill-to-record)'),
 });
 
 /**

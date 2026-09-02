@@ -263,6 +263,8 @@ export {
   ObjectCalendarSchema,
   ObjectKanbanSchema,
   ObjectChartSchema,
+  ObjectGallerySchema,
+  ObjectDataTableSchema,
   ListViewSchema,
   ObjectQLComponentSchema,
 } from './objectql.zod.js';

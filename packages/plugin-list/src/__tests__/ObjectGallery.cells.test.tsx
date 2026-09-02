@@ -59,6 +59,7 @@ const renderGallery = (visibleFields: string[]) =>
     <SchemaRendererProvider dataSource={mockDataSource as any}>
       <ObjectGallery
         schema={{
+          type: 'object-gallery',
           objectName: 'account',
           gallery: {
             titleField: 'name',
