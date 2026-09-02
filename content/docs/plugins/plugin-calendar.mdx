@@ -109,8 +109,9 @@ Full-featured standalone calendar with month, week, and day views for displaying
 
 ```tsx
 import '@object-ui/plugin-calendar'
+import type { CalendarViewSchema } from '@object-ui/types'
 
-const schema = {
+const schema: CalendarViewSchema = {
   type: 'calendar-view',
   view: 'month',
   data: [
@@ -154,6 +155,7 @@ dispatches the standard create action — `{ type: 'create', payload: {} }` — 
 the same action channel every other `calendar-view` gesture uses, so the host
 decides what a "create" means (open a form, navigate, call an API).
 
+{/* doc-snippet: fragment — a SHAPE excerpt continuing the "CalendarView Usage" block above, which is where the event array is written inline: `events` is the READER's own data and is not defined in this block (measured: TS2552 x1) */}
 ```tsx
 const schema = {
   type: 'calendar-view',
@@ -188,8 +190,9 @@ Calendar component designed for use with ObjectQL data sources.
 
 ```tsx
 import '@object-ui/plugin-calendar'
+import type { ObjectCalendarSchema } from '@object-ui/types'
 
-const schema = {
+const schema: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'events',  // Your ObjectQL object
   calendar: {
@@ -252,10 +255,16 @@ const schema = {
   startDateField: string,     // Field containing event start date
   endDateField?: string,      // Field containing event end date
   titleField: string,         // Field to use as event title
-  colorField?: string,        // Field for color coding
-  descriptionField?: string   // Field for event description
+  colorField?: string         // Field for color coding
 }
 ```
+
+`CalendarConfig` is `@objectstack/spec`'s `CalendarConfigSchema`, and that schema
+is **strict**: these four are the whole of it, and a fifth key is rejected rather
+than ignored. `ObjectCalendar` destructures exactly
+`{ startDateField, endDateField, titleField, colorField }`
+(`ObjectCalendar.tsx`), so the list above is also the whole of what the renderer
+reads.
 
 ## Configuration
 
@@ -264,7 +273,9 @@ const schema = {
 Map your database fields to calendar properties:
 
 ```tsx
-{
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const fieldMappedCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'tasks',
   calendar: {
@@ -273,7 +284,7 @@ Map your database fields to calendar properties:
     endDateField: 'completedAt', // Database field for end
     colorField: 'priority'       // Database field for color
   }
-}
+};
 ```
 
 ### Data Providers
@@ -281,20 +292,22 @@ Map your database fields to calendar properties:
 #### Object Provider (Database)
 
 ```tsx
-{
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const objectProviderCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'appointments',
   calendar: {
     startDateField: 'scheduledAt',
     titleField: 'subject'
   }
-}
+};
 ```
 
 #### Value Provider (Static)
 
 ```tsx
-{
+const valueProviderCalendar = {
   type: 'object-calendar',
   staticData: [
     { id: 1, title: 'Event 1', date: '2024-01-15' },
@@ -304,7 +317,7 @@ Map your database fields to calendar properties:
     startDateField: 'date',
     titleField: 'title'
   }
-}
+};
 ```
 
 #### API Provider — not implemented
@@ -345,36 +358,40 @@ already hold with the **Value Provider**.
 ### Event Click
 
 ```tsx
-{
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const eventClickCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'events',
   calendar: {
     startDateField: 'start',
     titleField: 'title'
   },
-  onEventClick: (record) => {
+  onEventClick: (record: any) => {
     console.log('Event clicked:', record);
     // Open event details
     // Navigate to event page
   }
-}
+};
 ```
 
 ### Date Click
 
 ```tsx
-{
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const dateClickCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'events',
   calendar: {
     startDateField: 'start',
     titleField: 'title'
   },
-  onDateClick: (date) => {
+  onDateClick: (date: Date) => {
     console.log('Date clicked:', date);
     // Create new event on this date
   }
-}
+};
 ```
 
 ## Examples
@@ -382,26 +399,29 @@ already hold with the **Value Provider**.
 ### Appointment Scheduler
 
 ```tsx
-const appointmentCalendar = {
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const appointmentCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'appointments',
   calendar: {
     startDateField: 'appointmentDate',
     endDateField: 'appointmentEnd',
     titleField: 'patientName',
-    descriptionField: 'notes',
     colorField: 'appointmentType'
   },
-  onEventClick: (appointment) => {
+  onEventClick: (appointment: any) => {
     // Show appointment details
   }
-}
+};
 ```
 
 ### Event Management
 
 ```tsx
-const eventCalendar = {
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const eventCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'events',
   calendar: {
@@ -410,19 +430,21 @@ const eventCalendar = {
     titleField: 'eventTitle',
     colorField: 'eventCategory'
   },
-  onEventClick: (event) => {
+  onEventClick: (event: any) => {
     // Navigate to event details
   },
-  onDateClick: (date) => {
+  onDateClick: (date: Date) => {
     // Create new event
   }
-}
+};
 ```
 
 ### Task Deadlines
 
 ```tsx
-const taskCalendar = {
+import type { ObjectCalendarSchema } from '@object-ui/types';
+
+const taskCalendar: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'tasks',
   calendar: {
@@ -430,18 +452,20 @@ const taskCalendar = {
     titleField: 'taskTitle',
     colorField: 'priority'
   },
-  onEventClick: (task) => {
+  onEventClick: (task: any) => {
     // Open task details
   }
-}
+};
 ```
 
 ## Direct Component Usage
 
 You can also import and use the components directly in React:
 
+{/* doc-snippet: fragment — the `ObjectCalendar` half cannot compile against the SHIPPED prop type: `ObjectCalendarComponentProps.schema` is declared `ObjectGridSchema | CalendarSchema`, and neither admits an `object-calendar` node — `ObjectGridSchema.type` is the literal `'object-grid'` and `CalendarSchema` is the FORM date picker (`type: 'calendar'`). The renderer registered for `object-calendar` passes exactly this shape (`index.tsx`), and `ObjectCalendar.tsx` reads `objectName` / `calendar` / `staticData` off it, so the runtime path is real and the declaration is the stale half — filed as objectui#7311 rather than papered over with a cast (measured: TS2322 x1) */}
 ```tsx
 import { CalendarView, ObjectCalendar } from '@object-ui/plugin-calendar';
+import type { DataSource } from '@object-ui/types';
 
 // CalendarView - Standalone calendar
 function MyCalendar() {
@@ -465,7 +489,7 @@ function MyCalendar() {
 }
 
 // ObjectCalendar - ObjectQL-integrated
-function MyObjectCalendar({ dataSource }) {
+function MyObjectCalendar({ dataSource }: { dataSource: DataSource }) {
   const schema = {
     objectName: 'events',
     calendar: {
@@ -489,7 +513,7 @@ function MyObjectCalendar({ dataSource }) {
 ```plaintext
 import type { 
   CalendarViewSchema, 
-  ObjectGridSchema,
+  ObjectCalendarSchema,
   CalendarConfig 
 } from '@object-ui/types'
 import type { CalendarViewEvent } from '@object-ui/plugin-calendar'
@@ -523,7 +547,7 @@ const calendarConfig: CalendarConfig = {
   colorField: 'category'
 }
 
-const objectCalendarSchema: ObjectGridSchema = {
+const objectCalendarSchema: ObjectCalendarSchema = {
   type: 'object-calendar',
   objectName: 'events',
   calendar: calendarConfig
@@ -540,6 +564,7 @@ The `@object-ui/plugin-calendar-view` package has been merged into this package.
 npm install @object-ui/plugin-calendar-view
 ```
 
+{/* doc-snippet: fragment — a migration guide's "Before" block, quoting the RETIRED `@object-ui/plugin-calendar-view` package on purpose: it was merged into `@object-ui/plugin-calendar` and no longer exists, so the specifier resolves nowhere and must not compile (measured: TS2882 x1, TS2307 x1). Correct documentation about code that is gone */}
 ```tsx
 import '@object-ui/plugin-calendar-view'
 import { CalendarView } from '@object-ui/plugin-calendar-view'
