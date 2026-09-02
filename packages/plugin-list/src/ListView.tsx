@@ -1731,9 +1731,44 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             s.add('id'); s.add('created_at'); s.add('updated_at');
             return s;
           })();
+          // [objectui#7216] TWO gates, asked in this order and of this
+          // population — they answer unrelated questions and neither
+          // substitutes for the other:
+          //
+          //   1. KNOWN-FIELD gate (above) — keeps an UNKNOWN key out, because
+          //      some backends answer an unknown `$select` key with an EMPTY
+          //      result set rather than ignoring it.
+          //   2. FLS gate (here) — keeps a KNOWN BUT DENIED key out, because
+          //      sending it leaks the value at the server boundary even though
+          //      the UI hides it (objectui#6898).
+          //
+          // A field can be perfectly well-declared and still denied; that is
+          // the case this helper did not handle. The user-declared `cols` are
+          // FLS-filtered a few lines up, so every OTHER route into `$select`
+          // was gated and this one — the auto-included view bindings, the
+          // predicate refs, the grouping fields — was not.
+          //
+          // ⚠️ ORDER IS LOAD-BEARING (objectui#7179's shape): intersect against
+          // the declared fields FIRST, ask `checkField` only about the
+          // survivors. `checkField` answers **false for an undeclared key**, so
+          // asking it first would drop derived and computed bindings that are
+          // not real object fields — and would be the REASON they were dropped,
+          // which is a different and much worse failure than the known-field
+          // gate declining them.
+          //
+          // ⚠️ The platform columns are carved out for the same reason they are
+          // carved out of `addPredicateField`: every object CARRIES them and
+          // none DECLARES them, so no field policy mentions them and
+          // `checkField` answers false for every one. Without the carve-out a
+          // calendar bound to `created_at` would go blank for everybody.
           const addSpeculative = (f: unknown) => {
             if (typeof f !== 'string' || !f) return;
-            if (!knownObjectFields || knownObjectFields.has(f)) required.add(f);
+            if (knownObjectFields && !knownObjectFields.has(f)) return;
+            if (perms?.isLoaded && schema.objectName
+                && knownObjectFields?.has(f)
+                && !PLATFORM_RECORD_COLUMNS.has(f)
+                && !perms.checkField(schema.objectName, f, 'read')) return;
+            required.add(f);
           };
           // Predicate refs take the same guard, widened by the platform columns
           // every object carries but no object DECLARES (`owner_id` and the
@@ -1821,19 +1856,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           //
           // FLS-gated on top (objectui#6898): the grid half of this same fix
           // takes `passesProjectionGate`, and a grouping field can name a
-          // denied field exactly as a column can. Safe to ask `checkField`
-          // here precisely BECAUSE `addSpeculative` ran first — everything
-          // reaching this point is a field the object declares, so the
-          // "`checkField` answers false for an undeclared key" trap that makes
-          // this gate wrong on derived columns cannot fire.
-          const addGroupingField = (f: string) => {
-            if (perms?.isLoaded && schema.objectName
-                && knownObjectFields?.has(f)
-                && !PLATFORM_RECORD_COLUMNS.has(f)
-                && !perms.checkField(schema.objectName, f, 'read')) return;
-            addSpeculative(f);
-          };
-          for (const f of collectGroupingFieldRefs(groupingConfig)) addGroupingField(f);
+          // denied field exactly as a column can.
+          //
+          // [objectui#7216] That FLS check used to live in an `addGroupingField`
+          // wrapper right here. It now lives INSIDE `addSpeculative`, with a
+          // byte-identical predicate, because every OTHER caller of that helper
+          // needed the same gate and gating them one call site at a time is how
+          // this asymmetry arose in the first place. The wrapper is gone rather
+          // than left as a duplicate: two spellings of one gate is the shape
+          // that lets them drift. `ListView.speculativeFls-7216.test.tsx` PIN 9
+          // pins this path through the moved gate — plugin-list had no FLS pin
+          // for grouping before it.
+          for (const f of collectGroupingFieldRefs(groupingConfig)) addSpeculative(f);
 
           for (const f of collectPredicateFieldRefs(listViewPredicates({
             conditionalFormatting: schema.conditionalFormatting as unknown[] | undefined,
