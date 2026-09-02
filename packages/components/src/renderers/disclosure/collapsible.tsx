@@ -16,8 +16,11 @@ import {
 import { renderChildren } from '../../lib/utils';
 
 ComponentRegistry.register('collapsible', 
-  ({ schema, className, ...props }: { schema: CollapsibleSchema; className?: string; [key: string]: any }) => (
-    <Collapsible defaultOpen={schema.defaultOpen} disabled={schema.disabled} className={className} {...props}>
+  // `hostDisabled` is `SchemaRenderer`'s EVALUATED verdict on `disabled` /
+  // `disabledOn`, not the raw authored key — which may be a predicate STRING,
+  // truthy however it evaluates (objectui#7238, precedent objectui#6169).
+  ({ schema, className, disabled: hostDisabled, ...props }: { schema: CollapsibleSchema; className?: string; disabled?: boolean; [key: string]: any }) => (
+    <Collapsible defaultOpen={schema.defaultOpen} disabled={hostDisabled} className={className} {...props}>
        <CollapsibleTrigger asChild>
          {renderChildren(schema.trigger)}
        </CollapsibleTrigger>

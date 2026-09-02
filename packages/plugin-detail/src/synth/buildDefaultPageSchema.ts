@@ -52,8 +52,9 @@ export interface ObjectDefLike {
    *  `subject`). When present we exclude it from the auto-derived highlight
    *  list to avoid duplicating the page H1. */
   primaryField?: string;
-  /** Optional section grouping for the details region. */
-  sections?: Array<{ title?: string; columns?: number; fields?: any[] }>;
+  /** Optional section grouping for the details region. The heading rides
+   *  `label` — the one slot `@object-ui/types` declares (objectui#6190). */
+  sections?: Array<{ label?: string; columns?: number; fields?: any[] }>;
   /**
    * Declared field groups from the object designer. Fields opt in via
    * `field.group === group.key`; the detail synthesizer derives sections
@@ -123,8 +124,9 @@ export interface BuildPageOptions {
   /** Override the auto-derived statusField / stages. */
   statusField?: string;
   stages?: Array<{ value: any; label: string }>;
-  /** Override the auto-derived section grouping. */
-  sections?: Array<{ title?: string; columns?: number; fields?: any[] }>;
+  /** Override the auto-derived section grouping. The heading rides `label` —
+   *  the one slot `@object-ui/types` declares (objectui#6190). */
+  sections?: Array<{ label?: string; columns?: number; fields?: any[] }>;
   /** Suppress the auto-appended `record:discussion` slot. */
   hideDiscussion?: boolean;
   /** Suppress the auto-emitted Attachments tab (`enable.files`, objectstack#4358). */
@@ -634,11 +636,17 @@ export function deriveFieldGroupDetailSections(
   const totalFields = derived.reduce((n, s) => n + s.fields.length, 0);
   const columns = inferDetailColumns(totalFields);
 
-  // Untitled trailing bucket: omitting `name`/`title` keeps the section flat
+  // Untitled trailing bucket: omitting `name`/`label` keeps the section flat
   // (record-details defaults showBorder to false for untitled sections)
   // instead of surfacing an internal key as a header.
+  //
+  // The heading rides `label`, the slot `@object-ui/types` and the authoring
+  // inspector already declare (objectui#6190). This function's output is
+  // public API, so the emitted key is part of the contract: it used to be
+  // `title`, a second spelling of one slot that `record:details` read with
+  // strict priority over `label`. One slot, one spelling.
   return derived.map((s) => ({
-    ...(s.key !== undefined ? { name: s.key, title: s.label ?? s.key } : {}),
+    ...(s.key !== undefined ? { name: s.key, label: s.label ?? s.key } : {}),
     // Group header chrome (ADR-0085 §5): the shared derivation passes the
     // declared icon/description through; DetailSection renders them under
     // the section title. Dropping them here made the spec keys silently

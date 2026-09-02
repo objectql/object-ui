@@ -294,6 +294,8 @@ field.
 A field may declare both, and it is coherent authoring — storage-level required,
 with the value guaranteed by the producer:
 
+<!-- doc-snippet: fragment — one object-literal PROPERTY quoted out of a field map — `remind_at: Field.datetime(...)` is a key/value pair, not a statement. Measured TS1109x1. -->
+
 ```ts
 remind_at: Field.datetime({ required: true, defaultValue: 'NOW()' }),
 ```
@@ -309,6 +311,8 @@ The **conditional** spelling reaches the same verdict. A `requiredWhen`
 predicate says "required in this state", but `NOW()` / `current_user` resolve
 at insert regardless of state, so the producer's guarantee covers the
 conditional claim exactly as it covers the unconditional one:
+
+<!-- doc-snippet: fragment — one object-literal PROPERTY quoted out of a field map — `remind_at: Field.datetime(...)` is a key/value pair, not a statement. Measured TS1109x1. -->
 
 ```ts
 remind_at: Field.datetime({ requiredWhen: 'record.status == "scheduled"', defaultValue: 'NOW()' }),
@@ -331,6 +335,11 @@ The two halves of that verdict are importable, so a host with its own form
 renderer applies the same rule rather than re-deriving it (objectui#6059):
 
 ```typescript
+declare const field: { required?: unknown; defaultValue?: unknown };
+declare const isCreateForm: boolean;
+declare const values: Record<string, unknown>;
+declare const objectSchema: { fields?: Record<string, { defaultValue?: unknown }> };
+
 import { isRequiredInForm, omitServerResolvedDefaults } from '@object-ui/plugin-form';
 
 // Should this create form enforce `required` on the field?
@@ -418,6 +427,8 @@ A sectioned form is **one** form. Instead of rendering a form per section — wh
 strands every section but the first outside the submit, and (in tabs) lets the
 inactive panel unmount with its values — declare tabs on the single form and let
 the renderer distribute the fields:
+
+<!-- doc-snippet: fragment — a `fieldTabs` key list in prose notation, not a statement: the trailing `defaultFieldTab?:` / `fieldTabsPosition?:` entries mark OPTIONAL keys, which no object literal can spell. Measured TS1005x2 TS1109x3. -->
 
 ```typescript
 {
@@ -550,6 +561,8 @@ saying so (#2959's validation half, in a wizard).
 The same rule for side-by-side panels: the `<form>` wraps the whole panel group
 and each pane holds only fields, so one react-hook-form instance spans the
 divider.
+
+<!-- doc-snippet: fragment — a `fieldPanes` key list in prose notation, not a statement: the trailing `fieldPanesOrientation?:` / `fieldPanesResizable?:` entries mark OPTIONAL keys, which no object literal can spell. Measured TS1005x2 TS1109x3. -->
 
 ```typescript
 {
@@ -853,6 +866,7 @@ and hands them to your `onSubmit`, which the renderer awaits
 whatever that function does:
 
 ```typescript
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 import type { FormSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({

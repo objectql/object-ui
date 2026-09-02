@@ -13,7 +13,10 @@ import { cn } from '../../lib/utils';
 import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 import React from 'react';
 
-const TextareaRenderer = ({ schema, className, onChange, value, ...props }: { schema: TextareaSchema; className?: string; onChange?: (val: any) => void; value?: any; [key: string]: any }) => {
+const TextareaRenderer = ({ schema, className, onChange, value, disabled: hostDisabled, ...props }: { schema: TextareaSchema; className?: string; onChange?: (val: any) => void; value?: any; disabled?: boolean; [key: string]: any }) => {
+  // `hostDisabled` is `SchemaRenderer`'s EVALUATED verdict on `disabled` /
+  // `disabledOn`, not the raw authored key — which may be a predicate STRING,
+  // truthy however it evaluates (objectui#7238, precedent objectui#6169).
   // Handle change for both raw inputs and form-bound inputs
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (onChange) {
@@ -42,7 +45,7 @@ const TextareaRenderer = ({ schema, className, onChange, value, ...props }: { sc
         name={schema.name}
         placeholder={schema.placeholder} 
         className={className} 
-        disabled={schema.disabled}
+        disabled={hostDisabled}
         readOnly={schema.readOnly}
         required={schema.required}
         rows={schema.rows}
