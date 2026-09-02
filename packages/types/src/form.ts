@@ -37,10 +37,6 @@ export interface ButtonSchema extends BaseSchema {
    */
   size?: 'default' | 'sm' | 'lg' | 'icon';
   /**
-   * Whether button is disabled
-   */
-  disabled?: boolean;
-  /**
    * Whether button is in loading state
    */
   loading?: boolean;
@@ -102,10 +98,6 @@ export interface InputSchema extends BaseSchema {
    * Whether field is required
    */
   required?: boolean;
-  /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
   /**
    * Whether field is readonly
    */
@@ -182,10 +174,6 @@ export interface TextareaSchema extends BaseSchema {
    */
   required?: boolean;
   /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
-  /**
    * Whether field is readonly
    */
   readOnly?: boolean;
@@ -240,10 +228,6 @@ export interface SelectSchema extends BaseSchema {
    * Whether field is required
    */
   required?: boolean;
-  /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
   /**
    * Help text or description
    */
@@ -334,10 +318,6 @@ export interface CheckboxSchema extends BaseSchema {
    */
   checked?: boolean;
   /**
-   * Whether checkbox is disabled
-   */
-  disabled?: boolean;
-  /**
    * Help text or description
    */
   description?: string;
@@ -393,10 +373,6 @@ export interface RadioGroupSchema extends BaseSchema {
    * @default 'vertical'
    */
   orientation?: 'horizontal' | 'vertical';
-  /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
   /**
    * Help text or description
    */
@@ -457,10 +433,6 @@ export interface SwitchSchema extends BaseSchema {
    */
   checked?: boolean;
   /**
-   * Whether switch is disabled
-   */
-  disabled?: boolean;
-  /**
    * Help text or description
    */
   description?: string;
@@ -487,10 +459,6 @@ export interface ToggleSchema extends BaseSchema {
    * Controlled pressed state
    */
   pressed?: boolean;
-  /**
-   * Whether toggle is disabled
-   */
-  disabled?: boolean;
   /**
    * Toggle variant
    * @default 'default'
@@ -548,10 +516,6 @@ export interface SliderSchema extends BaseSchema {
    */
   step?: number;
   /**
-   * Whether slider is disabled
-   */
-  disabled?: boolean;
-  /**
    * Help text or description
    */
   description?: string;
@@ -592,10 +556,6 @@ export interface FileUploadSchema extends BaseSchema {
    * Maximum number of files (for multiple)
    */
   maxFiles?: number;
-  /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
   /**
    * Help text or description
    */
@@ -664,10 +624,6 @@ export interface DatePickerSchema extends BaseSchema {
    */
   format?: string;
   /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
-  /**
    * Help text or description
    */
   description?: string;
@@ -708,10 +664,6 @@ export interface CalendarSchema extends BaseSchema {
    */
   maxDate?: Date | string;
   /**
-   * Whether calendar is disabled
-   */
-  disabled?: boolean;
-  /**
    * Change handler
    */
   onChange?: (date: Date | Date[] | undefined) => void;
@@ -743,10 +695,6 @@ export interface InputOTPSchema extends BaseSchema {
    * Controlled value
    */
   value?: string;
-  /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
   /**
    * Help text or description
    */
@@ -1212,10 +1160,6 @@ export interface FormSchema extends BaseSchema {
    */
   resetOnSubmit?: boolean;
   /**
-   * Whether form is disabled
-   */
-  disabled?: boolean;
-  /**
    * Form mode
    * @default 'edit'
    */
@@ -1381,10 +1325,6 @@ export interface ComboboxSchema extends BaseSchema {
    * Controlled value
    */
   value?: string;
-  /**
-   * Whether field is disabled
-   */
-  disabled?: boolean;
   /**
    * Help text or description
    */

@@ -84,10 +84,6 @@ export interface ActionSchema extends BaseSchema {
    */
   variant?: 'default' | 'outline' | 'ghost' | 'link';
   /**
-   * Whether action is disabled
-   */
-  disabled?: boolean;
-  /**
    * Action type
    * Enhanced in Phase 2 with 'ajax', 'confirm', 'dialog'
    */

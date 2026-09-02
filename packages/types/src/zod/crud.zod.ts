@@ -73,7 +73,6 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   level: z.enum(['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'default']).optional().default('default').describe('Action type/level'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
   variant: z.enum(['default', 'outline', 'ghost', 'link']).optional().describe('Action variant'),
-  disabled: z.boolean().optional().describe('Whether action is disabled'),
   actionType: z.enum(['button', 'link', 'dropdown', 'ajax', 'confirm', 'dialog']).optional().describe('Action type'),
   api: z.string().optional().describe('API endpoint to call (for ajax actions)'),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().default('POST').describe('HTTP method'),
