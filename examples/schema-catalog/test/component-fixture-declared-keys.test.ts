@@ -136,7 +136,14 @@ describe('toast fixtures: the registered spelling, not an action object off `onC
     const result = ButtonSchema.safeParse(retired);
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(['onClick']);
-    expect(result.error?.issues[0]?.message).toContain('expected function, received object');
+    // Still RED, and now BY NAME: objectui#6124 replaced `ButtonSchema.onClick`'s
+    // bare `z.function()` (zod's "expected function, received object") with a
+    // named refusal arm that points at the node-type spelling this block's
+    // fixtures already use. The verdict this block leans on did not move; the
+    // message an author reads did.
+    expect(result.error?.issues[0]?.code).toBe('custom');
+    expect(result.error?.issues[0]?.message).toContain('`onClick` is a RUNTIME SLOT');
+    expect(result.error?.issues[0]?.message).toContain('{ "type": "toast"');
   });
 });
 

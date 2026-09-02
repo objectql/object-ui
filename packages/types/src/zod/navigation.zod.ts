@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
@@ -41,7 +42,7 @@ export const BreadcrumbItemSchema = z.object({
   label: z.string().describe('Breadcrumb label'),
   href: z.string().optional().describe('Link URL'),
   icon: z.string().optional().describe('Breadcrumb icon'),
-  onClick: z.function().optional().describe('Click handler'),
+  onClick: handlerKeyRefusal('onClick', 'retired', 'Click handler'),
   siblings: z.array(z.object({
     label: z.string().describe('Sibling label'),
     href: z.string().describe('Sibling URL'),
@@ -87,7 +88,7 @@ export const SidebarSchema = BaseSchema.extend({
   collapsed: z.boolean().optional().describe('Controlled collapsed state'),
   width: z.union([z.string(), z.number()]).optional().describe('Sidebar width'),
   collapsedWidth: z.union([z.string(), z.number()]).optional().describe('Collapsed width'),
-  onCollapsedChange: z.function().optional().describe('Collapsed change handler'),
+  onCollapsedChange: handlerKeyRefusal('onCollapsedChange', 'retired', 'Collapsed change handler'),
   variant: z.enum(['default', 'bordered', 'floating']).optional().describe('Sidebar variant'),
 });
 
@@ -111,7 +112,7 @@ export const PaginationSchema = BaseSchema.extend({
   siblings: z.number().optional().describe('Number of sibling pages to show'),
   showFirstLast: z.boolean().optional().describe('Show first/last page buttons'),
   showPrevNext: z.boolean().optional().describe('Show previous/next buttons'),
-  onPageChange: z.function().optional().describe('Page change handler'),
+  onPageChange: handlerKeyRefusal('onPageChange', 'runtime-slot', 'Page change handler'),
 });
 
 /**
@@ -144,7 +145,7 @@ export const ButtonGroupButtonSchema = z.object({
   variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link']).optional(),
   size: z.enum(['default', 'sm', 'lg', 'icon']).optional(),
   disabled: z.boolean().optional().describe('Whether button is disabled'),
-  onClick: z.function().optional().describe('Click handler'),
+  onClick: handlerKeyRefusal('onClick', 'retired', 'Click handler'),
   className: z.string().optional().describe('Button class name'),
 });
 

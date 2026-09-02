@@ -145,9 +145,13 @@ export interface ToastSchema extends BaseSchema {
     onClick: () => void;
   };
   /**
-   * Dismiss handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `toast` renderer takes `({ schema })` and never reads it. The zod twin
+   * refuses it by name; author behaviour as a node type (`{ "type": "toast" }`,
+   * an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onDismiss?: () => void;
+  onDismiss?: never;
   /**
    * Label for the trigger button this component renders in place.
    *

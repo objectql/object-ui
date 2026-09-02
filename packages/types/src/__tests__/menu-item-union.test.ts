@@ -215,13 +215,45 @@ describe('MenuItemSchema — the zod mirror agrees with the TS union (objectui#6
     expect(MenuItemSchema.safeParse({ separator: true }).success).toBe(true);
   });
 
-  it('a live command item — label, icon, shortcut, onClick — still parses green', () => {
+  it('a live command item — label, icon, shortcut — still parses green', () => {
+    const result = MenuItemSchema.safeParse({
+      label: 'New Tab',
+      icon: 'plus',
+      shortcut: 'Ctrl+T',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('`onClick` is a RUNTIME SLOT the mirror refuses by name — the function still parses on the TS face only (objectui#6124)', () => {
+    // This case used to parse a live function GREEN. objectui#6124 replaced
+    // every `on*: z.function()` arm with a named refusal: the JSON face has no
+    // function value, and the renderers reach `item.onClick?.()` through the
+    // TypeScript `MenuCommandItem` — which keeps the callable member, pinned
+    // in `handler-keys-json-refusal-6124.test.ts` — never through `safeParse`.
     const result = MenuItemSchema.safeParse({
       label: 'New Tab',
       icon: 'plus',
       shortcut: 'Ctrl+T',
       onClick: () => {},
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    // A UNION reports `invalid_union` at the top; the named refusal lives in
+    // the command arm's errors (the same reading the `type` tombstone case
+    // above records for objectui#6931).
+    const top = result.error.issues[0]!;
+    expect(top.code).toBe('invalid_union');
+    const armIssues = (
+      (top as unknown as { errors?: { path: PropertyKey[]; code: string; message: string }[][] }).errors ?? []
+    )
+      .flat()
+      .filter((i) => String(i.path[0]) === 'onClick');
+    expect(armIssues.length, 'no arm reported an issue addressed to `onClick`').toBeGreaterThan(0);
+    for (const issue of armIssues) {
+      expect(issue.code).toBe('custom');
+      expect(issue.message).toContain('`onClick` is a RUNTIME SLOT');
+    }
+    const onClick: MenuCommandItem['onClick'] = () => {};
+    expect(typeof onClick).toBe('function');
   });
 });

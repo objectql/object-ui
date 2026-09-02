@@ -51,6 +51,12 @@ export interface ButtonSchema extends BaseSchema {
   iconPosition?: 'left' | 'right';
   /**
    * Click handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * forwarded to the DOM `<button>` by `toFormControlDomProps` (`onClick` is on
+   * `SDUI_DOM_PASS_THROUGH_KEYS`).
    */
   onClick?: () => void | Promise<void>;
   /**
@@ -112,6 +118,12 @@ export interface InputSchema extends BaseSchema {
   error?: string;
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `input` renderer as `props.onChange(e.target.value)` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (value: string | number) => void;
   /**
@@ -187,6 +199,12 @@ export interface TextareaSchema extends BaseSchema {
   error?: string;
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `textarea` renderer as `props.onChange(e.target.value)` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (value: string) => void;
   /**
@@ -240,6 +258,12 @@ export interface SelectSchema extends BaseSchema {
    * Change handler. Receives the AUTHORED option value — a numeric/boolean
    * option arrives with its type intact (#3090), not stringified by the
    * underlying control.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `select` renderer as `props.onChange(matchOptionValue(…))`
+   * after `SchemaRenderer` spreads it.
    */
   onChange?: (value: string | number | boolean) => void;
 }
@@ -339,6 +363,12 @@ export interface CheckboxSchema extends BaseSchema {
   required?: boolean;
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `checkbox` renderer as `props.onChange(checked)` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (checked: boolean) => void;
 }
@@ -382,10 +412,13 @@ export interface RadioGroupSchema extends BaseSchema {
    */
   error?: string;
   /**
-   * Change handler. Receives the AUTHORED option value — a numeric option
-   * arrives with its type intact (#3090).
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `radio-group` renderer forwards only `toFormControlDomProps`'s whitelist,
+   * which drops it. The zod twin refuses it by name; author behaviour as a node
+   * type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (value: string | number) => void;
+  onChange?: never;
 }
 
 /**
@@ -437,9 +470,13 @@ export interface SwitchSchema extends BaseSchema {
    */
   description?: string;
   /**
-   * Change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `switch` renderer forwards only `toFormControlDomProps`'s whitelist, which
+   * drops it. The zod twin refuses it by name; author behaviour as a node type
+   * (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (checked: boolean) => void;
+  onChange?: never;
 }
 
 /**
@@ -470,9 +507,13 @@ export interface ToggleSchema extends BaseSchema {
    */
   size?: 'default' | 'sm' | 'lg';
   /**
-   * Change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `toggle` renderer forwards only `toFormControlDomProps`'s whitelist, which
+   * drops it. The zod twin refuses it by name; author behaviour as a node type
+   * (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (pressed: boolean) => void;
+  onChange?: never;
   /**
    * Child content
    */
@@ -520,9 +561,13 @@ export interface SliderSchema extends BaseSchema {
    */
   description?: string;
   /**
-   * Change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `slider` renderer forwards only `toFormControlDomProps`'s whitelist, which
+   * drops it. The zod twin refuses it by name; author behaviour as a node type
+   * (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (value: number[]) => void;
+  onChange?: never;
 }
 
 /**
@@ -581,6 +626,12 @@ export interface FileUploadSchema extends BaseSchema {
   wrapperClass?: string;
   /**
    * Change handler (receives FileList or File[])
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `file-upload` renderer as `props.onChange(files)` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (files: FileList | File[]) => void;
 }
@@ -633,6 +684,12 @@ export interface DatePickerSchema extends BaseSchema {
   error?: string;
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `date-picker` renderer as `props.onChange(date)` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (date: Date | undefined) => void;
 }
@@ -664,9 +721,14 @@ export interface CalendarSchema extends BaseSchema {
    */
   maxDate?: Date | string;
   /**
-   * Change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `calendar` renderer spreads it onto `DayPicker`, whose selection callback
+   * is `onSelect`; nothing calls it. The zod twin refuses it by name; author
+   * behaviour as a node type (`{ "type": "toast" }`, an `action:button` node)
+   * instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (date: Date | Date[] | undefined) => void;
+  onChange?: never;
 }
 
 /**
@@ -705,12 +767,22 @@ export interface InputOTPSchema extends BaseSchema {
   error?: string;
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `input-otp` renderer as `props.onChange(val)` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (value: string) => void;
   /**
-   * Complete handler (called when all digits filled)
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `input-otp` renderer forwards only `toFormControlDomProps`'s whitelist,
+   * which drops it. The zod twin refuses it by name; author behaviour as a node
+   * type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onComplete?: (value: string) => void;
+  onComplete?: never;
 }
 
 /**
@@ -1170,10 +1242,22 @@ export interface FormSchema extends BaseSchema {
   actions?: SchemaNode[];
   /**
    * Submit handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * destructured off `schema` by `renderers/form/form.tsx` and awaited from
+   * `handleSubmit`.
    */
   onSubmit?: (data: Record<string, any>) => void | Promise<void>;
   /**
    * Change handler (called on any field change)
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * destructured off `schema` by `renderers/form/form.tsx` and subscribed to
+   * the form values (objectui#4259).
    */
   onChange?: (data: Record<string, any>) => void;
   /**
@@ -1186,6 +1270,12 @@ export interface FormSchema extends BaseSchema {
   onDirtyChange?: (isDirty: boolean) => void;
   /**
    * Cancel handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * destructured off `schema` by `renderers/form/form.tsx` and called from the
+   * cancel action.
    */
   onCancel?: () => void;
   /**
@@ -1334,9 +1424,13 @@ export interface ComboboxSchema extends BaseSchema {
    */
   error?: string;
   /**
-   * Change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `combobox` renderer forwards only `toFormControlDomProps`'s whitelist,
+   * which drops it. The zod twin refuses it by name; author behaviour as a node
+   * type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (value: string) => void;
+  onChange?: never;
 }
 
 /**
@@ -1389,9 +1483,15 @@ export interface CommandSchema extends BaseSchema {
    */
   groups?: CommandGroup[];
   /**
-   * Change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `command` renderer spreads it onto cmdk's root `<div>`, where React fires
+   * it with a SyntheticEvent on keystrokes — a different contract from `(value:
+   * string) => void`, not a consumer of it. The zod twin refuses it by name;
+   * author behaviour as a node type (`{ "type": "toast" }`, an `action:button`
+   * node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onChange?: (value: string) => void;
+  onChange?: never;
 }
 
 /**
@@ -1457,6 +1557,11 @@ export interface CodeEditorSchema extends BaseSchema {
   /**
    * Change handler. A runtime slot, not an authorable key — no JSON document
    * can carry a function.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * read by `plugin-editor` (`onChange ?? schema.onChange`).
    */
   onChange?: (value: string | undefined) => void;
 }

@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 import {
   PageSchema as SpecPageSchema,
   PageTypeSchema as SpecPageTypeSchema,
@@ -234,7 +235,7 @@ export const CardSchema = BaseSchema.extend({
   variant: z.enum(['default', 'outline', 'ghost']).optional().default('default').describe('Card variant style'),
   hoverable: z.boolean().optional().default(false).describe('Whether the card is hoverable'),
   clickable: z.boolean().optional().default(false).describe('Whether the card is clickable'),
-  onClick: z.function().optional().describe('Click handler'),
+  onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
 });
 
 /**
@@ -257,7 +258,7 @@ export const TabsSchema = BaseSchema.extend({
   value: z.string().optional().describe('Controlled active tab value'),
   orientation: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Tabs orientation'),
   items: z.array(TabItemSchema).describe('Tab items configuration'),
-  onValueChange: z.function().optional().describe('Change handler'),
+  onValueChange: handlerKeyRefusal('onValueChange', 'runtime-slot', 'Change handler'),
 });
 
 /**

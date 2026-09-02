@@ -110,20 +110,38 @@ export interface KanbanSchema extends BaseSchema {
   draggable?: boolean;
   /**
    * Card move handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * forwarded by `plugin-kanban` (`onCardMove={schema.onCardMove}`).
    */
   onCardMove?: (cardId: string, fromColumn: string, toColumn: string, position: number) => void;
   /**
    * Card click handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * forwarded by `plugin-kanban` (`onCardClick={schema.onCardClick}`).
    */
   onCardClick?: (card: KanbanCard) => void;
   /**
-   * Column add handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `kanban` renderer takes `({ schema })` and never reads it. The zod twin
+   * refuses it by name; author behaviour as a node type (`{ "type": "toast" }`,
+   * an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onColumnAdd?: (column: KanbanColumn) => void;
+  onColumnAdd?: never;
   /**
-   * Card add handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `kanban` renderer takes `({ schema })` and never reads it. The zod twin
+   * refuses it by name; author behaviour as a node type (`{ "type": "toast" }`,
+   * an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onCardAdd?: (columnId: string, card: KanbanCard) => void;
+  onCardAdd?: never;
 }
 
 /**
@@ -259,7 +277,14 @@ export interface CalendarViewSchema extends BaseSchema {
    */
   onEventClick?: (event: CalendarEvent) => void;
   /**
-   * View change handler — HOST-ONLY, same rule as {@link CalendarViewSchema.onEventClick}.
+   * View change handler — HOST-ONLY, same rule as {@link
+   * CalendarViewSchema.onEventClick}.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * read by `calendar-view`'s `pickHostCallbacks` off the spread props
+   * (function values only).
    */
   onViewChange?: (view: CalendarViewMode) => void;
 }
@@ -335,6 +360,12 @@ export interface FilterBuilderSchema extends BaseSchema {
   value?: FilterGroup;
   /**
    * Change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `filter-builder` renderer as `props.onChange` after
+   * `SchemaRenderer` spreads it.
    */
   onChange?: (filter: FilterGroup) => void;
   /**
@@ -470,9 +501,13 @@ export interface CarouselSchema extends BaseSchema {
    */
   gap?: number;
   /**
-   * Slide change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `carousel` renderer spreads it onto a `<div>` that has no such event (React
+   * attaches nothing). The zod twin refuses it by name; author behaviour as a
+   * node type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onSlideChange?: (index: number) => void;
+  onSlideChange?: never;
 }
 
 /**
@@ -595,9 +630,13 @@ export interface ChatbotSchema extends BaseSchema {
    */
   loading?: boolean;
   /**
-   * Message send handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `chatbot` renderer wires its own `handleSendMessage` and `toDomProps` drops
+   * the key. The zod twin refuses it by name; author behaviour as a node type
+   * (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onSendMessage?: (message: string) => void | Promise<void>;
+  onSendMessage?: never;
   /**
    * Show avatars
    * @default true
@@ -681,6 +720,11 @@ export interface ChatbotSchema extends BaseSchema {
   maxToolRoundtrips?: number;
   /**
    * Callback when an error occurs during streaming or API calls.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * forwarded by `plugin-chatbot` into `useObjectChat({ onError })`.
    */
   onError?: (error: Error) => void;
 
@@ -740,12 +784,17 @@ export interface ChatbotSchema extends BaseSchema {
    */
   autoResponseDelay?: number;
   /**
-   * Called after a message is sent, in both API and local auto-response
-   * mode, with the trimmed content and the full message list at that
-   * point. `messages` here is the same authoring-side {@link ChatMessage}
-   * shape as the `messages` field above; the plugin's own runtime message
-   * type is a structural superset (objectui#4424) and still satisfies a
-   * handler typed against this narrower, published shape.
+   * Called after a message is sent, in both API and local auto-response mode,
+   * with the trimmed content and the full message list at that point.
+   * `messages` here is the same authoring-side {@link ChatMessage} shape as the
+   * `messages` field above; the plugin's own runtime message type is a
+   * structural superset (objectui#4424) and still satisfies a handler typed
+   * against this narrower, published shape.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * forwarded by `plugin-chatbot` into `useObjectChat({ onSend })`.
    */
   onSend?: (content: string, messages: ChatMessage[]) => void;
 

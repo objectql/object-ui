@@ -57,7 +57,9 @@
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **12 entries** in `KnownDrift`, **17 keys** across them.
+ *   - **36 entries** in `KnownDrift`, **52 keys** across them. It was 12 / 17 until
+ *     objectui#6124 added the RUNTIME-SLOT class (28 pairs touched, 35 keys) — see
+ *     the class note inside the ledger, above `ButtonSchema`.
  *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
  *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
@@ -70,7 +72,7 @@
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
  *     "no entry in either" population dropped by one to 141.
- *   - 158 − 12 = **146**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *   - 158 − 36 = **122**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -91,7 +93,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 12 of the 158 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 36 of the 158 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -107,6 +109,13 @@
  * `ViewSwitcherSchema`) and two shrank to the keys that are NOT widenings
  * (`DataTableSchema` kept `rowActions`, `FormSchema` kept `fields`/`mode`). The
  * remaining classes are rulings, not edits, and are deliberately still here.
+ *
+ * Then 12 became 36 with objectui#6124, which is the opposite movement from #5927's
+ * and must not be read as regression: 24 pairs ENTERED (and 4 grew) because the
+ * ruling put a NAMED REFUSAL on the mirror side of 35 runtime-slot handler keys while
+ * their TypeScript twins stay callable. That drift is the ruling's intended shape,
+ * ledgered so the ratchet holds it exactly — a pair leaving this class means either
+ * the mirror accepts a function again or a renderer lost its callback.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -679,8 +688,18 @@ export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeo
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
-  /** TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror declares `Record<string, unknown>` ("additional API body params"). Two different meanings of one key — a naming collision to rule on, not a widening. */
-  'complex.zod.ts#ChatbotSchema': 'body';
+  /** RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads `onViewChange` off the spread props (function values only) and hands it to `CalendarView`. */
+  'complex.zod.ts#CalendarViewSchema': 'onViewChange';
+  /**
+   * `body` — TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror
+   * declares `Record<string, unknown>` ("additional API body params"). Two different
+   * meanings of one key — a naming collision to rule on, not a widening.
+   *
+   * `onError` / `onSend` — RUNTIME SLOT (objectui#6124): `plugin-chatbot` forwards both off
+   * `schema.*` into `useObjectChat`, so the TS side keeps the callables; the mirror
+   * refuses them by name (`handlerKeyRefusal`). See the class note above `ButtonSchema`.
+   */
+  'complex.zod.ts#ChatbotSchema': 'body' | 'onError' | 'onSend';
   /**
    * spec-derived shape (`SpecDashboardFields`) measured against a hand-written
    * local declaration. Needs the spec-unification triage of #2231 rather than a
@@ -694,24 +713,122 @@ interface KnownDrift {
   'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters';
   /** TS declares `unknown`; the mirror declares a structured options object. The mirror is the STRICTER side here — narrowing the check would be wrong, widening the TS declaration is the ADR-0049 question. */
   'complex.zod.ts#DashboardWidgetSchema': 'options';
-  /** inherited from `FilterFieldSchema.operators` below — the element type is the drifted one. */
-  'complex.zod.ts#FilterBuilderSchema': 'fields';
+  /**
+   * `fields` — inherited from `FilterFieldSchema.operators` below; the element type is
+   * the drifted one. `onChange` — RUNTIME SLOT (objectui#6124): the `filter-builder` renderer
+   * calls it as `props.onChange` after `SchemaRenderer`'s spread.
+   */
+  'complex.zod.ts#FilterBuilderSchema': 'fields' | 'onChange';
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** DISJOINT: TS declares `rowActions?: boolean` (show the column or not), the mirror declares `any[]` (the actions themselves). One of the two is dead; which is a ruling. (`selectable` was a second drifted key here until objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` — `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements `'single'` as a real mode.) */
-  'data-display.zod.ts#DataTableSchema': 'rowActions';
-  /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. */
+  /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
+  'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick';
+  /**
+   * `rowActions` — DISJOINT: TS declares `rowActions?: boolean` (show the column or
+   * not), the mirror declares `any[]` (the actions themselves). One of the two is
+   * dead; which is a ruling. (`selectable` was a second drifted key here until
+   * objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` —
+   * `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements
+   * `'single'` as a real mode.)
+   *
+   * The four callbacks — RUNTIME SLOT (objectui#6124) ×4: `renderers/complex/data-table.tsx`
+   * CALLS every one of them off `schema.*` (`schema.onRowEdit?.(r)`,
+   * `schema.onSelectionChange(selectedData)`, …), so the TS side keeps them callable
+   * and the mirror refuses them by name.
+   */
+  'data-display.zod.ts#DataTableSchema': 'rowActions' | 'onRowEdit' | 'onRowDelete' | 'onSelectionChange' | 'onColumnsReorder';
+  /** RUNTIME SLOT (objectui#6124): the `accordion` renderer spreads leftover props onto the Radix `Accordion` root, where `onValueChange` is a real prop. */
+  'disclosure.zod.ts#AccordionSchema': 'onValueChange';
+  /** RUNTIME SLOT (objectui#6124): the `collapsible` renderer spreads leftover props onto the Radix `Collapsible` root. */
+  'disclosure.zod.ts#CollapsibleSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `toggle-group` renderer spreads `toggleGroupProps` onto the Radix `ToggleGroup` root. */
+  'disclosure.zod.ts#ToggleGroupSchema': 'onValueChange';
+  /**
+   * ## The objectui#6124 class — a RUNTIME SLOT on the TS face, a NAMED REFUSAL on the mirror
+   *
+   * Maintainer ruling 2026-08-30 (batch #8, Q2 → A with C): the 58 `on*` keys the
+   * mirrors declared as `z.function()` — a type NO JSON document can satisfy — keep
+   * their declaration and REFUSE BY NAME (`handlerKeyRefusal()` in
+   * `../zod/tombstone.zod.ts`, the #5099 `z.custom` + guidance shape), because under
+   * `BaseSchema.passthrough()` deleting a key is a SILENT accept that keeps the value
+   * and forwards it to the DOM. The mirror's `z.input` for such a key is therefore
+   * `undefined` — a JSON author cannot write it — while the TypeScript twin of a key
+   * whose function value REACHES a renderer stays callable, because that is the
+   * programmatic channel (`SchemaRenderer` spreads every non-metadata schema key as a
+   * React prop; renderers read `schema.onX`, call `props.onX`, or spread leftovers onto
+   * a Radix root / DOM listener slot). Two faces of one key, both true, measured per
+   * key — a DELIBERATE divergence like `PageNodeSchema.pageType`, not debt to widen
+   * away. ⛔ Do not "fix" one of these by making the mirror accept a function again
+   * (that re-opens the JSON lie) or by deleting the TS member (that breaks the shipped
+   * renderer that reads it).
+   *
+   * The 22 keys NOTHING reads are not in this ledger at all: their TS twin is a
+   * `?: never` tombstone, so `undefined` meets `undefined` and the pair does not drift
+   * on them. Every one of the 58 is pinned member-by-member, both faces, in
+   * `handler-keys-json-refusal-6124.test.ts`; this ledger records the 35 that drift.
+   *
+   * `ButtonSchema.onClick` — RUNTIME SLOT (objectui#6124): `toFormControlDomProps` forwards it
+   * to the DOM `<button>` (`onClick` is on `SDUI_DOM_PASS_THROUGH_KEYS`).
+   */
+  'form.zod.ts#ButtonSchema': 'onClick';
+  /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. (`onChange` is NOT here: the `calendar` renderer spreads it onto `DayPicker`, whose callback is `onSelect`, so nothing reads it — both faces retire it.) */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
+  /** RUNTIME SLOT (objectui#6124): the `checkbox` renderer calls `props.onChange(checked)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#CheckboxSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): `plugin-editor` reads `onChange ?? schema.onChange`. */
+  'form.zod.ts#CodeEditorSchema': 'onChange';
   /** OPTIONALITY: TS declares `options?`, the mirror REQUIRES it. Whether authoring a combobox without options is legal is a ruling. */
   'form.zod.ts#ComboboxSchema': 'options';
-  /** OPTIONALITY: TS declares `groups?`, the mirror REQUIRES it. */
+  /** OPTIONALITY: TS declares `groups?`, the mirror REQUIRES it. (`onChange` is NOT here: the `command` renderer spreads it onto cmdk's root `div`, where React fires it with a SyntheticEvent — a different contract from the declared `(value: string) => void`, so both faces retire it.) */
   'form.zod.ts#CommandSchema': 'groups';
-  /** DISJOINT on `mode`: TS `disabled|read|edit`, mirror `create|edit|view`. `fields` is inherited element drift. (`validationMode` was a third drifted key until objectui#5927 widened it to react-hook-form's full `mode` vocabulary — `useForm({ mode })` in `renderers/form/form.tsx` forwards it verbatim and RHF implements `onTouched`/`all` as real branches.) */
-  'form.zod.ts#FormSchema': 'fields' | 'mode';
+  /** RUNTIME SLOT (objectui#6124): the `date-picker` renderer calls `props.onChange(date)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#DatePickerSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `file-upload` renderer calls `props.onChange(files)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#FileUploadSchema': 'onChange';
+  /**
+   * `mode` — DISJOINT: TS `disabled|read|edit`, mirror `create|edit|view`. `fields` is
+   * inherited element drift. (`validationMode` was a third drifted key until
+   * objectui#5927 widened it to react-hook-form's full `mode` vocabulary —
+   * `useForm({ mode })` in `renderers/form/form.tsx` forwards it verbatim and RHF
+   * implements `onTouched`/`all` as real branches.)
+   *
+   * `onSubmit` / `onChange` / `onCancel` — RUNTIME SLOT (objectui#6124) ×3: `renderers/form/form.tsx`
+   * destructures all three off `schema` and calls them (`await onSubmitProp(formData)`,
+   * the objectui#4259 `onChangeProp` subscription, `onCancelProp()`).
+   */
+  'form.zod.ts#FormSchema': 'fields' | 'mode' | 'onSubmit' | 'onChange' | 'onCancel';
+  /** RUNTIME SLOT (objectui#6124): the `input-otp` renderer calls `props.onChange(val)` after `SchemaRenderer`'s spread. (`onComplete` is NOT here: the `toFormControlDomProps` whitelist drops it — both faces retire it.) */
+  'form.zod.ts#InputOTPSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `input` renderer calls `props.onChange(e.target.value)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#InputSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `select` renderer calls `props.onChange(matchOptionValue(…))` after `SchemaRenderer`'s spread. (This pair LEFT the ledger with objectui#5927's widenings and re-enters on a different key for a different reason.) */
+  'form.zod.ts#SelectSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `textarea` renderer calls `props.onChange(e.target.value)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#TextareaSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `card` renderer spreads `cardProps` onto the `<Card>` element (a DOM `onClick`) and reads it for `isClickable`. */
+  'layout.zod.ts#CardSchema': 'onClick';
   /** `pageType` is a DELIBERATE divergence, documented at `PageVisualizationAlias` (`../layout.ts`): the TS side retains five visualization names as a sanctioned local extension while the mirror takes the spec's vocabulary by reference, which repudiates them. Widening the mirror would re-add spellings the spec rejects. */
   'layout.zod.ts#PageNodeSchema': 'slots' | 'pageType';
+  /** RUNTIME SLOT (objectui#6124): the `tabs` renderer spreads `tabsProps` onto the Radix `Tabs` root AFTER its own `onValueChange`, so the authored function wins. */
+  'layout.zod.ts#TabsSchema': 'onValueChange';
   /** DISJOINT: TS declares `floating`, the mirror declares `transparent`. One of the two renders nothing. */
   'navigation.zod.ts#HeaderBarSchema': 'variant';
+  /** RUNTIME SLOT (objectui#6124): the `pagination` renderer calls `props.onPageChange(page)` after `SchemaRenderer`'s spread. */
+  'navigation.zod.ts#PaginationSchema': 'onPageChange';
+  /** RUNTIME SLOT (objectui#6124): the `alert-dialog` renderer spreads leftover props onto the Radix `AlertDialog` root. (`onConfirm` / `onCancel` are NOT here: the footer is wired to `schema.onAction` and `AlertDialogCancel`, so nothing reads them — both faces retire them.) */
+  'overlay.zod.ts#AlertDialogSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `dialog` renderer spreads leftover props onto the Radix `Dialog` root. */
+  'overlay.zod.ts#DialogSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `drawer` renderer spreads leftover props onto the vaul `Drawer` root. */
+  'overlay.zod.ts#DrawerSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `dropdown-menu` renderer spreads leftover props onto the Radix `DropdownMenu` root. (`MenuItemSchema.onClick`, the 36th runtime slot, is not a pair here — that mirror is a lazy union and sits in `EXCLUSIONS`.) */
+  'overlay.zod.ts#DropdownMenuSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `hover-card` renderer spreads leftover props onto the Radix `HoverCard` root. */
+  'overlay.zod.ts#HoverCardSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `popover` renderer spreads leftover props onto the Radix `Popover` root. */
+  'overlay.zod.ts#PopoverSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `sheet` renderer spreads leftover props onto the Radix `Sheet` (Dialog) root. */
+  'overlay.zod.ts#SheetSchema': 'onOpenChange';
 }
 
 /* ── The measured unmirrored-declared ledger (objectui#6058) ────────────────── */
@@ -1154,7 +1271,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 146 pairs with no entry (158 − 12).
+ * 122 pairs with no entry (158 − 36).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is

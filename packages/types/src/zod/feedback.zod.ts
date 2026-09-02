@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 
 /**
@@ -73,7 +74,7 @@ export const ToastSchema = BaseSchema.extend({
     'bottom-right',
   ]).optional().describe('Toast position'),
   action: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Action button'),
-  onDismiss: z.function().optional().describe('Dismiss handler'),
+  onDismiss: handlerKeyRefusal('onDismiss', 'retired', 'Dismiss handler'),
   // The trigger button the `toast` renderer draws in place. `buttonVariant`
   // is an ENUM and not `z.string()`: the renderer hands the value straight to
   // `<Button variant={…}>`, whose vocabulary is the six keys of
