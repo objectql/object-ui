@@ -57,7 +57,7 @@ interface ButtonSchema {
   iconPosition?: 'left' | 'right'; // Icon placement
   
   // States
-  disabled?: boolean;
+  disabled?: boolean | string;   // boolean, or a predicate expression
   loading?: boolean;
   
   // Actions

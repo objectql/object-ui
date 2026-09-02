@@ -43,7 +43,7 @@ interface FileUploadSchema {
   maxFiles?: number;                    // Maximum number of files (for multiple)
   
   // States
-  disabled?: boolean;                   // Whether field is disabled
+  disabled?: boolean | string;          // boolean, or a predicate expression
   
   // Help text
   description?: string;                 // Help text or description
