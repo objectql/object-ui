@@ -31,8 +31,8 @@ import {
  * to leak across files". That premise was false in BOTH directions and had been
  * for some time: the project holds files whose import closure registers into the
  * singleton, and files that assert a key is absent from it. Measured here on
- * every run — on `eb33a8d4c` the project's 810 files import 600 distinct
- * specifiers whose closures register 502 keys into the shared singleton.
+ * every run — over `ec0a7b846` the project's 811 files import 551 distinct
+ * modules whose closures register 505 keys into the shared singleton.
  *
  * Nothing was red, and that is the point: a collision is ORDER-DEPENDENT, so it
  * arrives as a failure in a file that did nothing wrong, in whichever worker

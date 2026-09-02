@@ -192,8 +192,9 @@ export default defineConfig({
           // "node-env pure logic with no ComponentRegistry or DOM state to leak
           // across files". It was false in both directions and had been for
           // some time: this project holds files whose import closure REGISTERS
-          // into the `ComponentRegistry` singleton — measured, its 810 files
-          // import 600 distinct specifiers whose closures register 502 keys —
+          // into the `ComponentRegistry` singleton — measured over `ec0a7b846`,
+          // its 811 files import 551 distinct modules whose closures register
+          // 505 keys into it —
           // and files that assert a key is ABSENT from it. A shared graph makes
           // each visible to the other, so the constraint that actually has to
           // hold is:

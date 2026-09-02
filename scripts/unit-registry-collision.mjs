@@ -12,7 +12,7 @@
  *
  * The project's justification comment used to state the opposite ("no
  * ComponentRegistry ... state to leak across files"). Measured on
- * `eb33a8d4c`: the union of the project's import closures registers 502 keys.
+ * `ec0a7b846`: the union of the project's import closures registers 505 keys.
  * The premise was false in both directions — the project holds files that
  * WRITE to the singleton and files that assert a key is ABSENT from it — and a
  * comment is the only thing a future author consults before adding either.
