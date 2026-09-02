@@ -18,6 +18,7 @@ import type {
   AggregateParams,
   AggregateResult,
 } from '@object-ui/types';
+import { canonicalAstOperator } from '@objectstack/spec/data';
 import { emulateBatchTransaction } from './batchTransaction.js';
 
 // ---------------------------------------------------------------------------
@@ -42,68 +43,178 @@ function getRecordId(record: any, idField?: string): string | number | undefined
 }
 
 /**
- * Evaluate an AST-format filter node against a record.
- * Supports conditions like ['field', 'op', value] and logical
- * combinations like ['and', ...conditions] or ['or', ...conditions].
+ * A filter node this matcher cannot execute.
+ *
+ * Recorded and EXCLUDING, never silently ignored. Answering `true` for a node
+ * the matcher does not understand is how a filtered list came back UNFILTERED —
+ * every row, no error, not one console line (objectui#7349). The measured
+ * sibling behaviour is a refusal, not a pass: `evaluateCondition`
+ * (`@object-ui/permissions`) returns `false` from its `default` arm, and
+ * `ReportViewer`'s formatting switch leaves `match` false. The wire-side
+ * sibling `@object-ui/data-objectstack` goes further and THROWS
+ * (`MalformedFilterError`), on the stated ground that dropping one entry of an
+ * `and` WIDENS the result set — but it is deciding whether to send a query at
+ * all, while this matcher is deciding about a single row. So the row is
+ * excluded and the reason is logged once per distinct refusal per `find()`,
+ * which keeps a 10k-row scan to one line.
  */
-function matchesASTFilter(record: any, filterNode: any[]): boolean {
-  if (!filterNode || filterNode.length === 0) return true;
+function refuseFilterNode(refusals: Set<string>, reason: string): false {
+  refusals.add(`[ObjectUI] ValueDataSource: ${reason}. Rows are excluded rather than passed through.`);
+  return false;
+}
+
+/**
+ * Evaluate ONE comparison node — `[field, operator]` or `[field, operator, value]`.
+ *
+ * The operator is canonicalized through the spec's own
+ * {@link canonicalAstOperator}, so this switch has ONE arm per operator rather
+ * than one per spelling, and the accepted vocabulary is the published one
+ * rather than a second hand-written list that drifts from it. That matters here
+ * more than it reads: `viewFilterRuleToNode` (`../utils/filter-converter.ts`)
+ * lowers a stored view's rules through the spec's `normalizeFilterOperator`,
+ * so what actually arrives is the CANONICAL VIEW spelling — `equals`,
+ * `greater_than`, `starts_with` — and 16 of the 20 `VIEW_FILTER_OPERATORS`
+ * had no arm in the old spelling-keyed switch. Every one of them reached its
+ * `default: return true` and selected every row.
+ */
+function matchesComparisonNode(
+  record: any,
+  node: any[],
+  refusals: Set<string>,
+): boolean {
+  const field = node[0] as string;
+  const rawOperator = node[1] as string;
+  // `'not in'` (with a space) is NOT a member of the spec's
+  // `VALID_AST_OPERATORS` — the wire would refuse it — but this matcher has
+  // always implemented it and a test pins it. Canonicalizing it here keeps the
+  // refusal arm below from deleting support that exists today; whether to
+  // retire the spelling is a separate question from this card's.
+  const operator =
+    rawOperator === 'not in' ? 'nin' : canonicalAstOperator(rawOperator);
+  const value = record[field];
+  const target = node[2];
+
+  switch (operator) {
+    // -- Null-ness. Direction comes from the operator NAME; the value slot is
+    // never read, so the 2-tuple `['x', 'is_not_null']` and the 3-tuple
+    // `['x', 'isnotnull', null]` are the same predicate. `canonicalAstOperator`
+    // folds all eight spellings (`is_null` / `isnull` / `is_empty` / `isempty`
+    // and their four negatives) onto these two arms — including `is_empty`,
+    // which the spec lowers to `$null` rather than to an emptiness test.
+    case 'is_null':
+      return value === null || value === undefined;
+    case 'is_not_null':
+      return value !== null && value !== undefined;
+
+    case '=':
+      return value === target;
+    case '!=':
+      return value !== target;
+    case '>':
+      return value > target;
+    case '>=':
+      return value >= target;
+    case '<':
+      return value < target;
+    case '<=':
+      return value <= target;
+    case 'in':
+      return Array.isArray(target) && target.includes(value);
+    case 'nin':
+      return Array.isArray(target) && !target.includes(value);
+    case 'contains':
+    case 'icontains': {
+      const lv = typeof value === 'string' ? value.toLowerCase() : '';
+      return typeof value === 'string' && lv.includes(String(target).toLowerCase());
+    }
+    case 'not_contains': {
+      const lv = typeof value === 'string' ? value.toLowerCase() : '';
+      return typeof value === 'string' && !lv.includes(String(target).toLowerCase());
+    }
+    case 'starts_with': {
+      const lv = typeof value === 'string' ? value.toLowerCase() : '';
+      return typeof value === 'string' && lv.startsWith(String(target).toLowerCase());
+    }
+    case 'ends_with': {
+      const lv = typeof value === 'string' ? value.toLowerCase() : '';
+      return typeof value === 'string' && lv.endsWith(String(target).toLowerCase());
+    }
+    case 'between':
+      return Array.isArray(target) && target.length === 2 && value >= target[0] && value <= target[1];
+
+    default:
+      // Includes the spec-valid `like` / `ilike`: they carry pattern semantics
+      // this in-memory matcher does not implement, and no producer in this repo
+      // emits them into a filter. Refusing is the loud answer; matching every
+      // row was the silent one.
+      return refuseFilterNode(
+        refusals,
+        `filter operator '${String(rawOperator)}' is not implemented by the in-memory matcher`,
+      );
+  }
+}
+
+/**
+ * Evaluate an AST-format filter node against a record.
+ *
+ * Reads the four shapes the spec's `FilterArraySchema` declares and
+ * `isFilterAST` accepts, so this consumer applies the same filter the wire
+ * would (objectui#7349):
+ *
+ *   - `['and' | 'or', ...children]`  a logical group
+ *   - `[field, operator, value]`     a comparison
+ *   - `[field, operator]`            a comparison whose operator needs no value
+ *   - `[[…], […]]`                   a legacy flat list of conditions, implicit AND
+ *
+ * The last one is the shape this matcher used to ignore ENTIRELY, at top level
+ * and as a child of `and` / `or` alike — and it is what `mergeFilterNodes`
+ * returns for a lone surviving filter source, i.e. the common case. A flat
+ * array is unambiguous: the spec's `FilterArrayFieldSchema` forbids `and` / `or`
+ * as field names, so a node whose head is itself an array can only be a list.
+ *
+ * Anything else is refused rather than passed. An empty array stays "no
+ * filter" — the spec says the same, and `find()` never calls with one.
+ */
+function matchesASTFilter(record: any, filterNode: any, refusals: Set<string>): boolean {
+  if (!Array.isArray(filterNode)) {
+    return refuseFilterNode(
+      refusals,
+      `filter node ${JSON.stringify(filterNode) ?? String(filterNode)} is not an array`,
+    );
+  }
+  if (filterNode.length === 0) return true;
 
   const head = filterNode[0];
 
-  // Logical operators: ['and', ...conditions] or ['or', ...conditions]
-  if (head === 'and') {
-    return filterNode.slice(1).every((sub: any) => matchesASTFilter(record, sub));
-  }
-  if (head === 'or') {
-    return filterNode.slice(1).some((sub: any) => matchesASTFilter(record, sub));
-  }
-
-  // Condition node: [field, operator, value]
-  if (filterNode.length === 3 && typeof head === 'string') {
-    const [field, operator, target] = filterNode;
-    const value = record[field];
-
-    switch (operator) {
-      case '=':
-        return value === target;
-      case '!=':
-        return value !== target;
-      case '>':
-        return value > target;
-      case '>=':
-        return value >= target;
-      case '<':
-        return value < target;
-      case '<=':
-        return value <= target;
-      case 'in':
-        return Array.isArray(target) && target.includes(value);
-      case 'not in':
-      case 'not_in':
-      case 'nin': // canonical (per spec)
-      case 'notin': // legacy alias
-        return Array.isArray(target) && !target.includes(value);
-      case 'contains': {
-        const lv = typeof value === 'string' ? value.toLowerCase() : '';
-        return typeof value === 'string' && lv.includes(String(target).toLowerCase());
+  // Logical group. `length >= 2` mirrors `isFilterAST`: the keyword opens a
+  // group and a group needs at least one condition.
+  if (typeof head === 'string') {
+    const keyword = head.toLowerCase();
+    if (keyword === 'and' || keyword === 'or') {
+      if (filterNode.length < 2) {
+        return refuseFilterNode(refusals, `'${keyword}' group carries no conditions`);
       }
-      case 'notcontains': {
-        const lv = typeof value === 'string' ? value.toLowerCase() : '';
-        return typeof value === 'string' && !lv.includes(String(target).toLowerCase());
-      }
-      case 'startswith': {
-        const lv = typeof value === 'string' ? value.toLowerCase() : '';
-        return typeof value === 'string' && lv.startsWith(String(target).toLowerCase());
-      }
-      case 'between':
-        return Array.isArray(target) && target.length === 2 && value >= target[0] && value <= target[1];
-      default:
-        return true;
+      const children = filterNode.slice(1);
+      return keyword === 'and'
+        ? children.every((sub: any) => matchesASTFilter(record, sub, refusals))
+        : children.some((sub: any) => matchesASTFilter(record, sub, refusals));
     }
   }
 
-  return true;
+  // Legacy flat list of conditions — implicit AND, the way the server reads it.
+  if (Array.isArray(head)) {
+    return filterNode.every((sub: any) => matchesASTFilter(record, sub, refusals));
+  }
+
+  // Comparison node, 2- or 3-element.
+  if (typeof head === 'string' && typeof filterNode[1] === 'string' && filterNode.length <= 3) {
+    return matchesComparisonNode(record, filterNode, refusals);
+  }
+
+  return refuseFilterNode(
+    refusals,
+    `filter node ${JSON.stringify(filterNode)} is not a shape the matcher reads`,
+  );
 }
 
 /**
@@ -258,7 +369,11 @@ export class ValueDataSource<T = any> implements DataSource<T> {
     // Filter — support both MongoDB-style objects and AST-format arrays
     if (params?.$filter) {
       if (Array.isArray(params.$filter) && params.$filter.length > 0) {
-        result = result.filter((r) => matchesASTFilter(r, params.$filter as any[]));
+        // One collector per `find()`, drained after the pass: a node the matcher
+        // refuses would otherwise log once PER ROW.
+        const refusals = new Set<string>();
+        result = result.filter((r) => matchesASTFilter(r, params.$filter as any[], refusals));
+        for (const message of refusals) console.warn(message);
       } else if (!Array.isArray(params.$filter) && Object.keys(params.$filter).length > 0) {
         result = result.filter((r) => matchesFilter(r, params.$filter!));
       }
