@@ -21,13 +21,25 @@ import { dashboardForm } from '@objectstack/spec/ui';
 import { localizeMetadataForm, hasMetadataFormOverlay } from './metadata-form-i18n';
 import { getDashboardForm } from './dashboard-schema';
 
-type Section = { label?: string; description?: string; fields?: any[] };
-
-function sections(form: unknown): Section[] {
-  return ((form as { sections?: Section[] })?.sections ?? []) as Section[];
+/** The two form shapes these assertions read. `unknown` everywhere else. */
+interface FormField {
+  field?: string;
+  type?: string;
+  label?: string;
+  helpText?: string;
+  fields?: FormField[];
+}
+interface Section {
+  label?: string;
+  description?: string;
+  fields?: FormField[];
 }
 
-function fieldByName(form: unknown, name: string): any {
+function sections(form: unknown): Section[] {
+  return ((form as { sections?: Section[] } | undefined)?.sections ?? []) as Section[];
+}
+
+function fieldByName(form: unknown, name: string): FormField | undefined {
   for (const s of sections(form)) {
     for (const f of s.fields ?? []) {
       if (f?.field === name) return f;
@@ -100,16 +112,16 @@ describe('localizeMetadataForm — the spec form, in the author’s language', (
     );
     const header = fieldByName(zh, 'header');
     expect(header?.type).toBe('composite');
-    const children = (header?.fields ?? []).map((f: any) => f.field);
+    const children = (header?.fields ?? []).map((f) => f.field);
     // Exactly `DashboardHeaderSchema`'s three properties. SchemaForm prefers a
     // declared `fields` array over the schema-derived one, so anything absent
     // here would disappear from the panel.
     expect(children.sort()).toEqual(['actions', 'showDescription', 'showTitle']);
-    const byName = Object.fromEntries((header.fields as any[]).map((f) => [f.field, f]));
-    expect(byName.showTitle.label).toBe('显示标题');
-    expect(byName.showTitle.helpText).toBe('在页眉中显示仪表板名称');
-    expect(byName.showDescription.label).toBe('显示描述');
-    expect(byName.actions.label).toBe('操作按钮');
+    const byName = new Map((header!.fields ?? []).map((f) => [f.field, f]));
+    expect(byName.get('showTitle')?.label).toBe('显示标题');
+    expect(byName.get('showTitle')?.helpText).toBe('在页眉中显示仪表板名称');
+    expect(byName.get('showDescription')?.label).toBe('显示描述');
+    expect(byName.get('actions')?.label).toBe('操作按钮');
   });
 });
 
