@@ -860,11 +860,16 @@ export type ObjectGridDataTableSchemaHolds = {
    * REDUNDANT since objectui#6882 (2026-08-30) — `DataTableSchema` declares this
    * key itself now, with a shape measured `Equal` to this one. `data-table`
    * calls it to render a host cell editor; returning `null` falls through to the
-   * built-in text / number / date inputs.
+   * built-in text / number / date inputs. objectui#7188 added `pendingRow` (the
+   * persisted `row` merged with the row's staged, unsaved edits) upstream, and
+   * this copy carries it too so the seam's intersection stays INERT — `Equal`
+   * in both directions, as #7196 measured — rather than becoming a second,
+   * narrower signature that a `pendingRow`-reading host would trip on.
    */
   renderCellEditor?: (ctx: {
     column: any;
     row: any;
+    pendingRow: any;
     value: any;
     stage: (v: any) => void;
     commit: (v?: any) => void;
@@ -4015,7 +4020,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
     // handing DataTable an editor factory would leave the built-in fallback
     // editors as the only reachable ones if any future path re-opened the mode.
     renderCellEditor: inlineEditable
-      ? (ctx: { column: any; row: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
+      ? (ctx: { column: any; row: any; pendingRow: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
           const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
           if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
           const discrete = DISCRETE_EDIT_TYPES.has(fieldDef.type);
@@ -4035,50 +4040,35 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               field={field}
               value={ctx.value}
               onChange={(v: any) => (discrete ? ctx.commit(v) : ctx.stage(v))}
-              // ⚠️ INTERIM (objectui#7165) — the SAVED row, not the staged one.
+              // The record a dependent widget scopes itself by (objectui#7165,
+              // finished by objectui#7188). `LookupField` resolves
+              // `dependentValues ?? ctx.formValues ?? ctx.data ?? {}`, and only
+              // the FIRST link is suppliable by any host: `SchemaRendererContextType`
+              // declares exactly `dataSource` / `debug` / `debugFlags` / `apiFetch`,
+              // so the tail is unconditionally empty repo-wide (objectui#7206) —
+              // which is why the repair is this prop and could not have been a
+              // provider. A grid that supplied none of the three rendered every
+              // `dependsOn` column as a permanently gated, disabled trigger
+              // ("Select region first") even when the row carried the parent —
+              // a field that could never be filled, with no diagnostic. PR
+              // objectui#2216 gave the FORM renderer exactly this injection (its
+              // LIVE watched record); the other half — every picker taking the
+              // `dependsOn` chain as a hard `baseFilter` — is host-independent
+              // and was already live here, so this line supplies a missing INPUT
+              // and re-implements no cascade.
               //
-              // The record a dependent widget scopes itself by. `LookupField`
-              // resolves `dependentValues ?? ctx.formValues ?? ctx.data ?? {}`
-              // and this grid supplied NONE of the three, so the resolved record
-              // was `{}` for every row. ⚠️ Only the FIRST link was ever
-              // suppliable, by this host or any other:
-              // `SchemaRendererContextType` declares exactly `dataSource` /
-              // `debug` / `debugFlags` / `apiFetch`, so the tail is
-              // unconditionally empty repo-wide (objectui#7206). That is why the
-              // repair has to be this prop and could not have been a provider. A column declaring `dependsOn` therefore
-              // rendered a permanently gated, disabled trigger ("Select region
-              // first") even when the row carried the parent value — a field
-              // that could never be filled, with no diagnostic. PR objectui#2216
-              // gave the FORM renderer exactly this injection (its live watched
-              // record); only that half was per-host, and the grid never got it.
-              // The other half — every picker taking the `dependsOn` chain as a
-              // hard `baseFilter` — is host-independent and was already live
-              // here, so this line supplies a missing INPUT and re-implements no
-              // cascade.
-              //
-              // ⛔ WHAT IS STILL WRONG, precisely: `ctx.row` is the PERSISTED
-              // record. A parent edited but NOT YET SAVED in this same row does
-              // not re-scope the child — the picker keeps listing candidates for
-              // the parent's saved value, and stays gated if that saved value is
-              // empty. objectui#2215's form fix was explicitly the LIVE record,
-              // so picking a parent re-scopes the child immediately. Matching
-              // that is objectui#7188, and it is the finished shape.
-              //
-              // Why the interim ships instead of the finished shape: the staged
-              // values live in `data-table`'s `pendingChanges` — in scope at the
-              // call site, so this is not a plumbing problem — and carrying them
-              // across needs a SEVENTH member on `renderCellEditor`'s context.
-              // `@object-ui/types` declares that context (objectui#6882,
-              // maintainer ruling 2026-08-30, replacing a `(schema as any)` cast)
-              // and pins its shape by EXACT type equality. That is a
-              // published-surface contract change with its own review floor, so
-              // it belongs to objectui#7188, not to this line.
-              //
-              // ⛔ Do NOT read this as settled. "Never fillable" → "scoped by
-              // the saved parent" is strictly better and strictly not finished;
-              // whether the user should be TOLD the scope came from the saved row
-              // is an OPEN question on objectui#7188, not a closed one.
-              dependentValues={ctx.row}
+              // `pendingRow` is the PERSISTED row shallow-merged with this row's
+              // STAGED, unsaved edits (`data-table` builds it from its
+              // `pendingChanges`), so a parent edited in the same row re-scopes
+              // the child before anything is saved — the form's semantics.
+              // `ctx.row` alone was #7165's interim and scoped by the SAVED
+              // parent. `pendingRow` is a REQUIRED member of the declared
+              // context (`@object-ui/types`, objectui#6882 + #7188), so the
+              // `?? ctx.row` never selects for a conforming host; it is spelled
+              // so a context handed to this factory WITHOUT it degrades to the
+              // saved-row scoping rather than to `{}` — gated forever — and it
+              // is the spelling objectui#7188's ruling chose.
+              dependentValues={ctx.pendingRow ?? ctx.row}
             />
           );
         }
