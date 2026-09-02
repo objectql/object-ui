@@ -94,8 +94,40 @@ jobs:
       # The backend fixture (showcase metadata + published @objectstack/*
       # node_modules) only changes when the pins do — cache it on the pin file.
       # start-backend.sh's stamp check makes a cache hit skip clone + install.
-      - name: Cache live backend fixture
-        uses: actions/cache@v6
+      #
+      # ── Cache bookkeeping cannot void a recorded verdict (objectui#7048) ──
+      # THE ORDERING, carried here from the type-check split in `ci.yml`
+      # (objectui#6577, PR #7047) because it is what a future reader needs in
+      # order to judge whether these steps may be touched: the verdict is
+      # recorded by the checking steps; everything after them is bookkeeping,
+      # and bookkeeping must never discard an answer the gate already produced.
+      #
+      # Why the SPLIT rather than a timeout on one step: combined
+      # `actions/cache` declares `main: dist/restore/index.js` plus
+      # `post: dist/save/index.js`, so its save is a step the RUNNER generates
+      # at job end (`Post Cache live backend fixture`). No workflow syntax
+      # attaches `timeout-minutes` or `continue-on-error` to a generated post
+      # step, so an upload stall runs this job into `timeout-minutes: 40` and
+      # it reports `cancelled` — a lane that says nothing at all, which for an
+      # informational lane whose only product is a stability record is the
+      # worst outcome available. Measured once, on `ci.yml`'s type-check cache:
+      # a 1-second save took 789s (objectui#6577). `actions/cache`'s own
+      # `save-always` deprecation text points at this same split.
+      #
+      # ⛔ Raising `timeout-minutes: 40` is the ruled-out non-fix: a larger
+      # ceiling only buys a longer hang and still ends in `cancelled`.
+      #
+      # This job has TWO caches, so it gets two bounds. Together they can
+      # consume at most 5 + 8 = 13 minutes of the 40-minute ceiling, against a
+      # verdict path that measured 2m25s end to end (job 100097466897) — so
+      # even both bookkeeping halves stalling at once cannot reach the ceiling.
+      #
+      # The restore halves are deliberately left UNBOUNDED: a restore stall
+      # fails BEFORE any verdict exists — a lane that did not run, which is
+      # honest — rather than a recorded verdict discarded.
+      - name: Restore live backend fixture
+        id: live-backend-cache
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/live-backend
           key: live-backend-${{ runner.os }}-${{ hashFiles('e2e/live/ci/backend.env') }}
@@ -159,8 +191,12 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v6
+      # The second of this job's two caches; the split, the ordering sentence
+      # and the ruled-out non-fix are all documented at `Restore live backend
+      # fixture` above (objectui#7048). Same shape here: restore in place and
+      # unbounded, save last and bounded.
+      - name: Restore Playwright browsers
+        uses: actions/cache/restore@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -206,6 +242,64 @@ jobs:
             ${{ runner.temp }}/live-backend/backend.log
             ${{ runner.temp }}/console-preview.log
           retention-days: 14
+
+      # The bookkeeping halves of the two splits documented at the restore
+      # steps above, placed HERE — last in the job — because that is exactly
+      # where the post phases they replace already ran. They are ordered
+      # Playwright-then-fixture to preserve the observed post-phase order
+      # (post steps run in reverse registration order, so `Post Cache
+      # Playwright browsers` ran before `Post Cache live backend fixture` —
+      # job 100097466897). Nothing about what this lane reports moves with them.
+      #
+      # `timeout-minutes: 8` on the browser cache is DERIVED FOR THIS CACHE,
+      # not inherited from the type-check site's 5 (objectui#7048 fences that
+      # explicitly): it is Playwright's browser binaries at ~269 MB. Restores
+      # of that exact archive measured 5s here (job 100097466897) and 3s in
+      # `ci.yml`'s `Build & E2E` (jobs 100096569775, 100094597323) ⇒ ~54-90
+      # MB/s in the download direction; a save is only observable after a
+      # version bump (an exact key hit skips it, and `Post Cache Playwright
+      # browsers` measured 0s on every sampled run), so the honest save is
+      # bounded from the restore rather than read directly — said plainly
+      # rather than dressed up as a direct measurement. A deliberately
+      # pessimistic 20x penalty on the slowest observed restore gives ~1m40s;
+      # 8 minutes is ~4.8x that and demands only 0.56 MB/s sustained.
+      #
+      # `timeout-minutes: 5` on the fixture cache is derived from THIS site's
+      # own measurement: its save measured 8s on 2026-09-02 (`Post Cache live
+      # backend fixture`, job 100097466897 — a real save, not a skip: the
+      # restore missed, which is why `Start ObjectStack backend` did the full
+      # clone + install). 5 minutes is ~37x that.
+      #
+      # `continue-on-error: true` on both is the other half, and without it the
+      # bounds would only trade a `cancelled` lane for a red one. A cache that
+      # failed to upload costs the next run some time; it says nothing about
+      # the console-x-backend integration this lane exists to observe.
+      #
+      # Behaviour preserved, spelled out so the equivalence is checkable:
+      #   - `cache-hit != 'true'` reproduces the combined action's own "exact
+      #     hit on the primary key ⇒ do not save" skip.
+      #   - neither condition names a status function, so the implicit
+      #     `success()` still applies — matching `post-if: success()`. In
+      #     particular a failed `Run live E2E allowlist` skips both saves, just
+      #     as the post phases skipped.
+      #   - same `path` and same `key` as the matching restore step.
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        timeout-minutes: 8
+        continue-on-error: true
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Save live backend fixture
+        if: steps.live-backend-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        timeout-minutes: 5
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/live-backend
+          key: live-backend-${{ runner.os }}-${{ hashFiles('e2e/live/ci/backend.env') }}
 
       # Ephemeral runner — no teardown needed; stop-backend.sh exists for
       # local runs of the same scripts.
