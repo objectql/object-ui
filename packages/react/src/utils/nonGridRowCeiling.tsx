@@ -135,11 +135,21 @@ export function applyNonGridRowCeiling<T = any>(result: unknown): NonGridCeiling
   };
 }
 
+/**
+ * The provider-less fallback for the two keys above — `createSafeTranslation`'s
+ * stand-in for the pack value, so a host with no `I18nProvider` renders the
+ * sentence rather than the raw key. `check:i18n-call-site-keys` holds these
+ * byte-identical to the `en` pack.
+ *
+ * ⚠️ This copy ships TWICE in the eagerly-loaded `framework` chunk — once here
+ * and once in the `en` pack — and that chunk's gzip ceiling had 0.9 KB of
+ * headroom when this landed (measured: `origin/main` 510.8 KB against a 511.7
+ * KB per-chunk ceiling). Keep both sentences terse; the ruling's own form is
+ * "showing first N of M records; narrow the filter", which is what they say.
+ */
 const NOTE_DEFAULTS = {
-  'common.rowCeilingNote':
-    'Showing the first {{shown}} of {{total}} records — narrow the filter to see the rest.',
-  'common.rowCeilingNoteUnknownTotal':
-    'Showing the first {{shown}} records — more records match this view. Narrow the filter to see the rest.',
+  'common.rowCeilingNote': 'Showing the first {{shown}} of {{total}} records. Narrow the filter.',
+  'common.rowCeilingNoteUnknownTotal': 'Showing the first {{shown}} records. Narrow the filter.',
 };
 
 const useCeilingNoteTranslation = createSafeTranslation(NOTE_DEFAULTS, 'common.rowCeilingNote');
@@ -188,8 +198,6 @@ export function NonGridRowCeilingNote({
     <p
       role="note"
       data-row-ceiling-note="non-grid"
-      data-ceiling-drawn={String(drawn)}
-      data-ceiling-total={total === undefined ? '' : String(total)}
       className={className ?? 'px-1 py-1 text-xs text-muted-foreground'}
     >
       {text}

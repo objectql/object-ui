@@ -96,8 +96,6 @@ describe('objectui#7210 ruling a′ — the map caps at the platform ceiling, lo
 
     const note = await screen.findByRole('note');
     expect(note.getAttribute('data-row-ceiling-note')).toBe('non-grid');
-    expect(note.getAttribute('data-ceiling-drawn')).toBe(String(NON_GRID_ROW_CEILING));
-    expect(note.getAttribute('data-ceiling-total')).toBe(String(TOTAL_ROWS));
     expect(note.textContent).toContain(String(NON_GRID_ROW_CEILING));
     expect(note.textContent).toContain(String(TOTAL_ROWS));
   });

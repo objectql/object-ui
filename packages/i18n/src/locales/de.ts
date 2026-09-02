@@ -125,13 +125,13 @@ const de = {
     record: "Datensatz",
     retry: "Erneut versuchen",
     printDialogHint: "Öffnet den Druckdialog Ihres Browsers (kein PDF-Export)",
-    // The non-grid row ceiling's footnote (objectui#7210). Two keys, not one,
-    // because there are two conditions: an adapter that reported a `total`
-    // states the fact with BOTH numbers; one that reported none still gets a
-    // definite sentence — the probe row proves more rows exist — it just
-    // cannot name how many. Same split as `grid.grouping.partialNotice`.
-    rowCeilingNote: "Es werden die ersten {{shown}} von {{total}} Datensätzen angezeigt — grenzen Sie den Filter ein, um die übrigen zu sehen.",
-    rowCeilingNoteUnknownTotal: "Es werden die ersten {{shown}} Datensätze angezeigt — weitere Datensätze entsprechen dieser Ansicht. Grenzen Sie den Filter ein, um die übrigen zu sehen.",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Erste {{shown}} von {{total}} Datensätzen. Filter eingrenzen.",
+    rowCeilingNoteUnknownTotal: "Erste {{shown}} Datensätze. Filter eingrenzen.",
   },
   actions: {
     decisionOutput: {

@@ -125,13 +125,13 @@ const fr = {
     record: "Enregistrement",
     retry: "Réessayer",
     printDialogHint: "Ouvre la boîte de dialogue d'impression de votre navigateur (ce n'est pas un export PDF)",
-    // The non-grid row ceiling's footnote (objectui#7210). Two keys, not one,
-    // because there are two conditions: an adapter that reported a `total`
-    // states the fact with BOTH numbers; one that reported none still gets a
-    // definite sentence — the probe row proves more rows exist — it just
-    // cannot name how many. Same split as `grid.grouping.partialNotice`.
-    rowCeilingNote: "Affichage des {{shown}} premiers enregistrements sur {{total}} — affinez le filtre pour voir les autres.",
-    rowCeilingNoteUnknownTotal: "Affichage des {{shown}} premiers enregistrements — d’autres enregistrements correspondent à cette vue. Affinez le filtre pour voir les autres.",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Affichage des {{shown}} premiers enregistrements sur {{total}}. Affinez le filtre.",
+    rowCeilingNoteUnknownTotal: "Affichage des {{shown}} premiers enregistrements. Affinez le filtre.",
   },
   actions: {
     decisionOutput: {

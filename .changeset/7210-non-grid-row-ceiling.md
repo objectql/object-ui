@@ -20,8 +20,8 @@ bound a request that never carried a cap to begin with.
 **What changed.** Those four fetches now ask for `NON_GRID_ROW_CEILING_TOP`
 rows, draw at most `NON_GRID_ROW_CEILING` of them, and when the result set was
 larger they render a footnote naming both numbers: *"Showing the first 2,000 of
-41,234 records — narrow the filter to see the rest."* Below the ceiling nothing
-changes: the full set draws and no footnote appears.
+41,234 records. Narrow the filter."* Below the ceiling nothing changes: the full
+set draws and no footnote appears.
 
 **The ceiling is a platform constant, not an authorable key** — `2000`, exported
 from `@object-ui/react` as `NON_GRID_ROW_CEILING`. An authored `limit` or

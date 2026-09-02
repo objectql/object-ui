@@ -125,13 +125,13 @@ const ja = {
     record: "レコード",
     retry: "再試行",
     printDialogHint: "ブラウザーの印刷ダイアログを開きます（PDF エクスポートではありません）",
-    // The non-grid row ceiling's footnote (objectui#7210). Two keys, not one,
-    // because there are two conditions: an adapter that reported a `total`
-    // states the fact with BOTH numbers; one that reported none still gets a
-    // definite sentence — the probe row proves more rows exist — it just
-    // cannot name how many. Same split as `grid.grouping.partialNotice`.
-    rowCeilingNote: "{{total}} 件中、最初の {{shown}} 件を表示しています — 残りを表示するにはフィルターを絞り込んでください。",
-    rowCeilingNoteUnknownTotal: "最初の {{shown}} 件を表示しています — このビューにはさらに多くのレコードがあります。残りを表示するにはフィルターを絞り込んでください。",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "{{total}} 件中、最初の {{shown}} 件を表示しています。フィルターを絞り込んでください。",
+    rowCeilingNoteUnknownTotal: "最初の {{shown}} 件を表示しています。フィルターを絞り込んでください。",
   },
   actions: {
     decisionOutput: {

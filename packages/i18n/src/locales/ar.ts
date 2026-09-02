@@ -129,13 +129,13 @@ const ar = {
     record: "سجل",
     retry: "إعادة المحاولة",
     printDialogHint: "يفتح مربع حوار الطباعة في المتصفح (ليس تصديرًا إلى PDF)",
-    // The non-grid row ceiling's footnote (objectui#7210). Two keys, not one,
-    // because there are two conditions: an adapter that reported a `total`
-    // states the fact with BOTH numbers; one that reported none still gets a
-    // definite sentence — the probe row proves more rows exist — it just
-    // cannot name how many. Same split as `grid.grouping.partialNotice`.
-    rowCeilingNote: "يتم عرض أول {{shown}} من أصل {{total}} سجل — قم بتضييق عامل التصفية لعرض الباقي.",
-    rowCeilingNoteUnknownTotal: "يتم عرض أول {{shown}} سجل — هناك المزيد من السجلات المطابقة لهذا العرض. قم بتضييق عامل التصفية لعرض الباقي.",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "يتم عرض أول {{shown}} من أصل {{total}} سجل. ضيّق عامل التصفية.",
+    rowCeilingNoteUnknownTotal: "يتم عرض أول {{shown}} سجل. ضيّق عامل التصفية.",
   },
   actions: {
     decisionOutput: {

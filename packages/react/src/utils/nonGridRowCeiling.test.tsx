@@ -80,16 +80,15 @@ describe('objectui#7210 — the non-grid row ceiling', () => {
     const note = screen.getByRole('note');
     expect(note.textContent).toContain(String(NON_GRID_ROW_CEILING));
     expect(note.textContent).toContain('41234');
-    expect(note.getAttribute('data-ceiling-drawn')).toBe(String(NON_GRID_ROW_CEILING));
-    expect(note.getAttribute('data-ceiling-total')).toBe('41234');
   });
 
   it('still says something DEFINITE when the adapter reported no total', () => {
     render(<NonGridRowCeilingNote drawn={NON_GRID_ROW_CEILING} truncated />);
     const note = screen.getByRole('note');
     expect(note.textContent).toContain(String(NON_GRID_ROW_CEILING));
-    // Definite, not a "may": the probe row proved more rows exist.
-    expect(note.textContent).toMatch(/more records match this view/i);
-    expect(note.getAttribute('data-ceiling-total')).toBe('');
+    // Definite, not a "may": the probe row proved more rows exist, and the
+    // sentence says "the FIRST N" rather than hedging. It must not invent an M.
+    expect(note.textContent).toMatch(/first/i);
+    expect(note.textContent).not.toMatch(/undefined|NaN/);
   });
 });

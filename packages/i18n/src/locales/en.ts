@@ -149,13 +149,13 @@ const en = {
     record: 'Record',
     retry: 'Retry',
     printDialogHint: 'Opens your browser’s print dialog (not a PDF export)',
-    // The non-grid row ceiling's footnote (objectui#7210). Two keys, not one,
-    // because there are two conditions: an adapter that reported a `total`
-    // states the fact with BOTH numbers; one that reported none still gets a
-    // definite sentence — the probe row proves more rows exist — it just
-    // cannot name how many. Same split as `grid.grouping.partialNotice`.
-    rowCeilingNote: 'Showing the first {{shown}} of {{total}} records — narrow the filter to see the rest.',
-    rowCeilingNoteUnknownTotal: 'Showing the first {{shown}} records — more records match this view. Narrow the filter to see the rest.',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: 'Showing the first {{shown}} of {{total}} records. Narrow the filter.',
+    rowCeilingNoteUnknownTotal: 'Showing the first {{shown}} records. Narrow the filter.',
   },
   actions: {
     decisionOutput: {
