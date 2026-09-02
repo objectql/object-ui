@@ -48,6 +48,13 @@
  * sentence (the sole baseline entry). So the signal-to-noise ratio is what makes
  * this checkable at all: one exemption for 86 assertions.
  *
+ * Re-measured on `main@0614b6df1` across both roots (objectui#7358): 20 files,
+ * 92 tokens, 4 patterns, 88 literal assertions — 87 resolve, 1 does not, and it
+ * is the SAME deliberate negative sentence, now stated from
+ * `.claude/skills/objectui-contributor/guides/console-development.md`. The ratio
+ * held across a 3.3x widening of the checked surface: one exemption for 88
+ * assertions.
+ *
  * Three exclusions, each a rule rather than a baseline entry, because none of
  * them is a claim that a file exists:
  *
@@ -67,6 +74,40 @@
  *      tree, so it buys nothing yet and is a scope statement for later — the
  *      inverse boundary `check-doc-links.mjs` draws for itself, and for the same
  *      reason (that file's `stripCode` section spells it out).
+ *
+ * ## The scan surface is a decision too (objectui#7358)
+ *
+ * `SCAN_ROOTS` holds `skills` and `.claude/skills`. It was one string, `skills`,
+ * until objectui#7251 moved the two contributor-only files — the 49-coordinate
+ * `console-development.md` and `no-touch-zones.md` — into
+ * `.claude/skills/objectui-contributor/`, because they address a maintainer of
+ * this repo rather than a customer of the published bundle. The move was
+ * correct and the gate did not notice it: 55 of 93 assertions, 59%, left the
+ * checked surface in one commit with nothing turning red, because the gate
+ * simply stopped looking. Both files stayed green the whole time.
+ *
+ * Widening it was its own change, with the measurement re-run as this docblock
+ * demands below:
+ *
+ *   |                         | before | after |
+ *   |-------------------------|--------|-------|
+ *   | files scanned           | 16     | 20    |
+ *   | stated paths checked    | 27     | 88    |
+ *   | `console-development.md`| —      | 49    |
+ *   | `no-touch-zones.md`     | —      | 6     |
+ *   | `objectui-contributor/SKILL.md` | — | 5 |
+ *   | `verify/SKILL.md`       | —      | 1     |
+ *
+ * The batch of red it brought was exactly one token, and it was not rot: the
+ * deliberate negative sentence in `console-development.md`'s Key contexts
+ * section ("there is no `apps/console/src/context/` directory at all"), which
+ * held the sole baseline entry before the move and holds it again under its new
+ * key. The other 60 coordinates in the two moved guides all resolved on
+ * arrival — they were maintained by hand through #3713 and #3730 and had not
+ * yet gone stale, which is the case FOR gating them, not against.
+ *
+ * The lesson the widening itself taught is in `main()`: a whole-surface floor
+ * cannot see a root that stopped being read. Emptiness is judged per root now.
  *
  * ## The prefix allow-list is a decision, not an accident
  *
@@ -101,8 +142,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isEntrypoint } from './invoked-as.mjs';
 
-/** The scan surface, relative to the repo root: markdown under this directory. */
-export const SCAN_ROOT = 'skills';
+/**
+ * The scan surface: markdown under each of these directories, relative to the
+ * repo root.
+ *
+ * A LIST since objectui#7358, and the list is the point — see "The scan surface
+ * is a decision too" above for the widening's measurement. `main()` judges each
+ * root SEPARATELY for emptiness, so a root that stops matching is red on its own
+ * rather than hidden behind the other root's healthy count.
+ */
+export const SCAN_ROOTS = ['skills', '.claude/skills'];
 
 /** Where the exemptions live. A ratchet — see `readBaseline`. */
 export const BASELINE_FILE = 'scripts/skills-path-baseline.json';
@@ -221,15 +270,20 @@ export function baselineKeys(baseline) {
  * The one scan. `main()`, `--list` and the test suite all go through here, so
  * the tests exercise the real code path rather than a parallel imitation.
  *
- * Reads the directory, not `git ls-files`: the surface is "markdown on disk
- * under `skills`", which lets the tests run the real `scan()` over a fixture
- * tree with no git repository in it.
+ * Reads the directories, not `git ls-files`: the surface is "markdown on disk
+ * under each of `SCAN_ROOTS`", which lets the tests run the real `scan()` over a
+ * fixture tree with no git repository in it.
+ *
+ * `perRoot` carries the same three numbers per scan root. The totals alone
+ * cannot answer "is every root still being read?" — the reading that motivated
+ * objectui#7358 was a comfortable 27/27 across 16 files while a second tree of
+ * 55 assertions sat unscanned — so the breakdown is part of the result, not a
+ * `--list` nicety.
  *
  * @param root      directory to treat as the repository root
  * @param baseline  `{ allowedMissing: { [file]: { [token]: { reason, issue } } } }`
  */
 export function scan(root, baseline = readBaseline(root)) {
-  const files = markdownFiles(path.join(root, SCAN_ROOT));
 
   /** Dead paths nobody declared. Red. */
   const missing = [];
@@ -239,40 +293,57 @@ export function scan(root, baseline = readBaseline(root)) {
   const staleNowExists = [];
   /** Tokens rule 2 excluded. Reported by `--list` only. */
   const patterns = [];
+  /** One `{ root, files, checked, resolved }` row per scan root. */
+  const perRoot = [];
   const seen = new Set();
+  let files = 0;
   let checked = 0;
   let resolved = 0;
 
-  for (const full of files) {
-    const file = path.relative(root, full);
-    for (const hit of extractPathTokens(readFileSync(full, 'utf8'))) {
-      if (hit.pattern) {
-        patterns.push({ file, ...hit });
-        continue;
-      }
-      checked++;
+  for (const scanRoot of SCAN_ROOTS) {
+    const rootFiles = markdownFiles(path.join(root, scanRoot));
+    const checkedBefore = checked;
+    const resolvedBefore = resolved;
 
-      const entry = baseline.allowedMissing[file]?.[hit.token];
-      if (entry) seen.add(keyOf(file, hit.token));
-      const record = { file, line: hit.line, token: hit.token };
+    for (const full of rootFiles) {
+      const file = path.relative(root, full);
+      for (const hit of extractPathTokens(readFileSync(full, 'utf8'))) {
+        if (hit.pattern) {
+          patterns.push({ file, ...hit });
+          continue;
+        }
+        checked++;
 
-      if (existsSync(path.join(root, hit.token))) {
-        resolved++;
-        if (entry) staleNowExists.push({ ...record, ...entry });
-        continue;
+        const entry = baseline.allowedMissing[file]?.[hit.token];
+        if (entry) seen.add(keyOf(file, hit.token));
+        const record = { file, line: hit.line, token: hit.token };
+
+        if (existsSync(path.join(root, hit.token))) {
+          resolved++;
+          if (entry) staleNowExists.push({ ...record, ...entry });
+          continue;
+        }
+        if (entry) {
+          exempt.push({ ...record, ...entry });
+          continue;
+        }
+        missing.push(record);
       }
-      if (entry) {
-        exempt.push({ ...record, ...entry });
-        continue;
-      }
-      missing.push(record);
     }
+
+    files += rootFiles.length;
+    perRoot.push({
+      root: scanRoot,
+      files: rootFiles.length,
+      checked: checked - checkedBefore,
+      resolved: resolved - resolvedBefore,
+    });
   }
 
   /** Declared exemptions the scan never met. Red. */
   const staleUnseen = baselineKeys(baseline).filter((key) => !seen.has(key));
 
-  return { missing, exempt, staleNowExists, staleUnseen, patterns, files: files.length, checked, resolved };
+  return { missing, exempt, staleNowExists, staleUnseen, patterns, perRoot, files, checked, resolved };
 }
 
 function repoRoot() {
@@ -289,14 +360,28 @@ function main() {
   // The empty-verdict trap: a broken extractor, a renamed scan root or a moved
   // guide tree would satisfy every assertion above by finding nothing at all.
   // A gate that passes because it looked at zero files is not a gate.
-  if (result.files === 0 || result.checked === 0) {
+  //
+  // PER ROOT since objectui#7358, which is the failure that made the widening
+  // worth its own change: the contributor guides left `skills/` for
+  // `.claude/skills/`, and a whole-surface test stayed green on the 16 files
+  // still under `skills` while 55 of 93 assertions had quietly stopped being
+  // checked. Summed over roots, "one root reads nothing" is invisible; per root
+  // it is the loudest line in the output. A root that scans nothing is either a
+  // move nobody threaded through here or a root that should be deleted from
+  // SCAN_ROOTS — both are decisions, neither is a pass.
+  const emptyRoots = result.perRoot.filter((r) => r.files === 0 || r.checked === 0);
+  if (emptyRoots.length > 0) {
+    const rows = emptyRoots
+      .map((r) => `    • ${r.root}/ — ${r.files} markdown file(s), ${r.checked} path assertion(s)`)
+      .join('\n');
     console.error(
-      `❌  check-skills-paths: scanned ${result.files} markdown file(s) under ${SCAN_ROOT}/ and found ${result.checked} path assertion(s).\n\n` +
-        `Nothing to judge means this gate reports OK for the wrong reason. Either the\n` +
-        `scan surface moved (see SCAN_ROOT) or the extractor stopped matching (see\n` +
+      `❌  check-skills-paths: ${emptyRoots.length} of ${result.perRoot.length} scan root(s) judged nothing:\n\n${rows}\n\n` +
+        `Nothing to judge means this gate reports OK for the wrong reason. Either that\n` +
+        `surface moved (see SCAN_ROOTS) or the extractor stopped matching (see\n` +
         `extractPathTokens and PATH_PREFIXES). objectui#3735 measured 18 files and\n` +
-        `86 assertions on main@6422aa891, so a reading of zero is a broken gate, not\n` +
-        `a clean tree.`,
+        `86 assertions under skills/ on main@6422aa891, and objectui#7358 measured\n` +
+        `20 files and 88 assertions across both roots, so a reading of zero for any\n` +
+        `root is a broken gate, not a clean tree.`,
     );
     process.exit(1);
   }
@@ -307,6 +392,10 @@ function main() {
       `✅  check-skills-paths: OK (${result.resolved}/${result.checked} stated path(s) resolve across ` +
         `${result.files} guide file(s)${waived}).`,
     );
+    // Per root, always — a total is not evidence that every root was read.
+    for (const r of result.perRoot) {
+      console.log(`    ${r.root}/ — ${r.resolved}/${r.checked} resolve across ${r.files} file(s)`);
+    }
     process.exit(0);
   }
 
@@ -365,6 +454,9 @@ if (invokedDirectly) {
         `(${result.resolved} resolve, ${result.exempt.length} baselined), ` +
         `${result.patterns.length} pattern(s) excluded.`,
     );
+    for (const r of result.perRoot) {
+      console.log(`  ${r.root}/ — ${r.files} file(s), ${r.checked} checked, ${r.resolved} resolve`);
+    }
   } else {
     main();
   }

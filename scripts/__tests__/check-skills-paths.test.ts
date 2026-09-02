@@ -8,20 +8,31 @@ import { fileURLToPath } from 'node:url';
 // Plain-JS CI helper. Its types are INFERRED from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
 // re-adding one is now itself an error (TS2578). See objectui#3494.
-import { extractPathTokens, scan, PATH_PREFIXES, readBaseline, BASELINE_FILE } from '../check-skills-paths.mjs';
+import {
+  extractPathTokens,
+  scan,
+  PATH_PREFIXES,
+  SCAN_ROOTS,
+  readBaseline,
+  BASELINE_FILE,
+} from '../check-skills-paths.mjs';
 
 /**
  * objectui#3735 — the test for `scripts/check-skills-paths.mjs`.
  *
- * The guides under `skills/objectui/` are read by every agent that writes code
- * here, and they give in-repo paths as coordinates. Nothing checked those paths
- * existed, so two rounds of dead ones (#3713 / PR #3729 and #3730 / PR #3734,
- * 13+ in one guide) were found by eye while reading. This suite holds the gate
- * that makes the third round mechanical.
+ * The guides under `skills/objectui/` and `.claude/skills/` are read by every
+ * agent that writes code here, and they give in-repo paths as coordinates.
+ * Nothing checked those paths existed, so two rounds of dead ones (#3713 /
+ * PR #3729 and #3730 / PR #3734, 13+ in one guide) were found by eye while
+ * reading. This suite holds the gate that makes the third round mechanical.
  *
- * The fixtures are temporary trees built here, never the real `skills/`
- * directory: a committed fixture guide would have to contain a deliberately dead
- * path, and something else in the repo would eventually scan it.
+ * The second root is objectui#7358. objectui#7251 moved the two contributor-only
+ * guides out of `skills/` and 55 of 93 assertions left the gate with nothing
+ * turning red; the pins that move had to weaken are restored below, and marked.
+ *
+ * The fixtures are temporary trees built here, never the real guide
+ * directories: a committed fixture guide would have to contain a deliberately
+ * dead path, and something else in the repo would eventually scan it.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -218,6 +229,94 @@ describe('scan — a seeded dead path turns the gate red and gets named', () => 
   });
 });
 
+describe('scan — both roots are read, and each is accounted for on its own', () => {
+  // objectui#7358. The gate scanned one root until objectui#7251 moved the two
+  // contributor-only guides into `.claude/skills/` — 55 of 93 assertions left
+  // the checked surface and nothing turned red, because a total cannot say
+  // which root it came from.
+
+  it('declares exactly the two roots, in order', () => {
+    // The widening itself, pinned in one place. `.claude/skills` is not
+    // incidental: it is where this repo keeps the guides that address a
+    // maintainer rather than a customer of the published bundle.
+    expect(SCAN_ROOTS).toEqual(['skills', '.claude/skills']);
+  });
+
+  it('finds a dead path stated under `.claude/skills`, not only under `skills`', () => {
+    const result = withTree(
+      (write) => {
+        write('skills/objectui/SKILL.md', 'Entry: `packages/core/src/index.ts`.\n');
+        write('packages/core/src/index.ts', 'export {};\n');
+        write(
+          '.claude/skills/objectui-contributor/guides/console-development.md',
+          'The sidebar lives in `packages/app-shell/src/layout/Gone.tsx`.\n',
+        );
+      },
+      (dir) => scan(dir, NO_BASELINE),
+    );
+    expect(result.missing).toEqual([
+      {
+        file: '.claude/skills/objectui-contributor/guides/console-development.md',
+        line: 1,
+        token: 'packages/app-shell/src/layout/Gone.tsx',
+      },
+    ]);
+    expect(result.files).toBe(2);
+    expect(result.checked).toBe(2);
+  });
+
+  it('breaks the totals down per root, in declaration order', () => {
+    const result = withTree(
+      (write) => {
+        write('packages/core/src/index.ts', 'export {};\n');
+        write('skills/objectui/SKILL.md', 'Entry: `packages/core/src/index.ts`.\n');
+        write('skills/objectui/rules/protocol.md', 'Also `packages/core/src/index.ts`.\n');
+        write('.claude/skills/verify/SKILL.md', 'Gone: `packages/app-shell/src/Gone.tsx`.\n');
+      },
+      (dir) => scan(dir, NO_BASELINE),
+    );
+    expect(result.perRoot).toEqual([
+      { root: 'skills', files: 2, checked: 2, resolved: 2 },
+      { root: '.claude/skills', files: 1, checked: 1, resolved: 0 },
+    ]);
+    expect(result.files).toBe(3);
+    expect(result.checked).toBe(3);
+    expect(result.resolved).toBe(2);
+  });
+
+  it('reports a root that reads nothing as a zero row, not as an absence', () => {
+    // The mechanism `main()` trips on. Summed, this tree reads 1 file and 1
+    // healthy assertion and looks entirely fine; per root, the second root
+    // announces that it judged nothing — which is exactly what objectui#7251's
+    // move looked like from inside this gate.
+    const result = withTree(
+      (write) => {
+        write('packages/core/src/index.ts', 'export {};\n');
+        write('skills/objectui/SKILL.md', 'Entry: `packages/core/src/index.ts`.\n');
+      },
+      (dir) => scan(dir, NO_BASELINE),
+    );
+    expect(result.missing).toEqual([]);
+    expect(result.perRoot).toEqual([
+      { root: 'skills', files: 1, checked: 1, resolved: 1 },
+      { root: '.claude/skills', files: 0, checked: 0, resolved: 0 },
+    ]);
+  });
+
+  it('keeps a baseline entry keyed to a file under the second root', () => {
+    const GUIDE = '.claude/skills/objectui-contributor/guides/console-development.md';
+    const TOKEN = 'apps/console/src/context/';
+    const result = withTree(
+      (write) => write(GUIDE, `There is no \`${TOKEN}\` directory at all.\n`),
+      (dir) => scan(dir, baselineFor(GUIDE, TOKEN, 'deliberate negative statement')),
+    );
+    expect(result.missing).toEqual([]);
+    expect(result.exempt).toHaveLength(1);
+    expect(result.exempt[0].file).toBe(GUIDE);
+    expect(result.staleUnseen).toEqual([]);
+  });
+});
+
 describe('scan — the baseline is a ratchet, red in both directions', () => {
   const GUIDE = 'skills/objectui/guides/console-development.md';
   const TOKEN = 'apps/console/src/context/';
@@ -317,20 +416,28 @@ describe('repo state — the gate is green on this tree', () => {
     // both assertions above by finding nothing. Floors, not exact counts, so
     // ordinary guide edits do not touch this file — measured at 18 files and
     // 86 assertions on main@6422aa891, then at 16 files and 27 assertions after
-    // objectui#7251 moved the contributor-only guides out of `skills/`.
+    // objectui#7251 moved the contributor-only guides out of `skills/`, and now
+    // at 20 files and 88 assertions with `.claude/skills` under the gate
+    // (main@0614b6df1, objectui#7358).
     //
-    // The `checked` floor dropped from 50 to 20 because that move took 55 of
-    // the 93 assertions with it: 49 in `console-development.md` and 6 in
-    // `no-touch-zones.md`, both now under `.claude/skills/`, which SCAN_ROOT
-    // does not reach. Lowering a floor is normally how a gate rots, so the
-    // reason is recorded here and the follow-up is named: widening SCAN_ROOT to
-    // cover `.claude/skills` would bring those 55 back under the gate, and that
-    // is a deliberate decision with its own measurement (see the docblock's
-    // "The prefix allow-list is a decision, not an accident"), not a rider on
-    // the move.
+    // The `checked` floor is back to 50, the value objectui#7251 had to drop to
+    // 20 when that move took 55 of the 93 assertions with it. The arithmetic it
+    // left behind, restored: 88 checked today, of which the two moved guides
+    // carry 55 (49 in `console-development.md`, 6 in `no-touch-zones.md`). If
+    // `.claude/skills` ever falls out of SCAN_ROOTS again the reading drops to
+    // 33 and this floor is red — which is the assertion objectui#7251 could not
+    // make and had to record as a follow-up instead.
     expect(result.files).toBeGreaterThanOrEqual(15);
-    expect(result.checked).toBeGreaterThan(20);
+    expect(result.checked).toBeGreaterThan(50);
     expect(result.resolved).toBe(result.checked - result.exempt.length);
+
+    // Per root, because the floor above is a TOTAL and a total cannot see one
+    // root go quiet: 27 under `skills` alone would clear a floor of 20, which
+    // is precisely how the 55 left unnoticed.
+    for (const row of result.perRoot as { root: string; files: number; checked: number }[]) {
+      expect(row.files, `${row.root}/ read no markdown at all`).toBeGreaterThan(0);
+      expect(row.checked, `${row.root}/ stated no path at all`).toBeGreaterThan(0);
+    }
   });
 
   it('keeps every baseline entry attached to a reason and an issue', () => {
@@ -355,39 +462,47 @@ describe('repo state — the gate is green on this tree', () => {
 });
 
 describe('objectui#3713 / #3730 — the guide those two rounds corrected by hand', () => {
-  // That guide is `console-development.md`, and objectui#7251 moved it out of
-  // the scan root to `.claude/skills/objectui-contributor/guides/` because it
-  // addresses a maintainer of this repo, not a customer of the published
-  // bundle. So the three pins this block used to carry cannot be restated as
-  // they were: `scan(repoRoot)` no longer sees the file, and a filter on its
-  // old path would pass by finding nothing — the exact empty-verdict failure
-  // the block above exists to catch.
-  //
-  // What survives is the half that never needed the scan: the file still
-  // states path coordinates, `extractPathTokens` still reads them, and #3730
-  // alone corrected 13 of them by hand. Pinning the count keeps that fact
-  // visible, and keeps the follow-up honest — the day SCAN_ROOT covers
-  // `.claude/skills`, these coordinates come back under the gate and this
-  // block can go back to asserting `result.missing` on them.
-  const MOVED_GUIDE = '.claude/skills/objectui-contributor/guides/console-development.md';
+  // objectui#7251 moved this guide to `.claude/skills/objectui-contributor/`
+  // because it addresses a maintainer of this repo, not a customer of the
+  // published bundle, and the gate stopped seeing it. objectui#7358 widened
+  // SCAN_ROOTS, so the three pins are back on `scan(repoRoot)` — only the
+  // path is new. The "NOT covered by the gate" assertion that stood here in
+  // between was written to be deleted on this day, and is deleted.
+  const GUIDE = '.claude/skills/objectui-contributor/guides/console-development.md';
+  const result = scan(repoRoot);
+  const inGuide = <T extends { file: string }>(rows: T[]) => rows.filter((r) => r.file === GUIDE);
 
-  it('still lives where the move put it', () => {
-    expect(fs.existsSync(path.join(repoRoot, MOVED_GUIDE))).toBe(true);
+  it('states no dead path any more', () => {
+    expect(inGuide(result.missing).map((m: { line: number; token: string }) => `${m.line} ${m.token}`)).toEqual([]);
   });
 
-  it('is still dense in stated paths, which is why it needed a gate', () => {
-    const stated = extractPathTokens(fs.readFileSync(path.join(repoRoot, MOVED_GUIDE), 'utf8')).filter(
+  it('is still the densest guide, so the assertion above is not vacuous', () => {
+    // #3730 alone corrected 13 coordinates in this one file. If its path-bearing
+    // prose ever collapses to nothing, the pin above would pass for the wrong
+    // reason.
+    const stated = extractPathTokens(fs.readFileSync(path.join(repoRoot, GUIDE), 'utf8')).filter(
       (h: Hit) => !h.pattern,
     );
     expect(stated.length).toBeGreaterThan(40);
   });
 
-  it('is NOT covered by the gate today, and that is the open follow-up', () => {
-    // Red the day someone widens SCAN_ROOT: delete this and restore the
-    // `result.missing` assertion above it.
-    const result = scan(repoRoot);
-    expect(result.missing.map((m: { file: string }) => m.file)).not.toContain(MOVED_GUIDE);
-    expect(result.exempt.map((e: { file: string }) => e.file)).not.toContain(MOVED_GUIDE);
+  it('is actually inside the scanned surface, not merely absent from the red', () => {
+    // The inverse of the assertion this block carried between #7251 and #7358,
+    // and the reason that one had to go: `inGuide(result.missing)` is empty
+    // both when the guide is clean and when nothing scans it at all. Tie the
+    // file's own density to the root's count and the two stop being confusable.
+    const stated = extractPathTokens(fs.readFileSync(path.join(repoRoot, GUIDE), 'utf8')).filter(
+      (h: Hit) => !h.pattern,
+    );
+    const row = (result.perRoot as { root: string; checked: number }[]).find((r) => r.root === '.claude/skills');
+    expect(row, '`.claude/skills` is not among the scan roots').toBeDefined();
+    expect(row!.checked, 'the guide states more paths than its whole root reports checking').toBeGreaterThanOrEqual(
+      stated.length,
+    );
+  });
+
+  it('carries exactly the one exemption, the deliberate negative sentence', () => {
+    expect(inGuide(result.exempt).map((e: { token: string }) => e.token)).toEqual(['apps/console/src/context/']);
   });
 });
 
