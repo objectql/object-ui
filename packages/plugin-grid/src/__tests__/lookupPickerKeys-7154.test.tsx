@@ -74,15 +74,17 @@
  * editor supplied none of the three, so the resolved record was `{}` for every
  * row and the gate never lifted — a field that could never be filled.
  *
- * objectui#7165 supplies the missing input: `renderCellEditor` now passes
- * `dependentValues={ctx.row}`. The cascade itself is unchanged (half 2 was
- * always live here), which is why this case needs no new data source.
+ * objectui#7165 supplied the missing input: `renderCellEditor` passes the row as
+ * `dependentValues`. The cascade itself is unchanged (half 2 was always live
+ * here), which is why this case needs no new data source.
  *
- * ⚠️ INTERIM — `ctx.row` is the SAVED record, so a parent edited but not yet
- * saved in the same row does not re-scope the child. Carrying the staged record
- * needs a seventh member on `renderCellEditor`'s published context type, which
- * is objectui#7188. That staleness is pinned — deliberately, as the current
- * behaviour — in `gridDependentValues-7165.test.tsx`, not here.
+ * objectui#7188 then carried the STAGED record across the seam too: the context
+ * gained `pendingRow` (the persisted row merged with the row's unsaved edits)
+ * and the grid scopes by `ctx.pendingRow ?? ctx.row`, so a parent edited but
+ * not yet saved in the same row re-scopes the child. That case is pinned in
+ * `gridDependentValues-7165.test.tsx` (test 4), not here: this file's rows
+ * carry no staged edits, so `pendingRow` and `row` are the same object for
+ * every assertion below.
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
@@ -334,9 +336,10 @@ describe('objectui#7154 — the four picker keys reach the grid’s inline picke
     // Declared `dependsOn: ['region']`. ⭐ UPDATED BY objectui#7165 — this used
     // to assert `lookup-trigger-gated` / `disabled === true`, which pinned the
     // defect: the grid fed the widget NO dependent values, so the gate could
-    // never lift however the row was filled. The grid now passes
-    // `dependentValues={ctx.row}`, the row carries `region: 'north'`, so the
-    // dependency is satisfied and the picker is an ordinary usable trigger.
+    // never lift however the row was filled. The grid now passes the row as
+    // `dependentValues` (`ctx.pendingRow ?? ctx.row` since objectui#7188; nothing
+    // is staged here, so that IS the row), the row carries `region: 'north'`, so
+    // the dependency is satisfied and the picker is an ordinary usable trigger.
     //
     // The key still ARRIVES off the field def — which is this file's whole
     // claim — and the proof is no longer the gate but the SCOPING asserted

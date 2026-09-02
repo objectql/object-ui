@@ -148,6 +148,70 @@ const heavyDomTests = [
   'packages/plugin-list/src/__tests__/ListView.inlineFlsNoop-6723.test.tsx',
 ];
 
+/**
+ * The `dist` project's population (objectui#7183): built-artifact pins, and
+ * nothing else. A pin here imports its package's BUILT bundle by an explicit
+ * relative path, bypassing the `resolve.alias` map below — which is what makes
+ * "does the shipped bundle still do X" answerable at all, since every alias
+ * entry redirects a package specifier to its `src`.
+ *
+ * The `.dist.spec.tsx` suffix keeps these files out of `unit` (`*.test.ts`),
+ * `dom` (`*.test.tsx`) and `dom-heavy` (an explicit file list) BY
+ * CONSTRUCTION, so none of those three projects needed a single character
+ * changed. It also keeps them out of each package's `tsconfig.test.json`,
+ * whose include names `*.test.ts` / `*.test.tsx` — deliberately, because
+ * turbo's `type-check` waits on `^build` (the DEPENDENCIES' builds) and must
+ * never be handed a program that reads the package's own `dist`
+ * (objectui#4801 removed a self-referencing `paths` entry for that reason).
+ */
+const DIST_PIN_GLOB = 'packages/*/src/**/*.dist.spec.tsx';
+
+/**
+ * The `dist` project is OPT-IN, and that is a load-bearing half of
+ * objectui#7183 rather than a convenience.
+ *
+ * CI's test job runs `pnpm test` — `vitest run`, with no build step anywhere in
+ * it (by design: building every package for every test run is the cost the
+ * ruling on #7183 explicitly refused). An unconditional fourth project would
+ * therefore be collected by that run with no `dist` on disk, and its
+ * precondition would fail the whole suite on every PR. Declaring it only when
+ * asked for keeps `pnpm test` the run it is today, and confines the build cost
+ * to the one lane that needs it.
+ *
+ * The opt-in is an ENV VAR rather than the `--project dist` flag because the
+ * flag lives in `process.argv`, which is meaningful only in the process that
+ * parsed the CLI, while the env var is inherited by everything Vitest spawns.
+ * `pnpm test:dist` sets it; see `packages/components/package.json`.
+ */
+const DIST_PINS_ENABLED = process.env.OBJECTUI_DIST_PINS === '1';
+
+/**
+ * ...which leaves exactly one way to get a FALSE GREEN out of the opt-in, and
+ * it is closed here rather than documented. `vitest run --project dist` without
+ * the env var would match no project at all; that is a run with nothing in it,
+ * and `passWithNoTests` is true for a run that names no files — a green that
+ * measured nothing, which is the exact outcome this card exists to prevent.
+ * Refuse it instead, and say how.
+ */
+const DIST_PROJECT_NAMED = process.argv.some(
+  (arg, i) => arg === '--project=dist' || (arg === '--project' && process.argv[i + 1] === 'dist'),
+);
+if (DIST_PROJECT_NAMED && !DIST_PINS_ENABLED) {
+  throw new Error(
+    [
+      'vitest --project dist was requested, but OBJECTUI_DIST_PINS is not "1", so the',
+      '`dist` project is NOT declared and this run would collect ZERO files and exit GREEN.',
+      '',
+      'The `dist` project holds built-artifact pins, which need their package BUILT first.',
+      'Reach it through the task that guarantees that:',
+      '',
+      '  pnpm test:dist    # turbo builds the package under test, then runs this project',
+      '',
+      'See vitest.config.mts (DIST_PINS_ENABLED) and turbo.json (the `test:dist` task).',
+    ].join('\n'),
+  );
+}
+
 export default defineConfig({
   test: {
     globals: true,
@@ -183,14 +247,49 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          // The unit project is node-env pure logic with no ComponentRegistry
-          // or DOM state to leak across files, so it can share a module graph
-          // per worker instead of re-executing it per file. Measured 3.2x
-          // faster (38s -> 12s for the project) with zero failures, holding
-          // green across repeated and shuffled runs. The `dom`/`dom-heavy`
-          // projects keep `isolate: true` — they DO leak (registry overrides,
-          // happy-dom nodes); relaxing them needs the hermeticity fixes tracked
-          // separately.
+          // Share a module graph per worker instead of re-executing it per
+          // file. Measured 3.2x faster (38s -> 12s for the project) with zero
+          // failures, holding green across repeated and shuffled runs.
+          //
+          // What that buys is paid for by an INVARIANT, not by a property of
+          // the files (objectui#7134). The premise written here used to be
+          // "node-env pure logic with no ComponentRegistry or DOM state to leak
+          // across files". It was false in both directions and had been for
+          // some time: this project holds files whose import closure REGISTERS
+          // into the `ComponentRegistry` singleton — measured over `ec0a7b846`,
+          // its 811 files import 551 distinct modules whose closures register
+          // 505 keys into it —
+          // and files that assert a key is ABSENT from it. A shared graph makes
+          // each visible to the other, so the constraint that actually has to
+          // hold is:
+          //
+          //     a key one file asserts ABSENT from the ComponentRegistry must
+          //     be registered by no other file in this project.
+          //
+          // Nothing about a breach of it fails safe. The outcome is ORDER
+          // dependent — whether the absence assertion runs before or after the
+          // writer in its worker decides it — so a collision surfaces as a
+          // failure in a file that did nothing wrong, in some shards and not
+          // others, and says nothing about the code under test.
+          //
+          // So it is ENFORCED rather than left written down here, because this
+          // comment is the only thing a future author consults before adding a
+          // registering import to this project, and it had already gone false
+          // without anyone noticing:
+          //
+          //     scripts/__tests__/unit-registry-absence-collision.test.ts
+          //
+          // That gate derives both populations from this file's own `include`
+          // and `domTsTests` on every run and fails naming both files and the
+          // key. It EXECUTES the closures in a fresh module graph to learn what
+          // they register, because the writers' keys cannot be read off the
+          // source: the live field path registers from data (`registerAllFields()`
+          // walks a map), so `field:multiselect` exists at runtime and appears
+          // in no `register('field:multiselect')` call site anywhere.
+          //
+          // The `dom`/`dom-heavy` projects keep `isolate: true` — they DO leak
+          // in ways nothing checks (registry overrides, happy-dom nodes);
+          // relaxing them needs the hermeticity fixes tracked separately.
           isolate: false,
           setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
           // `eslint-rules/**` holds the local ESLint plugin's RuleTester specs.
@@ -233,6 +332,38 @@ export default defineConfig({
           include: [...heavyDomTests],
         },
       },
+      // The built-artifact lane (objectui#7183). Deliberately scarce: a project
+      // that is awkward to reach for stays reserved for genuine published-
+      // artifact claims instead of drifting into a second default test surface.
+      //
+      // The LIGHT dom setup is not a cost optimisation here, it is what makes
+      // the lane's live control possible. `vitest.setup.dom.tsx` registers
+      // `page:header` and friends from SOURCE; under it a pin would stay green
+      // with the built bundle removed entirely, measuring the aliased `src` it
+      // was written to avoid. Under the light setup nothing registers those
+      // types, so a pin's own `dist` import is the only thing that can make it
+      // pass — which is what its live control asserts.
+      ...(DIST_PINS_ENABLED
+        ? [
+            {
+              // `as const` is load-bearing, not style. Inside this conditional
+              // array the literal `true` widens to `boolean`, while
+              // TestProjectConfiguration.extends is `string | true | undefined`;
+              // the element then matches no overload of defineConfig and the
+              // whole `projects` array degrades to `never[]`, which also takes
+              // down apps/console/vitest.config.ts (it merges THIS config, so
+              // its own type-check is where CI reported it).
+              extends: true as const,
+              test: {
+                name: 'dist',
+                environment: 'happy-dom',
+                setupFiles: [path.resolve(__dirname, 'vitest.setup.dom-light.tsx')],
+                include: [DIST_PIN_GLOB],
+                exclude: sharedExclude,
+              },
+            },
+          ]
+        : []),
       path.resolve(__dirname, './apps/console/vitest.config.ts'),
     ],
     // Tolerate an empty collection ONLY for unfiltered runs (a `--project`

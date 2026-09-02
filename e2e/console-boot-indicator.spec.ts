@@ -265,8 +265,12 @@ test.describe('Console boot indicator', () => {
  */
 interface CoverProbe {
   reactMountAt?: number;
-  /** Samples taken at every mutation and every animation frame after mount. */
-  uncovered: Array<{ t: number; centre: string | null; path: string }>;
+  /**
+   * Samples taken at every mutation and every animation frame after mount.
+   * `why` records what the named hosts held at that instant, so a red run says
+   * whether the viewport was really empty or merely hidden behind something.
+   */
+  uncovered: Array<{ t: number; centre: string | null; path: string; why: string }>;
   covered: number;
   lastSampleAt?: number;
 }
@@ -315,12 +319,99 @@ test.describe('Console boot continuity', () => {
       // app is responsible for. The pre-React indicator is a SIBLING of
       // `#root`, not a child, so it is named explicitly: during the handoff
       // both are legitimately on screen and either one alone is enough.
+      //
+      // ⚠️ THE HIT TEST ALONE READS AN OPEN MODAL AS A BLANK VIEWPORT
+      // (objectui#6578, measured on #6570's fixture). A Radix `DialogPortal`
+      // renders the overlay and the dialog as body-level SIBLINGS of `#root`,
+      // so the centre hit test lands outside both named hosts; and
+      // `DismissableLayer` parks `pointer-events: none` on the body while a
+      // modal layer is open, and hit testing skips those elements, so `#root`
+      // and its whole subtree leave the stack — reading the full
+      // `elementsFromPoint` does not rescue it either. Measured, 20/20 boots:
+      // `#root` holding 2 children, a 1280x720 box and 196 characters of
+      // rendered text, with not one element of it anywhere in the hit stack.
+      // A modal `DropdownMenu` is the same shape without an overlay: there the
+      // centre element is the bare `html`, so a portal-aware hit test does not
+      // rescue it either (measured on the four control arms of #6578).
+      //
+      // So when the hit test says "uncovered", ask the second question — the
+      // one the defect is actually about: does a named host still HOLD the
+      // sample point with something rendered inside it? objectui#6378's window
+      // is an EMPTY `#root`, which answers NO and stays red; an app underneath
+      // a portal answers YES.
+      //
+      // Deliberately consulted only AFTER the hit test has already failed. It
+      // costs nothing on a covered sample, and it can only ever reclassify a
+      // sample the old rule called uncovered — it can never turn a covered
+      // sample into an uncovered one, so nothing this file already asserts is
+      // weakened by it.
+      const hostHoldsPoint = (host: HTMLElement | null, cx: number, cy: number) => {
+        if (!host) return false;
+        const box = host.getBoundingClientRect();
+        if (box.width <= 0 || box.height <= 0) return false;
+        if (cx < box.left || cx >= box.right || cy < box.top || cy >= box.bottom) return false;
+        // Geometry is not paint. A box survives `visibility: hidden`, a zero
+        // `opacity` and `content-visibility: hidden`, and none of those put a
+        // pixel on the screen — so the whole ancestor chain is asked, not just
+        // the host.
+        for (let node: Element | null = host; node; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          if (style.display === 'none') return false;
+          if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+          if (Number(style.opacity) === 0) return false;
+          if (style.getPropertyValue('content-visibility') === 'hidden') return false;
+        }
+        return true;
+      };
+
+      const hostHasRenderedContent = (host: HTMLElement | null) => {
+        if (!host || host.childElementCount === 0) return false;
+        // `innerText`, NOT `textContent`: it is layout-aware, so it is empty
+        // for a subtree that is not being rendered. That is the reading wanted
+        // here — `textContent` would answer about the source instead.
+        if ((host.innerText || '').trim().length > 0) return true;
+        // A tree that paints images or a canvas and no text still counts.
+        for (const descendant of host.querySelectorAll('*')) {
+          const box = descendant.getBoundingClientRect();
+          if (box.width > 0 && box.height > 0) return true;
+        }
+        return false;
+      };
+
+      const appStillHoldsPoint = (cx: number, cy: number) => {
+        for (const id of ['root', 'boot-splash']) {
+          const host = document.getElementById(id);
+          if (hostHoldsPoint(host, cx, cy) && hostHasRenderedContent(host)) return true;
+        }
+        return false;
+      };
+
+      /** What the named hosts held at a sample the rule called uncovered. */
+      const describeHosts = (cx: number, cy: number) => {
+        const parts: string[] = [];
+        for (const id of ['root', 'boot-splash']) {
+          const host = document.getElementById(id);
+          if (!host) {
+            parts.push(`#${id} absent`);
+            continue;
+          }
+          const box = host.getBoundingClientRect();
+          parts.push(
+            `#${id} ${Math.round(box.width)}x${Math.round(box.height)}, ` +
+              `${host.childElementCount} child element(s), ` +
+              `${(host.innerText || '').trim().length} chars of rendered text, ` +
+              `holds the sample point: ${hostHoldsPoint(host, cx, cy)}`,
+          );
+        }
+        return parts.join('; ');
+      };
+
       const sample = (t: number) => {
-        const el = document.elementFromPoint(
-          Math.floor(window.innerWidth / 2),
-          Math.floor(window.innerHeight / 2),
-        );
-        const ok = !!el && !!(el.closest('#root') || el.closest('#boot-splash'));
+        const cx = Math.floor(window.innerWidth / 2);
+        const cy = Math.floor(window.innerHeight / 2);
+        const el = document.elementFromPoint(cx, cy);
+        const hit = !!el && !!(el.closest('#root') || el.closest('#boot-splash'));
+        const ok = hit || appStillHoldsPoint(cx, cy);
         probe.lastSampleAt = t;
         if (ok) probe.covered++;
         else {
@@ -328,6 +419,7 @@ test.describe('Console boot continuity', () => {
             t,
             centre: el ? el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') : null,
             path: location.pathname,
+            why: describeHosts(cx, cy),
           });
         }
       };
@@ -381,8 +473,11 @@ test.describe('Console boot continuity', () => {
       uncovered.length,
       `the viewport was empty for ${uncovered.length} sample(s) spanning ~${spanMs}ms after React's ` +
         `first commit — first at t=${Math.round(window0?.t ?? 0)}ms on ${window0?.path} with the ` +
-        `centre hit test landing on <${window0?.centre}>. A boot redirect that renders null hands the ` +
-        `screen back to the bare page background; that is the white flash of objectui#6378.`,
+        `centre hit test landing on <${window0?.centre}> and the named hosts holding ` +
+        `[${window0?.why}]. A boot redirect that renders null hands the screen back to the bare ` +
+        `page background; that is the white flash of objectui#6378. This is NOT the open-modal ` +
+        `false positive of objectui#6578 — that one is filtered above, and the host reading in ` +
+        `this message is what tells the two apart.`,
     ).toBe(0);
   });
 });

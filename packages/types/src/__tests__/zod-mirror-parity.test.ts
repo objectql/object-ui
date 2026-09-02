@@ -113,6 +113,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import ts from 'typescript';
 import type { z } from 'zod';
 
 import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
@@ -762,8 +763,17 @@ interface KnownDrift {
  * are recorded here so whoever works them off does not re-derive them:
  *
  *   - **SPEC-DERIVED (3 entries, 13 keys)** — `DashboardComponentSchema`,
- *     `DashboardWidgetSchema`, `ObjectViewSchema` are in `SPEC_DERIVED_PAIRS` below,
- *     so their mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
+ *     `DashboardWidgetSchema`, `ObjectViewSchema`. ⚠️ objectui#6705 invalidated the
+ *     evidence for ONE of the three: `ObjectViewSchema` is no longer in
+ *     `SPEC_DERIVED_PAIRS` below, because it never referenced a spec schema — it is
+ *     `BaseSchema.extend({…})` of local literals, and the pre-#6705 text scanner
+ *     charged it a neighbouring private const's `Spec…` token. The split is left
+ *     STANDING as written, counts and all: re-routing those keys from #2231's
+ *     unification question to a local mirror edit is a remedy decision on the
+ *     `UnmirroredDeclared` ledger, which #6705 was fenced out of. Whoever works
+ *     this split off must re-derive `ObjectViewSchema`'s side first.
+ *     For the other two the reading is unchanged:
+ *     their mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
  *     unmirrored declared key there means the LOCAL declaration carries members the
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
@@ -1212,8 +1222,9 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
  * ⚠️ And it is a COMPILE-TIME assertion. The `describe` block at the bottom of this
  * file is a population census — it checks that the registry is closed and that
  * `SPEC_DERIVED_PAIRS` re-derives, and it never compares keys at all. Its
- * `Tests 5 passed (5)` line does not move when this half reddens, correctly, and it
- * did not move under the ablation either. Reading the runtime half for evidence
+ * `Tests 12 passed (12)` line does not move when this half reddens, correctly, and
+ * it did not move under the ablation either. (It read `5 passed (5)` until
+ * objectui#6705 added the seven-fixture suite pinning the re-check's scanner.) Reading the runtime half for evidence
  * about drift measures the wrong instrument and concludes the guard does nothing.
  *
  * When it fires, fix it by MEASURING (the compiler-API recipe and the
@@ -1434,14 +1445,26 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
 const SPEC_DERIVED_PAIRS: readonly string[] = [
   'app.zod.ts#AppComponentSchema',
   'app.zod.ts#NavigationAreaSchema',
-  'base.zod.ts#BaseSchema',
+  // `base.zod.ts#BaseSchema` and `objectql.zod.ts#ObjectViewSchema` used to stand
+  // here and were removed by objectui#6705 — NOT because either mirror changed,
+  // but because the re-check below stopped mis-reading them. Neither references a
+  // spec schema; each was held here by one of the two defects that card names:
+  //   - `BaseSchema` — its file's ONLY `Spec…` token is in a COMMENT
+  //     (`base.zod.ts`, "rather than calling `SpecSchema.omit(…)`"). Prose.
+  //   - `ObjectViewSchema` — `BaseSchema.extend({…})` with every member a local
+  //     literal. Its declaration ends ~50 lines above the next `export const`, and
+  //     the old text window ran on to that boundary, swallowing the private
+  //     `KanbanConfig = SpecKanbanConfigSchema…` block that belongs to no export.
+  // ⚠️ The `ObjectViewSchema` removal has a consequence this card did NOT settle:
+  // the objectui#6058 split in this file's header routes its unmirrored declared
+  // keys as SPEC-DERIVED — a routing that rests on the false positive. That
+  // classification is deliberately left as it stands here; see the note there.
   'complex.zod.ts#DashboardComponentSchema',
   'complex.zod.ts#DashboardWidgetSchema',
   'form.zod.ts#SelectOptionSchema',
   'layout.zod.ts#PageNodeSchema',
   'objectql.zod.ts#ObjectGanttSchema',
   'objectql.zod.ts#ObjectMapSchema',
-  'objectql.zod.ts#ObjectViewSchema',
 ];
 
 /* ── Runtime: the population is closed ──────────────────────────────────────── */
@@ -1457,6 +1480,122 @@ function exportedConsts(): string[] {
     for (const m of src.matchAll(/^export const ([A-Za-z0-9_]+)/gm)) out.push(`${file}#${m[1]}`);
   }
   return out;
+}
+
+/* ── Which exports reference a spec symbol (AST, not raw text) ───────────────── */
+
+/**
+ * The exported consts in ONE mirror source whose definition references a `Spec…`
+ * symbol — the input to `SPEC_DERIVED_PAIRS`' re-check below.
+ *
+ * ## Why this parses instead of scanning text (objectui#6705)
+ *
+ * This used to slice the source between `export const` boundaries and test the
+ * slice against a `\bSpec[A-Z]` word pattern. Raw text cannot tell a reference from a mention,
+ * and the boundary is not the declaration's end, so the rule had two independent
+ * defects that both fired on ONE docstring:
+ *
+ *   - **A comment counted as a reference.** A docstring naming `SpecGanttConfigSchema`
+ *     in PROSE made this test red with nothing about the emitted types, the runtime
+ *     or the mirror's actual spec dependency having moved.
+ *   - **The window charged text to the wrong declaration.** The docstring sat above
+ *     the PRIVATE `GanttConfigExtensionFields` const, which lives textually between
+ *     the `ObjectTreeSchema` and `ObjectGanttSchema` exports — so the slice starting
+ *     at `ObjectTreeSchema` ran on past its own end and the failure named
+ *     `ObjectTreeSchema`, a mirror that references no spec schema at all. The person
+ *     who edits a docstring gets a red naming an innocent neighbour several
+ *     declarations away.
+ *
+ * The workaround that shipped (PR #6704) was a docstring reworded to dodge the
+ * literal token plus a comment asking the next editor to remember — a convention
+ * held by discipline, which is what a gate is supposed to replace.
+ *
+ * ## What it does instead
+ *
+ * `Spec…` identifiers are collected from the AST, so a mention inside a comment or
+ * a string literal is not a reference — those are not `Identifier` nodes and never
+ * reach the test. There is no comment-stripping regex to get wrong on a string that
+ * contains `*` `/` sequences, because nothing strips anything.
+ *
+ * Attribution is by DECLARATION, not by text window: each top-level declaration
+ * owns exactly its own initializer. A private const between two exports is charged
+ * to neither — except through the one link that is a real dependency, which this
+ * follows: a mirror that spreads a private const built from a spec schema IS spec
+ * derived, so file-local references are resolved to a fixed point before the
+ * exported names are read off. `ObjectGanttSchema`'s dependency survives whether it
+ * extends `SpecGanttConfigSchema` inline or through a local field map.
+ *
+ * ⚠️ This is a precision fix, and the direction that must not be lost is the
+ * POSITIVE one: a scanner that stopped seeing comments AND stopped seeing real
+ * references would go green on the list below while checking nothing. The fixture
+ * suite asserts both directions, and the re-check itself is the live positive
+ * proof — all eight pairs in `SPEC_DERIVED_PAIRS` are found by code reference alone.
+ */
+export function specReferencingExports(fileName: string, source: string): Set<string> {
+  const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS);
+
+  /** Per top-level declaration: does it name a `Spec…` symbol, and what else does it name? */
+  const decls = new Map<string, { spec: boolean; refs: Set<string> }>();
+  const exported = new Set<string>();
+
+  const collect = (node: ts.Node | undefined, into: { spec: boolean; refs: Set<string> }): void => {
+    if (!node) return;
+    const walk = (n: ts.Node): void => {
+      if (ts.isIdentifier(n)) {
+        if (/^Spec[A-Z]/.test(n.text)) into.spec = true;
+        else into.refs.add(n.text);
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(node);
+  };
+
+  const record = (name: string, isExported: boolean, ...bodies: (ts.Node | undefined)[]): void => {
+    const rec = decls.get(name) ?? { spec: false, refs: new Set<string>() };
+    for (const b of bodies) collect(b, rec);
+    decls.set(name, rec);
+    if (isExported) exported.add(name);
+  };
+
+  for (const stmt of sf.statements) {
+    const isExported = (ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined)
+      ?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true;
+    if (ts.isVariableStatement(stmt)) {
+      for (const d of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name)) continue;
+        record(d.name.text, isExported, d.initializer, d.type);
+      }
+    } else if (ts.isFunctionDeclaration(stmt) && stmt.name) {
+      record(stmt.name.text, isExported, stmt.body, stmt.type);
+    }
+  }
+
+  // File-local references resolved to a fixed point: a declaration built from one
+  // that is spec-derived is itself spec-derived. Iterative, so a reference cycle
+  // terminates instead of recursing.
+  const specDerived = new Set<string>();
+  for (const [name, rec] of decls) if (rec.spec) specDerived.add(name);
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const [name, rec] of decls) {
+      if (specDerived.has(name)) continue;
+      for (const r of rec.refs) {
+        // Only through PRIVATE declarations. An exported mirror is a registered
+        // pair with an entry of its own, so its spec sensitivity is already
+        // recorded under its own key; hopping through it would re-attribute one
+        // mirror's dependency to every mirror that merely names it. A private
+        // const has no key of its own, so its dependency must be charged to the
+        // export that uses it or it is lost.
+        if (specDerived.has(r) && !exported.has(r)) {
+          specDerived.add(name);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+
+  return new Set([...exported].filter((n) => specDerived.has(n)));
 }
 
 describe('zod mirror parity — the population is closed', () => {
@@ -1487,16 +1626,17 @@ exactly how objectui#4605 and #5186 stayed latent.`).toEqual([]);
   it('SPEC_DERIVED_PAIRS matches what the mirror sources actually do', () => {
     // Re-derived, not trusted: a mirror that starts referencing a `Spec…` schema
     // joins the spec-sensitive set whether or not anyone updates the list.
+    // Read from the AST — see `specReferencingExports` for why prose does not count.
     const derived: string[] = [];
+    const byFile = new Map<string, Set<string>>();
     for (const key of Object.keys(MIRRORS)) {
       const [file, name] = key.split('#');
-      const src = readFileSync(join(ZOD_DIR, file), 'utf8');
-      const at = src.search(new RegExp(`^export const ${name}\\b`, 'm'));
-      if (at < 0) continue;
-      const rest = src.slice(at);
-      const next = rest.slice(10).search(/\n(?=export (const|type|function))/);
-      const body = next < 0 ? rest : rest.slice(0, next + 10);
-      if (/\bSpec[A-Z]\w*/.test(body)) derived.push(key);
+      let refs = byFile.get(file);
+      if (!refs) {
+        refs = specReferencingExports(file, readFileSync(join(ZOD_DIR, file), 'utf8'));
+        byFile.set(file, refs);
+      }
+      if (refs.has(name)) derived.push(key);
     }
     expect(derived.sort(), 'a mirror gained or lost a spec dependency — update SPEC_DERIVED_PAIRS')
       .toEqual([...SPEC_DERIVED_PAIRS].sort());
@@ -1505,5 +1645,89 @@ exactly how objectui#4605 and #5186 stayed latent.`).toEqual([]);
   it('every exclusion carries a reason', () => {
     const empty = Object.entries(EXCLUSIONS).filter(([, why]) => why.trim().length < 20);
     expect(empty.map(([k]) => k), 'an exclusion without a reason is an oversight').toEqual([]);
+  });
+});
+
+describe('the spec-reference scan reads code, not prose (objectui#6705)', () => {
+  const scan = (src: string): string[] => [...specReferencingExports('fixture.zod.ts', src)].sort();
+
+  it('a `Spec…` token mentioned only in a COMMENT is not a reference', () => {
+    // The exact shape that flipped this file red: prose, nothing else moved.
+    expect(
+      scan(`
+/**
+ * Extends the spec's SpecGanttConfigSchema — mentioned in prose only.
+ */
+export const ObjectTreeSchema = z.object({ objectName: z.string() });
+`),
+    ).toEqual([]);
+  });
+
+  it('a `Spec…` token referenced in CODE still fires — the direction that must not be lost', () => {
+    // ⚠️ The whole risk of this fix: a scanner that stops seeing comments AND
+    // stops seeing real references goes green while checking nothing.
+    expect(
+      scan(`
+export const ObjectGanttSchema = SpecGanttConfigSchema.extend({ lockField: z.string() });
+`),
+    ).toEqual(['ObjectGanttSchema']);
+  });
+
+  it('a `Spec…` token inside a STRING LITERAL is not a reference either', () => {
+    // Including one carrying comment-like sequences, which is the hazard a
+    // regex-based comment stripper would have had. Nothing is stripped here.
+    expect(
+      scan(`
+export const TextSchema = z.string().describe('SpecFooSchema */ // not a reference');
+`),
+    ).toEqual([]);
+  });
+
+  it('a PRIVATE const between two exports charges its prose to NEITHER neighbour', () => {
+    // The live misattribution: the docstring sat above the private const, and the
+    // text window starting at the preceding export ran on past its own end.
+    expect(
+      scan(`
+export const ObjectTreeSchema = z.object({ objectName: z.string() });
+
+/** Everything beyond the spec's SpecGanttConfigSchema. */
+const GanttConfigExtensionFields = { lockField: z.string() };
+
+export const ObjectGanttSchema = z.object({ ...GanttConfigExtensionFields });
+`),
+    ).toEqual([]);
+  });
+
+  it('a PRIVATE const with a REAL spec reference is charged to its USER, not its neighbour', () => {
+    // Attribution by declaration plus file-local resolution: `ObjectGanttSchema`
+    // really is spec-derived through the field map; `ObjectTreeSchema` is not, and
+    // the text window used to blame exactly it.
+    expect(
+      scan(`
+export const ObjectTreeSchema = z.object({ objectName: z.string() });
+
+const GanttConfigExtensionFields = SpecGanttConfigSchema.shape;
+
+export const ObjectGanttSchema = z.object({ ...GanttConfigExtensionFields });
+`),
+    ).toEqual(['ObjectGanttSchema']);
+  });
+
+  it("the NEXT export's docstring is not charged to the previous export", () => {
+    expect(
+      scan(`
+export const ObjectTreeSchema = z.object({ objectName: z.string() });
+
+/** Built from SpecGanttConfigSchema. */
+export const ObjectGanttSchema = SpecGanttConfigSchema.extend({});
+`),
+    ).toEqual(['ObjectGanttSchema']);
+  });
+
+  it('the scanner can actually see a real mirror source (non-vacuity)', () => {
+    // A broken parser returns an empty set and every negative case above passes
+    // while checking nothing. Pin it against the file this bug was found in.
+    const src = readFileSync(join(ZOD_DIR, 'objectql.zod.ts'), 'utf8');
+    expect([...specReferencingExports('objectql.zod.ts', src)]).toContain('ObjectGanttSchema');
   });
 });

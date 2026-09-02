@@ -11,6 +11,26 @@
  * object-level keys (`group`, `sortOrder`, `relationships`) that `ObjectSchema`
  * refuses by name, sitting on the wire the whole time the gate was green.
  *
+ * A THIRD and FOURTH oracle, because the permission matrix is a SECOND
+ * authoring surface carrying the same two ingredients (objectui#6606). Its
+ * statically declared shapes are in
+ * `packages/app-shell/src/views/metadata-admin/permission-slice.ts`:
+ * `PermissionSetDraft` is the record `PermissionMatrixEditor.doSave` hands to
+ * `client.save`, and `ObjectPerm` is one authorization row inside that
+ * record's `objects` map — nested exactly as a field shape is nested in the
+ * object document. They are judged by `PermissionSetSchema` and
+ * `ObjectPermissionSchema`. Nothing in this repo watched that surface before:
+ * objectui#6595 (the retired `allowRestore` / `allowPurge` checkboxes) is an
+ * instance of precisely this gate's class, and it arrived as a hand-written
+ * card from the upstream retirement (objectstack#12497) rather than from CI.
+ *
+ * The permission entries are the same EMIT-SIDE check as everywhere else, and
+ * deliberately so: `ObjectPerm` is a hand-written SUBSET of the spec's
+ * `ObjectPermission` (it omits `allowExport`, `readScope`, `writeScope` —
+ * objectui#6605). Under-coverage is a different question from the one this gate
+ * answers and stays a separate card; a key the shape can EMIT that the schema
+ * refuses is this one.
+ *
  * The failure class (objectui#5761): a designer offers a control that
  * writes a key the spec refuses BY NAME. The author sees the control work
  * — and, in metadata-admin, sees the preview render it — then
@@ -54,6 +74,9 @@
  * one of those interfaces. That is enough to have caught all three instances
  * above: `indexed` was a declared property of the designer field definition,
  * `distance_metric` a declared property, `placeholder` a declared property.
+ * On the permission surface it is what will show `allowRestore` / `allowPurge`
+ * on `ObjectPerm` the moment the spec bump carrying their retirement lands —
+ * the return direction the filing card named.
  *
  * NOT COVERED — four ways a key can reach the payload without ever appearing as
  * a declared property:
@@ -81,19 +104,30 @@
  *      refinement) is green here and still a 422 in production.
  *
  * ── The accept set is read from the schema, never listed here ───────────────
- * `FieldSchema` and `ObjectSchema` are strict zod objects: they refuse unknown
- * keys with `unrecognized_keys` rather than stripping them (objectstack#4001
- * closed the silent-drop shape). Each accept set is read off the schema's own
- * `shape` at run time.
+ * All four oracles are strict zod objects: they refuse unknown keys with
+ * `unrecognized_keys` rather than stripping them (objectstack#4001 closed the
+ * silent-drop shape). Each accept set is read off the schema's own `shape` at
+ * run time.
+ *
+ * WHICH SUBPATH each is read from is itself declared, in
+ * {@link ORACLE_SPECIFIERS}, because it is not one subpath: measured against
+ * `@objectstack/spec` 17.2.0, `/data` exports `FieldSchema` / `ObjectSchema`
+ * and neither permission schema, while `/security` exports both permission
+ * schemas. An oracle that map does not carry is an extraction ERROR —
+ * defaulting to `/data` would silently read the wrong module and pass over
+ * everything.
  *
  * It is read through a dynamic `import()`, NOT `createRequire`, and that is
  * load-bearing rather than stylistic. `@objectstack/spec` is a dual-package
  * build: `require` lands on `dist/data/index.js`, `import` on
- * `dist/data/index.mjs`. Those are two different module instances of the same
+ * `dist/data/index.mjs`, and `/security` carries the identical export map
+ * (`dist/security/index.js` vs `dist/security/index.mjs`), so this reasoning
+ * applies to the permission oracles unchanged. Those are two different module instances of the same
  * schema, so a CJS-resolving gate cannot be proven — by identity — to be
  * reading the build the app bundles against, and the two could drift with
  * nothing to notice. Importing makes the self-test's `===` against a plain
- * `import { FieldSchema } from '@objectstack/spec/data'` a real proof of
+ * `import { FieldSchema } from '@objectstack/spec/data'` — and, for the
+ * permission oracles, from `@objectstack/spec/security` — a real proof of
  * provenance, which is the assertion that rules out the whole
  * wrong-symbol failure mode. This is why the exported functions are async. A hardcoded copy would be the stale second definition this whole
  * family of gates exists to prevent, and — worse for a parity check — a wrongly
@@ -126,6 +160,73 @@
  *   - a ledger entry whose key is no longer refused, or no longer declared, is
  *     ALSO red, so a fixed key cannot leave a stale entry behind that would
  *     silently re-admit the same spelling later.
+ *
+ * ── The tombstone registry is this gate's single source for RETIREMENT ──────
+ * objectui#6699. The three drifted per-site retired-key literals converged into
+ * one registry (objectui#6527, maintainer option B):
+ * {@link RETIRED_KEY_REGISTRY_FILE}. A registry with no gate pinning it is a
+ * convention, and conventions drift — the three literals it replaced are the
+ * proof, each written AFTER an instance was found in production.
+ *
+ * So the retirement facts this gate uses are READ FROM THAT FILE, never copied
+ * here. It is read from the TRACKED SOURCE with the same TypeScript AST walk
+ * {@link PAYLOAD_SHAPES} are read with — deliberately NOT through the built
+ * `@object-ui/types/internal/retired-field-keys` subpath, so this gate gains no
+ * build precondition and keeps running on a cold cache. Extraction failure is
+ * an {@link ExtractionError}, never a pass: a missing registry, a missing
+ * constant, a tombstone with no `key`, or a `sites` record naming a site the
+ * registry does not declare all stop the run.
+ *
+ * WHAT IS DERIVED — one rule, and it is the one the ledger could not state:
+ *
+ *   A RETIREMENT IS NOT WAIVABLE AT A SITE THAT STRIPS THE KEY. Where a wire
+ *   shape IS one of the registry's strip sites (`stripSite` below) and the
+ *   tombstone marks that site `true`, a {@link KNOWN_UNPARSEABLE_KEYS} row
+ *   cannot quiet the key. The ledger is for keys whose resolution is still
+ *   OPEN; a tombstoned key's resolution already happened, on the card the
+ *   tombstone names. Re-declaring one and filing a fresh ledger row would
+ *   re-open a settled retirement in silence — the ledger becoming the hiding
+ *   place the ratchet note says it must never be. Such a violation is reported
+ *   with the registry entry (key, retiring card, per-site columns) INSTEAD of
+ *   the "file a card and record it" invitation the other violations carry.
+ *
+ * THE PER-SITE ASYMMETRY SURVIVES AS DATA, and that is load-bearing rather than
+ * tidy. The registry is deliberately not nested, so this gate must never
+ * flatten it into one "retired everywhere" key set:
+ *
+ *   - the rule above is evaluated PER (key, site) — the same key with a `false`
+ *     column at the shape's own site stays an ordinary, ledgerable violation,
+ *     because at that site the registry makes no claim to enforce. Measured on
+ *     the registry as it stands: `sortOrder` is `true` at
+ *     `metadataServiceCarryOver` and `false` at `metadataFieldsPageCarryOver`,
+ *     one key with two verdicts.
+ *   - `formula`'s READ-DOOR column is `false` — RULED, objectui#6526 option B:
+ *     `ObjectFieldInspector` seeds its CEL editor from
+ *     `def.expression ?? def.formula` and the first edit migrates it, so
+ *     stripping on read destroys authored expression text. This gate never
+ *     asserts, and never implies, that `formula` is stripped there: the read
+ *     door has no statically declared payload shape at all (coverage note 3),
+ *     so it is declared in {@link SITES_WITH_NO_DECLARED_SHAPE} and NOTHING is
+ *     judged against it. Its column is reproduced verbatim in the citation, on
+ *     the NOT-stripped side, which is the registry's own word for it.
+ *   - a registry site accounted for NOWHERE — named by no shape and not
+ *     declared shapeless — is an {@link ExtractionError}. That is what makes
+ *     the registry the single SOURCE rather than a single copy: it cannot grow
+ *     a site while this gate goes on judging the old three in silence.
+ *
+ * COLUMNS CONSUMED: `key`, `retiredBy`, `sites`. Columns deliberately NOT read
+ * — `specEquivalent` is documentation and never an instruction to rename
+ * (objectui#6043 refused exactly that rename for `formula`), and `defensive`
+ * records how strong the EVIDENCE for a strip is, which is the registry's
+ * verdict to keep and no input to a key-name parity comparison. Neither is
+ * extracted, so neither can quietly acquire a meaning here.
+ *
+ * The registry's OWN contract — every tombstoned key being refused by the
+ * installed `FieldSchema`, `formula`'s read-door column, `sortOrder`'s
+ * single-site defensive verdict, per-site list parity — is pinned by
+ * `packages/types/src/__tests__/retired-field-key-tombstones.test.ts` and is
+ * deliberately NOT duplicated here. A second copy of an assertion is a second
+ * thing to keep honest, which is the defect this whole family closes.
  */
 
 import ts from "typescript";
@@ -194,6 +295,13 @@ const parse = (root, rel) =>
  *          visible, but not a violation. The moment one of them is added to a
  *          `wire` shape the `wire` scan catches it, so the classification is
  *          computed on every run rather than asserted once.
+ *
+ * `stripSite` is the retired-key registry's strip site this shape's FILE is, or
+ * `null`. It is what lets the retirement rule be evaluated per (key, site)
+ * instead of over a flattened key set — see the header. Every entry answers it
+ * explicitly, no column left implicit: a shape that simply omitted it would opt
+ * out of that rule in silence, which is the shape of every defect in this file's
+ * history.
  */
 export const PAYLOAD_SHAPES = [
   {
@@ -205,6 +313,10 @@ export const PAYLOAD_SHAPES = [
     // `toFieldPayload` builds it; `saveFields` PUTs `fields.map(toFieldPayload)`
     // and `saveObject` PUTs it through `toObjectPayload`.
     writer: "MetadataService.saveFields / saveObject",
+    // This file is ALSO the registry's `metadataServiceCarryOver` strip site
+    // (`carryOver`, objectui#6488), which is why the retirement rule can be
+    // evaluated per site here rather than over a flattened key set.
+    stripSite: "metadataServiceCarryOver",
   },
   {
     id: "ServerFieldSchema",
@@ -215,6 +327,8 @@ export const PAYLOAD_SHAPES = [
     // `fromDesignerField` builds it; `MetadataFieldsPage` PUTs the assembled
     // `fields` map. Carries an index signature — see coverage note 2.
     writer: "MetadataFieldsPage.handleFieldsChange",
+    // ALSO the registry's `metadataFieldsPageCarryOver` strip site.
+    stripSite: "metadataFieldsPageCarryOver",
   },
   {
     id: "DesignerFieldDefinition",
@@ -223,6 +337,7 @@ export const PAYLOAD_SHAPES = [
     schema: "FieldSchema",
     reach: "ui",
     writer: "FieldDesigner (in-memory model)",
+    stripSite: null,
   },
   {
     id: "ObjectMetadataPayload",
@@ -233,6 +348,7 @@ export const PAYLOAD_SHAPES = [
     // `toObjectPayload` builds it; `saveObject` PUTs it whole to
     // `PUT /api/v1/meta/object/:name`, fields nested inside.
     writer: "MetadataService.saveObject",
+    stripSite: null,
   },
   {
     id: "ServerObjectSchema",
@@ -245,6 +361,7 @@ export const PAYLOAD_SHAPES = [
     // note 2 applies here too, and with more force: this shape is BUILT by
     // spreading the server's own document.
     writer: "MetadataObjectsPage.handleObjectsChange",
+    stripSite: null,
   },
   {
     id: "ObjectDefinition",
@@ -253,6 +370,36 @@ export const PAYLOAD_SHAPES = [
     schema: "ObjectSchema",
     reach: "ui",
     writer: "ObjectManager (in-memory model)",
+    stripSite: null,
+  },
+  {
+    id: "PermissionSetDraft",
+    file: "packages/app-shell/src/views/metadata-admin/permission-slice.ts",
+    interface: "PermissionSetDraft",
+    schema: "PermissionSetSchema",
+    reach: "wire",
+    // `PermissionMatrixEditor.doSave` writes it with
+    // `client.save(type, name, toSave)`. At package scope `mergePermissionSlice`
+    // first rebuilds it from a freshly-read base (ADR-0086 P0) — the merged
+    // result is still this shape, so the declared keys are the same body either
+    // way. Carries an index signature (coverage note 2), which here is a stated
+    // contract rather than an oversight: a key this editor does not model is
+    // carried through save untouched.
+    writer: "PermissionMatrixEditor.doSave",
+    stripSite: null,
+  },
+  {
+    id: "ObjectPerm",
+    file: "packages/app-shell/src/views/metadata-admin/permission-slice.ts",
+    interface: "ObjectPerm",
+    schema: "ObjectPermissionSchema",
+    reach: "wire",
+    // One authorization row inside `PermissionSetDraft.objects`, so it reaches
+    // the very same saved body one level down — the field-in-object nesting
+    // again, which is why it needs its own oracle rather than riding on the
+    // record's.
+    writer: "PermissionMatrixEditor.doSave (objects[name] row)",
+    stripSite: null,
   },
 ];
 
@@ -324,24 +471,256 @@ export const KNOWN_UNPARSEABLE_KEYS = {
   // gate still reports below.
 };
 
+/**
+ * The retired-field-key tombstone registry — this gate's single source for
+ * WHICH KEYS ARE RETIRED and WHERE (objectui#6527, pinned here by
+ * objectui#6699). See the header section for what is derived from it.
+ *
+ * The TRACKED SOURCE, not the built `@object-ui/types/internal/…` subpath: a
+ * gate that needed `packages/types` built first would be unrunnable on a cold
+ * cache, and this file already reads every other input off the AST.
+ */
+export const RETIRED_KEY_REGISTRY_FILE = "packages/types/src/internal/retired-field-keys.ts";
+
+/**
+ * Registry strip sites that deliberately have NO statically declared payload
+ * shape, with the reason — the value is printed in the run log.
+ *
+ * `metadataAdminFieldsReadDoor` is `object-fields-io.ts`'s `readFields`, which
+ * carries raw `Record<string, unknown>` field defs and declares no interface at
+ * all: coverage note 3, the hole this gate states rather than hides (its
+ * round-trip is pinned executably by `object-fields-io.field-schema-parity`
+ * and `object-fields-io.retiredKeys`). So this gate judges NOTHING at that
+ * site — which is also what keeps it clear of objectui#6526 option B: the read
+ * door must NOT strip `formula`, and a gate with no assertion there cannot
+ * drift into implying that it does.
+ *
+ * A registry site that is neither named by a shape's `stripSite` nor listed
+ * here is an {@link ExtractionError}. Being shapeless is a recorded decision,
+ * never a default.
+ */
+export const SITES_WITH_NO_DECLARED_SHAPE = {
+  metadataAdminFieldsReadDoor:
+    "no statically declared payload shape (coverage note 3) — nothing is judged at this site",
+};
+
+/** Peel `as const`, `satisfies T` and parentheses off an initializer. */
+const unwrapExpression = (node) => {
+  let current = node;
+  while (
+    current &&
+    (ts.isAsExpression(current) ||
+      ts.isSatisfiesExpression(current) ||
+      ts.isParenthesizedExpression(current))
+  ) {
+    current = current.expression;
+  }
+  return current;
+};
+
+/** The initializer of `const <name> = …`, found anywhere in the file. */
+const constInitializer = (sf, name) => {
+  let found = null;
+  const visit = (node) => {
+    if (ts.isVariableStatement(node)) {
+      for (const d of node.declarationList.declarations) {
+        if (ts.isIdentifier(d.name) && d.name.text === name && d.initializer) {
+          found = unwrapExpression(d.initializer);
+        }
+      }
+    }
+    if (!found) ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
+};
+
+/** The declared name of an object-literal property, or null. */
+const propertyName = (prop) =>
+  prop.name && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : null;
+
+/**
+ * Read the tombstone registry off {@link RETIRED_KEY_REGISTRY_FILE}'s AST.
+ *
+ * Returns `{ file, sites, tombstones }` where each tombstone is
+ * `{ key, retiredBy, sites: Record<site, boolean> }` — the three columns this
+ * gate consumes. `specEquivalent` and `defensive` are deliberately not read;
+ * see the header.
+ *
+ * Every failure here is an {@link ExtractionError}. A registry this gate cannot
+ * read is the confident-green case: "no tombstones" would read as "nothing is
+ * retired", which is precisely the drift objectui#6527 closed.
+ *
+ * The return type is spelled out because `tsconfig.scripts.json` INFERS this
+ * file's types for the pin tests (`allowJs`, `checkJs: false`): the walk's
+ * `ts.Node` narrowing is invisible to that inference, so without this the tests
+ * would consume an `any` and their assertions would stop being checked.
+ *
+ * @param {string} [root]
+ * @param {string} [rel]
+ * @returns {{
+ *   file: string,
+ *   sites: string[],
+ *   tombstones: { key: string, retiredBy: string, sites: Record<string, boolean> }[],
+ * }}
+ */
+export function readRetiredKeyRegistry(root = REPO_ROOT, rel = RETIRED_KEY_REGISTRY_FILE) {
+  if (!existsSync(resolve(root, rel))) {
+    fail(
+      `the retired-field-key registry ${rel} does not exist — it moved, or was deleted.\n` +
+        "    Re-point this gate at it (objectui#6527 made it the single source for retirement);\n" +
+        "    an unreadable registry is never a pass, and a copied key list here is the drift it closed."
+    );
+  }
+  const sf = parse(root, rel);
+
+  const sitesNode = constInitializer(sf, "RETIRED_FIELD_KEY_SITES");
+  if (!sitesNode || !ts.isArrayLiteralExpression(sitesNode)) {
+    fail(
+      `\`RETIRED_FIELD_KEY_SITES\` is not an array literal in ${rel} — the registry's shape changed.\n` +
+        "    Fix the walk; do NOT hardcode the site list here."
+    );
+  }
+  const sites = sitesNode.elements.map((el) => {
+    if (!ts.isStringLiteral(el)) {
+      fail(`\`RETIRED_FIELD_KEY_SITES\` in ${rel} holds a non-string element — the walk cannot read it.`);
+    }
+    return el.text;
+  });
+  if (sites.length === 0) {
+    fail(`\`RETIRED_FIELD_KEY_SITES\` in ${rel} is empty — a registry with no sites cannot be checked against.`);
+  }
+
+  const tombstonesNode = constInitializer(sf, "RETIRED_FIELD_KEY_TOMBSTONES");
+  if (!tombstonesNode || !ts.isArrayLiteralExpression(tombstonesNode)) {
+    fail(
+      `\`RETIRED_FIELD_KEY_TOMBSTONES\` is not an array literal in ${rel} — the registry's shape changed.\n` +
+        "    Fix the walk; an empty read would report every retired key as un-retired."
+    );
+  }
+  if (tombstonesNode.elements.length === 0) {
+    fail(
+      `\`RETIRED_FIELD_KEY_TOMBSTONES\` in ${rel} is empty — read as "nothing is retired", which is the\n` +
+        "    silent-green case this gate exists to prevent. If the last tombstone really was retired,\n" +
+        "    that is a decision to record, not to infer from an empty array."
+    );
+  }
+
+  const tombstones = tombstonesNode.elements.map((element, index) => {
+    const obj = unwrapExpression(element);
+    if (!obj || !ts.isObjectLiteralExpression(obj)) {
+      fail(`tombstone #${index + 1} in ${rel} is not an object literal — the walk cannot read it.`);
+    }
+    const props = obj.properties.filter((p) => ts.isPropertyAssignment(p));
+    const valueOf = (name) => props.find((p) => propertyName(p) === name)?.initializer ?? null;
+
+    const keyNode = valueOf("key");
+    if (!keyNode || !ts.isStringLiteral(keyNode)) {
+      fail(
+        `tombstone #${index + 1} in ${rel} declares no string \`key\` — a nameless tombstone retires nothing,\n` +
+          "    and reading past it would drop a retirement this gate is supposed to hold."
+      );
+    }
+    const key = keyNode.text;
+
+    const retiredByNode = valueOf("retiredBy");
+    if (!retiredByNode || !ts.isStringLiteral(retiredByNode)) {
+      fail(
+        `the \`${key}\` tombstone in ${rel} declares no string \`retiredBy\` — the citation this gate prints\n` +
+          "    instead of inviting a ledger row would name no card, which is worse than no citation."
+      );
+    }
+
+    const sitesValue = valueOf("sites");
+    if (!sitesValue || !ts.isObjectLiteralExpression(sitesValue)) {
+      fail(
+        `the \`${key}\` tombstone in ${rel} declares no \`sites\` record — per-site applicability is the\n` +
+          "    registry's load-bearing half (objectui#6526 / objectui#6527); it must never be inferred."
+      );
+    }
+    /** @type {Record<string, boolean>} */
+    const siteFlags = {};
+    for (const prop of sitesValue.properties) {
+      if (!ts.isPropertyAssignment(prop)) {
+        fail(`the \`${key}\` tombstone's \`sites\` record in ${rel} holds an entry the walk cannot read.`);
+      }
+      const site = propertyName(prop);
+      if (site === null) {
+        fail(`the \`${key}\` tombstone's \`sites\` record in ${rel} holds a computed key — it cannot be read statically.`);
+      }
+      if (!sites.includes(site)) {
+        fail(
+          `the \`${key}\` tombstone in ${rel} names the site \`${site}\`, which \`RETIRED_FIELD_KEY_SITES\` does not declare.\n` +
+            "    One of the two is stale; reading past it would evaluate the retirement against a site that does not exist."
+        );
+      }
+      const value = prop.initializer;
+      if (value.kind !== ts.SyntaxKind.TrueKeyword && value.kind !== ts.SyntaxKind.FalseKeyword) {
+        fail(
+          `the \`${key}\` tombstone's \`${site}\` column in ${rel} is not a boolean literal.\n` +
+            "    A column this gate cannot read is a column it must not guess at."
+        );
+      }
+      siteFlags[site] = value.kind === ts.SyntaxKind.TrueKeyword;
+    }
+    return { key, retiredBy: retiredByNode.text, sites: siteFlags };
+  });
+
+  return { file: rel, sites, tombstones };
+}
+
+/**
+ * Oracle name -> the PUBLISHED SUBPATH its schema is exported from.
+ *
+ * Declared here rather than inlined at the import because it is the seam that
+ * decides WHICH MODULE INSTANCE judges a payload, and it is not one subpath:
+ * the permission schemas are not on `/data` (measured, `@objectstack/spec`
+ * 17.2.0). `/security` has the same dual-package export map as `/data`, so the
+ * header's provenance argument carries over verbatim and the self-test pins
+ * each of the four by reference identity against a plain `import` from the
+ * subpath named here.
+ *
+ * An oracle a shape names and this map does not carry is an
+ * {@link ExtractionError} — never a default. Falling back to `/data` for an
+ * unknown oracle is the confident-green failure this whole file exists to
+ * prevent.
+ */
+export const ORACLE_SPECIFIERS = {
+  FieldSchema: "@objectstack/spec/data",
+  ObjectSchema: "@objectstack/spec/data",
+  PermissionSetSchema: "@objectstack/spec/security",
+  ObjectPermissionSchema: "@objectstack/spec/security",
+};
+
 /** The oracle names a shape may name, in the order they are reported. */
-export const ORACLES = ["FieldSchema", "ObjectSchema"];
+export const ORACLES = Object.keys(ORACLE_SPECIFIERS);
 
 /**
  * The keys the INSTALLED schema named by `exportName` accepts, read off the
  * schema itself.
  *
- * Resolved through `@objectstack/spec/data` — the published subpath, the same
- * one the runtime parses with — so this is the schema that actually judges a
- * `PUT`, not a local look-alike. Extraction failure throws; see the header.
+ * Resolved through the published subpath {@link ORACLE_SPECIFIERS} names for
+ * that oracle — the same entry point the runtime parses with — so this is the
+ * schema that actually judges a save, not a local look-alike. Extraction
+ * failure throws; see the header.
  */
 export async function schemaAcceptSet(exportName, importSpec = (id) => import(id)) {
+  const specifier = Object.prototype.hasOwnProperty.call(ORACLE_SPECIFIERS, exportName)
+    ? ORACLE_SPECIFIERS[exportName]
+    : null;
+  if (!specifier) {
+    fail(
+      `no spec subpath is declared for the oracle \`${exportName}\` — add it to ORACLE_SPECIFIERS.\n` +
+        "    Falling back to another subpath would resolve the wrong module (or nothing) and\n" +
+        "    pass over every key the real schema refuses."
+    );
+  }
   let data;
   try {
-    data = await importSpec("@objectstack/spec/data");
+    data = await importSpec(specifier);
   } catch (err) {
     fail(
-      "cannot resolve @objectstack/spec/data — run `pnpm install` first.\n" +
+      `cannot resolve ${specifier} — run \`pnpm install\` first.\n` +
         "    This gate reads the spec's own schema; it has no hardcoded fallback by design.\n" +
         `    (${err && err.message})`
     );
@@ -349,14 +728,14 @@ export async function schemaAcceptSet(exportName, importSpec = (id) => import(id
   const schema = data[exportName];
   if (!schema) {
     fail(
-      `@objectstack/spec/data no longer exports \`${exportName}\` — the accept set cannot be derived.\n` +
+      `${specifier} no longer exports \`${exportName}\` — the accept set cannot be derived.\n` +
         "    Re-point this gate at the schema that judges that payload; do NOT hardcode a key list."
     );
   }
   const keys = shapeKeys(schema);
   if (!keys || keys.length === 0) {
     fail(
-      `could not resolve \`${exportName}\`'s shape from @objectstack/spec/data.\n` +
+      `could not resolve \`${exportName}\`'s shape from ${specifier}.\n` +
         "    The schema's internal representation changed. Fix the walk — falling back to a\n" +
         "    hardcoded key list would make this gate the stale copy it exists to prevent."
     );
@@ -451,10 +830,19 @@ const oracleOf = (shape) => shape.schema ?? "FieldSchema";
  * Compare every declared payload key against the accept set OF THE ORACLE THAT
  * JUDGES ITS SHAPE.
  *
- * Returns `{ accept, accepts, origin, shapes, violations, uiOnly, staleLedger }`.
+ * Returns
+ * `{ accept, accepts, origin, registry, shapes, violations, uiOnly, staleLedger }`.
  * `violations` is what makes the gate red; `uiOnly` and `staleLedger` are
  * reported too — `staleLedger` is red as well (see the header's
  * both-directions ratchet).
+ *
+ * `registry` is the tombstone registry read from `root`
+ * ({@link readRetiredKeyRegistry}). A violation or `uiOnly` entry whose key is
+ * a FIELD tombstone carries a `retired` citation, and a violation the registry
+ * retires AT THAT SHAPE'S OWN STRIP SITE additionally carries
+ * `waiverRefused: true` — the ledger row that would have quieted it is refused
+ * and reported as stale. See the header for why the rule is per (key, site) and
+ * never over a flattened key set.
  *
  * Reach is resolved WITHIN an oracle, never across one. A key is `uiOnly` when
  * no wire shape *judged by the same schema* declares it: `group` is a legal
@@ -482,6 +870,61 @@ export async function analyze(root = REPO_ROOT, options = {}) {
     }
   }
 
+  const registry = readRetiredKeyRegistry(root);
+
+  // The gate's link to the registry, checked in BOTH directions before a
+  // single key is compared — a link that has silently come apart would leave
+  // the retirement rule applying to nothing while the run still reads green.
+  for (const shape of shapes) {
+    if (shape.stripSite && !registry.sites.includes(shape.stripSite)) {
+      fail(
+        `\`${shape.id}\` names the strip site \`${shape.stripSite}\`, which ${registry.file} does not declare.\n` +
+          "    The site was renamed or removed; re-point the shape at the registry's own name. Reading past\n" +
+          "    it would silently stop enforcing that site's retirements."
+      );
+    }
+  }
+  // Scoped to this gate's OWN declared surface, never to `options.shapes`: it
+  // is a statement about which sites this gate has adjudicated, which a fixture
+  // tree cannot answer.
+  const shapedSites = new Set(PAYLOAD_SHAPES.map((s) => s.stripSite).filter(Boolean));
+  const unaccounted = registry.sites.filter(
+    (site) => !shapedSites.has(site) && !Object.prototype.hasOwnProperty.call(SITES_WITH_NO_DECLARED_SHAPE, site)
+  );
+  if (unaccounted.length > 0) {
+    fail(
+      `${registry.file} declares strip site(s) \`${unaccounted.join("`, `")}\` this gate accounts for nowhere.\n` +
+        "    Either a payload shape at that site names it via `stripSite`, or it is recorded in\n" +
+        "    SITES_WITH_NO_DECLARED_SHAPE with the reason. Silence would let the registry grow a site\n" +
+        "    while this gate went on judging only the old ones."
+    );
+  }
+
+  /** key -> its FIELD tombstone. The registry is a field-key registry. */
+  const tombstones = new Map(registry.tombstones.map((t) => [t.key, t]));
+
+  /**
+   * The registry's word on `key` AT `shape`, or null.
+   *
+   * `inForce` is the per-site half: true only where the shape IS a strip site
+   * and the tombstone's column for THAT site is `true`. A flattened "is
+   * retired anywhere" test would decide `sortOrder` at `MetadataFieldsPage`
+   * and `formula` at the read door in the direction the registry refused.
+   */
+  const retirementAt = (shape, key) => {
+    if (oracleOf(shape) !== "FieldSchema") return null;
+    const tombstone = tombstones.get(key);
+    if (!tombstone) return null;
+    const site = shape.stripSite ?? null;
+    return {
+      retiredBy: tombstone.retiredBy,
+      site,
+      inForce: site !== null && tombstone.sites[site] === true,
+      strippedAt: registry.sites.filter((s) => tombstone.sites[s] === true),
+      notStrippedAt: registry.sites.filter((s) => tombstone.sites[s] !== true),
+    };
+  };
+
   const read = shapes.map((shape) => ({ shape, ...declaredKeys(root, shape) }));
 
   /** oracle name -> every key declared on a wire shape judged by that oracle. */
@@ -496,21 +939,38 @@ export async function analyze(root = REPO_ROOT, options = {}) {
   const uiOnly = [];
   const ledgered = new Set();
 
+  /** key -> the retirement that refused a ledger row for it, with its oracle. */
+  const refusedWaivers = new Map();
+
   for (const { shape, keys } of read) {
     const oracle = oracleOf(shape);
     const accept = accepts.get(oracle);
     for (const key of keys) {
       if (accept.has(key)) continue;
+      const retired = retirementAt(shape, key);
       if (shape.reach === "ui" && !wireKeysByOracle.get(oracle).has(key)) {
-        uiOnly.push({ shape: shape.id, file: shape.file, key, oracle });
+        uiOnly.push({ shape: shape.id, file: shape.file, key, oracle, retired });
         continue;
       }
       const entry = Object.prototype.hasOwnProperty.call(ledger, key) ? ledger[key] : null;
-      if (entry && (entry.oracle ?? "FieldSchema") === oracle) {
+      const waivable = Boolean(entry) && (entry.oracle ?? "FieldSchema") === oracle;
+      // A retirement IN FORCE at this shape's own strip site is not waivable —
+      // its resolution already happened, on the card the tombstone names, and a
+      // fresh ledger row would re-open it in silence.
+      if (waivable && !(retired && retired.inForce)) {
         ledgered.add(`${key}\u0000${oracle}`);
         continue;
       }
-      violations.push({ shape: shape.id, file: shape.file, writer: shape.writer, key, oracle });
+      if (waivable) refusedWaivers.set(key, { oracle, retired });
+      violations.push({
+        shape: shape.id,
+        file: shape.file,
+        writer: shape.writer,
+        key,
+        oracle,
+        retired,
+        waiverRefused: waivable,
+      });
     }
   }
 
@@ -532,6 +992,19 @@ export async function analyze(root = REPO_ROOT, options = {}) {
   const staleLedger = Object.keys(ledger)
     .filter((key) => !ledgered.has(`${key}\u0000${ledgerOracle(key)}`))
     .map((key) => {
+      // The registry's answer comes first and is the most specific: this row
+      // was not honoured because the key is RETIRED at the site that declares
+      // it. Reporting it as merely "unreachable" would send the reader looking
+      // for a shape that is right there.
+      const refused = refusedWaivers.get(key);
+      if (refused && refused.oracle === ledgerOracle(key)) {
+        return {
+          key,
+          reason:
+            `the registry retires it (${refused.retired.retiredBy}) and \`${refused.retired.site}\` strips it — ` +
+            "a retirement cannot be waived by a ledger row",
+        };
+      }
       // Scoped to the entry's own oracle: a key still declared somewhere, but
       // no longer on any shape THIS entry could apply to, is exactly as stale
       // as one nothing declares at all.
@@ -559,6 +1032,7 @@ export async function analyze(root = REPO_ROOT, options = {}) {
     accept: accepts.get("FieldSchema") ?? accepts.get(needed[0]),
     accepts,
     origin,
+    registry,
     shapes: read,
     violations,
     uiOnly,
@@ -579,20 +1053,38 @@ async function main() {
     throw err;
   }
 
-  const { accepts, origin, shapes, violations, uiOnly, staleLedger } = result;
+  const { accepts, origin, registry, shapes, violations, uiOnly, staleLedger } = result;
   for (const [name, accept] of accepts) {
     console.log(`designer-field-key-parity: ${name} accepts ${accept.size} keys`);
   }
   console.log(`  oracle: ${origin}`);
   for (const { shape, keys, indexSignature } of shapes) {
     console.log(
-      `  ${shape.id.padEnd(24)} ${String(keys.length).padStart(2)} declared  [${shape.reach}] vs ${(shape.schema ?? "FieldSchema").padEnd(12)}` +
+      `  ${shape.id.padEnd(24)} ${String(keys.length).padStart(2)} declared  [${shape.reach}] vs ${(shape.schema ?? "FieldSchema").padEnd(22)}` +
         (indexSignature ? "  (+ index signature — see coverage note 2)" : "")
     );
   }
+  // The registry, and the per-site map this gate judges it through. Printed
+  // every run so a silently empty extraction cannot read as "nothing is
+  // retired" in a green log.
+  console.log(
+    `\n  Retired-key registry: ${registry.file} — ${registry.tombstones.length} tombstones over ${registry.sites.length} sites`
+  );
+  for (const site of registry.sites) {
+    const shape = PAYLOAD_SHAPES.find((s) => s.stripSite === site);
+    console.log(
+      `    ${site.padEnd(28)} ${shape ? `-> ${shape.id} (${shape.file})` : `-- ${SITES_WITH_NO_DECLARED_SHAPE[site]}`}`
+    );
+  }
+
   if (uiOnly.length) {
     console.log("\n  UI-only keys (declared on no wire-bound shape of the same oracle, so out of reach of a PUT):");
-    for (const u of uiOnly) console.log(`    ${u.key.padEnd(16)} (${u.shape}, vs ${u.oracle})`);
+    for (const u of uiOnly) {
+      console.log(
+        `    ${u.key.padEnd(16)} (${u.shape}, vs ${u.oracle})` +
+          (u.retired ? `  [retired ${u.retired.retiredBy}]` : "")
+      );
+    }
   }
   const ledgerKeys = Object.keys(KNOWN_UNPARSEABLE_KEYS);
   if (ledgerKeys.length) {
@@ -632,6 +1124,18 @@ async function main() {
         console.error(`        declared on ${v.shape} (${v.file})`);
         console.error(`        written by  ${v.writer}`);
         console.error(`        refused by  ${v.oracle}`);
+        if (!v.retired) continue;
+        // The registry's own words, per site — never flattened to "retired".
+        console.error(`        RETIRED by  ${v.retired.retiredBy} (${registry.file})`);
+        console.error(`          stripped at      ${v.retired.strippedAt.join(", ") || "(no site)"}`);
+        console.error(`          NOT stripped at  ${v.retired.notStrippedAt.join(", ") || "(none)"}`);
+        if (v.retired.inForce) {
+          console.error(
+            `          this shape IS the \`${v.retired.site}\` strip site, which strips this key:\n` +
+              "          the retirement is in force here and a KNOWN_UNPARSEABLE_KEYS row cannot waive it." +
+              (v.waiverRefused ? " The row present for it is reported as stale above." : "")
+          );
+        }
       }
     }
     console.error(
@@ -639,7 +1143,11 @@ async function main() {
         "    which blocks EVERY subsequent save of the object until the key is cleared.\n" +
         "    The three prior instances took three different correct resolutions (retire the\n" +
         "    control, delete the declaration, move the producer upstream) — so file a card and\n" +
-        "    record it in KNOWN_UNPARSEABLE_KEYS rather than picking one here.\n"
+        "    record it in KNOWN_UNPARSEABLE_KEYS rather than picking one here.\n" +
+        "\n    EXCEPT where a key is printed as RETIRED and in force above: that adjudication is\n" +
+        "    already made, on the card the tombstone names. The resolution there is to remove the\n" +
+        "    declaration (or to overturn the tombstone in the registry, with a ruling) — never to\n" +
+        "    add a ledger row, which would re-open a settled retirement in silence.\n"
     );
   }
 

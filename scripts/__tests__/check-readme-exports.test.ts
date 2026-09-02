@@ -40,8 +40,14 @@ import { REQUIRED_CONTEXTS } from '../dependabot-merge-gate.mjs';
 import {
   CODE_LANGS,
   FLOORS,
+  MIN_PARTIAL_REASON,
+  PARTIAL_EXCERPTS,
+  PARTIAL_MARKER,
+  PARTIAL_MARKER_EXAMPLE,
   extractCodeBlocks,
+  findDocumentedTypes,
   findImportBindings,
+  findPartialMarkers,
   packageDirOf,
   parseReadmeOverrides,
   scan,
@@ -359,7 +365,17 @@ describe('a package whose types are not on disk FAILS — it never reads as "exp
 describe('non-vacuity — the population refuses to collapse', () => {
   it('declares a floor for every counter a collapse would zero', () => {
     expect(Object.keys(FLOORS).sort()).toEqual(
-      ['codeBlocks', 'exportSymbols', 'importBindings', 'packagesRead', 'readmes', 'selfBindings'].sort(),
+      [
+        'codeBlocks',
+        'exportSymbols',
+        'importBindings',
+        'keysCompared',
+        'packagesRead',
+        'readmes',
+        'selfBindings',
+        'typeDeclarations',
+        'typesResolved',
+      ].sort(),
     );
   });
 
@@ -455,6 +471,441 @@ describe('non-vacuity — the population refuses to collapse', () => {
   });
 });
 
+/**
+ * ── THE INTERFACE PIN (objectui#6214) ────────────────────────────────────────
+ *
+ * Its own fixture tree, deliberately not `FIXTURE` above. Tier 1's independence
+ * test asserts `exportSymbols` EXACTLY (`toBe(4)`), and that exactness is the
+ * whole content of its claim, so adding exports to alpha to give this half
+ * something to compare would have quietly turned that assertion into a number
+ * nobody chose. A second tree costs one `mkdtemp`.
+ *
+ * The shapes are chosen for the distinctions the pin has to draw, not for
+ * realism:
+ *   `Widget`    a plain property list -- the ordinary case.
+ *   `Themed`    EXTENDS `Widget`, so `all` and `own` differ and the two
+ *               directions have to read different sets.
+ *   `Handlers`  method signatures only, so a resolved declaration can still be
+ *               compared over ZERO keys.
+ *   `Mode`      a union alias -- a type with no properties at all.
+ * Every one of them reaches the barrel through a RE-EXPORT, so the shape is
+ * resolved through an Alias symbol exactly as it is for every real package.
+ */
+const PIN_FIXTURE = {
+  'packages/pin/package.json': manifest('@fix/pin', './dist/index.d.ts'),
+  'packages/pin/dist/shapes.d.ts':
+    'export interface Widget { id: string; label?: string; hidden?: boolean }\n' +
+    'export interface Themed extends Widget { color?: string }\n' +
+    'export interface Handlers { run(): void; reset(): void }\n' +
+    "export type Mode = 'a' | 'b';\n",
+  'packages/pin/dist/index.d.ts': "export { Widget, Themed, Handlers, Mode } from './shapes.js';\n",
+};
+
+const PIN_PACKAGES = ['packages/pin'];
+const PIN_README = 'packages/pin/README.md';
+
+describe('findDocumentedTypes — what a block DECLARES, and what it deliberately does not count', () => {
+  it('reads an `interface` and separates properties from methods', () => {
+    const [found] = findDocumentedTypes('interface X {\n  a: string;\n  b?: number;\n  go(): void;\n}');
+    expect(found).toMatchObject({ name: 'X', kind: 'interface', keys: ['a', 'b'], methods: ['go'], other: 0 });
+  });
+
+  it('reads `type X = { … }`, because READMEs use it for the same job', () => {
+    const [found] = findDocumentedTypes('type X = { a: string };');
+    expect(found).toMatchObject({ name: 'X', kind: 'type', keys: ['a'] });
+  });
+
+  it('does NOT read an alias that is not a property list', () => {
+    // A union, a mapped type or a conditional makes no claim about a property
+    // set, so treating it as an empty one would report every shipped key as
+    // omitted -- a wall of false reds on a correct README.
+    expect(findDocumentedTypes("type X = 'a' | 'b';")).toEqual([]);
+    expect(findDocumentedTypes('type X = Partial<Y>;')).toEqual([]);
+  });
+
+  it('counts an index signature rather than reading it as a key', () => {
+    const [found] = findDocumentedTypes('interface X {\n  a: string;\n  [k: string]: unknown;\n}');
+    expect(found.keys).toEqual(['a']);
+    expect(found.other).toBe(1);
+  });
+
+  it('does not walk into a nested declaration — an example’s own scaffolding is not a claim', () => {
+    expect(findDocumentedTypes('function demo() {\n  interface Inner { a: string }\n  return null;\n}')).toEqual([]);
+  });
+
+  it('reports the line of the declaration WITHIN the block', () => {
+    const found = findDocumentedTypes('const a = 1;\n\ninterface X { a: string }\n');
+    expect(found[0].line).toBe(3);
+  });
+});
+
+describe('findPartialMarkers — a marker that declares nothing is worse than no marker', () => {
+  const withFences = (md: string) => findPartialMarkers(md, extractCodeBlocks(md));
+
+  it('binds to the next fence across blank lines', () => {
+    const md = 'prose\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n\n```ts\ninterface Widget {}\n```\n';
+    expect(withFences(md)).toEqual([{ line: 3, name: 'Widget', reason: 'the rest is in the guide', fence: 5 }]);
+  });
+
+  it('lets a RUN of markers sit above one block, because a block may declare two types', () => {
+    const md =
+      '<!-- readme-exports: partial Widget — the rest is in the guide -->\n' +
+      '<!-- readme-exports: partial Themed — the rest is in the guide -->\n' +
+      '```ts\ninterface Widget {}\ninterface Themed {}\n```\n';
+    expect(withFences(md).map((m) => [m.name, m.fence])).toEqual([
+      ['Widget', 3],
+      ['Themed', 3],
+    ]);
+  });
+
+  it('binds a marker stranded in prose to NOTHING, so it can be reported', () => {
+    const md = '<!-- readme-exports: partial Widget — the rest is in the guide -->\nprose\n\n```ts\ninterface Widget {}\n```\n';
+    expect(withFences(md)[0].fence).toBeNull();
+  });
+
+  it('accepts the em dash, the double hyphen and the colon, like FRAGMENT_MARKER', () => {
+    for (const sep of ['—', '--', '-', ':']) {
+      expect(PARTIAL_MARKER.test(`<!-- readme-exports: partial Widget ${sep} a reason of real length -->`)).toBe(true);
+    }
+  });
+
+  it('publishes the marker as a spelled-out example that its own regex accepts', () => {
+    // The example is what the failure message hands the reader. An example the
+    // parser rejects is a gate telling someone to write something that will not
+    // work, which is worse than printing nothing.
+    expect(PARTIAL_MARKER.test(PARTIAL_MARKER_EXAMPLE)).toBe(true);
+  });
+});
+
+describe('the interface pin — BOTH directions, because one of them is green for the wrong reason', () => {
+  const root = fixtureTree(PIN_FIXTURE);
+  const run = (body: string, excerpts: Record<string, string> = {}) =>
+    scan(root, {
+      readmes: [PIN_README],
+      packageDirs: PIN_PACKAGES,
+      readmeOverrides: { [PIN_README]: writeReadme(root, body) },
+      floors: {},
+      excerpts,
+    });
+  const block = (code: string) => `# @fix/pin\n\n\`\`\`ts\n${code}\n\`\`\`\n`;
+  const kinds = (r: ReturnType<typeof scan>) => r.findings.map((f) => f.verdict);
+
+  it('CONTROL: a correctly documented interface is `matches`, and nothing is reported', () => {
+    // Without this leg every green below could just mean the walk found nothing.
+    const result = run(block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}'));
+    expect(result.findings).toEqual([]);
+    expect(result.documentedTypes).toHaveLength(1);
+    expect(result.documentedTypes[0]).toMatchObject({ typeName: 'Widget', verdict: 'matches', shippedOwn: 3 });
+    expect(result.census.keysCompared).toBe(6);
+  });
+
+  it('reports a FABRICATED key — one the shipped type does not have', () => {
+    const result = run(block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n  icon?: string;\n}'));
+    expect(kinds(result)).toEqual(['fabricated-key']);
+    expect(result.findings[0]).toMatchObject({ typeName: 'Widget', keys: ['icon'] });
+  });
+
+  it('reports a STALE OMISSION — a shipped key the block never mentions', () => {
+    const result = run(block('interface Widget {\n  id: string;\n  label?: string;\n}'));
+    expect(kinds(result)).toEqual(['stale-omission']);
+    expect(result.findings[0]).toMatchObject({ typeName: 'Widget', keys: ['hidden'] });
+  });
+
+  it('THE RENAME: reports the new spelling AND the old one, on the SAME declaration', () => {
+    // This is the class the card records that the typed-example half cannot
+    // reach: a property-level type error short-circuits the missing-property
+    // detail, so compiling `const w: Widget = { caption: … }` reports the excess
+    // key and never that `label` is gone. Neither direction alone reports a
+    // rename either — that is what makes the pin bidirectional rather than
+    // twice as strict.
+    const result = run(block('interface Widget {\n  id: string;\n  caption?: string;\n  hidden?: boolean;\n}'));
+    expect(kinds(result).sort()).toEqual(['fabricated-key', 'stale-omission']);
+    const fabricated = result.findings.find((f) => f.verdict === 'fabricated-key');
+    const stale = result.findings.find((f) => f.verdict === 'stale-omission');
+    expect(fabricated).toMatchObject({ keys: ['caption'] });
+    expect(stale).toMatchObject({ keys: ['label'] });
+    expect(fabricated?.line).toBe(stale?.line);
+  });
+
+  describe('inheritance — the two directions read DIFFERENT sets, on purpose', () => {
+    it('does not call a documented INHERITED key fabricated', () => {
+      // `id` reaches `Themed` through `extends Widget`. Documenting it is
+      // correct; judging the doc side against own-members-only would tell the
+      // reader to delete a key their editor completes.
+      const result = run(block('interface Themed {\n  color?: string;\n  id: string;\n}'));
+      expect(result.findings).toEqual([]);
+    });
+
+    it('does not call an omitted INHERITED key stale', () => {
+      // `Themed` documenting only its own `color` is complete. Judging the
+      // shipped side against ALL properties would report `id`, `label` and
+      // `hidden` on every excerpt of every type with a base -- measured on the
+      // real tree at objectui#6214: 36 omissions on one declaration, most of
+      // them inherited `BaseSchema` members.
+      const result = run(block('interface Themed {\n  color?: string;\n}'));
+      expect(result.findings).toEqual([]);
+      expect(result.documentedTypes[0]).toMatchObject({ shippedOwn: 1, shippedAll: 4, verdict: 'matches' });
+    });
+  });
+
+  it('skips METHODS on both sides, and SAYS SO rather than reading as verified', () => {
+    const result = run(block('interface Handlers {\n  run(): void;\n}'));
+    expect(result.findings).toEqual([]);
+    expect(result.census.typesResolved).toBe(1);
+    // The honest half: it resolved, and it compared nothing. A census that only
+    // said "1 resolved" would read as a checked declaration.
+    expect(result.census.typesComparedOverZeroKeys).toBe(1);
+  });
+
+  it('records a shipped name with no properties as `not-a-property-type`, never as an empty one', () => {
+    const result = run(block('type Mode = { a: string };'));
+    expect(result.findings).toEqual([]);
+    expect(result.documentedTypes[0]).toMatchObject({ typeName: 'Mode', verdict: 'not-a-property-type' });
+    expect(result.census.typesNotAShape).toBe(1);
+  });
+
+  it('leaves a name the package does not export alone — a README may declare a local helper', () => {
+    const result = run(block('interface LocalOnly {\n  whatever: string;\n}'));
+    expect(result.findings).toEqual([]);
+    expect(result.documentedTypes[0]).toMatchObject({ typeName: 'LocalOnly', verdict: 'local-declaration' });
+  });
+
+  describe('declaring an excerpt — and the one thing neither mechanism may hide', () => {
+    const partial = 'interface Widget {\n  id: string;\n  label?: string;\n}';
+
+    it('the MARKER suppresses the omission it declares', () => {
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n' +
+        `\`\`\`ts\n${partial}\n\`\`\`\n`;
+      const result = run(body);
+      expect(result.findings).toEqual([]);
+      expect(result.census.partialDeclared).toBe(1);
+    });
+
+    it('the MARKER does NOT suppress a fabricated key', () => {
+      // An excerpt may leave a key out. It may not invent one, and there is no
+      // reading of "partial" under which it could.
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n' +
+        '```ts\ninterface Widget {\n  id: string;\n  icon?: string;\n}\n```\n';
+      expect(kinds(run(body))).toContain('fabricated-key');
+    });
+
+    it('a marker with no real reason declares nothing, and fails as such', () => {
+      const body = '# @fix/pin\n\n<!-- readme-exports: partial Widget — wip -->\n' + `\`\`\`ts\n${partial}\n\`\`\`\n`;
+      expect(kinds(run(body)).sort()).toEqual(['partial-marker-no-reason', 'stale-omission']);
+      expect('wip'.length).toBeLessThan(MIN_PARTIAL_REASON);
+    });
+
+    it('a marker stranded in prose FAILS instead of silently declaring nothing', () => {
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\nprose in between\n\n' +
+        `\`\`\`ts\n${partial}\n\`\`\`\n`;
+      expect(kinds(run(body)).sort()).toEqual(['stale-omission', 'stray-partial-marker']);
+    });
+
+    it('a marker over a COMPLETE declaration is stale, and fails — the rule is shrink-only', () => {
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n' +
+        '```ts\ninterface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}\n```\n';
+      expect(kinds(run(body))).toEqual(['stale-partial-marker']);
+    });
+
+    it('a marker names ONE interface, so the neighbour in the same block is still judged', () => {
+      // `packages/plugin-kanban/README.md` declares two types in one block. A
+      // marker that silenced a whole block would silence the one nobody looked
+      // at, which is why the grammar carries the name.
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n' +
+        '```ts\ninterface Widget {\n  id: string;\n}\ninterface Themed {\n  color?: string;\n  nope?: string;\n}\n```\n';
+      const result = run(body);
+      expect(kinds(result)).toEqual(['fabricated-key']);
+      expect(result.findings[0]).toMatchObject({ typeName: 'Themed', keys: ['nope'] });
+      expect(result.census.partialDeclared).toBe(1);
+    });
+
+    it('the LEDGER suppresses the omission it records', () => {
+      const result = run(block(partial), { [`${PIN_README}::Widget`]: 'objectui#0000 -- a recorded reason' });
+      expect(result.findings).toEqual([]);
+      expect(result.census.partialLedgered).toBe(1);
+    });
+
+    it('the LEDGER does NOT suppress a fabricated key either', () => {
+      const result = run(block('interface Widget {\n  id: string;\n  icon?: string;\n}'), {
+        [`${PIN_README}::Widget`]: 'objectui#0000 -- a recorded reason',
+      });
+      expect(kinds(result)).toContain('fabricated-key');
+    });
+
+    it('a LEDGER entry that suppresses nothing FAILS as stale, so the list can only shrink', () => {
+      const complete = block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}');
+      const result = run(complete, { [`${PIN_README}::Widget`]: 'objectui#0000 -- a recorded reason' });
+      expect(kinds(result)).toEqual(['stale-excerpt-entry']);
+    });
+
+    it('a LEDGER entry naming a declaration that is not there FAILS too', () => {
+      const result = run(block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}'), {
+        [`${PIN_README}::Gone`]: 'objectui#0000 -- names nothing',
+      });
+      expect(kinds(result)).toEqual(['stale-excerpt-entry']);
+      expect(result.findings[0]).toMatchObject({ typeName: 'Gone' });
+    });
+  });
+
+  it('an UNBUILT package is a FAILURE on this side too, never a serene `local-declaration`', () => {
+    // The same rule as the import side, and the same reason: with no export
+    // surface on disk every documented type resolves to nothing, so the pin
+    // would report a clean green over blocks it never judged.
+    const unbuilt = fixtureTree({ 'packages/pin/package.json': manifest('@fix/pin', './dist/index.d.ts') });
+    const result = scan(unbuilt, {
+      readmes: [PIN_README],
+      packageDirs: PIN_PACKAGES,
+      readmeOverrides: { [PIN_README]: writeReadme(unbuilt, block('interface Widget {\n  id: string;\n}')) },
+      floors: {},
+      excerpts: {},
+    });
+    expect(kinds(result)).toEqual(['unjudgeable-type']);
+    expect(result.findings[0]).toMatchObject({ reason: 'unbuilt', typeName: 'Widget' });
+    expect(result.census.typesUnjudgeable).toBe(1);
+  });
+
+
+  describe('the shrink-only rule is SUSPENDED where nothing was compared (objectui#6214, caught by CI)', () => {
+    // The regression: "this entry suppressed no omission" has two causes that
+    // are indistinguishable from the outside — the README caught up (stale,
+    // delete it), or the declaration could not be judged at all (still true,
+    // keep it). The first version reported both as `stale-excerpt-entry`, and
+    // because the test shards run `pnpm install` then `pnpm test` and NEVER
+    // build, CI took the second cause and printed the first verdict on all
+    // three real ledger entries. On the fixture tree here, so the claim does
+    // not depend on whether the machine happens to be built.
+    const unbuiltRoot = fixtureTree({ 'packages/pin/package.json': manifest('@fix/pin', './dist/index.d.ts') });
+    const partial = 'interface Widget {\n  id: string;\n  label?: string;\n}';
+    const runUnbuilt = (body: string, excerpts: Record<string, string> = {}) =>
+      scan(unbuiltRoot, {
+        readmes: [PIN_README],
+        packageDirs: PIN_PACKAGES,
+        readmeOverrides: { [PIN_README]: writeReadme(unbuiltRoot, body) },
+        floors: {},
+        excerpts,
+      });
+    const entry = { [`${PIN_README}::Widget`]: 'objectui#0000 -- a recorded reason' };
+
+    it('does not call a LEDGER entry stale when its declaration could not be judged', () => {
+      const result = runUnbuilt(block(partial), entry);
+      expect(kinds(result)).toEqual(['unjudgeable-type']);
+      expect(result.findings.filter((f) => f.verdict === 'stale-excerpt-entry')).toEqual([]);
+      expect(result.census.excerptsNotJudged).toBe(1);
+    });
+
+    it('does not call a MARKER stale either, for the same reason', () => {
+      const body =
+        '# @fix/pin\n\n<!-- readme-exports: partial Widget — the rest is in the guide -->\n' + `\`\`\`ts\n${partial}\n\`\`\`\n`;
+      const result = runUnbuilt(body);
+      expect(kinds(result)).toEqual(['unjudgeable-type']);
+      expect(result.findings.filter((f) => f.verdict === 'stale-partial-marker')).toEqual([]);
+      expect(result.census.excerptsNotJudged).toBe(1);
+    });
+
+    it('counts NOTHING when the unjudged declaration carries no excerpt at all', () => {
+      // The census number must mean "claims this run could not check", not
+      // "declarations this run could not judge" — `typesUnjudgeable` already
+      // says the latter, and inflating this one would read as excerpt debt
+      // that does not exist.
+      const result = runUnbuilt(block(partial));
+      expect(result.census.typesUnjudgeable).toBe(1);
+      expect(result.census.excerptsNotJudged).toBe(0);
+    });
+
+    it('MUST-FAIL CONTROL: the same entry on a BUILT tree is still reported stale', () => {
+      // Without this leg the three above would also pass if the suspension had
+      // swallowed the shrink-only rule outright, which is the opposite defect
+      // and the more expensive one — a ledger that can never shrink again.
+      const complete = block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}');
+      const result = run(complete, entry);
+      expect(kinds(result)).toEqual(['stale-excerpt-entry']);
+      expect(result.census.excerptsNotJudged).toBe(0);
+    });
+  });
+
+  describe('the pin walk breaches ITS floors independently of the import walk', () => {
+    const floors = { packagesRead: 1, exportSymbols: 4, typeDeclarations: 1, typesResolved: 1, keysCompared: 4 };
+    const healthy = scan(root, {
+      readmes: [PIN_README],
+      packageDirs: PIN_PACKAGES,
+      readmeOverrides: {
+        [PIN_README]: writeReadme(root, block('interface Widget {\n  id: string;\n  label?: string;\n  hidden?: boolean;\n}')),
+      },
+      floors,
+      excerpts: {},
+    });
+    const noTypes = scan(root, {
+      readmes: [PIN_README],
+      packageDirs: PIN_PACKAGES,
+      readmeOverrides: { [PIN_README]: writeReadme(root, '# @fix/pin\n\n```ts\nimport { Widget } from "@fix/pin";\n```\n') },
+      floors,
+      excerpts: {},
+    });
+
+    it('breaches nothing while both walks are healthy — the control leg', () => {
+      expect(healthy.vacuous).toEqual([]);
+      expect(healthy.census.typesResolved).toBe(1);
+    });
+
+    it('breaches the THREE pin floors alone when only the type walk finds nothing', () => {
+      // Exact equality, for the reason tier 1's independence test states: a
+      // containment check would assert that these three breached without
+      // asserting that the package-side two did not.
+      expect(noTypes.vacuous.map((v) => v.counter).sort()).toEqual(
+        ['keysCompared', 'typeDeclarations', 'typesResolved'].sort(),
+      );
+      for (const v of noTypes.vacuous) expect(v.value).toBe(0);
+    });
+
+    it('leaves the package-side counters untouched by that collapse', () => {
+      expect(noTypes.census.packagesRead).toBe(healthy.census.packagesRead);
+      expect(noTypes.census.exportSymbols).toBe(healthy.census.exportSymbols);
+      expect(noTypes.census.selfBindings).toBe(1);
+    });
+  });
+});
+
+describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
+  it('is keyed `<readme>::<InterfaceName>` and every entry carries a card number', () => {
+    for (const [key, reason] of Object.entries(PARTIAL_EXCERPTS)) {
+      expect(key).toMatch(/^packages\/[^:]+\/README\.md::[A-Za-z_$][A-Za-z0-9_$]*$/);
+      expect(reason).toMatch(/objectui#\d+/);
+      expect(reason.length).toBeGreaterThanOrEqual(MIN_PARTIAL_REASON);
+    }
+  });
+
+  it('hides ONLY omissions, and the tree says so in BOTH build states', () => {
+    // Written to hold built and unbuilt, like the `repo state` block above.
+    // Built: turning the ledger OFF must red, and every red must be a
+    // `stale-omission` at a declaration the ledger names -- so the ledger is
+    // provably not covering a fabricated key or anything else. Unbuilt: there
+    // is no export surface, so the same declarations are `unjudgeable-type`,
+    // which is the FAILURE tier 1's rule requires and not a skip.
+    const off = scan(repoRoot, { excerpts: {} });
+    const built = off.census.packagesUnbuilt === 0;
+    const ledgered = new Set(Object.keys(PARTIAL_EXCERPTS));
+    if (built) {
+      const omissions = off.findings.filter((f) => f.verdict === 'stale-omission');
+      expect(omissions.length).toBeGreaterThan(0);
+      expect(new Set(omissions.map((f) => `${f.file}::${f.typeName}`))).toEqual(ledgered);
+      expect(off.findings.every((f) => f.verdict === 'stale-omission')).toBe(true);
+    } else {
+      expect(off.findings.some((f) => f.verdict === 'unjudgeable-type')).toBe(true);
+      expect(off.findings.every((f) => f.verdict === 'unjudgeable-type' || f.verdict === 'unjudgeable')).toBe(true);
+      // With the ledger OFF there is nothing for the sweep to call stale, so
+      // this leg cannot see the objectui#6214 regression on its own — the one
+      // in the `repo state` block below, with the ledger ON, is the leg that
+      // does. Stated so the pair is not mistaken for one assertion twice.
+      expect(off.census.excerptsNotJudged).toBe(0);
+    }
+  });
+});
+
 describe('repo state — assertions that hold whether or not the tree is built', () => {
   const result = scan(repoRoot);
   const built = result.census.packagesUnbuilt === 0;
@@ -472,14 +923,31 @@ describe('repo state — assertions that hold whether or not the tree is built',
     // locally, after a build, it takes the first. BOTH branches assert — a
     // conditional that let the unbuilt tree through silently would be this
     // gate's own defect.
-    const judged = result.findings.filter((f) => f.verdict !== 'unjudgeable');
+    // The could-not-judge class has TWO verdicts since objectui#6214 added the
+    // interface pin: `unjudgeable` for a self-import and `unjudgeable-type` for
+    // a documented type. Both mean the same single thing — the package's export
+    // surface is not on disk — so both are excluded here, exactly as the one
+    // did before. This is the filter being kept correct as a new member of the
+    // class arrived, NOT an exemption widened to make a red go green: the
+    // assertion below still requires the unbuilt tree to FAIL.
+    const CANNOT_JUDGE = ['unjudgeable', 'unjudgeable-type'];
+    const judged = result.findings.filter((f) => !CANNOT_JUDGE.includes(f.verdict));
     if (built) {
       expect(judged, `unexpected README drift: ${JSON.stringify(judged, null, 2)}`).toEqual([]);
       expect(result.census.selfBindings).toBeGreaterThanOrEqual(FLOORS.selfBindings);
       expect(result.census.exportSymbols).toBeGreaterThanOrEqual(FLOORS.exportSymbols);
       expect(result.vacuous).toEqual([]);
     } else {
-      expect(judged).toEqual([]);
+      expect(judged, `unbuilt tree reported a verdict it could not have judged: ${JSON.stringify(judged, null, 2)}`).toEqual([]);
+      // The specific regression this line exists for (objectui#6214, caught by
+      // `Test (shard 2/4)`): the three `PARTIAL_EXCERPTS` entries came back
+      // `stale-excerpt-entry` on CI, because they had suppressed nothing — and
+      // they had suppressed nothing only because NOTHING WAS COMPARED. Named
+      // explicitly rather than left to the `toEqual([])` above, so a future
+      // reader sees which verdict must never appear here and why.
+      expect(result.findings.filter((f) => f.verdict === 'stale-excerpt-entry')).toEqual([]);
+      expect(result.findings.filter((f) => f.verdict === 'stale-partial-marker')).toEqual([]);
+      expect(result.census.excerptsNotJudged).toBe(Object.keys(PARTIAL_EXCERPTS).length);
       expect(
         result.findings.length + result.vacuous.length,
         'on an unbuilt tree the gate must FAIL (unjudgeable self-imports and/or a breached floor), never report OK',
