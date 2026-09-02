@@ -38,9 +38,6 @@ interface CalendarSchema {
   maxDate?: Date | string;                  // Maximum selectable date
   disabled?: boolean | string;              // boolean, or a predicate expression
   
-  // Events
-  onChange?: (date: Date | Date[] | undefined) => void;  // Date change handler
-  
   // Styling
   className?: string;                       // Tailwind CSS classes
   
