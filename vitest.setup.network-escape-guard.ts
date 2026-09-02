@@ -52,11 +52,11 @@
  * reader who meets a bare stack in a truncated run can tell whose it is. The
  * list may only SHRINK — enforced mechanically by the reconcile pin in
  * `scripts/__tests__/network-escape-ledger.test.ts`, which is the only reason
- * the word "only" here is a fact rather than a hope: a file removed from it can
- * never come back green, and
- * a NEW escape in any other file is red on its first run. Fix one by serving
- * the probe from a double (see `DatasetReportRenderer.test.tsx` for the shape),
- * then delete its line here.
+ * the word "only" here is a fact rather than a hope. A file removed from it can
+ * never come back green, and a NEW escape in any other file is red on its first
+ * run. Fix one by serving the probe from a double (see
+ * `DatasetReportRenderer.test.tsx` for the shape), then delete its line here AND
+ * from `PINNED_LEDGER` in the pin — the two must move together.
  */
 import { afterEach, expect } from 'vitest';
 
@@ -113,47 +113,48 @@ const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
  */
 export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   // /api/v1/security/explain
-  "examples/schema-catalog/test/catalog-gallery-render.test.tsx",
+  'examples/schema-catalog/test/catalog-gallery-render.test.tsx',
   // /api/v1/meta/_drafts
-  "packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx",
+  'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
   // /api/v1/meta/_drafts
-  "packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx",
+  'packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx',
   // /api/v1/meta/_drafts
-  "packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx",
+  'packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx',
   // /api/v1/meta/_drafts
-  "packages/app-shell/src/console/home/__tests__/HomePage.notificationDeepLink.test.tsx",
+  'packages/app-shell/src/console/home/__tests__/HomePage.notificationDeepLink.test.tsx',
   // /api/v1/meta/object
-  "packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx",
+  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
   // /api/v1/meta/object
-  "packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx",
+  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
   // /api/v1/automation/_status
-  "packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx",
+  'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
   // /api/v1/ai/conversations
-  "packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx",
+  'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx",
+  'packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx',
   // /api/v1/meta/object/task
-  "packages/plugin-charts/src/ObjectChart.heightChain.test.tsx",
+  'packages/plugin-charts/src/ObjectChart.heightChain.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx",
+  'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
   // /api/task/42, /api/v1/security/explain
-  "packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx",
+  'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx",
+  'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx",
+  'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx",
+  'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-grid/src/__tests__/bulkDeleteVisibleWhen.test.tsx",
+  'packages/plugin-grid/src/__tests__/bulkDeleteVisibleWhen.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx",
+  'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx",
+  'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx",
+  'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
   // /api/v1/security/explain
-  "packages/plugin-view/src/__tests__/ObjectView.namedViewSortArity.test.tsx",]);
+  'packages/plugin-view/src/__tests__/ObjectView.namedViewSortArity.test.tsx',
+]);
 
 type Escape = { file: string; test: string; url: string };
 
