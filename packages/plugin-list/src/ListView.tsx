@@ -1555,9 +1555,31 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // A gantt view whose `data` names the api provider is fed by a composite
   // endpoint that ObjectGantt resolves itself (resolveDataSource →
   // ApiDataSource, reads AND write-backs). ListView must neither fetch
-  // schema.objectName rows for it nor pass its `data` prop down — the prop
-  // short-circuits the renderer's own fetch, so stale object rows would
-  // replace the endpoint's tree.
+  // schema.objectName rows for it nor hand its rows `data` prop down.
+  //
+  // ⛔ What the second half does NOT do (objectui#7222). It does not
+  // "short-circuit the renderer's own fetch" — an earlier version of this
+  // comment said it did, and believing that is exactly what made objectui#7210's
+  // double fetch invisible on a read-through. No host prop reaches the chart at
+  // all: the registered `object-gantt` renderer (`plugin-gantt/src/index.tsx`)
+  // destructures `({ schema })` and hands `ObjectGantt` exactly `schema` and
+  // `dataSource`, so `data`, `onRowClick`, `rowHeight` and the rest of
+  // `baseProps` are dropped one layer up, and the chart queries for itself
+  // whichever branch the render below takes. It is the one view wrapper that
+  // forwards nothing — `object-grid`, `object-kanban`, `object-calendar`,
+  // `object-map` and `object-tree` all spread `{...props}`. Pinned
+  // behaviourally, one package over, in
+  // `plugin-gantt/src/ObjectGantt.hostDataProp-7210.test.tsx`.
+  //
+  // The withholding is kept anyway: it is unreachable, not wrong, and it stops
+  // being unreachable the moment that wrapper forwards host props — whether a
+  // non-grid view may fetch unbounded at all is an open maintainer decision
+  // (objectui#7210, half 2). `ObjectGantt.reload` takes its `rest.data`
+  // short-circuit on `data && Array.isArray(data)`, and `[]` satisfies both,
+  // while this view's rows array is never filled (the fetch effect below
+  // returns early for it). Forwarding it would therefore replace the endpoint's
+  // tree with an EMPTY chart — not with the stale object rows the old comment
+  // warned about.
   const ganttOwnsData =
     currentView === 'gantt' &&
     !!schema.data &&
@@ -3895,7 +3917,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           <SchemaRenderer
             schema={viewComponentSchema}
             {...props}
-            {...(ganttOwnsData ? {} : { data })}
+            {...(ganttOwnsData
+              // Withheld, not dropped. See `ganttOwnsData` above for why this
+              // branch cannot be observed at the chart today (objectui#7222)
+              // and why it is still the correct value to hand down.
+              ? {}
+              : { data })}
             loading={loading}
             onRowSelect={setSelectedRows}
             {...(currentView === 'grid' && !(groupingConfig?.fields?.length) && serverTotal != null

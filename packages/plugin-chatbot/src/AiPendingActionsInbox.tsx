@@ -68,6 +68,10 @@ import {
   Bot,
 } from 'lucide-react';
 import {
+  useAiApprovalsTranslation,
+  type InboxTranslate,
+} from './useAiApprovalsTranslation';
+import {
   usePendingActions,
   type PendingActionRow,
   type PendingActionStatus,
@@ -91,9 +95,15 @@ export interface AiPendingActionsInboxProps {
   conversationId?: string;
   /** Visual style. `card` (default) wraps in a Card; `bare` renders without. */
   variant?: 'card' | 'bare';
-  /** Optional title shown in the card header. */
+  /**
+   * Optional title shown in the card header. Defaults to the locale pack's
+   * `aiApprovals.title` — a lookup, so it cannot be a default parameter value.
+   */
   title?: string;
-  /** Optional description shown in the card header. */
+  /**
+   * Optional description shown in the card header. Defaults to the locale
+   * pack's `aiApprovals.description`; pass `''` to hide it.
+   */
   description?: string;
   /** Class name applied to the outer wrapper. */
   className?: string;
@@ -101,32 +111,75 @@ export interface AiPendingActionsInboxProps {
 
 type TabKey = 'pending' | 'decided' | 'all';
 
-const STATUS_BADGE: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-  pending:  { variant: 'secondary',   label: 'Pending'  },
-  approved: { variant: 'default',     label: 'Approved' },
-  executed: { variant: 'default',     label: 'Executed' },
-  failed:   { variant: 'destructive', label: 'Failed'   },
-  rejected: { variant: 'outline',     label: 'Rejected' },
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  pending:  'secondary',
+  approved: 'default',
+  executed: 'default',
+  failed:   'destructive',
+  rejected: 'outline',
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_BADGE[status] ?? { variant: 'outline' as const, label: status };
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+/**
+ * The badge label for a lifecycle status.
+ *
+ * A `switch` over LITERAL keys, not `t(STATUS_BADGE[status].labelKey)` — the
+ * lesson objectui#7149 paid for: a key visible only as a map VALUE has no call
+ * site the i18n scanners can resolve, so it reads as unreferenced to
+ * `check:i18n-keys` and `check:i18n-dead-keys` alike. Measured on this very
+ * change: with the keys held in a map, the dead-key sweep listed
+ * `aiApprovals.statusPending` and `aiApprovals.statusApproved` as
+ * needs-review — the two whose only appearance was that map — while the three
+ * that also had a literal call site elsewhere were seen. The variant table
+ * above stays a map because a Badge variant is not copy.
+ *
+ * `null` for an unrecognised status: that is DATA, whatever the service sent,
+ * and the caller renders it verbatim rather than through `t`, which would hand
+ * the same string back as a missing key.
+ */
+function statusLabel(status: string, t: InboxTranslate): string | null {
+  switch (status) {
+    case 'pending':  return t('aiApprovals.statusPending');
+    case 'approved': return t('aiApprovals.statusApproved');
+    case 'executed': return t('aiApprovals.statusExecuted');
+    case 'failed':   return t('aiApprovals.statusFailed');
+    case 'rejected': return t('aiApprovals.statusRejected');
+    default:         return null;
+  }
 }
 
-function formatRelative(s: string | null | undefined): string {
+function StatusBadge({ status, t }: { status: string; t: InboxTranslate }) {
+  const label = statusLabel(status, t);
+  if (label === null) return <Badge variant="outline">{status}</Badge>;
+  return <Badge variant={STATUS_VARIANT[status] ?? 'outline'}>{label}</Badge>;
+}
+
+/**
+ * Relative "time since proposed" for a row.
+ *
+ * ⛔ The arithmetic is deliberately UNCHANGED (objectui#7173): `Math.round`
+ * (not floor), thresholds 45s / 60min / 24h / 30d (not 60s / 7d), and a
+ * `toLocaleDateString()` tail. Four sibling helpers in `plugin-detail` round and
+ * break differently; unifying them is a behaviour change that needs its own
+ * card, so this translates the OUTPUT where it stands.
+ *
+ * Past 30 days the value is a DATE, not a relative phrase, and
+ * `toLocaleDateString()` already localizes it — there is no literal there to
+ * key. Same reasoning, byte for byte, as the sibling helpers' own tails.
+ */
+function formatRelative(s: string | null | undefined, t: InboxTranslate): string {
   if (!s) return '—';
-  const t = Date.parse(s);
-  if (Number.isNaN(t)) return s;
-  const diffMs = Date.now() - t;
+  const parsed = Date.parse(s);
+  if (Number.isNaN(parsed)) return s;
+  const diffMs = Date.now() - parsed;
   const sec = Math.round(diffMs / 1000);
-  if (sec < 45) return 'just now';
+  if (sec < 45) return t('detail.justNow');
   const min = Math.round(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return t('detail.minutesAgo', { count: min });
   const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
+  if (hr < 24) return t('detail.hoursAgo', { count: hr });
   const day = Math.round(hr / 24);
-  if (day < 30) return `${day}d ago`;
+  if (day < 30) return t('detail.daysAgo', { count: day });
   try { return new Date(s).toLocaleDateString(); } catch { return s; }
 }
 
@@ -165,10 +218,15 @@ export function AiPendingActionsInbox({
   pollInterval = 5000,
   conversationId,
   variant = 'card',
-  title = 'AI Approvals',
-  description = 'Actions an AI agent proposed that need a human review before execution.',
+  title,
+  description,
   className,
 }: AiPendingActionsInboxProps) {
+  const { t } = useAiApprovalsTranslation();
+  // `??`, not `||`: an explicit `description=''` still hides the line, which is
+  // what the literal default used to allow.
+  const resolvedTitle = title ?? t('aiApprovals.title');
+  const resolvedDescription = description ?? t('aiApprovals.description');
   const [tab, setTab] = React.useState<TabKey>('pending');
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [rejectFor, setRejectFor] = React.useState<string | null>(null);
@@ -203,7 +261,15 @@ export function AiPendingActionsInbox({
     try {
       const out = await approve(id);
       const ok = out.status === 'executed';
-      setLastOutcome({ id, kind: 'approve', ok, message: ok ? 'Executed' : (out.error ?? 'Action failed during execution') });
+      setLastOutcome({
+        id,
+        kind: 'approve',
+        ok,
+        // `out.error` is a server-authored string — data, passed through as-is.
+        message: ok
+          ? t('aiApprovals.statusExecuted')
+          : (out.error ?? t('aiApprovals.outcomeExecuteFailed')),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setMutationError(msg);
@@ -211,14 +277,14 @@ export function AiPendingActionsInbox({
     } finally {
       setBusyId(null);
     }
-  }, [approve]);
+  }, [approve, t]);
 
   const handleReject = React.useCallback(async (id: string, reason: string) => {
     setBusyId(id);
     setMutationError(null);
     try {
       await reject(id, reason.trim() || undefined);
-      setLastOutcome({ id, kind: 'reject', ok: true, message: 'Rejected' });
+      setLastOutcome({ id, kind: 'reject', ok: true, message: t('aiApprovals.statusRejected') });
       setRejectFor(null);
       setRejectReason('');
     } catch (err) {
@@ -228,16 +294,16 @@ export function AiPendingActionsInbox({
     } finally {
       setBusyId(null);
     }
-  }, [reject]);
+  }, [reject, t]);
 
   const body = (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList>
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="decided">Decided</TabsTrigger>
-            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="pending">{t('aiApprovals.tabPending')}</TabsTrigger>
+            <TabsTrigger value="decided">{t('aiApprovals.tabDecided')}</TabsTrigger>
+            <TabsTrigger value="all">{t('aiApprovals.tabAll')}</TabsTrigger>
           </TabsList>
         </Tabs>
         <Button
@@ -248,7 +314,7 @@ export function AiPendingActionsInbox({
           data-testid="ai-inbox-refresh"
         >
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('common.refresh')}
         </Button>
       </div>
 
@@ -270,9 +336,24 @@ export function AiPendingActionsInbox({
         <Alert variant={lastOutcome.ok ? 'default' : 'destructive'}>
           {lastOutcome.ok ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
           <AlertDescription>
-            {lastOutcome.kind === 'approve' ? 'Approve' : 'Reject'} for{' '}
-            <code className="text-xs">{lastOutcome.id.slice(0, 8)}…</code>:{' '}
-            {lastOutcome.message ?? (lastOutcome.ok ? 'OK' : 'Failed')}
+            {/*
+              One key with `{{id}}` and `{{message}}` holes, not an English
+              sentence assembled from fragments around a `<code>` element: word
+              order differs per locale, so the fragments could not be reordered.
+              The id keeps its truncation; it loses the monospace styling, which
+              is the deliberate cost of making the sentence translatable.
+            */}
+            {t(
+              lastOutcome.kind === 'approve'
+                ? 'aiApprovals.outcomeApprove'
+                : 'aiApprovals.outcomeReject',
+              {
+                id: `${lastOutcome.id.slice(0, 8)}…`,
+                message:
+                  lastOutcome.message ??
+                  (lastOutcome.ok ? t('common.ok') : t('aiApprovals.statusFailed')),
+              },
+            )}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -289,10 +370,8 @@ export function AiPendingActionsInbox({
             <EmptyMedia>
               <Inbox className="h-8 w-8 text-muted-foreground" />
             </EmptyMedia>
-            <EmptyTitle>No actions waiting</EmptyTitle>
-            <EmptyDescription>
-              When the AI proposes a sensitive action it will appear here for review.
-            </EmptyDescription>
+            <EmptyTitle>{t('aiApprovals.emptyTitle')}</EmptyTitle>
+            <EmptyDescription>{t('aiApprovals.emptyDescription')}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -300,12 +379,12 @@ export function AiPendingActionsInbox({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[140px]">Tool</TableHead>
-                <TableHead className="w-[140px]">Action</TableHead>
-                <TableHead className="w-[120px]">Object</TableHead>
-                <TableHead className="w-[110px]">Status</TableHead>
-                <TableHead className="w-[110px]">Proposed</TableHead>
-                <TableHead className="w-[260px] text-right">Decision</TableHead>
+                <TableHead className="w-[140px]">{t('aiApprovals.colTool')}</TableHead>
+                <TableHead className="w-[140px]">{t('aiApprovals.colAction')}</TableHead>
+                <TableHead className="w-[120px]">{t('aiApprovals.colObject')}</TableHead>
+                <TableHead className="w-[110px]">{t('aiApprovals.colStatus')}</TableHead>
+                <TableHead className="w-[110px]">{t('aiApprovals.colProposed')}</TableHead>
+                <TableHead className="w-[260px] text-right">{t('aiApprovals.colDecision')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -317,10 +396,10 @@ export function AiPendingActionsInbox({
                     <TableCell className="font-mono text-xs">{row.tool_name}</TableCell>
                     <TableCell className="text-sm">{row.action_name}</TableCell>
                     <TableCell className="text-sm">{row.object_name}</TableCell>
-                    <TableCell><StatusBadge status={row.status} /></TableCell>
+                    <TableCell><StatusBadge status={row.status} t={t} /></TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {formatRelative(row.proposed_at)}
+                        <Clock className="h-3 w-3" /> {formatRelative(row.proposed_at, t)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -331,7 +410,7 @@ export function AiPendingActionsInbox({
                           onClick={() => setOpenId(row.id)}
                           data-testid={`ai-inbox-view-${row.id}`}
                         >
-                          <Eye className="h-3.5 w-3.5 mr-1" /> View
+                          <Eye className="h-3.5 w-3.5 mr-1" /> {t('aiApprovals.view')}
                         </Button>
                         {isPending ? (
                           <>
@@ -343,7 +422,7 @@ export function AiPendingActionsInbox({
                               data-testid={`ai-inbox-approve-${row.id}`}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                              {isBusy ? 'Working…' : 'Approve'}
+                              {isBusy ? t('aiApprovals.working') : t('aiApprovals.approve')}
                             </Button>
                             <Button
                               size="sm"
@@ -353,7 +432,7 @@ export function AiPendingActionsInbox({
                               data-testid={`ai-inbox-reject-${row.id}`}
                             >
                               <XCircle className="h-3.5 w-3.5 mr-1" />
-                              Reject
+                              {t('aiApprovals.reject')}
                             </Button>
                           </>
                         ) : null}
@@ -373,9 +452,9 @@ export function AiPendingActionsInbox({
     <Card className={className}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
-          <Bot className="h-4 w-4" /> {title}
+          <Bot className="h-4 w-4" /> {resolvedTitle}
         </CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
+        {resolvedDescription ? <CardDescription>{resolvedDescription}</CardDescription> : null}
       </CardHeader>
       <CardContent>{body}</CardContent>
     </Card>
@@ -393,15 +472,22 @@ export function AiPendingActionsInbox({
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Bot className="h-4 w-4" />
-              {selected ? selected.action_name : 'Pending action'}
+              {selected ? selected.action_name : t('aiApprovals.drawerFallbackTitle')}
             </SheetTitle>
             <SheetDescription>
-              {selected ? (
-                <>
-                  Tool <code className="text-xs">{selected.tool_name}</code> on{' '}
-                  <code className="text-xs">{selected.object_name}</code>
-                </>
-              ) : 'Loading…'}
+              {/*
+                One key with `{{tool}}` and `{{object}}` holes rather than an
+                English sentence assembled around two `<code>` elements — the
+                two nouns swap order in several locales, which fragments cannot
+                express. The identifiers lose their monospace styling; that is
+                the deliberate cost of making the sentence translatable.
+              */}
+              {selected
+                ? t('aiApprovals.drawerSubtitle', {
+                    tool: selected.tool_name,
+                    object: selected.object_name,
+                  })
+                : t('common.loading')}
             </SheetDescription>
           </SheetHeader>
 
@@ -409,24 +495,24 @@ export function AiPendingActionsInbox({
             <div className="px-4 space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Status</Label>
-                  <div className="mt-1"><StatusBadge status={selected.status} /></div>
+                  <Label className="text-xs text-muted-foreground">{t('aiApprovals.colStatus')}</Label>
+                  <div className="mt-1"><StatusBadge status={selected.status} t={t} /></div>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Proposed</Label>
-                  <div className="mt-1 text-xs">{formatRelative(selected.proposed_at)}</div>
+                  <Label className="text-xs text-muted-foreground">{t('aiApprovals.colProposed')}</Label>
+                  <div className="mt-1 text-xs">{formatRelative(selected.proposed_at, t)}</div>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Proposed by</Label>
+                  <Label className="text-xs text-muted-foreground">{t('aiApprovals.fieldProposedBy')}</Label>
                   <div className="mt-1 text-xs font-mono break-all">{selected.proposed_by ?? '—'}</div>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Decided by</Label>
+                  <Label className="text-xs text-muted-foreground">{t('aiApprovals.fieldDecidedBy')}</Label>
                   <div className="mt-1 text-xs font-mono break-all">{selected.decided_by ?? '—'}</div>
                 </div>
                 {selected.conversation_id ? (
                   <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground">Conversation</Label>
+                    <Label className="text-xs text-muted-foreground">{t('aiApprovals.fieldConversation')}</Label>
                     <div className="mt-1 text-xs font-mono break-all">{selected.conversation_id}</div>
                   </div>
                 ) : null}
@@ -435,27 +521,27 @@ export function AiPendingActionsInbox({
               <Separator />
 
               <div>
-                <Label className="text-xs">Tool input</Label>
+                <Label className="text-xs">{t('aiApprovals.fieldToolInput')}</Label>
                 <div className="mt-1.5"><JsonBlock value={safeParseJson(selected.tool_input)} /></div>
               </div>
 
               {selected.result ? (
                 <div>
-                  <Label className="text-xs">Result</Label>
+                  <Label className="text-xs">{t('aiApprovals.fieldResult')}</Label>
                   <div className="mt-1.5"><JsonBlock value={safeParseJson(selected.result)} /></div>
                 </div>
               ) : null}
 
               {selected.error ? (
                 <div>
-                  <Label className="text-xs text-destructive">Error</Label>
+                  <Label className="text-xs text-destructive">{t('aiApprovals.fieldError')}</Label>
                   <div className="mt-1.5"><JsonBlock value={selected.error} /></div>
                 </div>
               ) : null}
 
               {selected.rejection_reason ? (
                 <div>
-                  <Label className="text-xs">Rejection reason</Label>
+                  <Label className="text-xs">{t('aiApprovals.fieldRejectionReason')}</Label>
                   <div className="mt-1.5 text-sm">{selected.rejection_reason}</div>
                 </div>
               ) : null}
@@ -468,7 +554,7 @@ export function AiPendingActionsInbox({
                     disabled={busyId === selected.id}
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Approve & Execute
+                    {t('aiApprovals.approveAndExecute')}
                   </Button>
                   <Button
                     size="sm"
@@ -477,7 +563,7 @@ export function AiPendingActionsInbox({
                     disabled={busyId === selected.id}
                   >
                     <XCircle className="h-3.5 w-3.5 mr-1" />
-                    Reject
+                    {t('aiApprovals.reject')}
                   </Button>
                 </div>
               ) : null}
@@ -490,22 +576,20 @@ export function AiPendingActionsInbox({
       <Sheet open={!!rejectFor} onOpenChange={(o) => { if (!o) { setRejectFor(null); setRejectReason(''); } }}>
         <SheetContent side="bottom" className="max-h-[40vh]">
           <SheetHeader>
-            <SheetTitle>Reject this action?</SheetTitle>
-            <SheetDescription>
-              The reason is shown back to the AI so it can adjust its next response.
-            </SheetDescription>
+            <SheetTitle>{t('aiApprovals.rejectTitle')}</SheetTitle>
+            <SheetDescription>{t('aiApprovals.rejectBody')}</SheetDescription>
           </SheetHeader>
           <div className="px-4 mt-3 space-y-3">
             <Textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Optional reason (e.g. 'Wrong record id — please confirm with the user first.')"
+              placeholder={t('aiApprovals.rejectPlaceholder')}
               rows={4}
               data-testid="ai-inbox-reject-reason"
             />
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => { setRejectFor(null); setRejectReason(''); }}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -515,7 +599,7 @@ export function AiPendingActionsInbox({
                 data-testid="ai-inbox-reject-confirm"
               >
                 <XCircle className="h-3.5 w-3.5 mr-1" />
-                Reject
+                {t('aiApprovals.reject')}
               </Button>
             </div>
           </div>
