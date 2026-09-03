@@ -333,9 +333,23 @@ export const ObjectChart = (props: any) => {
     [schema.dataset, schema.dimensions, schema.values],
   );
 
-  // Pie / donut / funnel are single-distribution charts where a comparison
-  // overlay would be meaningless — we skip the comparison fetch entirely.
-  const supportsCompareTo = (ct?: string) => ct !== 'pie' && ct !== 'donut' && ct !== 'funnel';
+  // Chart families that IGNORE `compareTo`: the comparison fetch is skipped
+  // entirely, so no `<valueKey>__comparison` column is produced and no overlay
+  // series is ever synthesised.
+  //
+  //  - pie / donut / funnel — single-distribution charts where a comparison
+  //    overlay would be meaningless.
+  //  - scatter (objectui#7402) — a scatter binds ONE measure: the renderer
+  //    reads y through the single `YAxis dataKey={series[0].dataKey}`, so the
+  //    synthesised overlay was painted on the PRIMARY's y and "previous
+  //    period" landed exactly on top of "current". Drawing it honestly needs
+  //    the multi-measure projection declined as option A of objectui#7194;
+  //    `compareTo` on a scatter returns WITH that projection. Until then the
+  //    published capability is removed rather than left drawing a wrong
+  //    picture — and because the overlay is never synthesised, a compare-to
+  //    document never reaches #7194's two-or-more-series scatter refusal.
+  const supportsCompareTo = (ct?: string) =>
+    ct !== 'pie' && ct !== 'donut' && ct !== 'funnel' && ct !== 'scatter';
 
   // Resolve the category dimension's option colors (P3). Best-effort: any
   // failure leaves categoryColors null and the chart keeps the theme palette.
