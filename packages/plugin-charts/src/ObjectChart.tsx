@@ -5,7 +5,7 @@ import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton, DataEmptyState } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight, Inbox } from 'lucide-react';
-import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import type { DrillDownConfig } from '@object-ui/types';
 
 /**
@@ -859,13 +859,23 @@ export const ObjectChart = (props: any) => {
   // from here because `@object-ui/core` is React-free and cannot read the locale
   // bundle (same division as `dimensionOptionTranslator` above — core takes the
   // resolver, the renderer holds the provider).
+  //
+  // `builtinAggregateLabels` is the same division for a MEASURE's label
+  // (objectui#7258): a result field the server minted as a built-in default
+  // (`builtinAggregate: 'count'`, objectstack#14492) reads its legend / axis
+  // text from the locale bundle here instead of the server's English `label`;
+  // an author-declared measure carries no discriminator and keeps its label
+  // verbatim (objectui#4106).
   const datasetChart = schema.dataset
     ? buildChartSeries(
         relabelDimensions(finalData, dimensionLabels),
         schema.dimensions,
         schema.values,
         datasetFields,
-        { nullCategoryLabel: tt('chart.nullCategory', '(None)') },
+        {
+          nullCategoryLabel: tt('chart.nullCategory', '(None)'),
+          builtinAggregateLabels: builtinAggregateLabels(tt),
+        },
       )
     : null;
 

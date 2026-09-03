@@ -56,6 +56,10 @@ export {
 // Safe translation hook factory
 export { createSafeTranslation, useSafeTranslate } from './useSafeTranslation.js';
 
+// objectui#7258 — locale labels for the server's built-in default measures,
+// handed to core's `buildChartSeries` as `builtinAggregateLabels`.
+export { builtinAggregateLabels, type SafeTranslate } from './builtinAggregateLabels.js';
+
 // Convention-based object/field label i18n
 export { useObjectLabel, useSafeFieldLabel } from './useObjectLabel.js';
 

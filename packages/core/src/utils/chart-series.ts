@@ -53,6 +53,39 @@ export interface ChartResultField {
 }
 
 /**
+ * The OPTIONAL wire discriminator naming which server-side BUILT-IN default
+ * measure a result column is (objectui#7258; producer half objectstack#14492).
+ * The analytics service sets it ONLY on the measures it minted itself with a
+ * hard-coded English default label (`count` → `'Count'`, …); an author-declared
+ * measure never carries it, so its `label` stays the author's verbatim text
+ * (objectui#4106). {@link resolveMeasureLabel} is the one reader.
+ *
+ * Declared BESIDE {@link ChartResultField} rather than on it, deliberately:
+ * `dataset-result-field-spec-parity` pins every key of `ChartResultField` as a
+ * key of the spec's `AnalyticsResult.fields[]`, and the `@objectstack/spec`
+ * this package is built against does not carry `builtinAggregate` yet. The
+ * intersection {@link ChartMeasureField} is what the helpers accept, so a
+ * spec-typed field flows in unchanged today and carries the key the moment
+ * the spec does — structurally, with no cast at the call sites.
+ *
+ * Typed as `string` rather than the closed {@link BuiltinAggregate} union on
+ * purpose: a JSON response is handed here as-is, so the value is validated at
+ * the lookup ({@link isBuiltinAggregate}) instead of trusted at the type.
+ *
+ * TODO(objectstack#14492): once the spec dependency is bumped past the release
+ * that adds `AnalyticsResult.fields[].builtinAggregate`, fold this key into
+ * `ChartResultField` as `DatasetResultField['builtinAggregate']` (pinning the
+ * two closed vocabularies to each other in the parity suite) and retire the
+ * carrier.
+ */
+export interface BuiltinAggregateCarrier {
+  builtinAggregate?: string;
+}
+
+/** A result field as the series helpers read it: the renderer shape plus the optional discriminator. */
+export type ChartMeasureField = ChartResultField & BuiltinAggregateCarrier;
+
+/**
  * One renderer-internal series binding produced by {@link buildChartSeries}:
  * WHICH result-set column to draw and what to call it.
  *
@@ -73,6 +106,61 @@ export interface ChartSeriesResult {
   data: Array<Record<string, unknown>>;
   xAxisKey: string | undefined;
   series: ChartSeriesBinding[];
+}
+
+/**
+ * The closed vocabulary of server-side built-in default measures a result field
+ * can declare itself as (objectui#7258 / objectstack#14492) — the spec's own
+ * measure-aggregate enum spelling (`count_distinct`, not `countDistinct`), so
+ * there is exactly ONE spelling on the wire and this list never grows on its
+ * own: a value outside it is not "a new aggregate", it is an unrecognised one,
+ * and {@link resolveMeasureLabel} treats it as absent.
+ */
+export const BUILTIN_AGGREGATES = ['count', 'sum', 'avg', 'min', 'max', 'count_distinct'] as const;
+
+/** One member of {@link BUILTIN_AGGREGATES}. */
+export type BuiltinAggregate = (typeof BUILTIN_AGGREGATES)[number];
+
+/** Runtime membership test for {@link BUILTIN_AGGREGATES}, over an untrusted wire value. */
+export function isBuiltinAggregate(value: unknown): value is BuiltinAggregate {
+  return typeof value === 'string' && (BUILTIN_AGGREGATES as readonly string[]).includes(value);
+}
+
+/**
+ * The LOCALIZED display label per built-in aggregate, as the layer that holds
+ * the i18n provider resolved them (`@object-ui/i18n`'s
+ * `builtinAggregateLabels(tt)`). Partial on purpose: an aggregate the caller
+ * did not resolve falls back to the wire `label`, exactly as if the field had
+ * carried no discriminator.
+ */
+export type BuiltinAggregateLabels = Partial<Record<BuiltinAggregate, string>>;
+
+/**
+ * The display label of ONE result field, for a legend / axis / tooltip.
+ *
+ * Resolution order (objectui#7258, maintainer ruling B of 2026-09-02):
+ *  1. the field declares itself a built-in default measure
+ *     (`builtinAggregate` ∈ {@link BUILTIN_AGGREGATES}) AND the caller resolved
+ *     a locale label for it → that label. This is the only path that can
+ *     replace a wire `label`, and it is keyed by a STRUCTURAL discriminator —
+ *     never by matching the label's text or the field's name, both of which
+ *     the ruling rejected (a real author measure literally named `count`, or
+ *     labelled `Count`, must keep its own label);
+ *  2. otherwise the wire `label` verbatim — the objectui#4106 contract for an
+ *     author-declared measure (`'Tasks'` reaches the legend untouched);
+ *  3. otherwise the field's `name`.
+ *
+ * So a discriminator the caller has no label for (a provider-less host, or a
+ * value outside the closed vocabulary) costs nothing: the field renders exactly
+ * what it rendered before the discriminator existed.
+ */
+export function resolveMeasureLabel(field: ChartMeasureField, labels?: BuiltinAggregateLabels): string {
+  const aggregate = field.builtinAggregate;
+  if (isBuiltinAggregate(aggregate)) {
+    const localized = labels?.[aggregate];
+    if (typeof localized === 'string' && localized !== '') return localized;
+  }
+  return field.label ?? field.name;
 }
 
 /**
@@ -164,6 +252,16 @@ export interface ChartSeriesOptions {
    * it, so a mismatch costs the null bucket its drill-through.
    */
   nullCategoryLabel?: string;
+  /**
+   * Locale labels for the server's BUILT-IN default measures, keyed by the
+   * wire discriminator a result field carries as `builtinAggregate`
+   * (objectui#7258). Same division of labour as `nullCategoryLabel`: this
+   * package is React-free and i18n-free, so the renderer that holds the
+   * provider resolves the strings (`builtinAggregateLabels(tt)` in
+   * `@object-ui/i18n`) and passes them in. Absent ⇒ every measure keeps its
+   * wire `label`, which for a built-in default is the server's English.
+   */
+  builtinAggregateLabels?: BuiltinAggregateLabels;
 }
 
 /** Per-CLICK knobs for {@link findChartSeriesRow}, on top of the shared ones. */
@@ -432,14 +530,19 @@ export function buildChartSeries(
   rows: Array<Record<string, unknown>> | null | undefined,
   dimensions: string[] | null | undefined,
   values: string[] | null | undefined,
-  fields?: ChartResultField[] | null,
+  fields?: ChartMeasureField[] | null,
   options?: ChartSeriesOptions,
 ): ChartSeriesResult {
   const dims = (dimensions ?? []).filter(Boolean);
   const vals = (values ?? []).filter(Boolean);
   const safeRows = Array.isArray(rows) ? rows : [];
-  const labelOf = (name: string): string =>
-    (fields ?? []).find((f) => f.name === name)?.label ?? name;
+  // A measure's series label: the locale label when the field declares itself
+  // a built-in default measure and the caller resolved one, else the wire
+  // `label` verbatim (objectui#4106), else the name — see `resolveMeasureLabel`.
+  const labelOf = (name: string): string => {
+    const field = (fields ?? []).find((f) => f.name === name);
+    return field ? resolveMeasureLabel(field, options?.builtinAggregateLabels) : name;
+  };
 
   // Multi-dimension, single-measure → pivot the second dimension into series.
   if (dims.length >= 2 && vals.length === 1) {
