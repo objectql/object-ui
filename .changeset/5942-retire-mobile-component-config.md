@@ -56,6 +56,13 @@ surfaces at authoring time instead of silently type-checking.
   landing in the same change as the declaration — not by restoring this
   declaration.
 
+**Do not follow the compiler's suggestion.** TypeScript reports the removal from
+`@object-ui/types` as TS2724 and appends `Did you mean 'ComponentConfig'?`. That
+is a lexical near-match, not a migration target: `ComponentConfig` is the
+renderer **registration** record (`{ type: string; component: T }`, extending
+`ComponentMeta`) and has nothing to do with mobile configuration. The import
+from `@object-ui/mobile` gets a plain TS2305 with no suggestion at all.
+
 Marked `minor`, not `major`, per this repo's version-alignment rule, which
 reserves `major` for following `@objectstack` across a major (AGENTS.md
 版本号策略) — the same classification objectui#4919's identically breaking type

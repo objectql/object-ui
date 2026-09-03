@@ -35,7 +35,7 @@ export type { BreakpointName };
 export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
 
 /**
- * Responsive layout configuration for objectui's **mobile component overrides**.
+ * Responsive layout configuration for the mobile renderer's box layout.
  *
  * Renamed off the spec's `ResponsiveConfig` name (objectstack#4115): the two
  * configure responsiveness through different vocabularies, and this package
@@ -48,12 +48,12 @@ export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
  * also accepts a bare number, plus `gap`, `padding`, `stackOnMobile` /
  * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`.
  *
- * It now has NO consumer. Its only one was `MobileComponentConfig`, retired by
- * objectui#5942 (see the RETIRED note below), so this type is still published
- * from both barrels and mounted nowhere — the same declared-surface-with-no-
- * consumption-path shape #5942 closed, one level down. Recorded as
- * objectui#7519 rather than widened into that PR: the name-ownership tripwire
- * below outlives the type, and retire-vs-implement here is a product call.
+ * It currently has NO consumer: its only one was retired by objectui#5942 (PR
+ * objectui#7526), so this type is still exported from `@object-ui/types` and
+ * `@object-ui/mobile` and is mounted nowhere. Whether it is retired in turn or
+ * given a renderer is open as objectui#7519 — a product call rather than a
+ * mechanical one, because the spec name-ownership tripwire named next outlives
+ * the type either way.
  *
  * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` fails if the spec ever
  * claims this name, so the alias cannot outlive its reason.
