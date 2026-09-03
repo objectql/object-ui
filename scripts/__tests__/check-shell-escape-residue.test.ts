@@ -13,6 +13,7 @@ import {
   RESIDUE_PATTERNS,
   SCAN_ROOTS,
   findResidue,
+  listDocuments,
   resolveRoot,
   scan,
   summarise,
@@ -47,6 +48,16 @@ import { REQUIRED_CONTEXTS } from '../dependabot-merge-gate.mjs';
  * is the correct amount of friction for changing what a gate promises.
  *
  * ## Fixture discipline
+ *
+ * ## The second skills root (objectui#7403)
+ *
+ * `SCAN_ROOTS` carries TWO skills trees: the published `skills/` and the
+ * contributor tree `.claude/skills/`, which objectui#7251 moved two guides into
+ * while nothing reached the new location. The fixtures below therefore declare
+ * both, and three cases exist only for the second one: the declared roots, a
+ * residue planted under `.claude/skills`, and — the case the miss itself asks
+ * for — a root that walks to ZERO documents while every other root is healthy,
+ * which must be NAMED AND RED rather than absorbed by a healthy total.
  *
  * `scripts/` is not in `SCAN_ROOTS`, so this file could carry the literal
  * plainly. It builds it from code points anyway — belt and braces against a
@@ -90,11 +101,16 @@ const FIXTURE_ROOTS = [
   { spec: 'AGENTS.md', kind: 'file', minFiles: 1 },
   { spec: 'CLAUDE.md', kind: 'file', minFiles: 1 },
   { spec: 'skills', kind: 'dir', minFiles: 1 },
+  { spec: '.claude/skills', kind: 'dir', minFiles: 1 },
   { spec: 'content/docs', kind: 'dir', minFiles: 1 },
 ];
 
 const scanFixture = (root: string, roots = FIXTURE_ROOTS) => scan(root, { roots, fenceFloor: 0 });
 
+/** One `SCAN_ROOTS` entry, as declared. */
+type DeclaredRoot = { spec: string; kind: string; minFiles: number };
+/** One `census.perRoot` row, as `scan` returns it. */
+type RootRow = { spec: string; files: number; fences: number; minFiles: number; resolved: boolean };
 /** A finding as `findResidue` returns it — no file, because it scans one source. */
 type Hit = { line: number; column: number; language: string; fenceLine: number; patternId: string };
 /** The same finding as `scan` returns it, carrying the document it came from. */
@@ -223,8 +239,12 @@ describe('⛔ what this gate does NOT do — asserted by behaviour, not by prose
       'AGENTS.md': fence('bash', 'echo ok'),
       'CLAUDE.md': fence('bash', 'echo ok'),
       'skills/s/SKILL.md': fence('bash', 'echo ok'),
+      '.claude/skills/s/SKILL.md': fence('bash', 'echo ok'),
       'content/docs/a.md': fence('bash', 'echo ok'),
-      // Out of scope by construction: not under any declared root.
+      // Out of scope by construction: not under any declared root. `.claude/`
+      // is only on the surface BELOW `skills/` — the rest of the agent tree
+      // (hooks, settings, agent definitions) is not markdown this gate reads.
+      '.claude/hooks/notes.md': fence('bash', HISTORICAL_LINE),
       'packages/thing/README.md': fence('bash', HISTORICAL_LINE),
     });
     expect(scanFixture(root).hits).toEqual([]);
@@ -240,6 +260,12 @@ describe('⭐ ablation — objectui#5150 replanted in every scan root', () => {
     'AGENTS.md': ['# AGENTS', '', fence('bash', `git commit -F - <<${SQ}EOF${SQ}`, 'msg', 'EOF')].join('\n'),
     'CLAUDE.md': ['# CLAUDE', '', fence('bash', 'pnpm install')].join('\n'),
     'skills/objectui/SKILL.md': ['# Skill', '', fence('bash', 'pnpm build')].join('\n'),
+    // objectui#7403 — the tree objectui#7251 moved the contributor guides into.
+    '.claude/skills/objectui-contributor/guides/console-development.md': [
+      '# Console development',
+      '',
+      fence('bash', 'pnpm dev'),
+    ].join('\n'),
     'content/docs/guide/a.md': ['# Guide', '', fence('bash', 'pnpm test')].join('\n'),
   };
 
@@ -248,7 +274,7 @@ describe('⭐ ablation — objectui#5150 replanted in every scan root', () => {
     expect(result.hits).toEqual([]);
     expect(result.unresolved).toEqual([]);
     expect(result.vacuous).toEqual([]);
-    expect(result.census.fences).toBe(4);
+    expect(result.census.fences).toBe(5);
   });
 
   it('goes RED in each root separately, naming the file and the line', () => {
@@ -269,13 +295,13 @@ describe('⭐ ablation — objectui#5150 replanted in every scan root', () => {
     }
   });
 
-  it('finds all four at once, and is loud about none of the roots collapsing', () => {
+  it('finds all five at once, and is loud about none of the roots collapsing', () => {
     const planted = Object.fromEntries(
       Object.entries(clean).map(([rel, body]) => [rel, `${body}\n\n${fence('bash', HISTORICAL_LINE)}\n`]),
     );
     const result = scanFixture(fixtureTree(planted));
-    expect(result.hits).toHaveLength(8);
-    expect(result.census.rootsResolved).toBe(4);
+    expect(result.hits).toHaveLength(10);
+    expect(result.census.rootsResolved).toBe(5);
     expect(result.census.outsideFences).toBe(0);
   });
 });
@@ -290,7 +316,12 @@ describe('non-vacuity — zero roots or zero files is a failure, not a green', (
     // the mistyped one reads as coverage for as long as nobody checks.
     const root = fixtureTree({ 'AGENTS.md': fence('bash', 'echo ok') });
     const result = scan(root, { roots: FIXTURE_ROOTS, fenceFloor: 0 });
-    expect(result.unresolved.map((u: { spec: string }) => u.spec)).toEqual(['CLAUDE.md', 'skills', 'content/docs']);
+    expect(result.unresolved.map((u: { spec: string }) => u.spec)).toEqual([
+      'CLAUDE.md',
+      'skills',
+      '.claude/skills',
+      'content/docs',
+    ]);
     expect(result.census.rootsResolved).toBe(1);
   });
 
@@ -304,10 +335,20 @@ describe('non-vacuity — zero roots or zero files is a failure, not a green', (
   });
 
   it('reports a resolved-but-empty root as a COLLAPSE, not as clean', () => {
-    const root = fixtureTree({ 'AGENTS.md': '', 'CLAUDE.md': '', 'skills/.keep': '', 'content/docs/.keep': '' });
+    const root = fixtureTree({
+      'AGENTS.md': '',
+      'CLAUDE.md': '',
+      'skills/.keep': '',
+      '.claude/skills/.keep': '',
+      'content/docs/.keep': '',
+    });
     const result = scan(root, { roots: FIXTURE_ROOTS, fenceFloor: 0 });
-    // `.keep` is not a document, so both directory roots resolve and walk to nothing.
-    expect(result.vacuous.map((v: { what: string }) => v.what)).toEqual(['files under skills', 'files under content/docs']);
+    // `.keep` is not a document, so all three directory roots resolve and walk to nothing.
+    expect(result.vacuous.map((v: { what: string }) => v.what)).toEqual([
+      'files under skills',
+      'files under .claude/skills',
+      'files under content/docs',
+    ]);
   });
 
   it('treats a fence count under the floor as a collapse of the walk', () => {
@@ -315,10 +356,39 @@ describe('non-vacuity — zero roots or zero files is a failure, not a green', (
       'AGENTS.md': fence('bash', 'echo ok'),
       'CLAUDE.md': '# no fences',
       'skills/s/SKILL.md': '# no fences',
+      '.claude/skills/s/SKILL.md': '# no fences',
       'content/docs/a.md': '# no fences',
     });
     const result = scan(root, { roots: FIXTURE_ROOTS, fenceFloor: 400 });
     expect(result.vacuous).toEqual([{ what: 'fenced blocks examined', value: 1, floor: 400 }]);
+  });
+
+  it('⭐ NAMES a root that reads nothing instead of passing on a healthy total (objectui#7403)', () => {
+    // This is objectui#7251's miss as a fixture, and the reason the floors are
+    // per root. Every other root is healthy, so a whole-surface floor — files,
+    // or the global fence floor — is green through the entire outage while the
+    // widened root walks to zero documents. The per-root floor is what turns it
+    // red, and it names the root rather than reporting a total.
+    const root = fixtureTree({
+      'AGENTS.md': fence('bash', 'echo ok'),
+      'CLAUDE.md': fence('bash', 'echo ok'),
+      'skills/objectui/SKILL.md': fence('bash', 'echo ok'),
+      'skills/objectui/guides/a.md': fence('bash', 'echo ok'),
+      '.claude/skills/.keep': '', // resolves, walks to no document at all
+      'content/docs/a.md': fence('bash', 'echo ok'),
+    });
+    const result = scan(root, { roots: FIXTURE_ROOTS, fenceFloor: 0 });
+
+    expect(result.unresolved, 'the root EXISTS — this is emptiness, not absence').toEqual([]);
+    expect(result.vacuous).toEqual([{ what: 'files under .claude/skills', value: 0, floor: 1 }]);
+    // The reading that hid it for a whole move: the totals look healthy.
+    expect(result.census.files).toBe(5);
+    expect(result.census.fences).toBe(5);
+    expect(result.census.perRoot.find((r: RootRow) => r.spec === '.claude/skills')).toMatchObject({
+      files: 0,
+      fences: 0,
+      resolved: true,
+    });
   });
 
   it('exits 1 for a collapsed population even with nothing to report', () => {
@@ -337,13 +407,38 @@ describe('non-vacuity — zero roots or zero files is a failure, not a green', (
 describe('repo state — the gate is green on this tree, over a real population', () => {
   const result = scan(repoRoot);
 
-  it('scans exactly the four roots objectui#5151 ruled', () => {
-    expect(SCAN_ROOTS.map((r: { spec: string }) => r.spec)).toEqual([
+  it('scans the five roots — objectui#5151 ruled four, objectui#7403 added the contributor tree', () => {
+    expect(SCAN_ROOTS.map((r: DeclaredRoot) => r.spec)).toEqual([
       'AGENTS.md',
       'CLAUDE.md',
       'skills',
+      '.claude/skills',
       'content/docs',
     ]);
+    // Every floor is PER ROOT. A whole-surface floor is the shape that let
+    // objectui#7251's move through, so there is deliberately no such row here.
+    expect(SCAN_ROOTS.every((r: DeclaredRoot) => Number.isInteger(r.minFiles) && r.minFiles >= 1)).toBe(true);
+    expect(SCAN_ROOTS.find((r: DeclaredRoot) => r.spec === '.claude/skills')).toEqual({
+      spec: '.claude/skills',
+      kind: 'dir',
+      minFiles: 3,
+    });
+  });
+
+  it('⭐ actually reads the two guides objectui#7251 moved — asserted on the POPULATION', () => {
+    // `hits` being empty is true both when these guides are clean and when
+    // nothing scans them at all; that ambiguity is how 18 fenced blocks left
+    // this surface unnoticed. So the claim is made against the population the
+    // walk returns, which is false in exactly one of those two worlds.
+    const docs: string[] = listDocuments(repoRoot, '.claude/skills', 'dir');
+    expect(docs).toContain('.claude/skills/objectui-contributor/guides/console-development.md');
+    expect(docs).toContain('.claude/skills/objectui-contributor/rules/no-touch-zones.md');
+
+    const row: RootRow | undefined = result.census.perRoot.find((r: RootRow) => r.spec === '.claude/skills');
+    expect(row?.resolved).toBe(true);
+    expect(row?.files).toBeGreaterThanOrEqual(3);
+    // Floors, not exact counts: 4 files / 20 fences measured when this landed.
+    expect(row?.fences).toBeGreaterThan(0);
   });
 
   it('has no residue in any fenced block', () => {

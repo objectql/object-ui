@@ -70,10 +70,10 @@ branching in component code.
 
 ### 3b. Pick the right layout primitive
 
-Five registered types do all the structural work. By volume in the schema
+These are the structural types to reach for. By volume in the schema
 catalogue, `flex`, `stack` and `box` are the three most-used layout nodes, so
-reach for them before anything heavier. All five take `children` and read every
-key off the node.
+reach for them before anything heavier. All take `children` and read every key
+off the node.
 
 | `type` | Renders | Key props (renderer defaults) | Reach for it when |
 |---|---|---|---|
@@ -82,16 +82,14 @@ key off the node.
 | `grid` | a CSS grid | `columns` (number, or a breakpoint object), `gap` (`4`) | a fixed number of equal cells that must reflow by breakpoint — KPI cards, a tile wall |
 | `container` | a centred, width-capped block | `maxWidth` (`xl`; `false` cancels the cap), `centered` (`true`), `padding` (`4`) | you want page gutters and a reading width, once, near the root |
 | `box` | a bare `div` | none — `className` passes through **verbatim**, and the renderer injects nothing | you want a wrapper that adds no layout of its own: a Tailwind-only block, a positioning anchor |
+| `section` | a semantic `<section>` | none — `className` passes through **verbatim**, exactly like `box` | you want `box` with an outline landmark: a thematic grouping that carries its own heading |
 
-`stack` is `flex` with a different default direction and alignment — the two
-declare the same members. Use whichever names your intent; do not set
+Use whichever of `flex` / `stack` names your intent; do not set
 `direction: "col"` on a `flex`.
 
-`box` exists because every other option injects layout: `container` adds width,
-centering and padding, `flex` / `stack` add a display mode and a gap, `grid`
-adds `grid-cols-*`, and `card` adds a border, a shadow and a `CardContent`
-wrapper around the children. When you want none of that, `box` is the one that
-gives you none of it.
+`box` and `section` exist because every other option injects layout — the props
+column above, plus `card`'s border, shadow and `CardContent` wrapper. When you
+want none of that, those two are the ones that give you none of it.
 
 ### 4. Wire renderer and registry cleanly
 
