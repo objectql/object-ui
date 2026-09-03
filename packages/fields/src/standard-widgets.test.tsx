@@ -29,10 +29,13 @@ describe('Standard Field Widgets', () => {
    * suites elsewhere, so a case here would duplicate rather than add; this
    * note stands in for them, and is the point of the card:
    *
-   * - `DateField` -> `./datetime-widgets.test.tsx`, which holds a full
-   *   `describe('DateField')`: edit-mode input, onChange, locale-formatted
-   *   readonly, empty-value dash, plus the objectui#3127 stored-ISO round
-   *   trip. Its locale channel is pinned in
+   * - `DateField` -> `./datetime-widgets.test.tsx`. Its `describe('DateField')`
+   *   holds four cases: edit-mode input, onChange, locale-formatted readonly
+   *   and empty-value dash. The objectui#3127 stored-ISO round trip for
+   *   `DateField` is in that same FILE but a SIBLING block -- the
+   *   `describe('existing values round-trip through the native controls
+   *   (#3127)')` it shares with `DateTimeField` -- not inside
+   *   `describe('DateField')`. Its locale channel is pinned in
    *   `./__tests__/date-locale-channel.test.tsx` (objectui#4468) and its
    *   `toDateInputValue` helper in `./widgets/nativeDateValue.test.ts`.
    * - `TextAreaField` -> seven suites in `./widgets/__tests__/`:
