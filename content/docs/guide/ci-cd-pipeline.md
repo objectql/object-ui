@@ -689,7 +689,8 @@ renderable children on another, so any global rule is a silent false green somew
 flat: every literal is a candidate component key, and a value outside the derived universe must be
 **declared** in the script's `DOC_TYPE_EXEMPTIONS` — keyed by (file, value), with a written reason
 naming the vocabulary it really belongs to. A whole-file exemption is deliberately not offered:
-`blocks/block-schema.mdx` carries `type: 'block'` and `type: 'div'` in the same document.
+`api/schema-reference.md` carries `"type": "action"` (an ActionSchema discriminant) and
+`"type": "card"` (a registered component key) in the same document.
 
 Entries are re-derived per run, so one whose page stopped spelling that type fails as a stale
 exemption rather than quietly widening the hole.

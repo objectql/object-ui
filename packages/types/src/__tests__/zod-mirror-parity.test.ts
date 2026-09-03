@@ -131,7 +131,6 @@ import type { z } from 'zod';
 
 import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
-import { BlockEditorSchema, BlockInstanceSchema, BlockLibraryItemSchema, BlockLibrarySchema, BlockMetadataSchema, BlockSchema, BlockSlotSchema, BlockVariableSchema, ComponentSchema } from '../zod/blocks.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
@@ -147,7 +146,6 @@ import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, Detai
 
 import type { AppAction as Ts_AppAction, AppComponentSchema as Ts_AppComponentSchema, NavigationArea as Ts_NavigationArea } from '../app';
 import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig, ComponentInput as Ts_ComponentInput, ComponentMeta as Ts_ComponentMeta, KeyedI18nLabel as Ts_KeyedI18nLabel } from '../base';
-import type { BlockEditorSchema as Ts_BlockEditorSchema, BlockInstanceSchema as Ts_BlockInstanceSchema, BlockLibraryItem as Ts_BlockLibraryItem, BlockLibrarySchema as Ts_BlockLibrarySchema, BlockMetadata as Ts_BlockMetadata, BlockSchema as Ts_BlockSchema, BlockSlot as Ts_BlockSlot, BlockVariable as Ts_BlockVariable, ComponentSchema as Ts_ComponentSchema } from '../blocks';
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
@@ -354,15 +352,6 @@ const MIRRORS = {
   'base.zod.ts#ComponentInputSchema': ComponentInputSchema,
   'base.zod.ts#ComponentMetaSchema': ComponentMetaSchema,
   'base.zod.ts#KeyedI18nLabelSchema': KeyedI18nLabelSchema,
-  'blocks.zod.ts#BlockEditorSchema': BlockEditorSchema,
-  'blocks.zod.ts#BlockInstanceSchema': BlockInstanceSchema,
-  'blocks.zod.ts#BlockLibraryItemSchema': BlockLibraryItemSchema,
-  'blocks.zod.ts#BlockLibrarySchema': BlockLibrarySchema,
-  'blocks.zod.ts#BlockMetadataSchema': BlockMetadataSchema,
-  'blocks.zod.ts#BlockSchema': BlockSchema,
-  'blocks.zod.ts#BlockSlotSchema': BlockSlotSchema,
-  'blocks.zod.ts#BlockVariableSchema': BlockVariableSchema,
-  'blocks.zod.ts#ComponentSchema': ComponentSchema,
   'complex.zod.ts#CalendarEventSchema': CalendarEventSchema,
   'complex.zod.ts#CalendarViewSchema': CalendarViewSchema,
   'complex.zod.ts#CarouselItemSchema': CarouselItemSchema,
@@ -521,15 +510,6 @@ interface Declared {
   'base.zod.ts#ComponentInputSchema': Ts_ComponentInput;
   'base.zod.ts#ComponentMetaSchema': Ts_ComponentMeta;
   'base.zod.ts#KeyedI18nLabelSchema': Ts_KeyedI18nLabel;
-  'blocks.zod.ts#BlockEditorSchema': Ts_BlockEditorSchema;
-  'blocks.zod.ts#BlockInstanceSchema': Ts_BlockInstanceSchema;
-  'blocks.zod.ts#BlockLibraryItemSchema': Ts_BlockLibraryItem;
-  'blocks.zod.ts#BlockLibrarySchema': Ts_BlockLibrarySchema;
-  'blocks.zod.ts#BlockMetadataSchema': Ts_BlockMetadata;
-  'blocks.zod.ts#BlockSchema': Ts_BlockSchema;
-  'blocks.zod.ts#BlockSlotSchema': Ts_BlockSlot;
-  'blocks.zod.ts#BlockVariableSchema': Ts_BlockVariable;
-  'blocks.zod.ts#ComponentSchema': Ts_ComponentSchema;
   'complex.zod.ts#CalendarEventSchema': Ts_CalendarEvent;
   'complex.zod.ts#CalendarViewSchema': Ts_CalendarViewSchema;
   'complex.zod.ts#CarouselItemSchema': Ts_CarouselItem;
@@ -1483,8 +1463,6 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "an index signature, not a declared key set — there are no keys to compare",
   'base.zod.ts#EventHandlersSchema':
     "an index signature, not a declared key set — there are no keys to compare",
-  'blocks.zod.ts#BlockComponentSchema':
-    "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'complex.zod.ts#CalendarViewModeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'complex.zod.ts#DashboardWidgetTypeSchema':
