@@ -32,10 +32,10 @@ import { hasDeclaredVisibilityGate } from './visibility-gate';
  * `locations`, `enabled` and `size` are all modern-only keys this renderer
  * forwards, and the legacy `crud.ts` `ActionSchema` is `@deprecated` and pins
  * `type: 'action'` where this renderer's own registry `inputs` declare
- * `'script' | 'url' | 'modal' | 'flow' | 'api'`. `actionType` stays on the
- * intersection for the same reason it does on `action:button`: it is the
- * host-composed override this renderer reads FIRST
- * (`schema.actionType || schema.type`), and it is not a `UIActionSchema` key.
+ * `'script' | 'url' | 'modal' | 'flow' | 'api'`. `actionType` is the DECLARED
+ * input carrying that execution type (objectui#7415), for the same reason it is
+ * on `action:button`; `type` stays on the intersection as the SDUI envelope's
+ * component discriminator and is not read as an action type here.
  */
 export interface ActionIconProps {
   schema: UIActionSchema & { type: string; className?: string; actionType?: string };
@@ -99,18 +99,19 @@ const ActionIconRenderer = forwardRef<
         // (objectui#4281). `...localContext` is still merged last, so the object
         // reaching `execute` is unchanged.
         const forwarded: ActionDef = {
-          // The host path renames the declared type (objectui#6306). `action:bar`
-          // does not route members through `SchemaRenderer` — it spreads the
-          // member onto this renderer's schema as `type: componentType,
-          // actionType: action.type`, so on that path `schema.type` is the
-          // COMPONENT id and `schema.actionType` is the declaration. Reading
-          // `schema.type` alone handed the runner `type: 'action:icon'`, which
-          // `ActionRunner.execute` resolves to no handler and no builtin: the
-          // click did nothing, with no error and no toast. Same resolution
-          // `action:button` has always had; the `|| schema.type` leg is what
-          // keeps the STANDALONE surface (where `type` IS the action type, as
-          // this renderer's own registry `inputs` declare) working.
-          type: schema.actionType || schema.type,
+          // The declared input (objectui#7415). It used to be spelled `type`,
+          // which collides with the SDUI envelope's component discriminator:
+          // `action:bar` already had to rename it as it spreads a member
+          // (`type: componentType, actionType: action.type`), and reading
+          // `schema.type` alone on that path handed the runner
+          // `type: 'action:icon'` — no handler, no builtin, a click that did
+          // nothing with no error and no toast (objectui#6306). The collision is
+          // now removed at the source: `actionType` is what the registry
+          // `inputs` below declare, so it is the one spelling on every path.
+          // No `|| schema.type` fallback — the objectstack#14490 ruling is a
+          // rename with no alias and no transition window, and post-rename
+          // `schema.type` is the component id on every authored path anyway.
+          type: schema.actionType,
           name: schema.name,
           // See action-button.tsx — the param-collection dialog reads its title
           // and description off these (objectui#4192, measured on `action:menu`
@@ -229,7 +230,7 @@ ComponentRegistry.register('icon', ActionIconRenderer, {
     { name: 'label', type: 'string', label: 'Tooltip Label' },
     { name: 'icon', type: 'string', label: 'Icon' },
     {
-      name: 'type',
+      name: 'actionType',
       type: 'enum',
       label: 'Action Type',
       enum: ['script', 'url', 'modal', 'flow', 'api'],
@@ -247,7 +248,7 @@ ComponentRegistry.register('icon', ActionIconRenderer, {
   ],
   defaultProps: {
     icon: 'play',
-    type: 'script',
+    actionType: 'script',
     variant: 'ghost',
   },
 });

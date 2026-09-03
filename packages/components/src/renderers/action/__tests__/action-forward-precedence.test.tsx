@@ -66,7 +66,10 @@ import '../action-icon';
  */
 const ACTION = {
   name: 'create_environment',
-  type: 'api',
+  // The renamed declared input (objectui#7415). The node's `type` is the
+  // COMPONENT id, stamped by `Renderer` below — the collision this rename
+  // removed is exactly that these two used to want the same slot.
+  actionType: 'api',
   label: 'Create Environment',
   description: 'Provision a new environment for this project',
   target: 'authoredTarget',
@@ -118,7 +121,7 @@ function Renderer({ type, context }: { type: string; context?: Record<string, an
   const C = ComponentRegistry.get(type);
   if (!C) throw new Error(`${type} is not registered`);
   // eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered renderer (stable reference), not a component created during render
-  return <C schema={{ ...ACTION, type: 'api' }} context={context} />;
+  return <C schema={{ ...ACTION, type }} context={context} />;
 }
 
 /** Renders the surface, fires the click, and returns the def the runner got. */
