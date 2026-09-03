@@ -382,11 +382,17 @@ Available: All standard `Math` functions
 
 ### Percentage Bar
 
+`progress` has no row in the expression carriage map, so its `value` and `label`
+are read off the node exactly as written — a `${…}` in either reaches the screen
+as those characters. Compute the percentage in the data you hand the renderer;
+the condition keys are evaluated on every type and stay expressions:
+
 ```json
 {
   "type": "progress",
-  "value": "${(completed / total) * 100}",
-  "label": "${completed} of ${total} completed"
+  "value": 75,
+  "label": "75% complete",
+  "visibleOn": "${total > 0}"
 }
 ```
 
@@ -445,13 +451,14 @@ Available: All standard `Math` functions
 
 ### Computed Fields
 
+`input` has no row in the expression carriage map either, so a computed total
+cannot be carried by its `value`. Show it with a `text` node, whose `content` is
+evaluated on every component type:
+
 ```json
 {
-  "type": "input",
-  "name": "total",
-  "label": "Total",
-  "value": "${form.price * form.quantity}",
-  "disabled": true
+  "type": "text",
+  "content": "Total: ${form.price * form.quantity}"
 }
 ```
 

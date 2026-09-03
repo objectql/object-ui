@@ -259,8 +259,8 @@
  * SURFACE is stated in the same breath as the coverage rule rather than left to
  * be read off the collector:
  *
- *     every `.mdx` and `.md` page under `content/docs`, plus every
- *     `packages/<name>/README.md`.
+ *     every `.mdx` and `.md` page under `content/docs`, every
+ *     `packages/<name>/README.md`, and the root `README.md`.
  *
  * Stating it here is objectui#5174's finding, and the finding was not the missing
  * extension — it was that a reader had to open `listDocuments` to learn that
@@ -300,6 +300,28 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  *  package README (which ships to npm inside the package's `files`). */
 const DOCS_ROOT = 'content/docs';
 const PACKAGES_DIR = 'packages';
+
+/**
+ * Pages at the repository ROOT that join the scan set by name.
+ *
+ * objectui#7115. Between this gate's surface (`content/docs` + the package
+ * READMEs) and `check-doc-component-types.mjs`'s (`content/docs` alone), the
+ * root `README.md` fell through: the most-read authored file in the repository —
+ * the GitHub landing page and the npm page for the workspace — was read by NO
+ * doc gate at all. It taught the unregistered type `stat-card` four times in its
+ * flagship example for as long as the example existed.
+ *
+ * Adding the name here is what makes the file VISIBLE to this gate's accounting.
+ * Whether its snippets compile is a separate question answered, as for every
+ * other document, by `UNGATED_DOCS` below: covered by default, and opted out
+ * only with a written, re-derived reason. That distinction is objectui#5174's,
+ * quoted in the header — a document outside the walk is "neither covered NOR
+ * declared ungated", which is strictly worse than a named debt.
+ *
+ * A name here that does not resolve is a failed run, not a quiet skip: see the
+ * check in `main`.
+ */
+const ROOT_PAGES = ['README.md'];
 
 /** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
  *  the whole content of the scan surface: `content/docs` is authored in a mix of
@@ -450,6 +472,23 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
+  // objectui#7115 put the root README into the scan surface; this entry is what
+  // that bought on THIS gate's question. The file is now VISIBLE to the ledger
+  // instead of invisible to the walk — the objectui#5174 distinction quoted in
+  // the header — and the debt below is measured, not estimated. ⚠️ Read as debt,
+  // never as a pass: these 9 diagnostics are real and objectui#7417 carries them.
+  // The three TS2305s are the ones that matter; the other six are fragment shape.
+  'README.md':
+    '4 undefined-name diagnostic(s) — blocks use ambient names the page never defines (`myAPI`, ' +
+    '`MySidebar`) or continue an earlier block (`SchemaRenderer`, `schema`); 2 elided-body ' +
+    'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
+    'methods`; plus TS2305x3 — REAL defects, measured against the built `dist/index.d.ts` of each ' +
+    'package and filed as objectui#7417: `ObjectRenderer` is on no export of @object-ui/app-shell ' +
+    '(the same phantom objectui#7095 recorded in examples/byo-backend-console/README.md), ' +
+    '`registerDefaultRenderers` is on no export of @object-ui/components (only ' +
+    '`registerPlaceholders` is) and is taught in no other authored file, and ' +
+    '`createObjectStackAdapter` is imported from @object-ui/core, which does not ship it — ' +
+    '@object-ui/data-objectstack does, as packages/plugin-dashboard/README.md already writes it.',
   'content/docs/plugins/plugin-calendar-view.mdx':
     '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
     '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
@@ -642,6 +681,12 @@ export function listDocuments(root = repoRoot) {
       const readme = join(pkgDir, entry, 'README.md');
       if (existsSync(readme)) out.push(relative(root, readme).split(sep).join('/'));
     }
+  }
+  // Root pages last, by name. An absent one is dropped here so a throwaway
+  // fixture tree stays listable; `main` refuses to publish a verdict when one is
+  // missing from a real run, which is the only place that can bite.
+  for (const name of ROOT_PAGES) {
+    if (existsSync(join(root, name))) out.push(name);
   }
   return out;
 }
@@ -1129,6 +1174,22 @@ export function buildFilterArgs(packages) {
 
 function main() {
   const argv = process.argv.slice(2);
+
+  // Checked before anything else: a ROOT_PAGES name that does not resolve makes
+  // the scan set quietly SMALLER, and every count this gate prints would still
+  // look healthy. That silent shrink is the defect objectui#7115 was filed for.
+  for (const name of ROOT_PAGES) {
+    if (!existsSync(join(repoRoot, name))) {
+      console.error(
+        `ROOT_PAGES names \`${name}\`, which does not exist under ${repoRoot}. That name is part of ` +
+          "this gate's stated scan surface (objectui#7115), so a dangling entry silently narrows the " +
+          "surface back to what objectui#7115 found. Re-point it at the page's new path, or remove " +
+          'it deliberately.',
+      );
+      return EXIT_CODES.couldNotRun;
+    }
+  }
+
   const state = analyze({});
 
   if (argv.includes('--build-filter')) {

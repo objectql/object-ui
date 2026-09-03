@@ -239,7 +239,11 @@ const schema = {
 
 ## Integration with Data Sources
 
-Connect dashboard to live data:
+Connect dashboard to live data. `metric-card` renders the `value` it is handed:
+it has no row in the spec's expression carriage map, so a `${…}` written in
+`value` or `trend` reaches the screen as those characters. A widget that should
+read live data is one of the `object-*` types above — they resolve the spec's
+per-element `dataSource` binding and query the object themselves.
 
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
@@ -256,8 +260,8 @@ const schema = {
     {
       type: 'metric-card',
       title: 'Total Users',
-      value: '${data.metrics.totalUsers}',
-      trend: '${data.metrics.userTrend}'
+      value: 12480,
+      trend: 'up'
     }
   ]
 };
