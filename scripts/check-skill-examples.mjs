@@ -145,6 +145,13 @@
  * report of what the bound refuses, and the harness's new ROOT-DECLARED control
  * is what proves on every run that it is still being applied.
  *
+ * ⚠️ A report OF the refusals has to be read the same way the refusals are, and
+ * when the bound landed it was not: the line came from a private regex over the
+ * block text while the bound walked the AST, so the two could name different
+ * sets over the same fences (objectui#7555). Both now read through the
+ * harness's `moduleSpecifiersOfBlock`, so the line cannot name a specifier no
+ * fence imports, and the suite pins that the two sets agree over this corpus.
+ *
  * ⚠️ A refused fence is NOT type-checked. The four pre-existing ones are carried
  * in the shrink-only `KNOWN_ROOT_DEVDEP_EXAMPLES` below so the bound landed with
  * zero new red, and the `Root bound` and `Semantic phase` lines both say how
@@ -295,6 +302,7 @@ import {
   compileSnippets,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
+  moduleSpecifiersOfBlock,
 } from './check-doc-snippet-types.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
@@ -889,20 +897,12 @@ export function parseJsonFence(body, language) {
 
 // ── Collection ───────────────────────────────────────────────────────────────
 
-/** Workspace package specifiers a block imports (bare specifier root only). */
-function importedSpecifiers(body) {
-  const out = new Set();
-  const patterns = [
-    /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g,
-    /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(body)) !== null) out.add(m[1]);
-  }
-  return out;
-}
+// The specifiers a block imports are read by `moduleSpecifiersOfBlock`, from the
+// shared harness. This gate carried its own regex copy of that reader until
+// objectui#7555; the harness's docblock records why a regex over a corpus that
+// is mostly prose cannot answer the question, and ONE reader is what keeps the
+// `Unmapped specifiers` line below and the harness's root bound — AST-derived
+// since it landed — from being two answers free to disagree.
 
 /**
  * Everything this run knows before any compiler is started.
@@ -951,7 +951,7 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
   const { paths, packageDirOf, sourceTyped } = derivePackageTypePaths(root);
   const neededPackages = new Set();
   for (const block of tsBlocks) {
-    for (const specifier of importedSpecifiers(block.body)) {
+    for (const specifier of moduleSpecifiersOfBlock(block.body)) {
       const owner = Object.keys(packageDirOf).find(
         (name) => specifier === name || specifier.startsWith(`${name}/`),
       );
@@ -992,7 +992,7 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
   const mapped = new Set(Object.keys(mergedPaths));
   const unmappedSpecifiers = new Set();
   for (const block of tsBlocks) {
-    for (const specifier of importedSpecifiers(block.body)) {
+    for (const specifier of moduleSpecifiersOfBlock(block.body)) {
       if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
       const root2 = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
       if (mapped.has(root2) || mapped.has(specifier)) continue;
