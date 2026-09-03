@@ -30,7 +30,7 @@ one has its own section below.
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
-| `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, or carries a marker that opts nothing in |
+| `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` or `.claude/skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, uses a bare `any`, or carries a marker that opts nothing in |
 | `skill-eval-tokens.yml` | Skill Eval Token Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when an eval assertion's `must_contain` token is not taught as a whole token anywhere in its own `skills/` bundle |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
@@ -600,13 +600,13 @@ how it was classified.
 
 **Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
 path filter at all**, for the same reason as the section above: the scan surface is markdown under
-`skills/`, and both `ci.yml` and `lint.yml` list `'**/*.md'` under the `paths-ignore` of their `push`
-trigger. It appears in the checks list as **Skill Example Check**.
+`skills/` and `.claude/skills/`, and both `ci.yml` and `lint.yml` list `'**/*.md'` under the
+`paths-ignore` of their `push` trigger. It appears in the checks list as **Skill Example Check**.
 
 Runs `scripts/check-skill-examples.mjs`. Where the section above checks the *paths* a guide states in
 prose, this one checks the *worked examples* themselves: a marked `ts` / `tsx` / `typescript` fence
-must compile `--strict` against the packages' built `dist/*.d.ts`, and a marked `json` / `jsonc`
-fence must parse.
+must compile `--strict` against the packages' built `dist/*.d.ts` **and must not use a bare `any`**,
+and a marked `json` / `jsonc` fence must parse.
 
 **Why it was needed:** at the time it landed, `skills/objectui/` carried 112 TypeScript fences and 56
 JSON fences and **not one gate in the repository read inside any of them**
@@ -623,6 +623,27 @@ not wrong, and a gate that reds on correct code gets deleted by the first person
 marker is an inert HTML comment and leaves the fence info string bare, so the three gates that key on
 the info string still see the block. The convention is ported byte-for-byte from objectstack's
 `packages/spec/scripts/check-skill-examples.ts`.
+
+**No bare `any` in a marked block** ([#7463](https://github.com/objectstack-ai/objectui/issues/7463)):
+a marker is the author's claim that the block compiles, and every property access on an `any` is
+unchecked — so a marked block full of `any` is a green badge over a `tsc` run that proved nothing.
+The rule is ported from objectstack's runner with its scope intact: the annotation must **be** `any`
+in a position that erases checking (a parameter, a variable / property / return annotation, a type
+alias, an `as any` / `satisfies any` / angle-bracket assertion). An `any` **nested** inside a larger
+type — `Record<string, any>`, `any[]`, `Promise<any>` — is deliberately allowed; that boundary is
+what keeps a red meaning broken. The corpus had four such sites when the assertion landed, and each
+is declared verbatim in `KNOWN_BARE_ANY_EXAMPLES` in the script. That list is a **shrink-only**
+ratchet, not an allowlist: a row whose red goes away fails as **stale** and must be deleted. Fixing a
+row is a judgement about the guide (one of them faithfully restates a platform type that really is
+`any`), so the rows are declared debt rather than a mechanical unmark.
+
+**It scans `.claude/skills/` too** ([#7463](https://github.com/objectstack-ai/objectui/issues/7463)):
+`SCAN_ROOTS` holds `skills` and `.claude/skills`, the same widening `check-skills-paths.mjs` took in
+[#7358](https://github.com/objectstack-ai/objectui/issues/7358). When #7251 moved the two
+contributor-only guides out of `skills/`, that gate stopped looking at them and nothing turned red.
+Widening a root is **not** arming it: opt-in is the design, so this added 9 candidate fences (18 → 20
+guides, 112 → 121 `ts` fences) and **zero** marked ones. Adding a marker under `.claude/skills/` is
+the surface owner's step.
 
 **Adjacency is strict:** a marker that is not directly above a checkable fence — separated by a blank
 line, above a `bash` fence, or left behind when its example was deleted — is an **orphan** and fails
@@ -644,7 +665,8 @@ the failure shape this gate family exists to prevent
 ([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
 
 **If it fails:** it prints `file:line` for every failing fence with the compiler's own diagnostic, or
-the JSON parser's message, or the orphan marker's line. Fix the example — or, if it was never meant
+the JSON parser's message, or the orphan marker's line, or — for a bare `any` — the position and the
+verbatim baseline row to declare if the fix belongs to a later card. Fix the example — or, if it was never meant
 to stand alone, remove its marker rather than weakening the gate. Run it locally with
 `pnpm check:skill-examples`, `node scripts/check-skill-examples.mjs --list` to see every candidate
 fence and its verdict, and `--measure` to judge every candidate whether marked or not.
