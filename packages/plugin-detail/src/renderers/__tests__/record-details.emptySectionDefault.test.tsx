@@ -23,10 +23,22 @@
  * hand-write `hideEmpty: false` per section to stop looking broken — per-app
  * tax for a platform concern (maintainer ruling 2026-08-31).
  *
- * The renderer now passes the authored value through untouched. These pins
- * hold both halves of that contract:
- *   - the UNAUTHORED default is the heuristic's, not the renderer's;
- *   - an AUTHORED value keeps its exact former meaning.
+ * The renderer then passed the authored value through untouched — and that
+ * pass-through measured the key on all four of its contracts, finding three
+ * answers (objectui#7129). `@objectstack/spec` REFUSES `hideEmpty` on a
+ * `record:details` section, so on any spec-validated page it never reached the
+ * renderer at all; the "author escape hatch" existed only where nothing
+ * validated. The maintainer converged the four on the spec's answer
+ * (2026-09-01): the declaration is RETIRED and `DetailSection`'s heuristic is
+ * the whole contract.
+ *
+ * These pins hold both halves of that contract:
+ *   - the default is the heuristic's, not the renderer's — unchanged, and the
+ *     three cases below are exactly the ones #7064 landed;
+ *   - an authored `hideEmpty` of EITHER polarity is now INERT. Its describe
+ *     block is RESTATED, not deleted (ruling clause 4): the same fixtures and
+ *     the same controls now assert the key does nothing, which is what proves
+ *     the heuristic survived the retirement intact.
  *
  * Deliberately no i18n provider: `fieldLabel` falls back to the value the
  * renderer hands it, which for the spec's bare-string section fields is the
@@ -134,13 +146,20 @@ describe('record:details — the UNAUTHORED empty-section default is DetailSecti
   });
 });
 
-describe('record:details — an AUTHORED `hideEmpty` keeps its exact former meaning (#7064)', () => {
-  it('`hideEmpty: true` still hides an all-empty section entirely', () => {
+describe('record:details — an authored `hideEmpty` is INERT: the key is retired (#7129)', () => {
+  /**
+   * The fixtures below are #7064's, unchanged, and so are their controls. What
+   * moved is the verdict: each now asserts the render the UNAUTHORED heuristic
+   * produces, so a reader can see that reintroducing a read of the key would
+   * have to break one of them.
+   */
+  it('`hideEmpty: true` no longer hides an all-empty section — the skeleton renders', () => {
     renderDetails({
       sections: [
         { name: 'deal_terms', label: 'Deal Terms', fields: ['stage', 'amount', 'close_date', 'next_step'], hideEmpty: true },
-        // CONTROL: a sibling section that MUST render, so the absences below
-        // are a decision by `hideEmpty` and not a render that never happened.
+        // CONTROL, kept from #7064: a sibling section that MUST render, so the
+        // presences below are a decision about `hideEmpty` and not an artefact
+        // of a render that never happened.
         { name: 'firmographics', label: 'Firmographics', fields: ['industry'] },
       ],
     });
@@ -148,27 +167,21 @@ describe('record:details — an AUTHORED `hideEmpty` keeps its exact former mean
     expect(screen.getByText('Firmographics')).toBeInTheDocument();
     expect(screen.getByText('Manufacturing')).toBeInTheDocument();
 
-    expect(screen.queryByText('Deal Terms')).not.toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
-    expect(emptyPlaceholders()).toHaveLength(0);
+    // Under the retired key this section vanished. The heuristic reserves the
+    // all-empty case, and it is now the only thing deciding.
+    expect(screen.getByText('Deal Terms')).toBeInTheDocument();
+    for (const label of ['stage', 'amount', 'close_date', 'next_step']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(emptyPlaceholders()).toHaveLength(4);
   });
 
-  it('`hideEmpty: true` still hides the empty rows of a partly-filled section', () => {
+  it('`hideEmpty: true` no longer hides the empty rows of a small partly-filled section', () => {
+    // 2 fields, 1 empty — below the auto-hide minimum in both threshold
+    // variants (4 desktop / 3 mobile), so nothing hides the row any more.
     renderDetails({
       sections: [
         { name: 'summary', label: 'Summary', fields: ['industry', 'stage'], hideEmpty: true },
-      ],
-    });
-
-    expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
-    expect(emptyPlaceholders()).toHaveLength(0);
-  });
-
-  it('`hideEmpty: false` shows the empty rows the heuristic would not have hidden anyway', () => {
-    renderDetails({
-      sections: [
-        { name: 'summary', label: 'Summary', fields: ['industry', 'stage'], hideEmpty: false },
       ],
     });
 
@@ -177,28 +190,31 @@ describe('record:details — an AUTHORED `hideEmpty` keeps its exact former mean
     expect(emptyPlaceholders()).toHaveLength(1);
   });
 
-  it('MEASURED, not endorsed: `hideEmpty: false` is "not true", NOT an override of the auto-hide heuristic', () => {
-    // `DetailSection` computes `shouldAutoHideEmpty` from `!section.hideEmpty`,
-    // so an authored `false` is indistinguishable from an unauthored section
-    // and the heuristic still hides empty rows once the thresholds are met.
-    // This is PRE-EXISTING and is NOT changed by #7064 — under the old forced
-    // default the same fixture took the same path, because `?? true` preserved
-    // an authored `false` too. Pinned so a future reader can see that the flip
-    // left this precedence exactly where it found it; whether `false` SHOULD
-    // become a hard override is a separate contract question.
-    renderDetails({
-      sections: [
-        {
-          name: 'deal_terms',
-          label: 'Deal Terms',
-          fields: ['industry', 'stage', 'amount', 'close_date'],
-          hideEmpty: false,
-        },
-      ],
-    });
+  it('the three spellings — absent, `true`, `false` — render the SAME section', () => {
+    // The retirement stated as one assertion: on a fixture at/above both
+    // thresholds (4 fields, 3 empty, 1 filled) the auto-hide heuristic fires
+    // and the authored key changes nothing in either direction. Under the old
+    // read, `true` and the absent case agreed here while `false` was "not
+    // true" — the paradox #7129 dissolved by removing the key.
+    const fields = ['industry', 'stage', 'amount', 'close_date'];
+    const renderedFor = (section: Record<string, unknown>) => {
+      const view = renderDetails({ sections: [{ name: 'deal_terms', label: 'Deal Terms', fields, ...section }] });
+      const shown = {
+        filled: screen.queryAllByText('Manufacturing').length,
+        emptyLabel: screen.queryAllByText('stage').length,
+        placeholders: emptyPlaceholders().length,
+        toggle: screen.queryAllByRole('button', { name: /empty fields/i }).length,
+      };
+      view.unmount();
+      return shown;
+    };
 
-    expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
-    expect(emptyPlaceholders()).toHaveLength(0);
+    const absent = renderedFor({});
+    // The live control: the fixture really is one the heuristic acts on, so
+    // "all three agree" is not three renders that all did nothing.
+    expect(absent).toEqual({ filled: 1, emptyLabel: 0, placeholders: 0, toggle: 1 });
+
+    expect(renderedFor({ hideEmpty: true })).toEqual(absent);
+    expect(renderedFor({ hideEmpty: false })).toEqual(absent);
   });
 });

@@ -108,15 +108,18 @@ const specSectionKeys = (): string[] =>
 
 /**
  * Section keys the `sections` description may NOT teach. Read off
- * `renderers/record-details.tsx`: `s.showBorder` and `s.hideEmpty` are honoured
- * there beyond the spec's four, and `title` was honoured as a strict-priority
- * ALIAS of the heading slot (`s.title ?? s.label`) until objectui#6190
- * converged on the declared `label` and dropped the limb.
+ * `renderers/record-details.tsx`: `s.showBorder` is honoured there beyond the
+ * spec's four; `title` was honoured as a strict-priority ALIAS of the heading
+ * slot (`s.title ?? s.label`) until objectui#6190 converged on the declared
+ * `label` and dropped the limb; `hideEmpty` was honoured until objectui#7129
+ * RETIRED the key (maintainer 2026-09-01) and left `DetailSection`'s auto-hide
+ * heuristic as the whole contract.
  *
- * `title` stays in this list on purpose, and dropping it would weaken the file.
- * Membership is not "keys the renderer reads today" — it is "keys the spec
- * refuses that the description must not advertise", and the spec refuses
- * `title` whether or not anything reads it. A hand-kept list, but the ASSERTION
+ * `title` and `hideEmpty` stay in this list on purpose, and dropping either
+ * would weaken the file. Membership is not "keys the renderer reads today" —
+ * it is "keys the spec refuses that the description must not advertise", and
+ * the spec refuses both whether or not anything reads them. A hand-kept list,
+ * but the ASSERTION
  * filters it through the spec at runtime, so the day upstream declares one of
  * these it drops out of the forbidden set on its own instead of pinning a stale
  * prohibition.
@@ -235,9 +238,10 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
   });
 
   it('publishes no section member key the spec refuses to carry', () => {
-    // The renderer honours `title` / `showBorder` / `hideEmpty` per section,
-    // but the spec's section object does not declare them, so an author who
-    // writes them gets nothing back from the contract. Documenting them here
+    // The renderer honours `showBorder` per section (and once honoured `title`
+    // and `hideEmpty`), but the spec's section object does not declare any of
+    // the three, so an author who writes them gets nothing back from the
+    // contract — a refusal, in fact. Documenting them here
     // would teach keys the contract does not carry — the member-level twin of
     // publishing a top-level input the props schema rejects.
     const stripped = RENDERER_ONLY_SECTION_KEYS.filter(
