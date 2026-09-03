@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@object-ui/core": "workspace:*",
-    "i18next": "^26.3.6",
+    "i18next": "^26.4.0",
     "react-i18next": "^17.0.11"
   },
   "peerDependencies": {

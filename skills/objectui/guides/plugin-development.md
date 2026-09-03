@@ -1,11 +1,6 @@
----
-name: objectui-plugin-development
-description: Create, register, and publish custom Object UI plugins. Use this skill when the user wants to build a new plugin for Object UI, register custom components in ComponentRegistry, implement field widgets with FieldWidgetComponentProps, scaffold a plugin package with create-plugin, or extend the Object UI renderer with custom component types. Also applies when the user asks about component registration, plugin architecture, namespace conflicts, or how to package heavy third-party dependencies (maps, charts, editors) as Object UI plugins.
----
-
 # ObjectUI Plugin Development
 
-Use this skill to build custom plugins that extend Object UI's rendering capabilities. Plugins are the extension mechanism for adding heavy or specialized components (grids, charts, maps, editors, kanbans) to the schema-driven UI engine.
+Building custom plugins that extend ObjectUI's rendering. Plugins are the extension mechanism for adding heavy or specialized components (grids, charts, maps, editors, kanbans) to the schema-driven UI engine.
 
 ## When to create a plugin vs. a component
 
@@ -52,17 +47,17 @@ The registry maps JSON `type` strings to React component implementations.
 import { ComponentRegistry } from '@object-ui/core';
 
 ComponentRegistry.register('my-widget', MyWidgetRenderer, {
-  namespace: 'plugin-my-widget',   // Registers as "plugin-my-widget:my-widget"
-  label: 'My Widget',              // Display name in designer
-  icon: 'layout-grid',            // Lucide icon name
+  namespace: 'plugin-my-widget',
+  label: 'My Widget',
+  icon: 'layout-grid',
   category: 'plugin',             // Grouping: 'plugin' | 'view' | 'field' | 'layout'
-  isContainer: false,              // Accepts child components?
-  inputs: [                        // Designer configuration inputs
+  isContainer: false,
+  inputs: [
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'columns', type: 'array', label: 'Columns', required: true },
     { name: 'mode', type: 'enum', label: 'Mode', enum: ['compact', 'full'] },
   ],
-  defaultProps: { mode: 'full' },  // Defaults when dropped in designer
+  defaultProps: { mode: 'full' },
 });
 ```
 
@@ -142,6 +137,12 @@ When registering with a namespace:
 
 **Use `skipFallback: true`** when multiple plugins register the same base type (e.g., both `plugin-form` and `plugin-grid` registering `'form'`).
 
+**A plugin handed a `PluginScope` registers through it instead** —
+`scope.registerComponent(type, component, meta?)`
+(`packages/types/src/plugin-scope.ts`) applies the scope's own name, storing
+`pluginName:type`, so it takes no `namespace`. `ComponentRegistry.register` is
+the global registry, where the namespace is yours to pass.
+
 ## Implementing a plugin component
 
 ### Entry point pattern (`index.tsx`)
@@ -169,14 +170,9 @@ const MyWidgetRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   );
 };
 
-// Register in ComponentRegistry
+// Register in ComponentRegistry — meta options as above
 ComponentRegistry.register('my-widget', MyWidgetRenderer, {
   namespace: 'plugin-my-widget',
-  label: 'My Widget',
-  category: 'plugin',
-  inputs: [
-    { name: 'title', type: 'string', label: 'Title' },
-  ],
 });
 ```
 

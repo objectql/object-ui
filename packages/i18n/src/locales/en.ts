@@ -809,6 +809,8 @@ const en = {
       unusableRange: {
         malformedDate:
           'Unusable gantt date range — {{path}} is {{value}}, which is not a valid date. Every gantt date has to parse: the startDate and endDate on every row item, plus any minDate / maxDate pinned on the schema.',
+        malformedRow:
+          'Unusable gantt rows — {{path}} is {{value}}, which is not a row shape. A gantt draws items as a list of rows, every row as an object with a label and its own items, and every row\'s items as a list of bars; a null, a number, a string or a plain object in any of those places cannot be drawn.',
         inverted:
           'Unusable gantt date range — minDate {{minDate}} is after maxDate {{maxDate}}. A pinned minDate / maxDate overrides the range computed from the rows, so this axis has no columns and no bar can be placed on it; swap the two values.',
       },
@@ -1803,6 +1805,17 @@ const en = {
         statusFull: 'Limit reached',
         resetsDaily: 'Resets tonight',
         resetsMonthly: 'Resets next cycle',
+        // `resetKind: 'weekly'` (free plan's rolling 7-day window, cloud PR
+        // #1852): "N days" (or "N hours" inside the final day). A REAL
+        // i18next plural family — see the `unsavedCount` note above — so the
+        // BASE key carries no suffix and must stay in every pack's lookup
+        // chain (`all-locales-key-parity.test.ts`'s base-key rule).
+        resetsWeeklyDays: 'Resets in {{count}} days',
+        resetsWeeklyDays_one: 'Resets in {{count}} day',
+        resetsWeeklyDays_other: 'Resets in {{count}} days',
+        resetsWeeklyHours: 'Resets in {{count}} hours',
+        resetsWeeklyHours_one: 'Resets in {{count}} hour',
+        resetsWeeklyHours_other: 'Resets in {{count}} hours',
         ctaUpgrade: 'Upgrade to keep going',
         ctaTopUp: 'Add credits to continue',
         ariaLabel: 'AI usage: {{status}}',
@@ -3135,6 +3148,53 @@ const en = {
     openProduction: 'Open Production',
     manageEnvironments: 'Manage environments',
   },
+  // The AI HITL approval inbox (`@object-ui/plugin-chatbot`'s
+  // `AiPendingActionsInbox`) — objectui#7173. Its four relative-time phrases
+  // are NOT here: it borrows `detail.justNow` / `minutesAgo` / `hoursAgo` /
+  // `daysAgo`, already translated in all ten packs, the way `ObjectGrid` and
+  // `ObjectKanban` borrow `detail.recordDetail`. Distinct from
+  // `approvalsInbox` above, which is the human approval-PROCESS inbox:
+  // different surface, different feature, so no rows are shared with it.
+  aiApprovals: {
+    title: 'AI Approvals',
+    description: 'Actions an AI agent proposed that need a human review before execution.',
+    tabPending: 'Pending',
+    tabDecided: 'Decided',
+    tabAll: 'All',
+    statusPending: 'Pending',
+    statusApproved: 'Approved',
+    statusExecuted: 'Executed',
+    statusFailed: 'Failed',
+    statusRejected: 'Rejected',
+    colTool: 'Tool',
+    colAction: 'Action',
+    colObject: 'Object',
+    colStatus: 'Status',
+    colProposed: 'Proposed',
+    colDecision: 'Decision',
+    emptyTitle: 'No actions waiting',
+    emptyDescription: 'When the AI proposes a sensitive action it will appear here for review.',
+    view: 'View',
+    approve: 'Approve',
+    reject: 'Reject',
+    working: 'Working…',
+    approveAndExecute: 'Approve & Execute',
+    outcomeApprove: 'Approve for {{id}}: {{message}}',
+    outcomeReject: 'Reject for {{id}}: {{message}}',
+    outcomeExecuteFailed: 'Action failed during execution',
+    drawerFallbackTitle: 'Pending action',
+    drawerSubtitle: 'Tool {{tool}} on {{object}}',
+    fieldProposedBy: 'Proposed by',
+    fieldDecidedBy: 'Decided by',
+    fieldConversation: 'Conversation',
+    fieldToolInput: 'Tool input',
+    fieldResult: 'Result',
+    fieldError: 'Error',
+    fieldRejectionReason: 'Rejection reason',
+    rejectTitle: 'Reject this action?',
+    rejectBody: 'The reason is shown back to the AI so it can adjust its next response.',
+    rejectPlaceholder: "Optional reason (e.g. 'Wrong record id — please confirm with the user first.')",
+  },
   aiModelStatus: {
     summary: 'Build / Ask uses {{conversational}} ({{conversationalSource}}); structured uses {{structured}} ({{structuredSource}}).',
     summaryRouting: 'Routing policy: free plans → {{free}}, paid plans → {{paid}}.',
@@ -3151,6 +3211,80 @@ const en = {
     sourceCodeDefault: 'code default (no env override)',
     sourceInherits: 'same as build/ask',
     sourcePinned: 'pinned by {{source}}',
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: 'Aggregate data',
+      get_record: 'Get record',
+      query_data: 'Query data',
+      query_records: 'Query records',
+      search_knowledge: 'Search knowledge',
+      visualize_data: 'Visualize data',
+      add_field: 'Add field',
+      apply_blueprint: 'Apply blueprint',
+      apply_edit: 'Apply edit',
+      create_metadata: 'Create metadata',
+      create_object: 'Create object',
+      create_package: 'Create package',
+      create_seed: 'Create seed',
+      delete_field: 'Delete field',
+      describe_metadata: 'Describe metadata',
+      describe_object: 'Describe object',
+      get_active_package: 'Get active package',
+      get_metadata_schema: 'Get metadata schema',
+      get_package: 'Get package',
+      list_metadata: 'List metadata',
+      list_objects: 'List objects',
+      list_packages: 'List packages',
+      modify_field: 'Modify field',
+      propose_blueprint: 'Propose blueprint',
+      set_active_package: 'Set active package',
+      suggest_builder: 'Suggest builder',
+      todo_write: 'Todo write',
+      update_metadata: 'Update metadata',
+      validate_expression: 'Validate expression',
+      verify_build: 'Verify build',
+    },
+    toolState: {
+      agentActivity: 'Agent activity',
+      pending: 'Pending',
+      running: 'Running',
+      awaitingApproval: 'Awaiting approval',
+      responded: 'Responded',
+      completed: 'Completed',
+      error: 'Error',
+      denied: 'Denied',
+      failed: 'Failed',
+    },
+    plan: {
+      countObjects: '{{count}} objects',
+      countObjects_one: '{{count}} object',
+      countViews: '{{count}} views',
+      countViews_one: '{{count}} view',
+      countDashboards: '{{count}} dashboards',
+      countDashboards_one: '{{count}} dashboard',
+      countSeedData: 'sample data',
+    },
   },
   chatbotError: {
     title: 'Response failed',

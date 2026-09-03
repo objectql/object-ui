@@ -696,6 +696,8 @@ const ar = {
       unusableRange: {
         malformedDate:
           "نطاق تواريخ جانت غير صالح للاستخدام — {{path}} يساوي {{value}}، وهو ليس تاريخًا صالحًا. يجب أن تكون كل تواريخ جانت قابلة للتحليل: startDate و endDate لكل عنصر صف، بالإضافة إلى أي minDate / maxDate مثبّت في المخطط.",
+        malformedRow:
+          "صفوف جانت غير صالحة للاستخدام — {{path}} يساوي {{value}}، وهو ليس على شكل صف. يقرأ جانت items كقائمة من الصفوف، وكل صف ككائن يحمل label و items خاصة به، و items كل صف كقائمة من الأشرطة؛ لا يمكن رسم null أو رقم أو سلسلة نصية أو كائن عادي في أي من هذه المواضع.",
         inverted:
           "نطاق تواريخ جانت غير صالح للاستخدام — minDate {{minDate}} يقع بعد maxDate {{maxDate}}. يتجاوز minDate / maxDate المثبّت النطاق المحسوب من الصفوف، لذلك لا يحتوي هذا المحور على أي أعمدة ولا يمكن وضع أي شريط عليه؛ بدّل القيمتين.",
       },
@@ -1497,6 +1499,12 @@ const ar = {
         statusFull: "تم بلوغ الحد",
         resetsDaily: "تُعاد التهيئة الليلة",
         resetsMonthly: "تُعاد التهيئة في الدورة القادمة",
+        resetsWeeklyDays: "{{count}} يوم(أيام) حتى إعادة التعيين",
+        resetsWeeklyDays_one: "{{count}} يوم حتى إعادة التعيين",
+        resetsWeeklyDays_other: "{{count}} أيام حتى إعادة التعيين",
+        resetsWeeklyHours: "{{count}} ساعة(ساعات) حتى إعادة التعيين",
+        resetsWeeklyHours_one: "{{count}} ساعة حتى إعادة التعيين",
+        resetsWeeklyHours_other: "{{count}} ساعات حتى إعادة التعيين",
         ctaUpgrade: "قم بالترقية للمتابعة",
         ctaTopUp: "أضف أرصدة للمتابعة",
         ariaLabel: "استخدام الذكاء الاصطناعي: {{status}}",
@@ -2796,6 +2804,46 @@ const ar = {
     openProduction: "فتح بيئة الإنتاج",
     manageEnvironments: "إدارة البيئات",
   },
+  aiApprovals: {
+    title: "موافقات الذكاء الاصطناعي",
+    description: "إجراءات اقترحها وكيل ذكاء اصطناعي وتحتاج إلى مراجعة بشرية قبل تنفيذها.",
+    tabPending: "قيد الانتظار",
+    tabDecided: "تم البت فيها",
+    tabAll: "الكل",
+    statusPending: "قيد الانتظار",
+    statusApproved: "تمت الموافقة",
+    statusExecuted: "تم التنفيذ",
+    statusFailed: "فشل",
+    statusRejected: "مرفوض",
+    colTool: "الأداة",
+    colAction: "الإجراء",
+    colObject: "الكائن",
+    colStatus: "الحالة",
+    colProposed: "وقت الاقتراح",
+    colDecision: "القرار",
+    emptyTitle: "لا توجد إجراءات في الانتظار",
+    emptyDescription: "عندما يقترح الذكاء الاصطناعي إجراءً حساسًا سيظهر هنا للمراجعة.",
+    view: "عرض",
+    approve: "موافقة",
+    reject: "رفض",
+    working: "جارٍ التنفيذ…",
+    approveAndExecute: "الموافقة والتنفيذ",
+    outcomeApprove: "موافقة على {{id}}: {{message}}",
+    outcomeReject: "رفض {{id}}: {{message}}",
+    outcomeExecuteFailed: "فشل الإجراء أثناء التنفيذ",
+    drawerFallbackTitle: "إجراء قيد الانتظار",
+    drawerSubtitle: "الأداة {{tool}} على {{object}}",
+    fieldProposedBy: "اقترحه",
+    fieldDecidedBy: "قرّره",
+    fieldConversation: "المحادثة",
+    fieldToolInput: "مدخلات الأداة",
+    fieldResult: "النتيجة",
+    fieldError: "خطأ",
+    fieldRejectionReason: "سبب الرفض",
+    rejectTitle: "هل تريد رفض هذا الإجراء؟",
+    rejectBody: "يُعاد السبب إلى الذكاء الاصطناعي ليعدّل ردّه التالي.",
+    rejectPlaceholder: "سبب اختياري (مثال: «معرّف السجل غير صحيح — يرجى التأكيد مع المستخدم أولاً.»)",
+  },
   aiModelStatus: {
     summary: "يستخدم الإنشاء / السؤال {{conversational}} ({{conversationalSource}})؛ ويستخدم الإخراج المهيكل {{structured}} ({{structuredSource}}).",
     summaryRouting: "سياسة التوجيه: الخطط المجانية ← {{free}}، الخطط المدفوعة ← {{paid}}.",
@@ -2812,6 +2860,80 @@ const ar = {
     sourceCodeDefault: "القيمة الافتراضية في الكود (بدون تجاوز env)",
     sourceInherits: "مثل build/ask",
     sourcePinned: "مثبّت بواسطة {{source}}",
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "تجميع البيانات",
+      get_record: "جلب السجل",
+      query_data: "الاستعلام عن البيانات",
+      query_records: "الاستعلام عن السجلات",
+      search_knowledge: "البحث في قاعدة المعرفة",
+      visualize_data: "إنشاء رسم بياني",
+      add_field: "إضافة حقل",
+      apply_blueprint: "بناء التطبيق",
+      apply_edit: "تطبيق التغييرات",
+      create_metadata: "إنشاء بيانات وصفية",
+      create_object: "إنشاء كائن",
+      create_package: "إنشاء حزمة",
+      create_seed: "توليد بيانات تجريبية",
+      delete_field: "حذف حقل",
+      describe_metadata: "عرض البيانات الوصفية",
+      describe_object: "عرض بنية الكائن",
+      get_active_package: "جلب الحزمة النشطة",
+      get_metadata_schema: "جلب مخطط البيانات الوصفية",
+      get_package: "جلب الحزمة",
+      list_metadata: "سرد البيانات الوصفية",
+      list_objects: "سرد الكائنات",
+      list_packages: "سرد الحزم",
+      modify_field: "تعديل حقل",
+      propose_blueprint: "تصميم خطة التطبيق",
+      set_active_package: "تبديل الحزمة النشطة",
+      suggest_builder: "اقتراح طريقة البناء",
+      todo_write: "تدوين المهام",
+      update_metadata: "تحديث البيانات الوصفية",
+      validate_expression: "التحقق من التعبير",
+      verify_build: "التحقق من البناء",
+    },
+    toolState: {
+      agentActivity: "نشاط الوكيل",
+      pending: "قيد الانتظار",
+      running: "قيد التنفيذ",
+      awaitingApproval: "بانتظار الموافقة",
+      responded: "تمت الاستجابة",
+      completed: "مكتمل",
+      error: "خطأ",
+      denied: "مرفوض",
+      failed: "فشل",
+    },
+    plan: {
+      countObjects: "{{count}} كائنات",
+      countObjects_one: "{{count}} كائن",
+      countViews: "{{count}} طرق عرض",
+      countViews_one: "{{count}} طريقة عرض",
+      countDashboards: "{{count}} لوحات معلومات",
+      countDashboards_one: "{{count}} لوحة معلومات",
+      countSeedData: "بيانات تجريبية",
+    },
   },
   chatbotError: {
     title: "فشل الرد",

@@ -163,9 +163,13 @@ export interface SidebarSchema extends BaseSchema {
    */
   collapsedWidth?: string | number;
   /**
-   * Collapsed state change handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `sidebar` renderer spreads it onto `<Sidebar>`, which has no such prop
+   * (React attaches nothing). The zod twin refuses it by name; author behaviour
+   * as a node type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onCollapsedChange?: (collapsed: boolean) => void;
+  onCollapsedChange?: never;
   /**
    * Sidebar variant
    * @default 'default'
@@ -190,9 +194,13 @@ export interface BreadcrumbItem {
    */
   icon?: string;
   /**
-   * Click handler (if not using href)
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `breadcrumb` renderer renders items as links and never reads it. The zod
+   * twin refuses it by name; author behaviour as a node type (`{ "type":
+   * "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onClick?: () => void;
+  onClick?: never;
   /**
    * Sibling items for dropdown navigation (e.g., quick-switch between objects)
    */
@@ -253,6 +261,12 @@ export interface PaginationSchema extends BaseSchema {
   showPrevNext?: boolean;
   /**
    * Page change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `pagination` renderer as `props.onPageChange(page)` after
+   * `SchemaRenderer` spreads it.
    */
   onPageChange?: (page: number) => void;
 }
@@ -320,9 +334,13 @@ export interface ButtonGroupButton {
    */
   disabled?: boolean;
   /**
-   * Click handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `button-group` renderer renders each `<Button>` without a click handler and
+   * never reads it. The zod twin refuses it by name; author behaviour as a node
+   * type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onClick?: () => void;
+  onClick?: never;
   /**
    * Button CSS class
    */

@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I have a statistic card in my Object UI schema but the value shows literally as ${data.revenue} instead of the actual number. Here's my schema: { \"type\": \"statistic\", \"value\": \"${data.revenue}\", \"label\": \"Revenue\" }. What's wrong?",
+      "prompt": "I have a statistic card in my ObjectUI schema but the value shows literally as ${data.revenue} instead of the actual number. Here's my schema: { \"type\": \"statistic\", \"value\": \"${data.revenue}\", \"label\": \"Revenue\" }. What's wrong?",
       "expected_output": "Identifies that top-level 'value' and 'label' are not expression-evaluated, and does NOT offer props.value / props.label as the fix — that envelope is evaluated and then discarded, rendering nothing. Corrects it by resolving the value in the host before rendering, or by carrying it on a text node's content.",
       "files": [],
       "assertions": {
@@ -36,7 +36,7 @@
     },
     {
       "id": 3,
-      "prompt": "What formula functions can I use in Object UI expressions? I need to calculate a sum of order amounts, format a date, and show a conditional label.",
+      "prompt": "What formula functions can I use in ObjectUI expressions? I need to calculate a sum of order amounts, format a date, and show a conditional label.",
       "expected_output": "Lists available formula functions (SUM, DATEFORMAT, IF) with correct syntax examples in schema context.",
       "files": [],
       "assertions": {

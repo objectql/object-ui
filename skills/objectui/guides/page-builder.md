@@ -1,41 +1,6 @@
----
-name: objectui-sdui-page-builder
-description: Build and integrate Schema-Driven UI pages in third-party projects using Object UI. Use this skill whenever the user asks to create app pages from JSON schemas, wire SchemaRenderer into an existing React app, implement CRUD/dashboard/form/list/detail pages with Object UI, or migrate handwritten React pages to schema-driven rendering. Use it even if the user does not explicitly mention "skill" or "SchemaRenderer" but describes metadata-driven page development, console-like page composition, or JSON-to-UI workflows.
----
-
 # ObjectUI SDUI Page Builder
 
-Use this skill to guide app developers (not framework maintainers) to build production pages with Object UI's Schema-Driven UI Engine.
-
-## What this skill should optimize for
-
-- Deliver working page features quickly with JSON-first design.
-- Keep architecture aligned with Object UI conventions.
-- Keep third-party projects backend-agnostic through DataSource interfaces.
-- Produce outputs that are immediately usable in app codebases.
-
-## When to use this skill
-
-Use this skill when requests include:
-
-- "Build a page with Object UI / SchemaRenderer"
-- "Create a CRUD/dashboard/form/detail page from JSON"
-- "Integrate Object UI in an existing React/Vite/Next app"
-- "Design a metadata-driven page similar to console"
-- "Move an existing React page to schema-driven rendering"
-
-Do not use this skill for:
-
-- Modifying Shadcn upstream primitives under `packages/components/src/ui/**`.
-- Core engine internals that belong to `@object-ui/core` maintenance.
-- Non-UI backend implementation unrelated to schema rendering.
-
-## Required mindset
-
-1. JSON first, React second.
-2. Protocol compatibility before convenience shortcuts.
-3. Reusable schema blocks before one-off page code.
-4. DataSource abstraction over hardcoded transport logic.
+Building production pages with the Schema-Driven UI engine, for app developers.
 
 ## Standard workflow
 
@@ -102,6 +67,29 @@ and the reason it is recorded rather than recommended, in
 
 Prefer expression-based behavior (`hidden`, `disabled`) over imperative
 branching in component code.
+
+### 3b. Pick the right layout primitive
+
+These are the structural types to reach for. By volume in the schema
+catalogue, `flex`, `stack` and `box` are the three most-used layout nodes, so
+reach for them before anything heavier. All take `children` and read every key
+off the node.
+
+| `type` | Renders | Key props (renderer defaults) | Reach for it when |
+|---|---|---|---|
+| `flex` | a flex row | `direction` (`row`), `justify` (`start`), `align` (`start`), `gap` (`2`), `wrap` (`false`) | items sit side by side: a toolbar, a header with actions pushed right (`justify: "between"`) |
+| `stack` | a flex column | same props; `direction` defaults to `col` and `align` to `stretch` | items sit one under another: a form, a sidebar, a page body |
+| `grid` | a CSS grid | `columns` (number, or a breakpoint object), `gap` (`4`) | a fixed number of equal cells that must reflow by breakpoint — KPI cards, a tile wall |
+| `container` | a centred, width-capped block | `maxWidth` (`xl`; `false` cancels the cap), `centered` (`true`), `padding` (`4`) | you want page gutters and a reading width, once, near the root |
+| `box` | a bare `div` | none — `className` passes through **verbatim**, and the renderer injects nothing | you want a wrapper that adds no layout of its own: a Tailwind-only block, a positioning anchor |
+| `section` | a semantic `<section>` | none — `className` passes through **verbatim**, exactly like `box` | you want `box` with an outline landmark: a thematic grouping that carries its own heading |
+
+Use whichever of `flex` / `stack` names your intent; do not set
+`direction: "col"` on a `flex`.
+
+`box` and `section` exist because every other option injects layout — the props
+column above, plus `card`'s border, shadow and `CardContent` wrapper. When you
+want none of that, those two are the ones that give you none of it.
 
 ### 4. Wire renderer and registry cleanly
 
@@ -172,46 +160,27 @@ When users ask for a "console-like" experience, prefer:
 
 ## Expression evaluation boundaries
 
-Understanding what gets evaluated and what does not is critical for correct schemas.
+A key must clear **two independent gates** to reach the screen: the renderer has
+to *read* it, and `SchemaRenderer` has to *evaluate* it. Both lists -- what is
+evaluated, what is read raw, and what `props` / `properties` each do -- are in
+[`rules/protocol.md`](../rules/protocol.md). Two consequences shape almost every
+page:
 
-A key must clear **two independent gates** to reach the screen: the renderer
-has to *read* it, and `SchemaRenderer` has to *evaluate* it. Keys on the node
-clear the first gate; only the short list below clears the second.
-
-**Evaluated by SchemaRenderer automatically:**
-
-| Field | What happens |
-|-------|-------------|
-| `content` | Template-evaluated **and** read by the text renderers. `"content": "Hello ${user.name}"` works end to end. |
-| `hidden` / `hiddenOn` | Boolean expression. Component removed from DOM when true. |
-| `visible` / `visibleOn` | Boolean expression. `visible` takes priority over `hidden`. |
-| `disabled` / `disabledOn` | Boolean expression. Passed as prop to component. |
-| `props.*` | Template-evaluated, but handed to the component as React props — a `ui:*` / `page:*` renderer never reads the result back, so the evaluated value is discarded. Only `element:*` components consume it. Do not use it as an expression carrier. |
-| `properties.*` | Template-evaluated **and hoisted onto the node**, so unlike `props` the result is read — by every namespace. Its status as an authoring channel is open (objectui#4795); see [`rules/protocol.md`](../rules/protocol.md) before reaching for it. |
-| `title` / `label` / `value` / `description` | Template-evaluated **on the component types that declare them** — `statistic` (`label`/`value`/`description`), `card` (`title`/`description`), `button` (`label`). The list is closed and declared in `@objectstack/spec`; see [`rules/protocol.md`](../rules/protocol.md). |
-
-**NOT evaluated (raw strings passed through):**
-
-| Field | What to do instead |
-|-------|-----------|
-| `title` / `label` / `value` / `description` **on any other type** | Read by the renderer, but not template-evaluated there — an inline `${...}` reaches the screen as literal text. Moving it under `props` does not help: it gets evaluated there and then dropped. Resolve the value in the host **before** handing the schema to `SchemaRenderer` (the same pattern the i18n guide uses for `t(...)`), or carry it on a `text` node's `content`. |
-| `className` | Not expression-evaluated. Use static Tailwind classes only. |
-| `id` | Static string. No expressions. |
-
-**Correct pattern** — a `statistic`'s text keys sit on the node. Static values
-work as-is, and so do expressions (`statistic` declares all three):
+**A `statistic` carries its own text keys**, so both static values and
+expressions work on the node (`statistic` declares `label` / `value` /
+`description`):
 ```json
 {
   "type": "statistic",
   "label": "Active Users",
-  "value": "42",
+  "value": "${data.metrics.activeUsers}",
   "description": "+5% from last month",
   "trend": "up"
 }
 ```
 
-**Correct pattern on a type that does NOT declare the key** — `content` is
-evaluated on every component type, so a `text` child carries the binding:
+**A type that does not declare the key needs a `text` child**, because `content`
+is evaluated on every component type:
 ```json
 {
   "type": "card",
@@ -222,86 +191,18 @@ evaluated on every component type, so a `text` child carries the binding:
 }
 ```
 
-**Wrong pattern (renders an empty card — the envelope is never read):**
-```json
-{
-  "type": "statistic",
-  "props": {
-    "label": "Active Users",
-    "value": "${data.metrics.activeUsers}"
-  }
-}
-```
+Never reach for `props` to make an expression work: it is evaluated there and
+then dropped, so the trade is a literal `${...}` on screen for nothing on
+screen. Full syntax -- operators, formula functions, the security model -- is
+[`guides/schema-expressions.md`](./schema-expressions.md).
 
-**Right, since objectui#4795 — `statistic` declares `value` and `label`, so
-these are evaluated on the node and read back:**
-```json
-{
-  "type": "statistic",
-  "value": "${data.metrics.activeUsers}",
-  "label": "${data.labels.title}"
-}
-```
+## Stylesheets
 
-⚠️ The same two keys on a type with no declaration (e.g. `text`) still reach the
-screen as literal `${...}`. The declaring types are listed in
-[`rules/protocol.md`](../rules/protocol.md).
-
-For the full expression syntax reference (operators, formula functions, security model), see the `objectui-schema-expressions` skill.
-
-## CSS theming template for third-party apps
-
-Object UI components render unstyled unless the app's Tailwind entry brings in the
-packages' styles. How it does that depends on where the packages come from — installed
-from npm, or linked inside the ObjectUI workspace. The two cases are not interchangeable.
-
-### Installed from npm (the third-party case)
-
-Import the published stylesheets. There is no `tailwind.config.js` step, and no scanning
-of `node_modules`.
-
-**Required `src/index.css`:**
-```css
-@import "tailwindcss";
-@import "@object-ui/components/style.css";
-@import "@object-ui/fields/style.css";
-```
-
-Each `style.css` is a real package export, mapped to that package's `dist/index.css` and
-compiled at build time from the package's own sources. The components sheet carries every
-utility its components use **and** the `@theme` block those utilities are built on, so the
-whole Shadcn palette and the `:root` / `.dark` token defaults arrive with that one import
-— you do not restate those tokens in a `@theme` block of your own. The order is
-load-bearing: the fields sheet is a supplement compiled against the components theme with
-every rule that sheet already ships subtracted from it, so imported first or alone its
-rules resolve against tokens that are not there yet. `@object-ui/fields` is a separate
-dependency, not a transitive one — install it, or leave that second line out.
-
-Do **not** point Tailwind at the ObjectUI packages inside `node_modules`, with neither a
-v4 `@source` line nor a v3 `content` entry: the published tarballs carry `dist` only, and
-the `@theme` block the themed utilities come from lives in package source, which is not
-published. To recolour, override the token values (Shadcn HSL channel triples) rather than
-the utilities — see `content/docs/guide/theming.md`.
-
-### Inside the ObjectUI workspace
-
-Here the packages are linked to their sources, so Tailwind scans them directly and the app
-owns the theme declaration:
-
-```css
-@import "tailwindcss";
-
-/* Workspace packages are linked to their sources — scan them */
-@source "../../packages/components/src/**/*.tsx";
-@source "../../packages/fields/src/**/*.tsx";
-@source "../../packages/layout/src/**/*.tsx";
-@source "../../packages/react/src/**/*.tsx";
-```
-
-Adjust those paths to your app's location relative to the monorepo root, and add a
-`@source` line per plugin package the app renders. Because the app owns the Tailwind entry
-in this case, it also declares the `@theme` mapping and the `:root` token values;
-`apps/console/src/index.css` is the maintained reference for both.
+A page renders unstyled unless the app imports
+`@object-ui/components/style.css` then `@object-ui/fields/style.css`, in that
+order. Both cases -- installed from npm, and linked inside the ObjectUI
+workspace -- are in [`rules/styling.md`](../rules/styling.md); this guide keeps
+no second copy.
 
 ## Plugin integration in page schemas
 
@@ -361,101 +262,21 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
   "gantt": {
     "titleField": "name",
     "startDateField": "start_date",
-    "endDateField": "end_date",
-    "progressField": "progress",
-    "parentField": "parent_id",
-    "dependenciesField": "depends_on",
-    "typeField": "item_type",
-    "lockField": "is_locked",
-    "defaultCollapsedDepth": 2,
-    "colorField": "status",
-    "baselineStartField": "planned_start",
-    "baselineEndField": "planned_end",
-    "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
-    "groupByField": "owner",
-    "assigneeField": "owner",
-    "effortField": "effort",
-    "quickFilters": [
-      { "field": "status", "label": "状态" },
-      { "field": "project", "label": "项目" },
-      { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
-    ],
-    "autoZoomToFilter": true
-  },
-  "criticalPath": true,
-  "skipWeekends": true,
-  "holidays": ["2026-01-01", "2026-12-25"],
-  "readOnly": false,
-  "bind": "project_task"
+    "endDateField": "end_date"
+  }
 }
 ```
 
-`titleField` / `startDateField` / `endDateField` are required; the rest are
-optional. `parentField` builds the summary tree (parents roll up their
-children's span + weighted progress), `typeField` distinguishes
-`task` / `summary` (alias `project` / `phase`) / `milestone` / `group`
-(alias `folder`), `dependenciesField` draws the dependency
-arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`).
-Setting `dependenciesField` also makes links **editable** (unless `readOnly`):
-drag a bar's connector dot to create a FS link, right-click a link to switch its
-type (FS/SS/FF/SF) or remove it (移除依赖), or right-click a bar for
-添加紧前/添加紧后依赖 — every change is written back to the field (the field is
-auto-promoted to `[{ id, type }]` form the moment a non-FS link is stored).
-With links present, dragging a bar into a position that violates a dependency
-(拖拽冲突校验) raises a 顺延 confirmation: 自动顺延 reschedules the affected tasks
-via a topological forward pass (link-type aware, summaries stay fixed rollups),
-取消保留 keeps the manual placement. This is on by default whenever
-`dependenciesField` is set and suppressed in `readOnly`.
-`tooltipFields` configures the hover detail (悬浮详情) — each entry a
-field name or `{ field, label }`, formatted by field type.
-`baselineStartField` / `baselineEndField` draw a thin planned-vs-actual
-baseline strip under each bar. `groupByField` swimlanes the rows by any field
-(a select/lookup label or raw value; empty values fall into an "ungrouped"
-bucket). `assigneeField` / `effortField` configure the **resource / workload
-view** (see below). The gantt field config may also be hoisted to top-level
-`props` instead of nesting under `gantt`.
-
-**Multi-level trees (无条分组层 / 默认折叠 / 仅查看)** — for deep hierarchies like
-项目 → 产品 → 排产计划 → 派工单, drive the shape from data, not hardcoded logic:
-
-| Field mapping (under `gantt`) | Effect |
-|--------|--------|
-| `typeField: "…"` with a `group` (or `folder`) value | Renders that record as a **pure tree header with NO timeline bar** (无条) — expandable/collapsible like a summary but never scheduled. Use for grouping-only levels (项目/产品) that organize rows without their own dates. `summary` (and aliases `project`/`phase`) still render a bar-carrying rollup bracket. |
-| `lockField: "is_locked"` | Marks a row **view-only / 仅查看** when the field is truthy: its bar can't be dragged/resized, progress can't be dragged, no dependency connector dot, and inline-edit + context-menu edit/delete are hidden. **Clicking still works** (open drawer / jump). Independent of `readOnly`, so you can freeze just one level (e.g. 派工单) while siblings stay editable. |
-| `defaultCollapsedDepth: 2` | **Auto-collapse 默认折叠** every tree node at or below this 0-indexed depth that has children, on first render. Roots are depth 0. The user can still expand any of them — this only seeds the initial state. Example: in a 项目(0)→产品(1)→排产计划(2)→派工单(3) tree, `2` starts with every 排产计划 (and its 派工单) folded. Omit to start fully expanded. |
-
-**Gantt config options** (`GanttConfig` members — set them INSIDE `gantt`, or hoist
-the whole config as above; beside a `gantt` block a top-level copy is IGNORED):
-
-| Option (under `gantt`) | Effect |
-|--------|--------|
-| `resourceView: true` | Render the **resource / workload view** instead of the task grid: one row per resource with a per-column load histogram. Requires `assigneeField` to bucket tasks; each task adds `effortField` units (default 1) over its span, and any column whose summed load exceeds `capacity` is painted as over-allocated. |
-| `assigneeField` / `effortField` / `capacity` | Resource bucketing (required for `resourceView`), per-task workload weight (default `1`), and the per-resource capacity ceiling (default `1`; loads above it flag overload). |
-| `quickFilters: [{ field, label?, options? }]` | Render a **快速筛选 (quick filter)** bar above the grid — one multi-select dropdown per entry that narrows the visible task bars by that field (AND across dimensions). Option lists resolve in priority order: explicit `options` → the object schema's `select`/`enum` options (full domain) → a `lookup`/`master_detail`'s referenced records (pulled in full via the data source, so values with **no** tasks still appear) → distinct values from the loaded data. Lookup values match on the embedded record id. Selecting every option of a dimension collapses to "no constraint". |
-| `autoZoomToFilter: true` | When a quick filter narrows the set, re-derive the timeline range from the **remaining** tasks so the axis zooms to the filtered span (default `true`). Set `false` to pin the axis to the full task span so bars keep their absolute position while filtering. |
-| `viewMode: "day"\|"week"\|"month"\|"quarter"\|"year"` | Initial timeline granularity (default `day`); the toolbar segmented control switches it live. `year` widens the axis to one column per year with a decade (`2020s`) band above. |
-
-**Node-level display / behavior options** (true siblings of `gantt` on the node
-itself, not `GanttConfig` members — they apply with either face):
-
-| Option | Effect |
-|--------|--------|
-| `criticalPath: true` | Start with the critical-path (zero-slack chain) highlight on; a toolbar toggle stays available. |
-| `showBaselines: false` | Hide the baseline strips even when baseline fields are mapped (default `true`). |
-| `skipWeekends: true` | Working-calendar math: auto-schedule + critical path count working days only, snapping reschedules off Sat/Sun. In **day mode** this also folds weekend columns out of the timeline (非线性工作时间轴) — Friday sits against Monday and a one-column drag advances one working day. Coarser scales stay linear. |
-| `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar (combine with or instead of `skipWeekends`). In day mode these columns fold out of the axis too. |
-| `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
-| `persistLayout: false` | Disable layout persistence. By default the toolbar's **保存布局 (save layout)** button snapshots the current granularity + zoom + task-list collapse to `localStorage` (key `gantt-layout:<object>:<view>`) and restores it on next load; set `false` to opt out. |
-| `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. A 🔒 只读 badge shows in the toolbar, and the right-click menu drops to view-only (or is suppressed when nothing is actionable). Task click + granularity switching still work. Use for dashboards / shared read-only views. |
-| `mobileReadOnly: false` | On a narrow viewport (≤ 640px) the chart **auto-enters read-only** to give touch users a clean, scrollable thumbnail (移动端只读缩略) — same gating as `readOnly`, applied only while narrow. Enabled by default; set `false` to keep editing live on small screens. |
-
-The toolbar also carries **navigation** (今天 / 本周 / 本月 jump-to buttons that
-scroll the timeline to the start of today/this-week/this-month) and **export**
-(导出 PNG and a dependency-free single-page 导出 PDF of the whole chart) controls,
-always available regardless of `readOnly`. Each task-list row also has a **定位
-(locate)** icon by its End cell that smooth-scrolls the timeline to center that
-row's bar and pulses it (闪烁) so it's easy to spot after the jump — handy in
-deep/long trees.
+Those three `gantt` keys are the required ones; every other option — the tree,
+dependency, baseline, resource-view, quick-filter, working-calendar and
+read-only surfaces — is optional and documented in
+[`@object-ui/plugin-gantt`'s README](https://github.com/objectstack-ai/objectui/blob/main/packages/plugin-gantt/README.md).
+The same configuration can also be written as flat `startDateField` /
+`endDateField` / ... keys **on the node** — never under `props`, which no
+`ui:*` renderer reads. That flat spelling is the internal ObjectView / ListView
+flatten product: it is taken only when there is no `gantt` block, and a node
+carrying both renders the block and warns about the ignored top-level keys.
+Author the `gantt` block.
 
 Import plugins in your app entry point to trigger registration:
 ```typescript
@@ -498,33 +319,3 @@ It exposes `ObjectView`, `RecordDetailView`, `PageView`, `DashboardView`,
 reachable only through the `page` / `app` / `utility` / `home` / `record`
 registry keys it registers, never as an import. See
 `guides/project-setup.md` for the decision matrix.
-
-## Common mistakes to avoid
-
-- Writing large bespoke React JSX trees before schema definition.
-- Hardcoding API calls directly inside visual renderers.
-- Introducing package coupling (for example, UI package depending on business logic package).
-- Registering components without namespace in plugin-heavy projects.
-- Skipping docs updates for newly introduced schema patterns.
-- Expecting a `${...}` on top-level `value` / `label` to evaluate — it does not, and moving it under `props` renders nothing at all. Resolve it in the host, or carry it on a `text` node's `content`.
-- Missing Shadcn CSS variables — components render but look completely unstyled.
-- Forgetting the `@object-ui/components/style.css` and `@object-ui/fields/style.css` imports, or importing them in the wrong order — ObjectUI's utilities never reach the page.
-
-## Fast triage playbook for ambiguous requests
-
-If the request is underspecified:
-
-1. Infer likely page category (list/detail/form/dashboard).
-2. Produce a minimal viable schema first.
-3. Mark assumptions clearly.
-4. Provide one conservative and one advanced variant.
-
-This keeps momentum while inviting focused user feedback.
-
-## Example prompts this skill should handle well
-
-- "In our CRM app, create a customer detail page with tabs, related orders, and action buttons using SchemaRenderer."
-- "Migrate this existing React order list to Object UI schema, keep filters and bulk actions."
-- "Set up a dashboard page in a Vite app with Object UI cards + chart plugin and role-based visibility."
-- "My ObjectUI components are rendering but look completely unstyled — help me fix the CSS setup."
-- "Add a kanban board to my existing schema-driven project page."

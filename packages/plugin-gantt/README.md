@@ -293,6 +293,96 @@ path — drag/resize/inline/delete/link/undo), `mobileReadOnly`, `markers`,
 `navigation`, `skipWeekends`, `holidays`, `criticalPath`, `showBaselines`,
 `persistLayout` / `viewName`, `label`.
 
+#### Full field-mapping reference (`GanttConfig` members)
+
+`titleField` / `startDateField` / `endDateField` are required; everything below
+is optional. Set them INSIDE the `gantt` block — beside a `gantt` block a
+top-level copy is ignored (with a dev-mode warning naming the losing keys).
+
+| Key (under `gantt`) | Effect |
+| --- | --- |
+| `parentField` | Builds the summary tree: parents roll up their children's span and weighted progress. |
+| `typeField` | Distinguishes `task` / `summary` (aliases `project`, `phase`) / `milestone` / `group` (alias `folder`). A `group` row renders as a **pure tree header with no timeline bar** — expandable like a summary but never scheduled, for grouping-only levels that have no dates of their own. `summary` still renders a bar-carrying rollup bracket. |
+| `lockField` | Marks a row **view-only** when the field is truthy: no bar drag/resize, no progress drag, no dependency connector dot, and inline-edit plus context-menu edit/delete are hidden. Clicking still works (open drawer / jump). Independent of `readOnly`, so one level of a tree can be frozen while its siblings stay editable. |
+| `defaultCollapsedDepth` | Auto-collapse every tree node at or below this 0-indexed depth that has children, on first render. Roots are depth 0; the user can still expand any of them, this only seeds the initial state. In a 4-level tree, `2` starts with every level-2 node (and its children) folded. Omit to start fully expanded. |
+| `dependenciesField` | Draws the dependency arrows. Accepts CSV, an id array, or `[{ id, type: 'fs'\|'ss'\|'ff'\|'sf' }]`. Setting it also makes links **editable** unless `readOnly`: drag a bar's connector dot to create an FS link, right-click a link to switch its type or remove it, right-click a bar to add a predecessor or successor. Every change is written back to the field, which is auto-promoted to the `[{ id, type }]` form the moment a non-FS link is stored. |
+| `tooltipFields` | The hover detail. Each entry is a field name or `{ field, label }`, formatted by field type. |
+| `baselineStartField` / `baselineEndField` | Draw a thin planned-vs-actual baseline strip under each bar. |
+| `groupByField` | Swimlane the rows by any field — a select/lookup label or a raw value; empty values fall into an "ungrouped" bucket. |
+| `colorField` | Field whose value picks the bar colour. |
+| `resourceView: true` | Render the **resource / workload view** instead of the task grid: one row per resource with a per-column load histogram. Requires `assigneeField` to bucket tasks. |
+| `assigneeField` / `effortField` / `capacity` | Resource bucketing (required for `resourceView`), per-task workload weight (default `1`), and the per-resource capacity ceiling (default `1`). Any column whose summed load exceeds `capacity` is painted as over-allocated. |
+| `quickFilters: [{ field, label?, options? }]` | Render a quick-filter bar above the grid — one multi-select dropdown per entry, narrowing the visible bars by that field (AND across dimensions). Option lists resolve in priority order: explicit `options` → the object schema's `select`/`enum` options (the full domain) → a `lookup` / `master_detail`'s referenced records (pulled in full through the data source, so values with **no** tasks still appear) → distinct values from the loaded data. Lookup values match on the embedded record id. Selecting every option of a dimension collapses to "no constraint". |
+| `autoZoomToFilter` | When a quick filter narrows the set, re-derive the timeline range from the **remaining** tasks so the axis zooms to the filtered span (default `true`). Set `false` to pin the axis to the full task span, so bars keep their absolute position while filtering. |
+| `viewMode` | Initial granularity, `'day'` (default) / `'week'` / `'month'` / `'quarter'` / `'year'`; the toolbar switches it live. `year` widens the axis to one column per year with a decade band above. |
+
+With links present, dragging a bar into a position that violates a dependency
+raises a reschedule confirmation: accepting runs a topological forward pass
+(link-type aware; summaries stay fixed rollups) over the affected tasks,
+declining keeps the manual placement. This is on by default whenever
+`dependenciesField` is set, and suppressed under `readOnly`.
+
+#### Node-level display and behaviour options
+
+True siblings of `gantt` on the node itself, not `GanttConfig` members — they
+apply with either spelling of the field mapping.
+
+| Key (on the node) | Effect |
+| --- | --- |
+| `criticalPath: true` | Start with the critical-path (zero-slack chain) highlight on; the toolbar toggle stays available. |
+| `showBaselines: false` | Hide the baseline strips even when baseline fields are mapped (default `true`). |
+| `skipWeekends: true` | Working-calendar math: auto-schedule and critical path count working days only, and reschedules snap off Sat/Sun. In **day mode** this also folds weekend columns out of the timeline — Friday sits against Monday and a one-column drag advances one working day. Coarser scales stay linear. |
+| `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar, combined with or instead of `skipWeekends`. In day mode these columns fold out of the axis too. |
+| `markers: [{ date, label?, color? }]` | Extra vertical marker lines, like the Today line. |
+| `persistLayout: false` | Disable layout persistence. By default the toolbar's save-layout button snapshots the current granularity, zoom and task-list collapse state to `localStorage` (key `gantt-layout:OBJECT:VIEW`) and restores it on the next load. |
+| `readOnly: true` | **Disable every edit path** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. A read-only badge shows in the toolbar and the right-click menu drops to view-only (or is suppressed when nothing is actionable). Task click and granularity switching still work. Use it for dashboards and shared read-only views. |
+| `mobileReadOnly: false` | On a narrow viewport (≤ 640 px) the chart auto-enters read-only, giving touch users a clean scrollable thumbnail — the same gating as `readOnly`, applied only while narrow. Enabled by default. |
+
+The toolbar also carries **navigation** (jump-to-today / this-week / this-month
+buttons that scroll the timeline to the start of that period) and **export**
+(PNG, plus a dependency-free single-page PDF of the whole chart), always
+available regardless of `readOnly`. Each task-list row carries a **locate** icon
+by its End cell that smooth-scrolls the timeline to centre that row's bar and
+pulses it — useful in deep or long trees.
+
+#### A maximal node, for reference
+
+```json
+{
+  "type": "gantt",
+  "objectName": "project_task",
+  "gantt": {
+    "titleField": "name",
+    "startDateField": "start_date",
+    "endDateField": "end_date",
+    "progressField": "progress",
+    "parentField": "parent_id",
+    "dependenciesField": "depends_on",
+    "typeField": "item_type",
+    "lockField": "is_locked",
+    "defaultCollapsedDepth": 2,
+    "colorField": "status",
+    "baselineStartField": "planned_start",
+    "baselineEndField": "planned_end",
+    "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
+    "groupByField": "owner",
+    "assigneeField": "owner",
+    "effortField": "effort",
+    "quickFilters": [
+      { "field": "status", "label": "Status" },
+      { "field": "project", "label": "Project" },
+      { "field": "priority", "label": "Priority", "options": ["high", "medium", "low"] }
+    ],
+    "autoZoomToFilter": true
+  },
+  "criticalPath": true,
+  "skipWeekends": true,
+  "holidays": ["2026-01-01", "2026-12-25"],
+  "readOnly": false,
+  "bind": "project_task"
+}
+```
+
 ### Task Structure
 
 `GanttTask` is the **component's runtime** task — what `<GanttView>` renders and

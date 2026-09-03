@@ -263,6 +263,33 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:self-import
 
+      # A build tsconfig that excludes tooling by FILE NAME (`*.test.ts`) stops
+      # the files that happen to be named that way and nothing else. The first
+      # shared helper added to a `__tests__/` directory is then a program input,
+      # and an emitting program writes it into the published `dist`. That has
+      # happened three times — objectui#4006 (73 `*.test.d.ts` across two
+      # packages), objectui#4836 (9 more, one of them an emitted module whose
+      # first statement imports `vitest`) and objectui#6943 (the same package as
+      # the first, because that fix wrote the name form) — and every one was
+      # found by a human, never by a gate. objectui#7212 measured the standing
+      # exposure: 29 published packages carried the name form with ZERO offending
+      # files, green because nobody had added such a helper yet. This gate reads
+      # `exclude` ARRAYS only: no build, no artifact, no emit model, which is what
+      # keeps it clear of the modelling objectui#4846 declined for the
+      # artifact-level gate. That gate stays as the second line of defence — it
+      # is the only criterion that cannot be wrong about what actually ships, and
+      # it lives in `published-dist-gate.yml` because it needs a full-repo build.
+      # Its runnable alias is deliberately NOT named anywhere in this file:
+      # `check-published-dist-tooling.test.ts` asserts by substring that no
+      # per-PR workflow mentions it, which is how the ruling that kept a
+      # full-repo build off the PR path is held — prose naming it would read the
+      # same to that scan as a step running it. Config
+      # reads plus the sibling gate's `typescript`-importing scanner, so it needs
+      # the install and nothing built, same as the two steps above.
+      - name: Verify published build tsconfigs exclude tooling DIRECTORIES, not just names
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:published-tsconfig-exclude
+
       # `sideEffects` is a PUBLISHED CONTRACT, and an ARRAY form of it fails in
       # the one direction nothing can witness: an INCOMPLETE array drops a
       # registration inside a CONSUMER's bundle, with no error, no warning and

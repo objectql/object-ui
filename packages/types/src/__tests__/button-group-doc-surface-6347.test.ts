@@ -39,6 +39,17 @@
  * subset the card enumerated. A one-directional pin is what let the omissions
  * sit beside the corrections through two earlier passes over these pages.
  *
+ * ⚠️ `.onClick` is in that UNDER-stated list as HISTORY. objectui#6124 (PR
+ * #7339, ruling of 2026-08-30) RETIRED the key: the `button-group` renderer
+ * renders each `<Button>` without a click handler and never reads it, so the
+ * TypeScript face is now `onClick?: never` and the mirror member is a named
+ * refusal, `handlerKeyRefusal('onClick', 'retired', …)`. The page owes the row
+ * either way — a refusal arm is still a key of `.shape`, so the set equality
+ * above is what forced objectui#7340 to spell the row `never` on the page
+ * rather than delete it — but the row must no longer name a callable type.
+ * The `onClick` case below therefore reads the mirror's refusal instead of
+ * restating `() => void`.
+ *
  * ## The authority is the mirror's `.shape`, never parse acceptance
  *
  * `BaseSchema` is `.passthrough()` and carries `[key: string]: any`, so an
@@ -58,15 +69,24 @@
  * `z.union([z.boolean(), z.string()])`, the string limb being the predicate
  * dialect `disabledOn` also carries).
  *
- * That reads at first like a repo-wide convention worth leaving alone — 14
- * `content/docs/components/**` pages spell a component schema's own `disabled`
- * as `boolean`. It is not: 13 of those 14 component schemas REDECLARE
- * `disabled?: boolean` themselves (`ButtonSchema`, `SelectSchema`,
- * `SwitchSchema`, `ToggleGroupSchema` and nine more), so their pages are right.
- * `ButtonGroupSchema` is the ONE that does not redeclare it, which makes this
- * page the outlier rather than the convention. Measured, not assumed — and it
- * is why the type TEXT of both inherited rows is asserted here rather than
- * waved through as "documented centrally".
+ * That read at first like a repo-wide convention worth leaving alone — 14
+ * `content/docs/components/**` pages spelled a component schema's own
+ * `disabled` as `boolean`. On the tree this file was written against it was
+ * not a convention but an outlier: 13 of those 14 component schemas REDECLARED
+ * `disabled?: boolean` themselves, so their pages were right and
+ * `ButtonGroupSchema` — which did not redeclare it — was the one page out of
+ * step.
+ *
+ * ⚠️ That 13-of-14 reading is now HISTORY, not a live fact. objectui#7087
+ * (maintainer ruling 2026-09-01) removed all 18 narrowings, so NONE of the 14
+ * redeclare `disabled` any more and all 14 inherit `boolean | string`; the 13
+ * pages that had been right became the stale ones and were corrected by
+ * objectui#7239. The reasoning below still holds and is why this file asserts
+ * the type TEXT of both inherited rows rather than waving them through as
+ * "documented centrally" — only the population it was measured against moved.
+ * The assertions in this file are about `ButtonGroupSchema` alone and are
+ * unaffected; the 14-page invariant now lives in
+ * `component-docs-disabled-inherited-7239.test.ts`.
  *
  * ## `## Selection Mode` is gone because the renderer cannot draw it
  *
@@ -226,11 +246,18 @@ describe('button-group.mdx: the `ButtonGroupButton` block IS the shipped mirror 
     expect(documentedLiterals(buttonDoc.get(key)?.typeText ?? '')).toEqual(shipped);
   });
 
-  it('documents `onClick` as a runtime slot, not something a JSON author supplies', () => {
-    // `onClick` is `() => void` / `z.function()`; objectui#4453 narrowed the
-    // runtime to `typeof === 'function'`, so an authored object is dropped.
-    expect(buttonDoc.get('onClick')?.typeText).toBe('() => void');
-    expect(buttonBody).toContain('not authorable in JSON');
+  it('documents `onClick` as the RETIRED tombstone it now is (objectui#6124)', () => {
+    // Read off the mirror rather than restated: a `handlerKeyRefusal` arm
+    // refuses EVERY value, a function included, which is what distinguishes a
+    // retired key from the runtime slots that kept `z.function()`. If #6124 is
+    // ever reversed this goes red here — at `packages/types`, where the
+    // decision would live — instead of leaving the page silently understated.
+    expect(buttonShape.onClick.safeParse(() => undefined).success).toBe(false);
+    expect(buttonShape.onClick.safeParse('anything').success).toBe(false);
+    expect(buttonDoc.get('onClick')?.typeText).toBe('never');
+    expect(buttonBody).toContain('RETIRED');
+    // The remedy the tombstone JSDoc and the refusal message both point at.
+    expect(buttonBody).toContain('action:button');
   });
 });
 

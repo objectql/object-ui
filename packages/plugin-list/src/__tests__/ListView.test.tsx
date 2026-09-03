@@ -2656,8 +2656,19 @@ describe('ListView — gantt view fed by an api-provider ViewData', () => {
   // a composite endpoint that ObjectGantt resolves itself (resolveDataSource →
   // ApiDataSource). ListView must (a) forward schema.data into the gantt
   // component schema, (b) NOT fetch schema.objectName rows itself, and (c) NOT
-  // pass its rows `data` prop down — an array prop short-circuits the
-  // renderer's own fetch, replacing the endpoint's tree with raw object rows.
+  // pass its rows `data` prop down.
+  //
+  // (c) is asserted against the props-recording STUB below, which is the only
+  // place it is observable at all: the real `object-gantt` renderer forwards no
+  // host prop but `schema`, so nothing ListView puts on this element reaches
+  // the chart today (objectui#7222; pinned one package over in
+  // `plugin-gantt/src/ObjectGantt.hostDataProp-7210.test.tsx`). That makes (c)
+  // a guard on a path the registry does not currently reach — keep it. The day
+  // that wrapper forwards host props (objectui#7210, half 2, an open maintainer
+  // decision) it becomes load-bearing: `ObjectGantt.reload` short-circuits on
+  // `data && Array.isArray(data)`, and this view's rows array is a truthy `[]`
+  // forever, so handing it down would paint an EMPTY chart in place of the
+  // endpoint's tree.
   let prevObjectGantt: ReturnType<typeof ComponentRegistry.get>;
   let ganttCalls: any[];
 
@@ -2705,7 +2716,8 @@ describe('ListView — gantt view fed by an api-provider ViewData', () => {
     // (b) ListView did not query the bound object itself
     expect(mockDataSource.find).not.toHaveBeenCalled();
     // (c) no rows array prop — the schema-spread `data` (the ViewData object)
-    // must be what arrives, so ObjectGantt's own api fetch is not bypassed
+    // must be what arrives. Not observable through the real renderer today
+    // (see the note on this describe block); this pins ListView's own output.
     expect(Array.isArray(last?.data)).toBe(false);
   });
 

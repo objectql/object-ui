@@ -117,6 +117,13 @@ Add a new component renderer to your project.
 
 Validate a schema file against the ObjectUI specification.
 
+A failure is reported at the document root and then narrowed to the union arm
+your `type` selected — the `1.1`-style entries under a numbered issue are that
+arm's own diagnosis, at the real path of the node that failed. When no component
+type matches, the report names the nearest few of the accepted values instead of
+listing all of them. See the
+[docs](https://www.objectui.org/docs/utilities/cli) for worked output.
+
 ### `objectui check`, `objectui doctor`, `objectui studio`, `objectui analyze`, `objectui create plugin <name>`
 
 Utility commands — see `objectui --help`.

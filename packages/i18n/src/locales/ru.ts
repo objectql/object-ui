@@ -698,6 +698,8 @@ const ru = {
       unusableRange: {
         malformedDate:
           "Непригодный диапазон дат гантта — {{path}} равно {{value}}, что не является корректной датой. Все даты гантта должны разбираться: startDate и endDate каждого элемента строки, а также minDate / maxDate, заданные в схеме.",
+        malformedRow:
+          "Непригодные строки гантта — {{path}} равно {{value}}, что не является формой строки. Гантт читает items как список строк, каждую строку — как объект с label и собственными items, а items каждой строки — как список полос; null, число, строка или простой объект в любом из этих мест не могут быть отрисованы.",
         inverted:
           "Непригодный диапазон дат гантта — minDate {{minDate}} позже maxDate {{maxDate}}. Заданные minDate / maxDate имеют приоритет над диапазоном, вычисленным по строкам, поэтому у этой оси нет столбцов и полосу разместить негде; поменяйте оба значения местами.",
       },
@@ -1502,6 +1504,12 @@ const ru = {
         statusFull: "Лимит исчерпан",
         resetsDaily: "Сбросится сегодня ночью",
         resetsMonthly: "Сбросится в следующем цикле",
+        resetsWeeklyDays: "Сброс через {{count}} дней",
+        resetsWeeklyDays_one: "Сброс через {{count}} день",
+        resetsWeeklyDays_other: "Сброс через {{count}} дней",
+        resetsWeeklyHours: "Сброс через {{count}} часов",
+        resetsWeeklyHours_one: "Сброс через {{count}} час",
+        resetsWeeklyHours_other: "Сброс через {{count}} часов",
         ctaUpgrade: "Повысьте тариф, чтобы продолжить",
         ctaTopUp: "Добавьте кредиты, чтобы продолжить",
         ariaLabel: "Использование ИИ: {{status}}",
@@ -2802,6 +2810,46 @@ const ru = {
     openProduction: "Открыть продакшн",
     manageEnvironments: "Управление окружениями",
   },
+  aiApprovals: {
+    title: "Согласования ИИ",
+    description: "Действия, предложенные ИИ-агентом: перед выполнением их должен проверить человек.",
+    tabPending: "Ожидают",
+    tabDecided: "Обработанные",
+    tabAll: "Все",
+    statusPending: "Ожидает",
+    statusApproved: "Согласовано",
+    statusExecuted: "Выполнено",
+    statusFailed: "Не выполнено",
+    statusRejected: "Отклонено",
+    colTool: "Инструмент",
+    colAction: "Действие",
+    colObject: "Объект",
+    colStatus: "Статус",
+    colProposed: "Предложено",
+    colDecision: "Решение",
+    emptyTitle: "Нет действий в ожидании",
+    emptyDescription: "Когда ИИ предложит важное действие, оно появится здесь на проверку.",
+    view: "Открыть",
+    approve: "Согласовать",
+    reject: "Отклонить",
+    working: "Выполняется…",
+    approveAndExecute: "Согласовать и выполнить",
+    outcomeApprove: "Согласование {{id}}: {{message}}",
+    outcomeReject: "Отклонение {{id}}: {{message}}",
+    outcomeExecuteFailed: "Действие завершилось ошибкой при выполнении",
+    drawerFallbackTitle: "Действие в ожидании",
+    drawerSubtitle: "Инструмент {{tool}} для объекта {{object}}",
+    fieldProposedBy: "Кто предложил",
+    fieldDecidedBy: "Кто решил",
+    fieldConversation: "Диалог",
+    fieldToolInput: "Входные данные инструмента",
+    fieldResult: "Результат",
+    fieldError: "Ошибка",
+    fieldRejectionReason: "Причина отклонения",
+    rejectTitle: "Отклонить это действие?",
+    rejectBody: "Причина возвращается ИИ, чтобы он скорректировал следующий ответ.",
+    rejectPlaceholder: "Причина (необязательно), например: «Неверный идентификатор записи — сначала уточните у пользователя.»",
+  },
   aiModelStatus: {
     summary: "Сборка / вопросы используют {{conversational}} ({{conversationalSource}}); структурированный вывод — {{structured}} ({{structuredSource}}).",
     summaryRouting: "Политика маршрутизации: бесплатные тарифы → {{free}}, платные тарифы → {{paid}}.",
@@ -2818,6 +2866,80 @@ const ru = {
     sourceCodeDefault: "значение по умолчанию в коде (без env-переопределения)",
     sourceInherits: "как у build/ask",
     sourcePinned: "закреплено через {{source}}",
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "Сводка данных",
+      get_record: "Получить запись",
+      query_data: "Запросить данные",
+      query_records: "Запросить записи",
+      search_knowledge: "Поиск по базе знаний",
+      visualize_data: "Построить график",
+      add_field: "Добавить поле",
+      apply_blueprint: "Собрать приложение",
+      apply_edit: "Применить изменения",
+      create_metadata: "Создать метаданные",
+      create_object: "Создать объект",
+      create_package: "Создать пакет",
+      create_seed: "Сгенерировать примеры данных",
+      delete_field: "Удалить поле",
+      describe_metadata: "Посмотреть метаданные",
+      describe_object: "Посмотреть структуру объекта",
+      get_active_package: "Получить активный пакет",
+      get_metadata_schema: "Получить схему метаданных",
+      get_package: "Получить пакет",
+      list_metadata: "Список метаданных",
+      list_objects: "Список объектов",
+      list_packages: "Список пакетов",
+      modify_field: "Изменить поле",
+      propose_blueprint: "Спроектировать приложение",
+      set_active_package: "Сменить активный пакет",
+      suggest_builder: "Предложить способ сборки",
+      todo_write: "Записать задачи",
+      update_metadata: "Обновить метаданные",
+      validate_expression: "Проверить выражение",
+      verify_build: "Проверить сборку",
+    },
+    toolState: {
+      agentActivity: "Действия агента",
+      pending: "Ожидание",
+      running: "Выполняется",
+      awaitingApproval: "Ожидает подтверждения",
+      responded: "Отвечено",
+      completed: "Завершено",
+      error: "Ошибка",
+      denied: "Отклонено",
+      failed: "Ошибка выполнения",
+    },
+    plan: {
+      countObjects: "объектов: {{count}}",
+      countObjects_one: "{{count}} объект",
+      countViews: "представлений: {{count}}",
+      countViews_one: "{{count}} представление",
+      countDashboards: "дашбордов: {{count}}",
+      countDashboards_one: "{{count}} дашборд",
+      countSeedData: "демоданные",
+    },
   },
   chatbotError: {
     title: "Ошибка ответа",

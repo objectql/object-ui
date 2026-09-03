@@ -139,7 +139,12 @@ the console — a mistyped id is not a silently shorter header.
 > Inline `ActionDef` objects in this array still render, so pages written
 > before the ids contract are not stranded. That is renderer tolerance for the
 > migration, not a second declared shape: the contract is
-> `z.array(z.string())`, and only ids are validated.
+> `z.array(z.string())`, and only ids are validated. An array is **all ids or
+> all inline objects** — a mixed `['convert_lead', { … }]` array is refused:
+> nothing in it renders, and the console names the offending index. Convert a
+> page's array whole, never one element at a time. `record:quick_actions`
+> applies the same rule through the same function
+> (`resolveDeclaredActionIds` from `@object-ui/types`).
 
 ### Declaring placement
 

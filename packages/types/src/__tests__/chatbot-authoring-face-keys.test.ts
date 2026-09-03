@@ -125,10 +125,26 @@ describe('ChatbotSchema: the ten local-display/legacy keys are declared, not ano
       autoResponse: true,
       autoResponseText: 'Thanks!',
       autoResponseDelay: 1000,
-      onSend: () => {},
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it('`onSend` is a RUNTIME SLOT the Zod mirror refuses by name; the TypeScript face above is its channel (objectui#6124)', () => {
+    // `onSend: () => {}` used to sit in the green fixture above. objectui#6124
+    // replaced every `on*: z.function()` arm with a named refusal: a JSON face
+    // has no function value, and `plugin-chatbot` reads `schema.onSend` through
+    // the TypeScript interface (which keeps the callable member — see the first
+    // `it` in this file), never through `safeParse`.
+    const result = ChatbotZodSchema.safeParse({
+      type: 'chatbot',
+      messages: [{ id: '1', role: 'user', content: 'hi' }],
+      onSend: () => {},
+    });
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues.find((i) => String(i.path[0]) === 'onSend');
+    expect(issue?.code).toBe('custom');
+    expect(issue?.message).toContain('`onSend` is a RUNTIME SLOT');
   });
 
   it('refuses a wrong-typed value on a declared key through the Zod mirror (was silently passed through before)', () => {

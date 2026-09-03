@@ -692,6 +692,8 @@ const fr = {
       unusableRange: {
         malformedDate:
           "Plage de dates du gantt inutilisable — {{path}} vaut {{value}}, ce qui n'est pas une date valide. Toutes les dates du gantt doivent être analysables : startDate et endDate de chaque élément de ligne, ainsi que tout minDate / maxDate fixé sur le schéma.",
+        malformedRow:
+          "Lignes du gantt inutilisables — {{path}} vaut {{value}}, ce qui n'est pas la forme d'une ligne. Un gantt lit items comme une liste de lignes, chaque ligne comme un objet avec un label et ses propres items, et les items de chaque ligne comme une liste de barres ; un null, un nombre, une chaîne ou un objet simple à l'un de ces emplacements ne peut pas être dessiné.",
         inverted:
           "Plage de dates du gantt inutilisable — minDate {{minDate}} est postérieur à maxDate {{maxDate}}. Un minDate / maxDate fixé l'emporte sur la plage calculée à partir des lignes ; cet axe n'a donc aucune colonne et aucune barre ne peut y être placée. Intervertissez les deux valeurs.",
       },
@@ -1492,6 +1494,12 @@ const fr = {
         statusFull: "Limite atteinte",
         resetsDaily: "Réinitialisation ce soir",
         resetsMonthly: "Réinitialisation au prochain cycle",
+        resetsWeeklyDays: "Réinitialisation dans {{count}} jours",
+        resetsWeeklyDays_one: "Réinitialisation dans {{count}} jour",
+        resetsWeeklyDays_other: "Réinitialisation dans {{count}} jours",
+        resetsWeeklyHours: "Réinitialisation dans {{count}} heures",
+        resetsWeeklyHours_one: "Réinitialisation dans {{count}} heure",
+        resetsWeeklyHours_other: "Réinitialisation dans {{count}} heures",
         ctaUpgrade: "Passer à l'offre supérieure pour continuer",
         ctaTopUp: "Ajouter des crédits pour continuer",
         ariaLabel: "Utilisation de l'IA : {{status}}",
@@ -2791,6 +2799,46 @@ const fr = {
     openProduction: "Ouvrir la production",
     manageEnvironments: "Gérer les environnements",
   },
+  aiApprovals: {
+    title: "Approbations IA",
+    description: "Actions proposées par un agent IA qui nécessitent une validation humaine avant exécution.",
+    tabPending: "En attente",
+    tabDecided: "Traitées",
+    tabAll: "Toutes",
+    statusPending: "En attente",
+    statusApproved: "Approuvée",
+    statusExecuted: "Exécutée",
+    statusFailed: "Échouée",
+    statusRejected: "Rejetée",
+    colTool: "Outil",
+    colAction: "Action",
+    colObject: "Objet",
+    colStatus: "Statut",
+    colProposed: "Proposée",
+    colDecision: "Décision",
+    emptyTitle: "Aucune action en attente",
+    emptyDescription: "Lorsque l'IA propose une action sensible, elle apparaît ici pour validation.",
+    view: "Voir",
+    approve: "Approuver",
+    reject: "Rejeter",
+    working: "En cours…",
+    approveAndExecute: "Approuver et exécuter",
+    outcomeApprove: "Approbation de {{id}} : {{message}}",
+    outcomeReject: "Rejet de {{id}} : {{message}}",
+    outcomeExecuteFailed: "L'action a échoué pendant son exécution",
+    drawerFallbackTitle: "Action en attente",
+    drawerSubtitle: "Outil {{tool}} sur {{object}}",
+    fieldProposedBy: "Proposée par",
+    fieldDecidedBy: "Décidée par",
+    fieldConversation: "Conversation",
+    fieldToolInput: "Entrée de l'outil",
+    fieldResult: "Résultat",
+    fieldError: "Erreur",
+    fieldRejectionReason: "Motif du rejet",
+    rejectTitle: "Rejeter cette action ?",
+    rejectBody: "Le motif est renvoyé à l'IA pour qu'elle ajuste sa prochaine réponse.",
+    rejectPlaceholder: "Motif facultatif (par ex. « Identifiant d'enregistrement erroné — merci de confirmer d'abord avec l'utilisateur. »)",
+  },
   aiModelStatus: {
     summary: "Créer / Demander utilise {{conversational}} ({{conversationalSource}}) ; structuré utilise {{structured}} ({{structuredSource}}).",
     summaryRouting: "Politique de routage : offres gratuites → {{free}}, offres payantes → {{paid}}.",
@@ -2807,6 +2855,80 @@ const fr = {
     sourceCodeDefault: "valeur par défaut du code (aucune surcharge env)",
     sourceInherits: "identique à build/ask",
     sourcePinned: "figé par {{source}}",
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "Agréger les données",
+      get_record: "Lire un enregistrement",
+      query_data: "Interroger les données",
+      query_records: "Interroger les enregistrements",
+      search_knowledge: "Rechercher dans la base de connaissances",
+      visualize_data: "Créer un graphique",
+      add_field: "Ajouter un champ",
+      apply_blueprint: "Construire l’application",
+      apply_edit: "Appliquer les modifications",
+      create_metadata: "Créer des métadonnées",
+      create_object: "Créer un objet",
+      create_package: "Créer un paquet",
+      create_seed: "Générer des données d’exemple",
+      delete_field: "Supprimer un champ",
+      describe_metadata: "Consulter les métadonnées",
+      describe_object: "Consulter la structure de l’objet",
+      get_active_package: "Lire le paquet actif",
+      get_metadata_schema: "Lire le schéma des métadonnées",
+      get_package: "Lire le paquet",
+      list_metadata: "Lister les métadonnées",
+      list_objects: "Lister les objets",
+      list_packages: "Lister les paquets",
+      modify_field: "Modifier un champ",
+      propose_blueprint: "Concevoir le plan de l’application",
+      set_active_package: "Changer le paquet actif",
+      suggest_builder: "Proposer une méthode de construction",
+      todo_write: "Noter les tâches",
+      update_metadata: "Mettre à jour les métadonnées",
+      validate_expression: "Valider l’expression",
+      verify_build: "Vérifier la construction",
+    },
+    toolState: {
+      agentActivity: "Activité de l’agent",
+      pending: "En attente",
+      running: "En cours",
+      awaitingApproval: "En attente d’approbation",
+      responded: "Répondu",
+      completed: "Terminé",
+      error: "Erreur",
+      denied: "Refusé",
+      failed: "Échec",
+    },
+    plan: {
+      countObjects: "{{count}} objets",
+      countObjects_one: "{{count}} objet",
+      countViews: "{{count}} vues",
+      countViews_one: "{{count}} vue",
+      countDashboards: "{{count}} tableaux de bord",
+      countDashboards_one: "{{count}} tableau de bord",
+      countSeedData: "données d’exemple",
+    },
   },
   chatbotError: {
     title: "Échec de la réponse",

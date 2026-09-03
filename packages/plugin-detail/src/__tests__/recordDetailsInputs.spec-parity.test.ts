@@ -48,6 +48,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import {
+  arrayElementSchema,
   authorableShapeKeys,
   isShapeKeyTombstoned,
   listedShapeKeys,
@@ -58,21 +59,21 @@ import '../index';
 
 const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** One entry of `.shape`, unwrapped past `.optional()`. */
-function shapeMember(schema: unknown, key: string): unknown {
-  const member = resolvePropsShape(schema)?.[key] as { unwrap?: () => unknown } | undefined;
-  return typeof member?.unwrap === 'function' ? member.unwrap() : member;
-}
-
-/** The element schema of a `z.array(...)`, through both spellings. */
-function arrayElement(schema: unknown): unknown {
-  const arr = schema as {
-    element?: unknown;
-    def?: { element?: unknown };
-    _def?: { type?: unknown; element?: unknown };
-  } | undefined;
-  return arr?.element ?? arr?.def?.element ?? arr?._def?.element ?? arr?._def?.type;
-}
+/**
+ * The element schema of `RecordDetailsProps.<key>`, a `z.array(...)`.
+ *
+ * The wrapper walk and the element read are `@object-ui/test-support`'s
+ * (objectui#5872 class (2)), not this file's. What stood here was one of three
+ * disagreeing hand copies, and its last limb — `arr?._def?.type`, Zod 3's
+ * spelling for a `ZodArray`'s element — is a landmine on the installed
+ * `zod@4.4.3`, where `_def.type` is the type-name STRING `'array'`: had the
+ * three limbs before it ever missed, this would have handed `listedShapeKeys`
+ * a string and derived the empty set in silence. `arrayElementSchema` keeps
+ * that Zod 3 spelling behind the `_def.typeName === 'ZodArray'` discriminator
+ * so it can only answer where it is actually right.
+ */
+const specArrayElement = (key: string): unknown =>
+  arrayElementSchema(resolvePropsShape(RecordDetailsProps)?.[key]);
 
 /** Top-level keys of the spec's `RecordDetailsProps`, INCLUDING tombstones. */
 const specTopLevelKeys = (): string[] => listedShapeKeys(RecordDetailsProps);
@@ -103,7 +104,7 @@ const specAcceptedTopLevelKeys = (): string[] => authorableShapeKeys(RecordDetai
 
 /** Member keys of one `sections[]` entry, per the spec. */
 const specSectionKeys = (): string[] =>
-  listedShapeKeys(arrayElement(shapeMember(RecordDetailsProps, 'sections')));
+  listedShapeKeys(specArrayElement('sections'));
 
 /**
  * Section keys the `sections` description may NOT teach. Read off
@@ -364,7 +365,7 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // contract to advertise. Every in-repo producer passes strings
     // (`synth/buildDefaultPageSchema.ts:557-562` types it `string[]`), so the
     // tolerant arm is unexercised drift rather than a live dialect.
-    const element = arrayElement(shapeMember(RecordDetailsProps, 'hideFields'));
+    const element = specArrayElement('hideFields');
     expect(listedShapeKeys(element)).toEqual([]);
     expect(RecordDetailsProps.safeParse({ hideFields: ['phone'] }).success).toBe(true);
 
@@ -442,7 +443,7 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // Top-level `fields` is `z.array(z.string())`: there is no member shape to
     // publish, and the renderer's tolerance for `{name}` / `{field}` entries is
     // not a second contract to advertise — the spec rejects those values.
-    const element = arrayElement(shapeMember(RecordDetailsProps, 'fields'));
+    const element = specArrayElement('fields');
     expect(listedShapeKeys(element)).toEqual([]);
     expect(RecordDetailsProps.safeParse({ fields: ['phone'] }).success).toBe(true);
     expect(RecordDetailsProps.safeParse({ fields: [{ name: 'phone' }] }).success).toBe(false);

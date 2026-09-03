@@ -68,6 +68,11 @@ export interface DialogSchema extends BaseSchema {
   modal?: boolean;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `Dialog` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -114,15 +119,29 @@ export interface AlertDialogSchema extends BaseSchema {
    */
   confirmVariant?: 'default' | 'destructive';
   /**
-   * Confirm handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `alert-dialog` renderer wires its action button to `schema.onAction` and
+   * never reads it. The zod twin refuses it by name; author behaviour as a node
+   * type (`{ "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onConfirm?: () => void | Promise<void>;
+  onConfirm?: never;
   /**
-   * Cancel handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `alert-dialog` renderer spreads it onto the Radix root, which has no such
+   * prop; the cancel button is `AlertDialogCancel`. The zod twin refuses it by
+   * name; author behaviour as a node type (`{ "type": "toast" }`, an
+   * `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onCancel?: () => void;
+  onCancel?: never;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `AlertDialog` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -168,6 +187,11 @@ export interface SheetSchema extends BaseSchema {
   footer?: SchemaNode | SchemaNode[];
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `Sheet` (Dialog) root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -209,6 +233,11 @@ export interface DrawerSchema extends BaseSchema {
   direction?: OverlayPosition;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the vaul `Drawer` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -247,6 +276,11 @@ export interface PopoverSchema extends BaseSchema {
   align?: OverlayAlignment;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `Popover` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -331,6 +365,11 @@ export interface HoverCardSchema extends BaseSchema {
   align?: OverlayAlignment;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `HoverCard` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }
@@ -375,6 +414,12 @@ export interface MenuCommandItem {
   disabled?: boolean;
   /**
    * Click handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by the `dropdown-menu` / `context-menu` / `menubar` renderers
+   * (`item.onClick?.()`).
    */
   onClick?: () => void;
   /**
@@ -452,6 +497,11 @@ export interface DropdownMenuSchema extends BaseSchema {
   align?: OverlayAlignment;
   /**
    * Open state change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * spread onto the Radix `DropdownMenu` root by the renderer's `{...props}`.
    */
   onOpenChange?: (open: boolean) => void;
 }

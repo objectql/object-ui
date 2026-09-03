@@ -484,7 +484,21 @@ function ChartLegendContent({
                   }}
                 />
               )}
-              {itemConfig?.label}
+              {/* Fall back to the series name recharts itself put on the
+                  legend item (objectui#7248). The config lookup above is an
+                  OVERRIDE layer, so a miss must not erase the label: the
+                  swatch renders unconditionally, and a swatch with no text is
+                  an unidentifiable coloured dot — on a scatter it read as a
+                  stray data point plotted outside the plot area.
+
+                  This is the general form of the pie bug the helper below
+                  documents ("legend swatches with NO text at all"). That one
+                  was closed by making one family's key resolve; this closes
+                  the class, because `item.value` IS the `name` the mark
+                  declared and is the last thing standing between a reader and
+                  an anonymous dot. Charts whose config already resolves are
+                  unaffected — only a currently-EMPTY label changes. */}
+              {itemConfig?.label ?? item.value}
             </div>
           )
         })}

@@ -1,11 +1,6 @@
----
-name: objectui-data-integration
-description: Connect Object UI to data backends using DataSource adapters, MSW mocking, and query APIs. Use this skill when the user asks to fetch data for Object UI components, wire a REST/GraphQL/ObjectQL API to SchemaRenderer, set up mock data with MSW for frontend-first development, implement DataSource interface methods (find, create, update, delete), configure SchemaRendererProvider with a dataSource, debug data loading issues, or build offline-capable data flows. Also applies when the user mentions CRUD operations, pagination, filtering, sorting, aggregate queries, real-time subscriptions, or data binding issues with Object UI.
----
-
 # ObjectUI Data Integration
 
-Use this skill to connect Object UI's schema-driven rendering to real or mock data backends. The DataSource interface is the universal adapter between the UI layer and any API protocol.
+Connecting schema-driven rendering to a real or mock data backend. The DataSource interface is the universal adapter between the UI layer and any API protocol.
 
 ## Architecture
 

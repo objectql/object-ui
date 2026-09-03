@@ -73,6 +73,16 @@ export function resolveLandingPath(apps: readonly LandingApp[] | null | undefine
   const list = (apps ?? []).filter((a): a is LandingApp & { name: string } => Boolean(a?.name));
 
   // 1. The App the product declared as default (isDefault now ROUTES, not just badges).
+  //
+  //    The console CHROME asks the same question — the top-bar logo and every
+  //    "Home" affordance follow the declared landing rather than the launcher
+  //    (objectui#7256, `app-shell`'s `resolveDeclaredHomePath` / `useHomePath`).
+  //    Two readers of one declaration is exactly the drift this repo rules
+  //    against, so `landingHomeParity-7256.test.ts` pins the two answers equal
+  //    across a matrix. It is a real behavioural check rather than an import:
+  //    this module's own routing tests replace `@object-ui/app-shell` with a
+  //    chrome-free hand-rolled mock, so importing the policy from there would
+  //    make the fixture, not the shipped function, the thing under test.
   const defaultApp = list.find((a) => a.isDefault === true);
   if (defaultApp) return `/apps/${defaultApp.name}`;
 

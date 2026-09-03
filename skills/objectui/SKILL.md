@@ -1,66 +1,88 @@
 ---
 name: objectui
-description: Universal Server-Driven UI (SDUI) Engine for building JSON-driven React interfaces with Shadcn design quality. Use for schema-driven page building, plugin development, component integration, testing, auth/permissions, data integration, i18n, mobile responsiveness, project setup, and ObjectUI console development. Triggers on ObjectUI, SchemaRenderer, JSON UI schemas, SDUI, metadata-driven UIs, `@object-ui/*` packages. Do NOT use for server-side ObjectStack concerns (data modelling, API endpoints, automation, formulas, agents) — those belong to the `objectstack-*` skills.
+description: Universal Server-Driven UI (SDUI) engine for building JSON-driven React interfaces with Shadcn design quality. Use for schema-driven page building, plugin development, expression bindings, data integration, testing, auth/permissions, i18n, mobile responsiveness and project setup with the `@object-ui/*` packages. Triggers on ObjectUI, SchemaRenderer, JSON UI schemas, SDUI, metadata-driven UIs, `@object-ui/*`. Do NOT use for server-side ObjectStack concerns (data modelling, API endpoints, automation, formulas, agents) — those belong to the `objectstack-*` skills.
+license: Apache-2.0
+compatibility: Tracks the @objectstack/spec range each @object-ui/* package declares in its own manifest; read it there. This file states no version literal, per the doc-version-claims ratchet.
+metadata:
+  author: objectstack-ai
+  version: "2.0"
+  domain: ui
+  tags: sdui, schema-renderer, json-ui, react, shadcn, tailwind, plugin, expression
 user-invocable: false
 ---
 
 # ObjectUI
 
-> **A Universal, Server-Driven UI (SDUI) Engine built on React + Tailwind + Shadcn.**
+A server-driven UI engine: it renders JSON metadata from the `@objectstack/spec`
+protocol into React interfaces built on Tailwind and Shadcn — dashboards,
+kanbans, CRUDs, forms, grids.
 
-ObjectUI renders JSON metadata from the `@objectstack/spec` protocol into pixel-perfect, accessible, and interactive enterprise interfaces (Dashboards, Kanbans, CRUDs, Forms, Grids).
+## Where to go
 
-**Repository:** [github.com/objectstack-ai/objectui](https://github.com/objectstack-ai/objectui)
+| Your task | Guide |
+|---|---|
+| Build or debug a page schema — nodes, layout, plugin widgets, common traps | [`guides/page-builder.md`](./guides/page-builder.md) |
+| An expression is not evaluating, or you need the syntax / scope / formula functions | [`guides/schema-expressions.md`](./guides/schema-expressions.md) |
+| Feed a page from a backend — `DataSource`, `QueryParams`, `bind`, mocking | [`guides/data-integration.md`](./guides/data-integration.md) |
+| Package a custom renderer or field widget as a plugin | [`guides/plugin-development.md`](./guides/plugin-development.md) |
+| Node shape, `ComponentRegistry`, the renderer recursion, which integration package to install | [`guides/architecture.md`](./guides/architecture.md) |
+| Which URL a navigation item resolves to (the *choice* of construct is `objectstack-ui`'s) | [`guides/app-composition.md`](./guides/app-composition.md) |
+| Start a new project — CLI, Vite, Tailwind, config files | [`guides/project-setup.md`](./guides/project-setup.md) |
+| Write unit / DOM / E2E tests for components, schemas and plugins | [`guides/testing.md`](./guides/testing.md) |
+| Responsive behaviour, breakpoints, touch gestures | [`guides/mobile.md`](./guides/mobile.md) |
+| Auth, roles, tenants, client-side permission guards | [`guides/auth-permissions.md`](./guides/auth-permissions.md) |
+| Multi-language text and formatters | [`guides/i18n.md`](./guides/i18n.md) |
 
-## Strategic Positioning
+**Rules — read before writing schemas.** These are the non-negotiables, and they
+are the anchor for every rule the guides only cue:
 
-- **The "JSON-to-Shadcn" Bridge:** The only library combining Low-Code speed with Shadcn/Tailwind design quality.
-- **The "Face" of ObjectStack:** Official renderer for the ecosystem, while remaining **Backend Agnostic**.
+- **JSON protocol** — what is evaluated, what is read raw, why keys live on the
+  node and not under `props`, layout responsiveness → [`rules/protocol.md`](./rules/protocol.md)
+- **Styling & Tailwind** — the two published stylesheets, the `@theme` /
+  `@source` split, recolouring → [`rules/styling.md`](./rules/styling.md)
+- **Component composition** → [`rules/composition.md`](./rules/composition.md)
 
 ## Scope
 
-**In scope** (use this skill):
-- Anything under `packages/` in this repo — `@object-ui/*` core, plugins, components, fields, layout, providers, app-shell, runner, CLI.
-- The `apps/console` and `apps/site` consumer apps.
-- Authoring or debugging JSON schemas consumed by `<SchemaRenderer>`.
+**In scope:** authoring and debugging JSON schemas rendered by `SchemaRenderer`,
+and using the `@object-ui/*` packages — core, components, fields, layout,
+react, providers, app-shell, plugins, CLI.
 
-**Out of scope** (defer to sibling skills):
-- Designing data objects, fields, validations, hooks → `objectstack-data`.
-- REST/GraphQL endpoints, auth providers, route guards → `objectstack-api`.
-- Flows, workflows, triggers, approvals → `objectstack-automation`.
-- CEL formulas / predicates → `objectstack-formula`.
-- Bootstrap, plugins, kernel hooks, drivers → `objectstack-platform`.
-- ObjectQL query construction → `objectstack-query`.
+**Out of scope** (defer to the sibling skill):
+
+| Concern | Skill |
+|---|---|
+| Objects, fields, validations, hooks, field conditional rules | `objectstack-data` |
+| App navigation, views, dashboards, pages — *which construct to author* | `objectstack-ui` |
+| CEL formulas and predicates | `objectstack-formula` |
+| REST/GraphQL endpoints, auth providers, route guards | `objectstack-api` |
+| Flows, workflows, triggers, approvals | `objectstack-automation` |
+| Bootstrap, plugins, kernel hooks, drivers | `objectstack-platform` |
+| ObjectQL query construction | `objectstack-query` |
 
 ## Core Principles
 
-### 0. English-Only Codebase
+### 1. Strict adherence to `@objectstack/spec`
 
-This is an international open-source project. ALL user-facing text in components, documentation, comments, and UI labels MUST be written in English. Do NOT use Chinese or any other non-English language in component text, code comments, doc files, or console/log messages.
+All component schemas, JSON structures and data types follow `@objectstack/spec`.
+Do not invent schema properties — if the spec says `columns`, do not write
+`fields`. Check the spec before writing any `interface` or `type`.
 
-### 1. Strict Adherence to `@objectstack/spec`
+### 2. Protocol agnostic (the universal adapter)
 
-All component schemas, JSON structures, and data types MUST strictly follow definitions in `@objectstack/spec`. Do not invent new schema properties — if the spec says `columns`, do not use `fields`. Check the spec before writing any `interface` or `type`.
+Never hardcode `objectql.find()` or any specific backend call. Go through the
+`DataSource` interface, injected via `<SchemaRendererProvider dataSource={...} />`.
+An app may back ObjectUI with REST, GraphQL, ObjectQL or a local JSON file.
 
-### 2. Protocol Agnostic (The Universal Adapter)
+### 3. "Shadcn native" aesthetics
 
-Never hardcode `objectql.find()` or any specific backend call. Always go through the `DataSource` interface, injected via `<SchemaRendererProvider dataSource={...} />`. Users might back ObjectUI with REST, GraphQL, ObjectQL, or a local JSON file.
+ObjectUI is serializable Shadcn. A component follows Shadcn's DOM structure
+(`CardHeader` / `CardTitle` / `CardContent`) and always exposes `className` so
+styles can be overridden from JSON.
 
-### 3. Documentation Driven Development
+### 4. The action system (interactivity)
 
-For EVERY feature implemented or refactored, you MUST update:
-1. The package `README.md`.
-2. The corresponding `content/docs/guide/*.md` (if guide-worthy).
-
-A task is not "done" until docs reflect the new code.
-
-### 4. "Shadcn Native" Aesthetics
-
-We are essentially "Serializable Shadcn". When implementing a component (e.g. `Card`), strictly follow Shadcn's DOM structure (`CardHeader` / `CardTitle` / `CardContent`). ALWAYS expose `className` in the schema props so users can override styles from JSON.
-
-### 5. The Action System (Interactivity)
-
-Actions are defined **as data**, not functions. Example:
+Actions are data, not functions:
 
 ```json
 {
@@ -74,82 +96,41 @@ Actions are defined **as data**, not functions. Example:
 }
 ```
 
-`@object-ui/core` dispatches these via an Event Bus.
+`@object-ui/core` dispatches these through an event bus.
 
-### 6. Layout as Components
+### 5. Layout as components
 
-Layouts are just components that render children. Treat `Grid`, `Stack`, `Container` as first-class citizens. Layout schemas declare responsive columns on the node as `columns` — a number, or a breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl`, with `xs` as the base (e.g. `columns: { xs: 1, md: 2, lg: 4 }`). The spec also accepts `2xl`, which the `grid` renderer never reads ([`rules/protocol.md`](./rules/protocol.md)).
+Layouts are components that render children. Responsive column counts go on the
+node as `columns` — a number, or a breakpoint object ([`rules/protocol.md`](./rules/protocol.md)
+has the keys the renderer reads and the one it drops).
 
-### 7. Type Safety over Magic
+### 6. Type safety over magic
 
-- **No `any`:** use strict Generics.
-- **Registry:** map type strings (`"type": "button"`) to React components via `ComponentRegistry`.
-- **No `eval()` or runtime dynamic imports** for component resolution — security risk.
+- **No `any`** — use strict generics.
+- **Registry** — map type strings (`"type": "button"`) to React components via
+  `ComponentRegistry`.
+- **No `eval()` or runtime dynamic imports** for component resolution.
 
-### 8. The "No-Touch" Zones (Shadcn Purity)
+## Tech stack (strict constraints)
 
-**Protected path:** `packages/components/src/ui/**/*.tsx` — these are upstream 3rd-party files overwritten by sync scripts. You are FORBIDDEN from modifying their logic or styles. To customize a primitive, wrap it in `packages/components/src/custom/` instead.
-
-See `rules/no-touch-zones.md` for the full list and rationale.
-
-## Tech Stack (Strict Constraints)
-
-- **Core:** React 18+ (Hooks), TypeScript 5.0+ (Strict).
-- **Styling:** Tailwind CSS (utility-first).
-  - ✅ REQUIRED: `class-variance-authority` (cva) for variants, `tailwind-merge` + `clsx` (`cn()`) for overrides.
-  - ❌ FORBIDDEN: inline styles (`style={{}}`), CSS Modules, Styled-components.
-- **UI Primitives:** Shadcn UI (Radix UI) + Lucide Icons.
+- **Core:** React 18+ (hooks), TypeScript 5.0+ (strict).
+- **Styling:** Tailwind CSS. Required: `class-variance-authority` for variants,
+  `tailwind-merge` + `clsx` (`cn()`) for overrides. Forbidden: inline styles
+  (`style={{}}`), CSS Modules, styled-components.
+- **UI primitives:** Shadcn UI (Radix) + Lucide icons.
 - **State:** Zustand (global), React Context (scoped).
-- **Testing:** Vitest + React Testing Library + Playwright (E2E).
+- **Testing:** Vitest + React Testing Library + Playwright.
 
-## Quick Reference
-
-**Architecture & Patterns** → [`guides/architecture.md`](./guides/architecture.md)
-*(package topology, JSON protocol shape, ComponentRegistry / SchemaRenderer patterns, AI workflows for adding components & actions)*
-
-### Guides
-
-- **App composition — choosing object nav vs views vs pages vs dashboards** → [`guides/app-composition.md`](./guides/app-composition.md)
-- **Page building & schema design** → [`guides/page-builder.md`](./guides/page-builder.md)
-- **Custom plugin development** → [`guides/plugin-development.md`](./guides/plugin-development.md)
-- **Expression syntax & debugging** → [`guides/schema-expressions.md`](./guides/schema-expressions.md)
-- **Data fetching & DataSource** → [`guides/data-integration.md`](./guides/data-integration.md)
-- **New project setup (CLI, Vite, Tailwind, runner)** → [`guides/project-setup.md`](./guides/project-setup.md)
-- **Testing components & schemas** → [`guides/testing.md`](./guides/testing.md)
-- **Multi-language support** → [`guides/i18n.md`](./guides/i18n.md)
-- **Mobile & responsive design** → [`guides/mobile.md`](./guides/mobile.md)
-- **Auth, roles, tenants & permissions** → [`guides/auth-permissions.md`](./guides/auth-permissions.md)
-- **Console development (`apps/console`, `app-shell`, providers, MSW debugging)** → [`guides/console-development.md`](./guides/console-development.md)
-
-### Critical Global Rules
-
-- **JSON protocol compliance** → [`rules/protocol.md`](./rules/protocol.md)
-- **Styling & Tailwind usage** → [`rules/styling.md`](./rules/styling.md)
-- **Component composition patterns** → [`rules/composition.md`](./rules/composition.md)
-- **No-touch zones (Shadcn upstream)** → [`rules/no-touch-zones.md`](./rules/no-touch-zones.md)
-
-## Common Mistakes to Avoid
+## Common mistakes to avoid
 
 - Writing large bespoke React JSX trees before defining a schema.
-- Hardcoding API calls directly inside visual renderers.
-- Introducing package coupling (e.g. a UI package depending on business logic).
+- Hardcoding API calls inside visual renderers.
+- Introducing package coupling (a UI package depending on business logic).
 - Registering components without a namespace in plugin-heavy projects.
-- Skipping docs updates for newly introduced schema patterns.
-- Expecting a `${...}` on a top-level `value` / `label` to evaluate, or "fixing" it by moving it under `props` — the first renders the literal, the second renders nothing at all. Resolve the value in the host, or carry it on a `text` node's `content` ([`rules/protocol.md`](./rules/protocol.md)).
-- Missing the published stylesheet imports — `@object-ui/components/style.css` then `@object-ui/fields/style.css`, in that order — components render but look completely unstyled. The components sheet carries the theme tokens and the `:root` / `.dark` defaults; the fields sheet is a subtracted supplement that resolves against them.
-- Pointing Tailwind at the installed ObjectUI packages instead of importing those two sheets: the published tarballs carry `dist` only, so the theme block the themed utilities are built on is not there to scan. Inside the ObjectUI workspace the reverse holds — packages are linked to their sources, an app scans them and declares the theme itself. See [`rules/styling.md`](./rules/styling.md) for both cases; do not keep a second copy of the answer here.
-
-## Fast Triage Playbook for Ambiguous Requests
-
-If the request is underspecified:
-
-1. Infer likely page category (list / detail / form / dashboard).
-2. Produce a minimal viable schema first.
-3. Mark assumptions clearly.
-4. Provide one conservative and one advanced variant.
-
-This keeps momentum while inviting focused user feedback.
-
----
-
-**You are the Architect. Build the Engine.**
+- Expecting a `${...}` on a top-level `value` / `label` to evaluate, or "fixing"
+  it by moving it under `props` — the first renders the literal, the second
+  renders nothing at all. Resolve the value in the host, or carry it on a `text`
+  node's `content` ([`rules/protocol.md`](./rules/protocol.md)).
+- Missing the published stylesheet imports — `@object-ui/components/style.css`
+  then `@object-ui/fields/style.css`, in that order. Components render but look
+  completely unstyled ([`rules/styling.md`](./rules/styling.md)).

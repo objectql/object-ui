@@ -35,14 +35,30 @@ export const Tool = ({ className, ...props }: ToolProps) => (
   />
 );
 
+/**
+ * Localized replacements for the status-badge vocabulary below.
+ *
+ * ObjectUI addition to the vendored element (objectui#7254), in the same spirit
+ * as the `PromptInputFileItem.file` extension: the upstream table is English
+ * literals, and this component renders inside a console whose every other
+ * string is translated — a Chinese conversation showed "Awaiting Approval" on
+ * each card header. Additive and optional: an entry the caller omits keeps the
+ * upstream English word verbatim, so no existing consumer changes.
+ */
+export type ToolStatusLabels = Partial<Record<ToolUIPart["state"], string>>;
+
 export type ToolHeaderProps = {
   title?: ReactNode;
   type: ToolUIPart["type"];
   state: ToolUIPart["state"];
   className?: string;
+  statusLabels?: ToolStatusLabels;
 };
 
-const getStatusBadge = (status: ToolUIPart["state"]) => {
+const getStatusBadge = (
+  status: ToolUIPart["state"],
+  statusLabels?: ToolStatusLabels,
+) => {
   const labels: Record<ToolUIPart["state"], string> = {
     "input-streaming": "Pending",
     "input-available": "Running",
@@ -68,7 +84,7 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
   return (
     <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
       {icons[status]}
-      {labels[status]}
+      {statusLabels?.[status] ?? labels[status]}
     </Badge>
   );
 };
@@ -78,6 +94,7 @@ export const ToolHeader = ({
   title,
   type,
   state,
+  statusLabels,
   ...props
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
@@ -92,7 +109,7 @@ export const ToolHeader = ({
       <span className="font-medium text-sm">
         {title ?? type.split("-").slice(1).join("-")}
       </span>
-      {getStatusBadge(state)}
+      {getStatusBadge(state, statusLabels)}
     </div>
     <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
   </CollapsibleTrigger>

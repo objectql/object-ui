@@ -111,15 +111,16 @@ describe('Interfaces pillar — action nav entries (objectui#4019)', () => {
     const entry = await screen.findByTitle('action · sync_now');
     fireEvent.click(entry);
 
-    // Canvas breadcrumb — the surface the pillar is now editing. Matched on
-    // the element's whole text: the breadcrumb is `{type} · {name}` in JSX, so
-    // it reaches the DOM as three sibling text nodes and a plain string query
-    // would never match it.
-    await waitFor(() =>
-      expect(
-        screen.getAllByText((_content, el) => el?.tagName === 'SPAN' && el.textContent === 'action · sync_now'),
-      ).not.toHaveLength(0),
-    );
+    // Canvas caption — the surface the pillar is now editing. objectui#7254
+    // changed WHAT it says, not whether it says it: the caption used to print
+    // the internal `action · sync_now` pair and now names the item the way the
+    // author does (its nav label) plus the metadata kind, with the internal
+    // pair moved to the tooltip. Asserted through the caption's own testid
+    // rather than by matching its whole text, so the next copy change does not
+    // land here again.
+    const caption = await waitFor(() => screen.getByTestId('if-canvas-caption'));
+    expect(caption).toHaveTextContent('Run Sync');
+    expect(caption).toHaveAttribute('title', 'Internal id: action · sync_now');
     // ...rendered by the registered `ActionPreview`, which draws the action's
     // own label as the faux button an author is designing.
     await waitFor(() => expect(screen.getAllByText('Sync Now').length).toBeGreaterThan(0));

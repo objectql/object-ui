@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Every `type` string literal in a `content/docs/**` code block — `.mdx` and
- * `.md` alike — must name a component the repository actually registers, or be
- * declared, per file, as belonging to some other vocabulary. Since objectui#5106
+ * `.md` alike — and in the root `README.md` (objectui#7115), must name a
+ * component the repository actually registers, or be declared, per file, as
+ * belonging to some other vocabulary. Since objectui#5106
  * the same question is also asked of the KEY TABLES that document a plugin's
  * registrations, on BOTH halves of the row: the namespaced key and the bare-name
  * fallback (see "The second surface" below).
@@ -199,7 +200,7 @@
  * that is not a key table), and both are worth fixing rather than silencing.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isEntrypoint } from './invoked-as.mjs';
@@ -208,10 +209,42 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
-/** Where the teaching prose lives. This gate walks `content/docs` and nothing
- *  else: not `skills/**`, not the package READMEs (`check-doc-snippet-types.mjs`
- *  covers those for its own question), not `docs/**`. */
+/** Where the teaching prose lives. This gate walks `content/docs` plus the root
+ *  pages named below, and nothing else: not `skills/**`, not the package READMEs
+ *  (`check-doc-snippet-types.mjs` covers those for its own question), not
+ *  `docs/**`. */
 const DOCS_ROOT = 'content/docs';
+
+/**
+ * Pages at the repository ROOT that join the walk by name.
+ *
+ * objectui#7115. The root `README.md` is the most-read authored file in the
+ * repository — the GitHub landing page and the npm package page — and it was the
+ * one teaching surface NO doc gate read. This gate walked `content/docs`; its
+ * sibling `check-doc-snippet-types.mjs` walked `content/docs` plus the package
+ * READMEs; the root README fell between the two. It taught `stat-card` four
+ * times, in the flagship "dashboard in JSON" example, and `stat-card` is
+ * registered nowhere — four `OBJUI-001` "Unknown component type" panels for
+ * anyone who copied the headline snippet. The defect survived for exactly one
+ * reason: nothing read the file. That is objectui#5174's shape (40 `.md` guides
+ * outside the ledger) and objectui#5342's, one directory up.
+ *
+ * ⚠️ Widening a scan surface is the change that can be GREEN ABOUT NOTHING, so
+ * this entry landed RED FIRST: with the name added and the content still saying
+ * `stat-card`, this gate failed on `README.md:290`-`:293` with
+ * `unregistered-doc-type`. That failure is the evidence the walk reaches the
+ * file; the content fix then turned it green. Anything added here later is owed
+ * the same proof, in that order.
+ *
+ * A name here that does not resolve is a FAILED run, not a quiet skip — see the
+ * check beside `FLOORS` in the CLI block. Without it, renaming or moving the
+ * file would silently return the surface to what objectui#7115 found.
+ *
+ * Exported so the equality is checked rather than hoped for: three gates now
+ * carry this array, and `check-doc-fence-languages.test.ts` pins all three
+ * against each other.
+ */
+export const ROOT_PAGES = ['README.md'];
 
 /** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
  *  the whole content of the scan surface: `content/docs` is authored in a mix of
@@ -967,6 +1000,10 @@ export function deriveRegistryKeys(root, options = {}) {
 export function scanDocs(root) {
   const docsDir = join(root, DOCS_ROOT);
   const files = walkFiles(docsDir, (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext))).sort();
+  // Root pages join by name rather than by walk. An absent one is dropped here so
+  // a throwaway fixture tree stays scannable; the CLI refuses to publish a
+  // verdict when one is missing from a real run, which is where that must bite.
+  files.push(...ROOT_PAGES.map((name) => join(root, name)).filter((abs) => existsSync(abs)));
   const sites = [];
   const tableRows = [];
   const counters = { files: files.length, codeBlocks: 0, typeSites: 0, keyTables: 0, keyTableRows: 0 };
@@ -1223,6 +1260,21 @@ if (invokedDirectly) {
     return index > -1 ? process.argv[index + 1] : null;
   };
   const root = resolve(argOf('--root') ?? resolve(scriptDir, '..'));
+
+  // Checked BEFORE the scan, because a missing root page produces a smaller
+  // number rather than an error, and `FLOORS` below cannot tell a shrunken
+  // surface from an ordinary docs edit.
+  for (const name of ROOT_PAGES) {
+    if (!existsSync(resolve(root, name))) {
+      console.error(
+        `ROOT_PAGES names \`${name}\`, which does not exist under ${root}. That name is part of this ` +
+          "gate's scan surface (objectui#7115), so a dangling entry means the surface is quietly " +
+          'smaller than this file says it is — which is the whole defect objectui#7115 was filed for. ' +
+          'Re-point the entry at the page\'s new path, or remove it deliberately.',
+      );
+      process.exit(1);
+    }
+  }
 
   let result;
   try {

@@ -692,6 +692,8 @@ const ja = {
       unusableRange: {
         malformedDate:
           "ガントの日付範囲が使用できません — {{path}} が {{value}} で、有効な日付として解析できません。ガントのすべての日付は解析可能である必要があります: 各行アイテムの startDate と endDate、およびスキーマで固定した minDate / maxDate。",
+        malformedRow:
+          "ガントの行が使用できません — {{path}} が {{value}} で、行の形ではありません。ガントは items を行のリストとして、各行を label と自身の items を持つオブジェクトとして、各行の items をバーのリストとして読み取ります。これらの位置にある null、数値、文字列、プレーンなオブジェクトは描画できません。",
         inverted:
           "ガントの日付範囲が使用できません — minDate {{minDate}} が maxDate {{maxDate}} より後です。固定した minDate / maxDate は行から計算した範囲より優先されるため、この軸には列がなくバーを配置できません。2 つの値を入れ替えてください。",
       },
@@ -1492,6 +1494,12 @@ const ja = {
         statusFull: "上限に達しました",
         resetsDaily: "今夜リセットされます",
         resetsMonthly: "次のサイクルでリセットされます",
+        resetsWeeklyDays: "{{count}}日後にリセットされます",
+        resetsWeeklyDays_one: "{{count}}日後にリセットされます",
+        resetsWeeklyDays_other: "{{count}}日後にリセットされます",
+        resetsWeeklyHours: "{{count}}時間後にリセットされます",
+        resetsWeeklyHours_one: "{{count}}時間後にリセットされます",
+        resetsWeeklyHours_other: "{{count}}時間後にリセットされます",
         ctaUpgrade: "アップグレードして続行",
         ctaTopUp: "クレジットを追加して続行",
         ariaLabel: "AI 使用状況: {{status}}",
@@ -2791,6 +2799,46 @@ const ja = {
     openProduction: "本番環境を開く",
     manageEnvironments: "環境を管理",
   },
+  aiApprovals: {
+    title: "AI 承認",
+    description: "AI エージェントが提案した操作です。実行前に人による確認が必要です。",
+    tabPending: "承認待ち",
+    tabDecided: "処理済み",
+    tabAll: "すべて",
+    statusPending: "承認待ち",
+    statusApproved: "承認済み",
+    statusExecuted: "実行済み",
+    statusFailed: "失敗",
+    statusRejected: "却下",
+    colTool: "ツール",
+    colAction: "アクション",
+    colObject: "オブジェクト",
+    colStatus: "ステータス",
+    colProposed: "提案日時",
+    colDecision: "判断",
+    emptyTitle: "待機中の操作はありません",
+    emptyDescription: "AI が重要な操作を提案すると、確認のためここに表示されます。",
+    view: "表示",
+    approve: "承認",
+    reject: "却下",
+    working: "処理中…",
+    approveAndExecute: "承認して実行",
+    outcomeApprove: "{{id}} の承認: {{message}}",
+    outcomeReject: "{{id}} の却下: {{message}}",
+    outcomeExecuteFailed: "実行中に操作が失敗しました",
+    drawerFallbackTitle: "保留中の操作",
+    drawerSubtitle: "{{object}} に対するツール {{tool}}",
+    fieldProposedBy: "提案者",
+    fieldDecidedBy: "判断者",
+    fieldConversation: "会話",
+    fieldToolInput: "ツール入力",
+    fieldResult: "結果",
+    fieldError: "エラー",
+    fieldRejectionReason: "却下理由",
+    rejectTitle: "この操作を却下しますか？",
+    rejectBody: "理由は AI に返され、次の応答の調整に使われます。",
+    rejectPlaceholder: "理由（任意。例:「レコード ID が誤っています — 先にユーザーに確認してください。」）",
+  },
   aiModelStatus: {
     summary: "ビルド / 質問は {{conversational}}（{{conversationalSource}}）、構造化出力は {{structured}}（{{structuredSource}}）を使用します。",
     summaryRouting: "ルーティングポリシー: 無料プラン → {{free}}、有料プラン → {{paid}}。",
@@ -2807,6 +2855,80 @@ const ja = {
     sourceCodeDefault: "コード既定値（env オーバーライドなし）",
     sourceInherits: "build/ask と同じ",
     sourcePinned: "{{source}} で固定",
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "データを集計",
+      get_record: "レコードを取得",
+      query_data: "データを照会",
+      query_records: "レコードを照会",
+      search_knowledge: "ナレッジを検索",
+      visualize_data: "グラフを作成",
+      add_field: "項目を追加",
+      apply_blueprint: "アプリを構築",
+      apply_edit: "変更を適用",
+      create_metadata: "メタデータを作成",
+      create_object: "オブジェクトを作成",
+      create_package: "パッケージを作成",
+      create_seed: "サンプルデータを生成",
+      delete_field: "項目を削除",
+      describe_metadata: "メタデータを確認",
+      describe_object: "オブジェクト構造を確認",
+      get_active_package: "現在のパッケージを取得",
+      get_metadata_schema: "メタデータ構造を取得",
+      get_package: "パッケージを取得",
+      list_metadata: "メタデータ一覧",
+      list_objects: "オブジェクト一覧",
+      list_packages: "パッケージ一覧",
+      modify_field: "項目を変更",
+      propose_blueprint: "アプリ設計案を作成",
+      set_active_package: "現在のパッケージを切替",
+      suggest_builder: "構築方法を提案",
+      todo_write: "タスクを記録",
+      update_metadata: "メタデータを更新",
+      validate_expression: "式を検証",
+      verify_build: "構築結果を検証",
+    },
+    toolState: {
+      agentActivity: "エージェントの動作",
+      pending: "待機中",
+      running: "実行中",
+      awaitingApproval: "承認待ち",
+      responded: "応答済み",
+      completed: "完了",
+      error: "エラー",
+      denied: "拒否",
+      failed: "失敗",
+    },
+    plan: {
+      countObjects: "{{count}} 件のオブジェクト",
+      countObjects_one: "{{count}} 件のオブジェクト",
+      countViews: "{{count}} 件のビュー",
+      countViews_one: "{{count}} 件のビュー",
+      countDashboards: "{{count}} 件のダッシュボード",
+      countDashboards_one: "{{count}} 件のダッシュボード",
+      countSeedData: "サンプルデータ",
+    },
   },
   chatbotError: {
     title: "応答に失敗しました",

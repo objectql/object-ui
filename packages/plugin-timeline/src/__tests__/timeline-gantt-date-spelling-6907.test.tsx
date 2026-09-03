@@ -427,10 +427,13 @@ describe('pin 7 — NO new i18n key: the sentence is unchanged', () => {
     expect(text).toContain('Every gantt date has to parse');
   });
 
-  it('both keys still carry their holes, intact — no key was added or renamed', () => {
+  it('both #6759 keys still carry their holes, intact — neither was renamed by this card', () => {
     // #6759's pin 8, re-asserted here because a spelling that needed a new
     // sentence would have had to open `packages/i18n`'s ten locale packs. It
-    // did not: the article rides in the `{{value}}` hole.
+    // did not: the article rides in the `{{value}}` hole. (objectui#7164 later
+    // DID open them, for a different fault — a malformed ROW — with a third
+    // key beside these two; that is its own decision and its own pin, and it
+    // leaves both of these untouched.)
     const malformed = TIMELINE_DEFAULT_TRANSLATIONS['timeline.gantt.unusableRange.malformedDate'];
     expect(malformed).toContain('{{path}}');
     expect(malformed).toContain('{{value}}');

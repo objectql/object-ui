@@ -30,6 +30,7 @@ import {
   parseAiQuotaError,
   summarizeChatError,
   unwrapToolResult,
+  type ToolTitleTranslator,
 } from './tool-display';
 import {
   Conversation,
@@ -67,6 +68,7 @@ import {
   ToolContent,
   ToolInput,
   ToolOutput,
+  type ToolStatusLabels,
 } from './elements/tool';
 import {
   Reasoning,
@@ -970,6 +972,61 @@ export function getToolState(tool: ChatToolInvocation): ToolSummaryState {
 }
 
 /**
+ * How far a confirm-gate proposal card has actually got — the SINGLE producer
+ * of that fact (objectui#7254).
+ *
+ * The card BODY already renders a terminal badge from four separate memos:
+ * `builtPlanIds` (已搭建), `approvedPlanIds` (building), `confirmedChangeIds`
+ * (已确认) and `replayOutcomeByProposalId` (已生效 / 已暂存为草稿 / 未生效).
+ * The HEADER badge read none of them: it derived from `isProposalResult(result)`
+ * alone, which is a fact about the tool's *own* output and never changes once
+ * the tool has returned. So a card whose body said 已搭建 / 已生效 kept a header
+ * reading "Awaiting Approval" forever — the same class of divergence recorded on
+ * cloud#787, mirrored. Fixing it in the header's own branch would have made a
+ * FIFTH producer of the same fact; this function is the one both sides read.
+ *
+ * Precedence is "what actually happened" over "what was asked for": a replay
+ * verdict is the server's own answer and outranks the positional heuristics,
+ * and `built`/`confirmed` (a later commit was observed in the stream) outrank
+ * `approved` (the user clicked, nothing has landed yet).
+ */
+export type ProposalCardState = 'pending' | 'in-progress' | 'settled' | 'failed';
+
+export function resolveProposalCardState(input: {
+  /** A replay verdict for this proposal, when one has arrived. */
+  replayOutcome?: { kind: 'published' | 'drafted' | 'failed' | 'applying' };
+  /** An `apply_blueprint` ran after this plan card (`builtPlanIds`). */
+  built?: boolean;
+  /** A later same-tool commit followed this proposal (`confirmedChangeIds`). */
+  confirmed?: boolean;
+  /** The user approved, but no result has come back yet (`approvedPlanIds`). */
+  approved?: boolean;
+}): ProposalCardState {
+  const kind = input.replayOutcome?.kind;
+  if (kind === 'failed') return 'failed';
+  if (kind === 'published' || kind === 'drafted') return 'settled';
+  if (kind === 'applying') return 'in-progress';
+  if (input.built || input.confirmed) return 'settled';
+  if (input.approved) return 'in-progress';
+  return 'pending';
+}
+
+/**
+ * The header badge state each {@link ProposalCardState} maps to. Kept as a
+ * table rather than a chain so the header can never grow a fifth state the
+ * body does not have.
+ */
+const PROPOSAL_HEADER_STATE: Record<
+  ProposalCardState,
+  NonNullable<ChatToolInvocation['state']>
+> = {
+  pending: 'approval-requested',
+  'in-progress': 'input-available',
+  settled: 'output-available',
+  failed: 'output-error',
+};
+
+/**
  * English display names for the change verbs. Overridable per-consumer via the
  * `changeVerbLabels` prop — the console passes the translated set. These were
  * hard-coded Chinese until objectui#2884.
@@ -1146,7 +1203,68 @@ function isToolCallPlaceholder(content: string): boolean {
   return /^\((?:called [^)]*|tool call|no content)\)$/.test(content.trim());
 }
 
-function summarizeTools(tools: ChatToolInvocation[]): ToolSummaryGroup[] {
+/**
+ * The "1 object · 1 view · 1 dashboard" strip under a proposed plan / a live
+ * design panel, localized (objectui#7254).
+ *
+ * It was assembled by string concatenation with an English `+ 's'` plural, so
+ * it read as English inside an otherwise Chinese conversation AND could only
+ * ever be right for the two-form languages. Each noun is a plural FAMILY (base
+ * key + `_one`): i18next asks `Intl.PluralRules` for the one suffix the active
+ * language needs and lands on the base key for every category a pack does not
+ * enumerate, so `ru` (few/many) and `ar` (two/few/many/zero) stay in their own
+ * language instead of falling through to English — the rule
+ * `all-locales-key-parity.test.ts` states for plural families.
+ *
+ * Returned as a hook-bound formatter because both call sites live in different
+ * components (the proposed-plan card body and `BlueprintProgressPanel`), and
+ * two hand-rolled copies is how they drifted in the first place.
+ */
+function useMetadataCountBits(): (counts: {
+  objects?: number;
+  views?: number;
+  dashboards?: number;
+  seedData?: number;
+}) => string[] {
+  const { t } = useObjectTranslation();
+  return React.useCallback(
+    (counts) => {
+      const bits: string[] = [];
+      if (counts?.objects)
+        bits.push(
+          t('chatbot.plan.countObjects', {
+            count: counts.objects,
+            defaultValue: '{{count}} objects',
+          }),
+        );
+      if (counts?.views)
+        bits.push(
+          t('chatbot.plan.countViews', { count: counts.views, defaultValue: '{{count}} views' }),
+        );
+      if (counts?.dashboards)
+        bits.push(
+          t('chatbot.plan.countDashboards', {
+            count: counts.dashboards,
+            defaultValue: '{{count}} dashboards',
+          }),
+        );
+      if (counts?.seedData)
+        bits.push(t('chatbot.plan.countSeedData', { defaultValue: 'sample data' }));
+      return bits;
+    },
+    [t],
+  );
+}
+
+function summarizeTools(
+  tools: ChatToolInvocation[],
+  /**
+   * objectui#7254 — the activity chips name the same tools the detailed cards
+   * do, so they take the same `chatbot.tool.*` lookup. Optional so a
+   * provider-less caller keeps the English title-caser it always had.
+   */
+  translateToolTitle?: ToolTitleTranslator,
+): ToolSummaryGroup[] {
   const groups = new Map<string, ToolSummaryGroup>();
 
   for (const tool of tools) {
@@ -1160,7 +1278,7 @@ function summarizeTools(tools: ChatToolInvocation[]): ToolSummaryGroup[] {
     }
     groups.set(key, {
       key,
-      title: humanizeToolName(tool.toolName) || tool.toolName,
+      title: humanizeToolName(tool.toolName, translateToolTitle) || tool.toolName,
       rawName: tool.toolName,
       count: 1,
       state,
@@ -1341,7 +1459,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // re-render while the error sits in state).
     const restoredErrorRef = React.useRef<unknown>(null);
 
-    // Resolve localizable strings once, English defaults preserved.
+    // The localized "N objects · N views · N dashboards" strip, shared with
+    // `BlueprintProgressPanel` so the plan card and the live design panel can
+    // not word the same counts differently (objectui#7254).
+    const countBitsOf = useMetadataCountBits();
+
+    // objectui#7254 — the pack lookup for every string this component owns.
+    // `useSafeTranslate` is provider-safe: with no I18nProvider (tests,
+    // standalone hosts) each call returns the English fallback passed beside
+    // it, so nothing below can render a raw key.
+    const tt = useSafeTranslate();
+
+    // Resolve localizable strings once. Precedence is host `labels` prop ->
+    // locale pack -> the English default this component always shipped, so a
+    // console that already translates a string keeps winning and a host that
+    // passes nothing now gets the user's language instead of English.
     const L = React.useMemo(
       () => ({
         emptyTitle: labels?.emptyTitle ?? 'Start a conversation',
@@ -1350,11 +1482,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           'Ask anything — the assistant has access to your current app context.',
         clear: labels?.clear ?? 'Clear',
         sendHint: labels?.sendHint ?? 'to send',
-        agentActivity: labels?.agentActivity ?? 'Agent activity',
-        toolCompleted: labels?.toolCompleted ?? 'Completed',
-        toolRunning: labels?.toolRunning ?? 'Running',
-        toolAwaitingApproval: labels?.toolAwaitingApproval ?? 'Awaiting approval',
-        toolFailed: labels?.toolFailed ?? 'Failed',
+        agentActivity: labels?.agentActivity ?? tt('chatbot.toolState.agentActivity', 'Agent activity'),
+        toolCompleted: labels?.toolCompleted ?? tt('chatbot.toolState.completed', 'Completed'),
+        toolRunning: labels?.toolRunning ?? tt('chatbot.toolState.running', 'Running'),
+        toolAwaitingApproval:
+          labels?.toolAwaitingApproval ?? tt('chatbot.toolState.awaitingApproval', 'Awaiting approval'),
+        toolFailed: labels?.toolFailed ?? tt('chatbot.toolState.failed', 'Failed'),
+        // The vendored `ToolHeader` badge's own vocabulary (objectui#7254). It
+        // carried a private English table, so a fully Chinese conversation
+        // still read "Awaiting Approval" / "Completed" on every card header
+        // while the summary chips beside it were translated.
+        toolPending: tt('chatbot.toolState.pending', 'Pending'),
+        toolResponded: tt('chatbot.toolState.responded', 'Responded'),
+        toolDenied: tt('chatbot.toolState.denied', 'Denied'),
+        toolError: tt('chatbot.toolState.error', 'Error'),
         toolDetailsHidden:
           labels?.toolDetailsHidden ??
           'Detailed tool inputs and outputs are hidden in this view.',
@@ -1381,7 +1522,23 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         // to deliberately disable the rotation while keeping the lead-in label.
         designingPlanHints: labels?.designingPlanHints ?? DEFAULT_DESIGNING_PLAN_HINTS,
       }),
-      [labels],
+      [labels, tt],
+    );
+
+    // The vendored `ToolHeader`'s badge vocabulary, keyed by the AI-SDK state
+    // it renders. Same strings as the activity chips read from `L`, so the two
+    // surfaces can no longer disagree about what "Completed" is called.
+    const toolStatusLabels: ToolStatusLabels = React.useMemo(
+      () => ({
+        'input-streaming': L.toolPending,
+        'input-available': L.toolRunning,
+        'approval-requested': L.toolAwaitingApproval,
+        'approval-responded': L.toolResponded,
+        'output-available': L.toolCompleted,
+        'output-error': L.toolError,
+        'output-denied': L.toolDenied,
+      }),
+      [L],
     );
 
     // Draft tool calls this chat has published (auto or via the manual button),
@@ -1617,6 +1774,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const handleSuggestionClick = React.useCallback(
       (text: string) => {
         lastApprovedPlanIdRef.current = null;
+        // Not typed by the user — nothing to restore if this send is rejected
+        // (see the send-failure effect below).
+        lastSubmittedRef.current = '';
         onSendMessage?.(text);
       },
       [onSendMessage]
@@ -1642,6 +1802,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const lastApprovedPlanIdRef = React.useRef<string | null>(null);
     const handlePlanApprove = React.useCallback(
       (hasOpenQuestions: boolean, toolCallId?: string) => {
+        // Canned approval text, not the user's typing — see `handleSubmit`.
+        lastSubmittedRef.current = '';
         if (toolCallId) {
           lastApprovedPlanIdRef.current = toolCallId;
           setApprovedPlanIds((prev) => {
@@ -1663,8 +1825,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       () => new Set<string>(),
     );
     const lastConfirmedChangeIdRef = React.useRef<string | null>(null);
+    // objectui#7253 — cards whose confirm was refused by the AI quota guardrail
+    // (429), keyed to the refusal that blocked them. UI-owned and terminal for
+    // this mount: the refusal never reached the server, so no message-stream
+    // envelope will ever speak for it, and the paywall does not lift on a retry.
+    // The error is KEPT (not just a flag) so the card's next step still reads
+    // correctly after `error` clears — the user typing again must not silently
+    // strip the reason off a card that is still blocked.
+    const [quotaBlockedChanges, setQuotaBlockedChanges] = React.useState<
+      ReadonlyMap<string, unknown>
+    >(() => new Map<string, unknown>());
     const handleChangesConfirm = React.useCallback(
       (toolCallId?: string) => {
+        // Canned confirmation text, not the user's typing — see `handleSubmit`.
+        lastSubmittedRef.current = '';
         if (toolCallId) {
           lastConfirmedChangeIdRef.current = toolCallId;
           setConfirmPendingIds((prev) => {
@@ -1709,7 +1883,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           return next;
         });
       }
-      // Same rollback for an unsent 确认修改 approval (objectui#5695).
+      // Same rollback for an unsent 确认修改 approval (objectui#5695) — with one
+      // split (objectui#7253): a QUOTA refusal is not a retry, so the card must
+      // not quietly re-offer the buttons that just failed. Returning them is
+      // right for a transient failure (rate limit, offline) and a dead end for a
+      // paywall — the user clicks Confirm again and hits the same 429, with the
+      // card still reading "awaiting approval". A quota refusal parks the card
+      // in an explicit blocked state carrying the next step instead.
       if (lastConfirmedChangeIdRef.current) {
         const failedId = lastConfirmedChangeIdRef.current;
         lastConfirmedChangeIdRef.current = null;
@@ -1719,7 +1899,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           next.delete(failedId);
           return next;
         });
+        if (parseAiQuotaError(error)) {
+          setQuotaBlockedChanges((prev) => {
+            if (prev.has(failedId)) return prev;
+            const next = new Map(prev);
+            next.set(failedId, error);
+            return next;
+          });
+        }
       }
+      // Only text the user TYPED here is restorable. `lastSubmittedRef` is
+      // written by `handleSubmit` alone and cleared by every card-driven send,
+      // because those send a canned message the user never typed — leaving the
+      // ref stale refilled the composer with the user's PREVIOUS prompt, a
+      // message that had already been delivered and answered, reading as
+      // "resend this" (objectui#7253).
       const text = lastSubmittedRef.current;
       if (!text) return;
       const textarea = promptInputWrapRef.current?.querySelector('textarea');
@@ -1876,7 +2070,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         state === 'approval-requested' && Boolean(onToolApprove) && !decision;
       const hidePendingPayload =
         state === 'approval-requested' && Boolean(tool.pendingActionId);
-      const friendlyTitle = humanizeToolName(tool.toolName);
+      // objectui#7254 / cloud#1658 — `humanizeToolName`'s translator seam has
+      // existed since the tool titles were found untranslatable, but no call
+      // site ever passed one, so every card header read English
+      // ("Propose blueprint", "Apply edit", "Verify build") inside an otherwise
+      // Chinese conversation. Unknown/custom tools still fall back to the same
+      // English title-caser.
+      const friendlyTitle = humanizeToolName(tool.toolName, tt);
       const renderableResult = unwrapToolResult(tool.result);
       const showRawName =
         processVisibility === 'debug' &&
@@ -1912,9 +2112,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       // "Awaiting Approval", not "Completed": nothing was applied, it's waiting
       // for the user. Only the header badge is remapped — the local `state`
       // (which gates payload display / HITL) is untouched.
+      //
+      // objectui#7254 — "waiting for the user" is only true until the user acts.
+      // The header used to stop reading here, so a card whose BODY had already
+      // collapsed to 已搭建 / 已生效 / 未生效 kept saying "Awaiting Approval".
+      // `resolveProposalCardState` is now the one producer both sides read.
+      const proposalCardState = resolveProposalCardState({
+        replayOutcome: replayOutcomeByProposalId.get(tool.toolCallId),
+        built: builtPlanIds.has(tool.toolCallId),
+        confirmed: confirmedChangeIds.has(tool.toolCallId),
+        approved: approvedPlanIds.has(tool.toolCallId),
+      });
       const headerState =
         state === 'output-available' && isProposalResult(tool.result)
-          ? ('approval-requested' as typeof state)
+          ? PROPOSAL_HEADER_STATE[proposalCardState]
           : state;
       const titleNode = (
         <span className="inline-flex min-w-0 items-center gap-2">
@@ -1958,7 +2169,12 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             isUnstructuredBuildProposal(tool)
           }
         >
-          <ToolHeader type={partType} state={headerState} title={titleNode} />
+          <ToolHeader
+            type={partType}
+            state={headerState}
+            title={titleNode}
+            statusLabels={toolStatusLabels}
+          />
           <ToolContent>
             {showPayload && tool.args !== undefined ? (
               <ToolInput input={tool.args} />
@@ -2293,13 +2509,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   </div>
                 ) : null}
                 {(() => {
-                  const c = tool.proposedPlan!.counts;
-                  const bits: string[] = [];
-                  if (c.objects) bits.push(`${c.objects} object${c.objects === 1 ? '' : 's'}`);
-                  if (c.views) bits.push(`${c.views} view${c.views === 1 ? '' : 's'}`);
-                  if (c.dashboards)
-                    bits.push(`${c.dashboards} dashboard${c.dashboards === 1 ? '' : 's'}`);
-                  if (c.seedData) bits.push('sample data');
+                  const bits = countBitsOf(tool.proposedPlan!.counts);
                   return bits.length ? (
                     <span className="text-[11px] text-muted-foreground">{bits.join(' · ')}</span>
                   ) : null;
@@ -2615,6 +2825,30 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       </div>
                     );
                   }
+                  // objectui#7253 — the confirm never reached the server: the AI
+                  // quota guardrail refused it with a 429. No replay envelope
+                  // will ever arrive for it, so this state is UI-owned, and it
+                  // is terminal rather than a rollback to the buttons: clicking
+                  // Confirm again buys the same refusal. Ranked below the three
+                  // server verdicts above — a real outcome always outranks a
+                  // client-side refusal.
+                  if (quotaBlockedChanges.has(tool.toolCallId)) {
+                    return (
+                      <div className="flex flex-col items-start gap-1 pt-0.5" data-testid="proposed-changes-actions">
+                        <span
+                          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                          data-testid="proposed-changes-quota-blocked"
+                        >
+                          <XCircle className="size-3.5" />
+                          {changesFailedLabel}
+                        </span>
+                        <QuotaBlockedNextStep
+                          error={quotaBlockedChanges.get(tool.toolCallId)}
+                          onUpgrade={onUpgrade}
+                        />
+                      </div>
+                    );
+                  }
                   const applying =
                     outcome?.kind === 'applying' || confirmPendingIds.has(tool.toolCallId);
                   if (applying) {
@@ -2890,7 +3124,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       ) : null}
                       {!isUser && processVisibility === 'summary' && summaryTools.length > 0 ? (
                         <ToolActivitySummary
-                          groups={summarizeTools(summaryTools)}
+                          groups={summarizeTools(summaryTools, tt)}
                           labels={L}
                         />
                       ) : null}
@@ -3646,6 +3880,7 @@ function BlueprintProgressPanel({
   offlineLabel?: string;
 }) {
   const { phase, summary, appLabel, targetApp, objects, counts, seq } = progress;
+  const countBitsOf = useMetadataCountBits();
   const isDone = phase === 'done';
   // Real activity key, mirroring BuildProgressPanel: prefer the server's
   // monotonic `seq` (it also advances on keep-alive heartbeats, where the
@@ -3657,12 +3892,7 @@ function BlueprintProgressPanel({
   // designing, the localized "Designing your app…" lead-in pairs with the
   // summary shown on its own line below.
   const headerText = isDone ? summary || appLabel || designingLabel : designingLabel;
-  const countBits: string[] = [];
-  if (counts?.objects)
-    countBits.push(`${counts.objects} object${counts.objects === 1 ? '' : 's'}`);
-  if (counts?.views) countBits.push(`${counts.views} view${counts.views === 1 ? '' : 's'}`);
-  if (counts?.dashboards)
-    countBits.push(`${counts.dashboards} dashboard${counts.dashboards === 1 ? '' : 's'}`);
+  const countBits = countBitsOf(counts ?? {});
   return (
     <div className="rounded-lg border bg-muted/30 p-3 text-sm" data-testid="blueprint-progress">
       <div className="mb-2 flex items-center gap-2 font-medium">
@@ -4040,6 +4270,73 @@ function SendErrorNotice({
   );
 }
 
+/**
+ * The server-owned AI-quota refusal copy, resolved for the console's ACTIVE
+ * language, plus the verb its next step calls for. `null` when the error is not
+ * a quota refusal.
+ *
+ * Shared by the composer banner and the confirm card's blocked state
+ * (objectui#7253) so one 429 can never be described by two different sentences
+ * on the same screen. The server sends both a localized `message` (zh) and
+ * `messageEn`; that pair is server-owned, so we still choose between them — by
+ * the in-app locale, not `navigator.language`, which ignored the locale
+ * switcher entirely (objectui#2871).
+ */
+function useAiQuotaCopy(error: unknown): { text: string; cta: string } | null {
+  const { language } = useObjectTranslation();
+  const tt = useSafeTranslate();
+  const quota = React.useMemo(() => parseAiQuotaError(error), [error]);
+  if (!quota) return null;
+  const isZh = language.toLowerCase().startsWith('zh');
+  return {
+    text:
+      (isZh ? quota.message : quota.messageEn ?? quota.message) ||
+      tt('chatbotQuota.fallbackMessage', 'You have reached your AI quota.'),
+    cta: quota.topUp
+      ? tt('chatbotQuota.buyCredits', 'Buy a credit pack')
+      : tt('chatbotQuota.upgradePlan', 'Upgrade plan'),
+  };
+}
+
+/**
+ * The next step under a confirm card that a quota refusal blocked
+ * (objectui#7253): what happened (the server's own sentence — it names both
+ * exits, "resets tomorrow" and "upgrade to keep designing") and, when the host
+ * wired one, the upgrade action. Renders nothing when the blocking error is not
+ * a quota refusal, so the badge above it degrades to a bare "not applied"
+ * rather than to an invented explanation.
+ */
+function QuotaBlockedNextStep({
+  error,
+  onUpgrade,
+}: {
+  error: unknown;
+  onUpgrade?: () => void;
+}) {
+  const copy = useAiQuotaCopy(error);
+  if (!copy) return null;
+  return (
+    <>
+      <span
+        className="text-[11px] leading-snug text-muted-foreground"
+        data-testid="proposed-changes-quota-reason"
+      >
+        {copy.text}
+      </span>
+      {onUpgrade ? (
+        <button
+          type="button"
+          onClick={onUpgrade}
+          className="inline-flex h-7 items-center rounded-md border border-amber-400/50 bg-background px-2 text-xs font-medium text-amber-700 hover:bg-amber-100/60 dark:text-amber-300"
+          data-testid="proposed-changes-quota-upgrade"
+        >
+          {copy.cta}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 function ErrorBanner({
   error,
   onReload,
@@ -4053,27 +4350,16 @@ function ErrorBanner({
   // when things are already broken, including in hosts that mount the chat
   // WITHOUT an I18nProvider — where a bare `t(key)` returns the raw key and the
   // user would read "chatbotError.title" instead of an error message.
-  const { language } = useObjectTranslation();
   const tt = useSafeTranslate();
-  const quota = React.useMemo(() => parseAiQuotaError(error), [error]);
+  const quota = useAiQuotaCopy(error);
   const { summary, details } = React.useMemo(() => summarizeChatError(error), [error]);
   const [expanded, setExpanded] = React.useState(false);
 
   // AI quota refusal (429 from the cloud token guardrail) -> friendly upgrade /
-  // top-up CTA instead of a red "Response failed" banner.
+  // top-up CTA instead of a red "Response failed" banner. Copy resolved by the
+  // shared helper, which the confirm card's blocked state reads too.
   if (quota) {
-    // The server sends both a localized `message` (zh) and `messageEn`; that
-    // pair is server-owned, so we still choose between them — but by the
-    // console's active language, not `navigator.language`, which ignored the
-    // in-app locale switcher entirely (objectui#2871). The banner's own copy
-    // now comes from the locale packs.
-    const isZh = language.toLowerCase().startsWith('zh');
-    const text =
-      (isZh ? quota.message : quota.messageEn ?? quota.message) ||
-      tt('chatbotQuota.fallbackMessage', 'You have reached your AI quota.');
-    const cta = quota.topUp
-      ? tt('chatbotQuota.buyCredits', 'Buy a credit pack')
-      : tt('chatbotQuota.upgradePlan', 'Upgrade plan');
+    const { text, cta } = quota;
     const title = tt('chatbotQuota.title', 'Upgrade needed');
     return (
       <div className="border-t bg-background px-3 py-2 text-sm" role="alert">

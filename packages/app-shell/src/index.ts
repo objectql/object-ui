@@ -103,6 +103,12 @@ export {
   bypassedApproverNames,
   isViaOverrideRow,
 } from './utils/index.js';
+// objectui#7256 — "where is home". `apps/console`'s `/` redirect layers its
+// emptiness heuristic on top of the SAME declaration reader the chrome's Home
+// affordances use, so the post-login landing and the top-bar logo cannot name
+// two different homes.
+export { HOME_LAUNCHER_PATH, resolveDeclaredHomePath } from './utils/index.js';
+export type { DeclaredHomeApp } from './utils/index.js';
 
 // Runtime AI-availability signal — the single source of truth every AI entry
 // point gates on (FAB, /ai routes, designer "Ask AI"). Server-pushed, no
@@ -220,6 +226,7 @@ export {
   generateNavId,
   useResponsiveSidebar,
   useActionModal,
+  useHomePath,
 } from './hooks/index.js';
 export type { FavoriteItem } from './hooks/index.js';
 

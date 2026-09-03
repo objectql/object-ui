@@ -334,6 +334,46 @@ const CATEGORY_AXIS_CHART_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Bucket count at or below which a CATEGORICAL x axis draws EVERY label
+ * (objectui#7247).
+ *
+ * On a band axis a tick is the bar's NAME, not a sample of a continuum: drop it
+ * and the reader cannot recover it — there is nothing to interpolate between
+ * neighbours, and a single-series bar chart has no legend to fall back on. On a
+ * time axis the opposite holds (a reader reconstructs the skipped dates), which
+ * is why `xAxisCommonProps`' thinning is right there and wrong here. Measured
+ * in the dashboard shape — a 3-column grid in an ~800px console, so a widget
+ * ≈200px wide: 3 bars drew 1 label, 5 bars drew 2, and the bars had no names.
+ *
+ * Where the bound comes from, so it is a derivation and not a taste:
+ *
+ *   plot width at the narrowest shipped widget
+ *     = 200 (widget) − 48 (the `YAxis width` this file sets) − 5 − 5 (recharts'
+ *       default left/right chart margin) = 142px
+ *   rotated tick labels are PARALLEL lines, so two adjacent ones collide only
+ *   once their PERPENDICULAR separation drops below one line box:
+ *     separation = bandWidth · sin(35°) = 0.574 · (142 / buckets)
+ *   a 12px line box ≈ 14px tall  ⇒  buckets ≤ 5.8
+ *
+ * At 5 buckets or fewer every label therefore fits at the narrowest width the
+ * product ships, with nothing measured at runtime — which is what makes
+ * `interval={0}` safe HERE though it was not safe as the blanket setting it
+ * used to be (a hundreds-of-points series painted a dense black bar). Above the
+ * bound nothing changes: recharts goes on thinning against its own measured
+ * text widths, using the real rendered width rather than this worst case.
+ */
+const X_AXIS_ALL_LABELS_MAX_BUCKETS = 5;
+
+/**
+ * Longest rotated x-axis label kept before it is ellipsised, so a label the
+ * bound above newly forces into view cannot overrun the 60px the axis reserves:
+ * 12 chars ≈ 78px of text, × sin(35°) ≈ 45px of height, inside 60 − 10
+ * (`tickMargin`). Deliberately scoped to that branch — charts above the bound
+ * render their labels exactly as they did before.
+ */
+const ROTATED_X_LABEL_MAX_CHARS = 12;
+
+/**
  * Treemap leaf cell — paints each leaf rect with its palette fill + label.
  * Hoisted to module scope so it is a stable component reference rather than one
  * re-created on every AdvancedChartImpl render (react-hooks/static-components).
@@ -1046,6 +1086,15 @@ function AdvancedChartImplInner({
     [data, xAxisKey],
   );
 
+  // objectui#7247 — see X_AXIS_ALL_LABELS_MAX_BUCKETS for why a short
+  // categorical axis draws every label instead of thinning like a time axis.
+  const labelEveryBucket = data.length > 0 && data.length <= X_AXIS_ALL_LABELS_MAX_BUCKETS;
+
+  // Rotation is what BUYS the complete axis, so in the forced branch it applies
+  // on mobile too: drawing every label without rotating is the horizontal
+  // overlap the old thinning avoided. Above the bound the trigger is unchanged.
+  const rotateXLabels = labelEveryBucket ? hasLongLabels : (!isMobile && hasLongLabels);
+
   // Helper function to get color palette. An explicit `colors` prop (set by the
   // page/dashboard) wins; otherwise fall back to the theme's --chart-1..5 vars.
   const getPalette = () => (Array.isArray(colors) && colors.length > 0 ? colors : [
@@ -1089,6 +1138,26 @@ function AdvancedChartImplInner({
     () => formatterFor(xAxisSpec?.format) ?? formatTick,
     [xAxisSpec?.format, formatTick],
   );
+
+  /**
+   * The x-axis formatter, plus the ellipsis step objectui#7247's label policy
+   * owes: once every bucket is drawn, a long rotated name would run past the
+   * 60px the axis reserves and be clipped mid-word. A shortened name is still
+   * a name; a clipped one reads as a different category.
+   *
+   * Kept separate from `xTickFormatter` on purpose — that one also formats the
+   * horizontal-bar family's CATEGORY axis, which is the y axis, sizes its own
+   * width from the longest label, and already draws all of them.
+   */
+  const xAxisTickFormatter = React.useMemo(() => {
+    if (!labelEveryBucket || !rotateXLabels) return xTickFormatter;
+    return (value: any): string => {
+      const label = String(xTickFormatter(value) ?? '');
+      return label.length > ROTATED_X_LABEL_MAX_CHARS
+        ? `${label.slice(0, ROTATED_X_LABEL_MAX_CHARS - 1)}…`
+        : label;
+    };
+  }, [labelEveryBucket, rotateXLabels, xTickFormatter]);
   const yTickFormatter = React.useMemo(
     () => formatterFor(primaryY?.format) ?? formatYTick,
     [primaryY?.format, formatYTick],
@@ -1201,20 +1270,27 @@ function AdvancedChartImplInner({
       ? <LabelList position="top" className="fill-foreground" fontSize={11} {...(formatter ? { formatter } : {})} />
       : null;
 
-  // Shared X-axis props for time/categorical axes. Recharts' `minTickGap`
-  // automatically thins ticks that would otherwise overlap, so we no
-  // longer hard-code `interval={0}` (which forced every label and
-  // produced a dense black bar when data spanned hundreds of points).
+  // Shared X-axis props for time/categorical axes, in two branches.
+  //
+  // Above X_AXIS_ALL_LABELS_MAX_BUCKETS, recharts' `minTickGap` thins ticks
+  // that would otherwise overlap — `interval={0}` is NOT hard-coded there,
+  // because forcing every label painted a dense black bar when the data spanned
+  // hundreds of points. At or below the bound the reverse is true and thinning
+  // is the bug (objectui#7247): the axis is short enough that every label is
+  // provably drawable, and each one is a bar's only name.
   const xAxisCommonProps = React.useMemo(() => ({
     tickLine: false as const,
     tickMargin: 10,
     axisLine: false as const,
-    interval: 'preserveStartEnd' as const,
-    minTickGap: isMobile ? 32 : 48,
-    tickFormatter: xTickFormatter,
+    // A short categorical axis names every bucket; everything above the bound
+    // keeps the time-series thinning, which is what `minTickGap` is for.
+    ...(labelEveryBucket
+      ? { interval: 0 as const }
+      : { interval: 'preserveStartEnd' as const, minTickGap: isMobile ? 32 : 48 }),
+    tickFormatter: xAxisTickFormatter,
     ...(xAxisSpec?.title ? { label: { value: xAxisSpec.title, position: 'insideBottom' as const, offset: -4 } } : {}),
-    ...(!isMobile && hasLongLabels && { angle: -35, textAnchor: 'end' as const, height: 60 }),
-  }), [isMobile, hasLongLabels, xTickFormatter, xAxisSpec?.title]);
+    ...(rotateXLabels && { angle: -35, textAnchor: 'end' as const, height: 60 }),
+  }), [isMobile, labelEveryBucket, rotateXLabels, xAxisTickFormatter, xAxisSpec?.title]);
 
   // #2942 — the non-series spec families used to fall through the component
   // map's `|| BarChart` into a bar shell whose series marks all returned
@@ -1652,8 +1728,28 @@ function AdvancedChartImplInner({
           />
           <ZAxis type="number" range={[60, 400]} />
           <ChartTooltip content={<ChartTooltipContent />} />
+          {/* `nameKey` is REQUIRED here, for a reason unique to scatter
+              (objectui#7248). `ChartLegendContent` resolves a label as
+              `config[nameKey || item.dataKey || 'value']`, and a `<Scatter>`
+              carries NO `dataKey` — scatter's keys live on the two axes, not on
+              the mark. So the key collapsed to the literal `'value'`, missed a
+              config keyed by measure name, and the entry rendered its colour
+              swatch with NO TEXT beside it.
+
+              What that looks like on screen is the whole card: an 8x8 dot in
+              `--chart-1` — the SAME colour as the marks — sitting under the
+              x-axis, which reads as a seventh data point plotted outside the
+              plot area. Measured on the showcase Chart Gallery in real
+              Chromium: swatch at cy 341 against a plot area ending at cy 295,
+              on a y scale of 4.835 px per unit, i.e. y = -9.5 — which is
+              exactly the "x≈40, y≈-10" the card reported as a stray point.
+
+              The y DOMAIN was never the defect and is deliberately not touched:
+              the same run measured all six marks inside the plot area, and
+              mixed-sign and all-negative fixtures draw every mark inside too,
+              because recharts extends the domain to cover negatives. */}
           <ChartLegend
-            content={<ChartLegendContent />}
+            content={<ChartLegendContent nameKey={scatterYKey} />}
             {...(isMobile && { verticalAlign: "bottom", wrapperStyle: { fontSize: '11px', paddingTop: '8px' } })}
           />
           {series.map((s: any, index: number) => {

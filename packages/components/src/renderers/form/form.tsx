@@ -1130,6 +1130,29 @@ ComponentRegistry.register('form',
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [submitError, setSubmitError] = React.useState<string | null>(null);
+    /**
+     * The sonner id every OUTCOME toast of THIS form is published under.
+     *
+     * The in-form banner (`submitError`) and its toast are raised together at
+     * each of the three points below, but only the banner was ever retired
+     * together: the toast went out under sonner's auto-generated id, so nothing
+     * here held a handle on it and a refused submit's toast outlived the
+     * attempt that raised it. A later SUCCESSFUL submit — whose success toast a
+     * host raises (`WizardForm`, `ObjectForm`), not this renderer — then landed
+     * BESIDE that stale refusal, and the form ended on a screen asserting both
+     * outcomes at once (objectui#7252).
+     *
+     * One stable id closes both halves. Reusing an id sonner already holds
+     * UPDATES that toast rather than stacking a second one, so every outcome
+     * this form reports supersedes the one before it; and the dismissal beside
+     * `setSubmitError(null)` retires it the moment a new attempt starts, so by
+     * the time any host can confirm a success this form's last refusal is gone.
+     *
+     * Scoped to this form instance (`React.useId()`) on purpose: a blanket
+     * `toast.dismiss()` would take unrelated toasts down with it.
+     */
+    const formInstanceId = React.useId();
+    const outcomeToastId = `form-outcome:${formInstanceId}`;
     // Active `fieldTabs` panel. Undefined until something picks one — the
     // effective tab falls back to `defaultFieldTab`, then to the first tab.
     // Which tab of an in-progress form is showing is presentational and dies
@@ -1912,7 +1935,7 @@ ComponentRegistry.register('form',
       const fieldsText =
         labels.slice(0, MAX).join(t('validation.formInvalidJoiner')) +
         (labels.length > MAX ? '…' : '');
-      toast.error(t('validation.formInvalid', { fields: fieldsText }));
+      toast.error(t('validation.formInvalid', { fields: fieldsText }), { id: outcomeToastId });
 
       const errored = new Set(names);
       const firstName =
@@ -1948,6 +1971,10 @@ ComponentRegistry.register('form',
     const handleSubmit = form.handleSubmit(async (data) => {
       setIsSubmitting(true);
       setSubmitError(null);
+      // …and the toast twin of that banner (objectui#7252). Both belong to the
+      // previous attempt and both are stale now; the toast outliving it is what
+      // let an earlier refusal share the screen with the success that followed.
+      toast.dismiss(outcomeToastId);
       // This attempt cleared client validation — drop the previous attempt's
       // tab markers (the server may re-add its own below).
       setRejectedFieldNames([]);
@@ -1999,7 +2026,7 @@ ComponentRegistry.register('form',
             setSubmitError(result.error);
             // Also surface as a toast so the message is visible even when the
             // in-form banner has scrolled out of view (long forms in modals/drawers).
-            toast.error(result.error);
+            toast.error(result.error, { id: outcomeToastId });
             return;
           }
         }
@@ -2069,7 +2096,7 @@ ComponentRegistry.register('form',
         setSubmitError(errorMessage);
         // Also surface as a toast so the message is visible even when the
         // in-form banner has scrolled out of view (long forms in modals/drawers).
-        toast.error(errorMessage);
+        toast.error(errorMessage, { id: outcomeToastId });
 
         // Log errors for debugging (dev environment only)
         // process may not be defined in all environments

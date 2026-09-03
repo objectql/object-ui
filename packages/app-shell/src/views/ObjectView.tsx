@@ -11,7 +11,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, type FilterTokenScope } from '@object-ui/core';
+import { resolveFilterPlaceholders, DENSITY_MODE_TO_ROW_HEIGHT, normalizeListViewSchema, leadWithNameField, type FilterTokenScope } from '@object-ui/core';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState.js';
 import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage.js';
 import { VALUELESS_FILTER_OPERATORS } from './viewFilterFold.js';
@@ -119,15 +119,27 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
 /**
  * Default list columns for an object that declares no explicit list view.
  *
- * Priority: the `highlightFields` semantic role (ADR-0085) wins verbatim
- * (only dropping names with no field def); otherwise the first `limit`
- * business fields in declared order. Framework-injected system / audit /
- * ownership columns are excluded via the shared `isSystemManagedField`
- * classifier — its single source of truth is the spec `system` flag stamped
- * by `applySystemFields`, with a name-set fallback covering the injected,
- * non-hidden / non-readonly `owner_id` and `organization_id`. Without this,
- * `applySystemFields` (which spreads injected fields to the FRONT of the field
- * map) would surface `owner_id` as a leading raw-id column (#2702, #2777).
+ * Priority: the object's name field ALWAYS leads (see below); then the
+ * `highlightFields` semantic role (ADR-0085) verbatim (only dropping names with
+ * no field def); otherwise the first `limit` business fields in declared order.
+ * Framework-injected system / audit / ownership columns are excluded via the
+ * shared `isSystemManagedField` classifier — its single source of truth is the
+ * spec `system` flag stamped by `applySystemFields`, with a name-set fallback
+ * covering the injected, non-hidden / non-readonly `owner_id` and
+ * `organization_id`. Without this, `applySystemFields` (which spreads injected
+ * fields to the FRONT of the field map) would surface `owner_id` as a leading
+ * raw-id column (#2702, #2777).
+ *
+ * The name-field lead is `leadWithNameField` from `@object-ui/core`
+ * (objectui#7245). `highlightFields` is NOT a column list — it is ADR-0085's
+ * "most important fields", and its first consumer, the detail highlight strip,
+ * deliberately DROPS the title field because the page H1 above it already shows
+ * one. So metadata that is entirely well-authored routinely omits the name:
+ * `showcase_account` declares `["status", "industry", "annual_revenue"]` and its
+ * default grid rendered 14 rows a user could not tell apart. A list has no H1,
+ * so the same role needs the opposite treatment here. Applied to BOTH branches:
+ * the fallback walk is declaration-ordered, so an object whose name field is
+ * declared late lost it off the end of the `limit` slice.
  *
  * `opts.orgAttribution` (ADR-0105 group posture): reads span every
  * organization the member belongs to, so cross-org rows need attribution —
@@ -365,15 +377,22 @@ export function defaultListColumnsFromObject(
             : cols;
     const curated = objectDef?.highlightFields;
     if (Array.isArray(curated) && curated.length > 0) {
-        return withOrgAttribution(curated.filter((n: string) => objectDef?.fields?.[n]));
+        return withOrgAttribution(
+            leadWithNameField(objectDef, curated.filter((n: string) => objectDef?.fields?.[n])),
+        );
     }
     const fields = objectDef?.fields;
     if (fields && typeof fields === 'object') {
         return withOrgAttribution(
-            Object.entries(fields)
-                .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
-                .map(([name]) => name)
-                .slice(0, limit),
+            // Lead BEFORE the slice: slicing first could drop the very column
+            // the lead exists to guarantee, on an object that declares its name
+            // field after `limit` others.
+            leadWithNameField(
+                objectDef,
+                Object.entries(fields)
+                    .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
+                    .map(([name]) => name),
+            ).slice(0, limit),
         );
     }
     return [];

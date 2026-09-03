@@ -1,63 +1,6 @@
----
-name: objectui-testing
-description: Write and run tests for Object UI components, plugins, schemas, and pages. Use this skill when the user asks to test ObjectUI components, write unit tests with Vitest, write Playwright E2E tests, test schema rendering, test expression evaluation, test component registration, test data binding, debug test failures, or set up test infrastructure. Also applies when the user mentions test coverage, snapshot testing, or asks "how do I test this component/plugin/page".
----
-
 # ObjectUI Testing
 
-Use this skill to write tests across all layers of the Object UI framework: unit tests (Vitest + React Testing Library) and end-to-end tests (Playwright).
-
-## Test infrastructure overview
-
-| Layer | Tool | Config | What it tests |
-|-------|------|--------|---------------|
-| Unit / Integration | Vitest + happy-dom | `vitest.config.mts` | Logic, hooks, components, schemas |
-| End-to-end | Playwright | `playwright.config.ts` | Full app flows, routing, rendering |
-
-### Running tests
-
-```bash
-pnpm test              # All unit tests
-pnpm test:watch        # Watch mode
-pnpm test:ui           # Vitest browser UI
-pnpm test:coverage     # With coverage report
-pnpm test:e2e          # Playwright E2E tests
-```
-
-### Coverage thresholds
-
-Configured in `vitest.config.mts` (`coverage.thresholds`):
-- Lines: 40% | Functions: 33% | Branches: 30% | Statements: 40%
-
-## Vitest configuration
-
-There is **no `vitest.workspace.ts`**. The projects are declared inline in
-`vitest.config.mts` under `test.projects`, and there are three of them plus
-`apps/console`'s own config. The split is by **file extension**, not by package
-— a `.test.ts` anywhere lands in `unit`, so a React test must be `.test.tsx`:
-
-| Project | Environment | Matches | Setup file |
-|---|---|---|---|
-| `unit` | `node` | `packages/**`, `examples/**` `*.test.ts` + `eslint-rules/**/*.test.js` + `scripts/**/*.test.ts` | `vitest.setup.base.ts` |
-| `dom` | `happy-dom` | `packages/**`, `examples/**` `*.test.tsx` | `vitest.setup.dom-light.tsx` |
-| `dom-heavy` | `happy-dom` | the registry-rendering files listed as `heavyDomTests` | `vitest.setup.dom.tsx` |
-
-Run one with `--project unit` / `dom` / `dom-heavy` (`pnpm test:unit` is the
-first). `unit` also sets `isolate: false`; the DOM projects keep isolation.
-
-### Setup file (`vitest.setup.dom.tsx`)
-
-The `dom-heavy` setup registers components globally before tests run
-(`vitest.setup.tsx` is a legacy shim that re-exports it and is wired into no
-config):
-```typescript
-import '@object-ui/components';     // Shadcn primitives
-import '@object-ui/fields';         // Field widgets
-import '@object-ui/plugin-dashboard'; // Dashboard plugin
-import '@object-ui/plugin-grid';     // Grid plugin
-```
-
-This ensures `ComponentRegistry` has renderers available during tests. If your plugin test needs additional registrations, import them in `beforeAll`.
+Testing components, plugins, schemas and pages: Vitest + React Testing Library for units, Playwright for end-to-end.
 
 ## Unit test patterns
 

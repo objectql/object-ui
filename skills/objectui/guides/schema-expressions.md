@@ -1,15 +1,10 @@
----
-name: objectui-schema-expressions
-description: Write, debug, and optimize expression bindings in Object UI schemas. Use this skill when the user works with dynamic expressions in JSON schemas — conditional visibility (hidden/visible), disabled states, template strings with ${} syntax, data binding, formula functions (SUM, IF, CONCAT), or when expressions aren't evaluating as expected. Also use it when the user mentions computed values, dynamic props, expression errors, or schema conditions that aren't working. Even if the user just says something like "my value shows ${data.x} literally" or "hidden isn't working", this skill applies.
----
-
 # ObjectUI Schema Expressions
 
-Use this skill to write correct dynamic expressions in Object UI schemas and to debug expression-related issues. The expression system is the core of Object UI's dynamic behavior — it controls visibility, disabled states, computed content, and data-driven props.
+Writing and debugging dynamic expressions in ObjectUI schemas. The expression system is the core of ObjectUI's dynamic behavior — it controls visibility, disabled states, computed content, and data-driven props.
 
 ## Architecture overview
 
-Object UI uses a two-tier expression evaluator:
+ObjectUI uses a two-tier expression evaluator:
 
 1. **Template expressions** — strings containing `${...}` placeholders: `"Hello ${user.name}"`
 2. **Condition expressions** — raw boolean expressions without wrappers: `data.role === 'admin'`
@@ -27,77 +22,31 @@ Key files (for reference, not for editing):
 
 ## What gets expression-evaluated
 
-SchemaRenderer evaluates these fields before passing props to the resolved component:
-
-### Automatically evaluated fields
-
-Evaluation and *readback* are two different gates. A value is only visible if
-`SchemaRenderer` evaluates it **and** the renderer reads the key it sits on —
-see "The `props` envelope is evaluated but not read" below.
-
-| Schema field | Evaluation type | Return type | Example |
-|---|---|---|---|
-| `content` | Template (`${}`) | string | `"content": "Total: ${data.total}"` |
-| `hidden` | Condition | boolean | `"hidden": "${data.role !== 'admin'}"` |
-| `hiddenOn` | Condition | boolean | `"hiddenOn": "data.status === 'draft'"` |
-| `visible` | Condition | boolean | `"visible": "${data.isActive}"` |
-| `visibleOn` | Condition | boolean | `"visibleOn": "data.permissions.canView"` |
-| `disabled` | Condition | boolean | `"disabled": "${form.isSubmitting}"` |
-| `disabledOn` | Condition | boolean | `"disabledOn": "!data.hasPermission"` |
-| `title` / `label` / `value` / `description` | Template (`${}`) | Preserves original type | **Declared types only** — `statistic` (`label`/`value`/`description`), `card` (`title`/`description`), `button` (`label`). Closed set, declared in `@objectstack/spec` (objectui#4795). |
-
-**Precedence rule:** `visible` takes priority over `hidden`. If both are present, `visible` wins.
-
-### NOT evaluated (passed as raw strings)
-
-These top-level schema fields are **not** processed by ExpressionEvaluator:
-
-- `value`, `label`, `description`, `title` **on a type that does not declare
-  them** (see the row above) — read by the renderers, but not template-evaluated
-  there. Resolve them in the host before rendering, or carry the bound text on a
-  `text` node's `content`.
-- `className` — always a static Tailwind class string
-- `id` — always a static string
-- `type` — component type identifier
-- `bind` — data scope path (resolved by `useDataScope`, not by expressions)
-
-### The `props` envelope is evaluated but not read
-
-`SchemaRenderer` **does** run every value inside `props` through the evaluator —
-and then spreads the object as React props rather than merging it into the node.
-Every `ui:*` / `page:*` renderer reads `schema.title` / `schema.content` /
-`schema.columns` off the node itself, so the evaluated value is discarded: the
-component paints an empty frame and the envelope lands in the DOM as the invalid
-attribute `props="[object Object]"`.
-
-So `props` is not an escape hatch for the unevaluated keys above — it trades a
-literal `${...}` on screen for nothing on screen. Put keys on the node.
+Evaluation and *readback* are two separate gates: a value is visible only if
+`SchemaRenderer` evaluates it **and** the renderer reads the key it sits on. The
+full boundary tables -- the evaluated fields, the raw ones, `visible` over
+`hidden` precedence, and what `props` versus `properties` each do with a value
+-- are in [`rules/protocol.md`](../rules/protocol.md), which is the anchor for
+this rule. The four cases that decide most schemas:
 
 ```json
-// ❌ Evaluated, then dropped — renders an empty card
+// Evaluated, then dropped -- renders an empty card
 { "type": "card", "props": { "title": "${data.customer.name}" } }
 
-// ✅ `card` declares `title`, so on the node it is evaluated AND read
+// `card` declares `title`, so on the node it is evaluated AND read
 { "type": "card", "title": "${data.customer.name}" }
 
-// ❌ `text` does not declare `value` — renders the literal "${data.customer.name}"
+// `text` does not declare `value` -- renders the literal "${data.customer.name}"
 { "type": "text", "value": "${data.customer.name}" }
 
-// ✅ `content` is evaluated on every component type
+// `content` is evaluated on every component type
 { "type": "text", "content": "${data.customer.name}" }
 ```
 
-The `element:*` namespace is where `props` is read: those components take their
-config out of `properties` / `props`, so the envelope is required there.
-
-`properties` is not the same envelope as `props`. `SchemaRenderer` evaluates it
-and then **hoists its keys onto the node**, so it is read by every namespace —
-measured, `{ "type": "card", "properties": { "title": "${data.customer.name}" } }`
-does render the evaluated name. Whether that is an authoring channel for
-`ui:*` / `page:*` is an open contract question (objectui#4795); the measurement
-and the failing legs beside it are in
-[`rules/protocol.md`](../rules/protocol.md). Until it is ruled, the route this
-guide teaches is unchanged: `content`, or resolve the value in the host.
+`title` / `label` / `value` / `description` are template-evaluated on the types
+that declare them -- `statistic` (`label` / `value` / `description`), `card`
+(`title` / `description`), `button` (`label`) -- and read raw everywhere else.
+The set is closed and declared in `@objectstack/spec` (objectui#4795).
 
 ## Template expression syntax (`${}`)
 
@@ -255,150 +204,58 @@ The `On` variants accept raw expressions without `${}` wrapping — the entire s
 { "disabledOn": "!data.canPerformAction || data.isLocked" }
 ```
 
-## Field-level conditional rules (CEL — `visibleWhen` / `readonlyWhen` / `requiredWhen`)
+## Field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`)
 
-> **Different engine, different layer.** The `${}` / `On` conditions above are
-> the *schema/widget* tier and run on the recursive-descent
-> `SafeExpressionParser`. The three rules below are the **data-model tier**:
-> they live on the **object's field metadata**, are written in **CEL**, and are
-> evaluated by the canonical `@objectstack/formula` engine — the *same* engine
-> the server uses. Use these when the rule belongs to the field itself and must
-> hold everywhere the object is edited (and, for `readonlyWhen`/`requiredWhen`,
-> be enforced server-side too). See ADR-0036.
+These live on the **object's field metadata**, are written in CEL, and are
+evaluated by `@objectstack/formula` -- a different tier from the `${}` / `On`
+conditions above, which are schema/widget-level and run on the recursive-descent
+`SafeExpressionParser`. **How to author them is the `objectstack-data` skill's
+job**, under "Conditional Field Rules": the predicate scope, the client-only vs
+client-and-server enforcement split, the invariant-vs-transition-gate choice,
+and the protocol-17 removal of the `conditionalRequired` alias are all there.
+Author them in the canonical tagged-template form that skill teaches
+(``requiredWhen: P`record.status == 'paid'` ``), not as a bare string.
 
-```ts
-// On the object's Field definition (server-side metadata):
-issued_on: Field.date({ requiredWhen: "record.status in ['sent', 'paid']" }),
-tax_rate:  Field.number({ readonlyWhen: "record.status == 'paid'" }),
-paid_on:   Field.date({
-  visibleWhen:  "record.status == 'paid'",   // UX-only — hide until paid
-  requiredWhen: "record.status == 'paid'",   // enforced client AND server
-}),
-```
+Renderer-side, and only here: the form renderer **re-evaluates these reactively
+as the user edits**, via `resolveFieldRuleState` in `@object-ui/core`. A static
+`required: true` / `readonly: true` is a floor a FALSE predicate cannot weaken.
+Evaluation is **fail-open** -- a broken predicate never hides content, never
+blocks submit and never locks a field -- so `visibleWhen` is never a security
+boundary on the client.
 
-| Rule           | Predicate TRUE ⇒          | Where it's enforced     |
-| -------------- | ------------------------- | ----------------------- |
-| `visibleWhen`  | field shown (else hidden) | client only (UX)        |
-| `readonlyWhen` | field read-only           | **client + server**     |
-| `requiredWhen` | field required            | **client + server**     |
+## CEL predicates over a row record
 
-- Predicate scope is `record` (the live/merged record) and `previous` (the
-  prior persisted record, for transition rules like
-  `"record.status == 'paid' && previous.status != 'paid'"`).
-- A predicate is `string` (treated as CEL) or `{ dialect: 'cel', source }`.
-- `requiredWhen` is the **only** required-predicate slot. The old
-  `conditionalRequired` alias was **removed** in `@objectstack/spec` 17
-  (#3855): authoring it is a `tsc` error and a parse rejection, and nothing in
-  ObjectUI reads it. Rename the key (the CEL value is unchanged), or run
-  `os migrate meta --from 16` to rewrite it automatically.
-- The form renderer re-evaluates these **reactively** as the user edits, via
-  `resolveFieldRuleState` (`@object-ui/core`). Static `required: true` /
-  `readonly: true` is a floor a FALSE predicate can't weaken.
-- **Gotchas:** CEL throws on a *missing* map key but compares cleanly against
-  `null` — author predicates against fields that exist (the renderer seeds
-  declared fields to `null` so unregistered fields don't fault). Evaluation is
-  **fail-open**: a broken predicate never hides content, never blocks submit,
-  never locks a field. `visibleWhen` is client-only — never rely on it for
-  security; use `readonlyWhen`/`requiredWhen` (or a validation rule) for guarantees.
+Conditional formatting on a list/grid/kanban, a row action's `visible` /
+`disabled`, and `SelectOption.visibleWhen` are all **CEL over `record.*`**,
+evaluated by `@objectstack/formula` -- not by the `${}` evaluator above.
+**The predicate language, the surfaces that take one, and the authoring rules
+are the `objectstack-formula` skill's job**, under "Surfaces that take an
+Expression"; the cascading-select and options-vs-lookup decision is
+`objectstack-data`'s.
 
-## List-view conditional tier (CEL — conditional formatting + row-action visibility)
+Three renderer-side facts that live nowhere else:
 
-> **Same engine as the data-model tier.** Conditional formatting on a
-> list/grid/kanban, and a row action's `visible` / `disabled`, are **CEL
-> predicates over the row record**, evaluated by the canonical
-> `@objectstack/formula` engine — *not* the `${}` schema/widget evaluator
-> (issue #1584, framework ADR-0058). Per `@objectstack/spec` these were always
-> typed as CEL (`ListViewSchema.conditionalFormatting[].condition` and
-> `ActionSchema.visible` are `ExpressionInputSchema`); ObjectUI now honors that
-> at runtime. Authors reuse the same `record.*` predicates everywhere.
-
-**Conditional formatting** — first matching rule wins; author it the spec way:
-
-```jsonc
-{ "type": "list-view", "objectName": "invoice",
-  "conditionalFormatting": [
-    { "condition": "record.status == 'overdue'", "style": { "backgroundColor": "#fee2e2", "color": "#991b1b" } },
-    { "condition": "record.amount > 10000",       "style": { "backgroundColor": "#fef9c3" } }
-  ]
-}
-```
-
-The predicate binds the row three ways — `record.status` (**canon**), bare
-`status` and `data.status` (both **deprecated** here: still bound, warned
-once in dev, retiring after a stored-metadata survey — see
-`packages/core/src/evaluator/rowPredicateCanon.ts`) — plus the host
-predicate scope (`features.*`, `user.*`). `data.*` is the trap: the server's
-authoring oracle accepts it silently, then binds nothing at runtime — a
-constant `false`, not an error. The legacy ObjectUI shapes still work and are
-translated to CEL transparently: the native `{ field, operator, value }` form
-(`operator` ∈ `equals` / `not_equals` / `greater_than` / `less_than` /
-`contains` / `in`) and the `{ expression: "${…}" }` template form. A string
-carrying legacy-only syntax (`${…}`, `===`, `?.`, `.includes()`) is routed to
-the old engine **with a one-time deprecation warning** — rewrite it in CEL.
-
-**Row-action visibility** — a row/list_item action's `visible` (and `disabled`)
-is CEL over the row:
-
-```jsonc
-{ "name": "resume", "label": "Resume",
-  "visible": "record.status in ['paused', 'stopped']" }   // `in` needs the CEL engine
-```
-
-- `visible` **fails closed** (broken predicate → action hidden + warn), matching
-  the record-header `ActionEngine`; `disabled` fails soft (not disabled + warn).
-- The CEL `in` operator, list membership, and `has()` — none of which the legacy
-  JS evaluator parsed — now work; `===` / `?.` / `.includes()` do **not** (use
-  `==` / `record.x` / `.contains()`).
-
-**Legacy form-field `condition`.** `FormField.condition: { field, equals/notEquals/in }`
-is retired in favor of `visibleWhen` (it is now translated to CEL internally, so
-existing metadata keeps working). Prefer authoring `visibleWhen: "record.type == 'lookup'"`.
-
-## Cascading & role-gated select options (`option.visibleWhen` + `dependsOn`)
-
-For dependent selects (country → province → city) and role-gated options, do
-**not** invent a `validFor` / `controllingField` matrix. Reuse the two primitives
-you already have — the mechanism is uniform with dependent lookups, so both
-humans and AI author it correctly by pattern-matching:
-
-- **`SelectOption.visibleWhen`** — a per-option CEL predicate; the option is
-  offered only when TRUE. Evaluated against the live `record` **plus
-  `current_user`** (same engine/env as a field-level `visibleWhen`).
-- **`field.dependsOn`** — declares the sibling field(s) the option list reacts
-  to. While any is empty the control is **gated** ("Select country first"); a
-  parent change re-evaluates the list and **auto-clears** a now-invalid value.
-
-```jsonc
-{ "type": "form", "fields": [
-  { "name": "country", "type": "select", "options": [
-    { "label": "China", "value": "cn" }, { "label": "United States", "value": "us" }
-  ]},
-  { "name": "province", "type": "select", "dependsOn": "country", "options": [
-    { "label": "Zhejiang",   "value": "zj", "visibleWhen": "record.country == 'cn'" },
-    { "label": "California", "value": "ca", "visibleWhen": "record.country == 'us'" }
-  ]},
-  // role gating — same predicate, references current_user instead of a sibling:
-  { "name": "tier", "type": "select", "options": [
-    { "label": "Standard",   "value": "standard" },
-    { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.positions" }
-  ]}
-]}
-```
-
-**Decision rule — options vs. lookup.** Use `option.visibleWhen` only for
-**small, static dictionaries** (a handful of provinces, category → subcategory).
-When the data is large, changes over time, or is shared across forms (real
-country/province/city tables, org units, product catalogs) model each level as a
-**`lookup`** with `depends_on` — the candidate query is filtered and paginated
-server-side. Wrong tool = a 4000-row `<select>`.
-
-**Security.** Option `visibleWhen` only hides the choice on the client; the value
-is still submittable. When an option is gated for **authorization**, the server
-must also reject writes of that value (the rule-validator evaluates the picked
-value's `visibleWhen`). Use it freely for cascades/UX; pair it with server
-enforcement for access control. Multi-field conditions (`record.country == 'cn'
-&& current_user.department == 'sales'`) work — just list every referenced sibling
-in `dependsOn`.
+- **Failure direction is not uniform.** A row action's `visible` **fails
+  closed** (a broken predicate hides the action and warns), matching the
+  record-header `ActionEngine`; `disabled` fails soft (not disabled, warns);
+  a field-level `visibleWhen` fails open. Do not generalise from one to another.
+- **Legacy shapes are translated, with a one-time warning.** The native
+  `{ field, operator, value }` form (`operator` in `equals` / `not_equals` /
+  `greater_than` / `less_than` / `contains` / `in`) and the
+  `{ expression: "${…}" }` template form still work and are rewritten to CEL
+  transparently. A string carrying legacy-only syntax (`${…}`, `===`, `?.`,
+  `.includes()`) is routed to the old engine with a **one-time deprecation
+  warning** -- rewrite it as CEL (`==`, `record.x`, `.contains()`).
+- **`data.*` is the trap in a row predicate.** The row binds three ways --
+  `record.status` (canonical), bare `status` and `data.status`, the last two
+  deprecated and warned once in dev
+  (`packages/core/src/evaluator/rowPredicateCanon.ts`). The authoring oracle
+  accepts `data.*` silently and then binds nothing at runtime: a constant
+  `false`, not an error.
+- **`field.dependsOn` gates the control, not just the list.** While any declared
+  parent is empty the select is gated ("Select country first"); a parent change
+  re-evaluates the option list and **auto-clears** a value that is no longer
+  valid.
 
 ## Data binding with `bind`
 
@@ -646,7 +503,7 @@ Expressions don't throw on missing variables — they return `undefined`. Use fa
 
 When an expression isn't working:
 
-1. Is it `content` (or a predicate key)? Those are the fields that are both evaluated and read. A `${...}` on `title` / `label` / `value` / `description` is never evaluated, and one inside a `props` envelope is evaluated and then discarded. (A `properties` envelope is the one that is evaluated *and* hoisted onto the node — see [`rules/protocol.md`](../rules/protocol.md) for why that is recorded, not recommended.)
+1. **Which key is it on, and does that type declare the key?** `content` and the predicate keys are evaluated and read on every type. `title` / `label` / `value` / `description` are evaluated **only on the types that declare them** — `statistic` (`label` / `value` / `description`), `card` (`title` / `description`), `button` (`label`) — and read raw everywhere else, including on a namespaced spelling such as `ui:statistic`. A `${...}` inside a `props` envelope is evaluated and then discarded. (A `properties` envelope is the one that is evaluated *and* hoisted onto the node — see [`rules/protocol.md`](../rules/protocol.md) for why that is recorded, not recommended.)
 2. Is the `${}` syntax correct? Check for unmatched braces.
 3. Is the data actually available in scope? Check `SchemaRendererProvider dataSource`.
 4. For conditions: are you using `On` suffix correctly? (`hiddenOn` takes raw expression, `hidden` needs `${}` if it's a string).

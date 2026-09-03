@@ -49,6 +49,7 @@ const renderGallery = (data: Record<string, unknown>[]) => {
     <SchemaRendererProvider dataSource={dataSource as any}>
       <ObjectGallery
         schema={{
+          type: 'object-gallery',
           objectName: 'showcase_task',
           gallery: { titleField: 'name', coverField: 'cover' },
         }}

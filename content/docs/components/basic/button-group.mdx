@@ -26,7 +26,8 @@ interface ButtonGroupButton {
   variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   disabled?: boolean;             // Whether this button is disabled
-  onClick?: () => void;           // Runtime handler; not authorable in JSON
+  onClick?: never;                // RETIRED (objectui#6124) — author behaviour
+                                  // as a node type, e.g. an action:button node
   className?: string;             // Per-button CSS class
 }
 

@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Add Chinese and Japanese language support to my Object UI app. I need a language switcher in the header and all form labels should change when the user switches language.",
+      "prompt": "Add Chinese and Japanese language support to my ObjectUI app. I need a language switcher in the header and all form labels should change when the user switches language.",
       "expected_output": "Provides I18nProvider setup with lazy loading, useObjectTranslation for the language switcher, and pattern for localizing schema labels via t() before passing to SchemaRenderer.",
       "files": [],
       "assertions": {
@@ -20,7 +20,7 @@
     },
     {
       "id": 2,
-      "prompt": "How do I format dates and currencies differently based on the user's locale in Object UI?",
+      "prompt": "How do I format dates and currencies differently based on the user's locale in ObjectUI?",
       "expected_output": "Provides useObjectTranslation hook with formatCurrency, formatDate, formatNumber usage examples.",
       "files": [],
       "assertions": {
@@ -36,7 +36,7 @@
     },
     {
       "id": 3,
-      "prompt": "My Object UI app needs to support Arabic with proper right-to-left layout. How do I set this up?",
+      "prompt": "My ObjectUI app needs to support Arabic with proper right-to-left layout. How do I set this up?",
       "expected_output": "Provides I18nProvider setup with Arabic locale, direction from useObjectTranslation, RTL-aware Tailwind utilities (rtl: prefix).",
       "files": [],
       "assertions": {

@@ -4,17 +4,41 @@
  * Package-list helpers shared by the Studio package switcher and the builder
  * landing page.
  *
- * Writability is a DISPLAY heuristic — kernel packages (scope system/cloud)
- * are hidden, `scope: 'project'` marks a read-only code package (authoring is
- * refused server-side by the ADR-0070 D4 gate), and a scope-less entry is a
- * database base package (writable). The gate stays the authority; this only
- * sets expectations up front.
+ * Writability is the SERVER's verdict, not a shape we derive. Every row of
+ * `GET /api/v1/packages` carries a top-level `writable: boolean` computed by
+ * `isWritablePackage` (ADR-0070 D2, objectstack#14375) — the same predicate the
+ * server's authoring (`saveMetaItem`) and lifecycle (`DELETE` / `disable`) gates
+ * enforce, so the badge and the gate cannot disagree. Read it; do not re-derive
+ * it.
+ *
+ * The `scope !== 'project'` expression below is ONLY the fallback for servers
+ * that predate that field, and it is WRONG for one row: a `type: module`
+ * sub-package of a multi-package artifact (ADR-0130 D4) normally omits `scope`
+ * — the schema default is applied at PARSE time, while the artifact load path
+ * deliberately hands the RAW manifest body to `registerApp`, so the served row
+ * has no `scope` key at all. The heuristic reads that as a writable database
+ * base, yet the server refuses every write to it (it is in `engine.manifests`).
+ * Nothing in the raw row separates it from a scope-less Studio-created base,
+ * which really is writable — only the server's `engine.manifests` does, which is
+ * why the client cannot compute this and a "missing scope means read-only" rule
+ * would have flipped every Studio base read-only.
+ *
+ * Kernel packages (scope `system` / `cloud`) are hidden here whatever their
+ * verdict says: that filter is about visibility, not writability.
  */
 
 import { deriveNamespaceFromPackageId, validateObjectNamespacePrefix } from '@objectstack/spec/kernel';
 
 export interface PkgEntry {
   id: string;
+  /**
+   * The package's HUMAN name — what the Studio top bar shows the author.
+   *
+   * Falls back to the id, which is what the switcher renders when the producer
+   * declared no name at all. That fallback is the honest degradation; reading
+   * the name from only ONE of the two shapes this endpoint serves was not
+   * (objectui#7254) — see {@link parsePackages}.
+   */
   name: string;
   writable: boolean;
   /**
@@ -26,6 +50,32 @@ export interface PkgEntry {
   namespace: string | null;
 }
 
+/**
+ * `GET /api/v1/packages` merges TWO producers into one array, and they carry
+ * their fields in two different positions:
+ *
+ *  - the durable half (`PackageService.list()`, published artifacts) nests
+ *    everything under `manifest`;
+ *  - the registry half (`protocol.getMetaItems({ type: 'package' })`) hands
+ *    back the package METADATA DOCUMENT, whose fields are top-level.
+ *
+ * That is not an inference: the server's own list handler reads
+ * `item.manifest?.id || item.id` on BOTH halves, i.e. the producer declares
+ * both positions for the same field. This reader already matched it for `id`
+ * — and only for `id`. `name` was read as `manifest.name ?? id`, so every
+ * registry-shaped entry lost its human name and the Studio top bar showed the
+ * reverse-domain package id (`app.b2r4`) where the author expected the app's
+ * name (objectui#7254). Closing the asymmetry inside the one reader that
+ * already declares both positions — not a new tolerant dialect.
+ *
+ * `writable` reads only the TOP level, and that is not the same asymmetry: it
+ * is the server's own computed verdict (see the module doc), a field the
+ * manifest does not and should not carry.
+ *
+ * `scope` is deliberately left manifest-only: widening it would change which
+ * packages the switcher HIDES, which is a different question from what it
+ * NAMES and is not this card's.
+ */
 export function parsePackages(payload: unknown): PkgEntry[] {
   const root = (payload as { data?: unknown })?.data ?? payload;
   const raw = Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? []);
@@ -39,7 +89,15 @@ export function parsePackages(payload: unknown): PkgEntry[] {
     if (scope === 'system' || scope === 'cloud') continue; // kernel — not app packages
     const namespace =
       typeof m.namespace === 'string' && m.namespace ? m.namespace : deriveNamespaceFromPackageId(id);
-    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project', namespace });
+    // Server first, heuristic only when the key is absent (see the module doc).
+    // A non-boolean value is not a verdict, so it falls back too.
+    const writable = typeof p.writable === 'boolean' ? p.writable : scope !== 'project';
+    // Same two positions as `id` above, same order (objectui#7254). An empty
+    // string is not a name — it falls through to the id like an absent one.
+    const declaredName =
+      (typeof m.name === 'string' && m.name.trim() ? m.name : undefined) ??
+      (typeof p.name === 'string' && p.name.trim() ? p.name : undefined);
+    out.push({ id, name: declaredName ?? id, writable, namespace });
   }
   return out;
 }

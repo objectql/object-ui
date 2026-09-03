@@ -13,12 +13,18 @@ import type { AiUsageResponse, AiMeterUsage } from '../../hooks/useAiUsage';
 
 vi.mock('@object-ui/i18n', () => ({
   useObjectTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
+    // Interpolates `{{name}}` from the options object (mirrors real i18next
+    // closely enough for count-driven copy like `resetsWeeklyDays`) — a plain
+    // `String(options?.defaultValue ?? key)` would leave `{{count}}` literal.
+    t: (key: string, options?: Record<string, unknown>) =>
+      String(options?.defaultValue ?? key).replace(/\{\{(\w+)\}\}/g, (_m, name: string) =>
+        String(options?.[name] ?? ''),
+      ),
   }),
 }));
 const openMock = vi.fn();
 vi.mock('../../console/marketplace/marketplaceApi', () => ({
-  cloudPricingDeepLink: () => 'https://cloud.example/upgrade',
+  cloudConsoleUrl: () => 'https://cloud.example',
 }));
 vi.mock('../../hooks/useAiUsage', () => ({ useAiUsage: vi.fn() }));
 
@@ -90,6 +96,63 @@ describe('AiUsageIndicator', () => {
     fireEvent.click(screen.getByTestId('ai-usage-indicator'));
     const cta = screen.getByTestId('ai-usage-cta-build');
     fireEvent.click(cta);
-    expect(openMock).toHaveBeenCalledWith('https://cloud.example/upgrade', '_blank', 'noopener,noreferrer');
+    expect(openMock).toHaveBeenCalledWith('https://cloud.example', '_blank', 'noopener,noreferrer');
+  });
+
+  // objectui#7371 — the free plan's `resetKind: 'weekly'` (cloud PR #1852).
+  describe('resetKind: weekly', () => {
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+
+    it('shows "N days" when resetsAt is more than a day out', () => {
+      const resetsAt = new Date(Date.now() + 3 * ONE_DAY_MS).toISOString();
+      setUsage({
+        meters: {
+          build: meter({ resetKind: 'weekly', resetsAt }),
+          dataChat: meter({ fraction: null }),
+        },
+      });
+      render(<AiUsageIndicator apiBase="/api/v1/ai" />);
+      fireEvent.click(screen.getByTestId('ai-usage-indicator'));
+      expect(screen.getByText('Resets in 3 days')).toBeInTheDocument();
+    });
+
+    it('switches to hours when resetsAt is within a day (D5: never a token count)', () => {
+      const resetsAt = new Date(Date.now() + 5 * ONE_HOUR_MS).toISOString();
+      setUsage({
+        meters: {
+          build: meter({ resetKind: 'weekly', resetsAt }),
+          dataChat: meter({ fraction: null }),
+        },
+      });
+      render(<AiUsageIndicator apiBase="/api/v1/ai" />);
+      fireEvent.click(screen.getByTestId('ai-usage-indicator'));
+      expect(screen.getByText('Resets in 5 hours')).toBeInTheDocument();
+    });
+
+    it('shows no reset line when weekly has no resetsAt yet — contract-first, never guessed client-side', () => {
+      setUsage({
+        meters: {
+          build: meter({ resetKind: 'weekly', resetsAt: null }),
+          dataChat: meter({ fraction: null }),
+        },
+      });
+      render(<AiUsageIndicator apiBase="/api/v1/ai" />);
+      fireEvent.click(screen.getByTestId('ai-usage-indicator'));
+      expect(screen.queryByText(/Resets/)).not.toBeInTheDocument();
+    });
+
+    it('falls back to no reset line (not a crash or stale copy) on an unrecognized resetKind', () => {
+      setUsage({
+        meters: {
+          // Cast past the union: a future backend value this build doesn't know yet.
+          build: meter({ resetKind: 'quarterly' as unknown as AiMeterUsage['resetKind'] }),
+          dataChat: meter({ fraction: null }),
+        },
+      });
+      expect(() => render(<AiUsageIndicator apiBase="/api/v1/ai" />)).not.toThrow();
+      fireEvent.click(screen.getByTestId('ai-usage-indicator'));
+      expect(screen.queryByText(/Resets/)).not.toBeInTheDocument();
+    });
   });
 });

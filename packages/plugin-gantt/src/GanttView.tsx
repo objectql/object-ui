@@ -86,17 +86,89 @@ function columnWidthForContainer(width: number) {
   return 110;
 }
 
+/**
+ * Task-list geometry, in px. Every term below is traced to the markup that
+ * spends it, so the Start/End threshold is DERIVED rather than estimated.
+ */
+/** Row and header horizontal padding: `px-2 sm:px-4` — 16px a side from 640px up. */
+const TASK_LIST_ROW_PADDING_W = 32;
+/** The two date cells: `w-16 gantt-sm-w20` — 80px each from 640px up. */
+const START_END_COLUMNS_W = 160;
+/** The trailing `→` open-details slot: `w-6` (24px) plus its 4px `marginLeft`. */
+const OPEN_DETAILS_SLOT_W = 28;
+/**
+ * Fixed furniture inside the name cell, ahead of the title: the collapse
+ * spacer (`w-3` 12px, pulled back 4px), the `w-2` colour dot, and the two
+ * `gap-2` gaps → 8 + 8 + 8 + 8. (A summary row's `w-4` toggle costs 4 more.)
+ */
+const TITLE_FURNITURE_W = 32;
+/**
+ * Task-list pane floor — the narrowest a drag may leave the pane, and reused
+ * below as the least title width worth keeping the Start/End columns for.
+ */
+const TASK_LIST_MIN_W = 160;
+
+/**
+ * Task-list default width, sized from the CONTAINER instead of capped at a
+ * fixed 320px. Below 1024 the two stepped defaults are unchanged; from 1024 up
+ * the pane takes a share of the container, clamped:
+ *
+ * - floor 320 — the previous fixed default, so nothing gets narrower;
+ * - share 3/8 — 3/8 of 1440 is 540, which leaves the title 287px once the
+ *   row's fixed cost is paid (`START_END_COLUMNS_MIN_W` minus its title term).
+ *   A 40-character title measures 262px in the row's 14px `sm:text-sm` font
+ *   (measured in Chromium), so the top of the 25-to-40 character band is
+ *   legible at 1440 and wider WITH the Start/End columns still painted;
+ * - ceiling 560 — leaves the title 307px, still clearing 262px after one level
+ *   of the row's `depth * 14` indent. Past that, more pane width buys no
+ *   legibility and the timeline — the view's primary content — pays for it.
+ *   The ceiling binds from a 1494px container up.
+ *
+ * ⚠️ `depth * 14` is unbounded, so no single default keeps a DEEPLY nested row
+ * legible; that is a known limit of this sizing, not something a threshold can
+ * fix.
+ */
+const TASK_LIST_DEFAULT_SHARE = 0.375;
+const TASK_LIST_DEFAULT_MIN_W = 320;
+const TASK_LIST_DEFAULT_MAX_W = 560;
+
 function taskListWidthForContainer(width: number) {
   if (width < 640) return 140;
   if (width < 1024) return 220;
-  return 320;
+  return Math.round(
+    Math.min(
+      TASK_LIST_DEFAULT_MAX_W,
+      Math.max(TASK_LIST_DEFAULT_MIN_W, width * TASK_LIST_DEFAULT_SHARE)
+    )
+  );
 }
 
-// Show the Start/End sub-columns only when the task list is wide enough that
-// the title still has room. Below this threshold the title would collapse to
-// a few pixels (issue: bars rendered but names invisible).
+/**
+ * The pane width at which the Start/End sub-columns start paying for
+ * themselves: everything the row spends before the title, plus the least title
+ * worth leaving. 32 + 160 + 28 + 32 + 160 = 412.
+ */
+const START_END_COLUMNS_MIN_W =
+  TASK_LIST_ROW_PADDING_W +
+  START_END_COLUMNS_W +
+  OPEN_DETAILS_SLOT_W +
+  TITLE_FURNITURE_W +
+  TASK_LIST_MIN_W;
+
+/**
+ * The single predicate for a row's dates. It reads ONLY the container-derived
+ * task-list width, and the date sublabel under the title renders on exactly
+ * its complement — so a row always shows its dates one way or the other.
+ *
+ * Previously the columns were gated by this test AND a `sm:` viewport test
+ * while the sublabel was gated by a `(min-width: 640px)` media rule alone. Two
+ * gates on two different widths are not complements: between a 640px and a
+ * 1023px container both were shut and the row showed no dates at all, and the
+ * same hole opened at any width once the splitter was dragged under the
+ * threshold.
+ */
 function showStartEndColumns(taskListWidth: number) {
-  return taskListWidth >= 280;
+  return taskListWidth >= START_END_COLUMNS_MIN_W;
 }
 
 function rowHeightForContainer(width: number) {
@@ -905,7 +977,8 @@ export function GanttView({
   }, [isNarrow]);
   // Task-list pane width. A user drag (taskListWidthOverride) wins over the
   // auto-size, clamped so it can't collapse to nothing or swallow the timeline.
-  const TASK_LIST_MIN_W = 160;
+  // The floor is the module-level TASK_LIST_MIN_W, shared with the Start/End
+  // threshold so the two cannot drift apart.
   const taskListMaxW = Math.max(TASK_LIST_MIN_W, effectiveWidth - 200);
   const taskListWidth = taskListCollapsed
     ? 0
@@ -3271,7 +3344,6 @@ export function GanttView({
         @media (min-width: 640px) {
           .gantt-sm-h50 { height: 50px; }
           .gantt-sm-w20 { width: 80px; }
-          .gantt-sm-hidden { display: none; }
         }
         /* The timeline's NATIVE scrollbars are fully hidden — both axes are
            replaced by the self-drawn bars (horizontal at the bottom, vertical
@@ -3797,14 +3869,31 @@ export function GanttView({
                     />
                   ) : (
                     <span className="flex flex-col min-w-0">
-                      <span className={cn("truncate", row.isSummary && "font-semibold")}>{task.title}</span>
-                      <span className="text-[10px] text-muted-foreground gantt-sm-hidden">
-                        {row.start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })} → {row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
-                      </span>
+                      <span
+                        className={cn("truncate", row.isSummary && "font-semibold")}
+                        data-testid={`gantt-row-title-${task.id}`}
+                      >{task.title}</span>
+                      {/* The row's dates, on exactly the complement of the
+                          Start/End columns — same container-derived width, one
+                          predicate, so a row is never left with neither. */}
+                      {!showSEColumns && (
+                        <span
+                          className="text-[10px] text-muted-foreground"
+                          data-testid={`gantt-row-dates-${task.id}`}
+                        >
+                          {row.start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })} → {row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
-                <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
+                {/* Start/End, rendered on the same single predicate as the
+                    header's captions — and never on a viewport test, which is
+                    what let the columns and the date sublabel disagree about
+                    how wide the task list is. */}
+                {showSEColumns && (
+                  <>
+                <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground" data-testid={`gantt-row-start-${task.id}`}>
                   {isEditing ? (
                     <input
                       type="date"
@@ -3817,7 +3906,7 @@ export function GanttView({
                     row.start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
-                <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
+                <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground" data-testid={`gantt-row-end-${task.id}`}>
                   {isEditing ? (
                     <input
                       type="date"
@@ -3830,6 +3919,8 @@ export function GanttView({
                     row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
+                  </>
+                )}
                 {/* Open details `→`: opens the detail drawer / page — the row click
                     itself is reserved for Focus-locate, so detail needs its own
                     always-reachable affordance besides double-click. A dedicated

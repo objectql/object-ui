@@ -63,3 +63,60 @@ import { z } from 'zod';
 export function retirementTombstone(guidance: string) {
   return z.never({ error: guidance }).optional().describe(guidance);
 }
+
+/** How a handler key sits on the TypeScript face (objectui#6124, measured per key). */
+export type HandlerKeyDisposition =
+  /** A host-supplied function REACHES a renderer at runtime — the TS twin keeps its function type. */
+  | 'runtime-slot'
+  /** Nothing reads the key — the TS twin is a `?: never` tombstone. */
+  | 'retired';
+
+/**
+ * Declare a NAMED REFUSAL ARM for an `on*` handler key (objectui#6124,
+ * maintainer ruling 2026-08-30: Q2 → A with C).
+ *
+ * The mirrors declared 58 handler keys as `z.function()` — a declaration no
+ * JSON document can satisfy on a JSON-authored vocabulary. Deleting them was
+ * measured and refused: `BaseSchema` is `.passthrough()`, so an undeclared key
+ * is not refused, it is KEPT, and `onClick` rides `SDUI_DOM_PASS_THROUGH_KEYS`
+ * into the DOM listener slot where React throws at click. So the key stays
+ * DECLARED and refuses BY NAME, in the shape #5099 landed for
+ * `FieldConstraintsSchema.pattern.value` (`form.zod.ts`): a `z.custom`
+ * predicate whose message names the key, says why JSON cannot author it, and
+ * points at the spelling that runs — the node-type form PR #6498 established.
+ *
+ * The predicate refuses EVERYTHING, a live function included. The JSON face
+ * has no function value, and the programmatic face reaches renderers through
+ * the TypeScript interface and React props, never through `safeParse`; a
+ * function that parsed green here was only ever the instrument's positive
+ * control. That is the accept-set change objectui#6124's changeset declares.
+ *
+ * Same discipline as {@link retirementTombstone}: ONE string feeds BOTH
+ * author-facing channels — the parse-time issue message and the `.describe()`
+ * metadata — so they cannot drift apart. Deliberately NOT that helper: a
+ * tombstone retires a key from the contract on both faces and reports
+ * `invalid_type`; this arm reports `custom` (the #5099 code) and, for a
+ * `'runtime-slot'` key, the TypeScript twin stays callable. The two are pinned
+ * apart in `../__tests__/handler-keys-json-refusal-6124.test.ts`.
+ *
+ * @param key         the member name, spelled into the message so the issue is
+ *                    addressed even when read without its path
+ * @param disposition what the TypeScript twin does — see {@link HandlerKeyDisposition}
+ * @param label       the human label the site carried before (`'Click handler'`),
+ *                    kept as the message's lead so docs surfaces keep their noun
+ */
+export function handlerKeyRefusal(key: string, disposition: HandlerKeyDisposition, label?: string) {
+  const what =
+    disposition === 'runtime-slot'
+      ? `\`${key}\` is a RUNTIME SLOT for a host-supplied function, not authorable metadata ` +
+        '(objectui#6124): JSON has no function value, and no handler key consumes a declarative ' +
+        'action object. A React host supplies it through the TypeScript interface / props, never ' +
+        'through this validator, which refuses it by name.'
+      : `\`${key}\` is RETIRED (objectui#6124, ADR-0049): JSON has no function value, and no ` +
+        'renderer reads this key, so nothing could ever run it.';
+  const remedy =
+    'Author behaviour as a NODE TYPE instead — e.g. { "type": "toast", ... } or an action:button ' +
+    'node with a declared action, the spelling PR #6498 established.';
+  const guidance = `${label ? `${label} — ` : ''}${what} ${remedy}`;
+  return z.custom<never>(() => false, { error: guidance }).optional().describe(guidance);
+}

@@ -46,9 +46,14 @@ export interface AlertSchema extends BaseSchema {
    */
   dismissible?: boolean;
   /**
-   * Dismiss handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `alert` renderer spreads it onto the `<Alert>` element, which has no such
+   * event (React attaches nothing). The zod twin refuses it by name; author
+   * behaviour as a node type (`{ "type": "toast" }`, an `action:button` node)
+   * instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onDismiss?: () => void;
+  onDismiss?: never;
   /**
    * Child content
    */
@@ -190,9 +195,13 @@ export interface ListItem {
    */
   disabled?: boolean;
   /**
-   * Click handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `list` renderer renders each item as `<li>{content}</li>` and never reads
+   * it. The zod twin refuses it by name; author behaviour as a node type (`{
+   * "type": "toast" }`, an `action:button` node) instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onClick?: () => void;
+  onClick?: never;
   /**
    * Item content (schema nodes)
    */
@@ -883,10 +892,20 @@ export interface DataTableSchema extends BaseSchema {
   reorderableColumns?: boolean;
   /**
    * Row edit handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by `renderers/complex/data-table.tsx` (`schema.onRowEdit?.(row)`).
    */
   onRowEdit?: (row: any) => void;
   /**
    * Row delete handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by `renderers/complex/data-table.tsx` (`schema.onRowDelete?.(row)`).
    */
   onRowDelete?: (row: any) => void;
   /**
@@ -917,6 +936,12 @@ export interface DataTableSchema extends BaseSchema {
   onRowActionDef?: (action: DataTableRowAction, row: any) => void | Promise<void>;
   /**
    * Selection change handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by `renderers/complex/data-table.tsx`
+   * (`schema.onSelectionChange(selectedData)`).
    */
   onSelectionChange?: (selectedRows: any[]) => void;
   /**
@@ -928,6 +953,12 @@ export interface DataTableSchema extends BaseSchema {
   selectionResetKey?: string | number;
   /**
    * Columns reorder handler
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * called by `renderers/complex/data-table.tsx`
+   * (`schema.onColumnsReorder(newColumns)`).
    */
   onColumnsReorder?: (columns: TableColumn[]) => void;
   /**
@@ -1206,13 +1237,23 @@ export interface TreeViewSchema extends BaseSchema {
    */
   showLines?: boolean;
   /**
-   * Node select handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `tree-view` renderer spreads it onto a `<div>` that has no such event;
+   * nodes receive only `onNodeClick`. The zod twin refuses it by name; author
+   * behaviour as a node type (`{ "type": "toast" }`, an `action:button` node)
+   * instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onSelectChange?: (selectedIds: string[]) => void;
+  onSelectChange?: never;
   /**
-   * Node expand handler
+   * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
+   * `tree-view` renderer spreads it onto a `<div>` that has no such event;
+   * nodes receive only `onNodeClick`. The zod twin refuses it by name; author
+   * behaviour as a node type (`{ "type": "toast" }`, an `action:button` node)
+   * instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onExpandChange?: (expandedIds: string[]) => void;
+  onExpandChange?: never;
   /**
    * Node click handler — INVOKED, not merely read, so this is a call
    * signature and not a value shape.
@@ -1656,6 +1697,12 @@ export interface TimelineSchema extends BaseSchema {
    *   `{ label, items: [{ title, startDate, endDate, variant? }] }`
    *
    * `content/docs/plugins/plugin-timeline.mdx` carries both in full.
+   *
+   * The zod mirror (`./zod/data-display.zod.ts`, objectui#7164) declares what
+   * both shapes share and nothing more: every element is an OBJECT, and a gantt
+   * row's own `items`, when present, is an ARRAY. `validate` refuses a `null`
+   * element and a row whose `items` is a number, a string or a plain object —
+   * the inputs that used to crash the gantt renderer from ordinary JSON.
    */
   items?: any[];
   /**

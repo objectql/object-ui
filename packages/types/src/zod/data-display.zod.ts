@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-import { retirementTombstone } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
@@ -32,7 +32,7 @@ export const AlertSchema = BaseSchema.extend({
   variant: z.enum(['default', 'destructive']).optional().describe('Alert variant'),
   icon: z.string().optional().describe('Alert icon'),
   dismissible: z.boolean().optional().describe('Whether alert can be dismissed'),
-  onDismiss: z.function().optional().describe('Dismiss handler'),
+  onDismiss: handlerKeyRefusal('onDismiss', 'retired', 'Dismiss handler'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -81,7 +81,7 @@ export const ListItemSchema = z.object({
   icon: z.string().optional().describe('Item icon'),
   avatar: z.string().optional().describe('Item avatar URL'),
   disabled: z.boolean().optional().describe('Whether item is disabled'),
-  onClick: z.function().optional().describe('Click handler'),
+  onClick: handlerKeyRefusal('onClick', 'retired', 'Click handler'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Custom content'),
 });
 
@@ -254,8 +254,8 @@ export const DataTableSchema = BaseSchema.extend({
   rowActions: z.array(z.any()).optional().describe('Row action buttons'),
   resizableColumns: z.boolean().optional().describe('Allow column resizing'),
   reorderableColumns: z.boolean().optional().describe('Allow column reordering'),
-  onRowEdit: z.function().optional().describe('Row edit handler'),
-  onRowDelete: z.function().optional().describe('Row delete handler'),
+  onRowEdit: handlerKeyRefusal('onRowEdit', 'runtime-slot', 'Row edit handler'),
+  onRowDelete: handlerKeyRefusal('onRowDelete', 'runtime-slot', 'Row delete handler'),
   rowEditPredicates: z.object({
     visibleWhen: z.unknown().optional(),
     disabledWhen: z.unknown().optional(),
@@ -264,8 +264,8 @@ export const DataTableSchema = BaseSchema.extend({
     visibleWhen: z.unknown().optional(),
     disabledWhen: z.unknown().optional(),
   }).optional().describe('Per-record CEL predicates for the built-in row Delete item (objectui#2614)'),
-  onSelectionChange: z.function().optional().describe('Selection change handler'),
-  onColumnsReorder: z.function().optional().describe('Column reorder handler'),
+  onSelectionChange: handlerKeyRefusal('onSelectionChange', 'runtime-slot', 'Selection change handler'),
+  onColumnsReorder: handlerKeyRefusal('onColumnsReorder', 'runtime-slot', 'Column reorder handler'),
   cellClassName: z.string().optional().describe('Extra classes folded into the utility body cells only — the selection, row-number and row-actions cells; data cells fold the per-column `cellClassName` instead, so row density has to be set on both (objectui#6882)'),
   renderCellEditor: z.function().optional().describe('Host-supplied inline cell editor; returning null falls through to the built-in text/number/date inputs (objectui#6882). Its context carries `row` (the persisted record) and `pendingRow` (that record with the row\'s staged, unsaved edits merged over it — objectui#7188); `z.function()` encodes no parameter shape, so the member on `DataTableSchema` is the authority for it'),
   frozenColumns: z.number().optional().describe('Number of frozen columns'),
@@ -315,8 +315,8 @@ export const TreeViewSchema = BaseSchema.extend({
   selectedIds: z.array(z.string()).optional().describe('Controlled selected node IDs'),
   multiSelect: z.boolean().optional().describe('Allow multiple selection'),
   showLines: z.boolean().optional().describe('Show connecting lines'),
-  onSelectChange: z.function().optional().describe('Selection change handler'),
-  onExpandChange: z.function().optional().describe('Expand change handler'),
+  onSelectChange: handlerKeyRefusal('onSelectChange', 'retired', 'Selection change handler'),
+  onExpandChange: handlerKeyRefusal('onExpandChange', 'retired', 'Expand change handler'),
 });
 
 /**
@@ -416,6 +416,47 @@ export const TimelineEventSchema = z.object({
 const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', 'year']);
 
 /**
+ * One element of `TimelineSchema.items` — a feed item, or a gantt ROW when
+ * `variant` is `gantt` (objectui#7164, maintainer ruling 2026-09-02 A+).
+ *
+ * ## What this refuses, and why it is declared at all
+ *
+ * The mirror used to declare `items: z.array(z.any())`, which accepted a `null`
+ * element and any element value. `TimelineRenderer`'s gantt branch then read
+ * `row.items` bare, so `items: [null]` and `items: [{ items: 5 }]` — ordinary
+ * JSON, green through `validate` — crashed the render with a `TypeError`. The
+ * ruling put a door at both ends: the renderer refuses those shapes through
+ * `timeline.gantt.unusableRange.malformedRow`, and this schema refuses them
+ * HERE, before a renderer is ever reached:
+ *
+ *   - an element that is not an object — `null`, a number, a string, an array —
+ *     is refused (`z.object` refuses every one of those);
+ *   - `items` on a row, when present, has to be an array. `.optional()` is
+ *     deliberate: a row with no bars yet is the same ordinary empty state
+ *     objectui#6750 ruled for `items: []`, and the renderer draws it.
+ *
+ * Nothing else is narrowed. The two element shapes (`{ time, title, … }` for a
+ * feed, `{ label, items: [{ title, startDate, endDate }] }` for a gantt row) are
+ * discriminated by `variant` and read dynamically by the renderer, so the
+ * element stays `.passthrough()` and the bars stay `z.any()` — a feed item
+ * carries no `items` key and parses green here unchanged. Measured before the
+ * narrowing: every in-repo `type: 'timeline'` fixture (the three schema-catalog
+ * documents, the docs page's examples, `examples/data-display-examples.json`)
+ * parses green on both sides of it.
+ *
+ * Deliberately NOT exported, for the reason `TimelineScaleSchema` above gives:
+ * every exported const here has to be registered in `zod-mirror-parity.test.ts`,
+ * and the TS twin declares no separate row interface to pair it with — its
+ * `items?: any[]` docblock carries both shapes in prose. Pinned by
+ * `../__tests__/timeline-items-row-shape-7164.test.ts`.
+ */
+const TimelineRowSchema = z
+  .object({
+    items: z.array(z.any()).optional().describe('A gantt row\'s bars — an array when present'),
+  })
+  .passthrough();
+
+/**
  * Timeline Schema - Timeline component
  *
  * Mirrors `TimelineSchema` in `../data-display.ts`, which objectui#6170 aligned
@@ -437,7 +478,7 @@ const TimelineScaleSchema = z.enum(['hour', 'day', 'week', 'month', 'quarter', '
 export const TimelineSchema = BaseSchema.extend({
   type: z.literal('timeline'),
   variant: z.enum(['vertical', 'horizontal', 'gantt']).optional().describe('Layout variant'),
-  items: z.array(z.any()).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt'),
+  items: z.array(TimelineRowSchema).optional().describe('Rows to draw — feed items, or gantt rows when variant is gantt; every element an object, and a gantt row\'s own `items` an array when present'),
   dateFormat: z.enum(['short', 'long', 'iso']).optional().describe('How item dates are rendered'),
   scale: TimelineScaleSchema.optional().describe('Gantt axis bucket size (canonical spelling — the spec key)'),
   // RETIRED (objectui#6355, ruling 2026-08-27): the pre-spec alias for `scale`.

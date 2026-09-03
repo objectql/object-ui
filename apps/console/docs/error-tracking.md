@@ -51,6 +51,7 @@ That single variable enables reporting. The rest are optional and inert without 
 
 …or, from a host that composes the plugin directly:
 
+<!-- doc-snippet: fragment — `RuntimeConfigPlugin` is the host runtime's own class, shipped by `@objectstack/cloud-connection` or `@objectstack/objectos-runtime`; neither is a dependency of any package in this workspace, so the specifier does not resolve here -->
 ```ts
 new RuntimeConfigPlugin({
   clientErrorReporting: { dsn: 'https://PUBLIC_KEY@HOST/PROJECT_ID', sendDefaultPii: true },
@@ -142,6 +143,7 @@ first paint (and on that path no sink arrived, so the failure direction is silen
 Use the built-in helpers from `@object-ui/app-shell` — they route through the same gate
 and no-op when it withheld, so they cannot become a second ungated path:
 
+<!-- doc-snippet: fragment — the two calls a host makes; `err` and `user` are the caller's own values, supplied by the surrounding catch block and the signed-in session -->
 ```ts
 import { captureError, setSentryUser } from '@object-ui/app-shell';
 

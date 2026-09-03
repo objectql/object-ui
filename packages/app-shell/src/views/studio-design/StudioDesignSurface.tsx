@@ -101,12 +101,13 @@ import { usePendingDrafts } from '../../preview/usePendingDrafts.js';
 import { emitMetadataRefresh, subscribeMetadataRefresh } from '../../assistant/assistantBus.js';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError.js';
 import { loadPackageSurfaces } from './packageSurfaces.js';
+import { useMetadataRefreshNonce } from './useMetadataRefreshNonce.js';
 import { resolveSurface, findSurfaceInTree, type NavNode, type Surface } from './navSurface.js';
 import { useSurfaceDeepLink, resolveSurfaceDeepLink, type SurfaceTarget } from './useSurfaceDeepLink.js';
 import { SurfaceDeepLinkProvider, useRequestedSurface } from './surfaceDeepLinkChannel.js';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons.js';
 import { OWD_CREATE_MODELS, OWD_DEFAULT, type OwdCreateModel } from './owd-sharing.js';
-import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { t, tFormat, translateMetadataType, useMetadataLocale } from '../metadata-admin/i18n.js';
 import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel.js';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas.js';
 import {
@@ -973,6 +974,7 @@ function NavTree({
   /** object name → its metadata icon, so object nav items show their own glyph. */
   objectIcons?: Record<string, string | undefined>;
 }): React.ReactElement {
+  const locale = useMetadataLocale();
   return (
     <>
       {nodes.map((node, i) => {
@@ -1007,10 +1009,17 @@ function NavTree({
             }
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 truncate">{node.label}</span>
+            {/* objectui#7254 — a nav item with no declared label used to render
+                an EMPTY row; the internal name is a poor label but an honest
+                one, and it beats a blank the author cannot click by name. */}
+            <span className="flex-1 truncate">{node.label || surface?.name}</span>
             {surface && surface.type !== 'page' && (
-              <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">
-                {surface.type}
+              // The kind chip was the raw English metadata type in an otherwise
+              // localized rail. `uppercase` is dropped with it: it is a
+              // Latin-script affordance that does nothing for CJK and mangles
+              // nothing else only by luck.
+              <span className="text-[9px] tracking-wide text-muted-foreground/60">
+                {translateMetadataType(surface.type, locale)}
               </span>
             )}
           </button>
@@ -1243,6 +1252,14 @@ export function InterfacesPillar({
   );
   const [navHasDraft, setNavHasDraft] = React.useState(false);
   const [navSaving, setNavSaving] = React.useState<false | 'draft' | 'publish'>(false);
+  // objectui#7255 — the copilot dock shares this document, so a turn that
+  // staged/published metadata converges the rail here instead of waiting for a
+  // page reload. HELD while the nav editor has unsaved (or in-flight) edits:
+  // this pillar's load rehydrates `appDraft`, which IS the nav edit buffer, so
+  // an unheld pulse would overwrite the author mid-drag. The hold defers, it
+  // does not drop — autosave clears `navDirty` within a beat and the pulse
+  // lands then.
+  const metadataRefreshNonce = useMetadataRefreshNonce(navDirty || !!navSaving);
   const [current, setCurrent] = React.useState<Surface | null>(null);
   // `?surface=` capture + mirror — shared plumbing (see useSurfaceDeepLink).
   const initialSurface = useSurfaceDeepLink(current);
@@ -1349,16 +1366,26 @@ export function InterfacesPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId, publishNonce, draftNonce]);
+  }, [client, packageId, publishNonce, draftNonce, metadataRefreshNonce]);
 
   // Resolve THIS package's App → load its navigation tree. The query is scoped
   // to the package (`list('app', { packageId })`) so a design surface only ever
   // shows the current package's app — never another package's. `list()` sees
   // published metadata only, so a freshly-created (unpublished) app is found via
   // `listDrafts()` instead, keeping it designable before its first publish.
+  //
+  // objectui#7255 — which package we are resolving, so a RE-read of the same
+  // package (a publish, a draft save, a copilot pulse) refreshes in place while
+  // a genuine package switch still shows the loading state. Without this the
+  // status flapped `ready → loading → ready` on every pulse and the nav
+  // toolbar (gated on `ready`) blinked once per copilot turn: rebuilding UI for
+  // a data refresh, which is exactly what AGENTS.md Commandment #8 forbids.
+  const appIdentityRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     let cancelled = false;
-    setAppStatus('loading');
+    const isSameApp = appIdentityRef.current === packageId;
+    appIdentityRef.current = packageId;
+    if (!isSameApp) setAppStatus('loading');
     (async () => {
       try {
         const published = (await client.list('app', { packageId })) as Array<Record<string, unknown>>;
@@ -1425,7 +1452,7 @@ export function InterfacesPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId, publishNonce, draftNonce]);
+  }, [client, packageId, publishNonce, draftNonce, metadataRefreshNonce]);
 
   const Preview = getMetadataPreview(current?.type ?? '');
   // Studio-canvas surface override: the SAME type can render as a different
@@ -1649,9 +1676,20 @@ export function InterfacesPillar({
           </button>
         </div>
         )}
+        {/* objectui#7254 — the canvas caption names WHAT you are editing, in
+            the author's own vocabulary: the item's metadata label plus its
+            translated KIND ("客户仪表盘 · 仪表板"). The internal `type · name`
+            pair it used to print verbatim is developer identity and moves to
+            the tooltip, which the ruling keeps as its allowed home. With no
+            label declared the internal name is still shown — a blank caption
+            would be worse, and the gap is the producer's to close. */}
         {current && (
-          <span className="text-[11px] text-muted-foreground">
-            {current.type} · {current.name}
+          <span
+            className="text-[11px] text-muted-foreground"
+            title={`${t('engine.studio.if.internalId', locale)}: ${current.type} · ${current.name}`}
+            data-testid="if-canvas-caption"
+          >
+            {current.label || current.name} · {translateMetadataType(current.type, locale)}
           </span>
         )}
       </div>
@@ -1940,11 +1978,21 @@ export function InterfacesPillar({
         >
           <Menu className="h-4 w-4" />
         </button>
+        {/* objectui#7254 — the breadcrumb's chip carried the raw
+            `dashboard · customer_dashboard` beside a Chinese label, so the same
+            strip spoke two vocabularies at once. The chip now carries the
+            translated KIND; the internal identity is on the tooltip. */}
         {current ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="text-[13px] font-medium text-foreground">{current.label}</span>
+          <span
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+            title={`${t('engine.studio.if.internalId', locale)}: ${current.type} · ${current.name}`}
+            data-testid="if-breadcrumb"
+          >
+            <span className="text-[13px] font-medium text-foreground">
+              {current.label || current.name}
+            </span>
             <span className="rounded bg-muted px-1.5 py-0.5">
-              {current.type} · {current.name}
+              {translateMetadataType(current.type, locale)}
             </span>
           </span>
         ) : (
@@ -2279,6 +2327,11 @@ export function DataPillar({
   const [railOpen, setRailOpen] = React.useState(false);
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [objectsLoaded, setObjectsLoaded] = React.useState(false);
+  // objectui#7255 — the copilot dock shares this document; a turn that staged
+  // or published metadata re-reads this rail in place. No hold is needed: the
+  // rail load only replaces the LIST (the per-object edit buffer is loaded by
+  // its own `loadedNameRef`-guarded effect and is never touched here).
+  const metadataRefreshNonce = useMetadataRefreshNonce();
   const [current, setCurrent] = React.useState<Surface | null>(null);
   // `?surface=object:<name>` capture + mirror — the app→Studio bridge
   // (ADR-0080, `appStudioObjectPath`) lands here with a specific object;
@@ -2447,7 +2500,7 @@ export function DataPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId, readOnly]);
+  }, [client, packageId, readOnly, metadataRefreshNonce]);
 
   React.useEffect(() => {
     if (!current) return;
@@ -3377,6 +3430,9 @@ export function AutomationsPillar({
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = React.useState(false);
   const [flows, setFlows] = React.useState<Surface[]>([]);
+  // objectui#7255 — same live-pulse subscription as the sibling rails; this
+  // one only replaces the flow LIST, so it needs no edit-buffer hold either.
+  const metadataRefreshNonce = useMetadataRefreshNonce();
   const [current, setCurrent] = React.useState<Surface | null>(null);
   // `?surface=flow:<name>` capture + mirror — shared plumbing (see
   // useSurfaceDeepLink). No producer emits this link yet; honoring it keeps
@@ -3459,7 +3515,7 @@ export function AutomationsPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId, publishNonce]);
+  }, [client, packageId, publishNonce, metadataRefreshNonce]);
 
   const doCreateFlow = React.useCallback(
     async (label: string, name: string) => {
@@ -3824,6 +3880,9 @@ export function AccessPillar({
   // See DataPillar's rail — same mobile-overlay treatment for the permission-set list.
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = React.useState(false);
+  // objectui#7255 — same live-pulse subscription as the sibling rails; this
+  // one only replaces the permission-set LIST, so no edit-buffer hold.
+  const metadataRefreshNonce = useMetadataRefreshNonce();
   const [perms, setPerms] = React.useState<
     Array<{ name: string; label: string; isDefault?: boolean }>
   >([]);
@@ -3946,8 +4005,9 @@ export function AccessPillar({
   React.useEffect(() => {
     void load();
     // Re-read after a package publish so drafts that went live collapse into
-    // the published rail (ADR-0086 P2).
-  }, [load, publishNonce]);
+    // the published rail (ADR-0086 P2), and on the live-metadata pulse so a
+    // copilot turn's permission set appears without a page reload (#7255).
+  }, [load, publishNonce, metadataRefreshNonce]);
 
   const doCreate = React.useCallback(
     async (label: string, name: string) => {

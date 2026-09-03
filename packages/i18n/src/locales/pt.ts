@@ -691,6 +691,8 @@ const pt = {
       unusableRange: {
         malformedDate:
           "Intervalo de datas do gantt inutilizável: {{path}} é {{value}}, que não é uma data válida. Todas as datas do gantt têm de ser analisáveis: startDate e endDate de cada item de linha, além de qualquer minDate / maxDate fixado no esquema.",
+        malformedRow:
+          "Linhas do gantt inutilizáveis: {{path}} é {{value}}, que não tem a forma de uma linha. Um gantt lê items como uma lista de linhas, cada linha como um objeto com label e os seus próprios items, e os items de cada linha como uma lista de barras; um null, um número, uma cadeia ou um objeto simples em qualquer dessas posições não pode ser desenhado.",
         inverted:
           "Intervalo de datas do gantt inutilizável: minDate {{minDate}} é posterior a maxDate {{maxDate}}. Um minDate / maxDate fixado prevalece sobre o intervalo calculado a partir das linhas, pelo que este eixo não tem colunas e nenhuma barra pode ser colocada; troque os dois valores.",
       },
@@ -1489,6 +1491,12 @@ const pt = {
         statusFull: "Limite atingido",
         resetsDaily: "Redefine hoje à noite",
         resetsMonthly: "Redefine no próximo ciclo",
+        resetsWeeklyDays: "Redefine em {{count}} dias",
+        resetsWeeklyDays_one: "Redefine em {{count}} dia",
+        resetsWeeklyDays_other: "Redefine em {{count}} dias",
+        resetsWeeklyHours: "Redefine em {{count}} horas",
+        resetsWeeklyHours_one: "Redefine em {{count}} hora",
+        resetsWeeklyHours_other: "Redefine em {{count}} horas",
         ctaUpgrade: "Faça upgrade para continuar",
         ctaTopUp: "Adicione créditos para continuar",
         ariaLabel: "Uso de IA: {{status}}",
@@ -2788,6 +2796,46 @@ const pt = {
     openProduction: "Abrir produção",
     manageEnvironments: "Gerenciar ambientes",
   },
+  aiApprovals: {
+    title: "Aprovações de IA",
+    description: "Ações propostas por um agente de IA que precisam de revisão humana antes da execução.",
+    tabPending: "Pendentes",
+    tabDecided: "Decididas",
+    tabAll: "Todas",
+    statusPending: "Pendente",
+    statusApproved: "Aprovada",
+    statusExecuted: "Executada",
+    statusFailed: "Falhou",
+    statusRejected: "Rejeitada",
+    colTool: "Ferramenta",
+    colAction: "Ação",
+    colObject: "Objeto",
+    colStatus: "Status",
+    colProposed: "Proposta",
+    colDecision: "Decisão",
+    emptyTitle: "Nenhuma ação aguardando",
+    emptyDescription: "Quando a IA propuser uma ação sensível, ela aparecerá aqui para revisão.",
+    view: "Ver",
+    approve: "Aprovar",
+    reject: "Rejeitar",
+    working: "Processando…",
+    approveAndExecute: "Aprovar e executar",
+    outcomeApprove: "Aprovação de {{id}}: {{message}}",
+    outcomeReject: "Rejeição de {{id}}: {{message}}",
+    outcomeExecuteFailed: "A ação falhou durante a execução",
+    drawerFallbackTitle: "Ação pendente",
+    drawerSubtitle: "Ferramenta {{tool}} em {{object}}",
+    fieldProposedBy: "Proposta por",
+    fieldDecidedBy: "Decidida por",
+    fieldConversation: "Conversa",
+    fieldToolInput: "Entrada da ferramenta",
+    fieldResult: "Resultado",
+    fieldError: "Erro",
+    fieldRejectionReason: "Motivo da rejeição",
+    rejectTitle: "Rejeitar esta ação?",
+    rejectBody: "O motivo é devolvido à IA para que ela ajuste a próxima resposta.",
+    rejectPlaceholder: "Motivo opcional (ex.: «ID de registro incorreto — confirme antes com a pessoa usuária.»)",
+  },
   aiModelStatus: {
     summary: "Criar / Perguntar usa {{conversational}} ({{conversationalSource}}); estruturado usa {{structured}} ({{structuredSource}}).",
     summaryRouting: "Política de roteamento: planos gratuitos → {{free}}, planos pagos → {{paid}}.",
@@ -2804,6 +2852,80 @@ const pt = {
     sourceCodeDefault: "padrão do código (sem substituição env)",
     sourceInherits: "igual a build/ask",
     sourcePinned: "fixado por {{source}}",
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "Resumir dados",
+      get_record: "Obter registro",
+      query_data: "Consultar dados",
+      query_records: "Consultar registros",
+      search_knowledge: "Pesquisar na base de conhecimento",
+      visualize_data: "Criar gráfico",
+      add_field: "Adicionar campo",
+      apply_blueprint: "Construir o aplicativo",
+      apply_edit: "Aplicar alterações",
+      create_metadata: "Criar metadados",
+      create_object: "Criar objeto",
+      create_package: "Criar pacote",
+      create_seed: "Gerar dados de exemplo",
+      delete_field: "Excluir campo",
+      describe_metadata: "Consultar metadados",
+      describe_object: "Consultar a estrutura do objeto",
+      get_active_package: "Obter o pacote ativo",
+      get_metadata_schema: "Obter o esquema de metadados",
+      get_package: "Obter pacote",
+      list_metadata: "Listar metadados",
+      list_objects: "Listar objetos",
+      list_packages: "Listar pacotes",
+      modify_field: "Modificar campo",
+      propose_blueprint: "Projetar o plano do aplicativo",
+      set_active_package: "Trocar o pacote ativo",
+      suggest_builder: "Sugerir como construir",
+      todo_write: "Anotar tarefas",
+      update_metadata: "Atualizar metadados",
+      validate_expression: "Validar expressão",
+      verify_build: "Verificar a construção",
+    },
+    toolState: {
+      agentActivity: "Atividade do agente",
+      pending: "Pendente",
+      running: "Em execução",
+      awaitingApproval: "Aguardando aprovação",
+      responded: "Respondido",
+      completed: "Concluído",
+      error: "Erro",
+      denied: "Negado",
+      failed: "Falhou",
+    },
+    plan: {
+      countObjects: "{{count}} objetos",
+      countObjects_one: "{{count}} objeto",
+      countViews: "{{count}} visões",
+      countViews_one: "{{count}} visão",
+      countDashboards: "{{count}} painéis",
+      countDashboards_one: "{{count}} painel",
+      countSeedData: "dados de exemplo",
+    },
   },
   chatbotError: {
     title: "Falha na resposta",

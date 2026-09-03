@@ -36,6 +36,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { arrayElementSchema } from '@object-ui/test-support';
 import { validateMetadataDraft, hasClientValidator } from './clientValidation';
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -342,23 +343,23 @@ describe('binding parity — the wired schema is the one the platform binds', ()
   const isStrict = (s: unknown): boolean =>
     (s as ZodInternals)?._zod?.def?.catchall?._zod?.def?.type === 'never';
 
-  /** Unwrap optional/default/lazy wrappers down to the schema that carries a shape. */
-  const unwrap = (s: unknown, depth = 0): unknown => {
-    const def = (s as { _zod?: { def?: Record<string, unknown> } })?._zod?.def;
-    if (!def || depth > 6) return s;
-    const kind = def.type as string | undefined;
-    if (kind && ['optional', 'nullable', 'default', 'readonly', 'lazy'].includes(kind)) {
-      const inner = def.innerType ?? (typeof def.getter === 'function' ? def.getter() : undefined);
-      return unwrap(inner, depth + 1);
-    }
-    return s;
-  };
-
-  /** The element schema of an `z.array(X)` collection on the stack schema. */
-  const arrayElement = (s: unknown): unknown => {
-    const outer = unwrap(s) as { _zod?: { def?: { type?: string; element?: unknown } } };
-    return outer?._zod?.def?.type === 'array' ? unwrap(outer._zod.def.element) : undefined;
-  };
+  /**
+   * The element schema of a `z.array(X)` collection on the stack schema —
+   * `@object-ui/test-support`'s reader, not a fourth local copy of the walk
+   * (objectui#5872 class (2)). This file carried the strictest of the three
+   * censused spellings, and the strictness is what the shared reader adopted:
+   * `undefined` for a node that is not an array, so the
+   * `expect(element, '… must be an array collection').toBeDefined()` assertions
+   * below stay discriminating instead of passing for every input.
+   *
+   * The one limb NOT carried over is this copy's second unwrap of the element
+   * itself. Measured on the installed pin: of the 35 array members of
+   * `ObjectStackSchema`, ZERO have a wrapped element, so the limb never fired;
+   * and it cannot be added safely, because `zod@4.4.3` puts `unwrap()` on
+   * `ZodArray` itself, so "unwrap the element too" would descend into an
+   * array-of-arrays and answer with the wrong entry shape. A wrapped element
+   * now fails loudly at the `shapeKeys` comparison instead.
+   */
 
   it('translation → the schema the kernel metadata-type registry binds', async () => {
     const { getMetadataTypeSchema } = await import('@objectstack/spec/kernel');
@@ -375,7 +376,7 @@ describe('binding parity — the wired schema is the one the platform binds', ()
   it('sharing_rule → the schema `ObjectStackSchema.sharingRules` binds', async () => {
     const { ObjectStackSchema } = await import('@objectstack/spec');
     const { SharingRuleSchema } = await import('@objectstack/spec/security');
-    const element = arrayElement(ObjectStackSchema.shape.sharingRules);
+    const element = arrayElementSchema(ObjectStackSchema.shape.sharingRules);
     expect(element, 'sharingRules must be an array collection').toBeDefined();
     expect(shapeKeys(element)).toEqual(shapeKeys(SharingRuleSchema));
     expect(isStrict(element)).toBe(isStrict(SharingRuleSchema));
@@ -389,7 +390,7 @@ describe('binding parity — the wired schema is the one the platform binds', ()
     const { DeclarativeConnectorEntrySchema, ConnectorSchema } = await import(
       '@objectstack/spec/integration'
     );
-    const element = arrayElement(ObjectStackSchema.shape.connectors);
+    const element = arrayElementSchema(ObjectStackSchema.shape.connectors);
     expect(element, 'connectors must be an array collection').toBeDefined();
     expect(shapeKeys(element)).toEqual(shapeKeys(DeclarativeConnectorEntrySchema));
 

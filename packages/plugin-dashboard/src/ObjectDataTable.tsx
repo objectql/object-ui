@@ -14,10 +14,11 @@ import {
   columnIdentity,
   columnHeader,
 } from '@object-ui/core';
-import type { DrillDownConfig, TableColumn } from '@object-ui/types';
+import type { ObjectDataTableSchema, TableColumn } from '@object-ui/types';
 import { normalizeTableColumnType } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization, useDisplayLocale } from '@object-ui/i18n';
+import { usePermissions } from '@object-ui/permissions';
 import { resolveFilterPlaceholders, humanizeFieldKey } from './utils';
 import type { FieldMeta } from './recordFields';
 import {
@@ -33,19 +34,14 @@ import { RecordDetailDrawer } from './RecordDetailDrawer';
 import { WidgetEmptyState } from './WidgetEmptyState';
 
 export interface ObjectDataTableProps {
-  schema: {
-    type: string;
-    objectName?: string;
-    dataProvider?: { provider: string; object?: string };
-    bind?: string;
-    filter?: any;
-    data?: any[];
-    columns?: any[];
-    searchable?: boolean;
-    pagination?: boolean;
-    className?: string;
-    [key: string]: any;
-  };
+  /**
+   * The `object-data-table` node — anchored to the exported schema type
+   * (objectui#6576 / #6914). The hand-rolled literal that stood here carried
+   * its own string index signature and had drifted: `drillDown` and
+   * `onRowClick` were read behind casts and declared nowhere. Both are declared
+   * on the schema type now; `bind` / `className` are inherited from `BaseSchema`.
+   */
+  schema: ObjectDataTableSchema;
   dataSource?: any;
   className?: string;
 }
@@ -644,7 +640,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // record in a detail drawer (the row already IS a record, so there is no
   // filter to derive). Opt-in via `schema.drillDown` — DashboardRenderer
   // defaults object-backed table/list widgets to `{ enabled: true }`.
-  const drillDown = schema.drillDown as DrillDownConfig | undefined;
+  const drillDown = schema.drillDown;
   const recordDrillEnabled = isDrillEnabled(drillDown) && (drillDown?.mode ?? 'record') === 'record';
   const [drillRecord, setDrillRecord] = useState<Record<string, any> | null>(null);
   const handleRowClick = useCallback((row: Record<string, any>) => {
@@ -655,6 +651,11 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // filter. Read at component level — the fetch below is async, and hooks
   // cannot be called from inside it.
   const filterScope = useFilterScope();
+
+  // Permissions context, read at component level: an effect's DEPENDENCY ARRAY
+  // is evaluated during render, so `perms` has to be a binding that already
+  // exists by the time render reaches the fetch effect below (objectui#7230).
+  const perms = usePermissions();
 
   useEffect(() => {
     let isMounted = true;
@@ -677,7 +678,39 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
           // If we know the schema, ask the server to expand lookup columns so
           // cells can render the related record's display name instead of a
           // bare FK id. Adapters that don't understand `$expand` ignore it.
-          const expand = computeLookupExpand(schema, objectSchema);
+          //
+          // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand`, the gate
+          // objectui#7215 / PR #7229 put on the two projection sites in its
+          // scope. This widget does not call `buildExpandFields` — it builds
+          // its own whitelist in `computeLookupExpand` — but that helper has
+          // the same two-arm shape and therefore the same two exposures: the
+          // explicit-`columns` arm expanded a denied relation the author named,
+          // and the auto-derive arm (`cols.length > 0` false — the drill-down
+          // drawer, and any widget naming no columns) expands EVERY lookup-type
+          // field the object schema declares, denied ones included.
+          //
+          // ⭐ THE GATE IS ON THE OUTPUT, for the same structural reason it is
+          // everywhere else in this family: `computeLookupExpand` resolves both
+          // arms through `fieldsByName` — the object schema's own field map —
+          // so every name it returns is DECLARED by construction, and the
+          // "`checkField` answers false for an undeclared key" trap cannot be
+          // reached. Gating the INPUT would be unsound here too: `cols.length >
+          // 0` reads an emptied column list as "no restriction" and widens to
+          // every relation. Pinned in
+          // `__tests__/ObjectDataTable.expandFls-7230.test.tsx`.
+          //
+          // Graded as objectui#7215 graded it: defence-in-depth against
+          // ObjectStack's own server (`FieldMasker.maskRecord` deletes the very
+          // key objectql writes the expansion back under; the sub-read takes
+          // the referenced object's full CRUD + RLS + FLS, objectstack#7626),
+          // and load-bearing for a backend that does not strip.
+          //
+          // An unanswered policy filters nothing; `perms` is in this effect's
+          // dependency list, so the expansion is rebuilt when the answer lands.
+          const expandable = computeLookupExpand(schema, objectSchema);
+          const expand = !perms?.isLoaded
+            ? expandable
+            : expandable.filter((f) => perms.checkField(schema.objectName!, f, 'read'));
           const params: any = { $filter: resolveFilterPlaceholders(schema.filter, filterScope) };
           if (expand.length) params.$expand = expand;
           const results = await dataSource.find(schema.objectName, params);
@@ -708,7 +741,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     }
 
     return () => { isMounted = false; };
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, objectSchema, filterScope]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, objectSchema, filterScope, perms]);
 
   // Fetch object schema for column-header translation and select-option cell labels.
   useEffect(() => {
@@ -970,7 +1003,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     type: 'data-table',
     data: finalData,
     columns: derivedColumns,
-    onRowClick: (schema as any).onRowClick ?? (recordDrillEnabled ? handleRowClick : undefined),
+    onRowClick: schema.onRowClick ?? (recordDrillEnabled ? handleRowClick : undefined),
   };
 
   // A `${event.*}` template (filter-mode title) is meaningless for a single

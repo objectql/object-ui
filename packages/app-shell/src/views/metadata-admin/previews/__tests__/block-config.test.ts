@@ -7,9 +7,11 @@ import {
   RecordDetailsProps,
 } from '@objectstack/spec/ui';
 import {
+  arrayElementSchema,
   enumOptions,
   isShapeKeyTombstoned,
   listedShapeKeys,
+  resolvePropsShape,
   shapeMemberTypeName,
 } from '@object-ui/test-support';
 import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
@@ -81,21 +83,20 @@ describe('block-config', () => {
  * time the spec grows a section key the inspector never learns to author.
  */
 describe('record:details sections ↔ spec section-entry coverage (#3819)', () => {
-  /** The spec's authorable keys for one `sections[]` entry, read off the Zod shape. */
-  const specSectionKeys: string[] = (() => {
-    const props = RecordDetailsProps as unknown as { shape?: Record<string, unknown> };
-    const sections = props.shape?.sections as { _def?: Record<string, any> } | undefined;
-    // sections: ZodOptional< ZodArray< ZodObject > > — unwrap to the element object.
-    let node: any = sections;
-    for (let i = 0; i < 6 && node; i++) {
-      const def = node._def ?? {};
-      if (def.innerType) { node = def.innerType; continue; }
-      if (def.element) { node = def.element; continue; }
-      break;
-    }
-    const shape = node?.shape;
-    return shape ? Object.keys(shape) : [];
-  })();
+  /**
+   * The spec's authorable keys for one `sections[]` entry, read off the Zod shape.
+   *
+   * `sections` is `ZodOptional< ZodArray< ZodObject > >`, so this needs both a
+   * wrapper walk and an array-element read. Both are `@object-ui/test-support`'s
+   * (objectui#5872 class (2)); the six-iteration `_def.innerType` / `_def.element`
+   * loop that used to stand here was one of the three disagreeing copies that
+   * card censused. `arrayElementSchema` answers `undefined` for a non-array,
+   * which `listedShapeKeys` turns into `[]` — the case the non-vacuity
+   * assertion below exists to catch.
+   */
+  const specSectionKeys: string[] = listedShapeKeys(
+    arrayElementSchema(resolvePropsShape(RecordDetailsProps)?.sections),
+  );
 
   /** The inspector's item editors for one section. */
   const sectionsField = BLOCK_CONFIG['record:details'].find((f) => f.name === 'sections') as

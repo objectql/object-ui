@@ -692,6 +692,8 @@ const ko = {
       unusableRange: {
         malformedDate:
           "사용할 수 없는 간트 날짜 범위 — {{path}}은(는) {{value}}이며 유효한 날짜가 아닙니다. 모든 간트 날짜는 파싱할 수 있어야 합니다: 각 행 항목의 startDate와 endDate, 그리고 스키마에 고정한 minDate / maxDate.",
+        malformedRow:
+          "사용할 수 없는 간트 행 — {{path}}은(는) {{value}}이며 행의 형태가 아닙니다. 간트는 items를 행 목록으로, 각 행을 label과 자체 items를 가진 객체로, 각 행의 items를 막대 목록으로 읽습니다. 이 위치에 있는 null, 숫자, 문자열 또는 일반 객체는 그릴 수 없습니다.",
         inverted:
           "사용할 수 없는 간트 날짜 범위 — minDate {{minDate}}이(가) maxDate {{maxDate}}보다 뒤입니다. 고정한 minDate / maxDate는 행에서 계산한 범위보다 우선하므로 이 축에는 열이 없고 막대를 배치할 수 없습니다. 두 값을 서로 바꾸세요.",
       },
@@ -1490,6 +1492,12 @@ const ko = {
         statusFull: "한도에 도달했습니다",
         resetsDaily: "오늘 밤 초기화됩니다",
         resetsMonthly: "다음 주기에 초기화됩니다",
+        resetsWeeklyDays: "{{count}}일 후 초기화됩니다",
+        resetsWeeklyDays_one: "{{count}}일 후 초기화됩니다",
+        resetsWeeklyDays_other: "{{count}}일 후 초기화됩니다",
+        resetsWeeklyHours: "{{count}}시간 후 초기화됩니다",
+        resetsWeeklyHours_one: "{{count}}시간 후 초기화됩니다",
+        resetsWeeklyHours_other: "{{count}}시간 후 초기화됩니다",
         ctaUpgrade: "업그레이드하고 계속하기",
         ctaTopUp: "크레딧을 추가하고 계속하기",
         ariaLabel: "AI 사용량: {{status}}",
@@ -2788,6 +2796,46 @@ const ko = {
     openProduction: "프로덕션 열기",
     manageEnvironments: "환경 관리",
   },
+  aiApprovals: {
+    title: "AI 승인",
+    description: "AI 에이전트가 제안한 작업으로, 실행 전에 사람의 검토가 필요합니다.",
+    tabPending: "대기 중",
+    tabDecided: "처리됨",
+    tabAll: "전체",
+    statusPending: "대기 중",
+    statusApproved: "승인됨",
+    statusExecuted: "실행됨",
+    statusFailed: "실패",
+    statusRejected: "거부됨",
+    colTool: "도구",
+    colAction: "작업",
+    colObject: "객체",
+    colStatus: "상태",
+    colProposed: "제안 시각",
+    colDecision: "결정",
+    emptyTitle: "대기 중인 작업 없음",
+    emptyDescription: "AI가 민감한 작업을 제안하면 검토를 위해 여기에 표시됩니다.",
+    view: "보기",
+    approve: "승인",
+    reject: "거부",
+    working: "처리 중…",
+    approveAndExecute: "승인 후 실행",
+    outcomeApprove: "{{id}} 승인: {{message}}",
+    outcomeReject: "{{id}} 거부: {{message}}",
+    outcomeExecuteFailed: "실행 중 작업이 실패했습니다",
+    drawerFallbackTitle: "대기 중인 작업",
+    drawerSubtitle: "{{object}}에 대한 도구 {{tool}}",
+    fieldProposedBy: "제안자",
+    fieldDecidedBy: "결정자",
+    fieldConversation: "대화",
+    fieldToolInput: "도구 입력",
+    fieldResult: "결과",
+    fieldError: "오류",
+    fieldRejectionReason: "거부 사유",
+    rejectTitle: "이 작업을 거부할까요?",
+    rejectBody: "사유는 AI에 전달되어 다음 응답을 조정하는 데 사용됩니다.",
+    rejectPlaceholder: "사유(선택). 예: ‘레코드 ID가 잘못되었습니다 — 사용자에게 먼저 확인하세요.’",
+  },
   aiModelStatus: {
     summary: "빌드 / 질문은 {{conversational}}({{conversationalSource}}), 구조화 출력은 {{structured}}({{structuredSource}})을(를) 사용합니다.",
     summaryRouting: "라우팅 정책: 무료 요금제 → {{free}}, 유료 요금제 → {{paid}}.",
@@ -2804,6 +2852,80 @@ const ko = {
     sourceCodeDefault: "코드 기본값(env 재정의 없음)",
     sourceInherits: "build/ask와 동일",
     sourcePinned: "{{source}}에 의해 고정됨",
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: "데이터 집계",
+      get_record: "레코드 가져오기",
+      query_data: "데이터 조회",
+      query_records: "레코드 조회",
+      search_knowledge: "지식 검색",
+      visualize_data: "차트 생성",
+      add_field: "필드 추가",
+      apply_blueprint: "앱 생성",
+      apply_edit: "변경 사항 적용",
+      create_metadata: "메타데이터 생성",
+      create_object: "오브젝트 생성",
+      create_package: "패키지 생성",
+      create_seed: "샘플 데이터 생성",
+      delete_field: "필드 삭제",
+      describe_metadata: "메타데이터 확인",
+      describe_object: "오브젝트 구조 확인",
+      get_active_package: "현재 패키지 가져오기",
+      get_metadata_schema: "메타데이터 구조 가져오기",
+      get_package: "패키지 가져오기",
+      list_metadata: "메타데이터 목록",
+      list_objects: "오브젝트 목록",
+      list_packages: "패키지 목록",
+      modify_field: "필드 수정",
+      propose_blueprint: "앱 설계안 작성",
+      set_active_package: "현재 패키지 전환",
+      suggest_builder: "구축 방법 제안",
+      todo_write: "할 일 기록",
+      update_metadata: "메타데이터 업데이트",
+      validate_expression: "표현식 검증",
+      verify_build: "빌드 검증",
+    },
+    toolState: {
+      agentActivity: "에이전트 활동",
+      pending: "대기 중",
+      running: "실행 중",
+      awaitingApproval: "승인 대기",
+      responded: "응답함",
+      completed: "완료",
+      error: "오류",
+      denied: "거부됨",
+      failed: "실패",
+    },
+    plan: {
+      countObjects: "오브젝트 {{count}}개",
+      countObjects_one: "오브젝트 {{count}}개",
+      countViews: "뷰 {{count}}개",
+      countViews_one: "뷰 {{count}}개",
+      countDashboards: "대시보드 {{count}}개",
+      countDashboards_one: "대시보드 {{count}}개",
+      countSeedData: "샘플 데이터",
+    },
   },
   chatbotError: {
     title: "응답 실패",

@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 158 entries at once.
+ * `assertionNoVacuousEntry` below pins that for all 160 entries at once.
  *
  * ## What is registered
  *
@@ -53,12 +53,17 @@
  * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
  * entire subject is measurement that is worth stating explicitly:
  *
- *   - **158 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
+ *   - **160 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **12 entries** in `KnownDrift`, **17 keys** across them.
- *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. ⚠️ It was
+ *   - **37 entries** in `KnownDrift`, **53 keys** across them. It was 12 / 17 until
+ *     objectui#6124 added the RUNTIME-SLOT class (28 pairs touched, 35 keys) — see
+ *     the class note inside the ledger, above `ButtonSchema` — and 36 / 52 until
+ *     objectui#6576 minted `ObjectDataTableSchema` with one such arm (`onRowClick`).
+ *   - **17 entries** in `UnmirroredDeclared`, **98 keys** across them (16 / 97 until
+ *     objectui#6576 SEEDED the new `ObjectDataTableSchema` pair with its one measured
+ *     key, `drillDown` — a pair born ledgered, not growth on an existing one). ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
  *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
  *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
@@ -69,8 +74,9 @@
  *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
- *     "no entry in either" population dropped by one to 141.
- *   - 158 − 12 = **146**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *     "no entry in either" population dropped by one to 141 — and stands at 142
+ *     since objectui#6576 added two pairs, one of them ledgered.
+ *   - 160 − 37 = **123**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -91,7 +97,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 12 of the 158 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 37 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -107,6 +113,13 @@
  * `ViewSwitcherSchema`) and two shrank to the keys that are NOT widenings
  * (`DataTableSchema` kept `rowActions`, `FormSchema` kept `fields`/`mode`). The
  * remaining classes are rulings, not edits, and are deliberately still here.
+ *
+ * Then 12 became 36 with objectui#6124, which is the opposite movement from #5927's
+ * and must not be read as regression: 24 pairs ENTERED (and 4 grew) because the
+ * ruling put a NAMED REFUSAL on the mirror side of 35 runtime-slot handler keys while
+ * their TypeScript twins stay callable. That drift is the ruling's intended shape,
+ * ledgered so the ratchet holds it exactly — a pair leaving this class means either
+ * the mirror accepts a function again or a renderer lost its callback.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -127,7 +140,7 @@ import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchem
 import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
 import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
 import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
-import { ObjectCalendarSchema, ObjectChartSchema, ObjectFormSchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
+import { ObjectCalendarSchema, ObjectChartSchema, ObjectDataTableSchema, ObjectFormSchema, ObjectGallerySchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
 import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
 import { ReportBuilderSchema, ReportComponentSchema, ReportExportConfigSchema, ReportFieldSchema, ReportFilterSchema, ReportGroupBySchema, ReportSectionSchema, ReportViewerSchema } from '../zod/reports.zod.js';
 import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, DetailViewTabSchema, FilterUISchema, SortUISchema, ViewSwitcherSchema } from '../zod/views.zod.js';
@@ -144,7 +157,7 @@ import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, 
 import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, CodeEditorSchema as Ts_CodeEditorSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
 import type { AspectRatioSchema as Ts_AspectRatioSchema, BoxSchema as Ts_BoxSchema, CardSchema as Ts_CardSchema, ContainerSchema as Ts_ContainerSchema, DivSchema as Ts_DivSchema, FlexSchema as Ts_FlexSchema, GridSchema as Ts_GridSchema, IconSchema as Ts_IconSchema, ImageSchema as Ts_ImageSchema, PageNodeRegion as Ts_PageNodeRegion, PageNodeSchema as Ts_PageNodeSchema, ResizablePanel as Ts_ResizablePanel, ResizableSchema as Ts_ResizableSchema, ScrollAreaSchema as Ts_ScrollAreaSchema, SeparatorSchema as Ts_SeparatorSchema, StackSchema as Ts_StackSchema, TabItem as Ts_TabItem, TabsSchema as Ts_TabsSchema, TextSchema as Ts_TextSchema, TextSpanSchema as Ts_TextSpanSchema } from '../layout';
 import type { ButtonGroupButton as Ts_ButtonGroupButton, ButtonGroupSchema as Ts_ButtonGroupSchema, HeaderBarSchema as Ts_HeaderBarSchema, NavigationMenuSchema as Ts_NavigationMenuSchema, PaginationSchema as Ts_PaginationSchema, SidebarSchema as Ts_SidebarSchema } from '../navigation';
-import type { ObjectCalendarSchema as Ts_ObjectCalendarSchema, ObjectChartSchema as Ts_ObjectChartSchema, ObjectFormSchema as Ts_ObjectFormSchema, ObjectGanttSchema as Ts_ObjectGanttSchema, ObjectGridSchema as Ts_ObjectGridSchema, ObjectKanbanSchema as Ts_ObjectKanbanSchema, ObjectMapConfig as Ts_ObjectMapConfig, ObjectMapSchema as Ts_ObjectMapSchema, ObjectTreeSchema as Ts_ObjectTreeSchema, ObjectViewSchema as Ts_ObjectViewSchema, SortConfig as Ts_SortConfig } from '../objectql';
+import type { ObjectCalendarSchema as Ts_ObjectCalendarSchema, ObjectChartSchema as Ts_ObjectChartSchema, ObjectDataTableSchema as Ts_ObjectDataTableSchema, ObjectFormSchema as Ts_ObjectFormSchema, ObjectGallerySchema as Ts_ObjectGallerySchema, ObjectGanttSchema as Ts_ObjectGanttSchema, ObjectGridSchema as Ts_ObjectGridSchema, ObjectKanbanSchema as Ts_ObjectKanbanSchema, ObjectMapConfig as Ts_ObjectMapConfig, ObjectMapSchema as Ts_ObjectMapSchema, ObjectTreeSchema as Ts_ObjectTreeSchema, ObjectViewSchema as Ts_ObjectViewSchema, SortConfig as Ts_SortConfig } from '../objectql';
 import type { AlertDialogSchema as Ts_AlertDialogSchema, ContextMenuSchema as Ts_ContextMenuSchema, DialogSchema as Ts_DialogSchema, DrawerSchema as Ts_DrawerSchema, DropdownMenuSchema as Ts_DropdownMenuSchema, HoverCardSchema as Ts_HoverCardSchema, MenubarMenu as Ts_MenubarMenu, MenubarSchema as Ts_MenubarSchema, PopoverSchema as Ts_PopoverSchema, SheetSchema as Ts_SheetSchema, TooltipSchema as Ts_TooltipSchema } from '../overlay';
 import type { ReportBuilderSchema as Ts_ReportBuilderSchema, ReportComponentSchema as Ts_ReportComponentSchema, ReportExportConfig as Ts_ReportExportConfig, ReportField as Ts_ReportField, ReportFilter as Ts_ReportFilter, ReportGroupBy as Ts_ReportGroupBy, ReportSection as Ts_ReportSection, ReportViewerSchema as Ts_ReportViewerSchema } from '../reports';
 import type { DetailViewField as Ts_DetailViewField, DetailViewSchema as Ts_DetailViewSchema, DetailViewSection as Ts_DetailViewSection, DetailViewTab as Ts_DetailViewTab, FilterUISchema as Ts_FilterUISchema, SortUISchema as Ts_SortUISchema, ViewSwitcherSchema as Ts_ViewSwitcherSchema } from '../views';
@@ -251,7 +264,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 141 of the 158. */
+/** …and so does a clean pair with no entry, which is the case for 142 of the 160. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -459,7 +472,9 @@ const MIRRORS = {
   'navigation.zod.ts#SidebarSchema': SidebarSchema,
   'objectql.zod.ts#ObjectCalendarSchema': ObjectCalendarSchema,
   'objectql.zod.ts#ObjectChartSchema': ObjectChartSchema,
+  'objectql.zod.ts#ObjectDataTableSchema': ObjectDataTableSchema,
   'objectql.zod.ts#ObjectFormSchema': ObjectFormSchema,
+  'objectql.zod.ts#ObjectGallerySchema': ObjectGallerySchema,
   'objectql.zod.ts#ObjectGanttSchema': ObjectGanttSchema,
   'objectql.zod.ts#ObjectGridSchema': ObjectGridSchema,
   'objectql.zod.ts#ObjectKanbanSchema': ObjectKanbanSchema,
@@ -624,7 +639,9 @@ interface Declared {
   'navigation.zod.ts#SidebarSchema': Ts_SidebarSchema;
   'objectql.zod.ts#ObjectCalendarSchema': Ts_ObjectCalendarSchema;
   'objectql.zod.ts#ObjectChartSchema': Ts_ObjectChartSchema;
+  'objectql.zod.ts#ObjectDataTableSchema': Ts_ObjectDataTableSchema;
   'objectql.zod.ts#ObjectFormSchema': Ts_ObjectFormSchema;
+  'objectql.zod.ts#ObjectGallerySchema': Ts_ObjectGallerySchema;
   'objectql.zod.ts#ObjectGanttSchema': Ts_ObjectGanttSchema;
   'objectql.zod.ts#ObjectGridSchema': Ts_ObjectGridSchema;
   'objectql.zod.ts#ObjectKanbanSchema': Ts_ObjectKanbanSchema;
@@ -679,8 +696,18 @@ export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeo
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
-  /** TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror declares `Record<string, unknown>` ("additional API body params"). Two different meanings of one key — a naming collision to rule on, not a widening. */
-  'complex.zod.ts#ChatbotSchema': 'body';
+  /** RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads `onViewChange` off the spread props (function values only) and hands it to `CalendarView`. */
+  'complex.zod.ts#CalendarViewSchema': 'onViewChange';
+  /**
+   * `body` — TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror
+   * declares `Record<string, unknown>` ("additional API body params"). Two different
+   * meanings of one key — a naming collision to rule on, not a widening.
+   *
+   * `onError` / `onSend` — RUNTIME SLOT (objectui#6124): `plugin-chatbot` forwards both off
+   * `schema.*` into `useObjectChat`, so the TS side keeps the callables; the mirror
+   * refuses them by name (`handlerKeyRefusal`). See the class note above `ButtonSchema`.
+   */
+  'complex.zod.ts#ChatbotSchema': 'body' | 'onError' | 'onSend';
   /**
    * spec-derived shape (`SpecDashboardFields`) measured against a hand-written
    * local declaration. Needs the spec-unification triage of #2231 rather than a
@@ -694,24 +721,132 @@ interface KnownDrift {
   'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters';
   /** TS declares `unknown`; the mirror declares a structured options object. The mirror is the STRICTER side here — narrowing the check would be wrong, widening the TS declaration is the ADR-0049 question. */
   'complex.zod.ts#DashboardWidgetSchema': 'options';
-  /** inherited from `FilterFieldSchema.operators` below — the element type is the drifted one. */
-  'complex.zod.ts#FilterBuilderSchema': 'fields';
+  /**
+   * `fields` — inherited from `FilterFieldSchema.operators` below; the element type is
+   * the drifted one. `onChange` — RUNTIME SLOT (objectui#6124): the `filter-builder` renderer
+   * calls it as `props.onChange` after `SchemaRenderer`'s spread.
+   */
+  'complex.zod.ts#FilterBuilderSchema': 'fields' | 'onChange';
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** DISJOINT: TS declares `rowActions?: boolean` (show the column or not), the mirror declares `any[]` (the actions themselves). One of the two is dead; which is a ruling. (`selectable` was a second drifted key here until objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` — `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements `'single'` as a real mode.) */
-  'data-display.zod.ts#DataTableSchema': 'rowActions';
-  /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. */
+  /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
+  'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick';
+  /**
+   * `rowActions` — DISJOINT: TS declares `rowActions?: boolean` (show the column or
+   * not), the mirror declares `any[]` (the actions themselves). One of the two is
+   * dead; which is a ruling. (`selectable` was a second drifted key here until
+   * objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` —
+   * `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements
+   * `'single'` as a real mode.)
+   *
+   * The four callbacks — RUNTIME SLOT (objectui#6124) ×4: `renderers/complex/data-table.tsx`
+   * CALLS every one of them off `schema.*` (`schema.onRowEdit?.(r)`,
+   * `schema.onSelectionChange(selectedData)`, …), so the TS side keeps them callable
+   * and the mirror refuses them by name.
+   */
+  'data-display.zod.ts#DataTableSchema': 'rowActions' | 'onRowEdit' | 'onRowDelete' | 'onSelectionChange' | 'onColumnsReorder';
+  /** RUNTIME SLOT (objectui#6124): the `accordion` renderer spreads leftover props onto the Radix `Accordion` root, where `onValueChange` is a real prop. */
+  'disclosure.zod.ts#AccordionSchema': 'onValueChange';
+  /** RUNTIME SLOT (objectui#6124): the `collapsible` renderer spreads leftover props onto the Radix `Collapsible` root. */
+  'disclosure.zod.ts#CollapsibleSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `toggle-group` renderer spreads `toggleGroupProps` onto the Radix `ToggleGroup` root. */
+  'disclosure.zod.ts#ToggleGroupSchema': 'onValueChange';
+  /**
+   * ## The objectui#6124 class — a RUNTIME SLOT on the TS face, a NAMED REFUSAL on the mirror
+   *
+   * Maintainer ruling 2026-08-30 (batch #8, Q2 → A with C): the 58 `on*` keys the
+   * mirrors declared as `z.function()` — a type NO JSON document can satisfy — keep
+   * their declaration and REFUSE BY NAME (`handlerKeyRefusal()` in
+   * `../zod/tombstone.zod.ts`, the #5099 `z.custom` + guidance shape), because under
+   * `BaseSchema.passthrough()` deleting a key is a SILENT accept that keeps the value
+   * and forwards it to the DOM. The mirror's `z.input` for such a key is therefore
+   * `undefined` — a JSON author cannot write it — while the TypeScript twin of a key
+   * whose function value REACHES a renderer stays callable, because that is the
+   * programmatic channel (`SchemaRenderer` spreads every non-metadata schema key as a
+   * React prop; renderers read `schema.onX`, call `props.onX`, or spread leftovers onto
+   * a Radix root / DOM listener slot). Two faces of one key, both true, measured per
+   * key — a DELIBERATE divergence like `PageNodeSchema.pageType`, not debt to widen
+   * away. ⛔ Do not "fix" one of these by making the mirror accept a function again
+   * (that re-opens the JSON lie) or by deleting the TS member (that breaks the shipped
+   * renderer that reads it).
+   *
+   * The 22 keys NOTHING reads are not in this ledger at all: their TS twin is a
+   * `?: never` tombstone, so `undefined` meets `undefined` and the pair does not drift
+   * on them. Every one of the 58 is pinned member-by-member, both faces, in
+   * `handler-keys-json-refusal-6124.test.ts`; this ledger records the 35 that drift.
+   *
+   * `ButtonSchema.onClick` — RUNTIME SLOT (objectui#6124): `toFormControlDomProps` forwards it
+   * to the DOM `<button>` (`onClick` is on `SDUI_DOM_PASS_THROUGH_KEYS`).
+   */
+  'form.zod.ts#ButtonSchema': 'onClick';
+  /** DISJOINT: TS `Date | Date[]`, mirror `string | Date`. The mirror refuses `Date[]`; the TS side refuses the ISO string the mirror accepts. (`onChange` is NOT here: the `calendar` renderer spreads it onto `DayPicker`, whose callback is `onSelect`, so nothing reads it — both faces retire it.) */
   'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
+  /** RUNTIME SLOT (objectui#6124): the `checkbox` renderer calls `props.onChange(checked)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#CheckboxSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): `plugin-editor` reads `onChange ?? schema.onChange`. */
+  'form.zod.ts#CodeEditorSchema': 'onChange';
   /** OPTIONALITY: TS declares `options?`, the mirror REQUIRES it. Whether authoring a combobox without options is legal is a ruling. */
   'form.zod.ts#ComboboxSchema': 'options';
-  /** OPTIONALITY: TS declares `groups?`, the mirror REQUIRES it. */
+  /** OPTIONALITY: TS declares `groups?`, the mirror REQUIRES it. (`onChange` is NOT here: the `command` renderer spreads it onto cmdk's root `div`, where React fires it with a SyntheticEvent — a different contract from the declared `(value: string) => void`, so both faces retire it.) */
   'form.zod.ts#CommandSchema': 'groups';
-  /** DISJOINT on `mode`: TS `disabled|read|edit`, mirror `create|edit|view`. `fields` is inherited element drift. (`validationMode` was a third drifted key until objectui#5927 widened it to react-hook-form's full `mode` vocabulary — `useForm({ mode })` in `renderers/form/form.tsx` forwards it verbatim and RHF implements `onTouched`/`all` as real branches.) */
-  'form.zod.ts#FormSchema': 'fields' | 'mode';
+  /** RUNTIME SLOT (objectui#6124): the `date-picker` renderer calls `props.onChange(date)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#DatePickerSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `file-upload` renderer calls `props.onChange(files)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#FileUploadSchema': 'onChange';
+  /**
+   * `mode` — DISJOINT: TS `disabled|read|edit`, mirror `create|edit|view`. `fields` is
+   * inherited element drift. (`validationMode` was a third drifted key until
+   * objectui#5927 widened it to react-hook-form's full `mode` vocabulary —
+   * `useForm({ mode })` in `renderers/form/form.tsx` forwards it verbatim and RHF
+   * implements `onTouched`/`all` as real branches.)
+   *
+   * `onSubmit` / `onChange` / `onCancel` — RUNTIME SLOT (objectui#6124) ×3: `renderers/form/form.tsx`
+   * destructures all three off `schema` and calls them (`await onSubmitProp(formData)`,
+   * the objectui#4259 `onChangeProp` subscription, `onCancelProp()`).
+   */
+  'form.zod.ts#FormSchema': 'fields' | 'mode' | 'onSubmit' | 'onChange' | 'onCancel';
+  /** RUNTIME SLOT (objectui#6124): the `input-otp` renderer calls `props.onChange(val)` after `SchemaRenderer`'s spread. (`onComplete` is NOT here: the `toFormControlDomProps` whitelist drops it — both faces retire it.) */
+  'form.zod.ts#InputOTPSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `input` renderer calls `props.onChange(e.target.value)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#InputSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `select` renderer calls `props.onChange(matchOptionValue(…))` after `SchemaRenderer`'s spread. (This pair LEFT the ledger with objectui#5927's widenings and re-enters on a different key for a different reason.) */
+  'form.zod.ts#SelectSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `textarea` renderer calls `props.onChange(e.target.value)` after `SchemaRenderer`'s spread. */
+  'form.zod.ts#TextareaSchema': 'onChange';
+  /** RUNTIME SLOT (objectui#6124): the `card` renderer spreads `cardProps` onto the `<Card>` element (a DOM `onClick`) and reads it for `isClickable`. */
+  'layout.zod.ts#CardSchema': 'onClick';
   /** `pageType` is a DELIBERATE divergence, documented at `PageVisualizationAlias` (`../layout.ts`): the TS side retains five visualization names as a sanctioned local extension while the mirror takes the spec's vocabulary by reference, which repudiates them. Widening the mirror would re-add spellings the spec rejects. */
   'layout.zod.ts#PageNodeSchema': 'slots' | 'pageType';
+  /** RUNTIME SLOT (objectui#6124): the `tabs` renderer spreads `tabsProps` onto the Radix `Tabs` root AFTER its own `onValueChange`, so the authored function wins. */
+  'layout.zod.ts#TabsSchema': 'onValueChange';
   /** DISJOINT: TS declares `floating`, the mirror declares `transparent`. One of the two renders nothing. */
   'navigation.zod.ts#HeaderBarSchema': 'variant';
+  /** RUNTIME SLOT (objectui#6124): the `pagination` renderer calls `props.onPageChange(page)` after `SchemaRenderer`'s spread. */
+  'navigation.zod.ts#PaginationSchema': 'onPageChange';
+  /**
+   * RUNTIME SLOT (objectui#6124 shape, minted by objectui#6576 / #6914): the pair
+   * was born with this entry. `ObjectDataTable.tsx` forwards `schema.onRowClick`
+   * into the `data-table` it renders (it used to read it through an
+   * `(schema as any)` cast — #6914's drift), so the TS side keeps the callable
+   * and the mirror refuses it by name. The FIRST handler arm on an `objectql`
+   * mirror: the POLICY-group entries in `RuntimeOnlyDeclared` below record the
+   * pre-#6124 state of that file, not a rule for new mirrors.
+   */
+  'objectql.zod.ts#ObjectDataTableSchema': 'onRowClick';
+  /** RUNTIME SLOT (objectui#6124): the `alert-dialog` renderer spreads leftover props onto the Radix `AlertDialog` root. (`onConfirm` / `onCancel` are NOT here: the footer is wired to `schema.onAction` and `AlertDialogCancel`, so nothing reads them — both faces retire them.) */
+  'overlay.zod.ts#AlertDialogSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `dialog` renderer spreads leftover props onto the Radix `Dialog` root. */
+  'overlay.zod.ts#DialogSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `drawer` renderer spreads leftover props onto the vaul `Drawer` root. */
+  'overlay.zod.ts#DrawerSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `dropdown-menu` renderer spreads leftover props onto the Radix `DropdownMenu` root. (`MenuItemSchema.onClick`, the 36th runtime slot, is not a pair here — that mirror is a lazy union and sits in `EXCLUSIONS`.) */
+  'overlay.zod.ts#DropdownMenuSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `hover-card` renderer spreads leftover props onto the Radix `HoverCard` root. */
+  'overlay.zod.ts#HoverCardSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `popover` renderer spreads leftover props onto the Radix `Popover` root. */
+  'overlay.zod.ts#PopoverSchema': 'onOpenChange';
+  /** RUNTIME SLOT (objectui#6124): the `sheet` renderer spreads leftover props onto the Radix `Sheet` (Dialog) root. */
+  'overlay.zod.ts#SheetSchema': 'onOpenChange';
 }
 
 /* ── The measured unmirrored-declared ledger (objectui#6058) ────────────────── */
@@ -748,7 +883,7 @@ interface KnownDrift {
  * is being let through, because there was no such thing. Seeding takes the count of
  * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
  * grow while they are worked off, and a new declared-but-unmirrored key on any of
- * the 158 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
+ * the 160 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
  * including a callback-shaped one, which reddens until it is filed in
  * `RuntimeOnlyDeclared` (`assertionSplitLedgerRejectsFreshCallback`).
  *
@@ -784,7 +919,8 @@ interface KnownDrift {
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
  * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`). The pair
  * COUNTS did not move — every affected pair kept keys here — which is why 16
- * entries still hold 97 keys.
+ * entries still hold 97 keys. (17 entries / 98 keys since objectui#6576 seeded the
+ * `ObjectDataTableSchema` pair with `drillDown` — see that entry.)
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -858,6 +994,18 @@ interface UnmirroredDeclared {
   'form.zod.ts#LabelSchema': 'content';
   /** LOCAL. */
   'navigation.zod.ts#PaginationSchema': 'currentPage';
+  /**
+   * LOCAL — a SEED, not growth. This pair was minted by objectui#6576 (folding
+   * #6914, which found the widget reading `drillDown` behind a cast and declaring
+   * it nowhere); the declaration now carries it, and the mirror does not, for the
+   * same reason `ChartSchema.drillDown` above is here: `DrillDownConfig` has no
+   * zod mirror in this package, and minting one is a new export outside that
+   * ruling. The shrink-only rule governs keys that APPEAR on registered pairs;
+   * a pair born with its measured debt written down is the seeding discipline
+   * objectui#6058 established, applied once. Remedy when ruled: a paired
+   * `DrillDownConfigSchema` mirror, which shrinks THIS entry and `ChartSchema`'s.
+   */
+  'objectql.zod.ts#ObjectDataTableSchema': 'drillDown';
   /**
    * LOCAL, and still the second-largest at 21. It was 26: the five `on*` keys are in
    * `RuntimeOnlyDeclared` below (objectui#6152). ⚠️ `submitHandler` is NOT among them
@@ -1154,7 +1302,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 146 pairs with no entry (158 − 12).
+ * 123 pairs with no entry (160 − 37).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
@@ -1202,8 +1350,8 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 141
- * pairs with no entry in either (158 − 17). Six of `RuntimeOnlyDeclared`'s seven
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
+ * pairs with no entry in either (160 − 18). Six of `RuntimeOnlyDeclared`'s seven
  * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
  * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 17
@@ -1257,7 +1405,7 @@ export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
 }[MirrorKey];
 
 /**
- * Non-vacuity for all 158 entries at once.
+ * Non-vacuity for all 160 entries at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the
@@ -1463,6 +1611,7 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   'complex.zod.ts#DashboardWidgetSchema',
   'form.zod.ts#SelectOptionSchema',
   'layout.zod.ts#PageNodeSchema',
+  'objectql.zod.ts#ObjectGallerySchema',
   'objectql.zod.ts#ObjectGanttSchema',
   'objectql.zod.ts#ObjectMapSchema',
 ];

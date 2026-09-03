@@ -79,6 +79,7 @@ import {
   CommandItemSchema,
   MenuItemSchema,
   RadioGroupSchema,
+  SelectOptionSchema,
   ToastSchema,
   ToasterSchema,
 } from '@object-ui/types/zod';
@@ -136,7 +137,14 @@ describe('toast fixtures: the registered spelling, not an action object off `onC
     const result = ButtonSchema.safeParse(retired);
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(['onClick']);
-    expect(result.error?.issues[0]?.message).toContain('expected function, received object');
+    // Still RED, and now BY NAME: objectui#6124 replaced `ButtonSchema.onClick`'s
+    // bare `z.function()` (zod's "expected function, received object") with a
+    // named refusal arm that points at the node-type spelling this block's
+    // fixtures already use. The verdict this block leans on did not move; the
+    // message an author reads did.
+    expect(result.error?.issues[0]?.code).toBe('custom');
+    expect(result.error?.issues[0]?.message).toContain('`onClick` is a RUNTIME SLOT');
+    expect(result.error?.issues[0]?.message).toContain('{ "type": "toast"');
   });
 });
 
@@ -805,5 +813,264 @@ describe('catalog corpus: no overlay-menu item authors the undeclared `value` ke
     );
     expect(authoredValueKeys(pristine)).toEqual([]);
     expect(reintroduced).toHaveLength(pristine.length);
+  });
+});
+
+/**
+ * objectui#6902 — `components-form-select/basic-select.json` authored an
+ * option's display text under `type`, a key `ui:select` never reads, so the
+ * shipped demo drew a blank row in the open list.
+ *
+ * Pinned here under the **objectui#6810 ruling** (maintainer, 2026-08-30,
+ * director seat batch #9, verbatim「同意」): seal the key × type pairs this
+ * class has ALREADY regenerated on, one pair at a time, in this file's named
+ * pin form — and ⛔ explicitly do NOT build the all-types read-key-set
+ * extractor. That card measured the extractor's cost (57% mechanical
+ * derivability over the catalog's 137 node types; a flat read set producing
+ * 30/30 false positives on the nested `content` surfaces) and ruled it
+ * disproportionate to a benefit that lies entirely on keys nobody has hit yet.
+ *
+ * ## What already covered this, and why it is not the PAIR
+ *
+ * `safe-validate-corpus-6318.test.ts:98` asserts `options.some((o) => 'type'
+ * in o) === false` — but against the STATIC IMPORT of `basic-select.json`
+ * alone. That is 3 of the 66 select options in the corpus: exactly the one
+ * fixture #6902 repaired. A second select authoring `type`, in any of the
+ * other six categories, is invisible to it. That is the objectui#7072 failure
+ * mode named on this same file — a pin that covers part of a class while
+ * READING as though it covers the class. This block is the pair-scoped half;
+ * the #6318 pin keeps its own narrower job (that fixture's three options carry
+ * `label`) and is deliberately left untouched.
+ *
+ * ## Why a structural sweep and ⛔ not `.success`
+ *
+ * `SelectOptionSchema` is a bare `z.object` (`packages/types/src/zod/
+ * form.zod.ts:46`), so it STRIPS `type` and reports success. Measured on the
+ * shipped build at `b6e83be6a`: `safeParse({ label, value, type })` returns
+ * `success: true` with parsed keys `label value`. A parse-level probe is
+ * structurally incapable of seeing the authored key — the objectui#6157
+ * class-2 shape — and it was green through all of #6902. The declared-side
+ * reading is asserted below too, but it is the CORPUS assertion that bites.
+ *
+ * ## Population, measured on `origin/main` `b6e83be6a`
+ *
+ *     select nodes carrying an `options` array   19   (7 categories)
+ *     option objects on them                     66
+ *     keys authored on those options             label 66 · value 66 ·
+ *                                                color 8 · visibleWhen 5
+ *     authoring `type`                            0
+ *
+ * `ui:select` reads `label` / `value` / `disabled` off each option
+ * (`renderers/form/select.tsx:65`, plus `matchOptionValue` reading `.value`
+ * and nothing else). `color` and `visibleWhen` are DECLARED members that the
+ * fields-layer select widgets read, so ⛔ this block does not assert a full
+ * read set over options — that would red on working fixtures and is precisely
+ * the instrument the ruling declined. It pins one key on one type: the pair
+ * that actually regenerated.
+ */
+describe('catalog corpus: no `select` option authors the undeclared `type` key (objectui#6902)', () => {
+  type LocatedOption = { where: string; option: Json };
+
+  /**
+   * Every option object on every `select` node in the corpus, at any depth.
+   *
+   * ⚠️ The population is a `select` node's own `options` ARRAY — deliberately
+   * NOT "any object under a key named `options`". Measured on `b6e83be6a`,
+   * the looser reading drags in 15 extra objects that are dashboard widget
+   * config bags (`widgets[].options` = `{ xField, yField, data }`), not select
+   * options at all; a sweep judging those against an option read set would be
+   * reporting confidently on the wrong population.
+   */
+  function collectSelectOptions(
+    node: unknown,
+    where: string,
+    acc: LocatedOption[] = [],
+  ): LocatedOption[] {
+    if (Array.isArray(node)) {
+      node.forEach((child, i) => collectSelectOptions(child, `${where}[${i}]`, acc));
+      return acc;
+    }
+    if (!node || typeof node !== 'object') return acc;
+    const record = node as Json;
+    if (record.type === 'select' && Array.isArray(record.options)) {
+      (record.options as unknown[]).forEach((raw, i) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+        acc.push({ where: `${where}.options[${i}]`, option: raw as Json });
+      });
+    }
+    for (const [key, value] of Object.entries(record)) {
+      collectSelectOptions(value, `${where}.${key}`, acc);
+    }
+    return acc;
+  }
+
+  const authoredTypeKeys = (found: LocatedOption[]) =>
+    found.filter(({ option }) => 'type' in option).map(({ where }) => `${where}.type`);
+
+  const options = allExamples().flatMap((e) => collectSelectOptions(e.schema, e.id));
+
+  it('the sweep reaches every select option in the corpus — non-vacuity', () => {
+    // Floors, not equalities: catalog growth must not fail this file, only a
+    // walker that stopped working. 66 options on 19 select nodes across 7
+    // categories at `b6e83be6a`.
+    expect(options.length).toBeGreaterThanOrEqual(66);
+    expect(new Set(options.map((o) => o.where.split('/')[0])).size).toBeGreaterThanOrEqual(7);
+    expect(allExamples().length).toBeGreaterThan(400);
+
+    // One representative position per authoring shape, including the two
+    // nesting depths a shallow walker would silently miss: a select inside a
+    // form's `fields[]`, and one inside a dashboard's `globalFilters[]`.
+    expect(options.map((o) => o.where)).toEqual(
+      expect.arrayContaining([
+        'components-form-select/basic-select.options[0]',
+        'components-form-form/basic-form.fields[2].options[0]',
+        'plugin-dashboard/filtered-dashboard.globalFilters[0].options[0]',
+      ]),
+    );
+  });
+
+  it('`type` is not a declared `SelectOption` member, and a parse cannot see it', () => {
+    const carrier = SelectOptionSchema as unknown as { shape?: Json; _def?: { shape?: Json } };
+    const shape = carrier.shape ?? carrier._def?.shape;
+    if (!shape) throw new Error('SelectOptionSchema exposes no readable shape');
+    const declared = Object.keys(shape);
+    // Read off the SHIPPED schema rather than hand-copied: if the platform
+    // ever declares `type` on an option, this turns red for review instead of
+    // pinning yesterday's vocabulary.
+    expect(declared).toContain('label');
+    expect(declared).not.toContain('type');
+
+    // ...and this is why the corpus assertion below is the instrument rather
+    // than a `.success` probe: the schema is a bare `z.object`, so it STRIPS
+    // the undeclared key and reports success.
+    const parsed = SelectOptionSchema.safeParse({ label: 'Option 3', value: '3', type: 'option' });
+    expect(parsed.success).toBe(true);
+    expect(Object.keys((parsed as unknown as { data: Json }).data)).not.toContain('type');
+  });
+
+  it('no `select` option authors `type`', () => {
+    expect(authoredTypeKeys(options)).toEqual([]);
+
+    // The zero above is only a reading if the same sweep still SEES the
+    // options it is judging: a walker that returned nothing would report the
+    // same clean list. `label` and `value` are the two keys `ui:select` reads
+    // off every option, so both must stay at full count.
+    expect(options.filter(({ option }) => 'label' in option)).toHaveLength(options.length);
+    expect(options.filter(({ option }) => 'value' in option)).toHaveLength(options.length);
+  });
+
+  it('counter-probe: the same sweep DOES flag `type` put back into a real fixture', () => {
+    // ⛔ Not a synthetic select, and ⛔ not a `.safeParse` probe — see the
+    // header. This re-authors #6902's exact defect into the REAL fixture it
+    // was found in, taken from the corpus this block judges.
+    const fixture = JSON.parse(
+      JSON.stringify(schemaOf('components-form-select/basic-select')),
+    ) as Json;
+    ((fixture.options as Json[])[2] as Json).type = 'Option 3';
+
+    const reintroduced = collectSelectOptions(fixture, 'counter-probe');
+    expect(authoredTypeKeys(reintroduced)).toEqual(['counter-probe.options[2].type']);
+
+    // ...and the untouched fixture at the same position is clean, so the probe
+    // is reading the mutation rather than always reporting a hit.
+    const pristine = collectSelectOptions(
+      schemaOf('components-form-select/basic-select'),
+      'pristine',
+    );
+    expect(authoredTypeKeys(pristine)).toEqual([]);
+    expect(reintroduced).toHaveLength(pristine.length);
+  });
+});
+
+/**
+ * objectui#6773 — `content` × `aspect-ratio`, the first member of the same
+ * ruled set, completed to PAIR scope.
+ *
+ * `aspect-ratio-demo-content-6773.test.tsx` already seals this pair and stays
+ * the owner of the RENDER half: it draws every demo through the real
+ * `SchemaRenderer` and counter-probes the pre-fix empty box. ⛔ None of that is
+ * restated here. What that file does NOT do is seal the pair as the ruling
+ * states it — its read-key whitelist is scoped to
+ * `e.meta.category === 'components-layout-aspect-ratio'`. Measured on
+ * `b6e83be6a` that scope is exact (all 5 `aspect-ratio` nodes in the corpus
+ * live in that category), but an `aspect-ratio` minted in any other category
+ * would author `content` unseen, and the ruled unit is the key × type pair,
+ * not the category. This block is that completion and nothing more.
+ *
+ * ## The other three members are ALREADY pair-scoped — deliberately not restated
+ *
+ *     #6788 `card`         card-demo-content-6788.test.tsx sweeps all 93 card
+ *                          nodes at any depth, DECLARED and READ, both probed.
+ *     #6805 `scroll-area`  catalog-authored-key-6805-6806.test.tsx runs a
+ *     #6806 `badge`        per-renderer read set over every node of the type,
+ *                          corpus-wide, with the #6829 ledger.
+ *
+ * Duplicating those here would create a second source of truth for one fact,
+ * which is the opposite of what "seal the set" asks for.
+ */
+describe('catalog corpus: no `aspect-ratio` node authors the unread `content` key (objectui#6773)', () => {
+  type Located = { where: string; node: Json };
+
+  function collectAspectRatios(node: unknown, where: string, acc: Located[] = []): Located[] {
+    if (Array.isArray(node)) {
+      node.forEach((child, i) => collectAspectRatios(child, `${where}[${i}]`, acc));
+      return acc;
+    }
+    if (!node || typeof node !== 'object') return acc;
+    const record = node as Json;
+    if (record.type === 'aspect-ratio') acc.push({ where, node: record });
+    for (const [key, value] of Object.entries(record)) {
+      collectAspectRatios(value, `${where}.${key}`, acc);
+    }
+    return acc;
+  }
+
+  const withContent = (found: Located[]) =>
+    found.filter(({ node }) => 'content' in node).map(({ where }) => where);
+
+  const nodes = allExamples().flatMap((e) => collectAspectRatios(e.schema, e.id));
+
+  it('the sweep sees every `aspect-ratio` node in the corpus — non-vacuity', () => {
+    expect(nodes.length).toBeGreaterThanOrEqual(5);
+    expect(nodes.map((n) => n.where)).toEqual(
+      expect.arrayContaining(['components-layout-aspect-ratio/square']),
+    );
+  });
+
+  it('no `aspect-ratio` node authors `content`, in ANY category', () => {
+    expect(withContent(nodes)).toEqual([]);
+
+    // Non-vacuity for that zero: `ratio` is the key the renderer requires and
+    // every member authors, so a walk that stopped seeing nodes fails here
+    // rather than reporting a clean list above.
+    expect(nodes.filter(({ node }) => 'ratio' in node)).toHaveLength(nodes.length);
+  });
+
+  it('counter-probe: the sweep flags `content` re-authored, including OUTSIDE the category', () => {
+    // (a) The real fixture, mutated back to its pre-#6773 shape.
+    const fixture = JSON.parse(
+      JSON.stringify(schemaOf('components-layout-aspect-ratio/square')),
+    ) as Json;
+    fixture.content = { type: 'card', content: 'Square (1:1)' };
+    expect(withContent(collectAspectRatios(fixture, 'counter-probe'))).toEqual(['counter-probe']);
+
+    // (b) ⭐ The position the category-scoped pin in
+    // `aspect-ratio-demo-content-6773.test.tsx` structurally cannot reach: an
+    // `aspect-ratio` nested inside an entry of some OTHER category. This is
+    // the only assertion in this block that the existing file does not already
+    // imply, and it is why the block exists.
+    const elsewhere: Json = {
+      type: 'card',
+      children: [{ type: 'aspect-ratio', ratio: 1, content: 'Square (1:1)' }],
+    };
+    expect(withContent(collectAspectRatios(elsewhere, 'other-category'))).toEqual([
+      'other-category.children[0]',
+    ]);
+
+    // ...and the pristine fixture is clean, so (a) reads the mutation rather
+    // than always reporting a hit.
+    expect(
+      withContent(collectAspectRatios(schemaOf('components-layout-aspect-ratio/square'), 'pristine')),
+    ).toEqual([]);
   });
 });

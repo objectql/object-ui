@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
-import { extractRecords, buildExpandFields, convertSortToQueryParams } from '@object-ui/core';
+import { extractRecords, buildExpandFields, convertSortToQueryParams, createFieldColorResolver } from '@object-ui/core';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -274,8 +274,6 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       return map;
     };
 
-    const colorOptions = optionMap(colorField);
-
     /** Which fields appear as inline chips beside the title.
      *  Spec config: `timeline.metaFields: string[]`.
      *  Heuristic default: `['status', 'priority']` — limited to fields that
@@ -290,14 +288,15 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     // Resolve the marker color for an item: prefer the explicit `color`
     // attribute on the matching select option, else use the raw value if
     // it already looks like a CSS color.
-    const resolveColor = (value: any): string | undefined => {
-      if (value == null || value === '') return undefined;
-      const opt = colorOptions[String(value)];
-      if (opt?.color) return String(opt.color);
-      const s = String(value);
-      if (/^#([0-9a-f]{3}){1,2}$/i.test(s) || s.startsWith('rgb') || s.startsWith('hsl')) return s;
-      return undefined;
-    };
+    //
+    // This resolver used to be private to this file. It is now
+    // `@object-ui/core#createFieldColorResolver`, LIFTED unchanged so the
+    // gantt and the calendar answer `colorField` the same way this one always
+    // did (objectui#7243) — the same authored option colour, on the same
+    // record, in all three lenses. Its one widening is the hex spelling (3, 6
+    // or 8 digits, where this copy took 3 or 6); the shared module carries the
+    // reasoning.
+    const resolveColor = createFieldColorResolver(fields[colorField ?? '']);
 
     // Resolve the localized label (and color, when known) for a select
     // field. Used for both the explicit groupBy label and the inline

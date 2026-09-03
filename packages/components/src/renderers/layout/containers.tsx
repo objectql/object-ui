@@ -21,7 +21,8 @@
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, evalRowPredicate, getRecordDisplayName, toPredicateRecord } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/core';
-import { actionRendersAt } from '@object-ui/types';
+import { actionRendersAt, resolveDeclaredActionIds } from '@object-ui/types';
+import type { DeclaredActionsRefusal } from '@object-ui/types';
 import { useRecordContext, useAction, useCapabilityGate, usePredicateScope, usePageVariables, useInlineEdit, useActionTextLocalizer, useMetadataItem, reportUnresolvableVisibilityPredicate } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
@@ -1128,6 +1129,40 @@ function warnUnresolvedHeaderActionId(
   );
 }
 
+/**
+ * Warn-once ledger for a refused `page:header.actions` array (objectui#7182),
+ * keyed like `_warnedHeaderActionIds` above.
+ */
+const _refusedHeaderActionArrays = new Set<string>();
+
+/**
+ * Report a `page:header.actions` array `resolveDeclaredActionIds` refused — a
+ * mixed id/object array, or an element that is neither (objectui#7182,
+ * maintainer ruling 2026-09-02, option C).
+ *
+ * `console.error`, not `warn`: an unresolved id (above) is a lookup miss the
+ * page may still be right about; a refused array is metadata the contract does
+ * not accept, and the header draws NONE of its authored actions rather than the
+ * half it could — drawing the half is exactly the "one array, two meanings"
+ * defect the ruling closes. The message names the offending index so the fix
+ * is a one-element edit, and the surface, so the same array refused by
+ * `record:quick_actions` reads as the same rule.
+ */
+function reportRefusedHeaderActions(
+  objectName: string | undefined,
+  refusal: DeclaredActionsRefusal,
+): void {
+  const key = `${objectName ?? ''}::${refusal.index}::${refusal.message}`;
+  if (_refusedHeaderActionArrays.has(key)) return;
+  _refusedHeaderActionArrays.add(key);
+  console.error(
+    `[page:header] actions refused at index ${refusal.index} — ${refusal.message}. ` +
+    'None of the authored actions is rendered. `PageHeaderProps.actions` is a list of ACTION IDS ' +
+    '(@objectstack/spec: `z.array(z.string())`); an inline action object is a transition ' +
+    'tolerance that must not share an array with ids.',
+  );
+}
+
 const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const ctx = useRecordContext();
@@ -1239,12 +1274,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // `ActionDef` OBJECTS and resolved nothing, so metadata that satisfied the
   // published contract rendered ZERO buttons here — the defect objectstack#11592
   // reports and its ruling (maintainer, 2026-08-25, 「全部同意」 on recommendation
-  // B) settles in favour of ids. Two sibling surfaces already implement that
-  // reading: `record:quick_actions`
-  // (`plugin-detail/src/renderers/record-quick-actions.tsx`) resolves a
-  // string-valued `actions` out of the object's own metadata, and
-  // `layout:page-header` reaches the same resolver by delegating its `actions`
-  // to a `record:quick_actions` node.
+  // B) settles in favour of ids.
   //
   // Resolution happens HERE, at the top of the pipeline, so exactly ONE filter
   // chain runs below: `actionRendersAt` placement, the capability gate,
@@ -1253,78 +1283,77 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // testable — an id-authored header and an object-authored header converge on
   // the same array before a single filter runs.
   //
-  // The object shape survives as RENDERER TOLERANCE for the transition (the
-  // card's licence: "keep the existing object-shape handling working during the
-  // transition if it is cheap"). It stays UNDECLARED — widening the spec's type
-  // to `string | ActionDef` would change what the contract accepts, which is a
-  // different (contract-review) change and is not this one.
+  // The array's SHAPE and its resolution are `resolveDeclaredActionIds`'s call
+  // (`@object-ui/types`, beside `actionRendersAt`) — the ONE rule this surface
+  // shares with `record:quick_actions` (objectui#7182, maintainer ruling
+  // 2026-09-02, option C). This file used to normalise PER ELEMENT while that
+  // renderer switched on the WHOLE array, so a half-migrated `['convert', { … }]`
+  // resolved the id and passed the object through here, and rendered nothing
+  // for the id there: one authored array, two meanings. Now it has one — an
+  // array is all ids or all inline objects, and a mixed array is REFUSED (none
+  // of its authored actions is drawn, and the console names the offending
+  // index) on both surfaces alike.
   //
-  // ⚠️ One deliberate difference from `record:quick_actions`: that renderer
-  // switches on the whole array (`rawActions.every(a => typeof a === 'string')`),
-  // this one normalizes PER ELEMENT, so a half-migrated `['convert', { … }]`
-  // resolves the id and passes the object through. Same mechanism (the object's
-  // `actions`, keyed by `name`), wider arity — a page mid-migration is exactly
-  // the state this card creates.
-  const headerActionIds = React.useMemo<string[]>(
-    () => (Array.isArray(rawHeaderActions)
-      ? rawHeaderActions.filter((a: unknown): a is string => typeof a === 'string' && a.trim() !== '')
-      : []),
+  // The all-object arm survives as RENDERER TOLERANCE for the transition. It
+  // stays UNDECLARED — the spec's contract is ids, and the spec already refuses
+  // an object element at validation — and it is retired on its own card once
+  // the last inline array has been converted, not here.
+  const authoredHeaderActions = React.useMemo<unknown[]>(
+    () => (Array.isArray(rawHeaderActions) ? rawHeaderActions : []),
     [rawHeaderActions],
+  );
+  // Registry-independent verdict first — the same function, called with no
+  // registry: `kind` and `ids` are final from the shape alone, which is all
+  // the hook-order question below needs (`useMetadataItem` runs every render,
+  // so the read is requested or skipped before the registry exists).
+  const headerActionsShape = React.useMemo(
+    () => resolveDeclaredActionIds<any>(authoredHeaderActions, undefined),
+    [authoredHeaderActions],
   );
   // `useMetadataItem` is the SAME entry `record:quick_actions` resolves through
   // — not a second lookup path. Passing `null` for the name is its documented
   // no-op, so a header with no ids (or no object bound) does not fetch.
-  const needsActionLookup = headerActionIds.length > 0 && !!headerObjectName;
+  const needsActionLookup =
+    headerActionsShape.kind === 'ids' && headerActionsShape.ids.length > 0 && !!headerObjectName;
   const { item: headerActionsObjectMeta, loading: headerActionsMetaLoading } = useMetadataItem(
     'object',
     needsActionLookup ? headerObjectName : null,
   );
   const resolvedHeaderActions = React.useMemo<any[]>(() => {
-    if (!Array.isArray(rawHeaderActions)) return [];
-    // No ids in the array — the object-shape path, byte-for-byte as before.
-    if (headerActionIds.length === 0) return rawHeaderActions;
-    // The lookup has not answered yet. Render the ids as nothing rather than as
-    // "unresolved" — the metadata read is in flight, and warning here would fire
-    // on every first paint. Same visible behaviour as `record:quick_actions`,
-    // which renders an empty `byName` map until its own `useMetadataItem`
-    // settles.
-    const settled = !needsActionLookup || !headerActionsMetaLoading;
     const registered: any[] = Array.isArray(headerActionsObjectMeta?.actions)
       ? (headerActionsObjectMeta as any).actions
       : [];
-    // Keyed by `name`, the identity `record:quick_actions` keys on and the one
-    // the spec makes required — "id" in the spec's wording is the action's
-    // machine name, not a second key. One convention, not two.
-    const byName = new Map<string, any>();
-    for (const def of registered) {
-      const key = typeof def?.name === 'string' ? def.name : '';
-      if (key && !byName.has(key)) byName.set(key, def);
+    const declared = resolveDeclaredActionIds<any>(authoredHeaderActions, registered);
+    if (declared.kind === 'refused') {
+      reportRefusedHeaderActions(headerObjectName, declared);
+      return [];
     }
-    const out: any[] = [];
-    for (const el of rawHeaderActions) {
-      if (typeof el !== 'string') {
-        out.push(el); // transition tolerance: an inline def passes through
-        continue;
+    if (declared.kind === 'ids') {
+      // The lookup has not answered yet. Render the ids as nothing rather than
+      // as "unresolved" — the metadata read is in flight, and warning here would
+      // fire on every first paint.
+      const settled = !needsActionLookup || !headerActionsMetaLoading;
+      if (settled) {
+        const registeredNames = Array.from(
+          new Set(
+            registered
+              .map((def: any) => (typeof def?.name === 'string' ? def.name : ''))
+              .filter((name: string) => name !== ''),
+          ),
+        ) as string[];
+        for (const { id } of declared.unresolved) {
+          warnUnresolvedHeaderActionId(
+            id,
+            headerObjectName,
+            !headerObjectName ? 'no-object' : (!headerActionsObjectMeta ? 'no-metadata' : 'not-found'),
+            registeredNames,
+          );
+        }
       }
-      const id = el.trim();
-      if (id === '') continue;
-      const def = byName.get(id);
-      if (def) {
-        out.push(def);
-        continue;
-      }
-      if (!settled) continue;
-      warnUnresolvedHeaderActionId(
-        id,
-        headerObjectName,
-        !headerObjectName ? 'no-object' : (!headerActionsObjectMeta ? 'no-metadata' : 'not-found'),
-        [...byName.keys()],
-      );
     }
-    return out;
+    return declared.actions;
   }, [
-    rawHeaderActions,
-    headerActionIds,
+    authoredHeaderActions,
     headerActionsObjectMeta,
     headerActionsMetaLoading,
     needsActionLookup,
@@ -1896,15 +1925,40 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       (objectLabel && data?.id ? `${objectLabel} ${String(data.id).slice(0, 8)}` : '') ||
       objectLabel ||
       '';
+    // Width arbitration between the title column and the action tail
+    // (objectui#7244). The tail is `shrink-0` — correct, buttons must not be
+    // squeezed into unreadable slivers — so in a `nowrap` row it takes what it
+    // needs and the title column, being the only flexible item, absorbs the
+    // entire deficit. Measured at a 799px viewport on a Field Zoo record
+    // (3 labelled record_header actions + `⋯` + `⟳`): header 687px, tail
+    // 641.5px, `gap-4` 16px, leaving the title column **29.5px** for an h1
+    // whose `scrollWidth` was 180px — the title rendered as "S…" while the
+    // breadcrumb still showed the full "Specimen — Full".
+    //
+    // Two utilities settle it, both scoped to `sm:` so the sub-640px column
+    // layout stays byte-for-byte what it was:
+    //   - `sm:min-w-48` gives the title column a 12rem floor it will not
+    //     yield, so the deficit has nowhere to go but the tail;
+    //   - `sm:flex-wrap` gives the deficit somewhere to go — the tail drops to
+    //     its own line instead of overflowing the header.
+    // The h1 still ellipsises, but now at a width you can read a name from.
+    //
+    // The floor is deliberately NOT a `min-w-0` removal: `min-w-0` is what lets
+    // `truncate` clip at all, and the chip's own inner column keeps it. This
+    // only stops the OUTER column from being driven below a readable width.
+    //
+    // Headers whose tail already fits are unaffected — an Account record
+    // (edit + `⋯` + `⟳`) needs 192 + 16 + ~180px of a 687px header, so it stays
+    // on one line exactly as before.
     return (
       <header
         className={cn(
-          'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b',
+          'flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 sm:gap-4 pb-4 border-b',
           className,
         )}
         {...designer}
       >
-        <div className="flex flex-col min-w-0 flex-1">
+        <div className="flex flex-col min-w-0 sm:min-w-48 flex-1">
           {breadcrumb && (
             <div
               className="text-xs text-muted-foreground mb-1"

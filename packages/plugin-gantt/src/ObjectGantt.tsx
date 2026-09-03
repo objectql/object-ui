@@ -34,6 +34,7 @@ import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui
 import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
+import { usePermissions } from '@object-ui/permissions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +52,7 @@ import {
   convertSortToQueryParams,
   getRecordDisplayName,
   resolveDataSource,
+  createFieldColorResolver,
 } from '@object-ui/core';
 import {
   getSemanticColorName,
@@ -638,6 +640,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const resource =
     dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName ?? '';
 
+  // Permissions context, read here rather than inside `reload` below: a
+  // `useCallback`'s DEPENDENCY ARRAY is evaluated during render, so `perms` has
+  // to be a binding that already exists by the time render reaches it
+  // (objectui#7230, the structural note PR #7229 recorded for `ListView`).
+  const perms = usePermissions();
+
   // Load (and re-load) data through the resolved adapter. `silent: true`
   // re-reads the source WITHOUT flipping `loading`, so GanttView stays mounted
   // and keeps its scroll/collapse state — used by the write-readback below and
@@ -671,7 +679,34 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       // 'object' → context adapter, 'api' → ApiDataSource (both resolved above).
       // Auto-inject $expand for lookup/master_detail fields when a schema is
       // available; api adapters return an empty field map, so expand stays off.
-      const expand = buildExpandFields(objectSchema?.fields);
+      //
+      // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand`, the gate
+      // objectui#7215 / PR #7229 put on the two projection sites in its scope.
+      // `$select` on a denied lookup asks for a bare foreign key; `$expand`
+      // asks the server to RESOLVE the relation and return the related record.
+      //
+      // ⚠️ NO COLUMN LIST IS PASSED HERE, which is what makes this site sharp:
+      // `buildExpandFields` reads an absent column list as "no column
+      // restriction" and falls back to EVERY declared relation on the object,
+      // denied ones included — the maximal ask, by default rather than by
+      // configuration.
+      //
+      // Graded as objectui#7215 graded it: defence-in-depth against
+      // ObjectStack's own server (`FieldMasker.maskRecord` deletes the very key
+      // objectql writes the expansion back under, and the sub-read takes the
+      // referenced object's full CRUD + RLS + FLS — objectstack#7626), and
+      // load-bearing for a backend that does not strip.
+      //
+      // ⭐ THE GATE IS ON THE OUTPUT. There is no input to gate on this site,
+      // and the output contains only DECLARED reference-bearing fields, so the
+      // "`checkField` answers false for an undeclared key" trap is structurally
+      // unreachable. An unanswered policy filters nothing; `perms` is in this
+      // callback's dependency list, so the expansion is rebuilt the moment the
+      // answer arrives. Pinned in `ObjectGantt.expandFls-7230.test.tsx`.
+      const expandable = buildExpandFields(objectSchema?.fields);
+      const expand = !perms?.isLoaded || !resource
+        ? expandable
+        : expandable.filter((f) => perms.checkField(resource, f, 'read'));
       const result = await effectiveDataSource.find(resource, {
         $filter: schema.filter,
         $orderby: convertSortToQueryParams(schema.sort),
@@ -706,7 +741,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
-  }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema]);
+  }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema, perms]);
 
   useEffect(() => {
     reload();
@@ -742,6 +777,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
     const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, borderColorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField, quickFilters } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+    // One resolver per declared colour field, built once for the whole
+    // dataset rather than per row: rung 1 (the field's own option colour)
+    // plus rung 2 (the value already IS a colour literal). See
+    // `@object-ui/core#createFieldColorResolver` (objectui#7243).
+    const resolveColorFieldValue = createFieldColorResolver(fieldDefs[colorField ?? '']);
+    const resolveBorderColorFieldValue = createFieldColorResolver(fieldDefs[borderColorField ?? '']);
 
     // Fallback value→label maps from the view's quickFilters config. When the
     // data comes from an `api` provider there is no object schema, so select
@@ -929,12 +970,33 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       const title = resolveTitle(record);
       const progress = progressField ? record[progressField] : 0;
       const dependencies = dependenciesField ? record[dependenciesField] : [];
-      // Bar color resolution:
-      //   1. explicit `colorField` value (hex or semantic name) — metadata wins.
-      //   2. fall back to the record's status / state / priority field so
-      //      the timeline reflects the same color story as list/kanban.
-      //   3. if neither exists, GanttView paints the platform default blue.
-      let color = colorField ? record[colorField] : undefined;
+      // Bar color resolution (objectui#7243). `colorField` NAMES A FIELD to
+      // derive a colour from — it is not itself a colour, and the value stored
+      // in that field usually isn't one either. The rungs, shared with
+      // plugin-timeline and plugin-calendar via `createFieldColorResolver`:
+      //   1. the field's own option `color` for this record's value —
+      //      the colour the author actually declared;
+      //   2. the value itself when it already IS a colour literal;
+      //   3. the semantic-token derivation, which also maps a palette NAME
+      //      ('red') to that palette's hex — what the key's contract has always
+      //      promised ("hex or semantic name").
+      // Only when `colorField` is absent or its value is empty do we fall back
+      // to the record's status / state / priority so the chart reflects the
+      // same colour story as list/kanban; if neither exists GanttView paints
+      // the platform default blue.
+      //
+      // ⛔ The raw value must never reach `color` again. That was this card's
+      // defect: `backgroundColor: "open"` is not a colour, so the browser
+      // dropped the declaration and every bar rendered identically — DECLARING
+      // the documented key was strictly worse than omitting it, silently.
+      const colorValue = colorField ? record[colorField] : undefined;
+      let color = resolveColorFieldValue(colorValue);
+      if (!color && colorValue != null && colorValue !== '') {
+        // Rung 3 for the declared field's own value. `getSemanticColorName`
+        // always answers for a non-empty value (semantic map, else its stable
+        // hash), so a declared `colorField` always paints something real.
+        color = getSemanticHex(getSemanticColorName(String(colorValue), colorValue));
+      }
       if (!color) {
         const fallbackVal =
           record.status ?? record.state ?? record.priority ?? record.severity;
@@ -943,12 +1005,19 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           if (name) color = getSemanticHex(name);
         }
       }
-      // Alert stroke: semantic palette names map to their hex;
-      // anything else (hex, css color) passes through untouched.
+      // Alert stroke: the option colour first (same rung 1 as the bar — an
+      // authored option colour is an authored option colour whichever slot it
+      // paints), then today's behaviour: semantic palette names map to their
+      // hex, anything else (hex, css color) passes through untouched.
+      //
+      // Deliberately NO rung 3 here. The stroke is opt-in and exceptional —
+      // deriving one for every record would draw an alert on records that have
+      // none, which is a repaint, not a fix.
       const borderColorRaw = borderColorField ? record[borderColorField] : undefined;
       const borderColor =
         borderColorRaw != null && borderColorRaw !== ''
-          ? getSemanticHex(String(borderColorRaw), String(borderColorRaw))
+          ? resolveBorderColorFieldValue(borderColorRaw)
+            ?? getSemanticHex(String(borderColorRaw), String(borderColorRaw))
           : undefined;
 
       return {

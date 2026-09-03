@@ -88,6 +88,10 @@ export * from './utils/dataset-format.js';
 // (objectstack#5473 / objectstack#5665).
 export * from './utils/dataset-pivot.js';
 export * from './utils/record-title.js';
+// The one `colorField` ladder every record view shares (objectui#7243) — the
+// gantt, calendar and timeline all resolve an authored option colour here
+// instead of each guessing at the raw stored value.
+export * from './utils/record-color.js';
 export * from './utils/export-filename.js';
 export * from './utils/reference-keys.js';
 // Binds a fetched record into an expression scope the way the SERVER binds it

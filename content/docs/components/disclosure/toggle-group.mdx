@@ -41,7 +41,7 @@ interface ToggleGroupSchema {
   onValueChange?: (value: string | string[]) => void;
   
   // States
-  disabled?: boolean;
+  disabled?: boolean | string;   // boolean, or a predicate expression
   
   // Styling
   className?: string;

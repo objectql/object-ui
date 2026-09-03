@@ -44,6 +44,8 @@
  * `percentDisplayValue` / `formatMeasure`.
  */
 
+import { isSystemManagedField } from '@object-ui/types';
+
 // Sentinel marking an empty-placeholder position inside a titleFormat render,
 // so adjacent separators can be stripped in a second pass.
 //
@@ -306,6 +308,104 @@ export function deriveTitleField(objectDef: any): string | undefined {
 }
 
 /**
+ * The declared name-field pointer, read exactly as {@link getRecordDisplayName}
+ * reads it: the canonical `nameField` (ADR-0079 Phase 2), then its deprecated
+ * `displayNameField` / `NAME_FIELD_KEY` aliases.
+ *
+ * One spelling, two readers — the value-space resolver and the name-space
+ * {@link resolveNameField}. Re-typing the `??` chain at the second reader is
+ * how the two would drift into disagreeing about which field titles an object.
+ * No new alias is read here; this is the existing ladder, extracted.
+ */
+function declaredNameField(objectDef: any): any {
+  return objectDef?.nameField ?? objectDef?.displayNameField ?? objectDef?.NAME_FIELD_KEY;
+}
+
+/**
+ * WHICH FIELD titles this object — the name-space twin of
+ * {@link getRecordDisplayName}, which answers what that field SAYS on one
+ * record. Same ladder, minus the rungs that only exist per record:
+ *
+ *   1+2. the declared pointer ({@link declaredNameField});
+ *   4.   else the type-aware derivation ({@link deriveTitleField}).
+ *
+ * The two omissions are deliberate, not oversights. `options.titleField`
+ * (step 0) belongs to one view, not to the object. `titleFormat` (step 3) is a
+ * render-only template, not a field name — there is no column, no sort key and
+ * no `$select` entry to be had from it, which is the same reason ADR-0079
+ * demoted it. A caller that wants a title for a `titleFormat`-only object wants
+ * {@link getRecordDisplayName}, per record.
+ *
+ * Deliberately does NOT require the answer to exist in `objectDef.fields`: in
+ * value-space the declared pointer is read off the RECORD, so demanding a field
+ * def here would make the two resolvers disagree. A caller that needs a
+ * RENDERABLE column checks presence itself — see {@link leadWithNameField}.
+ *
+ * Returns `undefined` when nothing declares or derives a name field.
+ */
+export function resolveNameField(objectDef: any): string | undefined {
+  const declared = declaredNameField(objectDef);
+  if (typeof declared === 'string' && declared.length > 0) return declared;
+  return deriveTitleField(objectDef);
+}
+
+/**
+ * Put the object's name field at the FRONT of a **synthesized** default column
+ * list, so a list no author ever configured still lets you tell its rows apart.
+ *
+ * Why this exists (objectui#7245): the three faces that synthesize default list
+ * columns each took a declared `highlightFields` verbatim. `highlightFields` is
+ * the ADR-0085 "most important fields" role, and its canonical consumer — the
+ * detail-page highlight strip — deliberately *excludes* the title field,
+ * because the strip sits directly under the page H1 that already shows it. So
+ * well-authored metadata routinely omits the name from `highlightFields`: the
+ * showcase `showcase_account` declares `["status", "industry", "annual_revenue"]`
+ * against `nameField: "name"`, and its default grid rendered 14 rows with no
+ * name column and nothing to distinguish them.
+ *
+ * A list has no H1 to lean on, so the same role needs the opposite treatment
+ * here. This is not a new convention: `deriveLookupColumns` in `@object-ui/fields`
+ * already leads its picker columns with the display field and filters it out of
+ * the declared list — the record-picker equivalent of this problem, solved the
+ * same way. This makes the list faces agree with it.
+ *
+ * MOVES the name field rather than only prepending a missing one: an author who
+ * lists it third still gets it first, which is what "the column that identifies
+ * the row" means. Order among the remaining columns is untouched.
+ *
+ * NOT for author-declared column lists. A view that declares `columns` said what
+ * it wants; overriding that would be exactly the renderer-side second-guessing
+ * AGENTS.md Commandment #0.1 rules out. Every caller passes a list it
+ * synthesized itself.
+ *
+ * Three cases return `columns` untouched, each guarding a rule that already
+ * governs these column lists:
+ *
+ *  - **No field def** (nothing resolved, or the pointer names a field the object
+ *    does not carry) — a synthesized list must never fabricate a column the
+ *    object cannot render.
+ *  - **`hidden: true`** — the author said don't show this field. That outranks
+ *    the fact that it also titles the record; every one of these faces already
+ *    drops hidden fields from its own walk.
+ *  - **DERIVED onto a system-managed field.** {@link deriveTitleField} filters
+ *    by TYPE only, so on an object with no name-ish business field it can land
+ *    on a framework-injected column — and leading a default list with a raw id
+ *    is precisely the regression objectui#2702 / #2777 fixed. A *declared*
+ *    `nameField` is exempt: `sys_migration` really does point at `id`, and an
+ *    author's explicit designation is not a heuristic misfire.
+ */
+export function leadWithNameField(objectDef: any, columns: string[]): string[] {
+  const declared = declaredNameField(objectDef);
+  const isDeclared = typeof declared === 'string' && declared.length > 0;
+  const lead = isDeclared ? declared : deriveTitleField(objectDef);
+  const def = lead ? objectDef?.fields?.[lead] : undefined;
+  if (!lead || !def) return columns;
+  if (def.hidden) return columns;
+  if (!isDeclared && isSystemManagedField(lead, def)) return columns;
+  return [lead, ...columns.filter((c) => c !== lead)];
+}
+
+/**
  * Standard name-ish keys probed directly on a *record* as a last resort before
  * the `Record #<id>` floor — used when `objectDef.fields` is absent so
  * {@link deriveTitleField} can't run (loosely-typed metadata, the lightweight
@@ -417,10 +517,9 @@ export function getRecordDisplayName(
   //      explicitly-declared field now wins over the legacy `titleFormat`
   //      template (step 3): an object that sets `nameField` resolves via it even
   //      if it also carries a stale `titleFormat`.
-  const declared = valueAt(
-    record,
-    objectDef?.nameField ?? objectDef?.displayNameField ?? objectDef?.NAME_FIELD_KEY,
-  );
+  //      The `??` chain itself lives in {@link declaredNameField} so the
+  //      name-space {@link resolveNameField} reads the identical ladder.
+  const declared = valueAt(record, declaredNameField(objectDef));
   if (declared) return declared;
 
   // 3. titleFormat (LEGACY, render-only template). DEPRECATED by ADR-0079: the

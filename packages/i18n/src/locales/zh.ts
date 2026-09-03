@@ -716,6 +716,8 @@ const zh = {
       unusableRange: {
         malformedDate:
           '甘特图日期区间不可用 —— {{path}} 的值是 {{value}}，无法解析为日期。每个甘特图日期都必须能被解析：每行条目的 startDate 与 endDate，以及 schema 上钉住的 minDate / maxDate。',
+        malformedRow:
+          '甘特图行不可用 —— {{path}} 的值是 {{value}}，不是行的形状。甘特图把 items 读作行的列表，每一行是带 label 和自身 items 的对象，每一行的 items 是条形的列表；这些位置上出现 null、数字、字符串或普通对象都无法绘制。',
         inverted:
           '甘特图日期区间不可用 —— minDate {{minDate}} 晚于 maxDate {{maxDate}}。钉住的 minDate / maxDate 会覆盖由行数据算出的区间，因此该坐标轴没有任何列，也无法放置任何条形；请对调这两个值。',
       },
@@ -1650,6 +1652,12 @@ const zh = {
         statusFull: '额度已用完',
         resetsDaily: '今晚重置',
         resetsMonthly: '下个周期重置',
+        resetsWeeklyDays: '{{count}} 天后重置',
+        resetsWeeklyDays_one: '{{count}} 天后重置',
+        resetsWeeklyDays_other: '{{count}} 天后重置',
+        resetsWeeklyHours: '{{count}} 小时后重置',
+        resetsWeeklyHours_one: '{{count}} 小时后重置',
+        resetsWeeklyHours_other: '{{count}} 小时后重置',
         ctaUpgrade: '升级以继续使用',
         ctaTopUp: '购买额度包以继续',
         ariaLabel: 'AI 用量：{{status}}',
@@ -2926,6 +2934,46 @@ const zh = {
     openProduction: '打开生产环境',
     manageEnvironments: '管理环境',
   },
+  aiApprovals: {
+    title: 'AI 审批',
+    description: 'AI 智能体提出的操作，需要人工审核后才会执行。',
+    tabPending: '待审批',
+    tabDecided: '已处理',
+    tabAll: '全部',
+    statusPending: '待审批',
+    statusApproved: '已通过',
+    statusExecuted: '已执行',
+    statusFailed: '失败',
+    statusRejected: '已拒绝',
+    colTool: '工具',
+    colAction: '动作',
+    colObject: '对象',
+    colStatus: '状态',
+    colProposed: '提出时间',
+    colDecision: '决定',
+    emptyTitle: '暂无待处理操作',
+    emptyDescription: '当 AI 提出敏感操作时，会显示在这里等待审核。',
+    view: '查看',
+    approve: '通过',
+    reject: '拒绝',
+    working: '处理中…',
+    approveAndExecute: '通过并执行',
+    outcomeApprove: '对 {{id}} 的通过操作：{{message}}',
+    outcomeReject: '对 {{id}} 的拒绝操作：{{message}}',
+    outcomeExecuteFailed: '操作执行失败',
+    drawerFallbackTitle: '待处理操作',
+    drawerSubtitle: '在 {{object}} 上执行工具 {{tool}}',
+    fieldProposedBy: '提出者',
+    fieldDecidedBy: '处理人',
+    fieldConversation: '会话',
+    fieldToolInput: '工具输入',
+    fieldResult: '结果',
+    fieldError: '错误',
+    fieldRejectionReason: '拒绝原因',
+    rejectTitle: '要拒绝此操作吗？',
+    rejectBody: '该原因会回传给 AI，便于它调整下一步回复。',
+    rejectPlaceholder: '可选原因（例如：“记录 ID 有误 — 请先与用户确认。”）',
+  },
   aiModelStatus: {
     summary: '构建 / 提问使用 {{conversational}}（{{conversationalSource}}）；结构化使用 {{structured}}（{{structuredSource}}）。',
     summaryRouting: '路由策略：免费方案 → {{free}}，付费方案 → {{paid}}。',
@@ -2942,6 +2990,80 @@ const zh = {
     sourceCodeDefault: '代码默认（无 env 覆盖）',
     sourceInherits: '与 build/ask 相同',
     sourcePinned: '被 {{source}} 钉住',
+  },
+  // objectui#7254 — the AI copilot's tool cards. Three families, all of them
+  // English-only until this landed while every other string on the same screen
+  // was translated:
+  //
+  //   `tool.*`      — one entry per PLATFORM-PROVIDED tool name
+  //                   (@objectstack/spec `PLATFORM_TOOLS_BY_PACKAGE`, the
+  //                   closed registry those runtimes are conformance-tested
+  //                   against). `humanizeToolName` looks each up as
+  //                   `chatbot.tool.<tool_name>` and falls back to its English
+  //                   title-caser for a custom / third-party tool, so a name
+  //                   missing here is degraded, never broken. The `en` values
+  //                   are deliberately EQUAL to what that title-caser produces:
+  //                   adding the key must not silently reword the English UI.
+  //   `toolState.*` — the card-header badge + activity-chip vocabulary. ONE
+  //                   set for both surfaces (they used to carry separate
+  //                   tables and disagreed on casing).
+  //   `plan.*`      — the "N objects · N views · N dashboards" strip. Plural
+  //                   FAMILIES (base key + `_one`): i18next resolves every
+  //                   CLDR category a pack does not enumerate to the base key,
+  //                   which is what keeps ru/ar in their own language.
+  chatbot: {
+    tool: {
+      aggregate_data: '汇总数据',
+      get_record: '读取记录',
+      query_data: '查询数据',
+      query_records: '查询记录',
+      search_knowledge: '搜索知识库',
+      visualize_data: '生成图表',
+      add_field: '添加字段',
+      apply_blueprint: '搭建应用',
+      apply_edit: '应用修改',
+      create_metadata: '新建元数据',
+      create_object: '新建对象',
+      create_package: '新建应用包',
+      create_seed: '生成示例数据',
+      delete_field: '删除字段',
+      describe_metadata: '查看元数据',
+      describe_object: '查看对象结构',
+      get_active_package: '读取当前应用包',
+      get_metadata_schema: '读取元数据结构',
+      get_package: '读取应用包',
+      list_metadata: '列出元数据',
+      list_objects: '列出对象',
+      list_packages: '列出应用包',
+      modify_field: '修改字段',
+      propose_blueprint: '设计应用方案',
+      set_active_package: '切换当前应用包',
+      suggest_builder: '推荐搭建方式',
+      todo_write: '记录待办',
+      update_metadata: '更新元数据',
+      validate_expression: '校验表达式',
+      verify_build: '校验搭建结果',
+    },
+    toolState: {
+      agentActivity: '智能体活动',
+      pending: '等待中',
+      running: '运行中',
+      awaitingApproval: '待确认',
+      responded: '已回复',
+      completed: '已完成',
+      error: '出错',
+      denied: '已拒绝',
+      failed: '失败',
+    },
+    plan: {
+      countObjects: '{{count}} 个对象',
+      countObjects_one: '{{count}} 个对象',
+      countViews: '{{count}} 个视图',
+      countViews_one: '{{count}} 个视图',
+      countDashboards: '{{count}} 个仪表板',
+      countDashboards_one: '{{count}} 个仪表板',
+      countSeedData: '示例数据',
+    },
   },
   chatbotError: {
     title: '响应失败',

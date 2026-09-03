@@ -78,6 +78,7 @@ import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildR
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface.js';
 import { useSharedActivityFeed } from '../hooks/sharedUserFeeds.js';
 import { useInboxBell } from '../hooks/useInboxBell.js';
+import { useHomePath } from '../hooks/useHomePath.js';
 import { getProductName, getLogoUrl } from '../runtime-config.js';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger.js';
 import { PreviewBadge } from './PreviewBadge.js';
@@ -129,6 +130,9 @@ export function AppHeader({
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
+  // objectui#7256 — the brand logo's target follows the product's DECLARED
+  // landing, so the chrome cannot offer a second, contradicting "home".
+  const homePath = useHomePath();
   const { isOnline } = useOffline();
   // Idempotent, direct open of the ⌘K command palette (ADR-0054 C1). Replaces a
   // synthetic `⌘K` KeyboardEvent re-dispatch that did nothing under automation.
@@ -414,9 +418,13 @@ export function AppHeader({
         {/* Platform logo — links to home. Hidden on mobile when inside an
             app: the sidebar (opened via the SidebarTrigger ☰) already
             exposes the home affordance, so duplicating it in the topbar
-            just steals horizontal space from the page title. */}
+            just steals horizontal space from the page title.
+
+            `homePath`, not a literal `/home` (objectui#7256): on a deployment
+            that DECLARES a landing this is the declared one, so the logo and
+            the post-login landing name the same screen. */}
         <Link
-          to="/home"
+          to={homePath}
           className={cn(
             "flex items-center justify-center h-7 w-7 shrink-0 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors overflow-hidden",
             isApp && "hidden sm:flex"
