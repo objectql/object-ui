@@ -1346,15 +1346,35 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           titleField: viewOptions.gallery?.titleField || 'name',
           ...(viewOptions.gallery || {}),
         };
-      case 'timeline':
+      case 'timeline': {
+        // objectui#7070 step ③: the SECOND route to `ObjectTimeline`, fixed the
+        // same way objectui#7029 fixed the calendar branch above.
+        // `generateViewSchema` runs precisely when no host supplied
+        // `renderListView` — the authored `object-view` element — so it never
+        // passes through `ListView`, and the deletion made there does not reach
+        // it. Left alone it would keep flooring the axis at `'created_at'` for a
+        // view that declared none, which is what makes the renderer's own
+        // refusal screen unreachable (it decides by asking whether a start-date
+        // binding is PRESENT). House posture, ruled 2026-09-01 (总监批 #28):
+        // 日期轴永不虚构 — a date axis is never fabricated.
+        //
+        // ⛔ `titleField` keeps its `'name'` floor: not a date axis, and the same
+        // display-name rung the gallery and kanban branches carry here.
+        //
+        // `startDateField` is the spec key; `dateField` is the legacy alias, and
+        // this flat prop is the only place on this face that translates one into
+        // the other — the trailing `...viewOptions.timeline` spread does not, so
+        // the alias has to be resolved before it, not folded into the spread.
+        const timelineStartDateField =
+          viewOptions.timeline?.startDateField || viewOptions.timeline?.dateField;
         return {
           type: 'object-timeline',
           ...baseProps,
-          // `startDateField` is the spec key; `dateField` is the legacy alias.
-          startDateField: viewOptions.timeline?.startDateField || viewOptions.timeline?.dateField || 'created_at',
+          ...(timelineStartDateField ? { startDateField: timelineStartDateField } : {}),
           titleField: viewOptions.timeline?.titleField || 'name',
           ...(viewOptions.timeline || {}),
         };
+      }
       case 'gantt':
         // objectui#7070: only ever restate a binding the view actually DECLARED
         // — the same correction objectui#7029 made to the calendar branch above.
