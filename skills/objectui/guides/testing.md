@@ -173,7 +173,7 @@ describe('SchemaRenderer', () => {
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { AuthProvider, useAuth } from '@object-ui/auth';
+import { AuthProvider, useAuth, type AuthClient } from '@object-ui/auth';
 
 function AuthConsumer() {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -184,14 +184,21 @@ function AuthConsumer() {
 
 describe('AuthProvider', () => {
   it('shows loading then authenticated state', async () => {
-    const mockClient = {
-      getSession: vi.fn().mockResolvedValue({
-        data: { user: { id: '1', name: 'Alice' }, session: { token: 'abc' } },
+    // `AuthClient` declares ~38 methods and the provider reaches ONE of them on
+    // this path. Type the literal `Partial<AuthClient>` and the stubbed member
+    // against `AuthClient['getSession']`: the key, the signature and the
+    // resolved value are then all checked, and the widening happens ONCE, in a
+    // named place. Casting the double to `any` unchecks all three at once.
+    // This is the shape `@object-ui/auth`'s own AuthProvider.test.tsx uses.
+    const stub: Partial<AuthClient> = {
+      getSession: vi.fn<AuthClient['getSession']>().mockResolvedValue({
+        user: { id: '1', email: 'alice@example.com', name: 'Alice' },
+        session: { token: 'abc' },
       }),
     };
 
     render(
-      <AuthProvider authClient={mockClient as any}>
+      <AuthProvider authUrl="/api/v1/auth" client={stub as unknown as AuthClient}>
         <AuthConsumer />
       </AuthProvider>
     );
