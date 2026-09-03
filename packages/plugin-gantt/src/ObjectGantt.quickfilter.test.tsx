@@ -11,6 +11,7 @@
  */
 import React from 'react';
 import { render, fireEvent, waitFor, within } from '@testing-library/react';
+import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { describe, it, expect, vi } from 'vitest';
 import { ObjectGantt } from './ObjectGantt';
 import type { DataSource } from '@object-ui/types';
@@ -248,7 +249,7 @@ describe('ObjectGantt quick filters — schema-driven options', () => {
               { value: 'done', label: '已完成' },
             ],
           },
-          project: { type: 'lookup', reference_to: 'projects' },
+          project: { type: 'lookup', reference: 'projects' },
         },
       }),
     };
@@ -293,19 +294,54 @@ describe('ObjectGantt quick filters — schema-driven options', () => {
     expect((ds.find as any).mock.calls.some((c: any[]) => c[0] === 'projects')).toBe(true);
   });
 
-  it('pulls the lookup domain when the schema keys the target as `reference` (ObjectStack convention)', async () => {
-    // Served object schemas name the relational target `reference`, not
-    // `reference_to` (#2407 / PR #2587) — the quick-filter option fetch must
-    // resolve either key, or the dropdown silently shows only loaded-row values.
+  it('does NOT pull the lookup domain when the schema keys the target as `reference_to` (objectui#6837 half 2)', async () => {
+    // This test used to assert the MIRROR of the one above, back when the
+    // option fetch read `reference_to ?? reference`. objectui#6837 half 2
+    // deleted the `reference_to` arm — maintainer 2026-08-31: protocol
+    // normalization belongs on the SERVER, the front end just executes the
+    // protocol — so the assertion is inverted rather than deleted, and the
+    // fixture above now carries the spelling `FieldSchema` actually declares.
+    //
+    // ⚠️ The degradation is asserted POSITIVELY (p1/p2 present, p3 absent), not
+    // as a bare absence: a gantt that rendered no quick filter at all would
+    // satisfy `queryByTestId(...p3) === null` and measure nothing.
     const ds = makeDataSource();
     (ds.getObjectSchema as any).mockResolvedValue({
       fields: {
         name: { type: 'text' },
         start: { type: 'date' },
         end: { type: 'date' },
-        project: { type: 'lookup', reference: 'projects' },
+        project: { type: 'lookup', reference_to: 'projects' },
       },
     });
+    const { container, getByTestId } = render(<ObjectGantt schema={objSchema()} dataSource={ds} />);
+    await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('2'));
+    fireEvent.click(getByTestId('quick-filter-trigger-project'));
+    const panel = getByTestId('quick-filter-panel-project');
+    // Falls back to the distinct values present in the loaded rows.
+    expect(within(panel).getByTestId('quick-filter-option-project-p1')).toBeTruthy();
+    expect(within(panel).getByTestId('quick-filter-option-project-p2')).toBeTruthy();
+    // `p3` lives only in the referenced object's domain, which was never fetched.
+    expect(within(panel).queryByTestId('quick-filter-option-project-p3')).toBeNull();
+    expect((ds.find as any).mock.calls.some((c: any[]) => c[0] === 'projects')).toBe(false);
+  });
+
+  it('a `reference_to`-only def that came through the ingestion choke point STILL resolves', async () => {
+    // What bounds the break: `normalizeSchemaReferenceKeys` stamps `reference`
+    // from whichever spelling arrived, so every def that entered through
+    // `MetadataProvider` or `ObjectStackAdapter.getObjectSchema` is unaffected.
+    // Only a def that bypassed that door reaches this reader raw.
+    const ds = makeDataSource();
+    const served = {
+      fields: {
+        name: { type: 'text' },
+        start: { type: 'date' },
+        end: { type: 'date' },
+        project: { type: 'lookup', reference_to: 'projects' },
+      },
+    };
+    normalizeSchemaReferenceKeys(served);
+    (ds.getObjectSchema as any).mockResolvedValue(served);
     const { container, getByTestId } = render(<ObjectGantt schema={objSchema()} dataSource={ds} />);
     await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('2'));
     await waitFor(() => {

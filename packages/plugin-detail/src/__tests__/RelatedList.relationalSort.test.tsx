@@ -48,7 +48,7 @@ const objectSchema = {
   name: 'contact',
   fields: {
     name: { type: 'text', label: 'Name' },
-    owner: { type: 'lookup', label: 'Owner', reference_to: 'sys_user' },
+    owner: { type: 'lookup', label: 'Owner', reference: 'sys_user' },
   },
 };
 

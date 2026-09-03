@@ -39,7 +39,7 @@ const objectSchema = {
   fields: {
     tags: {
       type: 'lookup',
-      reference_to: 'tags',
+      reference: 'tags',
       display_field: 'name',
       multiple: true,
     },
