@@ -31,6 +31,7 @@ one has its own section below.
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
 | `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, or carries a marker that opts nothing in |
+| `skill-eval-tokens.yml` | Skill Eval Token Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when an eval assertion's `must_contain` token is not taught as a whole token anywhere in its own `skills/` bundle |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
 | `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
@@ -647,6 +648,63 @@ the JSON parser's message, or the orphan marker's line. Fix the example — or, 
 to stand alone, remove its marker rather than weakening the gate. Run it locally with
 `pnpm check:skill-examples`, `node scripts/check-skill-examples.mjs --list` to see every candidate
 fence and its verdict, and `--measure` to judge every candidate whether marked or not.
+
+## Skill Eval Tokens (`skill-eval-tokens.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the two sections above: the whole input is the markdown
+and JSON under `skills/`, which `ci.yml` and `lint.yml` structurally cannot see. It appears in the
+checks list as **Skill Eval Token Check**.
+
+Runs `scripts/check-skill-eval-tokens.mjs`. The two sections above check the *paths* a guide states
+and the *worked examples* it ships; this one checks the **evals** — the `skills/<bundle>/evals/*.json`
+files that grade an answering agent. Every `must_contain` token must occur as a **whole token** in the
+markdown of its own skill bundle. Unlike its sibling it does **not** install or build: it reads text
+out of the checkout, so it is a checkout plus two `node` calls, the shape `skills-paths.yml` uses.
+
+**Why it was needed:** nothing checked that a token an eval grades on is something the skill actually
+teaches, so an eval could require a word the guides never say and grade nothing forever. The class had
+already been cleaned by hand twice —
+[#7360](https://github.com/objectstack-ai/objectui/issues/7360) (six assertions, one of them passing
+only by accidental substring) and
+[#7405](https://github.com/objectstack-ai/objectui/issues/7405) (three more) — both rounds found by a
+human reading, which is the economics this gate family exists to end
+([#7461](https://github.com/objectstack-ai/objectui/issues/7461)).
+
+**The oracle is bundle-wide, and the losing option stays measurable.** A token counts as taught if it
+appears anywhere in its own bundle's markdown, not only in the guide whose basename matches the eval
+file. That is what the artefact supports: `SKILL.md` is a router that names every guide, and its rules
+block tells the reader to read `rules/` before writing schemas, so the corpus an eval is answered from
+is the whole bundle. Measured at the gate's branch point, per-guide would have started with 14 red rows
+against bundle-wide's 0 — and 12 of those 14 exist only because `evals/protocol.json` has no
+`guides/protocol.md` (its guide is `rules/protocol.md`), so they name no defect at all. `--measure`
+prints **both** red lists on every run, so that comparison stays re-derivable rather than a claim in a
+merged pull request.
+
+**Whole tokens, never substrings.** An identifier-shaped token is matched on word boundaries, so `view`
+does not match the tail of `// vite preview` and `FieldWidgetProps` does not match the head of
+`FieldWidgetPropsSchema` — both real rows that a substring grep had reported clean. A token that is not
+identifier-shaped at an end (a quoted JSON key, an operator) takes no boundary at that end and so
+degrades to an exact substring, which is what such a token means. Matching is case-sensitive.
+
+**`must_not_contain` is deliberately not scored against the guides** — it gets a shape check and
+nothing else. Those entries are tokens an answer must *avoid*, so "no guide says it" is the healthy
+case, and one of them is spelled as a quoted key fragment precisely so it does not fail an answer that
+names the rule while following it. A check that validated that array the way it validates `must_contain`
+would have the polarity backwards.
+
+**Three exit codes, not two.** `0` = every token is taught, and something was actually checked. `1` =
+the gate ran and found errors — an untaught token, a malformed assertion array, or a stale baseline
+row. `2` = the gate **could not run**: no eval population, no guide corpus, or an eval file that does
+not parse. Nothing printed under exit 2 is a verdict about any eval, and it is never a pass.
+
+**If it fails:** it prints `file eval N token` for every red row, and says whether the token is absent
+entirely or present only as a substring. Do **not** rewrite guide prose to teach the token and do
+**not** re-point the row mechanically — which of the two is right is a per-row skills decision. The
+declared list `KNOWN_UNTAUGHT_EVAL_TOKENS` is empty at landing and is **shrink-only**: a row parked in
+it stays visible, and a row whose red goes away fails as stale until its line is deleted. Run it
+locally with `pnpm check:skill-eval-tokens`, `--list` for every row under both oracles, and `--measure`
+for the two red lists side by side.
 
 ## Documented Component Types (`doc-component-types.yml`)
 

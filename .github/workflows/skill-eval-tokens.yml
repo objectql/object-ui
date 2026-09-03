@@ -1,0 +1,91 @@
+name: Skill Eval Tokens
+
+# Holds every `must_contain` token of every `skills/<bundle>/evals/*.json` to
+# the guides that bundle actually ships: the token must occur as a WHOLE token
+# (never a substring) somewhere in the bundle's own markdown. The oracle choice
+# — bundle-wide over per-guide, argued on four axes and measured both ways —
+# the whole-token boundary rule, the `must_not_contain` polarity and the
+# declared exit codes are documented at length in
+# `scripts/check-skill-eval-tokens.mjs`.
+#
+# ── Why this is its own workflow, with NO path filter ───────────────────────
+#
+# Same reason `skills-paths.yml`, `skill-examples.yml`, `docs-links.yml` and
+# `control-bytes.yml` are theirs. This gate's whole input is the markdown and
+# JSON under `skills/`, and both `ci.yml` and `lint.yml` list `'**/*.md'`,
+# `content/**` and `docs/**` under the `paths-ignore` of their `push` trigger.
+# GitHub has no per-job path filter, so a push that only edits a guide would
+# start neither — and editing only a guide is exactly how a token an eval grades
+# stops being taught. `control-bytes.yml`'s header names the consequence: a gate
+# that cannot see a markdown-only change "rebuilds the hole it exists to close".
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-skill-eval-tokens.test.ts` fails if either is ever
+# added, and fails too if a second workflow starts running the same script —
+# one gate, one home.
+#
+# ── Why it does NOT install, unlike its sibling `skill-examples.yml` ────────
+#
+# `skill-examples.yml` installs and builds because its criterion is the
+# PUBLISHED type surface, so the packages its marked fences import have to exist
+# as `dist/*.d.ts` first. This gate's criterion is text: it reads eval JSON and
+# guide markdown out of the checkout and nothing else. So it takes
+# `skills-paths.yml`'s shape instead — a checkout plus two `node` calls — and
+# `check-pre-install-import-graph.mjs` picks it up automatically and enforces
+# that this script's whole static import graph stays free of `node_modules`.
+#
+# That install-free shape is also why folding this check into
+# `check-skill-examples.mjs` as a second phase was rejected. That script exits 2
+# (PRECONDITION NOT MET) on an unbuilt tree BEFORE judging anything, so an
+# eval-token phase inside it would simply never run wherever the workspace is
+# not built — and its own header already lists this oracle, in "Deliberately NOT
+# answered here" item 4, as a different question over a different corpus.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that could become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: skill-eval-tokens-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  skill-eval-tokens:
+    name: Skill Eval Token Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      # The self-test runs FIRST. A probe that cannot fail is not a probe: it
+      # plants an untaught token that must go red, a substring-only match that
+      # must go red, a `must_not_contain` entry that must NOT, and a baseline row
+      # that must suppress exactly its own row — so a gate broken into permanent
+      # green is caught here rather than by nobody.
+      - name: Self-test the oracle and the whole-token rule, both directions
+        run: node scripts/check-skill-eval-tokens.mjs --self-test
+
+      # Reads the checkout and nothing else, so no install is required.
+      - name: Check every eval must_contain token against the guides
+        run: node scripts/check-skill-eval-tokens.mjs

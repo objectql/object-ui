@@ -126,31 +126,49 @@ whole of registration.
 Container for dashboard widgets:
 
 ```typescript
-{
+import type { DashboardComponentSchema, DashboardWidgetSchema } from '@object-ui/types';
+
+declare const widgets: DashboardWidgetSchema[];
+
+const schema: DashboardComponentSchema = {
   type: 'dashboard',
-  widgets: Widget[],
-  columns?: number,               // Grid columns (default: 3)
-  gap?: number,                   // Gap between widgets
-  className?: string
-}
+  widgets,
+  columns: 3,                     // Grid columns (default: 3)
+  gap: 4,                         // Gap between widgets
+  className: 'w-full',
+};
 ```
+
+`type` and `widgets` are the required keys; every other key above is optional.
 
 ### Metric Card
 
 Display a single metric or KPI:
 
 ```typescript
-{
+import type { ComponentProps } from 'react';
+import { MetricCard } from '@object-ui/plugin-dashboard';
+
+// A `metric-card` node's keys besides `type` are `MetricCard`'s own props. That
+// props interface is not on this package's export surface (see "TypeScript
+// Support" below), so they are read off the shipped component rather than
+// restated here — a renamed or retyped prop stops this block compiling.
+type MetricCardNode = { type: 'metric-card' } & ComponentProps<typeof MetricCard>;
+
+const card: MetricCardNode = {
   type: 'metric-card',
-  title: string,
-  value: string | number,
-  icon?: string,                  // Lucide icon name
-  trend?: 'up' | 'down' | 'neutral',
-  trendValue?: string,
-  description?: string,
-  className?: string
-}
+  title: 'Total Sales',
+  value: '$123,456',
+  icon: 'trending-up',            // Lucide icon name
+  trend: 'up',                    // 'up' | 'down' | 'neutral'
+  trendValue: '+12%',
+  description: 'vs last month',
+  className: 'col-span-2',
+};
 ```
+
+`value` is the only required key. `title` and `description` take a plain string
+or the spec's inline per-locale map (`I18nLabel`).
 
 ## Examples
 
@@ -362,7 +380,9 @@ A KPI widget can declare a semantic accent. The vocabulary is
 tokens the designer's swatch picker offers:
 
 ```typescript
-{
+import type { DashboardWidgetSchema } from '@object-ui/types';
+
+const atRisk: DashboardWidgetSchema = {
   id: 'kpi_at_risk',
   type: 'metric',
   title: 'At-Risk Projects',
@@ -370,7 +390,7 @@ tokens the designer's swatch picker offers:
   values: ['project_count'],
   filter: { health: 'red' },
   colorVariant: 'danger',   // tints the value; card chrome stays neutral
-}
+};
 ```
 
 Where the accent lands depends on the layout, not on the token:
@@ -535,16 +555,29 @@ coordinates are merged back into `schema.widgets[].layout` and handed off
 through the `onSchemaChange` callback.
 
 ```tsx
-<DashboardGridLayout
-  schema={dashboard}
-  // ✅ Preferred — write the updated schema through your data adapter.
-  onSchemaChange={(next) => {
-    // `name` is optional on the schema, and `saveItem` requires it — decide
-    // what an unnamed dashboard means to your host instead of writing through.
-    if (!next.name) return;
-    client.meta.saveItem('dashboard', next.name, next);
-  }}
-/>
+import { DashboardGridLayout } from '@object-ui/plugin-dashboard';
+import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import type { DashboardComponentSchema } from '@object-ui/types';
+
+// `dashboard` is the node being edited; `adapter` is host-provided.
+declare const dashboard: DashboardComponentSchema;
+declare const adapter: ObjectStackAdapter;
+
+function DashboardEditor() {
+  const client = adapter.getClient();
+  return (
+    <DashboardGridLayout
+      schema={dashboard}
+      // ✅ Preferred — write the updated schema through your data adapter.
+      onSchemaChange={(next) => {
+        // `name` is optional on the schema, and `saveItem` requires it — decide
+        // what an unnamed dashboard means to your host instead of writing through.
+        if (!next.name) return;
+        client.meta.saveItem('dashboard', next.name, next);
+      }}
+    />
+  );
+}
 ```
 
 The guard is not defensive noise: the callback receives a
