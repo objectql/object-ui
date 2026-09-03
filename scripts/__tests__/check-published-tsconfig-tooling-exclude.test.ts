@@ -309,12 +309,19 @@ describe('the shipped carve-outs, against the emitters they claim', () => {
     // whether they were exhaustive was to be verified here. They were not —
     // `create-plugin` is a THIRD tsup package and `runner` is a SECOND Vite
     // application, and both sat inside the ruling's "29 name-only" red set.
+    //
+    // SIX until objectui#7113, which retired `@object-ui/plugin-charts` — the
+    // list SHRANK, which is the only direction it should ever move. That entry
+    // was exempt precisely because its build tsconfig carried no `exclude` key;
+    // when the package gained the directory form, the entry's own `requires`
+    // predicate fired `carve-out-no-longer-holds` and named the remedy. The
+    // package is now ENFORCED (the gate's population reads 34 enforced / 5
+    // carve-outs, up from 33 / 6), so this is protection gained, not waived.
     expect(Object.keys(EMITTER_CARVE_OUTS).sort()).toEqual([
       '@object-ui/cli',
       '@object-ui/console',
       '@object-ui/create-plugin',
       '@object-ui/data-objectstack',
-      '@object-ui/plugin-charts',
       '@object-ui/runner',
     ]);
   });

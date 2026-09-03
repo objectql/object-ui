@@ -266,19 +266,21 @@ export const EMITTER_CARVE_OUTS = {
     reason: '`tsup` emits from its entry graph only (objectui#4846)',
     requires: (facts) => (facts.usesTsup ? null : `its build script is now \`${facts.build}\`, not tsup`),
   },
-  '@object-ui/plugin-charts': {
-    reason:
-      'named by the ruling: its build tsconfig carries no `exclude` key at all and its tooling ' +
-      'protection lives in the `exclude` passed to `dts()` in `vite.config.ts` (objectui#4846 ' +
-      'measured 31 tooling files in its program, none emitted)',
-    requires: (facts) => {
-      if (!facts.hasDtsPlugin) return 'its vite config no longer loads the `dts()` plugin';
-      if (!facts.dtsHasOwnExclude) return 'its `dts()` options no longer pass their own `exclude`';
-      if (facts.hasExcludeKey)
-        return 'its build tsconfig now HAS an `exclude` key, so the directory form belongs in it';
-      return null;
-    },
-  },
+  // `@object-ui/plugin-charts` was here until objectui#7113, exempt precisely
+  // BECAUSE its build tsconfig carried no `exclude` key — its tooling protection
+  // lived only in the `exclude` passed to `dts()` in `vite.config.ts`. That
+  // carve-out's own `requires` predicate is what retired it: the package now
+  // carries the directory form in its build tsconfig, so `hasExcludeKey` fired
+  // and the entry named its own remedy ("delete the entry and give the package
+  // the directory form"). It has the directory form; the entry is deleted. The
+  // `dts()` exclude is untouched, so the protection is now doubled, not moved.
+  //
+  // Why it grew an `exclude` at all: the package had NO test exclusion, so its
+  // 45 test files were inputs to its emitting build program, and a pin that
+  // needed `node:fs` could not be given `node` types without putting them in the
+  // published program. It now excludes tests by directory and type-checks them
+  // through `tsconfig.test.json`, the arrangement 34 of 38 test-bearing packages
+  // already use.
   '@object-ui/console': {
     reason:
       'a Vite APPLICATION: `noEmit: true` and no `dts()` plugin, so it writes no declarations and ' +
