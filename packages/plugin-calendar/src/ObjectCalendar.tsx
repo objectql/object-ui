@@ -34,6 +34,7 @@ import {
   declaredUserMessage,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
+import { usePermissions } from '@object-ui/permissions';
 import {
   useIsMobile,
   Dialog,
@@ -285,6 +286,13 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
   const objectSchema = objectSchemaReady ? schemaResolution.def : null;
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7230, same structural note PR #7229 recorded
+  // for `ListView`'s memo).
+  const perms = usePermissions();
+
   // Sync external data/loading changes from parent (e.g. ObjectView re-fetches after filter change)
   useEffect(() => {
     if (hasExternalData) {
@@ -348,7 +356,46 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           // calendar whose object declares relations queries WITH its
           // expansion the first time. `objectSchema` is `null` here only
           // when there was nothing to resolve it from.
-          const expand = buildExpandFields(objectSchema?.fields);
+          //
+          // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+          // objectui#7215 / PR #7229 put on the two projection sites in its
+          // scope, brought to this one. `$select` on a denied lookup asks the
+          // server for a bare foreign key; `$expand` asks it to RESOLVE the
+          // relation and return the related record, which is the larger of the
+          // two requests.
+          //
+          // ⚠️ THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+          // `buildExpandFields` reads an absent column list as "no column
+          // restriction" and falls back to EVERY declared relation on the
+          // object, denied ones included. A standalone calendar therefore asks
+          // for the maximum possible set by default, not by configuration.
+          //
+          // Graded as objectui#7215 graded it, by measurement rather than
+          // assumption: against ObjectStack this is defence-in-depth, because
+          // `plugin-security`'s `FieldMasker.maskRecord` does
+          // `delete result[field]` on every unreadable key and objectql's
+          // expand path writes the resolved record back under THAT SAME KEY, so
+          // one statement removes the expanded object and the bare id alike;
+          // the expansion sub-read itself takes the referenced object's full
+          // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+          // for a backend that does not strip.
+          //
+          // ⭐ THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+          // alternative is not merely unsound but unreachable — the call passes
+          // `undefined`, so there is no input to gate. Gating the output also
+          // gives the required ordering structurally: `buildExpandFields`
+          // returns a subset of the object's DECLARED reference-bearing fields,
+          // so every name judged here is declared by construction and the
+          // "`checkField` answers false for an undeclared key" trap cannot be
+          // reached. Pinned in `__tests__/ObjectCalendar.expandFls-7230.test.tsx`.
+          //
+          // Deferral matches every other gate on this path: an unanswered
+          // policy filters nothing, and `perms` is in this effect's dependency
+          // list, so the expansion is rebuilt the moment the answer arrives.
+          const expandable = buildExpandFields(objectSchema?.fields);
+          const expand = !perms?.isLoaded
+            ? expandable
+            : expandable.filter((f) => perms.checkField(objectName, f, 'read'));
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
@@ -378,7 +425,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     fetchData();
     return () => { isMounted = false; };
   }, [hasExternalData, dataProvider, schemaObjectName, dataItems, dataSource, hasInlineData,
-      schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema]);
+      schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema, perms]);
 
   // Fetch object schema for field metadata.
   //
