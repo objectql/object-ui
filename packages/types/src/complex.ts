@@ -339,14 +339,34 @@ export interface FilterBuilderCondition {
 }
 
 /**
- * Filter group
+ * Filter group — the shape `FilterBuilder` reads (objectui#6939, the
+ * `filter-builder` group; maintainer ruling 2026-09-02, director seat summon
+ * #8, verbatim 「同意」).
+ *
+ * The gate is `isValidGroup`,
+ * `packages/components/src/custom/filter-builder.tsx:1060`:
+ * `Array.isArray(v.conditions) && (v.logic === "and" || v.logic === "or")`.
+ * `logic` is the read key; the former `operator` on this face had zero read
+ * sites, and a group spelled that way fails the gate, falls back to
+ * `EMPTY_GROUP` and renders an EMPTY board.
  */
 export interface FilterGroup {
   /**
-   * Logical operator (AND/OR)
+   * Group id.
+   *
+   * OPTIONAL on purpose. `isValidGroup` never consults it and nothing reads
+   * `filterGroup.id`; measured, deleting it from an authored group renders
+   * byte-identically. It is declared because the component's own `FilterGroup`
+   * carries it, `EMPTY_GROUP` emits it and it round-trips out through
+   * `onChange` — so a document that carries it should be TYPE-CHECKED on it
+   * rather than admitted unvalidated.
+   */
+  id?: string;
+  /**
+   * How the conditions combine — the key `isValidGroup` reads.
    * @default 'and'
    */
-  operator: 'and' | 'or';
+  logic: 'and' | 'or';
   /**
    * Filter conditions or nested groups
    */
@@ -403,21 +423,46 @@ export interface FilterBuilderSchema extends BaseSchema {
 }
 
 /**
- * Filter field definition
+ * Filter field definition — one entry of `FilterBuilderSchema.fields`
+ * (objectui#6939, same ruling).
+ *
+ * Renamed from `name` to `value`: every read site matches on `value`
+ * (`fields.find((f) => f.value === …)` in `getOperatorsForField`,
+ * `changeField`, `getInputType` and `renderValueInput`; `fields[0]?.value` in
+ * `addCondition`; `<SelectItem value={field.value}>` in the field dropdown),
+ * `name` had zero, and `FilterBuilderProps.fields` in
+ * `packages/components/src/custom/filter-builder.tsx` already declares
+ * `Array<{ value, label, type? }>`.
  */
 export interface FilterField {
   /**
-   * Field name/key
+   * Field key — the identity the builder matches a condition's `field`
+   * against, and the value its field dropdown puts on each option.
    */
-  name: string;
+  value: string;
   /**
    * Field label
    */
   label: string;
   /**
-   * Field type
+   * Field type — the value FAMILY the column is edited in.
+   *
+   * The six ruled members are `FilterValueFamily`
+   * (`custom/filter-builder.tsx:406`) and each draws a distinct control:
+   * `<input type>` `text` / `number` / `date` / `datetime-local` / `time`, and
+   * for `boolean` a two-item Select and no input at all. `string` left this
+   * union as a phantom — it reached the text control by the unrecognised-word
+   * fallthrough, indistinguishable from a nonsense spelling, while `text` is
+   * what the registration's `defaultProps` and every catalog entry author.
+   *
+   * `select` is RETAINED against a literal reading of the ruling's six:
+   * `selectLikeTypes` gives it its own operator bucket and the option-driven
+   * Select, so dropping it would refuse a live spelling. `status`, `currency`,
+   * `percent`, `rating`, `lookup`, `master_detail` and `user` are live too and
+   * are still absent — a pre-existing gap reported on objectui#6939, not a
+   * regression introduced here.
    */
-  type: 'string' | 'number' | 'date' | 'boolean' | 'select';
+  type: 'text' | 'number' | 'boolean' | 'date' | 'datetime' | 'time' | 'select';
   /**
    * Available operators for this field
    */
