@@ -7,7 +7,7 @@ Console documentation only (`apps/console/docs/**`) — nothing published moves,
 The exported component takes `orientation`, not `direction`
 (`packages/components/src/ui/resizable.tsx:44`, pinned by
 `packages/components/src/__tests__/resizable-orientation.test.tsx` and used in-tree at
-`packages/components/src/custom/navigation-overlay.tsx:520`), so a reader who copied the guide's
+`packages/components/src/custom/navigation-overlay.tsx:519`), so a reader who copied the guide's
 first prop got a type error. The prop is corrected in place.
 
 The other ten red `ts` / `tsx` blocks across that tree are excerpt fragments rather than defects,
