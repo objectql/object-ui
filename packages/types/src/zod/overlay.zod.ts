@@ -101,11 +101,37 @@ export const PopoverSchema = BaseSchema.extend({
 
 /**
  * Tooltip Schema - Tooltip component
+ *
+ * ⚠️ This member used to REQUIRE `children` and declare neither `trigger` nor
+ * `body` (objectui#6939). No read site has ever consumed `children` here: the
+ * renderer reads `schema.trigger` (`renderers/overlay/tooltip.tsx:28`) and
+ * `schema.content || renderChildren(schema.body)` (:31), and the registration's
+ * own `inputs` list `trigger` / `content` / `body` and never `children`. So the
+ * validator refused documents the renderer draws and blessed a spelling that
+ * paints an empty trigger — `declared !== enforced`, with the corpus on the
+ * right side of it.
+ *
+ * `HoverCardSchema` two entries below is the settled in-repo shape for this
+ * pair of slots and is what `trigger` follows here.
+ *
+ * ⛔ Do not "repair" a tooltip document by moving its trigger back under
+ * `children`: `basic-tooltip` was ALREADY moved from `children` to `trigger` on
+ * render evidence (objectui#4626 — it was a measured blank tile), and reverting
+ * it is a named regression.
+ *
+ * Every slot is optional because the accept set may only WIDEN toward what
+ * already renders: `children` stays legal (inherited from `BaseSchema`, where
+ * it is optional), and nothing that validated before this change stops
+ * validating.
  */
 export const TooltipSchema = BaseSchema.extend({
   type: z.literal('tooltip'),
-  content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Tooltip content'),
-  children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Tooltip children'),
+  trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
+    .describe('Element the tooltip attaches to, read at renderers/overlay/tooltip.tsx:28 — `renderChildren(schema.trigger)` inside `TooltipTrigger` (objectui#6939)'),
+  content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
+    .describe('Tooltip content, read FIRST at renderers/overlay/tooltip.tsx:31 — `schema.content || renderChildren(schema.body)`. Optional because `body` is the other half of that read (objectui#6939)'),
+  body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
+    .describe('Rich tooltip content — the fallback half of the same read at renderers/overlay/tooltip.tsx:31, listed by the registration as the "Rich Content" slot (objectui#6939)'),
   side: z.enum(['top', 'right', 'bottom', 'left']).optional().describe('Tooltip side'),
   align: z.enum(['start', 'center', 'end']).optional().describe('Tooltip alignment'),
   delayDuration: z.number().optional().describe('Delay before showing (ms)'),
@@ -183,13 +209,29 @@ export const DropdownMenuSchema = BaseSchema.extend({
 
 /**
  * Context Menu Schema - Context menu component
+ *
+ * ⚠️ This member used to REQUIRE `children`, which no read site consumes
+ * (objectui#6939). The renderer reads `schema.trigger` and `schema.items`
+ * (`renderers/overlay/context-menu.tsx:95,99`), so a document authoring its
+ * right-clickable area under `children` loses it to the hardcoded placeholder
+ * — `Right-click here` renders as `Right click here`. `children` stays legal
+ * (inherited from `BaseSchema`, where it is optional); it is simply no longer
+ * demanded, so the accept set only widens toward what already renders.
+ *
+ * `triggerClassName` / `contentClassName` / `modal` are read at :87, :88 and
+ * :91 and were undeclared, surviving only on `BaseSchema.passthrough()`.
  */
 export const ContextMenuSchema = BaseSchema.extend({
   type: z.literal('context-menu'),
   items: z.array(MenuItemSchema).describe('Menu items'),
-  children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Context menu children'),
   trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional()
-    .describe("Right-clickable area, read at renderers/overlay/context-menu.tsx:95 — `renderChildren(schema.trigger || {type:'text', value:'Right click here'})`. Optional although the docs page shows it required: the renderer substitutes a placeholder, so trigger-less documents are legal today (objectui#6150)"),
+    .describe("Right-clickable area, read at renderers/overlay/context-menu.tsx:95 — `renderChildren(schema.trigger || {type:'text', value:'Right click here'})`. Optional: the renderer substitutes a placeholder, so trigger-less documents are legal today (objectui#6150)"),
+  triggerClassName: z.string().optional()
+    .describe('Classes for the right-clickable area, read FIRST at renderers/overlay/context-menu.tsx:87 — `schema.triggerClassName || className || schema.className || <a dashed-border default>` (objectui#6939)'),
+  contentClassName: z.string().optional()
+    .describe('Classes for the menu panel, read at renderers/overlay/context-menu.tsx:88 and applied to `ContextMenuContent` at :98 (objectui#6939)'),
+  modal: z.boolean().optional()
+    .describe('Forwarded to the Radix `ContextMenu` root at renderers/overlay/context-menu.tsx:91 — `modal={schema.modal}` (objectui#6939)'),
 });
 
 /**
