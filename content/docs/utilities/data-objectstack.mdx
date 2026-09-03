@@ -50,9 +50,11 @@ const dataSource = createObjectStackAdapter({
 });
 ```
 
-`createObjectStackAdapter` returns a `DataSource` — the same universal interface
-every ObjectUI renderer consumes. `new ObjectStackAdapter(config)` is the class
-form of the same thing.
+`createObjectStackAdapter` returns an `ObjectStackAdapter` — the concrete adapter
+class, which implements `DataSource`, the universal interface every ObjectUI
+renderer consumes. `new ObjectStackAdapter(config)` is the class form of the same
+thing and has the same type. Annotate the value as `DataSource` wherever you want
+only the universal surface.
 
 ### 2. Inject it at the renderer boundary
 
@@ -106,11 +108,12 @@ full table of which blocks honour which keys.
 
 ### `createObjectStackAdapter`
 
-Factory returning a `DataSource` backed by an ObjectStack backend.
+Factory returning an `ObjectStackAdapter` — the concrete adapter class, which
+implements `DataSource` — backed by an ObjectStack backend.
 
 **Config:**
 
-{/* doc-snippet: fragment — a SIGNATURE excerpt of the factory, quoted from its declaration so the config members can be annotated one by one: a `function` declaration with no body and a `DataSource` return type this reference block does not import (measured: TS2391 x1, TS2304 x1). Checked against the shipped `packages/data-objectstack/dist/index.d.ts`: every member listed here is declared there with the same type */}
+{/* doc-snippet: fragment — a SIGNATURE excerpt of the factory, quoted from its declaration so the config members can be annotated one by one: a `function` declaration with no body and an `ObjectStackAdapter` return type this reference block does not import (measured: TS2391 x1, TS2304 x1). Because the block is DECLARED, this gate never compiles it, so the agreement with the shipped `packages/data-objectstack/dist/index.d.ts` — every config member declared there with the same type, and the return type — is hand-checked at each edit, not gate-enforced; that gap is why the return type here outlived the change that widened it (objectui#7323) */}
 ```typescript
 function createObjectStackAdapter<T = unknown>(config: {
   /** ObjectStack server base URL */
@@ -132,7 +135,7 @@ function createObjectStackAdapter<T = unknown>(config: {
   autoReconnect?: boolean; // default true
   maxReconnectAttempts?: number; // default 3
   reconnectDelay?: number; // default 1000 ms
-}): DataSource<T>;
+}): ObjectStackAdapter<T>;
 ```
 
 **Example:**
@@ -161,20 +164,43 @@ const dataSource = createObjectStackAdapter<User>({ baseUrl: 'https://api.exampl
 
 ### `ObjectStackAdapter`
 
-The class behind the factory. `new ObjectStackAdapter(config)` takes the same
-config, but its declared type is the **concrete adapter** rather than the
-`DataSource` interface the factory returns — which matters, because part of the
-adapter's surface is not on that interface:
+The class behind the factory — and the type the factory declares. `new
+ObjectStackAdapter(config)` and `createObjectStackAdapter(config)` take the same
+config and produce the same type, so the two forms are interchangeable:
 
 ```typescript
-import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter, ObjectStackAdapter } from '@object-ui/data-objectstack';
 
 type User = { id: string; name: string; email: string };
 
-const adapter = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
+// Same declared type, either way.
+const fromFactory = createObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
+const fromClass = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
 ```
 
-**On the `DataSource` interface** (available from either form):
+**What changed.** This section used to tell you to hold the class type to
+reach the members listed under *Beyond `DataSource`* below, because the factory
+declared `DataSource<T>` while returning `new ObjectStackAdapter(config)`: the
+value always carried those members, only the declared type hid them
+(objectui#7323). That distinction is gone. If you switched to
+`new ObjectStackAdapter(...)` solely to reach a cache, connection-state or batch
+method, you can switch back to the factory — nothing about the value changes, and
+neither does its type. The class name is still worth importing when you need
+something to annotate with.
+
+Narrowing still works, and is still the right shape for a prop, a field or a test
+double that must accept **any** adapter:
+
+```typescript
+import type { DataSource } from '@object-ui/types';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+
+// The universal surface only, by annotation.
+const dataSource: DataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
+```
+
+**On the `DataSource` interface** (available from either form, and from any other
+adapter):
 
 - `find(resource, params?)` - Query multiple records
 - `findOne(resource, id, params?)` - Get a single record by ID
@@ -184,14 +210,18 @@ const adapter = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com
 - `getObjectSchema(objectName)` - Fetch schema metadata (cached)
 - `bulk?(resource, operation, data)` - Batch create/update/delete on one object
 - `batchTransaction?(operations)` - Cross-object atomic batch (master-detail)
+- `onMutation?(listener)` - Subscribe to create/update/delete events
 
-`bulk` and `batchTransaction` are **optional** members of `DataSource`: not every
-adapter implements them, so through a `DataSource`-typed value they must be
-feature-detected (`typeof dataSource.bulk === 'function'`). `ObjectStackAdapter`
-implements both unconditionally, so a value held at the class type calls them
-directly.
+`bulk`, `batchTransaction` and `onMutation` are **optional** members of
+`DataSource`: not every adapter implements them, so through a `DataSource`-typed
+value they must be feature-detected (`typeof dataSource.bulk === 'function'`).
+`ObjectStackAdapter` implements all three unconditionally, and the factory
+declares the class, so a value from either form calls them directly. (`onMutation`
+was listed under *Adapter-only* here until objectui#7323; it is optional on
+`DataSource`, not absent from it.)
 
-**Adapter-only** (hold the class type to reach these):
+**Beyond `DataSource`** (declared on `ObjectStackAdapter`, so reachable from
+either form):
 
 - `connect()` - Establish the connection (called lazily by every operation)
 - `getCacheStats()` / `invalidateCache(key?)` / `clearCache()` - Cache control
@@ -199,7 +229,14 @@ directly.
 - `getConnectionState()` / `isConnected()` - Connection introspection
 - `onConnectionStateChange(listener)` - Subscribe to state changes (returns unsubscribe)
 - `onBatchProgress(listener)` - Subscribe to bulk progress (returns unsubscribe)
-- `onMutation(listener)` - Subscribe to create/update/delete events
+
+Those six bullets cover nine members, and they are the documented subset.
+`ObjectStackAdapter` declares **20** members beyond `DataSource` in all
+(`Exclude<keyof ObjectStackAdapter<unknown>, keyof DataSource<unknown>>`); the
+other eleven are lower-level seams — client discovery, cache-key invalidation,
+dataset and dashboard access, advisory subscriptions and capability configuration
+among them — which this page does not document and which carry no compatibility
+promise here.
 
 ### Per-element data binding
 
@@ -369,15 +406,16 @@ await dataSource.delete('user', user.id);
 
 Batch writes on one object go through `bulk`, and cross-object writes that must
 commit or roll back together go through `batchTransaction`. Both are optional on
-the `DataSource` interface, so hold the adapter at its class type (or
-feature-detect) before calling them:
+the `DataSource` interface, so a value you annotated as `DataSource` still has to
+feature-detect them — but the adapter implements both unconditionally and the
+factory declares the adapter, so the value from Quick Start calls them directly:
 
 ```typescript
-import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
 type User = { id: string; name: string; email: string };
 
-const adapter = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
+const adapter = createObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
 
 await adapter.bulk('user', 'create', [
   { name: 'Alice', email: 'alice@example.com' },
@@ -463,17 +501,18 @@ An `AuthenticationError` (code `AUTHENTICATION_ERROR`, status 401) means the
 `token` passed to `createObjectStackAdapter` was missing, expired or rejected.
 Check the connection state and the values you passed in:
 
-Connection introspection lives on the adapter class, not on the `DataSource`
-interface, so hold it at the class type:
+Connection introspection lives on the adapter, not on the `DataSource` interface
+— and the factory declares the adapter, so the value from Quick Start reaches it
+without a second construction:
 
 ```typescript
-import { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
-const adapter = new ObjectStackAdapter({ baseUrl: 'https://api.example.com' });
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
-console.log(adapter.getConnectionState()); // 'connected' | 'error' | ...
+console.log(dataSource.getConnectionState()); // 'connected' | 'error' | ...
 
-adapter.onConnectionStateChange((event) => {
+dataSource.onConnectionStateChange((event) => {
   if (event.error) console.error('Connection error:', event.error);
 });
 ```

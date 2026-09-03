@@ -5652,6 +5652,21 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
 /**
  * Factory function to create an ObjectStack data source.
+ *
+ * The declared return is `ObjectStackAdapter<T>`, not the shared
+ * `DataSource<T>` interface: the object this hands back is an
+ * `ObjectStackAdapter`, and the adapter-only members the package README
+ * documents — `getClient`, the metadata-cache controls, the connection-state
+ * and batch-progress subscriptions, and `setSystemCapabilities` — live on the
+ * class, not on `DataSource`. Declaring the interface here narrowed all of them
+ * away from the factory while leaving them on the value (objectui#7323), so
+ * `createObjectStackAdapter(...)` and `new ObjectStackAdapter(...)` — the two
+ * documented ways to obtain the same object — handed back different type
+ * surfaces. ⛔ Do not narrow this back to `DataSource<T>`: a caller who wants
+ * the narrow surface writes `const ds: DataSource = createObjectStackAdapter(…)`
+ * and gets it, because a wider return is assignable to the narrower annotation;
+ * the reverse is not recoverable at the call site without a cast.
+ * `adapterFactoryReturn.types.test.ts` pins both directions.
  * 
  * @example
  * ```typescript
@@ -5677,7 +5692,7 @@ export function createObjectStackAdapter<T = unknown>(config: {
   reconnectDelay?: number;
   /** [ADR-0066] See {@link ObjectStackAdapter.setSystemCapabilities}. */
   systemCapabilities?: string[];
-}): DataSource<T> {
+}): ObjectStackAdapter<T> {
   return new ObjectStackAdapter<T>(config);
 }
 
