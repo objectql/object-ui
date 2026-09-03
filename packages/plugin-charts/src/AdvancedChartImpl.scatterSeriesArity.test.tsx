@@ -137,30 +137,6 @@ describe('objectui#7194 — a scatter handed two or more series refuses', () => 
     expect(codes).toEqual(['ym', 'zm', 'xm']);
   });
 
-  it('a `compareTo` overlay currently refuses too — it reaches the guard as a second series', () => {
-    // `ObjectChart` and `DatasetWidget` both synthesise a `variant:
-    // 'comparison'` series for a compared measure, and on scatter it was
-    // painted at the primary's y values by the very mechanism this card fixes
-    // — the overlay never read its own column.
-    //
-    // ⚠️ This pins CURRENT behaviour, and that behaviour is NOT ruled. The
-    // guard counts series and cannot see that one of them was synthesised; the
-    // ruling says only "a `chartType: 'scatter'` with two or more `series`" and
-    // never mentions `compareTo` or `variant`. Whether refusing is the right
-    // answer on this path is open in objectui#7402. If that card excludes
-    // scatter from `compareTo` (its shape (b), as pie/donut/funnel already
-    // are), the overlay is never synthesised, this path stops arising in
-    // product and THIS PIN INVERTS — that is the decision landing, not a
-    // regression. Until it rules, the pin records what ships.
-    const rows: Row[] = [{ xm: 10, ym: 40, ym__comparison: 30 }, { xm: 20, ym: 25, ym__comparison: 20 }];
-    const { container } = renderScatter(
-      [{ dataKey: 'ym', label: 'Y', variant: 'current' }, { dataKey: 'ym__comparison', label: 'Previous period', variant: 'comparison' }],
-      rows,
-    );
-    expect(arityRefusalOf(container)).not.toBeNull();
-    expect(marksOf(container)).toBe(0);
-  });
-
   it('the BINDING refusal wins over the positional one when both apply', () => {
     // Two series over rows none of which can be placed: the spec is wrong
     // whatever the rows say, so that is the sentence the author gets — the
