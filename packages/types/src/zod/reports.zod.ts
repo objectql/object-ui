@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { ChartSchema } from './data-display.zod.js';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 
 /**
  * Report Export Format Schema
@@ -167,8 +168,11 @@ export const ReportBuilderSchema = BaseSchema.extend({
   dataSources: z.array(z.any()).optional().describe('Available data sources'),
   availableFields: z.array(ReportFieldSchema).optional().describe('Available fields'),
   showPreview: z.boolean().optional().describe('Show preview'),
-  onSave: z.string().optional().describe('Save callback'),
-  onCancel: z.string().optional().describe('Cancel callback'),
+  // RETIRED (objectui#7344, the objectui#6182 ruling in the objectui#6124 shape):
+  // no renderer is registered for `report-builder`, so neither callback could
+  // ever run; both refuse by name.
+  onSave: handlerKeyRefusal('onSave', 'retired', 'Save callback'),
+  onCancel: handlerKeyRefusal('onCancel', 'retired', 'Cancel callback'),
 });
 
 /**

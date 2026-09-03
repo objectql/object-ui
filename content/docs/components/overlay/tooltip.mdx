@@ -12,8 +12,16 @@ description: "Contextual information on hover"
 ```plaintext
 interface TooltipSchema {
   type: 'tooltip';
-  content: string;
-  children: SchemaNode;
+  trigger?: SchemaNode | SchemaNode[];  // Element the tooltip attaches to
+  content?: string | SchemaNode;        // Tooltip content — read first
+  body?: SchemaNode | SchemaNode[];     // Rich content — the fallback half
   side?: 'top' | 'right' | 'bottom' | 'left';
+  align?: 'start' | 'center' | 'end';
+  delayDuration?: number;               // Delay before showing (ms)
 }
 ```
+
+The trigger is authored under `trigger`, not `children`: the renderer reads
+`schema.trigger` and `schema.content || schema.body`, and never `children`
+(objectui#6939). A tooltip that puts its trigger under `children` validates —
+`children` is a `BaseSchema` key — but paints an empty trigger.

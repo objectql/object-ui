@@ -593,9 +593,16 @@ export interface DetailViewSchema extends BaseSchema {
    */
   backUrl?: string;
   /**
-   * Custom back action
+   * Custom back action — RUNTIME SLOT (objectui#7344, the objectui#6124 shape):
+   * a host-supplied function, NOT authorable metadata. `detail-view` spreads the
+   * node's keys onto `DetailView`, whose `handleBack` CALLS `onBack()` when it is
+   * set, so this declares the callable the renderer invokes. It used to declare
+   * the handler-expression STRING, which objectui#6182 ruled is not an authoring
+   * form and which threw `onBack is not a function` at click. The zod twin
+   * refuses the key by name; supply it from a React host
+   * (`<SchemaRenderer … onBack={fn} />`).
    */
-  onBack?: string;
+  onBack?: () => void;
   /**
    * Show edit button
    */

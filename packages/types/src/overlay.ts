@@ -287,17 +287,46 @@ export interface PopoverSchema extends BaseSchema {
 
 /**
  * Tooltip component
+ *
+ * ⚠️ This declaration used to REQUIRE `children` and declare neither `trigger`
+ * nor `body` (objectui#6939). Nothing reads `children` here — the renderer
+ * reads `schema.trigger` and `schema.content || renderChildren(schema.body)`
+ * (`packages/components/src/renderers/overlay/tooltip.tsx:28,31`), and the
+ * registration's own `inputs` list `trigger` / `content` / `body` and never
+ * `children`. `children` stays legal through {@link BaseSchema}, where it is
+ * optional; it is no longer demanded, so nothing that type-checked before
+ * stops type-checking.
+ *
+ * ⛔ Do not move a tooltip's trigger back under `children`: `basic-tooltip`
+ * was already moved from `children` to `trigger` on render evidence
+ * (objectui#4626 — a measured blank tile) and reverting it is a named
+ * regression.
  */
 export interface TooltipSchema extends BaseSchema {
   type: 'tooltip';
   /**
-   * Tooltip content/text
+   * Element the tooltip attaches to.
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/tooltip.tsx:28` —
+   * `renderChildren(schema.trigger)` inside `TooltipTrigger`. The same spelling
+   * {@link HoverCardSchema.trigger} declares, which is the settled in-repo
+   * shape for this slot.
    */
-  content: string | SchemaNode;
+  trigger?: SchemaNode | SchemaNode[];
   /**
-   * Element to attach tooltip to
+   * Tooltip content/text — the FIRST half of the content read.
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/tooltip.tsx:31` —
+   * `schema.content || renderChildren(schema.body)`. Optional because
+   * {@link TooltipSchema.body} is the other half of that same read.
    */
-  children: SchemaNode;
+  content?: string | SchemaNode;
+  /**
+   * Rich tooltip content — the FALLBACK half of the same read at
+   * `packages/components/src/renderers/overlay/tooltip.tsx:31`, listed by the
+   * registration as the "Rich Content" slot.
+   */
+  body?: SchemaNode | SchemaNode[];
   /**
    * Tooltip side
    * @default 'top'
@@ -508,6 +537,13 @@ export interface DropdownMenuSchema extends BaseSchema {
 
 /**
  * Context menu component
+ *
+ * ⚠️ This declaration used to REQUIRE `children`, which no read site consumes
+ * (objectui#6939): the renderer reads `schema.trigger` and `schema.items`
+ * (`packages/components/src/renderers/overlay/context-menu.tsx:95,99`), so a
+ * document authoring its right-clickable area under `children` loses it to the
+ * hardcoded placeholder. `children` stays legal through {@link BaseSchema},
+ * where it is optional; it is simply no longer demanded.
  */
 export interface ContextMenuSchema extends BaseSchema {
   type: 'context-menu';
@@ -516,24 +552,42 @@ export interface ContextMenuSchema extends BaseSchema {
    */
   items: MenuItem[];
   /**
-   * Element to attach context menu to
-   */
-  children: SchemaNode | SchemaNode[];
-  /**
    * The right-clickable area's content.
    *
    * READ SITE: `packages/components/src/renderers/overlay/context-menu.tsx:95`
    * — `renderChildren(schema.trigger || { type: 'text', value: 'Right click here' })`
    * inside `ContextMenuTrigger`. ⚠️ Note the renderer renders `trigger`, NOT
-   * the declared {@link ContextMenuSchema.children}, which no read site
-   * consumes.
+   * `children` — which this member used to sit beside as a REQUIRED key and
+   * which no read site consumes (objectui#6939 dropped that requirement;
+   * `children` is now only {@link BaseSchema}'s optional one).
    *
-   * Declared OPTIONAL although the docs page shows it required: the renderer
-   * substitutes a placeholder when it is absent, so every document without a
-   * `trigger` is legal today and declaring it required would refuse them.
-   * Declared by objectui#6150.
+   * Declared OPTIONAL: the renderer substitutes a placeholder when it is
+   * absent, so every document without a `trigger` is legal today and declaring
+   * it required would refuse them. Declared by objectui#6150.
    */
   trigger?: SchemaNode | SchemaNode[];
+  /**
+   * Classes for the right-clickable area.
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/context-menu.tsx:87`
+   * — first in `schema.triggerClassName || className || schema.className ||
+   * <a dashed-border default>`. Undeclared until objectui#6939, surviving only
+   * on `BaseSchema`'s index signature.
+   */
+  triggerClassName?: string;
+  /**
+   * Classes for the menu panel.
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/context-menu.tsx:88`,
+   * applied to `ContextMenuContent` at :98. Undeclared until objectui#6939.
+   */
+  contentClassName?: string;
+  /**
+   * Forwarded to the Radix `ContextMenu` root — `modal={schema.modal}` at
+   * `packages/components/src/renderers/overlay/context-menu.tsx:91`.
+   * Undeclared until objectui#6939.
+   */
+  modal?: boolean;
 }
 
 /**

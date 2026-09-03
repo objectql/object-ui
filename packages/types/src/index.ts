@@ -836,18 +836,13 @@ export type {
   AIInsightsSchema,
 } from './ai.js';
 
-export type {
-  // Block System
-  BlockSchema,
-  BlockMetadata,
-  BlockVariable,
-  BlockSlot,
-  BlockLibraryItem,
-  BlockLibrarySchema,
-  BlockEditorSchema,
-  BlockInstanceSchema,
-  ComponentSchema,
-} from './blocks.js';
+// The Block System re-export block is GONE, not emptied: `BlockSchema`,
+// `BlockMetadata`, `BlockVariable`, `BlockSlot`, `BlockLibraryItem`,
+// `BlockLibrarySchema`, `BlockEditorSchema`, `BlockInstanceSchema` and
+// `ComponentSchema` were RETIRED whole in objectui#4895 (ADR-0049
+// enforce-or-remove, maintainer ruling 2026-09-02, option C1). `./blocks.ts`
+// is kept as the tombstone and carries the reasoning, the evidence and the
+// boundary against the live slotted record-page vocabulary in `./layout.ts`.
 
 export type {
   // View System Enhancements

@@ -48,7 +48,7 @@ You don't just build components — you build a **Renderer** that interprets JSO
 
 | Package | Role | Responsibility | 🔴 Constraints |
 |---|---|---|---|
-| `@object-ui/types` | The Protocol | Pure JSON interfaces (`ComponentSchema`, `ActionSchema`) | **Zero deps. No React.** |
+| `@object-ui/types` | The Protocol | Pure JSON interfaces (`BaseSchema`, `ActionSchema`) | **Zero deps. No React.** |
 | `@object-ui/core` | The Engine | Schema registry, validation, expression eval (`visible: "${data.age > 18}"`) | No UI-lib deps. Logic only. |
 | `@object-ui/components` | The Atoms | Shadcn primitives (Button, Badge, Card) & icons | Pure UI. No business logic. |
 | `@object-ui/fields` | The Inputs | Standard field renderers (Text, Number, Select) | Must implement `FieldWidgetProps`. |
@@ -412,7 +412,8 @@ ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工�
 - **非空结果自我验证,不需要对照;空结果永远需要一个「已知必中」的对照** —— 例如某个你能用 `issue_read` 直接读到的 issue 的近逐字标题。⛔ **没跑对照的空结果不是一次读数**:它不携带任何信息,而它渲染出来恰好就是去重步骤想要的那个答案(「没有重复」),与真负例**不可区分**,不做对照就**不可证伪**。失败形态不是「报错然后重试」,是「立了一张重复卡、没人纠正、下一个席位再立一次」。
 - **每次查询都跑,不是每个会话跑一次。**「这个通道十分钟前还好好的」不是关于你眼前这次查询的证据。
 - **兜底通道**:零配额的 GitHub 网页 payload 通道实测可用(同一次去重里返回 8 个 issue 号,含 `search_issues` 看不见的那个),**它要跑同一条对照** —— 它只是「某一天、某一个容器里被测过可用」,不是永久答案。
-- ⚠️ **未解,别当已答问题用**:`search_issues` 为何对一个直读得到的 issue 返回 0 —— 索引延迟,还是读路径与搜索路径的 scope / 查询形状差异?两者的补救完全不同(前者自愈,后者会永久地、静默地收窄每一次去重),本仓尚未诊断。
+- ⭐ **已诊断的成因:`word:word` 形状的 token 被当成搜索 qualifier,静默清零整条查询。** MCP `search_issues` 把你的查询文本**逐字**贴进 GitHub search 的 `q=`,所以 GitHub 的 qualifier 语法在你以为是自由文本的地方是**活的**:粘进来的 issue 文本里一个裸的 `word:word` token(`page:header`、`record:quick_actions`、`ui:text`、`check:`、`pm:` 一类)会被解析成一个 **qualifier**,与其余词 AND 在一起,匹配不到任何东西,返回一个静默的 `total_count: 0`。实测最小对 —— 词与词序完全相同,唯一差别是一对反引号:`resolve record:quick_actions does` → **0**;把中间那个 token 用反引号包起来 → **17**。**本仓格外暴露**:这个产品的组件键本身就是 `word:word`,抽样 345 条标题里 **33 条(9.6%)**带一个 ⇒ 近逐字标题的去重查询,大约**每十次就有一次**被静默清零。⇒ **把任何标题或正文文本贴进 `search_issues` 之前,先给每个 `word:word` token 加反引号,或者把冒号换成空格** —— 前导反引号会打断 qualifier 解析。⚠️ **有意写的 qualifier 照常生效、照常有用**(`in:title`、`state:closed` 实测都被正常执行)—— 危险的只是无意撞上的那些。⛔ 这条**不取代**上面的对照要求:空结果依然永远需要一个「已知必中」的对照。
+- **两个看着更像的候选都已实测排除**,别再往那个方向追:**不是索引延迟** —— 长查询漏掉的那个 issue,同一次运行里短查询就返回了,而长查询七分钟后重跑仍是 0;**不是读路径与搜索路径的 scope 差异** —— 搜索路径**看得见**那个 issue。⚠️ 连带一条更正:本容器里未认证 REST `/search/issues` 的 403 **不是 GitHub 发的**,是本容器自己的出口代理在执行「会话只绑定到它配置的那些仓库」的路径白名单,它对 GitHub 的搜索 scope 什么都没说 —— 读到状态码就下结论、没读随之而来的 body,正是它一度被当成 scope 证据的原因。
 
 ### ⚠️ GitHub 会改写你写进 issue/PR 正文的字节 —— 每次发布后回读
 

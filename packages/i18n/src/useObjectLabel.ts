@@ -481,15 +481,27 @@ export function useObjectLabel() {
     viewLabel: (objectName: string, viewName: string, fallback: string) =>
       resolve(viewSuffixes(objectName, viewName, 'label'), fallback),
 
-    /**
-     * Resolve translated list-view description.
-     * Convention: `{ns}.objects.{objectName}._views.{viewName}.description`.
+    /*
+     * There is deliberately NO `viewDescription` member here, and no
+     * `{ns}.objects.{objectName}._views.{viewName}.description` convention for
+     * it to resolve (objectui#7219, maintainer ruling 2026-09-02, option B).
+     *
+     * A list view's description has exactly ONE channel: the `I18nLabel` value
+     * authored on the view entry -- a string or an inline locale map -- which
+     * `ObjectView` relays and the render site resolves with `pickLocalized`
+     * (objectui#7199). The catalog key used to be declared and resolved right
+     * here, between its two wired-up siblings, but had zero callers and zero
+     * in-repo bundle usage: a bundle entry written under it reached no screen.
+     *
+     * Wiring it in instead was weighed and NOT taken -- two vocabularies for
+     * one concept plus a precedence rule is the ambiguity, not the fix. Leaving
+     * it declared and unfulfilled was not taken either; the standing rule is
+     * remove, not phase out, when a surface has measured zero use.
+     *
+     * `viewSuffixes` is NOT retired with it: `viewLabel` above and
+     * `viewEmptyState` below share that helper and keep resolving. Only the
+     * `'description'` tail passed to it is gone.
      */
-    viewDescription: (objectName: string, viewName: string, fallback?: string) => {
-      const fb = fallback ?? '';
-      const resolved = resolve(viewSuffixes(objectName, viewName, 'description'), fb);
-      return resolved || undefined;
-    },
 
     /**
      * Resolve translated list-view emptyState. Returns a {title, message}

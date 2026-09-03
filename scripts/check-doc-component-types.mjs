@@ -120,8 +120,10 @@
  *
  * Exemptions are keyed by (file, value), never by file alone and never by value
  * alone. A whole-file exemption would silence real defects on pages that mix
- * vocabularies — `blocks/block-schema.mdx` carries `type: 'block'` AND
- * `type: 'div'` in the same document — and a value-only exemption would let a
+ * vocabularies — `api/schema-reference.md` carries `"type": "action"` (an
+ * ActionSchema discriminant, exempted below) AND `"type": "card"` /
+ * `"type": "table"` (registered component keys) in the same document, measured
+ * on this tree — and a value-only exemption would let a
  * page anywhere in the tree teach `submit` as a component. (file, value) also
  * keeps the entry honest: it says which page speaks which dialect, which is the
  * fact a reader of that page needs.
@@ -418,39 +420,23 @@ const DOC_TYPE_EXEMPTIONS = {
     string:
       'PageNodeSchema variable declaration\'s data type inside `variables[]`, next to `name` / ' +
       '`defaultValue` — `PageVariable` (packages/types/src/layout.ts:566, re-exported from ' +
-      '@objectstack/spec\'s `PageVariableSchema`). Same vocabulary as blocks/block-schema.mdx\'s ' +
-      '`string`.',
+      '@objectstack/spec\'s `PageVariableSchema`). (This reason used to add "same vocabulary as ' +
+      'blocks/block-schema.mdx\'s `string`"; that page was DELETED with the whole block schema ' +
+      'family in objectui#4895, so this entry now stands on its own declaration site.)',
   },
   'content/docs/blocks/authentication.mdx': {
     submit:
       'ActionSchema discriminant under a button\'s `action` key, not a node type. ' +
       '`@object-ui/types` ActionSchema.',
   },
-  'content/docs/blocks/block-schema.mdx': {
-    block:
-      'BlockSchema discriminant — `packages/types/src/blocks.ts` declares `type: \'block\'`, and ' +
-      '`packages/types/src/zod/blocks.zod.ts` validates it. A block definition is not a rendered node.',
-    'block-instance':
-      'BlockInstanceSchema discriminant — packages/types/src/blocks.ts:357, zod/blocks.zod.ts:130. A ' +
-      'reference to a block is a definition, not a rendered node: it is absent from `AnySchema` ' +
-      '(types/src/index.ts) and nothing resolves its `blockId`.',
-    'block-library':
-      'BlockLibrarySchema discriminant — packages/types/src/blocks.ts:263, zod/blocks.zod.ts:100. The ' +
-      'shape of a block-library PAYLOAD, not a browser component: absent from `AnySchema`, and no ' +
-      'renderer reads it.',
-    'block-editor':
-      'BlockEditorSchema discriminant — packages/types/src/blocks.ts:315, zod/blocks.zod.ts:116. The ' +
-      'shape of an editor CONFIGURATION, not an editor component: absent from `AnySchema`, and no ' +
-      'block editor exists to consume it.',
-    // `slot` was here, exempted pending objectui#4895. That card ruled (maintainer,
-    // 2026-08-19, recorded on the issue): Option B, docs-truth fix — the family stays
-    // type-level, the phantom `type: 'slot'` node is DELETED from the page, and the
-    // page teaches the declared `slotContent` key instead. `slot` is now spelled
-    // nowhere in blocks/block-schema.mdx, so an exemption for it would itself fail as
-    // `stale-exemption`. Nothing to exempt; the entry is gone rather than re-pointed.
-    string:
-      'BlockVariable.type — a variable declaration\'s data type, next to `defaultValue` / `required`.',
-  },
+  // `content/docs/blocks/block-schema.mdx` had five entries here — `block`,
+  // `block-instance`, `block-library`, `block-editor` (the four block-family
+  // discriminants) and `string` (a `BlockVariable.type` data type) — plus a note
+  // recording that `slot` had already left in the objectui#5937 docs-truth fix.
+  // The PAGE is gone: the block schema family was retired whole in objectui#4895
+  // (ADR-0049 enforce-or-remove, maintainer ruling 2026-09-02, option C1), so
+  // every one of those entries would now fail as `stale-exemption`. Deleted with
+  // their site rather than re-pointed — there is no page left to point at.
   'content/docs/blocks/dashboard.mdx': {
     navigate: 'ActionSchema discriminant under a node\'s `action` key.',
   },
@@ -584,17 +570,14 @@ const DOC_TYPE_EXEMPTIONS = {
       'ActionSchema discriminant in a `const action: ActionSchema = { … }` declaration — this page ' +
       'tours each schema family by declaring one of each, so the literal is the document\'s own ' +
       'discriminant. Same vocabulary as core/enhanced-actions.mdx.',
-    block:
-      'BlockSchema discriminant in a `const block: BlockSchema = { … }` declaration — ' +
-      'packages/types/src/blocks.ts, validated by zod/blocks.zod.ts. A block definition is not a ' +
-      'rendered node.',
     group: 'AppSchema menu entry kind — a navigation group holding `children` items, same ' +
       'vocabulary as core/app-schema.mdx.',
     item: 'AppSchema menu entry kind — a navigation item, sibling of `group`. Same vocabulary as ' +
       'core/app-schema.mdx. Not a rendered node.',
-    string:
-      'BlockVariable.type in the BlockSchema tour\'s `variables[]` — a variable declaration\'s data ' +
-      'type, next to `name` / `defaultValue`.',
+    // `block` and `string` also stood here — the `const block: BlockSchema` tour and
+    // the `BlockVariable.type` inside its `variables[]`. Both left with the block
+    // schema family (objectui#4895): the tour is deleted from that page, so each
+    // entry would now fail as `stale-exemption`.
   },
   'content/docs/guide/schema-playground.md': {
     reset:

@@ -53,6 +53,7 @@ import {
   useObjectLabel,
   isSpecTranslationData,
   transformSpecTranslations,
+  pickLocalized,
 } from '@object-ui/i18n';
 import { ViewItemNameSchema } from '@objectstack/spec/ui';
 import { mergeViewsIntoObjects } from '../providers/MetadataProvider';
@@ -66,10 +67,22 @@ const OBJECT = { name: 'showcase_contact', label: 'Contact', fields: { name: { t
  * `ui/views/contact.view.ts`): a default `list` with no `name`, plus one named
  * secondary view so the "named views are unaffected" leg rides the same fixture.
  */
+/**
+ * The `I18nLabel` description authored on the default list — the ONE channel a
+ * view description has after objectui#7219. Deliberately a different string
+ * from `ZH_PAYLOAD`'s catalog `description` below, so the two cannot be
+ * confused for one another at an assertion.
+ */
+const AUTHORED_LIST_DESCRIPTION = {
+  en: 'Every contact record, authored on the view.',
+  zh: '作者撰写：全部联系人记录。',
+};
+
 const CONTAINER = {
   name: 'showcase_contact',
   list: {
     label: 'All Contacts',
+    description: AUTHORED_LIST_DESCRIPTION,
     type: 'grid',
     data: { provider: 'object', object: 'showcase_contact' },
     columns: [{ field: 'name' }],
@@ -153,7 +166,7 @@ const viewTab = (obj: any, id: string) => ({ id, ...obj.listViews[id] });
 const translationArg = (view: any): string => view.name || view.id;
 
 describe('default list view identity → _views translation key (objectui#3770)', () => {
-  it('resolves the default list label/description/emptyState under `_views.default`', () => {
+  it('resolves the default list label/emptyState under `_views.default`', () => {
     const labels = withServerBundle(ZH_PAYLOAD);
     const obj = mergedObject(CONTAINER);
     const primaryId = defaultListViewId(obj.name, obj.list)!;
@@ -163,15 +176,57 @@ describe('default list view identity → _views translation key (objectui#3770)'
     const entry = viewTab(obj, primaryId);
 
     expect(labels.viewLabel(obj.name, translationArg(entry), entry.label)).toBe('联系人');
-    expect(labels.viewDescription(obj.name, translationArg(entry), undefined)).toBe(
-      '全部联系人记录',
-    );
+    // `description` is deliberately NOT in this list any more — the catalog key
+    // on this same node was retired by objectui#7219 and its inertness is the
+    // case below. `label` and `emptyState` are the surfaces that stayed.
     expect(
       labels.viewEmptyState(obj.name, translationArg(entry), {
         title: 'No contacts',
         message: 'Create one to begin.',
       }),
     ).toMatchObject({ title: '暂无联系人', message: '新建一个联系人开始。' });
+  });
+
+  it('leaves a `_views.<view>.description` catalog entry INERT (objectui#7219)', () => {
+    // Ruled 2026-09-02, option B: the catalog convention
+    // `objects.<object>._views.<view>.description` is retired with the
+    // `useObjectLabel().viewDescription()` member that resolved it. A list
+    // view's description has exactly one channel — the `I18nLabel` authored on
+    // the view entry, relayed by ObjectView (objectui#7199) and resolved at the
+    // render site with `pickLocalized`, the call `plugin-list`'s `ListView`
+    // makes on `schema.description`.
+    //
+    // ⚠️ This deliberately does more than assert the member is gone; that alone
+    // would be green on any tree where it never existed. `ZH_PAYLOAD` AUTHORS
+    // the catalog `description`, the control below proves that node is live and
+    // this fixture reaches it, and the authored value is a DIFFERENT string
+    // that arrives through the real pipeline (`expandViewContainer` →
+    // `mergeViewsIntoObjects`) rather than being typed in at the assertion.
+    const labels = withServerBundle(ZH_PAYLOAD);
+    const obj = mergedObject(CONTAINER);
+    const entry = viewTab(obj, defaultListViewId(obj.name, obj.list)!);
+
+    // CONTROL — the `_views.default` node carrying the catalog `description`
+    // resolves: its `label` sibling comes back translated from the bundle.
+    expect(labels.viewLabel(obj.name, translationArg(entry), entry.label)).toBe('联系人');
+
+    // Nothing on the hook reads that node's `description`: not at runtime…
+    expect(Object.keys(labels)).not.toContain('viewDescription');
+    // …and not in the return type, the half `@object-ui/i18n`'s changeset
+    // announces (`tsconfig.test.json` compiles this file, so this is checked).
+    // @ts-expect-error removed from the hook's return type by objectui#7219.
+    expect(labels.viewDescription).toBeUndefined();
+
+    // The authored `I18nLabel` survives the merge onto the entry ObjectView
+    // hands its relay…
+    expect(entry.description).toEqual(AUTHORED_LIST_DESCRIPTION);
+    // …and that is what resolves for the audience locale…
+    expect(pickLocalized(entry.description, 'zh')).toBe('作者撰写：全部联系人记录。');
+    // …never the catalog string, which is what a wired-in catalog channel would
+    // have put on screen instead.
+    expect(pickLocalized(entry.description, 'zh')).not.toBe(
+      ZH_PAYLOAD.objects.showcase_contact._views.default.description,
+    );
   });
 
   it('does NOT resolve the retired `_views.list` spelling', () => {

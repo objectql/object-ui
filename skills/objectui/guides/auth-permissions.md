@@ -55,6 +55,7 @@ function UserBadge() {
 
 ### AuthUser type
 
+<!-- os:check -->
 ```typescript
 interface AuthUser {
   id: string;
@@ -249,6 +250,7 @@ function AdminPanel() {
 
 Combine permissions with expression-based visibility:
 
+<!-- os:check -->
 ```json
 {
   "type": "button",
@@ -273,6 +275,7 @@ const dataSource = {
 ```
 
 Then in schema — note the `data.` root:
+<!-- os:check -->
 ```json
 {
   "type": "button",
