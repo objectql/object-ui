@@ -85,7 +85,18 @@ complete list.
 | `type` | `'report'` | Component type identifier (required) |
 | `title` | `string` | Report title |
 | `description` | `string` | Report description |
-| `dataSource` | `DataSource` | Data source configuration |
+
+> **Retired (objectui#6121):** `ReportComponentSchema.dataSource` and
+> `ReportBuilderSchema.dataSources` used to be documented and declared here.
+> Both were annotated with `DataSource`, the runtime **adapter** interface
+> (`find(resource, params)`), which no JSON document can author — and no
+> renderer ever read either key off a schema: the report renderers take their
+> adapter as a React prop or from the renderer context. Both keys are now
+> `never` on the TypeScript face and are refused **by name** by the published
+> validator, so an authored value fails loudly instead of being accepted and
+> ignored. A report binds its data through the semantic-layer `dataset` form
+> (ADR-0021); a legacy presentation report receives already-fetched rows under
+> `data`.
 
 ### Report Fields
 
@@ -226,15 +237,6 @@ const comprehensiveReport: ReportComponentSchema = {
   type: 'report',
   title: 'Quarterly Sales Analysis',
   description: 'Comprehensive sales performance analysis by region and product',
-  
-  // Data source
-  dataSource: {
-    provider: 'api',
-    read: {
-      url: '/api/sales',
-      method: 'GET'
-    }
-  },
   
   // Report fields
   fields: [
@@ -405,11 +407,6 @@ const builder: ReportBuilderSchema = {
     type: 'report',
     title: 'Untitled Report'
   },
-  
-  dataSources: [
-    { provider: 'api', read: { url: '/api/sales' } },
-    { provider: 'api', read: { url: '/api/customers' } }
-  ],
   
   availableFields: [
     { name: 'revenue', label: 'Revenue', type: 'number' },

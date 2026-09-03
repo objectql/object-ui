@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { ChartSchema } from './data-display.zod.js';
-import { handlerKeyRefusal } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 
 /**
  * Report Export Format Schema
@@ -143,7 +143,17 @@ export const ReportComponentSchema = BaseSchema.extend({
   type: z.literal('report'),
   title: z.string().optional().describe('Report title'),
   description: z.string().optional().describe('Report description'),
-  dataSource: z.any().optional().describe('Data source configuration'),
+  // RETIRED (objectui#6121, maintainer ruling of 2026-08-30, decision batch #8;
+  // ADR-0049 enforce-or-remove). The TS twin is `dataSource?: never`; the key
+  // stays DECLARED so an authored value is refused BY NAME instead of being
+  // waved through by `z.any()` and then read by nobody.
+  dataSource: retirementTombstone(
+    'Data source configuration — RETIRED (objectui#6121, ADR-0049). The key was declared as the ' +
+      'runtime `DataSource` ADAPTER (`find(resource, params)`), which JSON has no value for, and ' +
+      'no renderer ever read it off a report schema: the report renderers take their adapter as a ' +
+      'React prop or from `SchemaRendererContext`. Bind a report through the semantic-layer ' +
+      '`dataset` form (ADR-0021); a legacy presentation report receives its rows under `data`.',
+  ),
   fields: z.array(ReportFieldSchema).optional().describe('Report fields'),
   filters: z.array(ReportFilterSchema).optional().describe('Report filters'),
   groupBy: z.array(ReportGroupBySchema).optional().describe('Group by configuration'),
@@ -165,7 +175,16 @@ export const ReportComponentSchema = BaseSchema.extend({
 export const ReportBuilderSchema = BaseSchema.extend({
   type: z.literal('report-builder'),
   report: ReportComponentSchema.optional().describe('Initial report configuration'),
-  dataSources: z.array(z.any()).optional().describe('Available data sources'),
+  // RETIRED with `ReportComponentSchema.dataSource` above (objectui#6121), one
+  // degree further from a reader: no renderer is registered for
+  // `report-builder`, the same measurement that retired the two handler keys
+  // below (objectui#7344).
+  dataSources: retirementTombstone(
+    'Available data sources — RETIRED (objectui#6121, ADR-0049). No renderer is registered for ' +
+      '`report-builder`, so nothing could ever read this key, and it was declared as an array of ' +
+      'the runtime `DataSource` ADAPTER, which JSON has no value for. Bind a report through the ' +
+      'semantic-layer `dataset` form (ADR-0021).',
+  ),
   availableFields: z.array(ReportFieldSchema).optional().describe('Available fields'),
   showPreview: z.boolean().optional().describe('Show preview'),
   // RETIRED (objectui#7344, the objectui#6182 ruling in the objectui#6124 shape):
