@@ -524,7 +524,8 @@ A hierarchical tree component for nested data with expand/collapse and selection
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `data` | `TreeNode[]` | **Required.** Nested tree data. Each node has `id`, `label`, optional `icon` and `children`. |
+| `nodes` | `TreeNode[]` | Optional. Nested tree data — the spelling the renderer reads FIRST, and the one the component's own `inputs` and `defaultProps` use. Each node has `id`, `label`, optional `icon` and `children`. |
+| `data` | `TreeNode[]` | Optional. Nested tree data, read only when `nodes` is absent (the renderer reads `nodes` first — objectui#6939). |
 | `defaultExpandedIds` | `string[]` | Node IDs expanded on initial render. |
 | `defaultSelectedIds` | `string[]` | Node IDs selected on initial render. |
 | `expandedIds` | `string[]` | Controlled expanded state. |
