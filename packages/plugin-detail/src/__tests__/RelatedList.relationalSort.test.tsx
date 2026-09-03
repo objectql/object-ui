@@ -26,7 +26,7 @@
  * — covered in `RelatedList.headerSort.test.tsx`.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor, fireEvent, screen } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
 

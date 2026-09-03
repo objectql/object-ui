@@ -9,9 +9,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   ObjectStackAdapter,
-  ConnectionState,
-  ConnectionStateEvent,
-  BatchProgressEvent,
   clearSharedDiscoveryCache,
 } from './index';
 

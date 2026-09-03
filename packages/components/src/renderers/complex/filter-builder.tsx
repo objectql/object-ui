@@ -7,7 +7,7 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
-import type { FilterBuilderSchema, FilterGroup } from '@object-ui/types';
+import type { FilterBuilderSchema } from '@object-ui/types';
 import { useDisplayLocale } from '@object-ui/i18n';
 // Aliased on import, following PR #4169's convention (and `AppSchemaRenderer`'s
 // use of it): this repo has its OWN `resolveKeyedI18nLabel` over a DIFFERENT

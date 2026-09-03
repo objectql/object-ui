@@ -15,7 +15,7 @@
  */
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { I18nProvider, createI18n } from '@object-ui/i18n';
 
 vi.mock('@object-ui/auth', () => ({

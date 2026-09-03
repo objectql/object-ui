@@ -37,7 +37,7 @@ import { uniqueId, appendArray } from '../inspectors/_shared.js';
 import { t as tr, translateFlowMeta } from '../i18n.js';
 import { FlowCanvas } from './FlowCanvas.js';
 import { defaultNodeLabel } from './flow-canvas-parts.js';
-import { edgeKey, type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout.js';
+import { type FlowDesignerEdge, type FlowDesignerNode } from './flow-canvas-layout.js';
 import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection.js';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel.js';
 import { FlowRunsPanel } from './FlowRunsPanel.js';

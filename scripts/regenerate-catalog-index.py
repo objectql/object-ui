@@ -147,7 +147,12 @@ def render(examples: list[dict], curated: dict) -> str:
     lines.append(' * src/catalog-meta.json — that file is the hand-curated one, and the')
     lines.append(' * generator only ever reads it.')
     lines.append(' */')
-    lines.append("import type { Example, ExampleMeta } from './types.js';")
+    # `ExampleMeta` is NOT imported here: the generated body uses only `Example`
+    # (REGISTRY, getExample, allExamples), and the `export type { ... } from`
+    # below is an independent re-export that does not consume an import binding.
+    # Importing it would be an unused import, which `object-ui/no-unused-imports`
+    # gates at error. The package's public type surface is unchanged either way.
+    lines.append("import type { Example } from './types.js';")
     lines.append("")
 
     for e in examples:

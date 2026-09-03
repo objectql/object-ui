@@ -34,7 +34,6 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
   SidebarInput,
-  useSidebar,
 } from '@object-ui/components';
 import type { AppComponentSchema, NavigationItem, NavigationArea } from '@object-ui/types';
 import { menuItemToNavigationItem } from '@object-ui/types';

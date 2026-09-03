@@ -11,7 +11,7 @@
  */
 
 import * as React from 'react';
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { NodePalette, NODE_PALETTE, nodeIcon } from '../previews/flow-canvas-parts';
 

@@ -19,7 +19,6 @@
 import type { BaseSchema, SchemaNode } from './base.js';
 import type { ActionSchema } from './crud.js';
 import type { TableColumn } from './data-display.js';
-import type { FormField } from './form.js';
 import type { SelectOptionMetadata } from './field-types.js';
 
 /**
