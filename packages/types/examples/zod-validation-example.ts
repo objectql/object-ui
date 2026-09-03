@@ -138,7 +138,7 @@ const kanbanExample = {
     {
       id: 'todo',
       title: 'To Do',
-      items: [
+      cards: [
         {
           id: '1',
           title: 'Task 1',
@@ -150,12 +150,12 @@ const kanbanExample = {
     {
       id: 'in-progress',
       title: 'In Progress',
-      items: [],
+      cards: [],
     },
     {
       id: 'done',
       title: 'Done',
-      items: [],
+      cards: [],
     },
   ],
   draggable: true,
