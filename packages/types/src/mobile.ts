@@ -46,8 +46,14 @@ export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
  * `{ breakpoint, hiddenOn, columns: {xs..2xl}, order: {xs..2xl} }` — arranging a
  * node within a grid. This one is the mobile renderer's box config: `columns`
  * also accepts a bare number, plus `gap`, `padding`, `stackOnMobile` /
- * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`. It is
- * consumed only by {@link MobileComponentConfig}.
+ * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`.
+ *
+ * It now has NO consumer. Its only one was `MobileComponentConfig`, retired by
+ * objectui#5942 (see the RETIRED note below), so this type is still published
+ * from both barrels and mounted nowhere — the same declared-surface-with-no-
+ * consumption-path shape #5942 closed, one level down. Recorded as
+ * objectui#7519 rather than widened into that PR: the name-ownership tripwire
+ * below outlives the type, and retire-vs-implement here is a product call.
  *
  * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` fails if the spec ever
  * claims this name, so the alias cannot outlive its reason.
@@ -279,25 +285,36 @@ export interface GestureContext {
   rotation?: number;
 }
 
-/** Mobile component schema extension */
-export interface MobileComponentConfig {
-  /** Responsive configuration */
-  responsive?: MobileResponsiveConfig;
-  /** Touch gesture handlers */
-  gestures?: GestureConfig[];
-  /** Pull-to-refresh configuration */
-  pullToRefresh?: {
-    enabled: boolean;
-    threshold?: number;
-    onRefresh?: string;
-  };
-  /** Infinite scroll configuration */
-  infiniteScroll?: {
-    enabled: boolean;
-    threshold?: number;
-    loadMore?: string;
-  };
-}
+// RETIRED (objectui#5942, ADR-0049 enforce-or-remove): `MobileComponentConfig`
+// — the free-floating "mobile component schema extension" that published
+// `responsive`, `gestures`, `pullToRefresh` and `infiniteScroll` — is gone, not
+// narrowed. It never had a MOUNT POINT: no type mounted it as a property, no
+// declaration extended it, and nothing in this repo, the example apps or the
+// `objectstack` sibling checkout annotated, cast to or imported it outside the
+// two barrel re-exports. A value written against it could not reach a renderer
+// by any path, so all four keys behaved identically — they did nothing.
+// objectui#4919 removed its last member (`mobileOverrides`), which is what left
+// the container itself inert.
+//
+// Removed outright rather than kept as a `?: never` carcass, on this package's
+// own discriminator: a tombstone exists to steer authors to a named live
+// replacement KEY (`crud.ts` `confirm` -> `confirmText`; `data-display.ts`
+// `hoverable`/`striped` -> `data-table`), or to keep loud a key the docs taught
+// as working. Neither applies. There is no surviving object to hang a `never`
+// key on — the whole interface goes — and no documentation ever described it:
+// `skills/objectui/guides/mobile.md` teaches the HOOKS and never this type.
+// Same zero-pull, no-successor shape as `MobileOverrides` (objectui#4919), and
+// as `AccordionItem.icon` / `ToggleGroupItem.icon` before it.
+//
+// No BEHAVIOUR is retired here. What the four keys named lives in
+// `@object-ui/mobile` as real React hooks — `useResponsive` /
+// `ResponsiveContainer`, `useGesture`, `usePullToRefresh` — which is where the
+// working code always was; only the declaration nothing read is gone.
+//
+// Reopen condition: a declarative mobile component-config surface re-enters as
+// designed product surface on its own card, with the renderer that READS it
+// landing in the same change as the declaration. Re-adding the declaration
+// alone is the declare-without-enforce shape this removal exists to close.
 
 // ============================================================================
 // Spec Touch Vocabulary (formerly `@objectstack/spec/ui`)
