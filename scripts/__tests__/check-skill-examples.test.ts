@@ -11,6 +11,7 @@ import {
   EXIT_CODES,
   JSON_FENCE_LANGUAGES,
   KNOWN_BARE_ANY_EXAMPLES,
+  MARKED_FLOOR,
   MARKER,
   SCAN_ROOTS,
   TS_FENCE_LANGUAGES,
@@ -18,8 +19,11 @@ import {
   buildFilterArgs,
   fenceSpans,
   findBareAny,
+  floorReport,
   listGuides,
+  markedPopulation,
   parseJsonFence,
+  reconcileFloors,
   scanSkillFences,
   stripJsonComments,
 } from '../check-skill-examples.mjs';
@@ -316,10 +320,11 @@ describe('the corpus this gate governs', () => {
   });
 
   it('leaves the majority unmarked — opt-in is the design, not a migration halfway done', () => {
-    // Stated as a RATIO rather than a count on purpose. objectui#7359 explicitly
-    // did NOT decide whether the marked population becomes shrink-only, and a
-    // count pinned here would be that decision taken by accident, red on the
-    // next guide anyone edits.
+    // Stated as a RATIO rather than a count on purpose, and it stays one now
+    // that objectui#7550 has made the population shrink-only: that ratchet is a
+    // FLOOR (`MARKED_FLOOR`, pinned below), which reds only downwards. An
+    // equality pinned here would red on the next fence anyone opts IN, which is
+    // the move this gate exists to encourage.
     const all = scans.flatMap(({ scan }) => scan.fences);
     const marked = all.filter((f) => f.marked);
     expect(marked.length).toBeLessThan(all.length);
@@ -336,6 +341,133 @@ describe('the corpus this gate governs', () => {
         expect(line, `${guide}:${index + 1} carries a near-spelling of the marker`).toBe(MARKER);
       }
     }
+  });
+});
+
+/**
+ * objectui#7550 — the marked population is SHRINK-ONLY, per category.
+ *
+ * objectui#7359 landed this gate with no ratchet and said so in as many words;
+ * the ruling on objectstack #14909 item 2 took the deferred decision, as a
+ * per-category FLOOR in `check-doc-fence-languages.mjs`'s shape. These pins
+ * follow that gate's test file: both directions on fixtures, plus one reading of
+ * the REAL corpus, so the committed numbers cannot drift away from the tree they
+ * claim to describe while every fixture assertion stays green.
+ *
+ * All of it runs on an UNBUILT tree — the floor is a count over the scanner's
+ * output, no compiler involved — so it belongs here rather than in `--self-test`.
+ */
+describe('the shrink-only floor on the marked population', () => {
+  type Breach = { category: string; count: number; floor: number };
+  const corpusMarked = (listGuides(repoRoot) as string[]).flatMap(
+    (guide) =>
+      (scanSkillFences(fs.readFileSync(path.join(repoRoot, guide), 'utf8')) as Scan).fences.filter(
+        (f) => f.marked,
+      ),
+  );
+
+  it('declares one floor per marked-fence category, and no others', () => {
+    // The coupling pin, in the shape `check-doc-fence-languages.test.ts` uses
+    // for its two walks: the categories are derived from the scanner rather
+    // than restated, so a THIRD fence kind cannot be added without this line
+    // going red and forcing a floor decision for it. A new kind that quietly
+    // had no floor would be shrink-only in name over a population nothing
+    // ratchets.
+    const languages = [...TS_FENCE_LANGUAGES, ...JSON_FENCE_LANGUAGES] as string[];
+    const scan: Scan = scanSkillFences(
+      languages.flatMap((language) => [MARKER, `\`\`\`${language}`, '{}', '```']).join('\n'),
+    );
+    expect(scan.fences.every((f) => f.marked)).toBe(true);
+    expect([...MARKED_FLOOR.keys()].sort()).toEqual([...new Set(scan.fences.map((f) => f.kind))].sort());
+  });
+
+  it('counts per category, and a category with no marker left reads as 0 rather than absent', () => {
+    // "Shrank to nothing" and "was never a category here" are the two readings
+    // a bare map of observed counts cannot tell apart, and the first is exactly
+    // what this floor exists to catch.
+    const population = markedPopulation([{ kind: 'ts' }, { kind: 'ts' }]) as Map<string, number>;
+    expect(population.get('ts')).toBe(2);
+    expect(population.has('json')).toBe(true);
+    expect(population.get('json')).toBe(0);
+  });
+
+  it('is green when a category MEETS its floor, and when it is above it', () => {
+    const floors = new Map([
+      ['ts', 2],
+      ['json', 1],
+    ]);
+    expect(reconcileFloors(new Map([['ts', 2], ['json', 1]]), floors)).toEqual([]);
+    // Above the floor is deliberately NOT a failure: opting one more fence in is
+    // the direction this gate travels, and a ratchet that reds on the good move
+    // is one people route around — here, by unmarking.
+    expect(reconcileFloors(new Map([['ts', 9], ['json', 4]]), floors)).toEqual([]);
+  });
+
+  it('reds BELOW the floor, naming the category, the count and the floor', () => {
+    const floors = new Map([
+      ['ts', 2],
+      ['json', 1],
+    ]);
+    expect(reconcileFloors(new Map([['ts', 1], ['json', 1]]), floors)).toEqual([
+      { category: 'ts', count: 1, floor: 2 },
+    ]);
+    expect(reconcileFloors(new Map([['ts', 0], ['json', 0]]), floors)).toEqual([
+      { category: 'ts', count: 0, floor: 2 },
+      { category: 'json', count: 0, floor: 1 },
+    ]);
+  });
+
+  it('reports the population BESIDE its floor, which is what makes the number re-derivable', () => {
+    expect(floorReport(new Map([['ts', 5]]), new Map([['ts', 3]]))).toBe('5 ts fence(s) (floor 3)');
+    // And the real line names every governed category with both numbers on it.
+    const line = floorReport(markedPopulation(corpusMarked)) as string;
+    for (const [category, floor] of MARKED_FLOOR as Map<string, number>) {
+      expect(line).toContain(`${category} fence(s) (floor ${floor})`);
+    }
+  });
+
+  it('the committed floors are MET by the corpus in this checkout', () => {
+    const breaches = reconcileFloors(markedPopulation(corpusMarked)) as Breach[];
+    expect(
+      breaches,
+      'MARKED_FLOOR is shrink-only. If a marker was deliberately removed, lower the number ' +
+        'in scripts/check-skill-examples.mjs and write the reason beside the row:\n' +
+        breaches.map((b) => `  - ${b.category}: ${b.count} marked, floor ${b.floor}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('a floor ONE ABOVE the current count reds and names itself', () => {
+    // The direction that has to fail, driven off the REAL population so it is a
+    // statement about this corpus rather than about a fixture. Without this the
+    // pin above could pass over an empty corpus, a floor of zero, or a
+    // reconciler that never returns anything.
+    const population = markedPopulation(corpusMarked) as Map<string, number>;
+    const raised = new Map(
+      [...(MARKED_FLOOR as Map<string, number>).keys()].map((c) => [c, (population.get(c) ?? 0) + 1]),
+    );
+    expect(reconcileFloors(population, raised)).toEqual(
+      [...raised].map(([category, floor]) => ({ category, count: floor - 1, floor })),
+    );
+  });
+
+  it('is READ by the gate, after the preconditions and never under `--measure`', () => {
+    // Pinned as a source-level fact for the reason the harness-import pin
+    // states for its own: a floor that is computed and never consulted passes
+    // every assertion above. The ORDER is half the contract — an unbuilt tree
+    // and an empty population are exit 2, and this ratchet must not be able to
+    // re-label either of them as exit 1.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-skill-examples.mjs'), 'utf8');
+    const main = source.slice(source.indexOf('function main()'), source.indexOf('// ── Self-test'));
+    expect(main, 'main() no longer reconciles the marked population against MARKED_FLOOR').toContain(
+      'const breaches = reconcileFloors(population);',
+    );
+    expect(main, 'a floor breach no longer exits `examplesFailed`').toMatch(
+      /if \(breaches\.length > 0\) \{[\s\S]*?return EXIT_CODES\.examplesFailed;[\s\S]*?\n {2}\}/,
+    );
+    expect(main.indexOf('PRECONDITION NOT MET')).toBeLessThan(main.indexOf('const breaches ='));
+    expect(main.indexOf('if (measure) return EXIT_CODES.verified;')).toBeLessThan(
+      main.indexOf('const breaches ='),
+    );
   });
 });
 
