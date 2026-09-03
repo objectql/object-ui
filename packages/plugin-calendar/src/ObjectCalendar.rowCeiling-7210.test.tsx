@@ -24,10 +24,23 @@
  * `jsdom` applies media-query rules irrespective of `innerWidth`, so a pin
  * that leaned on either would be unmeasurable rather than merely flaky.
  *
- * REVERSE VERIFICATION — direction predicted before running: removing
- * `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectCalendar`'s record fetch turns
- * the truncation case red at the footnote assertion, while the below-ceiling
- * case stays green.
+ * REVERSE VERIFICATION — MEASURED on two separate ablations (objectui#7507),
+ * because this file grades two different things and one of them was missing:
+ *
+ *   1. Remove `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectCalendar`'s record
+ *      fetch ⇒ red at the **`$top` assertion**, and there only; 1 failed /
+ *      1 passed. NOT at the footnote, which is what this docblock used to
+ *      predict. An adapter with no `$top` answers with the whole filtered set,
+ *      `applyNonGridRowCeiling` slices it to the ceiling from the rows in
+ *      hand, and both the event count and the note stay correct. Losing the
+ *      `$top` is a bandwidth regression, not a correctness one.
+ *   2. Hand the view the RAW response instead of the capped rows
+ *      (`setData(capped.rows)` → `setData(result.data ?? capped.rows)`) ⇒ red
+ *      at the **event-count assertion**, 2001 against 2000. Before #7507 that
+ *      mutation left this file green at 4/4: `$top` was still sent and the
+ *      footnote still rendered, while 2,001 events were drawn. That is the
+ *      hole the count assertion below closes, and it is the ruling's own pin
+ *      text — "the DOM row count equals the ceiling".
  */
 
 import React from 'react';

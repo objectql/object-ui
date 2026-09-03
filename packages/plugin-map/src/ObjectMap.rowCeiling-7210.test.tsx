@@ -20,10 +20,23 @@
  * here depends on container size or on the real map's viewport — the note is a
  * sibling in the component's own tree, present or absent regardless of layout.
  *
- * REVERSE VERIFICATION — direction predicted before running: removing
- * `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectMap`'s fetch turns the
- * truncation case red at the footnote assertion, while the below-ceiling case
- * stays green.
+ * REVERSE VERIFICATION — MEASURED on two separate ablations (objectui#7507),
+ * because this file grades two different things and one of them was missing:
+ *
+ *   1. Remove `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectMap`'s fetch ⇒ red
+ *      at the **`$top` assertion**, and there only; 1 failed / 2 passed. NOT
+ *      at the footnote, which is what this docblock used to predict. An
+ *      adapter with no `$top` answers with the whole filtered set,
+ *      `applyNonGridRowCeiling` slices it to the ceiling from the rows in
+ *      hand, and both the marker count and the note stay correct. Losing the
+ *      `$top` is a bandwidth regression, not a correctness one.
+ *   2. Hand the view the RAW response instead of the capped rows
+ *      (`setData(capped.rows)` → `setData(result.data ?? capped.rows)`) ⇒ red
+ *      at the **marker-count assertion**, 2001 against 2000. Before #7507 that
+ *      mutation left this file green at 4/4: `$top` was still sent and the
+ *      footnote still rendered, while 2,001 markers were plotted. That is the
+ *      hole the count case below closes, and it is the ruling's own pin text —
+ *      "the DOM row count equals the ceiling".
  */
 
 import React from 'react';
