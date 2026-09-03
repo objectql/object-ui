@@ -178,6 +178,12 @@ export type {
   FormComponentSchema,
 } from './form.js';
 
+// The one select-option contract both option faces extend — `SelectOption`
+// above (the SDUI form face) and `SelectOptionMetadata` below (the
+// object-metadata face). Exported because it appears in the `extends` clause of
+// both, so a consumer that wants to name it can (objectui#7014).
+export type { SelectOptionBase } from './select-option.js';
+
 // ============================================================================
 // Data Display Components - Information Presentation
 // ============================================================================
