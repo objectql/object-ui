@@ -125,6 +125,13 @@ const de = {
     record: "Datensatz",
     retry: "Erneut versuchen",
     printDialogHint: "Öffnet den Druckdialog Ihres Browsers (kein PDF-Export)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Erste {{shown}} von {{total}} Datensätzen. Filter eingrenzen.",
+    rowCeilingNoteUnknownTotal: "Erste {{shown}} Datensätze. Filter eingrenzen.",
   },
   actions: {
     decisionOutput: {

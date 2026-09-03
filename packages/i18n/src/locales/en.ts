@@ -149,6 +149,13 @@ const en = {
     record: 'Record',
     retry: 'Retry',
     printDialogHint: 'Opens your browser’s print dialog (not a PDF export)',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: 'Showing the first {{shown}} of {{total}} records. Narrow the filter.',
+    rowCeilingNoteUnknownTotal: 'Showing the first {{shown}} records. Narrow the filter.',
   },
   actions: {
     decisionOutput: {

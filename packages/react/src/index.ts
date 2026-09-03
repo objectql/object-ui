@@ -98,3 +98,16 @@ export {
   type NumberFormatOptions,
 } from '@object-ui/i18n';
 
+
+// The platform row ceiling for NON-GRID visualisations — gantt, calendar, map
+// and tree (objectui#7210, maintainer ruling a′). Exported at the package
+// entry because the ruling asks for ONE constant across the four, and this is
+// the only package all four already depend on; a per-plugin copy would be four
+// constants wearing one name, which is the thing the ruling ruled out.
+export {
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
+} from './utils/nonGridRowCeiling.js';
+export type { NonGridCeilingResult } from './utils/nonGridRowCeiling.js';

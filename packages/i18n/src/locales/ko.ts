@@ -125,6 +125,13 @@ const ko = {
     record: "레코드",
     retry: "다시 시도",
     printDialogHint: "브라우저의 인쇄 대화 상자를 엽니다（PDF 내보내기가 아닙니다）",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "전체 {{total}}개 중 처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
+    rowCeilingNoteUnknownTotal: "처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
   },
   actions: {
     decisionOutput: {

@@ -64,7 +64,7 @@ import {
   columnIdentity,
   convertSortToQueryParams,
 } from '@object-ui/core';
-import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer as ImportedSchemaRenderer, useSettledSchema } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
 import { useStableIdentity } from './stableIdentity';
@@ -636,8 +636,12 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // `getObjectSchema`, or a read that threw). `key` is compared against the
   // CURRENT object name during render, so switching objects closes the gate in
   // the same commit that changes it, not one commit later.
-  const [schemaResolution, setSchemaResolution] =
-    useState<{ key: string; def: Record<string, unknown> | null } | null>(null);
+  //
+  // Since objectui#7225 (maintainer ruling B, 2026-09-02) this is the SHARED
+  // `useSettledSchema` rather than this component's hand copy of it — the
+  // convergence #6482 asked for, amended from "migrate incidentally" to one
+  // PR once the migration's cost was measured at zero behaviour delta. The
+  // shape is unchanged because the hook was EXTRACTED from this shape.
   const schemaKey = schema.objectName ?? '';
   /**
    * Has the object schema for THIS object finished resolving? Note what this is
@@ -645,8 +649,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
    * `getObjectSchema`, or whose schema read failed, must still fetch its rows —
    * gating on a truthy schema would leave those views empty forever.
    */
-  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
-  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
+  const { ready: objectSchemaReady, def: objectSchema } =
+    useSettledSchema<Record<string, unknown>>(schemaKey, dataSource);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
@@ -767,35 +771,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
   // Navigation config
   const navigationConfig: ViewNavigationConfig | undefined = schema.navigation;
-
-  // Fetch object schema from ObjectQL/ObjectStack.
-  //
-  // Every exit settles the resolution — success, failure, and "there is nothing
-  // to read from" alike — because the non-grid record query below WAITS on this
-  // (objectui#6419). A path that returned without settling would not merely
-  // skip the expansion, it would hold that query open forever.
-  useEffect(() => {
-    let isMounted = true;
-    const key = schema.objectName ?? '';
-    const fetchObjectSchema = async () => {
-      if (!schema.objectName || !dataSource || typeof dataSource.getObjectSchema !== 'function') {
-        // No source for a schema: settle with none, so the view still queries
-        // (unexpanded — with no schema there is no expand set to derive, which
-        // is the same query this case produced before).
-        if (isMounted) setSchemaResolution({ key, def: null });
-        return;
-      }
-      try {
-        const schemaData = await dataSource.getObjectSchema(schema.objectName);
-        if (isMounted) setSchemaResolution({ key, def: schemaData });
-      } catch (err) {
-        console.error('Failed to fetch object schema:', err);
-        if (isMounted) setSchemaResolution({ key, def: null });
-      }
-    };
-    fetchObjectSchema();
-    return () => { isMounted = false; };
-  }, [schema.objectName, dataSource]);
 
   // Fetch data for non-grid view types (grid handles its own data via ObjectGrid)
   useEffect(() => {

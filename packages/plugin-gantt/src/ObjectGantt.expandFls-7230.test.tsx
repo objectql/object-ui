@@ -125,12 +125,33 @@ function makeDataSource() {
  * `waitFor` targets a `find('task', …)` issued after `getObjectSchema` settled,
  * so "the gantt stopped fetching" times out rather than reading as an empty
  * expansion — the ghost-assertion guard this family of pins requires.
+ *
+ * ⭐ THE SECOND `waitFor` READS "AT LEAST ONE CALL", NOT "MORE THAN ONE", and
+ * the difference is the whole reason this helper needed re-expressing when
+ * objectui#7225 landed beside it. What this file pins is the CONTENT of
+ * `$expand`; the call COUNT was only ever the means of telling the
+ * schema-dependent query apart from the one the gantt used to issue BEFORE the
+ * schema arrived. objectui#7225 ask 2 deleted that first query — the object
+ * schema now GATES the fetch instead of refining it afterwards, so `reload`
+ * fires once, with the schema already in hand, and
+ * `ObjectGantt.fetchGate-7225.test.tsx` pins that count at exactly one.
+ * `toBeGreaterThan(1)` was therefore not a stronger assertion under the gate,
+ * it was an unsatisfiable one: it waited for a second query that no longer
+ * exists, and the six pins below timed out while the behaviour they grade —
+ * FLS on the expansion — was fully intact.
+ *
+ * Nothing is given up by the change. Every recorded `find` is now
+ * schema-dependent by construction, so "read the last call" reads the right
+ * one; and a gantt that stopped fetching altogether still TIMES OUT here rather
+ * than returning `[]`, which is the guard the paragraph above exists for. This
+ * is the shape the sibling pin in the same family already uses for a component
+ * whose fetch was gated first — `__tests__/ObjectCalendar.expandFls-7230.test.tsx`.
  */
 async function expandFor(): Promise<string[]> {
   const ds = makeDataSource();
   render(<ObjectGantt schema={GANTT_SCHEMA} dataSource={ds} />);
   await waitFor(() => expect(ds.getObjectSchema).toHaveBeenCalled());
-  await waitFor(() => expect(ds.find.mock.calls.length).toBeGreaterThan(1));
+  await waitFor(() => expect(ds.find).toHaveBeenCalled());
   return (ds.find.mock.calls.at(-1)?.[1]?.$expand ?? []) as string[];
 }
 

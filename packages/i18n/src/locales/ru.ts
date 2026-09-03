@@ -131,6 +131,13 @@ const ru = {
     record: "Запись",
     retry: "Повторить",
     printDialogHint: "Открывает диалог печати браузера (это не экспорт в PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Показаны первые {{shown}} из {{total}} записей. Сузьте фильтр.",
+    rowCeilingNoteUnknownTotal: "Показаны первые {{shown}} записей. Сузьте фильтр.",
   },
   actions: {
     decisionOutput: {

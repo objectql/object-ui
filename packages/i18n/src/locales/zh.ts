@@ -132,6 +132,13 @@ const zh = {
     record: '记录',
     retry: '重试',
     printDialogHint: '打开浏览器打印对话框（不是导出 PDF）',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: '仅显示 {{total}} 条记录中的前 {{shown}} 条。请缩小筛选范围。',
+    rowCeilingNoteUnknownTotal: '仅显示前 {{shown}} 条记录。请缩小筛选范围。',
   },
   actions: {
     decisionOutput: {
