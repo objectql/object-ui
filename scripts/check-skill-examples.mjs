@@ -361,30 +361,27 @@ export const EXIT_CODES = {
  * re-declaration. That cost is deliberate: a row that floated free of its line
  * would keep covering a site nobody has looked at since.
  *
- * The four rows below are the whole corpus at objectui#7463's branch point,
- * measured under `--measure` before the assertion was armed. Each needs a
- * per-row SKILLS judgement that this gate-hardening change is not the place to
- * make, and none of them is a mechanical unmark:
+ * The corpus at objectui#7463's branch point was FOUR rows, measured under
+ * `--measure` before the assertion was armed. One is left, and it is not a
+ * mechanical unmark:
  *
  *   - `plugin-development.md:92` `defaultValue` — the guide is FAITHFUL prose,
  *     not rot. `ComponentInput.defaultValue` really is `any` in
  *     `packages/types/src/base.ts`, so the honest fix is to the platform type,
  *     not to the guide restating it. Fixing the guide alone would make it lie.
- *   - `testing.md:60` `as any` — `validateSchema({} as any)`, feeding the
- *     validator something invalid ON PURPOSE. Which idiom the testing guide
- *     should teach for that (`as unknown as T`, a `@ts-expect-error`) is a
- *     question about the guide, not about this gate.
- *   - `testing.md:208` `mockClient` and its `as any` — the test-double idiom,
- *     including reaching a private field through `(adapter as any).client`.
- *     Same question, same owner.
+ *
+ * The three `testing.md` rows were retired by objectui#7494, which answered the
+ * skills judgement each of them was waiting on and taught the honest idiom in
+ * their place — the schema fence hands the validator its invalid value with no
+ * assertion at all (the parameter takes it as-is), and the adapter fence doubles
+ * through the public `getClient()` seam instead of reaching the private `client`
+ * field through a cast. Both fences stay MARKED; the rows went in the same
+ * commit as the guide edit, because a row whose red is gone fails as STALE.
  *
  * @type {ReadonlySet<string>}
  */
 export const KNOWN_BARE_ANY_EXAMPLES = new Set([
   'skills/objectui/guides/plugin-development.md:92 property `defaultValue`',
-  'skills/objectui/guides/testing.md:60 `as any` assertion',
-  'skills/objectui/guides/testing.md:208 variable `mockClient`',
-  'skills/objectui/guides/testing.md:208 `as any` assertion',
 ]);
 
 /** The baseline key for one bare-`any` finding at one site. */

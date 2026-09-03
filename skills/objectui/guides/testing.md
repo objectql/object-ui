@@ -67,7 +67,10 @@ describe('schema validation', () => {
   });
 
   it('rejects schema without type', () => {
-    const result = validateSchema({} as any);
+    // `validateSchema` takes the schema value as given, so a deliberately
+    // invalid one goes in as-is. A type assertion here would add nothing and
+    // would hide what this test feeds the validator.
+    const result = validateSchema({});
     expect(result.valid).toBe(false);
     expect(formatValidationErrors(result)).toContain('type');
   });
@@ -211,21 +214,30 @@ import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 
 describe('ObjectStackAdapter', () => {
   let adapter: ObjectStackAdapter;
-  let mockClient: any;
 
   beforeEach(() => {
-    mockClient = {
-      find: vi.fn().mockResolvedValue({ records: [], total: 0 }),
-      create: vi.fn().mockResolvedValue({ id: '1', name: 'New' }),
-    };
-    adapter = new ObjectStackAdapter({ baseUrl: 'http://localhost:3000' });
-    (adapter as any).client = mockClient;
+    adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      // `connect()` reads discovery through THIS injected fetch, not through the
+      // client, so stub it or every call fails before it reaches the client.
+      fetch: async () => new Response('{}', { status: 200 }),
+    });
   });
 
-  it('delegates find to client', async () => {
-    await adapter.find('contacts', { filter: { active: true } });
-    expect(mockClient.find).toHaveBeenCalledWith('contacts', expect.objectContaining({
-      filter: { active: true },
+  it('delegates find to the client', async () => {
+    // `getClient()` is the public seam: it hands back the very client the
+    // adapter calls, so the double needs no reach into a private field and
+    // stays checked against the client's real signature.
+    const find = vi
+      .spyOn(adapter.getClient().data, 'find')
+      .mockResolvedValue({ records: [], total: 0 });
+
+    await adapter.find('contacts', { $filter: { active: true } });
+
+    // The adapter lowers `$filter` into the ObjectQL AST before calling the
+    // client, so assert the lowered shape rather than the input.
+    expect(find).toHaveBeenCalledWith('contacts', expect.objectContaining({
+      filters: ['active', '=', true],
     }));
   });
 });
