@@ -15,7 +15,7 @@
  * ## Navigation Model
  * 
  * ObjectUI uses a unified `NavigationItem` model aligned with @objectstack/spec.
- * The legacy `MenuItem` type is retained for backward compatibility but new
+ * The legacy `AppMenuItem` type is retained for backward compatibility but new
  * configurations should use `NavigationItem` and the `navigation` / `areas` fields.
  */
 
@@ -31,7 +31,7 @@
 //      already recorded in `__tests__/navigation-spec-parity.test.ts`.
 //   2. Three semantics the spec has at NEITHER tier: `visible: boolean` (the
 //      spec takes only a CEL string / Expression envelope, yet
-//      `menuItemToNavigationItem` below inverts legacy `MenuItem.hidden` into
+//      `menuItemToNavigationItem` below inverts legacy `AppMenuItem.hidden` into
 //      a boolean), `pinned` (backs `useNavPins` + `FavoritesProvider`), and the
 //      legacy `defaultOpen` spelling. Binding deletes all three from the type
 //      while their implementations keep running.
@@ -77,7 +77,7 @@ export type NavigationItemType = SpecNavigationItem['type'];
  * Unified Navigation Item
  * 
  * The single navigation primitive used across ObjectUI and @objectstack/spec.
- * Replaces the legacy `MenuItem` for application navigation trees.
+ * Replaces the legacy `AppMenuItem` for application navigation trees.
  * 
  * Supports typed navigation targets (object, dashboard, page, report, url),
  * nested groups, visibility expressions, RBAC permissions, and UX enhancements
@@ -229,7 +229,7 @@ export interface NavigationItem {
    * envelope `{ dialect, source }` on output — `boolean` is absent at BOTH
    * tiers. `NavigationRenderer`'s `evalVis(item.visible)` honours the boolean,
    * and `menuItemToNavigationItem` produces one when mapping legacy
-   * `MenuItem.hidden`. Pinned in `spec-derived-unions.test.ts`, which fails the
+   * `AppMenuItem.hidden`. Pinned in `spec-derived-unions.test.ts`, which fails the
    * day the spec accepts a boolean and this can come off it.
    */
   visible?: boolean | string;
@@ -423,7 +423,7 @@ export interface AppComponentSchema extends BaseSchema {
    * Global Navigation Menu
    * @deprecated Use `navigation` instead. Retained for backward compatibility.
    */
-  menu?: MenuItem[];
+  menu?: AppMenuItem[];
 
   /**
    * Unified navigation tree (aligned with @objectstack/spec NavigationItem model).
@@ -451,14 +451,14 @@ export interface AppComponentSchema extends BaseSchema {
 }
 
 // ============================================================================
-// Legacy MenuItem (backward compat — prefer NavigationItem)
+// Legacy AppMenuItem (backward compat — prefer NavigationItem)
 // ============================================================================
 
 /**
  * Navigation Menu Item
  * @deprecated Use `NavigationItem` instead.
  */
-export interface MenuItem {
+export interface AppMenuItem {
   /**
    * Item Type
    */
@@ -487,7 +487,7 @@ export interface MenuItem {
   /**
    * Child Items (Submenu)
    */
-  children?: MenuItem[];
+  children?: AppMenuItem[];
 
   /**
    * Badge / Count
@@ -501,11 +501,11 @@ export interface MenuItem {
 }
 
 // ============================================================================
-// MenuItem → NavigationItem Transform
+// AppMenuItem → NavigationItem Transform
 // ============================================================================
 
 /**
- * Convert a legacy `MenuItem` to a `NavigationItem`.
+ * Convert a legacy `AppMenuItem` to a `NavigationItem`.
  * 
  * Mapping rules:
  * - `type: 'item'` → inferred from `href` (url) or `path` (page)
@@ -516,7 +516,7 @@ export interface MenuItem {
  * - `href` → `url` with `target: '_blank'`
  */
 export function menuItemToNavigationItem(
-  item: MenuItem,
+  item: AppMenuItem,
   index: number = 0,
 ): NavigationItem {
   const id = `migrated_${index}`;
@@ -734,7 +734,7 @@ export interface AppAction {
   /**
    * Dropdown Menu Items (for type='dropdown' or 'user')
    */
-  items?: MenuItem[];
+  items?: AppMenuItem[];
   /**
    * Keyboard shortcut
    */

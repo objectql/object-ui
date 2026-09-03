@@ -119,7 +119,7 @@ export interface BaseFieldMetadata {
   /**
    * Custom validation function or rules
    */
-  validate?: ValidationFunction | FieldConstraints;
+  validate?: FieldValidationFunction | FieldConstraints;
   
   /**
    * Field dependencies (Phase 3.2.3)
@@ -155,7 +155,7 @@ export type VisibilityCondition = {
 /**
  * Validation function type
  */
-export type ValidationFunction = (value: any) => boolean | string | Promise<boolean | string>;
+export type FieldValidationFunction = (value: any) => boolean | string | Promise<boolean | string>;
 
 /**
  * Validation rule type
@@ -167,7 +167,7 @@ export type FieldConstraints = {
   min?: number;
   max?: number;
   pattern?: string | RegExp;
-  custom?: ValidationFunction;
+  custom?: FieldValidationFunction;
 };
 
 /**
