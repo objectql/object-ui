@@ -21,12 +21,26 @@ byte-identical under either spelling (28 / 28 / 12 / 34 elements, same tag
 census, same `textContent` SHA-256). Identical output under the "correction" is
 objectui#6318's own triage test for *the schema was the wrong side*.
 
-**This is a WIDENING, on both faces.** `data` goes from required to optional on
-the mirror and on the TypeScript twin in the same stroke; nothing that validated
-before validates less. A document authored on `data` — such as the tree-view
-entry in `packages/types/examples/data-display-examples.json` — is untouched,
-and both spellings together stay legal. Hence `patch`, matching the two sibling
-groups of this card that have already landed.
+**For AUTHORS this widens on both faces.** `data` goes from required to optional
+on the mirror and on the TypeScript twin in the same stroke; nothing that
+validated before validates less, and no document that type-checked as a literal
+stops doing so. A document authored on `data` — such as the tree-view entry in
+`packages/types/examples/data-display-examples.json` — is untouched, and both
+spellings together stay legal.
+
+**For a READER of the TypeScript twin this is a narrowing, and that is the half
+worth stating.** `TreeViewSchema['data']` is now `TreeNode[] | undefined`, so
+code that read `schema.data` and relied on its presence needs a guard and will
+otherwise stop compiling (measured on a consumer probe: exit 0 before, `TS2322`
+plus `TS18048` after). The only in-repo reader already has that guard —
+`renderers/data-display/tree-view.tsx:105` reads
+`boundData || schema.nodes || schema.data || []` — and it type-checks clean, so
+nothing in this repository changes. An out-of-repo consumer that reads the key
+unguarded is the population this paragraph exists for.
+
+Still `patch`: the required-ness was never a guarantee the renderer honoured (it
+reads the key third, behind a default), the accept set only grows, and this is
+the same shape as the two sibling groups of this card that have already landed.
 
 **`data` stays DECLARED rather than being deleted**, and the difference is
 measured rather than assumed: `BaseSchema` already declares `data`
