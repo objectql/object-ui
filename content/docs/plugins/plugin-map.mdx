@@ -102,9 +102,10 @@ const schema = {
 ```plaintext
 {
   type: 'object-map',
-  objectName: string,               // ObjectQL object name
-  staticData?: Array<any>,          // Static data array
-  data?: ViewData,                  // Advanced data configuration
+  objectName?: string,              // ObjectQL object name (read third)
+  staticData?: Array<any>,          // Static data array (read second)
+  data?: ViewData,                  // Advanced data configuration (read first)
+                                    // At least one of data / staticData / objectName is required
   filter?: Array<any>,              // Query filter, sent as $filter
   sort?: string | SortConfig[],     // Sort, sent as $orderby
   map?: ObjectMapConfig,            // Map-specific configuration
