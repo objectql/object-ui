@@ -457,29 +457,35 @@ A chart visualization supporting multiple chart types.
   "showLegend": true,
   "showGrid": true,
   "animate": true,
-  "categories": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+  "xAxisKey": "month",
+  "data": [
+    { "month": "Jan", "revenue": 4200, "expenses": 3100 },
+    { "month": "Feb", "revenue": 5100, "expenses": 3400 },
+    { "month": "Mar", "revenue": 4800, "expenses": 3200 },
+    { "month": "Apr", "revenue": 6200, "expenses": 3800 },
+    { "month": "May", "revenue": 5800, "expenses": 3600 },
+    { "month": "Jun", "revenue": 7100, "expenses": 4000 }
+  ],
   "series": [
-    {
-      "name": "Revenue",
-      "data": [4200, 5100, 4800, 6200, 5800, 7100],
-      "color": "#3b82f6"
-    },
-    {
-      "name": "Expenses",
-      "data": [3100, 3400, 3200, 3800, 3600, 4000],
-      "color": "#ef4444"
-    }
+    { "name": "revenue", "color": "#3b82f6" },
+    { "name": "expenses", "color": "#ef4444" }
   ]
 }
 ```
+
+The rows live on the chart-level `data`; each series names the COLUMN it plots and carries
+no numbers of its own. An inline `series[].data` array was retired by objectui#6896 — it
+was never read, and it is now refused by name.
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `chartType` | `ChartType` | **Required.** `"bar"`, `"line"`, `"area"`, `"pie"`, `"donut"`, `"radar"`, `"scatter"`, `"heatmap"`. |
 | `title` | `string` | Chart title. |
 | `description` | `string` | Chart description / subtitle. |
-| `categories` | `string[]` | X-axis category labels. |
-| `series` | `ChartSeries[]` | Data series, each with `name`, `data` array, and optional `color`. |
+| `data` | `Array<Record<string, any>>` | Rows to plot — one object per row, keyed by column name. |
+| `xAxisKey` | `string` | Row key holding the category (x) axis. The bare-string spelling `xAxis: "month"` folds onto this key when the schema is parsed. |
+| `categories` | `string[]` | An **alternative series list** — column names to plot, consulted only when `series` is absent. Not axis labels. |
+| `series` | `ChartDataSeries[]` | Data series. Each names the column it plots with `name` or `dataKey` (either alone is enough), plus optional `color` and a per-series `type` for combo charts. |
 | `height` / `width` | `string \| number` | Chart dimensions. |
 | `showLegend` | `boolean` | Display the legend. |
 | `showGrid` | `boolean` | Display grid lines. |
@@ -961,8 +967,15 @@ A widget-based dashboard with configurable grid layout and auto-refresh.
       "body": {
         "type": "chart",
         "chartType": "area",
-        "categories": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-        "series": [{ "name": "Sales", "data": [120, 180, 150, 210, 190] }]
+        "xAxisKey": "day",
+        "data": [
+          { "day": "Mon", "sales": 120 },
+          { "day": "Tue", "sales": 180 },
+          { "day": "Wed", "sales": 150 },
+          { "day": "Thu", "sales": 210 },
+          { "day": "Fri", "sales": 190 }
+        ],
+        "series": [{ "dataKey": "sales" }]
       }
     },
     {

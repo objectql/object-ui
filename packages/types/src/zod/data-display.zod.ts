@@ -355,7 +355,20 @@ export const ChartTypeSchema = SpecChartTypeSchema;
  * dataset-bound one, and neither carries values.
  */
 export const ChartDataSeriesSchema = z.object({
-  name: z.string().describe('Series name'),
+  // BOTH BINDING DIALECTS (objectui#6939, maintainer ruling 2026-09-02 — the
+  // `chart` row, verbatim 「同意」). `normalizeSeries` reads
+  // `str(raw.dataKey) ?? str(raw.name)` (`plugin-charts/src/normalizeChartSchema.ts:239`),
+  // so the two spellings are interchangeable at the renderer. This mirror
+  // REQUIRED `name`, which refused `series: [{ dataKey: 'revenue' }]` — the
+  // spelling BOTH catalog chart fixtures are written in and the renderer draws.
+  // `name` is optional here and the refinement below carries the floor its
+  // required flag used to: the accept set only widens.
+  name: z.string().optional().describe(
+    'Series name — also selects this series\' column within each chart-level `data` row when `dataKey` is absent',
+  ),
+  dataKey: z.string().optional().describe(
+    'Column this series plots within each chart-level `data` row — the internal spelling of `name`, and the one the renderer takes when both are written',
+  ),
   // ADR-0049 RETIREMENT TOMBSTONE (objectui#6896). Deleting the member was the
   // option NOT taken: `ChartDataSeriesSchema` is a non-strict `z.object`, which
   // STRIPS an undeclared key in silence — the same silent no-op the retirement
@@ -372,10 +385,84 @@ export const ChartDataSeriesSchema = z.object({
   // the TS declaration for the read this narrowness is taken from.
   type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
   color: z.string().optional().describe('Series color'),
+}).superRefine((series, ctx) => {
+  // `normalizeSeries` returns `undefined` when NEITHER spelling resolves
+  // (`normalizeChartSchema.ts:240`, `if (!dataKey) return undefined`) and the
+  // series is dropped from the chart in silence. Refusing by name here is that
+  // silent drop made loud. ⚠️ This is not a new narrowing: `name`'s required
+  // flag already refused exactly this document, and the path is kept on `name`
+  // so the diagnostic lands where it always did.
+  if (series.name === undefined && series.dataKey === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['name'],
+      message:
+        'A chart series must name the column it plots, with `name` or `dataKey` — '
+        + '`normalizeChartSchema` drops a series that resolves to neither.',
+    });
+  }
 });
 
 /**
+ * Fold the bare-string `xAxis` spelling onto the canonical `xAxisKey` and drop
+ * it from the output (objectui#7113, 项目总监席 总监批 #28, 2026-09-01,
+ * maintainer verbatim 「同意」 — option B), in the shape objectstack#13897
+ * landed for `FormViewSchema`'s legacy `groups`.
+ *
+ * ## Only the BARE-STRING dialect is an alias — measured, not assumed
+ *
+ * `xAxis` carries TWO authored dialects, and only one of them is a sibling
+ * spelling of `xAxisKey`:
+ *
+ *   - `xAxis: 'month'` — a bare string. `normalizeChartSchema` resolves it
+ *     through `str(xAxisRaw)`, the third limb of
+ *     `str(schema.xAxisKey) ?? xAxisSpec?.field ?? str(xAxisRaw)`
+ *     (`normalizeChartSchema.ts:292`). It means the category COLUMN and nothing
+ *     else, so it folds here.
+ *   - `xAxis: { field, format, title, showGridLines, … }` — the spec's axis
+ *     CONFIG object. Its `field` reaches `xAxisKey` through the same line, but
+ *     its presentation keys survive separately into `out.xAxis`
+ *     (`normalizeChartSchema.ts:289-291`). It is a DIFFERENT key that happens to
+ *     also answer the column question, not a spelling of `xAxisKey` — folding it
+ *     would discard `format` / `title` / `showGridLines`. It is left untouched.
+ *
+ * ## No second writable name, and no invented precedence
+ *
+ * The alias is legal at INPUT and absent from OUTPUT, so exactly one name for
+ * the category column survives a parse. When both are written the canonical key
+ * is kept and the alias dropped — which is not a precedence semantic minted
+ * here, it is the one already running at `normalizeChartSchema.ts:292`, where
+ * `xAxisKey` is the first limb of the `??` chain. Nothing that renders today
+ * changes what it renders.
+ *
+ * ## Why `.overwrite()` and not `.transform()`
+ *
+ * Measured, and the same reason objectstack#13897 gives: `.transform()` returns
+ * a `ZodPipe`, which has no `.shape` and no `.extend()`. Both are load-bearing
+ * here — `zod-mirror-parity.test.ts` reads every mirror's OWN `.shape` (a pipe
+ * answers with nothing, i.e. a silent hole in the ratchet rather than an error),
+ * and `reports.zod.ts` consumes `ChartSchema` as an object. `.overwrite()` is
+ * zod 4's transform that does not change the type, which is exactly what this
+ * fold is.
+ */
+function foldChartXAxisAlias<T extends Record<string, unknown>>(input: T): T {
+  const alias = input.xAxis;
+  // The object dialect is not an alias — see the docblock. Leave it alone.
+  if (typeof alias !== 'string') return input;
+  const { xAxis: _alias, ...rest } = input;
+  return (rest.xAxisKey === undefined ? { ...rest, xAxisKey: alias } : rest) as T;
+}
+
+/**
  * Chart Schema - Chart/graph component
+ *
+ * ⚠️ `data` and `xAxisKey` are the DATA MODEL this node has always rendered and
+ * never declared (objectui#7113). Until this declaration both keys survived only
+ * on `BaseSchema`'s `.passthrough()` / index signature: authored, read by the
+ * renderer, and unchecked — `data: 'oops'` and `xAxisKey: 123` both parsed
+ * clean and drew an empty chart. The `.describe()` prose on `categories` below
+ * and on the `ChartDataSeries.data` tombstone was already teaching authors to
+ * write them.
  */
 export const ChartSchema = BaseSchema.extend({
   type: z.literal('chart'),
@@ -392,13 +479,34 @@ export const ChartSchema = BaseSchema.extend({
       + 'NOT axis labels: the category axis comes from `xAxisKey`/`xAxis`.',
     ),
   series: z.array(ChartDataSeriesSchema).describe('Chart data series'),
+  // THE ROWS. Shape derived from the read sites, not from what looks reasonable:
+  // `ChartRenderer.tsx:164` passes `Array.isArray(schema.data) ? schema.data : []`
+  // through to the implementation, `ChartRenderer.tsx:17,47` declare the prop as
+  // `Array<Record<string, any>>`, and `AdvancedChartImpl.tsx:2229` reads the
+  // COLUMN NAMES back with `Object.keys(props.data[0] ?? {})` while
+  // `AdvancedChartImpl.tsx:1968` indexes a row as `d[xAxisKey]`. So: an array of
+  // row objects keyed by column name. Identical to the sibling `BarChartSchema.data`
+  // below, which objectui#6318 derived from the same renderer the same way.
+  // ⛔ NOT `normalizeChartSchema`: that function has ZERO reads of `schema.data`.
+  data: z
+    .array(z.record(z.string(), z.any()))
+    .optional()
+    .describe(
+      'Rows to plot — one object per row, keyed by column name. `series[].name`/`dataKey` picks the column to plot within each row; `xAxisKey` names the category column.',
+    ),
+  xAxisKey: z
+    .string()
+    .optional()
+    .describe(
+      'Row key holding the category (x) axis. The bare-string sibling spelling `xAxis: \'month\'` folds onto this key at parse and does not survive it.',
+    ),
   height: z.union([z.string(), z.number()]).optional().describe('Chart height'),
   width: z.union([z.string(), z.number()]).optional().describe('Chart width'),
   showLegend: z.boolean().optional().describe('Show legend'),
   showGrid: z.boolean().optional().describe('Show grid lines'),
   animate: z.boolean().optional().describe('Enable animations'),
   config: z.record(z.string(), z.any()).optional().describe('Additional chart configuration'),
-});
+}).overwrite(foldChartXAxisAlias);
 
 /**
  * Timeline Event Schema
