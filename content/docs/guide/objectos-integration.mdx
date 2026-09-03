@@ -635,6 +635,13 @@ test('renders contact grid', () => {
 
 ### Integration Tests
 
+End-to-end tests drive the running app, so they need a browser runner the app itself
+does not depend on. Install it in your project first — `npm install -D @playwright/test`
+(then `npx playwright install` once, for the browsers) — and run these specs with
+`npx playwright test`.
+
+{/* doc-snippet: fragment — an end-to-end spec for the READER's own Playwright installation: `@playwright/test` is a test runner the reader installs themselves (the sentence above says so), and no package documented here declares it, so it does not resolve in this gate's program (measured: TS2307 x1). It used to compile only because THIS repository happens to carry `@playwright/test` as a root devDependency, which is what objectui#7463 item 2 bounded */}
+
 ```typescript
 import { test, expect } from '@playwright/test';
 

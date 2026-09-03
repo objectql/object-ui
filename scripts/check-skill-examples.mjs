@@ -128,19 +128,27 @@
  * guide is a consumer who installs `@object-ui/react` from npm. That is the
  * surface, so that is what is compiled against.
  *
- * ⚠️ The honest edge of that resolution, measured rather than assumed, and
- * printed on every run as `Unmapped specifiers`: a bare specifier that neither
- * the workspace map nor the declared-dependency map covers still resolves if the
- * REPOSITORY ROOT declares it, because pnpm symlinks the root's own dependency
- * set into `/node_modules`. `vitest`, `react` and `@testing-library/react` are
- * root devDependencies here, so a marked fence importing them is verified
- * against THIS workspace's copy — not against anything a reader of the guide is
- * told to install. The guides do tell that reader to install vitest, so the
- * examples are not wrong; the GATE simply is not the thing that proves it. The
- * inherited UNDECLARED control does not close this: it bounds resolution against
+ * ⚠️ That edge USED to be wider, and the `Unmapped specifiers` line printed on
+ * every run is what is left of it. A bare specifier that neither the workspace
+ * map nor the declared-dependency map covers still resolved if the REPOSITORY
+ * ROOT declared it, because pnpm symlinks the root's own dependency set into
+ * `/node_modules`: `vitest` and `@playwright/test` are root devDependencies
+ * here, so a marked fence importing them was verified against THIS workspace's
+ * copy — not against anything a reader of the guide is told to install. The
+ * inherited UNDECLARED control never closed that: it bounds resolution against
  * TRANSITIVE packages (which pnpm leaves only under `.pnpm/`), a different leak.
- * Naming the specifiers in the run output is what stops that from being a silent
- * property of a green — tightening it is recorded as a follow-up, not done here.
+ *
+ * objectui#7463 item 2 closed it in the SHARED harness, unconditionally for both
+ * gates (maintainer ruling 2026-09-03, objectstack#14909 item 1, option A):
+ * `compileSnippets` refuses such a specifier and keeps the fence importing it
+ * OUT of the semantic program. The `Unmapped specifiers` line stays, now as the
+ * report of what the bound refuses, and the harness's new ROOT-DECLARED control
+ * is what proves on every run that it is still being applied.
+ *
+ * ⚠️ A refused fence is NOT type-checked. The four pre-existing ones are carried
+ * in the shrink-only `KNOWN_ROOT_DEVDEP_EXAMPLES` below so the bound landed with
+ * zero new red, and the `Root bound` and `Semantic phase` lines both say how
+ * many fences that costs — a declared row is uncovered debt, never a green.
  *
  * The cost of that decision is the PRECONDITION, and it is a declared exit code
  * rather than a silent green: if a package a marked fence imports has no `dist`,
@@ -266,19 +274,13 @@
  *      fences are complete documents rather than prose fragments is the same
  *      boundary `check-doc-snippet-types.mjs` left unruled for the same reason,
  *      and guessing it is what produces a gate people learn to ignore.
- *   2. **Bounding ROOT-devDependency resolution.** The `Unmapped specifiers`
- *      line below names the leak; closing it is objectui#7463 item 2 and is
- *      still open, because the harness that would carry the bound is SHARED and
- *      the fix is not local to this gate. Measured at objectui#7463's head, so
- *      the next reader argues from a number rather than re-deriving it: the
- *      marked population's unmapped set is exactly `@playwright/test` and
- *      `vitest`, both declared by the repository ROOT and both resolving out of
- *      `/node_modules`; and a bound placed in `compileSnippets` would newly red
- *      exactly ONE of `check-doc-snippet-types.mjs`'s own 432 compiled snippets
- *      (`content/docs/guide/objectos-integration.mdx:638`, importing
- *      `@playwright/test`). One new red on a surface this gate does not own is
- *      a decision about the docs corpus, not a refactor, so it is escalated
- *      rather than taken.
+ *   2. **Whether a REFUSED fence's example is correct.** The root bound says
+ *      only that this gate cannot reach the package the fence imports, never
+ *      that the fence is wrong — the four declared rows are good documentation
+ *      about test runners the reader installs. Retiring a row means giving the
+ *      example an import the reader provably has, or the guide's owner deciding
+ *      the fence should not be gated; both are skills judgements over a GOVERNED
+ *      surface, made in a skills PR.
  *   3. **Whether an eval's `must_contain` token is taught by the guides.** A
  *      different oracle over a different corpus, discussed at length on
  *      objectui#7359 and explicitly not this check.
@@ -412,6 +414,19 @@ export const EXIT_CODES = {
  * There is no row-with-a-reason yet, because nothing has been unmarked since
  * the gate landed. The first one to lower a number writes it here.
  *
+ * ## What this floor counts, and what the OTHER ratchet counts
+ *
+ * MARKS, not verifications. A fence the shared harness's ROOT BOUND refuses
+ * (see `KNOWN_ROOT_DEVDEP_EXAMPLES` below) keeps its marker and stays inside
+ * this floor while being type-checked by nothing at all, so this number cannot
+ * be read as coverage — the `Root bound` and `Semantic phase` lines in the same
+ * summary are what say how many marked fences were actually reached.
+ *
+ * ⛔ The two ratchets are deliberately not one. Deleting a marker to silence a
+ * root-bound refusal would lower THIS floor, which is exactly the move both of
+ * them exist to make visible: the debt list refuses to let the refusal go
+ * unnamed, and the floor refuses to let the population shrink quietly.
+ *
  * @type {ReadonlyMap<string, number>}
  */
 export const MARKED_FLOOR = new Map([
@@ -511,6 +526,85 @@ export const KNOWN_BARE_ANY_EXAMPLES = new Set([
 /** The baseline key for one bare-`any` finding at one site. */
 export function bareAnyRowKey(block, finding) {
   return `${block.doc}:${block.fenceLine} ${finding.where}`;
+}
+
+// ── The root-devDependency debt list (objectui#7463 item 2) ──────────────────
+
+/**
+ * ⛔ SHRINK-ONLY. Rows spelled exactly as `rootDevDepRowKey()` builds them:
+ *
+ *     GUIDE:FENCELINE SPECIFIER
+ *
+ * so a row names ONE fence importing ONE specifier the shared harness's root
+ * bound refuses (see `resolvesOnlyThroughRootManifest` in
+ * `check-doc-snippet-types.mjs`). A fence importing two such specifiers is two
+ * rows, and a per-row fix removes exactly one import.
+ *
+ * ⚠️ Not an allowlist, and it does NOT re-open resolution: a declared row's
+ * fence is still refused by the harness and is NOT type-checked — the run's
+ * `Semantic phase` count says so out loud. What the row buys is that a
+ * PRE-EXISTING one is not a new red on the day the bound landed; what it costs
+ * is the fence's coverage, which is the honest price of an example resting on a
+ * package the gate cannot show the reader has.
+ *
+ * A row whose refusal is GONE fails as STALE, so the list can only shrink — the
+ * same direction, and the same reasoning, as `KNOWN_BARE_ANY_EXAMPLES` above.
+ *
+ * The corpus at the bound's branch point was FOUR rows, all in one guide, all
+ * measured before the bound was armed. Each one is real documentation the gate
+ * cannot verify rather than a defect:
+ *
+ *   - `testing.md:60`, `:94`, `:218` import `vitest`, and `:258` imports
+ *     `@playwright/test`. Both are TEST RUNNERS the reader installs in their own
+ *     project — the guide's first sentence names both — and no package this
+ *     repository publishes declares either, so nothing in the map covers them.
+ *     They compiled until now only because THIS repository carries both as root
+ *     devDependencies, which is the leak the bound closed.
+ *
+ * ⛔ Why they are declared here rather than unmarked in the guide: the guides
+ * under `skills/**` are a GOVERNED surface (see `AGENTS.md`), and removing a
+ * marker to make a gate green is the "gate weakens the guide to suit itself"
+ * move the shrink-only lists exist to prevent. It would also breach
+ * `MARKED_FLOOR` above, which counts MARKS: a declared row here leaves the
+ * marked population exactly where it was, because the fence is still marked —
+ * these two ratchets count different things on purpose, and neither one
+ * substitutes for the other. Retiring a row means giving the
+ * example an import the reader provably has, or the guide's owner deciding the
+ * fence should not be gated — either way a skills judgement, made in a skills
+ * PR, not in this one.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const KNOWN_ROOT_DEVDEP_EXAMPLES = new Set([
+  'skills/objectui/guides/testing.md:60 vitest',
+  'skills/objectui/guides/testing.md:94 vitest',
+  'skills/objectui/guides/testing.md:218 vitest',
+  'skills/objectui/guides/testing.md:258 @playwright/test',
+]);
+
+/** The debt-list key for one refused specifier in one fence. */
+export function rootDevDepRowKey(block, specifier) {
+  return `${block.doc}:${block.fenceLine} ${specifier}`;
+}
+
+/**
+ * Split the harness's root-bound refusals into DECLARED debt and new red, and
+ * name the declared rows that are no longer refused.
+ *
+ * Kept a pure function of the run so the self-test can drive both directions
+ * over fixture blocks rather than over the real guides.
+ */
+export function classifyRootDevDep(boundFailures, declared = KNOWN_ROOT_DEVDEP_EXAMPLES) {
+  const rows = [];
+  for (const { block, specifiers } of boundFailures) {
+    for (const specifier of specifiers) {
+      const key = rootDevDepRowKey(block, specifier);
+      rows.push({ block, specifier, key, declared: declared.has(key) });
+    }
+  }
+  const live = new Set(rows.map((r) => r.key));
+  const stale = [...declared].filter((key) => !live.has(key)).sort();
+  return { rows, stale, undeclared: rows.filter((r) => !r.declared) };
 }
 
 // ── Bare-`any` guard (objectui#7463, ported from objectstack #5943) ──────────
@@ -1043,6 +1137,28 @@ export function evaluateControls(run) {
     );
   }
 
+  const rootDeclaredCodes = run.rootDeclaredDiagnostics.map((d) => d.code);
+  lines.push(
+    `  root-declared a specifier only the repository ROOT declares (installed at ${run.rootDeclaredInstalledAt ?? '(NOT INSTALLED)'}) produced ${run.rootDeclaredDiagnostics.length} diagnostic(s)${rootDeclaredCodes.length ? ` (TS${rootDeclaredCodes.join(', TS')})` : ''}`,
+  );
+  if (run.rootDeclaredMapped) {
+    failures.push(
+      'the root-declared control specifier is now covered by the paths map, so it resolves through the map and can no longer show that the ROOT\'s own set is bounded — pick another',
+    );
+  } else if (!run.rootDeclaredByRoot) {
+    failures.push(
+      'the root-declared control specifier is no longer declared by the repository ROOT, so its failure to resolve says nothing about the root\'s set — pick another',
+    );
+  } else if (!run.rootDeclaredInstalledAt) {
+    failures.push(
+      'the root-declared control specifier is not installed, so its failure to resolve proves nothing about how far resolution reaches — pick another',
+    );
+  } else if (!rootDeclaredCodes.includes(2307)) {
+    failures.push(
+      'a specifier only the repository ROOT declares now resolves — the root bound is not being applied, so a marked example may rest on what THIS workspace installs to test itself rather than on anything the guide tells its reader to install, and every guide would stay green while it does',
+    );
+  }
+
   return { lines, failures };
 }
 
@@ -1050,7 +1166,7 @@ export function evaluateControls(run) {
  * Judge the selected fences. Returns everything the caller needs to print a
  * verdict, with the type-check and JSON halves kept apart.
  */
-export function judge(state) {
+export function judge(state, declaredRootDevDep = KNOWN_ROOT_DEVDEP_EXAMPLES) {
   const run = compileSnippets({
     root: repoRoot,
     compiled: state.tsBlocks,
@@ -1058,9 +1174,15 @@ export function judge(state) {
     declaredSpecifiers: state.declaredSpecifiers,
   });
 
+  const rootDevDep = classifyRootDevDep(run.boundFailures, declaredRootDevDep);
+
   const failedTs = new Set();
   for (const { block } of run.parseFailures) failedTs.add(block);
   for (const { block } of run.semanticFailures) failedTs.add(block);
+  // A refused fence is NOT judged either way. It counts as failed only when its
+  // row is undeclared; a declared row is debt, and the coverage line — not this
+  // set — is what stops it reading as verified.
+  for (const { block } of rootDevDep.undeclared) failedTs.add(block);
 
   const jsonFailures = [];
   for (const block of state.jsonBlocks) {
@@ -1068,7 +1190,7 @@ export function judge(state) {
     if (message !== null) jsonFailures.push({ block, message });
   }
 
-  return { run, failedTs, jsonFailures };
+  return { run, failedTs, jsonFailures, rootDevDep };
 }
 
 // ── The run ──────────────────────────────────────────────────────────────────
@@ -1128,7 +1250,7 @@ function main() {
     return EXIT_CODES.couldNotRun;
   }
 
-  const { run, failedTs, jsonFailures } = judge(state);
+  const { run, failedTs, jsonFailures, rootDevDep } = judge(state);
 
   const { lines: controlLines, failures: controlFailures } = evaluateControls(run);
   console.log(
@@ -1137,7 +1259,7 @@ function main() {
   console.log(
     state.unmappedSpecifiers.size === 0
       ? 'Unmapped specifiers: none — every bare import of a selected fence is covered by the map above.'
-      : `Unmapped specifiers (resolve, if at all, from the repository ROOT's own node_modules — this workspace's devDependency set, NOT what a reader of the guide installs): ${[...state.unmappedSpecifiers].sort().join(', ')}`,
+      : `Unmapped specifiers (covered by neither map, so the shared harness's ROOT BOUND refuses them — they would otherwise resolve from the repository ROOT's own node_modules, this workspace's devDependency set, NOT what a reader of the guide installs): ${[...state.unmappedSpecifiers].sort().join(', ')}`,
   );
   console.log('Controls:');
   for (const line of controlLines) console.log(line);
@@ -1150,10 +1272,16 @@ function main() {
       const anyNote = anyHits.length
         ? ` + ${anyHits.length} bare \`any\`${anyHits.every((h) => h.baselined) ? ' (all baselined)' : ''}`
         : '';
+      const boundRows = rootDevDep.rows.filter((r) => r.block === block);
+      const boundNote = boundRows.length
+        ? ` + root-bound refused (${boundRows.map((r) => r.specifier).join(', ')})${boundRows.every((r) => r.declared) ? ', declared' : ''}`
+        : '';
       if (!block.selected) verdict = 'unmarked — ignored';
       else if (block.kind === 'json')
         verdict = jsonFailures.some((f) => f.block === block) ? 'FAIL' : 'pass';
-      else if (failedTs.has(block)) verdict = `FAIL${anyNote}`;
+      else if (failedTs.has(block)) verdict = `FAIL${anyNote}${boundNote}`;
+      // A refused fence is never "pass": it was not type-checked at all.
+      else if (boundRows.length) verdict = `NOT CHECKED${anyNote}${boundNote}`;
       else verdict = anyHits.some((h) => !h.baselined) ? `FAIL${anyNote}` : `pass${anyNote}`;
       console.log(
         `  ${block.doc}:${block.fenceLine}  [${block.language}]  ${block.marked ? 'marked' : '      '}  ${verdict}`,
@@ -1187,6 +1315,22 @@ function main() {
       `  ${key}  [stale-baseline]  this row is no longer red — delete its line, KNOWN_BARE_ANY_EXAMPLES only shrinks`,
     );
   }
+  for (const row of rootDevDep.rows) {
+    if (row.declared) continue;
+    console.error(
+      `  [bound]     ${row.block.doc}:${row.block.fenceLine}  imports '${row.specifier}', which resolves ` +
+        "only through this repository's ROOT package.json — this workspace's own devDependency set, not " +
+        'anything this guide tells its reader to install. This fence is therefore NOT type-checked. ' +
+        'Import what a documented package DECLARES, drop the marker if the fence was never meant to ' +
+        'compile on its own, or declare the row VERBATIM in KNOWN_ROOT_DEVDEP_EXAMPLES ' +
+        `(⛔ SHRINK-ONLY):\n                ${row.key}`,
+    );
+  }
+  for (const key of rootDevDep.stale) {
+    console.error(
+      `  ${key}  [stale-baseline]  this row is no longer refused — delete its line, KNOWN_ROOT_DEVDEP_EXAMPLES only shrinks`,
+    );
+  }
 
   // ── the summary always states COVERAGE, never just a verdict ──────────────
   const tsCandidates = state.candidates.filter((c) => c.kind === 'ts');
@@ -1206,6 +1350,14 @@ function main() {
       ? 'Syntax phase:   every selected ts fence parsed, so every one of them reached the semantic phase.'
       : `Syntax phase:   ${parseFailedBlocks} ts fence(s) failed to parse and were NOT semantically checked.`,
   );
+  const declaredRootDevDep = rootDevDep.rows.filter((r) => r.declared);
+  console.log(
+    run.boundFailures.length === 0
+      ? "Root bound:     no selected fence imports a specifier that resolves only through the repository's ROOT manifest."
+      : `Root bound:     ${run.boundFailures.length} fence(s) refused (${run.boundedSpecifiers.join(', ')}) and therefore NOT type-checked; ` +
+          `${declaredRootDevDep.length} row(s) declared in KNOWN_ROOT_DEVDEP_EXAMPLES (⛔ SHRINK-ONLY, ${KNOWN_ROOT_DEVDEP_EXAMPLES.size} row(s)), ` +
+          `${rootDevDep.undeclared.length} NOT declared, ${rootDevDep.stale.length} declared row(s) no longer refused.`,
+  );
   console.log(
     `Semantic phase: ${run.semanticallyJudged} of ${state.tsBlocks.length} ts fence(s) judged, ${run.semanticFailures.length} failed.`,
   );
@@ -1218,14 +1370,19 @@ function main() {
       `${state.bareAny.length - bareAnyNew.length} declared in KNOWN_BARE_ANY_EXAMPLES (⛔ SHRINK-ONLY, ${KNOWN_BARE_ANY_EXAMPLES.size} row(s)), ` +
       `${bareAnyNew.length} NOT declared, ${state.bareAnyStale.length} declared row(s) no longer red.`,
   );
-  if (parseFailedBlocks > 0) {
+  if (parseFailedBlocks > 0 || run.boundFailures.length > 0) {
     console.log(
-      `NOTE: this run's semantic result covers ${run.semanticallyJudged} fence(s) only. A syntax failure is not a semantic pass.`,
+      `NOTE: this run's semantic result covers ${run.semanticallyJudged} fence(s) only. A syntax failure, and a fence the root bound refused, are neither of them a semantic pass — a DECLARED root-bound row is uncovered debt, not a green.`,
     );
   }
 
   if (measure) {
-    const tsPass = tsCandidates.length - [...failedTs].filter((b) => b.kind === 'ts').length;
+    // A fence the root bound refused is NOT a pass, whether or not its row is
+    // declared: nothing type-checked it. Declared rows are absent from
+    // `failedTs` on purpose (they are debt, not red), so they are subtracted
+    // here explicitly rather than being counted as having held up.
+    const notChecked = new Set([...failedTs, ...rootDevDep.rows.map((r) => r.block)]);
+    const tsPass = tsCandidates.length - [...notChecked].filter((b) => b.kind === 'ts').length;
     const jsonPass = jsonCandidates.length - jsonFailures.length;
     console.log(
       `\nStarting population — ts: ${tsPass}/${tsCandidates.length} pass; json: ${jsonPass}/${jsonCandidates.length} pass.`,
@@ -1238,6 +1395,16 @@ function main() {
     for (const hit of state.bareAny) {
       console.log(
         `  ${hit.block.marked ? 'marked  ' : 'unmarked'}  ${hit.block.doc}:${hit.block.fenceLine + hit.finding.line}  ${hit.finding.where}${hit.baselined ? '  [declared]' : ''}`,
+      );
+    }
+    const markedBound = rootDevDep.rows.filter((r) => r.block.marked);
+    console.log(
+      `Root-bound would-be population — ${rootDevDep.rows.length} refusal(s) over every candidate, ` +
+        `of which ${markedBound.length} sit in a MARKED fence (the population this bound actually gates).`,
+    );
+    for (const row of rootDevDep.rows) {
+      console.log(
+        `  ${row.block.marked ? 'marked  ' : 'unmarked'}  ${row.key}${row.declared ? '  [declared]' : ''}`,
       );
     }
   }
@@ -1286,7 +1453,9 @@ function main() {
     run.semanticFailures.length > 0 ||
     jsonFailures.length > 0 ||
     bareAnyNew.length > 0 ||
-    state.bareAnyStale.length > 0;
+    state.bareAnyStale.length > 0 ||
+    rootDevDep.undeclared.length > 0 ||
+    rootDevDep.stale.length > 0;
 
   if (failed) {
     console.error(
@@ -1295,7 +1464,11 @@ function main() {
     );
     return EXIT_CODES.examplesFailed;
   }
-  console.log('\nEvery marked skill example holds up against the built types.');
+  console.log(
+    declaredRootDevDep.length === 0
+      ? '\nEvery marked skill example holds up against the built types.'
+      : `\nEvery marked skill example the root bound could reach holds up against the built types — ${declaredRootDevDep.length} declared row(s) in KNOWN_ROOT_DEVDEP_EXAMPLES were NOT reached, and this line does not speak for them.`,
+  );
   return EXIT_CODES.verified;
 }
 
@@ -1514,6 +1687,78 @@ export function selfTest() {
     return EXIT_CODES.couldNotRun;
   }
 
+  // ── the ROOT BOUND, both directions, through the REAL harness ────────────
+  // The positive leg imports a specifier only the repository ROOT declares
+  // (`vitest`); the negative leg imports one a DOCUMENTED package declares, and
+  // it must still resolve — without that half, a bound that refused everything
+  // would look identical here.
+  const rootOnly = {
+    doc: 'fixture/root-only.md',
+    fenceLine: 3,
+    kind: 'ts',
+    marked: true,
+    body: "import { describe } from 'vitest';\nexport const d = describe;\n",
+  };
+  const declaredDep = {
+    doc: 'fixture/declared-dep.md',
+    fenceLine: 5,
+    kind: 'ts',
+    marked: true,
+    body: "import type { BaseSchema } from '@object-ui/types';\nexport type S = BaseSchema;\n",
+  };
+  const boundRun = compileSnippets({
+    root: repoRoot,
+    compiled: [rootOnly, declaredDep],
+    paths: state.paths,
+    declaredSpecifiers: state.declaredSpecifiers,
+  });
+  const refusedBlocks = new Set(boundRun.boundFailures.map((f) => f.block));
+  t(
+    'a fence importing a ROOT-only specifier is REFUSED and the specifier is named',
+    refusedBlocks.has(rootOnly) &&
+      boundRun.boundFailures.find((f) => f.block === rootOnly).specifiers.join() === 'vitest',
+    JSON.stringify(boundRun.boundFailures.map((f) => [f.block.doc, f.specifiers])),
+  );
+  t(
+    'a fence importing a MAPPED specifier still resolves — the bound refuses the root set, not everything',
+    !refusedBlocks.has(declaredDep) &&
+      !boundRun.semanticFailures.some((f) => f.block === declaredDep),
+    JSON.stringify(boundRun.semanticFailures.map((f) => f.block.doc)),
+  );
+  t(
+    'a refused fence is kept OUT of the semantic program rather than counted as judged',
+    boundRun.semanticallyJudged === 1,
+    `semanticallyJudged=${boundRun.semanticallyJudged}`,
+  );
+  const undeclaredBound = classifyRootDevDep(boundRun.boundFailures, new Set());
+  t('an UNDECLARED refusal is red', undeclaredBound.undeclared.length === 1, JSON.stringify(undeclaredBound.undeclared.map((r) => r.key)));
+  const declaredBound = classifyRootDevDep(boundRun.boundFailures, new Set(['fixture/root-only.md:3 vitest']));
+  t('a DECLARED refusal is not red', declaredBound.undeclared.length === 0 && declaredBound.stale.length === 0);
+  t(
+    'the debt row key names the guide, the fence line and the specifier',
+    rootDevDepRowKey(rootOnly, 'vitest') === 'fixture/root-only.md:3 vitest',
+    rootDevDepRowKey(rootOnly, 'vitest'),
+  );
+  t(
+    'a declared row that is no longer refused is reported as STALE',
+    classifyRootDevDep(boundRun.boundFailures, new Set(['fixture/ghost.md:1 vitest'])).stale.length === 1,
+  );
+  t(
+    "the root-declared CONTROL is red in the same run — the bound is applied, not just described",
+    boundRun.rootDeclaredDiagnostics.some((d) => d.code === 2307),
+    JSON.stringify(boundRun.rootDeclaredDiagnostics.map((d) => d.code)),
+  );
+  t(
+    'the real run has NO undeclared refusal — every row is in KNOWN_ROOT_DEVDEP_EXAMPLES',
+    judge(state).rootDevDep.undeclared.length === 0,
+    JSON.stringify(judge(state).rootDevDep.undeclared.map((r) => r.key)),
+  );
+  t(
+    'and NO declared root-bound row has gone stale — that list only shrinks too',
+    judge(state).rootDevDep.stale.length === 0,
+    JSON.stringify(judge(state).rootDevDep.stale),
+  );
+
   const semanticallyFailed = new Set(run.semanticFailures.map((f) => f.block));
   const parseFailed = new Set(run.parseFailures.map((f) => f.block));
   t('a marked fence that holds up is CLEAN', !semanticallyFailed.has(holds) && !parseFailed.has(holds));
@@ -1532,7 +1777,7 @@ export function selfTest() {
     return EXIT_CODES.examplesFailed;
   }
   console.log(
-    `✓ check-skill-examples self-test: ${cases.length} cases pass (marker adjacency both directions, orphans, nested illustration, json/jsonc, the bare-\`any\` guard in both directions with its shrink-only baseline, and the compiler legs through the real harness).`,
+    `✓ check-skill-examples self-test: ${cases.length} cases pass (marker adjacency both directions, orphans, nested illustration, json/jsonc, the bare-\`any\` guard in both directions with its shrink-only baseline, the ROOT BOUND in both directions with its own shrink-only baseline and control, and the compiler legs through the real harness).`,
   );
   return EXIT_CODES.verified;
 }
