@@ -69,7 +69,7 @@ afterEach(() => {
   resetReferenceKeyWarnings();
 });
 
-const messages = () => warn.mock.calls.map((c) => String(c[0]));
+const messages = (): string[] => warn.mock.calls.map((c: unknown[]) => String(c[0]));
 
 describe('the choke point warns, in dev, when a def spells ONLY a legacy target key (objectui#6837)', () => {
   describe('the pin — a legacy-only def is audible', () => {

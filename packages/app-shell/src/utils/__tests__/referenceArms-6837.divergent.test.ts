@@ -85,7 +85,7 @@ describe('resolveActionParams consults `reference`, not `reference_to` (objectui
       objectName: 'quality_dispatch',
       objects: [{ name: 'quality_dispatch', fields: { account_id: { type: 'lookup', label: 'Account', ...fieldDef } } }],
       fieldLabel: (_o: unknown, _f: unknown, fallback: string) => fallback,
-    } as any)[0] as Record<string, unknown>;
+    } as any)[0];
 
   it('a divergent def resolves through `reference` — restoring the legacy-first arm turns this red', () => {
     expect(resolve({ reference: 'canonical_target', reference_to: 'legacy_target' }).referenceTo).toBe(
