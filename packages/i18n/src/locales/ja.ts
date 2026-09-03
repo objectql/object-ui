@@ -1085,6 +1085,7 @@ const ja = {
   chart: {
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
+    scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
   },
   dashboard: {
     noRows: "行がありません",

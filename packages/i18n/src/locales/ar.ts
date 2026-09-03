@@ -1092,6 +1092,7 @@ const ar = {
   chart: {
     loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
+    scatterOneMeasure: "المخطط المبعثر يرسم مقياسًا واحدًا فقط. أبقِ سلسلة واحدة:",
   },
   dashboard: {
     noRows: "لا توجد صفوف",

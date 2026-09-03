@@ -50,6 +50,7 @@ import {
 import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
 import { formatterFor, domainFor, ticksFor, RENDERABLE, SINGLE_VALUE_CHART_TYPES, TABULAR_CHART_TYPES, effectiveChartFamily, comboBaseFamily, type NormalizedAxis, type NormalizedSeries } from './normalizeChartSchema';
 import { buildCategoryRank, chartRowBucketId, type ChartSegmentClickEvent } from '@object-ui/core';
+import { useSafeTranslate } from '@object-ui/i18n';
 
 // Default color fallback for chart series
 const DEFAULT_CHART_COLOR = 'hsl(var(--primary))';
@@ -739,6 +740,61 @@ function PositionRefusal({
       This chart has nothing to place: no row carries a number for both{' '}
       <code className="font-mono">{xKey}</code> and{' '}
       <code className="font-mono">{yKey}</code>.
+    </ChartRefusal>
+  );
+}
+
+/**
+ * The refusal scatter renders when it is handed MORE THAN ONE series
+ * (objectui#7194).
+ *
+ * Scatter binds ONE measure: `series[0].dataKey` is the `YAxis` key, and every
+ * `<Scatter>` below reads the same rows through that one axis. A second series
+ * therefore adds a palette colour and a legend entry and nothing else.
+ * Measured: `series: [{ dataKey: 'ym' }, { dataKey: 'zm' }]` over two rows
+ * painted FOUR symbols at TWO positions, each drawn twice, and `zm`'s values
+ * (5 and 90) appeared nowhere on the plot. Unlike every other refusal in this
+ * file the DATA is valid — the picture is what is wrong, and a reader cannot
+ * tell: four symbols at two positions look exactly like coincident points, and
+ * the legend is the only part of the tile that is true.
+ *
+ * Ruled B (maintainer, 2026-09-02): refuse loudly, do not project. Recharts
+ * models a multi-series scatter as several elements each with its OWN `data`
+ * array, so drawing two measures is a binding change that also moves what
+ * `onClick` payloads carry — and nothing in-repo authors a two-series scatter,
+ * so that capability waits for a real caller and reopens as one payment.
+ *
+ * Fires BEFORE `countPlottablePoints`: this is a fault in the BINDING, true of
+ * the spec whatever the rows say, so it wins over the positional refusal the
+ * same way the missing-category-key guard wins over the series guard. It also
+ * fires whatever the series' `variant` — a `compareTo` overlay is a second
+ * series, and it was painted at the primary's y values by the same mechanism.
+ *
+ * Render-time only. Authoring-time (zod) rejection follows objectui#7113's
+ * shape when that card rules; nothing here pre-empts it.
+ *
+ * The sentence resolves through the locale packs (`chart.scatterOneMeasure`)
+ * with the English as the provider-less fallback — `useSafeTranslate`, the hook
+ * `ObjectChart` already uses, so no module-scope defaults map is added. It is
+ * ONE short sentence on purpose: the packs are eagerly loaded and ship it ten
+ * times. The series keys are data, not copy, and render outside it.
+ *
+ * No console warning, matching the three scatter/magnitude answers in this file.
+ */
+function SeriesArityRefusal({
+  seriesKeys,
+  className,
+}: { seriesKeys: string[]; className?: string }) {
+  const tt = useSafeTranslate();
+  return (
+    <ChartRefusal code="scatter-multi-series" className={className}>
+      {tt('chart.scatterOneMeasure', 'A scatter plots one measure. Keep exactly one series:')}{' '}
+      {seriesKeys.map((key, i) => (
+        <React.Fragment key={`${i}-${key}`}>
+          {i > 0 ? ', ' : ''}
+          <code className="font-mono">{key}</code>
+        </React.Fragment>
+      ))}
     </ChartRefusal>
   );
 }
@@ -1692,6 +1748,17 @@ function AdvancedChartImplInner({
 
   // Scatter chart
   if (chartType === 'scatter') {
+    // objectui#7194 — see `SeriesArityRefusal`. Checked first: a binding fault
+    // is true of the spec whatever the rows carry, so it outranks the
+    // positional refusal below.
+    if (series.length > 1) {
+      return (
+        <SeriesArityRefusal
+          seriesKeys={series.map((s) => String(s.dataKey))}
+          className={className}
+        />
+      );
+    }
     // objectui#7171 — see `countPlottablePoints`. Scatter is the file's only
     // two-measure POSITIONAL family: `xAxisKey` feeds a `type="number"` XAxis
     // and `series[0]` a `type="number"` YAxis, so a point exists only if BOTH
