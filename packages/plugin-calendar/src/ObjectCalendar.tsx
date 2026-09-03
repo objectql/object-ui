@@ -343,6 +343,13 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   useEffect(() => {
     if (hasExternalData) {
       setData(externalData!);
+      // ...and drop any ceiling this component's OWN fetch had reported
+      // (objectui#7210). A parent that hands over `data` owns the query, so it
+      // owns whether that query was capped; a `truncated` left over from a
+      // fetch whose rows are no longer on screen is a footnote about a result
+      // set that is not being drawn. Every other `setData` path here already
+      // resets it — this was the one that did not.
+      setRowCeiling({ truncated: false });
     }
   }, [externalData, hasExternalData]);
 

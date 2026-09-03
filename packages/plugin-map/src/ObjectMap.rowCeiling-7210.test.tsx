@@ -100,7 +100,33 @@ describe('objectui#7210 ruling a′ — the map caps at the platform ceiling, lo
     expect(note.textContent).toContain(String(TOTAL_ROWS));
   });
 
-  it('below the ceiling: there is NO footnote', async () => {
+  it('above the ceiling: exactly N markers reach the map, not N+1', async () => {
+    const calls: Array<Record<string, any>> = [];
+    const dataSource = makeDataSource(TOTAL_ROWS, calls);
+
+    // ⭐ The ruling's own words — "the DOM row count equals the ceiling". The
+    // `$top` and the footnote in the case above are both true of a map that
+    // then plotted every row the adapter sent: measured on the merged commit,
+    // replacing the capped hand-off with the raw response left this file green
+    // at 4/4 with 2,001 markers on the map. This is the assertion that was
+    // missing, and it is a case of its own for one reason:
+    //
+    // ⚠️ `enableClustering={false}` is what makes the count OBSERVABLE at all.
+    // The map's default is to cluster above 100 markers, and a cluster bubble
+    // is exactly a marker count folded into one DOM node — the defence the
+    // file's own docblock names as what makes a silent cut invisible here.
+    // Clustering is a pure function of the marker array, so turning it off
+    // changes what is on screen and not what reached the view; with it on,
+    // 2,000 and 2,001 markers render the same handful of bubbles.
+    render(<ObjectMap schema={schema} dataSource={dataSource} enableClustering={false} />);
+
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(screen.queryAllByTestId('map-marker').length).toBe(NON_GRID_ROW_CEILING),
+    );
+  });
+
+  it('below the ceiling: every marker draws and there is NO footnote', async () => {
     const calls: Array<Record<string, any>> = [];
     const dataSource = makeDataSource(20, calls);
 
@@ -108,6 +134,11 @@ describe('objectui#7210 ruling a′ — the map caps at the platform ceiling, lo
 
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.queryByText(/Loading map/i)).toBeNull());
+    // 20 is under the map's own 100-marker clustering threshold, so every
+    // record is its own DOM marker here with no prop needed. The other half of
+    // "draws at most N": it keeps the case above from passing on a map that
+    // caps everything at 2,000 unconditionally.
+    expect(screen.queryAllByTestId('map-marker').length).toBe(20);
     expect(screen.queryByRole('note')).toBeNull();
   });
 });

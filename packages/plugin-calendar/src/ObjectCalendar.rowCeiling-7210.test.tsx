@@ -41,6 +41,23 @@ vi.mock('@object-ui/plugin-detail', () => ({
   deriveRecordPageHref: () => null,
 }));
 
+// The month grid is irrelevant here — what this file has to observe is HOW MANY
+// records reached the view layer, and the grid deliberately hides that: it draws
+// at most four events per day cell, so 2,000 events and 2,001 events paint the
+// same picture. Stubbing the child the way the gantt pin stubs `GanttView` puts
+// the count on an attribute where an assertion can reach it. `importOriginal`
+// keeps the module's other exports (`resolveEventColor` and friends) live, the
+// same idiom `ObjectCalendar.unscheduled-7071` uses.
+vi.mock('./CalendarView', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    CalendarView: ({ events }: any) => (
+      <div data-testid="calendar-view" data-event-count={String(events.length)} />
+    ),
+  };
+});
+
 const TOTAL_ROWS = 9876;
 const NOW = new Date();
 
@@ -98,6 +115,17 @@ describe('objectui#7210 ruling a′ — the calendar caps at the platform ceilin
       expect(params.$top).toBe(NON_GRID_ROW_CEILING_TOP);
     }
 
+    // ⭐ The ruling's own words — "the DOM row count equals the ceiling". The
+    // `$top` and the footnote below it are both true of a view that then drew
+    // every row the adapter sent: measured on the merged commit, replacing the
+    // capped hand-off with the raw response left this file green at 4/4 with
+    // 2,001 events on the grid. This is the assertion that was missing.
+    await waitFor(() =>
+      expect(screen.getByTestId('calendar-view').getAttribute('data-event-count')).toBe(
+        String(NON_GRID_ROW_CEILING),
+      ),
+    );
+
     const note = await screen.findByRole('note');
     expect(note.getAttribute('data-row-ceiling-note')).toBe('non-grid');
     expect(note.textContent).toContain(String(NON_GRID_ROW_CEILING));
@@ -112,6 +140,10 @@ describe('objectui#7210 ruling a′ — the calendar caps at the platform ceilin
 
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.queryByText(/Loading/i)).toBeNull());
+    // Below the ceiling the count is the whole set, not the ceiling — the other
+    // half of "draws at most N", and what keeps the case above from passing on a
+    // view that simply caps everything at 2,000 unconditionally.
+    expect(screen.getByTestId('calendar-view').getAttribute('data-event-count')).toBe('12');
     expect(screen.queryByRole('note')).toBeNull();
   });
 });
