@@ -16,6 +16,7 @@ import {
   MARKER,
   SCAN_ROOTS,
   TS_FENCE_LANGUAGES,
+  analyze,
   bareAnyRowKey,
   buildFilterArgs,
   classifyRootDevDep,
@@ -30,7 +31,12 @@ import {
   scanSkillFences,
   stripJsonComments,
 } from '../check-skill-examples.mjs';
-import { rootDeclaredSpecifiers } from '../check-doc-snippet-types.mjs';
+import {
+  moduleSpecifiersOfBlock,
+  resolvesOnlyThroughRootManifest,
+  rootDeclaredSpecifiers,
+  specifierRoot,
+} from '../check-doc-snippet-types.mjs';
 
 /**
  * objectui#7359 — the test for `scripts/check-skill-examples.mjs`.
@@ -609,7 +615,15 @@ describe('the harness is imported, not re-rolled', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-skill-examples.mjs'), 'utf8');
     const importBlock = source.match(/import\s*\{[^}]*\}\s*from\s*'\.\/check-doc-snippet-types\.mjs';/);
     expect(importBlock, 'the shared harness import is gone — has it been forked?').not.toBeNull();
-    for (const name of ['compileSnippets', 'derivePackageTypePaths', 'deriveDeclaredDependencyPaths']) {
+    for (const name of [
+      'compileSnippets',
+      'derivePackageTypePaths',
+      'deriveDeclaredDependencyPaths',
+      // objectui#7555: the import reader too. It was a private regex copy here,
+      // and the `Unmapped specifiers` line it feeds is the REPORT of refusals
+      // the harness derives from the AST — two readers, one claim.
+      'moduleSpecifiersOfBlock',
+    ]) {
       expect(importBlock![0]).toContain(name);
     }
   });
@@ -724,6 +738,82 @@ describe('the ROOT BOUND, and its declared debt (objectui#7463 item 2)', () => {
       expect(fences.length, `no fence at ${site}`).toBe(1);
       expect(fences[0].marked, `the fence at ${site} carries no marker`).toBe(true);
     }
+  });
+});
+
+/**
+ * objectui#7555 — the `Unmapped specifiers` line reads imports the same way the
+ * refusals it reports do.
+ *
+ * Since objectui#7463 item 2 that line is the REPORT of what the shared
+ * harness's ROOT BOUND refuses. The bound has always walked the AST; the line
+ * came from a private regex over the block text, so the two were two answers to
+ * one question and were free to name different sets over the same fences. The
+ * regex's error is one-directional and measured (`plugin-markdown.mdx:195` in
+ * the DOCS corpus: `npm install project-name` inside a template literal read as
+ * an import), so the line could name a specifier no fence imports — an
+ * invented refusal, printed on every run, in the one line a reader consults to
+ * learn what a green did NOT cover.
+ */
+describe('the `Unmapped specifiers` line and the refusals it reports (objectui#7555)', () => {
+  type State = { unmappedSpecifiers: Set<string>; neededPackages: Set<string> };
+
+  // ⚠️ `withTree` deletes the tree when its callback returns, so each case
+  // builds and reads inside one call.
+  const stateFor = (body: string): State =>
+    withTree(
+      (write) => {
+        write(
+          'skills/objectui/guides/sample.md',
+          ['# Sample', '', MARKER, '```ts', body, '```', ''].join('\n'),
+        );
+        // The workspace scan reads `packages/` directly; an absent directory is
+        // a throw, not an empty map.
+        write('packages/.keep', '');
+      },
+      (dir) => analyze({ root: dir }) as unknown as State,
+    );
+
+  it('names a specifier a marked fence really imports — the control for the pin below', () => {
+    // Without this half, the pin below would pass just as well over a tree
+    // whose guide was never scanned at all.
+    const state = stateFor("import { test } from 'some-runner';\nexport const t = test;");
+    expect([...state.unmappedSpecifiers]).toEqual(['some-runner']);
+  });
+
+  it('does NOT name one that appears only inside a template literal', () => {
+    const state = stateFor(
+      "export const readme = `\n# Project\n\nimport { test } from 'some-runner';\n`;",
+    );
+    expect([...state.unmappedSpecifiers]).toEqual([]);
+    expect([...state.neededPackages]).toEqual([]);
+  });
+
+  it('agrees with the bound over the real corpus, specifier for specifier', () => {
+    // The build-free half of the claim the gate's own run prints: the line and
+    // the refusals are now one reader, so over THIS corpus the two sets are
+    // equal. They can only diverge on a specifier that is unmapped and NOT
+    // root-declared — which the bound leaves in the program, where it fails to
+    // resolve and reds the semantic phase. So a divergence is never silent, and
+    // a red here is a real finding rather than upkeep.
+    const state = analyze({}) as unknown as {
+      unmappedSpecifiers: Set<string>;
+      tsBlocks: { body: string }[];
+      paths: Record<string, string[]>;
+    };
+    const rootDeclared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+    const refused = new Set<string>();
+    for (const block of state.tsBlocks) {
+      for (const specifier of moduleSpecifiersOfBlock(block.body) as string[]) {
+        if (resolvesOnlyThroughRootManifest(specifier, { paths: state.paths, rootDeclared })) {
+          refused.add(specifierRoot(specifier) as string);
+        }
+      }
+    }
+    expect([...state.unmappedSpecifiers].sort()).toEqual([...refused].sort());
+    // And the corpus really does exercise the comparison — an empty set on both
+    // sides would satisfy the equality above while proving nothing.
+    expect(refused.size).toBeGreaterThan(0);
   });
 });
 
