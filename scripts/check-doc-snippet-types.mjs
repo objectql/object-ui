@@ -857,7 +857,12 @@ function importedSpecifiers(body) {
 
 const SENTINEL_EXPORT = 'ThisNameIsDefinitelyNotExported';
 const CONTROL_PACKAGE = '@object-ui/types';
-const CONTROL_REAL_EXPORT = 'ComponentSchema';
+// `BaseSchema` since objectui#4895: the control needs a name `@object-ui/types`
+// really exports, and the previous choice, `ComponentSchema`, was retired with
+// the whole block schema family. A control that names a deleted export fails the
+// harness rather than the documents — which is exactly what it did, loudly, and
+// is how this line was found.
+const CONTROL_REAL_EXPORT = 'BaseSchema';
 
 /**
  * The UNDECLARED control's specifier (see the header). Three properties make it
