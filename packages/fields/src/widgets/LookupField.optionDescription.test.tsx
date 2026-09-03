@@ -8,8 +8,9 @@
  * `opt.description` alongside the label, and `recordToOption` emits the same
  * key for fetched records. What the card changed is the CONTRACT:
  * `SelectOptionMetadata` (the declared type of `LookupFieldMetadata.options`)
- * now declares `description?: string`, aligned with `@objectstack/spec`'s
- * `SelectOptionSchema.description`, so the fixture below is an ANNOTATED
+ * now declares `description?: string` as an objectui-side extension - the
+ * installed `@objectstack/spec` 17.2.0 has no such key and REFUSES it BY NAME
+ * on `SelectOptionSchema` (objectui#7014) - so the fixture below is an ANNOTATED
  * literal — the excess-property check that used to refuse this exact document
  * is the compile half of the pin, and the search behaviour is the runtime
  * half. Behaviour unchanged by design; the test would have passed before the
