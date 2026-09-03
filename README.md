@@ -134,9 +134,10 @@ function UserForm() {
 
 // Object UI: 20 lines
 const schema = {
-  type: "crud",
-  api: "/api/users",
-  columns: [...]
+  type: "object-form",
+  objectName: "user",
+  mode: "create",
+  fields: ["name", "email", "role"]
 }
 ```
 
@@ -217,9 +218,9 @@ const schema = {
     type: "grid",
     columns: 3,
     items: [
-      { type: "card", title: "Total Users", value: "${stats.users}" },
-      { type: "card", title: "Revenue", value: "${stats.revenue}" },
-      { type: "card", title: "Orders", value: "${stats.orders}" }
+      { type: "statistic", label: "Total Users", value: "${stats.users}" },
+      { type: "statistic", label: "Revenue", value: "${stats.revenue}" },
+      { type: "statistic", label: "Orders", value: "${stats.orders}" }
     ]
   }
 }
@@ -253,7 +254,7 @@ export default App
     ]},
     { "name": "message", "type": "textarea", "label": "Message", "required": true }
   ],
-  "actions": [{ "type": "submit", "label": "Send Message" }]
+  "submitLabel": "Send Message"
 }
 ```
 
@@ -261,22 +262,19 @@ export default App
 
 ```json
 {
-  "type": "crud",
-  "api": "/api/users",
+  "type": "object-grid",
+  "objectName": "user",
+  "title": "Users",
   "columns": [
-    { "name": "name", "label": "Name", "sortable": true },
-    { "name": "email", "label": "Email" },
-    { "name": "role", "label": "Role", "type": "select", "options": ["Admin", "User", "Viewer"] },
-    { "name": "status", "label": "Status", "type": "badge" },
-    { "name": "created_at", "label": "Joined", "type": "date" }
-  ],
-  "filters": [
-    { "name": "role", "type": "select", "label": "Filter by Role" },
-    { "name": "status", "type": "select", "label": "Filter by Status" }
+    { "field": "name", "label": "Name", "sortable": true },
+    { "field": "email", "label": "Email" },
+    { "field": "role", "label": "Role" },
+    { "field": "status", "label": "Status" },
+    { "field": "created_at", "label": "Joined" }
   ],
   "showSearch": true,
-  "showCreate": true,
-  "showExport": true
+  "showFilters": true,
+  "operations": { "create": true, "read": true, "update": true, "delete": true, "export": true }
 }
 ```
 
@@ -287,10 +285,10 @@ export default App
   "type": "dashboard",
   "title": "Sales Dashboard",
   "widgets": [
-    { "type": "stat-card", "title": "Revenue", "value": "${stats.revenue}", "trend": "+12%", "w": 3, "h": 1 },
-    { "type": "stat-card", "title": "Orders", "value": "${stats.orders}", "trend": "+8%", "w": 3, "h": 1 },
-    { "type": "stat-card", "title": "Customers", "value": "${stats.customers}", "trend": "+5%", "w": 3, "h": 1 },
-    { "type": "stat-card", "title": "Conversion", "value": "${stats.conversion}", "trend": "-2%", "w": 3, "h": 1 },
+    { "type": "statistic", "label": "Revenue", "value": "${stats.revenue}", "trend": "up", "description": "+12%", "w": 3, "h": 1 },
+    { "type": "statistic", "label": "Orders", "value": "${stats.orders}", "trend": "up", "description": "+8%", "w": 3, "h": 1 },
+    { "type": "statistic", "label": "Customers", "value": "${stats.customers}", "trend": "up", "description": "+5%", "w": 3, "h": 1 },
+    { "type": "statistic", "label": "Conversion", "value": "${stats.conversion}", "trend": "down", "description": "-2%", "w": 3, "h": 1 },
     { "type": "chart", "chartType": "line", "title": "Revenue Over Time", "w": 8, "h": 3 },
     { "type": "chart", "chartType": "pie", "title": "Sales by Region", "w": 4, "h": 3 }
   ]
