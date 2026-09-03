@@ -191,30 +191,41 @@ describe('record:details — an authored `hideEmpty` is INERT: the key is retire
   });
 
   it('the three spellings — absent, `true`, `false` — render the SAME section', () => {
-    // The retirement stated as one assertion: on a fixture at/above both
-    // thresholds (4 fields, 3 empty, 1 filled) the auto-hide heuristic fires
-    // and the authored key changes nothing in either direction. Under the old
-    // read, `true` and the absent case agreed here while `false` was "not
-    // true" — the paradox #7129 dissolved by removing the key.
-    const fields = ['industry', 'stage', 'amount', 'close_date'];
-    const renderedFor = (section: Record<string, unknown>) => {
+    // The retirement stated as one assertion, over the two fixtures where the
+    // old read actually decided something. ⚠️ It is deliberately NOT run on a
+    // large sparse section: there the heuristic fires anyway, so all three
+    // spellings agreed even under the old code and the assertion could not
+    // fail. (Measured — the first draft of this test used exactly that fixture
+    // and stayed green through the ablation that reddened everything else.)
+    const fixtures = {
+      // All-empty: the case `DetailSection`'s heuristic reserves. Old code hid
+      // the whole section for `true`.
+      'all-empty': { fields: ['stage', 'amount', 'close_date', 'next_step'], filled: 0, placeholders: 4 },
+      // Small partly-empty: below the auto-hide minimum in both threshold
+      // variants (4 desktop / 3 mobile), so the heuristic never fires. Old code
+      // hid the empty row for `true`.
+      'small partly-empty': { fields: ['industry', 'stage'], filled: 1, placeholders: 1 },
+    };
+
+    const renderedFor = (fields: string[], section: Record<string, unknown>) => {
       const view = renderDetails({ sections: [{ name: 'deal_terms', label: 'Deal Terms', fields, ...section }] });
       const shown = {
+        heading: screen.queryAllByText('Deal Terms').length,
         filled: screen.queryAllByText('Manufacturing').length,
-        emptyLabel: screen.queryAllByText('stage').length,
         placeholders: emptyPlaceholders().length,
-        toggle: screen.queryAllByRole('button', { name: /empty fields/i }).length,
       };
       view.unmount();
       return shown;
     };
 
-    const absent = renderedFor({});
-    // The live control: the fixture really is one the heuristic acts on, so
-    // "all three agree" is not three renders that all did nothing.
-    expect(absent).toEqual({ filled: 1, emptyLabel: 0, placeholders: 0, toggle: 1 });
+    for (const [name, { fields, filled, placeholders }] of Object.entries(fixtures)) {
+      const absent = renderedFor(fields, {});
+      // The live control: the unauthored render really produced the skeleton,
+      // so "all three agree" is not three renders that all produced nothing.
+      expect(absent, name).toEqual({ heading: 1, filled, placeholders });
 
-    expect(renderedFor({ hideEmpty: true })).toEqual(absent);
-    expect(renderedFor({ hideEmpty: false })).toEqual(absent);
+      expect(renderedFor(fields, { hideEmpty: true }), name).toEqual(absent);
+      expect(renderedFor(fields, { hideEmpty: false }), name).toEqual(absent);
+    }
   });
 });

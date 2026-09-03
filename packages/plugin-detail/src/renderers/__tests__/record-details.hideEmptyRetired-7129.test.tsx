@@ -148,10 +148,18 @@ describe('DetailViewSection.hideEmpty is retired — all four parties agree (#71
 
   // 3/4 is the compile-time pair above; `vitest` proves nothing about it.
 
-  it('4/4 — `RecordDetailsRenderer` no longer READS the key', () => {
+  it('4/4 — `record:details` no longer READS the key: an authored one is inert end to end', () => {
     // An all-empty section is the case `DetailSection`'s heuristic reserves and
     // the case the old read overrode: authored `hideEmpty: true` used to make
     // the whole section disappear. It must now render its skeleton.
+    //
+    // ⚠️ Deliberately end-to-end rather than "the renderer does not read it".
+    // Measured on this card's ablation: `RecordDetailsRenderer` spreads `...s`,
+    // so deleting its explicit `hideEmpty: s.hideEmpty` slot left the value
+    // still reaching `DetailSection` and this suite GREEN. The read that
+    // decided anything was `DetailSection`'s, and restoring THAT is what turns
+    // this red. A pin written against the renderer's slot alone would have
+    // been a pin that cannot fail.
     render(
       <RecordContextProvider
         objectName="crm_opportunity"

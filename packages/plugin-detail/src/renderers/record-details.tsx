@@ -213,7 +213,17 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
         // containment. Authors can override explicitly via `showBorder`.
         showBorder: s.showBorder ?? (translatedTitle ? true : false),
         // ⛔ There is deliberately NO `hideEmpty` slot here, and re-adding one
-        // would reopen objectui#7129. Emptiness on a section is decided by
+        // would reopen objectui#7129.
+        //
+        // ⚠️ Measured, so the next reader does not have to: this slot's removal
+        // is a STATEMENT change, not the behavioural one. The `...s` above
+        // spreads every authored key verbatim, so an off-spec document
+        // carrying `hideEmpty` still delivers it to `DetailSection` — which no
+        // longer reads it. Re-adding the slot alone changes nothing; the
+        // behaviour lives in `DetailSection`, and that is where the ablation
+        // for this change turns red.
+        //
+        // Emptiness on a section is decided by
         // `DetailSection`'s auto-hide heuristic alone — hide empty rows only
         // while the section still has at least one filled row, never on an
         // all-empty section (there the labels ARE the structural skeleton a
