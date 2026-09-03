@@ -52,7 +52,7 @@ export const KanbanCardSchema = z.object({
 export const KanbanColumnSchema = z.object({
   id: z.string().describe('Column ID'),
   title: z.string().describe('Column title'),
-  items: z.array(KanbanCardSchema).describe('Column cards'),
+  cards: z.array(KanbanCardSchema).describe('Column cards'),
   color: z.string().optional().describe('Column color'),
   limit: z.number().optional().describe('Card limit'),
   collapsed: z.boolean().optional().describe('Whether column is collapsed'),
