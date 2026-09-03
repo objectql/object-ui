@@ -64,7 +64,6 @@ import {
   ChevronDown,
   Lock,
   Settings,
-  ExternalLink,
   Home as HomeIcon,
   Shield,
   ShieldCheck,
@@ -133,7 +132,6 @@ import { ObjectActionsPanel } from './ObjectActionsPanel.js';
 import { getIcon } from '../../utils/getIcon.js';
 import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io.js';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel.js';
-import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl.js';
 import { toast } from 'sonner';
 
 // ADR-0057 P3c follow-up (#2477 item 3) — the folded layout's side-by-side

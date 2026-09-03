@@ -41,7 +41,7 @@ import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
 import { getIcon } from '../utils/getIcon.js';
-import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
+import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { detectStatusField, isSystemManagedField } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
 import { ViewConfigPanel } from './ViewConfigPanel.js';

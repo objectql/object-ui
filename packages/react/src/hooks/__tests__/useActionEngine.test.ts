@@ -2,7 +2,7 @@
  * Tests for useActionEngine hook
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ActionLocationSchema } from '@objectstack/spec/ui';
 import type { ActionDef } from '@object-ui/core';

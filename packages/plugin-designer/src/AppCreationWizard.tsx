@@ -33,7 +33,6 @@ import {
   ChevronUp,
   ChevronDown,
   Search,
-  Plus,
   Trash2,
   Layout,
   PanelLeft,

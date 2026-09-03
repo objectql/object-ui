@@ -549,6 +549,7 @@ const fr = {
     allDay: "Toute la journée",
     newEvent: "Nouvel événement",
     moreEvents: "+{{count}} de plus",
+    unscheduled: "Non planifié ({{count}})",
   },
   list: {
     firstRunTitle: "Rien pour l'instant",

@@ -548,6 +548,7 @@ const pt = {
     allDay: "Dia inteiro",
     newEvent: "Novo evento",
     moreEvents: "+{{count}} mais",
+    unscheduled: "Sem agendamento ({{count}})",
   },
   list: {
     firstRunTitle: "Ainda não há nada aqui",

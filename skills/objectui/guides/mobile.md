@@ -80,6 +80,7 @@ Mobile navigation is an **app-shell** concern, not a package export: set
 
 Use responsive column configurations in grid layouts:
 
+<!-- os:check -->
 ```json
 {
   "type": "grid",
@@ -103,6 +104,7 @@ Responsiveness".
 
 ## Mobile-first Tailwind classes in schemas
 
+<!-- os:check -->
 ```json
 {
   "type": "grid",

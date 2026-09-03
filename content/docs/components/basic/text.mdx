@@ -7,6 +7,11 @@ import { DemoGrid } from '@/app/components/ComponentDemo';
 
 The Text component displays text content with predefined typography variants.
 
+`variant` is the published vocabulary of `TextSchema` and the renderer maps every
+value in it: `h1`-`h6` render the heading element they name, `body`, `caption` and
+`overline` render an inline span. Any other spelling is refused by the validator
+rather than ignored.
+
 ## Basic Usage
 
 <SchemaExample id="components-basic-text/simple-text" />
@@ -17,11 +22,10 @@ The Text component displays text content with predefined typography variants.
   <SchemaExample id="components-basic-text/heading-1" />
   <SchemaExample id="components-basic-text/heading-2" />
   <SchemaExample id="components-basic-text/heading-3" />
+  <SchemaExample id="components-basic-text/heading-4" />
+  <SchemaExample id="components-basic-text/heading-5" />
   <SchemaExample id="components-basic-text/paragraph" />
-  <SchemaExample id="components-basic-text/lead" />
-  <SchemaExample id="components-basic-text/large" />
-  <SchemaExample id="components-basic-text/small" />
-  <SchemaExample id="components-basic-text/muted" />
+  <SchemaExample id="components-basic-text/caption" />
 </DemoGrid>
 
 ## Schema
@@ -31,7 +35,7 @@ interface TextSchema {
   type: 'text';
   content: string;           // Text content to display
   value?: string;            // Alias for content
-  variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'lead' | 'large' | 'small' | 'muted';
+  variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption' | 'overline';
   align?: 'left' | 'center' | 'right' | 'justify';
   color?: string;            // Tailwind color class
   className?: string;        // Additional CSS classes

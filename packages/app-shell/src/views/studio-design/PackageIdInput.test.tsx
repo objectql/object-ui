@@ -2,7 +2,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import * as React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { sanitizePackageId, PACKAGE_ID_RE } from './packages-io';
 import { PackageIdInput } from './PackageIdInput';

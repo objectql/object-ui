@@ -4,7 +4,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createAuthClient, TokenStorage } from '../createAuthClient';
-import type { AuthClient } from '../types';
 
 /**
  * Helper: creates a mock fetch that routes requests based on URL

@@ -16,7 +16,6 @@ import {
   AUTH_INPUT_CLASS,
   AUTH_LINK_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
-  AuthDivider,
   AuthErrorBanner,
   AuthFormHeader,
   AuthSpinner,

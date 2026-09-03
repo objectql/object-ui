@@ -15,7 +15,6 @@ import {
   ChevronDown,
   ZoomIn,
   ZoomOut,
-  Calendar as CalendarIcon,
   PanelLeftClose,
   PanelLeft,
   Maximize2,
@@ -34,7 +33,6 @@ import {
 import {
   cn,
   Button,
-  Separator,
   useResizeObserver,
 } from "@object-ui/components"
 import { toast } from "sonner"

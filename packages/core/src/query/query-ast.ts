@@ -17,8 +17,6 @@ import type {
   OffsetNode,
   AggregateNode,
   WindowNode,
-  WindowFunction,
-  WindowFrame,
   WindowConfig,
   FieldNode,
   LiteralNode,
