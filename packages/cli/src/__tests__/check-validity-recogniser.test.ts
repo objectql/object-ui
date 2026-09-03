@@ -42,6 +42,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+import { safeValidateSchema } from '@object-ui/types/zod';
+
 import { check } from '../commands/check.js';
 
 let cwd: string;
@@ -180,19 +182,57 @@ describe('objectui check — a broken ObjectUI schema is never filed as a foreig
 
   it('reports a registered component type the bundled schemas do not model', async () => {
     // The other half of the bucket, and why its wording says "off-spec OR not
-    // modelled": `kanban` is a real registered plugin type that
-    // `AnyComponentSchema` has no member for, so a perfectly good kanban board
-    // fails the validity arm. Reporting it is right — a component type the
-    // shipped validator cannot validate is itself a finding — but calling it
-    // invalid would overclaim.
-    writeSchema('board.json', {
-      type: 'kanban',
-      columns: [{ id: 'backlog', title: 'Backlog', cards: [] }],
+    // modelled". `abbr` is a real registered type — `packages/components/src/
+    // renderers/basic/html-elements.tsx` registers the raw HTML elements in
+    // bulk — and `AnyComponentSchema` is a union of COMPONENT schemas that has
+    // no member for it. So the well-formed document below fails the validity
+    // arm. Reporting it is right (a registered type the shipped validator
+    // cannot validate is itself a finding) but calling it INVALID would
+    // overclaim: nothing about this document is wrong.
+    //
+    // ## Pick this type by measurement, not memory (objectui#6939)
+    //
+    // Measured on this tree: `KNOWN_SCHEMA_TYPES` carries 658 registered types
+    // and `AnyComponentSchema` declares 102 distinct literal `type` values, so
+    // 558 registered types have no member. The probe was controlled in both
+    // directions — `kanban`, `text` and `tree-view` all read as MODELLED (so it
+    // is not blind to real members) and a nonsense type reads as unmodelled.
+    //
+    // Not every one of those 558 is a safe fixture. The type used here must be
+    // one nothing is about to model, and the raw HTML primitives are the stable
+    // inhabitants of this bucket: they are registered as a bulk passthrough
+    // list, not as authorable component schemas. A plugin-ish type such as
+    // `dashboard-grid` also lands here today and would be the wrong choice.
+    //
+    // ## Why it is no longer `kanban`
+    //
+    // This sample used to be a kanban board authoring `cards`, and the comment
+    // here claimed `AnyComponentSchema` "has no member for" kanban. That claim
+    // was FALSE, and was false before objectui#6939 touched anything —
+    // `ComplexSchema` has carried `KanbanSchema` throughout. The real mechanism
+    // was a required-key mismatch: `KanbanColumnSchema` demanded `items` while
+    // every board, and this sample, writes `cards`. objectui#6939 repaired that
+    // fork, the board started validating, and this case measured 0 candidates.
+    // The defect this file's own subject matter exists to catch had been frozen
+    // into an assertion of expected behaviour.
+    writeSchema('abbr.json', {
+      type: 'abbr',
+      content: 'HTML',
+      title: 'HyperText Markup Language',
     });
+    // The precondition, asserted rather than assumed, so that the day someone
+    // models `abbr` this file says WHY it went red instead of reporting a bare
+    // `expected +0 to be 1`. If this fires: pick another registered type with
+    // no member in `AnyComponentSchema` (a raw HTML primitive) and update the
+    // counts above.
+    expect(
+      safeValidateSchema({ type: 'abbr', content: 'HTML', title: 'HyperText Markup Language' }).success,
+      '`abbr` is now modelled by AnyComponentSchema — this fixture needs a type that still is not; see the comment above',
+    ).toBe(false);
     await check(cwd);
     expect(candidateCount()).toBe(1);
     expect(candidateLines()).toEqual([
-      expect.stringContaining('board.json (type "kanban")'),
+      expect.stringContaining('abbr.json (type "abbr")'),
     ]);
     expect(skippedCount()).toBe(0);
   });
