@@ -11,18 +11,22 @@ import {
   EXIT_CODES,
   JSON_FENCE_LANGUAGES,
   KNOWN_BARE_ANY_EXAMPLES,
+  KNOWN_ROOT_DEVDEP_EXAMPLES,
   MARKER,
   SCAN_ROOTS,
   TS_FENCE_LANGUAGES,
   bareAnyRowKey,
   buildFilterArgs,
+  classifyRootDevDep,
   fenceSpans,
   findBareAny,
   listGuides,
   parseJsonFence,
+  rootDevDepRowKey,
   scanSkillFences,
   stripJsonComments,
 } from '../check-skill-examples.mjs';
+import { rootDeclaredSpecifiers } from '../check-doc-snippet-types.mjs';
 
 /**
  * objectui#7359 — the test for `scripts/check-skill-examples.mjs`.
@@ -495,6 +499,102 @@ describe('the harness is imported, not re-rolled', () => {
  * wrong — which is how gates get deleted. That boundary is the whole design, so
  * it is pinned rather than left to the implementation.
  */
+describe('the ROOT BOUND, and its declared debt (objectui#7463 item 2)', () => {
+  /**
+   * The bound itself lives in the shared harness and is pinned in
+   * `check-doc-snippet-types.test.ts`. What is this gate's own is the DEBT LIST:
+   * a refused fence is not type-checked, and the four rows that were already
+   * refused when the bound landed are carried here rather than unmarked in the
+   * guides — those are a GOVERNED surface, and a gate that removes a marker to
+   * make itself green is the exact move the shrink-only lists exist to prevent.
+   */
+  const refusal = (doc: string, fenceLine: number, specifiers: string[]) => ({
+    block: { doc, fenceLine },
+    specifiers,
+  });
+
+  it('builds a debt row key naming the guide, the fence line and the specifier', () => {
+    expect(rootDevDepRowKey({ doc: 'skills/objectui/guides/x.md', fenceLine: 42 }, 'vitest')).toBe(
+      'skills/objectui/guides/x.md:42 vitest',
+    );
+  });
+
+  it('reports an UNDECLARED refusal as red', () => {
+    const { undeclared, stale } = classifyRootDevDep(
+      [refusal('skills/objectui/guides/x.md', 7, ['vitest'])],
+      new Set<string>(),
+    ) as { undeclared: { key: string }[]; stale: string[] };
+    expect(undeclared.map((r) => r.key)).toEqual(['skills/objectui/guides/x.md:7 vitest']);
+    expect(stale).toEqual([]);
+  });
+
+  it('does not report a DECLARED refusal as red', () => {
+    const { rows, undeclared } = classifyRootDevDep(
+      [refusal('skills/objectui/guides/x.md', 7, ['vitest'])],
+      new Set(['skills/objectui/guides/x.md:7 vitest']),
+    ) as { rows: { declared: boolean }[]; undeclared: unknown[] };
+    expect(undeclared).toEqual([]);
+    expect(rows.map((r) => r.declared)).toEqual([true]);
+  });
+
+  it('splits one fence importing two refused specifiers into two rows', () => {
+    const { rows } = classifyRootDevDep(
+      [refusal('skills/objectui/guides/x.md', 7, ['@playwright/test', 'vitest'])],
+      new Set<string>(),
+    ) as { rows: { key: string }[] };
+    expect(rows.map((r) => r.key)).toEqual([
+      'skills/objectui/guides/x.md:7 @playwright/test',
+      'skills/objectui/guides/x.md:7 vitest',
+    ]);
+  });
+
+  it('reports a declared row that is no longer refused as STALE — the list only shrinks', () => {
+    const { stale } = classifyRootDevDep([], new Set(['skills/objectui/guides/x.md:7 vitest'])) as {
+      stale: string[];
+    };
+    expect(stale).toEqual(['skills/objectui/guides/x.md:7 vitest']);
+  });
+
+  it('declares its debt list as a shrink-only Set of verbatim rows', () => {
+    expect(KNOWN_ROOT_DEVDEP_EXAMPLES).toBeInstanceOf(Set);
+    for (const row of KNOWN_ROOT_DEVDEP_EXAMPLES as Set<string>) {
+      expect(row, `debt row is not \`GUIDE:LINE SPECIFIER\`: ${row}`).toMatch(
+        /^[\w./-]+\.md:\d+ (@[\w.-]+\/)?[\w.-]+$/,
+      );
+      expect(SCAN_ROOTS.some((r: string) => row.startsWith(`${r}/`))).toBe(true);
+    }
+  });
+
+  it('names only specifiers this repository ROOT actually declares', () => {
+    // A row for something the root does not declare could never be refused, so
+    // it would sit in the list forever covering nothing.
+    const declared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+    for (const row of KNOWN_ROOT_DEVDEP_EXAMPLES as Set<string>) {
+      const specifier = row.slice(row.lastIndexOf(' ') + 1);
+      expect(declared.has(specifier), `${specifier} is not declared by the root manifest`).toBe(true);
+    }
+  });
+
+  it('names only fences that exist and carry the marker', () => {
+    // Keyed on the fence LINE, so a guide edit above the fence forces a
+    // re-declaration; this pin is what turns that into a test failure rather
+    // than a row that silently stops covering anything.
+    for (const row of KNOWN_ROOT_DEVDEP_EXAMPLES as Set<string>) {
+      const [site] = row.split(' ');
+      const lastColon = site.lastIndexOf(':');
+      const guide = site.slice(0, lastColon);
+      const line = Number(site.slice(lastColon + 1));
+      const source = fs.readFileSync(path.join(repoRoot, guide), 'utf8');
+      const { fences: all } = scanSkillFences(source) as {
+        fences: { fenceLine: number; marked: boolean }[];
+      };
+      const fences = all.filter((f) => f.fenceLine === line);
+      expect(fences.length, `no fence at ${site}`).toBe(1);
+      expect(fences[0].marked, `the fence at ${site} carries no marker`).toBe(true);
+    }
+  });
+});
+
 describe('the bare-`any` assertion', () => {
   it.each([
     ['a parameter', 'export function f(ctx: any) { return ctx; }', 'parameter `ctx`'],

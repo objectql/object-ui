@@ -8,19 +8,26 @@ import { parse as parseYaml } from 'yaml';
 
 // Plain-JS CI helper; its types are inferred from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here.
+import ts from 'typescript';
 import {
   EXIT_CODES,
   FRAGMENT_MARKER_EXAMPLES,
+  ROOT_DECLARED_CONTROL_PACKAGE,
   UNDECLARED_CONTROL_PACKAGE,
   UNGATED_DOCS,
   analyze,
   blockingPreconditions,
   buildFilterArgs,
+  compileSnippets,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
   findInstalledCopy,
   listDocuments,
+  moduleSpecifiersOf,
+  resolvesOnlyThroughRootManifest,
+  rootDeclaredSpecifiers,
   scanFences,
+  specifierRoot,
 } from '../check-doc-snippet-types.mjs';
 
 /**
@@ -482,6 +489,202 @@ describe('third-party resolution reaches exactly as far as the imported packages
           return Boolean(manifest.dependencies?.[UNDECLARED_CONTROL_PACKAGE]);
         });
       expect(declaring, 'pick a control specifier no package declares').toEqual([]);
+    });
+  });
+});
+
+describe('the ROOT BOUND — what only this repository declares does not resolve (objectui#7463 item 2)', () => {
+  /**
+   * The bound closes the last way a snippet could be green over a package its
+   * reader was never told to install: pnpm symlinks the repository ROOT's own
+   * devDependencies into `/node_modules`, one directory above where every block
+   * is compiled. Ruled into the SHARED harness, unconditionally for both gates,
+   * on 2026-09-03 (objectstack#14909 item 1, option A).
+   *
+   * Both directions are pinned here, and the negative half is the load-bearing
+   * one: a bound that refused everything would satisfy the positive half alone
+   * while turning every correct snippet red.
+   */
+  const rootDeclared = new Set(['root-dev-dep', '@scope/root-dev-dep', 'react']);
+
+  it('refuses a specifier only the repository ROOT declares', () => {
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep', { paths: {}, rootDeclared })).toBe(true);
+    expect(resolvesOnlyThroughRootManifest('@scope/root-dev-dep', { paths: {}, rootDeclared })).toBe(true);
+  });
+
+  it('refuses a SUBPATH of one too — the root symlink carries the whole package', () => {
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep/sub', { paths: {}, rootDeclared })).toBe(true);
+    expect(specifierRoot('@scope/root-dev-dep/sub')).toBe('@scope/root-dev-dep');
+  });
+
+  it('does NOT refuse a mapped specifier — one a documented package declares reaches the reader', () => {
+    const paths = { 'root-dev-dep': ['/somewhere/index.d.ts'] };
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep', { paths, rootDeclared })).toBe(false);
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep/sub', { paths, rootDeclared })).toBe(false);
+  });
+
+  it('does NOT refuse a specifier the root never declared — that is the UNDECLARED control\'s half', () => {
+    expect(resolvesOnlyThroughRootManifest('some-transitive', { paths: {}, rootDeclared })).toBe(false);
+  });
+
+  it('does NOT refuse a relative or absolute specifier', () => {
+    expect(resolvesOnlyThroughRootManifest('./sibling', { paths: {}, rootDeclared })).toBe(false);
+    expect(resolvesOnlyThroughRootManifest('/abs/path', { paths: {}, rootDeclared })).toBe(false);
+  });
+
+  it('never refuses the JSX factory module, even when `react` is root-declared and unmapped', () => {
+    // Compiler-emitted, not author-written: every block is compiled as TSX, so
+    // refusing it would red a block over a line nobody wrote.
+    expect(resolvesOnlyThroughRootManifest('react/jsx-runtime', { paths: {}, rootDeclared })).toBe(false);
+    expect(resolvesOnlyThroughRootManifest('react/jsx-dev-runtime', { paths: {}, rootDeclared })).toBe(false);
+  });
+
+  it('reads BOTH dependency fields of the root manifest, not just the populated one', () => {
+    const root = tempTree({
+      'package.json': JSON.stringify({ dependencies: { 'a-dep': '1' }, devDependencies: { 'a-dev': '1' } }),
+    });
+    const declared = rootDeclaredSpecifiers(root) as Set<string>;
+    expect([...declared].sort()).toEqual(['a-dep', 'a-dev']);
+  });
+
+  describe('the specifier set comes from the AST, never from a regex over the text', () => {
+    const parse = (code: string) =>
+      ts.createSourceFile('probe.tsx', code, ts.ScriptTarget.ES2020, true, ts.ScriptKind.TSX);
+
+    it('collects static, type-only, side-effect, re-export and dynamic imports', () => {
+      const found = moduleSpecifiersOf(
+        parse(
+          [
+            "import a from 'a';",
+            "import type { B } from 'b';",
+            "import 'c';",
+            "export { d } from 'd';",
+            "const e = await import('e');",
+            'export const used = [a, B, e, d];',
+          ].join('\n'),
+        ),
+      ) as string[];
+      expect(found.sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+    });
+
+    it('does NOT collect an import-shaped line inside a template literal', () => {
+      // Measured while deriving the bound: a README example whose fenced body
+      // held `npm install project-name` inside a template literal read as an
+      // import of `project-name` under the regex the gate uses elsewhere. A
+      // false refusal would red a document that is correct.
+      const found = moduleSpecifiersOf(
+        parse("export const readme = `\n# Project\n\nimport x from 'project-name';\n`;\n"),
+      ) as string[];
+      expect(found).toEqual([]);
+    });
+  });
+
+  describe('end to end, over a throwaway tree', () => {
+    /** A root that declares one devDependency and installs it where pnpm would. */
+    function treeWithRootDevDependency(): string {
+      const root = tempTree({
+        'package.json': JSON.stringify({ name: 'root', devDependencies: { 'root-dev-dep': '^1.0.0' } }),
+        'node_modules/root-dev-dep/package.json': JSON.stringify({ name: 'root-dev-dep', types: 'index.d.ts' }),
+        'node_modules/root-dev-dep/index.d.ts': 'export declare const fromRoot: number;\n',
+        'node_modules/mapped-dep/package.json': JSON.stringify({ name: 'mapped-dep', types: 'index.d.ts' }),
+        'node_modules/mapped-dep/index.d.ts': 'export declare const mapped: number;\n',
+      });
+      return root;
+    }
+
+    const block = (doc: string, body: string) => ({ doc, fenceLine: 1, body });
+
+    it('keeps a block importing a root-only specifier OUT of the program and names the specifier', () => {
+      const root = treeWithRootDevDependency();
+      const run = compileSnippets({
+        root,
+        compiled: [block('fixture/root-only.md', "import { fromRoot } from 'root-dev-dep';\nexport const x = fromRoot;\n")],
+        paths: {},
+        declaredSpecifiers: [],
+      }) as unknown as {
+        boundFailures: { block: { doc: string }; specifiers: string[] }[];
+        boundedSpecifiers: string[];
+        semanticallyJudged: number;
+      };
+      expect(run.boundFailures.map((f) => f.block.doc)).toEqual(['fixture/root-only.md']);
+      expect(run.boundFailures[0].specifiers).toEqual(['root-dev-dep']);
+      expect(run.boundedSpecifiers).toEqual(['root-dev-dep']);
+      // Refused, therefore NOT judged: the coverage count is what stops a
+      // refusal from reading as a pass.
+      expect(run.semanticallyJudged).toBe(0);
+    });
+
+    it('still resolves a MAPPED specifier — the bound refuses the root set, not everything', () => {
+      const root = treeWithRootDevDependency();
+      const run = compileSnippets({
+        root,
+        compiled: [block('fixture/mapped.md', "import { mapped } from 'mapped-dep';\nexport const y = mapped;\n")],
+        paths: { 'mapped-dep': [path.join(root, 'node_modules/mapped-dep/index.d.ts')] },
+        declaredSpecifiers: [],
+      }) as unknown as {
+        boundFailures: unknown[];
+        semanticFailures: unknown[];
+        semanticallyJudged: number;
+      };
+      expect(run.boundFailures).toEqual([]);
+      expect(run.semanticFailures).toEqual([]);
+      expect(run.semanticallyJudged).toBe(1);
+    });
+
+    it('refuses a root-only specifier even when the map covers a DIFFERENT one', () => {
+      const root = treeWithRootDevDependency();
+      const run = compileSnippets({
+        root,
+        compiled: [
+          block(
+            'fixture/both.md',
+            "import { mapped } from 'mapped-dep';\nimport { fromRoot } from 'root-dev-dep';\nexport const z = [mapped, fromRoot];\n",
+          ),
+        ],
+        paths: { 'mapped-dep': [path.join(root, 'node_modules/mapped-dep/index.d.ts')] },
+        declaredSpecifiers: [],
+      }) as unknown as { boundFailures: { specifiers: string[] }[] };
+      expect(run.boundFailures[0].specifiers).toEqual(['root-dev-dep']);
+    });
+  });
+
+  describe('in this repository', () => {
+    it("the ROOT-DECLARED control specifier is declared by the root and covered by no paths entry", () => {
+      // Both are preconditions for the control to mean anything, and both are
+      // re-checked at run time by the gate itself; pinned here so a change to
+      // either shows up in a test rather than only in a red gate.
+      const declared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+      expect(declared.has(ROOT_DECLARED_CONTROL_PACKAGE)).toBe(true);
+      const state = analyze({}) as unknown as { paths: Record<string, string[]> };
+      expect(Object.keys(state.paths)).not.toContain(ROOT_DECLARED_CONTROL_PACKAGE);
+      expect(findInstalledCopy(repoRoot, ROOT_DECLARED_CONTROL_PACKAGE)).toBeTruthy();
+    });
+
+    it('no COVERED snippet imports a specifier that only the root declares', () => {
+      // The gate itself proves this on a built tree; this pin is the build-free
+      // half, so a new page resting on the workspace's own devDependencies is
+      // caught by the per-PR suite too.
+      const declared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+      const state = analyze({}) as unknown as {
+        compiled: { doc: string; fenceLine: number; body: string }[];
+        paths: Record<string, string[]>;
+      };
+      const offenders: string[] = [];
+      for (const b of state.compiled) {
+        const sf = ts.createSourceFile('probe.tsx', b.body, ts.ScriptTarget.ES2020, true, ts.ScriptKind.TSX);
+        for (const specifier of moduleSpecifiersOf(sf) as string[]) {
+          if (resolvesOnlyThroughRootManifest(specifier, { paths: state.paths, rootDeclared: declared })) {
+            offenders.push(`${b.doc}:${b.fenceLine} ${specifier}`);
+          }
+        }
+      }
+      expect(offenders).toEqual([]);
+    });
+
+    it('states the bound in its own header, so the rule cannot drift out of the source', () => {
+      const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+      expect(source).toContain('resolves ONLY through the repository root');
+      expect(source).toContain('ROOT-');
     });
   });
 });
