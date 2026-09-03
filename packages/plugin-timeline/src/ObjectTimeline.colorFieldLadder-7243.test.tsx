@@ -28,10 +28,17 @@
  * The assertions read the items `ObjectTimeline` composes for
  * `TimelineRenderer`; that `color` is what the renderer turns into the
  * marker's `borderColor` / translucent `backgroundColor`.
+ *
+ * objectui#7521 — `colorsFor` used to leave every render mounted and wait on
+ * `lastItems.length` alone. Two components then shared one module-level
+ * `lastItems`, and the predicate could not say which of them had written it, so
+ * an `it` that called `colorsFor` twice read the FIRST call's colour back out
+ * of the second under load. See the two comments in `colorsFor`: the unmount
+ * removes the second writer, the title-token predicate removes the blind spot.
  */
 
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { ObjectTimeline } from './ObjectTimeline';
 
@@ -80,7 +87,25 @@ function makeDataSource(rows: any[]) {
   } as any;
 }
 
+/** Distinguishes one `colorsFor` render from the next. See `token` below. */
+let renderSeq = 0;
+
 async function colorsFor(colorField: string, rows: any[] = [ROW]) {
+  // objectui#7521 — a STRUCTURAL guard, deliberately not a timing one. RTL's
+  // auto-cleanup runs in `afterEach`, never between two renders inside one
+  // `it`, so before the `unmount()` below existed this read 1 on the second
+  // call of every multi-render `it` — a settled fact about the DOM at a
+  // synchronous point, not a race that has to be caught in the act.
+  expect(screen.queryAllByTestId('timeline-renderer')).toHaveLength(0);
+
+  // A token this call OWNS. `ObjectTimeline` composes `title` from
+  // `titleField`, so it rides through to `lastItems` untouched — and it is NOT
+  // the value under test, so the predicate below can tell "THIS render is
+  // ready" from "something else wrote again" without asserting the colour the
+  // caller is about to assert.
+  const token = `render-${++renderSeq}`;
+  const stampedRows = rows.map((row, i) => ({ ...row, subject: `${token}-${i}` }));
+
   lastItems = [];
   const schema: any = {
     type: 'timeline',
@@ -89,9 +114,26 @@ async function colorsFor(colorField: string, rows: any[] = [ROW]) {
     startDateField: 'starts_at',
     colorField,
   };
-  render(<ObjectTimeline schema={schema} dataSource={makeDataSource(rows)} />);
-  await waitFor(() => expect(lastItems.length).toBe(rows.length));
-  return lastItems.map((i) => i.color);
+  const { unmount } = render(
+    <ObjectTimeline schema={schema} dataSource={makeDataSource(stampedRows)} />,
+  );
+  try {
+    // Identify the AUTHOR, not just the arity. `lastItems.length` alone cannot
+    // separate "the component I just mounted has painted" from "an earlier one
+    // painted again", because both leave length === rows.length.
+    await waitFor(() =>
+      expect(lastItems.map((i) => i.title)).toEqual(stampedRows.map((r) => r.subject)),
+    );
+    return lastItems.map((i) => i.color);
+  } finally {
+    // Tear THIS render down before returning. `ObjectTimeline` still has a
+    // second `find()` in flight when the predicate goes green: its data effect
+    // lists `objectDef`, which the separate metadata fetch sets a beat later,
+    // so every mount fetches twice. A component left mounted here re-renders
+    // when that second fetch lands — during the NEXT call, after it has reset
+    // `lastItems`.
+    unmount();
+  }
 }
 
 describe('objectui#7243 — timeline colorField ladder (control: green before and after)', () => {
