@@ -580,8 +580,6 @@ const UNGATED_DOCS = {
     '`registerPlaceholders` is) and is taught in no other authored file, and ' +
     '`createObjectStackAdapter` is imported from @object-ui/core, which does not ship it — ' +
     '@object-ui/data-objectstack does, as packages/plugin-dashboard/README.md already writes it.',
-  'packages/app-shell/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/auth/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/collaboration/README.md':
