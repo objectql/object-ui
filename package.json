@@ -56,6 +56,7 @@
     "check:i18n-drift": "node scripts/check-i18n-en-drift.mjs",
     "check:i18n-dead-keys": "node scripts/check-i18n-dead-keys.mjs",
     "check:skills-paths": "node scripts/check-skills-paths.mjs",
+    "check:skill-examples": "node scripts/check-skill-examples.mjs",
     "check:doc-types": "node scripts/check-doc-component-types.mjs",
     "check:doc-snippets": "node scripts/check-doc-snippet-types.mjs",
     "check:doc-fences": "node scripts/check-doc-fence-languages.mjs",

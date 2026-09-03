@@ -30,6 +30,7 @@ Then configure the required files (see "Essential configuration files" below).
 
 ### package.json (minimum dependencies)
 
+<!-- os:check -->
 ```json
 {
   "dependencies": {
@@ -51,6 +52,7 @@ Then configure the required files (see "Essential configuration files" below).
 ```
 
 Add plugins as needed (full plugin catalog):
+<!-- os:check -->
 ```json
 {
   "@object-ui/plugin-grid": "latest",
@@ -76,6 +78,7 @@ Add plugins as needed (full plugin catalog):
 ```
 
 Opt-in platform packages (auth, i18n, mobile, realtime):
+<!-- os:check -->
 ```json
 {
   "@object-ui/auth": "latest",
@@ -87,6 +90,7 @@ Opt-in platform packages (auth, i18n, mobile, realtime):
 ```
 
 Embedding shell + provider stack into a third-party app:
+<!-- os:check -->
 ```json
 {
   "@object-ui/app-shell": "latest",
@@ -134,6 +138,7 @@ overriding the token values: [`rules/styling.md`](../rules/styling.md).
 
 ### tsconfig.json
 
+<!-- os:check -->
 ```json
 {
   "compilerOptions": {

@@ -84,6 +84,7 @@ styles can be overridden from JSON.
 
 Actions are data, not functions:
 
+<!-- os:check -->
 ```json
 {
   "events": {

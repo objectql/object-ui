@@ -200,6 +200,7 @@ Parts: `EmptyHeader`, `EmptyMedia`, `EmptyTitle`, `EmptyDescription`,
 ## Rule: Toast via Sonner
 
 **✅ CORRECT:**
+<!-- os:check -->
 ```typescript
 import { toast } from 'sonner';
 
