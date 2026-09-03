@@ -302,6 +302,42 @@ const DOCS_ROOT = 'content/docs';
 const PACKAGES_DIR = 'packages';
 
 /**
+ * Per-app documentation trees, `apps/<app>/docs/**` (objectui#6600).
+ *
+ * That card measured the hole: the three doc gates all rooted at `content/docs`,
+ * so `apps/console/docs/**` — the console's operator and deployment guides — was
+ * read by NO doc gate. The only check whose surface contained those files was
+ * `check:control-bytes`, which enumerates `git ls-files` and therefore covers
+ * every tracked text file, i.e. they were checked for control bytes and for
+ * nothing else. What accumulated there is objectui#6599: a guide that had drifted
+ * far enough that following it literally rebuilt the ungated telemetry init
+ * objectui#5522 deliberately removed, plus a fabricated CSP section and two env
+ * vars with zero read sites. Nothing mechanical could have noticed any of it.
+ *
+ * The walk is `apps/<app>/docs`, one level of app directory and no deeper before
+ * the
+ * `docs` segment. `apps/site/app/docs` is a Next.js ROUTE directory holding
+ * `.tsx` route files, not a documentation tree; a `**`-shaped walk that picked it
+ * up would be collecting routes.
+ *
+ * Exported so the equality is checked rather than hoped for: three gates carry
+ * this constant and `check-doc-fence-languages.test.ts` pins all three copies.
+ */
+export const APP_DOCS = { dir: 'apps', subdir: 'docs' };
+
+/** Every `apps/<app>/docs` directory that exists, in a stable order. */
+export function appDocsDirs(root) {
+  const appsDir = join(root, APP_DOCS.dir);
+  if (!existsSync(appsDir)) return [];
+  const out = [];
+  for (const entry of readdirSync(appsDir).sort()) {
+    const docs = join(appsDir, entry, APP_DOCS.subdir);
+    if (existsSync(docs) && statSync(docs).isDirectory()) out.push(docs);
+  }
+  return out;
+}
+
+/**
  * Pages at the repository ROOT that join the scan set by name.
  *
  * objectui#7115. Between this gate's surface (`content/docs` + the package
@@ -343,6 +379,57 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
 const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
 
 /**
+ * ── What the three doc gates own, and what nothing owns (objectui#6600) ──────
+ *
+ * Stated once, here, because this gate has the widest surface and holds the
+ * coverage ledger below. The other two headers state their own roots and point
+ * at this block.
+ *
+ *   root                        fences · snippets · types
+ *   ─────────────────────────── ─────────────────────────
+ *   content/docs/**                 ✓        ✓       ✓
+ *   apps/<app>/docs/**              ✓        ✓       ✓     objectui#6600
+ *   README.md                       ✓        ✓       ✓     objectui#7115
+ *   packages/<name>/README.md       ✓        ✓       ✗     ships inside `files`
+ *
+ * `check-doc-component-types` does not read the package READMEs — it asks
+ * whether a documented `type` literal is a registered component key, and a
+ * package README teaches its own package's API rather than the schema vocabulary.
+ * That is the ONE deliberate asymmetry, and it is why that gate cannot join the
+ * document-list equality pin the other two share.
+ *
+ * ⚠️ EVERYTHING ELSE authored in markdown is read by no doc gate at all. That is
+ * a statement of what the roots are today, ⛔ not a plan and not a promise. In
+ * descending order of size, the unscanned population is: non-README `.md` under
+ * `packages/**` (by far the largest); `docs/**` (ADRs and audits); the PUBLISHED
+ * `skills/objectui/**`; the root pages that are not `README.md` (`AGENTS.md`,
+ * `CONTRIBUTING.md`, `ROADMAP.md` and the rest); `examples/**`; the `apps/**`
+ * pages that are not under an `apps/<app>/docs/` tree; `.claude/**`;
+ * `.github/**`; and `patches/**`. The ephemeral `.changeset/` is excluded as
+ * noise rather than counted as debt.
+ *
+ * ⛔ Deliberately NO count is written here, neither a total nor a per-tree one.
+ * That is not laziness, it is objectui#7448's defect avoided at the source: a
+ * hand-copied number in a header drifts from the tree and nothing fails when it
+ * does, which is the same lesson `UNGATED_DOCS`'s own header records after both
+ * halves of its `12 .mdx pages and 32 package READMEs` went stale ("a pointer to
+ * the list now rather than a copy of its length"). The first draft of THIS block
+ * proved the point inside a single pull request: it said 114, counting the three
+ * `apps/<app>/docs/` guides that the very same change was bringing under the
+ * gates.
+ * The command below is the durable answer, and it answers both "how many" and
+ * "which":
+ *
+ *     git ls-files '*.md' '*.mdx' \
+ *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|\.changeset/)'
+ *
+ * ⛔ `skills/objectui/**` is NOT claimed by any gate here, and this line is the
+ * opposite of a claim on it: it is a governed, published surface with its own
+ * review path, so pointing a doc gate at it is a decision for whoever owns that
+ * surface — never a side effect of a root move. Writing an unscanned tree down
+ * is what keeps it a KNOWN debt; a tree nobody names is objectui#5174's
+ * "neither covered NOR declared ungated", which is strictly worse.
+ *
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
@@ -679,6 +766,9 @@ export function listDocuments(root = repoRoot) {
   };
   const docsRoot = join(root, DOCS_ROOT);
   if (existsSync(docsRoot)) walk(docsRoot);
+  // Per-app docs trees, in the same slot the fence guard appends them in — the
+  // coupling pin compares the two lists element by element.
+  for (const dir of appDocsDirs(root)) walk(dir);
   const pkgDir = join(root, PACKAGES_DIR);
   if (existsSync(pkgDir)) {
     for (const entry of readdirSync(pkgDir).sort()) {
