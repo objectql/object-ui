@@ -24,10 +24,23 @@
  * `jsdom` applies media-query rules irrespective of `innerWidth`, so a pin
  * that leaned on either would be unmeasurable rather than merely flaky.
  *
- * REVERSE VERIFICATION — direction predicted before running: removing
- * `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectCalendar`'s record fetch turns
- * the truncation case red at the footnote assertion, while the below-ceiling
- * case stays green.
+ * REVERSE VERIFICATION — MEASURED on two separate ablations (objectui#7507),
+ * because this file grades two different things and one of them was missing:
+ *
+ *   1. Remove `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectCalendar`'s record
+ *      fetch ⇒ red at the **`$top` assertion**, and there only; 1 failed /
+ *      1 passed. NOT at the footnote, which is what this docblock used to
+ *      predict. An adapter with no `$top` answers with the whole filtered set,
+ *      `applyNonGridRowCeiling` slices it to the ceiling from the rows in
+ *      hand, and both the event count and the note stay correct. Losing the
+ *      `$top` is a bandwidth regression, not a correctness one.
+ *   2. Hand the view the RAW response instead of the capped rows
+ *      (`setData(capped.rows)` → `setData(result.data ?? capped.rows)`) ⇒ red
+ *      at the **event-count assertion**, 2001 against 2000. Before #7507 that
+ *      mutation left this file green at 4/4: `$top` was still sent and the
+ *      footnote still rendered, while 2,001 events were drawn. That is the
+ *      hole the count assertion below closes, and it is the ruling's own pin
+ *      text — "the DOM row count equals the ceiling".
  */
 
 import React from 'react';
@@ -40,6 +53,23 @@ vi.mock('@object-ui/plugin-detail', () => ({
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));
+
+// The month grid is irrelevant here — what this file has to observe is HOW MANY
+// records reached the view layer, and the grid deliberately hides that: it draws
+// at most four events per day cell, so 2,000 events and 2,001 events paint the
+// same picture. Stubbing the child the way the gantt pin stubs `GanttView` puts
+// the count on an attribute where an assertion can reach it. `importOriginal`
+// keeps the module's other exports (`resolveEventColor` and friends) live, the
+// same idiom `ObjectCalendar.unscheduled-7071` uses.
+vi.mock('./CalendarView', async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    CalendarView: ({ events }: any) => (
+      <div data-testid="calendar-view" data-event-count={String(events.length)} />
+    ),
+  };
+});
 
 const TOTAL_ROWS = 9876;
 const NOW = new Date();
@@ -98,6 +128,17 @@ describe('objectui#7210 ruling a′ — the calendar caps at the platform ceilin
       expect(params.$top).toBe(NON_GRID_ROW_CEILING_TOP);
     }
 
+    // ⭐ The ruling's own words — "the DOM row count equals the ceiling". The
+    // `$top` and the footnote below it are both true of a view that then drew
+    // every row the adapter sent: measured on the merged commit, replacing the
+    // capped hand-off with the raw response left this file green at 4/4 with
+    // 2,001 events on the grid. This is the assertion that was missing.
+    await waitFor(() =>
+      expect(screen.getByTestId('calendar-view').getAttribute('data-event-count')).toBe(
+        String(NON_GRID_ROW_CEILING),
+      ),
+    );
+
     const note = await screen.findByRole('note');
     expect(note.getAttribute('data-row-ceiling-note')).toBe('non-grid');
     expect(note.textContent).toContain(String(NON_GRID_ROW_CEILING));
@@ -112,6 +153,10 @@ describe('objectui#7210 ruling a′ — the calendar caps at the platform ceilin
 
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.queryByText(/Loading/i)).toBeNull());
+    // Below the ceiling the count is the whole set, not the ceiling — the other
+    // half of "draws at most N", and what keeps the case above from passing on a
+    // view that simply caps everything at 2,000 unconditionally.
+    expect(screen.getByTestId('calendar-view').getAttribute('data-event-count')).toBe('12');
     expect(screen.queryByRole('note')).toBeNull();
   });
 });

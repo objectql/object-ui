@@ -22,11 +22,20 @@
  * parent fell past the cut is silently reparented to a root. Nothing in the
  * rendering says so, which is what the footnote is for.
  *
- * REVERSE VERIFICATION — direction predicted before running: removing
- * `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectTree`'s record fetch turns the
- * truncation case red at BOTH the row count and the footnote (the whole store
- * arrives, nothing is capped, `truncated` is false), while the below-ceiling
- * case stays green.
+ * REVERSE VERIFICATION — MEASURED, and corrected from what this docblock used
+ * to predict (objectui#7507). Removing `$top: NON_GRID_ROW_CEILING_TOP` from
+ * `ObjectTree`'s record fetch turns the truncation case red at the **`$top`
+ * assertion** and there only, 1 failed / 1 passed; the below-ceiling case
+ * stays green.
+ *
+ * ⚠️ The row count does NOT move, and the footnote does not disappear. The old
+ * prediction — "the whole store arrives, nothing is capped, `truncated` is
+ * false" — got the first clause right and drew the wrong conclusion from it.
+ * The whole store does arrive; `applyNonGridRowCeiling` then slices it to the
+ * ceiling and reports `truncated` from the rows in hand, so the rendered
+ * `<tr>` count is still exactly 2,000 and the note still names both numbers.
+ * Losing the `$top` is a BANDWIDTH regression here, not a correctness one, and
+ * the `$top` assertion is the only thing in this file that sees it.
  */
 
 import React from 'react';
