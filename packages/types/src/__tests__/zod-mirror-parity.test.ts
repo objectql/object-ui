@@ -1513,11 +1513,13 @@ export type assertionBaseSchemaKeysResolve = Expect<
  *
  * `MIRRORS` was built by pairing a `…Schema` const with the like-named TS
  * declaration, because in this package that suffix almost always means "runtime
- * mirror of the like-named declaration" — `Object.keys(MIRRORS).length` registered
- * pairs, a figure the census below prints rather than restates. `StylePropsSchema`
- * was not one of them: the like-named `StyleProps` (`../base.ts`) is the
- * Tailwind-SCALE vocabulary, so the name-derived pairing compared two unrelated key
- * sets and reported drift on a mirror relationship that does not exist.
+ * mirror of the like-named declaration" — the population is `Object.keys(MIRRORS)`,
+ * deliberately not restated here as a written number (objectui#6141 measured what
+ * happens to counts in this header: they rot, and get quoted as fact).
+ * `StylePropsSchema` was not one of them: the like-named `StyleProps` (`../base.ts`)
+ * is the Tailwind-SCALE vocabulary, so the name-derived pairing compared two
+ * unrelated key sets and reported drift on a mirror relationship that does not
+ * exist.
  *
  * `assertionEveryPairOverlaps` caught that one, but only because the overlap is
  * TOTALLY empty. A collision that overlaps PARTIALLY compares like a mirror and
