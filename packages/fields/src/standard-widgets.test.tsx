@@ -17,10 +17,36 @@ import { SelectField } from './widgets/SelectField';
 import { BooleanField } from './widgets/BooleanField';
 import { EmailField } from './widgets/EmailField';
 import { UrlField } from './widgets/UrlField';
+import { PhoneField } from './widgets/PhoneField';
 
 const mockOnChange = vi.fn();
 
 describe('Standard Field Widgets', () => {
+  /**
+   * Scope note — the ten standard field widgets (objectui#7336).
+   *
+   * Eight are exercised below. The other two are already covered by dedicated
+   * suites elsewhere, so a case here would duplicate rather than add; this
+   * note stands in for them, and is the point of the card:
+   *
+   * - `DateField` -> `./datetime-widgets.test.tsx`, which holds a full
+   *   `describe('DateField')`: edit-mode input, onChange, locale-formatted
+   *   readonly, empty-value dash, plus the objectui#3127 stored-ISO round
+   *   trip. Its locale channel is pinned in
+   *   `./__tests__/date-locale-channel.test.tsx` (objectui#4468) and its
+   *   `toDateInputValue` helper in `./widgets/nativeDateValue.test.ts`.
+   * - `TextAreaField` -> seven suites in `./widgets/__tests__/`:
+   *   `TextAreaField.characterCount.{announcements,i18n,no-provider}`,
+   *   `.fullscreenCharacterCount{,.i18n}`, `.fullscreenDisabled` and
+   *   `.mobileFullscreen`.
+   *
+   * All three were once imported here and never rendered. PR objectui#7332
+   * removed the unused imports -- correct, since an unused import asserts
+   * nothing -- but that left the file reading as a complete sweep of the set
+   * with no signal that members were missing. Two of the three needed only
+   * this pointer; the third, `PhoneField`, was a real gap and now has cases.
+   */
+
   describe('CurrencyField', () => {
     const fieldMock = { type: 'currency', currency: 'USD', precision: 2 };
 
@@ -356,6 +382,43 @@ describe('Standard Field Widgets', () => {
       );
       const link = screen.getByRole('link');
       expect(link).toHaveAttribute('href', 'https://example.com');
+    });
+  });
+
+  describe('PhoneField', () => {
+    // The one member of the standard set that had no coverage of its own
+    // behaviour anywhere. `__tests__/validation-feedback.test.tsx` renders it
+    // four times, but only inside the cross-widget contract battery
+    // (aria-invalid, disabled, empty-readonly dash, default placeholder) --
+    // nothing there, or in any other file, asserted the two things that make
+    // it a PHONE widget: the `tel` input type and the `tel:` link its readonly
+    // branch renders. (The `tel:` assertions that do exist belong to the
+    // plugin-list / plugin-report CELL renderers, not to this widget.) Same
+    // readonly/edit round trip the EmailField and UrlField blocks above write.
+    it('should render tel input', () => {
+      render(
+        <PhoneField
+          value="+15551234567"
+          onChange={mockOnChange}
+          field={{ type: 'phone' } as any}
+        />
+      );
+      const input = screen.getByDisplayValue('+15551234567');
+      expect(input).toHaveAttribute('type', 'tel');
+    });
+
+    it('should render clickable tel link in readonly mode', () => {
+      render(
+        <PhoneField
+          value="+15551234567"
+          onChange={mockOnChange}
+          field={{ type: 'phone' } as any}
+          readonly={true}
+        />
+      );
+      const link = screen.getByRole('link');
+      expect(link).toHaveAttribute('href', 'tel:+15551234567');
+      expect(link).toHaveTextContent('+15551234567');
     });
   });
 });
