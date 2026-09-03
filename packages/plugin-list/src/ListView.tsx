@@ -2721,7 +2721,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             label: tFieldLabel(key, field.label || key),
             type: field.type || 'text',
             options: buildOptions(key, field.options),
-            referenceTo: field.reference_to || field.reference,
+            // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+            // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+            // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+            // contract declares, and renaming it would be a separate change.
+            // Target contract here: this file's own local filter-field descriptor,
+            // which spells it camelCase `referenceTo`.
+            // ⚠️ The SIBLING branch above (the `schema.columns` fallback) is NOT
+            // narrowed: it reads a list-view COLUMN, and the spec's `ListColumnSchema`
+            // declares neither `reference` nor `reference_to` — measured, both refused
+            // with no rename hint. That is a different question and is filed, not
+            // answered here.
+            referenceTo: field.reference,
             displayField: field.display_field || field.reference_field,
             idField: field.id_field,
         }));

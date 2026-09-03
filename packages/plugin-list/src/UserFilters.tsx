@@ -288,7 +288,15 @@ function resolveFields(
         if (!resolvedType) resolvedType = fieldDef.type;
         objectLabel = fieldDef.label;
         // Capture lookup metadata regardless of caller-specified type
-        referenceTo = fieldDef.reference_to ?? fieldDef.reference;
+        // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+        // belongs on the SERVER, the front end just executes the protocol.
+        // `reference` is the only target spelling `@objectstack/spec`'s
+        // `FieldSchema` declares; it refuses `reference_to` by name with its own
+        // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+        // stored `reference_to` on the serve path and in `os migrate meta`. A
+        // legacy-only def is canonicalised ONCE at the ingestion choke point
+        // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+        referenceTo = fieldDef.reference;
         displayField = fieldDef.display_field ?? fieldDef.reference_field;
         idField = fieldDef.id_field;
 

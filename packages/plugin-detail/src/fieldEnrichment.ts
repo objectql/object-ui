@@ -233,9 +233,19 @@ export function enrichDetailField(
     if (value !== undefined && enriched[key] === undefined) enriched[key] = value;
   }
 
-  // ObjectStack object metadata uses `reference` for the lookup target while the
-  // objectui types call it `reference_to` — accept both, stamp the canonical key.
-  const refTarget = objectDefField.reference_to || objectDefField.reference;
+  // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+  // belongs on the SERVER, the front end just executes the protocol.
+  // `reference` is the only target spelling `@objectstack/spec`'s
+  // `FieldSchema` declares; it refuses `reference_to` by name with its own
+  // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+  // stored `reference_to` on the serve path and in `os migrate meta`. A
+  // legacy-only def is canonicalised ONCE at the ingestion choke point
+  // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+  //
+  // ⚠️ The READ narrows; the STAMPED key does not. `enriched` is a
+  // `DetailViewField`-shaped bag whose own contract declares `reference_to`
+  // and never declares `reference`, so the left-hand key below stays put.
+  const refTarget = objectDefField.reference;
   if (refTarget && enriched.reference_to === undefined) enriched.reference_to = refTarget;
 
   return enriched;

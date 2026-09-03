@@ -669,7 +669,15 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     const tasks: Array<{ fieldName: string; target: string; ids: string[] }> = [];
     for (const [fieldName, def] of Object.entries(fields)) {
       if (!def || (def.type !== 'lookup' && def.type !== 'master_detail')) continue;
-      const target = def.reference_to || def.reference;
+      // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+      // belongs on the SERVER, the front end just executes the protocol.
+      // `reference` is the only target spelling `@objectstack/spec`'s
+      // `FieldSchema` declares; it refuses `reference_to` by name with its own
+      // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+      // stored `reference_to` on the serve path and in `os migrate meta`. A
+      // legacy-only def is canonicalised ONCE at the ingestion choke point
+      // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+      const target = def.reference;
       if (!target) continue;
       const ids = new Set<string>();
       for (const row of relatedData) {
@@ -942,7 +950,13 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         ...(def.precision !== undefined && { precision: def.precision }),
         ...((def as any).scale !== undefined && { scale: (def as any).scale }),
         ...(def.format && { format: def.format }),
-        ...((def.reference_to || def.reference) && { reference_to: def.reference_to || def.reference }),
+        // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+        // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+        // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+        // contract declares, and renaming it would be a separate change.
+        // Target contract here: `FieldMetadata` (`LookupFieldMetadata.reference_to`
+        // in `@object-ui/types`), handed straight to `CellRenderer` as `field`.
+        ...(def.reference && { reference_to: def.reference }),
         ...(def.reference_field && { reference_field: def.reference_field }),
       };
       return (value: any) => {

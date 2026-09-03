@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { deriveRelatedLists } from '../deriveRelatedLists';
+import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 
 const project = { name: 'project', label: 'Project', fields: { name: { type: 'text' } } };
 
@@ -43,11 +44,45 @@ describe('deriveRelatedLists', () => {
     });
   });
 
-  it('supports reference_to as well as reference', () => {
+  it('does NOT derive a related list from a `reference_to`-only FK (objectui#6837 half 2)', () => {
+    // The inverse of what this case asserted before half 2. `reference` is the
+    // only target spelling `@objectstack/spec`'s `FieldSchema` declares — it
+    // refuses `reference_to` by name, with its own "did you mean ->
+    // `reference`?" rename. Maintainer 2026-08-31: protocol normalization
+    // belongs on the SERVER, the front end just executes the protocol;
+    // objectstack#13847 rewrites stored `reference_to` on the serve path and in
+    // `os migrate meta`.
+    //
+    // ⚠️ Non-vacuous by construction: the very next case feeds the SAME shape
+    // spelled `reference` and expects one derived list, so a helper that had
+    // stopped deriving anything would fail there rather than passing here.
     const task = {
       name: 'task',
       fields: { project: { type: 'master_detail', reference_to: 'project' } },
     };
+    expect(deriveRelatedLists(project, [project, task])).toHaveLength(0);
+  });
+
+  it('derives one from the same FK spelled `reference` — the control for the refusal above', () => {
+    const task = {
+      name: 'task',
+      fields: { project: { type: 'master_detail', reference: 'project' } },
+    };
+    const out = deriveRelatedLists(project, [project, task]);
+    expect(out).toHaveLength(1);
+    expect(out[0].childObject).toBe('task');
+  });
+
+  it('a `reference_to`-only FK that came through the ingestion choke point DOES derive one', () => {
+    // What bounds the break: `normalizeSchemaReferenceKeys` stamps `reference`
+    // from whichever spelling arrived, so any object that entered through
+    // `MetadataProvider` or `ObjectStackAdapter.getObjectSchema` is unaffected.
+    // Only metadata that bypassed that door reaches this helper raw.
+    const task = {
+      name: 'task',
+      fields: { project: { type: 'master_detail', reference_to: 'project' } },
+    };
+    normalizeSchemaReferenceKeys(task);
     const out = deriveRelatedLists(project, [project, task]);
     expect(out).toHaveLength(1);
     expect(out[0].childObject).toBe('task');
