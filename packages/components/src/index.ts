@@ -59,6 +59,22 @@ export { getLazyIcon, isLucideIconName, LazyIcon, toKebabIconName } from './lib/
 // already depends on this package, so the direction costs nothing new.
 export { hasDeclaredVisibilityGate } from './renderers/action/visibility-gate';
 
+// THE icon-name seam (objectui#5935) — `name -> LucideIcon | null`, one
+// tokeniser and one rename map for the whole repo.
+//
+// Exported for the same reason `hasDeclaredVisibilityGate` above is: the family
+// has members outside this package. Seven modules used to hand-roll this lookup
+// with THREE different tokenisers and the `Home -> House` rename on only four of
+// them, so the same authored name rendered on one surface and not another —
+// `app-shell`'s ActionPreview, `plugin-detail`'s RelatedList, `plugin-list`'s
+// ListView and TabBar, and `plugin-view`'s ViewSwitcher now import this one.
+// All five already depend on this package, so the direction costs nothing new.
+//
+// ⛔ Nothing about the FALLBACK is exported, because there is none to export:
+// the seam returns `null` and each surface keeps its own visible fallback
+// (maintainer ruling 2026-09-03, objectui#5935, option C).
+export { resolveIcon } from './renderers/action/resolve-icon';
+
 // Export placeholder registration
 export { registerPlaceholders } from './renderers/placeholders';
 

@@ -7,9 +7,9 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, RefreshIndicator, DataEmptyState, DataErrorState } from '@object-ui/components';
+import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, RefreshIndicator, DataEmptyState, DataErrorState, resolveIcon } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Inbox, Download, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Inbox, Download, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
@@ -3896,11 +3896,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         ) : !loading && data.length === 0 && currentView === 'grid' ? (
           (() => {
             const iconName = schema.emptyState?.icon;
-            const ResolvedIcon: LucideIcon = iconName
-              ? ((icons as Record<string, LucideIcon>)[
-                  iconName.split('-').map((w: any) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-                ] ?? Inbox)
-              : Inbox;
+            // objectui#5935: normalisation through the ONE seam. This site had
+            // its own inline `split('-')` and no rename map, so `home` and every
+            // snake_case spelling fell through to `Inbox` here while resolving
+            // elsewhere. ⛔ The `Inbox` fallback itself stays at this call site
+            // — an empty state always shows a glyph, and that is this surface's
+            // decision, not the seam's (maintainer ruling 2026-09-03, option C).
+            const ResolvedIcon: LucideIcon = resolveIcon(iconName) ?? Inbox;
             // Distinguish "filtered/searched to empty" from "truly empty
             // (first run)". A new user with no filters shouldn't be told to
             // "adjust your filters" — they should be invited to create.

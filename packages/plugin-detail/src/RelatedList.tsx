@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   cn,
+  resolveIcon,
   useIsMobile,
 } from '@object-ui/components';
 import { SchemaRenderer, useCondition, toPredicateInput, type RelatedRowActionDef } from '@object-ui/react';
@@ -35,7 +36,6 @@ import {
   ArrowUpDown,
   ChevronDown,
   Inbox,
-  icons as lucideIcons,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
@@ -203,17 +203,23 @@ export interface RelatedListProps {
 }
 
 /**
- * Resolve a kebab-case Lucide icon name (e.g. `"file-text"`) to the React
- * component. Returns the Inbox fallback when the name is missing or unknown.
+ * Resolve an authored Lucide icon name to the React component, falling back to
+ * `Inbox` when the name is missing or unknown.
+ *
+ * objectui#5935: the NORMALISATION moved to the one seam (`resolveIcon` from
+ * `@object-ui/components`). This file used to carry its own tokeniser and NO
+ * rename map, so `home` missed here and resolved on four other surfaces; it now
+ * resolves everywhere. Widening only — no record key contains `_`, whitespace
+ * or `-`, so the old resolving set is a strict subset of the new one.
+ *
+ * ⛔ The `Inbox` fallback stays HERE, at the call site, and is not a parameter
+ * of the seam (maintainer ruling 2026-09-03, objectui#5935, option C): the seam
+ * answers `name -> component | null`, and what a surface draws for `null` is
+ * that surface's own business. Both readers of this function render a glyph
+ * unconditionally, so it keeps returning a component rather than `null`.
  */
 function resolveIconComponent(name: string | undefined): LucideIcon {
-  if (!name) return Inbox;
-  const pascal = name
-    .split(/[-_\s]/)
-    .filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join('');
-  return ((lucideIcons as Record<string, LucideIcon>)[pascal]) || Inbox;
+  return resolveIcon(name) ?? Inbox;
 }
 
 /**
