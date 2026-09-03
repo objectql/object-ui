@@ -791,29 +791,48 @@ describe('the `Unmapped specifiers` line and the refusals it reports (objectui#7
 
   it('agrees with the bound over the real corpus, specifier for specifier', () => {
     // The build-free half of the claim the gate's own run prints: the line and
-    // the refusals are now one reader, so over THIS corpus the two sets are
-    // equal. They can only diverge on a specifier that is unmapped and NOT
-    // root-declared — which the bound leaves in the program, where it fails to
-    // resolve and reds the semantic phase. So a divergence is never silent, and
-    // a red here is a real finding rather than upkeep.
+    // the refusals are now one reader, so over the SELECTED population the two
+    // sets are equal. They can only diverge on a specifier that is unmapped and
+    // NOT root-declared — which the bound leaves in the program, where it fails
+    // to resolve and reds the semantic phase. So a divergence is never silent,
+    // and a red here is a real finding rather than upkeep.
+    //
+    // ⛔ Scoped to the SELECTED population on purpose; it does NOT widen to
+    // `--measure`. Measured while writing this: under `measure: true` all 121
+    // candidate fences are selected and the two sets legitimately differ, 12
+    // names on the line against 6 refused — the extra six (`@objectstack/*`,
+    // `@tailwindcss/vite`, `@vitejs/plugin-react`) are unmapped and NOT
+    // root-declared, so they belong on the line and are correctly left in the
+    // program to fail there. Widening this pin would red on the design.
     const state = analyze({}) as unknown as {
       unmappedSpecifiers: Set<string>;
       tsBlocks: { body: string }[];
       paths: Record<string, string[]>;
     };
     const rootDeclared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+    const read = new Set<string>();
     const refused = new Set<string>();
     for (const block of state.tsBlocks) {
       for (const specifier of moduleSpecifiersOfBlock(block.body) as string[]) {
+        read.add(specifier);
         if (resolvesOnlyThroughRootManifest(specifier, { paths: state.paths, rootDeclared })) {
           refused.add(specifierRoot(specifier) as string);
         }
       }
     }
     expect([...state.unmappedSpecifiers].sort()).toEqual([...refused].sort());
-    // And the corpus really does exercise the comparison — an empty set on both
-    // sides would satisfy the equality above while proving nothing.
-    expect(refused.size).toBeGreaterThan(0);
+    // And the reader really did run over this corpus — an equality between two
+    // sets nothing ever put anything into would pass while proving nothing.
+    //
+    // ⛔ NOT `refused.size > 0`. That asserts the corpus still MARKS a fence
+    // importing a root-only specifier, which is a fact about the markers, and
+    // the markers belong to whoever is editing the guides: unmarking the four
+    // fences in `skills/objectui/guides/testing.md` empties `refused`, leaves
+    // the equality true, and would red this pin over a change that is not about
+    // it (measured against objectui#7557's head while writing this). What this
+    // pin owns is that the two READERS agree, so its non-vacuity clause has to
+    // be about the reader.
+    expect(read.size).toBeGreaterThan(0);
   });
 });
 
