@@ -23,7 +23,7 @@
   "scripts": {
     "build": "vite build",
     "clean": "rm -rf dist",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/plugin-designer/",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },

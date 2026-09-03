@@ -25,7 +25,7 @@
     "dev": "tsup --watch",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/data-objectstack/",
     "lint": "eslint ."
   },
   "dependencies": {

@@ -17,7 +17,7 @@
     "build": "tsup",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "dev": "tsup --watch",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/create-plugin/",
     "lint": "eslint ."
   },
   "dependencies": {

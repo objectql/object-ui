@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "build": "tsc && node ../../scripts/check-dist-completeness.mjs",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/react-runtime/",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },

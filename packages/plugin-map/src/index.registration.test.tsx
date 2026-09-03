@@ -10,7 +10,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // `src/index.tsx` pulls in `ObjectMap.tsx`, which imports the real map bindings.
 // Stub them so a plain module import needs no WebGL canvas (`maplibre-gl` itself
-// is already stubbed in `vitest.setup.ts`).
+// is already stubbed in the repo-root `vitest.setup.base.ts`, which every project
+// loads). This used to name `packages/plugin-map/vitest.setup.ts`, a copy of that
+// same mock that only the package's own vitest config loaded — i.e. never under
+// the invocation CI runs. objectui#3240 deleted the config and the copy.
 vi.mock('react-map-gl/maplibre', () => ({
   default: () => null,
   Map: () => null,

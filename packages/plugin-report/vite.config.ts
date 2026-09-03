@@ -6,6 +6,22 @@ import { resolve } from 'path';
 import { createDtsExplicitExtensions } from '../../scripts/vite-dts-explicit-extensions.ts';
 import { createDtsFailOnTypeErrors } from '../../scripts/vite-dts-fail-on-type-errors.ts';
 
+// objectui#3240 — with the per-package `vitest.config.*` files gone, Vitest
+// launched from THIS directory falls back to this file and uses it as its test
+// config. Guard that entry point (route 4 in
+// scripts/vitest-invocation-guard.mjs, which carries the mechanism and the
+// measurement). Gated on `VITEST` because the same file is the BUILD config:
+// Vitest sets that variable when it loads a config, `vite build` does not, so
+// a test run is refused and a build never is.
+import {
+  assertCanonicalVitestInvocation,
+  repoRootFrom,
+} from '../../scripts/vitest-invocation-guard.mjs';
+
+if (process.env.VITEST) {
+  assertCanonicalVitestInvocation({ repoRoot: repoRootFrom(import.meta.url) });
+}
+
 export default defineConfig({
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
@@ -61,10 +77,5 @@ export default defineConfig({
         },
       },
     },
-  },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './vitest.setup.ts',
   },
 });
