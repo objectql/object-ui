@@ -144,7 +144,7 @@ import ts from 'typescript';
 import type { z } from 'zod';
 
 import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
-import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
+import { BaseSchema, ClassNameStylePropsSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema, StylePropsSchema } from '../zod/base.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
@@ -1504,6 +1504,44 @@ export type assertionBaseSchemaKeysResolve = Expect<
   >
 >;
 
+/* ── Declared non-pairs: the pairing SKIPS these, and says why ──────────────── */
+
+/**
+ * Names that LOOK like a pair and are not (objectui#5928).
+ *
+ * ## Why a skip has to be written down, and re-measured
+ *
+ * `MIRRORS` was built by pairing a `…Schema` const with the like-named TS
+ * declaration, because in this package that suffix almost always means "runtime
+ * mirror of the like-named declaration" — `Object.keys(MIRRORS).length` registered
+ * pairs, a figure the census below prints rather than restates. `StylePropsSchema`
+ * was not one of them: the like-named `StyleProps` (`../base.ts`) is the
+ * Tailwind-SCALE vocabulary, so the name-derived pairing compared two unrelated key
+ * sets and reported drift on a mirror relationship that does not exist.
+ *
+ * `assertionEveryPairOverlaps` caught that one, but only because the overlap is
+ * TOTALLY empty. A collision that overlaps PARTIALLY compares like a mirror and
+ * reports phantom drift with nothing to catch it — the hole objectui#5928 was filed
+ * against. So the skip is recorded here WITH ITS REASON, and the claim the reason
+ * rests on is re-measured on every run: the named declaration must still exist, and
+ * the two sides must still share NO key. The day either side moves so that they DO
+ * overlap, this reddens and the collision is decided again — instead of quietly
+ * becoming a mirror.
+ *
+ * ⚠️ Scope. This is for consts the pairing SKIPS. A const that IS paired, but
+ * against a differently-named declaration, is a different case and is deliberately
+ * not recorded here: `FieldConstraintsSchema` mirrors `FieldValidationRules`, not
+ * the like-named legacy `FieldConstraints`, and its own docstring is what says so.
+ */
+const NAME_NON_PAIRS = {
+  'base.zod.ts#StylePropsSchema': {
+    mirror: StylePropsSchema,
+    declaration: 'StyleProps',
+    reason:
+      'the deprecated alias of `ClassNameStylePropsSchema` (objectui#5928), exported for one release. `StyleProps` (../base.ts) is the Tailwind-scale layout vocabulary (`padding`, `margin`, `gap`, `backgroundColor`, …); this object carries the two CSS passthrough attributes (`className`, `style`). They only ever shared a name.',
+  },
+} as const;
+
 /* ── Exclusions ─────────────────────────────────────────────────────────────── */
 
 /**
@@ -1512,12 +1550,14 @@ export type assertionBaseSchemaKeysResolve = Expect<
  * in neither map.
  */
 const EXCLUSIONS: Readonly<Record<string, string>> = {
-  // A NAME COLLISION, not a mirror. The like-named `StyleProps` in `../base.ts` is a
-  // Tailwind-scale vocabulary (`padding`, `margin`, `gap`, `backgroundColor`, …) and
-  // shares ZERO keys with this `{ className, style }` object. A name-derived pairing
-  // put them together; `assertionEveryPairOverlaps` rejected it.
+  // The `{ className, style }` passthrough object. Nothing in this package restates
+  // it — and the name that LOOKED like its declaration is the collision objectui#5928
+  // renamed away; `NAME_NON_PAIRS` above keeps measuring that collision for as long as
+  // the deprecated alias is exported.
+  'base.zod.ts#ClassNameStylePropsSchema':
+    'no TS declaration in this package restates it — the `{ className, style }` passthrough attributes are declared inline on each schema, never as one shared interface',
   'base.zod.ts#StylePropsSchema':
-    'no TS declaration in this package restates it — `StyleProps` (../base.ts) is an unrelated Tailwind style vocabulary that shares no key with it',
+    'the deprecated alias of `ClassNameStylePropsSchema` (objectui#5928), removed one release out — it restates nothing, and the like-named `StyleProps` (../base.ts) is the unrelated Tailwind-scale vocabulary recorded in `NAME_NON_PAIRS`',
   'app.zod.ts#NavigationItemTypeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'app.zod.ts#NavigationItemSchema':
@@ -1680,6 +1720,37 @@ function exportedConsts(): string[] {
   return out;
 }
 
+/* ── Which keys a TS declaration in this package declares (AST) ──────────────── */
+
+const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * The member names of ONE TS declaration in this package, or `null` if no
+ * declaration by that name exists.
+ *
+ * Read from the AST of the package's own sources rather than from a type-level
+ * probe, because `NAME_NON_PAIRS` has to answer a question the type level cannot:
+ * "does a declaration by this NAME still exist at all?". A type import of a name
+ * that has been deleted is a compile error, not a measurement — the entry would
+ * have to be edited before the check could report on it, which is the opposite of
+ * a ratchet.
+ */
+export function declaredMemberNames(name: string): string[] | null {
+  for (const file of readdirSync(SRC_DIR).sort()) {
+    if (!file.endsWith('.ts')) continue;
+    const sf = ts.createSourceFile(file, readFileSync(join(SRC_DIR, file), 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS);
+    for (const stmt of sf.statements) {
+      if (ts.isInterfaceDeclaration(stmt) && stmt.name.text === name) {
+        return stmt.members.filter((m) => m.name && ts.isIdentifier(m.name)).map((m) => (m.name as ts.Identifier).text);
+      }
+      if (ts.isTypeAliasDeclaration(stmt) && stmt.name.text === name && ts.isTypeLiteralNode(stmt.type)) {
+        return stmt.type.members.filter((m) => m.name && ts.isIdentifier(m.name)).map((m) => (m.name as ts.Identifier).text);
+      }
+    }
+  }
+  return null;
+}
+
 /* ── Which exports reference a spec symbol (AST, not raw text) ───────────────── */
 
 /**
@@ -1809,7 +1880,7 @@ exactly how objectui#4605 and #5186 stayed latent.`).toEqual([]);
 
   it('no map entry names a const that no longer exists', () => {
     const onDisk = new Set(exportedConsts());
-    const stale = [...Object.keys(MIRRORS), ...Object.keys(EXCLUSIONS)].filter((k) => !onDisk.has(k));
+    const stale = [...Object.keys(MIRRORS), ...Object.keys(EXCLUSIONS), ...Object.keys(NAME_NON_PAIRS)].filter((k) => !onDisk.has(k));
     expect(stale, 'stale entries — the const was renamed or removed').toEqual([]);
   });
 
@@ -1843,6 +1914,71 @@ exactly how objectui#4605 and #5186 stayed latent.`).toEqual([]);
   it('every exclusion carries a reason', () => {
     const empty = Object.entries(EXCLUSIONS).filter(([, why]) => why.trim().length < 20);
     expect(empty.map(([k]) => k), 'an exclusion without a reason is an oversight').toEqual([]);
+  });
+});
+
+describe('the name-derived pairing skips declared non-pairs (objectui#5928)', () => {
+  const entries = Object.entries(NAME_NON_PAIRS);
+
+  it('the skip list is not empty — this suite has something to measure', () => {
+    // Every assertion below is written over `entries`. An empty map makes all of
+    // them pass while measuring nothing, which is the failure mode the whole file
+    // is built against.
+    expect(entries.length).toBeGreaterThan(0);
+  });
+
+  it('every skip names a TS declaration that still exists', () => {
+    const missing = entries.filter(([, e]) => declaredMemberNames(e.declaration) === null);
+    expect(missing.map(([k, e]) => `${k} -> ${e.declaration}`), `
+A skip names a declaration this package no longer has. The collision it records is
+gone (or the name is misspelled), so the entry states something unmeasurable — drop
+the entry, or correct the name it points at.`).toEqual([]);
+  });
+
+  it('every skip carries a stated reason', () => {
+    const empty = entries.filter(([, e]) => e.reason.trim().length < 20);
+    expect(empty.map(([k]) => k),
+      'a skip without a reason is how the next false pair gets added silently').toEqual([]);
+  });
+
+  it('a skipped const is never also a registered pair', () => {
+    const both = entries.map(([k]) => k).filter((k) => k in MIRRORS);
+    expect(both, 'a const cannot be both skipped and paired — one of the two is wrong').toEqual([]);
+  });
+
+  it('the skip measures the object the canonical name exports', () => {
+    // The alias is the subject of the entry, so the entry must hold the SAME object
+    // the canonical export holds. A copy would let the two drift apart and the
+    // measurement below would be of something nobody publishes.
+    expect(NAME_NON_PAIRS['base.zod.ts#StylePropsSchema'].mirror).toBe(ClassNameStylePropsSchema);
+  });
+
+  it('THE MEASUREMENT — the two sides of every skip still share no key', () => {
+    const overlapping = entries
+      .map(([k, e]) => {
+        const mirrored = Object.keys(e.mirror.shape);
+        const declared = declaredMemberNames(e.declaration) ?? [];
+        return [k, mirrored.filter((key) => declared.includes(key))] as const;
+      })
+      .filter(([, shared]) => shared.length > 0);
+
+    expect(overlapping.map(([k, shared]) => `${k}: ${shared.join(', ')}`), `
+A skipped non-pair now OVERLAPS the declaration it was skipped against. That is the
+partial-overlap collision objectui#5928 was filed about: from here a name-derived
+pairing compares like a mirror and reports phantom drift with nothing to catch it.
+Decide the collision — rename one of the two, or register the pair deliberately —
+rather than editing this expectation.`).toEqual([]);
+  });
+
+  it('non-vacuity: the same two readers MEASURE the overlap of a real pair', () => {
+    // Both readers returning nothing would make the assertion above green forever.
+    // Run them, unchanged, over a registered pair that demonstrably overlaps.
+    const mirrored = Object.keys(ListItemSchema.shape);
+    const declared = declaredMemberNames('ListItem');
+    expect(declared, '`ListItem` is declared in ../data-display.ts — a null here is a broken reader').not.toBeNull();
+    const shared = mirrored.filter((key) => (declared ?? []).includes(key));
+    expect(shared).toContain('label');
+    expect(shared.length).toBeGreaterThan(3);
   });
 });
 
