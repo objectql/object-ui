@@ -35,6 +35,7 @@
     "@objectstack/spec": "^17.2.0"
   },
   "devDependencies": {
+    "@object-ui/test-support": "workspace:*",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

@@ -10,10 +10,17 @@
  * SPEC ENUM VOCABULARY — one reader for every parity gate that asks
  * "which names does this contract accept?" (objectui#5872, objectui#6924).
  *
- * Two exports, ONE walk. `enumOptions(node)` is the walk; `shapeEnumOptions`
- * is that walk entered through a shape member. See "Two entry points, one
- * walk" below for why the second family needed an entry point and not a
- * second reader.
+ * Two exports, ONE walk. `enumOptions(node)` reads the vocabulary at each level
+ * of that walk; `shapeEnumOptions` is the same reader entered through a shape
+ * member. See "Two entry points, one walk" below for why the second family
+ * needed an entry point and not a second reader.
+ *
+ * The walk ITSELF now lives in `spec-zod-wrappers.ts` — `firstInWrapperChain`
+ * — because objectui#5872 class (2) brought a SECOND reader (array elements)
+ * that needs the same steps and a different question at each one. That move is
+ * the promise below ("exactly one wrapper-walk in this repository") kept, not
+ * abandoned: the step is unchanged in order and tries one more spelling only
+ * where it previously gave up. `spec-zod-wrappers.ts` carries the measurement.
  *
  * ## The reader this replaces
  *
@@ -71,9 +78,9 @@
  * `shapeEnumOptions` could not answer for them — it opens with
  * `resolvePropsShape` and then indexes `shape[key]`, so a node that is already
  * the enum has no shape to resolve and no key to index, and it returns `[]`.
- * That is a missing ENTRY POINT, not a missing reader: the loop below already
- * reads `.options` before unwrapping, so it answers a bare enum correctly the
- * moment it is handed one. So the walk is exported as `enumOptions(node)` and
+ * That is a missing ENTRY POINT, not a missing reader: the walk reads
+ * `.options` before unwrapping, so it answers a bare enum correctly the moment
+ * it is handed one. So the reader is exported as `enumOptions(node)` and
  * `shapeEnumOptions` delegates to it. There is exactly one wrapper-walk in this
  * repository, and adding a third entry point later must not change that.
  *
@@ -88,25 +95,7 @@
  */
 
 import { resolvePropsShape } from './spec-tombstones';
-
-/** A Zod node, as far as unwrapping to an enum needs to see it. */
-interface EnumCarrier {
-  options?: unknown;
-  unwrap?: () => unknown;
-  def?: { innerType?: unknown };
-  _def?: { innerType?: unknown };
-}
-
-/**
- * How many wrappers deep to look before giving up.
- *
- * Bounded rather than `while (node)`: the step below is reached through
- * `unknown`, so a node that unwraps to itself — a shape this reader cannot
- * rule out and should not hang on — ends the walk instead of the process. Eight
- * is far past anything the contract stacks today (the deepest in-tree member is
- * one wrapper: `.default()` or `.optional()`).
- */
-const MAX_WRAPPER_DEPTH = 8;
+import { firstInWrapperChain } from './spec-zod-wrappers';
 
 /**
  * The enum names a node ACCEPTS, unwrapped past `.optional()` / `.default()` /
@@ -120,22 +109,23 @@ const MAX_WRAPPER_DEPTH = 8;
  * `[]` carries the non-vacuity duty described in this module's docblock: it
  * means "no vocabulary could be read", and a caller that does not assert
  * against it cannot tell a broken reader from a satisfied parity check.
+ *
+ * ⚠️ NOT a union reader. On `zod@4.4.3` a `ZodUnion` also carries
+ * `.options` — an array of its ARM SCHEMAS, not of names — so pointing this at
+ * a union returns schema objects behind a `string[]` annotation. The censused
+ * union-arm sites (`types/spec-subschema-parity.test.ts`,
+ * `plugin-detail/.../recordHighlightsInputs.spec-parity.test.ts`) ask a
+ * different question and are deliberately left with their own readers.
  */
 export function enumOptions(node: unknown): string[] {
-  let carrier = node as EnumCarrier | undefined;
-  for (let depth = 0; carrier && depth <= MAX_WRAPPER_DEPTH; depth += 1) {
-    const options = carrier.options;
-    // Not filtered to strings: the converging call sites did not filter
-    // either, and dropping a non-string member here would narrow a vocabulary
-    // silently — the one thing this module exists to stop.
-    if (Array.isArray(options)) return [...options] as string[];
-    const inner =
-      typeof carrier.unwrap === 'function'
-        ? carrier.unwrap()
-        : (carrier.def?.innerType ?? carrier._def?.innerType);
-    carrier = inner as EnumCarrier | undefined;
-  }
-  return [];
+  return (
+    firstInWrapperChain(node, (carrier) =>
+      // Not filtered to strings: the converging call sites did not filter
+      // either, and dropping a non-string member here would narrow a vocabulary
+      // silently — the one thing this module exists to stop.
+      Array.isArray(carrier.options) ? ([...carrier.options] as string[]) : undefined,
+    ) ?? []
+  );
 }
 
 /**

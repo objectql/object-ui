@@ -38,6 +38,7 @@
  *      user-visible half of this bug.
  */
 import { describe, it, expect } from 'vitest';
+import { enumOptions } from '@object-ui/test-support';
 import { GetMetaItemLayeredResponseSchema } from '@objectstack/spec/api';
 import type { MetadataLayered, MetadataOverlayScope } from './metadata-client';
 
@@ -66,7 +67,14 @@ const specOverlayScope = GetMetaItemLayeredResponseSchema.shape.overlayScope;
 
 describe('MetadataLayered.overlayScope tracks the spec enum (objectui#4982)', () => {
   it('the producer vocabulary is exactly org | env, plus null', () => {
-    expect(specOverlayScope.unwrap().options).toEqual(['org', 'env']);
+    // Read through `@object-ui/test-support` rather than `.unwrap().options`
+    // (objectui#5872 class (4)). The bare spelling was a SEVENTH way to ask this
+    // question and the only one with neither a cast nor a guard: it answered
+    // correctly only while `overlayScope` stayed wrapped exactly once and Zod
+    // kept `.options` where it is. `enumOptions` walks the wrappers and answers
+    // `[]` when it cannot read — and `[]` fails this assertion, which is the
+    // non-vacuity duty that reader's docblock leaves with every caller.
+    expect(enumOptions(specOverlayScope)).toEqual(['org', 'env']);
     expect(specOverlayScope.safeParse(null).success).toBe(true);
   });
 
