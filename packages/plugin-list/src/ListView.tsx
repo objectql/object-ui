@@ -2491,9 +2491,33 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...baseProps,
           // Nested timeline config (spec-compliant, used by ObjectTimeline)
           timeline: Object.keys(resolvedTimeline).length > 0 ? resolvedTimeline : undefined,
-          // Deprecated top-level props for backward compat. `created_at` stays
-          // the last resort for a view that declares no date axis anywhere.
-          startDateField: dateBinding.startDateField || 'created_at',
+          // Deprecated top-level props for backward compat.
+          //
+          // objectui#7070 step ③ — house posture, entered on the maintainer's
+          // ruling of 2026-09-01 (总监批 #28): 日期轴永不虚构 — a date axis is
+          // never fabricated. The two lines of prose that used to sit here
+          // ("`created_at` stays the last resort for a view that declares no
+          // date axis anywhere") were not an oversight, they stated a decision —
+          // and that decision is what the ruling explicitly replaced. It was a
+          // second, de-facto contract held at ONE face, on the very literal
+          // objectui#3129 retired at the app-shell face, so the product held two
+          // documented and opposite postures on one field name.
+          //
+          // `ObjectTimeline` reads this FLAT prop at the tail of its resolver
+          // chain, so a floor here answered "the axis is bound" for every view
+          // and made its refusal screen (objectui#7459, step ① of the same
+          // ruling) unreachable from this route. Worse, the axis it invented was
+          // never FETCHED: the `$select` projection is collected from the
+          // DECLARED `timeline` / `options.timeline` blocks above, never from
+          // this prop — so an undeclared view rendered a timeline bound to a
+          // column the query had not requested and bucketed every record into
+          // "No date". Absent is now absent, and the renderer says which keys to
+          // declare instead.
+          //
+          // ⛔ `titleField` is NOT a date axis and keeps its floor — the same
+          // display-name rung the gallery and gantt branches carry here, and
+          // `timelineViewOptions` carries at app-shell.
+          ...(dateBinding.startDateField ? { startDateField: dateBinding.startDateField } : {}),
           titleField: dateBinding.titleField || 'name',
           ...(dateBinding.endDateField ? { endDateField: dateBinding.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
