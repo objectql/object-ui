@@ -82,6 +82,11 @@ export * from './utils/chart-presentation.js';
 // `dataset-format` below from reaching it (so the two drifted). `@object-ui/i18n`
 // re-exports these names unchanged, so both import paths name the same symbol.
 export * from './utils/number-display.js';
+// The ONE date-display path (objectui#7178) — the same story one type over.
+// It lived in `@object-ui/fields`' React barrel, which `dataset-format`
+// below could not import, so a date-valued measure rendered its raw ISO
+// string. `@object-ui/fields` re-exports these names unchanged.
+export * from './utils/date-display.js';
 export * from './utils/dataset-format.js';
 // Pivot lookup-key encoders, shared by every cross-tab renderer so the
 // dashboard widget and the report renderer key their buckets identically
