@@ -13,5 +13,22 @@
     "composite": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tooling is excluded by DIRECTORY, not just by file NAME — the arrangement
+  // 34 of this repo's 38 test-bearing packages already use (see
+  // `packages/plugin-map/tsconfig.json`, whose comment carries the history).
+  // Until objectui#7113 this package had no exclusion at all, so its 45 test
+  // files were inputs to THIS program — which emits (`declaration`, `composite`,
+  // `outDir: dist`). That is the defect objectui#4006 / #4836 / #6943 hit three
+  // times and `pnpm check:published-tsconfig-exclude` exists to stop. The tests
+  // are still type-checked, by `tsconfig.test.json`, which `type-check` chains.
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/__benchmarks__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }
