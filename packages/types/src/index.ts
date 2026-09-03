@@ -623,7 +623,6 @@ export type {
   GestureType,
   GestureConfig,
   GestureContext,
-  MobileComponentConfig,
   // The retired `@objectstack/spec/ui` touch vocabulary, now owned here —
   // see the "Spec Touch Vocabulary" note in `./mobile` (objectstack#4988).
   // `SPEC_GESTURE_TYPES` is its runtime witness and is exported as a VALUE

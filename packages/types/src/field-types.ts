@@ -205,9 +205,13 @@ export interface MarkdownFieldMetadata extends BaseFieldMetadata {
    * `RichTextField` — the one widget behind the `markdown`/`html`/`richtext`
    * registry keys — has always read `rows` off this metadata (default 8) while
    * no rich-content type declared it, so the running widget honoured a key an
-   * annotated literal rejected. Aligns the `TextareaFieldMetadata` precedent
-   * and `@objectstack/spec` `FieldSchema.rows` (a positive integer, authorable
-   * on exactly the multiline editor types textarea/markdown/html/richtext).
+   * annotated literal rejected. Follows the `TextareaFieldMetadata` precedent.
+   *
+   * WARNING - NOT a spec key. Measured on the installed `@objectstack/spec`
+   * 17.2.0: `FieldSchema` REFUSES `rows` BY NAME (`unrecognized_keys`) on all
+   * four of textarea/markdown/html/richtext, with the same payload minus
+   * `rows` accepted as the control. It is an objectui render hint and must not
+   * be written into authored object metadata (objectui#7014).
    * The four inert editor keys the same ruling measured (`toolbar`/`preview`/
    * `minHeight`/`maxHeight`) stay deliberately undeclared — nothing reads them.
    */
@@ -224,8 +228,8 @@ export interface HtmlFieldMetadata extends BaseFieldMetadata {
    * Height of the INLINE editor, in text rows. Same declaration as
    * `MarkdownFieldMetadata.rows` (objectui#6140 Option A ruling — see the
    * docblock there): `RichTextField` reads it for all three registry keys it
-   * serves, and `@objectstack/spec` `FieldSchema.rows` declares it for the
-   * multiline editor types.
+   * serves. WARNING - NOT a spec key either; see the measured refusal in the
+   * docblock there (objectui#7014).
    */
   rows?: number;
 }
@@ -320,9 +324,17 @@ export interface SelectOptionMetadata {
    * (`opt.description && opt.description.toLowerCase().includes(q)`) and its
    * `recordToOption` emits the same key for fetched records — while this type
    * never declared it, so the behaviour was real for a key no annotated
-   * literal could carry. Aligns `@objectstack/spec`
-   * `SelectOptionSchema.description`; renderers may show it as supporting
-   * text.
+   * literal could carry. Renderers may show it as supporting text.
+   *
+   * WARNING - objectui-side extension, NOT a spec key. Measured on the
+   * installed `@objectstack/spec` 17.2.0: `SelectOptionSchema` is `.strict()`
+   * over exactly `{label, value, color, default, visibleWhen}` and REFUSES
+   * `description` BY NAME (`unrecognized_keys`), with the same option minus
+   * the key accepted as the control. `FieldSchema` routes `options` through
+   * that schema, so writing this key into authored object metadata fails the
+   * whole field. It lives on the runtime READ model the renderers consume and
+   * must never reach the metadata payload. Pinned by
+   * `__tests__/select-option-spec-extension-7014.test.ts` (objectui#7014).
    */
   description?: string;
   color?: string;

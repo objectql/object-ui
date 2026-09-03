@@ -129,7 +129,10 @@ const ko = {
     // there are two conditions: a reported `total` states the fact with BOTH
     // numbers, a missing one cannot name how many. Same split as
     // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
-    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
     rowCeilingNote: "전체 {{total}}개 중 처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
     rowCeilingNoteUnknownTotal: "처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
   },

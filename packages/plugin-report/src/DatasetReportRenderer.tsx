@@ -93,7 +93,7 @@ import {
   type DatasetResultField,
   type DatasetDrillRange,
 } from '@object-ui/core';
-import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate, useDisplayLocale, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
 import { useDatasetDimensionLabels, useDatasetDimensionMeta } from './useDatasetDimensionLabels';
 
@@ -1000,12 +1000,20 @@ function DatasetReportChart({
   // helper's single-dimension branch and returns ONE series; the pivot branch
   // (2+ dimensions) is unreachable from a report chart, whose schema declares a
   // single `xAxis`/`yAxis` pair.
+  //
+  // `builtinAggregateLabels` (objectui#7258): a measure the server minted as a
+  // built-in default (`builtinAggregate: 'count'`, objectstack#14492) reads its
+  // series label from the locale bundle; an author-declared measure carries no
+  // discriminator and keeps its wire `label` verbatim (objectui#4106).
   const { data: chartData, xAxisKey, series: derivedSeries } = buildChartSeries(
     relabelDimensions(state.rows, dimensionLabels),
     [xAxis],
     [yAxis],
     state.fields,
-    { nullCategoryLabel: tt('chart.nullCategory', '(None)') },
+    {
+      nullCategoryLabel: tt('chart.nullCategory', '(None)'),
+      builtinAggregateLabels: builtinAggregateLabels(tt),
+    },
   );
 
   // ── The PRESENTATION half: authored, merged forward (#4229) ──────────────

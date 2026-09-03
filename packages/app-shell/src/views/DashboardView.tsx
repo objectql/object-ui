@@ -170,10 +170,23 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0">
         <div className="min-w-0 flex-1">
           {(() => {
-            // Per @objectstack/spec, DashboardSchema.title is "the dashboard
-            // title displayed in the header". We prefer it when present, then
-            // fall back to `label` (the metadata display name) and finally to
-            // the raw `name`.
+            // `title` is NOT a spec key — it is the LEGACY objectui spelling,
+            // read here only so a stored dashboard document that predates
+            // `label` still gets a header. Measured on @objectstack/spec
+            // 17.2.0: `DashboardSchema` refuses `title` BY NAME
+            // (`unrecognized_keys(title)` at the document root) and spells the
+            // display name `label`; `header` declares `showTitle` /
+            // `showDescription` / `actions` only, so it TOGGLES a title and
+            // never carries one. So authored dashboard metadata must use
+            // `label`: writing `title` earns a `422 INVALID_METADATA` /
+            // `unrecognized_keys` from the save route before persistence
+            // (see `MetadataService`), not a header.
+            //
+            // `previewSchema` is NOT a host-supplied preview channel — it is
+            // this view's own widget-pruned copy of `dashboard` (above), so
+            // either arm of `headerSrc` reads the same stored document.
+            // `DashboardRenderer` reads the same legacy-then-canonical pair.
+            // Order: legacy `title`, then `label`, then the raw `name`.
             const headerSrc = (previewSchema as any) || dashboard;
             const resolvedTitle = resolveKeyedI18nLabel(headerSrc.title, t);
             const resolvedLabel = resolveKeyedI18nLabel(dashboard.label, t);

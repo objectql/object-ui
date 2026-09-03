@@ -76,7 +76,7 @@ import {
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
-import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
 import { AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 // objectui#7063 — the default empty state is stated ONCE for the dashboard
 // surface (see that component's header for why it is dashboard-local).
@@ -1387,7 +1387,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const nullCategoryLabel = tt('chart.nullCategory', '(None)');
   // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
   // series so multi-dimension dataset widgets match the chart-view renderer.
-  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields, { nullCategoryLabel });
+  //
+  // `builtinAggregateLabels` (objectui#7258) is the same division for a
+  // MEASURE's label: a result field the server minted as a built-in default
+  // (`builtinAggregate: 'count'`, objectstack#14492) takes its series label
+  // from the locale bundle here — `计数` on a zh console, not the server's
+  // English `Count` — while an author-declared measure carries no discriminator
+  // and keeps its wire `label` verbatim (objectui#4106).
+  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields, {
+    nullCategoryLabel,
+    builtinAggregateLabels: builtinAggregateLabels(tt),
+  });
 
   // The author's PRESENTATION, merged onto those derived bindings — per-series
   // mark and axis binding, plus the axis definitions (#4229). Membership stays

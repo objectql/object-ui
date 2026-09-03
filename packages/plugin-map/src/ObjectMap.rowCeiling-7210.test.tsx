@@ -20,10 +20,23 @@
  * here depends on container size or on the real map's viewport — the note is a
  * sibling in the component's own tree, present or absent regardless of layout.
  *
- * REVERSE VERIFICATION — direction predicted before running: removing
- * `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectMap`'s fetch turns the
- * truncation case red at the footnote assertion, while the below-ceiling case
- * stays green.
+ * REVERSE VERIFICATION — MEASURED on two separate ablations (objectui#7507),
+ * because this file grades two different things and one of them was missing:
+ *
+ *   1. Remove `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectMap`'s fetch ⇒ red
+ *      at the **`$top` assertion**, and there only; 1 failed / 2 passed. NOT
+ *      at the footnote, which is what this docblock used to predict. An
+ *      adapter with no `$top` answers with the whole filtered set,
+ *      `applyNonGridRowCeiling` slices it to the ceiling from the rows in
+ *      hand, and both the marker count and the note stay correct. Losing the
+ *      `$top` is a bandwidth regression, not a correctness one.
+ *   2. Hand the view the RAW response instead of the capped rows
+ *      (`setData(capped.rows)` → `setData(result.data ?? capped.rows)`) ⇒ red
+ *      at the **marker-count assertion**, 2001 against 2000. Before #7507 that
+ *      mutation left this file green at 4/4: `$top` was still sent and the
+ *      footnote still rendered, while 2,001 markers were plotted. That is the
+ *      hole the count case below closes, and it is the ruling's own pin text —
+ *      "the DOM row count equals the ceiling".
  */
 
 import React from 'react';
@@ -100,7 +113,33 @@ describe('objectui#7210 ruling a′ — the map caps at the platform ceiling, lo
     expect(note.textContent).toContain(String(TOTAL_ROWS));
   });
 
-  it('below the ceiling: there is NO footnote', async () => {
+  it('above the ceiling: exactly N markers reach the map, not N+1', async () => {
+    const calls: Array<Record<string, any>> = [];
+    const dataSource = makeDataSource(TOTAL_ROWS, calls);
+
+    // ⭐ The ruling's own words — "the DOM row count equals the ceiling". The
+    // `$top` and the footnote in the case above are both true of a map that
+    // then plotted every row the adapter sent: measured on the merged commit,
+    // replacing the capped hand-off with the raw response left this file green
+    // at 4/4 with 2,001 markers on the map. This is the assertion that was
+    // missing, and it is a case of its own for one reason:
+    //
+    // ⚠️ `enableClustering={false}` is what makes the count OBSERVABLE at all.
+    // The map's default is to cluster above 100 markers, and a cluster bubble
+    // is exactly a marker count folded into one DOM node — the defence the
+    // file's own docblock names as what makes a silent cut invisible here.
+    // Clustering is a pure function of the marker array, so turning it off
+    // changes what is on screen and not what reached the view; with it on,
+    // 2,000 and 2,001 markers render the same handful of bubbles.
+    render(<ObjectMap schema={schema} dataSource={dataSource} enableClustering={false} />);
+
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(screen.queryAllByTestId('map-marker').length).toBe(NON_GRID_ROW_CEILING),
+    );
+  });
+
+  it('below the ceiling: every marker draws and there is NO footnote', async () => {
     const calls: Array<Record<string, any>> = [];
     const dataSource = makeDataSource(20, calls);
 
@@ -108,6 +147,11 @@ describe('objectui#7210 ruling a′ — the map caps at the platform ceiling, lo
 
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.queryByText(/Loading map/i)).toBeNull());
+    // 20 is under the map's own 100-marker clustering threshold, so every
+    // record is its own DOM marker here with no prop needed. The other half of
+    // "draws at most N": it keeps the case above from passing on a map that
+    // caps everything at 2,000 unconditionally.
+    expect(screen.queryAllByTestId('map-marker').length).toBe(20);
     expect(screen.queryByRole('note')).toBeNull();
   });
 });

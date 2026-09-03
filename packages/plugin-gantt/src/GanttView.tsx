@@ -40,9 +40,6 @@ import { computeCriticalPath, computeProjectRescheduleDetailed, wouldCreateDepen
 import { shiftDayStart, type NormShiftSegments } from "./shifts"
 import { useGanttTranslation } from "./useGanttTranslation"
 
-const HEADER_HEIGHT = 50;
-const COLUMN_WIDTH = 100; // Time column width
-
 // Width, in px, of the resize "grab zone" at each end of a task bar. The visible
 // grip is only a few px, but pointer synthesis in headless browsers quantizes the
 // click coordinate, so a click aimed at the edge routinely lands a pixel or two
@@ -870,8 +867,9 @@ export function GanttView({
   // (browser locale) when no I18nProvider supplies a language, so standalone
   // embeds and tests behave exactly as before.
   const dateLocale = language || undefined;
-  const [currentDate, setCurrentDate] = React.useState(() => tzShift.now());
   const containerRef = React.useRef<HTMLDivElement>(null);
+  // Observed container width — the source every auto-sized dimension below
+  // derives from: row height, base column width, and the task-list pane width.
   const { width: containerWidth } = useResizeObserver(containerRef);
   const effectiveWidth = containerWidth || (typeof window !== 'undefined' ? window.innerWidth : 1024);
   const isNarrow = effectiveWidth < 640;
@@ -2320,8 +2318,6 @@ export function GanttView({
       .filter((m) => m.valid);
   }, [markers, timelineRange, dateToX]);
 
-  const taskListWidth_LEGACY_REMOVED = null; // taskListWidth now derived from useResizeObserver above
-  
   const headerRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const timelineRef = React.useRef<HTMLDivElement>(null);
