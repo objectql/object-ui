@@ -151,7 +151,7 @@ interface AppAction {
   type: 'button' | 'dropdown' | 'user';
   label?: string;
   icon?: string;
-  onClick?: string;
+  onClick?: never;        // RETIRED (objectui#7344): the handler-expression string is refused by name — author an action:button node instead
   avatar?: string;        // For type='user'
   description?: string;   // For type='user'
   items?: AppMenuItem[];  // For type='dropdown' or 'user'
@@ -245,8 +245,7 @@ const crm: AppComponentSchema = {
       type: 'button',
       label: 'Quick Actions',
       icon: 'zap',
-      variant: 'outline',
-      onClick: 'openQuickActions'
+      variant: 'outline'
     },
     {
       type: 'user',
