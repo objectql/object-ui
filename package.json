@@ -57,6 +57,7 @@
     "check:i18n-dead-keys": "node scripts/check-i18n-dead-keys.mjs",
     "check:skills-paths": "node scripts/check-skills-paths.mjs",
     "check:skill-examples": "node scripts/check-skill-examples.mjs",
+    "check:skill-eval-tokens": "node scripts/check-skill-eval-tokens.mjs",
     "check:doc-types": "node scripts/check-doc-component-types.mjs",
     "check:doc-snippets": "node scripts/check-doc-snippet-types.mjs",
     "check:doc-fences": "node scripts/check-doc-fence-languages.mjs",

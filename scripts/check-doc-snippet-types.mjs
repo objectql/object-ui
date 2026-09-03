@@ -580,17 +580,6 @@ const UNGATED_DOCS = {
     '`registerPlaceholders` is) and is taught in no other authored file, and ' +
     '`createObjectStackAdapter` is imported from @object-ui/core, which does not ship it — ' +
     '@object-ui/data-objectstack does, as packages/plugin-dashboard/README.md already writes it.',
-  'content/docs/plugins/plugin-calendar-view.mdx':
-    '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
-    '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
-    'it means declaring those blocks, which is a judgement about the page rather than a mechanical ' +
-    'edit — the one entry here that would be closed by declaring blocks rather than by fixing them.',
-  'content/docs/plugins/plugin-detail.mdx':
-    '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/utilities/create-plugin.mdx':
-    '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'packages/app-shell/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/auth/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/collaboration/README.md':
@@ -623,8 +612,6 @@ const UNGATED_DOCS = {
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-chatbot/README.md':
     '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
-  'packages/plugin-dashboard/README.md':
-    '19 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 4 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-designer/README.md':
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x6 TS2554x1 TS2741x1 — candidate real defects, un-triaged',
   'packages/plugin-detail/README.md':
@@ -641,8 +628,6 @@ const UNGATED_DOCS = {
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x1 — candidate real defects, un-triaged',
   'packages/plugin-markdown/README.md':
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-report/README.md':
-    '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS1108x1 — candidate real defects, un-triaged',
   'packages/plugin-tree/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/providers/README.md':

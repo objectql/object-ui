@@ -739,11 +739,59 @@ export default defineConfig({
             { name: 'vendor-i18n', test: /[\\/]node_modules[\\/](i18next|react-i18next)[\\/]/, priority: 90 },
             // Workspace packages — match by realpath, since pnpm may resolve
             // through node_modules/@object-ui/<pkg> symlinks to packages/<pkg>.
+            //
+            // ## Why two tiers and not one (objectui#7399)
+            //
+            // These five groups were ALL `priority: 80` with `framework` written
+            // first, and that tie was NOT benign. Measured on `e307c9896`, the
+            // emitted `framework` chunk held 166 modules and only 145 of them
+            // came from `core|react|types` — its own test:
+            //
+            //   | packages/i18n             |  16 mod | 78.7% of the chunk's bytes |
+            //   | packages/core             |  67 mod |  9.6% |
+            //   | packages/react            |  63 mod |  4.7% |
+            //   | packages/data-objectstack |   5 mod |  4.6% |
+            //   | packages/types            |  15 mod |  2.3% |
+            //
+            // `framework`'s regex does not match EITHER of the two intruders, and
+            // `data-adapter` — declared below since objectui#5490 — emitted no
+            // chunk at all. On a tie the subgraph reached through
+            // `@object-ui/react` was absorbed by the group listed first, so
+            // `PER_CHUNK_GZIP_CEILINGS['framework']` was in operation a budget on
+            // the TRANSLATION CATALOGUE: 523,959 gzipped bytes against a 524,000
+            // ceiling, 41 bytes of headroom for the whole repository, and a gate
+            // whose message ("don't grow core|react|types") pointed away from its
+            // own cause. Five PRs adding ruled user-facing copy were parked on it.
+            //
+            // So the two groups the tie was swallowing are lifted one tier ABOVE
+            // it, and `i18n` leaves `infrastructure`'s alternation because a
+            // dedicated group now owns it (a dead alternative in a live regex is
+            // the next silent drift). Tier 84 sits above the general workspace
+            // groups and below the vendor tier at 85+; its two members' tests are
+            // disjoint from each other and from every vendor test, so lifting
+            // them introduces no new tie.
+            //
+            // ⛔ This moves NO MODULE BYTES. The eager closure holds the same
+            // module set before and after; what changes is which file each
+            // module is written to. Measured cost of the extra chunk
+            // boundaries: eager closure 3,255,233 -> 3,256,012 gzipped, +779 B
+            // (+0.024%), raw +837 B — all of it `import` bookkeeping in the
+            // chunks that now name two files where they named one. Nothing here
+            // may be read as headroom that was earned.
+            //
+            // ⚠️ Disclosed rather than smoothed over: `data-adapter` now also
+            // holds 5 modules (8.5 KB raw) from `core`/`types` that are reached
+            // ONLY through `data-objectstack`. That is the same shared-module
+            // pull-in this comment is about, one tier down and three orders of
+            // magnitude smaller. It is rolldown's behaviour, not a choice
+            // available here: `framework` cannot be lifted above these two
+            // without re-absorbing the catalogue, which is the whole defect.
+            { name: 'i18n-locales', test: /[\\/]packages[\\/]i18n[\\/]/, priority: 84 },
+            { name: 'data-adapter', test: /[\\/]packages[\\/]data-objectstack[\\/]/, priority: 84 },
             { name: 'framework', test: /[\\/]packages[\\/](core|react|types)[\\/]/, priority: 80 },
             { name: 'ui-components', test: /[\\/]packages[\\/](components|fields)[\\/]/, priority: 80 },
             { name: 'ui-layout', test: /[\\/]packages[\\/]layout[\\/]/, priority: 80 },
-            { name: 'data-adapter', test: /[\\/]packages[\\/]data-objectstack[\\/]/, priority: 80 },
-            { name: 'infrastructure', test: /[\\/]packages[\\/](auth|permissions|tenant|i18n)[\\/]/, priority: 80 },
+            { name: 'infrastructure', test: /[\\/]packages[\\/](auth|permissions|tenant)[\\/]/, priority: 80 },
             // Plugins — one chunk per plugin so dynamic imports cleave cleanly.
             { name: 'plugin-grid', test: /[\\/]packages[\\/]plugin-grid[\\/]/, priority: 70 },
             { name: 'plugin-form', test: /[\\/]packages[\\/]plugin-form[\\/]/, priority: 70 },

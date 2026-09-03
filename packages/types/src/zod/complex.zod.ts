@@ -142,10 +142,10 @@ export const CalendarViewSchema = BaseSchema.extend({
     .describe('Initial calendar date (ISO string authored; Date instance from a React host)'),
   allowCreate: z.boolean().optional().describe('Show the "New event" affordance (default false)'),
   className: z.string().optional().describe('Tailwind classes for the calendar container'),
-  onEventClick: z
-    .function()
-    .optional()
-    .describe('Host-only event click handler (authored JSON cannot produce a function)'),
+  // objectui#7344: the multi-line `z.function()` spelling PR #7339's anchored
+  // census could not see; `pickHostCallbacks` forwards it exactly like
+  // `onViewChange` below.
+  onEventClick: handlerKeyRefusal('onEventClick', 'runtime-slot', 'Host-only event click handler'),
   onViewChange: handlerKeyRefusal('onViewChange', 'runtime-slot', 'Host-only view change handler'),
 });
 

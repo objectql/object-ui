@@ -10,11 +10,14 @@ import { fileURLToPath } from 'node:url';
 import {
   EXIT_CODES,
   JSON_FENCE_LANGUAGES,
+  KNOWN_BARE_ANY_EXAMPLES,
   MARKER,
   SCAN_ROOTS,
   TS_FENCE_LANGUAGES,
+  bareAnyRowKey,
   buildFilterArgs,
   fenceSpans,
+  findBareAny,
   listGuides,
   parseJsonFence,
   scanSkillFences,
@@ -232,11 +235,14 @@ describe('JSON fences — `json` is strict, `jsonc` is exactly two things looser
 });
 
 describe('the scan surface is a decision, stated here rather than read off the walker', () => {
-  it('walks `skills` and, today, nothing else', () => {
-    // `.claude/skills/**` is deliberately outside this gate for now, the way
-    // `check-skills-paths.mjs`'s prefix allow-list was: widening it is a
-    // separate, visible edit with its own measurement, not a silent drift.
-    expect(SCAN_ROOTS).toEqual(['skills']);
+  it('walks the published bundle AND `.claude/skills`, and nothing else', () => {
+    // objectui#7463 item 3 widened this to `.claude/skills`, the same widening
+    // `check-skills-paths.mjs` took in objectui#7358 and for the same reason:
+    // when objectui#7251 moved the contributor-only guides out of `skills/`,
+    // a gate rooted only at `skills` silently stopped looking at them. It
+    // stays a stated decision with a measurement, never a silent drift — the
+    // widening added 9 candidate fences and ZERO marked ones.
+    expect(SCAN_ROOTS).toEqual(['skills', '.claude/skills']);
   });
 
   it('collects every `.md` under the roots, recursively and in a stable order', () => {
@@ -271,7 +277,11 @@ describe('the scan surface is a decision, stated here rather than read off the w
     // nothing at all.
     const guides = listGuides(repoRoot) as string[];
     expect(guides.length).toBeGreaterThan(5);
-    expect(guides.every((g) => g.startsWith('skills/'))).toBe(true);
+    expect(guides.every((g) => SCAN_ROOTS.some((r) => g.startsWith(`${r}/`)))).toBe(true);
+    // Both roots must actually be non-empty in this checkout, or the widening
+    // would be a root list nothing reads — the vacuity this leg exists to deny.
+    expect(guides.some((g) => g.startsWith('skills/'))).toBe(true);
+    expect(guides.some((g) => g.startsWith('.claude/skills/'))).toBe(true);
   });
 });
 
@@ -472,5 +482,76 @@ describe('the harness is imported, not re-rolled', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-skill-examples.mjs'), 'utf8');
     expect(source).not.toContain('ts.createProgram');
     expect(source).not.toContain('ts.createCompilerHost');
+  });
+});
+
+/**
+ * objectui#7463 item 1 — the bare-`any` assertion, ported from objectstack's
+ * `packages/spec/scripts/check-skill-examples.ts`.
+ *
+ * The NEGATIVE half carries the weight. A bare `any` erases checking wholesale,
+ * but an `any` nested in a larger type is a much broader question with a much
+ * larger baseline, and a guard that flagged it would red on prose that is not
+ * wrong — which is how gates get deleted. That boundary is the whole design, so
+ * it is pinned rather than left to the implementation.
+ */
+describe('the bare-`any` assertion', () => {
+  it.each([
+    ['a parameter', 'export function f(ctx: any) { return ctx; }', 'parameter `ctx`'],
+    ['a variable', 'export const x: any = 1;', 'variable `x`'],
+    ['an interface property', 'export interface I { p: any }', 'property `p`'],
+    ['a class property', 'export class C { p: any = 1; }', 'property `p`'],
+    ['a type alias', 'export type A = any;', 'type alias `A`'],
+    ['a return type', 'export function g(): any { return 1; }', 'return type'],
+    ['an arrow return type', 'export const h = (): any => 1;', 'return type'],
+    ['a method signature return', 'export interface J { m(): any }', 'return type'],
+    ['an `as any` cast', 'export const y = ({} as any);', '`as any` assertion'],
+    ['a `satisfies any`', 'export const z = ({} satisfies any);', '`satisfies any` assertion'],
+  ])('flags %s', (_label, code, want) => {
+    const hits = findBareAny(code) as { where: string }[];
+    expect(hits.map((h) => h.where)).toEqual([want]);
+  });
+
+  it.each([
+    ['Record<string, any>', 'export const a: Record<string, any> = {};'],
+    ['any[]', 'export const b: any[] = [];'],
+    ['Array<any>', 'export const c: Array<any> = [];'],
+    ['Promise<any>', 'export async function d(): Promise<any> { return 1; }'],
+    ['a union arm', 'export const e: string | any[] = [];'],
+    ['the word "any" in a string or a comment', 'export const f = "any"; // any of them'],
+  ])('does NOT flag a nested `any` in %s', (_label, code) => {
+    expect(findBareAny(code)).toEqual([]);
+  });
+
+  it('parses as TSX, so a JSX example is not mis-read as a type assertion', () => {
+    // `compileSnippets` parses every block as TSX regardless of the fence
+    // label. A guard walking a different tree would be reporting about a
+    // program `tsc` never judged.
+    expect(findBareAny('export const El = () => <div className="x">hi</div>;')).toEqual([]);
+  });
+
+  it('yields nothing rather than throwing on a block too broken to parse', () => {
+    // The `tsc` syntax leg owns that verdict; this guard must not double-report
+    // it, and must not crash the run either.
+    expect(() => findBareAny('export const three: = ;')).not.toThrow();
+  });
+
+  it('builds a baseline row key naming the guide, the fence line and the position', () => {
+    const block = { doc: 'skills/objectui/guides/x.md', fenceLine: 42 };
+    const finding = (findBareAny('export function f(ctx: any) {}') as { where: string }[])[0];
+    expect(bareAnyRowKey(block, finding)).toBe('skills/objectui/guides/x.md:42 parameter `ctx`');
+  });
+
+  it('declares its baseline as a shrink-only Set of verbatim rows', () => {
+    // Every row must be shaped like a key this gate can actually produce, or it
+    // would sit in the list forever covering nothing — a parked exemption
+    // wearing a ratchet's clothes.
+    expect(KNOWN_BARE_ANY_EXAMPLES).toBeInstanceOf(Set);
+    for (const row of KNOWN_BARE_ANY_EXAMPLES as Set<string>) {
+      expect(row, `baseline row is not \`GUIDE:LINE POSITION\`: ${row}`).toMatch(
+        /^[\w./-]+\.md:\d+ .+$/,
+      );
+      expect(SCAN_ROOTS.some((r: string) => row.startsWith(`${r}/`))).toBe(true);
+    }
   });
 });
