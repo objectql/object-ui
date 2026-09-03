@@ -725,6 +725,9 @@ const zh = {
     unsupported: {
       objectBoundGantt: '不支持的变体 "gantt" —— 对象绑定的时间线只渲染 feed 变体（{{variants}}）。甘特图需要字面量行，每行自带嵌套的 items，因此此处的甘特轴（scale）不起作用。',
     },
+    unconfigured: {
+      noDateAxis: '时间线需要日期轴 —— 该视图未声明任何日期字段，而对象绑定的时间线不会虚构一个。请声明以下之一：{{fields}}。第一个是 spec 写法，其余为遗留别名。',
+    },
   },
   gantt: {
     column: {

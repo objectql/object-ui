@@ -49,6 +49,30 @@ export const DEFAULT_TIMELINE_LIMIT = 100;
  */
 const OBJECT_BOUND_TIMELINE_VARIANTS = ['vertical', 'horizontal'] as const;
 
+/**
+ * Every date-axis binding this component READS, spelled as an author writes it,
+ * in the precedence order `startDateField` below applies them.
+ *
+ * Module-local for the same reason `OBJECT_BOUND_TIMELINE_VARIANTS` above is:
+ * the refusal's message interpolates THIS list rather than restating it in
+ * prose, so a rung added to (or retired from) the resolver cannot leave the
+ * diagnostic naming a vocabulary the resolver no longer has. Every entry is a
+ * DECLARED binding — the first two on `ListViewTimelineConfig`
+ * (`@object-ui/types`), the last three on this component's own props and on
+ * `TimelineExtensionSchema` — which is the property that distinguishes them
+ * from the `'date'` literal objectui#7459 retired from the end of that chain.
+ *
+ * Ordered canonical-first: the message tells the author which one to prefer by
+ * position rather than by a second prose sentence that could drift from it.
+ */
+const OBJECT_BOUND_TIMELINE_DATE_BINDINGS = [
+  'timeline.startDateField',
+  'timeline.dateField',
+  'mapping.date',
+  'startDateField',
+  'dateField',
+] as const;
+
 const TimelineMappingSchema = z.object({
   title: z.string().optional(),
   date: z.string().optional(),
@@ -244,9 +268,24 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   // fell all the way through to the caller's default (`created_at` / `due_date`),
   // which is usually absent from the projection — so every record bucketed into
   // "No date" while the data it needed was sitting in the row (objectui#3129).
+  //
+  // objectui#7459 — the chain ENDS here. It used to close with a SIXTH rung:
+  // the bare field name d-a-t-e as a literal, which nobody has ever declared —
+  // a name this renderer invented for itself, one layer below the created_at
+  // the view faces supply. (Spelled apart on purpose: the card's close
+  // condition greps this file for that literal and a tombstone quoting it
+  // would answer 1 where the truth is 0.) It guaranteed a name always
+  // resolved, so every record read a key no object carries, found nothing, and
+  // bucketed into "No date" — a timeline that looks built
+  // and is not. It also made a refusal screen unreachable by construction,
+  // which is why the maintainer ruling (2026-09-01, objectui#7070, 总监批 #28)
+  // ordered the floor retired and the refusal added as ONE change. House
+  // posture, on record with that ruling: 日期轴永不虚构 — a date axis is never
+  // fabricated. `undefined` from here is therefore a real answer, and the
+  // refusal below is what answers it.
   const startDateField =
     timelineConfig?.startDateField ?? timelineConfig?.dateField
-    ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField ?? 'date';
+    ?? schema.mapping?.date ?? schema.startDateField ?? schema.dateField;
   const endDateField = timelineConfig?.endDateField ?? schema.endDateField ?? startDateField;
   const descField = schema.mapping?.description ?? schema.descriptionField ?? 'description';
   const variantField = schema.mapping?.variant ?? 'variant';
@@ -259,6 +298,17 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   const effectiveItems = useMemo(() => {
     if (schema.items) return schema.items;
     if (!rawData || !Array.isArray(rawData)) return [];
+    // No declared date axis — there is no key to read a time off, and the
+    // refusal below is what the author sees instead. Composing a feed anyway
+    // is the outcome the ruling rejects: every record buckets into "No date"
+    // and the screen reads as a built timeline with nothing in it. Returning
+    // early keeps this hook honest about that (objectui#7459).
+    if (!startDateField) return [];
+
+    // Narrowed once for the mapper. The guard above establishes the start key,
+    // and `endDateField` falls back to it, so both are strings from here down.
+    const startKey: string = startDateField;
+    const endKey: string = endDateField ?? startDateField;
 
     const fields: Record<string, any> = (objectDef?.fields ?? {}) as Record<string, any>;
     const objectName: string = schema.objectName || '';
@@ -315,8 +365,8 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     };
 
     const mapped = rawData.map((item: any) => {
-      const startRaw = item[startDateField];
-      const endRaw = item[endDateField];
+      const startRaw = item[startKey];
+      const endRaw = item[endKey];
       const colorRaw = colorField ? item[colorField] : undefined;
       const groupRaw = groupByField ? item[groupByField] : undefined;
 
@@ -475,6 +525,59 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       );
   }
 
+  /**
+   * objectui#7459 — REFUSE an object-bound timeline that declares no date axis.
+   *
+   * The twin of `ObjectGantt`'s screen, which is the settled in-repo shape for
+   * this: `getGanttConfig` answers `null` when the schema carries neither a
+   * config block nor the required flat props, and the early return names the
+   * fields the author has to declare. This is the same answer for the same
+   * question, one renderer over.
+   *
+   * ## Why it can only exist together with the retired floor
+   *
+   * Until objectui#7459 the resolver above ended in a fabricated literal, so a
+   * name ALWAYS resolved and this branch could never have been taken — a
+   * refusal screen that is present and unreachable. The maintainer ruling
+   * (2026-09-01, objectui#7070, 总监批 #28) ordered the two as one sequence for
+   * exactly that reason, and the other order is no better: retiring the floor
+   * with no refusal leaves every record reading a key that is not there and
+   * bucketing into "No date". Neither half is observable alone; the pin
+   * (`ObjectTimeline.absentDateAxisRefusal-7459.test.tsx`) measures the pairing
+   * rather than trusting it.
+   *
+   * ## Three things this condition is careful about
+   *
+   * 1. `hasAuthoredItems` — the same test the #6655 refusal directly above
+   *    makes, and for the same reason. An AUTHORED item carries its own `time`
+   *    / `startDate`; no field NAME is read for it, so a literal timeline needs
+   *    no date binding and must not be refused for lacking one. The in-repo
+   *    catalog fixtures (`vertical-timeline.json`, `horizontal-timeline.json`,
+   *    `gantt-style-timeline.json`) are all exactly that.
+   * 2. It keys on the START axis alone. `endDateField` falls back to it, so a
+   *    view that declared only an end date has declared no axis to lay events
+   *    on — the same judgement `getGanttConfig` makes when it refuses a
+   *    half-declared gantt.
+   * 3. Placed with the #6655 refusal, above `error` and `loading`, because it
+   *    is the same KIND of fact: a static authoring fact that no fetch outcome
+   *    changes. A skeleton that resolves into a refusal, or a network error
+   *    shown first, would both send the author to debug the wrong layer.
+   *
+   * It sits BELOW the variant refusal deliberately. A composed gantt cannot be
+   * drawn here at all, so "this path does not render gantt" is the more useful
+   * first sentence than "declare a date field" for a chart that would be
+   * refused either way.
+   */
+  if (!hasAuthoredItems && !startDateField) {
+      return (
+        <div className="p-4 text-destructive" data-testid="timeline-missing-date-axis" role="alert">
+            {t('timeline.unconfigured.noDateAxis', {
+              fields: OBJECT_BOUND_TIMELINE_DATE_BINDINGS.join(', '),
+            })}
+        </div>
+      );
+  }
+
   const effectiveSchema = {
       ...schema,
       items: effectiveItems || [],
@@ -527,8 +630,16 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
       );
   }
 
+  // `data-testid` on the SUCCESS surface, not only on the refusals. Every other
+  // terminal state of this component already names itself
+  // (`timeline-unsupported-variant`, `timeline-missing-date-axis`,
+  // `timeline-error`, `timeline-loading`); the rendered timeline was the one
+  // outcome a test could not ask for by name, so "refused" and "rendered an
+  // EMPTY timeline" were indistinguishable except through renderer-owned
+  // markup. That distinction is the whole point of the refusal
+  // (objectui#7459), so the canvas gets a name of its own.
   return (
-    <div ref={pullRef} className="relative overflow-auto h-full min-w-0">
+    <div ref={pullRef} className="relative overflow-auto h-full min-w-0" data-testid="timeline-canvas">
       {pullDistance > 0 && (
         <div
           className="flex items-center justify-center text-xs text-muted-foreground"

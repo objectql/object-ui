@@ -700,6 +700,9 @@ const pt = {
     unsupported: {
       objectBoundGantt: "Variante \"gantt\" não suportada: uma linha do tempo vinculada a um objeto renderiza as variantes de feed ({{variants}}). O gantt precisa de linhas literais, cada uma com os seus próprios items aninhados, por isso o eixo gantt (scale) não tem efeito aqui.",
     },
+    unconfigured: {
+      noDateAxis: "Eixo de datas da linha do tempo necessário: esta vista não declara nenhum campo de data e uma linha do tempo vinculada a um objeto não inventa nenhum. Declare um de: {{fields}}. O primeiro é a grafia da spec; os restantes são aliases legados.",
+    },
   },
   gantt: {
     viewMode: {

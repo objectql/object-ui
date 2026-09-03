@@ -701,6 +701,9 @@ const ko = {
     unsupported: {
       objectBoundGantt: "지원되지 않는 variant \"gantt\" — 객체 바인딩 타임라인은 피드 variant({{variants}})를 렌더링합니다. 간트는 각각 중첩된 items를 가진 리터럴 행이 필요하므로 여기서는 간트 축(scale)이 적용되지 않습니다.",
     },
+    unconfigured: {
+      noDateAxis: "타임라인 날짜 축이 필요합니다 — 이 뷰는 날짜 필드를 선언하지 않았으며, 객체 바인딩 타임라인은 날짜 필드를 지어내지 않습니다. 다음 중 하나를 선언하세요: {{fields}}. 첫 번째가 spec 표기이고 나머지는 레거시 별칭입니다.",
+    },
   },
   gantt: {
     viewMode: {
