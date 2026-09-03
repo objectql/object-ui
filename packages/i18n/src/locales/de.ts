@@ -1098,13 +1098,14 @@ const de = {
     scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
   },
   dashboard: {
-    noRows: "Keine Zeilen",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "Noch keine Daten",
       message: "Dieses Widget wurde erfolgreich geladen, die Abfrage hat aber noch keine Datensätze zurückgegeben.",
@@ -1145,7 +1146,6 @@ const de = {
     saveLayout: "Layout speichern",
     resetLayout: "Layout zurücksetzen",
     total: "Gesamt",
-    noDataAvailable: "Keine Daten verfügbar",
     noDataSourceFor: "Keine Datenquelle verfügbar für",
     config: {
       breadcrumb: {
