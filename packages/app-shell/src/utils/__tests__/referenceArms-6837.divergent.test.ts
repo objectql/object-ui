@@ -10,26 +10,37 @@
  * ⭐ THE DISCRIMINATING PIN for objectui#6837 half 2's arm deletion, on
  * `app-shell`'s two exported protocol readers.
  *
- * ## Why a DIVERGENT def and not a legacy-only one
+ * ## Why a DIVERGENT def BESIDE a legacy-only one — the two answer
+ * ## different questions, and an earlier revision of this comment had the
+ * ## relationship backwards
  *
  * The refusal pins elsewhere feed a `reference_to`-ONLY def and assert nothing
- * resolves. Those are the right shape for the user-visible break, but they are
- * NOT the right shape for an ablation: restore the deleted arm on a
- * legacy-only def and the reader starts resolving, so they do go red — yet
- * they say nothing about ORDER, and a reader that read
- * `reference ?? reference_to` (canonical-first, arm restored) would keep them
- * green while the arm was back.
+ * resolves. Work out what each shape does under each way of re-widening the
+ * chain — the table is the whole argument:
  *
- * A def carrying BOTH keys with DIFFERENT values separates those cases. There
- * is exactly one answer per chain shape:
+ *                              legacy-only def        divergent def
+ *                              (reference_to only)    (reference:'canonical_target',
+ *                                                      reference_to:'legacy_target')
+ *   reference only (shipped)   does not resolve  ✅   -> 'canonical_target'  ✅
+ *   reference_to || reference  RESOLVES          ❌   -> 'legacy_target'     ❌
+ *   reference ?? reference_to  RESOLVES          ❌   -> 'canonical_target'  ✅
  *
- *   reference only            -> 'canonical_target'   (what half 2 ships)
- *   reference_to || reference -> 'legacy_target'      (the deleted legacy-first arm)
- *   reference ?? reference_to -> 'canonical_target'   (a canonical-first re-widening)
+ * ⇒ the legacy-only refusal is ORDER-BLIND: it goes red under BOTH re-widening
+ * orders, because either one gives a legacy-only def somewhere to resolve from.
+ * ⇒ the divergent def is order-SPECIFIC: it goes red only under legacy-first,
+ * and stays GREEN under a canonical-first re-widening, which still consults
+ * `reference` first and so still answers 'canonical_target'.
  *
- * ⇒ this file goes RED on the legacy-first restoration, which is the mutation
- * the ablation performs, and the third row is why the legacy-only pins are not
- * a substitute for it.
+ * ⛔ An earlier revision of this docblock claimed the opposite — that a
+ * canonical-first re-widening would keep the legacy-only pins green and that
+ * the divergent def was needed to catch it. That is measurably backwards, and
+ * it is the dangerous direction to be wrong in: read that way, a future
+ * maintainer would delete the legacy-only refusals as the redundant half, and
+ * lose the only cases that fire under BOTH orders.
+ *
+ * ⇒ Neither file is redundant. The legacy-only refusals answer "did an arm come
+ * back at all"; this file answers "which ORDER came back". Only together do
+ * they name the mutation.
  *
  * ⚠️ A divergent def is broken metadata and is not a shape any producer should
  * emit — that is the point. It is a PROBE for which key the reader consults,

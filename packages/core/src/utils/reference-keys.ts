@@ -37,15 +37,37 @@
  * existed to absorb the un-normalized shape.
  *
  * The ruling asked for that deletion to be AUDIBLE rather than silent, and this
- * is the cheap defence-in-depth pin it named: **keys outside the protocol are
- * not parsed, but not silently.** `@objectstack/spec` 17.2.0's `FieldSchema` is
- * strict and refuses `reference_to`, `referenceTo` and `target` by name with
- * `unrecognized_keys`, each carrying its own "did you mean → `reference`"
- * rename (measured on the installed package, with `reference` as the positive
- * control and a nonsense key as the negative one — the nonsense key gets no
- * rename hint, so the hint is alias-table membership, not boilerplate). So a
- * def that reaches this choke point spelling ONLY a legacy key came from a
- * producer the spec would reject, and the producer is where it gets fixed.
+ * is the cheap defence-in-depth pin it named, placed here as dispatched.
+ * `@objectstack/spec` 17.2.0's `FieldSchema` is strict and refuses
+ * `reference_to`, `referenceTo` and `target` by name with `unrecognized_keys`,
+ * each carrying its own "did you mean → `reference`" rename (measured on the
+ * installed package, with `reference` as the positive control and a nonsense
+ * key as the negative one — the nonsense key gets no rename hint, so the hint
+ * is alias-table membership, not boilerplate). So a def that reaches this choke
+ * point spelling ONLY a legacy key came from a producer the spec would reject,
+ * and the producer is where it gets fixed.
+ *
+ * ## ⛔ WHAT THIS WARNING DOES NOT COVER — state it, do not overclaim it
+ *
+ * This warning fires ONLY where this file runs, and this file runs at exactly
+ * two production call sites, both of them ingestion choke points:
+ *
+ *   packages/app-shell/src/providers/MetadataProvider.tsx  (metadata type `object`)
+ *   packages/data-objectstack/src/index.ts                 (ObjectStackAdapter.getObjectSchema)
+ *
+ * Both of those STAMP the def, so a def that triggers this warning is also a
+ * def that still resolves. ⇒ The warning fires precisely where nothing is
+ * broken.
+ *
+ * ⚠️ The BREAK surface is the complement of that: `getObjectSchema` is a
+ * required member of the published `DataSource` interface and the readers call
+ * it on the generic `dataSource`, so a hand-written schema served through ANY
+ * other `DataSource` reaches a reader RAW — it neither passes through here nor
+ * warns. On that path the failure is exactly as silent as it was before.
+ * Reader-side or shared-resolver diagnostics, which would cover it, remain an
+ * open question on objectui#6837 (options B and C of its table §5).
+ *
+ * ⛔ Do not describe this pin as making the BYO break audible. It does not.
  *
  * ⛔ The stamping itself is deliberately UNCHANGED. It is the only thing
  * standing between a BYO `DataSource` and the break, and retiring it is a
@@ -53,13 +75,29 @@
  */
 
 /**
- * Warn once per (field name, legacy spelling) rather than once per call: the
- * adapter re-serves a cached schema and `MetadataProvider` re-normalizes on
- * every metadata refresh, and a warning that floods the console is a warning
- * that gets muted. Keyed by the PAIR rather than by a single global flag so a
- * schema whose producer mis-spells several fields reports each of them — the
- * author has to fix every producer, not just the first one seen. This mirrors
- * `column-identity.ts`'s `warnedConflicts` memo, for the same reason it gives.
+ * Warn once per (OBJECT name, field name, legacy spelling, target VALUE) rather
+ * than once per call: the adapter re-serves a cached schema and
+ * `MetadataProvider` re-normalizes on every metadata refresh, and a warning
+ * that floods the console is a warning that gets muted.
+ *
+ * All four segments are load-bearing, and each is here because dropping it
+ * makes the warning name less than a whole producer site:
+ *
+ *   - OBJECT — the same field name (`owner`, `account_id`) lives on many
+ *     objects, and each is a SEPARATE place to fix. Keyed on the field alone
+ *     the memo reports the first object and goes quiet for every other one,
+ *     while the message names a field the reader then has to go hunting for.
+ *     `normalizeSchemaReferenceKeys` has `schema.name` in hand, so the whole
+ *     address is available for free.
+ *   - FIELD and SPELLING — one line per mis-spelled key, so a producer with
+ *     three broken fields gets three fixes, not one and a silence.
+ *   - VALUE — a field carrying two different stale targets reports both. This
+ *     mirrors `column-identity.ts`'s `warnedConflicts` memo, which keys on the
+ *     value for exactly this reason.
+ *
+ * ⚠️ A def normalized OUTSIDE a schema (a bare `normalizeFieldReferenceKeys`
+ * call) has no object to name; it warns under a placeholder rather than being
+ * silently merged with a real object's entry.
  */
 const warnedLegacyOnly = new Set<string>();
 
@@ -83,18 +121,23 @@ const LEGACY_REFERENCE_KEYS = ['reference_to', 'referenceTo'] as const;
  * def renders exactly as it did before — this only makes the producer's bug
  * visible instead of absorbing it silently.
  */
-function warnOnLegacyOnlyReference(f: Record<string, unknown>, fieldName?: string): void {
+function warnOnLegacyOnlyReference(
+  f: Record<string, unknown>,
+  fieldName?: string,
+  objectName?: string,
+): void {
   if (!isDev()) return;
   if (f.reference !== undefined) return;
   const spelled = LEGACY_REFERENCE_KEYS.filter((k) => f[k] !== undefined && f[k] !== '');
   if (spelled.length === 0) return;
-  const named = fieldName ?? (typeof f.name === 'string' ? f.name : '(unnamed)');
+  const named = fieldName ?? (typeof f.name === 'string' ? f.name : '(unnamed field)');
+  const owner = objectName ?? '(unknown object)';
   for (const key of spelled) {
-    const memo = `${named}:${key}:${String(f[key])}`;
+    const memo = `${owner}:${named}:${key}:${String(f[key])}`;
     if (warnedLegacyOnly.has(memo)) continue;
     warnedLegacyOnly.add(memo);
     console.warn(
-      `[ObjectUI] Field \`${named}\` declares its relationship target as ` +
+      `[ObjectUI] Object \`${owner}\`, field \`${named}\` declares its relationship target as ` +
         `\`${key}: '${String(f[key])}'\` and does NOT carry \`reference\`. ` +
         `\`reference\` is the only spelling the protocol declares: ` +
         `\`@objectstack/spec\`'s \`FieldSchema\` refuses \`${key}\` by name with ` +
@@ -110,12 +153,16 @@ function warnOnLegacyOnlyReference(f: Record<string, unknown>, fieldName?: strin
   }
 }
 
-export function normalizeFieldReferenceKeys<T>(fieldDef: T, fieldName?: string): T {
+export function normalizeFieldReferenceKeys<T>(
+  fieldDef: T,
+  fieldName?: string,
+  objectName?: string,
+): T {
   if (!fieldDef || typeof fieldDef !== 'object') return fieldDef;
   const f = fieldDef as Record<string, unknown>;
   const target = f.reference_to ?? f.reference ?? f.referenceTo;
   if (target == null || target === '') return fieldDef;
-  warnOnLegacyOnlyReference(f, fieldName);
+  warnOnLegacyOnlyReference(f, fieldName, objectName);
   if (f.reference_to === undefined) f.reference_to = target;
   if (f.reference === undefined) f.reference = target;
   return fieldDef;
@@ -131,19 +178,24 @@ export function normalizeFieldReferenceKeys<T>(fieldDef: T, fieldName?: string):
  * client (`ObjectStackAdapter.getObjectSchema`, the app-shell metadata
  * provider) so per-consumer dual-key fallbacks can't drift.
  *
- * Field NAMES are forwarded so the dev-mode warning above can name the
- * offending field: the map form keys the def by name, and the array form
- * carries it as `def.name`.
+ * Field NAMES and the OBJECT name are forwarded so the dev-mode warning above
+ * can name the whole producer site rather than half of it: the map form keys
+ * the def by name, the array form carries it as `def.name`, and the object name
+ * comes off `schema.name`.
  */
 export function normalizeSchemaReferenceKeys<T>(schema: T): T {
   const fields =
     schema && typeof schema === 'object' ? (schema as { fields?: unknown }).fields : null;
   if (!fields || typeof fields !== 'object') return schema;
+  const objectName =
+    typeof (schema as { name?: unknown }).name === 'string'
+      ? ((schema as { name?: string }).name as string)
+      : undefined;
   if (Array.isArray(fields)) {
-    for (const def of fields) normalizeFieldReferenceKeys(def);
+    for (const def of fields) normalizeFieldReferenceKeys(def, undefined, objectName);
   } else {
     for (const [name, def] of Object.entries(fields as Record<string, unknown>)) {
-      normalizeFieldReferenceKeys(def, name);
+      normalizeFieldReferenceKeys(def, name, objectName);
     }
   }
   return schema;

@@ -40,15 +40,35 @@
  * still come out carrying both snake_case keys exactly as before. A warning
  * that also dropped the key would pass 1-4 and be a regression.
  *
- * ## Warn-once GRANULARITY, stated because it is a deliberate reading
+ * ## Warn-once GRANULARITY — the memo key, stated exactly, and pinned
  *
  * The card says "once-per-process". This implementation memoises per
- * (field name, legacy spelling) rather than behind one global flag, mirroring
- * `column-identity.ts`'s `warnedConflicts` and its recorded reason: a schema
- * whose producer mis-spells three fields has three producer bugs to fix, and a
- * single global flag names only the first. Both readings satisfy "does not fire
- * twice" for one def; this one additionally names every offender. Pinned below
- * in both directions so the choice is visible rather than incidental.
+ * **(object name, field name, legacy spelling, target value)**, and every
+ * segment of that key is pinned below in both directions so the granularity is
+ * a measured fact rather than a claim in a comment:
+ *
+ *   same object+field+spelling+value, twice   -> ONE warning
+ *   same field+spelling, DIFFERENT value      -> TWO warnings
+ *   same field+spelling+value, TWO OBJECTS    -> TWO warnings, each naming its object
+ *   a def normalized with no object in scope  -> warns under a placeholder
+ *
+ * ⚠️ An earlier revision keyed on (field, spelling, value) with no object
+ * segment and no object in the message. It was described in the PR and the
+ * changeset as "per (field name, legacy spelling)" — which was wrong twice over:
+ * it under-reported (the value was in the key, so one field with two stale
+ * targets warned twice) AND it over-reported (the same field name on N objects
+ * collided into ONE warning that could not say which object). Neither behaviour
+ * was pinned, because the original pins held the value constant and used
+ * distinct field names — so both were invisible. The object segment closes the
+ * gap; these tests exist so the next revision cannot reopen it silently.
+ *
+ * ## ⛔ WHAT THIS WARNING DOES NOT COVER
+ *
+ * It fires only where `normalizeSchemaReferenceKeys` runs, which in production
+ * is exactly the two ingestion choke points — both of which also STAMP the def,
+ * so it fires where nothing is broken. A hand-written schema served through any
+ * other `DataSource` reaches a reader raw and warns nothing. The reader-side
+ * diagnostic that would cover that is still open on objectui#6837.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
@@ -150,9 +170,9 @@ describe('the choke point warns, in dev, when a def spells ONLY a legacy target 
     });
 
     it('DOES name a second, different offender — three producer bugs are three fixes', () => {
-      // The deliberate reading of "once per process" recorded in this file's
-      // docblock. Flip the memo to a single global flag and this goes red.
+      // Flip the memo to a single global flag and this goes red.
       normalizeSchemaReferenceKeys({
+        name: 'crm_account',
         fields: {
           billing_account: { type: 'lookup', reference_to: 'crm_account' },
           owner: { type: 'lookup', referenceTo: 'sys_user' },
@@ -161,6 +181,51 @@ describe('the choke point warns, in dev, when a def spells ONLY a legacy target 
       expect(warn).toHaveBeenCalledTimes(2);
       expect(messages().join('\n')).toContain('`billing_account`');
       expect(messages().join('\n')).toContain('`owner`');
+    });
+
+    it('DOES fire twice for one field carrying two DIFFERENT stale targets — the value is in the key', () => {
+      // Previously true but undisclosed and unpinned: the PR described the key
+      // as (field, spelling), which would predict ONE warning here. It is two,
+      // and it should be — two stale targets on one field name are two
+      // producer sites. `column-identity.ts` keys on the value for the same
+      // reason. Drop the value segment and this goes red.
+      normalizeSchemaReferenceKeys({ name: 'crm_account', fields: { owner: { type: 'lookup', reference_to: 'a' } } });
+      normalizeSchemaReferenceKeys({ name: 'crm_account', fields: { owner: { type: 'lookup', reference_to: 'b' } } });
+      expect(warn).toHaveBeenCalledTimes(2);
+    });
+
+    it('DOES fire once PER OBJECT for the same field, spelling and value, naming each object', () => {
+      // The gap the object segment closes. Before it, these two collided into
+      // ONE warning that named the field and could not say which object — so a
+      // tenant with `owner: { reference_to: 'sys_user' }` on forty objects got
+      // one line and thirty-nine silences. Drop the object segment and this
+      // goes red in BOTH assertions.
+      normalizeSchemaReferenceKeys({ name: 'crm_account', fields: { owner: { type: 'lookup', reference_to: 'sys_user' } } });
+      normalizeSchemaReferenceKeys({ name: 'crm_contact', fields: { owner: { type: 'lookup', reference_to: 'sys_user' } } });
+      expect(warn).toHaveBeenCalledTimes(2);
+      const all = messages().join('\n');
+      expect(all).toContain('`crm_account`');
+      expect(all).toContain('`crm_contact`');
+    });
+
+    it('still fires only ONCE when object, field, spelling and value all repeat', () => {
+      // The control for the three cases above: without it, a memo that had
+      // stopped de-duplicating at all would satisfy every "fires twice" case.
+      const schema = { name: 'crm_account', fields: { owner: { type: 'lookup', reference_to: 'sys_user' } } };
+      normalizeSchemaReferenceKeys(schema);
+      normalizeSchemaReferenceKeys({ name: 'crm_account', fields: { owner: { type: 'lookup', reference_to: 'sys_user' } } });
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('names the object it was given, and a placeholder when there is none', () => {
+      normalizeSchemaReferenceKeys({ name: 'crm_account', fields: { owner: { type: 'lookup', reference_to: 'sys_user' } } });
+      expect(messages()[0]).toContain('Object `crm_account`');
+      resetReferenceKeyWarnings();
+      warn.mockClear();
+      // A bare field-level call has no object in scope. It must still warn,
+      // under a placeholder, rather than being merged into a real object's key.
+      normalizeFieldReferenceKeys({ type: 'lookup', reference_to: 'sys_user' }, 'owner');
+      expect(messages()[0]).toContain('(unknown object)');
     });
   });
 

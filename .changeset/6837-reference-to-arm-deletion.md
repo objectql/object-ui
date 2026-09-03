@@ -46,9 +46,11 @@ unaffected**. What is affected is exactly:
   `ApiDataSource`, `ValueDataSource`, `packages/types/examples/rest-data-source.ts`,
   `examples/byo-backend-console/src/mockDataSource.ts`,
   `packages/runner/src/lib/mockDataSource.ts`,
-  `apps/site/app/components/galleryDataSource.ts`.
+  `apps/site/app/components/galleryDataSource.ts`,
+  `apps/console/src/sdui-workbench-preview.tsx`,
+  `packages/plugin-grid/demo/bulk-actions.tsx`.
 
-**Measured on this tree, none of those six emits a relationship target at all** —
+**Measured on this tree, none of those eight emits a relationship target at all** —
 `reference_to` and `reference` are both zero in each, and
 `examples/byo-backend-console` carries no lookup or master_detail field
 anywhere (its only `reference` hits are a vite triple-slash directive and a
@@ -63,21 +65,40 @@ distinct values in the loaded rows instead of the referenced object's full
 domain, a tree stops auto-detecting its parent pointer, a lookup cell shows a
 raw id, a chart's group-by labels stay unresolved.
 
-To make that failure audible instead of silent, the choke point now emits a
-**dev-mode warning, once per (field, spelling)**, when a def arrives carrying
-only `reference_to` or `referenceTo` and no `reference`. It names the field,
-names the offending key and points at this ruling. The stamping behaviour is
-deliberately unchanged, so nothing that worked stops working at the choke point
-— keys outside the protocol are still not parsed, but no longer silently.
+The ingestion choke point now emits a **dev-mode warning** when a def arrives
+carrying only `reference_to` or `referenceTo` and no `reference`. It names the
+object, the field and the offending key, and points at this ruling. Stamping is
+deliberately unchanged, so nothing that worked stops working. It is memoised
+once per **(object name, field name, spelling, target value)** — every segment
+of that key is pinned, in both directions, in
+`reference-keys.legacyWarning-6837.test.ts`.
+
+⛔ **This warning does NOT cover the break described above, and it is worth being
+exact about that rather than letting it read as mitigation.** It lives in
+`normalizeFieldReferenceKeys`, reachable only through
+`normalizeSchemaReferenceKeys`, which has exactly two production call sites —
+`MetadataProvider` (metadata type `object`) and
+`ObjectStackAdapter.getObjectSchema`. Both of those also STAMP the def, so the
+warning fires precisely where the def still resolves and nothing is broken. A
+hand-written schema served through any OTHER `DataSource` — the break surface —
+reaches a reader raw: it never passes through this code and produces **no
+warning at all**. On that path the failure is exactly as silent as before.
+A reader-side or shared-resolver diagnostic, which would cover it, remains open
+on objectui#6837.
 
 ## What did NOT change
 
-**Every key these readers EMIT is byte-identical.** Six of the sixteen sites
-write a target onto a bag whose own contract spells it `reference_to` (or
-camelCase `referenceTo`) — `RecordDetailDrawer`, `RelatedList`,
-`buildDefaultPageSchema`, `ListView`, `FilterConditionField`,
-`resolveActionParams`. Only the right-hand read narrowed; the emitted key is
-what its target contract declares and renaming it would be a separate change.
+**Every key these readers EMIT is byte-identical**, and that was verified
+mechanically over the whole diff rather than asserted. Eleven of the sixteen
+sites write a target onto a bag whose own contract spells it `reference_to` (or
+camelCase `referenceTo`): the six whose read and write share a line —
+`RecordDetailDrawer`, `RelatedList`, `buildDefaultPageSchema`, `ListView`,
+`FilterConditionField`, `resolveActionParams` — plus five more that read on one
+line and emit on another, and so are just as much emitters: `RecordDetailView`,
+`RecordMetaFooter`, `ObjectGallery`, `fieldEnrichment` (all `reference_to`) and
+`UserFilters` (`referenceTo`). Only the right-hand read narrowed anywhere; the
+emitted key is what its target contract declares, and renaming it would be a
+separate change.
 
 **Three readers were deliberately left alone.** `LookupCellRenderer`
 (`fields/src/index.tsx`), `LookupField` and `UserField` read `FieldMetadata` —

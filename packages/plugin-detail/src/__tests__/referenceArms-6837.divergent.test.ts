@@ -7,12 +7,16 @@
  */
 
 /**
- * ⭐ THE DISCRIMINATING PIN for objectui#6837 half 2, on `plugin-detail`'s two
- * exported protocol readers. The reasoning for the divergent-def probe is
- * stated once, in `app-shell`'s sibling of this file
+ * ⭐ THE ORDER-DISCRIMINATING PIN for objectui#6837 half 2, on `plugin-detail`'s
+ * two exported protocol readers. The full truth table is stated once, in
+ * `app-shell`'s sibling of this file
  * (`utils/__tests__/referenceArms-6837.divergent.test.ts`); the short version
- * is that a legacy-ONLY def cannot tell a legacy-first chain apart from a
- * canonical-first one, and a def whose two keys DISAGREE can.
+ * is that the legacy-ONLY refusal pins are ORDER-BLIND — they go red under
+ * either way of re-widening the chain — while a def whose two keys DISAGREE
+ * goes red only under a LEGACY-FIRST re-widening and stays green under a
+ * canonical-first one. So the two sets are complementary, not redundant: the
+ * refusals say an arm came back, these say which order it came back in.
+ * ⛔ Neither set is the other's spare.
  *
  * ## ⚠️ Both readers here are shape-2 sites: the READ narrowed, the WRITE did not
  *
