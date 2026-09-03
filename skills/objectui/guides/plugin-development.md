@@ -88,6 +88,7 @@ Sixteen keys in total: the eleven on `ComponentMeta` (`@object-ui/types`
 
 ### ComponentInput types
 
+<!-- os:check -->
 ```typescript
 type ComponentInputControlType =
   | 'string' | 'number' | 'boolean' | 'enum' | 'array' | 'object'
@@ -232,6 +233,7 @@ export interface MyWidgetProps {
 
 Field widgets are simpler plugins that render form inputs. They implement `FieldWidgetComponentProps`:
 
+<!-- os:check -->
 ```typescript
 import { type FieldWidgetComponentProps } from '@object-ui/fields';
 import { Input } from '@object-ui/components';
@@ -321,6 +323,7 @@ double-displays it.
 
 ### package.json essentials
 
+<!-- os:check -->
 ```json
 {
   "name": "@object-ui/plugin-my-widget",
@@ -356,6 +359,7 @@ double-displays it.
 
 ### tsconfig.json
 
+<!-- os:check -->
 ```json
 {
   "extends": "../../tsconfig.react.json",

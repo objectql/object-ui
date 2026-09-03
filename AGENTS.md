@@ -48,7 +48,7 @@ You don't just build components — you build a **Renderer** that interprets JSO
 
 | Package | Role | Responsibility | 🔴 Constraints |
 |---|---|---|---|
-| `@object-ui/types` | The Protocol | Pure JSON interfaces (`ComponentSchema`, `ActionSchema`) | **Zero deps. No React.** |
+| `@object-ui/types` | The Protocol | Pure JSON interfaces (`BaseSchema`, `ActionSchema`) | **Zero deps. No React.** |
 | `@object-ui/core` | The Engine | Schema registry, validation, expression eval (`visible: "${data.age > 18}"`) | No UI-lib deps. Logic only. |
 | `@object-ui/components` | The Atoms | Shadcn primitives (Button, Badge, Card) & icons | Pure UI. No business logic. |
 | `@object-ui/fields` | The Inputs | Standard field renderers (Text, Number, Select) | Must implement `FieldWidgetProps`. |

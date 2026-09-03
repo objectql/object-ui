@@ -1,14 +1,13 @@
 /**
  * Tests for Phase 2 Schema Definitions
- * Testing AppSchema, ReportComponentSchema, BlockSchema, and Enhanced ActionSchema
+ * Testing AppSchema, ReportComponentSchema and Enhanced ActionSchema, plus the
+ * retirement pins for the theme and block component kinds.
  */
 import { describe, it, expect } from 'vitest';
 import {
   AppComponentSchema,
   ReportComponentSchema,
   ReportBuilderSchema,
-  BlockSchema,
-  BlockLibrarySchema,
   ActionSchema,
   DetailViewSchema,
   ViewSwitcherSchema,
@@ -270,82 +269,68 @@ describe('Phase 2: ReportComponentSchema Zod Validation', () => {
   });
 });
 
-describe('Phase 2: BlockSchema Zod Validation', () => {
-  it('should validate a complete BlockSchema', () => {
-    const block = {
+describe('Phase 2: Block component kinds — retirement pins', () => {
+  // The WHOLE block schema family is retired: `BlockSchema` (`type: 'block'`),
+  // `BlockLibrarySchema` (`'block-library'`), `BlockEditorSchema`
+  // (`'block-editor'`), `BlockInstanceSchema` (`'block-instance'`) and the
+  // `ComponentSchema` (`'component'`) arm that rode the same union — objectui#4895,
+  // ADR-0049 enforce-or-remove, under the maintainer ruling of 2026-09-02
+  // (option C1, no transition window). Zero `ComponentRegistry.register(...)`
+  // sites claimed any of the five; the positive control `'table'` resolves to
+  // two, which is what makes that zero a reading rather than a broken grep.
+  //
+  // This is the pin that matters most on this retirement. The TypeScript half
+  // was merely published; `blocks.zod.ts` shipped as RUNTIME values under
+  // `@object-ui/types/zod`, and `AnyComponentSchema` accepted every one of the
+  // five discriminants — so an author who copied the documented
+  // `{ type: 'block-library' }` was told GREEN by the shipped validator and
+  // then got the registry's "Unknown component type" panel (OBJUI-001).
+  // Validated-then-broken is worse than never-validated. The shapes below are
+  // the exact fixtures the old acceptance tests proved VALID; they are now
+  // proven REFUSED, so a re-added kind fails here rather than reappearing
+  // silently on the published surface.
+  //
+  // ⚠️ NOT this family, and deliberately not pinned out: the live slotted
+  // record-page vocabulary (`PageNodeSchema.kind === 'slotted'` with
+  // `slots?: PageSlotMap` in `../layout.ts`, rendered by `PageBlockCanvas` /
+  // `PageBlockInspector` in `@object-ui/app-shell`), and the `type: 'component'`
+  // NAVIGATION item kind declared by `NavigationItemSchema` in
+  // `../zod/app.zod.ts` (objectui#2918) — a different declaration in a
+  // different module, pinned live by `navigation-model.test.ts`.
+  it('refuses the retired block component kinds, while a live kind still parses', () => {
+    // The fixture the old `should validate a complete BlockSchema` case proved VALID.
+    const retiredBlock = {
       type: 'block',
       meta: {
         name: 'hero-section',
         label: 'Hero Section',
-        description: 'A customizable hero section with image and text',
         category: 'Marketing',
-        icon: 'Layout',
-        tags: ['hero', 'landing', 'marketing'],
-        author: 'ObjectUI Team',
-        version: '1.0.0',
       },
-      variables: [
-        {
-          name: 'title',
-          label: 'Title',
-          type: 'string',
-          defaultValue: 'Welcome',
-          required: true,
-        },
-        {
-          name: 'subtitle',
-          label: 'Subtitle',
-          type: 'string',
-          defaultValue: 'Get started today',
-        },
-        {
-          name: 'showButton',
-          label: 'Show Button',
-          type: 'boolean',
-          defaultValue: true,
-        },
-      ],
-      slots: [
-        {
-          name: 'content',
-          label: 'Content',
-          description: 'Main content area',
-          required: false,
-        },
-      ],
-      template: {
-        type: 'div',
-        className: 'hero',
-        children: [
-          {
-            type: 'text',
-            value: '${title}',
-          },
-        ],
-      },
+      variables: [{ name: 'title', label: 'Title', type: 'string', defaultValue: 'Welcome', required: true }],
+      slots: [{ name: 'content', label: 'Content', required: false }],
+      template: { type: 'div', className: 'hero', children: [{ type: 'text', value: '${title}' }] },
       editable: true,
     };
+    expect(AnyComponentSchema.safeParse(retiredBlock).success).toBe(false);
 
-    const result = BlockSchema.safeParse(block);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.meta?.name).toBe('hero-section');
-      expect(result.data.variables).toHaveLength(3);
-      expect(result.data.slots).toHaveLength(1);
-    }
-  });
-
-  it('should validate BlockLibrarySchema', () => {
-    const library = {
+    // The fixture the old `should validate BlockLibrarySchema` case proved VALID —
+    // and the exact shape the ruling names as the measured green light.
+    const retiredLibrary = {
       type: 'block-library',
       category: 'Marketing',
       searchQuery: 'hero',
       showPremium: true,
       loading: false,
     };
+    expect(AnyComponentSchema.safeParse(retiredLibrary).success).toBe(false);
 
-    const result = BlockLibrarySchema.safeParse(library);
-    expect(result.success).toBe(true);
+    expect(AnyComponentSchema.safeParse({ type: 'block-editor', showVariables: true }).success).toBe(false);
+    expect(AnyComponentSchema.safeParse({ type: 'block-instance', blockId: 'hero-section' }).success).toBe(false);
+    expect(AnyComponentSchema.safeParse({ type: 'component', componentName: 'Hero' }).success).toBe(false);
+
+    // Positive control on the same pipeline: a still-declared kind parses GREEN,
+    // so the five refusals measure the retirement, not a broken union.
+    expect(AnyComponentSchema.safeParse({ type: 'action', label: 'Control Action' }).success).toBe(true);
   });
 });
 
@@ -739,7 +724,8 @@ describe('Phase 2: AnyComponentSchema Union Type', () => {
       // `{ type: 'theme' }` removed with the kind itself (objectui#5489); its
       // refusal is pinned in the theme describe block above.
       { type: 'report', title: 'Test Report' },
-      { type: 'block', meta: { name: 'test-block' } },
+      // `{ type: 'block' }` removed with the whole family (objectui#4895); the
+      // refusals are pinned in the block describe block above.
       { type: 'action', label: 'Test Action' },
       { type: 'detail-view', title: 'Test Detail' },
       { type: 'view-switcher', views: [] },

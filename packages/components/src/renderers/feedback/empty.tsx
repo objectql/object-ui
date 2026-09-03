@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { CSSProperties } from 'react';
-import type { EmptySchema, ComponentSchema } from '@object-ui/types';
+import type { EmptySchema, BaseSchema } from '@object-ui/types';
 import { SchemaRenderer } from '@object-ui/react';
 import { DataEmptyState } from '../../custom/view-states';
 
@@ -27,7 +27,13 @@ ComponentRegistry.register('empty',
         ...emptyProps
     } = props as Record<string, unknown>;
 
-    const actionSchema = (schema as any).action as ComponentSchema | undefined;
+    // `BaseSchema`, not the retired block-family `ComponentSchema` (objectui#4895):
+    // `action` is any renderable node handed to `SchemaRenderer`, never the
+    // `type: 'component'` kind the old annotation named. NOT `SchemaNode` —
+    // objectui#7082 recorded that this cast needs the OBJECT half, since the
+    // guard below rejects the `string | number | boolean` members `SchemaNode`
+    // also admits.
+    const actionSchema = (schema as any).action as BaseSchema | undefined;
     const actionNode = actionSchema && typeof actionSchema === 'object'
       ? <SchemaRenderer schema={actionSchema as any} />
       : undefined;

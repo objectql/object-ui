@@ -94,6 +94,14 @@ const MUST_SUBSCRIBE_MERGE_GROUP = new Map<string, string>([
       'request, and is therefore requirable',
   ],
   [
+    'skill-examples.yml',
+    'produces Skill Example Check — added by objectui#7359. Its scan surface is the markdown under ' +
+      '`skills/`, the shape `ci.yml` and `lint.yml` structurally cannot see (both list `**/*.md` ' +
+      'under the `paths-ignore` of their `push` trigger), so it carries no path filter, reports on ' +
+      'every pull request, and is therefore requirable; `scripts/dependabot-merge-gate.mjs` ' +
+      'classifies it as a required context',
+  ],
+  [
     'pre-install-import-graph.yml',
     'produces Pre-Install Import Graph Check — added by objectui#6148. What it judges is the ' +
       'arrangement of the workflows themselves, so it carries no path filter, reports on every ' +

@@ -30,6 +30,7 @@ one has its own section below.
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
+| `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, or carries a marker that opts nothing in |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
 | `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
@@ -594,6 +595,59 @@ the sentence's whole point is that the path does not exist. Run it locally with
 `pnpm check:skills-paths`, or `node scripts/check-skills-paths.mjs --list` to see every candidate and
 how it was classified.
 
+## Skill Examples (`skill-examples.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the section above: the scan surface is markdown under
+`skills/`, and both `ci.yml` and `lint.yml` list `'**/*.md'` under the `paths-ignore` of their `push`
+trigger. It appears in the checks list as **Skill Example Check**.
+
+Runs `scripts/check-skill-examples.mjs`. Where the section above checks the *paths* a guide states in
+prose, this one checks the *worked examples* themselves: a marked `ts` / `tsx` / `typescript` fence
+must compile `--strict` against the packages' built `dist/*.d.ts`, and a marked `json` / `jsonc`
+fence must parse.
+
+**Why it was needed:** at the time it landed, `skills/objectui/` carried 112 TypeScript fences and 56
+JSON fences and **not one gate in the repository read inside any of them**
+([#7359](https://github.com/objectstack-ai/objectui/issues/7359)). Every gate that could have is
+scoped elsewhere by construction — `check-skills-paths.mjs` deliberately reads inline code spans in
+prose only, the three `content/docs` gates say so in their own headers. So a fence could import a
+symbol that does not exist and stay green forever, and two rounds of exactly that had already been
+cleaned by hand.
+
+**Opt-in, and why:** a fence is checked only when the line **immediately above** it is
+`<!-- os:check -->`. Most skill fences are fragments by construction — a `columns: [...]` subtree, a
+block that continues the one above it — so compiling all of them at once would red on prose that is
+not wrong, and a gate that reds on correct code gets deleted by the first person who hits it. The
+marker is an inert HTML comment and leaves the fence info string bare, so the three gates that key on
+the info string still see the block. The convention is ported byte-for-byte from objectstack's
+`packages/spec/scripts/check-skill-examples.ts`.
+
+**Adjacency is strict:** a marker that is not directly above a checkable fence — separated by a blank
+line, above a `bash` fence, or left behind when its example was deleted — is an **orphan** and fails
+the run. A lenient rule would opt in nothing while its author believed otherwise, which is this
+repository's recurring "looks like enforcement, isn't" class. A marker shown as *example text* inside
+another fence is neither an opt-in nor an orphan: it is not at top level, so it claims nothing.
+
+**It builds, unlike `skills-paths.yml`:** the criterion is the *published* type surface, so the
+packages the marked fences import must exist as `dist/*.d.ts` first. The build is filtered to exactly
+those packages, and the filter is emitted by the gate itself
+(`node scripts/check-skill-examples.mjs --build-filter`) rather than hand-maintained in the workflow,
+so it grows only as the marked population grows.
+
+**Three exit codes, not two.** `0` = every marked example held up. `1` = the gate ran and found
+errors — a verdict about a guide. `2` = the gate **could not run**: the packages are unbuilt or typed
+from source, a harness control failed, or nothing is marked at all. Nothing printed under exit 2 is a
+verdict about any guide, and it is never a pass — zero with nothing run reads as coverage, which is
+the failure shape this gate family exists to prevent
+([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+**If it fails:** it prints `file:line` for every failing fence with the compiler's own diagnostic, or
+the JSON parser's message, or the orphan marker's line. Fix the example — or, if it was never meant
+to stand alone, remove its marker rather than weakening the gate. Run it locally with
+`pnpm check:skill-examples`, `node scripts/check-skill-examples.mjs --list` to see every candidate
+fence and its verdict, and `--measure` to judge every candidate whether marked or not.
+
 ## Documented Component Types (`doc-component-types.yml`)
 
 **Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
@@ -635,7 +689,8 @@ renderable children on another, so any global rule is a silent false green somew
 flat: every literal is a candidate component key, and a value outside the derived universe must be
 **declared** in the script's `DOC_TYPE_EXEMPTIONS` — keyed by (file, value), with a written reason
 naming the vocabulary it really belongs to. A whole-file exemption is deliberately not offered:
-`blocks/block-schema.mdx` carries `type: 'block'` and `type: 'div'` in the same document.
+`api/schema-reference.md` carries `"type": "action"` (an ActionSchema discriminant) and
+`"type": "card"` (a registered component key) in the same document.
 
 Entries are re-derived per run, so one whose page stopped spelling that type fails as a stale
 exemption rather than quietly widening the hole.
