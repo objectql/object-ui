@@ -72,7 +72,7 @@ describe('bodyShape survives the declared-action renderer whitelists', () => {
         <Registered
           type="action:button"
           schema={{
-            type: 'api',
+            actionType: 'api',
             name: 'update_organization',
             label: 'Save organization',
             target: '/api/v1/auth/organization/update',
@@ -94,7 +94,7 @@ describe('bodyShape survives the declared-action renderer whitelists', () => {
         <Registered
           type="action:icon"
           schema={{
-            type: 'api',
+            actionType: 'api',
             name: 'update_organization',
             label: 'Save',
             icon: 'save',
@@ -185,7 +185,7 @@ describe('bodyShape reaches the wire, end to end', () => {
         <Registered
           type="action:button"
           schema={{
-            type: 'api',
+            actionType: 'api',
             name: 'update_organization',
             label: 'Save organization',
             target: '/api/v1/auth/organization/update',
@@ -213,7 +213,7 @@ describe('bodyShape reaches the wire, end to end', () => {
         <Registered
           type="action:button"
           schema={{
-            type: 'api',
+            actionType: 'api',
             name: 'update_organization',
             label: 'Save organization',
             target: '/api/v1/auth/organization/update',
@@ -243,7 +243,7 @@ describe('bodyShape reaches the wire, end to end', () => {
         <Registered
           type="action:button"
           schema={{
-            type: 'api',
+            actionType: 'api',
             name: 'close_order',
             label: 'Close order',
             target: '/api/v1/order/close',

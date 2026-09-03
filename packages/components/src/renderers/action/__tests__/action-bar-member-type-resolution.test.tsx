@@ -49,12 +49,21 @@
  * fires) instead of only a missing call. Nothing about the production path
  * changes — the trap only gives the wrong value somewhere to land.
  *
- * ## The standalone row is a guard, not a duplicate
+ * ## The two standalone rows are guards, not duplicates
  *
- * Rendered on its own, `action:icon` never sees an `actionType` — its own
- * registry `inputs` declare `type` as the action type. That row is green in
- * both worlds ON PURPOSE: it is what refuses a "fix" written as
- * `schema.actionType` alone, which would trade this defect for the mirror one.
+ * This file's original standalone row asserted that `action:icon` rendered on
+ * its own resolved a declared `type`, because its registry `inputs` used to
+ * declare the action type under that name. objectui#7415 renamed that input to
+ * `actionType` (objectstack#14490 ruling A) precisely because `type` is the SDUI
+ * envelope's component discriminator, so the row now authors the renamed input.
+ *
+ * The second row is the mirror the rename earns, and it is the one that refuses
+ * a re-added `|| schema.type` fallback: a standalone node that declares NO
+ * `actionType` must not hand the component id to the runner. It reads as a
+ * positive artefact rather than an absence — a handler keyed on the action's
+ * NAME fires, which is `ActionRunner.execute`'s own
+ * `action.type || action.actionType || action.name` tail taking over, while a
+ * trap keyed on the component id stays silent.
  *
  * Scope note: `type: schema` appears in exactly TWO files under
  * `renderers/action/` — `action-button.tsx` and `action-icon.tsx`. `action:group`
@@ -180,15 +189,25 @@ describe('action:bar member type resolution — action:icon (objectui#6306)', ()
     expect(api.mock.calls.map(([def]) => def.type)).toEqual(['api', 'api']);
   });
 
-  it('regression guard — a standalone action:icon still resolves its own declared type', async () => {
-    // No host, so no `actionType` at all: `type` IS the action type here, as
-    // this renderer's own registry `inputs` declare. Green before and after the
-    // fix on purpose — it refuses a rewrite that reads `actionType` alone.
+  it('regression guard — a standalone action:icon resolves its renamed actionType input', async () => {
+    // No host, so nothing renames anything: this is the node an author writes,
+    // where `type` is the COMPONENT and `actionType` is the declared execution
+    // type (objectui#7415). `DECLARATION` keeps the spec `ActionSchema` spelling
+    // because that is what it is on the bar path above — a member of an
+    // `actions` array, not a node.
     const Icon = ComponentRegistry.get('action:icon');
     if (!Icon) throw new Error('action:icon is not registered');
     render(
       <ActionProvider handlers={{ api }} onToast={vi.fn()}>
-        <Icon schema={{ ...DECLARATION, name: 'standalone', label: 'Standalone icon' } as never} />
+        <Icon
+          schema={{
+            target: DECLARATION.target,
+            type: 'action:icon',
+            actionType: DECLARATION.type,
+            name: 'standalone',
+            label: 'Standalone icon',
+          } as never}
+        />
       </ActionProvider>,
     );
 
@@ -196,5 +215,38 @@ describe('action:bar member type resolution — action:icon (objectui#6306)', ()
 
     await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
     expect(defOf(api).type).toBe('api');
+  });
+
+  it('a standalone node without actionType never hands the component id to the runner', async () => {
+    // The mirror guard the objectstack#14490 rename earns: with the `|| schema.type`
+    // fallback gone there is no path left on which the discriminator can be read
+    // as an action type. Re-adding that leg fails HERE — the trap fires and the
+    // named handler does not — rather than shipping the objectui#6306 shape
+    // (a click that resolves no handler, with no error and no toast) back to the
+    // one surface that still authors `type` as a component id, which is all of
+    // them.
+    const byName = vi.fn(async () => ({ success: true }));
+    const Icon = ComponentRegistry.get('action:icon');
+    if (!Icon) throw new Error('action:icon is not registered');
+    render(
+      <ActionProvider handlers={{ 'action:icon': trap, untyped_action: byName }} onToast={vi.fn()}>
+        <Icon
+          schema={{
+            target: DECLARATION.target,
+            type: 'action:icon',
+            name: 'untyped_action',
+            label: 'Untyped icon',
+          } as never}
+        />
+      </ActionProvider>,
+    );
+
+    clickMember('Untyped icon');
+
+    // Settle on EITHER path first, so this is about WHICH handler resolved and
+    // never about async timing — the same shape the trap row above uses.
+    await waitFor(() => expect(byName.mock.calls.length + trap.mock.calls.length).toBe(1));
+    expect(trap).not.toHaveBeenCalled();
+    expect(byName).toHaveBeenCalledTimes(1);
   });
 });
