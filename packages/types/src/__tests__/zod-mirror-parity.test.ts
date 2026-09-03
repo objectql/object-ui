@@ -57,10 +57,13 @@
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **37 entries** in `KnownDrift`, **53 keys** across them. It was 12 / 17 until
+ *   - **39 entries** in `KnownDrift`, **56 keys** across them. It was 12 / 17 until
  *     objectui#6124 added the RUNTIME-SLOT class (28 pairs touched, 35 keys) — see
- *     the class note inside the ledger, above `ButtonSchema` — and 36 / 52 until
- *     objectui#6576 minted `ObjectDataTableSchema` with one such arm (`onRowClick`).
+ *     the class note inside the ledger, above `ButtonSchema` — 36 / 52 until
+ *     objectui#6576 minted `ObjectDataTableSchema` with one such arm (`onRowClick`),
+ *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
+ *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
+ *     `CalendarViewSchema` grew by `onEventClick`.
  *   - **17 entries** in `UnmirroredDeclared`, **98 keys** across them (16 / 97 until
  *     objectui#6576 SEEDED the new `ObjectDataTableSchema` pair with its one measured
  *     key, `drillDown` — a pair born ledgered, not growth on an existing one). ⚠️ It was
@@ -76,7 +79,7 @@
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
  *     "no entry in either" population dropped by one to 141 — and stands at 142
  *     since objectui#6576 added two pairs, one of them ledgered.
- *   - 160 − 37 = **123**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *   - 160 − 39 = **121**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -97,7 +100,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 37 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 39 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -676,8 +679,13 @@ export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeo
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
-  /** RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads `onViewChange` off the spread props (function values only) and hands it to `CalendarView`. */
-  'complex.zod.ts#CalendarViewSchema': 'onViewChange';
+  /**
+   * RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads
+   * `onViewChange` off the spread props (function values only) and hands it to
+   * `CalendarView`. `onEventClick` joined with objectui#7344 — the same channel;
+   * its mirror was a multi-line `z.function()` that PR #7339's census missed.
+   */
+  'complex.zod.ts#CalendarViewSchema': 'onEventClick' | 'onViewChange';
   /**
    * `body` — TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror
    * declares `Record<string, unknown>` ("additional API body params"). Two different
@@ -711,6 +719,12 @@ interface KnownDrift {
   'complex.zod.ts#FilterFieldSchema': 'operators';
   /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
   'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick';
+  /**
+   * RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — `DetailView`'s
+   * `handleBack` calls `onBack()` when set. The mirror was `z.any()` (wider than
+   * the declared callable, objectui#7069's direction); it now refuses by name.
+   */
+  'crud.zod.ts#DetailSchema': 'onBack';
   /**
    * `rowActions` — DISJOINT: TS declares `rowActions?: boolean` (show the column or
    * not), the mirror declares `any[]` (the actions themselves). One of the two is
@@ -827,6 +841,13 @@ interface KnownDrift {
   'overlay.zod.ts#PopoverSchema': 'onOpenChange';
   /** RUNTIME SLOT (objectui#6124): the `sheet` renderer spreads leftover props onto the Radix `Sheet` (Dialog) root. */
   'overlay.zod.ts#SheetSchema': 'onOpenChange';
+  /**
+   * RUNTIME SLOT (objectui#7344): `detail-view` spreads the node's keys onto
+   * `DetailView`, whose `handleBack` calls `onBack()`. The TS twin declared the
+   * handler-expression STRING (objectui#6182: not an authoring form) and now
+   * declares the callable the renderer invokes; the mirror refuses by name.
+   */
+  'views.zod.ts#DetailViewSchema': 'onBack';
 }
 
 /* ── The measured unmirrored-declared ledger (objectui#6058) ────────────────── */
@@ -1282,7 +1303,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 123 pairs with no entry (160 − 37).
+ * 121 pairs with no entry (160 − 39).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
