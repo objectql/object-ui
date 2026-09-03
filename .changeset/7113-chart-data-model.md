@@ -17,16 +17,58 @@ than a severity dial, so the break is announced here, which is the channel that 
 
 ## What now refuses (the narrowing, named)
 
-Both were previously accepted, unchecked, and drew an EMPTY CHART in silence — they
-survived only on `BaseSchema`'s `.passthrough()`:
+**Three** classes validated before and refuse now. The first two survived only on
+`BaseSchema`'s `.passthrough()`; the third was silently STRIPPED by the non-strict
+`ChartDataSeriesSchema` object.
 
 ```jsonc
-{ "type": "chart", "chartType": "bar", "data": "oops" }      // now: data — expected array
-{ "type": "chart", "chartType": "bar", "xAxisKey": 123 }     // now: xAxisKey — expected string
+// 1. chart-level `data` that is not an array of row objects
+{ "type": "chart", "chartType": "bar", "data": "oops" }   // now: [data] expected array
+{ "type": "chart", "chartType": "bar", "data": [1,2,3] }  // now: [data.0] expected object
+
+// 2. a non-string `xAxisKey`
+{ "type": "chart", "chartType": "bar", "xAxisKey": 123 }  // now: [xAxisKey] expected string
+
+// 3. a non-string `series[].dataKey`  ⚠️ THIS ONE DRAWS A REAL CHART TODAY
+{ "type": "chart", "chartType": "bar",
+  "series": [{ "name": "a", "dataKey": 123 }] }           // now: [series.0.dataKey] expected string
 ```
 
-Rows that are not objects (`data: [1, 2, 3]`, the shape of the inline model retired by
-objectui#6896) are likewise refused, at `data.0`.
+⚠️ **Class 3 is the sharp one and is called out separately.** Classes 1 and 2 are malformed
+documents whose chart was already broken. Class 3 is not: at base it parsed to
+`series: [{ name: 'a' }]` (the non-string `dataKey` stripped in silence) and
+`normalizeChartSchema` renders it — `str(123)` is `undefined`, so the read falls back to
+`name` and yields `series: [{ dataKey: 'a' }]` (`normalizeChartSchema.ts:239`). So this is a
+narrowing away from a document that **renders today**, which is precisely the distinction
+objectui#6939's grading language turns on. `dataKey: null` behaves identically. Measured on
+both states; the declaration itself is right, and this note is the disclosure it was owed.
+
+## Corrected: what class 2 actually did
+
+An earlier draft of this changeset said `xAxisKey: 123` "drew an EMPTY CHART". The read
+sites do not support that: `ChartRenderer.tsx:133` takes `schema.xAxisKey` raw and the rows
+still reach `data` at `:164`, while the normaliser drops the key (`str(123)` is `undefined`).
+Measured through `normalizeChartSchema`, the result keeps the series and loses only the
+category binding — **a drawn chart with a broken category axis**, not an empty one. Class 1
+(`data` malformed) is the one that leaves nothing to plot.
+
+## Also changed on the published surface: combinators
+
+Both consts now carry a check (`ChartSchema` the `xAxis` fold, `ChartDataSeriesSchema` the
+at-least-one-binding refinement), and on zod 4.4.3 that makes three combinators **throw**
+where they previously returned a schema:
+
+```
+ChartSchema.pick(…) / .omit(…) / .partial()        -> throws "cannot be used on object
+ChartDataSeriesSchema.pick(…) / .omit(…) / …          schemas containing refinements"
+```
+
+`.extend()` with a NEW key still works and preserves the fold and the refinement;
+`.optional()`, `z.discriminatedUnion`, `z.toJSONSchema` and `safeValidateSchema` are all
+unaffected. Nothing in this repository calls the throwing combinators on either const, and
+the published surface already ships refined mirrors (`objectql.zod.ts`, `complex.zod.ts`,
+`form.zod.ts`, `app.zod.ts`), so the class is not new — but it is a real behaviour change on
+a published export and it belongs in the release note rather than in a reviewer's file.
 
 ## What now validates (the widening)
 
