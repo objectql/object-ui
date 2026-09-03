@@ -612,8 +612,6 @@ const UNGATED_DOCS = {
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-chatbot/README.md':
     '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
-  'packages/plugin-dashboard/README.md':
-    '19 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 4 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-designer/README.md':
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x6 TS2554x1 TS2741x1 — candidate real defects, un-triaged',
   'packages/plugin-detail/README.md':
