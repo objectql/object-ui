@@ -555,6 +555,7 @@ const ru = {
     allDay: "Весь день",
     newEvent: "Новое событие",
     moreEvents: "+{{count}} ещё",
+    unscheduled: "Без даты ({{count}})",
   },
   list: {
     firstRunTitle: "Здесь пока пусто",

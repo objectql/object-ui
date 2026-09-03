@@ -568,6 +568,7 @@ const zh = {
     allDay: '全天',
     newEvent: '新建事件',
     moreEvents: '+{{count}} 更多',
+    unscheduled: '未排期 ({{count}})',
   },
   list: {
     loading: '正在加载记录…',

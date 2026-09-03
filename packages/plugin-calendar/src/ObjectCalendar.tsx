@@ -24,18 +24,21 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
-import { CalendarView } from './CalendarView';
+import { CalendarView, type CalendarViewEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import {
   useNavigationOverlay,
   useSafeTranslate,
+  useObjectTranslation,
   extractWriteErrorMessage,
   isPermissionError,
   declaredUserMessage,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { usePermissions } from '@object-ui/permissions';
+import { ChevronRight } from 'lucide-react';
 import {
+  cn,
   useIsMobile,
   Dialog,
   DialogContent,
@@ -157,6 +160,17 @@ function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarC
   return null;
 }
 
+/**
+ * A record the calendar cannot place: the field declared as `startDateField`
+ * carries no value on it, so there is no date to draw and none is invented
+ * (objectui#7071). Deliberately just an id and a display title — the ruled
+ * affordance is a count and a list, so nothing here feeds a scheduling gesture.
+ */
+interface UnscheduledRecord {
+  id: string | number;
+  title: string;
+}
+
 export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   schema,
   dataSource,
@@ -172,6 +186,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   locale,
 }) => {
   const tt = useSafeTranslate();
+  // `useSafeTranslate` takes a plain English fallback and passes NO options to
+  // i18next, so it cannot fill a `{{count}}` hole — the unscheduled label needs
+  // one, and reads its key through `useObjectTranslation` instead. Both spell
+  // the provider-less fallback the same way (objectui#6219), so the label is
+  // correct whether or not an `I18nProvider` is mounted.
+  const { t } = useObjectTranslation();
   // When the parent (e.g. ObjectView) pre-fetches data and passes it via the `data` prop,
   // we must not trigger a second fetch. Detect external data by checking for an array.
   const hasExternalData = Array.isArray(externalData);
@@ -186,6 +206,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const [schemaResolution, setSchemaResolution] =
     useState<{ key: string; def: any } | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Disclosure state of the "unscheduled" area (objectui#7071). Collapsed by
+  // default, as ruled: the count is always on screen, the list is opt-in.
+  // Component state is the right home per AGENTS.md §5 #8 — nobody would share
+  // or bookmark it — and it survives a data refresh because a refetch re-renders
+  // this component rather than remounting it.
+  const [unscheduledOpen, setUnscheduledOpen] = useState(false);
   const isMobile = useIsMobile();
   const schemaDefaultView = (schema as any).defaultView as 'month' | 'week' | 'day' | undefined;
   // Lazy initializer: read window.innerWidth synchronously so SSR-friendly
@@ -459,10 +485,13 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     return () => { isMounted = false; };
   }, [schemaKey, dataSource, hasInlineData]);
 
-  // Transform data to calendar events
-  const events = useMemo(() => {
+  // Transform data to calendar events, and separate out the records that have
+  // no date to be placed on at all (objectui#7071 — see the early return in the
+  // loop below). ONE pass, so the two lists are always answers about the same
+  // dataset and the count under the calendar can never disagree with the grid.
+  const { events, unscheduledRecords } = useMemo(() => {
     if (!calendarConfig || !data.length) {
-      return [];
+      return { events: [] as CalendarViewEvent[], unscheduledRecords: [] as UnscheduledRecord[] };
     }
 
     const { startDateField, endDateField, titleField, colorField } = calendarConfig;
@@ -489,7 +518,10 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       return getRecordDisplayName(objectSchema, record);
     };
 
-    return data.map((record, index) => {
+    const scheduled: CalendarViewEvent[] = [];
+    const unscheduled: UnscheduledRecord[] = [];
+
+    data.forEach((record, index) => {
       const startDate = record[startDateField];
       const endDate = endDateField ? record[endDateField] : null;
       const title = resolveTitle(record);
@@ -501,17 +533,51 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       // is well beyond this fix.
       const colorRaw = colorField ? record[colorField] : undefined;
       const color = resolveColorFieldValue(colorRaw) ?? colorRaw;
+      const id = record.id || record._id || `event-${index}`;
 
-      return {
-        id: record.id || record._id || `event-${index}`,
+      // NO VALUE in the declared start field means the record has no date —
+      // full stop (objectui#7071, ruled 2026-09-01, re-confirmed 2026-09-02).
+      // This line used to read `startDate ? new Date(startDate) : new Date()`,
+      // so a record missing its date was handed THE CURRENT MOMENT and drawn on
+      // today's cell as an ordinary event. The `isNaN` guard below could not
+      // catch that by construction: a no-argument `new Date()` is always valid,
+      // so the absent-value case was converted into a well-formed lie *before*
+      // the check that would have caught it. `end`, three lines down, has
+      // always been honest about the same absence (`undefined`); this is
+      // `start` catching up. The record leaves the grid entirely and is counted
+      // in the "unscheduled" area below the calendar instead: nothing is
+      // invented, and nothing disappears without a count.
+      if (!startDate) {
+        unscheduled.push({ id, title });
+        return;
+      }
+
+      const start = new Date(startDate);
+      // The guard keeps its ORIGINAL job, on a DIFFERENT fact from the one
+      // above: a value that is PRESENT but unparseable ('not a date') is
+      // dropped here, never bucketed as unscheduled. Absent and malformed are
+      // two distinct defects and the two paths stay distinguishable.
+      if (isNaN(start.getTime())) return; // Filter out invalid dates
+
+      scheduled.push({
+        id,
         title,
-        start: startDate ? new Date(startDate) : new Date(),
+        start,
         end: endDate ? new Date(endDate) : undefined,
         color,
+        // Only a record that HAS a start reaches this line. That is the point
+        // of the early return above, not an accident of ordering: `!endDate`
+        // used to fire for a record with no dates AT ALL, so one absent field
+        // silently set two rendered properties and a dateless record rendered
+        // as an all-day event on today. A record without a start is
+        // unscheduled, not all-day. For a record WITH a start the inference is
+        // unchanged.
         allDay: !endDate, // If no end date, treat as all-day event
         data: record,
-      };
-    }).filter(event => !isNaN(event.start.getTime())); // Filter out invalid dates
+      });
+    });
+
+    return { events: scheduled, unscheduledRecords: unscheduled };
   }, [data, calendarConfig, objectSchema]);
 
   // Get days in current month view - REMOVED (Handled by CalendarView)
@@ -783,6 +849,49 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           onTimeRangeSelect={handleTimeRangeSelectDefault}
         />
       </div>
+
+      {/* The "unscheduled" containment area (objectui#7071, ruled 2026-09-01 and
+          re-confirmed 2026-09-02). Records with no value in the declared start
+          field are no longer given a fabricated date, so they are not on the
+          grid above — they are counted here and listed on demand, which is what
+          makes their absence from the grid honest rather than silent.
+
+          Rendered only when there is something to report: a calendar whose
+          records all carry a date looks exactly as it did before.
+
+          ⛔ Deliberately inert, and that is the ruling, not an omission: no
+          drag-to-schedule, no date picker, no way to assign a date from here.
+          The ruled affordance is a visible count and an expandable list, and
+          nothing more. Do not grow this into a scheduling surface without a
+          fresh ruling. */}
+      {unscheduledRecords.length > 0 && (
+        <div className="mt-2 border-t pt-2" data-calendar-unscheduled="">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            aria-expanded={unscheduledOpen}
+            onClick={() => setUnscheduledOpen((open) => !open)}
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn('h-4 w-4 transition-transform', unscheduledOpen && 'rotate-90')}
+            />
+            {t('calendar.unscheduled', {
+              count: unscheduledRecords.length,
+              defaultValue: 'Unscheduled ({{count}})',
+            })}
+          </button>
+          {unscheduledOpen && (
+            <ul className="mt-1 space-y-1 pl-6" data-calendar-unscheduled-list="">
+              {unscheduledRecords.map((record) => (
+                <li key={record.id} className="truncate text-sm">
+                  {record.title}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Quick-create dialog: opens when the user clicks an empty day cell.
           Pre-fills start_date (and end_date) with the clicked day; only the
