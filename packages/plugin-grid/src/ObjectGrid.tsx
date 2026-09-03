@@ -895,13 +895,26 @@ export type DeclaredDataTableSchema = RemoveIndexSignature<DataTableSchema>;
  *     it. That is precisely the ⛔ contrast `ObjectGridColumnHolds` spells out,
  *     and this type is now on the other side of it.
  *
- * ⛔ Nothing above is mechanically checked, which is how it went stale unseen.
- * `dataTableSchemaSlot-6459.test.ts` pins that the seam ACCEPTS both keys — an
- * assertion that stays green whether they are held HERE or declared THERE, so
- * it could not have caught this. The column-level twin IS guarded
- * (`columnHoldsExpiry-6424.test.ts` asserts `TableColumn` does NOT declare
- * `pinned`), and that is the shape a guard for this type would take. #7196
- * files it as a separate finding; ⛔ do not add it as a rider here.
+ * ⭐ GUARDED SINCE objectui#7201 — this is the one paragraph that changed.
+ * Until then nothing above was mechanically checked, which is how it went stale
+ * unseen: `dataTableSchemaSlot-6459.test.ts` pinned only that the seam ACCEPTS
+ * both keys, an assertion that stays green whether they are held HERE or
+ * declared THERE. That suite now also carries the column-level twin's shape
+ * (`columnHoldsExpiry-6424.test.ts`, which asserts `TableColumn` does NOT
+ * declare `pinned`), transplanted: a compile-time verdict per member of this
+ * type, recording whether `DataTableSchema` declares that key. Both members are
+ * pinned DECLARED today, so a revert upstream reddens; and the key set itself is
+ * pinned, so a member added or removed here reddens too. ⚠️ The transplant is
+ * NOT literal in one respect, deliberately: the probe reads
+ * `DeclaredDataTableSchema`, not `DataTableSchema`, because the index signature
+ * stripped above makes the raw type answer "declared" to EVERY key — measured,
+ * and pinned in that suite as its own control.
+ *
+ * ⇒ Anything in this census that a reader would otherwise have to re-measure by
+ * hand is still prose; what is mechanical is the ENTRY CONDITION of the two
+ * holds below. ⛔ Do not read the gate as covering the rest of the census — the
+ * 46-key derivation is still hand-maintained, and whether this repo wants a
+ * derivation gate over it is the question objectui#7201 left for a ruling.
  */
 export type ObjectGridDataTableSchemaHolds = {
   /**
