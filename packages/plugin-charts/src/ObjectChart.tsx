@@ -174,7 +174,15 @@ export async function resolveGroupByLabels(
   // --- lookup / master_detail fields ---
   if (fieldType === 'lookup' || fieldType === 'master_detail') {
     // --- lookup / master_detail fields ---
-    const referenceTo = fieldDef.reference_to || fieldDef.reference;
+    // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+    // belongs on the SERVER, the front end just executes the protocol.
+    // `reference` is the only target spelling `@objectstack/spec`'s
+    // `FieldSchema` declares; it refuses `reference_to` by name with its own
+    // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+    // stored `reference_to` on the serve path and in `os migrate meta`. A
+    // legacy-only def is canonicalised ONCE at the ingestion choke point
+    // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+    const referenceTo = fieldDef.reference;
     if (!referenceTo || !dataSource || typeof dataSource.find !== 'function') {
       // Cannot resolve — return as-is but still attach the rawKey so the
       // click handler can recover the FK id.
