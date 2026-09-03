@@ -11,7 +11,7 @@
           "registerComponent",
           "namespace",
           "useDataScope",
-          "FieldWidgetProps",
+          "FieldWidgetComponentProps",
           "vitest"
         ],
         "must_not_contain": [
@@ -36,11 +36,11 @@
     {
       "id": 3,
       "prompt": "How do I create a custom field widget that renders a star rating input (1-5 stars) and integrates with ObjectUI forms?",
-      "expected_output": "Shows FieldWidgetProps implementation with value/onChange, star rendering logic, proper readonly/disabled handling, and registration pattern.",
+      "expected_output": "Shows FieldWidgetComponentProps implementation with value/onChange, star rendering logic, proper readonly/disabled handling, and registration pattern.",
       "files": [],
       "assertions": {
         "must_contain": [
-          "FieldWidgetProps",
+          "FieldWidgetComponentProps",
           "value",
           "onChange",
           "readonly",

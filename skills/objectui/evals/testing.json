@@ -29,7 +29,6 @@
           "React Testing Library",
           "SchemaRendererProvider",
           "create",
-          "edit",
           "view"
         ],
         "must_not_contain": []
