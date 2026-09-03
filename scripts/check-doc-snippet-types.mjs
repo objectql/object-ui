@@ -399,12 +399,26 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * document-list equality pin the other two share.
  *
  * ⚠️ EVERYTHING ELSE authored in markdown is read by no doc gate at all. That is
- * a statement of what the roots are today, ⛔ not a plan and not a promise. When
- * this block was written the unscanned population was 114 files (excluding the
- * ephemeral `.changeset/`), the largest groups being non-README `.md` under
- * `packages/**` (54), `docs/**` ADRs and audits (17), and the PUBLISHED
- * `skills/objectui/**` (16). Re-derive it rather than trusting that number,
- * which drifts with every batch:
+ * a statement of what the roots are today, ⛔ not a plan and not a promise. In
+ * descending order of size, the unscanned population is: non-README `.md` under
+ * `packages/**` (by far the largest); `docs/**` (ADRs and audits); the PUBLISHED
+ * `skills/objectui/**`; the root pages that are not `README.md` (`AGENTS.md`,
+ * `CONTRIBUTING.md`, `ROADMAP.md` and the rest); `examples/**`; the `apps/**`
+ * pages that are not under an `apps/<app>/docs/` tree; `.claude/**`;
+ * `.github/**`; and `patches/**`. The ephemeral `.changeset/` is excluded as
+ * noise rather than counted as debt.
+ *
+ * ⛔ Deliberately NO count is written here, neither a total nor a per-tree one.
+ * That is not laziness, it is objectui#7448's defect avoided at the source: a
+ * hand-copied number in a header drifts from the tree and nothing fails when it
+ * does, which is the same lesson `UNGATED_DOCS`'s own header records after both
+ * halves of its `12 .mdx pages and 32 package READMEs` went stale ("a pointer to
+ * the list now rather than a copy of its length"). The first draft of THIS block
+ * proved the point inside a single pull request: it said 114, counting the three
+ * `apps/<app>/docs/` guides that the very same change was bringing under the
+ * gates.
+ * The command below is the durable answer, and it answers both "how many" and
+ * "which":
  *
  *     git ls-files '*.md' '*.mdx' \
  *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|\.changeset/)'
