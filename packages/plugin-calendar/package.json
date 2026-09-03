@@ -36,6 +36,7 @@
     "@object-ui/fields": "workspace:*",
     "@object-ui/i18n": "workspace:*",
     "@object-ui/mobile": "workspace:*",
+    "@object-ui/permissions": "workspace:*",
     "@object-ui/plugin-detail": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",

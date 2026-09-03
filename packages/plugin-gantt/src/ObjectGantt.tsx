@@ -34,6 +34,7 @@ import { resolveI18nLabel as resolveInlineI18nLabel } from '@objectstack/spec/ui
 import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
 import { useLocalization, useDisplayLocale, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
+import { usePermissions } from '@object-ui/permissions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,7 +64,7 @@ import {
   formatPercent,
   formatCurrency,
 } from '@object-ui/fields';
-import { GanttView, type GanttTask, type GanttDependency, type GanttInteractions, type GanttLinkType, type GanttTaskType } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType } from './GanttView';
 import { ResourceWorkload } from './ResourceWorkload';
 import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
@@ -639,6 +640,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const resource =
     dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName ?? '';
 
+  // Permissions context, read here rather than inside `reload` below: a
+  // `useCallback`'s DEPENDENCY ARRAY is evaluated during render, so `perms` has
+  // to be a binding that already exists by the time render reaches it
+  // (objectui#7230, the structural note PR #7229 recorded for `ListView`).
+  const perms = usePermissions();
+
   // Load (and re-load) data through the resolved adapter. `silent: true`
   // re-reads the source WITHOUT flipping `loading`, so GanttView stays mounted
   // and keeps its scroll/collapse state — used by the write-readback below and
@@ -672,7 +679,34 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       // 'object' → context adapter, 'api' → ApiDataSource (both resolved above).
       // Auto-inject $expand for lookup/master_detail fields when a schema is
       // available; api adapters return an empty field map, so expand stays off.
-      const expand = buildExpandFields(objectSchema?.fields);
+      //
+      // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand`, the gate
+      // objectui#7215 / PR #7229 put on the two projection sites in its scope.
+      // `$select` on a denied lookup asks for a bare foreign key; `$expand`
+      // asks the server to RESOLVE the relation and return the related record.
+      //
+      // ⚠️ NO COLUMN LIST IS PASSED HERE, which is what makes this site sharp:
+      // `buildExpandFields` reads an absent column list as "no column
+      // restriction" and falls back to EVERY declared relation on the object,
+      // denied ones included — the maximal ask, by default rather than by
+      // configuration.
+      //
+      // Graded as objectui#7215 graded it: defence-in-depth against
+      // ObjectStack's own server (`FieldMasker.maskRecord` deletes the very key
+      // objectql writes the expansion back under, and the sub-read takes the
+      // referenced object's full CRUD + RLS + FLS — objectstack#7626), and
+      // load-bearing for a backend that does not strip.
+      //
+      // ⭐ THE GATE IS ON THE OUTPUT. There is no input to gate on this site,
+      // and the output contains only DECLARED reference-bearing fields, so the
+      // "`checkField` answers false for an undeclared key" trap is structurally
+      // unreachable. An unanswered policy filters nothing; `perms` is in this
+      // callback's dependency list, so the expansion is rebuilt the moment the
+      // answer arrives. Pinned in `ObjectGantt.expandFls-7230.test.tsx`.
+      const expandable = buildExpandFields(objectSchema?.fields);
+      const expand = !perms?.isLoaded || !resource
+        ? expandable
+        : expandable.filter((f) => perms.checkField(resource, f, 'read'));
       const result = await effectiveDataSource.find(resource, {
         $filter: schema.filter,
         $orderby: convertSortToQueryParams(schema.sort),
@@ -707,7 +741,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
-  }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema]);
+  }, [effectiveDataSource, resource, hasInlineData, dataProvider, dataItems, schema.filter, schema.sort, objectSchema, perms]);
 
   useEffect(() => {
     reload();

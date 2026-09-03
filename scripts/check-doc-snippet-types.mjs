@@ -259,8 +259,8 @@
  * SURFACE is stated in the same breath as the coverage rule rather than left to
  * be read off the collector:
  *
- *     every `.mdx` and `.md` page under `content/docs`, plus every
- *     `packages/<name>/README.md`.
+ *     every `.mdx` and `.md` page under `content/docs`, every
+ *     `packages/<name>/README.md`, and the root `README.md`.
  *
  * Stating it here is objectui#5174's finding, and the finding was not the missing
  * extension — it was that a reader had to open `listDocuments` to learn that
@@ -301,6 +301,68 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS_ROOT = 'content/docs';
 const PACKAGES_DIR = 'packages';
 
+/**
+ * Per-app documentation trees, `apps/<app>/docs/**` (objectui#6600).
+ *
+ * That card measured the hole: the three doc gates all rooted at `content/docs`,
+ * so `apps/console/docs/**` — the console's operator and deployment guides — was
+ * read by NO doc gate. The only check whose surface contained those files was
+ * `check:control-bytes`, which enumerates `git ls-files` and therefore covers
+ * every tracked text file, i.e. they were checked for control bytes and for
+ * nothing else. What accumulated there is objectui#6599: a guide that had drifted
+ * far enough that following it literally rebuilt the ungated telemetry init
+ * objectui#5522 deliberately removed, plus a fabricated CSP section and two env
+ * vars with zero read sites. Nothing mechanical could have noticed any of it.
+ *
+ * The walk is `apps/<app>/docs`, one level of app directory and no deeper before
+ * the
+ * `docs` segment. `apps/site/app/docs` is a Next.js ROUTE directory holding
+ * `.tsx` route files, not a documentation tree; a `**`-shaped walk that picked it
+ * up would be collecting routes.
+ *
+ * Exported so the equality is checked rather than hoped for: three gates carry
+ * this constant and `check-doc-fence-languages.test.ts` pins all three copies.
+ */
+export const APP_DOCS = { dir: 'apps', subdir: 'docs' };
+
+/** Every `apps/<app>/docs` directory that exists, in a stable order. */
+export function appDocsDirs(root) {
+  const appsDir = join(root, APP_DOCS.dir);
+  if (!existsSync(appsDir)) return [];
+  const out = [];
+  for (const entry of readdirSync(appsDir).sort()) {
+    const docs = join(appsDir, entry, APP_DOCS.subdir);
+    if (existsSync(docs) && statSync(docs).isDirectory()) out.push(docs);
+  }
+  return out;
+}
+
+/**
+ * Pages at the repository ROOT that join the scan set by name.
+ *
+ * objectui#7115. Between this gate's surface (`content/docs` + the package
+ * READMEs) and `check-doc-component-types.mjs`'s (`content/docs` alone), the
+ * root `README.md` fell through: the most-read authored file in the repository —
+ * the GitHub landing page and the npm page for the workspace — was read by NO
+ * doc gate at all. It taught the unregistered type `stat-card` four times in its
+ * flagship example for as long as the example existed.
+ *
+ * Adding the name here is what makes the file VISIBLE to this gate's accounting.
+ * Whether its snippets compile is a separate question answered, as for every
+ * other document, by `UNGATED_DOCS` below: covered by default, and opted out
+ * only with a written, re-derived reason. That distinction is objectui#5174's,
+ * quoted in the header — a document outside the walk is "neither covered NOR
+ * declared ungated", which is strictly worse than a named debt.
+ *
+ * A name here that does not resolve is a failed run, not a quiet skip: see the
+ * check in `main`.
+ *
+ * Exported so the equality is checked rather than hoped for: three gates now
+ * carry this array, and `check-doc-fence-languages.test.ts` pins all three
+ * against each other.
+ */
+export const ROOT_PAGES = ['README.md'];
+
 /** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
  *  the whole content of the scan surface: `content/docs` is authored in a mix of
  *  `.mdx` and `.md` — the same guide tree, the same renderer, the same reader —
@@ -317,6 +379,57 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
 const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
 
 /**
+ * ── What the three doc gates own, and what nothing owns (objectui#6600) ──────
+ *
+ * Stated once, here, because this gate has the widest surface and holds the
+ * coverage ledger below. The other two headers state their own roots and point
+ * at this block.
+ *
+ *   root                        fences · snippets · types
+ *   ─────────────────────────── ─────────────────────────
+ *   content/docs/**                 ✓        ✓       ✓
+ *   apps/<app>/docs/**              ✓        ✓       ✓     objectui#6600
+ *   README.md                       ✓        ✓       ✓     objectui#7115
+ *   packages/<name>/README.md       ✓        ✓       ✗     ships inside `files`
+ *
+ * `check-doc-component-types` does not read the package READMEs — it asks
+ * whether a documented `type` literal is a registered component key, and a
+ * package README teaches its own package's API rather than the schema vocabulary.
+ * That is the ONE deliberate asymmetry, and it is why that gate cannot join the
+ * document-list equality pin the other two share.
+ *
+ * ⚠️ EVERYTHING ELSE authored in markdown is read by no doc gate at all. That is
+ * a statement of what the roots are today, ⛔ not a plan and not a promise. In
+ * descending order of size, the unscanned population is: non-README `.md` under
+ * `packages/**` (by far the largest); `docs/**` (ADRs and audits); the PUBLISHED
+ * `skills/objectui/**`; the root pages that are not `README.md` (`AGENTS.md`,
+ * `CONTRIBUTING.md`, `ROADMAP.md` and the rest); `examples/**`; the `apps/**`
+ * pages that are not under an `apps/<app>/docs/` tree; `.claude/**`;
+ * `.github/**`; and `patches/**`. The ephemeral `.changeset/` is excluded as
+ * noise rather than counted as debt.
+ *
+ * ⛔ Deliberately NO count is written here, neither a total nor a per-tree one.
+ * That is not laziness, it is objectui#7448's defect avoided at the source: a
+ * hand-copied number in a header drifts from the tree and nothing fails when it
+ * does, which is the same lesson `UNGATED_DOCS`'s own header records after both
+ * halves of its `12 .mdx pages and 32 package READMEs` went stale ("a pointer to
+ * the list now rather than a copy of its length"). The first draft of THIS block
+ * proved the point inside a single pull request: it said 114, counting the three
+ * `apps/<app>/docs/` guides that the very same change was bringing under the
+ * gates.
+ * The command below is the durable answer, and it answers both "how many" and
+ * "which":
+ *
+ *     git ls-files '*.md' '*.mdx' \
+ *       | grep -vE '^(content/docs/|apps/[^/]+/docs/|packages/[^/]+/README\.md$|README\.md$|\.changeset/)'
+ *
+ * ⛔ `skills/objectui/**` is NOT claimed by any gate here, and this line is the
+ * opposite of a claim on it: it is a governed, published surface with its own
+ * review path, so pointing a doc gate at it is a decision for whoever owns that
+ * surface — never a side effect of a root move. Writing an unscanned tree down
+ * is what keeps it a KNOWN debt; a tree nobody names is objectui#5174's
+ * "neither covered NOR declared ungated", which is strictly worse.
+ *
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
@@ -450,17 +563,23 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * @type {Record<string, string>}
  */
 const UNGATED_DOCS = {
-  'content/docs/plugins/plugin-calendar-view.mdx':
-    '2 unresolved-module diagnostic(s) — and NOT a defect: the page is a migration guide whose ' +
-    '"Before" blocks quote the retired `@object-ui/plugin-calendar-view` import on purpose. Covering ' +
-    'it means declaring those blocks, which is a judgement about the page rather than a mechanical ' +
-    'edit — the one entry here that would be closed by declaring blocks rather than by fixing them.',
-  'content/docs/plugins/plugin-detail.mdx':
-    '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
-  'content/docs/utilities/create-plugin.mdx':
-    '1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
-  'packages/app-shell/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 14 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
+  // objectui#7115 put the root README into the scan surface; this entry is what
+  // that bought on THIS gate's question. The file is now VISIBLE to the ledger
+  // instead of invisible to the walk — the objectui#5174 distinction quoted in
+  // the header — and the debt below is measured, not estimated. ⚠️ Read as debt,
+  // never as a pass: these 9 diagnostics are real and objectui#7417 carries them.
+  // The three TS2305s are the ones that matter; the other six are fragment shape.
+  'README.md':
+    '4 undefined-name diagnostic(s) — blocks use ambient names the page never defines (`myAPI`, ' +
+    '`MySidebar`) or continue an earlier block (`SchemaRenderer`, `schema`); 2 elided-body ' +
+    'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
+    'methods`; plus TS2305x3 — REAL defects, measured against the built `dist/index.d.ts` of each ' +
+    'package and filed as objectui#7417: `ObjectRenderer` is on no export of @object-ui/app-shell ' +
+    '(the same phantom objectui#7095 recorded in examples/byo-backend-console/README.md), ' +
+    '`registerDefaultRenderers` is on no export of @object-ui/components (only ' +
+    '`registerPlaceholders` is) and is taught in no other authored file, and ' +
+    '`createObjectStackAdapter` is imported from @object-ui/core, which does not ship it — ' +
+    '@object-ui/data-objectstack does, as packages/plugin-dashboard/README.md already writes it.',
   'packages/auth/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/collaboration/README.md':
@@ -493,8 +612,6 @@ const UNGATED_DOCS = {
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-chatbot/README.md':
     '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
-  'packages/plugin-dashboard/README.md':
-    '19 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 4 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-designer/README.md':
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x6 TS2554x1 TS2741x1 — candidate real defects, un-triaged',
   'packages/plugin-detail/README.md':
@@ -511,8 +628,6 @@ const UNGATED_DOCS = {
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x1 — candidate real defects, un-triaged',
   'packages/plugin-markdown/README.md':
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-report/README.md':
-    '16 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS1108x1 — candidate real defects, un-triaged',
   'packages/plugin-tree/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/providers/README.md':
@@ -636,12 +751,21 @@ export function listDocuments(root = repoRoot) {
   };
   const docsRoot = join(root, DOCS_ROOT);
   if (existsSync(docsRoot)) walk(docsRoot);
+  // Per-app docs trees, in the same slot the fence guard appends them in — the
+  // coupling pin compares the two lists element by element.
+  for (const dir of appDocsDirs(root)) walk(dir);
   const pkgDir = join(root, PACKAGES_DIR);
   if (existsSync(pkgDir)) {
     for (const entry of readdirSync(pkgDir).sort()) {
       const readme = join(pkgDir, entry, 'README.md');
       if (existsSync(readme)) out.push(relative(root, readme).split(sep).join('/'));
     }
+  }
+  // Root pages last, by name. An absent one is dropped here so a throwaway
+  // fixture tree stays listable; `main` refuses to publish a verdict when one is
+  // missing from a real run, which is the only place that can bite.
+  for (const name of ROOT_PAGES) {
+    if (existsSync(join(root, name))) out.push(name);
   }
   return out;
 }
@@ -808,7 +932,12 @@ function importedSpecifiers(body) {
 
 const SENTINEL_EXPORT = 'ThisNameIsDefinitelyNotExported';
 const CONTROL_PACKAGE = '@object-ui/types';
-const CONTROL_REAL_EXPORT = 'ComponentSchema';
+// `BaseSchema` since objectui#4895: the control needs a name `@object-ui/types`
+// really exports, and the previous choice, `ComponentSchema`, was retired with
+// the whole block schema family. A control that names a deleted export fails the
+// harness rather than the documents — which is exactly what it did, loudly, and
+// is how this line was found.
+const CONTROL_REAL_EXPORT = 'BaseSchema';
 
 /**
  * The UNDECLARED control's specifier (see the header). Three properties make it
@@ -1129,6 +1258,22 @@ export function buildFilterArgs(packages) {
 
 function main() {
   const argv = process.argv.slice(2);
+
+  // Checked before anything else: a ROOT_PAGES name that does not resolve makes
+  // the scan set quietly SMALLER, and every count this gate prints would still
+  // look healthy. That silent shrink is the defect objectui#7115 was filed for.
+  for (const name of ROOT_PAGES) {
+    if (!existsSync(join(repoRoot, name))) {
+      console.error(
+        `ROOT_PAGES names \`${name}\`, which does not exist under ${repoRoot}. That name is part of ` +
+          "this gate's stated scan surface (objectui#7115), so a dangling entry silently narrows the " +
+          "surface back to what objectui#7115 found. Re-point it at the page's new path, or remove " +
+          'it deliberately.',
+      );
+      return EXIT_CODES.couldNotRun;
+    }
+  }
+
   const state = analyze({});
 
   if (argv.includes('--build-filter')) {

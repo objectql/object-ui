@@ -661,6 +661,7 @@ const en = {
     allDay: 'All Day',
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
+    unscheduled: 'Unscheduled ({{count}})',
   },
   list: {
     loading: 'Loading records…',
@@ -817,6 +818,9 @@ const en = {
     },
     unsupported: {
       objectBoundGantt: 'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
+    },
+    unconfigured: {
+      noDateAxis: 'Timeline date axis required — this view declares no date field, and an object-bound timeline will not invent one. Declare one of: {{fields}}. The first is the spec spelling; the rest are legacy aliases.',
     },
   },
   gantt: {

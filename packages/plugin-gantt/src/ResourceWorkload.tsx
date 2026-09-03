@@ -16,7 +16,7 @@
  * (pure + unit-tested); this component is the renderer + timeline geometry.
  */
 import * as React from 'react';
-import { type GanttTask, type GanttViewMode, NOMINAL_DAYS, MS_PER_DAY, startOfUnit, addUnits } from './GanttView';
+import { type GanttTask, type GanttViewMode, startOfUnit, addUnits } from './GanttView';
 import { computeWorkload, type WorkloadColumn } from './workload';
 import { useGanttTranslation } from './useGanttTranslation';
 

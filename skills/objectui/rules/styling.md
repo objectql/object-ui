@@ -7,6 +7,7 @@
 ## Rule: Use Tailwind Utility Classes Only
 
 **✅ CORRECT:**
+<!-- os:check -->
 ```json
 {
   "type": "card",
@@ -135,6 +136,7 @@ are published as custom properties and consumed by the static utility pair above
 
 For component variations, use `class-variance-authority`:
 
+<!-- os:check -->
 ```typescript
 import { cva } from 'class-variance-authority';
 
@@ -177,6 +179,7 @@ const buttonVariants = cva(
 
 Use Tailwind's responsive prefixes in schemas:
 
+<!-- os:check -->
 ```json
 {
   "type": "grid",

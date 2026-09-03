@@ -56,6 +56,7 @@ describe('plugin-kanban registration', () => {
 
 ### Pattern 3: Schema validation testing
 
+<!-- os:check -->
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { validateSchema, isValidSchema, formatValidationErrors } from '@object-ui/core';
@@ -86,6 +87,7 @@ describe('schema validation', () => {
 
 ### Pattern 4: Expression evaluation testing
 
+<!-- os:check -->
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { ExpressionEvaluator } from '@object-ui/core';
@@ -202,6 +204,7 @@ describe('AuthProvider', () => {
 
 ### Pattern 7: DataSource adapter testing
 
+<!-- os:check -->
 ```typescript
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
@@ -232,6 +235,7 @@ describe('ObjectStackAdapter', () => {
 
 ### Smoke test
 
+<!-- os:check -->
 ```typescript
 import { test, expect } from '@playwright/test';
 

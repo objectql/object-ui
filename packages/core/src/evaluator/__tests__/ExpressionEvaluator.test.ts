@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { ExpressionEvaluator, evaluateExpression, evaluateCondition, evaluatePlainCondition } from '../ExpressionEvaluator';
+import { ExpressionEvaluator, evaluatePlainCondition } from '../ExpressionEvaluator';
 import { ExpressionContext } from '../ExpressionContext';
 import { SafeExpressionParser } from '../SafeExpressionParser';
 

@@ -435,6 +435,31 @@ export interface TableColumn {
    * behaviour honest.
    */
   currency?: string;
+  /**
+   * Let long cell text WRAP onto further lines instead of being clipped to one:
+   * `data-table` renders the cell body `whitespace-normal break-words` in place
+   * of its default `truncate`. Absent or `false` leaves the truncating
+   * behaviour exactly as it was.
+   *
+   * ⚠️ {@link TableColumn.fitContent} WINS over this key. A fit column is
+   * `width:1%` with no `minWidth` / `maxWidth` clamp, so the auto table layout
+   * sizes it from its content alone, and `whitespace-nowrap` is what holds that
+   * content's min-content width at its max-content width — one line. Drop
+   * nowrap and min-content falls back to the longest WORD, so the two keys do
+   * not compose: honouring `wrap` there collapses the column instead of
+   * wrapping it. Measured in Chromium on objectui#6650, the same cell shape
+   * both ways: 463.9px wide on one line with nowrap, 70.9px wide over ten lines
+   * without it — 6.5x narrower and 5.9x taller. Pinned in
+   * `data-table-column-wrap.test.tsx`.
+   *
+   * Declared by objectui#6650 (maintainer ruling 2026-09-02, Option B:
+   * implement). `@objectstack/spec` declares `ListColumn.wrap` and describes it
+   * to authors as "Allow text wrapping"; until this card no renderer anywhere
+   * read it, so the promise was made at authoring time and silently broken at
+   * render time. `ObjectGrid.generateColumns()` forwards the authored key into
+   * this slot and `data-table` reads it here — declared, forwarded, rendered.
+   */
+  wrap?: boolean;
 }
 
 /**
@@ -487,6 +512,13 @@ export interface StaticTableColumn {
    * @deprecated Not part of the static `table` renderer's contract.
    */
   minWidth?: never;
+  /**
+   * NOT on the static `table` surface (objectui#6650) — declared on the rich
+   * {@link TableColumn} only, where `data-table` reads it. The static renderer
+   * has no truncation to opt out of. Use `data-table` for the interactive set.
+   * @deprecated Not part of the static `table` renderer's contract.
+   */
+  wrap?: never;
   /**
    * RETIRED from the static `table` surface (objectui#5474, ADR-0049) — the
    * static renderer never read it; a right-aligned column authored here was

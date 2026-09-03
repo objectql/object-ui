@@ -30,7 +30,6 @@ import {
   History,
   Menu,
   Search,
-  Bot,
   Sparkles,
   Type,
   Hash,

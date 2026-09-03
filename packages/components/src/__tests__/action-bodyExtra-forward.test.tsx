@@ -89,7 +89,7 @@ describe('bodyExtra survives the renderer forward whitelist', () => {
         <Registered
           type="action:button"
           schema={{
-            type: 'api',
+            actionType: 'api',
             name: 'revoke_key',
             label: 'Revoke',
             target: '/api/v1/sys_api_key/k1',

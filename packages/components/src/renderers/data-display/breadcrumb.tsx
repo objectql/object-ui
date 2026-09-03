@@ -9,7 +9,6 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { BreadcrumbSchema, BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator, BreadcrumbEllipsis } from '../../ui/breadcrumb';
-import { renderChildren } from '../../lib/utils';
 import { resolveKeyedI18nLabel } from '@object-ui/react';
 // `BreadcrumbItem.icon` is an authored lucide NAME that this renderer never
 // read — the catalog fixture literally named `with-icons.json` drew no icons

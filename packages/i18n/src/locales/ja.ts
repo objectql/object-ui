@@ -549,6 +549,7 @@ const ja = {
     allDay: "終日",
     newEvent: "新しい予定",
     moreEvents: "+{{count}} 件",
+    unscheduled: "日時未定 ({{count}})",
   },
   list: {
     firstRunTitle: "まだ何もありません",
@@ -700,6 +701,9 @@ const ja = {
     },
     unsupported: {
       objectBoundGantt: "サポートされていないバリアント \"gantt\" — オブジェクト連動のタイムラインはフィードバリアント（{{variants}}）を描画します。ガントには、それぞれが入れ子の items を持つリテラル行が必要なため、ここではガント軸（scale）は効果がありません。",
+    },
+    unconfigured: {
+      noDateAxis: "タイムラインの日付軸が必要です — このビューは日付フィールドを宣言しておらず、オブジェクト連動のタイムラインが日付フィールドを作り出すことはありません。次のいずれかを宣言してください: {{fields}}。最初のものが spec の記法で、残りは旧来のエイリアスです。",
     },
   },
   gantt: {

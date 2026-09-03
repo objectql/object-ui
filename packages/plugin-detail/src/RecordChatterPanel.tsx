@@ -11,7 +11,7 @@ import { cn, Button } from '@object-ui/components';
 import { MessageSquare, PanelRightOpen, PanelRightClose, X } from 'lucide-react';
 import type { RecordChatterComponentProps, FeedItem, RecordSubscription } from '@object-ui/types';
 import { RecordActivityTimeline } from './RecordActivityTimeline';
-import type { FeedFilterMode, RecordActivityTimelineProps } from './RecordActivityTimeline';
+import type { FeedFilterMode } from './RecordActivityTimeline';
 import { useDetailTranslation } from './useDetailTranslation';
 
 export interface RecordChatterPanelProps {

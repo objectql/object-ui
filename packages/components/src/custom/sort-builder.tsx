@@ -7,7 +7,7 @@
  */
 
 import * as React from "react"
-import { X, Plus, Trash2 } from "lucide-react"
+import { X, Plus } from "lucide-react"
 import { createSafeTranslation } from "@object-ui/i18n"
 import type { SortItem as SpecSortItem } from "@objectstack/spec/shared"
 

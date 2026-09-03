@@ -553,6 +553,7 @@ const es = {
     allDay: "Todo el día",
     newEvent: "Nuevo evento",
     moreEvents: "+{{count}} más",
+    unscheduled: "Sin programar ({{count}})",
   },
   list: {
     firstRunTitle: "Aquí todavía no hay nada",
@@ -704,6 +705,9 @@ const es = {
     },
     unsupported: {
       objectBoundGantt: "Variante \"gantt\" no admitida: una línea de tiempo vinculada a un objeto representa las variantes de feed ({{variants}}). Gantt necesita filas literales, cada una con sus propios items anidados, por lo que el eje gantt (scale) no tiene efecto aquí.",
+    },
+    unconfigured: {
+      noDateAxis: "Se requiere el eje de fechas de la línea de tiempo: esta vista no declara ningún campo de fecha y una línea de tiempo vinculada a un objeto no inventa ninguno. Declare uno de: {{fields}}. El primero es la grafía de la especificación; los demás son alias heredados.",
     },
   },
   gantt: {

@@ -27,7 +27,7 @@
       "files": [],
       "assertions": {
         "must_contain": [
-          "visible",
+          "hidden",
           "admin",
           "card"
         ],

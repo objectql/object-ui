@@ -23,6 +23,7 @@ import {
   NavigationAreaSchema as SpecNavigationAreaSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 
 // ============================================================================
 // Unified NavigationItem Schema
@@ -202,7 +203,10 @@ export const AppActionSchema = z.object({
   type: z.enum(['button', 'dropdown', 'user']).describe('Action type'),
   label: z.string().optional().describe('Action label'),
   icon: z.string().optional().describe('Icon name'),
-  onClick: z.string().optional().describe('Click handler expression'),
+  // RETIRED (objectui#7344 — the objectui#6182 ruling: the handler-expression
+  // string dialect is not an authoring form; the objectui#6124 shape). Nothing
+  // reads `AppComponentSchema.actions[]`, so the key refuses by name.
+  onClick: handlerKeyRefusal('onClick', 'retired', 'Click handler'),
   avatar: z.string().optional().describe('User avatar URL (for type="user")'),
   description: z.string().optional().describe('Additional description (e.g., email for user)'),
   items: z.array(MenuItemSchema).optional().describe('Dropdown menu items (for type="dropdown" or "user")'),

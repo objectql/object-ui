@@ -9,7 +9,7 @@
     {
       "type": "text",
       "content": "Loading...",
-      "variant": "muted"
+      "variant": "caption"
     }
   ]
 }

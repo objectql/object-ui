@@ -53,7 +53,8 @@
  *   3. NAME NET — for the retired keys with NO live declaration anywhere
  *      (`onColumnAdd`, `onCardAdd`, `onSlideChange`, `onSendMessage`,
  *      `onSelectChange`, `onExpandChange`, `onCollapsedChange`, `onConfirm` on
- *      this tree), no row anywhere spells them callable, whatever owner name
+ *      this tree; `onClose` and `onSave` joined with objectui#7344), no row
+ *      anywhere spells them callable, whatever owner name
  *      the page used. This is the net for doc-LOCAL interface names, which rule
  *      2 cannot resolve by construction (`plugins/*.mdx` document `Overview` /
  *      `Features` / `Properties` blocks with no shipped counterpart).
@@ -261,18 +262,25 @@ const CONTROL = [
 ] as const;
 
 describe('the retired population is measured off the shipped tree (objectui#7340)', () => {
-  it('counts the `?: never` handler members #6124 left behind', () => {
+  it('counts the `?: never` handler members #6124 and #7344 left behind', () => {
+    // 22 from objectui#6124; objectui#7344 (the objectui#6182 string-dialect
+    // ruling, same shape) added `AppAction.onClick`, `ReportBuilderSchema.onSave`
+    // / `.onCancel` and `CRUDDialogSchema.onClose` — a ruled move of the
+    // population, recorded here rather than waved through.
     const split: Record<string, number> = {};
     for (const m of RETIRED) split[m.file] = (split[m.file] ?? 0) + 1;
     expect({ total: RETIRED.length, split }).toEqual({
-      total: 22,
+      total: 26,
       split: {
+        'app.ts': 1,
         'complex.ts': 4,
+        'crud.ts': 1,
         'data-display.ts': 4,
         'feedback.ts': 1,
         'form.ts': 8,
         'navigation.ts': 3,
         'overlay.ts': 2,
+        'reports.ts': 2,
       },
     });
   });
@@ -288,10 +296,12 @@ describe('the retired population is measured off the shipped tree (objectui#7340
   it('names the keys no shipped interface declares callable', () => {
     expect(UNAMBIGUOUSLY_RETIRED_NAMES).toEqual([
       'onCardAdd',
+      'onClose',
       'onCollapsedChange',
       'onColumnAdd',
       'onConfirm',
       'onExpandChange',
+      'onSave',
       'onSelectChange',
       'onSendMessage',
       'onSlideChange',

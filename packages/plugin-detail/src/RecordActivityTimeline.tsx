@@ -14,7 +14,6 @@ import {
   PlusCircle,
   Trash2,
   MessageSquare,
-  ArrowRightLeft,
   Calendar,
   CheckSquare,
   Zap,

@@ -72,6 +72,23 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // `OBJECT_BOUND_TIMELINE_VARIANTS` in `ObjectTimeline.tsx`.
   'timeline.unsupported.objectBoundGantt':
     'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
+  // objectui#7459 — the object-bound path REFUSES a view that declares no date
+  // axis, the twin of `ObjectGantt`'s "Gantt configuration required" screen.
+  //
+  // It became REACHABLE in the same change that retired the renderer's own
+  // invented field name from the end of the resolver chain; before that a name
+  // always resolved and this string could never have rendered. House posture
+  // (maintainer, 2026-09-01, objectui#7070): 日期轴永不虚构 — a date axis is
+  // never fabricated.
+  //
+  // `{{fields}}` is a hole rather than prose for the reason
+  // `timeline.unsupported.objectBoundGantt` above gives: the list is derived
+  // from the component's own declaration of what it reads — see
+  // `OBJECT_BOUND_TIMELINE_DATE_BINDINGS` in `ObjectTimeline.tsx` — so the
+  // diagnostic cannot drift from the resolver. This copy is the byte-identical
+  // twin of `en.ts`'s, as the strings above are.
+  'timeline.unconfigured.noDateAxis':
+    'Timeline date axis required — this view declares no date field, and an object-bound timeline will not invent one. Declare one of: {{fields}}. The first is the spec spelling; the rest are legacy aliases.',
 };
 
 const TEST_KEY = 'timeline.bucket.today';

@@ -18,7 +18,6 @@
 import * as React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Badge } from '@object-ui/components';
-import { Button } from '@object-ui/components';
 import { ChevronRight } from 'lucide-react';
 import type { RichMetadataTypeEntry } from './useMetadata.js';
 import { useMetadataLocale, t, translateMetadataType, translateMetadataDomain } from './i18n.js';

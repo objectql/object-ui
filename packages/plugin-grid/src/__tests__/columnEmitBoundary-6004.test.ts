@@ -32,6 +32,8 @@ import type { ObjectGridColumn, ObjectGridColumnDraft } from '../ObjectGrid';
 type IsAny<T> = 0 extends 1 & T ? true : false;
 
 /** Compile-time equality, exact in both directions. */
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Expect<T extends true> = T;
 
 describe('objectui#6004 — the emit boundary is an instrument, not a decoration', () => {
@@ -171,43 +173,52 @@ describe('objectui#6004 — the emit boundary is an instrument, not a decoration
   });
 
   /**
-   * ⭐ THE RETIRED KEY (`wrap`, objectui#5453).
+   * ⭐ THE UN-RETIRED KEY (`wrap`, objectui#5453 → objectui#6650).
    *
-   * `ObjectGrid` forwarded a per-column `wrap` into the `TableColumn[]` slot and
-   * `data-table.tsx` never read it. Measured on the current ref, comments
-   * stripped, in the same query shape that finds the keys that ARE consumed —
-   * `accessorKey` 34, `align` 5, `header` 4, `className` 4, `fitContent` 2 —
-   * a column-level `wrap` scores 0. The raw string `wrap` does occur in that
-   * file, but every occurrence is `flex-wrap`, `whitespace-nowrap` or a
-   * variable named `wrapper`; the sibling counts are the positive control that
-   * makes the zero a measurement rather than a mis-aimed grep.
+   * This block asserted the OPPOSITE until 2026-09-02, and the flip is the
+   * substance of objectui#6650 rather than a side effect of it, so the old
+   * reading is kept here in full: `ObjectGrid` forwarded a per-column `wrap`
+   * into the `TableColumn[]` slot and `data-table.tsx` never read it —
+   * measured comments-stripped in the same query shape that finds the keys
+   * that ARE consumed (`accessorKey` 34, `align` 5, `header` 4, `className` 4,
+   * `fitContent` 2), a column-level `wrap` scored 0, with those sibling counts
+   * as the positive control that made the zero a measurement rather than a
+   * mis-aimed grep. Nor was there anything for it to switch on: the cell
+   * wrapper was a two-way `isFit ? 'w-full whitespace-nowrap' : 'truncate
+   * w-full'`. No clamp, no expand, no wrap affordance ⇒ enforce-or-remove
+   * resolved to remove, and #5453 removed it.
    *
-   * Nor is there anything for it to switch on: `data-table`'s cell wrapper is a
-   * two-way `isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'`, and the
-   * file does not read `density` or `rowHeight` at all. No clamp, no expand, no
-   * wrap affordance ⇒ enforce-or-remove resolves to remove.
+   * ⭐ What changed is not the rule and not the measurement — it is the
+   * CONSUMER. objectui#6650 escalated the question one level up, where it
+   * belonged: `@objectstack/spec` never stopped declaring `ListColumn.wrap`,
+   * and describes it to authors as "Allow text wrapping", so a retired forward
+   * left the platform promising a capability at authoring time and silently
+   * dropping it at render time. The maintainer ruled (2026-09-02, Option B)
+   * that the promise is KEPT: `data-table.tsx` now renders a `wrap: true` cell
+   * `whitespace-normal break-words`, `TableColumn` declares the key, the
+   * derived band stops covering it with no edit to `RetiredListColumnKey`, and
+   * the forward returns.
    *
-   * ⚠️ Unlike `pinned` — which `data-table` also never reads, and which is HELD
-   * anyway because THIS file consumes it first and re-expresses it as a sticky
-   * `className` — `wrap` had no second road to any consumer. That check is what
-   * separates the two verdicts, and it is the check the emit rule demands
-   * before retiring.
-   *
-   * Refused by the DERIVED band: `wrap` is a `ListColumn` key that
-   * `TableColumn` does not declare, and it is no longer carved out of
-   * `RetiredListColumnKey`'s Exclude. Routed through a non-fresh value like the
-   * other tombstone pins, so the tombstone is the single cause — freshness
-   * cannot refuse a non-fresh source.
+   * ⚠️ The emit rule did not bend to allow this — it produced it. "A producer
+   * may write only keys the CONSUMER reads, and the read set is MEASURED" is
+   * exactly why the key was refused in 2026-08 and exactly why it is written
+   * now. A pin that could only ever ratchet toward fewer keys would be a pin
+   * on a direction, not on a rule.
    */
-  it('the emit type refuses the retired `wrap` key', () => {
-    // The derived band covers it, so the member itself is `never`.
-    type _WrapTombstoned = Expect<ObjectGridColumnDraft['wrap'] extends undefined ? true : false>;
+  it('the emit type ACCEPTS `wrap` again, now that data-table reads it', () => {
+    // The derived band no longer covers it: `TableColumn` declares the key, so
+    // `Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>` drops it. The
+    // member resolves to the real type, not to `never` — the exact inverse of
+    // the `_WrapTombstoned` pin that stood here.
+    type _WrapLive = Expect<Equal<ObjectGridColumnDraft['wrap'], boolean | undefined>>;
 
+    // Routed through a NON-FRESH value, the same way the tombstone pins are, so
+    // this measures assignability and not excess-property freshness — the two
+    // tests are then each other's mirror image through one mechanism.
     const emitted: { header: string; accessorKey: string; wrap?: boolean } =
       { header: 'Notes', accessorKey: 'notes', wrap: true };
-    // @ts-expect-error objectui#5453 — `wrap` retired from this producer's emit, refused by the derived tombstone band.
-    const refused: ObjectGridColumnDraft = emitted;
-    expect(refused.accessorKey).toBe('notes');
+    const accepted: ObjectGridColumnDraft = emitted;
+    expect(accepted.wrap).toBe(true);
   });
 
   /**

@@ -33,12 +33,9 @@ import {
 } from '@object-ui/components';
 import {
   Settings2,
-  Group,
-  Paintbrush,
   Rows4,
   Rows3,
   Rows2,
-  EyeOff,
   ChevronDown,
 } from 'lucide-react';
 
