@@ -320,8 +320,12 @@ const PACKAGES_DIR = 'packages';
  *
  * A name here that does not resolve is a failed run, not a quiet skip: see the
  * check in `main`.
+ *
+ * Exported so the equality is checked rather than hoped for: three gates now
+ * carry this array, and `check-doc-fence-languages.test.ts` pins all three
+ * against each other.
  */
-const ROOT_PAGES = ['README.md'];
+export const ROOT_PAGES = ['README.md'];
 
 /** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
  *  the whole content of the scan surface: `content/docs` is authored in a mix of

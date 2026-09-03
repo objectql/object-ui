@@ -5,8 +5,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
-import { census, listDocuments as fenceDocuments, TS_FENCE_LANGUAGES as GUARD_TS_FENCES } from '../check-doc-fence-languages.mjs';
-import { listDocuments as snippetDocuments, TS_FENCE_LANGUAGES as GATE_TS_FENCES } from '../check-doc-snippet-types.mjs';
+import {
+  census,
+  listDocuments as fenceDocuments,
+  ROOT_PAGES as FENCE_ROOT_PAGES,
+  TS_FENCE_LANGUAGES as GUARD_TS_FENCES,
+} from '../check-doc-fence-languages.mjs';
+import {
+  listDocuments as snippetDocuments,
+  ROOT_PAGES as SNIPPET_ROOT_PAGES,
+  TS_FENCE_LANGUAGES as GATE_TS_FENCES,
+} from '../check-doc-snippet-types.mjs';
+import { ROOT_PAGES as COMPONENT_ROOT_PAGES } from '../check-doc-component-types.mjs';
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../..');
 const GUARD = 'scripts/check-doc-fence-languages.mjs';
@@ -52,6 +62,32 @@ describe('check-doc-fence-languages: the scan surface is check-doc-snippet-types
 
   it('treats exactly the snippet gate’s fence languages as already-covered', () => {
     expect([...GUARD_TS_FENCES].sort()).toEqual([...GATE_TS_FENCES].sort());
+  });
+
+  /**
+   * objectui#7115 — the ROOT_PAGES half of the surface, pinned across ALL THREE
+   * doc gates rather than two.
+   *
+   * The document-list assertion above is what caught this: objectui#7115 widened
+   * `check-doc-component-types` and `check-doc-snippet-types` onto the root
+   * `README.md` — the two gates its ruling named — and this file went red,
+   * because a third gate is coupled to that surface by construction. The lists
+   * are equal again, but list equality alone would not have said WHERE they
+   * diverged, and `check-doc-component-types`'s surface is deliberately narrower
+   * (it does not walk the package READMEs), so it cannot join that comparison.
+   *
+   * This is the piece all three DO share. Each carries its own copy for its own
+   * install-free reason; comparing the copies is what keeps "copy freely" honest.
+   */
+  it('all three doc gates carry the same ROOT_PAGES — the surface objectui#7115 widened', () => {
+    expect([...FENCE_ROOT_PAGES]).toEqual(['README.md']);
+    expect([...SNIPPET_ROOT_PAGES]).toEqual([...FENCE_ROOT_PAGES]);
+    expect([...COMPONENT_ROOT_PAGES]).toEqual([...FENCE_ROOT_PAGES]);
+  });
+
+  it('the root README is really in this gate’s walk — the widening, pinned', () => {
+    // Not implied by the equality above: both lists could lose it together.
+    expect(fenceDocuments(ROOT)).toContain('README.md');
   });
 });
 

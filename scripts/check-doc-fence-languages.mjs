@@ -118,14 +118,22 @@
  * ## What it reads, and what it deliberately does not
  *
  * The scan surface is `check-doc-snippet-types`'s, exactly: every `.mdx` and
- * `.md` under `content/docs`, plus every `packages/<name>/README.md`. It is
- * re-implemented here rather than imported so this gate needs NO install — that
- * gate imports `typescript`, and an install-gated docs check is one that a
- * docs-only pull request skips, which is the shape objectui#5174 and
- * `doc-component-types.yml`'s header both record as the hole. The copy is not
- * left to drift: `scripts/__tests__/check-doc-fence-languages.test.ts` imports
- * BOTH walks and fails if they ever return different document lists, and pins
- * this file's TypeScript-fence set against the gate's own `TS_FENCE_LANGUAGES`.
+ * `.md` under `content/docs`, every `packages/<name>/README.md`, and the root
+ * `README.md` (objectui#7115). It is re-implemented here rather than imported so
+ * this gate needs NO install — that gate imports `typescript`, and an
+ * install-gated docs check is one that a docs-only pull request skips, which is
+ * the shape objectui#5174 and `doc-component-types.yml`'s header both record as
+ * the hole. The copy is not left to drift:
+ * `scripts/__tests__/check-doc-fence-languages.test.ts` imports BOTH walks and
+ * fails if they ever return different document lists, and pins this file's
+ * TypeScript-fence set against the gate's own `TS_FENCE_LANGUAGES`.
+ *
+ * ⭐ That coupling pin is not decoration — it is what CAUGHT objectui#7115.
+ * That card widened the two gates its ruling named onto the root `README.md`
+ * and this one, the third, went red on `walks exactly the documents the snippet
+ * gate walks` before anybody had thought to look for a third. The install-free
+ * copy is deliberate; the pin is what makes a deliberate copy safe, and it did
+ * the job it was written for.
  *
  * ⛔ It compiles nothing. Whether a block that reaches a `ts` fence then passes
  * `--strict` is `check-doc-snippet-types`'s question; this gate only makes sure
@@ -145,6 +153,20 @@ const DOCS_ROOT = 'content/docs';
 const PACKAGES_DIR = 'packages';
 const DOC_EXTENSIONS = ['.mdx', '.md'];
 
+/**
+ * Pages at the repository ROOT that join the scan set by name (objectui#7115).
+ *
+ * ⛔ Deliberately a COPY of `check-doc-snippet-types.mjs`'s constant rather than
+ * an import of it, for the reason stated in the header: importing anything from
+ * that module pulls in its `import ts from 'typescript'` at load, and this gate's
+ * whole value is that it runs with no install, in the unfiltered workflow a
+ * docs-only pull request starts. Exported so the equality is checked rather than
+ * hoped for — `check-doc-fence-languages.test.ts` pins this array against the
+ * other two gates', which is the same bargain `TS_FENCE_LANGUAGES` and the
+ * document walk already make: copy freely, compare always.
+ */
+export const ROOT_PAGES = ['README.md'];
+
 /** Every document in the scan set, in a stable order. */
 export function listDocuments(root = repoRoot) {
   const out = [];
@@ -163,6 +185,11 @@ export function listDocuments(root = repoRoot) {
       const readme = join(pkgDir, entry, 'README.md');
       if (existsSync(readme)) out.push(relative(root, readme).split(sep).join('/'));
     }
+  }
+  // Root pages last, by name — the same order the snippet gate appends them in,
+  // because the coupling pin compares the lists element by element.
+  for (const name of ROOT_PAGES) {
+    if (existsSync(join(root, name))) out.push(name);
   }
   return out;
 }
