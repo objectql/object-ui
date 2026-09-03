@@ -64,21 +64,25 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **17 entries** in `UnmirroredDeclared`, **98 keys** across them (16 / 97 until
- *     objectui#6576 SEEDED the new `ObjectDataTableSchema` pair with its one measured
- *     key, `drillDown` — a pair born ledgered, not growth on an existing one). ⚠️ It was
+ *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. It read 17 / 98
+ *     between objectui#6576, which SEEDED the new `ObjectDataTableSchema` pair with its
+ *     one measured key `drillDown` (a pair born ledgered, not growth on an existing
+ *     one), and objectui#7129, which RETIRED `DetailViewSectionSchema.hideEmpty` —
+ *     the ledger's first shrink by removing the DECLARATION rather than by mirroring
+ *     it, and the entry's whole content, so the entry went too. ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
  *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
  *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
  *     Anything citing "121" as the mirroring debt is citing a number that changed
- *     meaning — the comparable figure is 97 + 1 mirrored + 23 reclassified. The
- *     full statement is on that ledger.
+ *     meaning — the comparable figure is 96 + 1 mirrored + 1 retired + 23
+ *     reclassified. The full statement is on that ledger.
  *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
  *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
- *     "no entry in either" population dropped by one to 141 — and stands at 142
- *     since objectui#6576 added two pairs, one of them ledgered.
+ *     "no entry in either" population dropped by one to 141 — went to 142 when
+ *     objectui#6576 added two pairs, one of them ledgered, and stands at **143**
+ *     since objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key.
  *   - 160 − 39 = **121**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
@@ -265,7 +269,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 142 of the 160. */
+/** …and so does a clean pair with no entry, which is the case for 143 of the 160. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -914,14 +918,20 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (13 entries, 84 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (12 entries, 83 keys)** — plain omissions from a hand-written mirror.
+ *     It was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
+ *     a shrink by removing the DECLARATION rather than by mirroring it.
  *
  * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
- * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`). The pair
- * COUNTS did not move — every affected pair kept keys here — which is why 16
- * entries still hold 97 keys. (17 entries / 98 keys since objectui#6576 seeded the
- * `ObjectDataTableSchema` pair with `drillDown` — see that entry.)
+ * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`, 83 since
+ * objectui#7129 retired one). The pair COUNTS did not move under the
+ * reclassification — every affected pair kept keys here — so the split read 16
+ * entries / 97 keys after it. Two later changes moved the entry count itself:
+ * objectui#6576 SEEDED `ObjectDataTableSchema` (a 17th entry, in neither half
+ * above), and objectui#7129 RETIRED an entry from the LOCAL half. The ledger now
+ * totals **16 entries / 97 keys** — 3 / 13 spec-derived, 12 / 83 local, plus the
+ * seeded pair.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -1051,11 +1061,6 @@ interface UnmirroredDeclared {
     | 'activities' | 'autoDiscoverRelated' | 'autoTabs' | 'comments' | 'defaultTab'
     | 'highlightFields' | 'history'
     | 'primaryField' | 'recordNavigation' | 'sectionGroups' | 'summaryFields';
-  /**
-   * LOCAL. Verified by hand against both sources: declared once in `../views.ts`, zero
-   * occurrences in the mirror.
-   */
-  'views.zod.ts#DetailViewSectionSchema': 'hideEmpty';
 }
 
 /* ── The runtime-only / non-authorable ledger (objectui#6152) ─────────────── */
@@ -1351,12 +1356,14 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
- * pairs with no entry in either (160 − 18). Six of `RuntimeOnlyDeclared`'s seven
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 143
+ * pairs with no entry in either (160 − 17). Six of `RuntimeOnlyDeclared`'s seven
  * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
  * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 17
- * pairs and not 16.
+ * pairs and not 16. (objectui#6576 took the union to 18; objectui#7129 brought it
+ * back to 17 by retiring `DetailViewSectionSchema`'s only ledgered key, leaving
+ * that pair with no entry in either half.)
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
  * The exit code is a whole-file verdict, so it moves only while the rest of the

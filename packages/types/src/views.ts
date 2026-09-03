@@ -222,11 +222,32 @@ export interface DetailViewSection {
     | 'primary/10'
     | 'secondary/10'
     | 'destructive/10';
-  /**
-   * When true, hide fields whose value is null, undefined, or empty string.
-   * If all fields are hidden, the entire section is hidden.
+  /*
+   * RETIRED — `hideEmpty?: boolean` (objectui#7129, maintainer 2026-09-01).
+   *
+   * ⛔ Do not re-add it. The key was declared here, REFUSED by
+   * `@objectstack/spec` `RecordDetailsProps` (`unrecognized_keys` on the
+   * `sections[]` element, measured on 17.2.0), absent from the
+   * `DetailViewSectionSchema` mirror in `./zod/views.zod.ts`, and honoured by
+   * `RecordDetailsRenderer` — one key, four parties, three different answers,
+   * and the only one that let an author write it was this declaration.
+   *
+   * The ruling converged the four on the spec's answer: emptiness on a
+   * `record:details` section is decided by `DetailSection`'s auto-hide
+   * heuristic (4 fields / 25% empty; 3 / 20% on mobile) and by the reader's
+   * own "Show N empty fields" toggle. That heuristic is now the WHOLE
+   * contract, which also dissolves the paradox this key carried: an authored
+   * `hideEmpty: false` was tested as `!section.hideEmpty`, so it was
+   * indistinguishable from unauthored and overrode nothing.
+   *
+   * The retirement is pinned four ways at
+   * `packages/plugin-detail/src/renderers/__tests__/record-details.hideEmptyRetired-7129.test.tsx`.
+   *
+   * ⚠️ NOT the same key as `record:reference_rail`'s own `hideEmpty`
+   * (`packages/plugin-detail/src/renderers/record-reference-rail.tsx`), which
+   * is a different surface and is untouched, nor the `detail.hideEmptyFields`
+   * i18n label, which is the toggle's own copy.
    */
-  hideEmpty?: boolean;
 }
 
 /**
