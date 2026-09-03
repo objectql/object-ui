@@ -170,9 +170,22 @@ const BaseSchemaCore = z.object({
   visibleOn: z.string().optional().describe('[DEPRECATED → visibleWhen] Expression for conditional visibility'),
 
   /**
-   * Hidden control
+   * Hidden control -- a boolean, or the predicate STRING the renderer evaluates.
+   *
+   * Mirrors `BaseSchema.hidden: boolean | string` (`../base.ts`), widened by
+   * objectui#7455 (ruled 2026-09-03) on the same evidence that widened
+   * `visible` (#4581) and `disabled` (#4580 Q3-A): `SchemaRenderer`'s
+   * `shouldHide` chain asks `hasDeclaredPredicate` and then evaluates the
+   * value, never reading this key as a boolean. Measured before the widening:
+   * `BaseSchema.safeParse({ type, hidden: '${data.status === "draft"}' })`
+   * returned `success: false` with `invalid_type` (expected boolean, received
+   * string) while the identical string on `visible` parsed -- this validator
+   * was the one surface still refusing a shipped, pinned capability.
+   *
+   * The CEL envelope object form is NOT declared here, and is declared on none
+   * of the three keys; objectui#7530 rules on all three together.
    */
-  hidden: z.boolean().optional().describe('Hidden control'),
+  hidden: z.union([z.boolean(), z.string()]).optional().describe('Hidden control (boolean or predicate expression)'),
 
   /**
    * Conditional hidden expression

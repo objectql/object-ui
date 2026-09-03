@@ -69,7 +69,7 @@ One row per declared member, in declaration order, so the list can be checked ag
 | `visible` | `boolean \| string` | Visibility control. Accepts a boolean **or** a predicate expression string — the renderer evaluates this key rather than reading it as a boolean. |
 | `visibleWhen` | `string` | Canonical conditional-visibility predicate (ADR-0089); the element is shown when it evaluates truthy. Evaluated **before** `visible` and `visibleOn`, and outranks both. |
 | `visibleOn` | `string` | Expression for conditional visibility. **Deprecated** (ADR-0089) — use `visibleWhen`. |
-| `hidden` | `boolean` | Inverse of `visible`. Boolean only — unlike `visible`, this key takes no expression. |
+| `hidden` | `boolean \| string` | Inverse of `visible` — the node is not rendered. Accepts a boolean **or** a predicate expression string, which the renderer evaluates rather than reading as a boolean; `hiddenOn` remains the sibling spelling. |
 | `hiddenOn` | `string` | Expression for conditional hiding. |
 | `disabled` | `boolean \| string` | Disabled state. Accepts a boolean **or** a predicate expression string, on the same evaluated path as `visible`. |
 | `disabledOn` | `string` | Expression for conditional disabling. |
