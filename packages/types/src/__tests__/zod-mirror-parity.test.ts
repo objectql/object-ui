@@ -57,26 +57,35 @@
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **37 entries** in `KnownDrift`, **53 keys** across them. It was 12 / 17 until
+ *   - **39 entries** in `KnownDrift`, **55 keys** across them — 56 until objectui#6940
+ *     REPAIRED `DataTableSchema.rowActions` (the entry kept its other four keys, so
+ *     the entry count did not move). It was 12 / 17 until
  *     objectui#6124 added the RUNTIME-SLOT class (28 pairs touched, 35 keys) — see
- *     the class note inside the ledger, above `ButtonSchema` — and 36 / 52 until
- *     objectui#6576 minted `ObjectDataTableSchema` with one such arm (`onRowClick`).
- *   - **17 entries** in `UnmirroredDeclared`, **98 keys** across them (16 / 97 until
- *     objectui#6576 SEEDED the new `ObjectDataTableSchema` pair with its one measured
- *     key, `drillDown` — a pair born ledgered, not growth on an existing one). ⚠️ It was
+ *     the class note inside the ledger, above `ButtonSchema` — 36 / 52 until
+ *     objectui#6576 minted `ObjectDataTableSchema` with one such arm (`onRowClick`),
+ *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
+ *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
+ *     `CalendarViewSchema` grew by `onEventClick`.
+ *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. It read 17 / 98
+ *     between objectui#6576, which SEEDED the new `ObjectDataTableSchema` pair with its
+ *     one measured key `drillDown` (a pair born ledgered, not growth on an existing
+ *     one), and objectui#7129, which RETIRED `DetailViewSectionSchema.hideEmpty` —
+ *     the ledger's first shrink by removing the DECLARATION rather than by mirroring
+ *     it, and the entry's whole content, so the entry went too. ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
  *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
  *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
  *     Anything citing "121" as the mirroring debt is citing a number that changed
- *     meaning — the comparable figure is 97 + 1 mirrored + 23 reclassified. The
- *     full statement is on that ledger.
+ *     meaning — the comparable figure is 96 + 1 mirrored + 1 retired + 23
+ *     reclassified. The full statement is on that ledger.
  *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
  *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
- *     "no entry in either" population dropped by one to 141 — and stands at 142
- *     since objectui#6576 added two pairs, one of them ledgered.
- *   - 160 − 37 = **123**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *     "no entry in either" population dropped by one to 141 — went to 142 when
+ *     objectui#6576 added two pairs, one of them ledgered, and stands at **143**
+ *     since objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key.
+ *   - 160 − 39 = **121**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -97,7 +106,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 37 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 39 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -131,7 +140,6 @@ import type { z } from 'zod';
 
 import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
-import { BlockEditorSchema, BlockInstanceSchema, BlockLibraryItemSchema, BlockLibrarySchema, BlockMetadataSchema, BlockSchema, BlockSlotSchema, BlockVariableSchema, ComponentSchema } from '../zod/blocks.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
@@ -147,7 +155,6 @@ import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, Detai
 
 import type { AppAction as Ts_AppAction, AppComponentSchema as Ts_AppComponentSchema, NavigationArea as Ts_NavigationArea } from '../app';
 import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig, ComponentInput as Ts_ComponentInput, ComponentMeta as Ts_ComponentMeta, KeyedI18nLabel as Ts_KeyedI18nLabel } from '../base';
-import type { BlockEditorSchema as Ts_BlockEditorSchema, BlockInstanceSchema as Ts_BlockInstanceSchema, BlockLibraryItem as Ts_BlockLibraryItem, BlockLibrarySchema as Ts_BlockLibrarySchema, BlockMetadata as Ts_BlockMetadata, BlockSchema as Ts_BlockSchema, BlockSlot as Ts_BlockSlot, BlockVariable as Ts_BlockVariable, ComponentSchema as Ts_ComponentSchema } from '../blocks';
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
@@ -264,7 +271,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 142 of the 160. */
+/** …and so does a clean pair with no entry, which is the case for 143 of the 160. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -354,15 +361,6 @@ const MIRRORS = {
   'base.zod.ts#ComponentInputSchema': ComponentInputSchema,
   'base.zod.ts#ComponentMetaSchema': ComponentMetaSchema,
   'base.zod.ts#KeyedI18nLabelSchema': KeyedI18nLabelSchema,
-  'blocks.zod.ts#BlockEditorSchema': BlockEditorSchema,
-  'blocks.zod.ts#BlockInstanceSchema': BlockInstanceSchema,
-  'blocks.zod.ts#BlockLibraryItemSchema': BlockLibraryItemSchema,
-  'blocks.zod.ts#BlockLibrarySchema': BlockLibrarySchema,
-  'blocks.zod.ts#BlockMetadataSchema': BlockMetadataSchema,
-  'blocks.zod.ts#BlockSchema': BlockSchema,
-  'blocks.zod.ts#BlockSlotSchema': BlockSlotSchema,
-  'blocks.zod.ts#BlockVariableSchema': BlockVariableSchema,
-  'blocks.zod.ts#ComponentSchema': ComponentSchema,
   'complex.zod.ts#CalendarEventSchema': CalendarEventSchema,
   'complex.zod.ts#CalendarViewSchema': CalendarViewSchema,
   'complex.zod.ts#CarouselItemSchema': CarouselItemSchema,
@@ -521,15 +519,6 @@ interface Declared {
   'base.zod.ts#ComponentInputSchema': Ts_ComponentInput;
   'base.zod.ts#ComponentMetaSchema': Ts_ComponentMeta;
   'base.zod.ts#KeyedI18nLabelSchema': Ts_KeyedI18nLabel;
-  'blocks.zod.ts#BlockEditorSchema': Ts_BlockEditorSchema;
-  'blocks.zod.ts#BlockInstanceSchema': Ts_BlockInstanceSchema;
-  'blocks.zod.ts#BlockLibraryItemSchema': Ts_BlockLibraryItem;
-  'blocks.zod.ts#BlockLibrarySchema': Ts_BlockLibrarySchema;
-  'blocks.zod.ts#BlockMetadataSchema': Ts_BlockMetadata;
-  'blocks.zod.ts#BlockSchema': Ts_BlockSchema;
-  'blocks.zod.ts#BlockSlotSchema': Ts_BlockSlot;
-  'blocks.zod.ts#BlockVariableSchema': Ts_BlockVariable;
-  'blocks.zod.ts#ComponentSchema': Ts_ComponentSchema;
   'complex.zod.ts#CalendarEventSchema': Ts_CalendarEvent;
   'complex.zod.ts#CalendarViewSchema': Ts_CalendarViewSchema;
   'complex.zod.ts#CarouselItemSchema': Ts_CarouselItem;
@@ -696,8 +685,13 @@ export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeo
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
-  /** RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads `onViewChange` off the spread props (function values only) and hands it to `CalendarView`. */
-  'complex.zod.ts#CalendarViewSchema': 'onViewChange';
+  /**
+   * RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads
+   * `onViewChange` off the spread props (function values only) and hands it to
+   * `CalendarView`. `onEventClick` joined with objectui#7344 — the same channel;
+   * its mirror was a multi-line `z.function()` that PR #7339's census missed.
+   */
+  'complex.zod.ts#CalendarViewSchema': 'onEventClick' | 'onViewChange';
   /**
    * `body` — TS declares `SchemaNode | SchemaNode[]` (a rendered slot); the mirror
    * declares `Record<string, unknown>` ("additional API body params"). Two different
@@ -732,10 +726,24 @@ interface KnownDrift {
   /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
   'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick';
   /**
-   * `rowActions` — DISJOINT: TS declares `rowActions?: boolean` (show the column or
-   * not), the mirror declares `any[]` (the actions themselves). One of the two is
-   * dead; which is a ruling. (`selectable` was a second drifted key here until
-   * objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` —
+   * RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — `DetailView`'s
+   * `handleBack` calls `onBack()` when set. The mirror was `z.any()` (wider than
+   * the declared callable, objectui#7069's direction); it now refuses by name.
+   */
+  'crud.zod.ts#DetailSchema': 'onBack';
+  /**
+   * `rowActions` was the FIFTH key here until objectui#6940 settled the ruling
+   * this entry was explicitly waiting on. It read: DISJOINT — TS declares
+   * `rowActions?: boolean` (show the column or not), the mirror declared
+   * `any[]` (the actions themselves); one of the two is dead, which is a
+   * ruling. The maintainer ruled the TS side live (2026-09-02, director seat
+   * summon #8, option A): the renderer only truthiness-tests the key, so the
+   * `any[]` face was the dead one, and the mirror became
+   * `z.boolean().optional()`. The pair is now IN PARITY on that key, so it left
+   * this entry — this ledger fails on a repair exactly as it fails on new
+   * drift, which is why correcting this line was part of that change and not
+   * optional. (`selectable` was likewise a drifted key here until objectui#5927
+   * widened the mirror to `boolean | 'single' | 'multiple'` —
    * `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements
    * `'single'` as a real mode.)
    *
@@ -744,7 +752,7 @@ interface KnownDrift {
    * `schema.onSelectionChange(selectedData)`, …), so the TS side keeps them callable
    * and the mirror refuses them by name.
    */
-  'data-display.zod.ts#DataTableSchema': 'rowActions' | 'onRowEdit' | 'onRowDelete' | 'onSelectionChange' | 'onColumnsReorder';
+  'data-display.zod.ts#DataTableSchema': 'onRowEdit' | 'onRowDelete' | 'onSelectionChange' | 'onColumnsReorder';
   /** RUNTIME SLOT (objectui#6124): the `accordion` renderer spreads leftover props onto the Radix `Accordion` root, where `onValueChange` is a real prop. */
   'disclosure.zod.ts#AccordionSchema': 'onValueChange';
   /** RUNTIME SLOT (objectui#6124): the `collapsible` renderer spreads leftover props onto the Radix `Collapsible` root. */
@@ -847,6 +855,13 @@ interface KnownDrift {
   'overlay.zod.ts#PopoverSchema': 'onOpenChange';
   /** RUNTIME SLOT (objectui#6124): the `sheet` renderer spreads leftover props onto the Radix `Sheet` (Dialog) root. */
   'overlay.zod.ts#SheetSchema': 'onOpenChange';
+  /**
+   * RUNTIME SLOT (objectui#7344): `detail-view` spreads the node's keys onto
+   * `DetailView`, whose `handleBack` calls `onBack()`. The TS twin declared the
+   * handler-expression STRING (objectui#6182: not an authoring form) and now
+   * declares the callable the renderer invokes; the mirror refuses by name.
+   */
+  'views.zod.ts#DetailViewSchema': 'onBack';
 }
 
 /* ── The measured unmirrored-declared ledger (objectui#6058) ────────────────── */
@@ -913,14 +928,20 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (13 entries, 84 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (12 entries, 83 keys)** — plain omissions from a hand-written mirror.
+ *     It was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
+ *     a shrink by removing the DECLARATION rather than by mirroring it.
  *
  * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
- * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`). The pair
- * COUNTS did not move — every affected pair kept keys here — which is why 16
- * entries still hold 97 keys. (17 entries / 98 keys since objectui#6576 seeded the
- * `ObjectDataTableSchema` pair with `drillDown` — see that entry.)
+ * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`, 83 since
+ * objectui#7129 retired one). The pair COUNTS did not move under the
+ * reclassification — every affected pair kept keys here — so the split read 16
+ * entries / 97 keys after it. Two later changes moved the entry count itself:
+ * objectui#6576 SEEDED `ObjectDataTableSchema` (a 17th entry, in neither half
+ * above), and objectui#7129 RETIRED an entry from the LOCAL half. The ledger now
+ * totals **16 entries / 97 keys** — 3 / 13 spec-derived, 12 / 83 local, plus the
+ * seeded pair.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -1050,11 +1071,6 @@ interface UnmirroredDeclared {
     | 'activities' | 'autoDiscoverRelated' | 'autoTabs' | 'comments' | 'defaultTab'
     | 'highlightFields' | 'history'
     | 'primaryField' | 'recordNavigation' | 'sectionGroups' | 'summaryFields';
-  /**
-   * LOCAL. Verified by hand against both sources: declared once in `../views.ts`, zero
-   * occurrences in the mirror.
-   */
-  'views.zod.ts#DetailViewSectionSchema': 'hideEmpty';
 }
 
 /* ── The runtime-only / non-authorable ledger (objectui#6152) ─────────────── */
@@ -1302,7 +1318,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 123 pairs with no entry (160 − 37).
+ * 121 pairs with no entry (160 − 39).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
@@ -1350,12 +1366,14 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
- * pairs with no entry in either (160 − 18). Six of `RuntimeOnlyDeclared`'s seven
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 143
+ * pairs with no entry in either (160 − 17). Six of `RuntimeOnlyDeclared`'s seven
  * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
  * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 17
- * pairs and not 16.
+ * pairs and not 16. (objectui#6576 took the union to 18; objectui#7129 brought it
+ * back to 17 by retiring `DetailViewSectionSchema`'s only ledgered key, leaving
+ * that pair with no entry in either half.)
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
  * The exit code is a whole-file verdict, so it moves only while the rest of the
@@ -1483,8 +1501,6 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "an index signature, not a declared key set — there are no keys to compare",
   'base.zod.ts#EventHandlersSchema':
     "an index signature, not a declared key set — there are no keys to compare",
-  'blocks.zod.ts#BlockComponentSchema':
-    "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'complex.zod.ts#CalendarViewModeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'complex.zod.ts#DashboardWidgetTypeSchema':

@@ -144,7 +144,7 @@ The validation engine lives in `packages/core/src/validation/` and uses Zod sche
 
 ## 6. TypeScript Errors with Schema Types
 
-**Symptom:** TypeScript cannot find types like `ComponentSchema`, `ActionSchema`, or `FieldWidgetProps`.
+**Symptom:** TypeScript cannot find types like `BaseSchema`, `ActionSchema`, or `FieldWidgetProps`.
 
 **Cause:** `@object-ui/types` is not installed, or the version is mismatched.
 
@@ -158,7 +158,7 @@ Then import types from the correct entry points:
 
 ```typescript
 // Base types
-import type { ComponentSchema } from '@object-ui/types';
+import type { BaseSchema } from '@object-ui/types';
 
 // Category-specific types
 import type { FormSchema } from '@object-ui/types/form';
@@ -167,7 +167,7 @@ import type { DataDisplaySchema } from '@object-ui/types/data-display';
 
 // Zod validation schemas — same PascalCase names as the types, so alias one of
 // the two when a module imports both.
-import { ComponentSchema as ComponentSchemaValidator } from '@object-ui/types/zod';
+import { BaseSchema as BaseSchemaValidator } from '@object-ui/types/zod';
 ```
 
 The `@object-ui/types` package exports multiple entry points (`base`, `layout`, `form`, `data-display`, `feedback`, `overlay`, `navigation`, `complex`, `data`, `zod`). Check `packages/types/package.json` for the full list.

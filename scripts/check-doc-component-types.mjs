@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Every `type` string literal in a `content/docs/**` code block — `.mdx` and
- * `.md` alike — must name a component the repository actually registers, or be
- * declared, per file, as belonging to some other vocabulary. Since objectui#5106
+ * `.md` alike — and in the root `README.md` (objectui#7115), must name a
+ * component the repository actually registers, or be declared, per file, as
+ * belonging to some other vocabulary. Since objectui#5106
  * the same question is also asked of the KEY TABLES that document a plugin's
  * registrations, on BOTH halves of the row: the namespaced key and the bare-name
  * fallback (see "The second surface" below).
@@ -119,8 +120,10 @@
  *
  * Exemptions are keyed by (file, value), never by file alone and never by value
  * alone. A whole-file exemption would silence real defects on pages that mix
- * vocabularies — `blocks/block-schema.mdx` carries `type: 'block'` AND
- * `type: 'div'` in the same document — and a value-only exemption would let a
+ * vocabularies — `api/schema-reference.md` carries `"type": "action"` (an
+ * ActionSchema discriminant, exempted below) AND `"type": "card"` /
+ * `"type": "table"` (registered component keys) in the same document, measured
+ * on this tree — and a value-only exemption would let a
  * page anywhere in the tree teach `submit` as a component. (file, value) also
  * keeps the entry honest: it says which page speaks which dialect, which is the
  * fact a reader of that page needs.
@@ -199,7 +202,7 @@
  * that is not a key table), and both are worth fixing rather than silencing.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isEntrypoint } from './invoked-as.mjs';
@@ -208,10 +211,88 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
-/** Where the teaching prose lives. This gate walks `content/docs` and nothing
- *  else: not `skills/**`, not the package READMEs (`check-doc-snippet-types.mjs`
- *  covers those for its own question), not `docs/**`. */
+/** Where the teaching prose lives. This gate walks `content/docs`, every
+ *  `apps/<app>/docs/**` tree (objectui#6600) and the root pages named below, and
+ *  nothing else: not `skills/**`, not the package READMEs
+ *  (`check-doc-snippet-types.mjs` covers those for its own question), not
+ *  `docs/**`. The full ownership map for all three doc gates — including the
+ *  trees NO gate reads, and why `skills/**` is deliberately not one of them — is
+ *  stated once in `check-doc-snippet-types.mjs`, beside `UNGATED_DOCS`. */
 const DOCS_ROOT = 'content/docs';
+
+/**
+ * Per-app documentation trees, `apps/<app>/docs/**` (objectui#6600).
+ *
+ * ⚠️ This gate joining the move is the one judgement ruling D left to the
+ * implementing lane, and it is joining at ZERO PRESENT YIELD: the three files
+ * under `apps/console/docs/**` carry 0 `type` literals today, so this walk finds
+ * nothing on the day it lands. Stated plainly because the alternative reading —
+ * that a widened scope was justified by a discovery — is false here.
+ *
+ * The argument for joining anyway is the split-surface defect one directory over,
+ * which this gate has already been burned by ONCE. objectui#7115: this gate
+ * walked `content/docs`; `check-doc-snippet-types` walked `content/docs` plus the
+ * package READMEs; the root `README.md` fell BETWEEN the two and was read by
+ * neither, and it taught the unregistered type `stat-card` four times for as long
+ * as the example existed. Leaving this gate pointed away from a tree its two
+ * siblings now read would rebuild that exact geometry, deliberately, in the same
+ * gate family — and `apps/console/docs/UI_IMPROVEMENT_PROPOSAL.md` is a proposal
+ * about console UI shape, i.e. the file in that tree most likely to grow the
+ * first `type` literal. A forward guard at zero yield is what objectui#7115
+ * wishes had existed.
+ *
+ * ⛔ What this is NOT: a precedent for widening onto any other unscanned tree.
+ * The population here is three files in a directory two sibling gates are moving
+ * onto in the same change. No allowlist mechanism exists and none is wanted.
+ *
+ * The walk is `apps/<app>/docs`, one level of app directory and no deeper before
+ * the `docs` segment. `apps/site/app/docs` is a Next.js ROUTE directory of `.tsx`
+ * route files, not a documentation tree.
+ */
+export const APP_DOCS = { dir: 'apps', subdir: 'docs' };
+
+/** Every `apps/<app>/docs` directory that exists, in a stable order. */
+export function appDocsDirs(root) {
+  const appsDir = join(root, APP_DOCS.dir);
+  if (!existsSync(appsDir)) return [];
+  const out = [];
+  for (const entry of readdirSync(appsDir).sort()) {
+    const docs = join(appsDir, entry, APP_DOCS.subdir);
+    if (existsSync(docs) && statSync(docs).isDirectory()) out.push(docs);
+  }
+  return out;
+}
+
+/**
+ * Pages at the repository ROOT that join the walk by name.
+ *
+ * objectui#7115. The root `README.md` is the most-read authored file in the
+ * repository — the GitHub landing page and the npm package page — and it was the
+ * one teaching surface NO doc gate read. This gate walked `content/docs`; its
+ * sibling `check-doc-snippet-types.mjs` walked `content/docs` plus the package
+ * READMEs; the root README fell between the two. It taught `stat-card` four
+ * times, in the flagship "dashboard in JSON" example, and `stat-card` is
+ * registered nowhere — four `OBJUI-001` "Unknown component type" panels for
+ * anyone who copied the headline snippet. The defect survived for exactly one
+ * reason: nothing read the file. That is objectui#5174's shape (40 `.md` guides
+ * outside the ledger) and objectui#5342's, one directory up.
+ *
+ * ⚠️ Widening a scan surface is the change that can be GREEN ABOUT NOTHING, so
+ * this entry landed RED FIRST: with the name added and the content still saying
+ * `stat-card`, this gate failed on `README.md:290`-`:293` with
+ * `unregistered-doc-type`. That failure is the evidence the walk reaches the
+ * file; the content fix then turned it green. Anything added here later is owed
+ * the same proof, in that order.
+ *
+ * A name here that does not resolve is a FAILED run, not a quiet skip — see the
+ * check beside `FLOORS` in the CLI block. Without it, renaming or moving the
+ * file would silently return the surface to what objectui#7115 found.
+ *
+ * Exported so the equality is checked rather than hoped for: three gates now
+ * carry this array, and `check-doc-fence-languages.test.ts` pins all three
+ * against each other.
+ */
+export const ROOT_PAGES = ['README.md'];
 
 /** Page extensions collected under `DOCS_ROOT`. BOTH are collected, and that is
  *  the whole content of the scan surface: `content/docs` is authored in a mix of
@@ -339,39 +420,23 @@ const DOC_TYPE_EXEMPTIONS = {
     string:
       'PageNodeSchema variable declaration\'s data type inside `variables[]`, next to `name` / ' +
       '`defaultValue` — `PageVariable` (packages/types/src/layout.ts:566, re-exported from ' +
-      '@objectstack/spec\'s `PageVariableSchema`). Same vocabulary as blocks/block-schema.mdx\'s ' +
-      '`string`.',
+      '@objectstack/spec\'s `PageVariableSchema`). (This reason used to add "same vocabulary as ' +
+      'blocks/block-schema.mdx\'s `string`"; that page was DELETED with the whole block schema ' +
+      'family in objectui#4895, so this entry now stands on its own declaration site.)',
   },
   'content/docs/blocks/authentication.mdx': {
     submit:
       'ActionSchema discriminant under a button\'s `action` key, not a node type. ' +
       '`@object-ui/types` ActionSchema.',
   },
-  'content/docs/blocks/block-schema.mdx': {
-    block:
-      'BlockSchema discriminant — `packages/types/src/blocks.ts` declares `type: \'block\'`, and ' +
-      '`packages/types/src/zod/blocks.zod.ts` validates it. A block definition is not a rendered node.',
-    'block-instance':
-      'BlockInstanceSchema discriminant — packages/types/src/blocks.ts:357, zod/blocks.zod.ts:130. A ' +
-      'reference to a block is a definition, not a rendered node: it is absent from `AnySchema` ' +
-      '(types/src/index.ts) and nothing resolves its `blockId`.',
-    'block-library':
-      'BlockLibrarySchema discriminant — packages/types/src/blocks.ts:263, zod/blocks.zod.ts:100. The ' +
-      'shape of a block-library PAYLOAD, not a browser component: absent from `AnySchema`, and no ' +
-      'renderer reads it.',
-    'block-editor':
-      'BlockEditorSchema discriminant — packages/types/src/blocks.ts:315, zod/blocks.zod.ts:116. The ' +
-      'shape of an editor CONFIGURATION, not an editor component: absent from `AnySchema`, and no ' +
-      'block editor exists to consume it.',
-    // `slot` was here, exempted pending objectui#4895. That card ruled (maintainer,
-    // 2026-08-19, recorded on the issue): Option B, docs-truth fix — the family stays
-    // type-level, the phantom `type: 'slot'` node is DELETED from the page, and the
-    // page teaches the declared `slotContent` key instead. `slot` is now spelled
-    // nowhere in blocks/block-schema.mdx, so an exemption for it would itself fail as
-    // `stale-exemption`. Nothing to exempt; the entry is gone rather than re-pointed.
-    string:
-      'BlockVariable.type — a variable declaration\'s data type, next to `defaultValue` / `required`.',
-  },
+  // `content/docs/blocks/block-schema.mdx` had five entries here — `block`,
+  // `block-instance`, `block-library`, `block-editor` (the four block-family
+  // discriminants) and `string` (a `BlockVariable.type` data type) — plus a note
+  // recording that `slot` had already left in the objectui#5937 docs-truth fix.
+  // The PAGE is gone: the block schema family was retired whole in objectui#4895
+  // (ADR-0049 enforce-or-remove, maintainer ruling 2026-09-02, option C1), so
+  // every one of those entries would now fail as `stale-exemption`. Deleted with
+  // their site rather than re-pointed — there is no page left to point at.
   'content/docs/blocks/dashboard.mdx': {
     navigate: 'ActionSchema discriminant under a node\'s `action` key.',
   },
@@ -505,17 +570,14 @@ const DOC_TYPE_EXEMPTIONS = {
       'ActionSchema discriminant in a `const action: ActionSchema = { … }` declaration — this page ' +
       'tours each schema family by declaring one of each, so the literal is the document\'s own ' +
       'discriminant. Same vocabulary as core/enhanced-actions.mdx.',
-    block:
-      'BlockSchema discriminant in a `const block: BlockSchema = { … }` declaration — ' +
-      'packages/types/src/blocks.ts, validated by zod/blocks.zod.ts. A block definition is not a ' +
-      'rendered node.',
     group: 'AppSchema menu entry kind — a navigation group holding `children` items, same ' +
       'vocabulary as core/app-schema.mdx.',
     item: 'AppSchema menu entry kind — a navigation item, sibling of `group`. Same vocabulary as ' +
       'core/app-schema.mdx. Not a rendered node.',
-    string:
-      'BlockVariable.type in the BlockSchema tour\'s `variables[]` — a variable declaration\'s data ' +
-      'type, next to `name` / `defaultValue`.',
+    // `block` and `string` also stood here — the `const block: BlockSchema` tour and
+    // the `BlockVariable.type` inside its `variables[]`. Both left with the block
+    // schema family (objectui#4895): the tour is deleted from that page, so each
+    // entry would now fail as `stale-exemption`.
   },
   'content/docs/guide/schema-playground.md': {
     reset:
@@ -966,7 +1028,14 @@ export function deriveRegistryKeys(root, options = {}) {
  */
 export function scanDocs(root) {
   const docsDir = join(root, DOCS_ROOT);
-  const files = walkFiles(docsDir, (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext))).sort();
+  const isDoc = (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext));
+  const files = walkFiles(docsDir, isDoc).sort();
+  // Per-app docs trees (objectui#6600), appended sorted after the content tree.
+  for (const dir of appDocsDirs(root)) files.push(...walkFiles(dir, isDoc).sort());
+  // Root pages join by name rather than by walk. An absent one is dropped here so
+  // a throwaway fixture tree stays scannable; the CLI refuses to publish a
+  // verdict when one is missing from a real run, which is where that must bite.
+  files.push(...ROOT_PAGES.map((name) => join(root, name)).filter((abs) => existsSync(abs)));
   const sites = [];
   const tableRows = [];
   const counters = { files: files.length, codeBlocks: 0, typeSites: 0, keyTables: 0, keyTableRows: 0 };
@@ -1223,6 +1292,21 @@ if (invokedDirectly) {
     return index > -1 ? process.argv[index + 1] : null;
   };
   const root = resolve(argOf('--root') ?? resolve(scriptDir, '..'));
+
+  // Checked BEFORE the scan, because a missing root page produces a smaller
+  // number rather than an error, and `FLOORS` below cannot tell a shrunken
+  // surface from an ordinary docs edit.
+  for (const name of ROOT_PAGES) {
+    if (!existsSync(resolve(root, name))) {
+      console.error(
+        `ROOT_PAGES names \`${name}\`, which does not exist under ${root}. That name is part of this ` +
+          "gate's scan surface (objectui#7115), so a dangling entry means the surface is quietly " +
+          'smaller than this file says it is — which is the whole defect objectui#7115 was filed for. ' +
+          'Re-point the entry at the page\'s new path, or remove it deliberately.',
+      );
+      process.exit(1);
+    }
+  }
 
   let result;
   try {

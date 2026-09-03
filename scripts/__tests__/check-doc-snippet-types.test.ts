@@ -299,6 +299,52 @@ describe('this repository', () => {
   });
 });
 
+/**
+ * objectui#7115 — the root `README.md` was in NO doc gate's scan set: this gate
+ * walked `content/docs` plus the package READMEs, its sibling
+ * `check-doc-component-types.mjs` walked `content/docs`, and the repository's
+ * landing page fell between them.
+ *
+ * ⚠️ Read the second assertion carefully. Being ON the ungated ledger is NOT a
+ * claim that this file compiles — it does not; objectui#7417 carries its nine
+ * measured diagnostics. It is the objectui#5174 distinction, which this script's
+ * own header states: a document outside the walk is "neither covered NOR
+ * declared ungated", invisible to the gate's own accounting, while a ledgered
+ * one is named, counted, re-derived every run and shrink-only.
+ */
+describe('objectui#7115 — the root README is in the scan set', () => {
+  it('listDocuments reaches it', () => {
+    expect(listDocuments(repoRoot)).toContain('README.md');
+  });
+
+  it('is DECLARED debt rather than absent, and its reason names the card that carries it', () => {
+    expect(Object.keys(UNGATED_DOCS as Record<string, string>)).toContain('README.md');
+    expect((UNGATED_DOCS as Record<string, string>)['README.md']).toContain('objectui#7417');
+  });
+
+  it('root pages are collected BY NAME, not by the packages walk', () => {
+    // The mechanism, isolated: a tree with no `content/docs` and no `packages`
+    // still lists its root page, which is what makes the entry independent of
+    // the two walks it sits between.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-doc-snippet-types-rootpages-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'README.md'), '# root\n');
+      expect(listDocuments(dir)).toEqual(['README.md']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('states in its own source that a dangling root page fails the run', () => {
+    // The guard lives in `main()`, which takes no `--root`, so it cannot be
+    // driven from a fixture. Pinned against the source for the same reason the
+    // exit-code contract is: a silently narrowed surface is this card's defect.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
+    expect(source).toContain('ROOT_PAGES');
+    expect(source).toMatch(/for \(const name of ROOT_PAGES\) \{\n\s*if \(!existsSync\(join\(repoRoot, name\)\)\)/);
+  });
+});
+
 describe('third-party resolution reaches exactly as far as the imported packages declare', () => {
   /** A workspace package with its own `node_modules`, the way pnpm links one. */
   function treeWithDependency(files: Record<string, string> = {}): string {

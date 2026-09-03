@@ -668,6 +668,7 @@ const en = {
     allDay: 'All Day',
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
+    unscheduled: 'Unscheduled ({{count}})',
   },
   list: {
     loading: 'Loading records…',
@@ -824,6 +825,9 @@ const en = {
     },
     unsupported: {
       objectBoundGantt: 'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
+    },
+    unconfigured: {
+      noDateAxis: 'Timeline date axis required — this view declares no date field, and an object-bound timeline will not invent one. Declare one of: {{fields}}. The first is the spec spelling; the rest are legacy aliases.',
     },
   },
   gantt: {
@@ -1244,6 +1248,12 @@ const en = {
   chart: {
     loading: 'Loading chart…',
     nullCategory: '(None)',
+    // The refusal a scatter renders when handed more than one series
+    // (objectui#7194): it binds ONE measure, so a second series was painted at
+    // the first one's y values. One short sentence on purpose — this pack is
+    // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
+    // headroom; the series keys are rendered by the chart as data, after it.
+    scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
   },
   report: {
     total: 'Total',

@@ -185,10 +185,10 @@ The `Page` component provides a consistent wrapper for individual pages with opt
     label: string,
     href?: string
   }>,
-  actions?: ComponentSchema[], // Action buttons
+  actions?: SchemaNode[],      // Action buttons
   
   // Content
-  body: ComponentSchema,       // Main page content
+  body: SchemaNode,            // Main page content
   
   // Layout options
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full',
@@ -270,7 +270,7 @@ Unresolvable tokens collapse to an empty string rather than leaking the raw temp
   icon?: string,                     // Lucide icon name, rendered in a chip left of the title
   actions?: Array<string | ActionDef>, // action ids, or inline ActionDef objects
   showBack?: boolean,                // back arrow; inferred from record context when omitted
-  children?: ComponentSchema[],      // rendered into the right-aligned slot; `actions` takes precedence
+  children?: SchemaNode[],           // rendered into the right-aligned slot; `actions` takes precedence
   className?: string,
 }
 ```
@@ -282,7 +282,7 @@ their own Close control), and `false` otherwise. Pass it explicitly to override.
 `actions` is handed to the `record:quick_actions` widget with
 `location: 'record_header'`. Its entries are **action ids** — resolved from the object's
 own `actions` metadata, which keeps the definitions in one place — or inline `ActionDef`
-objects. They are **not** `ComponentSchema` nodes: a `{ "type": "button", … }` entry
+objects. They are **not** `SchemaNode` nodes: a `{ "type": "button", … }` entry
 renders nothing here.
 
 > **Write `subtitle`. `description` is retired.** `@objectstack/spec/ui`'s

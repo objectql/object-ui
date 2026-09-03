@@ -45,10 +45,16 @@ const schema = {
   type: 'form',
   body: [
     {
+      // `content` is evaluated on every component type. `input` has no row in
+      // the spec's expression carriage map, so a `${…}` in ITS `value` would be
+      // rendered as those characters rather than resolved.
+      type: 'text',
+      content: 'Editing ${user.name}'
+    },
+    {
       type: 'input',
       name: 'name',
-      label: 'Name',
-      value: '${user.name}'
+      label: 'Name'
     }
   ]
 }

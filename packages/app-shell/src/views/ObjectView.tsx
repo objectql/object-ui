@@ -41,7 +41,7 @@ import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar
 import { useFavorites } from '../hooks/useFavorites.js';
 import { useTenancyPosture } from '../hooks/useTenancyPosture.js';
 import { getIcon } from '../utils/getIcon.js';
-import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
+import type { ListViewSchema, ViewNavigationConfig } from '@object-ui/types';
 import { detectStatusField, isSystemManagedField } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector.js';
 import { ViewConfigPanel } from './ViewConfigPanel.js';
@@ -182,16 +182,18 @@ function substituteFilterTokens(filter: any, scope: FilterTokenScope): any {
  *     `'name'`, and invents neither date field. Its `'start_date'` / `'end_date'`
  *     floors were deleted by objectui#7070; that is what makes `ObjectGantt`'s
  *     own "Gantt configuration required" screen reachable from this route.
- *   - ⛔ STILL FABRICATING, and deliberately NOT fixed by objectui#7070: the
- *     TIMELINE axis at the two SIBLING FACES. `plugin-list/ListView.tsx` and
- *     `plugin-view/ObjectView.tsx` both floor `startDateField` at `'created_at'`
- *     — the very literal objectui#3129 retired HERE. `ListView` carries it as a
- *     stated decision ("`created_at` stays the last resort for a view that
- *     declares no date axis anywhere"), so the two faces hold contradictory
- *     DOCUMENTED postures on one literal. objectui#7070 routes that to a single
- *     ruling instead of settling it per-face. Until it is answered: this note
- *     describes the timeline axis at THIS face only, and says nothing about the
- *     other two.
+ *   - the TIMELINE axis at the two SIBLING FACES — `plugin-list/ListView.tsx`
+ *     and `plugin-view/ObjectView.tsx`. Both floored `startDateField` at
+ *     `'created_at'`, the very literal objectui#3129 retired HERE, and
+ *     `ListView` carried it as a stated DECISION ("`created_at` stays the last
+ *     resort for a view that declares no date axis anywhere") — two faces
+ *     holding documented and OPPOSITE postures on one field name. That is what
+ *     objectui#7070 routed to a single ruling instead of settling per-face, and
+ *     the ruling (2026-09-01, 总监批 #28) answered it as house posture:
+ *     日期轴永不虚构 — a date axis is never fabricated. Its step ③ deleted both
+ *     floors, so all three faces now forward a declared axis or none, and
+ *     `ObjectTimeline`'s own refusal screen (step ①, objectui#7459) is reachable
+ *     from every one of them. This note no longer describes only THIS face.
  *
  * Exported for the regression suite.
  */

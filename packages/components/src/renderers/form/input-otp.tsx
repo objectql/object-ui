@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { InputOTPSchema } from '@object-ui/types';
-import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '../../ui';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../../ui';
 import { toFormControlDomProps } from '../../lib/form-control-dom-props';
 
 ComponentRegistry.register('input-otp', 

@@ -12,7 +12,7 @@
  *  - `enabled:false` holds fetching and clears state (no stale count when a
  *    conversation loses its package binding).
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { usePendingDrafts, fetchPendingDrafts } from './usePendingDrafts.js';
 import { emitMetadataRefresh } from '../assistant/assistantBus.js';

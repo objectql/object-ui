@@ -122,6 +122,8 @@ import { isEntrypoint } from './invoked-as.mjs';
  *   control-bytes.yml Control Byte Scan
  *   docs-links.yml    Internal Docs Link Check
  *   skills-paths.yml  Skill Guide Path Check
+ *   skill-examples.yml  Skill Example Check
+ *   skill-eval-tokens.yml  Skill Eval Token Check
  *   changeset-presence.yml   Changeset Declaration
  *   doc-component-types.yml  Doc Component Type Check
  *   doc-snippet-types.yml    Doc Snippet Type Check
@@ -162,6 +164,8 @@ export const REQUIRED_CONTEXTS = Object.freeze([
   'Control Byte Scan',
   'Internal Docs Link Check',
   'Skill Guide Path Check',
+  'Skill Example Check',
+  'Skill Eval Token Check',
   'Changeset Declaration',
   'Doc Component Type Check',
   'Doc Snippet Type Check',

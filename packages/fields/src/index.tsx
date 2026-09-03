@@ -8,14 +8,14 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, type ComponentMeta } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatRelativeDate, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
 // The platform's own value-shape contract, asked rather than restated
 // (objectui#6744). See `locationStoredValueSchemaFor` below for why this is a
 // runtime import in the barrel and not a hand-written coordinate range.
 import { valueSchemaFor } from '@objectstack/spec/data';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
-import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
+import { Check, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { useRelatedRecordActions } from '@object-ui/react';
@@ -577,127 +577,20 @@ export function formatPercent(value: number, precision: number = 0, locale?: str
  */
 export { humanizeLabel };
 
-/** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
-export interface DateDisplayOptions {
-  dueLike?: boolean;
-  /** BCP-47 display locale (ADR-0053 tenant default); falls back to the runtime locale. */
-  locale?: string;
-  /** i18n translate fn for phrases `Intl` can't produce (the "Overdue Nd" wording). */
-  t?: (key: string, params?: Record<string, unknown>) => string;
-}
-
 /**
- * Localized day-granularity relative phrase ("Tomorrow", "3 days ago", "明天",
- * "3天前"), sentence-cased for locales whose `Intl` output starts lowercase.
- */
-function formatRelativeDays(diffDays: number, locale?: string): string {
-  try {
-    const phrase = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(diffDays, 'day');
-    return phrase.charAt(0).toUpperCase() + phrase.slice(1);
-  } catch {
-    // Invalid locale tag — degrade to English rather than crash the cell.
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === -1) return 'Yesterday';
-    return diffDays > 0 ? `In ${diffDays} days` : `${Math.abs(diffDays)} days ago`;
-  }
-}
-
-/**
- * Format date as relative time (e.g., "3 days ago", "Today", "Overdue 3d"),
- * localized via `Intl.RelativeTimeFormat` (objectstack-ai/objectstack#3040).
+ * The date/datetime display path - `@object-ui/core`'s `utils/date-display.ts`
+ * (objectui#7178), re-exported here under its original names so every existing
+ * consumer of `@object-ui/fields` is unchanged.
  *
- * `dueLike` gates the "Overdue" wording — a past `start_date`/`created_at`
- * isn't overdue, only a past due/deadline-semantic field is. Non-due-like
- * past dates render as plain "N days ago" instead. The overdue phrase has no
- * `Intl` equivalent, so it resolves through `options.t` (key
- * `fields.relativeDate.overdue`) with an English fallback.
+ * It moved for the reason `formatDisplayNumber` moved in objectui#4576: this
+ * barrel is a React package, and the React-free engine could not import from
+ * it. `core`'s `formatMeasure` needed this exact path - a dataset measure over
+ * a date field was rendering its raw ISO string - and the alternative to
+ * moving was a second date convention in `dataset-format.ts`, which is the
+ * drift #4576 already paid for once with percent.
  */
-export function formatRelativeDate(value: string | Date | number, options?: DateDisplayOptions): string {
-  if (value === null || value === undefined || value === '') return '—';
-  const date = value instanceof Date ? value : new Date(value as any);
-  if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
-
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffMs = startOfDate.getTime() - startOfToday.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  // Beyond the ±7-day window, fall back to the absolute (already localized) form.
-  if (diffDays < -7 || diffDays > 7) return formatDate(date, undefined, options);
-
-  if (diffDays < -1 && options?.dueLike) {
-    const absDays = Math.abs(diffDays);
-    const key = 'fields.relativeDate.overdue';
-    const translated = options.t?.(key, { count: absDays });
-    return translated && translated !== key ? translated : `Overdue ${absDays}d`;
-  }
-  return formatRelativeDays(diffDays, options?.locale);
-}
-
-/**
- * Format date value
- */
-export function formatDate(value: string | Date | number, style?: string, options?: DateDisplayOptions): string {
-  if (value === null || value === undefined || value === '') return '—';
-  const date = value instanceof Date ? value : new Date(value as any);
-  if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
-
-  if (style === 'short') {
-    // Compact format for mobile: "Jan 15, '24" / "1月 15, '24".
-    // Only the MONTH token is localized: the surrounding compact shape (day,
-    // apostrophe + 2-digit year) is a deliberate fixed layout for narrow
-    // cards, not a locale-derived one. The tag comes from `options.locale`
-    // like the default branch below — hardcoding `'en-US'` here made this the
-    // one branch that ignored a locale its caller had threaded (objectui#4272).
-    const month = date.toLocaleDateString(options?.locale, { month: 'short' });
-    const day = date.getDate();
-    const year = String(date.getFullYear()).slice(-2);
-    return `${month} ${day}, '${year}`;
-  }
-
-  if (style === 'relative') {
-    return formatRelativeDate(date, options);
-  }
-  
-  // Default format: locale-aware human-readable. Drop the year when it
-  // matches the current year — Salesforce / HubSpot / Linear all do this
-  // because the year is rarely useful for in-progress records and the
-  // verbose "2026年7月21日" form crowds cards and table cells. Past- /
-  // future-year dates keep the year so users can disambiguate.
-  const isCurrentYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(options?.locale, {
-    year: isCurrentYear ? undefined : 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-/**
- * Format datetime value.
- *
- * `options` mirrors {@link formatDate}'s and is optional, so an existing
- * caller that passes nothing keeps the exact runtime-default behavior it had.
- * Before objectui#4272 the parameter did not exist at all, which meant no
- * caller could localize this function however hard it tried — it always handed
- * `Intl` an `undefined` tag, i.e. the MACHINE's locale, which is neither of
- * the repo's two locale channels. Callers should pass the tag from
- * `useDisplayLocale()`.
- */
-export function formatDateTime(value: string | Date | number, options?: DateDisplayOptions): string {
-  if (value === null || value === undefined || value === '') return '—';
-  const date = value instanceof Date ? value : new Date(value as any);
-  if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
-
-  return date.toLocaleDateString(options?.locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+export { formatDate, formatDateTime, formatRelativeDate };
+export type { DateDisplayOptions };
 
 /**
  * Single-line cell value with a working ellipsis and a full-text fallback.

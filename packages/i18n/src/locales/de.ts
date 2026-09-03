@@ -556,6 +556,7 @@ const de = {
     allDay: "Ganztägig",
     newEvent: "Neuer Termin",
     moreEvents: "+{{count}} weitere",
+    unscheduled: "Nicht geplant ({{count}})",
   },
   list: {
     firstRunTitle: "Hier ist noch nichts",
@@ -707,6 +708,9 @@ const de = {
     },
     unsupported: {
       objectBoundGantt: "Nicht unterstützte Variante „gantt“ — eine objektgebundene Timeline rendert die Feed-Varianten ({{variants}}). Gantt benötigt literale Zeilen mit jeweils eigenen verschachtelten items; die Gantt-Achse (scale) hat hier daher keine Wirkung.",
+    },
+    unconfigured: {
+      noDateAxis: "Zeitachse für die Timeline erforderlich — diese Ansicht deklariert kein Datumsfeld, und eine objektgebundene Timeline erfindet keines. Deklarieren Sie eines von: {{fields}}. Das erste ist die Spec-Schreibweise, die übrigen sind veraltete Aliase.",
     },
   },
   gantt: {
@@ -1088,6 +1092,7 @@ const de = {
   chart: {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
+    scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
   },
   dashboard: {
     noRows: "Keine Zeilen",

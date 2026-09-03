@@ -406,9 +406,12 @@ interface Rendered {
 
 /**
  * Did the tile draw anything of its own? Elements OR text, because both are
- * real: `components-basic-text/*` render a bare text node with no element
- * around it (measured — "Heading 1" is a direct child of the wrapper), so an
- * element-count-only control reads nine correct tiles as empty.
+ * real: a `text` node that authors neither `variant`, `align`, `className` nor a
+ * designer id renders as a bare text node with no element around it (measured —
+ * `components-basic-text/simple-text` puts "Hello, World!" directly in the
+ * wrapper), so an element-count-only control reads correct tiles as empty. Since
+ * objectui#6942 the variant-carrying entries in that category DO wrap, but the
+ * unadorned ones — here and in every other category — still do not.
  */
 const drewSomething = (elements: number, text: string) =>
   elements > WRAPPER_ELEMENTS || text.trim().length > 0;

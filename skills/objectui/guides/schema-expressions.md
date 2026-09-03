@@ -178,21 +178,25 @@ The `On` variants accept raw expressions without `${}` wrapping — the entire s
 ### Visibility patterns
 
 **Role-based:**
+<!-- os:check -->
 ```json
 { "hidden": "${data.userRole !== 'admin'}" }
 ```
 
 **Status-based:**
+<!-- os:check -->
 ```json
 { "visible": "${data.record.status === 'active'}" }
 ```
 
 **Data-dependent:**
+<!-- os:check -->
 ```json
 { "hidden": "${!data.items || data.items.length === 0}" }
 ```
 
 **Combined conditions:**
+<!-- os:check -->
 ```json
 { "visibleOn": "data.isAuthenticated && data.permissions.canEdit" }
 ```
@@ -262,6 +266,7 @@ Three renderer-side facts that live nowhere else:
 The `bind` field is NOT expression-evaluated. It's a path string resolved by
 `useDataScope()` — and **only a component that calls that hook reads it**.
 
+<!-- os:check -->
 ```json
 {
   "type": "list",
@@ -289,6 +294,7 @@ it resolves nothing: the table renders its header over the "No results found"
 empty state. Nothing is thrown and nothing is logged — a table that looks built
 and is blank is the whole failure.
 
+<!-- os:check -->
 ```json
 {
   "type": "data-table",
@@ -495,6 +501,7 @@ the DOM as a locale-dependent blob.
 
 Expressions don't throw on missing variables — they return `undefined`. Use fallback patterns:
 
+<!-- os:check -->
 ```json
 { "type": "text", "content": "${data.user?.name || 'Unknown'}" }
 ```

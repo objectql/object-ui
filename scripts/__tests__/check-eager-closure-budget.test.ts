@@ -389,6 +389,146 @@ describe('per-chunk ceilings', () => {
  * plus the three per-chunk lines objectui#5490 added), each weighed against its
  * own measurement in the report.
  */
+/**
+ * The composition pin (objectui#7399).
+ *
+ * These ceilings are keyed on chunk NAMES, and until this card nothing checked
+ * that a name still described its contents. It did not: `framework`'s group
+ * test is `packages/(core|react|types)`, and the emitted `framework` chunk held
+ * all ten `packages/i18n` locale catalogues — 78.7% of its bytes — because five
+ * workspace groups shared `priority: 80` and `framework` was written first. So
+ * `PER_CHUNK_GZIP_CEILINGS['framework']` was in operation a budget on the
+ * translation catalogue, with 41 bytes of headroom, and its failure message
+ * named the wrong cause.
+ *
+ * ⚠️ This is deliberately a check on the DECIDING INPUT, not on prose. The
+ * config's own comment said `core|react|types` throughout the defect and was
+ * true about the regex the whole time; what was false was the assumption that a
+ * group only takes what its regex matches. The predicate below is the one that
+ * was actually violated — a TIE between a group whose test matches the
+ * catalogue and one whose test does not.
+ *
+ * The byte-level backstop is the re-baselined ceiling itself: `framework` is
+ * now pinned at 71,000 over a 61,465 payload, so a regression that puts the
+ * 446 KB catalogue back would red the gate six times over. That verdict is
+ * loud but mute about the cause. This one names it.
+ *
+ * ⛔ Every case here fails CLOSED. The parse yielding nothing, or a probe id
+ * matching no group at all, is an ERROR and not a pass — a matcher that matches
+ * nothing agrees with a correctly-attributed bundle on every assertion below.
+ */
+describe('chunk attribution (objectui#7399)', () => {
+  /** A group as `advancedChunks.groups` declares it. */
+  type Group = { name: string; priority: number; test: RegExp | null };
+
+  /**
+   * Parse the groups out of the console's vite config.
+   *
+   * `test` is `null` for a group whose test is an IDENTIFIER rather than a
+   * regex literal (`vendor-objectstack` reads a computed test, so that the
+   * `OBJECTSTACK_SPEC_DIST` override cannot change the chunk layout —
+   * objectui#5388). Those are refused a verdict below rather than guessed at.
+   */
+  function parseGroups(): Group[] {
+    const source = fs.readFileSync(viteConfigPath, 'utf8');
+    const entry =
+      /\{\s*name:\s*'([^']+)',\s*test:\s*(\/(?:[^/\\\n]|\\.|\[[^\]\n]*\])+\/[a-z]*|[A-Za-z_$][\w$]*)\s*,\s*priority:\s*(\d+)\s*\}/g;
+    return [...source.matchAll(entry)].map(([, name, test, priority]) => {
+      const literal = /^\/(.*)\/([a-z]*)$/s.exec(test);
+      return {
+        name,
+        priority: Number(priority),
+        test: literal ? new RegExp(literal[1], literal[2]) : null,
+      };
+    });
+  }
+
+  const groups = parseGroups();
+
+  /** Rolldown matches group tests against REALPATHS, measured on objectui#7399. */
+  const moduleId = (relative: string) => path.join(repoRoot, relative);
+
+  const LOCALE_MODULE = moduleId('packages/i18n/src/locales/zh-CN.ts');
+  const DATA_MODULE = moduleId('packages/data-objectstack/src/index.ts');
+  const CORE_MODULE = moduleId('packages/core/src/index.ts');
+
+  /** The groups whose test matches this id, highest priority first. */
+  function claimants(id: string): Group[] {
+    return groups
+      .filter((g) => g.test?.test(id))
+      .sort((a, b) => b.priority - a.priority);
+  }
+
+  describe('the parse itself — a matcher that matches nothing agrees with everything', () => {
+    it('finds the whole group table, not a fragment of it', () => {
+      // ~35 groups are declared. A reformat that breaks this parse must red
+      // here rather than quietly reduce every case below to a tautology.
+      expect(groups.length).toBeGreaterThan(20);
+      expect(groups.map((g) => g.name)).toEqual(expect.arrayContaining([
+        'framework',
+        'i18n-locales',
+        'data-adapter',
+        'ui-components',
+        'infrastructure',
+      ]));
+    });
+
+    it('reads a control module to the group that owns it', () => {
+      expect(claimants(CORE_MODULE)[0]?.name).toBe('framework');
+    });
+
+    it('refuses a verdict on a group whose test it could not read', () => {
+      // Exactly one group takes a computed test today. A second one appearing
+      // reds this case, because such a group could claim the probe ids below
+      // without this parse ever seeing it.
+      expect(groups.filter((g) => g.test === null).map((g) => g.name)).toEqual([
+        'vendor-objectstack',
+      ]);
+    });
+  });
+
+  describe('the defect this pin exists to stop', () => {
+    it('`framework`s test matches NEITHER intruder — which is why the config read as correct', () => {
+      const framework = groups.find((g) => g.name === 'framework');
+      expect(framework?.test?.test(LOCALE_MODULE)).toBe(false);
+      expect(framework?.test?.test(DATA_MODULE)).toBe(false);
+    });
+
+    it.each([
+      ['the locale catalogue', LOCALE_MODULE, 'i18n-locales'],
+      ['the ObjectStack data adapter', DATA_MODULE, 'data-adapter'],
+    ])('routes %s to `%s` at a priority `framework` cannot tie', (_what, id, expected) => {
+      const framework = groups.find((g) => g.name === 'framework');
+      expect(framework).toBeDefined();
+
+      const claiming = claimants(id);
+      // Fails closed: no claimant is an error, never a silent pass.
+      expect(claiming.length).toBeGreaterThan(0);
+      expect(claiming[0].name).toBe(expected);
+
+      // The pin. A TIE is what put the catalogue in `framework`, so equality
+      // here is a failure exactly like inversion is.
+      expect(claiming[0].priority).toBeGreaterThan(framework!.priority);
+    });
+
+    it('leaves no second claimant at the winner`s priority', () => {
+      for (const id of [LOCALE_MODULE, DATA_MODULE]) {
+        const claiming = claimants(id);
+        const top = claiming[0].priority;
+        expect(claiming.filter((g) => g.priority === top)).toHaveLength(1);
+      }
+    });
+  });
+
+  it('budgets the chunk the catalogue now lands in', () => {
+    // A re-attribution that moved 446 KB into a chunk with no ceiling would
+    // pass every case above while weakening the gate: the aggregate is the only
+    // line left over those bytes, and it is the loosest one.
+    expect(PER_CHUNK_GZIP_CEILINGS).toHaveProperty('i18n-locales');
+    expect(claimants(LOCALE_MODULE)[0].name).toBe('i18n-locales');
+  });
+});
+
 describe('ceiling sensitivity, judged live (objectui#5924)', () => {
   /**
    * A v2 report totalling exactly `totalGzipBytes`, carrying the budgeted
@@ -645,10 +785,16 @@ describe('main', () => {
   // the checker weighs BOTH halves, and a report missing the budgeted chunks is
   // an error — which is the per-chunk half working, not a fixture detail.
   it('exits 0 and publishes the measurement when within budget', () => {
-    const { code, outputs } = run(budgeted());
+    const fixture = budgeted();
+    const { code, outputs } = run(fixture);
     expect(code).toBe(0);
     expect(outputs.closure_status).toBe('pass');
-    expect(outputs.closure_chunks).toBe('5');
+    // DERIVED from the fixture, not retyped. This was the literal `'5'`, which
+    // counted the budgeted chunks plus `index` and `rest-of-closure` — so
+    // objectui#7399 adding a fourth per-chunk ceiling reddened an assertion
+    // about the FIXTURE while the gate under test behaved correctly. The number
+    // this case is actually about is "the report's chunk count, echoed".
+    expect(outputs.closure_chunks).toBe(String(fixture.files.length));
     expect(outputs.closure_gzip_kb).toBe('3146.8');
   });
 

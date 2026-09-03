@@ -20,7 +20,7 @@
  * the protocol vocabulary stays opt-in on purpose: a genuinely missing renderer
  * must keep failing loudly so the misconfiguration gets fixed at the source.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom';
 import { ComponentRegistry } from '@object-ui/core';
 import { PALETTE_PLACEHOLDER_BLOCKS } from '../renderers/placeholders';

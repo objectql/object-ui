@@ -260,7 +260,10 @@ export interface BaseSchema {
 
   /**
    * Controls whether the component is visible.
-   * When false, component is not rendered (display: none).
+   * When false, the component is NOT RENDERED: `SchemaRenderer` returns `null`
+   * for the node. Nothing emits `display: none` — the element never reaches the
+   * DOM at all, and `hidden: true` one slot below takes this exact same path
+   * (objectui#7088).
    *
    * Accepts a PREDICATE STRING as well as a boolean (objectui#4581): the
    * renderer does not read this key as a boolean, it evaluates it —
@@ -294,8 +297,32 @@ export interface BaseSchema {
   visibleOn?: string;
 
   /**
-   * Controls whether the component is hidden (but still rendered).
-   * When true, component is rendered but not visible (visibility: hidden).
+   * Controls whether the component is hidden.
+   * When true, the component is NOT RENDERED: the renderer sets its internal
+   * `_hidden` flag and returns `null` for the node — exactly what
+   * `visible: false` does. No node is kept in the tree and nothing emits
+   * `visibility: hidden`.
+   *
+   * ⚠️ `hidden` and `visible` are DELIBERATELY SYNONYMOUS — one hide path, not
+   * two behaviours (objectui#7088, ruled 2026-09-01). This comment used to
+   * promise "rendered but not visible (visibility: hidden)", which the renderer
+   * has never done: `_hidden` has exactly one consumer, the `return null` in
+   * `SchemaRenderer.tsx`, and by the time it is read the key that set it is no
+   * longer distinguishable. The other reading — keep the node, hide it visually
+   * — was considered and DECLINED: it is a behaviour change on a published prop
+   * with zero named consumers, so a real accessibility or animation use-case
+   * reopens it as its own feature card rather than being inferred from this
+   * declaration. Corollary for whoever edits the docs next: the schema-reference
+   * row "Inverse of `visible`" is the half that describes shipped behaviour —
+   * do not "correct" it toward a promise this key does not keep. Pinned by
+   * `SchemaRenderer.hiddenVisibleSynonymy.test.tsx`.
+   *
+   * Synonymous in OUTCOME, not in PRECEDENCE: the renderer's `shouldHide` chain
+   * consults every `visible*` leg first, so a declared `visible` — an empty one
+   * included — short-circuits this key and it is never evaluated
+   * (`SchemaRenderer.expressions.test.tsx`,
+   * `SchemaRenderer.hiddenDeclaredGate.test.tsx`).
+   *
    * @default false
    */
   hidden?: boolean;

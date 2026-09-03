@@ -10,7 +10,7 @@
  * src/catalog-meta.json — that file is the hand-curated one, and the
  * generator only ever reads it.
  */
-import type { Example, ExampleMeta } from './types.js';
+import type { Example } from './types.js';
 
 import actions_action_button_variants from './schemas/actions/action-button-variants.json' with { type: 'json' };
 import actions_action_toolbar from './schemas/actions/action-toolbar.json' with { type: 'json' };
@@ -59,15 +59,14 @@ import components_basic_span_default_badge from './schemas/components-basic-span
 import components_basic_span_secondary_badge from './schemas/components-basic-span/secondary-badge.json' with { type: 'json' };
 import components_basic_span_status_badges from './schemas/components-basic-span/status-badges.json' with { type: 'json' };
 import components_basic_span_text_component from './schemas/components-basic-span/text-component.json' with { type: 'json' };
+import components_basic_text_caption from './schemas/components-basic-text/caption.json' with { type: 'json' };
 import components_basic_text_heading_1 from './schemas/components-basic-text/heading-1.json' with { type: 'json' };
 import components_basic_text_heading_2 from './schemas/components-basic-text/heading-2.json' with { type: 'json' };
 import components_basic_text_heading_3 from './schemas/components-basic-text/heading-3.json' with { type: 'json' };
-import components_basic_text_large from './schemas/components-basic-text/large.json' with { type: 'json' };
-import components_basic_text_lead from './schemas/components-basic-text/lead.json' with { type: 'json' };
-import components_basic_text_muted from './schemas/components-basic-text/muted.json' with { type: 'json' };
+import components_basic_text_heading_4 from './schemas/components-basic-text/heading-4.json' with { type: 'json' };
+import components_basic_text_heading_5 from './schemas/components-basic-text/heading-5.json' with { type: 'json' };
 import components_basic_text_paragraph from './schemas/components-basic-text/paragraph.json' with { type: 'json' };
 import components_basic_text_simple_text from './schemas/components-basic-text/simple-text.json' with { type: 'json' };
-import components_basic_text_small from './schemas/components-basic-text/small.json' with { type: 'json' };
 import components_basic_text_text_alignment from './schemas/components-basic-text/text-alignment.json' with { type: 'json' };
 import components_basic_text_text_with_colors from './schemas/components-basic-text/text-with-colors.json' with { type: 'json' };
 import components_complex_carousel_customer_reviews from './schemas/components-complex-carousel/customer-reviews.json' with { type: 'json' };
@@ -884,6 +883,15 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_basic_span_text_component,
   },
+  'components-basic-text/caption': {
+    id: 'components-basic-text/caption',
+    meta: {
+      title: "Caption",
+      description: "",
+      category: 'components-basic-text',
+    },
+    schema: components_basic_text_caption,
+  },
   'components-basic-text/heading-1': {
     id: 'components-basic-text/heading-1',
     meta: {
@@ -911,32 +919,23 @@ const REGISTRY: Record<string, Example> = {
     },
     schema: components_basic_text_heading_3,
   },
-  'components-basic-text/large': {
-    id: 'components-basic-text/large',
+  'components-basic-text/heading-4': {
+    id: 'components-basic-text/heading-4',
     meta: {
-      title: "Large",
+      title: "Heading 4",
       description: "",
       category: 'components-basic-text',
     },
-    schema: components_basic_text_large,
+    schema: components_basic_text_heading_4,
   },
-  'components-basic-text/lead': {
-    id: 'components-basic-text/lead',
+  'components-basic-text/heading-5': {
+    id: 'components-basic-text/heading-5',
     meta: {
-      title: "Lead",
+      title: "Heading 5",
       description: "",
       category: 'components-basic-text',
     },
-    schema: components_basic_text_lead,
-  },
-  'components-basic-text/muted': {
-    id: 'components-basic-text/muted',
-    meta: {
-      title: "Muted",
-      description: "",
-      category: 'components-basic-text',
-    },
-    schema: components_basic_text_muted,
+    schema: components_basic_text_heading_5,
   },
   'components-basic-text/paragraph': {
     id: 'components-basic-text/paragraph',
@@ -955,15 +954,6 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-basic-text',
     },
     schema: components_basic_text_simple_text,
-  },
-  'components-basic-text/small': {
-    id: 'components-basic-text/small',
-    meta: {
-      title: "Small",
-      description: "",
-      category: 'components-basic-text',
-    },
-    schema: components_basic_text_small,
   },
   'components-basic-text/text-alignment': {
     id: 'components-basic-text/text-alignment',

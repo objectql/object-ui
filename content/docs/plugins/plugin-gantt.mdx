@@ -118,9 +118,10 @@ const schema = {
 ```plaintext
 {
   type: 'object-gantt',
-  objectName?: string,              // ObjectQL object name
-  staticData?: Array<any>,          // Static data array
-  data?: ViewData,                  // Advanced data configuration
+  objectName?: string,              // ObjectQL object name (read third)
+  staticData?: Array<any>,          // Static data array (read second)
+  data?: ViewData,                  // Advanced data configuration (read first)
+                                    // At least one of data / staticData / objectName is required
   gantt?: GanttConfig,              // Gantt-specific configuration
   viewMode?: 'day' | 'week' | 'month' | 'quarter' | 'year',
   readOnly?: boolean                // disable every edit path

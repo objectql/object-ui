@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { ActionProvider } from '@object-ui/react';
 import { renderComponent, validateComponentRegistration } from './test-utils';

@@ -118,14 +118,27 @@
  * ## What it reads, and what it deliberately does not
  *
  * The scan surface is `check-doc-snippet-types`'s, exactly: every `.mdx` and
- * `.md` under `content/docs`, plus every `packages/<name>/README.md`. It is
- * re-implemented here rather than imported so this gate needs NO install — that
- * gate imports `typescript`, and an install-gated docs check is one that a
- * docs-only pull request skips, which is the shape objectui#5174 and
- * `doc-component-types.yml`'s header both record as the hole. The copy is not
- * left to drift: `scripts/__tests__/check-doc-fence-languages.test.ts` imports
- * BOTH walks and fails if they ever return different document lists, and pins
- * this file's TypeScript-fence set against the gate's own `TS_FENCE_LANGUAGES`.
+ * `.md` under `content/docs`, every `packages/<name>/README.md`, the root
+ * `README.md` (objectui#7115), and every `.mdx` / `.md` under
+ * `apps/<app>/docs/**` (objectui#6600). The full ownership map for all three doc
+ * gates — including the trees NO gate reads — is stated once in
+ * `check-doc-snippet-types.mjs`, beside `UNGATED_DOCS`; this gate's roots are
+ * that gate's roots by construction, which is the pin below.
+ * It is re-implemented here rather than imported so
+ * this gate needs NO install — that gate imports `typescript`, and an
+ * install-gated docs check is one that a docs-only pull request skips, which is
+ * the shape objectui#5174 and `doc-component-types.yml`'s header both record as
+ * the hole. The copy is not left to drift:
+ * `scripts/__tests__/check-doc-fence-languages.test.ts` imports BOTH walks and
+ * fails if they ever return different document lists, and pins this file's
+ * TypeScript-fence set against the gate's own `TS_FENCE_LANGUAGES`.
+ *
+ * ⭐ That coupling pin is not decoration — it is what CAUGHT objectui#7115.
+ * That card widened the two gates its ruling named onto the root `README.md`
+ * and this one, the third, went red on `walks exactly the documents the snippet
+ * gate walks` before anybody had thought to look for a third. The install-free
+ * copy is deliberate; the pin is what makes a deliberate copy safe, and it did
+ * the job it was written for.
  *
  * ⛔ It compiles nothing. Whether a block that reaches a `ts` fence then passes
  * `--strict` is `check-doc-snippet-types`'s question; this gate only makes sure
@@ -145,6 +158,49 @@ const DOCS_ROOT = 'content/docs';
 const PACKAGES_DIR = 'packages';
 const DOC_EXTENSIONS = ['.mdx', '.md'];
 
+/**
+ * Per-app documentation trees, `apps/<app>/docs/**` (objectui#6600).
+ *
+ * ⛔ Deliberately a COPY of `check-doc-snippet-types.mjs`'s constant, for the same
+ * reason `ROOT_PAGES` below is one: importing anything from that module pulls in
+ * its `import ts from 'typescript'` at load, and this gate's whole value is that
+ * it runs with no install. Exported so the equality is checked rather than hoped
+ * for — `check-doc-fence-languages.test.ts` pins all three gates' copies.
+ *
+ * The walk is `apps/<app>/docs`, one level of app directory and no deeper before
+ * the
+ * `docs` segment: `apps/site/app/docs` is a Next.js ROUTE directory holding
+ * `.tsx` route files, not a documentation tree, and a `**`-shaped walk that
+ * happened to pick it up would be collecting routes.
+ */
+export const APP_DOCS = { dir: 'apps', subdir: 'docs' };
+
+/** Every `apps/<app>/docs` directory that exists, in a stable order. */
+export function appDocsDirs(root) {
+  const appsDir = join(root, APP_DOCS.dir);
+  if (!existsSync(appsDir)) return [];
+  const out = [];
+  for (const entry of readdirSync(appsDir).sort()) {
+    const docs = join(appsDir, entry, APP_DOCS.subdir);
+    if (existsSync(docs) && statSync(docs).isDirectory()) out.push(docs);
+  }
+  return out;
+}
+
+/**
+ * Pages at the repository ROOT that join the scan set by name (objectui#7115).
+ *
+ * ⛔ Deliberately a COPY of `check-doc-snippet-types.mjs`'s constant rather than
+ * an import of it, for the reason stated in the header: importing anything from
+ * that module pulls in its `import ts from 'typescript'` at load, and this gate's
+ * whole value is that it runs with no install, in the unfiltered workflow a
+ * docs-only pull request starts. Exported so the equality is checked rather than
+ * hoped for — `check-doc-fence-languages.test.ts` pins this array against the
+ * other two gates', which is the same bargain `TS_FENCE_LANGUAGES` and the
+ * document walk already make: copy freely, compare always.
+ */
+export const ROOT_PAGES = ['README.md'];
+
 /** Every document in the scan set, in a stable order. */
 export function listDocuments(root = repoRoot) {
   const out = [];
@@ -157,12 +213,20 @@ export function listDocuments(root = repoRoot) {
   };
   const docsRoot = join(root, DOCS_ROOT);
   if (existsSync(docsRoot)) walk(docsRoot);
+  // Per-app docs trees, in the same slot the snippet gate appends them in —
+  // the coupling pin compares the two lists element by element.
+  for (const dir of appDocsDirs(root)) walk(dir);
   const pkgDir = join(root, PACKAGES_DIR);
   if (existsSync(pkgDir)) {
     for (const entry of readdirSync(pkgDir).sort()) {
       const readme = join(pkgDir, entry, 'README.md');
       if (existsSync(readme)) out.push(relative(root, readme).split(sep).join('/'));
     }
+  }
+  // Root pages last, by name — the same order the snippet gate appends them in,
+  // because the coupling pin compares the lists element by element.
+  for (const name of ROOT_PAGES) {
+    if (existsSync(join(root, name))) out.push(name);
   }
   return out;
 }

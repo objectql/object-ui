@@ -57,11 +57,14 @@
  *   2. The JUDGE is self-checked against a deliberately leaking element, so a
  *      zero can never come from an attribute reader that reports nothing.
  *
- * The 176 `text` nodes that render NO element are recorded rather than hidden:
- * `text` returns a bare fragment when a node carries neither designer id nor
- * className, and 176 catalog nodes take that path. They were never evidence of
- * safety, which is the phantom-clean class objectui#5574's first pass found
- * seven real leaks behind.
+ * The 162 `text` nodes that render NO element are recorded rather than hidden:
+ * `text` returns a bare fragment when a node carries neither designer id,
+ * className, `variant` nor `align`, and 162 catalog nodes take that path. They
+ * were never evidence of safety, which is the phantom-clean class
+ * objectui#5574's first pass found seven real leaks behind. (176 before
+ * objectui#6942 taught `ui:text` to read `variant` and `align`: a node that
+ * authors either now needs an element to carry the class, so 13 of them left
+ * this class for the measured one.)
  *
  * Module-scope import of `@object-ui/components`, not `beforeAll` (AGENTS.md
  * §测试纪律): registering the renderers is an unbounded module load and must not
@@ -102,8 +105,17 @@ const NODE_CENSUS: Readonly<Record<string, { rendered: number; noElement: number
   container: { rendered: 15, noElement: 0 },
   grid: { rendered: 26, noElement: 0 },
   // 699 -> 702: the two components-layout-box exemplars author 3 text nodes
-  // (objectui#3965).
-  text: { rendered: 702, noElement: 176 },
+  // (objectui#3965). 702 -> 701 and 176 -> 162 with objectui#6942, and the two
+  // moves have different causes: `components-basic-text/muted.json` was deleted
+  // (one node fewer), and 13 nodes LEFT the no-element class because `ui:text`
+  // began reading `variant` and `align` — a node that authors either now needs
+  // an element to carry the class. Those 13 are the 7 variant-carrying
+  // `components-basic-text` entries, the 3 `text-alignment` children, the
+  // `components-feedback-loading/with-text` label, and the `h3` headings in
+  // `components-layout-container/basic-container` and
+  // `components-layout-stack/basic-stack`. This is the census moving in the
+  // SAFE direction: fewer phantom-clean nodes, more elements actually read.
+  text: { rendered: 701, noElement: 162 },
   // The objectui#3965 migration population (80 nodes retyped from `div`) plus
   // the 4 nodes of the components-layout-box exemplars. `box` is born on
   // `toDomProps` and class-transparency, so it joins the measured set as a

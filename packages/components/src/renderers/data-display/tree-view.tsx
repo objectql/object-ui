@@ -8,7 +8,7 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { TreeViewSchema, TreeNode } from '@object-ui/types';
-import { ChevronRight, ChevronDown, Folder, File, FolderOpen, CircuitBoard } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, File, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
 import { useDataScope } from '@object-ui/react';

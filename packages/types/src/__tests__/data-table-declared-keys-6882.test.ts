@@ -58,6 +58,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { DataTableSchema } from '../data-display.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { DataTableSchema as DataTableMirror } from '../zod/data-display.zod.js';
+import { ObjectGridSchema as ObjectGridMirror } from '../zod/objectql.zod.js';
+import { safeValidateSchema } from '../zod/index.zod.js';
 
 /**
  * `T` with its string/number index signatures removed — the same shape
@@ -166,5 +172,123 @@ describe('objectui#6882 — DataTableSchema declares the two keys data-table rea
 
     expect(authored.cellClassName).toBe('px-3 py-1');
     expect(typeof authored.renderCellEditor).toBe('function');
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * objectui#6940 — `DataTableSchema.rowActions` is a BOOLEAN on the mirror too
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * Maintainer ruling 2026-09-02 (director seat, summon #8, verbatim
+ * 「7189 A  其他同意」), option A: the zod mirror in `../zod/data-display.zod.ts`
+ * becomes `z.boolean().optional()`, aligned with the TS declaration
+ * (`rowActions?: boolean`), the renderer's destructuring default
+ * (`rowActions = false`), the registered input (`type: 'boolean'`),
+ * `defaultProps` and the docblock example. Option B (a `boolean | array` union)
+ * was NOT taken: it would permanently accept a shape the renderer only
+ * truthiness-tests.
+ *
+ * ## Why the REFUSAL is the load-bearing half
+ *
+ * This is a NARROWING. A mirror that accepted both `true` and `[]` would
+ * satisfy a "`true` validates" assertion on its own — that assertion was green
+ * BEFORE this change for the array spelling and would stay green after a
+ * union. So the pin that carries the ruling's meaning is
+ * `_rowActionsArrayIsRefused` below, and it asserts not merely that the parse
+ * fails but that EVERY issue it raises is ON `rowActions` — a document refused
+ * for some unrelated reason would otherwise read as a passing narrowing pin.
+ *
+ * ## ⚠️ Two different keys are named `rowActions`
+ *
+ * `ObjectGridSchema.rowActions` (`../zod/objectql.zod.ts`, TS twin
+ * `../objectql.ts` `interface ObjectGridSchema`) is `z.array(z.string())` — the
+ * legacy bare-NAME action list, a genuinely different key that is correct as it
+ * stands and is NOT touched by this ruling. The last test below pins that
+ * separation, so a later sweep that "harmonises the two `rowActions`" turns red
+ * here instead of silently retyping a key no ruling covers.
+ */
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+
+/** The two entries the ruling names — they must validate UNCHANGED. */
+const CATALOG_FIXTURES = [
+  'examples/schema-catalog/src/schemas/components-complex-data-table/user-table.json',
+  'examples/schema-catalog/src/schemas/components-complex-data-table/full-featured-table.json',
+].map((rel) => ({ rel, abs: path.join(REPO_ROOT, rel) }));
+
+/** A minimal document that is valid except for whatever `rowActions` is set to. */
+const baseDoc = {
+  type: 'data-table',
+  columns: [{ header: 'Name', accessorKey: 'name' }],
+  data: [] as unknown[],
+};
+
+describe('objectui#6940 — the `rowActions` mirror is the declared boolean', () => {
+  it('`rowActions: true` validates — the spelling the renderer, inputs and docs all teach', () => {
+    const parsed = DataTableMirror.safeParse({ ...baseDoc, rowActions: true });
+    expect(parsed.success ? null : parsed.error.issues).toBe(null);
+  });
+
+  it('`rowActions: false` validates too — the key is a boolean, not a truthy-only flag', () => {
+    const parsed = DataTableMirror.safeParse({ ...baseDoc, rowActions: false });
+    expect(parsed.success ? null : parsed.error.issues).toBe(null);
+  });
+
+  it('⭐ `rowActions: []` is REFUSED, and refused ON `rowActions`', () => {
+    // `[]` was the SMALLEST value the pre-#6940 mirror accepted, and #6318
+    // measured that it renders the actions column identically to `true`
+    // (because `[]` is truthy) — so it made documents say something the
+    // renderer cannot act on. Narrowing is the whole point of the ruling;
+    // this is where that is proved.
+    const parsed = DataTableMirror.safeParse({ ...baseDoc, rowActions: [] });
+    expect(parsed.success, '`rowActions: []` still validates — the mirror did not narrow').toBe(false);
+
+    if (!parsed.success) {
+      const paths = parsed.error.issues.map((issue) => issue.path.join('.'));
+      // Every issue must be about `rowActions`. Without this, a document
+      // rejected for an unrelated reason would satisfy the assertion above.
+      expect(paths, `refused, but not on rowActions: ${JSON.stringify(paths)}`).toEqual(['rowActions']);
+    }
+  });
+
+  it('the published `safeValidateSchema` surface moves with it, in both directions', () => {
+    // The ruling is stated about THIS entry point ("changes what
+    // `safeValidateSchema` accepts on a published package"), and it is a
+    // `z.union` — so the refusal has to be measured here too rather than
+    // inferred from the member mirror: a sibling union member accepting the
+    // document would leave the published surface unchanged.
+    expect(safeValidateSchema({ ...baseDoc, rowActions: true }).success).toBe(true);
+    expect(safeValidateSchema({ ...baseDoc, rowActions: [] }).success).toBe(false);
+  });
+
+  it('the two schema-catalog entries this card was filed over are on disk', () => {
+    // Asserted before anything reads them: a path that silently resolved to
+    // nothing would make the next test a vacuous pass.
+    for (const { rel, abs } of CATALOG_FIXTURES) {
+      expect(fs.existsSync(abs), `fixture not found at ${rel}`).toBe(true);
+    }
+  });
+
+  it('…and both validate UNCHANGED — they author `rowActions: true` and always did', () => {
+    for (const { rel, abs } of CATALOG_FIXTURES) {
+      const doc = JSON.parse(fs.readFileSync(abs, 'utf8')) as Record<string, unknown>;
+      expect(doc.rowActions, `${rel} no longer authors the boolean this pin was written for`).toBe(true);
+
+      const parsed = safeValidateSchema(doc);
+      expect(parsed.success ? null : parsed.error.issues, `${rel} does not validate`).toBe(null);
+    }
+  });
+
+  it('the list view’s same-named `rowActions` is a DIFFERENT key and still takes `string[]`', () => {
+    // `ObjectGridSchema.rowActions` is the legacy bare-NAME action list. The
+    // ruling leaves it alone, and the mirror-parity ratchet agrees it is in
+    // parity with its TS twin (`rowActions?: string[]`) — it appears in
+    // NEITHER of that file's drift ledgers. Pinned here so the two keys are not
+    // later "harmonised" on the strength of sharing a name.
+    const grid = { type: 'object-grid', objectName: 'accounts', rowActions: ['edit', 'delete'] };
+    expect(ObjectGridMirror.safeParse(grid).success).toBe(true);
+
+    // …and the boolean this card installs on the OTHER key is not valid here.
+    expect(ObjectGridMirror.safeParse({ ...grid, rowActions: true }).success).toBe(false);
   });
 });

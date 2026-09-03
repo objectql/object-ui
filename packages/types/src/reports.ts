@@ -509,14 +509,19 @@ export interface ReportBuilderSchema extends BaseSchema {
   showPreview?: boolean;
 
   /**
-   * Save callback
+   * Save callback — RETIRED (objectui#7344; the objectui#6182 ruling in the
+   * objectui#6124 shape). No renderer is registered for `report-builder`, so
+   * the handler-expression string this declared could never run. The zod twin
+   * refuses the key by name; author behaviour as a node type instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onSave?: string;
+  onSave?: never;
 
   /**
-   * Cancel callback
+   * Cancel callback — RETIRED (objectui#7344), the same measurement as `onSave`.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onCancel?: string;
+  onCancel?: never;
 }
 
 /**

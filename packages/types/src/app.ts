@@ -713,7 +713,16 @@ export interface AppAction {
   type: 'button' | 'dropdown' | 'user';
   label?: string;
   icon?: string;
-  onClick?: string;
+  /**
+   * RETIRED (objectui#7344; the objectui#6182 ruling of 2026-08-25 — the
+   * handler-expression string dialect is not a supported authoring form — in
+   * the objectui#6124 shape). Nothing reads `AppComponentSchema.actions[]`, so
+   * no value here could ever run. The zod twin refuses the key by name; author
+   * behaviour as a node type (an `action:button` node with a declared action)
+   * instead.
+   * @deprecated Not part of this contract — the value was inert.
+   */
+  onClick?: never;
   /**
    * User Avatar URL (for type='user')
    */

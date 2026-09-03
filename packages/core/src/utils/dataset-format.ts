@@ -21,6 +21,7 @@ import type { AnalyticsResult } from '@objectstack/spec/contracts';
 import type { PercentScale } from '@objectstack/spec/data';
 
 import { formatDisplayNumber, type DisplayNumberFormatOptions } from './number-display.js';
+import { formatDate, formatDateTime } from './date-display.js';
 
 /**
  * Column metadata the analytics server returns alongside the rows — the spec's
@@ -131,6 +132,71 @@ function formatNumberInLocale(
 }
 
 /**
+ * ISO calendar date with NO time part — `2026-07-04`.
+ *
+ * Deliberately anchored at both ends and deliberately narrower than
+ * `Date.parse`, which also accepts locale prose (`March 5, 2026`), bare years
+ * (`2026`) and — the one that matters here — plain NUMERALS. A measure value
+ * is untyped by the time it reaches {@link formatMeasure}, so the shape test
+ * IS the type test, and a loose one would capture the numeric strings and
+ * counts this formatter must leave exactly as they are.
+ */
+const ISO_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * ISO date carrying a time part — `2026-07-04T07:00:00.000Z`, or the same with
+ * a space separator, with or without seconds/offset. Matched only as far as
+ * `HH:mm`; `Date.parse` decides the rest, so a well-shaped impossible instant
+ * still falls through untouched.
+ */
+const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+
+/**
+ * Render a date-shaped measure value through the display path a list cell
+ * already uses for that field, or return `undefined` to say "not a date" and
+ * leave the caller's own fallthrough in charge.
+ *
+ * ── Why this is a ROUTE and not a formatter (objectui#7178) ──
+ * Every line of date rendering below happens in `./date-display.ts`, which is
+ * where `@object-ui/fields`' `formatDate` / `formatDateTime` now live and what
+ * `DateCellRenderer`, `ObjectGrid`'s date cells and `ObjectGantt`'s tooltips
+ * call. Writing the date convention HERE instead is the mistake this file's
+ * own header is about: objectui#4576, where a percent convention had one copy
+ * in a list cell and another in this function, both correct, and a German
+ * session read `1.234,5 %` in the cell beside `1.234,5%` in the measure. One
+ * date convention, one home, nothing to drift.
+ *
+ * The date/datetime split mirrors `ObjectGantt.tsx`'s sniffed-ISO dispatch
+ * verbatim, because that site is already the repo's answer to this exact
+ * situation: an ISO string arriving with NO field type attached. A measure is
+ * that situation by construction — the analytics result carries a column, not
+ * a field definition — so the absolute locale form is taken rather than
+ * `DateCellRenderer`'s `|| 'relative'` default, which is keyed on knowing the
+ * value is a `date` FIELD in a row.
+ *
+ * `format` is threaded into `formatDate`'s STYLE parameter, which is the same
+ * mapping `DateCellRenderer` makes from `field.format` and the same one
+ * `plugin-dashboard`'s `recordFields` already makes for a date-shaped format.
+ * That vocabulary is `'short'` and `'relative'`; a date PATTERN such as
+ * `'YYYY-MM-DD'` is not part of it and renders as the locale default. See the
+ * `format` note on {@link formatMeasure}.
+ */
+function formatMeasureDate(v: unknown, format: string | undefined, locale: string | undefined): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  // `Date.parse` guards both arms so a well-shaped impossible date
+  // (`2026-02-30`) is NOT swallowed into the em dash `formatDate` returns for
+  // an unparseable value — it keeps falling through to `String(v)`, exactly as
+  // it does today. Only a value that is genuinely a date changes.
+  if (ISO_DATE_ONLY_RE.test(v)) {
+    return Number.isNaN(Date.parse(v)) ? undefined : formatDate(v, format, { locale });
+  }
+  if (ISO_DATETIME_RE.test(v)) {
+    return Number.isNaN(Date.parse(v)) ? undefined : formatDateTime(v, { locale });
+  }
+  return undefined;
+}
+
+/**
  * Format a MEASURE value. Currency comes from the field's declared `currency`
  * (locale-correct symbol via `Intl`), NOT from a "$" baked into the format
  * string — an amount with no declared currency must render as a plain number,
@@ -169,6 +235,28 @@ function formatNumberInLocale(
  * to carry is gone, and with it the drift that duplicate produced — see the
  * percent note in the body, and {@link percentDisplayValue}'s promise, which
  * is true again.
+ *
+ * ── Date-valued measures (objectui#7178) ──
+ * `min` / `max` over a date or datetime field is a legitimate measure, and it
+ * used to render its stored value verbatim: the guard above returned
+ * `String(v)` for anything non-numeric BEFORE `format` was read, so a KPI tile
+ * showed `2026-07-04T07:00:00.000Z` in `text-2xl` and wrapped it over two
+ * lines. A date-shaped value now routes through {@link formatMeasureDate} to
+ * the display path list cells use; nothing about the numeric path moved.
+ *
+ * ⚠️ What `format` can and cannot say for those values, measured rather than
+ * assumed. The shared date path takes a named STYLE, not a date pattern:
+ * `formatDate`'s vocabulary is `'short'` and `'relative'`, and every other
+ * string falls to its default locale-medium branch. So `format: 'short'` and
+ * `format: 'relative'` are honoured — the same words `DateCellRenderer`
+ * honours from `field.format` for the same field — while a PATTERN like
+ * `format: 'YYYY-MM-DD'` is accepted by the schema, reaches this function, and
+ * renders the locale default. That last part is not new behaviour introduced
+ * here: `plugin-dashboard`'s `recordFields` already routes a date-shaped
+ * `format` into the same style slot and gets the same locale default. Closing
+ * it would mean teaching the shared path a pattern grammar, which is a change
+ * to the path itself and to every list cell that reads it — not a measure
+ * concern, and not this card.
  */
 export function formatMeasure(
   v: unknown,
@@ -178,7 +266,18 @@ export function formatMeasure(
   locale?: string,
 ): string {
   if (v == null) return '—';
-  if (typeof v !== 'number') return String(v);
+  if (typeof v !== 'number') {
+    // Ahead of the `String(v)` short-circuit, which is what made `format` dead
+    // on this path and printed a `min`/`max` over a datetime as a raw
+    // 24-character ISO string (objectui#7178). Deliberately NOT ahead of the
+    // `typeof` test itself: above that line the argument can be a bare number,
+    // and any date test generous enough to consider one would have to decide
+    // whether `1751612400000` is epoch milliseconds — which is how a measure
+    // that counts things starts rendering as a date. Numbers reach the numeral
+    // formatter below byte for byte as before.
+    const asDate = formatMeasureDate(v, format, locale);
+    return asDate ?? String(v);
+  }
 
   const decimals = format ? (format.split('.')[1]?.match(/0/g)?.length ?? 0) : undefined;
 

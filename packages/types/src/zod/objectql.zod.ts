@@ -570,6 +570,56 @@ export const ObjectMapConfigSchema = z.object({
 });
 
 /**
+ * objectui#6939 — the record-source refinement `ObjectMapSchema` and
+ * `ObjectGanttSchema` below share.
+ *
+ * Both renderers resolve their records from ONE of three keys, in this order:
+ * `data` (a spec `ViewData` config), `staticData` (inline rows, wrapped into a
+ * `{ provider: 'value' }` config) or `objectName` (the bound object) —
+ * `getDataConfig` in `plugin-map/src/ObjectMap.tsx` and
+ * `plugin-gantt/src/ObjectGantt.tsx`, each `if (schema.data) … if
+ * (schema.staticData) … if (schema.objectName) … return null`. Both mirrors
+ * used to REQUIRE `objectName` alone, so a document authored on `staticData`
+ * (6 of the 20 catalog entries objectui#6939 measured) drew correctly and was
+ * refused by `safeValidateSchema` — `declared !== enforced`, with the corpus
+ * on the right side. `objectName` is optional on both members now, and this
+ * refinement carries the requirement the renderers actually have: with none of
+ * the three present `getDataConfig` returns `null` and nothing is drawn.
+ *
+ * Presence is `!== undefined` — the ruling's wording ("at least one of `data`,
+ * `staticData`, `objectName` is present"), NOT the renderers' truthiness: an
+ * empty `objectName: ''` validated before this card and still does, so the
+ * accept set only WIDENS. The one document shape refused here (none of the
+ * three) was refused before too, when `objectName` was required. Maintainer
+ * ruling recorded 2026-09-02 (director seat, summon #8, decision batch #8).
+ *
+ * The issue carries `params.code` so a consumer can key off the finding rather
+ * than string-match the message — the shape `FormFieldSchema`'s refinement in
+ * `form.zod.ts` uses; zod's own `code` is `custom` for every refinement. The
+ * path is the ROOT (`[]`): no single key is at fault when all three are absent,
+ * and blaming `objectName` would re-teach the requiredness this card removes.
+ *
+ * Deliberately a `function`, not an `export const`: the parity census in
+ * `__tests__/zod-mirror-parity.test.ts` reads `^export const` out of this
+ * directory and would demand a registered TS counterpart for it.
+ */
+const RECORD_SOURCE_KEYS = ['data', 'staticData', 'objectName'] as const;
+function requireRecordSource(type: 'object-map' | 'object-gantt') {
+  return (
+    schema: Partial<Record<(typeof RECORD_SOURCE_KEYS)[number], unknown>>,
+    ctx: z.core.$RefinementCtx,
+  ): void => {
+    if (RECORD_SOURCE_KEYS.some((key) => schema[key] !== undefined)) return;
+    ctx.addIssue({
+      code: 'custom',
+      path: [],
+      params: { code: 'RECORD_SOURCE_REQUIRED' },
+      message: `\`${type}\` has no record source: declare one of \`data\`, \`staticData\` or \`objectName\``,
+    });
+  };
+}
+
+/**
  * ObjectMap Schema
  *
  * Mirrors the `ObjectMapSchema` interface in `objectql.ts` key for key. Every
@@ -578,12 +628,18 @@ export const ObjectMapConfigSchema = z.object({
  * out of this declaration (maintainer ruling on objectui#5018, 2026-08-17) —
  * except `locationField` / `titleField`, which were published before the
  * ruling and stay for compatibility.
+ *
+ * `objectName` is OPTIONAL and the member ends in `requireRecordSource`
+ * (objectui#6939): `getDataConfig` reads `data`, then `staticData`, then
+ * `objectName`, so a map authored on inline rows never reads the object name —
+ * three catalog entries drew correctly and were refused here. Requiredness
+ * moved to the refinement above, which is where the renderer actually has it.
  */
 export const ObjectMapSchema = BaseSchema.extend({
   type: z.literal('object-map'),
-  objectName: z.string().describe('ObjectQL object name'),
-  data: ViewDataSchema.optional().describe('Data source configuration'),
-  staticData: z.array(z.any()).optional().describe('Inline records'),
+  objectName: z.string().optional().describe('ObjectQL object name — the THIRD record source getDataConfig resolves, after data and staticData; one of the three must be present (objectui#6939)'),
+  data: ViewDataSchema.optional().describe('Data source configuration — read FIRST by getDataConfig'),
+  staticData: z.array(z.any()).optional().describe('Inline records — read SECOND by getDataConfig, wrapped into a { provider: value } config'),
   filter: z.array(z.any()).optional().describe('Query filter, forwarded as $filter'),
   sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
   map: ObjectMapConfigSchema.optional().describe('Map configuration (the author face)'),
@@ -592,7 +648,7 @@ export const ObjectMapSchema = BaseSchema.extend({
   locationField: z.string().optional().describe('Location field (internal flat form; prefer map.locationField)'),
   titleField: z.string().optional().describe('Title field (internal flat form; prefer map.titleField)'),
   mapStyle: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
-});
+}).superRefine(requireRecordSource('object-map'));
 
 /**
  * ObjectTree (tree-grid) Schema
@@ -664,10 +720,22 @@ const GanttConfigExtensionFields = {
 
 /**
  * ObjectGantt Schema
+ *
+ * `objectName` is OPTIONAL and the member ends in `requireRecordSource`
+ * (objectui#6939): `getDataConfig` (`plugin-gantt/src/ObjectGantt.tsx`) reads
+ * `data`, then `staticData`, then `objectName`, so a gantt authored on inline
+ * rows never reads the object name — three catalog entries drew correctly and
+ * were refused here. `data` is declared for the first time in the same stroke:
+ * it is the FIRST read of that resolver and was undeclared on both faces
+ * (surviving on `BaseSchema`'s index signature), which would have left the
+ * refinement naming a key this mirror had never heard of. It is spelled exactly
+ * as `ObjectMapSchema.data` above, so the two members' record sources cannot
+ * fork.
  */
 export const ObjectGanttSchema = BaseSchema.extend({
   type: z.literal('object-gantt'),
-  objectName: z.string().describe('ObjectQL object name'),
+  objectName: z.string().optional().describe('ObjectQL object name — the THIRD record source getDataConfig resolves, after data and staticData; one of the three must be present (objectui#6939)'),
+  data: ViewDataSchema.optional().describe('Data source configuration — read FIRST by getDataConfig; undeclared on either face until objectui#6939'),
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
@@ -766,10 +834,10 @@ export const ObjectGanttSchema = BaseSchema.extend({
   // The query/data keys the fetch path reads. They were declared on
   // `ObjectGridSchema` — what `ObjectGanttProps.schema` used to be typed as before
   // objectui#5903 retyped it to `ObjectGanttSchema` — so they need declaring here.
-  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config'),
+  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config — read SECOND by getDataConfig'),
   filter: z.array(z.any()).optional().describe('Query filter, forwarded verbatim as $filter'),
   sort: z.union([z.string(), z.array(SortConfigSchema)]).optional().describe('Sort configuration, forwarded as $orderby'),
-});
+}).superRefine(requireRecordSource('object-gantt'));
 
 /**
  * ObjectCalendar Schema

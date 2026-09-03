@@ -171,12 +171,20 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     [section.fields, isEmptyValue]
   );
 
-  // Auto-hide-empty heuristic: when a section has empty rows AND at least one
-  // filled row, default to hiding empties so the page does not become a
+  // Auto-hide-empty heuristic — the WHOLE contract for section emptiness
+  // (objectui#7129, maintainer 2026-09-01). When a section has empty rows AND
+  // at least one filled row, hide the empties so the page does not become a
   // label-graveyard. The user can still reveal them with the toggle. If a
   // section is entirely empty (e.g., loading state, brand-new record), do NOT
   // auto-hide — the labels themselves are useful as a structural skeleton.
-  // Explicit `hideEmpty` honored as before.
+  //
+  // ⛔ There is deliberately no authored override. `DetailViewSection` used to
+  // declare `hideEmpty`, and this heuristic tested `!section.hideEmpty` — so
+  // an authored `false` was indistinguishable from unauthored and overrode
+  // nothing, while `@objectstack/spec` refused the key outright on a
+  // spec-validated page. The declaration is retired; do not reintroduce a read
+  // of it here (see `packages/types/src/views.ts` for the full four-party
+  // measurement).
   //
   // Thresholds were tightened in Phase N (2026-05): smaller sections (≥4
   // fields) and a lower empty ratio (≥25%) now trigger auto-hide so pages
@@ -187,14 +195,13 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   const AUTO_HIDE_RATIO = isMobile ? 0.2 : 0.25;
   const filledCount = section.fields.length - emptyCount;
   const shouldAutoHideEmpty =
-    !section.hideEmpty &&
     !isEditing &&
     section.fields.length >= AUTO_HIDE_MIN_FIELDS &&
     emptyCount / section.fields.length >= AUTO_HIDE_RATIO &&
     filledCount > 0;
-  const hideEmptyEffective = !showEmptyOverride && (section.hideEmpty || shouldAutoHideEmpty);
+  const hideEmptyEffective = !showEmptyOverride && shouldAutoHideEmpty;
 
-  // Filter out empty fields when hideEmpty is set or auto-hide kicked in.
+  // Filter out empty fields when the auto-hide heuristic kicked in.
   const visibleFields = hideEmptyEffective
     ? section.fields.filter((field) => !isEmptyValue(field))
     : section.fields;
@@ -479,7 +486,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     ? layoutFields.slice(0, visibleCount)
     : layoutFields;
 
-  const showEmptyToggle = emptyCount > 0 && (section.hideEmpty || shouldAutoHideEmpty);
+  const showEmptyToggle = emptyCount > 0 && shouldAutoHideEmpty;
 
   const content = (
     <>
