@@ -637,6 +637,20 @@ ratchet, not an allowlist: a row whose red goes away fails as **stale** and must
 row is a judgement about the guide (one of them faithfully restates a platform type that really is
 `any`), so the rows are declared debt rather than a mechanical unmark.
 
+**`MARKED_FLOOR` is a second shrink-only ratchet, per category**
+([#7550](https://github.com/objectstack-ai/objectui/issues/7550)): the script also floors the
+*marked* population itself, one number per fence category, seeded at what `main` carried when it
+landed — `ts: 17`, `json: 39` — and printed beside its own count on every run: `Marked: 17 ts
+fence(s) (floor 17), 39 json fence(s) (floor 39) — the floor is ⛔ SHRINK-ONLY.` A category whose
+marked count falls below its floor exits 1 naming the category, the count, the floor and the two
+legal moves. It is a **floor**, not an exact pin, because the two directions are not symmetric:
+marking one more fence is the direction this gate exists to travel, and an equality that reds on
+that move is one people learn to route around — by unmarking, which is exactly the move this floor
+exists to catch. Only the downward move needs a witness — raise the number in the pull request that
+adds marks; lower it, in the *same* pull request that removes one, with the reason written beside
+the constant: which example stopped being one, and why unmarking it was the honest call rather than
+the cheap way out of a red.
+
 **It scans `.claude/skills/` too** ([#7463](https://github.com/objectstack-ai/objectui/issues/7463)):
 `SCAN_ROOTS` holds `skills` and `.claude/skills`, the same widening `check-skills-paths.mjs` took in
 [#7358](https://github.com/objectstack-ai/objectui/issues/7358). When #7251 moved the two
@@ -666,8 +680,11 @@ the failure shape this gate family exists to prevent
 
 **If it fails:** it prints `file:line` for every failing fence with the compiler's own diagnostic, or
 the JSON parser's message, or the orphan marker's line, or — for a bare `any` — the position and the
-verbatim baseline row to declare if the fix belongs to a later card. Fix the example — or, if it was never meant
-to stand alone, remove its marker rather than weakening the gate. Run it locally with
+verbatim baseline row to declare if the fix belongs to a later card, or — for a floor breach — the
+category, the count, the floor and the two legal moves. Fix the example — or, if it was never meant
+to stand alone, remove its marker **and lower `MARKED_FLOOR` for that category in the same pull
+request**, with the reason written beside the constant: a marker deleted without that edit is a
+silent unmark, exactly the move this floor exists to catch. Run it locally with
 `pnpm check:skill-examples`, `node scripts/check-skill-examples.mjs --list` to see every candidate
 fence and its verdict, and `--measure` to judge every candidate whether marked or not.
 
