@@ -15,8 +15,27 @@
 
 import type { GridColumn } from '@object-ui/fields';
 
-/** Minimal shape of an object schema as returned by `DataSource.getObjectSchema`. */
-export interface ObjectSchemaLike {
+/**
+ * Minimal shape of a MASTER-DETAIL CHILD object's schema, as returned by
+ * `DataSource.getObjectSchema` — the `childSchema` parameter of every derive
+ * function below (objectui#7324).
+ *
+ * Named for the child because that is the only thing it is ever used for, and
+ * because `schemaDefaults.ts` holds a DIFFERENT shape under what used to be
+ * the same name (`FieldDefaultsSchemaLike` now). The two are not
+ * interchangeable: this one's field values are `any` — these functions read a
+ * field's `type`, `label`, `options`, `hidden`, `reference` and more — while
+ * the defaults one pins the four members that rule reads. Publishing both
+ * under one name would have put a name on the package surface that already
+ * meant something else two files over.
+ *
+ * NOT `@object-ui/types`' `ObjectSchemaMetadata`: that type requires `name`
+ * and requires a `type` on every field, so the partial schemas these
+ * functions are handed (and every fixture that exercises them) would stop
+ * compiling. This is a deliberately structural parameter type — pass the
+ * object document your data source serves.
+ */
+export interface ChildObjectSchemaLike {
   name?: string;
   fields?: Record<string, any>;
 }
@@ -118,7 +137,7 @@ function optionsFor(def: any): GridColumn['options'] | undefined {
  * `master_detail` over `lookup` when both exist.
  */
 export function findRelationshipField(
-  childSchema: ObjectSchemaLike | undefined,
+  childSchema: ChildObjectSchemaLike | undefined,
   parentObjectName: string,
 ): string | undefined {
   const fields = childSchema?.fields;
@@ -205,7 +224,7 @@ function curateColumns(cols: GridColumn[], max: number): GridColumn[] {
  * dropped). Pass `maxColumns: 0` to flag none.
  */
 export function deriveColumns(
-  childSchema: ObjectSchemaLike | undefined,
+  childSchema: ChildObjectSchemaLike | undefined,
   opts: { relationshipField?: string; exclude?: string[]; maxColumns?: number } = {},
 ): GridColumn[] {
   const fields = childSchema?.fields;
@@ -264,7 +283,7 @@ export function deriveColumns(
  */
 export function hydrateColumns(
   columns: GridColumn[] | undefined,
-  childSchema: ObjectSchemaLike | undefined,
+  childSchema: ChildObjectSchemaLike | undefined,
 ): GridColumn[] {
   const cols = columns ?? [];
   const fields = childSchema?.fields;
@@ -311,7 +330,7 @@ const NON_INPUT_TYPES = new Set(['formula', 'summary', 'rollup', 'autonumber', '
  * grid-friendly types): the form has room for textarea/richtext/file/etc.
  */
 export function deriveFormFields(
-  childSchema: ObjectSchemaLike | undefined,
+  childSchema: ChildObjectSchemaLike | undefined,
   opts: { relationshipField?: string; exclude?: string[] } = {},
 ): string[] {
   const fields = childSchema?.fields;
@@ -363,7 +382,7 @@ export const RICH_FIELD_FORM_THRESHOLD = 2;
  *     {@link SMART_FORM_FIELD_THRESHOLD} editable business fields; else a `grid`.
  */
 export function resolveInlineMode(
-  childSchema: ObjectSchemaLike | undefined,
+  childSchema: ChildObjectSchemaLike | undefined,
   inlineEdit: boolean | InlineMode | undefined,
   opts: { relationshipField?: string } = {},
 ): InlineMode {
@@ -426,7 +445,7 @@ export interface DerivedDetail {
  */
 export function deriveDetail(
   childObject: string,
-  childSchema: ObjectSchemaLike | undefined,
+  childSchema: ChildObjectSchemaLike | undefined,
   parentObjectName: string,
   override: { relationshipField?: string; columns?: GridColumn[]; amountField?: string; inlineEdit?: boolean | InlineMode } = {},
 ): DerivedDetail {

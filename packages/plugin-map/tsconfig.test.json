@@ -13,8 +13,11 @@
     // a global augmentation, not an import, and `@testing-library/jest-dom` does
     // not live under `@types/` — so it is never picked up automatically and has
     // to be named here. Naming `types` at all switches off automatic `@types/*`
-    // inclusion, which is fine: nothing in these tests touches Node globals.
-    "types": ["@testing-library/jest-dom"],
+    // inclusion.
+    // `node` is named too (the shape `plugin-calendar` and `plugin-chatbot` use):
+    // `ObjectMap.catalogRecordSource-6939.test.tsx` reads the schema-catalog
+    // fixtures off disk with `node:fs`.
+    "types": ["@testing-library/jest-dom", "node"],
     // Drop the root tsconfig's source-tree `paths` so `@object-ui/*` and
     // `@objectstack/spec` resolve through the workspace dependency's built
     // `.d.ts` instead of pulling sibling sources in as program inputs (TS6059).

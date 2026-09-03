@@ -124,6 +124,13 @@ const es = {
     record: "Registro",
     retry: "Reintentar",
     printDialogHint: "Abre el cuadro de diálogo de impresión de tu navegador (no es una exportación a PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Mostrando los primeros {{shown}} de {{total}} registros. Acota el filtro.",
+    rowCeilingNoteUnknownTotal: "Mostrando los primeros {{shown}} registros. Acota el filtro.",
   },
   actions: {
     decisionOutput: {
@@ -706,6 +713,9 @@ const es = {
     unsupported: {
       objectBoundGantt: "Variante \"gantt\" no admitida: una línea de tiempo vinculada a un objeto representa las variantes de feed ({{variants}}). Gantt necesita filas literales, cada una con sus propios items anidados, por lo que el eje gantt (scale) no tiene efecto aquí.",
     },
+    unconfigured: {
+      noDateAxis: "Se requiere el eje de fechas de la línea de tiempo: esta vista no declara ningún campo de fecha y una línea de tiempo vinculada a un objeto no inventa ninguno. Declare uno de: {{fields}}. El primero es la grafía de la especificación; los demás son alias heredados.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1086,6 +1096,7 @@ const es = {
   chart: {
     loading: "Cargando gráfico…",
     nullCategory: "(Sin especificar)",
+    scatterOneMeasure: "Un gráfico de dispersión traza una sola medida. Conserve una sola serie:",
   },
   dashboard: {
     noRows: "Sin filas",

@@ -132,6 +132,13 @@ const zh = {
     record: '记录',
     retry: '重试',
     printDialogHint: '打开浏览器打印对话框（不是导出 PDF）',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: '仅显示 {{total}} 条记录中的前 {{shown}} 条。请缩小筛选范围。',
+    rowCeilingNoteUnknownTotal: '仅显示前 {{shown}} 条记录。请缩小筛选范围。',
   },
   actions: {
     decisionOutput: {
@@ -726,6 +733,9 @@ const zh = {
     unsupported: {
       objectBoundGantt: '不支持的变体 "gantt" —— 对象绑定的时间线只渲染 feed 变体（{{variants}}）。甘特图需要字面量行，每行自带嵌套的 items，因此此处的甘特轴（scale）不起作用。',
     },
+    unconfigured: {
+      noDateAxis: '时间线需要日期轴 —— 该视图未声明任何日期字段，而对象绑定的时间线不会虚构一个。请声明以下之一：{{fields}}。第一个是 spec 写法，其余为遗留别名。',
+    },
   },
   gantt: {
     column: {
@@ -1121,6 +1131,7 @@ const zh = {
   chart: {
     loading: '图表加载中…',
     nullCategory: '(未指定)',
+    scatterOneMeasure: '散点图只绘制一个度量。请只保留一个系列：',
   },
   report: {
     total: '总计',

@@ -8,23 +8,10 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { IconSchema } from '@object-ui/types';
-import { icons, SquareDashed } from 'lucide-react';
+import { SquareDashed } from 'lucide-react';
 import React, { forwardRef } from 'react';
 import { cn } from '../../lib/utils';
-
-// Convert kebab-case to PascalCase for Lucide icon names
-// e.g., "arrow-right" -> "ArrowRight", "home" -> "Home"
-function toPascalCase(str: string): string {
-  return str
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-}
-
-// Map of renamed icons in lucide-react (from old name to new name)
-const iconNameMap: Record<string, string> = {
-  'Home': 'House', // "Home" was renamed to "House" in lucide-react's icons object
-};
+import { describeIconLookup, resolveIcon } from '../action/resolve-icon';
 
 /**
  * The glyph rendered when the requested one does not resolve (objectui#5631).
@@ -107,9 +94,12 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
     // below — loud in both directions, silent in neither.
     //
     // `schema.icon` is typed `string` but arrives from authored JSON, so it can
-    // be absent at runtime. It used to reach `toPascalCase` unguarded, where
-    // `undefined.split` threw and the SchemaErrorBoundary swallowed it — a
-    // third way for this renderer to fail without saying so.
+    // be absent at runtime. It used to reach this file's own `toPascalCase`
+    // unguarded, where `undefined.split` threw and the SchemaErrorBoundary
+    // swallowed it — a third way for this renderer to fail without saying so.
+    // The guard stays here rather than moving into the seam: the seam answers
+    // `null` for an absent name, and this renderer must tell an ABSENT name
+    // apart from an unresolvable one to pick its warning.
     const requested = typeof schema.icon === 'string' ? schema.icon : '';
     // Read ONLY to make the migration diagnostic below specific. ⛔ Never a
     // fallback glyph source: it is not consulted by the lookup, and a node
@@ -117,11 +107,18 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
     const legacyGlyphName = typeof schema.name === 'string' && schema.name.length > 0
       ? schema.name
       : '';
-    // Convert icon name to PascalCase for Lucide lookup
-    const iconName = toPascalCase(requested);
-    // Apply icon name mapping for renamed icons
-    const mappedIconName = iconNameMap[iconName] || iconName;
-    const Icon = requested ? (icons as any)[mappedIconName] : undefined;
+    // The lookup itself goes through the ONE seam (objectui#5935). This file
+    // carried its own `toPascalCase` + `iconNameMap` + `icons[...]` — the same
+    // algorithm as `renderers/action/resolve-icon.ts`, written a second time,
+    // with a NARROWER tokeniser (`split('-')`, so `arrow_right` missed here and
+    // resolved on two other surfaces). That divergence is what this card ended.
+    //
+    // `describeIconLookup` supplies the two halves the objectui#5631 warning
+    // below names (`lookup: "Home" -> "House"`) WITHOUT a second copy of the
+    // normalisation. ⛔ It is not a second resolution path: `resolveIcon` is the
+    // only thing consulted for what renders.
+    const { pascal: iconName, key: mappedIconName } = describeIconLookup(requested);
+    const Icon = requested ? resolveIcon(requested) : undefined;
 
     if (!Icon) {
       console.warn(

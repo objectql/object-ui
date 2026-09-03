@@ -149,6 +149,13 @@ const en = {
     record: 'Record',
     retry: 'Retry',
     printDialogHint: 'Opens your browser’s print dialog (not a PDF export)',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: 'Showing the first {{shown}} of {{total}} records. Narrow the filter.',
+    rowCeilingNoteUnknownTotal: 'Showing the first {{shown}} records. Narrow the filter.',
   },
   actions: {
     decisionOutput: {
@@ -819,6 +826,9 @@ const en = {
     unsupported: {
       objectBoundGantt: 'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
     },
+    unconfigured: {
+      noDateAxis: 'Timeline date axis required — this view declares no date field, and an object-bound timeline will not invent one. Declare one of: {{fields}}. The first is the spec spelling; the rest are legacy aliases.',
+    },
   },
   gantt: {
     column: {
@@ -1238,6 +1248,12 @@ const en = {
   chart: {
     loading: 'Loading chart…',
     nullCategory: '(None)',
+    // The refusal a scatter renders when handed more than one series
+    // (objectui#7194): it binds ONE measure, so a second series was painted at
+    // the first one's y values. One short sentence on purpose — this pack is
+    // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
+    // headroom; the series keys are rendered by the chart as data, after it.
+    scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
   },
   report: {
     total: 'Total',

@@ -44,16 +44,6 @@ function App() {
 }
 ```
 
-> **Reaching the adapter-only API from TypeScript.** `createObjectStackAdapter`
-> declares `DataSource` as its return type, so the members below that belong to the
-> adapter rather than to every data source — `getClient`, the cache methods, the
-> connection-state and batch-progress subscriptions — are not on the type the factory
-> hands back, even though they are on the object it hands back. Until
-> [#7323](https://github.com/objectstack-ai/objectui/issues/7323) is settled, hold the
-> adapter as `ObjectStackAdapter` (the exported class, whose constructor is documented
-> under **API Reference** below) wherever you use those members; the examples in this
-> README do exactly that.
-
 ### Advanced Configuration
 
 ```typescript
@@ -258,9 +248,9 @@ await dataSource.find('users', {
 The adapter includes built-in metadata caching to improve performance when fetching schemas:
 
 ```typescript
-import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
-declare const dataSource: ObjectStackAdapter;
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 // Get cache statistics
 const stats = dataSource.getCacheStats();
@@ -288,9 +278,9 @@ dataSource.clearCache();
 The adapter provides real-time connection state monitoring with automatic reconnection:
 
 ```typescript
-import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
-declare const dataSource: ObjectStackAdapter;
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 // Monitor connection state changes
 const unsubscribe = dataSource.onConnectionStateChange((event) => {
@@ -336,9 +326,9 @@ The adapter automatically attempts to reconnect on connection failures:
 Track progress of bulk operations in real-time:
 
 ```typescript
-import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
-declare const dataSource: ObjectStackAdapter;
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 declare const largeDataset: Array<Record<string, unknown>>;
 
@@ -712,9 +702,9 @@ const dataSource = createObjectStackAdapter({
 #### Cache Issues
 
 ```typescript
-import type { ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
-declare const dataSource: ObjectStackAdapter;
+const dataSource = createObjectStackAdapter({ baseUrl: 'https://api.example.com' });
 
 // Clear cache if stale data is being returned
 dataSource.clearCache();

@@ -182,6 +182,54 @@
  * NOTHING is marked exits 2, because a gate that checks nothing must not report
  * success.
  *
+ * ## The third assertion: no bare `any` in a marked block (objectui#7463)
+ *
+ * A marker is the author's claim "this block compiles", and the orphan-marker
+ * and empty-population guards above exist because a gate that checks nothing
+ * must not report success. A bare `any` inside a marked block is that same
+ * failure wearing a green badge: every property access on an `any` is
+ * unchecked, so `tsc` proves exactly nothing about the lines a reader copies.
+ * objectstack's `packages/spec/scripts/check-skill-examples.ts` carries this as
+ * its third assertion and records the measured specimen — two marked hook
+ * examples annotated `ctx: any` that read a key the hook context does not have,
+ * green through the whole of that gate's life.
+ *
+ * SCOPE, ported from that file rather than re-derived: the annotation must BE
+ * `any`, in a position where it erases checking wholesale — a parameter, a
+ * variable/property/return annotation, a type alias, or an `as any` /
+ * `satisfies any` / angle-bracket assertion. `any` NESTED inside a larger type
+ * (`Record<string, any>`, `any[]`, `Promise<any>`) is deliberately NOT flagged.
+ * That boundary is the zero-false-positive line, and holding it is what keeps a
+ * red meaning broken. Casts and locals are in scope and not for symmetry: a
+ * parameter-only rule is defeated by exactly the edit an author reaches for
+ * when it goes red — move the `any` one line down (`const c: any = ctx`) or
+ * into the access (`(ctx as any).x`) — leaving the gate green over an unchanged
+ * defect.
+ *
+ * ⚠️ ONE DELIBERATE DIVERGENCE from objectstack, and it is about which tree is
+ * walked. objectstack picks `ScriptKind` off the fence label; the harness THIS
+ * gate compiles through parses EVERY block as TSX regardless of label (see
+ * `compileSnippets`, and its own header for why). So this walk uses TSX too. A
+ * guard that walked a different tree from the one `tsc` judged would be exactly
+ * the dormant checker this file's own docblocks warn about. The visible
+ * consequence: an angle-bracket `<any>value` assertion is JSX under TSX and is
+ * therefore a PARSE failure — already red through the syntax leg, one exit code
+ * earlier, never reaching this walk. Its arm is kept in the position table
+ * anyway, so the rule stays whole if the harness's ScriptKind ever changes.
+ *
+ * Parsing, never a regex: the corpus is prose, and `any` occurs in string
+ * literal unions, in JSDoc and in ordinary English. `createSourceFile` never
+ * throws on malformed input, so a block too broken to parse yields no findings
+ * here and is caught by the `tsc` pass — the right division of labour.
+ *
+ * ⛔ The baseline (`KNOWN_BARE_ANY_EXAMPLES`) is SHRINK-ONLY and is NOT an
+ * allowlist: a row whose red is gone fails as STALE. It exists because the
+ * assertion landed over a corpus that already had four sites, and unmarking or
+ * re-pointing those fences mechanically would have been the gate weakening the
+ * guides to suit itself. Each row is a declared debt with a named site, so the
+ * per-row skills judgement it needs is a visible piece of work rather than a
+ * silent exemption. See the list's own docblock for what each row is.
+ *
  * ## Deliberately NOT answered here
  *
  *   1. **Whether a marked JSON fence is VALID METADATA.** It is parsed, not
@@ -190,18 +238,20 @@
  *      fences are complete documents rather than prose fragments is the same
  *      boundary `check-doc-snippet-types.mjs` left unruled for the same reason,
  *      and guessing it is what produces a gate people learn to ignore.
- *   2. **Bare `any` inside a marked block.** objectstack's runner treats it as a
- *      third assertion — a marker is the author's claim "this compiles", and
- *      every property access on an `any` proves nothing. Worth porting; it is a
- *      new assertion rather than the convention, so it is recorded as a
- *      follow-up.
- *   3. **`.claude/skills/**`.** `check-skills-paths.mjs` scans it too
- *      (objectui#7358 widened it there). This gate's root is the PUBLISHED
- *      bundle, which is the governed surface objectui#7359 was filed about;
- *      widening is a separate, visible edit with its own measurement — the
- *      discipline that file's own "prefix allow-list is a decision, not an
- *      accident" section records.
- *   4. **Whether an eval's `must_contain` token is taught by the guides.** A
+ *   2. **Bounding ROOT-devDependency resolution.** The `Unmapped specifiers`
+ *      line below names the leak; closing it is objectui#7463 item 2 and is
+ *      still open, because the harness that would carry the bound is SHARED and
+ *      the fix is not local to this gate. Measured at objectui#7463's head, so
+ *      the next reader argues from a number rather than re-deriving it: the
+ *      marked population's unmapped set is exactly `@playwright/test` and
+ *      `vitest`, both declared by the repository ROOT and both resolving out of
+ *      `/node_modules`; and a bound placed in `compileSnippets` would newly red
+ *      exactly ONE of `check-doc-snippet-types.mjs`'s own 432 compiled snippets
+ *      (`content/docs/guide/objectos-integration.mdx:638`, importing
+ *      `@playwright/test`). One new red on a surface this gate does not own is
+ *      a decision about the docs corpus, not a refactor, so it is escalated
+ *      rather than taken.
+ *   3. **Whether an eval's `must_contain` token is taught by the guides.** A
  *      different oracle over a different corpus, discussed at length on
  *      objectui#7359 and explicitly not this check.
  */
@@ -223,14 +273,42 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // ── Configuration ────────────────────────────────────────────────────────────
 
 /**
- * The prose roots this gate walks. One entry today: the PUBLISHED skill bundle.
+ * The prose roots this gate walks: the PUBLISHED skill bundle, and the
+ * CONTRIBUTOR-ONLY bundle under `.claude/skills`.
  *
  * Stated here as a decision rather than left to be read off the walker, which is
  * objectui#5174's finding restated — a reader had to open the collector to learn
- * that "covered by default" meant "covered if the filename ends in `.mdx`". See
- * "Deliberately NOT answered here" item 3 for why `.claude/skills` is not in it.
+ * that "covered by default" meant "covered if the filename ends in `.mdx`".
+ *
+ * `.claude/skills` was added by objectui#7463 item 3, the same widening
+ * `check-skills-paths.mjs` took in objectui#7358 and for the same reason: when
+ * objectui#7251 moved the two contributor-only guides out of `skills/`, that
+ * gate simply stopped looking at them and nothing turned red. A gate whose scan
+ * root is narrower than the surface it claims silently un-covers whatever moves
+ * out of it.
+ *
+ * ⚠️ WIDENING A ROOT IS NOT ARMING IT. Opt-in is the whole design here, so this
+ * edit adds candidates, not coverage: nothing under `.claude/skills/**` carries
+ * the marker, and adding one is the surface owner's step, not this widening's.
+ * Measured at objectui#7463's head, which is the number that makes "zero new
+ * red on day one" checkable rather than asserted:
+ *
+ *   |                          | before | after |
+ *   |--------------------------|--------|-------|
+ *   | guides scanned           | 18     | 20    |
+ *   | ts/tsx/typescript fences | 112    | 121   |
+ *   | json/jsonc fences        | 56     | 56    |
+ *   | MARKED fences            | 56     | 56    |
+ *
+ * All 9 new candidates are `typescript` fences in
+ * `.claude/skills/objectui-contributor/` (5 in `guides/console-development.md`,
+ * 4 in `rules/no-touch-zones.md`); the two `SKILL.md` files carry none. The
+ * MARKED row is the one that decides whether this widening is safe, and it does
+ * not move.
+ *
+ * Re-derive it with `--measure`; `--list` names every new candidate.
  */
-export const SCAN_ROOTS = ['skills'];
+export const SCAN_ROOTS = ['skills', '.claude/skills'];
 
 /** Fence languages compiled as TypeScript. */
 export const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
@@ -263,6 +341,122 @@ export const EXIT_CODES = {
   /** The gate COULD NOT RUN. Nothing it printed is a verdict about a guide. */
   couldNotRun: 2,
 };
+
+// ── The bare-`any` debt list ─────────────────────────────────────────────────
+
+/**
+ * ⛔ SHRINK-ONLY. Rows spelled exactly as `bareAnyRowKey()` builds them:
+ *
+ *     GUIDE:FENCELINE POSITION
+ *
+ * where POSITION is `describeAnyPosition()`'s own wording, so a row names one
+ * `any` at one site and a per-row fix removes exactly one line. Two `any`s of
+ * different kinds in one fence are two rows; the fence line disambiguates two
+ * of the SAME kind in different fences.
+ *
+ * ⚠️ Not an allowlist. A row whose red is GONE fails as STALE, so the list can
+ * only shrink — the same direction, and the same reasoning, as
+ * `KNOWN_UNTAUGHT_EVAL_TOKENS` in `check-skill-eval-tokens.mjs`. It is keyed on
+ * the fence LINE, which means moving a guide's prose above the fence forces a
+ * re-declaration. That cost is deliberate: a row that floated free of its line
+ * would keep covering a site nobody has looked at since.
+ *
+ * The corpus at objectui#7463's branch point was FOUR rows, measured under
+ * `--measure` before the assertion was armed. One is left, and it is not a
+ * mechanical unmark:
+ *
+ *   - `plugin-development.md:92` `defaultValue` — the guide is FAITHFUL prose,
+ *     not rot. `ComponentInput.defaultValue` really is `any` in
+ *     `packages/types/src/base.ts`, so the honest fix is to the platform type,
+ *     not to the guide restating it. Fixing the guide alone would make it lie.
+ *
+ * The three `testing.md` rows were retired by objectui#7494, which answered the
+ * skills judgement each of them was waiting on and taught the honest idiom in
+ * their place — the schema fence hands the validator its invalid value with no
+ * assertion at all (the parameter takes it as-is), and the adapter fence doubles
+ * through the public `getClient()` seam instead of reaching the private `client`
+ * field through a cast. Both fences stay MARKED; the rows went in the same
+ * commit as the guide edit, because a row whose red is gone fails as STALE.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const KNOWN_BARE_ANY_EXAMPLES = new Set([
+  'skills/objectui/guides/plugin-development.md:92 property `defaultValue`',
+]);
+
+/** The baseline key for one bare-`any` finding at one site. */
+export function bareAnyRowKey(block, finding) {
+  return `${block.doc}:${block.fenceLine} ${finding.where}`;
+}
+
+// ── Bare-`any` guard (objectui#7463, ported from objectstack #5943) ──────────
+
+/**
+ * Every position in which a bare `any` erases checking wholesale, keyed by the
+ * PARENT node kind. The test is `parent.type === node` (or the assertion's own
+ * type slot), so an `any` nested in a larger type — `Record<string, any>`,
+ * `any[]`, `Promise<any>` — has a TypeReference/ArrayType parent and is not a
+ * finding. That boundary is this guard's zero-false-positive line; widening it
+ * is a different question with a different, much larger baseline.
+ *
+ * Returns the human-readable position (which is also half the baseline key), or
+ * `null` when this `any` is not in a checking-erasing position.
+ */
+export function describeAnyPosition(node) {
+  const parent = node.parent;
+  if (!parent) return null;
+
+  const named = (name) => (name && ts.isIdentifier(name) ? ` \`${name.text}\`` : '');
+
+  if (ts.isParameter(parent) && parent.type === node) return `parameter${named(parent.name)}`;
+  if (ts.isVariableDeclaration(parent) && parent.type === node) return `variable${named(parent.name)}`;
+  if ((ts.isPropertyDeclaration(parent) || ts.isPropertySignature(parent)) && parent.type === node)
+    return `property${named(parent.name)}`;
+  if (ts.isTypeAliasDeclaration(parent) && parent.type === node)
+    return `type alias \`${parent.name.text}\``;
+  if (ts.isAsExpression(parent) && parent.type === node) return '`as any` assertion';
+  if (ts.isSatisfiesExpression(parent) && parent.type === node) return '`satisfies any` assertion';
+  // Unreachable under TSX (the harness's ScriptKind) — an angle-bracket
+  // assertion is JSX there and fails the syntax leg first. Kept so the rule
+  // stays whole if that ever changes; see the header's divergence note.
+  if (ts.isTypeAssertionExpression(parent) && parent.type === node)
+    return 'angle-bracket `any` assertion';
+  // Return annotations: functions, methods, arrows, getters, signatures.
+  if (ts.isFunctionLike(parent) && parent.type === node) return 'return type';
+  return null;
+}
+
+/**
+ * Every bare `any` annotation in one block body, in source order.
+ *
+ * ⚠️ Parsed as TSX, matching `compileSnippets`, which parses EVERY block as TSX
+ * regardless of the fence label. A guard that walked a different tree from the
+ * one `tsc` judged would be reporting about a program that was never checked.
+ * `createSourceFile` never throws: a block too broken to parse yields no
+ * findings here and is caught by the syntax leg instead.
+ */
+export function findBareAny(code) {
+  const sf = ts.createSourceFile(
+    'block.tsx',
+    code,
+    ts.ScriptTarget.ES2020,
+    /* setParentNodes */ true,
+    ts.ScriptKind.TSX,
+  );
+  const findings = [];
+  const visit = (node) => {
+    if (node.kind === ts.SyntaxKind.AnyKeyword) {
+      const where = describeAnyPosition(node);
+      if (where) {
+        const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+        findings.push({ line: line + 1, col: character + 1, where });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return findings;
+}
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
 
@@ -499,8 +693,14 @@ function importedSpecifiers(body) {
  * measurement mode behind step 2 of objectui#7359, and it is the only difference
  * between the two modes — one predicate, so a fence cannot be measured under one
  * set of rules and gated under another.
+ *
+ * `baseline` is the bare-`any` debt list, taken as a parameter only so the
+ * self-test can drive it in both directions over fixtures. The STALE half is
+ * always computed against the MARKED population, never against the
+ * measure-selected one: the list describes what is gated, so its rows must not
+ * appear to be covered by a fence that is merely being measured.
  */
-export function analyze({ root = repoRoot, measure = false } = {}) {
+export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BARE_ANY_EXAMPLES } = {}) {
   const guides = listGuides(root);
   const scans = new Map();
   for (const guide of guides) {
@@ -582,8 +782,31 @@ export function analyze({ root = repoRoot, measure = false } = {}) {
     }
   }
 
+  // ── the bare-`any` assertion, over the SELECTED ts blocks ─────────────────
+  // Purely syntactic, so it runs whether or not the tree is built and whether or
+  // not a block later fails to parse — an `any` that a reader would copy is a
+  // finding about that guide either way.
+  const bareAny = [];
+  for (const block of tsBlocks) {
+    for (const finding of findBareAny(block.body)) {
+      const key = bareAnyRowKey(block, finding);
+      bareAny.push({ block, finding, key, baselined: baseline.has(key) });
+    }
+  }
+
+  // STALE rows are read off the MARKED population regardless of mode (see the
+  // docblock): a baseline row is a claim about a gated fence.
+  const markedRedKeys = new Set();
+  for (const block of candidates) {
+    if (block.kind !== 'ts' || !block.marked) continue;
+    for (const finding of findBareAny(block.body)) markedRedKeys.add(bareAnyRowKey(block, finding));
+  }
+  const bareAnyStale = [...baseline].filter((key) => !markedRedKeys.has(key)).sort();
+
   return {
     unmappedSpecifiers,
+    bareAny,
+    bareAnyStale,
     guides,
     scans,
     candidates,
@@ -795,10 +1018,15 @@ function main() {
   if (argv.includes('--list') || measure) {
     for (const block of state.candidates) {
       let verdict;
+      const anyHits = state.bareAny.filter((h) => h.block === block);
+      const anyNote = anyHits.length
+        ? ` + ${anyHits.length} bare \`any\`${anyHits.every((h) => h.baselined) ? ' (all baselined)' : ''}`
+        : '';
       if (!block.selected) verdict = 'unmarked — ignored';
       else if (block.kind === 'json')
         verdict = jsonFailures.some((f) => f.block === block) ? 'FAIL' : 'pass';
-      else verdict = failedTs.has(block) ? 'FAIL' : 'pass';
+      else if (failedTs.has(block)) verdict = `FAIL${anyNote}`;
+      else verdict = anyHits.some((h) => !h.baselined) ? `FAIL${anyNote}` : `pass${anyNote}`;
       console.log(
         `  ${block.doc}:${block.fenceLine}  [${block.language}]  ${block.marked ? 'marked' : '      '}  ${verdict}`,
       );
@@ -815,6 +1043,21 @@ function main() {
   }
   for (const { block, message } of jsonFailures) {
     console.error(`  [json]      ${block.doc}:${block.fenceLine}  ${message}`);
+  }
+  for (const hit of state.bareAny) {
+    if (hit.baselined) continue;
+    console.error(
+      `  [bare-any]  ${hit.block.doc}:${hit.block.fenceLine + hit.finding.line}:${hit.finding.col}  ` +
+        `${hit.finding.where} is annotated \`any\`, which erases checking wholesale — this fence's ` +
+        'marker claims it compiles, and every property access on that `any` is unchecked. Give it the ' +
+        'honest type, or declare the row VERBATIM in KNOWN_BARE_ANY_EXAMPLES (⛔ SHRINK-ONLY):\n' +
+        `                ${hit.key}`,
+    );
+  }
+  for (const key of state.bareAnyStale) {
+    console.error(
+      `  ${key}  [stale-baseline]  this row is no longer red — delete its line, KNOWN_BARE_ANY_EXAMPLES only shrinks`,
+    );
   }
 
   // ── the summary always states COVERAGE, never just a verdict ──────────────
@@ -841,6 +1084,12 @@ function main() {
   console.log(
     `JSON phase:     ${state.jsonBlocks.length} fence(s) parsed, ${jsonFailures.length} failed.`,
   );
+  const bareAnyNew = state.bareAny.filter((h) => !h.baselined);
+  console.log(
+    `Bare \`any\`:     ${state.bareAny.length} finding(s) across ${new Set(state.bareAny.map((h) => h.block)).size} selected fence(s); ` +
+      `${state.bareAny.length - bareAnyNew.length} declared in KNOWN_BARE_ANY_EXAMPLES (⛔ SHRINK-ONLY, ${KNOWN_BARE_ANY_EXAMPLES.size} row(s)), ` +
+      `${bareAnyNew.length} NOT declared, ${state.bareAnyStale.length} declared row(s) no longer red.`,
+  );
   if (parseFailedBlocks > 0) {
     console.log(
       `NOTE: this run's semantic result covers ${run.semanticallyJudged} fence(s) only. A syntax failure is not a semantic pass.`,
@@ -853,6 +1102,16 @@ function main() {
     console.log(
       `\nStarting population — ts: ${tsPass}/${tsCandidates.length} pass; json: ${jsonPass}/${jsonCandidates.length} pass.`,
     );
+    const markedAny = state.bareAny.filter((h) => h.block.marked);
+    console.log(
+      `Bare \`any\` would-be population — ${state.bareAny.length} finding(s) over every candidate, ` +
+        `of which ${markedAny.length} sit in a MARKED fence (the population this assertion actually gates).`,
+    );
+    for (const hit of state.bareAny) {
+      console.log(
+        `  ${hit.block.marked ? 'marked  ' : 'unmarked'}  ${hit.block.doc}:${hit.block.fenceLine + hit.finding.line}  ${hit.finding.where}${hit.baselined ? '  [declared]' : ''}`,
+      );
+    }
   }
 
   if (controlFailures.length > 0) {
@@ -875,7 +1134,9 @@ function main() {
     state.findings.length > 0 ||
     parseFailedBlocks > 0 ||
     run.semanticFailures.length > 0 ||
-    jsonFailures.length > 0;
+    jsonFailures.length > 0 ||
+    bareAnyNew.length > 0 ||
+    state.bareAnyStale.length > 0;
 
   if (failed) {
     console.error(
@@ -912,6 +1173,13 @@ function main() {
  * Plus the two the design turns on and nobody would think to write down: a
  * marker shown as EXAMPLE TEXT inside another fence claims nothing and is not an
  * orphan either, and a marker above a ```bash fence IS an orphan.
+ *
+ * The bare-`any` guard (objectui#7463) is pinned on BOTH edges here, and the
+ * negative edge is the load-bearing one: ten in-scope positions must be found
+ * and six nested `any`s must NOT be, because that boundary is the whole reason
+ * a red from this assertion means something. Its shrink-only baseline is pinned
+ * in both directions too — a declared row suppresses, and a row whose red is
+ * gone is STALE.
  */
 export function selfTest() {
   const cases = [];
@@ -989,6 +1257,77 @@ export function selfTest() {
   );
   t('a truncated object fails', parseJsonFence('{"a": 1', 'json') !== null);
 
+  // ── the bare-`any` assertion, BOTH directions ────────────────────────────
+  // Every in-scope position must be found, and every nested `any` must not be.
+  // The negative half is the half that matters: it is the zero-false-positive
+  // line, and a widening of it would red on prose that is not wrong.
+  const anyPositive = [
+    ['parameter', 'export function f(ctx: any) { return ctx; }', 'parameter `ctx`'],
+    ['variable', 'export const x: any = 1;', 'variable `x`'],
+    ['property (interface)', 'export interface I { p: any }', 'property `p`'],
+    ['property (class)', 'export class C { p: any = 1; }', 'property `p`'],
+    ['type alias', 'export type A = any;', 'type alias `A`'],
+    ['return type', 'export function g(): any { return 1; }', 'return type'],
+    ['arrow return type', 'export const h = (): any => 1;', 'return type'],
+    ['method signature return', 'export interface J { m(): any }', 'return type'],
+    ['`as any`', 'export const y = ({} as any);', '`as any` assertion'],
+    ['`satisfies any`', 'export const z = ({} satisfies any);', '`satisfies any` assertion'],
+  ];
+  for (const [label, code, want] of anyPositive) {
+    const hits = findBareAny(code);
+    t(
+      `bare \`any\` in a ${label} position is FOUND`,
+      hits.length === 1 && hits[0].where === want,
+      `got ${JSON.stringify(hits.map((f) => f.where))}, want ["${want}"]`,
+    );
+  }
+
+  const anyNegative = [
+    ['Record<string, any>', 'export const a: Record<string, any> = {};'],
+    ['any[]', 'export const b: any[] = [];'],
+    ['Array<any>', 'export const c: Array<any> = [];'],
+    ['Promise<any>', 'export async function d(): Promise<any> { return 1; }'],
+    ['a union arm', 'export const e: string | any[] = [];'],
+    ['the WORD any in prose', 'export const f2 = "any"; // any old comment about any of it'],
+  ];
+  for (const [label, code] of anyNegative) {
+    const hits = findBareAny(code);
+    t(`a nested \`any\` (${label}) is NOT a finding`, hits.length === 0, JSON.stringify(hits));
+  }
+
+  t(
+    'JSX parses rather than mis-reading as a type assertion (the harness ScriptKind)',
+    findBareAny('export const El = () => <div className="x">hi</div>;').length === 0,
+  );
+
+  // ── the baseline, both directions, over fixture blocks ───────────────────
+  const anyBlock = { doc: 'fixture/any.md', fenceLine: 10, kind: 'ts', marked: true, body: 'export function f(ctx: any) { return ctx; }\n' };
+  const anyKey = bareAnyRowKey(anyBlock, findBareAny(anyBlock.body)[0]);
+  t(
+    'the baseline row key names the guide, the fence line and the position',
+    anyKey === 'fixture/any.md:10 parameter `ctx`',
+    anyKey,
+  );
+  t('an UNDECLARED bare `any` is red', !new Set([]).has(anyKey));
+  t('a DECLARED bare `any` is suppressed', new Set([anyKey]).has(anyKey));
+
+  const realState = analyze({ root: repoRoot, measure: false });
+  t(
+    'the real run has NO undeclared bare `any` — every row is in KNOWN_BARE_ANY_EXAMPLES',
+    realState.bareAny.every((h) => h.baselined),
+    JSON.stringify(realState.bareAny.filter((h) => !h.baselined).map((h) => h.key)),
+  );
+  t(
+    'and NO declared row has gone stale — the list only shrinks',
+    realState.bareAnyStale.length === 0,
+    JSON.stringify(realState.bareAnyStale),
+  );
+  t(
+    'a baseline row whose red is GONE is reported as STALE',
+    analyze({ root: repoRoot, measure: false, baseline: new Set([...KNOWN_BARE_ANY_EXAMPLES, 'skills/objectui/guides/testing.md:1 parameter `ghost`']) }).bareAnyStale
+      .length === 1,
+  );
+
   // ── the type-check half, through the REAL harness ─────────────────────────
   // Two fixture blocks that need no package types at all, so this leg measures
   // the harness rather than the workspace. The CONTROLS still need the built
@@ -1043,7 +1382,7 @@ export function selfTest() {
     return EXIT_CODES.examplesFailed;
   }
   console.log(
-    `✓ check-skill-examples self-test: ${cases.length} cases pass (marker adjacency both directions, orphans, nested illustration, json/jsonc, and the compiler legs through the real harness).`,
+    `✓ check-skill-examples self-test: ${cases.length} cases pass (marker adjacency both directions, orphans, nested illustration, json/jsonc, the bare-\`any\` guard in both directions with its shrink-only baseline, and the compiler legs through the real harness).`,
   );
   return EXIT_CODES.verified;
 }

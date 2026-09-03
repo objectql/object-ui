@@ -14,8 +14,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  resolveIcon,
 } from '@object-ui/components';
-import { icons, ChevronDown, type LucideIcon } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ViewTabSchema } from '@objectstack/spec/ui';
 
@@ -48,19 +49,6 @@ export interface TabBarProps {
   activeTab?: string;
   onTabChange?: (tab: ViewTab) => void;
   className?: string;
-}
-
-/**
- * Resolve a kebab-case or lowercase Lucide icon name to a LucideIcon component.
- * E.g. "arrow-right" → ArrowRight, "star" → Star
- */
-function resolveIcon(iconName?: string): LucideIcon | null {
-  if (!iconName) return null;
-  const pascalCase = iconName
-    .split('-')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join('');
-  return (icons as Record<string, LucideIcon>)[pascalCase] ?? null;
 }
 
 /**

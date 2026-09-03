@@ -33,6 +33,11 @@ import {
   extractWriteErrorMessage,
   isPermissionError,
   declaredUserMessage,
+  useSettledSchema,
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { usePermissions } from '@object-ui/permissions';
@@ -52,7 +57,6 @@ import {
   toast,
 } from '@object-ui/components';
 import {
-  extractRecords,
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
@@ -199,12 +203,15 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const [data, setData] = useState<any[]>(hasExternalData ? externalData! : []);
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : true);
   const [error, setError] = useState<Error | null>(null);
-  // The object-schema read and the fact that it has SETTLED are ONE piece of
-  // state, keyed by the object it belongs to (objectui#6453). The derived
-  // `objectSchema` / `objectSchemaReady` pair lives further down, next to
-  // `dataConfig`, because the key is the object the RECORD QUERY will use.
-  const [schemaResolution, setSchemaResolution] =
-    useState<{ key: string; def: any } | null>(null);
+  /**
+   * Did the platform row ceiling bite, and how large was the whole filtered
+   * result set (objectui#7210)? Carried from the response that knew it —
+   * `data.length === NON_GRID_ROW_CEILING` cannot tell a capped result set
+   * apart from one that is exactly that size.
+   */
+  const [rowCeiling, setRowCeiling] = useState<{ truncated: boolean; total?: number }>({
+    truncated: false,
+  });
   const [currentDate, setCurrentDate] = useState(new Date());
   // Disclosure state of the "unscheduled" area (objectui#7071). Collapsed by
   // default, as ruled: the count is always on screen, the list is opt-in.
@@ -309,8 +316,21 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
    * forever. "Settled with nothing" and "not yet settled" are different states
    * and only the second may hold the query.
    */
-  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
-  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
+  //
+  // Since objectui#7225 (maintainer ruling B, 2026-09-02) this is the SHARED
+  // `useSettledSchema`. `ObjectCalendar` was #6482's named obstacle to that
+  // convergence, and the obstacle turned out to be about the GATE half, which
+  // the hook deliberately leaves local (the record effect below still gates
+  // only its `object`-provider branch). The RESOLUTION half fits via the
+  // recipe the hook's own doc comment prescribes for this component by name:
+  // an inline `value` data set issues no metadata read, so it is expressed as
+  // "there is no source to read from" — `dataSource: undefined` — rather than
+  // as a second "should fetch" flag. The hook settles-with-`null` on that
+  // path, which is exactly what the hand copy's `hasInlineData` exit did.
+  const { ready: objectSchemaReady, def: objectSchema } = useSettledSchema<any>(
+    schemaKey,
+    hasInlineData ? undefined : dataSource,
+  );
 
   // Permissions context, read here rather than inside the fetch effect below:
   // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
@@ -363,6 +383,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
         if (hasInlineData && dataProvider === 'value') {
           if (isMounted) {
             setData(dataItems as any[]);
+            setRowCeiling({ truncated: false });
             setLoading(false);
           }
           return;
@@ -425,13 +446,21 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            // The platform ceiling (objectui#7210, ruling a′). A calendar
+            // still fetches the whole FILTERED set — it cannot lay out a month
+            // from a page whose rows all fall in one week — but the fetch now
+            // stops at a number. The one probe row past the ceiling is what
+            // makes the cut detectable; `applyNonGridRowCeiling` slices it off.
+            // ⛔ Not authorable: no view key reaches this `$top`.
+            $top: NON_GRID_ROW_CEILING_TOP,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
 
-          const items: any[] = extractRecords(result);
+          const capped = applyNonGridRowCeiling(result);
 
           if (isMounted) {
-            setData(items);
+            setData(capped.rows);
+            setRowCeiling({ truncated: capped.truncated, total: capped.total });
           }
         } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectCalendar');
@@ -452,38 +481,6 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     return () => { isMounted = false; };
   }, [hasExternalData, dataProvider, schemaObjectName, dataItems, dataSource, hasInlineData,
       schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema, perms]);
-
-  // Fetch object schema for field metadata.
-  //
-  // Every exit settles the resolution — success, failure, and "there is nothing
-  // to read from" alike — because the record query above WAITS on this
-  // (objectui#6453). A path that returned without settling would not merely
-  // skip the expansion, it would hold that query open forever.
-  useEffect(() => {
-    let isMounted = true;
-    const key = schemaKey;
-    const fetchObjectSchema = async () => {
-      // No source for a schema — including an inline (`value`) data set, which
-      // issues no metadata read here and did not before. Settle with none, so
-      // anything gated on this still runs (unexpanded: with no schema there is
-      // no expand set to derive, which is the same query these cases produced
-      // before).
-      if (hasInlineData || !dataSource || !key || typeof dataSource.getObjectSchema !== 'function') {
-        if (isMounted) setSchemaResolution({ key, def: null });
-        return;
-      }
-      try {
-        const schemaData = await dataSource.getObjectSchema(key);
-        if (isMounted) setSchemaResolution({ key, def: schemaData });
-      } catch (err) {
-        console.error('Failed to fetch object schema:', err);
-        if (isMounted) setSchemaResolution({ key, def: null });
-      }
-    };
-
-    fetchObjectSchema();
-    return () => { isMounted = false; };
-  }, [schemaKey, dataSource, hasInlineData]);
 
   // Transform data to calendar events, and separate out the records that have
   // no date to be placed on at all (objectui#7071 — see the early return in the
@@ -849,6 +846,14 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           onTimeRangeSelect={handleTimeRangeSelectDefault}
         />
       </div>
+      {/* objectui#7210 — a month drawn from the first N rows of a larger set
+          still reads as a complete month; the note is the only thing that says
+          otherwise. Placement follows objectui#7148's chart footnote. */}
+      <NonGridRowCeilingNote
+        drawn={NON_GRID_ROW_CEILING}
+        total={rowCeiling.total}
+        truncated={rowCeiling.truncated}
+      />
 
       {/* The "unscheduled" containment area (objectui#7071, ruled 2026-09-01 and
           re-confirmed 2026-09-02). Records with no value in the declared start

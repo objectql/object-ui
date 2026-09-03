@@ -23,10 +23,15 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import type { ObjectMapSchema, ObjectMapConfig, DataSource, ViewData } from '@object-ui/types';
 import { ObjectMapConfigSchema } from '@object-ui/types/zod';
-import { useNavigationOverlay } from '@object-ui/react';
+import {
+  useNavigationOverlay,
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
+} from '@object-ui/react';
 import { NavigationOverlay, cn, useIsMobile } from '@object-ui/components';
 import {
-  extractRecords,
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
@@ -543,6 +548,16 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  /**
+   * Did the platform row ceiling bite, and how large was the whole filtered
+   * result set (objectui#7210)? Carried from the response that knew it —
+   * `data.length === NON_GRID_ROW_CEILING` cannot tell a capped result set
+   * apart from one that is exactly that size. A host `data` prop and an inline
+   * `value` set are never truncated by us, so both reset it.
+   */
+  const [rowCeiling, setRowCeiling] = useState<{ truncated: boolean; total?: number }>({
+    truncated: false,
+  });
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -683,12 +698,14 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
         // refetch-every-render trap (objectui#5003).
         if (Array.isArray(dataProp)) {
           setData(dataProp);
+          setRowCeiling({ truncated: false });
           setLoading(false);
           return;
         }
 
         if (hasInlineData && dataProvider === 'value') {
           setData(dataItems as any[]);
+          setRowCeiling({ truncated: false });
           setLoading(false);
           return;
         }
@@ -708,11 +725,20 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            // The platform ceiling (objectui#7210, ruling a′). A map still
+            // fetches the whole FILTERED set — the camera fit is computed from
+            // every marker, so a page would frame the wrong box — but it now
+            // stops at a number rather than at whatever the table holds. One
+            // probe row past the ceiling makes the cut detectable;
+            // `applyNonGridRowCeiling` slices it off.
+            // ⛔ Not authorable: no view key reaches this `$top`.
+            $top: NON_GRID_ROW_CEILING_TOP,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
 
-          const items: any[] = extractRecords(result);
-          setData(items);
+          const capped = applyNonGridRowCeiling(result);
+          setData(capped.rows);
+          setRowCeiling({ truncated: capped.truncated, total: capped.total });
         } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectMap');
           setData([]);
@@ -1135,6 +1161,15 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
            </div>
          )}
       </div>
+      {/* objectui#7210 — a map drawn from the first N of a larger result set
+          still looks like a complete map, and its camera is fitted to a box
+          that is not the data's. Placement follows objectui#7148's chart
+          footnote: a muted note directly under the surface it describes. */}
+      <NonGridRowCeilingNote
+        drawn={NON_GRID_ROW_CEILING}
+        total={rowCeiling.total}
+        truncated={rowCeiling.truncated}
+      />
       {navigation.isOverlay && (
         <NavigationOverlay {...navigation} title="Location Details">
           {(record) => (

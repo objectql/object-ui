@@ -125,6 +125,13 @@ const ko = {
     record: "레코드",
     retry: "다시 시도",
     printDialogHint: "브라우저의 인쇄 대화 상자를 엽니다（PDF 내보내기가 아닙니다）",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "전체 {{total}}개 중 처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
+    rowCeilingNoteUnknownTotal: "처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
   },
   actions: {
     decisionOutput: {
@@ -702,6 +709,9 @@ const ko = {
     unsupported: {
       objectBoundGantt: "지원되지 않는 variant \"gantt\" — 객체 바인딩 타임라인은 피드 variant({{variants}})를 렌더링합니다. 간트는 각각 중첩된 items를 가진 리터럴 행이 필요하므로 여기서는 간트 축(scale)이 적용되지 않습니다.",
     },
+    unconfigured: {
+      noDateAxis: "타임라인 날짜 축이 필요합니다 — 이 뷰는 날짜 필드를 선언하지 않았으며, 객체 바인딩 타임라인은 날짜 필드를 지어내지 않습니다. 다음 중 하나를 선언하세요: {{fields}}. 첫 번째가 spec 표기이고 나머지는 레거시 별칭입니다.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1082,6 +1092,7 @@ const ko = {
   chart: {
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
+    scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
   },
   dashboard: {
     noRows: "행 없음",

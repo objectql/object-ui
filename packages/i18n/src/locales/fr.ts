@@ -125,6 +125,13 @@ const fr = {
     record: "Enregistrement",
     retry: "Réessayer",
     printDialogHint: "Ouvre la boîte de dialogue d'impression de votre navigateur (ce n'est pas un export PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Affichage des {{shown}} premiers enregistrements sur {{total}}. Affinez le filtre.",
+    rowCeilingNoteUnknownTotal: "Affichage des {{shown}} premiers enregistrements. Affinez le filtre.",
   },
   actions: {
     decisionOutput: {
@@ -702,6 +709,9 @@ const fr = {
     unsupported: {
       objectBoundGantt: "Variante « gantt » non prise en charge — une timeline liée à un objet affiche les variantes de flux ({{variants}}). Gantt nécessite des lignes littérales, chacune avec ses propres items imbriqués ; l'axe gantt (scale) est donc sans effet ici.",
     },
+    unconfigured: {
+      noDateAxis: "Axe de dates requis pour la timeline — cette vue ne déclare aucun champ de date, et une timeline liée à un objet n'en invente pas. Déclarez l'un de : {{fields}}. Le premier est l'orthographe de la spec, les autres sont des alias hérités.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1084,6 +1094,7 @@ const fr = {
   chart: {
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
+    scatterOneMeasure: "Un nuage de points trace une seule mesure. Ne conservez qu’une série :",
   },
   dashboard: {
     noRows: "Aucune ligne",

@@ -34,7 +34,6 @@ import type { z } from 'zod';
 import type { ReportType as SpecReportType } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
 import type { ChartSchema } from './data-display.js';
-import type { DataSource } from './data.js';
 
 /**
  * Report Export Format
@@ -375,9 +374,37 @@ export interface ReportComponentSchema extends BaseSchema {
   reportType?: ReportType;
 
   /**
-   * Data source configuration
+   * Data source configuration — RETIRED (objectui#6121, maintainer ruling of
+   * 2026-08-30, decision batch #8; ADR-0049 enforce-or-remove).
+   *
+   * The key was annotated `DataSource`, the RUNTIME ADAPTER interface declared
+   * in `./data.ts` (`find(resource, params)`, `searchAll?()`, and friends). No
+   * JSON document can author that shape, and nothing ever read the key off a
+   * report schema: `@object-ui/plugin-report`'s `ReportRenderer` takes its
+   * adapter as a React prop or off `SchemaRendererContext`, never off
+   * `schema.dataSource`, and the live 9.0 path binds a semantic-layer
+   * `dataset` instead (ADR-0021). Measured zero authored occurrences in this
+   * repo and in the sibling `objectstack` checkout, whose authored reports all
+   * bind `dataset` — that measurement is the ruling's own deprecation-window
+   * exit criterion.
+   *
+   * `?: never` rather than deleted, so an author who still writes the key gets
+   * a `tsc` error at the authoring site and a NAMED refusal from the zod twin
+   * (`retirementTombstone` in `./zod/reports.zod.ts`) instead of a silently
+   * stripped key — the disposition objectui#7344 landed for `onSave` /
+   * `onCancel` on {@link ReportBuilderSchema}.
+   *
+   * ⚠️ The REPLACEMENT binding key the ruling names — `data?: ViewData` — is
+   * deliberately NOT declared here. `data` is already taken on this interface
+   * by the report ROW array below, which `LegacyReportRenderer` reads
+   * (`data.length`, `data.map`, and as the chart's rows); declaring the
+   * binding under that same name would put two authoring contracts on one key
+   * inside one renderer, which is the objectstack#5576 collision this card's
+   * own ruling rejected option D for. Escalated on objectui#6121.
+   *
+   * @deprecated Retired — no read site ever consumed this key.
    */
-  dataSource?: DataSource;
+  dataSource?: never;
 
   /**
    * Report fields
@@ -494,9 +521,21 @@ export interface ReportBuilderSchema extends BaseSchema {
   report?: ReportComponentSchema;
 
   /**
-   * Available data sources
+   * Available data sources — RETIRED (objectui#6121, maintainer ruling of
+   * 2026-08-30, decision batch #8; ADR-0049 enforce-or-remove).
+   *
+   * Same reading as {@link ReportComponentSchema.dataSource}, one degree
+   * further from a reader: no renderer is registered for `report-builder` at
+   * all — measured, zero `ComponentRegistry.register('report-builder', …)`
+   * sites, with the bare `'report'` registration in `@object-ui/plugin-report`
+   * as the positive control that makes that zero a reading. It is the same
+   * measurement that retired `onSave` / `onCancel` below (objectui#7344), and
+   * the declared element type was an array of the runtime `DataSource`
+   * ADAPTER, which JSON cannot author.
+   *
+   * @deprecated Retired — no read site ever consumed this key.
    */
-  dataSources?: DataSource[];
+  dataSources?: never;
 
   /**
    * Available fields

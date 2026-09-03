@@ -125,6 +125,13 @@ const de = {
     record: "Datensatz",
     retry: "Erneut versuchen",
     printDialogHint: "Öffnet den Druckdialog Ihres Browsers (kein PDF-Export)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Erste {{shown}} von {{total}} Datensätzen. Filter eingrenzen.",
+    rowCeilingNoteUnknownTotal: "Erste {{shown}} Datensätze. Filter eingrenzen.",
   },
   actions: {
     decisionOutput: {
@@ -702,6 +709,9 @@ const de = {
     unsupported: {
       objectBoundGantt: "Nicht unterstützte Variante „gantt“ — eine objektgebundene Timeline rendert die Feed-Varianten ({{variants}}). Gantt benötigt literale Zeilen mit jeweils eigenen verschachtelten items; die Gantt-Achse (scale) hat hier daher keine Wirkung.",
     },
+    unconfigured: {
+      noDateAxis: "Zeitachse für die Timeline erforderlich — diese Ansicht deklariert kein Datumsfeld, und eine objektgebundene Timeline erfindet keines. Deklarieren Sie eines von: {{fields}}. Das erste ist die Spec-Schreibweise, die übrigen sind veraltete Aliase.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1082,6 +1092,7 @@ const de = {
   chart: {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
+    scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
   },
   dashboard: {
     noRows: "Keine Zeilen",

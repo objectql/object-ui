@@ -125,6 +125,13 @@ const ja = {
     record: "レコード",
     retry: "再試行",
     printDialogHint: "ブラウザーの印刷ダイアログを開きます（PDF エクスポートではありません）",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "{{total}} 件中、最初の {{shown}} 件を表示しています。フィルターを絞り込んでください。",
+    rowCeilingNoteUnknownTotal: "最初の {{shown}} 件を表示しています。フィルターを絞り込んでください。",
   },
   actions: {
     decisionOutput: {
@@ -702,6 +709,9 @@ const ja = {
     unsupported: {
       objectBoundGantt: "サポートされていないバリアント \"gantt\" — オブジェクト連動のタイムラインはフィードバリアント（{{variants}}）を描画します。ガントには、それぞれが入れ子の items を持つリテラル行が必要なため、ここではガント軸（scale）は効果がありません。",
     },
+    unconfigured: {
+      noDateAxis: "タイムラインの日付軸が必要です — このビューは日付フィールドを宣言しておらず、オブジェクト連動のタイムラインが日付フィールドを作り出すことはありません。次のいずれかを宣言してください: {{fields}}。最初のものが spec の記法で、残りは旧来のエイリアスです。",
+    },
   },
   gantt: {
     viewMode: {
@@ -1082,6 +1092,7 @@ const ja = {
   chart: {
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
+    scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
   },
   dashboard: {
     noRows: "行がありません",

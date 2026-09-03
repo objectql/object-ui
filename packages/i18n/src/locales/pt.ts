@@ -124,6 +124,13 @@ const pt = {
     record: "Registro",
     retry: "Tentar novamente",
     printDialogHint: "Abre a caixa de diálogo de impressão do navegador (não é uma exportação para PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Mostrando os primeiros {{shown}} de {{total}} registros. Restrinja o filtro.",
+    rowCeilingNoteUnknownTotal: "Mostrando os primeiros {{shown}} registros. Restrinja o filtro.",
   },
   actions: {
     decisionOutput: {
@@ -701,6 +708,9 @@ const pt = {
     unsupported: {
       objectBoundGantt: "Variante \"gantt\" não suportada: uma linha do tempo vinculada a um objeto renderiza as variantes de feed ({{variants}}). O gantt precisa de linhas literais, cada uma com os seus próprios items aninhados, por isso o eixo gantt (scale) não tem efeito aqui.",
     },
+    unconfigured: {
+      noDateAxis: "Eixo de datas da linha do tempo necessário: esta vista não declara nenhum campo de data e uma linha do tempo vinculada a um objeto não inventa nenhum. Declare um de: {{fields}}. O primeiro é a grafia da spec; os restantes são aliases legados.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1081,6 +1091,7 @@ const pt = {
   chart: {
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
+    scatterOneMeasure: "Um gráfico de dispersão traça uma única medida. Mantenha apenas uma série:",
   },
   dashboard: {
     noRows: "Sem linhas",

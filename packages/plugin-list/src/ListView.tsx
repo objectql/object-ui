@@ -7,9 +7,9 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, RefreshIndicator, DataEmptyState, DataErrorState } from '@object-ui/components';
+import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, RefreshIndicator, DataEmptyState, DataErrorState, resolveIcon } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Inbox, Download, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Inbox, Download, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
@@ -2491,9 +2491,33 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...baseProps,
           // Nested timeline config (spec-compliant, used by ObjectTimeline)
           timeline: Object.keys(resolvedTimeline).length > 0 ? resolvedTimeline : undefined,
-          // Deprecated top-level props for backward compat. `created_at` stays
-          // the last resort for a view that declares no date axis anywhere.
-          startDateField: dateBinding.startDateField || 'created_at',
+          // Deprecated top-level props for backward compat.
+          //
+          // objectui#7070 step ③ — house posture, entered on the maintainer's
+          // ruling of 2026-09-01 (总监批 #28): 日期轴永不虚构 — a date axis is
+          // never fabricated. The two lines of prose that used to sit here
+          // ("`created_at` stays the last resort for a view that declares no
+          // date axis anywhere") were not an oversight, they stated a decision —
+          // and that decision is what the ruling explicitly replaced. It was a
+          // second, de-facto contract held at ONE face, on the very literal
+          // objectui#3129 retired at the app-shell face, so the product held two
+          // documented and opposite postures on one field name.
+          //
+          // `ObjectTimeline` reads this FLAT prop at the tail of its resolver
+          // chain, so a floor here answered "the axis is bound" for every view
+          // and made its refusal screen (objectui#7459, step ① of the same
+          // ruling) unreachable from this route. Worse, the axis it invented was
+          // never FETCHED: the `$select` projection is collected from the
+          // DECLARED `timeline` / `options.timeline` blocks above, never from
+          // this prop — so an undeclared view rendered a timeline bound to a
+          // column the query had not requested and bucketed every record into
+          // "No date". Absent is now absent, and the renderer says which keys to
+          // declare instead.
+          //
+          // ⛔ `titleField` is NOT a date axis and keeps its floor — the same
+          // display-name rung the gallery and gantt branches carry here, and
+          // `timelineViewOptions` carries at app-shell.
+          ...(dateBinding.startDateField ? { startDateField: dateBinding.startDateField } : {}),
           titleField: dateBinding.titleField || 'name',
           ...(dateBinding.endDateField ? { endDateField: dateBinding.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
@@ -3872,11 +3896,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         ) : !loading && data.length === 0 && currentView === 'grid' ? (
           (() => {
             const iconName = schema.emptyState?.icon;
-            const ResolvedIcon: LucideIcon = iconName
-              ? ((icons as Record<string, LucideIcon>)[
-                  iconName.split('-').map((w: any) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-                ] ?? Inbox)
-              : Inbox;
+            // objectui#5935: normalisation through the ONE seam. This site had
+            // its own inline `split('-')` and no rename map, so `home` and every
+            // snake_case spelling fell through to `Inbox` here while resolving
+            // elsewhere. ⛔ The `Inbox` fallback itself stays at this call site
+            // — an empty state always shows a glyph, and that is this surface's
+            // decision, not the seam's (maintainer ruling 2026-09-03, option C).
+            const ResolvedIcon: LucideIcon = resolveIcon(iconName) ?? Inbox;
             // Distinguish "filtered/searched to empty" from "truly empty
             // (first run)". A new user with no filters shouldn't be told to
             // "adjust your filters" — they should be invited to create.

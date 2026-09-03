@@ -129,6 +129,13 @@ const ar = {
     record: "سجل",
     retry: "إعادة المحاولة",
     printDialogHint: "يفتح مربع حوار الطباعة في المتصفح (ليس تصديرًا إلى PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "يتم عرض أول {{shown}} من أصل {{total}} سجل. ضيّق عامل التصفية.",
+    rowCeilingNoteUnknownTotal: "يتم عرض أول {{shown}} سجل. ضيّق عامل التصفية.",
   },
   actions: {
     decisionOutput: {
@@ -706,6 +713,9 @@ const ar = {
     unsupported: {
       objectBoundGantt: "النوع \"gantt\" غير مدعوم — المخطط الزمني المرتبط بكائن يعرض أنواع التغذية ({{variants}}). يحتاج مخطط جانت إلى صفوف صريحة، لكل منها عناصر items متداخلة خاصة به، لذلك لا يؤثر محور جانت (scale) هنا.",
     },
+    unconfigured: {
+      noDateAxis: "محور تواريخ المخطط الزمني مطلوب — هذا العرض لا يعلن أي حقل تاريخ، والمخطط الزمني المرتبط بكائن لا يخترع حقلاً. أعلن أحد الحقول التالية: {{fields}}. الأول هو صيغة المواصفة، والبقية أسماء مستعارة قديمة.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1089,6 +1099,7 @@ const ar = {
   chart: {
     loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
+    scatterOneMeasure: "المخطط المبعثر يرسم مقياسًا واحدًا فقط. أبقِ سلسلة واحدة:",
   },
   dashboard: {
     noRows: "لا توجد صفوف",

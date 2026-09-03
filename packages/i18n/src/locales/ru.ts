@@ -131,6 +131,13 @@ const ru = {
     record: "Запись",
     retry: "Повторить",
     printDialogHint: "Открывает диалог печати браузера (это не экспорт в PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    rowCeilingNote: "Показаны первые {{shown}} из {{total}} записей. Сузьте фильтр.",
+    rowCeilingNoteUnknownTotal: "Показаны первые {{shown}} записей. Сузьте фильтр.",
   },
   actions: {
     decisionOutput: {
@@ -708,6 +715,9 @@ const ru = {
     unsupported: {
       objectBoundGantt: "Неподдерживаемый вариант \"gantt\" — временная шкала, привязанная к объекту, отображает ленточные варианты ({{variants}}). Для гантта нужны литеральные строки, каждая со своим вложенным items, поэтому ось гантта (scale) здесь не действует.",
     },
+    unconfigured: {
+      noDateAxis: "Требуется ось дат временной шкалы — это представление не объявляет ни одного поля даты, а временная шкала, привязанная к объекту, не придумывает его сама. Объявите одно из: {{fields}}. Первое — написание из спецификации, остальные — устаревшие псевдонимы.",
+    },
   },
   gantt: {
     viewMode: {
@@ -1092,6 +1102,7 @@ const ru = {
   chart: {
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
+    scatterOneMeasure: "Точечная диаграмма строит только одну меру. Оставьте один ряд:",
   },
   dashboard: {
     noRows: "Нет строк",
