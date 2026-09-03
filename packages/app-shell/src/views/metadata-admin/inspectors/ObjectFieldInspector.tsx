@@ -382,8 +382,25 @@ export function ObjectFieldInspector({
   const options = readOptions(def);
   const patchOptions = (next: Option[]) => {
     const clean = next.map((o) => {
-      const out: Option = { value: o.value };
-      if (o.label) out.label = o.label;
+      // `label` is REQUIRED by the spec's select option, and an EMPTY label is
+      // a document it accepts: measured on `@objectstack/spec` 17.2.0,
+      // `{ value: 'alpha', label: '' }` -> ACCEPT, while `{ value: 'alpha' }`
+      // -> REJECT `invalid_type` at [label] (an explicit `label: undefined`
+      // rejects identically, so "carry the key with no value" is not a way
+      // out). A truthiness guard here therefore did the one thing an authoring
+      // surface must never do: it rewrote a LEGAL document into an ILLEGAL one
+      // the moment an author cleared the Label box, and the save came back 422
+      // with nothing on screen explaining why (objectui#7014 Q2).
+      //
+      // So emit what the author holds, empty string included. `??` rather than
+      // `||` is load-bearing: `||` is the same truthiness bug spelled shorter.
+      // The `?? ''` arm also covers the option that arrived without a usable
+      // label at all (`readOptions` maps a missing or non-string `label` to
+      // `undefined`) -- there is no legal document that omits the key, and ''
+      // is precisely what the Label input has been showing the author for that
+      // option all along (`value={o.label ?? ''}`), so this emits what they
+      // see rather than inventing content.
+      const out: Option = { value: o.value, label: o.label ?? '' };
       if (o.color) out.color = o.color;
       return out;
     });
