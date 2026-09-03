@@ -66,7 +66,7 @@ export type {
 export { LineItemsPanel } from './LineItemsPanel';
 export type { LineItemsPanelSchema } from './LineItemsPanel';
 export { deriveDetail, deriveColumns, deriveFormFields, findRelationshipField, resolveInlineMode } from './deriveMasterDetail';
-export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
+export type { DerivedDetail, InlineMode, ChildObjectSchemaLike } from './deriveMasterDetail';
 
 /**
  * The CREATE-payload rule this package owns, published for the OTHER form
@@ -100,6 +100,32 @@ export type { DerivedDetail, InlineMode } from './deriveMasterDetail';
  * thing #4085 collapsed.
  */
 export { omitServerResolvedDefaults, isRequiredInForm } from './schemaDefaults';
+
+/**
+ * The parameter types those published signatures require, so a consumer can
+ * NAME what it must pass (objectui#7324).
+ *
+ * Both were unnameable: `ChildObjectSchemaLike` is the `childSchema` of the
+ * five derive functions exported above, and `FieldDefaultsSchemaLike` is the
+ * `objectSchema` of `omitServerResolvedDefaults`. Neither reached this barrel,
+ * so a host held them in a variable it could not annotate and wrote the shape
+ * out by hand instead — a producer-owned shape copied into every consumer,
+ * which is what `declared = enforced` exists to prevent.
+ *
+ * Two names, not one. They arrived carrying the SAME name (`ObjectSchemaLike`)
+ * in two files, and they are not the same type: measured with `tsc`, the
+ * defaults one is a strict subtype of the child one, and the compiler calls
+ * them mutually assignable ONLY because the child one's field values are
+ * `any` — swap that single `any` for `unknown` and the child -> defaults
+ * direction fails (TS2322). Lifting either under the shared name would have
+ * put a name on this package's public surface that already meant something
+ * else two files over, with nothing in the name to say which.
+ *
+ * These are types, not values: they add no runtime surface, and each is the
+ * type a signature already published requires — not an adjacent name lifted
+ * because it was nearby.
+ */
+export type { FieldDefaultsSchemaLike } from './schemaDefaults';
 
 // Register object-form component
 const ObjectFormRenderer: React.FC<{ schema: any; dataSource?: unknown }> = elementDataSourceBlock(({

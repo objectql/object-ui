@@ -85,8 +85,30 @@ import { isCurrentUserDefaultToken } from '@objectstack/spec/data';
 // `@object-ui/components` cannot depend on a `plugin-*` package.
 export { isRuntimeDefault };
 
-/** An object schema as the data source serves it (`{ fields: { [name]: def } }`). */
-interface ObjectSchemaLike {
+/**
+ * An object schema as the data source serves it (`{ fields: { [name]: def } }`),
+ * narrowed to the four field members THIS module's rule reads.
+ *
+ * Exported and published (objectui#7324) because `omitServerResolvedDefaults`
+ * is published and this is its second parameter: a host with its own form
+ * renderer has to hold that schema in a variable or a prop, and until now it
+ * could not name the variable's type. Structural typing meant such a host
+ * still compiled by writing the shape out by hand — which is a copy of a
+ * producer-owned shape in every consumer, invisible to every gate until the
+ * producer's shape moves.
+ *
+ * `FieldDefaults`, not `ObjectSchema`: `deriveMasterDetail.ts` holds a
+ * different shape that used to carry the same `ObjectSchemaLike` name, and the
+ * two are NOT interchangeable — see `ChildObjectSchemaLike` there. This one is
+ * the stricter of the pair (its field values are pinned, not `any`), so a
+ * value legal here is legal there but not the reverse.
+ *
+ * NOT `@object-ui/types`' `ObjectSchemaMetadata`: that type requires `name`,
+ * requires a `type` on every field, and has no `reference_to` member at all —
+ * and `isCurrentUserSeedField` below honours BOTH `reference` (the ObjectStack
+ * spelling) and `reference_to` (the objectui-types one) on purpose.
+ */
+export interface FieldDefaultsSchemaLike {
   fields?: Record<
     string,
     { defaultValue?: unknown; type?: unknown; reference?: unknown; reference_to?: unknown } | undefined
@@ -197,7 +219,7 @@ export function isRequiredInForm(
  * so callers can spread it unconditionally.
  */
 export function schemaDefaultValues(
-  objectSchema: ObjectSchemaLike | null | undefined,
+  objectSchema: FieldDefaultsSchemaLike | null | undefined,
   ctx?: SeedContext,
 ): Record<string, unknown> {
   const fields = objectSchema?.fields;
@@ -255,7 +277,7 @@ function isCurrentUserSeedField(
  * "leave this blank", not an absence.
  */
 export function seedCreateValues(
-  objectSchema: ObjectSchemaLike | null | undefined,
+  objectSchema: FieldDefaultsSchemaLike | null | undefined,
   initial?: Record<string, unknown> | null,
   ctx?: SeedContext,
 ): Record<string, unknown> {
@@ -291,7 +313,7 @@ export function seedCreateValues(
  */
 export function omitServerResolvedDefaults(
   data: Record<string, unknown>,
-  objectSchema: ObjectSchemaLike | null | undefined,
+  objectSchema: FieldDefaultsSchemaLike | null | undefined,
 ): Record<string, unknown> {
   if (!data || typeof data !== 'object') return data;
   const fields = objectSchema?.fields;
