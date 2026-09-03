@@ -553,6 +553,7 @@ const es = {
     allDay: "Todo el día",
     newEvent: "Nuevo evento",
     moreEvents: "+{{count}} más",
+    unscheduled: "Sin programar ({{count}})",
   },
   list: {
     firstRunTitle: "Aquí todavía no hay nada",
