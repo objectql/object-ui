@@ -45,8 +45,8 @@
  *     not this key.
  */
 
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import * as React from 'react';
 import { RecordContextProvider } from '@object-ui/react';
 import { RecordDetailsProps } from '@objectstack/spec/ui';
@@ -89,6 +89,30 @@ const objectSchema = {
     close_date: { type: 'text', label: 'Close Date' },
   },
 };
+
+beforeEach(() => {
+  // `useRecordEditable` probes `POST /api/v1/security/explain` for the
+  // ROW-level verdict, and happy-dom resolves that relative URL to a REAL
+  // socket, which the repo's network-escape guard fails the file for
+  // (objectui#6640). Serve it from a double instead. Its answer is orthogonal
+  // to everything below — this file observes an EMPTY section's skeleton, and
+  // the inline-edit affordance is not part of that.
+  //
+  // ⛔ Not `KNOWN_ESCAPES`: that list only shrinks, and its
+  // `record-details.emptySectionDefault.test.tsx` entry is the older sibling
+  // this file deliberately does not join.
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ allowed: true }),
+    text: async () => '{"allowed":true}',
+  })) as never);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('DetailViewSection.hideEmpty is retired — all four parties agree (#7129)', () => {
   it('1/4 — `@objectstack/spec` REFUSES the key on a `record:details` section', () => {
