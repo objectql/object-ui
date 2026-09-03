@@ -553,6 +553,7 @@ const ar = {
     allDay: "طوال اليوم",
     newEvent: "حدث جديد",
     moreEvents: "+{{count}} المزيد",
+    unscheduled: "غير مجدولة ({{count}})",
   },
   list: {
     firstRunTitle: "لا يوجد شيء هنا بعد",

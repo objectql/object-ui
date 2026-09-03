@@ -661,6 +661,7 @@ const en = {
     allDay: 'All Day',
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
+    unscheduled: 'Unscheduled ({{count}})',
   },
   list: {
     loading: 'Loading records…',

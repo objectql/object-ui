@@ -549,6 +549,7 @@ const ko = {
     allDay: "종일",
     newEvent: "새 일정",
     moreEvents: "+{{count}} 더보기",
+    unscheduled: "일정 없음 ({{count}})",
   },
   list: {
     firstRunTitle: "아직 아무것도 없습니다",

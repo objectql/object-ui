@@ -33,8 +33,12 @@ report-authoring component in this package (see
 
 ```tsx
 import { ReportRenderer } from '@object-ui/plugin-report';
+import type { DataSource } from '@object-ui/types';
 
 // `dataSource` and `router` are host-provided.
+declare const dataSource: DataSource;
+declare const router: { push: (href: string) => void };
+
 function ReportPage() {
   return (
     <ReportRenderer
@@ -57,9 +61,17 @@ already decided the shape — it takes the report as `report`, not `schema`:
 
 ```tsx
 import { DatasetReportRenderer, isDatasetReport } from '@object-ui/plugin-report';
+import type { DataSource } from '@object-ui/types';
 
-if (isDatasetReport(stored)) {
-  return <DatasetReportRenderer report={stored} dataSource={dataSource} />;
+// `stored` is whatever the host loaded; `dataSource` is host-provided.
+declare const stored: unknown;
+declare const dataSource: DataSource;
+
+function StoredReportPage() {
+  if (isDatasetReport(stored)) {
+    return <DatasetReportRenderer report={stored} dataSource={dataSource} />;
+  }
+  return null;
 }
 ```
 
@@ -69,6 +81,12 @@ that schema, not props of the component:
 
 ```tsx
 import { ReportViewer } from '@object-ui/plugin-report';
+import type { ReportComponentSchema } from '@object-ui/types';
+
+// All three are host-provided.
+declare const reportDefinition: ReportComponentSchema;
+declare const rows: Array<Record<string, unknown>>;
+declare const refetch: () => void;
 
 function LegacyReportPage() {
   return (
@@ -89,9 +107,13 @@ the report declares no object, no field, no aggregate and no date bucket of its
 own. `defineReport` validates at authoring time and returns the parsed shape
 `ReportRenderer` takes as `schema`:
 
-```ts
+```tsx
 import { defineReport } from '@objectstack/spec/ui';
 import { ReportRenderer } from '@object-ui/plugin-report';
+import type { DataSource } from '@object-ui/types';
+
+// `ds` is host-provided.
+declare const ds: DataSource;
 
 const report = defineReport({
   name: 'opp_by_stage',
@@ -253,6 +275,12 @@ dimension names (ADR-0021 D2).
 
 ```tsx
 import { ReportRenderer, type DatasetDrillArgs } from '@object-ui/plugin-report';
+import type { DataSource, SpecReport } from '@object-ui/types';
+
+// `report`, `dataSource` and `router` are host-provided.
+declare const report: SpecReport;
+declare const dataSource: DataSource;
+declare const router: { push: (href: string) => void };
 
 <ReportRenderer
   schema={report}
@@ -284,13 +312,23 @@ The server does **not** currently evaluate `` cel`...` `` expressions
 embedded in filter values. Use module-load ISO strings instead:
 
 ```ts
+import { defineReport } from '@objectstack/spec/ui';
+
 const daysAgo = (n: number): string => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 };
 
-runtimeFilter: { close_date: { $gte: daysAgo(30) } }
+defineReport({
+  name: 'recent_pipeline',
+  label: 'Recent Pipeline',
+  type: 'summary',
+  dataset: 'opportunity_pipeline',
+  rows: ['stage'],
+  values: ['amount_sum'],
+  runtimeFilter: { close_date: { $gte: daysAgo(30) } },
+});
 ```
 
 See the bundled CRM `customer_churn_signals` demo for the full pattern.
@@ -405,8 +443,12 @@ does not compile. It is the one `async` export function, resolving to a
 
 ```tsx
 import { exportWithLiveData } from '@object-ui/plugin-report';
+import type { DataSource, ReportComponentSchema } from '@object-ui/types';
 
 // `myAdapter` is a host-provided DataSource (see @object-ui/data-*).
+declare const myAdapter: DataSource;
+declare const report: ReportComponentSchema;
+
 const result = await exportWithLiveData(report, {
   dataSource: myAdapter,
   resource: 'orders',
@@ -427,6 +469,10 @@ spreadsheet line number:
 
 ```tsx
 import { exportExcelWithFormulas } from '@object-ui/plugin-report';
+import type { ReportComponentSchema } from '@object-ui/types';
+
+declare const report: ReportComponentSchema;
+declare const rows: Array<Record<string, unknown>>;
 
 exportExcelWithFormulas(report, rows, {
   columns: [
@@ -453,9 +499,11 @@ and a completion callback:
 
 ```ts
 import { createScheduleTrigger } from '@object-ui/plugin-report';
-import type { ReportComponentSchema, ReportScheduleConfig } from '@object-ui/types';
+import type { DataSource, ReportComponentSchema, ReportScheduleConfig } from '@object-ui/types';
 
 // `dataSource` and `notify` are host-provided.
+declare const dataSource: DataSource;
+declare const notify: (recipients: string[], subject: string | undefined) => void;
 
 const report: ReportComponentSchema = {
   type: 'report',

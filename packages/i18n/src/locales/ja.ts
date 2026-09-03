@@ -549,6 +549,7 @@ const ja = {
     allDay: "終日",
     newEvent: "新しい予定",
     moreEvents: "+{{count}} 件",
+    unscheduled: "日時未定 ({{count}})",
   },
   list: {
     firstRunTitle: "まだ何もありません",

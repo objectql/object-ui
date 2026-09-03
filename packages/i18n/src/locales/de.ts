@@ -549,6 +549,7 @@ const de = {
     allDay: "Ganztägig",
     newEvent: "Neuer Termin",
     moreEvents: "+{{count}} weitere",
+    unscheduled: "Nicht geplant ({{count}})",
   },
   list: {
     firstRunTitle: "Hier ist noch nichts",
