@@ -20,6 +20,20 @@ import {
   toRecordKey,
 } from '../check-lucide-icon-record-names.mjs';
 
+// ⭐ objectui#5935 — THE resolver itself, imported so this file can EXECUTE it
+// rather than only read its text. TypeScript straight out of `packages/` in a
+// `scripts/` pin is the established shape, not a new one: the `unit` vitest
+// project already does it in `known-schema-types-derivation-5115.test.ts`
+// (objectui#5115), so a behavioural pin costs no build step for a gate that
+// deliberately runs without one.
+//
+// ⛔ Deliberately a RELATIVE path into the module, not `@object-ui/components`.
+// `describeIconLookup` is exported from the module and kept OFF the package
+// entry so this card's published widening stays at exactly one symbol
+// (`resolveIcon`); importing it by package name here would quietly ask for it
+// to be published.
+import { describeIconLookup } from '../../packages/components/src/renderers/action/resolve-icon.js';
+
 /**
  * objectui#5633 — an authored `icon:` literal reaching a record-reading lucide
  * resolver must be a live key of the runtime `icons` record.
@@ -145,6 +159,79 @@ const buttonModule = (icon: string): string => [
   '};',
 ].join('\n');
 
+/**
+ * ⭐ objectui#5935 — the corpus the gate's normalisation and the resolver's are
+ * compared over, DERIVED from the runtime record rather than written down.
+ *
+ * Two populations, and the second is the one that does the work:
+ *
+ *  - **re-spellings** — every live key in the six shapes the pre-dispatch
+ *    enumeration established authors write (Pascal, kebab, snake, spaced,
+ *    lower, doubled separator).
+ *  - **a separator SWEEP** — each punctuation character in turn, between
+ *    tokens and at both edges, singly and doubled.
+ *
+ * ⚠️ The sweep is not belt-and-braces. The re-spellings alone CANNOT catch the
+ * hole this corpus exists for: no key of the record contains a separator at all
+ * (0 of 1,767 — control: 95 contain a digit), so widening either side's
+ * character class by a character that appears in none of them leaves every
+ * re-spelling normalising identically. The mutation measured on PR #7491 was
+ * exactly that — one character added to the gate's class — so a corpus without
+ * hostile separators would reproduce the same green the hole already produces.
+ * The sweep pins the character CLASS, not the one character that exposed it.
+ */
+const toKebab = (key: string): string =>
+  key
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Za-z])([0-9])/g, '$1-$2')
+    .toLowerCase();
+
+const NORMALISATION_CORPUS: string[] = (() => {
+  const respellings: string[] = [];
+  for (const key of Object.keys(icons)) {
+    const kebab = toKebab(key);
+    respellings.push(
+      key,
+      kebab,
+      kebab.replace(/-/g, '_'),
+      kebab.replace(/-/g, ' '),
+      kebab.toLowerCase(),
+      kebab.replace(/-/g, '--'),
+    );
+  }
+
+  const sweep: string[] = [];
+  // ⛔ The non-ASCII members are ESCAPES, never literal bytes. NBSP and the
+  // ideographic space are indistinguishable from a plain space on screen, so a
+  // literal one is a character no reviewer can see and no `grep` can be aimed
+  // at — `scripts/check-control-bytes.mjs` carries the argument for the C0 half
+  // of the same rule, and this is the same rule one code point up.
+  const SEPARATORS = [...'-_ .:/+~!@#$%^&*()=|\\?<>,;\'"`[]{}', '\t', '\u00a0', '\u3000', '\n'];
+  for (const key of ['ArrowRight', 'Building2', 'LayoutDashboard', 'CircleUser', 'House']) {
+    const tokens = toKebab(key).split('-');
+    for (const separator of SEPARATORS) {
+      sweep.push(
+        tokens.join(separator),
+        `${separator}${tokens.join('-')}`,
+        `${tokens.join('-')}${separator}`,
+        tokens.join(separator + separator),
+      );
+    }
+  }
+
+  // The alias is the one place the two copies spell the SAME rule with
+  // DIFFERENT code — `iconNameMap[pascal] || pascal` in the resolver against a
+  // `pascal === 'Home'` ternary in the gate — so it gets its own spellings,
+  // plus hostiles that must NOT trigger it.
+  const alias = ['home', 'Home', 'HOME', 'ho-me', 'home_house', '-home', 'home ', 'house', 'House'];
+  // Names that resolve to NOTHING have to normalise identically too: a
+  // disagreement on a dead name is what produces a wrong diagnosis in the
+  // gate's own `describeName` output.
+  const dead = ['not-a-real-icon', 'not_a_real_icon', 'not a real icon', 'zzz.zzz', ''];
+
+  return [...respellings, ...sweep, ...alias, ...dead];
+})();
+
 // ── 1. the instrument is not blind ───────────────────────────────────────────
 
 describe('the instrument can see the distinction it claims to judge', () => {
@@ -239,6 +326,84 @@ describe('the instrument can see the distinction it claims to judge', () => {
     // separate a live key from a dead one after all that widening.
     expect(isLiveKey('building_2')).toBe(true);
     expect(isLiveKey('not-a-real-icon')).toBe(false);
+  });
+
+  /**
+   * ⭐ objectui#5935 — the two copies, pinned BEHAVIOURALLY.
+   *
+   * The row above reads the resolver's SOURCE TEXT, and it is kept: it catches
+   * the tokeniser literal being rewritten and the rename map growing an entry.
+   * What it structurally cannot catch is the GATE moving on its own — the
+   * resolver's text is then unchanged, so every source-text assertion still
+   * passes.
+   *
+   * ⚠️ MEASURED, not reasoned about. The contract review of PR #7491 widened
+   * ONLY `toRecordKey` to `split(/[-_.\s]+/)` and this file stayed green,
+   * 40/40. That is the gate-wider direction, and it is precisely the
+   * UNDER-REPORTING class this card exists to close: the gate would judge a
+   * name live that the resolver misses, and a violation the gate is supposed to
+   * report would never be reported.
+   *
+   * So the two are now compared as FUNCTIONS. `describeIconLookup` is the
+   * resolver's own lookup — the same `toPascalCase` and the same `iconNameMap`
+   * that `resolveIcon` indexes the record with — exported from that module for
+   * exactly this kind of reading and deciding nothing itself.
+   */
+  it('IS the resolver, executed — not a transcription of it that can drift', () => {
+    // Non-vacuity in both halves: the corpus is large, and most of it is REAL.
+    // A builder that produced garbage would compare two functions over inputs
+    // no author writes and pass while saying nothing.
+    expect(NORMALISATION_CORPUS.length).toBeGreaterThan(8000);
+    expect(NORMALISATION_CORPUS.filter((spelling) => isLiveKey(spelling)).length).toBeGreaterThan(5000);
+
+    const disagreements = NORMALISATION_CORPUS.filter(
+      (spelling) => toRecordKey(spelling) !== describeIconLookup(spelling).key,
+    );
+    expect(
+      disagreements.slice(0, 5),
+      `${disagreements.length} of ${NORMALISATION_CORPUS.length} spellings normalise differently in the gate than in the resolver`,
+    ).toEqual([]);
+
+    // The alias, behaviourally, on both sides at once — the row above only
+    // proves the two AGREE, which an alias dropped from both would satisfy.
+    expect(toRecordKey('home')).toBe('House');
+    expect(describeIconLookup('home').key).toBe('House');
+    expect(describeIconLookup('home').pascal).toBe('Home');
+  });
+
+  /**
+   * The control for the row above: it must be able to go RED. Without this,
+   * "the two agree over 11,000 spellings" is equally true of a corpus that
+   * cannot separate them, which is the state PR #7491's probe found.
+   *
+   * ⛔ The drifted gate is MODELLED, not transcribed. Substituting `.` for a
+   * character already in the class and calling the SHIPPED `toRecordKey` is
+   * behaviourally identical to widening its class to `/[-_.\s]+/` — verified
+   * for tokens, edges and doubles below — so this control is derived from the
+   * gate rather than being a third copy of the rule it controls.
+   */
+  it('would CATCH the gate drifting on its own — the hole PR #7491 measured', () => {
+    const gateAlsoSplittingOnDots = (name: string): string => toRecordKey(name.split('.').join('-'));
+
+    // The model is faithful: the widened class treats `.` exactly as `-`.
+    expect(gateAlsoSplittingOnDots('arrow.right')).toBe('ArrowRight');
+    expect(gateAlsoSplittingOnDots('.arrow-right')).toBe('ArrowRight');
+    expect(gateAlsoSplittingOnDots('arrow..right')).toBe('ArrowRight');
+    // …and it is a DIFFERENT function from the shipped one, or this row would
+    // be asserting that the corpus catches a mutation that is not one.
+    expect(toRecordKey('arrow.right')).toBe('Arrow.right');
+
+    const caught = NORMALISATION_CORPUS.filter(
+      (spelling) => gateAlsoSplittingOnDots(spelling) !== describeIconLookup(spelling).key,
+    );
+    expect(
+      caught.length,
+      'the corpus cannot separate the gate from the resolver — the behavioural row above is vacuous',
+    ).toBeGreaterThan(0);
+    // Named, so a future corpus edit that quietly drops the hostile separators
+    // shrinks a number somebody can see rather than passing in silence.
+    expect(caught).toContain('arrow.right');
+    expect(caught).toContain('building.2');
   });
 });
 

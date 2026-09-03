@@ -210,12 +210,47 @@ const gateRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 //
 // ⛔ This list is also the ENFORCEMENT of ruling point 4 of 2026-08-31
 // (objectui#5935 comment 5472612351, verbatim 「同意」):
-// 「本裁定后新容器 ⛔ 不得再自带解析器,一律走 seam」. Because discovery is
-// re-run from source and disagreement fails in BOTH directions, a new container
-// that hand-rolls a lookup turns this gate red on the commit that adds it —
-// the note is mechanical, not a request in a review checklist. The lawful way
-// to add an icon-rendering container is to call the seam; adding a path here
-// instead re-opens the divergence this card closed and needs a ruling.
+// 「本裁定后新容器 ⛔ 不得再自带解析器,一律走 seam」. Discovery is re-run from
+// source on every run and disagreement fails in BOTH directions, so WITHIN THE
+// BOUND BELOW the note is mechanical rather than a request in a review
+// checklist.
+//
+// ⚠️ THE BOUND, spelled out because this comment used to over-claim it (PR
+// #7491's contract review measured the over-claim). `discoverResolvers` holds
+// exactly one syntactic predicate:
+//
+//     a NAMED import of `icons` from 'lucide-react' — a rename such as
+//     `{ icons as reg }` still counts — AND an ELEMENT ACCESS whose base is
+//     that local binding, seen through parentheses, `as` casts and `!`.
+//
+// Measured RED against this gate: `icons[k]`; a renamed binding indexed;
+// `(icons as Record<string, X>)[k]`; and any argument expression at all,
+// a template literal included — the predicate never looks at the argument.
+// Measured GREEN, i.e. OUTSIDE the predicate and NOT caught:
+//
+//   - a namespace import — `import * as L from 'lucide-react'; L.icons[k]`;
+//   - a named import RE-BOUND through another const — `const t = icons; t[k]`;
+//   - property access rather than element access — `icons.House`;
+//   - destructuring — `const { House } = icons`;
+//   - `require()` and dynamic `import()` of the module;
+//   - anything inside a string or TEMPLATE LITERAL, which is emitted code and
+//     not executed code in the file that holds it.
+//
+// objectui#7472 is the known resolver outside this predicate, and outside it
+// three ways at once: `packages/cli/src/utils/app-generator.ts` emits, INSIDE a
+// template literal, `import * as LucideIcons from 'lucide-react'` re-bound to a
+// `lucideIcons` const and then indexed. Its absence from this list is CORRECT
+// rather than a miss — it reads lucide's named-export namespace, not the
+// runtime record, with no normalisation at all — and widening discovery to see
+// it is a separate design question with a real false-positive cost, ⛔ not
+// decided here and not asked for by that card.
+//
+// So, precisely: a new container that hand-rolls a lookup IN THE CONFORMING
+// SHAPE turns this gate red on the commit that adds it. One written any of the
+// other ways does not, and the ruling still binds it — that half is held by
+// review, not by this file. The lawful way to add an icon-rendering container
+// is to call the seam; adding a path here instead re-opens the divergence this
+// card closed and needs a ruling.
 export const DECLARED_RECORD_READERS = [
   'packages/components/src/renderers/action/resolve-icon.ts',
 ];
@@ -472,9 +507,19 @@ export function selfTest() {
 //
 // ⚠️ Two copies of one rule, unavoidably: the resolver is TypeScript inside a
 // package and this gate is a standalone `.mjs` that must run without a build.
-// `scripts/__tests__/check-lucide-icon-record-names.test.ts` pins them together
-// by reading the resolver's SOURCE, so a change to either side that is not made
-// to the other fails loudly.
+// `scripts/__tests__/check-lucide-icon-record-names.test.ts` holds them
+// together, and since PR #7491's contract review it does so BEHAVIOURALLY: it
+// imports `describeIconLookup` from the resolver and asserts
+// `toRecordKey(s) === describeIconLookup(s).key` over every live key re-spelled
+// six ways plus a per-character separator sweep, with its own control that the
+// corpus can in fact separate the two.
+//
+// ⛔ The source-text rows that file also keeps are NOT that guarantee, and the
+// difference was measured rather than argued: widening ONLY this side to
+// `/[-_.\s]+/` left the whole suite green, 40/40, because the resolver's text
+// was untouched and every source-text assertion still held. Which is why "a
+// change to either side that is not made to the other fails loudly" is now
+// carried by a row that EXECUTES the resolver instead of one that reads it.
 export const toRecordKey = (name) => {
   const pascal = String(name)
     .split(/[-_\s]+/)
