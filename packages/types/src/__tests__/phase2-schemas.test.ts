@@ -260,12 +260,30 @@ describe('Phase 2: ReportComponentSchema Zod Validation', () => {
     const builder = {
       type: 'report-builder',
       showPreview: true,
-      onSave: 'handleSave',
-      onCancel: 'handleCancel',
     };
 
     const result = ReportBuilderSchema.safeParse(builder);
     expect(result.success).toBe(true);
+  });
+
+  it('refuses the handler-expression strings this fixture used to prove VALID (objectui#7344)', () => {
+    // This test carried `onSave: 'handleSave', onCancel: 'handleCancel'` and
+    // asserted green — the string dialect objectui#6182 ruled is not a
+    // supported authoring form (2026-08-25), on a `report-builder` no renderer
+    // is registered for. Both keys now refuse BY NAME (the objectui#6124 shape;
+    // the per-site pin is `handler-keys-string-any-mirrors-7344.test.ts`), so
+    // the old fixture is kept here as the negative reading, not deleted.
+    const result = ReportBuilderSchema.safeParse({
+      type: 'report-builder',
+      showPreview: true,
+      onSave: 'handleSave',
+      onCancel: 'handleCancel',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => [i.code, String(i.path[0])]).sort()).toEqual([
+      ['custom', 'onCancel'],
+      ['custom', 'onSave'],
+    ]);
   });
 });
 

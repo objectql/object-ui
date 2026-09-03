@@ -20,7 +20,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-import { retirementTombstone } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 
 /**
  * Action Execution Mode Schema
@@ -102,7 +102,11 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   condition: ActionConditionPredicateSchema.optional().describe('Execution gate — the action runs only while this predicate holds'),
   reload: z.boolean().optional().default(true).describe('Whether to reload data after action'),
   close: z.boolean().optional().default(true).describe('Whether to close dialog/modal after action'),
-  onClick: z.any().optional().describe('Custom click handler'),
+  // RUNTIME SLOT (objectui#7344): `ActionRunner` awaits `action.onClick()` and
+  // the action renderers guard `typeof action.onClick === 'function'`. The
+  // `z.any()` this replaces accepted an authored string or object that then
+  // reached that call (objectui#7069's mirror-wider-than-declared direction).
+  onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Custom click handler'),
   redirect: z.string().optional().describe('Redirect URL after success'),
   tracking: z.object({
     enabled: z.boolean().optional().describe('Enable tracking'),
@@ -142,7 +146,9 @@ export const DetailSchema = BaseSchema.extend({
     content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]),
   })).optional().describe('Tabs for additional content'),
   showBack: z.boolean().optional().default(true).describe('Show back button'),
-  onBack: z.any().optional().describe('Custom back action'),
+  // RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — the same
+  // `handleBack` that calls `onBack()` for `detail-view`. Was `z.any()`.
+  onBack: handlerKeyRefusal('onBack', 'runtime-slot', 'Custom back action'),
   loading: z.boolean().optional().default(true).describe('Whether to show loading state'),
 });
 
@@ -157,7 +163,9 @@ export const CRUDDialogSchema = BaseSchema.extend({
   size: z.enum(['sm', 'default', 'lg', 'xl', 'full']).optional().default('default').describe('Dialog size'),
   actions: z.array(ActionSchema).optional().describe('Dialog actions/buttons'),
   open: z.boolean().optional().describe('Whether dialog is open'),
-  onClose: z.any().optional().describe('Close handler'),
+  // RETIRED (objectui#7344): no renderer is registered for `crud-dialog`;
+  // nothing reads the key. Was `z.any()`.
+  onClose: handlerKeyRefusal('onClose', 'retired', 'Close handler'),
   closeOnOutsideClick: z.boolean().optional().default(true).describe('Whether clicking outside closes dialog'),
   closeOnEscape: z.boolean().optional().default(true).describe('Whether pressing Escape closes dialog'),
   showClose: z.boolean().optional().default(true).describe('Show close button'),

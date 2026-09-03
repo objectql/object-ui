@@ -205,7 +205,11 @@ export interface ActionSchema extends BaseSchema {
    */
   close?: boolean;
   /**
-   * Custom click handler
+   * Custom click handler — RUNTIME SLOT (objectui#7344, the objectui#6124
+   * shape): a host-supplied function, NOT authorable metadata. `ActionRunner`
+   * awaits `action.onClick()` and the action renderers guard
+   * `typeof action.onClick === 'function'`, so the callable stays; the zod
+   * twin, which accepted `z.any()`, now refuses the key by name.
    */
   onClick?: () => void | Promise<void>;
   /**
@@ -298,7 +302,10 @@ export interface DetailSchema extends BaseSchema {
    */
   showBack?: boolean;
   /**
-   * Custom back action
+   * Custom back action — RUNTIME SLOT (objectui#7344, the objectui#6124 shape):
+   * a host-supplied function, NOT authorable metadata. `detail` is registered to
+   * `DetailView`, whose `handleBack` calls `onBack()` when set; the zod twin,
+   * which accepted `z.any()`, now refuses the key by name.
    */
   onBack?: () => void;
   /**
@@ -340,9 +347,13 @@ export interface CRUDDialogSchema extends BaseSchema {
    */
   open?: boolean;
   /**
-   * Close handler
+   * Close handler — RETIRED (objectui#7344, ADR-0049, the objectui#6124 shape):
+   * no renderer is registered for `crud-dialog`, so nothing reads the key. The
+   * zod twin, which accepted `z.any()`, now refuses it by name; author
+   * behaviour as a node type instead.
+   * @deprecated Not part of this contract — the value was inert.
    */
-  onClose?: () => void;
+  onClose?: never;
   /**
    * Whether clicking outside closes dialog
    * @default true

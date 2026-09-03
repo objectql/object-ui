@@ -47,6 +47,9 @@ interface ContextMenuSchema {
   type: 'context-menu';
   trigger?: SchemaNode | SchemaNode[];  // Trigger element — a placeholder renders when absent
   items: ContextMenuItem[];             // Menu items
+  triggerClassName?: string;            // Classes for the right-clickable area
+  contentClassName?: string;            // Classes for the menu panel
+  modal?: boolean;                      // Forwarded to the Radix root
   className?: string;
 }
 ```
