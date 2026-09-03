@@ -9,9 +9,11 @@
  *       node scripts/check-skill-examples.mjs --measure       # judge EVERY candidate, marked or not
  *       node scripts/check-skill-examples.mjs --build-filter  # filter args for turbo/pnpm
  *       node scripts/check-skill-examples.mjs --self-test     # fixtures, both directions
- * Exit: 0 = every MARKED fence holds up, and the marked population is non-empty.
+ * Exit: 0 = every MARKED fence holds up, the marked population is non-empty, and
+ *           no category of it sits below its declared floor.
  *       1 = THE GATE RAN AND FOUND ERRORS. A marked fence failed to parse, failed
- *           to type-check, or a marker is not adjacent to a fence it can opt in.
+ *           to type-check, a marker is not adjacent to a fence it can opt in, or
+ *           the marked population SHRANK below `MARKED_FLOOR` (see below).
  *           Everything printed above the summary is a verdict about a guide.
  *       2 = THE GATE COULD NOT RUN, so nothing printed above is a verdict about
  *           any guide: the packages the marked fences import are not built (or
@@ -175,12 +177,38 @@
  * fences that already held up at the branch point, and it stays in the file so
  * the number is re-derivable rather than a claim in a merged PR body.
  *
- * ⛔ There is deliberately NO ratchet and NO count pin. Whether the marked
- * population becomes shrink-only — the way `check-doc-fence-languages.mjs`
- * treats its declared-file population — is a separate decision, recorded as a
- * follow-up rather than taken here. What IS enforced is a floor: a run in which
- * NOTHING is marked exits 2, because a gate that checks nothing must not report
- * success.
+ * ## The marked population is SHRINK-ONLY (objectui#7550)
+ *
+ * objectui#7359 landed this gate with no ratchet and no count pin, and said so:
+ * whether the marked population becomes shrink-only — the way
+ * `check-doc-fence-languages.mjs` treats its declared-file population — was
+ * left as a separate decision. That decision is taken: it does, PER CATEGORY,
+ * and as a FLOOR rather than an exact pin. `MARKED_FLOOR` below carries one
+ * number per marked-fence category, seeded at the population measured at this
+ * card's branch point, and a run whose count for a category is BELOW its number
+ * exits 1 naming the category, the count, the floor and the two legal moves.
+ *
+ * A floor and not an equality, because the two directions are not symmetric.
+ * Marking one more fence is the direction this whole gate exists to travel, and
+ * an exact pin reds on it — a ratchet that goes red on the good move is one
+ * people learn to route around, and routing around this one means unmarking.
+ * The DOWNWARD move is the one that needs a witness: a marker deleted in the
+ * same edit that broke the example it claimed is a red turning green with
+ * nothing said, which is the "looks like enforcement, isn't" class this header
+ * already records five separate measurements of.
+ *
+ * ⛔ Deliberately NOT a `file:line` register of which fences carry the marker.
+ * That register already exists as `--list`'s output, re-derivable on demand;
+ * committing it would red on every guide edit that moves a fence down a line,
+ * which teaches precisely the reflex a ratchet must not teach — that going red
+ * is normal and the fix is to edit the ratchet.
+ *
+ * An EMPTY population stays a PRECONDITION rather than becoming a floor breach:
+ * a run in which nothing at all is marked exits 2, because a gate that checks
+ * nothing must not report success, and that is a statement about the harness or
+ * about SCAN_ROOTS rather than a verdict about the corpus. The floor is read
+ * only after every precondition has passed, so exit 2 can never be re-labelled
+ * as exit 1 by this ratchet.
  *
  * ## The third assertion: no bare `any` in a marked block (objectui#7463)
  *
@@ -336,11 +364,107 @@ export const MARKER = '<!-- os:check -->';
 export const EXIT_CODES = {
   /** Every marked fence held up, the controls held, something was marked. */
   verified: 0,
-  /** The gate RAN. A marked fence or a marker is at fault — a verdict was read. */
+  /**
+   * The gate RAN. A marked fence, a marker, or the shrink-only floor on the
+   * marked population is at fault — a verdict was read.
+   */
   examplesFailed: 1,
   /** The gate COULD NOT RUN. Nothing it printed is a verdict about a guide. */
   couldNotRun: 2,
 };
+
+// ── The shrink-only floor on the MARKED population (objectui#7550) ──────────
+
+/**
+ * ⛔ SHRINK-ONLY. `category -> the MARKED population that category carried when
+ * this floor landed` — the shape `check-doc-fence-languages.mjs` landed for
+ * `KNOWN_UNHIGHLIGHTED_TS_FENCES`, and a count per category for that map's
+ * reason: a single total silently accepts a category collapsing to nothing
+ * while the other one grows past it, and the two halves of this gate — `tsc`
+ * over `ts` fences, `JSON.parse` over `json` ones — are separate machinery that
+ * can die separately.
+ *
+ * Seeded from a measurement, never from a claim in a merged pull request body.
+ * At this card's branch point (`3e01cb5`) `pnpm check:skill-examples` printed:
+ *
+ *     Marked: 17 ts fence(s) and 39 json fence(s).
+ *
+ * which is exactly the population objectui#7359 reported at the gate's own
+ * landing, so nothing had moved in between. ⚠️ That is the MARKED population,
+ * not the passing one: the same tree under `--measure` prints `ts: 20/121 pass`
+ * — three more `ts` fences hold up today than are opted in, and a floor seeded
+ * off that line would have been red on the day it landed.
+ *
+ * Re-derive it with `pnpm check:skill-examples`, which prints each count beside
+ * its floor on every run.
+ *
+ * ## The two legal moves, and why only one of them has to be declared
+ *
+ *   • MORE marks than the floor is GREEN. Opting a fence in is the direction
+ *     this gate exists to travel; raise the number here in the pull request
+ *     that adds the markers, and this file stops under-stating its own
+ *     coverage. Nothing reds if you forget.
+ *   • FEWER is RED, and the remedy is to lower the number here IN THE SAME PULL
+ *     REQUEST that removes the marker, ⛔ with the reason written beside the
+ *     row — which example stopped being one, and why unmarking it was the
+ *     honest call rather than the cheap way out of a red.
+ *
+ * There is no row-with-a-reason yet, because nothing has been unmarked since
+ * the gate landed. The first one to lower a number writes it here.
+ *
+ * @type {ReadonlyMap<string, number>}
+ */
+export const MARKED_FLOOR = new Map([
+  ['ts', 17],
+  ['json', 39],
+]);
+
+/**
+ * The MARKED population, per category.
+ *
+ * Every category the floor names is present with a count, so one that has lost
+ * its last marker reads as `0` rather than as absent. That difference is the
+ * whole point: "shrank to nothing" and "was never a category here" are the two
+ * readings a bare `Map` of observed counts cannot tell apart, and the first is
+ * the failure this floor exists to catch.
+ */
+export function markedPopulation(marked, floors = MARKED_FLOOR) {
+  const population = new Map([...floors.keys()].map((category) => [category, 0]));
+  for (const block of marked) population.set(block.kind, (population.get(block.kind) ?? 0) + 1);
+  return population;
+}
+
+/** Every category whose marked population sits BELOW its floor. */
+export function reconcileFloors(population, floors = MARKED_FLOOR) {
+  const breaches = [];
+  for (const [category, floor] of floors) {
+    const count = population.get(category) ?? 0;
+    if (count < floor) breaches.push({ category, count, floor });
+  }
+  return breaches;
+}
+
+/** The population printed BESIDE its floor — the phrasing both report modes share. */
+export function floorReport(population, floors = MARKED_FLOOR) {
+  return [...floors]
+    .map(([category, floor]) => `${population.get(category) ?? 0} ${category} fence(s) (floor ${floor})`)
+    .join(', ');
+}
+
+const REMEDY_FLOOR =
+  `\n    Opt-in is the design, so this count moves only because someone edited a` +
+  `\n    marker line. MARKED_FLOOR in scripts/check-skill-examples.mjs is` +
+  `\n    ⛔ SHRINK-ONLY, and there are exactly two legal moves — both of them in` +
+  `\n    the same pull request that moves the markers:` +
+  `\n` +
+  `\n      • you ADDED marks    -> raise that category's number to the new count;` +
+  `\n      • you REMOVED a mark -> lower it to the new count, and write the REASON` +
+  `\n                              beside the row: which example stopped being one,` +
+  `\n                              and why unmarking it was the honest call.` +
+  `\n` +
+  `\n    ⛔ Deleting a marker is not a way to make a red example pass. That is the` +
+  `\n    move this floor exists to make visible; fix the example, or unmark it and` +
+  `\n    say so here where the next reader will see it.`;
 
 // ── The bare-`any` debt list ─────────────────────────────────────────────────
 
@@ -965,6 +1089,10 @@ function main() {
   }
 
   const marked = state.candidates.filter((c) => c.marked);
+  // Read off `marked`, never off `state.tsBlocks` / `state.jsonBlocks`: under
+  // `--measure` those hold EVERY candidate, so a floor read from them would be
+  // measuring one population and gating another.
+  const population = markedPopulation(marked);
 
   // ── the anti-idle floor, checked before anything expensive ────────────────
   // A gate that checks nothing must not report success. Under `--measure` the
@@ -1070,8 +1198,8 @@ function main() {
   );
   console.log(
     measure
-      ? `MEASURE MODE: every candidate judged, marked or not — ${marked.length} of them carry the marker today.`
-      : `Marked: ${state.tsBlocks.length} ts fence(s) and ${state.jsonBlocks.length} json fence(s). Unmarked fences are ignored by design (opt-in).`,
+      ? `MEASURE MODE: every candidate judged, marked or not — ${marked.length} of them carry the marker today: ${floorReport(population)}.`
+      : `Marked: ${floorReport(population)} — the floor is ⛔ SHRINK-ONLY. Unmarked fences are ignored by design (opt-in).`,
   );
   console.log(
     parseFailedBlocks === 0
@@ -1129,6 +1257,28 @@ function main() {
   // failures are the UNMARKED population by construction — a verdict about what
   // is not yet opted in, which is not a defect.
   if (measure) return EXIT_CODES.verified;
+
+  // ── the shrink-only floor on the marked population (objectui#7550) ────────
+  // Read AFTER every precondition has returned, so a tree that could not be
+  // judged exits 2 and is never re-labelled as a floor breach; and after the
+  // summary, so the count and its floor are printed whichever way this goes.
+  // Every per-example error line above has already been printed, so returning
+  // here hides nothing — only the closing sentence differs, and this one is the
+  // accurate sentence for a population that shrank.
+  const breaches = reconcileFloors(population);
+  if (breaches.length > 0) {
+    console.error(
+      `\n❌  check:skill-examples — the MARKED population fell below its floor ` +
+        `in ${breaches.length} categor${breaches.length === 1 ? 'y' : 'ies'}:\n`,
+    );
+    for (const b of breaches) {
+      console.error(
+        `  ${b.category}: ${b.count} marked fence(s), floor ${b.floor} — ${b.floor - b.count} short`,
+      );
+    }
+    console.error(REMEDY_FLOOR);
+    return EXIT_CODES.examplesFailed;
+  }
 
   const failed =
     state.findings.length > 0 ||
