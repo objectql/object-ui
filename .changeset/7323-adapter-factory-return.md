@@ -12,12 +12,32 @@ A wider value is assignable to a narrower annotation, so nothing ever failed to 
 `ReturnType<typeof createObjectStackAdapter>` failed with TS2339: `getClient`,
 `getCacheStats`, `invalidateCache`, `clearCache`, `getConnectionState`, `isConnected`,
 `onConnectionStateChange`, `onBatchProgress` and `setSystemCapabilities`. Eight of those
-are exactly the members this package's README API Reference documents, and four whole
-README sections are built on them; the ninth is the one the factory's own JSDoc links to
-(`[ADR-0066] See {@link ObjectStackAdapter.setSystemCapabilities}`). So the file's own
-doc comment pointed the reader at a method its declared return hid, and the two
-documented ways to obtain the same object — the factory and `new ObjectStackAdapter(…)`
-— handed back different type surfaces.
+nine reads are on this package's README API Reference list, and four whole README
+sections are built on them; the ninth measured read is the one the factory's own JSDoc
+links to (`[ADR-0066] See {@link ObjectStackAdapter.setSystemCapabilities}`). The README
+list is itself **nine** adapter-only members, not eight — `connect()` is adapter-only
+too and was documented all along; it simply was not one of the reads the card's
+reproduction measured. So the file's own doc comment pointed the reader at a method its
+declared return hid, and the two documented ways to obtain the same object — the factory
+and `new ObjectStackAdapter(…)` — handed back different type surfaces.
+
+**What the declared return now is: the whole class, not those nine reads.** The nine
+above are what the reproduction measured, not the size of this change. The factory's
+declared return is now `ObjectStackAdapter<T>` itself, so **every public member of the
+class** is part of what the factory promises. Against `DataSource` that is **20**
+members, not nine — `tsc`-computed as
+`Exclude<keyof ObjectStackAdapter<unknown>, keyof DataSource<unknown>>`: `clearCache`,
+`connect`, `getCacheStats`, `getCached`, `getClient`, `getConnectionState`,
+`getDiscovery`, `getItems`, `invalidateCache`, `invalidateViewKeys`, `isConnected`,
+`listImportMappings`, `onBatchProgress`, `onConnectionStateChange`, `onSaveAdvisory`,
+`onWriteWarning`, `probeAppAccess`, `queryDataset`, `setSystemCapabilities`,
+`updateDashboard`. The eleven past the documented nine were already in the shipped class
+type — none is `@internal` or `@deprecated`, `stripInternal` is not set, and all were
+already reachable through `new ObjectStackAdapter(…)` and through every
+`ObjectStackAdapter`-typed seam in `@object-ui/react` and `app-shell` — so what widens
+here is what the **factory declares**, not what the package ships. Two are escape-hatch
+shaped and worth knowing before building on them: `getCached(key)` is a raw cache read,
+and `getDiscovery()` reaches an internal property of the underlying `ObjectStackClient`.
 
 **Branch taken: A (widen the factory's declared return), and why.** The card offered
 three. B — moving caching, connection state and batch progress onto `DataSource` — was
@@ -37,18 +57,23 @@ the commit that added `autoReconnect` / `maxReconnectAttempts` / `reconnectDelay
 factory's own config bag left the members that observe those features off the factory's
 declared return in the same change.
 
-**Not a breaking change for callers.** A wider return is assignable to the narrower
-annotation, so `const ds: DataSource = createObjectStackAdapter(…)` keeps compiling and
-keeps giving the narrow surface to anyone who wants it. The one shape that changes is a
-hand-written object literal assigned to `ReturnType<typeof createObjectStackAdapter>`:
-that type is now a class with private members, so a structural stand-in no longer
-satisfies it — annotate such a fake as `DataSource` instead, which is what it was
-standing in for.
+**One caller shape breaks: a structural stand-in for the factory's return.** A
+hand-written object literal annotated `ReturnType<typeof createObjectStackAdapter>` no
+longer satisfies that type, because it is now a class with private members (TS2740) —
+annotate such a fake as `DataSource` instead, which is what it was standing in for.
+Nothing else moves: a wider return is assignable to the narrower annotation, so
+`const ds: DataSource = createObjectStackAdapter(…)` keeps compiling and keeps giving
+the narrow surface to anyone who wants it.
 
 The README's note saying the page could not yet teach the factory's shape is removed, and
 the four sections built on the adapter-only members (Metadata Caching, Connection State
 Monitoring, Batch Operation Progress, Troubleshooting → Cache Issues) now continue from
 Basic Setup's `createObjectStackAdapter(…)` call instead of declaring the class by hand.
-`src/adapterFactoryReturn.types.test.ts` pins the card's TS2339 reproduction inverted,
+The docs-site page `content/docs/utilities/data-objectstack.mdx` is corrected the same
+way: its prose, its factory signature fragment and its "hold the class type to reach
+these" section described the old narrow return, and its Mutations and Troubleshooting
+examples told the reader to construct the class by hand to reach members the factory now
+declares. `src/adapterFactoryReturn.types.test.ts` pins the card's TS2339 reproduction
+inverted,
 with two controls: the adapter-only members stay absent from `DataSource` (fires on
 option B), and the widened return stays assignable to `DataSource` (swappability kept).
