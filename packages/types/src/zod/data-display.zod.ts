@@ -157,6 +157,14 @@ export const TableColumnSchema = z.object({
     .optional()
     .describe('Field-meta override: option list for select-flavoured columns'),
   currency: z.string().optional().describe('Field-meta override: ISO 4217 currency code for currency-formatted cells'),
+  // objectui#6650 (maintainer ruling 2026-09-02, Option B). Serializable
+  // metadata, so the mirror TYPES it — `z.boolean()`, like `fitContent`.
+  // Without this line the non-strict object would silently STRIP an
+  // authored `wrap`, which is the same second de-facto contract #6424
+  // closed for `headerIcon`: the renderer honouring what the published
+  // declaration refuses. The `.describe()` text is the spec's own wording
+  // for `ListColumn.wrap`, so the two authoring surfaces read alike.
+  wrap: z.boolean().optional().describe('Allow text wrapping'),
 });
 
 /**
@@ -183,12 +191,13 @@ export const TableColumnSchema = z.object({
  * `success`, same issue `path`, same issue `code` (`invalid_type`); only the
  * message differs.
  *
- * The five later arrivals below (`headerIcon` / `fitContent`, objectui#6424;
- * `format` / `options` / `currency`, objectui#6425) were outside #6105's
- * reviewed scope and carried the bare spelling until objectui#6931 converted
- * them here. That mattered because a half-converted shape teaches worse than a
- * uniform one: an author reading guidance on nine keys and zod's generic on
- * five learns the message means something, then has it withheld.
+ * The six later arrivals below (`headerIcon` / `fitContent`, objectui#6424;
+ * `format` / `options` / `currency`, objectui#6425; `wrap`, objectui#6650)
+ * were outside #6105's reviewed scope and carried the bare spelling until
+ * objectui#6931 converted them here (`wrap` was born converted). That
+ * mattered because a half-converted shape teaches worse than a uniform one:
+ * an author reading guidance on nine keys and zod's generic on five learns the
+ * message means something, then has it withheld.
  */
 export const StaticTableColumnSchema = z.object({
   header: z.string().describe('Column header text'),
@@ -210,6 +219,7 @@ export const StaticTableColumnSchema = z.object({
   format: retirementTombstone('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
   options: retirementTombstone('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
   currency: retirementTombstone('NOT on the static table surface (objectui#6425) — declared on the rich TableColumn only; use data-table'),
+  wrap: retirementTombstone('NOT on the static table surface (objectui#6650) — declared on the rich TableColumn only; use data-table'),
 });
 
 /**
