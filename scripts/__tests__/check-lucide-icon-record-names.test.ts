@@ -177,11 +177,68 @@ describe('the instrument can see the distinction it claims to judge', () => {
     expect(isLiveKey('funnel')).toBe(true);
   });
 
-  it('applies the resolvers\' own `Home` -> `House` alias rather than bypassing it', () => {
-    // Five of the eight censused resolvers carry this map. Judging `home` dead
-    // would be a violation none of them would ever produce.
+  it('applies the resolver\'s own `Home` -> `House` alias rather than bypassing it', () => {
+    // Carried by only four of the seven censused resolvers until objectui#5935
+    // made it universal. Judging `home` dead would be a violation the resolver
+    // would never produce.
     expect(toRecordKey('home')).toBe('House');
     expect(isLiveKey('home')).toBe(true);
+  });
+
+  /**
+   * ⭐ objectui#5935 — this gate's normalisation is no longer an APPROXIMATION.
+   *
+   * It used to be the WIDEST of the three tokenisers on the tree plus the rename
+   * map only four of seven sites carried, so that it could never invent a
+   * violation some resolver would not have produced — at the cost of
+   * UNDER-REPORTING exactly where those resolvers disagreed (disclosed in
+   * PR #5932). With one resolver left there is nothing to approximate, so the
+   * two must now be the same rule, and this row is what makes that a fact
+   * rather than an intention.
+   *
+   * ⚠️ Two copies exist unavoidably: the resolver is TypeScript inside a package
+   * and this gate is a standalone `.mjs` that runs without a build. So the pin
+   * reads the resolver's SOURCE rather than importing it — a build-free
+   * assertion for a build-free gate.
+   */
+  it('normalises exactly as the ONE resolver does, read from its source', () => {
+    const resolver = fs.readFileSync(
+      path.join(repoRoot, 'packages/components/src/renderers/action/resolve-icon.ts'),
+      'utf8',
+    );
+
+    // (a) the tokeniser, as a literal — the measured one (objectui#5935's
+    // pre-dispatch enumeration), not `split('-')`, which regressed 4,748
+    // name-surface pairs in the bound-free differential.
+    expect(resolver).toContain('.split(/[-_\\s]+/)');
+    expect(resolver).not.toMatch(/\.split\('-'\)/);
+
+    // (b) the rename map, EXTRACTED rather than eyeballed, so an entry added on
+    // one side and not the other fails here.
+    const block = resolver.match(/const iconNameMap: Record<string, string> = \{([^}]*)\}/);
+    expect(block, 'the resolver no longer declares `iconNameMap` under that name').not.toBeNull();
+    const entries = [...block![1].matchAll(/(\w+):\s*'([^']+)'/g)].map(([, from, to]) => [from, to]);
+    // Non-vacuity: an extractor that matched nothing would make the loop below
+    // assert nothing at all, and this row would be green against any map.
+    expect(entries.length).toBeGreaterThan(0);
+    expect(Object.fromEntries(entries)).toEqual({ Home: 'House' });
+
+    // (c) and the two agree on what those two halves produce.
+    for (const [from, to] of entries) expect(toRecordKey(from)).toBe(to);
+    for (const [authored, key] of [
+      ['arrow-right', 'ArrowRight'],
+      ['arrow_right', 'ArrowRight'],
+      ['arrow right', 'ArrowRight'],
+      ['ArrowRight', 'ArrowRight'],
+      ['building_2', 'Building2'],
+      ['layout_dashboard', 'LayoutDashboard'],
+    ]) {
+      expect(toRecordKey(authored), `${authored} normalises differently here`).toBe(key);
+    }
+    // The control that makes the row above discriminating: the gate must still
+    // separate a live key from a dead one after all that widening.
+    expect(isLiveKey('building_2')).toBe(true);
+    expect(isLiveKey('not-a-real-icon')).toBe(false);
   });
 });
 
@@ -267,7 +324,13 @@ describe('the `ui:icon` node type', () => {
     expect(result.violations).toHaveLength(1);
     const [violation] = result.violations;
     expect(violation.site).toBe('icon');
-    expect(violation.resolver).toBe('packages/components/src/renderers/basic/icon.tsx');
+    // objectui#5935 re-pointed `icon.tsx` at the seam, so the diagnostic now
+    // names BOTH: the module that reads the record, and the renderer whose
+    // authored names reach it. A reader chasing this violation needs the
+    // second half — the first is the same for every site now.
+    expect(violation.resolver).toBe(
+      'packages/components/src/renderers/action/resolve-icon.ts (via renderers/basic/icon.tsx)',
+    );
     expect(violation.where).toBe('examples/catalog/cta.json $.icon');
     // Derived by object identity, not read off a list: lucide's `CheckCircle`
     // export IS `CircleCheckBig`, so `circle-check-big` is the spelling that
@@ -295,7 +358,9 @@ describe('the `ui:icon` node type', () => {
     // key is absent from `icon`'s INFERRED TYPE, and reading it does not
     // type-check. Asserting absence of the key is also the stronger fact.
     expect('descendants' in RECORD_READING_TYPES.icon).toBe(false);
-    expect(RECORD_READING_TYPES.icon.resolver).toBe('packages/components/src/renderers/basic/icon.tsx');
+    expect(RECORD_READING_TYPES.icon.resolver).toBe(
+      'packages/components/src/renderers/action/resolve-icon.ts (via renderers/basic/icon.tsx)',
+    );
   });
 });
 
@@ -612,11 +677,12 @@ describe('this repository', () => {
     // this number would have altered the wrong part of the gate.
     //
     // The figure was 8 until objectui#5993 deduped `renderers/form/button.tsx`
-    // onto the shared `resolveIcon`. That is the ONE way this number is allowed
-    // to move: a site stopped reading the record. It did not stop resolving
-    // icons — `RECORD_READING_TYPES['button']` still judges its authored names,
-    // one indirection away, exactly like the two menu entries this row is about.
-    expect(repoResult.discovered.record).toHaveLength(7);
+    // onto the shared `resolveIcon`, 7 until objectui#5935 did the same for the
+    // remaining six, and 1 since. That is the ONE way this number is allowed to
+    // move: a site stopped reading the record. None of them stopped resolving
+    // icons — `RECORD_READING_TYPES` still judges their authored names, one
+    // indirection away, exactly like the two menu entries this row is about.
+    expect(repoResult.discovered.record).toHaveLength(1);
     expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/overlay/dropdown-menu.tsx');
     expect(RECORD_READING_TYPES['dropdown-menu'].resolver).toContain('renderers/action/resolve-icon.ts');
     // objectui#6278 routes the twin the same way, so it must not move the
@@ -635,40 +701,76 @@ describe('this repository', () => {
     expect(repoResult.counters.authoredJudged).toBeGreaterThan(100);
   });
 
-  it('did NOT grow part 1 for `ui:icon` either — it was ALREADY a declared resolver', () => {
-    // The asymmetry against dropdown-menu, pinned: `icon.tsx` imports the
-    // `icons` record directly and has been in part 1's census since
-    // objectui#5633's own discovery run. objectui#6009 supplies only the part-2
-    // fact — which `type` sends names there — so this count must not move.
-    expect(repoResult.discovered.record).toContain('packages/components/src/renderers/basic/icon.tsx');
-    // 7 since objectui#5993, for the reason the row above spells out. `ui:icon`
-    // keeps its own resolver deliberately — it draws a `SquareDashed`
-    // placeholder and warns where the shared one returns `null` (objectui#5631,
-    // pinned by `basic/__tests__/icon-unresolvable-placeholder.test.tsx`), so it
-    // is NOT a dedupe candidate and stays in this census.
-    expect(repoResult.discovered.record).toHaveLength(7);
+  it('`ui:icon` LEFT part 1 by being re-pointed, keeping its own fallback', () => {
+    // ⚠️ This row asserted the OPPOSITE until objectui#5935, and the reversal is
+    // the card: `icon.tsx` imported the `icons` record directly and had been in
+    // part 1's census since objectui#5633's discovery run, so the note here read
+    // "it is NOT a dedupe candidate". What made it look like one was a false
+    // coupling — the ruling of 2026-08-31 would have moved its `SquareDashed`
+    // placeholder onto the seam as an `onUnresolvable` parameter, and THAT is
+    // what objectui#5631 forbade. The maintainer ruling of 2026-09-03 (option C)
+    // separated the two: the seam answers `name -> component | null` and decides
+    // NOTHING about the unresolvable case, so `icon.tsx` can take the shared
+    // normalisation while keeping its placeholder-and-warn branch verbatim.
+    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/basic/icon.tsx');
+    // The half that must NOT have moved with it. `icon.tsx` is still the
+    // renderer this type's names reach, and its behaviour is pinned in full by
+    // `basic/__tests__/icon-unresolvable-placeholder.test.tsx`.
+    expect(RECORD_READING_TYPES['icon'].resolver).toContain('renderers/basic/icon.tsx');
+    expect(RECORD_READING_TYPES['icon'].resolver).toContain('renderers/action/resolve-icon.ts');
+    const icon = fs.readFileSync(
+      path.join(repoRoot, 'packages/components/src/renderers/basic/icon.tsx'),
+      'utf8',
+    );
+    expect(icon).toContain('SquareDashed');
+    expect(icon).toContain('data-objectui-icon-unresolved');
+    expect(icon).toContain('objectui#5631');
+    // …and it does NOT resolve names itself any more: no second tokeniser, no
+    // second rename map, no second index into the record. This is the assertion
+    // that fails if the consolidation is partially reverted at this one site,
+    // which is precisely the shape the card exists to prevent recurring.
+    // ⚠️ DECLARATIONS, not mentions. Both names still appear in this file — in
+    // the comment that records what was removed and why — and an assertion
+    // written against the bare word would fail on that comment while a real
+    // second resolver spelled any other way would slip through. Anchoring on
+    // the declaration syntax is what makes this row about code.
+    expect(icon).not.toMatch(/function\s+toPascalCase/);
+    expect(icon).not.toMatch(/const\s+iconNameMap/);
+    // The positive half: something must be doing the lookup, and it is the seam.
+    expect(icon).toContain("from '../action/resolve-icon'");
+    expect(icon).toMatch(/resolveIcon\(/);
+    expect(repoResult.discovered.record).toHaveLength(1);
   });
 
-  it('carries more record-reading resolvers than objectui#5633 catalogued by hand', () => {
-    // The card's table listed four. Discovery found eight, which is the whole
-    // argument for measuring the population instead of maintaining a list: the
-    // four it missed each resolve authored strings through the same record.
-    //
-    // Three of those four are still here. The fourth — `renderers/form/button.tsx`
-    // — was a hand-copied reimplementation of `resolve-icon.ts`, and objectui#5993
-    // deduped it onto the shared function, so it left this census by being FIXED
-    // rather than by being forgotten. Discovery is what proves that: the equality
-    // below fails if it comes back undeclared, and the census-drift check in the
-    // gate fails if the declaration outlives the read.
+  it('is down to ONE resolver, and every site that left did so by being FIXED', () => {
+    // objectui#5633's table listed four resolvers by hand. Discovery found
+    // eight, which is the argument for measuring the population instead of
+    // maintaining a list — and it is the same instrument that now proves the
+    // list is empty but for the seam. Each of the seven left by being
+    // re-pointed at `resolve-icon.ts`, not by being forgotten: the equality
+    // below fails if any of them comes back undeclared, and the census-drift
+    // check in the gate fails if a declaration outlives its read.
     expect(repoResult.discovered.record).toEqual([...DECLARED_RECORD_READERS].sort());
-    expect(repoResult.discovered.record.length).toBeGreaterThanOrEqual(7);
-    expect(repoResult.discovered.record).not.toContain('packages/components/src/renderers/form/button.tsx');
-    for (const late of [
+    expect(repoResult.discovered.record).toEqual([
+      'packages/components/src/renderers/action/resolve-icon.ts',
+    ]);
+    // ⭐ ANTI-VACUITY. `not.toContain` over an EMPTY discovered set would pass
+    // for every path on earth, including misspelled ones — so each former site
+    // is first proven to still EXIST and to still render an icon, and only then
+    // proven absent from the census. Without the first half this row would go
+    // green if discovery silently stopped working.
+    for (const consolidated of [
+      'packages/components/src/renderers/form/button.tsx',
+      'packages/components/src/renderers/basic/icon.tsx',
       'packages/plugin-list/src/ListView.tsx',
+      'packages/plugin-list/src/components/TabBar.tsx',
       'packages/plugin-detail/src/RelatedList.tsx',
+      'packages/plugin-view/src/ViewSwitcher.tsx',
       'packages/app-shell/src/views/metadata-admin/previews/ActionPreview.tsx',
     ]) {
-      expect(repoResult.discovered.record).toContain(late);
+      const source = fs.readFileSync(path.join(repoRoot, consolidated), 'utf8');
+      expect(source, `${consolidated} no longer calls the seam`).toMatch(/\bresolveIcon\b/);
+      expect(repoResult.discovered.record).not.toContain(consolidated);
     }
   });
 

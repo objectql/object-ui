@@ -132,8 +132,10 @@
  *
  *    `dropdown-menu.tsx` itself is correctly ABSENT from part 1's census: it
  *    imports `resolveIcon`, not `icons`, so the record read happens in
- *    `renderers/action/resolve-icon.ts`, which is already declared. Part 1
- *    stays at eight resolvers; this is a part-2 rule, not a census change.
+ *    `renderers/action/resolve-icon.ts`, which is already declared. That was a
+ *    part-2 rule and not a census change — part 1 stood at eight resolvers when
+ *    this paragraph was written, seven after objectui#5993, and ONE since
+ *    objectui#5935 consolidated the remaining six onto the seam.
  *    `context-menu.tsx`, `breadcrumb.tsx` and `command.tsx` route the same way
  *    and are absent from part 1 for the same reason — part 1 knowing a MODULE
  *    and part 2 knowing a `type` are two independent facts.
@@ -196,14 +198,26 @@ const gateRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // `discoverResolvers`: an entry that disappears and a module that appears both
 // fail the gate. Add a new resolver here only after deciding which vocabulary
 // it reads — that decision is the whole point of the split.
+//
+// ⭐ ONE ENTRY, since objectui#5935. This list carried SEVEN modules, each with
+// its own hand-rolled lookup: three different tokenisers (`split('-')` on five
+// of them, `split(/[-_\s]/)` on one, `split(/[-_\s]+/)` on one) and the
+// `Home -> House` rename on only four — so the same authored name rendered on
+// one surface and not another. All six non-seam sites now import `resolveIcon`
+// from `renderers/action/resolve-icon.ts`, which is why they left this census
+// in the same commit, exactly as `renderers/form/button.tsx` did at
+// objectui#5993.
+//
+// ⛔ This list is also the ENFORCEMENT of ruling point 4 of 2026-08-31
+// (objectui#5935 comment 5472612351, verbatim 「同意」):
+// 「本裁定后新容器 ⛔ 不得再自带解析器,一律走 seam」. Because discovery is
+// re-run from source and disagreement fails in BOTH directions, a new container
+// that hand-rolls a lookup turns this gate red on the commit that adds it —
+// the note is mechanical, not a request in a review checklist. The lawful way
+// to add an icon-rendering container is to call the seam; adding a path here
+// instead re-opens the divergence this card closed and needs a ruling.
 export const DECLARED_RECORD_READERS = [
-  'packages/app-shell/src/views/metadata-admin/previews/ActionPreview.tsx',
   'packages/components/src/renderers/action/resolve-icon.ts',
-  'packages/components/src/renderers/basic/icon.tsx',
-  'packages/plugin-detail/src/RelatedList.tsx',
-  'packages/plugin-list/src/ListView.tsx',
-  'packages/plugin-list/src/components/TabBar.tsx',
-  'packages/plugin-view/src/ViewSwitcher.tsx',
 ];
 
 export const DECLARED_DYNAMIC_READERS = [
@@ -338,17 +352,27 @@ export const RECORD_READING_TYPES = {
   // `name`, the SDUI IDENTITY key, and every path in this table is an `icon`
   // path. Post-#5631 it reads `schema.icon` straight out of lucide's runtime
   // record (`import { icons } from 'lucide-react'` + `(icons as any)[key]`), so
-  // it is a DIRECT record reader, not a `resolveIcon` router — which is why
-  // part 1's `DECLARED_RECORD_READERS` already carries it and dropdown-menu's
-  // does not. Part 1 knowing a module and part 2 knowing its `type` are two
-  // independent facts; this entry supplies the second (objectui#6009).
+  // it WAS a DIRECT record reader, not a `resolveIcon` router — which is why
+  // part 1's `DECLARED_RECORD_READERS` carried it where dropdown-menu's does
+  // not. objectui#5935 re-pointed it at the seam, so it left part 1 and now
+  // routes like every other entry here; its `SquareDashed` placeholder and its
+  // warning are untouched (objectui#5631, maintainer 2026-08-22, 一字不动),
+  // because the seam decides nothing about the unresolvable case. Part 1
+  // knowing a module and part 2 knowing its `type` are two independent facts;
+  // this entry supplies the second (objectui#6009).
   //
   // NO `descendants`: the renderer resolves exactly one name and returns a
   // single element. It never walks `children`, so there is no untyped-child
   // population for a descent to reach — and a descent that reaches nothing is
   // an ERROR here, by the non-vacuity rule below.
-  'icon': { paths: ['icon'], resolver: 'packages/components/src/renderers/basic/icon.tsx' },
-  'view-switcher': { paths: ['views[].icon', 'viewActions[].icon'], resolver: 'packages/plugin-view/src/ViewSwitcher.tsx' },
+  'icon': {
+    paths: ['icon'],
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/basic/icon.tsx)',
+  },
+  'view-switcher': {
+    paths: ['views[].icon', 'viewActions[].icon'],
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via plugin-view/src/ViewSwitcher.tsx)',
+  },
 };
 
 // ── Anchored first-party maps ────────────────────────────────────────────────
@@ -429,11 +453,28 @@ export function selfTest() {
 }
 
 // ── Normalisation ────────────────────────────────────────────────────────────
-// The transform the record-reading resolvers apply before their lookup. Five of
-// the eight also map `Home` -> `House`; three do not, and three different
-// tokenisers are in use. Taking the WIDEST tokeniser and the alias map means
-// this gate never invents a violation a resolver would not have: a name is
-// judged dead only when EVERY censused normalisation would still miss it.
+// The transform the ONE record-reading resolver applies before its lookup —
+// `renderers/action/resolve-icon.ts`, transcribed.
+//
+// ⭐ This used to be an APPROXIMATION and is no longer one (objectui#5935). It
+// was the WIDEST of the three tokenisers in the tree plus the rename map that
+// only four of seven sites carried, chosen so the gate could never invent a
+// violation some resolver would not have produced — at the cost, disclosed in
+// PR #5932 and carried by this card, of UNDER-REPORTING precisely where the
+// resolvers disagreed. With one resolver left there is nothing to approximate:
+// this IS the normalisation, so a name judged dead here is dead everywhere and
+// the blind spot is closed rather than bounded.
+//
+// `.filter(Boolean)` is retained and is INERT — capitalising the empty string
+// yields the empty string and joining it contributes nothing (measured over
+// 51,449 hostile spellings: zero mismatches with and without). It is kept
+// because removing it would be an unmeasured edit to a gate's own predicate.
+//
+// ⚠️ Two copies of one rule, unavoidably: the resolver is TypeScript inside a
+// package and this gate is a standalone `.mjs` that must run without a build.
+// `scripts/__tests__/check-lucide-icon-record-names.test.ts` pins them together
+// by reading the resolver's SOURCE, so a change to either side that is not made
+// to the other fails loudly.
 export const toRecordKey = (name) => {
   const pascal = String(name)
     .split(/[-_\s]+/)
@@ -906,7 +947,7 @@ if (invokedDirectly) {
   if (errors.length === 0 && violations.length === 0) {
     console.log(
       `OK  lucide icon names: ${counters.authoredJudged + counters.anchoredJudged} authored/declared names reaching `
-      + `${discovered.record.length} record-reading resolvers are live \`icons\` keys `
+      + `${discovered.record.length} record-reading resolver${discovered.record.length === 1 ? '' : 's'} are live \`icons\` keys `
       + `(record ${Object.keys(icons).length} keys; dynamic surface ${discovered.dynamic.length} sites, ${iconNames.length} names, not judged here).`,
     );
     process.exit(0);
