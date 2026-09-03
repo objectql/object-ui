@@ -118,8 +118,13 @@
  * ## What it reads, and what it deliberately does not
  *
  * The scan surface is `check-doc-snippet-types`'s, exactly: every `.mdx` and
- * `.md` under `content/docs`, every `packages/<name>/README.md`, and the root
- * `README.md` (objectui#7115). It is re-implemented here rather than imported so
+ * `.md` under `content/docs`, every `packages/<name>/README.md`, the root
+ * `README.md` (objectui#7115), and every `.mdx` / `.md` under
+ * `apps/<app>/docs/**` (objectui#6600). The full ownership map for all three doc
+ * gates — including the trees NO gate reads — is stated once in
+ * `check-doc-snippet-types.mjs`, beside `UNGATED_DOCS`; this gate's roots are
+ * that gate's roots by construction, which is the pin below.
+ * It is re-implemented here rather than imported so
  * this gate needs NO install — that gate imports `typescript`, and an
  * install-gated docs check is one that a docs-only pull request skips, which is
  * the shape objectui#5174 and `doc-component-types.yml`'s header both record as
@@ -154,6 +159,35 @@ const PACKAGES_DIR = 'packages';
 const DOC_EXTENSIONS = ['.mdx', '.md'];
 
 /**
+ * Per-app documentation trees, `apps/<app>/docs/**` (objectui#6600).
+ *
+ * ⛔ Deliberately a COPY of `check-doc-snippet-types.mjs`'s constant, for the same
+ * reason `ROOT_PAGES` below is one: importing anything from that module pulls in
+ * its `import ts from 'typescript'` at load, and this gate's whole value is that
+ * it runs with no install. Exported so the equality is checked rather than hoped
+ * for — `check-doc-fence-languages.test.ts` pins all three gates' copies.
+ *
+ * The walk is `apps/<app>/docs`, one level of app directory and no deeper before
+ * the
+ * `docs` segment: `apps/site/app/docs` is a Next.js ROUTE directory holding
+ * `.tsx` route files, not a documentation tree, and a `**`-shaped walk that
+ * happened to pick it up would be collecting routes.
+ */
+export const APP_DOCS = { dir: 'apps', subdir: 'docs' };
+
+/** Every `apps/<app>/docs` directory that exists, in a stable order. */
+export function appDocsDirs(root) {
+  const appsDir = join(root, APP_DOCS.dir);
+  if (!existsSync(appsDir)) return [];
+  const out = [];
+  for (const entry of readdirSync(appsDir).sort()) {
+    const docs = join(appsDir, entry, APP_DOCS.subdir);
+    if (existsSync(docs) && statSync(docs).isDirectory()) out.push(docs);
+  }
+  return out;
+}
+
+/**
  * Pages at the repository ROOT that join the scan set by name (objectui#7115).
  *
  * ⛔ Deliberately a COPY of `check-doc-snippet-types.mjs`'s constant rather than
@@ -179,6 +213,9 @@ export function listDocuments(root = repoRoot) {
   };
   const docsRoot = join(root, DOCS_ROOT);
   if (existsSync(docsRoot)) walk(docsRoot);
+  // Per-app docs trees, in the same slot the snippet gate appends them in —
+  // the coupling pin compares the two lists element by element.
+  for (const dir of appDocsDirs(root)) walk(dir);
   const pkgDir = join(root, PACKAGES_DIR);
   if (existsSync(pkgDir)) {
     for (const entry of readdirSync(pkgDir).sort()) {

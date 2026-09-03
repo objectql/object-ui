@@ -209,11 +209,57 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
-/** Where the teaching prose lives. This gate walks `content/docs` plus the root
- *  pages named below, and nothing else: not `skills/**`, not the package READMEs
+/** Where the teaching prose lives. This gate walks `content/docs`, every
+ *  `apps/<app>/docs/**` tree (objectui#6600) and the root pages named below, and
+ *  nothing else: not `skills/**`, not the package READMEs
  *  (`check-doc-snippet-types.mjs` covers those for its own question), not
- *  `docs/**`. */
+ *  `docs/**`. The full ownership map for all three doc gates — including the
+ *  trees NO gate reads, and why `skills/**` is deliberately not one of them — is
+ *  stated once in `check-doc-snippet-types.mjs`, beside `UNGATED_DOCS`. */
 const DOCS_ROOT = 'content/docs';
+
+/**
+ * Per-app documentation trees, `apps/<app>/docs/**` (objectui#6600).
+ *
+ * ⚠️ This gate joining the move is the one judgement ruling D left to the
+ * implementing lane, and it is joining at ZERO PRESENT YIELD: the three files
+ * under `apps/console/docs/**` carry 0 `type` literals today, so this walk finds
+ * nothing on the day it lands. Stated plainly because the alternative reading —
+ * that a widened scope was justified by a discovery — is false here.
+ *
+ * The argument for joining anyway is the split-surface defect one directory over,
+ * which this gate has already been burned by ONCE. objectui#7115: this gate
+ * walked `content/docs`; `check-doc-snippet-types` walked `content/docs` plus the
+ * package READMEs; the root `README.md` fell BETWEEN the two and was read by
+ * neither, and it taught the unregistered type `stat-card` four times for as long
+ * as the example existed. Leaving this gate pointed away from a tree its two
+ * siblings now read would rebuild that exact geometry, deliberately, in the same
+ * gate family — and `apps/console/docs/UI_IMPROVEMENT_PROPOSAL.md` is a proposal
+ * about console UI shape, i.e. the file in that tree most likely to grow the
+ * first `type` literal. A forward guard at zero yield is what objectui#7115
+ * wishes had existed.
+ *
+ * ⛔ What this is NOT: a precedent for widening onto any other unscanned tree.
+ * The population here is three files in a directory two sibling gates are moving
+ * onto in the same change. No allowlist mechanism exists and none is wanted.
+ *
+ * The walk is `apps/<app>/docs`, one level of app directory and no deeper before
+ * the `docs` segment. `apps/site/app/docs` is a Next.js ROUTE directory of `.tsx`
+ * route files, not a documentation tree.
+ */
+export const APP_DOCS = { dir: 'apps', subdir: 'docs' };
+
+/** Every `apps/<app>/docs` directory that exists, in a stable order. */
+export function appDocsDirs(root) {
+  const appsDir = join(root, APP_DOCS.dir);
+  if (!existsSync(appsDir)) return [];
+  const out = [];
+  for (const entry of readdirSync(appsDir).sort()) {
+    const docs = join(appsDir, entry, APP_DOCS.subdir);
+    if (existsSync(docs) && statSync(docs).isDirectory()) out.push(docs);
+  }
+  return out;
+}
 
 /**
  * Pages at the repository ROOT that join the walk by name.
@@ -999,7 +1045,10 @@ export function deriveRegistryKeys(root, options = {}) {
  */
 export function scanDocs(root) {
   const docsDir = join(root, DOCS_ROOT);
-  const files = walkFiles(docsDir, (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext))).sort();
+  const isDoc = (f) => DOC_EXTENSIONS.some((ext) => f.endsWith(ext));
+  const files = walkFiles(docsDir, isDoc).sort();
+  // Per-app docs trees (objectui#6600), appended sorted after the content tree.
+  for (const dir of appDocsDirs(root)) files.push(...walkFiles(dir, isDoc).sort());
   // Root pages join by name rather than by walk. An absent one is dropped here so
   // a throwaway fixture tree stays scannable; the CLI refuses to publish a
   // verdict when one is missing from a real run, which is where that must bite.
