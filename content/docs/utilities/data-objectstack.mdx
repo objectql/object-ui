@@ -178,7 +178,7 @@ const fromFactory = createObjectStackAdapter<User>({ baseUrl: 'https://api.examp
 const fromClass = new ObjectStackAdapter<User>({ baseUrl: 'https://api.example.com' });
 ```
 
-**What changed.** Until v17.7 this section told you to hold the class type to
+**What changed.** This section used to tell you to hold the class type to
 reach the members listed under *Beyond `DataSource`* below, because the factory
 declared `DataSource<T>` while returning `new ObjectStackAdapter(config)`: the
 value always carried those members, only the declared type hid them
@@ -210,16 +210,15 @@ adapter):
 - `getObjectSchema(objectName)` - Fetch schema metadata (cached)
 - `bulk?(resource, operation, data)` - Batch create/update/delete on one object
 - `batchTransaction?(operations)` - Cross-object atomic batch (master-detail)
+- `onMutation?(listener)` - Subscribe to create/update/delete events
 
 `bulk`, `batchTransaction` and `onMutation` are **optional** members of
 `DataSource`: not every adapter implements them, so through a `DataSource`-typed
 value they must be feature-detected (`typeof dataSource.bulk === 'function'`).
 `ObjectStackAdapter` implements all three unconditionally, and the factory
-declares the class, so a value from either form calls them directly:
-
-- `bulk(resource, operation, data)` - Batch create/update/delete on one object
-- `batchTransaction(operations)` - Cross-object atomic batch (master-detail)
-- `onMutation(listener)` - Subscribe to create/update/delete events
+declares the class, so a value from either form calls them directly. (`onMutation`
+was listed under *Adapter-only* here until objectui#7323; it is optional on
+`DataSource`, not absent from it.)
 
 **Beyond `DataSource`** (declared on `ObjectStackAdapter`, so reachable from
 either form):
@@ -231,10 +230,12 @@ either form):
 - `onConnectionStateChange(listener)` - Subscribe to state changes (returns unsubscribe)
 - `onBatchProgress(listener)` - Subscribe to bulk progress (returns unsubscribe)
 
-Those nine are the documented subset. `ObjectStackAdapter` declares **20** members
-beyond `DataSource` in all; the other eleven are lower-level seams (client
-discovery, cache-key invalidation, dataset and dashboard access, advisory
-subscriptions) that this page does not document and that carry no compatibility
+Those six bullets cover nine members, and they are the documented subset.
+`ObjectStackAdapter` declares **20** members beyond `DataSource` in all
+(`Exclude<keyof ObjectStackAdapter<unknown>, keyof DataSource<unknown>>`); the
+other eleven are lower-level seams — client discovery, cache-key invalidation,
+dataset and dashboard access, advisory subscriptions and capability configuration
+among them — which this page does not document and which carry no compatibility
 promise here.
 
 ### Per-element data binding
