@@ -1218,8 +1218,18 @@ export interface TreeViewSchema extends BaseSchema {
    *
    * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:105`
    * — `const rawNodes = boundData || schema.nodes || schema.data || []`.
+   *
+   * OPTIONAL since objectui#6939. It was REQUIRED, which refused four catalog
+   * entries the renderer draws correctly — a third-choice limb cannot be the
+   * one key a document must carry.
+   *
+   * ⚠️ Kept DECLARED rather than deleted, and the distinction is measured:
+   * {@link BaseSchema} already declares `data?: any` (its zod twin is
+   * `z.any().optional()`), so removing this member would NOT reject the key —
+   * it would admit it unvalidated while the renderer still reads it. Declaring
+   * it optional is the only shape in which `declared` and `enforced` agree.
    */
-  data: TreeNode[];
+  data?: TreeNode[];
   /**
    * Tree data — the spelling the renderer reads FIRST.
    *
@@ -1228,11 +1238,12 @@ export interface TreeViewSchema extends BaseSchema {
    * {@link TreeViewSchema.data} when both are authored (and a `bind`-resolved
    * value wins over both).
    *
-   * ⚠️ Declaring `nodes` does NOT by itself make `{ type: 'tree-view', nodes }`
-   * a legal document: {@link TreeViewSchema.data} stays REQUIRED on both faces,
-   * so the validator still demands `data`. Relaxing that is an accept-set
-   * change and a separate ruling — objectui#6150 declares the read, nothing
-   * more.
+   * Declared by objectui#6150, which deliberately stopped at the declaration:
+   * `{ type: 'tree-view', nodes }` only became a LEGAL document at
+   * objectui#6939, the accept-set change that relaxed
+   * {@link TreeViewSchema.data}. The registration's own `inputs` and
+   * `defaultProps` spell it `nodes`, and the four catalog entries ARE those
+   * `defaultProps`.
    */
   nodes?: TreeNode[];
   /**

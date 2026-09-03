@@ -313,10 +313,10 @@ export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
  */
 export const TreeViewSchema = BaseSchema.extend({
   type: z.literal('tree-view'),
-  data: z.array(TreeNodeSchema)
-    .describe('Tree data, read as the fallback limb of `boundData || schema.nodes || schema.data || []` at renderers/data-display/tree-view.tsx:105'),
+  data: z.array(TreeNodeSchema).optional()
+    .describe('Tree data, read THIRD as the fallback limb of `boundData || schema.nodes || schema.data || []` at renderers/data-display/tree-view.tsx:105. OPTIONAL since objectui#6939 — requiring a third-choice limb refused four catalog entries the renderer draws correctly. Kept DECLARED rather than deleted: `BaseSchema.data` is `z.any().optional()`, so removing this member would not reject the key, it would admit it unvalidated while the read stays'),
   nodes: z.array(TreeNodeSchema).optional()
-    .describe('Tree data, read FIRST at renderers/data-display/tree-view.tsx:105 — the middle limb of `boundData || schema.nodes || schema.data || []`, so it wins over `data`. ⚠️ `data` stays REQUIRED here: declaring `nodes` does not by itself make a `nodes`-only document legal (objectui#6150)'),
+    .describe('Tree data, read FIRST at renderers/data-display/tree-view.tsx:105 — the middle limb of `boundData || schema.nodes || schema.data || []`, so it wins over `data`. Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939, which relaxed `data` (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
   title: z.string().optional()
     .describe('Heading above the tree, read at renderers/data-display/tree-view.tsx:115 (presence gate) and :117 (the h3 body) (objectui#6150)'),
   defaultExpandedIds: z.array(z.string()).optional().describe('Default expanded node IDs'),
