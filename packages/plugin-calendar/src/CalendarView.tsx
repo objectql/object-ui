@@ -81,7 +81,7 @@ const DEFAULT_TRANSLATIONS: Record<string, string> = {
   'calendar.day': 'Day',
   'calendar.newEvent': 'New event',
   'calendar.moreEvents': '+{{count}} more',
-  'calendar.allDay': 'all-day',
+  'calendar.allDay': 'All Day',
 }
 
 /**
@@ -1268,7 +1268,7 @@ function TimeGridView({
       {allDayEvents.length > 0 && (
         <div className="flex border-b bg-muted/20 max-h-[140px] overflow-y-auto">
           <div className="w-14 shrink-0 border-r flex items-start justify-end pr-1 pt-1 text-[10px] text-muted-foreground sticky left-0 bg-muted/20">
-            {t('calendar.allDay') === 'calendar.allDay' ? 'all-day' : t('calendar.allDay')}
+            {t('calendar.allDay')}
           </div>
           {days.map((day) => {
             const key = dayKey(day)
