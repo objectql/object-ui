@@ -57,7 +57,12 @@
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **39 entries** in `KnownDrift`, **55 keys** across them — 56 until objectui#6940
+ *   - **40 entries** in `KnownDrift`, **56 keys** across them — 39 / 55 until
+ *     objectui#7455 SEEDED `app.zod.ts#AppComponentSchema` with its one
+ *     spec-derived key `hidden` (a pair born ledgered, not growth on an existing
+ *     entry: both faces read `boolean` until the base was widened, and only the
+ *     DECLARED face moved — see that entry). It stood at 39 / 55 rather than
+ *     39 / 56 because objectui#6940
  *     REPAIRED `DataTableSchema.rowActions` (the entry kept its other four keys, so
  *     the entry count did not move). It was 12 / 17 until
  *     objectui#6124 added the RUNTIME-SLOT class (28 pairs touched, 35 keys) — see
@@ -85,7 +90,7 @@
  *     "no entry in either" population dropped by one to 141 — went to 142 when
  *     objectui#6576 added two pairs, one of them ledgered, and stands at **143**
  *     since objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key.
- *   - 160 − 39 = **121**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *   - 160 − 40 = **120**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -106,7 +111,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 39 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 40 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -685,6 +690,34 @@ export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeo
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
+  /**
+   * SPEC-DERIVED, not a mirroring debt, and NOT closable by editing this entry.
+   *
+   * Measured on `@objectstack/spec@17.2.0` by resolving `AppSchema.shape`: the
+   * spec's `AppSchema` declares `hidden` (`z.boolean().optional()` -- accepts a
+   * boolean, refuses a string) and declares NEITHER `visible` NOR `disabled`.
+   * `AppComponentSchema` is `BaseSchema.extend(SpecAppFields.shape).extend(...)`
+   * and `SpecAppFields` excludes six keys -- `name`, `label`, `description`,
+   * `navigation`, `areas`, `contextSelectors` -- with `hidden` not among them,
+   * so on the MIRROR face the spec's boolean lands after the base's and
+   * overrides it. On the DECLARED face `interface AppComponentSchema extends
+   * BaseSchema` does not restate the key at all, so it inherits the base.
+   *
+   * That is why widening `BaseSchema.hidden` to `boolean | string`
+   * (objectui#7455, ruled 2026-09-03) moved only the TS side of THIS pair and
+   * seeded this entry, while the same widening on `visible` (objectui#4581) and
+   * `disabled` (objectui#4580 ruling Q3-A) moved both sides and seeded nothing.
+   * The asymmetry is the spec's, one layer under the one #7455 removed.
+   *
+   * The two keys collide in NAME and differ in MEANING -- the spec's is an
+   * app-catalogue flag (does the app show in the switcher), the base's is the
+   * renderer's hide predicate -- so this is a contract ruling, not a repair.
+   * objectui#7542 carries it, with the directions measured and none chosen.
+   * The one direction that reads easy and is probably wrong: dropping `hidden`
+   * from `SpecAppFields` would make a spec-DERIVED schema accept, by local
+   * divergence, a value the spec refuses.
+   */
+  'app.zod.ts#AppComponentSchema': 'hidden';
   /**
    * RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads
    * `onViewChange` off the spread props (function values only) and hands it to
@@ -1318,7 +1351,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 121 pairs with no entry (160 − 39).
+ * 120 pairs with no entry (160 − 40).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
