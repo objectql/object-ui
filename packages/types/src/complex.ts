@@ -274,6 +274,10 @@ export interface CalendarViewSchema extends BaseSchema {
    * Event click handler — HOST-ONLY. The renderer forwards it only when the
    * value is a function, which authored JSON can never produce; supply it from
    * a React host (`<SchemaRenderer ... onEventClick={fn} />`).
+   *
+   * RUNTIME SLOT (objectui#7344, the objectui#6124 shape) — the zod twin, which
+   * declared `z.function()` in a multi-line spelling PR #7339's census missed,
+   * now refuses this key by name, like `onViewChange` below.
    */
   onEventClick?: (event: CalendarEvent) => void;
   /**

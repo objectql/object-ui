@@ -9,7 +9,7 @@
 import { ComponentRegistry } from '@object-ui/core';
 import type { FileUploadSchema } from '@object-ui/types';
 import { Label, Button } from '../../ui';
-import { Upload, X, Rocket, CheckCircle2, ScanLine } from 'lucide-react';
+import { Upload, X, Rocket, CheckCircle2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '../../lib/utils';
 import { toFormControlDomProps } from '../../lib/form-control-dom-props';

@@ -15,11 +15,8 @@ import { NumberField } from './widgets/NumberField';
 import { TextField } from './widgets/TextField';
 import { SelectField } from './widgets/SelectField';
 import { BooleanField } from './widgets/BooleanField';
-import { DateField } from './widgets/DateField';
 import { EmailField } from './widgets/EmailField';
 import { UrlField } from './widgets/UrlField';
-import { PhoneField } from './widgets/PhoneField';
-import { TextAreaField } from './widgets/TextAreaField';
 
 const mockOnChange = vi.fn();
 

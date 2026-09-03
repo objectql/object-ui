@@ -549,6 +549,7 @@ const fr = {
     allDay: "Toute la journée",
     newEvent: "Nouvel événement",
     moreEvents: "+{{count}} de plus",
+    unscheduled: "Non planifié ({{count}})",
   },
   list: {
     firstRunTitle: "Rien pour l'instant",
@@ -700,6 +701,9 @@ const fr = {
     },
     unsupported: {
       objectBoundGantt: "Variante « gantt » non prise en charge — une timeline liée à un objet affiche les variantes de flux ({{variants}}). Gantt nécessite des lignes littérales, chacune avec ses propres items imbriqués ; l'axe gantt (scale) est donc sans effet ici.",
+    },
+    unconfigured: {
+      noDateAxis: "Axe de dates requis pour la timeline — cette vue ne déclare aucun champ de date, et une timeline liée à un objet n'en invente pas. Déclarez l'un de : {{fields}}. Le premier est l'orthographe de la spec, les autres sont des alias hérités.",
     },
   },
   gantt: {

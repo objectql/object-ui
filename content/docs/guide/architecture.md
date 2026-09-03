@@ -45,7 +45,7 @@ ObjectUI is organized as a PNPM monorepo with clear separation of concerns:
 - **Role**: The Protocol
 - **Contains**: Pure TypeScript interfaces for JSON schemas
 - **Constraint**: ZERO dependencies, no React code
-- **Example**: `ComponentSchema`, `ActionSchema`, `FieldSchema`
+- **Example**: `BaseSchema`, `ActionSchema`, `FieldSchema`
 
 #### `@object-ui/core`
 - **Role**: The Engine
@@ -334,7 +334,7 @@ import { cn } from '@/lib/utils'
 ObjectUI is built with **TypeScript** in strict mode:
 
 ```typescript
-import type { ComponentSchema, ButtonSchema } from '@object-ui/types'
+import type { BaseSchema, ButtonSchema } from '@object-ui/types'
 
 function handleClick() {
   // ...

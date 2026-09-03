@@ -23,10 +23,22 @@
  * hand-write `hideEmpty: false` per section to stop looking broken — per-app
  * tax for a platform concern (maintainer ruling 2026-08-31).
  *
- * The renderer now passes the authored value through untouched. These pins
- * hold both halves of that contract:
- *   - the UNAUTHORED default is the heuristic's, not the renderer's;
- *   - an AUTHORED value keeps its exact former meaning.
+ * The renderer then passed the authored value through untouched — and that
+ * pass-through measured the key on all four of its contracts, finding three
+ * answers (objectui#7129). `@objectstack/spec` REFUSES `hideEmpty` on a
+ * `record:details` section, so on any spec-validated page it never reached the
+ * renderer at all; the "author escape hatch" existed only where nothing
+ * validated. The maintainer converged the four on the spec's answer
+ * (2026-09-01): the declaration is RETIRED and `DetailSection`'s heuristic is
+ * the whole contract.
+ *
+ * These pins hold both halves of that contract:
+ *   - the default is the heuristic's, not the renderer's — unchanged, and the
+ *     three cases below are exactly the ones #7064 landed;
+ *   - an authored `hideEmpty` of EITHER polarity is now INERT. Its describe
+ *     block is RESTATED, not deleted (ruling clause 4): the same fixtures and
+ *     the same controls now assert the key does nothing, which is what proves
+ *     the heuristic survived the retirement intact.
  *
  * Deliberately no i18n provider: `fieldLabel` falls back to the value the
  * renderer hands it, which for the spec's bare-string section fields is the
@@ -134,13 +146,20 @@ describe('record:details — the UNAUTHORED empty-section default is DetailSecti
   });
 });
 
-describe('record:details — an AUTHORED `hideEmpty` keeps its exact former meaning (#7064)', () => {
-  it('`hideEmpty: true` still hides an all-empty section entirely', () => {
+describe('record:details — an authored `hideEmpty` is INERT: the key is retired (#7129)', () => {
+  /**
+   * The fixtures below are #7064's, unchanged, and so are their controls. What
+   * moved is the verdict: each now asserts the render the UNAUTHORED heuristic
+   * produces, so a reader can see that reintroducing a read of the key would
+   * have to break one of them.
+   */
+  it('`hideEmpty: true` no longer hides an all-empty section — the skeleton renders', () => {
     renderDetails({
       sections: [
         { name: 'deal_terms', label: 'Deal Terms', fields: ['stage', 'amount', 'close_date', 'next_step'], hideEmpty: true },
-        // CONTROL: a sibling section that MUST render, so the absences below
-        // are a decision by `hideEmpty` and not a render that never happened.
+        // CONTROL, kept from #7064: a sibling section that MUST render, so the
+        // presences below are a decision about `hideEmpty` and not an artefact
+        // of a render that never happened.
         { name: 'firmographics', label: 'Firmographics', fields: ['industry'] },
       ],
     });
@@ -148,27 +167,21 @@ describe('record:details — an AUTHORED `hideEmpty` keeps its exact former mean
     expect(screen.getByText('Firmographics')).toBeInTheDocument();
     expect(screen.getByText('Manufacturing')).toBeInTheDocument();
 
-    expect(screen.queryByText('Deal Terms')).not.toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
-    expect(emptyPlaceholders()).toHaveLength(0);
+    // Under the retired key this section vanished. The heuristic reserves the
+    // all-empty case, and it is now the only thing deciding.
+    expect(screen.getByText('Deal Terms')).toBeInTheDocument();
+    for (const label of ['stage', 'amount', 'close_date', 'next_step']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(emptyPlaceholders()).toHaveLength(4);
   });
 
-  it('`hideEmpty: true` still hides the empty rows of a partly-filled section', () => {
+  it('`hideEmpty: true` no longer hides the empty rows of a small partly-filled section', () => {
+    // 2 fields, 1 empty — below the auto-hide minimum in both threshold
+    // variants (4 desktop / 3 mobile), so nothing hides the row any more.
     renderDetails({
       sections: [
         { name: 'summary', label: 'Summary', fields: ['industry', 'stage'], hideEmpty: true },
-      ],
-    });
-
-    expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
-    expect(emptyPlaceholders()).toHaveLength(0);
-  });
-
-  it('`hideEmpty: false` shows the empty rows the heuristic would not have hidden anyway', () => {
-    renderDetails({
-      sections: [
-        { name: 'summary', label: 'Summary', fields: ['industry', 'stage'], hideEmpty: false },
       ],
     });
 
@@ -177,28 +190,42 @@ describe('record:details — an AUTHORED `hideEmpty` keeps its exact former mean
     expect(emptyPlaceholders()).toHaveLength(1);
   });
 
-  it('MEASURED, not endorsed: `hideEmpty: false` is "not true", NOT an override of the auto-hide heuristic', () => {
-    // `DetailSection` computes `shouldAutoHideEmpty` from `!section.hideEmpty`,
-    // so an authored `false` is indistinguishable from an unauthored section
-    // and the heuristic still hides empty rows once the thresholds are met.
-    // This is PRE-EXISTING and is NOT changed by #7064 — under the old forced
-    // default the same fixture took the same path, because `?? true` preserved
-    // an authored `false` too. Pinned so a future reader can see that the flip
-    // left this precedence exactly where it found it; whether `false` SHOULD
-    // become a hard override is a separate contract question.
-    renderDetails({
-      sections: [
-        {
-          name: 'deal_terms',
-          label: 'Deal Terms',
-          fields: ['industry', 'stage', 'amount', 'close_date'],
-          hideEmpty: false,
-        },
-      ],
-    });
+  it('the three spellings — absent, `true`, `false` — render the SAME section', () => {
+    // The retirement stated as one assertion, over the two fixtures where the
+    // old read actually decided something. ⚠️ It is deliberately NOT run on a
+    // large sparse section: there the heuristic fires anyway, so all three
+    // spellings agreed even under the old code and the assertion could not
+    // fail. (Measured — the first draft of this test used exactly that fixture
+    // and stayed green through the ablation that reddened everything else.)
+    const fixtures = {
+      // All-empty: the case `DetailSection`'s heuristic reserves. Old code hid
+      // the whole section for `true`.
+      'all-empty': { fields: ['stage', 'amount', 'close_date', 'next_step'], filled: 0, placeholders: 4 },
+      // Small partly-empty: below the auto-hide minimum in both threshold
+      // variants (4 desktop / 3 mobile), so the heuristic never fires. Old code
+      // hid the empty row for `true`.
+      'small partly-empty': { fields: ['industry', 'stage'], filled: 1, placeholders: 1 },
+    };
 
-    expect(screen.getByText('Manufacturing')).toBeInTheDocument();
-    expect(screen.queryByText('stage')).not.toBeInTheDocument();
-    expect(emptyPlaceholders()).toHaveLength(0);
+    const renderedFor = (fields: string[], section: Record<string, unknown>) => {
+      const view = renderDetails({ sections: [{ name: 'deal_terms', label: 'Deal Terms', fields, ...section }] });
+      const shown = {
+        heading: screen.queryAllByText('Deal Terms').length,
+        filled: screen.queryAllByText('Manufacturing').length,
+        placeholders: emptyPlaceholders().length,
+      };
+      view.unmount();
+      return shown;
+    };
+
+    for (const [name, { fields, filled, placeholders }] of Object.entries(fixtures)) {
+      const absent = renderedFor(fields, {});
+      // The live control: the unauthored render really produced the skeleton,
+      // so "all three agree" is not three renders that all produced nothing.
+      expect(absent, name).toEqual({ heading: 1, filled, placeholders });
+
+      expect(renderedFor(fields, { hideEmpty: true }), name).toEqual(absent);
+      expect(renderedFor(fields, { hideEmpty: false }), name).toEqual(absent);
+    }
   });
 });

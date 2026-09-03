@@ -33,6 +33,7 @@ When helping third-party apps, consume these packages; avoid duplicating core ru
 
 Use a strict component schema shape similar to:
 
+<!-- os:check -->
 ```json
 {
   "type": "card",
@@ -106,6 +107,7 @@ Keep custom component registrations namespaced to avoid collisions.
 
 Represent interactions as data where possible:
 
+<!-- os:check -->
 ```json
 {
   "events": {
@@ -169,6 +171,7 @@ page:
 **A `statistic` carries its own text keys**, so both static values and
 expressions work on the node (`statistic` declares `label` / `value` /
 `description`):
+<!-- os:check -->
 ```json
 {
   "type": "statistic",
@@ -181,6 +184,7 @@ expressions work on the node (`statistic` declares `label` / `value` /
 
 **A type that does not declare the key needs a `text` child**, because `content`
 is evaluated on every component type:
+<!-- os:check -->
 ```json
 {
   "type": "card",
@@ -212,6 +216,7 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
 `schema.gantt`) — the `props` envelope is not read here either.
 
 **Grid plugin example:**
+<!-- os:check -->
 ```json
 {
   "type": "object-grid",
@@ -232,6 +237,7 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
 > names no field, so `ObjectGrid` drops it.
 
 **Form plugin example:**
+<!-- os:check -->
 ```json
 {
   "type": "object-form",
@@ -245,6 +251,7 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
 ```
 
 **Kanban plugin example:**
+<!-- os:check -->
 ```json
 {
   "type": "kanban",
@@ -255,6 +262,7 @@ renderers do (`schema.objectName`, `schema.columns`, `schema.fields`,
 ```
 
 **Gantt plugin example:**
+<!-- os:check -->
 ```json
 {
   "type": "gantt",
@@ -279,6 +287,7 @@ carrying both renders the block and warns about the ignored top-level keys.
 Author the `gantt` block.
 
 Import plugins in your app entry point to trigger registration:
+<!-- os:check -->
 ```typescript
 import '@object-ui/plugin-grid';
 import '@object-ui/plugin-form';
@@ -306,6 +315,7 @@ For lazy loading, use `LazyPluginLoader` from `@object-ui/react` rather than top
 
 For host apps that need more than the raw renderer, prefer `@object-ui/app-shell`:
 
+<!-- os:check -->
 ```tsx
 import { AppShell, ObjectView, PageView, DashboardView } from '@object-ui/app-shell';
 ```

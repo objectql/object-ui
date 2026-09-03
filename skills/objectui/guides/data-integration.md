@@ -77,6 +77,7 @@ interface QueryParams {
 
 ### QueryResult
 
+<!-- os:check -->
 ```typescript
 interface QueryResult<T = any> {
   data: T[];                      // Returned data array — required, and NOT named `records`
@@ -185,6 +186,7 @@ adapter.onBatchProgress((event) => {
 
 A component reads the `bind` field only if it calls `useDataScope`:
 
+<!-- os:check -->
 ```json
 {
   "type": "list",
@@ -211,6 +213,7 @@ node**, as below. The one spelling that does carry a provider expression
 through is measured, with its open-question caveat, in
 [`../rules/protocol.md`](../rules/protocol.md).
 
+<!-- os:check -->
 ```json
 {
   "type": "data-table",
@@ -231,6 +234,7 @@ Computed values go through the expression system. `content` is the text key that
 is both expression-evaluated and read back by the renderer, and the provider's
 `dataSource` is reachable under the `data` root:
 
+<!-- os:check -->
 ```json
 {
   "type": "card",
@@ -245,6 +249,7 @@ A `statistic` declares `label` / `value` / `description` as expression-bindable
 (objectui#4795), so these are evaluated on the node and read back. Host-resolved
 literals work exactly as before:
 
+<!-- os:check -->
 ```json
 {
   "type": "statistic",
@@ -265,6 +270,7 @@ different envelope and behaves differently; see
 
 Plugin components that need CRUD operations access the DataSource from context:
 
+<!-- os:check -->
 ```typescript
 import { useSchemaContext } from '@object-ui/react';
 
@@ -343,6 +349,7 @@ bootstrap();
 
 ### Test DataSource helper
 
+<!-- os:check -->
 ```typescript
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 
@@ -355,6 +362,7 @@ export function createTestDataSource() {
 
 If your backend isn't ObjectStack-compatible, implement the DataSource interface:
 
+<!-- os:check -->
 ```typescript
 import type { DataSource, QueryParams, QueryResult } from '@object-ui/types';
 

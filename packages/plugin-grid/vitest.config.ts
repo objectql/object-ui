@@ -1,7 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 
 // objectui#5406 — this config is STANDALONE: it does not import the root
 // `vitest.config.mts`, so nothing routed a package-cwd run here through the

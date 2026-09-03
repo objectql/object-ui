@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import { handlerKeyRefusal } from './tombstone.zod.js';
 
 /**
  * View Type Schema
@@ -114,7 +115,11 @@ export const DetailViewSchema = BaseSchema.extend({
   tabs: z.array(DetailViewTabSchema).optional().describe('Tabs for additional content'),
   showBack: z.boolean().optional().default(true).describe('Show back button'),
   backUrl: z.string().optional().describe('Back button URL'),
-  onBack: z.string().optional().describe('Custom back action'),
+  // RUNTIME SLOT (objectui#7344, the objectui#6182 ruling in the objectui#6124
+  // shape): `detail-view` spreads the node's keys onto `DetailView`, whose
+  // `handleBack` CALLS `onBack()` — a host-supplied function, never the string
+  // this mirror used to accept (which threw `onBack is not a function` at click).
+  onBack: handlerKeyRefusal('onBack', 'runtime-slot', 'Custom back action'),
   showEdit: z.boolean().optional().describe('Show edit button'),
   editUrl: z.string().optional().describe('Edit button URL'),
   showDelete: z.boolean().optional().describe('Show delete button'),

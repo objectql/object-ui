@@ -22,7 +22,6 @@
 import type {
   AdvancedValidationSchema,
   AdvancedValidationRule,
-  ValidationRuleType,
   ValidationFunction,
   AsyncValidationFunction,
   ValidationContext,

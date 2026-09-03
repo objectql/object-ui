@@ -386,6 +386,76 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * headroom convention rather than widening it: 9,137 bytes (0.10x), against the
  * 9,595 (0.11x) the retired pair carried. objectui#6631 still owns the drift.
  *
+ * ## Why `framework` moved DOWN, and where its bytes went — objectui#7399
+ *
+ * From 524,000 over 514,863 to 71,000 over 61,465, and a fourth line appears:
+ * `i18n-locales`, 455,000 over 446,076. Neither number is a payload change. The
+ * console downloads the same eager closure before and after; it is written to
+ * two more files.
+ *
+ * What this ceiling was actually weighing, measured on `e307c9896` from the
+ * emitted chunk's own module list — the `framework` chunk held 166 modules and
+ * only 145 of them came from `core|react|types`, its own test:
+ *
+ *   | packages/i18n             |  16 mod | 78.7% of the chunk's bytes |
+ *   | packages/core             |  67 mod |  9.6% |
+ *   | packages/react            |  63 mod |  4.7% |
+ *   | packages/data-objectstack |   5 mod |  4.6% |
+ *   | packages/types            |  15 mod |  2.3% |
+ *
+ * Five workspace groups in `apps/console/vite.config.ts` sat at `priority: 80`
+ * with `framework` written first, and on that tie the subgraph reached through
+ * `@object-ui/react` was absorbed by the group listed first — a group whose
+ * regex matches NEITHER intruder. So this line was, in operation, a budget on
+ * the TEN LOCALE CATALOGUES: 523,959 measured against 524,000, forty-one bytes
+ * of headroom for the whole repository, while `data-adapter` — declared since
+ * objectui#5490 — emitted no chunk at all.
+ *
+ * ⛔ The expensive half is not the arithmetic. A gate whose message says "you
+ * grew `core|react|types`" when the cause is a translation key teaches a FALSE
+ * RULE, and it was followed: two changes were publicly blamed for bytes they do
+ * not ship (objectui#7399's own retraction). Naming the chunk for what it holds
+ * is what makes the constraint legible where it is authored.
+ *
+ * Lifting the two swallowed groups one tier above the tie (priority 84) gives
+ * each ceiling a subject its name states. Measured across the change:
+ *
+ *   | chunk           | before  | after   |
+ *   | `framework`     | 523,959 |  61,465 |  166 modules -> 140, all core/react/types
+ *   | `i18n-locales`  |       — | 446,076 |  22 modules, 100% packages/i18n
+ *   | `data-adapter`  |       — |  17,846 |  10 modules, 91.8% data-objectstack
+ *   | aggregate       |3,255,233|3,256,012|  +779 B, +0.024%
+ *
+ * The +779 is the cost of two more chunk boundaries — `import` statements in
+ * the chunks that now name two files where they named one — and it is stated
+ * here because it is the ONE thing this change spends. ⛔ It is not headroom to
+ * borrow against, and {@link MAX_EAGER_CLOSURE_GZIP_BYTES} was deliberately NOT
+ * touched: the maintainer ruling of 2026-09-03 authorised a re-attribution and
+ * the per-chunk re-baseline it forces, and nothing else. Its own words:
+ *
+ *     ⛔ The aggregate ceiling is not touched. A′ is a pure re-attribution —
+ *     the browser downloads exactly the same bytes.
+ *
+ * ⚠️ Both new pairs are why the re-baseline is not optional. Left at 524,000
+ * over a 61,465 payload, `framework` sits 5.08x above its own measurement and
+ * {@link evaluateHeadroomSensitivity} returns exit 2 — the blind-gauge verdict,
+ * correctly. The new pairs keep this line's own headroom convention rather than
+ * widening it: 9,535 bytes (0.10x) for `framework`, 8,924 (0.10x) for
+ * `i18n-locales`, against the 9,137 (0.10x) the retired `framework` pair
+ * carried.
+ *
+ * `data-adapter` gets no ceiling. 17,846 bytes is smaller than a dozen
+ * unbudgeted eager chunks, and this constant is a line per BIG chunk, not a
+ * line per named group; inventing one for it would be a number with no
+ * incident behind it.
+ *
+ * ⭐ Read the new `i18n-locales` headroom for what it is. 8,924 bytes is about
+ * sixty translation keys at the measured ~147 gzipped bytes a short key costs
+ * across ten locales — enough for the five PRs this unparked, and then the
+ * AGGREGATE line (11,988 bytes of headroom) becomes the binding one. That is the
+ * correct place for the constraint to live, and it is the argument for taking
+ * the catalogues out of the eager closure rather than for raising anything.
+ *
  * ## Raising one
  *
  * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
@@ -401,7 +471,8 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  */
 export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   'vendor-objectstack': 967_000,
-  framework: 524_000,
+  'i18n-locales': 455_000,
+  framework: 71_000,
   'ui-components': 399_000,
 });
 
@@ -412,13 +483,22 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * three numbers taken on two is the drift objectui#6631 is open about:
  *
  *   - `vendor-objectstack`, `ui-components` — `2c8474c04` (objectui#5490).
- *   - `framework` — the merged head of objectui#7173's branch; see "Why
- *     `framework` moved again" above for the three-build attribution. It
- *     supersedes `a64e96ca8` (objectui#6759), whose reading the paragraph above
- *     that one still explains. Safe to state rather than hope, for the reason {@link BASELINE}
- *     gives about its own commit: the console build's turbo `inputs` cover
- *     `scripts/vite-*.ts`, not `scripts/check-*.mjs`, so the commit that
- *     records this figure cannot have changed the figure.
+ *   - `framework`, `i18n-locales` — `e307c9896` plus objectui#7399's own
+ *     re-attribution diff; see "Why `framework` moved DOWN" above. Both were
+ *     read from ONE console build, so they are directly comparable to each
+ *     other and to the 523,959 the same tree measured with the groups still
+ *     tied. This `framework` reading supersedes objectui#7173's, whose
+ *     three-build attribution the paragraph above that one still explains, and
+ *     objectui#6759's `a64e96ca8` before it.
+ *
+ *     ⚠️ Unlike every other entry here, these two are NOT a reading of an
+ *     unmodified tree: the chunks they name do not exist without the diff that
+ *     recorded them, because that diff is what creates the second one. The
+ *     `scripts/vite-*.ts`-versus-`scripts/check-*.mjs` argument {@link BASELINE}
+ *     makes about its own commit does NOT cover them — `apps/console/vite.config.ts`
+ *     IS a build input, deliberately, and moving it is the change. What keeps
+ *     them honest instead is that the gate re-reads them on every CI build of
+ *     the branch that carries the diff.
  *
  * Exported so the ceilings are CHECKED against it instead of merely asserted
  * in this comment.
@@ -482,7 +562,8 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  */
 export const PER_CHUNK_BASELINE = Object.freeze({
   'vendor-objectstack': 948_461,
-  framework: 514_863,
+  'i18n-locales': 446_076,
+  framework: 61_465,
   'ui-components': 391_095,
 });
 

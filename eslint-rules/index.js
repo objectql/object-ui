@@ -9,6 +9,7 @@ import noQueryParamsUnderOptions from './no-query-params-under-options.js';
 import noUnprefixedQueryParams from './no-unprefixed-query-params.js';
 import buttonHasType from './button-has-type.js';
 import noUnpairedBadgeColorClasses from './no-unpaired-badge-color-classes.js';
+import noUnusedImports from './no-unused-imports.js';
 
 export default {
   rules: {
@@ -20,5 +21,6 @@ export default {
     'no-unprefixed-query-params': noUnprefixedQueryParams,
     'button-has-type': buttonHasType,
     'no-unpaired-badge-color-classes': noUnpairedBadgeColorClasses,
+    'no-unused-imports': noUnusedImports,
   },
 };

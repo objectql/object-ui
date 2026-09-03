@@ -104,8 +104,15 @@ describe('objectui#6424 — the holds interface after the headerIcon expiry', ()
       'headerIcon' extends RetiredListColumnKey ? false : true
     >;
     // Controls, same shapes: a real `ListColumn` member, and a key that IS in the band.
+    // ⚠️ The in-band control was `wrap` until objectui#6650. It stopped being a
+    // valid example the moment `TableColumn` declared that key — the band is
+    // `Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>`, so a declared
+    // key leaves it by construction — and this line went red at compile time
+    // saying so, which is the band behaving exactly as designed. `summary` is a
+    // `ListColumn` member no `TableColumn` declares, so it plays the same role
+    // without depending on a key whose verdict is now settled the other way.
     type _CtrlListColumn = Expect<Has<'width', ListColumn>>;
-    type _CtrlInBand = Expect<'wrap' extends RetiredListColumnKey ? true : false>;
+    type _CtrlInBand = Expect<'summary' extends RetiredListColumnKey ? true : false>;
     expect(true).toBe(true);
   });
 
@@ -120,8 +127,12 @@ describe('objectui#6424 — the holds interface after the headerIcon expiry', ()
    * resolved members to 26, `pinned` gone. Deleting `headerIcon` left them
    * byte-identical — that pair of ablations is what this verdict rests on.)
    *
-   * It also has the second road `wrap` lacked: this file's reorder pass reads
-   * it and re-expresses it as the sticky `className` `data-table` reads.
+   * It also has a second road: this file's reorder pass reads it and
+   * re-expresses it as the sticky `className` `data-table` reads. `wrap` had no
+   * such road when this was written, which is why the two keys were graded
+   * differently; objectui#6650 later gave `wrap` a first road instead — a real
+   * consumer in `data-table.tsx` — so it is a declared key today, not a held
+   * one, and `pinned` remains the only member of the holds interface.
    */
   it('`pinned` is still load-bearing — undeclared by `TableColumn` and outside the band', () => {
     type _Undeclared = Expect<Has<'pinned', TableColumn> extends false ? true : false>;

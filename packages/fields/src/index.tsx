@@ -15,7 +15,7 @@ import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeL
 import { valueSchemaFor } from '@objectstack/spec/data';
 import { useLocalization, useDisplayLocale, formatDisplayNumber } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
-import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
+import { Check, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
 import { useRelatedRecordActions } from '@object-ui/react';

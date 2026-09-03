@@ -7,8 +7,6 @@
  */
 
 import chalk from 'chalk';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
 
 export async function add(component: string) {
   console.log(chalk.bold(`Object UI Add: ${component}`));
