@@ -65,7 +65,6 @@ export type {
   GestureType,
   GestureConfig,
   GestureContext,
-  MobileComponentConfig,
   SpecGestureConfig,
   SwipeGestureConfig,
   PinchGestureConfig,

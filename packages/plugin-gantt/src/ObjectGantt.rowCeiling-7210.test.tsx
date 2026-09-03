@@ -26,11 +26,22 @@
  * DUPLICATE schema-driven query; nothing here is about that, and the two are
  * separate commits on this branch for that reason.
  *
- * REVERSE VERIFICATION — direction and counts predicted before running:
- * removing `$top: NON_GRID_ROW_CEILING_TOP` from `ObjectGantt`'s reload turns
- * the truncation case red at the FOOTNOTE assertion (no probe row ⇒
- * `truncated` false ⇒ no note) while the below-ceiling case stays green,
- * i.e. 1 failed / 2 passed.
+ * REVERSE VERIFICATION — MEASURED, and corrected from what this docblock used
+ * to predict (objectui#7507). Removing `$top: NON_GRID_ROW_CEILING_TOP` from
+ * `ObjectGantt`'s reload turns the truncation case red at the **`$top`
+ * assertion**, 1 failed / 2 passed; the below-ceiling case stays green.
+ *
+ * ⚠️ It does NOT go red at the footnote. The prediction that it would — "no
+ * probe row ⇒ `truncated` false ⇒ no note" — reads the mechanism backwards,
+ * and a wrong mechanism in a docblock is worse than none, because the next
+ * reader trusts it while deciding what an edit is safe to break. What actually
+ * happens: an adapter with no `$top` answers with the WHOLE filtered set, so
+ * `applyNonGridRowCeiling` sees far more rows than the ceiling, slices to it,
+ * and reports `truncated` from the rows in hand. The drawn count stays 2,000
+ * and the note still names both numbers. The probe row bounds the RESPONSE; it
+ * is not what makes truncation detectable once an unbounded one has arrived.
+ * So in this file the `$top` is graded by the `$top` assertion and by nothing
+ * else — which is the reason that assertion is not redundant with the note.
  */
 
 import React from 'react';
