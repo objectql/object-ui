@@ -44,6 +44,14 @@ export {
 export { enumOptions, shapeEnumOptions } from './spec-enum-options';
 
 /**
+ * The array-element reader (objectui#5872 class (2)). Stands on the same
+ * `spec-zod-wrappers.ts` walk `enumOptions` does; the walk itself is NOT
+ * exported, because it is plumbing between the two readers rather than
+ * something a gate should hold.
+ */
+export { arrayElementSchema } from './spec-array-element';
+
+/**
  * The Zod wrapper-key vocabulary (objectui#6923). The DATA lives in
  * `zod-wrapper-keys.json` so that `node scripts/check-*.mjs` can read the same
  * bytes through `@object-ui/test-support/zod-wrapper-keys` — the one thing this
