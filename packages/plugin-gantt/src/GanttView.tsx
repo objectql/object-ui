@@ -872,6 +872,8 @@ export function GanttView({
   const dateLocale = language || undefined;
   const [currentDate, setCurrentDate] = React.useState(() => tzShift.now());
   const containerRef = React.useRef<HTMLDivElement>(null);
+  // Observed container width — the source every auto-sized dimension below
+  // derives from: row height, base column width, and the task-list pane width.
   const { width: containerWidth } = useResizeObserver(containerRef);
   const effectiveWidth = containerWidth || (typeof window !== 'undefined' ? window.innerWidth : 1024);
   const isNarrow = effectiveWidth < 640;
@@ -2320,8 +2322,6 @@ export function GanttView({
       .filter((m) => m.valid);
   }, [markers, timelineRange, dateToX]);
 
-  const taskListWidth_LEGACY_REMOVED = null; // taskListWidth now derived from useResizeObserver above
-  
   const headerRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const timelineRef = React.useRef<HTMLDivElement>(null);
