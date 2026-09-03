@@ -37,9 +37,12 @@ import { hasAutoTrigger, useAutoTriggerOnce } from './auto-trigger';
  * `bodyShape`, `locations`, `enabled`, `size` — is declared by the modern type
  * and by no other, and the legacy `crud.ts` `ActionSchema` it used to name is
  * `@deprecated` and requires `type: 'action'` (this renderer serves
- * `'script' | 'url' | 'modal' | 'flow' | 'api'`). `actionType` stays on the
- * intersection: it is the legacy-shaped override this renderer reads FIRST
- * (`schema.actionType || schema.type`), and it is not a `UIActionSchema` key.
+ * `'script' | 'url' | 'modal' | 'flow' | 'api'`).
+ *
+ * `actionType` is the DECLARED input carrying the action's execution type
+ * (objectui#7415, objectstack#14490 ruling A). `type` stays on the intersection
+ * as the SDUI envelope's component discriminator — `'action:button'` on every
+ * authored path — and is no longer read as an action type by anything here.
  */
 export interface ActionButtonProps {
   schema: UIActionSchema & { type: string; className?: string; actionType?: string };
@@ -145,7 +148,16 @@ const ActionButtonRenderer = forwardRef<
         // object that reaches `execute` is identical — see
         // `__tests__/action-forward-precedence.test.tsx`.
         const forwarded: ActionDef = {
-          type: schema.actionType || schema.type,
+          // The declared input, renamed off the colliding `type` spelling by
+          // objectui#7415: on the SDUI envelope `type` is the component
+          // discriminator, so on every authored path (`SchemaRenderer`, the
+          // react-page wrapper, `action:bar`'s member spread) `schema.type` is
+          // `'action:button'` and never an action type. No `|| schema.type`
+          // fallback — the ruling is a rename with no alias and no transition
+          // window; a declaration that omits `actionType` now leaves this
+          // `undefined` and `ActionRunner.execute` falls through to its
+          // `action.name` leg, instead of being handed the component id.
+          type: schema.actionType,
           name: schema.name,
           // Forward the human label/description so a param-collection dialog
           // can title itself as the action ("Create Environment") instead of a
@@ -287,7 +299,7 @@ ComponentRegistry.register('button', ActionButtonRenderer, {
     { name: 'label', type: 'string', label: 'Label', defaultValue: 'Action' },
     { name: 'icon', type: 'string', label: 'Icon' },
     {
-      name: 'type',
+      name: 'actionType',
       type: 'enum',
       label: 'Action Type',
       enum: ['script', 'url', 'modal', 'flow', 'api'],
@@ -312,7 +324,7 @@ ComponentRegistry.register('button', ActionButtonRenderer, {
   ],
   defaultProps: {
     label: 'Action',
-    type: 'script',
+    actionType: 'script',
     variant: 'default',
     size: 'md',
   },

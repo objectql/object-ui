@@ -47,7 +47,11 @@ describe('DataEmptyState — role default (#7132)', () => {
     expect(container.textContent).toContain('Nothing here yet');
   });
 
-  it('OVERRIDE: a call site passing role="alert" keeps it (the load-error borrow)', () => {
+  // The borrow this arm was written for is gone — `plugin-list`'s load-failure
+  // panel moved to `DataErrorState` in objectui#7143 — but the mechanism it
+  // measures is the reason the default is safe to have, so it is kept and
+  // renamed rather than retired with the call site that motivated it.
+  it('OVERRIDE: a call site passing role="alert" keeps it', () => {
     const { container } = render(<DataEmptyState role="alert" title="You don’t have access" />);
     expect(emptyBox(container)!.getAttribute('role')).toBe('alert');
   });

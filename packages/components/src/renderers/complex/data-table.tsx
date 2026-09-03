@@ -2247,6 +2247,44 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       {columns.map((col, colIndex) => {
                         const isFit = col.fitContent === true
                           && !columnWidths[col.accessorKey] && !col.width;
+                        // objectui#6650 (maintainer ruling 2026-09-02, Option B).
+                        // `TableColumn.wrap` — the authored `ListColumn.wrap`
+                        // that `@objectstack/spec` declares and describes to
+                        // authors as "Allow text wrapping" — turns this cell's
+                        // one-line clamp OFF: the body renders
+                        // `whitespace-normal break-words` in place of
+                        // `truncate`. Absent or `false` renders exactly what
+                        // shipped before.
+                        //
+                        // ⭐ PRECEDENCE, and it is a decision this card was
+                        // told to make and pin: `fitContent` WINS. The two keys
+                        // do not compose. A fit cell is `width:1%` with
+                        // `minWidth`/`maxWidth` left undefined (see the style
+                        // object below), so the auto table layout sizes that
+                        // column from its content alone: `whitespace-nowrap`
+                        // makes the content's min-content width equal its
+                        // max-content width — one line — and dropping nowrap
+                        // drops min-content back to the longest WORD. Honouring
+                        // `wrap` on a fit column therefore does not wrap it, it
+                        // COLLAPSES it.
+                        //
+                        // Measured (Chromium 1194, this cell shape reproduced
+                        // exactly — 900px container, auto layout, sibling
+                        // column at 400px; harness and numbers in the PR body):
+                        // the fit cell is 463.9px wide on ONE line with nowrap
+                        // and 70.9px wide over TEN lines without it — 6.5x
+                        // narrower and 5.9x taller. That is not the affordance
+                        // the author asked for by either key.
+                        //
+                        // ⚠️ Note what the same measurement does NOT show:
+                        // the shipped fit producer — `ObjectGrid`'s injected
+                        // `_actions` column — measures identically both ways
+                        // (179px), because `RowActionMenu` carries its own
+                        // `whitespace-nowrap` on a nowrap flex row. So the
+                        // collapse is not a risk to that column; it is what a
+                        // TEXT column authored with both keys would get, and
+                        // that is the case this branch refuses.
+                        const isWrap = col.wrap === true && !isFit;
                         const columnWidth = isFit
                           ? '1%'
                           : (columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey]);
@@ -2495,7 +2533,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                               })()
                             ) : (
                               <div
-                                className={isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'}
+                                className={
+                                  isFit
+                                    ? 'w-full whitespace-nowrap'
+                                    : isWrap
+                                      ? 'w-full whitespace-normal break-words'
+                                      : 'truncate w-full'
+                                }
                                 title={!isFit && cellValue != null && typeof cellValue !== 'object' ? String(cellValue) : undefined}
                               >
                                 {typeof col.cell === 'function'

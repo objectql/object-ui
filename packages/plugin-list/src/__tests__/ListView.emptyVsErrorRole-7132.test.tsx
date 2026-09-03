@@ -19,13 +19,20 @@
  *
  * Two things are pinned here because they are separable and either can regress
  * alone: the empty branch takes the platform default (#7132), and the error
- * branch — which borrows `DataEmptyState` purely for its layout — overrides it
- * back to `alert` so the default cannot mislabel a failure as a status.
+ * branch declares `alert` at its own call site so no default can mislabel a
+ * failure as a status.
  *
- * SUITE DIRECTION, predicted before running: the EMPTY arm is red against
- * `origin/main`; the ERROR arm is green in both worlds (its `role="alert"` is
- * typed at the call site, not inherited), and is here as the negative control
- * that keeps a suite collapsed to "no tests" from reading as the fix.
+ * ⚠️ Since objectui#7143 the error branch is a `DataErrorState`, not a borrowed
+ * `DataEmptyState` — the migration this suite's original prose said had not
+ * happened yet. That does NOT retire either arm: `role="alert"` is still typed
+ * at the call site rather than inherited, which is what keeps this suite a pin
+ * on the CALL SITE and not on whichever primitive it currently draws with.
+ * Component identity is pinned separately, in `ListView.errorStateComponent-7143`.
+ *
+ * SUITE DIRECTION, predicted before running (against #7132's base): the EMPTY
+ * arm is red against `origin/main`; the ERROR arm is green in both worlds, and
+ * is here as the negative control that keeps a suite collapsed to "no tests"
+ * from reading as the fix.
  */
 
 import { describe, it, expect, vi } from 'vitest';
