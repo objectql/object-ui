@@ -261,7 +261,7 @@ export const DataTableSchema = BaseSchema.extend({
   selectable: z.union([z.boolean(), z.enum(['single', 'multiple'])]).optional().describe('Enable row selection — `true`/`multiple` = multi-select, `single` = replace-on-select with no select-all'),
   sortable: z.boolean().optional().describe('Enable sorting'),
   exportable: z.boolean().optional().describe('Enable data export'),
-  rowActions: z.array(z.any()).optional().describe('Row action buttons'),
+  rowActions: z.boolean().optional().describe('Show the row actions column (edit/delete) — mirrors the boolean the renderer truthiness-tests (objectui#6940)'),
   resizableColumns: z.boolean().optional().describe('Allow column resizing'),
   reorderableColumns: z.boolean().optional().describe('Allow column reordering'),
   onRowEdit: handlerKeyRefusal('onRowEdit', 'runtime-slot', 'Row edit handler'),

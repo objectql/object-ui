@@ -57,7 +57,9 @@
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **37 entries** in `KnownDrift`, **53 keys** across them. It was 12 / 17 until
+ *   - **37 entries** in `KnownDrift`, **52 keys** across them — 53 until objectui#6940
+ *     REPAIRED `DataTableSchema.rowActions` (the entry kept its other four keys, so
+ *     the entry count did not move). It was 12 / 17 until
  *     objectui#6124 added the RUNTIME-SLOT class (28 pairs touched, 35 keys) — see
  *     the class note inside the ledger, above `ButtonSchema` — and 36 / 52 until
  *     objectui#6576 minted `ObjectDataTableSchema` with one such arm (`onRowClick`).
@@ -732,10 +734,18 @@ interface KnownDrift {
   /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
   'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick';
   /**
-   * `rowActions` — DISJOINT: TS declares `rowActions?: boolean` (show the column or
-   * not), the mirror declares `any[]` (the actions themselves). One of the two is
-   * dead; which is a ruling. (`selectable` was a second drifted key here until
-   * objectui#5927 widened the mirror to `boolean | 'single' | 'multiple'` —
+   * `rowActions` was the FIFTH key here until objectui#6940 settled the ruling
+   * this entry was explicitly waiting on. It read: DISJOINT — TS declares
+   * `rowActions?: boolean` (show the column or not), the mirror declared
+   * `any[]` (the actions themselves); one of the two is dead, which is a
+   * ruling. The maintainer ruled the TS side live (2026-09-02, director seat
+   * summon #8, option A): the renderer only truthiness-tests the key, so the
+   * `any[]` face was the dead one, and the mirror became
+   * `z.boolean().optional()`. The pair is now IN PARITY on that key, so it left
+   * this entry — this ledger fails on a repair exactly as it fails on new
+   * drift, which is why correcting this line was part of that change and not
+   * optional. (`selectable` was likewise a drifted key here until objectui#5927
+   * widened the mirror to `boolean | 'single' | 'multiple'` —
    * `resolveSelectionMode` in `renderers/complex/data-table.tsx` implements
    * `'single'` as a real mode.)
    *
@@ -744,7 +754,7 @@ interface KnownDrift {
    * `schema.onSelectionChange(selectedData)`, …), so the TS side keeps them callable
    * and the mirror refuses them by name.
    */
-  'data-display.zod.ts#DataTableSchema': 'rowActions' | 'onRowEdit' | 'onRowDelete' | 'onSelectionChange' | 'onColumnsReorder';
+  'data-display.zod.ts#DataTableSchema': 'onRowEdit' | 'onRowDelete' | 'onSelectionChange' | 'onColumnsReorder';
   /** RUNTIME SLOT (objectui#6124): the `accordion` renderer spreads leftover props onto the Radix `Accordion` root, where `onValueChange` is a real prop. */
   'disclosure.zod.ts#AccordionSchema': 'onValueChange';
   /** RUNTIME SLOT (objectui#6124): the `collapsible` renderer spreads leftover props onto the Radix `Collapsible` root. */
