@@ -130,7 +130,7 @@ const childObject = (list?: unknown) => ({
     id: { type: 'text', label: 'Id' },
     name: { type: 'text', label: 'Name' },
     seq_no: { type: 'number', label: 'Seq No' },
-    [PARENT]: { type: 'master_detail', reference_to: PARENT, label: 'Task Version' },
+    [PARENT]: { type: 'master_detail', reference: PARENT, label: 'Task Version' },
   },
 });
 

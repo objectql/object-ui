@@ -294,10 +294,15 @@ export function RecordDetailDrawer({
         // both snake_case keys from whichever spelling arrived) — never by a
         // renderer-side alias.
         //
-        // The two remaining arms are deliberately left standing: deciding
-        // between them per reader is objectui#6837's OPEN scope (the
-        // classification table over ~20 more readers), not this slice's.
-        reference_to: def.reference_to ?? def.reference,
+        // objectui#6837 half 2 deleted the last read arm too: the RIGHT-hand
+        // side now reads `reference` alone, the only spelling the protocol
+        // declares. ⚠️ The LEFT-hand key is unchanged and must stay
+        // `reference_to` — it is the key this emit's TARGET contract declares
+        // (`DetailViewField` / `DetailViewFieldSchema` in `@object-ui/types`,
+        // which declares `reference_to` and never declares `reference`).
+        // Narrowing the read is protocol compliance; renaming the emitted key
+        // would be a separate view-contract change with its own weight.
+        reference_to: def.reference,
         reference_field: def.reference_field ?? def.referenceField,
         required: def.required,
         validation: def.validation,

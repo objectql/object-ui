@@ -35,9 +35,17 @@ export interface KanbanColumn {
    */
   title: string;
   /**
-   * Column cards/items
+   * Cards in this column.
+   *
+   * Named `cards` because that is what every board reads and every authored
+   * document writes: `KanbanImpl` (12 lines), `KanbanEnhanced` (8) and
+   * `bucketCardsIntoColumns` all read `column.cards`, and the two catalog
+   * entries, the plugin docs and `content/docs/api/schema-reference.md` all
+   * author it. This member was spelled `items` until objectui#6939 — a
+   * spelling with zero read sites, which made every authored board fail
+   * `safeValidateSchema` while rendering correctly (objectui#6318's bucket).
    */
-  items: KanbanCard[];
+  cards: KanbanCard[];
   /**
    * Column color/variant
    */

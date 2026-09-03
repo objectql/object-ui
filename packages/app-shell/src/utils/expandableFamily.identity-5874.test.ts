@@ -104,7 +104,7 @@ const PICKER_KEYS = [
 const field = (type: string) => ({
   type,
   label: type,
-  reference_to: 'accounts',
+  reference: 'accounts',
   display_field: 'name',
   id_field: 'id',
   description_field: 'website',

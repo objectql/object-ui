@@ -239,7 +239,15 @@ export function deriveRelatedLists(
       if (!fieldDef) continue;
       const type = fieldDef.type;
       if (type !== 'lookup' && type !== 'master_detail') continue;
-      if ((fieldDef.reference_to || fieldDef.reference) !== parentName) continue;
+      // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+      // belongs on the SERVER, the front end just executes the protocol.
+      // `reference` is the only target spelling `@objectstack/spec`'s
+      // `FieldSchema` declares; it refuses `reference_to` by name with its own
+      // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+      // stored `reference_to` on the serve path and in `os migrate meta`. A
+      // legacy-only def is canonicalised ONCE at the ingestion choke point
+      // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+      if (fieldDef.reference !== parentName) continue;
       if (AUDIT_FK_FIELDS.has(fieldName)) continue;
       // Explicit opt-out lives on the relationship.
       if (fieldDef.relatedList === false) continue;

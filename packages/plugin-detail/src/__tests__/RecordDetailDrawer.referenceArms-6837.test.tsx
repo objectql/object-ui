@@ -81,11 +81,26 @@
  * whose own docstring says it exists "so per-consumer dual-key fallbacks can't
  * drift".
  *
- * ⛔ The two SURVIVING arms are out of this slice's scope. Deciding between
- * `reference_to` and `reference` per reader is objectui#6837's OPEN scope (the
- * classification table over ~20 more readers across eight other packages), and
- * triage refused a single mechanical sweep because those readers are fed by
- * different contracts. #6837 stays open.
+ * ⭐ THAT OPEN SCOPE IS NOW CLOSED FOR THIS READER — objectui#6837 half 2.
+ * Maintainer ruling 2026-08-31 (第 6 场总监席决裁批 #14), 原文照录:
+ * "objectui不是前端的项目吗?后端的元数据只要对,前端按协议执行就行了呀".
+ * Protocol normalization belongs on the SERVER. objectstack#13847 landed that
+ * half — a `field-reference-to-alias` conversion rewrites stored
+ * `reference_to` -> `reference` on the serve path and in `os migrate meta` —
+ * so this reader keeps ONE arm, `reference`, and the `reference_to` case below
+ * moved from the live group to the refusal group.
+ *
+ * ⛔ The tier-boundary caveat this paragraph used to carry is NOT retracted, it
+ * is SCOPED: it was always about ObjectUI's OWN contracts, and those keep
+ * `reference_to` as their canonical key. `LookupFieldMetadata`,
+ * `DetailViewFieldSchema` and the `FieldMetadata` bag declare `reference_to`
+ * and never declare `reference`, so the three widget-seam readers that read
+ * THAT bag (`fields/src/index.tsx#LookupCellRenderer`,
+ * `widgets/LookupField.tsx`, `widgets/UserField.tsx`) were deliberately NOT
+ * narrowed by half 2 — narrowing them would break their in-repo producers and
+ * turn `plugin-grid`'s `relationalMetaCopySet.derivation.test.ts` red, since
+ * that gate re-derives its read set from exactly those three sources and
+ * records `reference_to` there with verdict `adapter-stamped`.
  *
  * ## 5. Ablation direction, predicted before running
  *
@@ -119,10 +134,12 @@ vi.mock('../DetailView', () => ({
 
 /** Every probe is a `lookup`, so only the target SPELLING varies between them. */
 const FIELD_DEFS: Record<string, Record<string, unknown>> = {
-  // Live arms — the two spellings a contract actually carries at this seam.
-  canonical: { type: 'lookup', label: 'Canonical', reference_to: 'crm_account' },
+  // Live arm — the ONE spelling the protocol declares. objectui#6837 half 2
+  // deleted the `reference_to` READ too; the drawer still EMITS `reference_to`,
+  // because that is the key its target contract (`DetailViewField`) declares.
   spec_spelling: { type: 'lookup', label: 'Spec', reference: 'crm_account' },
   // Deleted arms — refused by name, zero producers in the cell.
+  legacy_snake: { type: 'lookup', label: 'Legacy snake', reference_to: 'crm_account' },
   legacy_camel: { type: 'lookup', label: 'Legacy camel', referenceTo: 'crm_account' },
   invented: { type: 'lookup', label: 'Invented', target: 'crm_account' },
   // Non-relation control: carries no target spelling at all.
@@ -131,7 +148,7 @@ const FIELD_DEFS: Record<string, Record<string, unknown>> = {
 
 const RECORD: Record<string, unknown> = {
   id: 'r1',
-  canonical: 'acc-1',
+  legacy_snake: 'acc-1',
   spec_spelling: 'acc-1',
   legacy_camel: 'acc-1',
   invented: 'acc-1',
@@ -163,10 +180,6 @@ function resolvedTarget(name: string, fields: Record<string, unknown> = FIELD_DE
 
 describe('RecordDetailDrawer resolves only contract-declared target spellings (objectui#6837)', () => {
   describe('live arms — the value still arrives (without these, a drawer that stopped resolving anything would pass the refusals too)', () => {
-    it("resolves `reference_to`, ObjectUI's own view/field key", () => {
-      expect(resolvedTarget('canonical')).toBe('crm_account');
-    });
-
     it('resolves `reference`, the spelling `FieldSchema` accepts', () => {
       expect(resolvedTarget('spec_spelling')).toBe('crm_account');
     });
@@ -176,17 +189,21 @@ describe('RecordDetailDrawer resolves only contract-declared target spellings (o
       // produced no fields at all would satisfy every `toBeUndefined()`.
       const names = resolveFields(FIELD_DEFS).map((f: any) => f.name);
       expect(names).toEqual(
-        expect.arrayContaining(['canonical', 'spec_spelling', 'legacy_camel', 'invented', 'plain_text']),
+        expect.arrayContaining(['spec_spelling', 'legacy_snake', 'legacy_camel', 'invented', 'plain_text']),
       );
     });
 
     it('marks the relation fields readonly, so the list is genuinely populated', () => {
-      const f = resolveFields(FIELD_DEFS).find((x: any) => x.name === 'canonical');
+      const f = resolveFields(FIELD_DEFS).find((x: any) => x.name === 'spec_spelling');
       expect(f?.readonly).toBe(true);
     });
   });
 
   describe('refusals — one named case per deleted key', () => {
+    it('does NOT read `reference_to` (objectui#6837 half 2: `FieldSchema` refuses it by name with its own rename hint; objectstack#13847 normalizes it away on the serve path)', () => {
+      expect(resolvedTarget('legacy_snake')).toBeUndefined();
+    });
+
     it("does NOT read `referenceTo` (RETIRED_FIELD_KEYS, objectui#6041/#6519; `FieldSchema` refuses it by name)", () => {
       expect(resolvedTarget('legacy_camel')).toBeUndefined();
     });

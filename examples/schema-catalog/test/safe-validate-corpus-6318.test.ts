@@ -44,8 +44,7 @@
  * ⛔ This file deliberately does NOT pin the size of the remaining bucket. The
  * 28 entries still in it are open findings on the Zod union (`tooltip` and
  * `context-menu` demand a `children` their renderers never read; `tree-view`
- * demands `data` where the renderer reads `nodes` first; `kanban` declares
- * `columns[].items` where the board reads `columns[].cards`; and so on), and a
+ * demands `data` where the renderer reads `nodes` first; and so on), and a
  * number pinned here would turn red on the card that repairs any one of them.
  */
 import { describe, it, expect } from 'vitest';
