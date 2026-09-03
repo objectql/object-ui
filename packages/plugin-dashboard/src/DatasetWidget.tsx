@@ -1401,8 +1401,23 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // those series are dimension VALUES, not measures, so there is no per-measure
   // series a comparison could pair with (the `__compare` columns are still in
   // the rows — nothing is lost, it just isn't drawn as an overlay).
+  //
+  // Skipped, too, for a chart family that IGNORES `compareTo` — today just
+  // `scatter`, which both the `scatter` and `bubble` widget types map to
+  // (CHART_TYPE_MAP above). A scatter binds ONE measure to its y axis, so the
+  // overlay was drawn through the PRIMARY's `YAxis dataKey` and painted
+  // "previous period" exactly on top of "current" (objectui#7402). It returns
+  // with the multi-measure projection declined as option A of objectui#7194.
+  // The sibling declaration for the inline chart path is `supportsCompareTo`
+  // in `@object-ui/plugin-charts`' ObjectChart; this is a second, deliberately
+  // narrow copy because plugin-charts is a devDependency here, not a runtime
+  // one. ⚠️ That list also excludes pie / donut / funnel and this one does
+  // not — a divergence older than this line, filed as objectui#7495 (the
+  // renderer drops the extra series for those families, so nothing is
+  // mis-drawn; the comparison query still runs).
+  const chartIgnoresCompareTo = chartType === 'scatter';
   const pivotedSeries = dimensions.length >= 2 && values.length === 1;
-  const comparisonSeries = pivotedSeries
+  const comparisonSeries = pivotedSeries || chartIgnoresCompareTo
     ? []
     : comparedValues.map((m) => {
         // An overlay is the SAME measure one period back, so it takes its

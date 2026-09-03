@@ -21,9 +21,9 @@ executor re-runs the same selection over the shifted window and attaches a
 
 - For **metric** & **gauge** widgets, a delta percentage surfaced as a `trend`
   indicator (overrides any static `trend` prop).
-- For **chart** widgets (line / area / bar / horizontal-bar / scatter / combo),
-  a muted second series (dashed line, lower fill opacity). Pie, donut, and
-  funnel charts ignore `compareTo`.
+- For **chart** widgets (line / area / bar / horizontal-bar / combo), a muted
+  second series (dashed line, lower fill opacity). Pie, donut, funnel and
+  scatter charts ignore `compareTo`.
 - For **table** widgets, a comparison column beside each compared measure.
 - For a **pivot** cross-tab (`type: 'pivot'` with ≥2 dimensions), the comparison
   is stacked **inside** the cell — current value on top, comparison value and
@@ -159,6 +159,10 @@ running over a window nobody asked for.
   or omit `compareTo` entirely.
 - Pie / donut / funnel charts — comparison overlays are not visually
   meaningful and are silently ignored.
+- Scatter charts, and the `bubble` widget type that renders as one — a scatter
+  binds ONE measure to its y axis, so an overlay could only be drawn on the
+  primary's own y. `compareTo` is ignored until scatter can project a second
+  measure (objectui#7194 option A); ruled in objectui#7402.
 
 ## Related
 
