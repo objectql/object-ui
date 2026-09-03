@@ -7,7 +7,7 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState } from '@object-ui/components';
+import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState, DataErrorState } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
@@ -3793,14 +3793,20 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             gets a consistent indicator instead of momentarily showing an
             empty state on slow networks. */}
         {loadError && data.length === 0 ? (
-          <DataEmptyState
-            // This panel is NOT an empty state — it is the load FAILURE, and it
-            // borrows `DataEmptyState` only for its layout. Since objectui#7132
-            // that component defaults to `role="status"`, which would announce a
-            // 403 or an outage as a routine status update, so this call site
-            // declares what it actually is. (Measured: before #7132 neither this
-            // panel nor the empty state below carried any role, so "you don't
-            // have access" and "nothing here yet" were the same node shape.)
+          <DataErrorState
+            // This panel IS the load failure, and since objectui#7143 it is
+            // rendered by the component named for that — `DataErrorState` —
+            // rather than borrowing `DataEmptyState` for its layout. The two
+            // primitives share a layout and differ by declared role, so the
+            // migration moved no pixels: the only rendered changes are two
+            // `data-slot` renames — this node's, from `data-empty-state` to
+            // `data-error-state`, and the icon wrapper's to match.
+            //
+            // `role="alert"` stays spelled out here, as objectui#7132 left it.
+            // It is now the primitive's own default rather than an override, and
+            // it is kept at the call site on purpose: this panel must announce a
+            // 403 or an outage as an alert whatever the component it is drawn
+            // with, and that property is pinned against THIS call site.
             role="alert"
             data-testid="list-error-state"
             data-error-kind={loadErrorKind}
@@ -3816,14 +3822,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                     : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedTitle'
                       : 'list.loadErrorTitle',
             )}
-            description={t(
+            message={t(
               loadErrorKind === 'api-disabled' ? 'list.loadErrorApiDisabledMessage'
                 : loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenMessage'
                   : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedMessage'
                     : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedMessage'
                       : 'list.loadErrorMessage',
             )}
-            action={loadErrorKind === 'api-disabled' ? undefined : (
+          >
+            {/* The retry control rides `children`, not `onRetry`: the built-in
+                button carries neither this `data-testid` nor the RotateCw glyph,
+                and `children` renders at the identical position `action` did on
+                the empty state. `DataErrorState` grew three icon props for this
+                migration and no fourth — an `action` prop would be a second
+                spelling of an affordance it already has. */}
+            {loadErrorKind === 'api-disabled' ? null : (
               // No Retry for an `enable`-block denial. The verdict is a pure
               // function of the object's metadata, so every retry re-fetches
               // the identical refusal — offering the button is the same wrong
@@ -3838,7 +3851,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                 {t('list.retry')}
               </Button>
             )}
-          />
+          </DataErrorState>
         ) : loading && data.length === 0 ? (
           <div
             className="flex flex-col h-full min-h-[200px] p-4 gap-2"
