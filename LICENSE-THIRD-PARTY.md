@@ -34,8 +34,29 @@ sources, and the licenses they ship under. All entries are MIT-compatible.
   `packages/components/src/ui/` but are required by the AI Elements layer.
 - **Local modifications:** import path rewrites only (see above).
 
+## github-slugger
+
+- **Upstream:** <https://github.com/Flet/github-slugger>
+- **License:** ISC (c) Dan Flettre. MIT-compatible.
+- **Vendored into:** `scripts/github-slug.mjs`
+- **What:** the generated character table `slug()` strips, plus the `slug()` and
+  duplicate-suffix (`-1`/`-2`) logic built on it.
+- **Rationale:** `scripts/check-doc-links.mjs` resolves heading anchors, so it
+  needs the exact rule both renderers use — and it is one of the gates a
+  workflow runs BEFORE `pnpm install`, so it may not import a package. The
+  table is copied rather than re-derived because a Unicode property escape is
+  not equivalent to it; the vendored file's header has the measurement.
+- **Local modifications:** ESM export shape only — the class is a named export
+  and drops the unused `maintainCase` / `reset()` surface. The character table
+  is byte-for-byte upstream.
+- **Re-sync command:** copy the `regex` export out of the installed
+  `github-slugger/regex.js` (already a dependency of `@object-ui/plugin-markdown`
+  and of `fumadocs-core`), then run
+  `pnpm exec vitest run scripts/__tests__/check-doc-links.test.ts` — it pins this
+  copy against the real package over every code point.
+
 ---
 
 If you add another upstream-sourced file under `packages/`, append it to this
 list with the same shape: upstream link, license, files affected, and any
-local edits.
+local edits. The same applies to repo tooling under `scripts/`.
