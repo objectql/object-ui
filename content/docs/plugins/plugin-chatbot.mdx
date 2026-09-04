@@ -144,6 +144,12 @@ declared on `ChatbotSchema`, so a key a registration ignores still type-checks
 and still parses - it is dropped silently at render time, which is why the scope
 is spelled out here rather than left to the type to express.
 
+The table below is that shared chat surface. `chatbot-floating` declares
+seven more keys of its own - `displayMode` and six `floatingConfig` entries -
+which no row below carries and which the other two registrations have no
+trigger or panel to apply. They are documented in their own table after this
+one, under **`chatbot-floating` panel and trigger keys**.
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `messages` | array | `[]` | Initial chat messages |
@@ -171,6 +177,71 @@ is spelled out here rather than left to the type to express.
 | `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only.** Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). The `chatbot` and `chatbot-floating` registrations render different components, which have no such chrome to switch, and do not read this key |
 | `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only.** Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` does not forward the key either, so its panel always renders at the `'summary'` default; there is no floating-side substitute to author |
 | `onError` | function | - | Error callback for streaming/API errors |
+
+### `chatbot-floating` panel and trigger keys
+
+The seven keys below are declared in the `chatbot-floating` registration's own
+`inputs` (`packages/plugin-chatbot/src/renderer.tsx`). They configure the
+floating action button and the panel it opens; the `chatbot` and
+`chatbot-enhanced` registrations render neither and ignore them. `displayMode`
+and `floatingConfig` are declared on `ChatbotSchema` like every key above, so
+authoring them on an inline node still type-checks and still parses - it is
+dropped at render time.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `displayMode` | `'inline' \| 'floating'` | `'floating'` | **Declared and offered in the designer, but read by nothing.** The node's own `type` selects the presentation: a `chatbot-floating` node renders the trigger and panel unconditionally, and authoring `'inline'` here does not make it inline - author a `chatbot` node for that. The registration declares it with `defaultValue: 'floating'` and writes the same value into its `defaultProps`, so nodes created in the designer carry it |
+| `floatingConfig.position` | `'bottom-right' \| 'bottom-left'` | `'bottom-right'` | Corner the trigger sits in; the panel is anchored to the same side |
+| `floatingConfig.defaultOpen` | boolean | `false` | Whether the panel is already open when the node mounts |
+| `floatingConfig.panelWidth` | number | `400` | Panel width in pixels, applied from the `sm` breakpoint up - below it the panel is full-bleed. Snapped to a step, see below |
+| `floatingConfig.panelHeight` | number | `520` | Panel height in **pixels, as a number** - not a CSS length string. This is the key that sizes a floating chatbot: `maxHeight` is a string, belongs to the two inline registrations, and is not read here. Snapped to a step, see below |
+| `floatingConfig.title` | string | `'Chat'` | Text in the panel header, and the panel's `aria-label` |
+| `floatingConfig.triggerSize` | number | `56` | Diameter of the floating action button in pixels. Snapped to a step, see below |
+
+**The three size keys snap to the nearest declared step.** `FloatingChatbotPanel`
+and `FloatingChatbotTrigger` resolve each number through a fixed table of
+Tailwind classes and fall back to the closest entry, so a number outside the
+table does not render at that size - a `panelHeight` of `530` renders at `520`:
+
+- `panelWidth` - 300, 320, 340, 360, 380, 400, 420, 440, 450, 460, 480, 500, 520, 560, 600, 640, 720, 800
+- `panelHeight` - 360, 400, 420, 440, 480, 500, 520, 560, 600, 640, 720, 800
+- `triggerSize` - 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80
+
+On small screens `panelHeight` is additionally capped to the viewport
+(`min(step, 100svh - 6rem - safe-area-inset-bottom)`), and while the panel is
+fullscreen it ignores both size keys and fills the screen.
+
+Authored on the node:
+
+```json
+{
+  "type": "chatbot-floating",
+  "floatingConfig": {
+    "position": "bottom-left",
+    "defaultOpen": false,
+    "panelWidth": 400,
+    "panelHeight": 520,
+    "title": "Support",
+    "triggerSize": 56
+  },
+  "placeholder": "Ask us anything..."
+}
+```
+
+`ChatbotSchema` pins `type` to `'chatbot'`, so it cannot annotate a floating
+node, but the config object has its own exported type:
+
+```tsx
+import type { FloatingChatbotConfig } from '@object-ui/types';
+
+const floatingConfig: FloatingChatbotConfig = {
+  position: 'bottom-left',
+  panelWidth: 400,
+  panelHeight: 520, // pixels, as a number - '520px' does not type-check
+  title: 'Support',
+  triggerSize: 56,
+};
+```
 
 ## Operating Modes
 
