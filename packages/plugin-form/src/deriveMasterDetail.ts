@@ -246,6 +246,11 @@ export function deriveColumns(
     if (col.type === 'select' && options) col.options = options;
     if (col.type === 'lookup') {
       col.reference = d?.reference;
+      // objectui#7642 CENSUS — verdict KEEP. In-repo the bag is the object-schema
+      // def (`MasterDetailForm` passes `dataSource.getObjectSchema(d.childObject)`),
+      // but `deriveColumns` is a PUBLIC export of `@object-ui/plugin-form`, so an
+      // external caller's `childSchema` cannot be traced from here. There is also no
+      // camel `d?.displayField` leg: retiring this read deletes the only read.
       col.displayField = d?.display_field || d?.reference_field;
     }
     if (col.type === 'file') applyFileColumnProps(col, d);
