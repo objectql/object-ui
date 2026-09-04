@@ -160,6 +160,53 @@ describe('[#7287] resolveTitleField delegates to the shared ADR-0079 ladder', ()
     });
 
     /**
+     * THE ONE INPUT where the old skip set and the new one disagree, and so
+     * the one that has to be pinned: an object declaring `nameField` AND the
+     * deprecated `displayNameField` alias to DIFFERENT fields, both present.
+     *
+     * The old `deriveHighlightFields` read all three declared roles
+     * separately and skipped EVERY one it found, so `legacy_title` never
+     * reached the strip. The shared ADR-0079 ladder PICKS one rung —
+     * `nameField` outranks its deprecated alias — so only `headline` is
+     * skipped now, deliberately: `getRecordDisplayName` reads that same
+     * ladder and renders `headline`'s value, so `legacy_title` is an ordinary
+     * field the heading never shows, and hiding it spent a strip slot for
+     * nothing. This also makes the heuristic branch agree with the DECLARED
+     * branch, which has only ever filtered a single title field.
+     *
+     * Goes red if the three raw reads come back, which is the shape this card
+     * exists to remove — so the pin is on the BEHAVIOUR, not on the spelling.
+     */
+    it('skips only the winner when nameField and displayNameField disagree', () => {
+      const def = {
+        nameField: 'headline',
+        displayNameField: 'legacy_title',
+        fields: {
+          headline: { type: 'text' },
+          legacy_title: { type: 'text' },
+          priority: { type: 'text' },
+        },
+      } as unknown as ObjectDefLike;
+      const record = {
+        id: 'r5',
+        headline: 'Q3 rollout',
+        legacy_title: 'stale',
+        priority: 'High',
+      };
+
+      // The canonical pointer wins the ladder on every surface…
+      expect(resolveTitleField(def)).toBe('headline');
+      expect(leadWithNameField(def, ['priority', 'headline'])[0]).toBe('headline');
+      expect(getRecordDisplayName(def, record)).toBe(record.headline);
+
+      // …so the strip drops the H1 field and KEEPS the losing alias, which
+      // the heading never shows.
+      const strip = deriveHighlightFields(def, null);
+      expect(strip).not.toContain('headline');
+      expect(strip).toContain('legacy_title');
+    });
+
+    /**
      * The invariant, stated once over a table: for every object, the field the
      * detail page calls "the title" is the field core calls "the name". A
      * second ladder can satisfy the cases above and still break here on the

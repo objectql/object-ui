@@ -525,13 +525,32 @@ export function deriveHighlightFields(
   };
   // The record's title field is already shown as the page H1 — surfacing it
   // again in the highlight strip duplicates content and wastes a slot (e.g.
-  // Task pages would show 主题 twice). ONE resolver decides it, the same one
-  // the DECLARED branch above uses, so "what the strip skips" and "what the
-  // H1 shows" cannot disagree (objectui#7287). This subsumes the three
-  // separate `nameField` / `displayNameField` / `primaryField` reads that
-  // stood in the skip set — the first two are rungs of that ladder, and the
-  // third was a `DetailViewSchema` key no object payload can carry (see
-  // {@link resolveTitleField}).
+  // Task pages would show 主题 twice). ONE resolver decides WHICH field that
+  // is, the same one the DECLARED branch above uses, so "what the strip
+  // skips" and "what the H1 shows" cannot disagree (objectui#7287).
+  //
+  // ⚠️ This REPLACES three separate reads (`primaryField` / `nameField` /
+  // `displayNameField`, each adding whatever it found) and it is a deliberate
+  // BEHAVIOUR CHANGE, not a rewrite of them. `primaryField` is simply gone —
+  // a `DetailViewSchema` key no object payload can carry (see
+  // {@link resolveTitleField}). The other two are rungs of the shared ladder,
+  // but the ladder PICKS one rung where the old set added EVERY declared one,
+  // so old and new disagree on exactly one input: an object declaring
+  // `nameField` AND the deprecated `displayNameField` alias to DIFFERENT
+  // fields. The old set skipped both; this skips only the winner.
+  //
+  // Skipping only the winner is the intended behaviour. The loser is not the
+  // H1 — `getRecordDisplayName` reads this same `declaredNameField` ladder
+  // and renders the WINNER's value — so hiding the loser removed an ordinary
+  // field and spent a strip slot on a field the heading never shows, which is
+  // the class of bug this card is about. It also makes this heuristic branch
+  // agree with the DECLARED branch above, which has only ever filtered a
+  // single `titleField`: the "#2548 follow-up" note up there claims both
+  // branches agree, and until now that was true only for objects declaring
+  // one alias.
+  //
+  // Pinned by "skips only the winner when nameField and displayNameField
+  // disagree" in `resolveTitleField.sharedLadder-7287.test.ts`.
   //
   // ⚠️ Ask THE GATE first, then skip. A field skipped as the H1 never reaches
   // the selection loops, so skipping it silently would take the objectui#4914

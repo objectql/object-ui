@@ -37,6 +37,21 @@ with no type check.
   name alone and is now correctly skipped, so the strip no longer hides a chip on
   account of a field the H1 never shows.
 
+**A third user-visible change, in the highlight strip's skip set.** It previously read
+`primaryField`, `nameField` and `displayNameField` separately and skipped EVERY declared
+one; it now skips the single field the shared ladder resolves. These differ on one input:
+an object declaring `nameField` and the deprecated `displayNameField` alias to DIFFERENT
+fields. The alias's field is no longer hidden from the strip — deliberately, because
+`getRecordDisplayName` reads the same ladder and renders the WINNER's value, so the loser
+is an ordinary field the H1 never shows and hiding it spent a strip slot for nothing.
+This also makes the heuristic branch agree with the declared branch, which has only ever
+filtered a single title field.
+
 `deriveHighlightFields` asks the retirement gate (objectui#4914) about the title field
 **before** skipping it: an object whose only retired-typed field is the one that titles
 it must still get its report, which skipping-first would have silenced.
+
+`ObjectDefLike.primaryField` stays DECLARED but is never read. The interface is
+re-exported from this package's index and this package is published, so removing the
+member would narrow a shipped `.d.ts` — a contract change owed its own card, not a rider
+on a behaviour fix.
