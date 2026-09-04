@@ -39,7 +39,11 @@ afterEach(cleanup);
 function dashboardWith(actionType: string): DashboardComponentSchema {
   return {
     type: 'dashboard',
-    title: 'Ops',
+    // `label`, not the retired root `title` (objectui#7509) — the header's name
+    // source. Nothing here asserts it; renamed so this file's fixtures spell
+    // the one live key, alongside `textHeaderDashboard` below whose assertions
+    // DO read it.
+    label: 'Ops',
     widgets: [],
     header: {
       actions: [{ label: 'Convert Lead', actionUrl: 'convert_lead_wizard', actionType }],
@@ -91,7 +95,12 @@ function textHeaderDashboard(
 ): DashboardComponentSchema {
   return {
     type: 'dashboard',
-    title: 'Executive Dashboard',
+    // `label` is the header's ONE name source since the root `title` arm
+    // retired (objectui#7509, ADR-0049). This fixture pins the header WRAPPER's
+    // geometry, not the spelling of the name — so the key moves and every
+    // assertion below stands unchanged, which is what makes it a rename rather
+    // than a rewrite.
+    label: 'Executive Dashboard',
     description: 'Pipeline and revenue at a glance',
     widgets: [],
     header,

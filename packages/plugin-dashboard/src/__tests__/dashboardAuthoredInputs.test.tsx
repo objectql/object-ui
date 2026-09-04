@@ -30,9 +30,21 @@
  *
  *   - `title` — the legacy objectui spelling of the spec-canonical `label`
  *     (framework#1878). The spec REJECTS it by name, so declaring it would
- *     publish a key an author could not save. The `schema.title ||
+ *     publish a key an author could not save.
+ *
+ *     ⚠️ SUPERSEDED IN PART (objectui#7509, maintainer ruling 2026-09-04,
+ *     decision batch #29). This file used to add "and the `schema.title ||
  *     schema.label` read STAYS — documents in the wild carry it — which is
- *     exactly the #5091 shape: non-author surface, still read.
+ *     exactly the #5091 shape: non-author surface, still read." That read is
+ *     GONE: the five dashboard-root `title` read arms retired together under
+ *     ADR-0049, and `label` is now the only header source. What is unchanged
+ *     is this file's own subject — `title` stays OUT of the published `inputs`
+ *     — and its reason only got stronger: the key is now neither authorable
+ *     nor read. The retirement's own pins live in
+ *     `DashboardRenderer.rootTitleRetired.test.tsx` and its four siblings; the
+ *     block at the bottom of this file was rewritten to match, rather than
+ *     deleted, because "the renderer's behaviour on the key" is a claim this
+ *     file makes and must therefore keep making — correctly.
  *   - `aria` — the spec carries a TOMBSTONE for `dashboard.aria` (removed at
  *     the #3896 audit close-out, "no dashboard renderer ever applied it").
  *     Measured here too: this package has NO read site for `schema.aria`, so
@@ -269,7 +281,19 @@ describe('the two ruled-out keys stay unpublished — and checkably so (objectui
   });
 });
 
-describe('the legacy `title` read stays — non-author surface, still honoured (objectui#5742)', () => {
+/**
+ * REWRITTEN by objectui#7509 (maintainer ruling 2026-09-04, decision batch
+ * #29). This block used to be headed "the legacy `title` read stays —
+ * non-author surface, still honoured (objectui#5742)" and asserted that a wild
+ * document carrying only the legacy spelling KEPT its header title. That arm
+ * retired under ADR-0049, so the assertion is inverted rather than deleted: the
+ * claim "what this renderer does with a wild `title`" belongs to this file, and
+ * a file that simply dropped the case would leave the claim unmade.
+ *
+ * `title` stays out of the published `inputs` either way — that part of #5742
+ * is untouched, and is asserted by the `NON_AUTHOR` rows above.
+ */
+describe('the legacy `title` read is RETIRED — unpublished AND unread (objectui#7509)', () => {
   const renderDashboard = (schema: Record<string, unknown>) =>
     render(
       <ActionProvider>
@@ -277,12 +301,18 @@ describe('the legacy `title` read stays — non-author surface, still honoured (
       </ActionProvider>,
     );
 
-  it('a wild document carrying only the legacy spelling keeps its header title', () => {
+  it('a wild document carrying only the legacy spelling gets NO header title', () => {
     renderDashboard({ title: 'Legacy Ops' });
-    expect(screen.getByRole('heading', { name: 'Legacy Ops' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Legacy Ops' })).not.toBeInTheDocument();
   });
 
-  it('the canonical spelling renders too — the read above is the fallback, not the contract', () => {
+  it('a wild document carrying BOTH shows the `label` — the visible change the ruling names', () => {
+    renderDashboard({ title: 'Legacy Ops', label: 'Canonical Ops' });
+    expect(screen.getByRole('heading', { name: 'Canonical Ops' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Legacy Ops' })).not.toBeInTheDocument();
+  });
+
+  it('the canonical spelling renders — the control, without which the two above are vacuous', () => {
     renderDashboard({ label: 'Canonical Ops' });
     expect(screen.getByRole('heading', { name: 'Canonical Ops' })).toBeInTheDocument();
   });

@@ -85,15 +85,22 @@ describe('DashboardGridLayout heading — inline locale map label (objectui#4580
   });
 
   /**
-   * The `||` chain around the label is preserved exactly, in both directions.
-   * A resolver miss yields `''` (falsy), so the `'Dashboard'` backstop still
-   * fires — if the resolution had been spelled with the spec resolver's
-   * `undefined` miss it would behave the same here, but a `?? ''` written in the
-   * wrong place would have swallowed the backstop.
+   * INVERTED by objectui#7509 (maintainer ruling 2026-09-04, decision batch
+   * #29). This case used to read "keeps `title` ahead of `label` in the
+   * precedence chain" and asserted `Pipeline`. The dashboard-root `title` read
+   * arm retired under ADR-0049 across all five surfaces, so `label` is now the
+   * only header source — and the case is inverted rather than deleted, because
+   * a legacy `title` sitting in front of the map is precisely what used to stop
+   * this file's subject (the resolver) from running at all.
+   *
+   * That makes this the strongest non-vacuity control in the file: before the
+   * retirement, a document carrying both NEVER exercised `pickLocalized`.
    */
-  it('keeps `title` ahead of `label` in the precedence chain', () => {
+  it('resolves the `label` map even when a legacy root `title` is also present', () => {
     renderGrid({ title: 'Pipeline', label: INLINE_MAP }, 'zh-CN');
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Pipeline');
+    const heading = screen.getByRole('heading', { level: 2 });
+    expect(heading).toHaveTextContent('负责人');
+    expect(heading).not.toHaveTextContent('Pipeline');
   });
 
   it("falls back to 'Dashboard' when the map resolves to nothing", () => {

@@ -39,7 +39,12 @@ export function DashboardDesignPage() {
       liftLegacyDashboardFilterDefaults(dashboard as DashboardComponentSchema) || {
         type: 'dashboard',
         name: dashboardName ?? '',
-        title: dashboardName ?? '',
+        // `label`, not the retired root `title` (objectui#7509): this seed is
+        // the only dashboard-document literal this repo authors, so it spells
+        // the key the spec accepts. Reachable only on the `!dashboard` branch,
+        // which early-returns "not found" below and never persists, so the
+        // spelling change moves no behaviour — it keeps the corpus canonical.
+        label: dashboardName ?? '',
         columns: 2,
         widgets: [],
       },
@@ -134,8 +139,18 @@ export function DashboardDesignPage() {
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
+        {/*
+          `label`, then the raw `name`. The legacy root `title` arm that sat
+          between them RETIRED under ADR-0049 (objectui#7509, maintainer ruling
+          2026-09-04) together with the four sibling root arms in
+          `DashboardView`, `DashboardRenderer`, `DashboardGridLayout` and
+          `DashboardEditor` — @objectstack/spec's `DashboardSchema` refuses root
+          `title` BY NAME (`unrecognized_keys(title)`) and requires `label`, so
+          a stored document that carried both now shows its `label` here and in
+          the console alike, instead of the two surfaces disagreeing.
+        */}
         <h1 className="text-lg font-semibold tracking-tight truncate">
-          Edit Dashboard: {(dashboard as any).label || (dashboard as any).title || dashboardName}
+          Edit Dashboard: {(dashboard as any).label || dashboardName}
         </h1>
       </div>
       <div className="flex-1 overflow-auto p-4 sm:p-6">
