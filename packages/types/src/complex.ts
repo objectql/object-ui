@@ -1086,8 +1086,24 @@ export interface DashboardWidgetSchema
  */
 export interface DashboardComponentSchema extends BaseSchema {
   type: 'dashboard';
-  /** Dashboard title displayed in the header */
-  title?: string;
+  // `title` was DECLARED here until objectui#7623, under the comment "Dashboard
+  // title displayed in the header" — by then a description of behaviour that had
+  // stopped existing: objectui#7509 retired all five dashboard-root `title` read
+  // arms under ADR-0049 (PR #7622), so the key was declared, documented as
+  // rendering, and inert. The header text is the spec-canonical `label`
+  // (`BaseSchema`), resolved through `pickLocalized`; `plugin-dashboard` has no
+  // dashboard-root `title` read site left (pinned by that package's
+  // `__tests__/dashboardAuthoredInputs.test.tsx`).
+  //
+  // Unlike `aria` below there is NO spec tombstone to inherit: `@objectstack/spec`'s
+  // strict `DashboardSchema` refuses a root `title` as an UNRECOGNIZED key, not with
+  // a named removal message, so the Zod twin (`zod/complex.zod.ts`, `.passthrough()`
+  // via `BaseSchema`) gains no refusal from this deletion and ⛔ must not be given a
+  // hand-written one — that would assert a spec behaviour that does not exist.
+  // Note `BaseSchema`'s index signature still types an authored `title` as `any`:
+  // this deletion removes the type-level suggestion and the false rendering claim,
+  // not a key that ever rendered. Pinned by
+  // `__tests__/dashboard-title-retired-declaration.test.ts`.
   columns?: number;
   gap?: number;
   widgets: DashboardWidgetSchema[];
