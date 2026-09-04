@@ -460,7 +460,13 @@ export const MARKED_FLOOR = new Map([
   // gate's reach, and the guide already carried five UNMARKED `vitest` fences
   // beside them. ⛔ Not a precedent for unmarking a fence that reds.
   ['ts', 13],
-  ['json', 39],
+  // 39 -> 70 (objectui#7474): the 8 multi-document listings under
+  // `skills/objectui/` were split into one fence per document and the two
+  // `...` elisions were replaced by real values, so every one of the 70
+  // json/jsonc fences in the corpus now parses under its own tag and carries
+  // the marker. Raising the number is the ADD direction this list documents:
+  // the population measured 39 marked / 46 parsing before, 70 / 70 after.
+  ['json', 70],
 ]);
 
 /**

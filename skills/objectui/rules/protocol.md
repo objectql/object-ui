@@ -154,19 +154,21 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 **❌ FORBIDDEN:** Adding custom properties not defined in `@objectstack/spec`.
 
 **Example violation:**
+<!-- os:check -->
 ```jsonc
 {
   "type": "data-table",
-  "fields": [...],  // ❌ spec uses "columns"
+  "fields": [{ "header": "Name", "accessorKey": "name" }],  // ❌ spec uses "columns"
   "customProp": "value"  // ❌ not in spec
 }
 ```
 
 **✅ CORRECT:**
+<!-- os:check -->
 ```jsonc
 {
   "type": "data-table",
-  "columns": [...]  // ✅ declared by DataTableSchema, read off the node
+  "columns": [{ "header": "Name", "accessorKey": "name" }]  // ✅ declared by DataTableSchema, read off the node
 }
 ```
 
@@ -174,9 +176,18 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 
 When the entire string is a single `${expression}`, the result preserves its type:
 
+<!-- os:check -->
 ```jsonc
-"${data.count}"        // → returns number 42, not string "42"
-"${data.isActive}"     // → returns boolean true, not string "true"
+"${data.count}" // → returns number 42, not string "42"
+```
+
+<!-- os:check -->
+```jsonc
+"${data.isActive}" // → returns boolean true, not string "true"
+```
+
+<!-- os:check -->
+```jsonc
 "Count: ${data.count}" // → returns string "Count: 42" (mixed template)
 ```
 
@@ -184,6 +195,7 @@ When the entire string is a single `${expression}`, the result preserves its typ
 
 The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`, and only a component that calls that hook reads it:
 
+<!-- os:check -->
 ```jsonc
 {
   "type": "list",
