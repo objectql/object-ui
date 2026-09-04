@@ -386,12 +386,25 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
           component: `pickLocalized` is objectui's limb-for-limb twin of the spec's
           `resolveI18nLabel` (objectstack#6765), differing only in how it spells a
           miss (`''` vs `undefined`) — pinned in
-          `plugin-list/src/__tests__/i18nLabel-resolver-parity.test.ts`. The `||`
-          chain is preserved exactly: a miss yields `''`, which is falsy, so
-          `'Dashboard'` still backstops it.
+          `plugin-list/src/__tests__/i18nLabel-resolver-parity.test.ts`. A miss
+          yields `''`, which is falsy, so `'Dashboard'` still backstops it.
+
+          `schema.label` is the ONLY header source. A legacy root `title` used
+          to be read ahead of it; that arm RETIRED under ADR-0049
+          (objectui#7509, maintainer ruling 2026-09-04) together with the four
+          sibling root arms in `DashboardView`, `DashboardRenderer`,
+          `DashboardEditor` and `DashboardDesignPage` — @objectstack/spec's
+          `DashboardSchema` refuses root `title` BY NAME
+          (`unrecognized_keys(title)`) and requires `label`, so what retired is
+          legacy-document compatibility, not an authoring surface.
+
+          ⛔ NOT the widget arm: `widget.title` is `DashboardWidget.title`, the
+          spec's `I18nLabel` — a different DECLARED key, read ~100 lines below
+          and untouched. The two are told apart by RECEIVER; this one's receiver
+          is the dashboard ROOT.
         */}
         <h2 className="text-2xl font-bold">
-          {schema.title || pickLocalized(schema.label, language) || 'Dashboard'}
+          {pickLocalized(schema.label, language) || 'Dashboard'}
         </h2>
         <div className="flex gap-2">
           {editMode ? (
