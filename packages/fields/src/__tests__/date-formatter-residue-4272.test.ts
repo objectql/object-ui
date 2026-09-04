@@ -82,14 +82,22 @@ describe("formatDate 'short' honors the threaded locale (objectui#4272)", () => 
   });
 });
 
+/**
+ * ⚠️ Position moved, contract did not (objectui#7443). `formatDateTime` grew a
+ * `style` parameter in position two — the slot `formatDate` has always used —
+ * so the options this describe-block exists to protect now travel in position
+ * three. Every expected string below is unchanged: what #4272 bought is that
+ * the tag REACHES `Intl`, and it still does. Passing `undefined` for the style
+ * is the default face, which is what these cases always measured.
+ */
 describe('formatDateTime accepts a locale at all (objectui#4272)', () => {
   it('zh renders the Chinese datetime form', () => {
-    expect(formatDateTime(INSTANT, { locale: 'zh' })).toBe('2024年1月5日 08:30');
+    expect(formatDateTime(INSTANT, undefined, { locale: 'zh' })).toBe('2024年1月5日 08:30');
   });
 
   /** PIN, green on both sides — see the `en` note above. */
   it('en output is byte-identical (must-not-change)', () => {
-    expect(formatDateTime(INSTANT, { locale: 'en' })).toBe('Jan 5, 2024, 08:30 AM');
+    expect(formatDateTime(INSTANT, undefined, { locale: 'en' })).toBe('Jan 5, 2024, 08:30 AM');
   });
 
   /**
@@ -114,7 +122,7 @@ describe('formatDateTime accepts a locale at all (objectui#4272)', () => {
   });
 
   it('the empty / invalid guards are untouched', () => {
-    expect(formatDateTime('', { locale: 'zh' })).toBe('—');
-    expect(formatDateTime('not-a-date', { locale: 'zh' })).toBe('—');
+    expect(formatDateTime('', undefined, { locale: 'zh' })).toBe('—');
+    expect(formatDateTime('not-a-date', undefined, { locale: 'zh' })).toBe('—');
   });
 });

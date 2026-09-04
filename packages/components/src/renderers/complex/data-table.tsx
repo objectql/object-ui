@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { describeIgnoredBind, describeNonArrayData } from './dataTableBindDiagnostic';
-import { ComponentRegistry, compareSortValues, evalRowPredicate, getSortValue } from '@object-ui/core';
+import { ComponentRegistry, compareSortValues, evalRowPredicate, formatDateTime, getSortValue } from '@object-ui/core';
 import type { DataTableSchema, TableSortItem, TableColumnType } from '@object-ui/types';
 import { SchemaRenderer, useRowPredicate, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -766,10 +766,22 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     if (Number.isNaN(ts)) return value;
     const hasTime = value.includes('T');
     try {
-      const fmt = new Intl.DateTimeFormat(language, hasTime
-        ? { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-        : { year: 'numeric', month: 'short', day: 'numeric' });
-      return fmt.format(new Date(ts));
+      // The datetime half is `formatDateTime`'s DEFAULT style — the one home
+      // for this convention (objectui#7443). It used to be a third,
+      // independently authored `Intl.DateTimeFormat` bag here, close to but
+      // not derived from the shared function. Byte-identical in en-US, zh and
+      // de-DE, so no table cell changes.
+      if (hasTime) return formatDateTime(new Date(ts), undefined, { locale: language });
+      // The DATE-only half keeps its own bag on purpose: `formatDateTime`
+      // always carries a time, and `formatDate`'s default drops the year in
+      // the current year — routing this branch through either WOULD change
+      // what renders. #7443's subject is the datetime convention; the
+      // date-only divergence is recorded separately.
+      return new Intl.DateTimeFormat(language, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(new Date(ts));
     } catch {
       return value;
     }

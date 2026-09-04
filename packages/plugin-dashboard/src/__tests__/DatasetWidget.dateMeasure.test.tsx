@@ -72,14 +72,14 @@ describe('DatasetWidget metric tile renders a date measure as a date (objectui#7
 
   it('shows what a list cell shows, not the raw ISO string', async () => {
     renderIn(EN, METRIC, makeSource([{ oldest_touch: OLDEST }], DATE_FIELDS));
-    const expected = formatDateTime(OLDEST, { locale: EN });
+    const expected = formatDateTime(OLDEST, undefined, { locale: EN });
     expect(await screen.findByText(expected)).toBeInTheDocument();
     expect(screen.queryByText(OLDEST)).not.toBeInTheDocument();
   });
 
   it('follows the display locale, through that same path', async () => {
     renderIn(DE, METRIC, makeSource([{ oldest_touch: OLDEST }], DATE_FIELDS));
-    const expected = formatDateTime(OLDEST, { locale: DE });
+    const expected = formatDateTime(OLDEST, undefined, { locale: DE });
     expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe('DatasetWidget dataset table renders a date measure as a date (objectui
 
   it('shows what a list cell shows in the measure cell', async () => {
     renderIn(EN, TABLE, makeSource([{ owner: 'Ada', oldest_touch: OLDEST }], FIELDS));
-    const expected = formatDateTime(OLDEST, { locale: EN });
+    const expected = formatDateTime(OLDEST, undefined, { locale: EN });
     await waitFor(() => expect(screen.getByText(expected)).toBeInTheDocument());
     expect(screen.queryByText(OLDEST)).not.toBeInTheDocument();
   });

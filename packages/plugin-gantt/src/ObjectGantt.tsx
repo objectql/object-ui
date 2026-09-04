@@ -943,14 +943,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       if (type == null && typeof value === 'string') {
         if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value, undefined, { locale: displayLocale });
         if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value) && !isNaN(new Date(value).getTime())) {
-          return formatDateTime(value, { locale: displayLocale });
+          return formatDateTime(value, undefined, { locale: displayLocale });
         }
       }
       switch (type) {
         case 'date':
           return formatDate(value as any, undefined, { locale: displayLocale });
         case 'datetime':
-          return formatDateTime(value as any, { locale: displayLocale });
+          return formatDateTime(value as any, undefined, { locale: displayLocale });
         // The numeric rows take the same `displayLocale` as the temporal ones
         // above (objectui#4553). Without it these reached
         // `new Intl.NumberFormat(undefined, …)`, i.e. the MACHINE's locale —
