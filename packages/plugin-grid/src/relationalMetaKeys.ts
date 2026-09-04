@@ -101,21 +101,30 @@
  * one: does any host outside them put these spellings on a field def? Closing
  * it needs a producer survey, not another sweep of this repo.
  *
- * ## ⛔ THE DERIVATION GATE CANNOT SEE THIS CLASS — its green is not cover
+ * ## ⭐ THE DERIVATION IS SCOPED TO THE CELL — objectui#7187
  *
- * The gate re-extracts a read set that is the UNION over three consumers, two
- * of which are not fed this bag. Membership there means "some consumer reads
- * this key" — never "this bag is how that consumer gets it". Those are
- * different claims, and the second is the one a copy-set entry asserts. All
- * three retired keys REMAIN in the extracted read set, because the editor
- * widgets still read them, so the derivation stays green whichever verdict they
- * carry: it would not go red if someone put them back tomorrow.
+ * That gap is closed. Until objectui#7187 the gate extracted ONE set, the UNION
+ * over the three consumers, and a copy-set entry was licensed by membership in
+ * it. Membership there means "some consumer reads this key" and never "this bag
+ * is how that consumer gets it" — different claims, and only the second
+ * justifies a copy. Reading the first as the second is what put
+ * `descriptionField` and `lookupColumns` on this table (objectui#6875) and what
+ * objectui#7166 then had to undo.
  *
- * ⇒ What guards this retirement is the rendering test plus the explicit
- * non-membership pin in the gate — not the derivation. Re-scoping the
- * derivation around the cell alone, with the editor widgets classified
- * separately, would close that gap; it is a design change to objectui#6875's
- * mechanism and is filed rather than made here.
+ * So the reader axis is now recorded PER CONSUMER on every entry
+ * ({@link RelationalMetaEntry.readers}), and the gate checks each declared list
+ * against that consumer's own source in BOTH directions. The copy set is
+ * derived from {@link CONSUMERS_FED_THIS_BAG} alone. A key only the editor
+ * widgets read can no longer be copied by editing a verdict, because no verdict
+ * says "copy this" any more — copying follows the measured cell reader, and
+ * the one deliberate exception has to name itself per key
+ * ({@link RelationalMetaEntry.copiedWithoutCellReader}).
+ *
+ * ⇒ Putting any of the three retired keys back now turns the gate red on a
+ * DERIVED assertion. The named-key pin in
+ * `__tests__/relationalMetaCopySet.derivation.test.ts` and the rendering test
+ * `__tests__/relationalMetaCopySet-7166.test.tsx` are kept so a regression is
+ * reported by name — they are no longer the only hold.
  *
  * ## ⭐ Why a key can be READ and still not be worth copying
  *
@@ -191,7 +200,20 @@
  * repo's own contract is what these verdicts are about.
  */
 
-/** What the grid does with a key its consumers read off the field meta. */
+/**
+ * What the grid does with a key its consumers read off the field meta.
+ *
+ * ⚠️ This enum records the PRODUCER axis — who can put the key on a field def
+ * — plus one mechanism verdict. It deliberately does NOT record the READER
+ * axis; that lives on {@link RelationalMetaEntry.readers}, measured per
+ * consumer. objectui#7187 removed a `deferred` member that meant "read only by
+ * an editor widget", because a hand-written verdict restating a measurable fact
+ * is exactly the shape this table's own history warns about: read-set
+ * membership was taken for a licence to copy (objectui#6875) and had to be
+ * undone (objectui#7166). Those seven keys are `spec` now — which is what they
+ * are — and they stay off the copy set because no consumer fed this bag reads
+ * them, which is measured rather than declared.
+ */
 export type RelationalMetaVerdict =
   /** Spec-declared on `FieldSchema`. The spelling a live `getObjectSchema` serves. */
   | 'spec'
@@ -202,16 +224,50 @@ export type RelationalMetaVerdict =
   /** Read, but no producer can emit it — copying it would reach nothing. */
   | 'no-producer'
   /** Producible and read, but written onto the meta by another block already. */
-  | 'handled-elsewhere'
-  /**
-   * Producible and read, but read ONLY by an editor widget — which
-   * `ObjectGrid.renderCellEditor` feeds from the schema def, not from this bag.
-   * Copying such a key onto `fieldMeta` reaches nothing. See `note` per key.
-   */
-  | 'deferred';
+  | 'handled-elsewhere';
 
-/** Verdicts whose keys ARE copied. Everything else is deliberately skipped. */
-const COPIED_VERDICTS: ReadonlySet<RelationalMetaVerdict> = new Set([
+/**
+ * The three consumers the gate sweeps, as this table names them.
+ *
+ * `cell` is `LookupCellRenderer` in `@object-ui/fields/src/index.tsx`, reached
+ * through `<CellRenderer field={fieldMeta}>`. `lookup-editor` and `user-editor`
+ * are the inline-edit widgets in `@object-ui/fields/src/widgets/`, which
+ * `ObjectGrid.renderCellEditor` feeds from the object schema instead.
+ */
+export type RelationalMetaConsumer = 'cell' | 'lookup-editor' | 'user-editor';
+
+/**
+ * ⭐ THE ASYMMETRY THIS WHOLE TABLE TURNS ON, as data rather than as prose.
+ *
+ * `applyRelationalMeta` writes onto the `fieldMeta` that `generateColumns`
+ * hands to `<CellRenderer>`, and nowhere else. The two editor widgets are fed
+ * `{ name: ctx.column.accessorKey, ...fieldDef }` straight off the object
+ * schema (`ObjectGrid.renderCellEditor`), so a key only they read gains nothing
+ * from being copied here. The gate asserts that bound against
+ * `ObjectGrid.tsx`'s own source rather than trusting this comment.
+ */
+export const CONSUMERS_FED_THIS_BAG: readonly RelationalMetaConsumer[] = Object.freeze([
+  'cell',
+]);
+
+/**
+ * The four reader shapes the sweep actually finds. Naming them keeps the table
+ * scannable; the gate checks every entry's list against the consumer sources in
+ * both directions, so an alias can no more drift than a literal could.
+ */
+const ALL_THREE: readonly RelationalMetaConsumer[] = Object.freeze(['cell', 'lookup-editor', 'user-editor']);
+const CELL_AND_LOOKUP_EDITOR: readonly RelationalMetaConsumer[] = Object.freeze(['cell', 'lookup-editor']);
+const BOTH_EDITORS: readonly RelationalMetaConsumer[] = Object.freeze(['lookup-editor', 'user-editor']);
+const LOOKUP_EDITOR_ONLY: readonly RelationalMetaConsumer[] = Object.freeze(['lookup-editor']);
+
+/**
+ * Verdicts under which a key MAY be copied — the producer half of the licence.
+ *
+ * ⚠️ Necessary, never sufficient: a key is copied only if a consumer that is
+ * actually handed this bag reads it, or it names a reason not to need one. See
+ * {@link RELATIONAL_META_KEYS}.
+ */
+const PRODUCER_LICENSED_VERDICTS: ReadonlySet<RelationalMetaVerdict> = new Set([
   'spec',
   'adapter-stamped',
   'legacy-alias',
@@ -219,6 +275,22 @@ const COPIED_VERDICTS: ReadonlySet<RelationalMetaVerdict> = new Set([
 
 export interface RelationalMetaEntry {
   readonly verdict: RelationalMetaVerdict;
+  /**
+   * Which consumers read this key off a field meta. MEASURED — the gate
+   * re-extracts each consumer's set from its own source and requires this list
+   * to match, per consumer and in both directions.
+   */
+  readonly readers: readonly RelationalMetaConsumer[];
+  /**
+   * Present ONLY on a key copied although NO consumer fed this bag reads it —
+   * the one exit from the cell-reader rule, and it has to state its own reason.
+   *
+   * ⛔ The gate confines it to `legacy-alias`, which is separately proved
+   * non-authorable. So a spec-declared key can never take this exit: it is not
+   * a widening of the rule, it is the producer-side argument the snake_case
+   * spellings were kept on, written where it can be read.
+   */
+  readonly copiedWithoutCellReader?: string;
   readonly note: string;
 }
 
@@ -231,62 +303,79 @@ export interface RelationalMetaEntry {
  */
 export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEntry>> = {
   // ── The relational target ────────────────────────────────────────────────
-  reference: { verdict: 'spec', note: "FieldSchema.reference — the served spelling for a lookup's target object." },
-  reference_to: { verdict: 'adapter-stamped', note: 'normalizeSchemaReferenceKeys stamps it from `reference` at the getObjectSchema choke point.' },
-  reference_field: { verdict: 'no-producer', note: 'Third leg of the display-field chain. Not on FieldSchema; zero occurrences in the producer repo (control: `displayField`, 68 files). objectui#6875.' },
+  reference: { verdict: 'spec', readers: ALL_THREE, note: "FieldSchema.reference — the served spelling for a lookup's target object." },
+  reference_to: { verdict: 'adapter-stamped', readers: ALL_THREE, note: 'normalizeSchemaReferenceKeys stamps it from `reference` at the getObjectSchema choke point.' },
+  reference_field: { verdict: 'no-producer', readers: ALL_THREE, note: 'Third leg of the display-field chain. Not on FieldSchema; zero occurrences in the producer repo (control: `displayField`, 68 files). objectui#6875.' },
 
   // ── The display value ───────────────────────────────────────────────────
-  displayField: { verdict: 'spec', note: 'FieldSchema.displayField. ⭐ Added by objectui#6875 — the only display spelling a spec-compliant producer can emit, and the one that never arrived.' },
-  display_field: { verdict: 'legacy-alias', note: 'Runtime spelling, first leg of every display chain. Not on FieldSchema; kept for back-compat.' },
+  displayField: { verdict: 'spec', readers: ALL_THREE, note: 'FieldSchema.displayField. ⭐ Added by objectui#6875 — the only display spelling a spec-compliant producer can emit, and the one that never arrived.' },
+  display_field: { verdict: 'legacy-alias', readers: ALL_THREE, note: 'Runtime spelling, first leg of every display chain. Not on FieldSchema; kept for back-compat.' },
 
   // ── The picker's secondary line ─────────────────────────────────────────
   // ⛔ The camel spelling LEFT the copy set in objectui#7166 while its snake
   // twin stayed. That asymmetry is deliberate and is explained under "the two
   // populations" in this file's docblock: the retirement is a READER-side
   // finding, and only the snake spellings carry a producer-side argument.
-  descriptionField: { verdict: 'deferred', note: "FieldSchema.descriptionField. Added by objectui#6875, RETIRED from the copy set by objectui#7166: its only reader is LookupField, which the inline editor feeds from the schema def, so the copy reached nothing. Measured by rendering — the picker's secondary line still appears with this table unchanged." },
-  description_field: { verdict: 'legacy-alias', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag either — it survives on the UNANSWERED producer question below, not on a measured reader.' },
+  descriptionField: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: "FieldSchema.descriptionField. Added by objectui#6875, RETIRED from the copy set by objectui#7166: its only reader is LookupField, which the inline editor feeds from the schema def, so the copy reached nothing. Measured by rendering — the picker's secondary line still appears with this table unchanged." },
+  description_field: { verdict: 'legacy-alias', readers: LOOKUP_EDITOR_ONLY, copiedWithoutCellReader: 'Copied with NO reader on this bag. It survives on the UNANSWERED producer question (objectui#7166): a host DataSource outside these two repos may hand-feed this runtime spelling. Closing that needs a producer survey, not another reader sweep.', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag either — it survives on the UNANSWERED producer question below, not on a measured reader.' },
 
   // ── The picker's table ──────────────────────────────────────────────────
-  lookupColumns: { verdict: 'deferred', note: "FieldSchema.lookupColumns. Added by objectui#6875, RETIRED from the copy set by objectui#7166 on the same measurement as `descriptionField`. Measured by rendering — the declared columns still shape the picker with this table unchanged." },
-  lookup_columns: { verdict: 'no-producer', note: 'Runtime twin of `lookupColumns`, read but never producible. Not on FieldSchema. objectui#6875.' },
+  lookupColumns: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: "FieldSchema.lookupColumns. Added by objectui#6875, RETIRED from the copy set by objectui#7166 on the same measurement as `descriptionField`. Measured by rendering — the declared columns still shape the picker with this table unchanged." },
+  lookup_columns: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `lookupColumns`, read but never producible. Not on FieldSchema. objectui#6875.' },
 
   // ── The picker's base scoping ───────────────────────────────────────────
-  lookupFilters: { verdict: 'deferred', note: "FieldSchema.lookupFilters. RETIRED from the copy set by objectui#7166: read off a field meta only by LookupField and UserField, both fed by the editor's schema spread. Measured by rendering — the declared filter still scopes the picker's candidates with this table unchanged." },
-  lookup_filters: { verdict: 'legacy-alias', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
+  lookupFilters: { verdict: 'spec', readers: BOTH_EDITORS, note: "FieldSchema.lookupFilters. RETIRED from the copy set by objectui#7166: read off a field meta only by LookupField and UserField, both fed by the editor's schema spread. Measured by rendering — the declared filter still scopes the picker's candidates with this table unchanged." },
+  lookup_filters: { verdict: 'legacy-alias', readers: BOTH_EDITORS, copiedWithoutCellReader: 'Copied with NO reader on this bag. It survives on the UNANSWERED producer question (objectui#7166): a host DataSource outside these two repos may hand-feed this runtime spelling. Closing that needs a producer survey, not another reader sweep.', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
 
   // ── The picker's id column ──────────────────────────────────────────────
-  id_field: { verdict: 'legacy-alias', note: 'Picker id column. Neither spelling is on FieldSchema (`idField` is absent too); kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
+  id_field: { verdict: 'legacy-alias', readers: LOOKUP_EDITOR_ONLY, copiedWithoutCellReader: 'Copied with NO reader on this bag. It survives on the UNANSWERED producer question (objectui#7166): a host DataSource outside these two repos may hand-feed this runtime spelling. Closing that needs a producer survey, not another reader sweep.', note: 'Picker id column. Neither spelling is on FieldSchema (`idField` is absent too); kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
 
   // ── Read by the EDITOR widgets, producible, and NOT copied ──────────────
-  // Found by objectui#6875's re-sweep and left `deferred`. objectui#7154 then
-  // measured WHY copying them would reach nothing: their only reader is
-  // `LookupField`, which the grid's inline editor feeds from the schema def
-  // directly (see this file's docblock). All four already take effect in the
-  // picker with this table unchanged — pinned in
-  // `__tests__/lookupPickerKeys-7154.test.tsx`. `deferred` keeps the gate
-  // watching them; it is no longer a promise to copy them later.
-  multiple: { verdict: 'deferred', note: 'FieldSchema.multiple — picker cardinality. Read only by LookupField, which the grid feeds from the schema def, not from this bag: measured accumulating two picks in the inline picker with this table unchanged (objectui#7154).' },
-  allowCreate: { verdict: 'deferred', note: 'FieldSchema.allowCreate — picker quick-create affordance. Same route as `multiple`: `allowCreate: false` measured removing the create entry the control column offers (objectui#7154).' },
-  lookupPageSize: { verdict: 'deferred', note: 'FieldSchema.lookupPageSize — picker page size. Same route: a declared 3 measured scoping the picker dialog to 3 rows against a control of 10 (objectui#7154).' },
-  dependsOn: { verdict: 'deferred', note: 'FieldSchema.dependsOn — cascading picker filter. Same route, and it ARRIVES: the declared column renders the gated trigger. The grid supplies no dependent values, so that gate is permanent — objectui#2215’s grid-side residue, filed separately (objectui#7154).' },
+  // Found by objectui#6875's re-sweep. objectui#7154 measured WHY copying them
+  // would reach nothing: their only reader is `LookupField`, which the grid's
+  // inline editor feeds from the schema def directly (see this file's
+  // docblock). All four already take effect in the picker with this table
+  // unchanged — pinned in `__tests__/lookupPickerKeys-7154.test.tsx`.
+  // ⭐ objectui#7187: they carried a `deferred` verdict until that fact became
+  // measurable. `readers` states it now, the gate checks it against the widget
+  // sources, and the copy set follows from it — so `spec` is free to mean what
+  // it says (the producer can emit this), and the exclusion is no longer a word.
+  multiple: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: 'FieldSchema.multiple — picker cardinality. Read only by LookupField, which the grid feeds from the schema def, not from this bag: measured accumulating two picks in the inline picker with this table unchanged (objectui#7154).' },
+  allowCreate: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: 'FieldSchema.allowCreate — picker quick-create affordance. Same route as `multiple`: `allowCreate: false` measured removing the create entry the control column offers (objectui#7154).' },
+  lookupPageSize: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: 'FieldSchema.lookupPageSize — picker page size. Same route: a declared 3 measured scoping the picker dialog to 3 rows against a control of 10 (objectui#7154).' },
+  dependsOn: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: 'FieldSchema.dependsOn — cascading picker filter. Same route, and it ARRIVES: the declared column renders the gated trigger. The grid supplies no dependent values, so that gate is permanent — objectui#2215’s grid-side residue, filed separately (objectui#7154).' },
 
   // ── Read on this path, no producer ──────────────────────────────────────
-  allow_create: { verdict: 'no-producer', note: 'Runtime twin of `allowCreate`. Not on FieldSchema.' },
-  lookup_page_size: { verdict: 'no-producer', note: 'Runtime twin of `lookupPageSize`. Not on FieldSchema.' },
-  depends_on: { verdict: 'no-producer', note: 'Runtime twin of `dependsOn`. Not on FieldSchema.' },
-  picker: { verdict: 'no-producer', note: 'PeoplePicker variant opt-in. Not on FieldSchema.' },
-  subtitle: { verdict: 'no-producer', note: 'PeoplePicker subtitle fields. Not on FieldSchema.' },
-  avatarField: { verdict: 'no-producer', note: 'PeoplePicker avatar field. Not on FieldSchema.' },
-  avatar_field: { verdict: 'no-producer', note: 'Runtime twin of `avatarField`. Not on FieldSchema.' },
+  allow_create: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `allowCreate`. Not on FieldSchema.' },
+  lookup_page_size: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `lookupPageSize`. Not on FieldSchema.' },
+  depends_on: { verdict: 'no-producer', readers: LOOKUP_EDITOR_ONLY, note: 'Runtime twin of `dependsOn`. Not on FieldSchema.' },
+  picker: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'PeoplePicker variant opt-in. Not on FieldSchema.' },
+  subtitle: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'PeoplePicker subtitle fields. Not on FieldSchema.' },
+  avatarField: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'PeoplePicker avatar field. Not on FieldSchema.' },
+  avatar_field: { verdict: 'no-producer', readers: BOTH_EDITORS, note: 'Runtime twin of `avatarField`. Not on FieldSchema.' },
 
   // ── Written by another block of the same column build ───────────────────
-  options: { verdict: 'handled-elsewhere', note: 'Written by generateColumns as `translateOptions(...)`, which localises the labels; a raw copy would undo that.' },
-  dataSource: { verdict: 'handled-elsewhere', note: 'Not a schema key — LookupField reads its own `props.dataSource` fallback off the meta bag.' },
+  options: { verdict: 'handled-elsewhere', readers: CELL_AND_LOOKUP_EDITOR, note: 'Written by generateColumns as `translateOptions(...)`, which localises the labels; a raw copy would undo that.' },
+  dataSource: { verdict: 'handled-elsewhere', readers: LOOKUP_EDITOR_ONLY, note: 'Not a schema key — LookupField reads its own `props.dataSource` fallback off the meta bag.' },
 };
 
+/** Does a consumer that is actually handed this bag read this key? */
+function readByAFedConsumer(entry: RelationalMetaEntry): boolean {
+  return entry.readers.some((consumer) => CONSUMERS_FED_THIS_BAG.includes(consumer));
+}
+
 /**
- * The copy set, DERIVED from {@link RELATIONAL_META_READ_SET}.
+ * The copy set, DERIVED from {@link RELATIONAL_META_READ_SET} on TWO conditions
+ * — objectui#7187.
+ *
+ * 1. the PRODUCER half: the verdict licenses a copy at all, and
+ * 2. the READER half: a consumer fed this bag reads the key — or the entry
+ *    names why it is copied without one.
+ *
+ * ⭐ (2) is the condition objectui#6875's mechanism did not have, and its
+ * absence is what let two keys onto this table whose only reader is an editor
+ * widget the bag never reaches. It is checked against the consumer sources, so
+ * no verdict edit can manufacture it.
  *
  * Order is the table's, which groups a chain's spellings together — it does not
  * matter to `applyRelationalMeta` (each key is written independently), but it
@@ -294,7 +383,8 @@ export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEnt
  */
 export const RELATIONAL_META_KEYS: readonly string[] = Object.freeze(
   Object.entries(RELATIONAL_META_READ_SET)
-    .filter(([, entry]) => COPIED_VERDICTS.has(entry.verdict))
+    .filter(([, entry]) => PRODUCER_LICENSED_VERDICTS.has(entry.verdict)
+      && (readByAFedConsumer(entry) || entry.copiedWithoutCellReader !== undefined))
     .map(([key]) => key),
 );
 
