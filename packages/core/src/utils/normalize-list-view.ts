@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ViewType } from '@object-ui/types';
 import type { RowHeight } from '@objectstack/spec/ui';
 
 import { normalizeColumnIdentities } from './column-identity.js';
@@ -128,6 +129,44 @@ const ARIA_KEY_ALIASES: Record<string, string> = {
 };
 
 /**
+ * The view kinds `ListView` actually draws — one key per `case` in its
+ * `viewComponentSchema` switch (`packages/plugin-list/src/ListView.tsx`).
+ *
+ * A total `Record<…, true>` over the shared {@link ViewType} union minus the
+ * two members that are not a LIST visualization, for the same reason the
+ * density maps above are `Record<RowHeight, …>`: a kind added to the union
+ * fails the build HERE instead of silently staying unreadable authored input.
+ *  - `list` is the view CATEGORY, not a kind — it already folds to `grid`.
+ *  - `detail` is a different renderer (`plugin-detail`), never a ListView case.
+ *
+ * `hasOwnProperty`, not `in` — same trap as {@link rowHeightToDensityMode}:
+ * `in` walks the prototype chain, so `'toString'` would read as a view kind.
+ */
+const LIST_VIEW_KINDS: Record<Exclude<ViewType, 'list' | 'detail'>, true> = {
+  grid: true,
+  kanban: true,
+  gallery: true,
+  calendar: true,
+  timeline: true,
+  gantt: true,
+  map: true,
+  chart: true,
+  tree: true,
+};
+
+/**
+ * The author's view kind, or `undefined` when the value names no kind ListView
+ * draws. An unrecognized kind is deliberately left unresolved rather than
+ * written through to `viewType`: the caller's own `'grid'` default is a more
+ * honest answer than a `viewType` no branch matches (the same call
+ * `normalizeChartSchema` makes for a chart family it cannot draw).
+ */
+function readListViewKind(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  return Object.prototype.hasOwnProperty.call(LIST_VIEW_KINDS, value) ? value : undefined;
+}
+
+/**
  * Per-view-type config aliases → the spec key each one aliases (#2890, the
  * phase-3 carry-over).
  *
@@ -206,10 +245,34 @@ const PER_VIEW_CONFIG_ALIASES: Record<string, Readonly<Record<string, string>>> 
  *    so objectui's field is typed from the spec but used as something else.
  *    That mismatch is real and out of scope here; converting formats inside a
  *    vocabulary fold would change what reaches the data source.
+ *  - `data: { provider: 'object', object }` → `objectName` (#7477, step 6 of
+ *    #2890). This is the spelling the published `react-blocks` contract
+ *    recommends and the one `@objectstack/spec`'s `ViewDataSchema` declares;
+ *    ListView read it at ZERO sites, so a page bound that way validated green
+ *    upstream and rendered an empty list here with no diagnostic. The `object`
+ *    provider is a `strictObject` carrying exactly `{ provider, object }`, so
+ *    `objectName` captures all of it. Two deliberate departures from the folds
+ *    above, both narrowing:
+ *      · an already-present `objectName` WINS — this fold only fills a gap, it
+ *        never re-points a binding that already resolves;
+ *      · `data` is NOT deleted. Every other fold deletes because the legacy key
+ *        has one meaning and one home; `data` has four providers, `api`/`value`
+ *        are read live in `ListView`, and the whole block is FORWARDED to child
+ *        views (the gantt branch), whose own `getDataConfig` reads `data` before
+ *        `objectName`. Deleting it for one provider would rewrite what a child
+ *        resolves. Nothing in `ListView` reads `data.provider === 'object'`, so
+ *        keeping it cannot create a second de-facto contract inside the renderer.
  *  - `viewType`: a missing kind, or the view CATEGORY `'list'` that AI-authored
  *    metadata stores and hosts forward verbatim, becomes the renderable `'grid'`
  *    — otherwise it reaches the renderer's typeless default branch and shows as
- *    a red "Unknown component type" box.
+ *    a red "Unknown component type" box. Before that default applies, the
+ *    AUTHOR's kind is read (#7477): `specType` — the slot
+ *    `components/renderers/layout/react-page.tsx` parks a react-tier `type` in
+ *    when the SDUI envelope claims the `type` key (ADR-0078) — and then a bare
+ *    `type` when it names a kind ListView draws, which the component
+ *    discriminator (`'list-view'`) never does. Same two legs, same order, as
+ *    `normalizeChartSchema`'s chart-family read. An explicit `viewType` still
+ *    wins: this leg only fills the gap that used to resolve to `'grid'`.
  *  - each `columns` entry's IDENTITY — `name` / `fieldName` → the spec's `field`
  *    (#3104). This one MIRRORS instead of deleting, for the reason given on
  *    {@link normalizeColumnIdentities}: `columns` entries cross the package
@@ -244,7 +307,19 @@ export function normalizeListViewSchema<T>(schema: T): T {
   const foldAria = !!aria && Object.keys(ARIA_KEY_ALIASES).some((k) => aria[k] !== undefined);
   const sharing = isRecord(s.sharing) ? s.sharing : undefined;
   const foldSharing = !!sharing && (sharing.visibility !== undefined || sharing.enabled !== undefined);
+  // `data: { provider: 'object', object }` → `objectName` (#7477). Gap-fill
+  // only: a non-empty `objectName` already on the schema wins, so this can
+  // never re-point a binding that resolves today.
+  const dataConfig = isRecord(s.data) ? s.data : undefined;
+  const dataObjectName =
+    dataConfig?.provider === 'object' && typeof dataConfig.object === 'string' && dataConfig.object
+      ? dataConfig.object
+      : undefined;
+  const foldObjectName =
+    dataObjectName !== undefined && !(typeof s.objectName === 'string' && s.objectName);
   const viewType = s.viewType;
+  // The author's kind, read before the `'grid'` default applies (#7477).
+  const authoredViewKind = readListViewKind(s.specType) ?? readListViewKind(s.type);
   const defaultViewKind = !viewType || viewType === 'list';
   // The columns array the identity fold will see — mirroring the `foldColumns`
   // precedence below (canonical `columns` wins; otherwise the legacy `fields`
@@ -273,7 +348,7 @@ export function normalizeListViewSchema<T>(schema: T): T {
   if (
     !foldColumns && !foldRowHeight && !foldFilter && !legacyFlags.length &&
     !foldDescription && !foldAria && !foldSharing && !defaultViewKind &&
-    !foldColumnIdentity && !perViewFolds.length
+    !foldColumnIdentity && !perViewFolds.length && !foldObjectName
   ) {
     return schema;
   }
@@ -356,6 +431,7 @@ export function normalizeListViewSchema<T>(schema: T): T {
     }
     next[viewKey] = nextCfg;
   }
-  if (defaultViewKind) next.viewType = 'grid';
+  if (foldObjectName) next.objectName = dataObjectName;
+  if (defaultViewKind) next.viewType = authoredViewKind ?? 'grid';
   return next as T;
 }
