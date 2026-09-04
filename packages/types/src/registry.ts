@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { BaseSchema } from './base.js';
+
 import type {
   DivSchema,
   BoxSchema,
@@ -92,7 +94,6 @@ import type {
 } from './navigation.js';
 
 import type {
-  DeclarativeKanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,
@@ -183,14 +184,38 @@ export interface SchemaRegistry {
   'pagination': PaginationSchema;
 
   // Complex
-  // ⚠️ The renderer registered for `'kanban'` (`ObjectKanbanRenderer`, in
-  // `@object-ui/plugin-kanban`) consumes that package's own `KanbanSchema`,
-  // NOT this declarative face. The mismatch is latent — the value side of this
-  // map is reached only through `ComponentType = keyof SchemaRegistry` and
-  // nothing performs an indexed access — and objectui#6172's ruling (option A)
-  // renamed the declarative copy rather than relocating the plugin dialect
-  // into this zero-dependency layer, so the mismatch stays latent-but-named.
-  'kanban': DeclarativeKanbanSchema;
+  // ⚠️ `'kanban'` is the one key whose value this layer cannot state
+  // precisely, so it deliberately states LESS rather than stating it wrongly
+  // (objectui#7645).
+  //
+  // The renderer registered for this key is `ObjectKanbanRenderer` in
+  // `@object-ui/plugin-kanban` (`ComponentRegistry.register('kanban', …)`,
+  // `plugin-kanban/src/index.tsx`), and it consumes THAT package's
+  // `KanbanSchema`. `@object-ui/types` cannot name that type, measured two
+  // ways: importing it is a phantom dependency this package does not declare
+  // (`check:phantom-deps` rejects it by file and pair), and declaring the
+  // dependency would close the cycle `@object-ui/types` →
+  // `@object-ui/plugin-kanban` → `@object-ui/types` — this is the
+  // zero-workspace-dependency bottom layer. objectui#6172's ruling (option A)
+  // kept the plugin's bare names rather than relocating that dialect down
+  // here, so the gap is permanent by decision, not by oversight.
+  //
+  // What this entry asserts is therefore only what this layer can PROVE, and
+  // what BOTH dialects satisfy: a schema node tagged `'kanban'`. It no longer
+  // names `DeclarativeKanbanSchema` — that is the AUTHORING/validation face
+  // (the `'kanban'` arm of `ComplexSchema` → `AnyComponentSchema` →
+  // `safeValidateSchema`, still exported from `./complex.js` and unchanged),
+  // not the type the registered renderer honours. Naming it here made a map
+  // that advertises itself as the Single Source of Truth describe a different
+  // component than the key names.
+  //
+  // ⛔ Do not "restore" a precise type here without moving the renderer's
+  // dialect into a layer this package may depend on. Two compile-time pins
+  // hold the shape: `src/__tests__/schema-registry-kanban-honesty-7645.test.ts`
+  // (the key survives in `keyof`; the value no longer claims the declarative
+  // face) and the same file name under `plugin-kanban/src/__tests__/` (the
+  // renderer's own `KanbanSchema` satisfies what this entry asserts).
+  'kanban': BaseSchema & { type: 'kanban' };
   'calendar-view': CalendarViewSchema;
   'filter-builder': FilterBuilderSchema;
   'carousel': CarouselSchema;
