@@ -10,4 +10,4 @@
 
 **Where the non-pair is recorded now.** `zod-mirror-parity.test.ts` keys its existing `EXCLUSIONS` entry — the mechanism that accounts for every exported const with no TypeScript declaration to mirror, each with its stated reason — to `ClassNameStylePropsSchema`. Named for its own two keys, the const leaves no like-named declaration for a name-derived pairing to reach for.
 
-**No deprecation window, deliberately.** No consumer of the old name was found: its only three references in this repository were the definition, the barrel line and the guard's own key (lit control on the same query shape: `BaseSchema` returns hits in 199 files). A staged retirement here would need named external-consumer evidence, and there is none.
+**No deprecation window, deliberately.** No consumer of the old name exists in this repository. Measured on this branch's base: `StylePropsSchema` had exactly three references — the definition, the barrel line, and the guard's own exclusion key — all three inside `packages/types` (lit control on the same query shape: `BaseSchema` matches 251 tracked files). A staged retirement would need named external-consumer evidence, and there is none.
