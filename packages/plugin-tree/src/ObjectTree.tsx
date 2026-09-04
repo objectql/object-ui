@@ -595,7 +595,20 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
 
   const navigation = useNavigationOverlay({
     navigation: (schema as any).navigation,
-    objectName: schema.objectName,
+    // The record-page URL names the object the ROWS came from, not the block's
+    // bare top-level key (objectui#7638). objectui#6939 published `objectName`
+    // as the THIRD RUNG of ONE record-source ladder (`data`, then `staticData`,
+    // then `objectName`) rather than as a parallel "page object" concept, so a
+    // block has exactly one record source. A row fetched through
+    // `data.object` whose click built `/{schema.objectName}/record/{id}` named
+    // a record that the URL's own object does not contain.
+    //
+    // The `?? schema.objectName` tail is NOT the shared rung repeated: it is
+    // this site's own coercion of the OFF-CONTRACT `data: { provider: 'object' }`
+    // that carries no `object` (`ViewDataSchema` declares it required), kept for
+    // exactly the reason `headerObjectName` above keeps it — so this conversion
+    // changes nothing this site resolves today EXCEPT the divergence it closes.
+    objectName: resolveRecordSourceObjectName(schema, dataConfig) ?? schema.objectName,
     onRowClick,
   });
 

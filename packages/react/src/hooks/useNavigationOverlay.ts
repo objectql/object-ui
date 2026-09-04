@@ -190,12 +190,31 @@ export interface NavigationOverlayState {
 /**
  * Hook for NavigationConfig-driven navigation overlay.
  *
+ * ## What to hand `objectName`
+ *
+ * The block's RECORD SOURCE — the object the clicked rows actually came from —
+ * and never a bare top-level `schema.objectName` read in its place. objectui#6939
+ * published `objectName` as the THIRD RUNG of one record-source ladder (`data`,
+ * then `staticData`, then `objectName`), not as a parallel "page object"
+ * concept, so a block has exactly ONE record source. `handleClick` below builds
+ * the record-page URL `/{objectName}/record/{id}` out of whatever it is handed:
+ * a caller that hands it the top-level key while its rows came from
+ * `data.object` navigates to a record that the URL's own object does not
+ * contain (objectui#7638).
+ *
+ * A caller that resolves a data config reads that ladder through the ONE shared
+ * reader — `resolveRecordSourceObjectName` from `@object-ui/core`
+ * (objectui#7627) — as the example does. A caller with NO data config has
+ * nothing above rung three, and its `schema.objectName` already IS its record
+ * source; that spelling is correct there and needs no conversion.
+ *
  * @example
  * ```tsx
+ * const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
  * const { handleClick, isOpen, selectedRecord, mode, close, width } =
  *   useNavigationOverlay({
  *     navigation: schema.navigation,
- *     objectName: schema.objectName,
+ *     objectName: resolveRecordSourceObjectName(schema, dataConfig),
  *     onNavigate: schema.onNavigate,
  *     onRowClick: props.onRowClick,
  *   });
