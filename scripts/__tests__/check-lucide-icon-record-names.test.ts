@@ -995,12 +995,49 @@ describe('the gate is wired and the local pins it subsumes are gone', () => {
     }
   });
 
-  it('the pin the gate does NOT subsume is kept, and says why', () => {
-    // `ui:icon`'s registration meta: no first-party consumer of a
-    // registration's `icon` exists in this repository, so the gate has no
-    // measured basis to judge it. Retiring that pin would drop coverage.
+  it('records WHY a registration\'s `icon` meta is not judged, with the reading', () => {
+    // objectui#5936. This assertion used to read "the pin the gate does NOT
+    // subsume is kept, and says why", and its stated reason was that no
+    // first-party consumer of a registration's `icon` could be found in THIS
+    // repository, so "retiring that pin would drop coverage".
+    //
+    // That reason was a one-repo reading, and objectui#5936 finished the
+    // measurement: objectstack is also zero, and cloud is a THIRD zero with no
+    // component-registration surface at all. With no consumer found anywhere,
+    // the gate is adjudicated NOT to be extended to this population, and the
+    // pin's MEMBERSHIP half was retired rather than kept — it guarded 1 of the
+    // 45 registrations declaring an `icon` meta, over a surface with no
+    // measured reader.
+    //
+    // What this pins now is the part that must not go silently: the gate's
+    // header has to carry the reading, the adjudication, and the caveat that
+    // three zeros are not a proof of absence. A boundary a reader cannot see
+    // the reasoning for is re-litigated from scratch, which is what
+    // objectui#5936 cost.
+    //
+    // Matched against a WHITESPACE-NORMALISED header: these are assertions about
+    // prose, and prose re-wraps. Matching the raw text would make a reflow that
+    // changes nothing fail, which teaches the next reader to reflow the sentence
+    // rather than keep the meaning.
+    const header = fs.readFileSync(path.join(repoRoot, GATE), 'utf8')
+      .replace(/^\s*\*\s?/gm, ' ')
+      .replace(/\s+/g, ' ');
+    expect(header, 'the registration `icon` meta boundary is undocumented').toContain('objectui#5936');
+    for (const population of ['objectui', 'objectstack', 'cloud']) {
+      expect(header, `the ${population} reading is missing from the boundary`).toContain(population);
+    }
+    expect(header, 'the boundary does not say the gate is NOT extended').toContain('NOT extended');
+    expect(header, 'the boundary reads as a proof of absence').toContain('NOT a proof of absence');
+
+    // The pin file survives — its COUPLING half needs no external vocabulary
+    // and is not what was retired — but it must no longer assert record
+    // membership, or the retirement did not happen.
     const kept = 'packages/components/src/__tests__/icon-renderer-declared-default.test.ts';
     expect(fs.existsSync(path.join(repoRoot, kept))).toBe(true);
-    expect(fs.readFileSync(path.join(repoRoot, kept), 'utf8')).toContain('NOT retired by objectui#5633');
+    const pin = fs.readFileSync(path.join(repoRoot, kept), 'utf8');
+    expect(pin, 'the pin still imports the `icons` record — the membership half is back').not.toMatch(
+      /^\s*import\s*\{[^}]*\bicons\b[^}]*\}\s*from\s*'lucide-react'/m,
+    );
+    expect(pin, 'the pin no longer says which card retired its membership half').toContain('objectui#5936');
   });
 });
