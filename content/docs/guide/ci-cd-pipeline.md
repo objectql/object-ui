@@ -40,7 +40,7 @@ one has its own section below.
 | `shell-escape-residue.yml` | Shell Escape Residue Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a fenced block in `AGENTS.md`, `CLAUDE.md`, `skills/**` or `content/docs/**` carries the enumerated machine-produced shell escape, or a scan root fails to resolve |
 | `readme-exports.yml` | README Export Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `packages/**/README.md` imports a name from its own package that the package does not export, or the scan's population collapses |
 | `docs-route-eager-closure.yml` | Docs Route Eager Closure Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a package named in `apps/site/app/components/registerCatalogBlocks.ts` is not already reachable from the docs route's module graph (exit 1), or when the gate's own gauge cannot be trusted (exit 2) |
-| `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval pinned to the PR's current head is refused there; on the pull request itself it is deliberately green and prints an early warning |
+| `governed-surface-guard.yml` | Governed Surface Queue Guard | PR to `main`, `develop` (incl. `ready_for_review`) — **no path filter**; merge-queue builds | **Yes on a queue build only** — a governed-surface diff with no authorized approval record (on any commit) is refused there; on the pull request itself it is deliberately green and prints an early warning |
 | `performance-budget.yml` | Bundle Analysis | Push / PR touching `packages/**`, `apps/console/**`, `pnpm-lock.yaml` | **Yes** — the console entry gzip budget |
 | `live-e2e.yml` | Live E2E (informational) | PR to `main`, `develop` (code paths); nightly cron `30 6 * * *`; manual | No — informational lane, `continue-on-error` |
 | `labeler.yml` | Auto Label PRs | PR `opened`, `synchronize`, `reopened` | No |
@@ -1251,10 +1251,17 @@ case forever — and a permanently red check is one everybody learns to ignore. 
 build** the same finding is a refusal: that is a state a governed pull request should never be in at
 all, so red there is red on the anomaly.
 
-**What clears the queue leg** is an `APPROVED` review by an account in `GOVERNED_APPROVERS` whose
-`commit_id` equals the pull request's *current* head sha. The sha pin is what makes the approval an
-approval *of something*: a push after the approval goes stale and reopens the refusal, so a
-clearance cannot outlive the bytes it was given for. Dismissed and superseded approvals never count.
+**What clears the queue leg** is a latest-decisive `APPROVED` review by an account in
+`GOVERNED_APPROVERS`, on whichever commit it was left. Dismissed and superseded approvals (a later
+`CHANGES_REQUESTED` by the same reviewer) never count; an `APPROVED` review by an account outside
+that set never counts; an empty or unreadable review list fails closed. The predicate is the
+existence of a human approval record, and says nothing about which bytes it was given for — the
+maintainer ruled the sha pin out on 2026-09-04, quoted verbatim and untranslated because rewriting a
+ruling is rewriting the ruling: 「你的门禁有问题，只需要有人工批准记录就行，不需要卡最新的提交。」
+The pin is retired, not softened: no predicate reads `commit_id`, there is no stale bucket, and the
+pull-request head read that existed only to feed the pin is gone with it. **The accepted cost**,
+stated out loud rather than left to be discovered: a push after an approval is no longer re-reviewed
+by this gate, so an approved governed pull request can land carrying bytes its approver never read.
 The remedy the refusal prints **first** is not approval at all — convert the pull request back to a
 draft and leave the merge to the maintainer.
 
