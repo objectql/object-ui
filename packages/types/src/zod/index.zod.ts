@@ -59,8 +59,6 @@ export {
   HTMLAttributesSchema,
   EventHandlersSchema,
   ClassNameStylePropsSchema,
-  /** @deprecated objectui#5928 — use `ClassNameStylePropsSchema`. Same object; removed one release out. */
-  StylePropsSchema,
 } from './base.zod.js';
 
 // ============================================================================
