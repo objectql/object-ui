@@ -10,6 +10,21 @@
  * objectui#6875 — a lookup cell in `ObjectGrid` must honour the author's
  * `displayField`, the SPEC-DECLARED spelling.
  *
+ * ⭐ objectui#7155 INVERTED the second half of this pin. It used to assert
+ * PARITY: both spellings resolve to the same value. That parity was the visible
+ * face of a two-dialect seam — `@objectstack/spec` declared camelCase and
+ * refused snake_case, while `@object-ui/types`' widget metadata declared
+ * snake_case and refused camelCase, and the read chains served both with the
+ * snake leg FIRST. The maintainer ruled to converge the contracts on the spec's
+ * spelling in one payment, so the snake leg is gone from the chains, the
+ * published type, the docs and all seven in-repo producers.
+ *
+ * ⇒ This file now pins the REFUSAL: a def carrying `display_field` resolves to
+ * the generic name heuristic (the key is unread), and a def carrying
+ * `displayField` resolves to the author's pointer. ⛔ Do not "fix" the snake
+ * column back to green — that would restore the seam and make an undeclared
+ * key outrank a declared one.
+ *
  * ## Why this file renders a cell instead of asserting a key list
  *
  * The sibling pins in this directory (`relationalMetaCopySet-6711` /
@@ -41,20 +56,24 @@
  * `display_field || displayField || reference_field`, so it was ready for the
  * key the whole time; the value simply never arrived.
  *
- * ## The control that makes the red half a reading
+ * ## The control that makes the refusal a reading
  *
  * Two columns render from ONE data source, ONE referenced record and ONE cell
  * renderer, differing only in the spelling on the field def:
  *
- *   `code_camel` → `{ displayField: 'project_code' }`   (spec-declared)
- *   `code_snake` → `{ display_field: 'project_code' }`  (already copied)
+ *   `code_camel` → `{ displayField: 'project_code' }`   (spec-declared, READ)
+ *   `code_snake` → `{ display_field: 'project_code' }`  (retired, UNREAD)
  *
- * The snake column is the positive control. Before the fix it resolved
- * `ACME-42` while the camel column resolved `Wrong Name` — the referenced
- * record's `name`, via the generic heuristic that runs when no display field is
- * declared. A single-column test could not tell "the key never arrived" apart
- * from "the fixture never reached the lookup path at all"; the control column
- * is what separates them, and it must stay green in both directions.
+ * ⚠️ The roles have swapped. The CAMEL column is now the positive control: it
+ * must resolve `ACME-42`, which proves the lookup path is reached and the
+ * resolver is returning a value at all. Without it, "the snake column does not
+ * show `ACME-42`" would be satisfied by a fixture that never rendered a lookup
+ * — the exact failure this file's original control existed to rule out.
+ *
+ * And the snake column's refusal is asserted POSITIVELY, by what it resolves TO
+ * (`Wrong Name`, the referenced record's `name` via the generic heuristic), not
+ * merely by the absence of `ACME-42`. A cell that rendered nothing at all would
+ * pass an absence-only assertion; it fails this one.
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -97,9 +116,10 @@ function makeDataSource() {
         fields: {
           id: { type: 'text' },
           title: { type: 'text', label: 'Title' },
-          // Spec-declared spelling. This is what a live `getObjectSchema` can carry.
+          // Spec-declared spelling — the only one read since objectui#7155.
           code_camel: { type: 'lookup', label: 'Project (spec spelling)', reference: REFERENCED, displayField: 'project_code' },
-          // Runtime spelling, already in the copy set — the positive control.
+          // Retired snake_case spelling. Authored here on purpose: this column
+          // must DEGRADE to the generic heuristic, proving the leg is gone.
           code_snake: { type: 'lookup', label: 'Project (runtime spelling)', reference: REFERENCED, display_field: 'project_code' },
         },
       };
@@ -139,20 +159,28 @@ async function renderGrid() {
 }
 
 describe('objectui#6875 — ObjectGrid lookup cells honour the spec-declared `displayField`', () => {
-  it('the runtime spelling `display_field` resolves the declared display value (CONTROL)', async () => {
+  it('the spec spelling `displayField` resolves the declared display value (CONTROL)', async () => {
     await renderGrid();
     await waitFor(() => {
       expect(screen.getAllByText('ACME-42').length).toBeGreaterThan(0);
     }, { timeout: 4000 });
   });
 
-  it('the spec spelling `displayField` resolves it too, and the row never shows the referenced record’s `name`', async () => {
+  it('⛔ objectui#7155 — the retired `display_field` is UNREAD: exactly one column resolves, and the snake column falls back to the generic name heuristic', async () => {
     await renderGrid();
+    // CONTROL first: the camel column resolves, so the lookup path is reached
+    // and the resolver is returning values. Only then is the snake column's
+    // behaviour a measurement rather than an empty render.
     await waitFor(() => {
-      // Both columns resolved through the author's pointer.
-      expect(screen.getAllByText('ACME-42').length).toBe(2);
+      expect(screen.getAllByText('ACME-42').length).toBeGreaterThan(0);
     }, { timeout: 4000 });
-    // The generic `.name` heuristic must not surface anywhere in the row.
-    expect(screen.queryByText('Wrong Name')).not.toBeInTheDocument();
+
+    // ⭐ The refusal, asserted by what the snake column resolves TO. Before
+    // objectui#7155 this was 2 (both spellings read); now the retired spelling
+    // reaches nothing and its cell degrades to the referenced record's `name`.
+    await waitFor(() => {
+      expect(screen.getByText('Wrong Name')).toBeInTheDocument();
+    }, { timeout: 4000 });
+    expect(screen.getAllByText('ACME-42').length).toBe(1);
   });
 });

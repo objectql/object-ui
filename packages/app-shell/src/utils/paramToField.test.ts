@@ -103,7 +103,13 @@ describe('paramToField', () => {
     expect(paramToField(p({ type: 'checkbox' }))).toMatchObject({ type: 'boolean', widget: 'checkbox' });
   });
 
-  it('maps the full lookup picker config to snake_case field metadata', () => {
+  // ⭐ objectui#7155 converged the lookup dialect: `displayField` / `idField` /
+  // `descriptionField` / `lookupFilters` are emitted in the SPEC spelling now.
+  // The remaining snake members below (`reference_to`, `title_format`,
+  // `lookup_columns`, `lookup_page_size`, `depends_on`) were outside that
+  // ruling's four keys and are unchanged — this mixed shape is deliberate, and
+  // asserting it keeps the two halves visibly separate.
+  it('maps the full lookup picker config to the field metadata the widgets read', () => {
     const field = paramToField(p({
       type: 'lookup',
       referenceTo: 'space_users',
@@ -120,13 +126,13 @@ describe('paramToField', () => {
     expect(field).toMatchObject({
       type: 'lookup',
       reference_to: 'space_users',
-      display_field: 'name',
-      id_field: 'id',
-      description_field: 'email',
+      displayField: 'name',
+      idField: 'id',
+      descriptionField: 'email',
       multiple: true,
       title_format: '{first_name} {last_name}',
       lookup_columns: [{ field: 'name' }],
-      lookup_filters: [{ field: 'active', operator: '=', value: true }],
+      lookupFilters: [{ field: 'active', operator: '=', value: true }],
       lookup_page_size: 25,
       depends_on: ['org'],
     });
@@ -221,7 +227,7 @@ describe("the reference-bearing rule is core's object, not a copy (objectui#5312
       expect(
         paramToField(p({ type, referenceTo: 'accounts', displayField: 'name' })),
         `'${type}' lost its reference config in the convergence`,
-      ).toMatchObject({ type, reference_to: 'accounts', display_field: 'name' });
+      ).toMatchObject({ type, reference_to: 'accounts', displayField: 'name' });
     }
     expect(RETIRED_INLINE_MEMBERS.filter((t) => !EXPANDABLE_FIELD_TYPES.has(t))).toEqual([]);
   });

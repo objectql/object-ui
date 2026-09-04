@@ -49,9 +49,9 @@
  *
  *   - as `spec` / `adapter-stamped` — the cell does not read them, so the
  *     derived copy set does not contain them and the copy-set assertion is red;
- *   - as `legacy-alias` — that exit needs `copiedWithoutCellReader`, which is
- *     confined to keys `FieldSchema` does NOT declare, and all three are
- *     spec-declared.
+ *   - under the `copiedWithoutCellReader` exit — objectui#7155 retired the
+ *     `legacy-alias` class that exit existed for, and the gate now asserts NO
+ *     entry takes it at all.
  *
  * ## The three consumers, and how each is read
  *
@@ -198,8 +198,16 @@ function declaredReaders(consumer: RelationalMetaConsumer): string[] {
  * whatever the copy set says.
  */
 function assertExtractorFoundKnownChains(x: Extraction): void {
-  expect(x.cell).toContain('display_field');
+  // ⭐ objectui#7155 retired the snake_case lookup dialect, so the cell's own
+  // chain is no longer a two-spelling pair. The control keeps its SHAPE — a
+  // consumer whose reads include both a camel and a snake spelling — by moving
+  // to `lookup-editor`, whose `lookup_columns` / `lookupColumns` pair this card
+  // did NOT touch. ⛔ Never weaken this to camel-only: the extractor's job is to
+  // see every spelling a consumer reads, and a control that only ever looks for
+  // the surviving dialect cannot detect an extractor that stopped seeing the
+  // other one.
   expect(x.cell).toContain('displayField');
+  expect(x.cell).toContain('reference_to');
   expect(x['lookup-editor']).toContain('lookup_columns');
   expect(x['lookup-editor']).toContain('lookupColumns');
   expect(x['user-editor']).toContain('reference_field');
@@ -306,14 +314,23 @@ describe('objectui#6875 — the copy set is derived from the consumers, not rest
     }
   });
 
-  it('records the `legacy-alias` asymmetry mechanically — none of them is authorable', () => {
-    // These are copied for back-compat and cannot be produced by a
-    // spec-compliant author. Asserting it here keeps the docblock's claim from
-    // going stale silently if a future spec version declares one of them — at
-    // which point the verdict should become `spec`.
-    for (const [key, e] of Object.entries(RELATIONAL_META_READ_SET)) {
-      if (e.verdict !== 'legacy-alias') continue;
-      expect(specProps.has(key), `${key} is now spec-declared — reclassify it as 'spec'`).toBe(false);
+  it('proves the `widget-contract` verdict is exactly that — read, produced in-repo, and absent from the spec', () => {
+    const claimed = Object.entries(RELATIONAL_META_READ_SET)
+      .filter(([, e]) => e.verdict === 'widget-contract')
+      .map(([k]) => k);
+    // Control: the bucket is populated (objectui#7155 put `idField` in it), so
+    // the assertions below are readings and not an empty loop.
+    expect(claimed).toEqual(['idField']);
+    expect(specProps.size).toBeGreaterThan(60);
+    expect(specProps.has('displayField')).toBe(true);
+    for (const key of claimed) {
+      // If a future spec version declares one of these, it is no longer a
+      // widget-contract key — reclassify it as `spec` rather than keeping a
+      // second home for a spelling the object contract now owns.
+      expect(
+        specProps.has(key),
+        `${key} is now declared on FieldSchema — reclassify it as 'spec'`,
+      ).toBe(false);
     }
   });
 
@@ -328,7 +345,7 @@ describe('objectui#6875 — the copy set is derived from the consumers, not rest
     // independent routes, and a hand-edited `readers` cannot carry both.
     const expected = Object.entries(RELATIONAL_META_READ_SET)
       .filter(([key, e]) =>
-        (e.verdict === 'spec' || e.verdict === 'adapter-stamped' || e.verdict === 'legacy-alias')
+        (e.verdict === 'spec' || e.verdict === 'adapter-stamped' || e.verdict === 'widget-contract')
         && (cellRead.has(key) || e.copiedWithoutCellReader !== undefined))
       .map(([k]) => k);
     expect([...RELATIONAL_META_KEYS].sort()).toEqual(expected.sort());
@@ -343,32 +360,68 @@ describe('objectui#6875 — the copy set is derived from the consumers, not rest
     }
   });
 
-  it('⭐ objectui#7187 — the one exit from the cell-reader rule names itself, and only a non-authorable key may take it', () => {
-    const exits = Object.entries(RELATIONAL_META_READ_SET).filter(([, e]) => e.copiedWithoutCellReader !== undefined);
-    // Control: the bucket is populated, so the loop below is a reading.
-    expect(exits.length).toBeGreaterThan(0);
-    for (const [key, e] of exits) {
+  it('⭐ objectui#7155 — the cell-reader rule has NO exit any more: the class it served is retired', () => {
+    // objectui#7187 gave the exit to the `legacy-alias` keys, which were kept
+    // on an UNANSWERED producer question. objectui#7155 answered it — the host
+    // feeding snake_case was this repo's own widget contract and docs — and
+    // converged both dialects on the spec spelling. So the exit is now unused.
+    //
+    // ⚠️ Control FIRST: the table is populated and the field is still
+    // reachable, so "no entry takes the exit" is a measurement and not an
+    // assertion over an empty or misresolved object.
+    const entries = Object.entries(RELATIONAL_META_READ_SET);
+    expect(entries.length).toBeGreaterThan(10);
+    expect(entries.some(([, e]) => 'copiedWithoutCellReader' in e || e.copiedWithoutCellReader === undefined)).toBe(true);
+
+    const exits = entries.filter(([, e]) => e.copiedWithoutCellReader !== undefined).map(([k]) => k);
+    expect(
+      exits,
+      'A key is copied onto this bag although no consumer fed it reads the key. That exit existed '
+        + 'ONLY for the snake_case dialect objectui#7155 retired. Re-opening it needs a new ruling and '
+        + 'a restatement of this gate — not a new flag.',
+    ).toEqual([]);
+  });
+
+  it('⛔ objectui#7155 — the retired snake_case dialect reaches no consumer and no verdict', () => {
+    const retiredDialect = ['display_field', 'description_field', 'lookup_filters', 'id_field'];
+    const x = extractReadSet();
+    // ⚠️ Control FIRST — this whole test is a set of ABSENCE claims, and an
+    // extractor that found nothing would satisfy every one of them. These are
+    // the surviving spellings of the very same four concepts.
+    assertExtractorFoundKnownChains(x);
+    for (const survivor of ['displayField', 'descriptionField', 'lookupFilters', 'idField']) {
       expect(
-        e.verdict,
-        `${key} is copied without a cell reader under verdict '${e.verdict}'. That exit exists for the `
-          + 'snake_case runtime spellings kept on an unanswered PRODUCER question, and nothing else — '
-          + 'a spec-declared key taking it would be objectui#6875 happening again.',
-      ).toBe('legacy-alias');
-      expect(specProps.has(key), `${key} is spec-declared — it cannot rest on "no producer can be surveyed"`).toBe(false);
-      expect(e.copiedWithoutCellReader!.length, `${key}'s exit has no reason`).toBeGreaterThan(20);
+        survivor in RELATIONAL_META_READ_SET,
+        `${survivor} is missing from the table — the control for this test is dark, so its absence `
+          + 'claims below prove nothing.',
+      ).toBe(true);
     }
-    // ⛔ And no stale flags: the exit is only legal where it is actually needed.
-    const cellRead = extractReadSet().cell;
-    for (const [key, e] of Object.entries(RELATIONAL_META_READ_SET)) {
-      if (e.copiedWithoutCellReader === undefined) continue;
-      expect(cellRead.has(key), `${key} IS read by the cell — it does not need the exit; drop the field`).toBe(false);
+    // The camel survivors ARE read: `displayField` by the cell, the other three
+    // by the editor widgets that the schema spread feeds.
+    expect(x.cell).toContain('displayField');
+    expect(x['lookup-editor']).toContain('idField');
+
+    for (const key of retiredDialect) {
+      expect(key in RELATIONAL_META_READ_SET, `${key} is back on the table — the dialect is retired`).toBe(false);
+      expect(RELATIONAL_META_KEYS, `${key} is back in the copy set`).not.toContain(key);
+      for (const consumer of CONSUMERS) {
+        expect(
+          x[consumer].has(key),
+          `${CONSUMER_SOURCE[consumer]} reads \`${key}\` again. objectui#7155 converged the widget `
+            + 'contract on the spec spelling; re-adding the snake leg would restore the two-dialect seam '
+            + 'and make an UNDECLARED key outrank a declared one.',
+        ).toBe(false);
+      }
     }
+    // ⛔ And the verdict that licensed them is unrepresentable, not merely unused.
+    expect(Object.values(RELATIONAL_META_READ_SET).map((e) => e.verdict)).not.toContain('legacy-alias');
   });
 
   it('⛔ objectui#7166 — the three retired keys stay OUT of the copy set, and objectui#7187 makes that DERIVED', () => {
     const retired = ['descriptionField', 'lookupColumns', 'lookupFilters'];
     // Control: the copy set is populated, so "not contained" is a reading.
-    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(5);
+    // objectui#7155 shrank it from 7 to 3 by retiring the snake_case dialect.
+    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(2);
     expect(RELATIONAL_META_KEYS).toContain('displayField');
     for (const key of retired) {
       expect(

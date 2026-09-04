@@ -187,7 +187,7 @@ export function lookupFiltersToRecord(
  * Radix `Select` speaks strings only: an option renders as
  * `value={String(opt.value)}` and `onValueChange` hands that same string back.
  * A filter option's value, however, is whatever the metadata author wrote —
- * `lookup_filters: [{ field: 'level', operator: 'in', value: [1, 2, 3] }]`
+ * `lookupFilters: [{ field: 'level', operator: 'in', value: [1, 2, 3] }]`
  * derives options with NUMBER values (`LookupFilterDef.value` is `unknown`) —
  * so writing the control's string straight into `$filter` queried
  * `{ level: "1" }` against records storing `level: 1`, and the panel returned
@@ -314,7 +314,7 @@ export interface RecordPickerDialogProps {
 
   /**
    * Base filters applied to every query.
-   * Converted from LookupFieldMetadata.lookup_filters.
+   * Converted from LookupFieldMetadata.lookupFilters.
    * Restricts which records are selectable (e.g. only active records).
    */
   lookupFilters?: LookupFilterDef[];
@@ -561,7 +561,7 @@ export function RecordPickerDialog({
     });
   }, [baseFilterColumns, fieldsMeta, objectName, translateOptions]);
 
-  // Merge base lookup_filters with user filter bar values, then apply the hard
+  // Merge base lookupFilters with user filter bar values, then apply the hard
   // `baseFilter` constraint BY SHAPE (see the prop's own doc for why the two
   // shapes exist):
   //

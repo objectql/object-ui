@@ -159,16 +159,21 @@ describe('objectui#7166 — the three retired keys were never delivered by this 
   it('none of the three is on the copy set any more (the premise the rest of this file measures)', () => {
     // Control: the copy set is populated and still holds the key objectui#6875
     // genuinely delivered, so "does not contain" below is a reading.
-    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(5);
+    // ⚠️ objectui#7155 shrank the copy set from 7 to 3 (the snake_case dialect
+    // was retired), so this floor moved with it. It is still a floor, not a
+    // formality: at 0 every `not.toContain` below would pass vacuously.
+    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(2);
     expect(RELATIONAL_META_KEYS).toContain('displayField');
     for (const key of ['descriptionField', 'lookupColumns', 'lookupFilters']) {
       expect(RELATIONAL_META_KEYS).not.toContain(key);
     }
-    // The snake_case legacy aliases are a DIFFERENT population and stay copied:
-    // their retention rests on an open producer-side question, which this
-    // card's reader-side measurement does not touch.
-    for (const key of ['description_field', 'lookup_filters', 'id_field']) {
-      expect(RELATIONAL_META_KEYS).toContain(key);
+    // ⭐ objectui#7155 — INVERTED. These snake_case spellings used to be a
+    // DIFFERENT population that stayed copied, on an open producer-side
+    // question. That question was answered (the host feeding snake_case was
+    // this repo's own widget contract and docs) and the dialect was retired, so
+    // they are now absent for the same reason as the camel three above.
+    for (const key of ['description_field', 'lookup_filters', 'id_field', 'display_field']) {
+      expect(RELATIONAL_META_KEYS).not.toContain(key);
     }
   });
 
