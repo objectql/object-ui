@@ -111,3 +111,99 @@ describe('extractToc ↔ rendered-anchor parity (objectui#7658)', () => {
     expect(tocIds(source)).toEqual(renderedHeadingIds(source));
   });
 });
+
+/**
+ * objectui#7667 — the emphasis rules and CommonMark's FLANKING rule.
+ *
+ * `*` and `_` are not interchangeable. `*` opens emphasis anywhere, including
+ * inside a word; a `_` run inside a word opens nothing, because it is both
+ * left- and right-flanking with no adjacent punctuation and CommonMark lets
+ * such a run neither open nor close. The renderer obeys that and keeps the
+ * underscores, so the ids only agree if `stripInline` does too.
+ *
+ * Same truth source as above: the `id` the real chain puts on the rendered
+ * heading, never a second derivation of the flanking rule.
+ */
+describe('extractToc ↔ rendered-anchor parity, emphasis flanking (objectui#7667)', () => {
+  /** Asserts parity AND that the shared expectation is the id named here. */
+  const bothAgree = (source: string, id: string) => {
+    // Reading the renderer is the lit control: `[]` here means the harness
+    // rendered nothing and the comparison below it would be vacuous.
+    expect(renderedHeadingIds(source)).toEqual([id]);
+    expect(tocIds(source)).toEqual([id]);
+  };
+
+  it('resolves the anchor for ### NON_GRID_ROW_CEILING (packages/react/README.md:224)', () => {
+    // The live instance. Before the fix the TOC said `nongridrow_ceiling`:
+    // the italic rule paired the 1st and 2nd underscores and ate `GRID`, then
+    // resumed past them and ate `ROW` — an id no anchor on the page carries.
+    bothAgree('### NON_GRID_ROW_CEILING\n', 'non_grid_row_ceiling');
+  });
+
+  it('leaves the ONE-underscore boundary exactly where it was', () => {
+    // Why this went unnoticed: a lone underscore has nothing to pair with, so
+    // ordinary `snake_case` prose was already correct. The fix must not move
+    // it — this case is a regression pin, not a repair.
+    bothAgree('## the snake_case name\n', 'the-snake_case-name');
+  });
+
+  it('keeps every intraword underscore run literal, whatever its length', () => {
+    for (const [md, id] of [
+      ['## A_B_C_D', 'a_b_c_d'], // 3 runs, so the naive rule paired two of them
+      ['## snake_case_word', 'snake_case_word'],
+      ['## MAX_ROWS vs MIN_ROWS', 'max_rows-vs-min_rows'],
+      ['## file_name.ts and other_name.ts', 'file_namets-and-other_namets'],
+      ['## trailing_underscore_', 'trailing_underscore_'], // nothing opened, so the closer stays
+      ['## x__init__y', 'x__init__y'], // a `__` run is intraword too
+    ] as const) {
+      bothAgree(`${md}\n`, id);
+    }
+  });
+
+  it('still strips underscore emphasis that CommonMark really opens', () => {
+    // The intraword exemption is not "underscores are inert" — a run flanked
+    // by whitespace or punctuation opens and closes exactly as before.
+    for (const [md, id] of [
+      ['## _em_ leading', 'em-leading'],
+      ['## __bold__ leading', 'bold-leading'],
+      ['## a _b_ c', 'a-b-c'],
+      ['## a __b__ c', 'a-b-c'],
+      ['## __init__', 'init'], // dunder at word boundaries DOES pair
+      ['## _leading and trailing_', 'leading-and-trailing'],
+      ['## _a_b_c_', 'a_b_c'], // outer runs pair; the inner two are intraword
+    ] as const) {
+      bothAgree(`${md}\n`, id);
+    }
+  });
+
+  it('leaves the asterisk forms alone — only `_` carries the exemption', () => {
+    // The counter-direction: a fix that gave `*` the same intraword exemption
+    // would be wrong here, because `*` opens emphasis inside a word.
+    for (const [md, id] of [
+      ['## *em* asterisk', 'em-asterisk'],
+      ['## **bold** asterisk', 'bold-asterisk'],
+      ['## a*b*c intraword asterisk', 'abc-intraword-asterisk'],
+      ['## a**b**c intraword asterisk bold', 'abc-intraword-asterisk-bold'],
+      ['## *a_b_c*', 'a_b_c'], // asterisk emphasis wrapping intraword underscores
+    ] as const) {
+      bothAgree(`${md}\n`, id);
+    }
+  });
+
+  it('agrees when the two markers meet in one heading', () => {
+    for (const [md, id] of [
+      ['## SOME_CONST and *em*', 'some_const-and-em'],
+      ['## snake_case and *em* mixed', 'snake_case-and-em-mixed'],
+      ['## snake_case *and* more_words', 'snake_case-and-more_words'],
+    ] as const) {
+      bothAgree(`${md}\n`, id);
+    }
+  });
+
+  it('control: a heading with no emphasis marker at all is untouched', () => {
+    // Lit control — a non-empty id that neither the old nor the new rule can
+    // move. A run in which this reads `[]` or drifts is a broken instrument
+    // rather than evidence about the flanking rule.
+    bothAgree('## Plain heading text\n', 'plain-heading-text');
+  });
+});
