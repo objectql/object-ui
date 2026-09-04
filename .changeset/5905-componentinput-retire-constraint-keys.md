@@ -17,11 +17,16 @@ and `placeholder` **0**, against `name` 926, `type` 926, `description` 161, `enu
 
 FROM → TO, per key:
 
-- `min: number` → **removed**. Spell the numeric domain out in `description`, which IS
-  published (`'A positive integer — the contract rejects 0 and fractional values'`).
-- `max: number` → **removed**. Same remedy.
-- `step: number` → **removed**. Same remedy.
-- `placeholder: string` → **removed**. Put the hint in `description`. ⚠️
+⚠️ The four are **TOMBSTONED, not removed** — the declaration stays, the key becomes
+unwritable. An earlier draft of this list said "removed", which contradicted the paragraph
+below it and described the option this change deliberately did NOT take.
+
+- `min: number` → **tombstoned** (`?: never`, named Zod refusal). Spell the numeric domain
+  out in `description`, which IS published (`'A positive integer — the contract rejects 0
+  and fractional values'`).
+- `max: number` → **tombstoned**. Same remedy.
+- `step: number` → **tombstoned**. Same remedy.
+- `placeholder: string` → **tombstoned**. Put the hint in `description`. ⚠️
   `BaseSchema.placeholder` — the node-level prop a renderer does read — is a DIFFERENT key
   and is unaffected.
 
@@ -42,7 +47,9 @@ Two limits worth stating rather than papering over:
   is exactly what the tombstone buys.
 - The fifth key objectui#5905 named, `inputType`, is **NOT retired here**.
   `packages/plugin-markdown` authors it (`inputType: 'textarea'`), so it is
-  declared-and-DROPPED — a different defect that needs a ruling, not a removal.
+  declared-and-DROPPED — a different defect that needs a ruling, not a removal. That
+  ruling landed on 2026-08-31 and `inputType` is tombstoned in the follow-up change; this
+  note records the state as of THIS change, which is what a changeset is for.
 
 This is not a verdict that constraint slots on `ComponentInput` were a mistake. The
 neighbouring `type` field carries a maintainer ruling of 2026-08-17 recording that giving
