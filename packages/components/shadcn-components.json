@@ -93,15 +93,6 @@
         "button"
       ]
     },
-    "chart": {
-      "source": "https://ui.shadcn.com/r/styles/default/chart.json",
-      "dependencies": [
-        "recharts",
-        "lucide-react"
-      ],
-      "registryDependencies": [],
-      "localEdits": "Three local edits. (1) The container is `block … w-full` rather than upstream’s `flex justify-center`: a flex box gives ResponsiveContainer no measurable width, so charts render axes but no marks (#1634, commit 9b163173b). (2) Tooltip/Legend props are hand-written instead of derived from Recharts’ own types, which did not type-check here (2e11aa72f). (3) Tailwind v4 syntax: upstream still ships v3’s `[--var]` arbitrary values, which on Tailwind 4.x compile to a bare custom-property name instead of `var(--var)` — invalid CSS that browsers drop. Applied repo-wide in 925051db6."
-    },
     "checkbox": {
       "source": "https://ui.shadcn.com/r/styles/default/checkbox.json",
       "dependencies": [
@@ -375,6 +366,14 @@
         "calendar"
       ],
       "movedToPlugin": "@object-ui/plugin-calendar-view"
+    },
+    "chart": {
+      "description": "Excluded from the sync - the chart primitives (ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, ChartStyle) were removed from @object-ui/components and live in @object-ui/plugin-charts (ChartContainerImpl.tsx), which is the single implementation. It began as a Shadcn component and is listed here, never under `components`, so `pnpm shadcn:update-all` cannot resurrect src/ui/chart.tsx - a second copy is how the objectui#7248 legend bug would come back (objectui#7397).",
+      "dependencies": [
+        "recharts",
+        "lucide-react"
+      ],
+      "movedToPlugin": "@object-ui/plugin-charts"
     },
     "chatbot": {
       "description": "Custom ObjectUI component - Chatbot interface (moved to @object-ui/plugin-chatbot)",
