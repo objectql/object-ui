@@ -1090,19 +1090,39 @@ export function moduleSpecifiersOf(sourceFile) {
   return [...out];
 }
 
-/** Workspace package specifiers a document imports (bare specifier root only). */
-function importedSpecifiers(body) {
-  const out = new Set();
-  const patterns = [
-    /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g,
-    /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(body)) !== null) out.add(m[1]);
-  }
-  return out;
+/**
+ * Every module specifier ONE BLOCK BODY imports — the parse and the walk
+ * together, so that BOTH gates read imports through this one function and
+ * cannot answer the question differently.
+ *
+ * ⚠️ It replaces two copies of a regex reader, one per gate, and both were
+ * wrong the same way: prose is part of the corpus, so an import-shaped line
+ * inside a template literal or a string was read as an import. Measured on
+ * this corpus (objectui#7555): `content/docs/plugins/plugin-markdown.mdx`
+ * carries a README sample whose template literal holds `npm install
+ * project-name`, and the regex reported `project-name` as a specifier that
+ * block imports. Nothing in that block imports anything. Both consumers
+ * survived it by luck rather than by construction — a false name matters to
+ * `neededPackages` only if it happens to equal a workspace package, and it
+ * reaches the skills gate's `Unmapped specifiers` line, which since
+ * objectui#7463 item 2 is the REPORT of what the AST-derived root bound
+ * refuses, so a regex-derived line and an AST-derived refusal could disagree.
+ *
+ * ⚠️ Parsed as TSX, matching `compileSnippets` — a reader walking a different
+ * tree from the one `tsc` judges would answer about a program nobody compiled.
+ * `createSourceFile` never throws, so a block too broken to parse yields no
+ * specifiers here and is caught by the syntax leg instead.
+ */
+export function moduleSpecifiersOfBlock(body) {
+  return moduleSpecifiersOf(
+    ts.createSourceFile(
+      'block.tsx',
+      body,
+      ts.ScriptTarget.ES2020,
+      /* setParentNodes */ true,
+      ts.ScriptKind.TSX,
+    ),
+  );
 }
 
 // ── The run ──────────────────────────────────────────────────────────────────
@@ -1219,7 +1239,7 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
   const { paths, packageDirOf, sourceTyped } = derivePackageTypePaths(root);
   const neededPackages = new Set();
   for (const block of compiled) {
-    for (const specifier of importedSpecifiers(block.body)) {
+    for (const specifier of moduleSpecifiersOfBlock(block.body)) {
       const owner = Object.keys(packageDirOf).find(
         (name) => specifier === name || specifier.startsWith(`${name}/`),
       );

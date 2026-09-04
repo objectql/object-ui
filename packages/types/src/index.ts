@@ -56,7 +56,7 @@ export type {
   NavigationItem,
   NavigationItemType,
   NavigationArea,
-  MenuItem as AppMenuItem,
+  AppMenuItem,
   AppWizardStepId,
   AppWizardStep,
   BrandingConfig,
@@ -445,7 +445,7 @@ export type {
 export type {
   BaseFieldMetadata,
   VisibilityCondition,
-  ValidationFunction as FieldValidationFunction,
+  FieldValidationFunction,
   TextFieldMetadata,
   TextareaFieldMetadata,
   MarkdownFieldMetadata,
