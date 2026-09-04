@@ -263,6 +263,35 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:self-import
 
+      # A source file nothing imports and nothing exports sits in a PUBLISHED
+      # package indefinitely: `check-dist-completeness` asks whether `dist/` holds
+      # what `tsc` emits, `check-readme-exports` compares documented exports
+      # against shipped ones, and neither can see a file that is in the tarball
+      # while being reachable from nothing. Both instances found this week —
+      # objectui#7319 and objectui#7397 — were found by a human reading unrelated
+      # code, which is the detection mechanism this replaces. The hazard is not
+      # the bytes: the file objectui#7319 removed carried the same export name as
+      # a live engine one package over and evaluated no predicate, so
+      # name-completion alone could have wired a silently wrong renderer into a
+      # published package (objectui#7515).
+      #
+      # Reachability here has TWO roots. `packages/components` reaches two live
+      # files — the `use-sync-external-store` shims — only through
+      # `vite.config.ts` `resolve.alias`, whose importer is a bundled dependency
+      # no source file names; a walk that skips that leg reports exactly those two
+      # as dead on its first run, and a gate that cries wolf on live files gets
+      # switched off rather than fixed. Scope is DECLARED per package and the
+      # uncovered remainder is printed as a derived count on every run, because
+      # the alias mechanisms differ per package and a gate that covers one
+      # correctly beats one that covers forty with false positives.
+      #
+      # Parses sources with `typescript` through the sibling gate's scanner and
+      # reads build configs as text, so it needs the install and nothing built —
+      # same placement rationale as the two steps above.
+      - name: Verify no covered package ships a source file nothing reaches
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:unreferenced-sources
+
       # A build tsconfig that excludes tooling by FILE NAME (`*.test.ts`) stops
       # the files that happen to be named that way and nothing else. The first
       # shared helper added to a `__tests__/` directory is then a program input,
