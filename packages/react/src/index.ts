@@ -98,3 +98,32 @@ export {
   type NumberFormatOptions,
 } from '@object-ui/i18n';
 
+
+// The platform row ceiling for NON-GRID visualisations — gantt, calendar, map
+// and tree (objectui#7210, maintainer ruling a′). One constant across the
+// four, because a per-plugin copy would be four constants wearing one name,
+// which is the thing the ruling ruled out.
+//
+// ⚠️ WHY IT LIVES HERE is a scheduling fact, not an architectural one, and the
+// comment that used to stand here said otherwise: "the only package all four
+// already depend on". That is measured FALSE —
+// `packages/plugin-{gantt,calendar,map,tree}/package.json` each also list
+// `@object-ui/core`, `@object-ui/components` and `@object-ui/types`. The real
+// reason is that #7210 was dispatched with a same-round barrel fence over
+// exactly those: `core` was held by #7349, `types` and `components` by #7182,
+// and `@object-ui/react` has no subpath export, so "one constant, not in those
+// three" left the package's sole entry as the only reachable home.
+//
+// ⛔ Do not read this placement as a decision that it belongs here. The
+// non-React half (`applyNonGridRowCeiling`, `NonGridCeilingResult`) wraps
+// `core`'s own `extractRecords` and would sit beside it; whether these five
+// symbols move, and whether `NON_GRID_ROW_CEILING_TOP` should be published at
+// all, is an OPEN maintainer decision on objectui#7508. Anything that grows a
+// dependency on this exact shape makes that decision more expensive.
+export {
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
+} from './utils/nonGridRowCeiling.js';
+export type { NonGridCeilingResult } from './utils/nonGridRowCeiling.js';

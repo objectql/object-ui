@@ -30,6 +30,8 @@ one has its own section below.
 | `control-bytes.yml` | Control Byte Scan | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `docs-links.yml` | Internal Docs Link Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** |
 | `skills-paths.yml` | Skill Guide Path Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a path stated in a `skills/` guide does not exist |
+| `skill-examples.yml` | Skill Example Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a MARKED fenced example in a `skills/` or `.claude/skills/` guide no longer compiles against the packages' built types, no longer parses as JSON, uses a bare `any`, or carries a marker that opts nothing in |
+| `skill-eval-tokens.yml` | Skill Eval Token Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when an eval assertion's `must_contain` token is not taught as a whole token anywhere in its own `skills/` bundle |
 | `doc-component-types.yml` | Doc Component Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a `content/docs/**.mdx` snippet teaches a `type` nothing registers |
 | `doc-snippet-types.yml` | Doc Snippet Type Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a covered documentation snippet no longer compiles against the packages' built types |
 | `doc-fence-languages.yml` | Doc Fence Language Check | Push / PR to `main`, `develop` — **no path filter**; merge-queue builds; manual | **Yes** — when a TypeScript block sits under a fence the snippet gate does not read |
@@ -206,7 +208,7 @@ it green — which is how two of `type-check`'s gates came to be missing from th
 | Job key | Appears as | What it runs | When |
 |---|---|---|---|
 | `changeset-check` | Changeset Fixed Group Check | `scripts/check-changeset-fixed.mjs` — every workspace package must be in the changeset `fixed` group or explicitly ignored. It checks group *membership*; it does **not** check whether the PR added a changeset. | Every run |
-| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:phantom-deps`, then `pnpm check:self-import`, then `pnpm check:side-effects-array`, then `pnpm check:element-data-source-declaration`, then `pnpm check:esm-specifiers`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:designer-field-key-parity`, then `pnpm check:icon-record-names`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:phantom-deps` fails when a released package imports a bare specifier its own `package.json` does not declare — a *phantom dependency*, invisible locally because the workspace root's `devDependencies` sit on the upward resolution path from every package directory and on no consumer's, so `require.resolve('react', { paths: ['packages/core/src'] })` succeeds while `@object-ui/core` declares react in no field at all ([#4394](https://github.com/objectstack-ai/objectui/issues/4394)). `pnpm check:self-import` runs next because it reuses that gate's parser: it fails when a file inside a package names its OWN package, a specifier that resolves through the package's `exports` map to `dist/` while `type-check` waits on `^build` — the *dependencies'* builds, never the package's own — so on a cold cache the declarations do not exist yet and the file fails with `TS2307`. Locally it is always green, because every local workflow builds before it type-checks and leaves a `dist/` behind; PR #4789's first run was red on exactly one such line ([#4801](https://github.com/objectstack-ai/objectui/issues/4801)). `pnpm check:side-effects-array` runs next, sources only and no build: it fails when a package's `sideEffects` ARRAY and its module bodies disagree in either direction — a module that registers something at load time and is not named (a bundler drops it, and the registration is gone from a *consumer's* app with no error, no warning and exit 0), or a name whose module no longer registers anything. `@object-ui/app-shell` declares such an array because both simpler answers are measurably wrong for it: omitting the field makes the whole package unshakeable, and `"sideEffects": false` silently drops three live SDUI widget registrations to zero chunks ([#6535](https://github.com/objectstack-ai/objectui/issues/6535), [#6683](https://github.com/objectstack-ai/objectui/issues/6683)). The enumeration is re-derived from the module bodies on every run rather than listed, so there is no second copy to rot. The artifact half of the same contract — do those registrations survive a real bundler — cannot run in this job at all: it needs a built console, so it lives in the SDUI registration pin step of `performance-budget.yml`. `pnpm check:element-data-source-declaration` runs next, sources only and no build: it fails when a source that consumes `ElementDataSourceGate` does not also pass through `elementDataSourceBlock()`, the seam that declares the `dataSource` key the gate reads. A block that wraps the gate off-seam publishes an authoring surface missing the one key its own runtime honours, and the html tier reports that key with the same `unknown-prop` warning it gives the spellings that do nothing ([#6678](https://github.com/objectstack-ai/objectui/issues/6678)). `pnpm check:esm-specifiers` follows it for the same reason — sources only, no build: it fails when a published package whose build preserves import specifiers (a bare emitting `tsc`, which never rewrites them) writes a relative specifier with no file extension. Node's ESM resolver does not extension-search relative specifiers, so such a specifier makes the published entry unloadable outside a bundler; `@object-ui/react`'s entry died with `ERR_MODULE_NOT_FOUND` while every bundler-based consumer, the whole test suite and CI stayed green ([#4538](https://github.com/objectstack-ai/objectui/issues/4538)). The half that actually *imports* each built entry needs a full build and runs in `node-esm-load-gate.yml`. `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). `pnpm check:designer-field-key-parity` fails when one of the field designers' statically declared payload shapes (`FieldMetadataPayload`, `ServerFieldSchema`, `DesignerFieldDefinition`) declares a key the installed `@objectstack/spec` `FieldSchema` refuses by NAME. Such a key makes `PUT /api/v1/meta/object/:name` return a hard 422 `INVALID_METADATA` that blocks *every subsequent save* of that object, and the author cannot tell from the designer UI which key did it — the class had been filed three times, each closed with a per-key tombstone written after the instance was found in production, with nothing detecting the next one ([#4644](https://github.com/objectstack-ai/objectui/issues/4644) `indexed`, [#4687](https://github.com/objectstack-ai/objectui/issues/4687) `distance_metric`, [#4676](https://github.com/objectstack-ai/objectui/issues/4676) `placeholder`, gated by [#5761](https://github.com/objectstack-ai/objectui/issues/5761)). It reads the accept set off the schema itself rather than from a list, and it covers a deliberately documented *subset* of the write path: a key that reaches the payload only through a `patchDef` spread or an index signature is outside its reach, and the boundary is stated in the script's own docblock. Its draft-I/O half — the `readFields`/`writeFields` round-trip, which has no declared shape to read — runs in the test suite as `object-fields-io.spec-keys.test.ts`. Same placement rationale as the gates around it: it parses the sources with `typescript` and imports the installed spec, so it needs the install and nothing built. `pnpm check:icon-record-names` fails when an authored icon NAME that reaches a resolver reading lucide's runtime `icons` record is not a live key of that record. lucide retires a spelling by dropping it from that record while keeping it as a deprecated named export, so the retired name still imports, still type-checks and still renders wherever it is used as a *component* — `Edit === SquarePen` is true — and resolves to nothing wherever it is used as a *string*: nothing goes red in either direction, which is why the class was repaired twice in two packages before anyone gated it ([#5586](https://github.com/objectstack-ai/objectui/issues/5586), [#5622](https://github.com/objectstack-ai/objectui/issues/5622), [#5633](https://github.com/objectstack-ai/objectui/issues/5633)). It carries no list of retired spellings — the record itself is the judgement — and it re-discovers the resolver population from source on every run, which is how its first pass found four record-reading resolvers nobody had catalogued. It sits here because it parses the sources with `typescript` and reads the installed lucide: the install, and nothing built. The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
+| `type-check` | Type Check | `scripts/check-type-check-coverage.mjs`, then `pnpm check:phantom-deps`, then `pnpm check:self-import`, then `pnpm check:published-tsconfig-exclude`, then `pnpm check:side-effects-array`, then `pnpm check:element-data-source-declaration`, then `pnpm check:esm-specifiers`, then `pnpm check:spec-symbols`, then `pnpm check:action-forward-parity`, then `pnpm check:designer-field-key-parity`, then `pnpm check:icon-record-names`, then `pnpm check:i18n-keys`, then `pnpm check:i18n-drift`, then `pnpm type-check:scripts`, then `pnpm type-check`, then `pnpm type-check:vitest-setup`. The coverage guard runs first because turbo silently skips packages that have no `type-check` script, so a package without one would otherwise read as passing (#2911). `pnpm check:phantom-deps` fails when a released package imports a bare specifier its own `package.json` does not declare — a *phantom dependency*, invisible locally because the workspace root's `devDependencies` sit on the upward resolution path from every package directory and on no consumer's, so `require.resolve('react', { paths: ['packages/core/src'] })` succeeds while `@object-ui/core` declares react in no field at all ([#4394](https://github.com/objectstack-ai/objectui/issues/4394)). `pnpm check:self-import` runs next because it reuses that gate's parser: it fails when a file inside a package names its OWN package, a specifier that resolves through the package's `exports` map to `dist/` while `type-check` waits on `^build` — the *dependencies'* builds, never the package's own — so on a cold cache the declarations do not exist yet and the file fails with `TS2307`. Locally it is always green, because every local workflow builds before it type-checks and leaves a `dist/` behind; PR #4789's first run was red on exactly one such line ([#4801](https://github.com/objectstack-ai/objectui/issues/4801)). `pnpm check:published-tsconfig-exclude` follows, config reads only: it fails when a published package's build `tsconfig.json` excludes tooling by FILE NAME (`*.test.ts`) without also excluding the tooling DIRECTORIES (`**/__tests__/**` and its two siblings, derived from `TOOLING_FILE` rather than retyped). A name-only exclude stops the files that happen to be named that way and nothing else, so the first shared helper added to a `__tests__/` directory becomes a program input and an emitting program writes it into the published `dist` — three times so far, each found by a human and never by a gate ([#4006](https://github.com/objectstack-ai/objectui/issues/4006), [#4836](https://github.com/objectstack-ai/objectui/issues/4836), [#6943](https://github.com/objectstack-ai/objectui/issues/6943), the third in the same package as the first). [#7212](https://github.com/objectstack-ai/objectui/issues/7212) measured the standing exposure — 29 published packages carrying the name form with ZERO offending files, green because nobody had added such a helper yet — and the gate landed together with their conversion so `main` was green on merge. It reads `exclude` arrays and nothing else: no build, no artifact, no emit model, which is the narrower scope that keeps it clear of the modelling [#4846](https://github.com/objectstack-ai/objectui/issues/4846) declined for the artifact-level gate. Six published packages are named carve-outs, each re-proving its own reason on every run: `cli`, `create-plugin` and `data-objectstack` emit from a `tsup` entry graph, `plugin-charts` keeps its tooling exclude in the `dts()` options, and `console` and `runner` are Vite applications with `noEmit: true` and no `dts()` plugin. `pnpm check:side-effects-array` runs next, sources only and no build: it fails when a package's `sideEffects` ARRAY and its module bodies disagree in either direction — a module that registers something at load time and is not named (a bundler drops it, and the registration is gone from a *consumer's* app with no error, no warning and exit 0), or a name whose module no longer registers anything. `@object-ui/app-shell` declares such an array because both simpler answers are measurably wrong for it: omitting the field makes the whole package unshakeable, and `"sideEffects": false` silently drops three live SDUI widget registrations to zero chunks ([#6535](https://github.com/objectstack-ai/objectui/issues/6535), [#6683](https://github.com/objectstack-ai/objectui/issues/6683)). The enumeration is re-derived from the module bodies on every run rather than listed, so there is no second copy to rot. The artifact half of the same contract — do those registrations survive a real bundler — cannot run in this job at all: it needs a built console, so it lives in the SDUI registration pin step of `performance-budget.yml`. `pnpm check:element-data-source-declaration` runs next, sources only and no build: it fails when a source that consumes `ElementDataSourceGate` does not also pass through `elementDataSourceBlock()`, the seam that declares the `dataSource` key the gate reads. A block that wraps the gate off-seam publishes an authoring surface missing the one key its own runtime honours, and the html tier reports that key with the same `unknown-prop` warning it gives the spellings that do nothing ([#6678](https://github.com/objectstack-ai/objectui/issues/6678)). `pnpm check:esm-specifiers` follows it for the same reason — sources only, no build: it fails when a published package whose build preserves import specifiers (a bare emitting `tsc`, which never rewrites them) writes a relative specifier with no file extension. Node's ESM resolver does not extension-search relative specifiers, so such a specifier makes the published entry unloadable outside a bundler; `@object-ui/react`'s entry died with `ERR_MODULE_NOT_FOUND` while every bundler-based consumer, the whole test suite and CI stayed green ([#4538](https://github.com/objectstack-ai/objectui/issues/4538)). The half that actually *imports* each built entry needs a full build and runs in `node-esm-load-gate.yml`. `pnpm check:action-forward-parity` fails when an action renderer's forward whitelist drops a key the action runtime reads — the class that shipped six times one key at a time, each time green, because the key parses and publishes while the payload is dropped one hop before the runner ([#4050](https://github.com/objectstack-ai/objectui/issues/4050)). `pnpm check:designer-field-key-parity` fails when one of the field designers' statically declared payload shapes (`FieldMetadataPayload`, `ServerFieldSchema`, `DesignerFieldDefinition`) declares a key the installed `@objectstack/spec` `FieldSchema` refuses by NAME. Such a key makes `PUT /api/v1/meta/object/:name` return a hard 422 `INVALID_METADATA` that blocks *every subsequent save* of that object, and the author cannot tell from the designer UI which key did it — the class had been filed three times, each closed with a per-key tombstone written after the instance was found in production, with nothing detecting the next one ([#4644](https://github.com/objectstack-ai/objectui/issues/4644) `indexed`, [#4687](https://github.com/objectstack-ai/objectui/issues/4687) `distance_metric`, [#4676](https://github.com/objectstack-ai/objectui/issues/4676) `placeholder`, gated by [#5761](https://github.com/objectstack-ai/objectui/issues/5761)). It reads the accept set off the schema itself rather than from a list, and it covers a deliberately documented *subset* of the write path: a key that reaches the payload only through a `patchDef` spread or an index signature is outside its reach, and the boundary is stated in the script's own docblock. Its draft-I/O half — the `readFields`/`writeFields` round-trip, which has no declared shape to read — runs in the test suite as `object-fields-io.spec-keys.test.ts`. Same placement rationale as the gates around it: it parses the sources with `typescript` and imports the installed spec, so it needs the install and nothing built. `pnpm check:icon-record-names` fails when an authored icon NAME that reaches a resolver reading lucide's runtime `icons` record is not a live key of that record. lucide retires a spelling by dropping it from that record while keeping it as a deprecated named export, so the retired name still imports, still type-checks and still renders wherever it is used as a *component* — `Edit === SquarePen` is true — and resolves to nothing wherever it is used as a *string*: nothing goes red in either direction, which is why the class was repaired twice in two packages before anyone gated it ([#5586](https://github.com/objectstack-ai/objectui/issues/5586), [#5622](https://github.com/objectstack-ai/objectui/issues/5622), [#5633](https://github.com/objectstack-ai/objectui/issues/5633)). It carries no list of retired spellings — the record itself is the judgement — and it re-discovers the resolver population from source on every run, which is how its first pass found four record-reading resolvers nobody had catalogued. It sits here because it parses the sources with `typescript` and reads the installed lucide: the install, and nothing built. The two locale gates sit in the middle because both parse the sources with `typescript`: they need the install and nothing built. `pnpm check:i18n-keys` fails when a `t()` call site asks for a key the `en` pack does not define ([#3530](https://github.com/objectstack-ai/objectui/issues/3530)); `pnpm check:i18n-drift` fails when a change to an `en` string is not accompanied by the nine translation packs ([#3650](https://github.com/objectstack-ai/objectui/issues/3650)), and it is why this job's checkout sets `fetch-depth: 0` — it diffs against the merge base, which a depth-1 clone cannot resolve. `pnpm type-check:scripts` (`tsconfig.scripts.json`) covers `scripts/**/*.ts`, which `pnpm type-check` cannot reach at all — `scripts/` has no package.json, so turbo never walks it, and the coverage guard decides coverage per *package*. Until [#3494](https://github.com/objectstack-ai/objectui/issues/3494) that left the pin tests in `scripts/__tests__/` — including the one pinning this very page — compiled by nothing. `pnpm type-check:vitest-setup` (`tsconfig.vitest-setup.json`) closes the same gap for the four repo-root `vitest.setup.*` files, uncovered until [#3515](https://github.com/objectstack-ai/objectui/issues/3515); it runs *last*, after `pnpm type-check`, because `vitest.setup.dom.tsx` side-effect-imports four `@object-ui/*` packages and resolves them through the declarations that turbo's `^build` produces. | Every run; on a PR the steps short-circuit when only ignored paths changed |
 | `test` | Test (shard N/4) | `pnpm test --shard=N/4` across a 4-runner matrix with `fail-fast: false`, so every shard reports its own failures. No coverage instrumentation — v8 adds 40–100% overhead. Then, **on shard 1 only**, `pnpm test:dist` — the built-artifact lane ([#7183](https://github.com/objectstack-ai/objectui/issues/7183)). It delegates to a turbo task scoped to the one package that holds built-artifact pins; that task depends on the package's OWN build (`dependsOn: ["build"]`, not `^build`), so the bundle exists before the pins read it, and then runs the `dist` vitest project, whose pins import a package's BUILT bundle instead of its `src` — a claim the source-aliased suite above is structurally unable to make, since the root config aliases every workspace package to `src`. It is deliberately not sharded and not repeated on the other three runners: the lane is a handful of files, and running it on all four would pay for the same build four times. | Pull requests and merge-queue builds (everything but `push`); steps short-circuit on a PR that changed only ignored paths |
 | `test-coverage` | Test (coverage shard N/4) | `pnpm test:coverage --reporter=blob --shard=N/4` across a 4-runner matrix with `fail-fast: false`. Each shard writes `.vitest-reports/blob-N-4.json` — raw coverage and test results in one file — and uploads it as an artifact even when the shard is red, which is what makes a failing coverage run diagnosable at all (vitest deletes `coverage/` on a red run unless `coverage.reportOnFailure` is set, [#5402](https://github.com/objectstack-ai/objectui/issues/5402)). The configured coverage thresholds are neutralised on the shard legs, because a quarter of the suite judged against a whole-suite threshold is not a defect signal; they are enforced once, on the merged report, by the job below ([#5403](https://github.com/objectstack-ai/objectui/issues/5403)). | **Push only** |
 | `coverage-report` | Test (coverage) | Downloads the four blob reports, refuses to continue unless all four arrived, merges them with `pnpm test:coverage --merge-reports` into one complete report — which is where the configured coverage thresholds are enforced, over the whole merged map, the shard legs having overridden them to zero — and publishes that report as the `coverage-report` artifact (kept 7 days, the same as the blobs it is derived from). Its last step runs on every path and states the outcome: the job is **red, with an error annotation**, whenever the gate did not run for the commit — before [#5403](https://github.com/objectstack-ai/objectui/issues/5403) the final step carried the implicit `success()` and was silently skipped by 311 of 373 coverage jobs, which is how four days of a 100%-failing coverage job went unnoticed. A breach of the thresholds is reported *separately* from a lane that never delivered, because the two call for opposite actions. ⛔ It never merges a report from fewer than four shards: a wrong coverage number is worse than a missing one. The Codecov upload this job used to carry was retired by [#5436](https://github.com/objectstack-ai/objectui/issues/5436) — `CODECOV_TOKEN` was never set, so it failed on every push; the trend dashboard and PR coverage comments are gone with it, the gate is not. | **Push only** |
@@ -594,6 +596,155 @@ the sentence's whole point is that the path does not exist. Run it locally with
 `pnpm check:skills-paths`, or `node scripts/check-skills-paths.mjs --list` to see every candidate and
 how it was classified.
 
+## Skill Examples (`skill-examples.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the section above: the scan surface is markdown under
+`skills/` and `.claude/skills/`, and both `ci.yml` and `lint.yml` list `'**/*.md'` under the
+`paths-ignore` of their `push` trigger. It appears in the checks list as **Skill Example Check**.
+
+Runs `scripts/check-skill-examples.mjs`. Where the section above checks the *paths* a guide states in
+prose, this one checks the *worked examples* themselves: a marked `ts` / `tsx` / `typescript` fence
+must compile `--strict` against the packages' built `dist/*.d.ts` **and must not use a bare `any`**,
+and a marked `json` / `jsonc` fence must parse.
+
+**Why it was needed:** at the time it landed, `skills/objectui/` carried 112 TypeScript fences and 56
+JSON fences and **not one gate in the repository read inside any of them**
+([#7359](https://github.com/objectstack-ai/objectui/issues/7359)). Every gate that could have is
+scoped elsewhere by construction — `check-skills-paths.mjs` deliberately reads inline code spans in
+prose only, the three `content/docs` gates say so in their own headers. So a fence could import a
+symbol that does not exist and stay green forever, and two rounds of exactly that had already been
+cleaned by hand.
+
+**Opt-in, and why:** a fence is checked only when the line **immediately above** it is
+`<!-- os:check -->`. Most skill fences are fragments by construction — a `columns: [...]` subtree, a
+block that continues the one above it — so compiling all of them at once would red on prose that is
+not wrong, and a gate that reds on correct code gets deleted by the first person who hits it. The
+marker is an inert HTML comment and leaves the fence info string bare, so the three gates that key on
+the info string still see the block. The convention is ported byte-for-byte from objectstack's
+`packages/spec/scripts/check-skill-examples.ts`.
+
+**No bare `any` in a marked block** ([#7463](https://github.com/objectstack-ai/objectui/issues/7463)):
+a marker is the author's claim that the block compiles, and every property access on an `any` is
+unchecked — so a marked block full of `any` is a green badge over a `tsc` run that proved nothing.
+The rule is ported from objectstack's runner with its scope intact: the annotation must **be** `any`
+in a position that erases checking (a parameter, a variable / property / return annotation, a type
+alias, an `as any` / `satisfies any` / angle-bracket assertion). An `any` **nested** inside a larger
+type — `Record<string, any>`, `any[]`, `Promise<any>` — is deliberately allowed; that boundary is
+what keeps a red meaning broken. The corpus had four such sites when the assertion landed, and each
+is declared verbatim in `KNOWN_BARE_ANY_EXAMPLES` in the script. That list is a **shrink-only**
+ratchet, not an allowlist: a row whose red goes away fails as **stale** and must be deleted. Fixing a
+row is a judgement about the guide (one of them faithfully restates a platform type that really is
+`any`), so the rows are declared debt rather than a mechanical unmark.
+
+**`MARKED_FLOOR` is a second shrink-only ratchet, per category**
+([#7550](https://github.com/objectstack-ai/objectui/issues/7550)): the script also floors the
+*marked* population itself, one number per fence category, seeded at what `main` carried when it
+landed — `ts: 17`, `json: 39` — and printed beside its own count on every run: `Marked: 17 ts
+fence(s) (floor 17), 39 json fence(s) (floor 39) — the floor is ⛔ SHRINK-ONLY.` A category whose
+marked count falls below its floor exits 1 naming the category, the count, the floor and the two
+legal moves. It is a **floor**, not an exact pin, because the two directions are not symmetric:
+marking one more fence is the direction this gate exists to travel, and an equality that reds on
+that move is one people learn to route around — by unmarking, which is exactly the move this floor
+exists to catch. Only the downward move needs a witness — raise the number in the pull request that
+adds marks; lower it, in the *same* pull request that removes one, with the reason written beside
+the constant: which example stopped being one, and why unmarking it was the honest call rather than
+the cheap way out of a red.
+
+**It scans `.claude/skills/` too** ([#7463](https://github.com/objectstack-ai/objectui/issues/7463)):
+`SCAN_ROOTS` holds `skills` and `.claude/skills`, the same widening `check-skills-paths.mjs` took in
+[#7358](https://github.com/objectstack-ai/objectui/issues/7358). When #7251 moved the two
+contributor-only guides out of `skills/`, that gate stopped looking at them and nothing turned red.
+Widening a root is **not** arming it: opt-in is the design, so this added 9 candidate fences (18 → 20
+guides, 112 → 121 `ts` fences) and **zero** marked ones. Adding a marker under `.claude/skills/` is
+the surface owner's step.
+
+**Adjacency is strict:** a marker that is not directly above a checkable fence — separated by a blank
+line, above a `bash` fence, or left behind when its example was deleted — is an **orphan** and fails
+the run. A lenient rule would opt in nothing while its author believed otherwise, which is this
+repository's recurring "looks like enforcement, isn't" class. A marker shown as *example text* inside
+another fence is neither an opt-in nor an orphan: it is not at top level, so it claims nothing.
+
+**It builds, unlike `skills-paths.yml`:** the criterion is the *published* type surface, so the
+packages the marked fences import must exist as `dist/*.d.ts` first. The build is filtered to exactly
+those packages, and the filter is emitted by the gate itself
+(`node scripts/check-skill-examples.mjs --build-filter`) rather than hand-maintained in the workflow,
+so it grows only as the marked population grows.
+
+**Three exit codes, not two.** `0` = every marked example held up. `1` = the gate ran and found
+errors — a verdict about a guide. `2` = the gate **could not run**: the packages are unbuilt or typed
+from source, a harness control failed, or nothing is marked at all. Nothing printed under exit 2 is a
+verdict about any guide, and it is never a pass — zero with nothing run reads as coverage, which is
+the failure shape this gate family exists to prevent
+([#4846](https://github.com/objectstack-ai/objectui/issues/4846)).
+
+**If it fails:** it prints `file:line` for every failing fence with the compiler's own diagnostic, or
+the JSON parser's message, or the orphan marker's line, or — for a bare `any` — the position and the
+verbatim baseline row to declare if the fix belongs to a later card, or — for a floor breach — the
+category, the count, the floor and the two legal moves. Fix the example — or, if it was never meant
+to stand alone, remove its marker **and lower `MARKED_FLOOR` for that category in the same pull
+request**, with the reason written beside the constant: a marker deleted without that edit is a
+silent unmark, exactly the move this floor exists to catch. Run it locally with
+`pnpm check:skill-examples`, `node scripts/check-skill-examples.mjs --list` to see every candidate
+fence and its verdict, and `--measure` to judge every candidate whether marked or not.
+
+## Skill Eval Tokens (`skill-eval-tokens.yml`)
+
+**Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
+path filter at all**, for the same reason as the two sections above: the whole input is the markdown
+and JSON under `skills/`, which `ci.yml` and `lint.yml` structurally cannot see. It appears in the
+checks list as **Skill Eval Token Check**.
+
+Runs `scripts/check-skill-eval-tokens.mjs`. The two sections above check the *paths* a guide states
+and the *worked examples* it ships; this one checks the **evals** — the `skills/<bundle>/evals/*.json`
+files that grade an answering agent. Every `must_contain` token must occur as a **whole token** in the
+markdown of its own skill bundle. Unlike its sibling it does **not** install or build: it reads text
+out of the checkout, so it is a checkout plus two `node` calls, the shape `skills-paths.yml` uses.
+
+**Why it was needed:** nothing checked that a token an eval grades on is something the skill actually
+teaches, so an eval could require a word the guides never say and grade nothing forever. The class had
+already been cleaned by hand twice —
+[#7360](https://github.com/objectstack-ai/objectui/issues/7360) (six assertions, one of them passing
+only by accidental substring) and
+[#7405](https://github.com/objectstack-ai/objectui/issues/7405) (three more) — both rounds found by a
+human reading, which is the economics this gate family exists to end
+([#7461](https://github.com/objectstack-ai/objectui/issues/7461)).
+
+**The oracle is bundle-wide, and the losing option stays measurable.** A token counts as taught if it
+appears anywhere in its own bundle's markdown, not only in the guide whose basename matches the eval
+file. That is what the artefact supports: `SKILL.md` is a router that names every guide, and its rules
+block tells the reader to read `rules/` before writing schemas, so the corpus an eval is answered from
+is the whole bundle. Measured at the gate's branch point, per-guide would have started with 14 red rows
+against bundle-wide's 0 — and 12 of those 14 exist only because `evals/protocol.json` has no
+`guides/protocol.md` (its guide is `rules/protocol.md`), so they name no defect at all. `--measure`
+prints **both** red lists on every run, so that comparison stays re-derivable rather than a claim in a
+merged pull request.
+
+**Whole tokens, never substrings.** An identifier-shaped token is matched on word boundaries, so `view`
+does not match the tail of `// vite preview` and `FieldWidgetProps` does not match the head of
+`FieldWidgetPropsSchema` — both real rows that a substring grep had reported clean. A token that is not
+identifier-shaped at an end (a quoted JSON key, an operator) takes no boundary at that end and so
+degrades to an exact substring, which is what such a token means. Matching is case-sensitive.
+
+**`must_not_contain` is deliberately not scored against the guides** — it gets a shape check and
+nothing else. Those entries are tokens an answer must *avoid*, so "no guide says it" is the healthy
+case, and one of them is spelled as a quoted key fragment precisely so it does not fail an answer that
+names the rule while following it. A check that validated that array the way it validates `must_contain`
+would have the polarity backwards.
+
+**Three exit codes, not two.** `0` = every token is taught, and something was actually checked. `1` =
+the gate ran and found errors — an untaught token, a malformed assertion array, or a stale baseline
+row. `2` = the gate **could not run**: no eval population, no guide corpus, or an eval file that does
+not parse. Nothing printed under exit 2 is a verdict about any eval, and it is never a pass.
+
+**If it fails:** it prints `file eval N token` for every red row, and says whether the token is absent
+entirely or present only as a substring. Do **not** rewrite guide prose to teach the token and do
+**not** re-point the row mechanically — which of the two is right is a per-row skills decision. The
+declared list `KNOWN_UNTAUGHT_EVAL_TOKENS` is empty at landing and is **shrink-only**: a row parked in
+it stays visible, and a row whose red goes away fails as stale until its line is deleted. Run it
+locally with `pnpm check:skill-eval-tokens`, `--list` for every row under both oracles, and `--measure`
+for the two red lists side by side.
+
 ## Documented Component Types (`doc-component-types.yml`)
 
 **Triggers:** Push and PR to `main`/`develop`, merge-queue builds, plus manual dispatch — with **no
@@ -635,7 +786,8 @@ renderable children on another, so any global rule is a silent false green somew
 flat: every literal is a candidate component key, and a value outside the derived universe must be
 **declared** in the script's `DOC_TYPE_EXEMPTIONS` — keyed by (file, value), with a written reason
 naming the vocabulary it really belongs to. A whole-file exemption is deliberately not offered:
-`blocks/block-schema.mdx` carries `type: 'block'` and `type: 'div'` in the same document.
+`api/schema-reference.md` carries `"type": "action"` (an ActionSchema discriminant) and
+`"type": "card"` (a registered component key) in the same document.
 
 Entries are re-derived per run, so one whose page stopped spelling that type fails as a stale
 exemption rather than quietly widening the hole.
@@ -882,8 +1034,19 @@ markdown-only change is exactly the shape `ci.yml` and `lint.yml` skip their exp
 appears in the checks list as **Shell Escape Residue Scan**.
 
 Runs `scripts/check-shell-escape-residue.mjs`. It walks `AGENTS.md`, `CLAUDE.md`, every `.md`/`.mdx`
-under `skills/` and every one under `content/docs/`, and fails when a **fenced code block** contains
-one of the enumerated machine-produced shell-quote escape runs.
+under `skills/`, every one under `.claude/skills/` and every one under `content/docs/`, and fails when
+a **fenced code block** contains one of the enumerated machine-produced shell-quote escape runs.
+
+The contributor tree `.claude/skills/` joined that list in
+[#7403](https://github.com/objectstack-ai/objectui/issues/7403). It is not published, but it is
+agent-**written** and agent-**read**, which is both halves of the mechanism this gate exists for — and
+[#7251](https://github.com/objectstack-ai/objectui/issues/7251) had moved two contributor guides there
+out of `skills/objectui/`, taking 18 fenced blocks off the surface in one commit with nothing turning
+red. Nothing could have turned red: the `skills` row's file floor is a **collapse** detector, and 16
+files stayed behind to satisfy it while the two that left went unmeasured. A floor measures the roots
+that are declared, never the tree that walked out of them, so a move and its `SCAN_ROOTS` row belong
+in one change. The sibling gate `check-skills-paths` lost 55 stated paths to the same move and was
+widened the same way in [#7358](https://github.com/objectstack-ai/objectui/issues/7358).
 
 **Why it needed a gate.** In [#5150](https://github.com/objectstack-ai/objectui/issues/5150) the
 `git commit -F -` example in `AGENTS.md` §9 shipped with its heredoc terminator wrapped in the
@@ -912,9 +1075,12 @@ required — rather than pinned as a sentence, so the claim cannot rot into a fa
 **It is green at rest, so its census is part of the verdict.** There are zero occurrences in the tree
 and there should stay zero, which means the run's output alone cannot distinguish a working gate from
 one that matches nothing. The verdict line therefore prints the **per-root population** — files and
-fenced blocks for each of the four roots — rather than a bare `OK`, and the scan **fails when that
+fenced blocks for each of the five roots — rather than a bare `OK`, and the scan **fails when that
 population collapses**: a root that does not resolve, a root that walks to fewer documents than its
-floor, or a total fence count under the floor is a broken walk, not a clean tree. A scan root that has
+floor, or a total fence count under the floor is a broken walk, not a clean tree. The document floors
+are **per root** and deliberately never a whole-surface total: on a day the four-file `.claude/skills`
+root reads zero, the other four still return 203 of today's 207 files, so a total floor stays green
+through the entire outage. A scan root that has
 moved or been mistyped is reported **by name**, because a mistyped root and a clean root produce
 identical output otherwise. The evidence that the gate works is the ablation in its test suite, which
 replants #5150's exact line in each root on a fixture tree.
@@ -924,8 +1090,9 @@ census and not judged**, because documentation about this defect class has to be
 literal. That is a known narrowing, and the census figure is what keeps it visible.
 
 **If it fails:** it names the file, line and column, the fence language and the line the fence opened
-on. Note that `AGENTS.md`, `CLAUDE.md` and `skills/**` are **governed surface** — a finding in one of
-those is reported for a human to fix in its own change, not folded into an unrelated pull request. A
+on. Note that `AGENTS.md`, `CLAUDE.md`, `skills/**` and `.claude/**` are **governed surface** — a finding
+in one of those is reported for a human to fix in its own change, not folded into an unrelated pull
+request. A
 finding under `content/docs/**` is an ordinary docs fix. Run it locally with
 `pnpm check:shell-escape-residue`, or `node scripts/check-shell-escape-residue.mjs --list` to see the
 per-root census. It needs no install and no build.
@@ -1299,6 +1466,13 @@ Three things about it are easy to get wrong and are written down in the script's
   has none per PR: `ci.yml`'s **Build & E2E** builds only `@object-ui/console`, and **Type
   Check** gets only the dependency closure from turbo's `dependsOn: ["^build"]`, so leaf packages
   are never built there. The blocking copy runs on the publish path instead — see below.
+- **A per-PR sibling now covers the CONFIG half.** `pnpm check:published-tsconfig-exclude`
+  ([#7212](https://github.com/objectstack-ai/objectui/issues/7212)) runs in **Type Check** and
+  fails when a published package's build tsconfig names tooling by file name without naming the
+  tooling directories. It is not a replacement and does not weaken anything here: it checks
+  config shape, never emit semantics, so a package can satisfy it and still ship tooling
+  material for some other reason. This gate stays the second line of defence and the only
+  criterion that cannot be wrong about what actually ships.
 
 ### Spec Range Floors (`spec-range-floors.yml`)
 

@@ -231,8 +231,10 @@ describe('non-date rendering is undisturbed (green both sides)', () => {
   it('titles, descriptions and row labels are untouched — zh', () => {
     // `getByText` throws when the node is absent, so it carries the assertion;
     // `toBeDefined()` is the package's spelling for it (jest-dom's matchers are
-    // loaded by `vitest.setup.ts` at runtime but not declared to `tsc -p
-    // tsconfig.test.json`, so no test here uses them).
+    // loaded by the repo-root `vitest.setup.dom-light.tsx` at runtime but not
+    // declared to `tsc -p tsconfig.test.json`, so no test here uses them). That
+    // used to read `vitest.setup.ts`, this package's own one-line copy, which
+    // objectui#3240 deleted along with the config that was its only loader.
     renderSession('zh', <TimelineRenderer schema={vertical('short', AUG_11)} />);
     expect(screen.getByText('Beta Release')).toBeDefined();
     expect(screen.getByText('Released beta version to testers')).toBeDefined();

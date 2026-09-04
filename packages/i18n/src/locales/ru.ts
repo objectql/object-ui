@@ -131,6 +131,16 @@ const ru = {
     record: "Запись",
     retry: "Повторить",
     printDialogHint: "Открывает диалог печати браузера (это не экспорт в PDF)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
+    rowCeilingNote: "Показаны первые {{shown}} из {{total}} записей. Сузьте фильтр.",
+    rowCeilingNoteUnknownTotal: "Показаны первые {{shown}} записей. Сузьте фильтр.",
   },
   actions: {
     decisionOutput: {
@@ -555,6 +565,7 @@ const ru = {
     allDay: "Весь день",
     newEvent: "Новое событие",
     moreEvents: "+{{count}} ещё",
+    unscheduled: "Без даты ({{count}})",
   },
   list: {
     firstRunTitle: "Здесь пока пусто",
@@ -706,6 +717,9 @@ const ru = {
     },
     unsupported: {
       objectBoundGantt: "Неподдерживаемый вариант \"gantt\" — временная шкала, привязанная к объекту, отображает ленточные варианты ({{variants}}). Для гантта нужны литеральные строки, каждая со своим вложенным items, поэтому ось гантта (scale) здесь не действует.",
+    },
+    unconfigured: {
+      noDateAxis: "Требуется ось дат временной шкалы — это представление не объявляет ни одного поля даты, а временная шкала, привязанная к объекту, не придумывает его сама. Объявите одно из: {{fields}}. Первое — написание из спецификации, остальные — устаревшие псевдонимы.",
     },
   },
   gantt: {
@@ -1091,15 +1105,17 @@ const ru = {
   chart: {
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
+    scatterOneMeasure: "Точечная диаграмма строит только одну меру. Оставьте один ряд:",
   },
   dashboard: {
-    noRows: "Нет строк",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "Данных пока нет",
       message: "Виджет успешно загружен, но запрос пока не вернул ни одной записи.",
@@ -1140,7 +1156,6 @@ const ru = {
     saveLayout: "Сохранить макет",
     resetLayout: "Сбросить макет",
     total: "Итого",
-    noDataAvailable: "Данные недоступны",
     noDataSourceFor: "Нет источника данных для",
     config: {
       breadcrumb: {
@@ -1504,6 +1519,12 @@ const ru = {
         statusFull: "Лимит исчерпан",
         resetsDaily: "Сбросится сегодня ночью",
         resetsMonthly: "Сбросится в следующем цикле",
+        resetsWeeklyDays: "Сброс через {{count}} дней",
+        resetsWeeklyDays_one: "Сброс через {{count}} день",
+        resetsWeeklyDays_other: "Сброс через {{count}} дней",
+        resetsWeeklyHours: "Сброс через {{count}} часов",
+        resetsWeeklyHours_one: "Сброс через {{count}} час",
+        resetsWeeklyHours_other: "Сброс через {{count}} часов",
         ctaUpgrade: "Повысьте тариф, чтобы продолжить",
         ctaTopUp: "Добавьте кредиты, чтобы продолжить",
         ariaLabel: "Использование ИИ: {{status}}",

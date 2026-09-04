@@ -16,6 +16,7 @@ import {
   extractWriteErrorMessage,
   isPermissionError,
   declaredUserMessage,
+  useSettledSchema,
 } from '@object-ui/react';
 import { toast } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
@@ -173,14 +174,14 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
 
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   // The object-definition read and the fact that it has SETTLED are one piece
-  // of state, keyed by the object it belongs to (objectui#6271). Two separate
-  // states could disagree for one commit — long enough for the record query to
-  // fire against the previous object's expand set — and a bare `objectDef`
-  // cannot express "settled with nothing", which is a legitimate outcome (an
-  // adapter with no `getObjectSchema`, or a read that threw). `key` is compared
-  // against the CURRENT object name during render, so switching objects closes
-  // the gate in the same commit that changes it, not one commit later.
-  const [schemaResolution, setSchemaResolution] = useState<{ key: string; def: any } | null>(null);
+  // of state, keyed by the object it belongs to (objectui#6271) — now the
+  // SHARED hook rather than this component's hand copy of it (objectui#7225,
+  // maintainer ruling B, 2026-09-02, which amends #6482's "migrate
+  // incidentally" to one convergence PR). `ready` is derived from a single
+  // `{ key, def }` state at render time, so "ready for the wrong object" stays
+  // unrepresentable; `useSettledSchema`'s own doc comment carries the full
+  // argument, including why a bare `objectDef` cannot express "settled with
+  // nothing".
   const schemaKey = schema.objectName ?? '';
   /**
    * Has the object definition for THIS object finished resolving? Note what
@@ -188,8 +189,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
    * `getObjectSchema`, or whose schema read failed, must still get its cards —
    * gating on a truthy definition would leave those boards empty forever.
    */
-  const objectDefReady = schemaResolution !== null && schemaResolution.key === schemaKey;
-  const objectDef = objectDefReady ? schemaResolution.def : null;
+  const { ready: objectDefReady, def: objectDef } = useSettledSchema<any>(schemaKey, dataSource);
   // loading state
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : false);
   const [error, setError] = useState<Error | null>(null);
@@ -217,35 +217,6 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
       setLoading(externalLoading);
     }
   }, [externalLoading, hasExternalData]);
-
-  // Fetch object definition for metadata (labels, options).
-  //
-  // Every exit settles the resolution — success, failure, and "there is nothing
-  // to read from" alike — because the record query below WAITS on this
-  // (objectui#6271). A path that returned without settling would not merely
-  // skip the expansion, it would hold the query open forever.
-  useEffect(() => {
-    let isMounted = true;
-    const key = schema.objectName ?? '';
-    const fetchMeta = async () => {
-        if (!dataSource || !schema.objectName || typeof dataSource.getObjectSchema !== 'function') {
-            // No source for a definition: settle with none, so the board still
-            // queries (unexpanded — with no schema there is no expand set to
-            // derive, which is the same query this case produced before).
-            if (isMounted) setSchemaResolution({ key, def: null });
-            return;
-        }
-        try {
-            const def = await dataSource.getObjectSchema(schema.objectName);
-            if (isMounted) setSchemaResolution({ key, def });
-        } catch (e) {
-            console.warn("Failed to fetch object def", e);
-            if (isMounted) setSchemaResolution({ key, def: null });
-        }
-    };
-    fetchMeta();
-    return () => { isMounted = false; };
-  }, [schema.objectName, dataSource]);
 
   useEffect(() => {
     // Skip internal fetch when data is managed by a parent component

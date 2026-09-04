@@ -36,6 +36,24 @@
  * covers include the toolbar refresh and the write-readback paths, where two
  * reloads legitimately overlap and no schema gating is involved — see the
  * card for why this must not be folded into the gating work.
+ *
+ * ⚠️ HOW THE OVERLAP IS PRODUCED changed with objectui#7225's gating, and the
+ * property under test did not. This file used to generate its two in-flight
+ * reloads out of the gantt's DUPLICATE mount query: `getObjectSchema` resolved,
+ * re-keyed `reload`, and issued a second `find` while the first was still
+ * pending — so every case opened with
+ * `expect(find.mock.calls.length).toBe(2)`. That duplicate is exactly what
+ * objectui#7225 ask 2 removed: the record query is now GATED on the settled
+ * schema, so a mount issues ONE `find`, and a test that waits for two would
+ * wait forever.
+ *
+ * So the overlap is now generated from a pair that is real, is the reason the
+ * guard exists, and is untouched by gating: a SILENT toolbar refresh
+ * superseded by a non-silent filter-change reload. That is what case 3 always
+ * used; cases 1 and 2 now use it too. Not one assertion about the guard has
+ * been weakened — the orderings (stale-first, fresh-first), the flags and the
+ * outcomes are the same. The `finally` guard itself is not modified by that
+ * card or this one.
  */
 
 import React from 'react';
@@ -105,9 +123,8 @@ function deferred<T>(): Deferred<T> {
 /**
  * A data source whose every `find()` hands back a promise the test resolves
  * by hand, so reload N and reload N+1 can be held in flight together and
- * completed in either order. `getObjectSchema` resolves immediately — that is
- * what issues the second reload (`objectSchema` is a `reload` dependency)
- * while the first `find()` is still pending.
+ * completed in either order. `getObjectSchema` resolves immediately, which is
+ * what opens the gate and lets the mount's single `find()` go out.
  */
 function makeDeferredDataSource() {
   const finds: Deferred<any>[] = [];
@@ -141,27 +158,57 @@ async function flush() {
   });
 }
 
+/**
+ * Bring the component to the state every case below needs: painted, then two
+ * reloads in flight at once — a SILENT toolbar refresh (`finds[1]`, owns
+ * `refreshing`) superseded by a non-silent filter-change reload (`finds[2]`,
+ * owns `loading`).
+ *
+ * The mount issues exactly ONE `find` since objectui#7225's gate; that single
+ * assertion is also this file's live control on the gate, because a
+ * regression back to the duplicate query makes `toBe(1)` fail here loudly
+ * instead of silently restoring the old overlap generator.
+ */
+async function paintThenOverlap(
+  dataSource: DataSource,
+  finds: Deferred<any>[],
+  rerender: (ui: React.ReactElement) => void,
+) {
+  await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(1));
+  await settle(finds[0], ROWS_A);
+  await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeTruthy());
+
+  fireEvent.click(screen.getByTestId('gv-refresh'));
+  await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(2));
+  await waitFor(() =>
+    expect(screen.getByTestId('gantt-view').getAttribute('data-refreshing')).toBe('true'),
+  );
+
+  rerender(<ObjectGantt schema={schemaWith({ status: 'open' })} dataSource={dataSource} />);
+  await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(3));
+}
+
 describe('ObjectGantt — a superseded reload must not clear the loading state (objectui#7231)', () => {
   it('keeps the placeholder up when the STALE reload finishes first and the fresh one is still in flight', async () => {
     const { dataSource, finds } = makeDeferredDataSource();
 
-    render(<ObjectGantt schema={schemaWith()} dataSource={dataSource} />);
+    const { rerender } = render(<ObjectGantt schema={schemaWith()} dataSource={dataSource} />);
+    await paintThenOverlap(dataSource, finds, rerender);
 
-    // Reload #1 (mount) is in flight; the object schema resolves and re-keys
-    // `reload`, issuing reload #2 before #1 has answered.
-    await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(2));
+    // The non-silent reload owns `loading`, so the placeholder is up and the
+    // chart is unmounted while both are in flight.
     expect(screen.getByText(PLACEHOLDER)).toBeTruthy();
 
-    // The superseded reload #1 answers first — the ordinary ordering.
-    await settle(finds[0], ROWS_A);
+    // The superseded (silent) reload answers first — the ordinary ordering.
+    await settle(finds[1], ROWS_A);
 
     // Its `finally` must NOT clear `loading`: the fresh query has not answered,
     // so releasing the placeholder here paints an empty chart.
     expect(screen.getByText(PLACEHOLDER)).toBeTruthy();
     expect(screen.queryByTestId('gantt-view')).toBeNull();
 
-    // The current reload #2 answers and owns the transition out of loading.
-    await settle(finds[1], ROWS_B);
+    // The current reload answers and owns the transition out of loading.
+    await settle(finds[2], ROWS_B);
 
     await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeTruthy());
     expect(screen.getByText('From the fresh query')).toBeTruthy();
@@ -171,19 +218,18 @@ describe('ObjectGantt — a superseded reload must not clear the loading state (
   it('control — the fresh reload finishing FIRST paints its rows, and the late stale answer changes nothing', async () => {
     const { dataSource, finds } = makeDeferredDataSource();
 
-    render(<ObjectGantt schema={schemaWith()} dataSource={dataSource} />);
+    const { rerender } = render(<ObjectGantt schema={schemaWith()} dataSource={dataSource} />);
+    await paintThenOverlap(dataSource, finds, rerender);
 
-    await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(2));
-
-    // Out-of-order: the current reload #2 answers before the superseded #1.
-    await settle(finds[1], ROWS_B);
+    // Out-of-order: the current reload answers before the superseded one.
+    await settle(finds[2], ROWS_B);
 
     await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeTruthy());
     expect(screen.getByText('From the fresh query')).toBeTruthy();
 
     // The late stale answer must neither clobber the data (the pre-existing
     // `setData` guard) nor put the placeholder back.
-    await settle(finds[0], ROWS_A);
+    await settle(finds[1], ROWS_A);
     await flush();
 
     expect(screen.getByTestId('gantt-view')).toBeTruthy();
@@ -196,33 +242,18 @@ describe('ObjectGantt — a superseded reload must not clear the loading state (
     const { dataSource, finds } = makeDeferredDataSource();
 
     const { rerender } = render(<ObjectGantt schema={schemaWith()} dataSource={dataSource} />);
+    await paintThenOverlap(dataSource, finds, rerender);
 
-    await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(2));
-    await settle(finds[0], ROWS_A);
-    await settle(finds[1], ROWS_A);
-    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeTruthy());
-    expect(screen.getByTestId('gantt-view').getAttribute('data-refreshing')).toBe('false');
-
-    // Toolbar refresh → reload #3, silent: it owns `refreshing`, not `loading`.
-    fireEvent.click(screen.getByTestId('gv-refresh'));
-    await waitFor(() =>
-      expect(screen.getByTestId('gantt-view').getAttribute('data-refreshing')).toBe('true'),
-    );
-
-    // A filter change re-keys `reload` → reload #4, non-silent, superseding the
-    // silent one while it is still in flight. Different flag, same sequence.
-    rerender(<ObjectGantt schema={schemaWith({ status: 'open' })} dataSource={dataSource} />);
-    await waitFor(() => expect((dataSource.find as any).mock.calls.length).toBe(4));
     expect(screen.getByText(PLACEHOLDER)).toBeTruthy();
 
     // The superseded silent reload answers: it must touch neither flag.
-    await settle(finds[2], ROWS_A);
+    await settle(finds[1], ROWS_A);
     expect(screen.getByText(PLACEHOLDER)).toBeTruthy();
 
     // The current reload answers. Nothing is in flight any more, so BOTH flags
     // must be honest — a guard that only cleared `loading` here would leave the
     // refresh button spinning forever.
-    await settle(finds[3], ROWS_B);
+    await settle(finds[2], ROWS_B);
 
     await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeTruthy());
     expect(screen.getByTestId('gantt-view').getAttribute('data-refreshing')).toBe('false');

@@ -132,6 +132,16 @@ const zh = {
     record: '记录',
     retry: '重试',
     printDialogHint: '打开浏览器打印对话框（不是导出 PDF）',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
+    rowCeilingNote: '仅显示 {{total}} 条记录中的前 {{shown}} 条。请缩小筛选范围。',
+    rowCeilingNoteUnknownTotal: '仅显示前 {{shown}} 条记录。请缩小筛选范围。',
   },
   actions: {
     decisionOutput: {
@@ -568,6 +578,7 @@ const zh = {
     allDay: '全天',
     newEvent: '新建事件',
     moreEvents: '+{{count}} 更多',
+    unscheduled: '未排期 ({{count}})',
   },
   list: {
     loading: '正在加载记录…',
@@ -724,6 +735,9 @@ const zh = {
     },
     unsupported: {
       objectBoundGantt: '不支持的变体 "gantt" —— 对象绑定的时间线只渲染 feed 变体（{{variants}}）。甘特图需要字面量行，每行自带嵌套的 items，因此此处的甘特轴（scale）不起作用。',
+    },
+    unconfigured: {
+      noDateAxis: '时间线需要日期轴 —— 该视图未声明任何日期字段，而对象绑定的时间线不会虚构一个。请声明以下之一：{{fields}}。第一个是 spec 写法，其余为遗留别名。',
     },
   },
   gantt: {
@@ -1120,6 +1134,7 @@ const zh = {
   chart: {
     loading: '图表加载中…',
     nullCategory: '(未指定)',
+    scatterOneMeasure: '散点图只绘制一个度量。请只保留一个系列：',
   },
   report: {
     total: '总计',
@@ -1154,15 +1169,15 @@ const zh = {
     saveLayout: '保存布局',
     resetLayout: '重置布局',
     total: '总计',
-    noDataAvailable: '暂无数据',
     noDataSourceFor: '没有可用的数据源：',
-    noRows: '暂无数据行',
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: '暂时还没有数据',
       message: '该组件已成功加载，只是查询目前没有返回任何记录。',
@@ -1652,6 +1667,12 @@ const zh = {
         statusFull: '额度已用完',
         resetsDaily: '今晚重置',
         resetsMonthly: '下个周期重置',
+        resetsWeeklyDays: '{{count}} 天后重置',
+        resetsWeeklyDays_one: '{{count}} 天后重置',
+        resetsWeeklyDays_other: '{{count}} 天后重置',
+        resetsWeeklyHours: '{{count}} 小时后重置',
+        resetsWeeklyHours_one: '{{count}} 小时后重置',
+        resetsWeeklyHours_other: '{{count}} 小时后重置',
         ctaUpgrade: '升级以继续使用',
         ctaTopUp: '购买额度包以继续',
         ariaLabel: 'AI 用量：{{status}}',

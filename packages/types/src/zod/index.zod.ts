@@ -58,7 +58,7 @@ export {
   ComponentConfigSchema,
   HTMLAttributesSchema,
   EventHandlersSchema,
-  StylePropsSchema,
+  ClassNameStylePropsSchema,
 } from './base.zod.js';
 
 // ============================================================================
@@ -313,18 +313,16 @@ export {
   ReportUnionSchema,
 } from './reports.zod.js';
 
-export {
-  BlockVariableSchema,
-  BlockSlotSchema,
-  BlockMetadataSchema,
-  BlockSchema,
-  BlockLibraryItemSchema,
-  BlockLibrarySchema,
-  BlockEditorSchema,
-  BlockInstanceSchema,
-  ComponentSchema,
-  BlockComponentSchema,
-} from './blocks.zod.js';
+// `./blocks.zod` exports NOTHING any more — the module is kept only as the
+// tombstone for the retired block schema family. `BlockVariableSchema`,
+// `BlockSlotSchema`, `BlockMetadataSchema`, `BlockSchema`,
+// `BlockLibraryItemSchema`, `BlockLibrarySchema`, `BlockEditorSchema`,
+// `BlockInstanceSchema`, `ComponentSchema` and the `BlockComponentSchema`
+// union over them RETIRED in objectui#4895 (ADR-0049 enforce-or-remove,
+// maintainer ruling 2026-09-02, option C1). `AnyComponentSchema` below no
+// longer carries a block arm, so `{ type: 'block' | 'block-library' |
+// 'block-editor' | 'block-instance' | 'component' }` is now refused rather
+// than green-lit for a node no page can render.
 
 export {
   ViewTypeSchema,
@@ -355,7 +353,6 @@ import { ComplexSchema } from './complex.zod.js';
 import { ObjectQLComponentSchema } from './objectql.zod.js';
 import { CRUDComponentSchema } from './crud.zod.js';
 import { ReportUnionSchema } from './reports.zod.js';
-import { BlockComponentSchema } from './blocks.zod.js';
 import { ViewComponentSchema } from './views.zod.js';
 
 /**
@@ -375,7 +372,6 @@ export const AnyComponentSchema = z.union([
   ObjectQLComponentSchema,
   CRUDComponentSchema,
   ReportUnionSchema,
-  BlockComponentSchema,
   ViewComponentSchema,
 ]);
 

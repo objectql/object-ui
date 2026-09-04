@@ -2,10 +2,22 @@ import { describe, it, expect } from 'vitest';
 import { coerceToSafeValue } from './index';
 
 describe('coerceToSafeValue — reference / lookup values', () => {
-  it('extracts a label from a JSON-string reference (unresolved external-id ref)', () => {
-    // Regression: a master_detail/lookup value can arrive as a JSON-encoded
-    // string; it must render a label, not raw '{"externalId":"..."}'.
-    expect(coerceToSafeValue('{"externalId":"Website Relaunch"}')).toBe('Website Relaunch');
+  // The two JSON-STRING cases that used to live here pinned the shape-based
+  // `JSON.parse` branch, which objectui#7246 removed: this helper is reached by
+  // every text-like cell, so it may not decide a value's type by looking at its
+  // characters (a `code` field holding `{"ok": true}` rendered `[Object]`).
+  // Their scenario — objectui#1426's unresolved external-id reference — did not
+  // go away; it moved to the reference-TYPED renderer that can actually resolve
+  // it, and is pinned as the CONTROL case in
+  // `__tests__/textCellJsonText-7246.test.tsx`. Replaced rather than respelled:
+  // what they asserted is now the wrong answer at this seam.
+  it('returns a JSON-shaped STRING verbatim — shape is not a type', () => {
+    expect(coerceToSafeValue('{"externalId":"Website Relaunch"}')).toBe(
+      '{"externalId":"Website Relaunch"}',
+    );
+    expect(coerceToSafeValue('[{"name":"A"},{"externalId":"B"}]')).toBe(
+      '[{"name":"A"},{"externalId":"B"}]',
+    );
   });
 
   it('extracts a label from a reference object, name > label > externalId > id', () => {
@@ -15,8 +27,10 @@ describe('coerceToSafeValue — reference / lookup values', () => {
     expect(coerceToSafeValue({ id: 'id1' })).toBe('id1');
   });
 
-  it('handles a JSON-string array of references', () => {
-    expect(coerceToSafeValue('[{"name":"A"},{"externalId":"B"}]')).toBe('A, B');
+  it('joins a real ARRAY of references into labels', () => {
+    // The array case still coerces — an array VALUE (not a string that looks
+    // like one) is the shape that actually reaches a cell.
+    expect(coerceToSafeValue([{ name: 'A' }, { externalId: 'B' }])).toBe('A, B');
   });
 
   it('leaves plain strings and non-JSON-looking strings untouched', () => {

@@ -5,7 +5,7 @@ description: "Comprehensive overview of ObjectUI schemas for building enterprise
 
 # Schema Overview
 
-ObjectUI provides powerful schemas that enable you to build sophisticated enterprise applications with advanced features like theming, reporting, reusable components, and complex workflows. This guide provides an overview of all available schemas and helps you get started quickly.
+ObjectUI provides powerful schemas that enable you to build sophisticated enterprise applications with advanced features like theming, reporting, and complex workflows. This guide provides an overview of all available schemas and helps you get started quickly.
 
 ## Key Capabilities
 
@@ -15,7 +15,6 @@ ObjectUI includes enterprise-grade capabilities to build production-ready applic
 - **Dynamic Theming** - Brand your applications with custom themes and light/dark modes
 - **Advanced Actions** - Build complex workflows with API calls, chaining, and conditions
 - **Enterprise Reporting** - Generate, schedule, and export comprehensive reports
-- **Reusable Components** - Create and share component blocks across projects
 
 ## Core Schemas
 
@@ -132,36 +131,6 @@ const report: ReportComponentSchema = {
 
 ---
 
-### Reusable Components
-
-#### [Block Schema](/docs/blocks/block-schema)
-Reusable component blocks with variables, slots, and marketplace support.
-
-<!-- doc-snippet: fragment — a shape excerpt: the block template's `children` is written as a literal `[...]` ellipsis, since the section is about the block wrapper rather than what it wraps -->
-
-```typescript
-const block: BlockSchema = {
-  type: 'block',
-  meta: { name: 'hero-section', category: 'Marketing' },
-  variables: [
-    { name: 'title', type: 'string', defaultValue: 'Welcome' }
-  ],
-  slots: [
-    { name: 'content', label: 'Content Area' }
-  ],
-  template: { type: 'div', children: [...] }
-};
-```
-
-**Features:**
-- Typed variables (props)
-- Content slots
-- Block templates
-- Marketplace support
-- Version control
-
----
-
 ## Quick Comparison
 
 | Schema | Purpose | Best For |
@@ -169,7 +138,6 @@ const block: BlockSchema = {
 | **AppComponentSchema** | Application structure | Multi-page apps, dashboards |
 | **Enhanced Actions** | Complex workflows | API integration, multi-step processes |
 | **ReportComponentSchema** | Data reporting | Analytics, business intelligence |
-| **BlockSchema** | Reusable components | Marketing pages, component libraries |
 
 ## View Components
 
@@ -209,8 +177,7 @@ Import the type definitions you need:
 import type { 
   AppComponentSchema, 
   ActionSchema,
-  ReportComponentSchema,
-  BlockSchema 
+  ReportComponentSchema
 } from '@object-ui/types';
 ```
 
@@ -222,8 +189,7 @@ For runtime validation, use the included Zod schemas:
 import { 
   AppComponentSchema,
   ActionSchema,
-  ReportComponentSchema,
-  BlockSchema
+  ReportComponentSchema
 } from '@object-ui/types/zod';
 
 const myConfig = { type: 'app', title: 'My Application', layout: 'sidebar' };
@@ -300,7 +266,6 @@ ObjectUI includes these top-level schemas:
 
 - **`AppComponentSchema`** - Define your entire application structure
 - **`ReportComponentSchema`** - Create data reports with aggregation
-- **`BlockSchema`** - Build reusable component blocks
 
 ### Enhanced ActionSchema
 

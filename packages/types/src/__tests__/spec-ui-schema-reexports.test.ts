@@ -102,9 +102,18 @@ const DROPPED_SCHEMA_EXPORTS = [
   // per-locale record form into `I18nLabel` itself (`string` →
   // `string | Record<string, string>`) and ships `resolveI18nLabel` for it.
   // Responsive Design
-  'SpecResponsiveConfigSchema',
-  'BreakpointColumnMapSchema',
-  'BreakpointOrderMapSchema',
+  // The three responsive rows — `SpecResponsiveConfigSchema`,
+  // `BreakpointColumnMapSchema` and `BreakpointOrderMapSchema` — were removed
+  // by objectui#7580, ahead of the ratchet below firing, on the same reading
+  // that took the `ThemeModeSchema` row out at objectui#5716. objectstack#11027
+  // retired the spec's whole `ui/responsive` vocabulary, and this repo no
+  // longer re-exports ANY of it: `BreakpointName` is declared locally in
+  // `../mobile.ts` and `BreakpointColumnMap` in `@object-ui/layout`, while the
+  // prefixed `SpecResponsiveConfig` pair was dropped from `../index.ts` as a
+  // dead re-export once its two readers went. So each row was about to assert
+  // that a name is not re-exported from this package while the name itself no
+  // longer exists anywhere — vacuously true forever, which is precisely what
+  // the ratchet above this list exists to catch.
   // The `ThemeModeSchema` row (theme.ts) was removed by objectui#5716, ahead
   // of the ratchet below firing: the spec retired its whole theme module
   // (objectstack#10485) and the theme TYPE surface is owned by this package

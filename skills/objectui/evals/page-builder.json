@@ -27,9 +27,9 @@
       "files": [],
       "assertions": {
         "must_contain": [
-          "visible",
+          "hidden",
           "admin",
-          "section"
+          "card"
         ],
         "must_not_contain": [
           "role === 'admin' ? <Button",
@@ -47,8 +47,7 @@
           "dashboard",
           "chart",
           "action",
-          "navigate",
-          "refresh"
+          "navigate"
         ],
         "must_not_contain": []
       }

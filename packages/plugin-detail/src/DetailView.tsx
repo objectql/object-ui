@@ -522,8 +522,49 @@ export const DetailView: React.FC<DetailViewProps> = ({
         if (!isMounted) return;
         setObjectSchema(resolvedSchema);
 
-        // Compute $expand from objectSchema
-        const expandFields = buildExpandFields(resolvedSchema?.fields, allFields);
+        // Compute $expand from objectSchema.
+        //
+        // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand`, the gate
+        // objectui#7215 / PR #7229 put on the two projection sites in its
+        // scope. `$select` on a denied lookup asks for a bare foreign key;
+        // `$expand` asks the server to RESOLVE the relation and return the
+        // related record — the larger of the two requests.
+        //
+        // ⚠️ THIS SITE WAS ALREADY INPUT-GATED, AND THAT IS THE DEFECT, not the
+        // fix. `allFields` is collected from `schema`, which is `gatedSchema` —
+        // already FLS-filtered field by field above. Filtering the INPUT is
+        // precisely the route PR #7229 measured as unsound, and here is what it
+        // costs: `buildExpandFields` reads an EMPTY column list as "no column
+        // restriction" and falls back to EVERY declared relation on the object.
+        // So a detail view whose authored fields are ALL denied had its column
+        // list gated down to `[]` and its `$expand` WIDENED from the relations
+        // it asked for to every relation the object declares — the principal
+        // who may read least asking for the most. The same widening is reached
+        // with no authored field list at all, where the input filter has
+        // nothing to remove and the expansion is maximal from the start.
+        //
+        // ⭐ SO THE GATE GOES ON THE HELPER'S OUTPUT. The input filter above
+        // stays — it is load-bearing for the RENDER half — but it is no longer
+        // what decides the projection. Gating the output also gives the
+        // required ordering structurally: `buildExpandFields` returns a subset
+        // of the object's DECLARED reference-bearing fields, so every name
+        // judged here is declared by construction and the "`checkField` answers
+        // false for an undeclared key" trap cannot be reached — a derived /
+        // host-joined column is never judged. Both halves are pinned in
+        // `__tests__/DetailView.expandFls-7230.test.tsx`.
+        //
+        // Graded as objectui#7215 graded it: defence-in-depth against
+        // ObjectStack's own server (`FieldMasker.maskRecord` deletes the very
+        // key objectql writes the expansion back under; the sub-read takes the
+        // referenced object's full CRUD + RLS + FLS, objectstack#7626), and
+        // load-bearing for a backend that does not strip.
+        //
+        // An unanswered policy filters nothing, exactly as `gatedSchema` above
+        // defers; `perms` is in this effect's dependency list.
+        const expandable = buildExpandFields(resolvedSchema?.fields, allFields);
+        const expandFields = !perms?.isLoaded
+          ? expandable
+          : expandable.filter((f) => perms.checkField(objectName, f, 'read'));
         const params = expandFields.length > 0 ? { $expand: expandFields } : undefined;
 
         const findOnePromise = params
@@ -586,7 +627,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     }
 
     return () => { isMounted = false; };
-  }, [schema.api, schema.resourceId, schema.objectName, dataSource, schema.sections, schema.fields, reloadTick, invalidationNonce]);
+  }, [schema.api, schema.resourceId, schema.objectName, dataSource, schema.sections, schema.fields, reloadTick, invalidationNonce, perms]);
 
   const handleBack = React.useCallback(() => {
     if (onBack) {

@@ -10,7 +10,6 @@ import {
 } from './helpers/turbo-inputs';
 import {
   CONFIG_FILES,
-  invocationFor,
   outOfPackageFiles,
   resolveConfigFile,
 } from './helpers/vitest-config-program';
@@ -38,11 +37,13 @@ import {
  * `vitest.config.*` and `vitest.setup.*` read as if they covered the Vitest
  * configuration. They do not: they resolve inside the package, while the files
  * that actually decide how a package's tests run live at the repo root. Every
- * package reaches them — `packages/core/vitest.config.ts` is two lines that
- * re-export `../../vitest.config.mts`, and a package with no config of its own
- * (`packages/app-shell`) resolves upward to that same root file, because Vitest
- * looks for `vitest.config.*` / `vite.config.*` in each directory from its root
- * upward and takes the first hit.
+ * package reaches them. Since objectui#3240 it reaches them BY NAME: every
+ * package's `test` script is `vitest run --root ../.. packages/<pkg>/`, so the
+ * resolution starts at the repo root and lands on `vitest.config.mts` directly.
+ * Before that it arrived by the walk — a two-line re-export in
+ * `packages/core/vitest.config.ts`, or, for a package with no config of its own
+ * (`packages/app-shell`), Vitest looking for `vitest.config.*` / `vite.config.*`
+ * in each directory from its root upward and taking the first hit.
  *
  * Measured on `main` at eb5f8cea0, `@object-ui/core#test`:
  *
@@ -116,8 +117,9 @@ describe('turbo `test` inputs cover every out-of-package file (objectui#4178)', 
     expect(
       reaching.map((pkg) => pkg.name),
       'no package configuration program reaches outside its directory — the derivation has ' +
-        'stopped working, because at minimum packages/core/vitest.config.ts is a one-line ' +
-        're-export of ../../vitest.config.mts',
+        'stopped working. Since objectui#3240 EVERY package reaches outside: each test script ' +
+        'is `vitest run --root ../.. <pkgdir>/`, so the config it resolves is the repo-root ' +
+        'vitest.config.mts, which is outside every package directory by construction',
     ).not.toHaveLength(0);
   });
 
@@ -182,12 +184,28 @@ describe('turbo `test` inputs cover every out-of-package file (objectui#4178)', 
    * `vitest.config.ts` and `vite.config.ts` must derive from the former) and
    * the upward walk itself.
    */
+  // All three pins below root the resolution at the PACKAGE DIRECTORY
+  // explicitly rather than deriving it from the package's `test` script. Since
+  // objectui#3240 every one of those scripts names `--root ../..`, so a pin
+  // driven from them would assert `vitest.config.mts` for the trivial reason
+  // that the script already said so — a control that has stopped controlling.
+  // The candidate walk still decides which config a bare `pnpm exec vitest`
+  // typed inside a package picks up, which is what the invocation guard's
+  // route 4 rests on, so it is still worth pinning; it just has to be asked
+  // directly now.
+  // `CONFIG_FILES` is the FULL candidate list — `vitest.config.*` AND
+  // `vite.config.*`, in Vitest's own precedence order. The two pins below need
+  // the halves apart, so name the vitest-only spellings once here.
+  const VITEST_ONLY_CONFIG_FILES = CONFIG_FILES.filter((name) =>
+    name.startsWith('vitest.config.'),
+  );
+
   it('resolves a configless package upward to the repo-root config', () => {
     const configless = PACKAGES.find(
       (pkg) => !CONFIG_FILES.some((name) => fs.existsSync(path.join(pkg.dir, name))),
     );
     expect(configless, 'no configless package left to pin the upward walk with').toBeTruthy();
-    expect(rel(resolveConfigFile(invocationFor(configless!.dir, configless!.script))!)).toBe(
+    expect(rel(resolveConfigFile({ root: configless!.dir, config: null })!)).toBe(
       'vitest.config.mts',
     );
   });
@@ -199,8 +217,25 @@ describe('turbo `test` inputs cover every out-of-package file (objectui#4178)', 
         fs.existsSync(path.join(pkg.dir, 'vite.config.ts')),
     );
     expect(both, 'no package holds both config spellings any more').toBeTruthy();
-    expect(rel(resolveConfigFile(invocationFor(both!.dir, both!.script))!)).toBe(
+    expect(rel(resolveConfigFile({ root: both!.dir, config: null })!)).toBe(
       `${rel(both!.dir)}/vitest.config.ts`,
+    );
+  });
+
+  it('falls back to vite.config.* where a package has no vitest config', () => {
+    // The other half of the same premise, and the half objectui#3240 turned on:
+    // with the per-package vitest configs deleted, THIS is the file a
+    // package-cwd run now resolves to. It is a build config, which is why every
+    // one of them calls the invocation guard — pinned in
+    // scripts/__tests__/vitest-invocation-guard.test.ts.
+    const viteOnly = PACKAGES.find(
+      (pkg) =>
+        !VITEST_ONLY_CONFIG_FILES.some((name) => fs.existsSync(path.join(pkg.dir, name))) &&
+        fs.existsSync(path.join(pkg.dir, 'vite.config.ts')),
+    );
+    expect(viteOnly, 'no vite-config-only package left to pin the fallback with').toBeTruthy();
+    expect(rel(resolveConfigFile({ root: viteOnly!.dir, config: null })!)).toBe(
+      `${rel(viteOnly!.dir)}/vite.config.ts`,
     );
   });
 });

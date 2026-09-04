@@ -11,7 +11,6 @@ import { fileURLToPath } from 'node:url';
 import {
   COVERED_SPECIFIERS,
   FLOORS,
-  classifyFactory,
   deJsxClosingTags,
   findCallSites,
   scan,

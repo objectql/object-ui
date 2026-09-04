@@ -34,7 +34,7 @@ const child = (fkExtras: Record<string, unknown>) => ({
   name: 'check_item',
   label: 'Check Item',
   fields: {
-    [PARENT]: { type: 'master_detail', reference_to: PARENT, label: 'Task Version', ...fkExtras },
+    [PARENT]: { type: 'master_detail', reference: PARENT, label: 'Task Version', ...fkExtras },
   },
 });
 

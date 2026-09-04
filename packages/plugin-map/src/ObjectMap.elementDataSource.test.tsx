@@ -14,12 +14,21 @@
  *
  * `filter` and `sort` DO map here (`$filter` / `$orderby` on the fetch); a column
  * list and a row cap do not, a map projecting the fields its `map` config names
- * and issuing no `$top`.
+ * and taking its `$top` from the PLATFORM, never from the binding.
+ *
+ * ⚠️ The row-cap case below changed shape with objectui#7210's ruling a′ and
+ * kept its point. It used to assert `$top` was absent entirely; the fetch now
+ * always carries the platform ceiling. What it pins is unchanged and is the
+ * half that matters here: an AUTHORED `limit: 3` still does not reach the
+ * wire — the ceiling is "a named constant in the renderer, not an authorable
+ * view key", so a binding cannot lower it, raise it, or otherwise be the thing
+ * that decides how many rows a map draws.
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import React from 'react';
+import { NON_GRID_ROW_CEILING_TOP } from '@object-ui/react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 
 // No WebGL in the test env — same stub the sibling ObjectMap tests use. Every
@@ -129,7 +138,7 @@ describe('object-map — dataSource: { object, view } (objectstack#7121)', () =>
     expect(adapter.find).not.toHaveBeenCalled();
   });
 
-  it('writes NO row cap: the map fetch issues no $top for one to land on', async () => {
+  it('writes NO row cap: an authored `limit` never reaches the $top, which is the platform ceiling', async () => {
     const adapter = makeAdapter();
     renderBlock(
       { type: 'object-map', map: MAP, dataSource: { object: 'store', view: 'hot', limit: 3 } },
@@ -138,7 +147,10 @@ describe('object-map — dataSource: { object, view } (objectstack#7121)', () =>
 
     await waitFor(() => expect(adapter.find).toHaveBeenCalled());
     const [, params] = adapter.find.mock.calls[0] as [string, any];
-    expect(params.$top).toBeUndefined();
+    // Not an oversight — `limit` is unmapped because there is no read site.
+    // The assertion is here so a future mapping addition has to be deliberate.
+    expect(params.$top).not.toBe(3);
+    expect(params.$top).toBe(NON_GRID_ROW_CEILING_TOP);
   });
 
   it('leaves a map with NO dataSource exactly as it was', async () => {

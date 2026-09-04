@@ -8,19 +8,27 @@ import { parse as parseYaml } from 'yaml';
 
 // Plain-JS CI helper; its types are inferred from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here.
+import ts from 'typescript';
 import {
   EXIT_CODES,
   FRAGMENT_MARKER_EXAMPLES,
+  ROOT_DECLARED_CONTROL_PACKAGE,
   UNDECLARED_CONTROL_PACKAGE,
   UNGATED_DOCS,
   analyze,
   blockingPreconditions,
   buildFilterArgs,
+  compileSnippets,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
   findInstalledCopy,
   listDocuments,
+  moduleSpecifiersOf,
+  moduleSpecifiersOfBlock,
+  resolvesOnlyThroughRootManifest,
+  rootDeclaredSpecifiers,
   scanFences,
+  specifierRoot,
 } from '../check-doc-snippet-types.mjs';
 
 /**
@@ -82,6 +90,34 @@ function tempTree(files: Record<string, string>): string {
 }
 
 const FENCE = '```';
+
+/**
+ * The corpus specimen behind objectui#7555 — a `tsx` block whose body assigns a
+ * template literal holding a README sample, and inside that literal the line
+ * `npm install project-name`.
+ */
+const README_SAMPLE_DOC = 'content/docs/plugins/plugin-markdown.mdx';
+const README_SAMPLE_FENCE_LINE = 195;
+
+/**
+ * The regex reader objectui#7555 removed from both gates, kept HERE and only
+ * here, as the contrast that makes the pin using it a measurement rather than a
+ * tautology. ⛔ Not a fallback and not a second answer: nothing in either gate
+ * may call anything shaped like this.
+ */
+function retiredRegexReader(body: string): string[] {
+  const out = new Set<string>();
+  const patterns = [
+    /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g,
+    /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) out.add(m[1]);
+  }
+  return [...out];
+}
 
 describe('fence scanning', () => {
   it('reads ts, tsx and typescript fences and nothing else', () => {
@@ -299,6 +335,52 @@ describe('this repository', () => {
   });
 });
 
+/**
+ * objectui#7115 — the root `README.md` was in NO doc gate's scan set: this gate
+ * walked `content/docs` plus the package READMEs, its sibling
+ * `check-doc-component-types.mjs` walked `content/docs`, and the repository's
+ * landing page fell between them.
+ *
+ * ⚠️ Read the second assertion carefully. Being ON the ungated ledger is NOT a
+ * claim that this file compiles — it does not; objectui#7417 carries its nine
+ * measured diagnostics. It is the objectui#5174 distinction, which this script's
+ * own header states: a document outside the walk is "neither covered NOR
+ * declared ungated", invisible to the gate's own accounting, while a ledgered
+ * one is named, counted, re-derived every run and shrink-only.
+ */
+describe('objectui#7115 — the root README is in the scan set', () => {
+  it('listDocuments reaches it', () => {
+    expect(listDocuments(repoRoot)).toContain('README.md');
+  });
+
+  it('is DECLARED debt rather than absent, and its reason names the card that carries it', () => {
+    expect(Object.keys(UNGATED_DOCS as Record<string, string>)).toContain('README.md');
+    expect((UNGATED_DOCS as Record<string, string>)['README.md']).toContain('objectui#7417');
+  });
+
+  it('root pages are collected BY NAME, not by the packages walk', () => {
+    // The mechanism, isolated: a tree with no `content/docs` and no `packages`
+    // still lists its root page, which is what makes the entry independent of
+    // the two walks it sits between.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-doc-snippet-types-rootpages-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'README.md'), '# root\n');
+      expect(listDocuments(dir)).toEqual(['README.md']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('states in its own source that a dangling root page fails the run', () => {
+    // The guard lives in `main()`, which takes no `--root`, so it cannot be
+    // driven from a fixture. Pinned against the source for the same reason the
+    // exit-code contract is: a silently narrowed surface is this card's defect.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-doc-snippet-types.mjs'), 'utf8');
+    expect(source).toContain('ROOT_PAGES');
+    expect(source).toMatch(/for \(const name of ROOT_PAGES\) \{\n\s*if \(!existsSync\(join\(repoRoot, name\)\)\)/);
+  });
+});
+
 describe('third-party resolution reaches exactly as far as the imported packages declare', () => {
   /** A workspace package with its own `node_modules`, the way pnpm links one. */
   function treeWithDependency(files: Record<string, string> = {}): string {
@@ -437,6 +519,271 @@ describe('third-party resolution reaches exactly as far as the imported packages
         });
       expect(declaring, 'pick a control specifier no package declares').toEqual([]);
     });
+  });
+});
+
+describe('the ROOT BOUND — what only this repository declares does not resolve (objectui#7463 item 2)', () => {
+  /**
+   * The bound closes the last way a snippet could be green over a package its
+   * reader was never told to install: pnpm symlinks the repository ROOT's own
+   * devDependencies into `/node_modules`, one directory above where every block
+   * is compiled. Ruled into the SHARED harness, unconditionally for both gates,
+   * on 2026-09-03 (objectstack#14909 item 1, option A).
+   *
+   * Both directions are pinned here, and the negative half is the load-bearing
+   * one: a bound that refused everything would satisfy the positive half alone
+   * while turning every correct snippet red.
+   */
+  const rootDeclared = new Set(['root-dev-dep', '@scope/root-dev-dep', 'react']);
+
+  it('refuses a specifier only the repository ROOT declares', () => {
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep', { paths: {}, rootDeclared })).toBe(true);
+    expect(resolvesOnlyThroughRootManifest('@scope/root-dev-dep', { paths: {}, rootDeclared })).toBe(true);
+  });
+
+  it('refuses a SUBPATH of one too — the root symlink carries the whole package', () => {
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep/sub', { paths: {}, rootDeclared })).toBe(true);
+    expect(specifierRoot('@scope/root-dev-dep/sub')).toBe('@scope/root-dev-dep');
+  });
+
+  it('does NOT refuse a mapped specifier — one a documented package declares reaches the reader', () => {
+    const paths = { 'root-dev-dep': ['/somewhere/index.d.ts'] };
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep', { paths, rootDeclared })).toBe(false);
+    expect(resolvesOnlyThroughRootManifest('root-dev-dep/sub', { paths, rootDeclared })).toBe(false);
+  });
+
+  it('does NOT refuse a specifier the root never declared — that is the UNDECLARED control\'s half', () => {
+    expect(resolvesOnlyThroughRootManifest('some-transitive', { paths: {}, rootDeclared })).toBe(false);
+  });
+
+  it('does NOT refuse a relative or absolute specifier', () => {
+    expect(resolvesOnlyThroughRootManifest('./sibling', { paths: {}, rootDeclared })).toBe(false);
+    expect(resolvesOnlyThroughRootManifest('/abs/path', { paths: {}, rootDeclared })).toBe(false);
+  });
+
+  it('never refuses the JSX factory module, even when `react` is root-declared and unmapped', () => {
+    // Compiler-emitted, not author-written: every block is compiled as TSX, so
+    // refusing it would red a block over a line nobody wrote.
+    expect(resolvesOnlyThroughRootManifest('react/jsx-runtime', { paths: {}, rootDeclared })).toBe(false);
+    expect(resolvesOnlyThroughRootManifest('react/jsx-dev-runtime', { paths: {}, rootDeclared })).toBe(false);
+  });
+
+  it('reads BOTH dependency fields of the root manifest, not just the populated one', () => {
+    const root = tempTree({
+      'package.json': JSON.stringify({ dependencies: { 'a-dep': '1' }, devDependencies: { 'a-dev': '1' } }),
+    });
+    const declared = rootDeclaredSpecifiers(root) as Set<string>;
+    expect([...declared].sort()).toEqual(['a-dep', 'a-dev']);
+  });
+
+  describe('the specifier set comes from the AST, never from a regex over the text', () => {
+    const parse = (code: string) =>
+      ts.createSourceFile('probe.tsx', code, ts.ScriptTarget.ES2020, true, ts.ScriptKind.TSX);
+
+    it('collects static, type-only, side-effect, re-export and dynamic imports', () => {
+      const found = moduleSpecifiersOf(
+        parse(
+          [
+            "import a from 'a';",
+            "import type { B } from 'b';",
+            "import 'c';",
+            "export { d } from 'd';",
+            "const e = await import('e');",
+            'export const used = [a, B, e, d];',
+          ].join('\n'),
+        ),
+      ) as string[];
+      expect(found.sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+    });
+
+    it('does NOT collect an import-shaped line inside a template literal', () => {
+      // Measured while deriving the bound: a README example whose fenced body
+      // held `npm install project-name` inside a template literal read as an
+      // import of `project-name` under the regex reader each gate carried
+      // privately until objectui#7555. A false refusal would red a document
+      // that is correct.
+      const found = moduleSpecifiersOf(
+        parse("export const readme = `\n# Project\n\nimport x from 'project-name';\n`;\n"),
+      ) as string[];
+      expect(found).toEqual([]);
+    });
+
+    it('reports nothing for the corpus block that finding measured', () => {
+      // The synthetic pin above paraphrases the specimen; this one is the
+      // specimen. Keyed on the fence LINE, so an edit above it forces a
+      // re-declaration here rather than a row that silently covers nothing —
+      // the convention `KNOWN_ROOT_DEVDEP_EXAMPLES` already uses in the skills
+      // gate's suite.
+      const state = analyze({}) as unknown as {
+        compiled: { doc: string; fenceLine: number; body: string }[];
+      };
+      const site = `${README_SAMPLE_DOC}:${README_SAMPLE_FENCE_LINE}`;
+      const block = state.compiled.find(
+        (b) => b.doc === README_SAMPLE_DOC && b.fenceLine === README_SAMPLE_FENCE_LINE,
+      );
+      expect(block, `no compiled block at ${site}`).toBeDefined();
+      expect(block!.body, `the README sample moved out of ${site}`).toContain(
+        'npm install project-name',
+      );
+      expect(moduleSpecifiersOfBlock(block!.body)).toEqual([]);
+      // The retired reader, kept as this pin's CONTRAST: without it, the
+      // assertion above would hold just as well for a block that imports
+      // nothing and has no template literal either, and the pin would stop
+      // being about the defect it was written for.
+      expect(retiredRegexReader(block!.body)).toEqual(['project-name']);
+    });
+  });
+
+  describe('end to end, over a throwaway tree', () => {
+    /** A root that declares one devDependency and installs it where pnpm would. */
+    function treeWithRootDevDependency(): string {
+      const root = tempTree({
+        'package.json': JSON.stringify({ name: 'root', devDependencies: { 'root-dev-dep': '^1.0.0' } }),
+        'node_modules/root-dev-dep/package.json': JSON.stringify({ name: 'root-dev-dep', types: 'index.d.ts' }),
+        'node_modules/root-dev-dep/index.d.ts': 'export declare const fromRoot: number;\n',
+        'node_modules/mapped-dep/package.json': JSON.stringify({ name: 'mapped-dep', types: 'index.d.ts' }),
+        'node_modules/mapped-dep/index.d.ts': 'export declare const mapped: number;\n',
+      });
+      return root;
+    }
+
+    const block = (doc: string, body: string) => ({ doc, fenceLine: 1, body });
+
+    it('keeps a block importing a root-only specifier OUT of the program and names the specifier', () => {
+      const root = treeWithRootDevDependency();
+      const run = compileSnippets({
+        root,
+        compiled: [block('fixture/root-only.md', "import { fromRoot } from 'root-dev-dep';\nexport const x = fromRoot;\n")],
+        paths: {},
+        declaredSpecifiers: [],
+      }) as unknown as {
+        boundFailures: { block: { doc: string }; specifiers: string[] }[];
+        boundedSpecifiers: string[];
+        semanticallyJudged: number;
+      };
+      expect(run.boundFailures.map((f) => f.block.doc)).toEqual(['fixture/root-only.md']);
+      expect(run.boundFailures[0].specifiers).toEqual(['root-dev-dep']);
+      expect(run.boundedSpecifiers).toEqual(['root-dev-dep']);
+      // Refused, therefore NOT judged: the coverage count is what stops a
+      // refusal from reading as a pass.
+      expect(run.semanticallyJudged).toBe(0);
+    });
+
+    it('still resolves a MAPPED specifier — the bound refuses the root set, not everything', () => {
+      const root = treeWithRootDevDependency();
+      const run = compileSnippets({
+        root,
+        compiled: [block('fixture/mapped.md', "import { mapped } from 'mapped-dep';\nexport const y = mapped;\n")],
+        paths: { 'mapped-dep': [path.join(root, 'node_modules/mapped-dep/index.d.ts')] },
+        declaredSpecifiers: [],
+      }) as unknown as {
+        boundFailures: unknown[];
+        semanticFailures: unknown[];
+        semanticallyJudged: number;
+      };
+      expect(run.boundFailures).toEqual([]);
+      expect(run.semanticFailures).toEqual([]);
+      expect(run.semanticallyJudged).toBe(1);
+    });
+
+    it('refuses a root-only specifier even when the map covers a DIFFERENT one', () => {
+      const root = treeWithRootDevDependency();
+      const run = compileSnippets({
+        root,
+        compiled: [
+          block(
+            'fixture/both.md',
+            "import { mapped } from 'mapped-dep';\nimport { fromRoot } from 'root-dev-dep';\nexport const z = [mapped, fromRoot];\n",
+          ),
+        ],
+        paths: { 'mapped-dep': [path.join(root, 'node_modules/mapped-dep/index.d.ts')] },
+        declaredSpecifiers: [],
+      }) as unknown as { boundFailures: { specifiers: string[] }[] };
+      expect(run.boundFailures[0].specifiers).toEqual(['root-dev-dep']);
+    });
+  });
+
+  describe('in this repository', () => {
+    it("the ROOT-DECLARED control specifier is declared by the root and covered by no paths entry", () => {
+      // Both are preconditions for the control to mean anything, and both are
+      // re-checked at run time by the gate itself; pinned here so a change to
+      // either shows up in a test rather than only in a red gate.
+      const declared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+      expect(declared.has(ROOT_DECLARED_CONTROL_PACKAGE)).toBe(true);
+      const state = analyze({}) as unknown as { paths: Record<string, string[]> };
+      expect(Object.keys(state.paths)).not.toContain(ROOT_DECLARED_CONTROL_PACKAGE);
+      expect(findInstalledCopy(repoRoot, ROOT_DECLARED_CONTROL_PACKAGE)).toBeTruthy();
+    });
+
+    it('no COVERED snippet imports a specifier that only the root declares', () => {
+      // The gate itself proves this on a built tree; this pin is the build-free
+      // half, so a new page resting on the workspace's own devDependencies is
+      // caught by the per-PR suite too.
+      const declared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+      const state = analyze({}) as unknown as {
+        compiled: { doc: string; fenceLine: number; body: string }[];
+        paths: Record<string, string[]>;
+      };
+      const offenders: string[] = [];
+      for (const b of state.compiled) {
+        const sf = ts.createSourceFile('probe.tsx', b.body, ts.ScriptTarget.ES2020, true, ts.ScriptKind.TSX);
+        for (const specifier of moduleSpecifiersOf(sf) as string[]) {
+          if (resolvesOnlyThroughRootManifest(specifier, { paths: state.paths, rootDeclared: declared })) {
+            offenders.push(`${b.doc}:${b.fenceLine} ${specifier}`);
+          }
+        }
+      }
+      expect(offenders).toEqual([]);
+    });
+
+    it('states the bound in its own header, so the rule cannot drift out of the source', () => {
+      const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+      expect(source).toContain('resolves ONLY through the repository root');
+      expect(source).toContain('ROOT-');
+    });
+  });
+});
+
+/**
+ * objectui#7555 — the OTHER consumer of the reader, and the one with teeth.
+ *
+ * A specifier the reader invents matters here only when it happens to equal a
+ * workspace package: that package then joins the build filter AND the
+ * unbuilt-package precondition, so the gate refuses to run (exit 2) over a
+ * package no snippet imports. On this corpus the invented name was
+ * `project-name`, which is not a workspace package, so nothing moved — luck,
+ * not construction, which is why the consequence is pinned over a tree where
+ * the name DOES collide.
+ */
+describe('what the snippets make the gate build is read by the same reader (objectui#7555)', () => {
+  const treeWithBlock = (body: string): string =>
+    tempTree({
+      'content/docs/sample.mdx': [`${FENCE}tsx`, body, FENCE].join('\n'),
+      'packages/pkg-a/package.json': JSON.stringify({ name: '@fixture/pkg-a', types: 'dist/index.d.ts' }),
+    });
+
+  type State = { neededPackages: Set<string>; findings: { reason: string }[] };
+
+  it('adds a package a block really imports — the control for the pin below', () => {
+    // Without this half, the pin below would also pass over a tree where the
+    // package was never discovered at all.
+    const state = analyze({
+      root: treeWithBlock("import { a } from '@fixture/pkg-a';\nexport const x = a;"),
+    }) as unknown as State;
+    expect([...state.neededPackages]).toEqual(['@fixture/pkg-a']);
+    expect(buildFilterArgs(state.neededPackages)).toBe('--filter=@fixture/pkg-a...');
+    expect(state.findings.map((f) => f.reason)).toContain('unbuilt-package');
+  });
+
+  it('does NOT add one named only inside a template literal', () => {
+    const state = analyze({
+      root: treeWithBlock(
+        "export const readme = `\n# Project\n\nimport { a } from '@fixture/pkg-a';\n`;",
+      ),
+    }) as unknown as State;
+    expect([...state.neededPackages]).toEqual([]);
+    expect(buildFilterArgs(state.neededPackages)).toBe('');
+    expect(state.findings.map((f) => f.reason)).not.toContain('unbuilt-package');
   });
 });
 

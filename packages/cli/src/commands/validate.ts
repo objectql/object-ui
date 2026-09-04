@@ -12,6 +12,7 @@ import { resolve } from 'path';
 import { load as loadYaml } from 'js-yaml';
 import { safeValidateSchema } from '@object-ui/types/zod';
 import { findSpecVocabularyFormFields } from '../utils/spec-vocabulary-hint.js';
+import { explainUnionIssue } from '../utils/union-arm-diagnostics.js';
 
 /**
  * Validate a schema file
@@ -118,11 +119,13 @@ export async function validate(schemaPath: string) {
       // `(root)` is parenthesised so it cannot be read as a real key literally
       // named `root` — a genuine path to one would print as `root`.
       //
-      // ⛔ Scope: this prints the top-level issue's own path and NOTHING more.
-      // The other half of objectui#7004 — whether a failing union should also
-      // surface its per-arm diagnoses, and if so which arm's — is an
-      // author-facing diagnostic contract awaiting a maintainer ruling, so
-      // `issue.errors` is deliberately NOT walked here.
+      // The ARM-SELECTION half of objectui#7004 landed on the 2026-09-02
+      // maintainer ruling (option B) and is the block below the three fields:
+      // when the top-level issue is a failing union, `explainUnionIssue` picks
+      // the single arm the document's `type` selects and returns ITS issues,
+      // with their paths rebased to absolute. Everything about WHICH arm lives
+      // in `../utils/union-arm-diagnostics.js`; this file only prints, so it
+      // stays the repository's only zod-issue printer.
       result.error.issues.forEach((issue, index) => {
         console.error(chalk.red(`\n${index + 1}. ${issue.message}`));
         const path = issue.path ?? [];
@@ -132,6 +135,47 @@ export async function validate(schemaPath: string) {
         if (issue.code) {
           console.error(chalk.gray(`   Code: ${issue.code}`));
         }
+
+        // The selected arm's own diagnosis, indented under the entry it
+        // explains and numbered `<n>.<k>` so it can never be mistaken for a
+        // separate top-level issue (`1.1` does not match the `^\d+\. ` shape a
+        // numbered entry has).
+        explainUnionIssue(issue, schema).forEach((line, sub) => {
+          const where = line.path.length > 0 ? line.path.join(' → ') : '(root)';
+          if (line.kind === 'note') {
+            // No arm accepts the authored `type`. Name that, then the nearest
+            // few of the accepted values — never all of them, which is the
+            // noise the ruling rejected option A for.
+            const at = line.path.length > 0 ? ` at ${where}` : '';
+            if (line.authoredType === undefined) {
+              console.error(
+                chalk.yellow(
+                  `   No \`type\` is declared${at}, so none of the ${line.totalArmNames} ` +
+                  `accepted component types can be selected.`,
+                ),
+              );
+              return;
+            }
+            console.error(
+              chalk.yellow(`   No arm accepts type "${line.authoredType}"${at}.`),
+            );
+            if (line.candidates.length > 0) {
+              console.error(
+                chalk.gray(
+                  `   Nearest of the ${line.totalArmNames} accepted types: ` +
+                  line.candidates.join(', '),
+                ),
+              );
+            }
+            return;
+          }
+          const arm = line.arm === undefined ? '' : `[arm ${line.arm}] `;
+          console.error(chalk.red(`   ${index + 1}.${sub + 1} ${arm}${line.message}`));
+          console.error(chalk.gray(`       Path: ${where}`));
+          if (line.code) {
+            console.error(chalk.gray(`       Code: ${line.code}`));
+          }
+        });
       });
 
       // "name: expected string, received undefined" on a `{ field: … }` entry

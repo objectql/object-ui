@@ -49,9 +49,15 @@ consumer is the missing input.
 ### Basic Setup
 
 ```tsx
+import type { ReactNode } from 'react';
 import { AppShell } from '@object-ui/app-shell';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
-import type { ObjectViewSchema } from '@object-ui/types';
+import type { DataSource, ObjectViewSchema } from '@object-ui/types';
+
+// Your app supplies these two: your own sidebar, and the data source you
+// already talk to. `DataSource` is the adapter contract from @object-ui/types.
+declare const MySidebar: () => ReactNode;
+declare const myDataSource: DataSource;
 
 const contactView: ObjectViewSchema = { type: 'object-view', objectName: 'contact' };
 
@@ -73,6 +79,10 @@ own `DashboardView` imports it from there.
 
 ```tsx
 import { DashboardRenderer } from '@object-ui/plugin-dashboard';
+import type { DashboardComponentSchema, DataSource } from '@object-ui/types';
+
+declare const dashboardSchema: DashboardComponentSchema;
+declare const myDataSource: DataSource;
 
 function MyDashboard() {
   return (
@@ -127,12 +137,19 @@ banners instead of throwing). See the
 Basic layout container with sidebar support.
 
 ```tsx
+import type { ReactNode } from 'react';
+import { AppShell } from '@object-ui/app-shell';
+
+declare const YourSidebar: () => ReactNode;
+declare const YourHeader: () => ReactNode;
+declare const children: ReactNode;
+
 <AppShell
   sidebar={<YourSidebar />}
   header={<YourHeader />}
 >
   {children}
-</AppShell>
+</AppShell>;
 ```
 
 ### ObjectView
@@ -143,7 +160,12 @@ mount it on a route that supplies them, as the console does with
 `/apps/:appName/:objectName` and `/apps/:appName/:objectName/view/:viewId`.
 
 ```tsx
-<ObjectView dataSource={dataSource} />
+import { ObjectView } from '@object-ui/app-shell';
+import type { DataSource } from '@object-ui/types';
+
+declare const dataSource: DataSource;
+
+<ObjectView dataSource={dataSource} />;
 ```
 
 To render an object view from a schema instead of from a route, use
@@ -156,11 +178,18 @@ and custom pages; like `ObjectView` they resolve their target from the route
 (`dashboardName` / `pageName`) rather than from a `schema` prop.
 
 ```tsx
-<DashboardView dataSource={dataSource} />
+import { DashboardView } from '@object-ui/app-shell';
+import type { DataSource } from '@object-ui/types';
+
+declare const dataSource: DataSource;
+
+<DashboardView dataSource={dataSource} />;
 ```
 
 ```tsx
-<PageView />
+import { PageView } from '@object-ui/app-shell';
+
+<PageView />;
 ```
 
 The schema-driven renderers live elsewhere: `DashboardRenderer` in
@@ -793,8 +822,17 @@ app / orgs). It's rendered by `PreviewBadge`, driven by the platform stage in
 runtime-config:
 
 ```ts
-// packages/app-shell/src/runtime-config.ts
-branding.stage: 'preview' | 'beta' | 'ga'  // default: 'preview'
+// packages/app-shell/src/runtime-config.ts — `RuntimeBranding.stage`
+import type { PlatformStage, RuntimeBranding } from '@object-ui/app-shell';
+
+declare const branding: RuntimeBranding;
+
+// Optional on the wire; `getPlatformStage()` falls back to 'preview'.
+const stage: PlatformStage = branding.stage ?? 'preview';
+
+// The three stages, restated against the shipped union — retiring or
+// misspelling a member fails this block rather than rotting silently.
+const everyStage: PlatformStage[] = ['preview', 'beta', 'ga'];
 ```
 
 - `getPlatformStage()` reads it (defaults to `'preview'`, so the badge shows out

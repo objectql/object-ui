@@ -125,6 +125,16 @@ const ja = {
     record: "レコード",
     retry: "再試行",
     printDialogHint: "ブラウザーの印刷ダイアログを開きます（PDF エクスポートではありません）",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
+    rowCeilingNote: "{{total}} 件中、最初の {{shown}} 件を表示しています。フィルターを絞り込んでください。",
+    rowCeilingNoteUnknownTotal: "最初の {{shown}} 件を表示しています。フィルターを絞り込んでください。",
   },
   actions: {
     decisionOutput: {
@@ -549,6 +559,7 @@ const ja = {
     allDay: "終日",
     newEvent: "新しい予定",
     moreEvents: "+{{count}} 件",
+    unscheduled: "日時未定 ({{count}})",
   },
   list: {
     firstRunTitle: "まだ何もありません",
@@ -700,6 +711,9 @@ const ja = {
     },
     unsupported: {
       objectBoundGantt: "サポートされていないバリアント \"gantt\" — オブジェクト連動のタイムラインはフィードバリアント（{{variants}}）を描画します。ガントには、それぞれが入れ子の items を持つリテラル行が必要なため、ここではガント軸（scale）は効果がありません。",
+    },
+    unconfigured: {
+      noDateAxis: "タイムラインの日付軸が必要です — このビューは日付フィールドを宣言しておらず、オブジェクト連動のタイムラインが日付フィールドを作り出すことはありません。次のいずれかを宣言してください: {{fields}}。最初のものが spec の記法で、残りは旧来のエイリアスです。",
     },
   },
   gantt: {
@@ -1081,15 +1095,17 @@ const ja = {
   chart: {
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
+    scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
   },
   dashboard: {
-    noRows: "行がありません",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "まだデータがありません",
       message: "このウィジェットは正常に読み込まれましたが、クエリはまだレコードを返していません。",
@@ -1130,7 +1146,6 @@ const ja = {
     saveLayout: "レイアウトを保存",
     resetLayout: "レイアウトをリセット",
     total: "合計",
-    noDataAvailable: "データがありません",
     noDataSourceFor: "データソースが利用できません：",
     config: {
       breadcrumb: {
@@ -1494,6 +1509,12 @@ const ja = {
         statusFull: "上限に達しました",
         resetsDaily: "今夜リセットされます",
         resetsMonthly: "次のサイクルでリセットされます",
+        resetsWeeklyDays: "{{count}}日後にリセットされます",
+        resetsWeeklyDays_one: "{{count}}日後にリセットされます",
+        resetsWeeklyDays_other: "{{count}}日後にリセットされます",
+        resetsWeeklyHours: "{{count}}時間後にリセットされます",
+        resetsWeeklyHours_one: "{{count}}時間後にリセットされます",
+        resetsWeeklyHours_other: "{{count}}時間後にリセットされます",
         ctaUpgrade: "アップグレードして続行",
         ctaTopUp: "クレジットを追加して続行",
         ariaLabel: "AI 使用状況: {{status}}",

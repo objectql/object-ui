@@ -149,6 +149,16 @@ const en = {
     record: 'Record',
     retry: 'Retry',
     printDialogHint: 'Opens your browser’s print dialog (not a PDF export)',
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
+    rowCeilingNote: 'Showing the first {{shown}} of {{total}} records. Narrow the filter.',
+    rowCeilingNoteUnknownTotal: 'Showing the first {{shown}} records. Narrow the filter.',
   },
   actions: {
     decisionOutput: {
@@ -661,6 +671,7 @@ const en = {
     allDay: 'All Day',
     newEvent: 'New event',
     moreEvents: '+{{count}} more',
+    unscheduled: 'Unscheduled ({{count}})',
   },
   list: {
     loading: 'Loading records…',
@@ -817,6 +828,9 @@ const en = {
     },
     unsupported: {
       objectBoundGantt: 'Unsupported variant "gantt" — an object-bound timeline renders the feed variants ({{variants}}). Gantt needs literal rows, each with its own nested items, so the gantt axis (scale) has no effect here.',
+    },
+    unconfigured: {
+      noDateAxis: 'Timeline date axis required — this view declares no date field, and an object-bound timeline will not invent one. Declare one of: {{fields}}. The first is the spec spelling; the rest are legacy aliases.',
     },
   },
   gantt: {
@@ -1237,6 +1251,12 @@ const en = {
   chart: {
     loading: 'Loading chart…',
     nullCategory: '(None)',
+    // The refusal a scatter renders when handed more than one series
+    // (objectui#7194): it binds ONE measure, so a second series was painted at
+    // the first one's y values. One short sentence on purpose — this pack is
+    // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
+    // headroom; the series keys are rendered by the chart as data, after it.
+    scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
   },
   report: {
     total: 'Total',
@@ -1289,15 +1309,15 @@ const en = {
     saveLayout: 'Save layout',
     resetLayout: 'Reset layout',
     total: 'Total',
-    noDataAvailable: 'No data available',
     noDataSourceFor: 'No data source available for',
-    noRows: 'No rows',
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: 'No data yet',
       message: 'This widget loaded successfully and its query returned no records yet.',
@@ -1805,6 +1825,17 @@ const en = {
         statusFull: 'Limit reached',
         resetsDaily: 'Resets tonight',
         resetsMonthly: 'Resets next cycle',
+        // `resetKind: 'weekly'` (free plan's rolling 7-day window, cloud PR
+        // #1852): "N days" (or "N hours" inside the final day). A REAL
+        // i18next plural family — see the `unsavedCount` note above — so the
+        // BASE key carries no suffix and must stay in every pack's lookup
+        // chain (`all-locales-key-parity.test.ts`'s base-key rule).
+        resetsWeeklyDays: 'Resets in {{count}} days',
+        resetsWeeklyDays_one: 'Resets in {{count}} day',
+        resetsWeeklyDays_other: 'Resets in {{count}} days',
+        resetsWeeklyHours: 'Resets in {{count}} hours',
+        resetsWeeklyHours_one: 'Resets in {{count}} hour',
+        resetsWeeklyHours_other: 'Resets in {{count}} hours',
         ctaUpgrade: 'Upgrade to keep going',
         ctaTopUp: 'Add credits to continue',
         ariaLabel: 'AI usage: {{status}}',

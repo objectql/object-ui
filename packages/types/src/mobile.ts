@@ -16,38 +16,88 @@
  * @packageDocumentation
  */
 
-import type { BreakpointName } from '@objectstack/spec/ui';
-
 // ============================================================================
 // Responsive Configuration
 // ============================================================================
 
 /**
- * Breakpoint names.
+ * Breakpoint names — the Tailwind-style `xs`…`2xl` layout vocabulary, owned by
+ * this package since objectui#7580 (maintainer ruling 2026-09-04, option A).
  *
- * Bound to the spec rather than re-declared (objectstack#4115): a local union
- * under a spec export's name is read by the next reader as the spec's own
- * definition, so a copy that is correct today is a planted premise tomorrow.
+ * ## Answering objectstack#4115 rather than deleting it
+ *
+ * This was bound to `@objectstack/spec/ui` instead of re-declared, under the
+ * reason objectstack#4115 recorded here verbatim: "a local union under a spec
+ * export's name is read by the next reader as the spec's own definition, so a
+ * copy that is correct today is a planted premise tomorrow." That reason was
+ * correct, and it is now SPENT — not overruled.
+ *
+ * objectstack#11027 retired the whole `ui/responsive` vocabulary upstream
+ * (`ResponsiveConfigSchema`, `BreakpointName`, `BreakpointColumnMapSchema`,
+ * `BreakpointOrderMapSchema`), leaving a tombstone and the protocol-18
+ * conversion in `RETIRED_DEFS_BY_MAJOR[18]`. So there is no spec definition
+ * left for a reader to mistake this one for: this is not a copy that may drift
+ * from an original, it is the only declaration of the name that will exist.
+ * A planted premise needs something to be wrong ABOUT.
+ *
+ * ## Why re-homed and not retired with the key
+ *
+ * The retirement's stated ground — that these types "had no other authorable
+ * carrier" — is a claim about the whole surface, and it is measurably false on
+ * this side. `responsive-grid` is a REGISTERED SDUI component (see
+ * `@object-ui/layout`'s `index.ts`) whose authorable `columns` input is typed
+ * by the sibling `BreakpointColumnMap` and applied by `resolveColumnClasses` on
+ * the render path. This union types four live readers here: `breakpoints.ts`
+ * (`BREAKPOINTS`, `BREAKPOINT_ORDER`, `getCurrentBreakpoint`),
+ * `useBreakpoint.ts`, `ResponsiveContainer.tsx`, and {@link ResponsiveValue}
+ * below. The tombstone's own return condition — the vocabulary "returns if and
+ * when a renderer implements it" — is already met over here.
+ *
+ * ⚠️ Members are the retired enum's, verbatim, and must stay so: the six
+ * `xs`…`2xl` keys that `BreakpointColumnMap` is keyed by.
+ * `__tests__/spec-derived-unions.test.ts` pins the width, so narrowing this
+ * union fails to compile rather than silently dropping a breakpoint.
+ *
+ * ⏳ Interim, and it self-expires: the pin is still `@objectstack/spec` 17.2.0,
+ * which PRE-dates the retirement and so still exports this name. The collision
+ * is therefore real today and carries a reasoned entry in
+ * `scripts/check-spec-symbol-derivation.mjs`. That entry cannot outlive the
+ * interval — the guard's ratchet 3 fails an ALLOW entry that excuses nothing —
+ * so the pin bump is forced to delete it and pin the vacancy instead, exactly
+ * as objectui#5716's theme localization was on the 17.2.0 refresh.
  */
-export type { BreakpointName };
+export type BreakpointName = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 
 /** Responsive value - different values for different breakpoints */
 export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
 
 /**
- * Responsive layout configuration for objectui's **mobile component overrides**.
+ * Responsive layout configuration for the mobile renderer's box layout.
  *
  * Renamed off the spec's `ResponsiveConfig` name (objectstack#4115): the two
- * configure responsiveness through different vocabularies, and this package
- * already re-exports the spec's own under `SpecResponsiveConfig`, so the bare
- * name claimed an authority it did not have.
+ * configure responsiveness through different vocabularies, so the bare name
+ * claimed an authority it did not have.
+ *
+ * ⚠️ The rename's second stated ground — that this package "already re-exports
+ * the spec's own under `SpecResponsiveConfig`" — expired at objectui#7580 and is
+ * recorded rather than silently dropped, because it is the kind of sentence a
+ * later reader mistakes for a live measurement. objectstack#11027 retired the
+ * spec `ResponsiveConfig` outright and that prefixed re-export went with its two
+ * readers. The rename still stands on the FIRST ground alone: the two
+ * vocabularies genuinely differ, as the paragraph below sets out key by key.
  *
  * The spec's `ResponsiveConfig` is the SDUI grid contract —
  * `{ breakpoint, hiddenOn, columns: {xs..2xl}, order: {xs..2xl} }` — arranging a
  * node within a grid. This one is the mobile renderer's box config: `columns`
  * also accepts a bare number, plus `gap`, `padding`, `stackOnMobile` /
- * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`. It is
- * consumed only by {@link MobileComponentConfig}.
+ * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`.
+ *
+ * It currently has NO consumer: its only one was retired by objectui#5942 (PR
+ * objectui#7526), so this type is still exported from `@object-ui/types` and
+ * `@object-ui/mobile` and is mounted nowhere. Whether it is retired in turn or
+ * given a renderer is open as objectui#7519 — a product call rather than a
+ * mechanical one, because the spec name-ownership tripwire named next outlives
+ * the type either way.
  *
  * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` fails if the spec ever
  * claims this name, so the alias cannot outlive its reason.
@@ -279,25 +329,36 @@ export interface GestureContext {
   rotation?: number;
 }
 
-/** Mobile component schema extension */
-export interface MobileComponentConfig {
-  /** Responsive configuration */
-  responsive?: MobileResponsiveConfig;
-  /** Touch gesture handlers */
-  gestures?: GestureConfig[];
-  /** Pull-to-refresh configuration */
-  pullToRefresh?: {
-    enabled: boolean;
-    threshold?: number;
-    onRefresh?: string;
-  };
-  /** Infinite scroll configuration */
-  infiniteScroll?: {
-    enabled: boolean;
-    threshold?: number;
-    loadMore?: string;
-  };
-}
+// RETIRED (objectui#5942, ADR-0049 enforce-or-remove): `MobileComponentConfig`
+// — the free-floating "mobile component schema extension" that published
+// `responsive`, `gestures`, `pullToRefresh` and `infiniteScroll` — is gone, not
+// narrowed. It never had a MOUNT POINT: no type mounted it as a property, no
+// declaration extended it, and nothing in this repo, the example apps or the
+// `objectstack` sibling checkout annotated, cast to or imported it outside the
+// two barrel re-exports. A value written against it could not reach a renderer
+// by any path, so all four keys behaved identically — they did nothing.
+// objectui#4919 removed its last member (`mobileOverrides`), which is what left
+// the container itself inert.
+//
+// Removed outright rather than kept as a `?: never` carcass, on this package's
+// own discriminator: a tombstone exists to steer authors to a named live
+// replacement KEY (`crud.ts` `confirm` -> `confirmText`; `data-display.ts`
+// `hoverable`/`striped` -> `data-table`), or to keep loud a key the docs taught
+// as working. Neither applies. There is no surviving object to hang a `never`
+// key on — the whole interface goes — and no documentation ever described it:
+// `skills/objectui/guides/mobile.md` teaches the HOOKS and never this type.
+// Same zero-pull, no-successor shape as `MobileOverrides` (objectui#4919), and
+// as `AccordionItem.icon` / `ToggleGroupItem.icon` before it.
+//
+// No BEHAVIOUR is retired here. What the four keys named lives in
+// `@object-ui/mobile` as real React hooks — `useResponsive` /
+// `ResponsiveContainer`, `useGesture`, `usePullToRefresh` — which is where the
+// working code always was; only the declaration nothing read is gone.
+//
+// Reopen condition: a declarative mobile component-config surface re-enters as
+// designed product surface on its own card, with the renderer that READS it
+// landing in the same change as the declaration. Re-adding the declaration
+// alone is the declare-without-enforce shape this removal exists to close.
 
 // ============================================================================
 // Spec Touch Vocabulary (formerly `@objectstack/spec/ui`)

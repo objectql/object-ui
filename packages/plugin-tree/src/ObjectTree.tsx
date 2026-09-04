@@ -21,11 +21,18 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { DataSource, ViewData } from '@object-ui/types';
-import { useNavigationOverlay, useSafeFieldLabel, useSettledSchema } from '@object-ui/react';
+import {
+  useNavigationOverlay,
+  useSafeFieldLabel,
+  useSettledSchema,
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
+} from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
 import {
-  extractRecords,
   buildExpandFields,
   columnIdentity,
   isExpandableFieldType,
@@ -129,14 +136,14 @@ function detectParentField(objectSchema: any, objectName?: string): string | und
   let firstSelfRef: string | undefined;
   for (const [key, def] of Object.entries<any>(fields)) {
     if (def?.type === 'tree') return key;
-    // A third arm, `def?.referenceTo`, was deleted by objectui#6837: no
-    // contract declares that spelling — `@objectstack/spec`'s `FieldSchema`
-    // refuses it by name with `unrecognized_keys` ("Did you mean `referenceTo`
-    // -> `reference`?"), and it is a tombstone in
-    // `RETIRED_FIELD_KEY_TOMBSTONES` (objectui#6041), so the designer read door
-    // strips it. It was not a redundant fallback but invented tolerance
-    // surface. Pinned in `ObjectTree.referenceArms-6837.test.tsx`.
-    const ref = def?.reference || def?.reference_to;
+    // ONE arm: `reference`, the only target spelling the protocol declares.
+    // `FieldSchema` refuses `reference_to` / `referenceTo` / `target` by name.
+    // `referenceTo` went in objectui#6837 slice 2, `reference_to` in half 2
+    // (maintainer 2026-08-31: protocol normalization belongs on the server;
+    // objectstack#13847 does it on the serve path). A legacy-only def is
+    // canonicalised once at the ingestion choke point, never here. Pinned in
+    // `ObjectTree.referenceArms-6837.test.tsx`.
+    const ref = def?.reference;
     if (
       !firstSelfRef &&
       (def?.type === 'lookup' || def?.type === 'master_detail') &&
@@ -343,6 +350,15 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
   ...rest
 }) => {
   const [records, setRecords] = useState<any[]>([]);
+  /**
+   * Did the platform row ceiling bite, and how large was the whole filtered
+   * result set (objectui#7210)? Carried from the response that knew it —
+   * `records.length === NON_GRID_ROW_CEILING` cannot tell a capped result set
+   * apart from one that is exactly that size.
+   */
+  const [rowCeiling, setRowCeiling] = useState<{ truncated: boolean; total?: number }>({
+    truncated: false,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
@@ -457,10 +473,21 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           // `dataConfig.object` read carried.
           const result = await dataSource.find(dataObjectName as string, {
             $filter: schema.filter,
+            // The platform ceiling (objectui#7210, ruling a′). A tree still
+            // fetches the whole FILTERED set — a hierarchy assembled from a
+            // page loses every child whose parent fell outside it, which is
+            // why paging this was rejected — but the fetch now stops at a
+            // number. This is also the view the ceiling's VALUE was measured
+            // on: it materialises ~5.2 DOM elements per record with no
+            // virtualisation, so it is the binding one of the four.
+            // ⛔ Not authorable: no view key reaches this `$top`.
+            $top: NON_GRID_ROW_CEILING_TOP,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
+          const capped = applyNonGridRowCeiling(result);
           if (!cancelled) {
-            setRecords(extractRecords(result));
+            setRecords(capped.rows);
+            setRowCeiling({ truncated: capped.truncated, total: capped.total });
             setLoading(false);
           }
           return;
@@ -471,6 +498,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         if (Array.isArray(passed)) {
           if (!cancelled) {
             setRecords(passed);
+            setRowCeiling({ truncated: false });
             setLoading(false);
           }
           return;
@@ -479,6 +507,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         if (dataProvider === 'value') {
           if (!cancelled) {
             setRecords((dataItems as any[]) ?? []);
+            setRowCeiling({ truncated: false });
             setLoading(false);
           }
           return;
@@ -657,6 +686,16 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
           })}
         </tbody>
       </table>
+      {/* objectui#7210 — a hierarchy drawn from the first N rows of a larger
+          result set is not a subtree of the real one: every node whose parent
+          fell past the cut is reparented to a root. Nothing in the rendering
+          says so, which is why the note does. Placement follows
+          objectui#7148's chart footnote. */}
+      <NonGridRowCeilingNote
+        drawn={NON_GRID_ROW_CEILING}
+        total={rowCeiling.total}
+        truncated={rowCeiling.truncated}
+      />
 
       {navigation.isOverlay && (
         /* Keyed, not a bare literal (objectui#3459). This value is handed to

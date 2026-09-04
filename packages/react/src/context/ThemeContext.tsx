@@ -28,7 +28,6 @@ import React, {
 import type { Theme, ThemeMode } from '@object-ui/types';
 import {
   generateThemeVars,
-  mergeThemes,
   resolveThemeInheritance,
   resolveMode,
 } from '@object-ui/core';

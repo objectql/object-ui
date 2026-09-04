@@ -125,6 +125,16 @@ const ko = {
     record: "레코드",
     retry: "다시 시도",
     printDialogHint: "브라우저의 인쇄 대화 상자를 엽니다（PDF 내보내기가 아닙니다）",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
+    rowCeilingNote: "전체 {{total}}개 중 처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
+    rowCeilingNoteUnknownTotal: "처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
   },
   actions: {
     decisionOutput: {
@@ -549,6 +559,7 @@ const ko = {
     allDay: "종일",
     newEvent: "새 일정",
     moreEvents: "+{{count}} 더보기",
+    unscheduled: "일정 없음 ({{count}})",
   },
   list: {
     firstRunTitle: "아직 아무것도 없습니다",
@@ -700,6 +711,9 @@ const ko = {
     },
     unsupported: {
       objectBoundGantt: "지원되지 않는 variant \"gantt\" — 객체 바인딩 타임라인은 피드 variant({{variants}})를 렌더링합니다. 간트는 각각 중첩된 items를 가진 리터럴 행이 필요하므로 여기서는 간트 축(scale)이 적용되지 않습니다.",
+    },
+    unconfigured: {
+      noDateAxis: "타임라인 날짜 축이 필요합니다 — 이 뷰는 날짜 필드를 선언하지 않았으며, 객체 바인딩 타임라인은 날짜 필드를 지어내지 않습니다. 다음 중 하나를 선언하세요: {{fields}}. 첫 번째가 spec 표기이고 나머지는 레거시 별칭입니다.",
     },
   },
   gantt: {
@@ -1081,15 +1095,17 @@ const ko = {
   chart: {
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
+    scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
   },
   dashboard: {
-    noRows: "행 없음",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "아직 데이터가 없습니다",
       message: "이 위젯은 정상적으로 로드되었지만 쿼리가 아직 레코드를 반환하지 않았습니다.",
@@ -1130,7 +1146,6 @@ const ko = {
     saveLayout: "레이아웃 저장",
     resetLayout: "레이아웃 초기화",
     total: "합계",
-    noDataAvailable: "사용 가능한 데이터 없음",
     noDataSourceFor: "데이터 소스 없음:",
     config: {
       breadcrumb: {
@@ -1492,6 +1507,12 @@ const ko = {
         statusFull: "한도에 도달했습니다",
         resetsDaily: "오늘 밤 초기화됩니다",
         resetsMonthly: "다음 주기에 초기화됩니다",
+        resetsWeeklyDays: "{{count}}일 후 초기화됩니다",
+        resetsWeeklyDays_one: "{{count}}일 후 초기화됩니다",
+        resetsWeeklyDays_other: "{{count}}일 후 초기화됩니다",
+        resetsWeeklyHours: "{{count}}시간 후 초기화됩니다",
+        resetsWeeklyHours_one: "{{count}}시간 후 초기화됩니다",
+        resetsWeeklyHours_other: "{{count}}시간 후 초기화됩니다",
         ctaUpgrade: "업그레이드하고 계속하기",
         ctaTopUp: "크레딧을 추가하고 계속하기",
         ariaLabel: "AI 사용량: {{status}}",

@@ -1,8 +1,9 @@
 name: Skills Paths
 
 # Why this is its own workflow instead of a step in `ci.yml` or `lint.yml`: this
-# gate's ENTIRE scan surface is markdown (`skills/**`, guide prose), and both of
-# those workflows list `'**/*.md'`, `content/**` and `docs/**` under the
+# gate's ENTIRE scan surface is markdown (`skills/**` and `.claude/skills/**`,
+# guide prose — the roots are `SCAN_ROOTS` in the script), and both of those
+# workflows list `'**/*.md'`, `content/**` and `docs/**` under the
 # `paths-ignore` of their `push` trigger, with no per-job path filter available in
 # GitHub Actions. A push that only edits a guide would therefore start neither —
 # and editing only a guide is the single most likely way a stated path goes dead.
@@ -19,9 +20,10 @@ name: Skills Paths
 # and fails too if a second workflow starts running the same script — one gate,
 # one home.
 #
-# It needs no install and no build — a checkout plus one `node` call over 18
-# markdown files, a couple of seconds — so keep it that way if you add checks to
-# it.
+# It needs no install and no build — a checkout plus one `node` call over the
+# markdown under those roots, a couple of seconds — so keep it that way if you
+# add checks to it. No file count is stated on purpose: it goes stale on every
+# guide added, which is how the previous one drifted.
 
 on:
   pull_request:

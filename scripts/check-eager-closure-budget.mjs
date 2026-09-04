@@ -47,13 +47,17 @@
  * gate just read, not against a literal frozen next to them:
  *
  *   - It must PASS on today's `main`. A gate that lands red is a gate someone
- *     disables, and this one replaced a gate nobody could fail. Headroom above
- *     the current 3,254,004 bytes: 45,996 (1.41%).
+ *     disables, and this one replaced a gate nobody could fail. ⛔ No figure is
+ *     restated here: this bullet carried one and it went a whole re-baseline
+ *     stale (objectui#7518). The headroom the CONSTANTS carry is stated once,
+ *     on {@link MAX_EAGER_CLOSURE_GZIP_BYTES}; what the LIVE closure has left
+ *     is what `pnpm check:eager-closure` prints, and it is the smaller of the
+ *     two once the payload has drifted up from the baseline.
  *   - The headroom must stay SMALLER than the regression the gate exists to
- *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 45,996 < 91,136, so this
- *     ceiling would have failed on that change. Widening the headroom past ~89
- *     KiB would leave the gate green through a repeat of its own motivating
- *     incident.
+ *     catch. objectui#5266 was 89 KiB = 91,136 bytes, and this ceiling is built
+ *     to carry half of that, so it would have failed on that change. Widening
+ *     the headroom past ~89 KiB would leave the gate green through a repeat of
+ *     its own motivating incident.
  *
  * Half the regression size, rather than the ~2% this line used to carry, is a
  * deliberate choice that only became necessary once the second constraint
@@ -252,7 +256,12 @@ import { isEntrypoint } from './invoked-as.mjs';
  *     0.85x the regression this gate must catch, the blind band reopening — and
  *     the 2026-08-30 ruling made moving it part of the same change.
  *
- * Headroom is 45,686 bytes — 0.50x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}.
+ * Headroom above {@link BASELINE} is 45,686 bytes — 0.50x
+ * {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}. ⚠️ That is arithmetic on two
+ * constants in this file, so it stays true while they do — it is NOT what the
+ * closure has left today, which is smaller by every byte the payload has
+ * drifted up since the baseline below was taken. `pnpm check:eager-closure`
+ * prints the figure in force, and that is the one governing your build.
  */
 export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_268_000;
 
@@ -386,6 +395,79 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * headroom convention rather than widening it: 9,137 bytes (0.10x), against the
  * 9,595 (0.11x) the retired pair carried. objectui#6631 still owns the drift.
  *
+ * ## Why `framework` moved DOWN, and where its bytes went — objectui#7399
+ *
+ * From 524,000 over 514,863 to 71,000 over 61,465, and a fourth line appears:
+ * `i18n-locales`, 455,000 over 446,076. Neither number is a payload change. The
+ * console downloads the same eager closure before and after; it is written to
+ * two more files.
+ *
+ * What this ceiling was actually weighing, measured on `e307c9896` from the
+ * emitted chunk's own module list — the `framework` chunk held 166 modules and
+ * only 145 of them came from `core|react|types`, its own test:
+ *
+ *   | packages/i18n             |  16 mod | 78.7% of the chunk's bytes |
+ *   | packages/core             |  67 mod |  9.6% |
+ *   | packages/react            |  63 mod |  4.7% |
+ *   | packages/data-objectstack |   5 mod |  4.6% |
+ *   | packages/types            |  15 mod |  2.3% |
+ *
+ * Five workspace groups in `apps/console/vite.config.ts` sat at `priority: 80`
+ * with `framework` written first, and on that tie the subgraph reached through
+ * `@object-ui/react` was absorbed by the group listed first — a group whose
+ * regex matches NEITHER intruder. So this line was, in operation, a budget on
+ * the TEN LOCALE CATALOGUES: 523,959 measured against 524,000, forty-one bytes
+ * of headroom for the whole repository, while `data-adapter` — declared since
+ * objectui#5490 — emitted no chunk at all.
+ *
+ * ⛔ The expensive half is not the arithmetic. A gate whose message says "you
+ * grew `core|react|types`" when the cause is a translation key teaches a FALSE
+ * RULE, and it was followed: two changes were publicly blamed for bytes they do
+ * not ship (objectui#7399's own retraction). Naming the chunk for what it holds
+ * is what makes the constraint legible where it is authored.
+ *
+ * Lifting the two swallowed groups one tier above the tie (priority 84) gives
+ * each ceiling a subject its name states. Measured across the change:
+ *
+ *   | chunk           | before  | after   |
+ *   | `framework`     | 523,959 |  61,465 |  166 modules -> 140, all core/react/types
+ *   | `i18n-locales`  |       — | 446,076 |  22 modules, 100% packages/i18n
+ *   | `data-adapter`  |       — |  17,846 |  10 modules, 91.8% data-objectstack
+ *   | aggregate       |3,255,233|3,256,012|  +779 B, +0.024%
+ *
+ * The +779 is the cost of two more chunk boundaries — `import` statements in
+ * the chunks that now name two files where they named one — and it is stated
+ * here because it is the ONE thing this change spends. ⛔ It is not headroom to
+ * borrow against, and {@link MAX_EAGER_CLOSURE_GZIP_BYTES} was deliberately NOT
+ * touched: the maintainer ruling of 2026-09-03 authorised a re-attribution and
+ * the per-chunk re-baseline it forces, and nothing else. Its own words:
+ *
+ *     ⛔ The aggregate ceiling is not touched. A′ is a pure re-attribution —
+ *     the browser downloads exactly the same bytes.
+ *
+ * ⚠️ Both new pairs are why the re-baseline is not optional. Left at 524,000
+ * over a 61,465 payload, `framework` sits 5.08x above its own measurement and
+ * {@link evaluateHeadroomSensitivity} returns exit 2 — the blind-gauge verdict,
+ * correctly. The new pairs keep this line's own headroom convention rather than
+ * widening it: 9,535 bytes (0.10x) for `framework`, 8,924 (0.10x) for
+ * `i18n-locales`, against the 9,137 (0.10x) the retired `framework` pair
+ * carried.
+ *
+ * `data-adapter` gets no ceiling. 17,846 bytes is smaller than a dozen
+ * unbudgeted eager chunks, and this constant is a line per BIG chunk, not a
+ * line per named group; inventing one for it would be a number with no
+ * incident behind it.
+ *
+ * ⭐ Read the new `i18n-locales` headroom for what it is. 8,924 bytes above the
+ * baseline it was measured from is about sixty translation keys at the measured
+ * ~147 gzipped bytes a short key costs across ten locales — enough for the five
+ * PRs this unparked, and then the AGGREGATE line becomes the binding one. ⛔ Its
+ * headroom is not restated here: the figure that was went stale inside a
+ * fortnight (objectui#7518), and `pnpm check:eager-closure` prints both lines in
+ * force on your own build. That the aggregate is the correct place for the
+ * constraint to live is the argument for taking the catalogues out of the eager
+ * closure rather than for raising anything.
+ *
  * ## Raising one
  *
  * Same discipline as {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, and the same two
@@ -401,7 +483,8 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  */
 export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
   'vendor-objectstack': 967_000,
-  framework: 524_000,
+  'i18n-locales': 455_000,
+  framework: 71_000,
   'ui-components': 399_000,
 });
 
@@ -412,13 +495,22 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * three numbers taken on two is the drift objectui#6631 is open about:
  *
  *   - `vendor-objectstack`, `ui-components` — `2c8474c04` (objectui#5490).
- *   - `framework` — the merged head of objectui#7173's branch; see "Why
- *     `framework` moved again" above for the three-build attribution. It
- *     supersedes `a64e96ca8` (objectui#6759), whose reading the paragraph above
- *     that one still explains. Safe to state rather than hope, for the reason {@link BASELINE}
- *     gives about its own commit: the console build's turbo `inputs` cover
- *     `scripts/vite-*.ts`, not `scripts/check-*.mjs`, so the commit that
- *     records this figure cannot have changed the figure.
+ *   - `framework`, `i18n-locales` — `e307c9896` plus objectui#7399's own
+ *     re-attribution diff; see "Why `framework` moved DOWN" above. Both were
+ *     read from ONE console build, so they are directly comparable to each
+ *     other and to the 523,959 the same tree measured with the groups still
+ *     tied. This `framework` reading supersedes objectui#7173's, whose
+ *     three-build attribution the paragraph above that one still explains, and
+ *     objectui#6759's `a64e96ca8` before it.
+ *
+ *     ⚠️ Unlike every other entry here, these two are NOT a reading of an
+ *     unmodified tree: the chunks they name do not exist without the diff that
+ *     recorded them, because that diff is what creates the second one. The
+ *     `scripts/vite-*.ts`-versus-`scripts/check-*.mjs` argument {@link BASELINE}
+ *     makes about its own commit does NOT cover them — `apps/console/vite.config.ts`
+ *     IS a build input, deliberately, and moving it is the change. What keeps
+ *     them honest instead is that the gate re-reads them on every CI build of
+ *     the branch that carries the diff.
  *
  * Exported so the ceilings are CHECKED against it instead of merely asserted
  * in this comment.
@@ -465,14 +557,17 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * All four sit inside one regression, which is the whole of what "in range"
  * means here — {@link evaluateHeadroomSensitivity} calls 1.00x an error. So the
  * relationship these ceilings have to the aggregate is no longer "we are the
- * half that still works". It is narrower, and still worth having: they are the
- * TIGHTER half — 0.21x, 0.08x, 0.04x against the aggregate's 0.47x — so growth
- * in these three chunks reds the gate well before the aggregate would, and they
- * say WHERE, which one total never can.
+ * half that still works". It is narrower, and still worth having: WHICH line is
+ * tightest moves with every build and is not restated here — the ranking this
+ * sentence used to assert had inverted by the time anyone re-read it
+ * (objectui#7518) — and whichever it is, these say WHERE, which one total
+ * never can.
  *
  * ⛔ Do not size a re-baseline off the figures above. They are ONE dated run,
- * recorded so this paragraph rests on a measurement instead of an argument; the
- * answer in force is the table the gate prints on YOUR build. That this prose
+ * taken before objectui#7399 re-attributed `framework`, so its `framework` row
+ * weighs locale catalogues that line no longer holds. They are recorded so this
+ * paragraph rests on a measurement instead of an argument; the answer in force
+ * is the table the gate prints on YOUR build. That this prose
  * went three re-baselines stale while the numbers beside it could not
  * (objectui#6778) is the reason to distrust the prose first.
  *
@@ -482,7 +577,8 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  */
 export const PER_CHUNK_BASELINE = Object.freeze({
   'vendor-objectstack': 948_461,
-  framework: 514_863,
+  'i18n-locales': 446_076,
+  framework: 61_465,
   'ui-components': 391_095,
 });
 
@@ -1161,9 +1257,10 @@ export function extractCeilingDeclarations(source, names = VERDICT_CEILING_CONST
  * {@link MAX_EAGER_CLOSURE_GZIP_BYTES} from 4,086,000 to 3,345,000 on `main`,
  * and published `BUDGET_CLOSURE_BUDGET_KB: 3990.2` — 4,086,000 bytes, the
  * retired ceiling — with `conclusion: success`. It did not bite: the payload was
- * 3222.6 KB, under both numbers. With the aggregate headroom now 44.0 KB against
- * an 89.0 KB regression class, the next one has half a regression of room to
- * hide in.
+ * 3222.6 KB, under both numbers. What bounds how much the NEXT one could hide is
+ * the aggregate headroom in force, which `pnpm check:eager-closure` prints and
+ * this comment deliberately does not restate: the figure that stood here was two
+ * re-baselines out of date (objectui#7518).
  *
  * ## Why THREE readings and not two
  *

@@ -8,7 +8,6 @@ import {
   isRTL,
   RTL_LANGUAGES,
   formatDate,
-  formatDateTime,
   formatCurrency,
   formatNumber,
 } from '../index';

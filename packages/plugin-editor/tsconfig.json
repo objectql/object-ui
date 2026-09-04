@@ -22,5 +22,13 @@
   // Their type coverage did not go away with them: it moved to the
   // `tsconfig.test.json` chained off this package's `type-check` script, which
   // is what scripts/check-type-check-coverage.mjs verifies.
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/__benchmarks__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }

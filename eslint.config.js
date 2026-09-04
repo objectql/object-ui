@@ -77,6 +77,50 @@ export default tseslint.config({
       varsIgnorePattern: '^_',
       caughtErrorsIgnorePattern: '^_',
     }],
+    // objectui#4806 R2 (#6467) ratchet — the IMPORT subclass of the rule
+    // directly above, at `error`. The rule above keeps every other subclass at
+    // `warn`, unchanged: unused locals, parameters, caught errors and
+    // destructured elements are all still warnings at exactly the severity
+    // they had, and this line adds no new population to the gate.
+    //
+    // The split is what the #4806 measurement asks for. Of the 209 findings
+    // left after the `_`-convention patterns above closed 613 of 822, the
+    // import subclass is the one with no legitimate construct behind it. The
+    // other subclasses have several — a type-level assertion in a test
+    // (`type _NotAny = Assert< … >`) is "unused" precisely when the pin
+    // passes, the deliberate-omit destructuring idiom needs the name it drops,
+    // a positional parameter has to exist to reach the one after it — which is
+    // why promoting the WHOLE rule would gate constructs the codebase writes
+    // on purpose. An unused import is dead weight in the module graph every
+    // time. Re-measured for #6467 on origin/main @ dd5b01b59: 108 sites in 82
+    // files, all removal-only, all cleared in the same PR, so this lints clean
+    // today with no allowlist.
+    //
+    // Two things worth knowing before editing this pair:
+    //
+    //   1. THE OPTIONS OBJECT IS DELIBERATELY IDENTICAL to the one above.
+    //      `object-ui/no-unused-imports` runs `@typescript-eslint/no-unused-vars`
+    //      itself and filters its reports down to import bindings, so the two
+    //      lines are one analysis at two severities. Change an ignore pattern
+    //      in one and not the other and they become two different opinions of
+    //      the word "unused" — the exact drift the delegating implementation
+    //      exists to prevent. (`argsIgnorePattern` and
+    //      `caughtErrorsIgnorePattern` cannot match an import binding; they are
+    //      copied so the two objects can be compared by eye.)
+    //
+    //   2. AN UNUSED IMPORT IS REPORTED TWICE — once as a warning here, once
+    //      as an error below. That is not a bug to fix by deleting one of
+    //      them: `no-unused-vars` has no option that skips imports (its
+    //      options narrow by NAME and by declaration KIND, never by origin),
+    //      so the only way to silence the warning half is to replace the base
+    //      rule with a fork of it, which #6467 explicitly does not do.
+    //      `.github/workflows/lint.yml` sets no `--max-warnings`, so the
+    //      warning half is inert in CI and only this line can fail a build.
+    'object-ui/no-unused-imports': ['error', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+      caughtErrorsIgnorePattern: '^_',
+    }],
     // objectui#4029 — importing a package must not write noise to the
     // consumer's console. House convention (measured, not invented): the
     // one known leak used `console.log`, while every deliberate diagnostic

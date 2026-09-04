@@ -191,15 +191,25 @@ describe('ObjectKanban gates its record query on the object definition (objectui
       await new Promise((r) => setTimeout(r, 10));
       throw new Error('metadata endpoint down');
     });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // ⚠️ The CHANNEL moved with objectui#7225's migration and this spy moved
+    // with it (maintainer ruling B, 2026-09-02, which names exactly this):
+    // the hand copy this component used to carry logged the rejected read on
+    // `console.warn`; `useSettledSchema` logs it on `console.error` with a
+    // bracketed prefix. Silencing the wrong channel here would have let the
+    // rejection print through the suite while this file still read as green,
+    // so the spy is ASSERTED on, not merely installed — a silenced channel
+    // nobody checks is how a moved log goes unnoticed.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       const { container } = renderBoard(adapter);
       await waitFor(() => expect(container.textContent).toContain('Q3 renewal'));
       expect(adapter.find).toHaveBeenCalledTimes(1);
       expect(unexpandedCalls(adapter)).toHaveLength(1);
       expect(adapter.order).toEqual(['schema:issued', 'schema:settled', 'find']);
+      expect(error).toHaveBeenCalled();
+      expect(String(error.mock.calls[0]?.[0] ?? '')).toContain('[useSettledSchema]');
     } finally {
-      warn.mockRestore();
+      error.mockRestore();
     }
   });
 

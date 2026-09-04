@@ -331,8 +331,13 @@ const PLAN_SCHEMA_FIELDS = {
       { value: '零星派工单', label: '零星派工单' },
     ],
   },
-  project: { type: 'lookup', label: '项目', reference_to: 'project' },
-  product: { type: 'lookup', label: '产品', reference_to: 'product' },
+  // objectui#6837 half 2: `reference` is the only target spelling
+  // `@objectstack/spec`'s `FieldSchema` declares — it refuses `reference_to` by
+  // name. This demo's `getObjectSchema` does NOT pass the ingestion choke
+  // point, so it was the one in-repo producer measurably on the break surface;
+  // fixed AT THE PRODUCER, which is what the ruling asks for.
+  project: { type: 'lookup', label: '项目', reference: 'project' },
+  product: { type: 'lookup', label: '产品', reference: 'product' },
   owner: { type: 'text', label: '管理责任人' },
 };
 

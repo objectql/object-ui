@@ -156,7 +156,7 @@ describe('resolveActionParams — inline lookup reference target (#3405)', () =>
           name: 'quality_dispatch',
           fields: {
             inspector: { type: 'lookup', label: '质检人', reference: 'sys_user' },
-            reviewer: { type: 'lookup', label: 'Reviewer', reference_to: 'sys_user', display_field: 'name' },
+            reviewer: { type: 'lookup', label: 'Reviewer', reference: 'sys_user', display_field: 'name' },
           },
         },
       ],
@@ -231,7 +231,7 @@ describe('resolveActionParams — authored through the public ActionParam type (
             inspector: {
               type: 'lookup',
               label: 'Inspector',
-              reference_to: 'sys_user',
+              reference: 'sys_user',
               display_field: 'name',
               id_field: 'id',
             },

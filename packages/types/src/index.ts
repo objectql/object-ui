@@ -56,7 +56,7 @@ export type {
   NavigationItem,
   NavigationItemType,
   NavigationArea,
-  MenuItem as AppMenuItem,
+  AppMenuItem,
   AppWizardStepId,
   AppWizardStep,
   BrandingConfig,
@@ -177,6 +177,12 @@ export type {
   CodeEditorSchema,
   FormComponentSchema,
 } from './form.js';
+
+// The one select-option contract both option faces extend — `SelectOption`
+// above (the SDUI form face) and `SelectOptionMetadata` below (the
+// object-metadata face). Exported because it appears in the `extends` clause of
+// both, so a consumer that wants to name it can (objectui#7014).
+export type { SelectOptionBase } from './select-option.js';
 
 // ============================================================================
 // Data Display Components - Information Presentation
@@ -439,7 +445,7 @@ export type {
 export type {
   BaseFieldMetadata,
   VisibilityCondition,
-  ValidationFunction as FieldValidationFunction,
+  FieldValidationFunction,
   TextFieldMetadata,
   TextareaFieldMetadata,
   MarkdownFieldMetadata,
@@ -623,7 +629,6 @@ export type {
   GestureType,
   GestureConfig,
   GestureContext,
-  MobileComponentConfig,
   // The retired `@objectstack/spec/ui` touch vocabulary, now owned here —
   // see the "Spec Touch Vocabulary" note in `./mobile` (objectstack#4988).
   // `SPEC_GESTURE_TYPES` is its runtime witness and is exported as a VALUE
@@ -836,18 +841,13 @@ export type {
   AIInsightsSchema,
 } from './ai.js';
 
-export type {
-  // Block System
-  BlockSchema,
-  BlockMetadata,
-  BlockVariable,
-  BlockSlot,
-  BlockLibraryItem,
-  BlockLibrarySchema,
-  BlockEditorSchema,
-  BlockInstanceSchema,
-  ComponentSchema,
-} from './blocks.js';
+// The Block System re-export block is GONE, not emptied: `BlockSchema`,
+// `BlockMetadata`, `BlockVariable`, `BlockSlot`, `BlockLibraryItem`,
+// `BlockLibrarySchema`, `BlockEditorSchema`, `BlockInstanceSchema` and
+// `ComponentSchema` were RETIRED whole in objectui#4895 (ADR-0049
+// enforce-or-remove, maintainer ruling 2026-09-02, option C1). `./blocks.ts`
+// is kept as the tombstone and carries the reasoning, the evidence and the
+// boundary against the live slotted record-page vocabulary in `./layout.ts`.
 
 export type {
   // View System Enhancements
@@ -1039,6 +1039,8 @@ export type {
   ResolvableParamFieldType,
   ActionParam,
   UIActionSchema,
+  DeclaredActionsRefusal,
+  DeclaredActionsResolution,
   ActionGroup,
   ActionContext,
   ActionResult,
@@ -1060,6 +1062,7 @@ export {
   OBJECTUI_LOCAL_PARAM_FIELD_TYPES,
   ACTION_PARAM_FIELD_TYPES,
   actionRendersAt,
+  resolveDeclaredActionIds,
 } from './ui-action.js';
 
 // ============================================================================
@@ -1340,15 +1343,24 @@ export type {
 } from '@objectstack/spec/ui';
 
 // ============================================================================
-// v2.0.7 Spec UI Types — Responsive Design
+// v2.0.7 Spec UI Types — Responsive Design: RETIRED UPSTREAM, dropped here
 // ============================================================================
-export type {
-  ResponsiveConfig as SpecResponsiveConfig,
-  BreakpointName as SpecBreakpointName,
-  // BreakpointColumnMapSchema / BreakpointOrderMapSchema dropped without a
-  // replacement: they are zod values (value-erased here, #2561) and the spec
-  // exports no companion inferred type for them.
-} from '@objectstack/spec/ui';
+// `SpecResponsiveConfig` (the spec's `ResponsiveConfig`) and
+// `SpecBreakpointName` (its `BreakpointName`) were re-exported from this
+// block under deliberately prefixed names. objectstack#11027 retired the whole
+// `ui/responsive` vocabulary, and objectui#7580 removed the only two things in
+// this repo that read the prefixed pair: `@object-ui/core`'s
+// `ResponsiveProtocol` and `@object-ui/mobile`'s `useResponsiveConfig`, both
+// measured at zero callers. So both rows are DEAD re-exports and are dropped
+// rather than re-declared locally — the same disposition, for the same reason,
+// as the five retired i18n names in the block above.
+//
+// The layout vocabulary itself is NOT dropped: `BreakpointName` is declared
+// locally in `./mobile.ts` and re-exported unprefixed from the Mobile block
+// above, and `BreakpointColumnMap` in `@object-ui/layout`'s
+// `ResponsiveGrid.tsx` — both because `responsive-grid` is a registered SDUI
+// component whose authorable `columns` reaches a resolver on the render path,
+// which is the tombstone's own stated return condition.
 
 // ============================================================================
 // Widget System - Runtime Widget Registration (Section 1.6)

@@ -48,6 +48,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import {
+  arrayElementSchema,
   authorableShapeKeys,
   isShapeKeyTombstoned,
   listedShapeKeys,
@@ -58,21 +59,21 @@ import '../index';
 
 const SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** One entry of `.shape`, unwrapped past `.optional()`. */
-function shapeMember(schema: unknown, key: string): unknown {
-  const member = resolvePropsShape(schema)?.[key] as { unwrap?: () => unknown } | undefined;
-  return typeof member?.unwrap === 'function' ? member.unwrap() : member;
-}
-
-/** The element schema of a `z.array(...)`, through both spellings. */
-function arrayElement(schema: unknown): unknown {
-  const arr = schema as {
-    element?: unknown;
-    def?: { element?: unknown };
-    _def?: { type?: unknown; element?: unknown };
-  } | undefined;
-  return arr?.element ?? arr?.def?.element ?? arr?._def?.element ?? arr?._def?.type;
-}
+/**
+ * The element schema of `RecordDetailsProps.<key>`, a `z.array(...)`.
+ *
+ * The wrapper walk and the element read are `@object-ui/test-support`'s
+ * (objectui#5872 class (2)), not this file's. What stood here was one of three
+ * disagreeing hand copies, and its last limb — `arr?._def?.type`, Zod 3's
+ * spelling for a `ZodArray`'s element — is a landmine on the installed
+ * `zod@4.4.3`, where `_def.type` is the type-name STRING `'array'`: had the
+ * three limbs before it ever missed, this would have handed `listedShapeKeys`
+ * a string and derived the empty set in silence. `arrayElementSchema` keeps
+ * that Zod 3 spelling behind the `_def.typeName === 'ZodArray'` discriminator
+ * so it can only answer where it is actually right.
+ */
+const specArrayElement = (key: string): unknown =>
+  arrayElementSchema(resolvePropsShape(RecordDetailsProps)?.[key]);
 
 /** Top-level keys of the spec's `RecordDetailsProps`, INCLUDING tombstones. */
 const specTopLevelKeys = (): string[] => listedShapeKeys(RecordDetailsProps);
@@ -103,19 +104,22 @@ const specAcceptedTopLevelKeys = (): string[] => authorableShapeKeys(RecordDetai
 
 /** Member keys of one `sections[]` entry, per the spec. */
 const specSectionKeys = (): string[] =>
-  listedShapeKeys(arrayElement(shapeMember(RecordDetailsProps, 'sections')));
+  listedShapeKeys(specArrayElement('sections'));
 
 /**
  * Section keys the `sections` description may NOT teach. Read off
- * `renderers/record-details.tsx`: `s.showBorder` and `s.hideEmpty` are honoured
- * there beyond the spec's four, and `title` was honoured as a strict-priority
- * ALIAS of the heading slot (`s.title ?? s.label`) until objectui#6190
- * converged on the declared `label` and dropped the limb.
+ * `renderers/record-details.tsx`: `s.showBorder` is honoured there beyond the
+ * spec's four; `title` was honoured as a strict-priority ALIAS of the heading
+ * slot (`s.title ?? s.label`) until objectui#6190 converged on the declared
+ * `label` and dropped the limb; `hideEmpty` was honoured until objectui#7129
+ * RETIRED the key (maintainer 2026-09-01) and left `DetailSection`'s auto-hide
+ * heuristic as the whole contract.
  *
- * `title` stays in this list on purpose, and dropping it would weaken the file.
- * Membership is not "keys the renderer reads today" — it is "keys the spec
- * refuses that the description must not advertise", and the spec refuses
- * `title` whether or not anything reads it. A hand-kept list, but the ASSERTION
+ * `title` and `hideEmpty` stay in this list on purpose, and dropping either
+ * would weaken the file. Membership is not "keys the renderer reads today" —
+ * it is "keys the spec refuses that the description must not advertise", and
+ * the spec refuses both whether or not anything reads them. A hand-kept list,
+ * but the ASSERTION
  * filters it through the spec at runtime, so the day upstream declares one of
  * these it drops out of the forbidden set on its own instead of pinning a stale
  * prohibition.
@@ -234,9 +238,10 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
   });
 
   it('publishes no section member key the spec refuses to carry', () => {
-    // The renderer honours `title` / `showBorder` / `hideEmpty` per section,
-    // but the spec's section object does not declare them, so an author who
-    // writes them gets nothing back from the contract. Documenting them here
+    // The renderer honours `showBorder` per section (and once honoured `title`
+    // and `hideEmpty`), but the spec's section object does not declare any of
+    // the three, so an author who writes them gets nothing back from the
+    // contract — a refusal, in fact. Documenting them here
     // would teach keys the contract does not carry — the member-level twin of
     // publishing a top-level input the props schema rejects.
     const stripped = RENDERER_ONLY_SECTION_KEYS.filter(
@@ -364,7 +369,7 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // contract to advertise. Every in-repo producer passes strings
     // (`synth/buildDefaultPageSchema.ts:557-562` types it `string[]`), so the
     // tolerant arm is unexercised drift rather than a live dialect.
-    const element = arrayElement(shapeMember(RecordDetailsProps, 'hideFields'));
+    const element = specArrayElement('hideFields');
     expect(listedShapeKeys(element)).toEqual([]);
     expect(RecordDetailsProps.safeParse({ hideFields: ['phone'] }).success).toBe(true);
 
@@ -442,7 +447,7 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     // Top-level `fields` is `z.array(z.string())`: there is no member shape to
     // publish, and the renderer's tolerance for `{name}` / `{field}` entries is
     // not a second contract to advertise — the spec rejects those values.
-    const element = arrayElement(shapeMember(RecordDetailsProps, 'fields'));
+    const element = specArrayElement('fields');
     expect(listedShapeKeys(element)).toEqual([]);
     expect(RecordDetailsProps.safeParse({ fields: ['phone'] }).success).toBe(true);
     expect(RecordDetailsProps.safeParse({ fields: [{ name: 'phone' }] }).success).toBe(false);

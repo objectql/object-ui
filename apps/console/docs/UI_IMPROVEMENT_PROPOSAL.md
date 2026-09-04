@@ -49,6 +49,7 @@ The current Metadata Inspector panel on the console list page is overly verbose 
 ### Phase 1: Quick Wins (Minimal Changes)
 
 #### 1.1 **Default to Closed**
+<!-- doc-snippet: fragment — the body of `useMetadataInspector` as it would be edited in place; `useState` is the reader's own React import, which this excerpt omits -->
 ```typescript
 // Change default state in useMetadataInspector
 export function useMetadataInspector() {
@@ -61,12 +62,14 @@ export function useMetadataInspector() {
 ```
 
 #### 1.2 **Reduce Width**
+<!-- doc-snippet: fragment — a single opening `<div>` tag, quoted to show the one className change; it has no closing tag and no surrounding component by design -->
 ```tsx
 // MetadataPanel.tsx - Change from w-100 to w-80
 <div className="w-80 border-l bg-muted/20 ...">
 ```
 
 #### 1.3 **Add Collapsible Sections**
+<!-- doc-snippet: fragment — JSX for the panel body: `Accordion`, `AccordionItem`, `AccordionTrigger`, `AccordionContent` and `JsonCodeBlock` are the host component's own imports, and `viewConfig` and `objectDef` its own state -->
 ```tsx
 <Accordion type="multiple" defaultValue={["view"]}>
   <AccordionItem value="view">
@@ -94,6 +97,7 @@ export function useMetadataInspector() {
 #### 2.1 **Smart Summary View**
 Instead of showing raw JSON first, show a structured summary:
 
+<!-- doc-snippet: fragment — the summary view's JSX only: `Label`, `Badge`, `Separator`, `Button` and `Code` are the host component's imports, and `columns`, `showRawJson` and `setShowRawJson` its own state -->
 ```tsx
 // View Summary Component
 <div className="space-y-3 p-4">
@@ -125,6 +129,7 @@ Instead of showing raw JSON first, show a structured summary:
 ```
 
 #### 2.2 **Copy Utilities**
+<!-- doc-snippet: fragment — a header-row excerpt: `Button` and `Copy` are the host component's imports, and `copyToClipboard` and `data` its own helper and state -->
 ```tsx
 <div className="flex items-center justify-between px-3 py-2 border-b">
   <span className="text-xs font-semibold">View Configuration</span>
@@ -140,6 +145,7 @@ Instead of showing raw JSON first, show a structured summary:
 ```
 
 #### 2.3 **Tabbed Interface**
+<!-- doc-snippet: fragment — the tabbed shell's JSX: `Tabs`, `TabsList`, `TabsTrigger` and `TabsContent` are the host component's imports, and `StructuredSummary`, `JsonViewer`, `DataPreview` and `schema` are the components and data it supplies -->
 ```tsx
 <Tabs defaultValue="summary" className="w-full">
   <TabsList className="grid w-full grid-cols-3 h-9">
@@ -165,7 +171,7 @@ Instead of showing raw JSON first, show a structured summary:
 ```tsx
 import { ResizablePanel, ResizablePanelGroup } from '@object-ui/components';
 
-<ResizablePanelGroup direction="horizontal">
+<ResizablePanelGroup orientation="horizontal">
   <ResizablePanel defaultSize={75} minSize={50}>
     {/* Main content */}
   </ResizablePanel>
@@ -176,12 +182,14 @@ import { ResizablePanel, ResizablePanelGroup } from '@object-ui/components';
 ```
 
 #### 3.2 **Persist User Preference**
+<!-- doc-snippet: fragment — a one-line replacement for the `useState` call in 1.1; `useLocalStorage` is the reader's own hook and is not exported by any package here -->
 ```tsx
 // Store in localStorage
 const [showDebug, setShowDebug] = useLocalStorage('console:metadata-panel', false);
 ```
 
 #### 3.3 **Command Palette Integration**
+<!-- doc-snippet: fragment — one entry of the command-palette array, quoted as a bare object literal so it can be spliced into `CommandPalette.tsx`; `Code2` and `toggleDebug` come from that file -->
 ```tsx
 // Add to CommandPalette.tsx
 {
@@ -196,28 +204,34 @@ const [showDebug, setShowDebug] = useLocalStorage('console:metadata-panel', fals
 ## Visual Design Specs
 
 ### Color Palette
-```tsx
-// Reduce visual weight
-background: "bg-background" // Instead of "bg-muted/30"
-border: "border-border/50" // Subtle
-header: "bg-muted/5" // Barely visible
-```
+
+Reduce visual weight:
+
+| Slot | Class | Note |
+|:--|:--|:--|
+| `background` | `bg-background` | Instead of `bg-muted/30` |
+| `border` | `border-border/50` | Subtle |
+| `header` | `bg-muted/5` | Barely visible |
 
 ### Typography
-```tsx
-// Hierarchy
-title: "text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-content: "text-sm font-mono"
-label: "text-xs text-muted-foreground"
-```
+
+Hierarchy:
+
+| Slot | Classes |
+|:--|:--|
+| `title` | `text-xs font-semibold uppercase tracking-wider text-muted-foreground` |
+| `content` | `text-sm font-mono` |
+| `label` | `text-xs text-muted-foreground` |
 
 ### Spacing
-```tsx
-// More breathing room
-panel: "p-0" // Let inner components control padding
-section: "p-4 space-y-4"
-compact: "p-3 space-y-3"
-```
+
+More breathing room:
+
+| Slot | Classes | Note |
+|:--|:--|:--|
+| `panel` | `p-0` | Let inner components control padding |
+| `section` | `p-4 space-y-4` | |
+| `compact` | `p-3 space-y-3` | |
 
 ## Implementation Priority
 

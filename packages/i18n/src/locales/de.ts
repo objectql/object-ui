@@ -125,6 +125,16 @@ const de = {
     record: "Datensatz",
     retry: "Erneut versuchen",
     printDialogHint: "Öffnet den Druckdialog Ihres Browsers (kein PDF-Export)",
+    // The non-grid row ceiling's footnote (objectui#7210). Two keys because
+    // there are two conditions: a reported `total` states the fact with BOTH
+    // numbers, a missing one cannot name how many. Same split as
+    // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
+    rowCeilingNote: "Erste {{shown}} von {{total}} Datensätzen. Filter eingrenzen.",
+    rowCeilingNoteUnknownTotal: "Erste {{shown}} Datensätze. Filter eingrenzen.",
   },
   actions: {
     decisionOutput: {
@@ -549,6 +559,7 @@ const de = {
     allDay: "Ganztägig",
     newEvent: "Neuer Termin",
     moreEvents: "+{{count}} weitere",
+    unscheduled: "Nicht geplant ({{count}})",
   },
   list: {
     firstRunTitle: "Hier ist noch nichts",
@@ -700,6 +711,9 @@ const de = {
     },
     unsupported: {
       objectBoundGantt: "Nicht unterstützte Variante „gantt“ — eine objektgebundene Timeline rendert die Feed-Varianten ({{variants}}). Gantt benötigt literale Zeilen mit jeweils eigenen verschachtelten items; die Gantt-Achse (scale) hat hier daher keine Wirkung.",
+    },
+    unconfigured: {
+      noDateAxis: "Zeitachse für die Timeline erforderlich — diese Ansicht deklariert kein Datumsfeld, und eine objektgebundene Timeline erfindet keines. Deklarieren Sie eines von: {{fields}}. Das erste ist die Spec-Schreibweise, die übrigen sind veraltete Aliase.",
     },
   },
   gantt: {
@@ -1081,15 +1095,17 @@ const de = {
   chart: {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
+    scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
   },
   dashboard: {
-    noRows: "Keine Zeilen",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "Noch keine Daten",
       message: "Dieses Widget wurde erfolgreich geladen, die Abfrage hat aber noch keine Datensätze zurückgegeben.",
@@ -1130,7 +1146,6 @@ const de = {
     saveLayout: "Layout speichern",
     resetLayout: "Layout zurücksetzen",
     total: "Gesamt",
-    noDataAvailable: "Keine Daten verfügbar",
     noDataSourceFor: "Keine Datenquelle verfügbar für",
     config: {
       breadcrumb: {
@@ -1492,6 +1507,12 @@ const de = {
         statusFull: "Limit erreicht",
         resetsDaily: "Wird heute Nacht zurückgesetzt",
         resetsMonthly: "Wird im nächsten Zyklus zurückgesetzt",
+        resetsWeeklyDays: "Wird in {{count}} Tagen zurückgesetzt",
+        resetsWeeklyDays_one: "Wird in {{count}} Tag zurückgesetzt",
+        resetsWeeklyDays_other: "Wird in {{count}} Tagen zurückgesetzt",
+        resetsWeeklyHours: "Wird in {{count}} Stunden zurückgesetzt",
+        resetsWeeklyHours_one: "Wird in {{count}} Stunde zurückgesetzt",
+        resetsWeeklyHours_other: "Wird in {{count}} Stunden zurückgesetzt",
         ctaUpgrade: "Upgraden, um weiterzumachen",
         ctaTopUp: "Credits hinzufügen, um fortzufahren",
         ariaLabel: "KI-Nutzung: {{status}}",

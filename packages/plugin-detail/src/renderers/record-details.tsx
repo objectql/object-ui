@@ -212,27 +212,36 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
         // flat sections stay borderless so the page chrome alone provides
         // containment. Authors can override explicitly via `showBorder`.
         showBorder: s.showBorder ?? (translatedTitle ? true : false),
-        // Deliberately NOT defaulted. The authored value passes through
-        // verbatim, so an UNAUTHORED section reaches DetailSection as
-        // `undefined` and that component's own stated heuristic decides:
-        // auto-hide empty rows only while the section still has at least one
-        // filled row, and never on an all-empty section — there the labels
-        // ARE the structural skeleton a sparse or brand-new record needs.
+        // ⛔ There is deliberately NO `hideEmpty` slot here, and re-adding one
+        // would reopen objectui#7129.
         //
-        // This slot used to force `s.hideEmpty ?? true`, which overrode
-        // exactly the case that heuristic reserves: a hand-created record
-        // collapsed to a two-row body and whole sections vanished, and every
-        // app had to hand-write `hideEmpty: false` per section to stop looking
-        // broken. That is per-app tax for a platform concern (maintainer
-        // ruling 2026-08-31: this is a platform problem; metadata
-        // applications should not have to think about these details).
+        // ⚠️ Measured, so the next reader does not have to: this slot's removal
+        // is a STATEMENT change, not the behavioural one. The `...s` above
+        // spreads every authored key verbatim, so an off-spec document
+        // carrying `hideEmpty` still delivers it to `DetailSection` — which no
+        // longer reads it. Re-adding the slot alone changes nothing; the
+        // behaviour lives in `DetailSection`, and that is where the ablation
+        // for this change turns red.
         //
-        // An AUTHORED value is still honoured exactly as before —
-        // `hideEmpty: true` remains the explicit opt-in to hiding, and
-        // `hideEmpty: false` the explicit opt-out. Only the unauthored
-        // default flips. DetailSection's "Show N empty fields" toggle remains
-        // the user-facing escape hatch wherever the heuristic does hide rows.
-        hideEmpty: s.hideEmpty,
+        // Emptiness on a section is decided by
+        // `DetailSection`'s auto-hide heuristic alone — hide empty rows only
+        // while the section still has at least one filled row, never on an
+        // all-empty section (there the labels ARE the structural skeleton a
+        // sparse or brand-new record needs), with the reader's "Show N empty
+        // fields" toggle as the escape hatch.
+        //
+        // This slot used to force `s.hideEmpty ?? true`, then (objectui#7064)
+        // passed the authored value through verbatim. The pass-through
+        // measured the key on all four contracts and found three answers:
+        // `@object-ui/types` declared it, this renderer honoured it, the
+        // `DetailViewSectionSchema` zod mirror omitted it, and
+        // `@objectstack/spec` REFUSES it — `RecordDetailsProps.safeParse` on a
+        // section carrying it returns `unrecognized_keys` naming `hideEmpty`,
+        // so on any spec-validated page the key never reached this line at
+        // all. The maintainer converged the four on the spec's answer
+        // (2026-09-01, objectui#7129): the declaration is retired and the
+        // heuristic is the whole contract. Pinned four ways in
+        // `__tests__/record-details.hideEmptyRetired-7129.test.tsx`.
         fields: dropHidden(normaliseList(filterList(s.fields))),
       });
       })

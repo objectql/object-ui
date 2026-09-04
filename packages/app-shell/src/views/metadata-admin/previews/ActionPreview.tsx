@@ -40,8 +40,8 @@ import {
   Sparkles,
   Square,
   Workflow,
-  icons as lucideIcons,
 } from 'lucide-react';
+import { resolveIcon } from '@object-ui/components';
 import type { ActionParam } from '@object-ui/types';
 import { paramDegradesWithoutTarget, resolveParamWidgetType } from '../../../utils/paramToField.js';
 import type { MetadataPreviewProps } from '../preview-registry.js';
@@ -321,15 +321,23 @@ function FauxButton({
  * the author still sees that an icon binding is in place.
  */
 function IconHint({ name }: { name: string }) {
-  const pascal = name
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join('');
-  const resolved = pascal === 'Home' ? 'House' : pascal;
-  const Glyph = (lucideIcons as Record<string, React.ComponentType<{ className?: string }>>)[resolved];
+  // objectui#5935: the normalisation moved to the ONE seam. This site's own
+  // copy was the WIDEST of the three tokenisers in the tree, so the seam adopts
+  // its behaviour rather than replacing it — nothing this preview resolved
+  // before stops resolving now.
+  //
+  // ⛔ The seam does not decide the fallback. The name chip below stays here,
+  // unchanged: an author looking at an action preview needs to see that an icon
+  // binding is in place even when the glyph does not resolve (maintainer
+  // ruling 2026-09-03, objectui#5935, option C).
+  const Glyph = resolveIcon(name);
 
   if (Glyph) {
+    // The same annotation the other five seam call sites carry: `resolveIcon`
+    // returns a STABLE component out of lucide's static record, it does not
+    // create one during render. The rule cannot see that through a call, where
+    // it could through the record index this line replaced.
+    // eslint-disable-next-line react-hooks/static-components
     return <Glyph className="h-4 w-4" aria-hidden />;
   }
 

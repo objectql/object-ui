@@ -529,7 +529,13 @@ export function resolveActionParam(
     ? {
         // Inline `reference` wins, matching how every other inline value
         // overrides the resolved field (#3405).
-        referenceTo: param.reference ?? field.reference_to ?? field.reference,
+        // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+        // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+        // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+        // contract declares, and renaming it would be a separate change.
+        // Source here is `owner.fields[param.field]` — an object schema field def,
+        // i.e. the protocol. Target contract: `ActionParamDef.referenceTo`.
+        referenceTo: param.reference ?? field.reference,
         displayField: field.display_field ?? field.reference_field,
         idField: field.id_field,
         descriptionField: field.description_field,

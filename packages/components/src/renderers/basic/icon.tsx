@@ -6,25 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { IconSchema } from '@object-ui/types';
-import { icons, SquareDashed } from 'lucide-react';
+import { SquareDashed } from 'lucide-react';
 import React, { forwardRef } from 'react';
 import { cn } from '../../lib/utils';
-
-// Convert kebab-case to PascalCase for Lucide icon names
-// e.g., "arrow-right" -> "ArrowRight", "home" -> "Home"
-function toPascalCase(str: string): string {
-  return str
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-}
-
-// Map of renamed icons in lucide-react (from old name to new name)
-const iconNameMap: Record<string, string> = {
-  'Home': 'House', // "Home" was renamed to "House" in lucide-react's icons object
-};
+import { describeIconLookup, resolveIcon } from '../action/resolve-icon';
 
 /**
  * The glyph rendered when the requested one does not resolve (objectui#5631).
@@ -69,6 +56,48 @@ const iconNameMap: Record<string, string> = {
  * as a second component declaration in a file that exports none.
  */
 
+/**
+ * The DOM pass-through for this file's SVG host (objectui#5632, the
+ * `BARE_SPREAD_ON_SVG` slice of objectui#5574).
+ *
+ * ## Why the BARE `toDomProps`, and not a declaration of its own
+ *
+ * The sibling slice for form controls needed one
+ * (`../../lib/form-control-dom-props.ts`): `name` and `disabled` are legal
+ * HTML on a control, so the element-agnostic SDUI list would have stripped
+ * real attributes. The question has to be asked again per host, and for an
+ * SVG icon the answer is the opposite one — MEASURED, not assumed:
+ * `IconSchema` declares exactly `icon`, `size` and `color`, and this renderer
+ * already CONSUMES all three by name (the glyph lookup, `sizeStyle`, and the
+ * `cn()` class list). Not one of them needs to reach the element through a
+ * spread, so nothing legitimate is withheld and no third declaration is
+ * warranted.
+ *
+ * ## What stops arriving, which is the half a leak gate cannot see
+ *
+ * The sweep gate reports attributes that arrive ILLEGITIMATELY. It has no case
+ * for one that stops arriving, and on an SVG host the judge counts
+ * `stroke` / `width` / `height` as legitimate — so all three changes below were
+ * invisible to it in both directions and had to be read off the DOM directly:
+ *
+ *  - `color` reached lucide's own `color` prop and became `stroke`. Every
+ *    authored `color` in the catalog is a Tailwind CLASS, which is what
+ *    `IconSchema.color` declares ("Color Class") and what the `cn()` list
+ *    already applies — so the spread was emitting `stroke="text-red-500"`, an
+ *    invalid SVG paint value, next to the class that does the real work.
+ *    Dropping it removes the garbage and leaves the declared path untouched.
+ *  - `size` reached lucide's `size` prop and set the `width`/`height`
+ *    ATTRIBUTES, duplicating the `sizeStyle` this renderer already writes. CSS
+ *    `width`/`height` win over the SVG presentation attributes, so the authored
+ *    size still renders from the style; only the redundant second channel goes.
+ *  - `icon` itself landed on the element as `icon="check"` — 71 times in
+ *    `examples/schema-catalog`, and the one leak this file's catalog probe
+ *    measures.
+ *
+ * A key that genuinely belongs on this element is DECLARED and forwarded BY
+ * NAME (objectui#4435), the way `style` is below. ⛔ Never reopen the spread
+ * and never widen the shared list to reach one host (AGENTS.md #0.1).
+ */
 // Index signature on the parameter annotation, not on the `forwardRef` type
 // argument — mechanism note on `action:bar` (objectui#4422), pinned by
 // `__tests__/forwardref-props-annotation.guard.test.ts`.
@@ -107,9 +136,12 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
     // below — loud in both directions, silent in neither.
     //
     // `schema.icon` is typed `string` but arrives from authored JSON, so it can
-    // be absent at runtime. It used to reach `toPascalCase` unguarded, where
-    // `undefined.split` threw and the SchemaErrorBoundary swallowed it — a
-    // third way for this renderer to fail without saying so.
+    // be absent at runtime. It used to reach this file's own `toPascalCase`
+    // unguarded, where `undefined.split` threw and the SchemaErrorBoundary
+    // swallowed it — a third way for this renderer to fail without saying so.
+    // The guard stays here rather than moving into the seam: the seam answers
+    // `null` for an absent name, and this renderer must tell an ABSENT name
+    // apart from an unresolvable one to pick its warning.
     const requested = typeof schema.icon === 'string' ? schema.icon : '';
     // Read ONLY to make the migration diagnostic below specific. ⛔ Never a
     // fallback glyph source: it is not consulted by the lookup, and a node
@@ -117,11 +149,18 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
     const legacyGlyphName = typeof schema.name === 'string' && schema.name.length > 0
       ? schema.name
       : '';
-    // Convert icon name to PascalCase for Lucide lookup
-    const iconName = toPascalCase(requested);
-    // Apply icon name mapping for renamed icons
-    const mappedIconName = iconNameMap[iconName] || iconName;
-    const Icon = requested ? (icons as any)[mappedIconName] : undefined;
+    // The lookup itself goes through the ONE seam (objectui#5935). This file
+    // carried its own `toPascalCase` + `iconNameMap` + `icons[...]` — the same
+    // algorithm as `renderers/action/resolve-icon.ts`, written a second time,
+    // with a NARROWER tokeniser (`split('-')`, so `arrow_right` missed here and
+    // resolved on two other surfaces). That divergence is what this card ended.
+    //
+    // `describeIconLookup` supplies the two halves the objectui#5631 warning
+    // below names (`lookup: "Home" -> "House"`) WITHOUT a second copy of the
+    // normalisation. ⛔ It is not a second resolution path: `resolveIcon` is the
+    // only thing consulted for what renders.
+    const { pascal: iconName, key: mappedIconName } = describeIconLookup(requested);
+    const Icon = requested ? resolveIcon(requested) : undefined;
 
     if (!Icon) {
       console.warn(
@@ -159,7 +198,7 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
           }
           className={mergedClassName}
           style={{ ...sizeStyle, ...style }}
-          {...iconProps}
+          {...toDomProps(iconProps)}
           // Apply designer props
           {...{
             'data-obj-id': dataObjId,
@@ -181,7 +220,7 @@ const IconRenderer = forwardRef<SVGSVGElement, { schema: IconSchema; className?:
         ref={ref} 
         className={mergedClassName}
         style={{ ...sizeStyle, ...style }}
-        {...iconProps}
+        {...toDomProps(iconProps)}
         // Apply designer props
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType }}
       />

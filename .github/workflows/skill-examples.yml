@@ -1,0 +1,141 @@
+name: Skill Examples
+
+# Compiles every MARKED `ts` / `tsx` / `typescript` fence under `skills/`,
+# `--strict`, against the packages' BUILT `dist/*.d.ts`, and parses every marked
+# `json` / `jsonc` fence. The opt-in marker convention, the adjacency rule, the
+# inherited harness controls and the declared exit codes are documented at length
+# in `scripts/check-skill-examples.mjs`.
+#
+# ── Why this is its own workflow, with NO path filter ───────────────────────
+#
+# Same reason `skills-paths.yml`, `docs-links.yml`, `control-bytes.yml` and
+# `doc-snippet-types.yml` are theirs, and their headers say it best: this gate's
+# entire scan surface is markdown under `skills/`, and both `ci.yml` and
+# `lint.yml` list `'**/*.md'`, `content/**` and `docs/**` under the `paths-ignore`
+# of their `push` trigger. GitHub has no per-job path filter, so a push that only
+# edits a guide would start neither — and editing only a guide is the single most
+# likely way a worked example goes stale. `control-bytes.yml`'s header names the
+# consequence: a gate that cannot see a markdown-only change "rebuilds the hole
+# it exists to close".
+#
+# Hence: no `paths` and no `paths-ignore` here, deliberately.
+# `scripts/__tests__/check-skill-examples.test.ts` fails if either is ever added,
+# and fails too if a second workflow starts running the same script — one gate,
+# one home.
+#
+# ── Why it builds, unlike its install-free sibling `skills-paths.yml` ───────
+#
+# `skills-paths.yml`'s header asks that it stay a checkout plus one `node` call,
+# and this gate cannot be that: its whole criterion is the PUBLISHED type
+# surface, so the packages the marked fences import have to exist as `dist/*.d.ts`
+# first. That is why this is a separate workflow rather than a second step there.
+# Resolving against `src/` instead would be a weaker check the root
+# `tsconfig.json` makes one inherited config away, and the script's RESOLUTION
+# control fails the run rather than letting it pass quietly.
+#
+# The build is FILTERED to the packages the MARKED fences import, emitted by the
+# gate itself (`--build-filter`) rather than hand-maintained here, so it grows
+# only as the marked population grows and the growth is visible in this job's log
+# rather than hidden in a workflow edit. That is what keeps this inside the
+# 2026-08-16 ruling on objectui#4846 (recorded in `published-dist-gate.yml`),
+# which rejected a per-PR FULL-REPO build.
+#
+# ⛔ Do not replace the filtered build with `pnpm build`. The filter is the reason
+# this job is allowed to run on every pull request at all.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  # Merge queue (objectui#3523 — see `ci.yml`'s trigger block for the full note
+  # and the measurements behind it). A required check that does not report on a
+  # queue build stalls the queue until the ruleset's 60-minute timeout fails it,
+  # so an unfiltered gate that could become required subscribes here from the
+  # start. `types:` is named although `checks_requested` is currently the only
+  # activity type GitHub defines for `merge_group`.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+concurrency:
+  group: skill-examples-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  skill-examples:
+    name: Skill Example Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The filter comes from the gate, so it can never drift from what the
+      # marked fences import.
+      #
+      # ⛔ Do not fold this back into `echo "args=$(node …)" >> "$GITHUB_OUTPUT"`
+      # (objectui#6221). A command substitution contributes its STDOUT to the
+      # surrounding word and nothing else — the step's status is `echo`'s — so a
+      # gate that failed reads as a gate that named no packages, `args` is
+      # silently empty, and the step below expands to a bare `turbo run build`
+      # over the whole workspace: the one thing this workflow's header forbids,
+      # with no signal anywhere. Capture the status, then write the output.
+      - name: Derive the packages the marked examples import
+        id: filter
+        run: |
+          status=0
+          args="$(node scripts/check-skill-examples.mjs --build-filter)" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Could not derive the build filter: \`node scripts/check-skill-examples.mjs --build-filter\` exited $status. Refusing to continue — carrying on would build every package in the workspace instead of the ones the marked examples import." >&2
+            exit "$status"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+
+      # The empty-filter refusal is the second half, deliberately kept HERE
+      # rather than beside the status check above: it holds for every route to an
+      # empty filter, including a gate that exits 0 while naming nothing. The
+      # gate's own empty-population floor already refuses a run in which nothing
+      # is marked, and an unfiltered `turbo run build` is a far worse answer than
+      # a red step. `args` arrives through the environment so the check has a
+      # value to test; it stays unquoted on the `turbo` line because it is a LIST
+      # of `--filter=` words that must word-split.
+      - name: Build those packages
+        env:
+          FILTER_ARGS: ${{ steps.filter.outputs.args }}
+        run: |
+          case "$FILTER_ARGS" in
+            *--filter=*) ;;
+            *)
+              echo "::error::The derived build filter names no package (got: '$FILTER_ARGS'). Refusing to run an unfiltered build — see this workflow's header." >&2
+              exit 1
+              ;;
+          esac
+          pnpm exec turbo run build $FILTER_ARGS --concurrency=2
+
+      # The self-test runs BEFORE the corpus, and after the build because its
+      # compiler legs need the same built tree. A probe that cannot fail is not a
+      # probe: it plants a fence that must go red and a marker that must be
+      # reported, so a harness broken into permanent green is caught here rather
+      # than by nobody.
+      - name: Self-test the marker convention, both directions
+        run: node scripts/check-skill-examples.mjs --self-test
+
+      - name: Check the marked skill examples against the built types
+        run: node scripts/check-skill-examples.mjs

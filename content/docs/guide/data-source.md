@@ -252,12 +252,12 @@ ignores would be accepted and dropped, which is the defect this binding removes.
 | `object-grid` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `element:record_picker` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `record:related_list` | ✅ | columns / filter / sort / limit | ✅ | ✅ | ✅ |
-| `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-calendar` | ✅ | filter / sort | ✅ | ✅ | — platform ceiling |
 | `object-kanban` | ✅ | filter / limit | ✅ | — no ordering | ✅ (`limit`) |
 | `object-chart` | ✅ | filter | ✅ | — engine orders | — no page |
 | `object-metric` | ✅ | filter | ✅ | — single value | — single value |
-| `object-gantt` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
-| `object-map` | ✅ | filter / sort | ✅ | ✅ | — no row cap |
+| `object-gantt` | ✅ | filter / sort | ✅ | ✅ | — platform ceiling |
+| `object-map` | ✅ | filter / sort | ✅ | ✅ | — platform ceiling |
 | `object-pivot` | ✅ | filter | ✅ | — grouping orders | — totals need all rows |
 | `object-timeline` | ✅ | filter / sort / limit | ✅ | ✅ | ✅ (`limit`) |
 | `object-form` | ✅ | error-checked only | — no collection query | — | — |
@@ -321,6 +321,24 @@ Note the two `limit`s on a board are different keys at different levels: the row
 cap above is `limit` on the **board**, while `limit` on a **column** is that
 lane's WIP limit (how many cards it may hold before it warns), which is display
 behaviour and never touches the query.
+
+Reading `— platform ceiling` on `object-calendar` / `object-gantt` / `object-map`
+(and on `object-tree`, which predates this table): those four are the **non-grid**
+visualisations, and objectui#7210's maintainer ruling settled what their row
+behaviour is. They fetch the whole **filtered** result set — a gantt cannot
+compute a truthful `min(start) → max(end)` from one page, a map fits its camera to
+every marker, and a tree assembled from a page loses every node whose parent fell
+outside it — but the fetch is **bounded** by `NON_GRID_ROW_CEILING`
+(`@object-ui/react`, currently 2,000). Past it the view draws the first N rows and
+shows a footnote naming both N and the total. Silent truncation is the failure
+that ruling exists to prevent: a cut-off schedule still looks like a schedule.
+
+The `limit` cell stays "not ✅" for all four because the ceiling is **not
+authorable and must not become one** — a named constant in the renderer, by the
+same ruling. An authored `limit`, a binding's `limit` and a named view's
+`pagination.pageSize` all still fail to reach these queries, which is what the
+cell has always meant. What changed is only that "no cap at all" is no longer
+true.
 
 Remaining gap, recorded rather than papered over:
 

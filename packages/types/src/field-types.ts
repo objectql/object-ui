@@ -119,7 +119,7 @@ export interface BaseFieldMetadata {
   /**
    * Custom validation function or rules
    */
-  validate?: ValidationFunction | FieldConstraints;
+  validate?: FieldValidationFunction | FieldConstraints;
   
   /**
    * Field dependencies (Phase 3.2.3)
@@ -155,7 +155,7 @@ export type VisibilityCondition = {
 /**
  * Validation function type
  */
-export type ValidationFunction = (value: any) => boolean | string | Promise<boolean | string>;
+export type FieldValidationFunction = (value: any) => boolean | string | Promise<boolean | string>;
 
 /**
  * Validation rule type
@@ -167,7 +167,7 @@ export type FieldConstraints = {
   min?: number;
   max?: number;
   pattern?: string | RegExp;
-  custom?: ValidationFunction;
+  custom?: FieldValidationFunction;
 };
 
 /**
@@ -205,9 +205,13 @@ export interface MarkdownFieldMetadata extends BaseFieldMetadata {
    * `RichTextField` — the one widget behind the `markdown`/`html`/`richtext`
    * registry keys — has always read `rows` off this metadata (default 8) while
    * no rich-content type declared it, so the running widget honoured a key an
-   * annotated literal rejected. Aligns the `TextareaFieldMetadata` precedent
-   * and `@objectstack/spec` `FieldSchema.rows` (a positive integer, authorable
-   * on exactly the multiline editor types textarea/markdown/html/richtext).
+   * annotated literal rejected. Follows the `TextareaFieldMetadata` precedent.
+   *
+   * WARNING - NOT a spec key. Measured on the installed `@objectstack/spec`
+   * 17.2.0: `FieldSchema` REFUSES `rows` BY NAME (`unrecognized_keys`) on all
+   * four of textarea/markdown/html/richtext, with the same payload minus
+   * `rows` accepted as the control. It is an objectui render hint and must not
+   * be written into authored object metadata (objectui#7014).
    * The four inert editor keys the same ruling measured (`toolbar`/`preview`/
    * `minHeight`/`maxHeight`) stay deliberately undeclared — nothing reads them.
    */
@@ -224,8 +228,8 @@ export interface HtmlFieldMetadata extends BaseFieldMetadata {
    * Height of the INLINE editor, in text rows. Same declaration as
    * `MarkdownFieldMetadata.rows` (objectui#6140 Option A ruling — see the
    * docblock there): `RichTextField` reads it for all three registry keys it
-   * serves, and `@objectstack/spec` `FieldSchema.rows` declares it for the
-   * multiline editor types.
+   * serves. WARNING - NOT a spec key either; see the measured refusal in the
+   * docblock there (objectui#7014).
    */
   rows?: number;
 }
@@ -307,12 +311,24 @@ export interface TimeFieldMetadata extends BaseFieldMetadata {
   format?: string;
 }
 
+import type { SelectOptionBase } from './select-option.js';
+
 /**
- * Select option
+ * Select option — the OBJECT-METADATA face of the one select-option contract
+ * (objectui#7014). It extends {@link SelectOptionBase}, which derives the spec
+ * keys (`label`, `value`, `color`, `default`) from `@objectstack/spec/data` by
+ * reference and carries objectui's `visibleWhen` wire shape plus the two
+ * objectui-only keys `disabled` and `icon`. This face restates none of them; it
+ * adds exactly the one key below and keeps the spec's `value` — a lowercase
+ * machine identifier — as declared.
+ *
+ * This is the declared element type of a select field's and a lookup field's
+ * `options`, so it is the runtime READ model the renderers consume. It is WIDER
+ * than what may be authored: `description`, `disabled` and `icon` are each
+ * refused BY NAME by the spec's strict `SelectOptionSchema`, which a field's
+ * `options` are routed through.
  */
-export interface SelectOptionMetadata {
-  label: string;
-  value: string;
+export interface SelectOptionMetadata extends SelectOptionBase {
   /**
    * Optional secondary/help text for the option (objectui#6153, inheriting the
    * objectui#6140 ruling frame — a key that is genuinely consumed gets
@@ -320,24 +336,19 @@ export interface SelectOptionMetadata {
    * (`opt.description && opt.description.toLowerCase().includes(q)`) and its
    * `recordToOption` emits the same key for fetched records — while this type
    * never declared it, so the behaviour was real for a key no annotated
-   * literal could carry. Aligns `@objectstack/spec`
-   * `SelectOptionSchema.description`; renderers may show it as supporting
-   * text.
+   * literal could carry. Renderers may show it as supporting text.
+   *
+   * WARNING - objectui-side extension, NOT a spec key. Measured on the
+   * installed `@objectstack/spec` 17.2.0: `SelectOptionSchema` is `.strict()`
+   * over exactly `{label, value, color, default, visibleWhen}` and REFUSES
+   * `description` BY NAME (`unrecognized_keys`), with the same option minus
+   * the key accepted as the control. `FieldSchema` routes `options` through
+   * that schema, so writing this key into authored object metadata fails the
+   * whole field. It lives on the runtime READ model the renderers consume and
+   * must never reach the metadata payload. Pinned by
+   * `__tests__/select-option-spec-extension-7014.test.ts` (objectui#7014).
    */
   description?: string;
-  color?: string;
-  icon?: string;
-  disabled?: boolean;
-  /**
-   * Per-option visibility predicate (CEL). The option is offered only when TRUE,
-   * evaluated against the live record + `current_user` (same env as field-level
-   * `visibleWhen`). Omit = always available. Drives cascading/dependent options
-   * (`record.country == 'cn'`) and role/context gating
-   * (`'admin' in current_user.positions`). Aligns with @objectstack/spec
-   * SelectOption.visibleWhen. Client-side hiding is UX only — access-control
-   * gating must also be enforced server-side.
-   */
-  visibleWhen?: string | { dialect?: string; source: string };
 }
 
 /**

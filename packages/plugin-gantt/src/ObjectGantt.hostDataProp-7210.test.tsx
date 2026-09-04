@@ -24,15 +24,24 @@
  * Two facts are pinned, because the footer correction rests on both:
  *
  *   1. the rows drawn are the ADAPTER's, not the host `data` prop's;
- *   2. the query carries no `$top` — so its row count is not the host's page
- *      size and cannot be made to be by authoring `pagination.pageSize`.
+ *   2. the query's `$top` is the PLATFORM CEILING — so its row count is not the
+ *      host's page size and cannot be made to be by authoring
+ *      `pagination.pageSize`.
  *
  * ⛔ Do not "fix" (1) by spreading `{...props}` in the renderer. That caps the
  * chart at the host's page — a complete schedule silently becomes a truncated
- * one that still looks like a schedule. Whether a non-grid view may fetch
- * unbounded at all is an open maintainer decision (objectui#7210, half 2) and
- * is not settled here; this file only records what the code does today, which
- * is what the footer has to stop contradicting either way.
+ * one that still looks like a schedule.
+ *
+ * ⚠️ Case (2) changed shape when objectui#7210's half 2 was RULED (a′,
+ * 2026-09-02) and kept its point. When this file was written the answer was
+ * open and the query carried no `$top` at all; the ruling settled it — a
+ * non-grid view may fetch the whole filtered set up to a PLATFORM CEILING
+ * expressed as a named constant in the renderer, and past it must say so
+ * loudly. So the assertion moves from "no cap" to "the cap is the platform's",
+ * which is what still separates it from the forbidden direction: `pageSize: 2`
+ * is on this schema and the query is not 2 rows wide. The pin that the host's
+ * page cannot bound the chart is unchanged; only the reason the number is not
+ * the host's has been written down.
  *
  * REVERSE VERIFICATION — direction and counts predicted before running: add
  * `{...props}` to the `ObjectGanttRenderer` children callback and BOTH
@@ -43,7 +52,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SchemaRendererProvider, SchemaRenderer } from '@object-ui/react';
+import { SchemaRendererProvider, SchemaRenderer, NON_GRID_ROW_CEILING_TOP } from '@object-ui/react';
 import './index';
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
@@ -133,7 +142,7 @@ describe('objectui#7210 — object-gantt ignores a host `data` prop', () => {
     expect(calls.length).toBeGreaterThan(0);
   });
 
-  it('issues its query with no `$top` — the host page size cannot bound it', async () => {
+  it('issues its query at the PLATFORM ceiling — the host page size cannot bound it', async () => {
     const dataSource = makeDataSource();
 
     render(
@@ -145,7 +154,10 @@ describe('objectui#7210 — object-gantt ignores a host `data` prop', () => {
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
 
     for (const params of calls) {
-      expect(params.$top).toBeUndefined();
+      // Not `pagination.pageSize` (2), and not absent either: the platform
+      // ceiling, one probe row wide so the cut is detectable.
+      expect(params.$top).not.toBe(2);
+      expect(params.$top).toBe(NON_GRID_ROW_CEILING_TOP);
       expect(params.$skip).toBeUndefined();
     }
   });

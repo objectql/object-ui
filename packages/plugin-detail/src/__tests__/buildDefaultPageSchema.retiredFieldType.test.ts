@@ -55,10 +55,23 @@ afterEach(() => {
   resetRetiredFieldTypeReports();
 });
 
+/**
+ * Both fixtures carry an explicit `name` text field so the object's TITLE
+ * resolves to `name` and nothing else. `deriveHighlightFields` skips whatever
+ * titles the record (it is already the page H1), and since objectui#7287 that
+ * answer comes from the shared ADR-0079 ladder, which DERIVES a title when the
+ * object declares none — on a def of only `{owner, amount, priority}` it lands
+ * on `owner`, and on `{reviewer, note}` on `reviewer`. That would remove these
+ * tests' own subject from the strip for a reason that has nothing to do with
+ * the retirement gate they exist to pin. Naming the title field keeps the
+ * fixture about the gate.
+ */
+
 /** An object def whose `owner` field carries `type`. */
 const defWithOwnerTyped = (type: string) => ({
   name: 'tasks',
   fields: {
+    name: { type: 'text', label: 'Name' },
     owner: { type, label: 'Owner' },
     amount: { type: 'currency', label: 'Amount' },
     priority: { type: 'select', label: 'Priority' },
@@ -69,8 +82,24 @@ const defWithOwnerTyped = (type: string) => ({
 const defWithArbitraryName = (type: string) => ({
   name: 'tasks',
   fields: {
+    name: { type: 'text', label: 'Name' },
     reviewer: { type, label: 'Reviewer' },
     note: { type: 'text', label: 'Note' },
+  },
+});
+
+/**
+ * The one shape the fixtures above deliberately exclude: an object whose ONLY
+ * retired-typed field is the one the shared ladder DERIVES as the title. It is
+ * skipped from the strip as the page H1 — and must still be reported, or
+ * objectui#7287's skip would have quietly closed the gate for exactly the
+ * objects that most need it (objectui#4914 ruling B).
+ */
+const defWhoseTitleIsRetired = (type: string) => ({
+  name: 'tasks',
+  fields: {
+    headline: { type, label: 'Headline' },
+    closed_on: { type: 'date', label: 'Closed on' },
   },
 });
 
@@ -109,6 +138,15 @@ describe('the refusal is loud, and said once', () => {
     deriveHighlightFields(defWithOwnerTyped(RETIRED), null);
     deriveHighlightFields(defWithArbitraryName(RETIRED), null);
     deriveHighlightFields(defWithOwnerTyped(RETIRED), null);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(RETIRED_FIELD_TYPES[RETIRED]);
+  });
+
+  it('still reports when the retired field is the one the ladder titles with', () => {
+    // `headline` is the only title-eligible field here, so it IS the H1 and is
+    // skipped from the strip before either selection loop can see it.
+    const out = deriveHighlightFields(defWhoseTitleIsRetired(RETIRED), null);
+    expect(out).not.toContain('headline');
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledWith(RETIRED_FIELD_TYPES[RETIRED]);
   });

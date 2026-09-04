@@ -24,7 +24,6 @@ import {
   Eye,
   EyeOff,
   FolderOpen,
-  Globe,
   GripVertical,
   LayoutDashboard,
   Link,

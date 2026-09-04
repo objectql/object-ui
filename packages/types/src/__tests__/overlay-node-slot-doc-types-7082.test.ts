@@ -44,12 +44,18 @@
  *
  * ## What the pages taught before, measured on `2c3cd1b`
  *
- * Nine rows across six pages spelled a node slot `ComponentSchema`. That is a
- * real shipped export (`blocks.ts`) and it is NOT a node slot -- it is the
+ * Nine rows across six pages spelled a node slot `ComponentSchema`. That was a
+ * real shipped export (`blocks.ts`) and it was NOT a node slot -- it was the
  * concrete `type: 'component'` block. A reader who looked the name up found a
  * narrow, unrelated type. Seven of the nine are corrected; the other two are
  * NOT type-name defects at all and are recorded as divergences below, because
  * no honest docs-only edit resolves them.
+ *
+ * ⚠️ Since objectui#4895 that export is GONE -- the whole block schema family
+ * was retired under ADR-0049 (maintainer ruling 2026-09-02, option C1). The
+ * correction stands unchanged; only its two type-level premise assertions left,
+ * because the type they compared against no longer exists. See the note where
+ * they stood.
  *
  * ## Two rows this file records instead of asserting green
  *
@@ -79,7 +85,6 @@ import type {
   HoverCardSchema,
   SheetSchema,
 } from '../overlay';
-import type { ComponentSchema } from '../blocks';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
@@ -110,11 +115,20 @@ export type _DropdownAdmitsArray = Expect<Equals<AdmitsArray<DropdownMenuSchema[
 export type _AlertDialogAdmitsArray = Expect<Equals<AdmitsArray<AlertDialogSchema['trigger']>, false>>;
 export type _SheetAdmitsArray = Expect<Equals<AdmitsArray<SheetSchema['trigger']>, false>>;
 
-// `ComponentSchema` is a real export and NOT a node slot -- the premise the
-// whole correction rests on. A `type: 'component'` block is one SchemaNode
-// among many, never the slot type.
-export type _ComponentSchemaIsANode = Expect<Equals<ComponentSchema extends SchemaNode ? true : false, true>>;
-export type _NodeSlotIsNotAComponent = Expect<Equals<SchemaNode extends ComponentSchema ? true : false, false>>;
+// The premise the whole correction rests on used to be pinned here as two
+// type-level assertions: `ComponentSchema` is a real export, and it is NOT a
+// node slot -- a `type: 'component'` block is one SchemaNode among many, never
+// the slot type. Both are gone because their SUBJECT is: `ComponentSchema` was
+// retired with the whole block schema family in objectui#4895 (ADR-0049
+// enforce-or-remove, maintainer ruling 2026-09-02, option C1), so the
+// comparison is no longer expressible -- the same shape as the theme
+// retirement's note in `phase2-schemas.test.ts`.
+//
+// The correction this file pins is UNAFFECTED, and in fact strengthened: the
+// nine rows that spelled a node slot `ComponentSchema` were wrong because the
+// name meant something narrow and unrelated, and now the name means nothing at
+// all. `block-family-retired-4895.test.ts` pins it out of the published
+// surface; the seven corrected rows below still assert against `SchemaNode`.
 
 /* -- Reading a member row, on both sides -- */
 
@@ -222,11 +236,18 @@ describe('six overlay/feedback pages name node slots at the declared type (objec
     expect(docRow(owner, key)?.typeText).not.toContain('ComponentSchema');
   });
 
-  it('`ComponentSchema` is a distinct shipped export, which is why the old rows were wrong', () => {
+  it('`ComponentSchema` is no longer a shipped export at all, which is why the old rows were wrong', () => {
+    // The original assertion here read `blocks.ts` and proved `ComponentSchema`
+    // was a DISTINCT export -- the concrete `type: 'component'` block, not a
+    // slot type -- which is what made the nine old rows wrong. objectui#4895
+    // retired the whole block schema family, so the same premise is now proved
+    // the other way: the name is gone, and `blocks.ts` is a tombstone.
     const blocks = read('packages/types/src/blocks.ts');
-    expect(blocks).toContain('export interface ComponentSchema extends BaseSchema {');
-    // It is the concrete `type: 'component'` block, not a slot type.
-    expect(members(interfaceBody(blocks, 'export interface ComponentSchema extends BaseSchema {', 'blocks.ts')).get('type')?.typeText).toBe("'component'");
+    expect(blocks).not.toContain('export interface ComponentSchema');
+    expect(blocks).toContain('RETIRED (objectui#4895');
+    // Control: the file is still there and still readable, so the absence above
+    // is a reading about its CONTENT and not about a failed read.
+    expect(blocks).toContain('@module blocks');
     // And `SchemaNode` is the slot type these keys actually carry.
     expect(read('packages/types/src/base.ts')).toContain(
       'export type SchemaNode = BaseSchema | string | number | boolean | null | undefined;',
@@ -280,9 +301,12 @@ describe('rows a docs-only edit cannot honestly resolve, recorded rather than re
     // Undeclared-but-consumed, the objectui#6150 class. It is also why the row
     // was not renamed to `SchemaNode`: the renderer requires an OBJECT, so
     // `SchemaNode` -- which admits `string | number | boolean` -- would have
-    // been a new false claim rather than a correction.
+    // been a new false claim rather than a correction. The cast named
+    // `ComponentSchema` until objectui#4895 retired it; it now names
+    // `BaseSchema`, which IS that object half, so the reasoning above is
+    // preserved rather than worked around.
     const renderer = read('packages/components/src/renderers/feedback/empty.tsx');
-    expect(renderer).toContain("(schema as any).action as ComponentSchema | undefined");
+    expect(renderer).toContain("(schema as any).action as BaseSchema | undefined");
     expect(renderer).toContain("typeof actionSchema === 'object'");
   });
 

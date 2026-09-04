@@ -76,7 +76,7 @@ import {
   type DatasetDrillRange,
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
-import { useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
 import { AlertTriangle, Download, ArrowUpIcon, ArrowDownIcon, MinusIcon, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 // objectui#7063 — the default empty state is stated ONCE for the dashboard
 // surface (see that component's header for why it is dashboard-local).
@@ -1387,7 +1387,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const nullCategoryLabel = tt('chart.nullCategory', '(None)');
   // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
   // series so multi-dimension dataset widgets match the chart-view renderer.
-  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields, { nullCategoryLabel });
+  //
+  // `builtinAggregateLabels` (objectui#7258) is the same division for a
+  // MEASURE's label: a result field the server minted as a built-in default
+  // (`builtinAggregate: 'count'`, objectstack#14492) takes its series label
+  // from the locale bundle here — `计数` on a zh console, not the server's
+  // English `Count` — while an author-declared measure carries no discriminator
+  // and keeps its wire `label` verbatim (objectui#4106).
+  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields, {
+    nullCategoryLabel,
+    builtinAggregateLabels: builtinAggregateLabels(tt),
+  });
 
   // The author's PRESENTATION, merged onto those derived bindings — per-series
   // mark and axis binding, plus the axis definitions (#4229). Membership stays
@@ -1401,8 +1411,23 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // those series are dimension VALUES, not measures, so there is no per-measure
   // series a comparison could pair with (the `__compare` columns are still in
   // the rows — nothing is lost, it just isn't drawn as an overlay).
+  //
+  // Skipped, too, for a chart family that IGNORES `compareTo` — today just
+  // `scatter`, which both the `scatter` and `bubble` widget types map to
+  // (CHART_TYPE_MAP above). A scatter binds ONE measure to its y axis, so the
+  // overlay was drawn through the PRIMARY's `YAxis dataKey` and painted
+  // "previous period" exactly on top of "current" (objectui#7402). It returns
+  // with the multi-measure projection declined as option A of objectui#7194.
+  // The sibling declaration for the inline chart path is `supportsCompareTo`
+  // in `@object-ui/plugin-charts`' ObjectChart; this is a second, deliberately
+  // narrow copy because plugin-charts is a devDependency here, not a runtime
+  // one. ⚠️ That list also excludes pie / donut / funnel and this one does
+  // not — a divergence older than this line, filed as objectui#7495 (the
+  // renderer drops the extra series for those families, so nothing is
+  // mis-drawn; the comparison query still runs).
+  const chartIgnoresCompareTo = chartType === 'scatter';
   const pivotedSeries = dimensions.length >= 2 && values.length === 1;
-  const comparisonSeries = pivotedSeries
+  const comparisonSeries = pivotedSeries || chartIgnoresCompareTo
     ? []
     : comparedValues.map((m) => {
         // An overlay is the SAME measure one period back, so it takes its

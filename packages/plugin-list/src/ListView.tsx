@@ -7,9 +7,9 @@
  */
 
 import * as React from 'react';
-import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState } from '@object-ui/components';
+import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, RefreshIndicator, DataEmptyState, DataErrorState, resolveIcon } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Inbox, Download, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, ShieldAlert, RotateCw, Loader2, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { VALUELESS_FILTER_BUILDER_OPERATORS, isFilterValueComplete } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
@@ -22,7 +22,7 @@ import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
-import { useObjectTranslation, useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale, pickLocalized } from '@object-ui/i18n';
+import { useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale, pickLocalized } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
 // `resolveI18nLabel`: it resolves the INLINE per-locale map
@@ -2491,9 +2491,33 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...baseProps,
           // Nested timeline config (spec-compliant, used by ObjectTimeline)
           timeline: Object.keys(resolvedTimeline).length > 0 ? resolvedTimeline : undefined,
-          // Deprecated top-level props for backward compat. `created_at` stays
-          // the last resort for a view that declares no date axis anywhere.
-          startDateField: dateBinding.startDateField || 'created_at',
+          // Deprecated top-level props for backward compat.
+          //
+          // objectui#7070 step ③ — house posture, entered on the maintainer's
+          // ruling of 2026-09-01 (总监批 #28): 日期轴永不虚构 — a date axis is
+          // never fabricated. The two lines of prose that used to sit here
+          // ("`created_at` stays the last resort for a view that declares no
+          // date axis anywhere") were not an oversight, they stated a decision —
+          // and that decision is what the ruling explicitly replaced. It was a
+          // second, de-facto contract held at ONE face, on the very literal
+          // objectui#3129 retired at the app-shell face, so the product held two
+          // documented and opposite postures on one field name.
+          //
+          // `ObjectTimeline` reads this FLAT prop at the tail of its resolver
+          // chain, so a floor here answered "the axis is bound" for every view
+          // and made its refusal screen (objectui#7459, step ① of the same
+          // ruling) unreachable from this route. Worse, the axis it invented was
+          // never FETCHED: the `$select` projection is collected from the
+          // DECLARED `timeline` / `options.timeline` blocks above, never from
+          // this prop — so an undeclared view rendered a timeline bound to a
+          // column the query had not requested and bucketed every record into
+          // "No date". Absent is now absent, and the renderer says which keys to
+          // declare instead.
+          //
+          // ⛔ `titleField` is NOT a date axis and keeps its floor — the same
+          // display-name rung the gallery and gantt branches carry here, and
+          // `timelineViewOptions` carries at app-shell.
+          ...(dateBinding.startDateField ? { startDateField: dateBinding.startDateField } : {}),
           titleField: dateBinding.titleField || 'name',
           ...(dateBinding.endDateField ? { endDateField: dateBinding.endDateField } : {}),
           ...(schema.timeline?.groupByField ? { groupByField: schema.timeline.groupByField } : {}),
@@ -2697,7 +2721,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             label: tFieldLabel(key, field.label || key),
             type: field.type || 'text',
             options: buildOptions(key, field.options),
-            referenceTo: field.reference_to || field.reference,
+            // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+            // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+            // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+            // contract declares, and renaming it would be a separate change.
+            // Target contract here: this file's own local filter-field descriptor,
+            // which spells it camelCase `referenceTo`.
+            // ⚠️ The SIBLING branch above (the `schema.columns` fallback) is NOT
+            // narrowed: it reads a list-view COLUMN, and the spec's `ListColumnSchema`
+            // declares neither `reference` nor `reference_to` — measured, both refused
+            // with no rename hint. That is a different question and is filed, not
+            // answered here.
+            referenceTo: field.reference,
             displayField: field.display_field || field.reference_field,
             idField: field.id_field,
         }));
@@ -3793,14 +3828,20 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             gets a consistent indicator instead of momentarily showing an
             empty state on slow networks. */}
         {loadError && data.length === 0 ? (
-          <DataEmptyState
-            // This panel is NOT an empty state — it is the load FAILURE, and it
-            // borrows `DataEmptyState` only for its layout. Since objectui#7132
-            // that component defaults to `role="status"`, which would announce a
-            // 403 or an outage as a routine status update, so this call site
-            // declares what it actually is. (Measured: before #7132 neither this
-            // panel nor the empty state below carried any role, so "you don't
-            // have access" and "nothing here yet" were the same node shape.)
+          <DataErrorState
+            // This panel IS the load failure, and since objectui#7143 it is
+            // rendered by the component named for that — `DataErrorState` —
+            // rather than borrowing `DataEmptyState` for its layout. The two
+            // primitives share a layout and differ by declared role, so the
+            // migration moved no pixels: the only rendered changes are two
+            // `data-slot` renames — this node's, from `data-empty-state` to
+            // `data-error-state`, and the icon wrapper's to match.
+            //
+            // `role="alert"` stays spelled out here, as objectui#7132 left it.
+            // It is now the primitive's own default rather than an override, and
+            // it is kept at the call site on purpose: this panel must announce a
+            // 403 or an outage as an alert whatever the component it is drawn
+            // with, and that property is pinned against THIS call site.
             role="alert"
             data-testid="list-error-state"
             data-error-kind={loadErrorKind}
@@ -3816,14 +3857,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                     : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedTitle'
                       : 'list.loadErrorTitle',
             )}
-            description={t(
+            message={t(
               loadErrorKind === 'api-disabled' ? 'list.loadErrorApiDisabledMessage'
                 : loadErrorKind === 'forbidden' ? 'list.loadErrorForbiddenMessage'
                   : loadErrorKind === 'unauthorized' ? 'list.loadErrorUnauthorizedMessage'
                     : loadErrorKind === 'rejected' ? 'list.loadErrorRejectedMessage'
                       : 'list.loadErrorMessage',
             )}
-            action={loadErrorKind === 'api-disabled' ? undefined : (
+          >
+            {/* The retry control rides `children`, not `onRetry`: the built-in
+                button carries neither this `data-testid` nor the RotateCw glyph,
+                and `children` renders at the identical position `action` did on
+                the empty state. `DataErrorState` grew three icon props for this
+                migration and no fourth — an `action` prop would be a second
+                spelling of an affordance it already has. */}
+            {loadErrorKind === 'api-disabled' ? null : (
               // No Retry for an `enable`-block denial. The verdict is a pure
               // function of the object's metadata, so every retry re-fetches
               // the identical refusal — offering the button is the same wrong
@@ -3838,7 +3886,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                 {t('list.retry')}
               </Button>
             )}
-          />
+          </DataErrorState>
         ) : loading && data.length === 0 ? (
           <div
             className="flex flex-col h-full min-h-[200px] p-4 gap-2"
@@ -3859,11 +3907,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         ) : !loading && data.length === 0 && currentView === 'grid' ? (
           (() => {
             const iconName = schema.emptyState?.icon;
-            const ResolvedIcon: LucideIcon = iconName
-              ? ((icons as Record<string, LucideIcon>)[
-                  iconName.split('-').map((w: any) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-                ] ?? Inbox)
-              : Inbox;
+            // objectui#5935: normalisation through the ONE seam. This site had
+            // its own inline `split('-')` and no rename map, so `home` and every
+            // snake_case spelling fell through to `Inbox` here while resolving
+            // elsewhere. ⛔ The `Inbox` fallback itself stays at this call site
+            // — an empty state always shows a glyph, and that is this surface's
+            // decision, not the seam's (maintainer ruling 2026-09-03, option C).
+            const ResolvedIcon: LucideIcon = resolveIcon(iconName) ?? Inbox;
             // Distinguish "filtered/searched to empty" from "truly empty
             // (first run)". A new user with no filters shouldn't be told to
             // "adjust your filters" — they should be invited to create.

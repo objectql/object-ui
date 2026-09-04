@@ -21,11 +21,50 @@ import { usePermissions } from '@object-ui/permissions';
 import { Button, cn, hasDeclaredVisibilityGate } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import type { ActionDef, ActionLocation } from '@object-ui/core';
+import { resolveDeclaredActionIds } from '@object-ui/types';
+import type { DeclaredActionsRefusal } from '@object-ui/types';
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
   return { designer: { 'data-obj-id': id, 'data-obj-type': type, style }, rest };
 };
+
+/** A stable empty array, so an absent `actions` / `actionNames` does not mint one per render. */
+const EMPTY_DECLARED_ACTIONS: readonly unknown[] = Object.freeze([]);
+
+/**
+ * Warn-once ledger for a refused action array (objectui#7182), keyed by
+ * object, key and verdict so one page cannot spam the console across
+ * re-renders — the `page:header` reporter keeps the same ledger shape.
+ */
+const _refusedDeclaredActions = new Set<string>();
+
+/**
+ * Report an `actions` / `actionNames` array `resolveDeclaredActionIds` refused
+ * — a mixed id/object array, or an element that is neither (objectui#7182,
+ * maintainer ruling 2026-09-02, option C).
+ *
+ * `console.error`, not `warn`: a refused array is metadata the contract does
+ * not accept, and this bar draws NONE of its authored actions rather than the
+ * half it could. The message names the offending index so the fix is a
+ * one-element edit, and the surface, so the same array refused by
+ * `page:header` reads as the same rule.
+ */
+function reportRefusedQuickActions(
+  objectName: string,
+  key: 'actionNames' | 'actions',
+  refusal: DeclaredActionsRefusal,
+): void {
+  const ledgerKey = `${objectName}::${key}::${refusal.index}::${refusal.message}`;
+  if (_refusedDeclaredActions.has(ledgerKey)) return;
+  _refusedDeclaredActions.add(ledgerKey);
+  console.error(
+    `[record:quick_actions] ${key} refused at index ${refusal.index} — ${refusal.message}. ` +
+    'None of the authored actions is rendered. `actionNames` is a list of ACTION IDS resolved ' +
+    "from the object's own `actions`; an inline action object is the host's runtime channel " +
+    'and must not share an array with ids.',
+  );
+}
 
 export interface RecordQuickActionsRendererProps {
   schema?: {
@@ -66,40 +105,50 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
 
   // Spec bridge inlines `properties.*` onto the node but also preserves the
   // raw bag. Read from both for compatibility.
-  const rawActions: unknown = Array.isArray(schema.actions)
+  const rawActions: readonly unknown[] = Array.isArray(schema.actions)
     ? schema.actions
     : Array.isArray(schema.properties?.actions)
       ? schema.properties!.actions
-      : [];
-  const actionNames: string[] = Array.isArray(schema.actionNames)
+      : EMPTY_DECLARED_ACTIONS;
+  const actionNames: readonly unknown[] = Array.isArray(schema.actionNames)
     ? schema.actionNames
     : Array.isArray(schema.properties?.actionNames)
-      ? (schema.properties!.actionNames as string[])
-      : [];
+      ? schema.properties!.actionNames
+      : EMPTY_DECLARED_ACTIONS;
 
   const objectName = ctx?.objectName || '';
 
-  // Lookup-by-name path: when the page schema passes `actionNames: ['...']`
-  // (or `actions: ['...']` as strings), resolve the ActionDef[] from the
-  // object's own metadata. Keeps page schemas DRY — actions stay defined
-  // once on the object.
-  const namesToResolve: string[] = actionNames.length > 0
-    ? actionNames
-    : (Array.isArray(rawActions) && rawActions.every((a) => typeof a === 'string')
-        ? (rawActions as string[])
-        : []);
-  const needsLookup = namesToResolve.length > 0 && !!objectName;
+  // ONE array, ONE rule (objectui#7182, maintainer ruling 2026-09-02, option C).
+  // `actionNames` is the spec-declared spelling (`RecordQuickActionsProps`:
+  // action ids, resolved from the object's own `actions`); `actions` is the
+  // host's runtime channel (`layout:page-header` delegation, the page
+  // synthesizer). Whichever is authored, its SHAPE and its resolution are
+  // `resolveDeclaredActionIds`'s call — the same function `page:header` calls —
+  // so an array is all ids or all inline objects, and a mixed
+  // `['convert', { … }]` is REFUSED with the offending index named, not
+  // half-drawn. This bar used to switch on the WHOLE array
+  // (`every(a => typeof a === 'string')`): a mixed array took the object path
+  // and the bare string reached the engine as an "ActionDef" that rendered
+  // nothing, while `page:header` normalised per element and drew both — one
+  // authored array, two meanings.
+  const declaredKey: 'actionNames' | 'actions' = actionNames.length > 0 ? 'actionNames' : 'actions';
+  const declaredElements = actionNames.length > 0 ? actionNames : rawActions;
+  // Registry-independent verdict first — the same function, called with no
+  // registry: `kind` and `ids` are final from the shape alone, which is all
+  // the hook-order question needs (`useMetadataItem` runs every render, so the
+  // read is requested or skipped before the registry exists; `null` is its
+  // documented no-op).
+  const declaredShape = resolveDeclaredActionIds<ActionDef>(declaredElements, undefined);
+  // Lookup-by-name path: resolve the ActionDef[] from the object's own
+  // metadata. Keeps page schemas DRY — actions stay defined once on the object.
+  const needsLookup = declaredShape.kind === 'ids' && declaredShape.ids.length > 0 && !!objectName;
   const { item: objectMeta } = useMetadataItem('object', needsLookup ? objectName : null);
-
-  const authoredActions: ActionDef[] = needsLookup
-    ? (() => {
-        const all: ActionDef[] = Array.isArray(objectMeta?.actions) ? objectMeta!.actions : [];
-        const byName = new Map(all.map((a) => [a.name, a]));
-        return namesToResolve
-          .map((n) => byName.get(n))
-          .filter((a): a is ActionDef => !!a);
-      })()
-    : (Array.isArray(rawActions) ? (rawActions as ActionDef[]) : []);
+  const declared = resolveDeclaredActionIds<ActionDef>(
+    declaredElements,
+    Array.isArray(objectMeta?.actions) ? (objectMeta!.actions as ActionDef[]) : [],
+  );
+  if (declared.kind === 'refused') reportRefusedQuickActions(objectName, declaredKey, declared);
+  const authoredActions: ActionDef[] = declared.kind === 'refused' ? [] : declared.actions;
 
   /**
    * Localize once, before the defs reach `useActionEngine` (objectui#4265).
@@ -154,7 +203,9 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
     return (
       <div className={className} {...designer}>
         <div className="text-xs text-muted-foreground italic px-3 py-2 border border-dashed rounded">
-          record:quick_actions — no actions configured
+          {declared.kind === 'refused'
+            ? `record:quick_actions — ${declaredKey} refused at index ${declared.index} (see console)`
+            : 'record:quick_actions — no actions configured'}
         </div>
       </div>
     );

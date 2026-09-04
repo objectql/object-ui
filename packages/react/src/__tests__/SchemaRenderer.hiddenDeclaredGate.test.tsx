@@ -89,6 +89,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
+import type { BaseSchema } from '@object-ui/types';
 import { SchemaRenderer } from '../SchemaRenderer';
 import { SchemaRendererContext } from '../context/SchemaRendererContext';
 
@@ -109,6 +110,34 @@ function renderNode(schema: Record<string, unknown>) {
   return render(
     <SchemaRendererContext.Provider value={{ dataSource: DATA }}>
       <SchemaRenderer schema={{ type: 'probe-3955', ...schema } as never} />
+    </SchemaRendererContext.Provider>,
+  );
+}
+
+/**
+ * The DECLARED path -- no cast at all.
+ *
+ * `renderNode` above spreads a `Record<string, unknown>` through `as never`
+ * because most of this file exercises shapes `BaseSchema` does not declare and
+ * should not: `null`, `0`, `[]`, `{}`, and the CEL envelope object. Those keep
+ * the cast.
+ *
+ * The STRING form is different since objectui#7455 (ruled 2026-09-03):
+ * `hidden` is declared `boolean | string`, so an expression-valued `hidden` is
+ * authorable and the compiler is the right checker for it. Narrowing `hidden`
+ * back to `boolean` makes the call sites below TS2322 -- and `tsc -p
+ * tsconfig.test.json` (chained from this package's `type-check` script) is the
+ * only thing that can see that; vitest cannot, because the annotation is erased
+ * before a single case runs.
+ *
+ * The envelope pin below deliberately stays on `renderNode`: the envelope form
+ * is declared on NONE of `visible` / `hidden` / `disabled`, and objectui#7530
+ * rules on all three together.
+ */
+function renderDeclaredNode(schema: BaseSchema) {
+  return render(
+    <SchemaRendererContext.Provider value={{ dataSource: DATA }}>
+      <SchemaRenderer schema={schema} />
     </SchemaRendererContext.Provider>,
   );
 }
@@ -177,11 +206,11 @@ describe('SchemaRenderer `hidden` — an empty predicate is not a declared gate 
     expect(rendered()).toBe(true);
   });
 
-  it('an expression-valued `hidden` keeps its verdict, both ways', () => {
-    const { unmount } = renderNode({ hidden: '${data.status === "draft"}' });
+  it('an expression-valued `hidden` keeps its verdict, both ways -- through the DECLARED path, no cast (objectui#7455)', () => {
+    const { unmount } = renderDeclaredNode({ type: 'probe-3955', hidden: '${data.status === "draft"}' });
     expect(rendered()).toBe(false);
     unmount();
-    renderNode({ hidden: '${data.published}' });
+    renderDeclaredNode({ type: 'probe-3955', hidden: '${data.published}' });
     expect(rendered()).toBe(true);
   });
 

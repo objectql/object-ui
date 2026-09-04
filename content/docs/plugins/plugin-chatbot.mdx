@@ -135,6 +135,15 @@ const schema: ChatbotSchema = {
 to the renderer, referenceable, validatable and documentable by nothing
 outside that one file (objectui#6169).
 
+This page documents **three** registrations - `chatbot`, `chatbot-enhanced` and
+`chatbot-floating` - and they do not all read the same keys. **A row whose
+description carries no bolded scope note is read by all three.** The rows only
+some of them read say so in bold at the start of the description, and name what
+to author instead on the registrations that ignore the key. Every key below is
+declared on `ChatbotSchema`, so a key a registration ignores still type-checks
+and still parses - it is dropped silently at render time, which is why the scope
+is spelled out here rather than left to the type to express.
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `messages` | array | `[]` | Initial chat messages |
@@ -145,7 +154,7 @@ outside that one file (objectui#6169).
 | `userAvatarFallback` | string | `'You'` | Fallback text for user avatar |
 | `assistantAvatarUrl` | string | - | URL for assistant avatar image |
 | `assistantAvatarFallback` | string | `'AI'` | Fallback text for assistant avatar |
-| `maxHeight` | string | `'500px'` | Maximum chat container height |
+| `maxHeight` | string | `'500px'` | **`chatbot` and `chatbot-enhanced` only.** Maximum height of the chat message container, as a CSS length. `chatbot-floating` does not read it: its panel is sized by `floatingConfig.panelHeight` (a **number** of pixels, default `520`), and the panel pins its inner chat to `maxHeight: '100%'` so it fills that panel - a `maxHeight` authored on a floating node would be overridden even if it were forwarded. Size a floating chatbot with `floatingConfig.panelHeight` instead |
 | `autoResponse` | boolean | `false` | Enable auto-response (demo mode, ignored when `api` is set) |
 | `autoResponseText` | string | - | Text for auto-response |
 | `autoResponseDelay` | number | `1000` | Delay before auto-response (ms) |
@@ -160,7 +169,7 @@ outside that one file (objectui#6169).
 | `requestBody` | object | - | Additional body parameters sent with each API request. Authored on the node as `requestBody`; the renderer forwards it to the chat runtime under its own `body` option. Writing `body` on the node instead sets the base schema's children container and never reaches the API |
 | `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
 | `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only.** Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). The `chatbot` and `chatbot-floating` registrations render different components, which have no such chrome to switch, and do not read this key |
-| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | Controls how much agent reasoning and tool detail is shown |
+| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only.** Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` does not forward the key either, so its panel always renders at the `'summary'` default; there is no floating-side substitute to author |
 | `onError` | function | - | Error callback for streaming/API errors |
 
 ## Operating Modes

@@ -24,17 +24,26 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
-import { CalendarView } from './CalendarView';
+import { CalendarView, type CalendarViewEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import {
   useNavigationOverlay,
   useSafeTranslate,
+  useObjectTranslation,
   extractWriteErrorMessage,
   isPermissionError,
   declaredUserMessage,
+  useSettledSchema,
+  NON_GRID_ROW_CEILING,
+  NON_GRID_ROW_CEILING_TOP,
+  applyNonGridRowCeiling,
+  NonGridRowCeilingNote,
 } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
+import { usePermissions } from '@object-ui/permissions';
+import { ChevronRight } from 'lucide-react';
 import {
+  cn,
   useIsMobile,
   Dialog,
   DialogContent,
@@ -48,7 +57,6 @@ import {
   toast,
 } from '@object-ui/components';
 import {
-  extractRecords,
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
@@ -156,6 +164,17 @@ function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarC
   return null;
 }
 
+/**
+ * A record the calendar cannot place: the field declared as `startDateField`
+ * carries no value on it, so there is no date to draw and none is invented
+ * (objectui#7071). Deliberately just an id and a display title — the ruled
+ * affordance is a count and a list, so nothing here feeds a scheduling gesture.
+ */
+interface UnscheduledRecord {
+  id: string | number;
+  title: string;
+}
+
 export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   schema,
   dataSource,
@@ -171,6 +190,12 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   locale,
 }) => {
   const tt = useSafeTranslate();
+  // `useSafeTranslate` takes a plain English fallback and passes NO options to
+  // i18next, so it cannot fill a `{{count}}` hole — the unscheduled label needs
+  // one, and reads its key through `useObjectTranslation` instead. Both spell
+  // the provider-less fallback the same way (objectui#6219), so the label is
+  // correct whether or not an `I18nProvider` is mounted.
+  const { t } = useObjectTranslation();
   // When the parent (e.g. ObjectView) pre-fetches data and passes it via the `data` prop,
   // we must not trigger a second fetch. Detect external data by checking for an array.
   const hasExternalData = Array.isArray(externalData);
@@ -178,13 +203,22 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const [data, setData] = useState<any[]>(hasExternalData ? externalData! : []);
   const [loading, setLoading] = useState(hasExternalData ? (externalLoading ?? false) : true);
   const [error, setError] = useState<Error | null>(null);
-  // The object-schema read and the fact that it has SETTLED are ONE piece of
-  // state, keyed by the object it belongs to (objectui#6453). The derived
-  // `objectSchema` / `objectSchemaReady` pair lives further down, next to
-  // `dataConfig`, because the key is the object the RECORD QUERY will use.
-  const [schemaResolution, setSchemaResolution] =
-    useState<{ key: string; def: any } | null>(null);
+  /**
+   * Did the platform row ceiling bite, and how large was the whole filtered
+   * result set (objectui#7210)? Carried from the response that knew it —
+   * `data.length === NON_GRID_ROW_CEILING` cannot tell a capped result set
+   * apart from one that is exactly that size.
+   */
+  const [rowCeiling, setRowCeiling] = useState<{ truncated: boolean; total?: number }>({
+    truncated: false,
+  });
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Disclosure state of the "unscheduled" area (objectui#7071). Collapsed by
+  // default, as ruled: the count is always on screen, the list is opt-in.
+  // Component state is the right home per AGENTS.md §5 #8 — nobody would share
+  // or bookmark it — and it survives a data refresh because a refetch re-renders
+  // this component rather than remounting it.
+  const [unscheduledOpen, setUnscheduledOpen] = useState(false);
   const isMobile = useIsMobile();
   const schemaDefaultView = (schema as any).defaultView as 'month' | 'week' | 'day' | undefined;
   // Lazy initializer: read window.innerWidth synchronously so SSR-friendly
@@ -282,13 +316,40 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
    * forever. "Settled with nothing" and "not yet settled" are different states
    * and only the second may hold the query.
    */
-  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
-  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
+  //
+  // Since objectui#7225 (maintainer ruling B, 2026-09-02) this is the SHARED
+  // `useSettledSchema`. `ObjectCalendar` was #6482's named obstacle to that
+  // convergence, and the obstacle turned out to be about the GATE half, which
+  // the hook deliberately leaves local (the record effect below still gates
+  // only its `object`-provider branch). The RESOLUTION half fits via the
+  // recipe the hook's own doc comment prescribes for this component by name:
+  // an inline `value` data set issues no metadata read, so it is expressed as
+  // "there is no source to read from" — `dataSource: undefined` — rather than
+  // as a second "should fetch" flag. The hook settles-with-`null` on that
+  // path, which is exactly what the hand copy's `hasInlineData` exit did.
+  const { ready: objectSchemaReady, def: objectSchema } = useSettledSchema<any>(
+    schemaKey,
+    hasInlineData ? undefined : dataSource,
+  );
+
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7230, same structural note PR #7229 recorded
+  // for `ListView`'s memo).
+  const perms = usePermissions();
 
   // Sync external data/loading changes from parent (e.g. ObjectView re-fetches after filter change)
   useEffect(() => {
     if (hasExternalData) {
       setData(externalData!);
+      // ...and drop any ceiling this component's OWN fetch had reported
+      // (objectui#7210). A parent that hands over `data` owns the query, so it
+      // owns whether that query was capped; a `truncated` left over from a
+      // fetch whose rows are no longer on screen is a footnote about a result
+      // set that is not being drawn. Every other `setData` path here already
+      // resets it — this was the one that did not.
+      setRowCeiling({ truncated: false });
     }
   }, [externalData, hasExternalData]);
 
@@ -329,6 +390,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
         if (hasInlineData && dataProvider === 'value') {
           if (isMounted) {
             setData(dataItems as any[]);
+            setRowCeiling({ truncated: false });
             setLoading(false);
           }
           return;
@@ -348,17 +410,64 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           // calendar whose object declares relations queries WITH its
           // expansion the first time. `objectSchema` is `null` here only
           // when there was nothing to resolve it from.
-          const expand = buildExpandFields(objectSchema?.fields);
+          //
+          // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+          // objectui#7215 / PR #7229 put on the two projection sites in its
+          // scope, brought to this one. `$select` on a denied lookup asks the
+          // server for a bare foreign key; `$expand` asks it to RESOLVE the
+          // relation and return the related record, which is the larger of the
+          // two requests.
+          //
+          // ⚠️ THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+          // `buildExpandFields` reads an absent column list as "no column
+          // restriction" and falls back to EVERY declared relation on the
+          // object, denied ones included. A standalone calendar therefore asks
+          // for the maximum possible set by default, not by configuration.
+          //
+          // Graded as objectui#7215 graded it, by measurement rather than
+          // assumption: against ObjectStack this is defence-in-depth, because
+          // `plugin-security`'s `FieldMasker.maskRecord` does
+          // `delete result[field]` on every unreadable key and objectql's
+          // expand path writes the resolved record back under THAT SAME KEY, so
+          // one statement removes the expanded object and the bare id alike;
+          // the expansion sub-read itself takes the referenced object's full
+          // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+          // for a backend that does not strip.
+          //
+          // ⭐ THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+          // alternative is not merely unsound but unreachable — the call passes
+          // `undefined`, so there is no input to gate. Gating the output also
+          // gives the required ordering structurally: `buildExpandFields`
+          // returns a subset of the object's DECLARED reference-bearing fields,
+          // so every name judged here is declared by construction and the
+          // "`checkField` answers false for an undeclared key" trap cannot be
+          // reached. Pinned in `__tests__/ObjectCalendar.expandFls-7230.test.tsx`.
+          //
+          // Deferral matches every other gate on this path: an unanswered
+          // policy filters nothing, and `perms` is in this effect's dependency
+          // list, so the expansion is rebuilt the moment the answer arrives.
+          const expandable = buildExpandFields(objectSchema?.fields);
+          const expand = !perms?.isLoaded
+            ? expandable
+            : expandable.filter((f) => perms.checkField(objectName, f, 'read'));
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
+            // The platform ceiling (objectui#7210, ruling a′). A calendar
+            // still fetches the whole FILTERED set — it cannot lay out a month
+            // from a page whose rows all fall in one week — but the fetch now
+            // stops at a number. The one probe row past the ceiling is what
+            // makes the cut detectable; `applyNonGridRowCeiling` slices it off.
+            // ⛔ Not authorable: no view key reaches this `$top`.
+            $top: NON_GRID_ROW_CEILING_TOP,
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
 
-          const items: any[] = extractRecords(result);
+          const capped = applyNonGridRowCeiling(result);
 
           if (isMounted) {
-            setData(items);
+            setData(capped.rows);
+            setRowCeiling({ truncated: capped.truncated, total: capped.total });
           }
         } else if (dataProvider === 'api') {
           console.warn('API provider not yet implemented for ObjectCalendar');
@@ -378,44 +487,15 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     fetchData();
     return () => { isMounted = false; };
   }, [hasExternalData, dataProvider, schemaObjectName, dataItems, dataSource, hasInlineData,
-      schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema]);
+      schema.filter, schema.sort, refreshKey, objectSchemaReady, objectSchema, perms]);
 
-  // Fetch object schema for field metadata.
-  //
-  // Every exit settles the resolution — success, failure, and "there is nothing
-  // to read from" alike — because the record query above WAITS on this
-  // (objectui#6453). A path that returned without settling would not merely
-  // skip the expansion, it would hold that query open forever.
-  useEffect(() => {
-    let isMounted = true;
-    const key = schemaKey;
-    const fetchObjectSchema = async () => {
-      // No source for a schema — including an inline (`value`) data set, which
-      // issues no metadata read here and did not before. Settle with none, so
-      // anything gated on this still runs (unexpanded: with no schema there is
-      // no expand set to derive, which is the same query these cases produced
-      // before).
-      if (hasInlineData || !dataSource || !key || typeof dataSource.getObjectSchema !== 'function') {
-        if (isMounted) setSchemaResolution({ key, def: null });
-        return;
-      }
-      try {
-        const schemaData = await dataSource.getObjectSchema(key);
-        if (isMounted) setSchemaResolution({ key, def: schemaData });
-      } catch (err) {
-        console.error('Failed to fetch object schema:', err);
-        if (isMounted) setSchemaResolution({ key, def: null });
-      }
-    };
-
-    fetchObjectSchema();
-    return () => { isMounted = false; };
-  }, [schemaKey, dataSource, hasInlineData]);
-
-  // Transform data to calendar events
-  const events = useMemo(() => {
+  // Transform data to calendar events, and separate out the records that have
+  // no date to be placed on at all (objectui#7071 — see the early return in the
+  // loop below). ONE pass, so the two lists are always answers about the same
+  // dataset and the count under the calendar can never disagree with the grid.
+  const { events, unscheduledRecords } = useMemo(() => {
     if (!calendarConfig || !data.length) {
-      return [];
+      return { events: [] as CalendarViewEvent[], unscheduledRecords: [] as UnscheduledRecord[] };
     }
 
     const { startDateField, endDateField, titleField, colorField } = calendarConfig;
@@ -442,7 +522,10 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       return getRecordDisplayName(objectSchema, record);
     };
 
-    return data.map((record, index) => {
+    const scheduled: CalendarViewEvent[] = [];
+    const unscheduled: UnscheduledRecord[] = [];
+
+    data.forEach((record, index) => {
       const startDate = record[startDateField];
       const endDate = endDateField ? record[endDateField] : null;
       const title = resolveTitle(record);
@@ -454,17 +537,51 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       // is well beyond this fix.
       const colorRaw = colorField ? record[colorField] : undefined;
       const color = resolveColorFieldValue(colorRaw) ?? colorRaw;
+      const id = record.id || record._id || `event-${index}`;
 
-      return {
-        id: record.id || record._id || `event-${index}`,
+      // NO VALUE in the declared start field means the record has no date —
+      // full stop (objectui#7071, ruled 2026-09-01, re-confirmed 2026-09-02).
+      // This line used to read `startDate ? new Date(startDate) : new Date()`,
+      // so a record missing its date was handed THE CURRENT MOMENT and drawn on
+      // today's cell as an ordinary event. The `isNaN` guard below could not
+      // catch that by construction: a no-argument `new Date()` is always valid,
+      // so the absent-value case was converted into a well-formed lie *before*
+      // the check that would have caught it. `end`, three lines down, has
+      // always been honest about the same absence (`undefined`); this is
+      // `start` catching up. The record leaves the grid entirely and is counted
+      // in the "unscheduled" area below the calendar instead: nothing is
+      // invented, and nothing disappears without a count.
+      if (!startDate) {
+        unscheduled.push({ id, title });
+        return;
+      }
+
+      const start = new Date(startDate);
+      // The guard keeps its ORIGINAL job, on a DIFFERENT fact from the one
+      // above: a value that is PRESENT but unparseable ('not a date') is
+      // dropped here, never bucketed as unscheduled. Absent and malformed are
+      // two distinct defects and the two paths stay distinguishable.
+      if (isNaN(start.getTime())) return; // Filter out invalid dates
+
+      scheduled.push({
+        id,
         title,
-        start: startDate ? new Date(startDate) : new Date(),
+        start,
         end: endDate ? new Date(endDate) : undefined,
         color,
+        // Only a record that HAS a start reaches this line. That is the point
+        // of the early return above, not an accident of ordering: `!endDate`
+        // used to fire for a record with no dates AT ALL, so one absent field
+        // silently set two rendered properties and a dateless record rendered
+        // as an all-day event on today. A record without a start is
+        // unscheduled, not all-day. For a record WITH a start the inference is
+        // unchanged.
         allDay: !endDate, // If no end date, treat as all-day event
         data: record,
-      };
-    }).filter(event => !isNaN(event.start.getTime())); // Filter out invalid dates
+      });
+    });
+
+    return { events: scheduled, unscheduledRecords: unscheduled };
   }, [data, calendarConfig, objectSchema]);
 
   // Get days in current month view - REMOVED (Handled by CalendarView)
@@ -736,6 +853,57 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
           onTimeRangeSelect={handleTimeRangeSelectDefault}
         />
       </div>
+      {/* objectui#7210 — a month drawn from the first N rows of a larger set
+          still reads as a complete month; the note is the only thing that says
+          otherwise. Placement follows objectui#7148's chart footnote. */}
+      <NonGridRowCeilingNote
+        drawn={NON_GRID_ROW_CEILING}
+        total={rowCeiling.total}
+        truncated={rowCeiling.truncated}
+      />
+
+      {/* The "unscheduled" containment area (objectui#7071, ruled 2026-09-01 and
+          re-confirmed 2026-09-02). Records with no value in the declared start
+          field are no longer given a fabricated date, so they are not on the
+          grid above — they are counted here and listed on demand, which is what
+          makes their absence from the grid honest rather than silent.
+
+          Rendered only when there is something to report: a calendar whose
+          records all carry a date looks exactly as it did before.
+
+          ⛔ Deliberately inert, and that is the ruling, not an omission: no
+          drag-to-schedule, no date picker, no way to assign a date from here.
+          The ruled affordance is a visible count and an expandable list, and
+          nothing more. Do not grow this into a scheduling surface without a
+          fresh ruling. */}
+      {unscheduledRecords.length > 0 && (
+        <div className="mt-2 border-t pt-2" data-calendar-unscheduled="">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            aria-expanded={unscheduledOpen}
+            onClick={() => setUnscheduledOpen((open) => !open)}
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn('h-4 w-4 transition-transform', unscheduledOpen && 'rotate-90')}
+            />
+            {t('calendar.unscheduled', {
+              count: unscheduledRecords.length,
+              defaultValue: 'Unscheduled ({{count}})',
+            })}
+          </button>
+          {unscheduledOpen && (
+            <ul className="mt-1 space-y-1 pl-6" data-calendar-unscheduled-list="">
+              {unscheduledRecords.map((record) => (
+                <li key={record.id} className="truncate text-sm">
+                  {record.title}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Quick-create dialog: opens when the user clicks an empty day cell.
           Pre-fills start_date (and end_date) with the clicked day; only the

@@ -8,6 +8,99 @@
 
 import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import type { TextSchema } from '@object-ui/types';
+import { cn } from '../../lib/utils';
+
+type TextVariant = NonNullable<TextSchema['variant']>;
+type TextAlign = NonNullable<TextSchema['align']>;
+
+/**
+ * `TextSchema.variant` -> one visibly distinct typographic class per published
+ * value (objectui#6942, maintainer ruling B1 of 2026-09-02).
+ *
+ * ## What was measured before this map existed
+ *
+ * `variant` had NO read site. Rendered through the real `SchemaRenderer`,
+ * `variant: 'small'`, `variant: 'body'`, `variant: 'h1'` and the key absent
+ * produced byte-identical output — 2 elements, `Small text` — so every one of
+ * the nine values the enum blesses did nothing, and the five catalog entries
+ * written in the shadcn scale were refused by `safeValidateSchema` for a key
+ * that could not have changed a pixel either way. `align` sat in the same
+ * state. This is the declared-but-unenforced class ADR-0049 governs, and the
+ * ruling took ENFORCE (B1): the published enum in
+ * `packages/types/src/zod/layout.zod.ts` is the vocabulary and does not move;
+ * the renderer catches up to it.
+ *
+ * ## The map is modelled on `ElementTextRenderer`, deliberately
+ *
+ * `renderers/basic/elements.tsx` already carries `VARIANT_CLASS` / `ALIGN_CLASS`
+ * for `element:text`, and the ruling names it as the shape to follow rather
+ * than a second convention to invent. Three entries here are its entries
+ * verbatim — `h3` is its `heading` (`text-2xl font-semibold tracking-tight`),
+ * `body` and `caption` are its `body` and `caption` — and the six-step heading
+ * ladder is that same idiom extended one Tailwind size per step. Only
+ * `overline` has no counterpart there: it is the published value with no
+ * `element:text` sibling, so it takes the conventional small-caps label
+ * treatment.
+ *
+ * ⚠️ The two vocabularies are NOT reconciled here and must not be:
+ * `element:text` publishes `heading` / `subheading` / `body` / `caption`,
+ * `ui:text` publishes the nine below. Two text primitives with two
+ * vocabularies is its own drift finding, filed separately after this lands.
+ *
+ * ## Distinctness is the contract, not a nicety
+ *
+ * Two values sharing a class would put this key straight back into the state
+ * this card exists to leave: authored, accepted, and invisible. The pin is
+ * `__tests__/text-variant-align-6942.test.tsx` — one rendered element per
+ * value, with the nine class strings asserted pairwise distinct.
+ */
+const VARIANT_CLASS: Record<TextVariant, string> = {
+  h1: 'text-4xl font-semibold tracking-tight',
+  h2: 'text-3xl font-semibold tracking-tight',
+  h3: 'text-2xl font-semibold tracking-tight',
+  h4: 'text-xl font-semibold tracking-tight',
+  h5: 'text-lg font-semibold tracking-tight',
+  h6: 'text-base font-semibold tracking-tight',
+  body: 'text-sm text-foreground',
+  caption: 'text-xs text-muted-foreground',
+  overline: 'text-xs font-medium uppercase tracking-widest text-muted-foreground',
+};
+
+/**
+ * The element each variant renders. `h1`…`h6` render the heading element they
+ * name — a value that says `h1` and paints a `<span>` would deliver the size
+ * and withhold the semantics, which assistive technology reads and a class
+ * cannot supply. The three non-heading values keep the `<span>` this renderer
+ * has always wrapped with, so nothing about inline usage changes for them.
+ */
+const VARIANT_TAG: Record<TextVariant, 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'span'> = {
+  h1: 'h1',
+  h2: 'h2',
+  h3: 'h3',
+  h4: 'h4',
+  h5: 'h5',
+  h6: 'h6',
+  body: 'span',
+  caption: 'span',
+  overline: 'span',
+};
+
+/**
+ * `TextSchema.align` -> a Tailwind alignment class. Four values, not
+ * `ElementTextRenderer`'s three: `TextSchema` publishes `justify` as well, and
+ * an enforced key has to cover the vocabulary it publishes.
+ *
+ * Each class is paired with `block` because the element three of the nine
+ * variants render is a `<span>`, and `text-center` on an inline box centres
+ * nothing — it would re-enter this card's own failure mode one layer down
+ * (declared, accepted, invisible). On the heading elements `block` is a no-op.
+ */
+const ALIGN_CLASS: Record<TextAlign, string> = {
+  left: 'block text-left',
+  center: 'block text-center',
+  right: 'block text-right',
+  justify: 'block text-justify',
+};
 
 ComponentRegistry.register('text', 
   ({ schema, ...props }: { schema: TextSchema; [key: string]: any }) => {
@@ -17,6 +110,8 @@ ComponentRegistry.register('text',
     // DOM pass-through is a WHITELIST — objectui#3291's discipline, executed by
     // {@link toDomProps}. Mechanism and full argument: `grid.tsx`'s docblock
     // (objectui#4787 / PR #5573) and `packages/core/src/utils/dom-props.ts`.
+    // `variant` and `align` are read off the NODE below and never forwarded —
+    // they are semantic props, which the whitelist consumes rather than leaks.
     //
     // MEASURED (objectui#5574): every `text` node in `examples/schema-catalog`
     // rendered through the real `SchemaRenderer` and read off the DOM — 523
@@ -38,18 +133,34 @@ ComponentRegistry.register('text',
     // destructuring it out.
     const { style, ...hostProps } = props;
     const dataObjId = hostProps['data-obj-id'];
-    const className = schema.className || hostProps.className;
 
-    // If we have designer props or className, we must wrap it to make it selectable and styleable
+    // ABSENCE IS NOT `body` (objectui#6942). The Zod mirror declares
+    // `.default('body')`, which materialises on a document that is PARSED
+    // through it; this renderer is handed the authored node as written. Reading
+    // absence as `body` would put `text-sm text-foreground` on all ~690 corpus
+    // text nodes that never asked for a variant — a corpus-wide restyle, and
+    // the opposite of the narrow repair the ruling scoped. An unauthored node
+    // therefore keeps exactly the shape it had before this change: the
+    // fragment, or the bare `<span>` when a designer id or className wraps it.
+    // An off-enum value contributes no class for the same reason — it is
+    // refused at authoring time by `safeValidateSchema`, which is where B1 puts
+    // the rejection, and quietly styling it would be option C.
+    const variantClass = schema.variant ? VARIANT_CLASS[schema.variant] : undefined;
+    const alignClass = schema.align ? ALIGN_CLASS[schema.align] : undefined;
+    const className =
+      cn(variantClass, alignClass, schema.className || hostProps.className) || undefined;
+
+    // If we have designer props, typography or className, we must wrap it to make it selectable and styleable
     if (dataObjId || className) {
+        const Tag = (schema.variant && VARIANT_TAG[schema.variant]) || 'span';
         return (
-            <span 
+            <Tag 
                 {...toDomProps(hostProps)}
                 style={style}
                 className={className}
             >
                 {schema.content || schema.value}
-            </span>
+            </Tag>
         );
     }
 
@@ -59,7 +170,19 @@ ComponentRegistry.register('text',
     namespace: 'ui',
     label: 'Text',
     inputs: [
-      { name: 'content', type: 'string', label: 'Content', required: true }
+      { name: 'content', type: 'string', label: 'Content', required: true },
+      // Declared because they are READ, in the same change as the read sites
+      // above (objectui#6942). While these were missing, `page.tsx`'s JSX-page
+      // prop whitelist — built from `getKnownTypes()` plus these `inputs` —
+      // reported `unknown-prop` for two keys `TextSchema` publishes.
+      //
+      // `defaultValue` restates the PUBLISHED default (`layout.zod.ts` declares
+      // `.default('body')`), which is what a designer should seed into a node it
+      // creates. It is not a claim about the renderer's absence path: see the
+      // ABSENCE IS NOT `body` note above — a node that never carried the key is
+      // left exactly as it was authored.
+      { name: 'variant', type: 'enum', label: 'Variant', enum: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'], defaultValue: 'body' },
+      { name: 'align', type: 'enum', label: 'Align', enum: ['left', 'center', 'right', 'justify'] }
     ],
     defaultProps: {
       content: 'Text content'

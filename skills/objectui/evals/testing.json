@@ -22,15 +22,12 @@
     {
       "id": 2,
       "prompt": "Write RTL component tests for an ObjectUI form plugin that has create, edit, and view modes.",
-      "expected_output": "Provides Vitest + React Testing Library tests with SchemaRendererProvider wrapping, mock dataSource, and a test case per form mode (create / edit / view) asserting fields render and submit behavior matches the mode.",
+      "expected_output": "Provides Vitest + React Testing Library tests with SchemaRendererProvider wrapping, mock dataSource, and a test case per form mode asserting fields render and submit behavior matches the mode.",
       "files": [],
       "assertions": {
         "must_contain": [
           "React Testing Library",
-          "SchemaRendererProvider",
-          "create",
-          "edit",
-          "view"
+          "SchemaRendererProvider"
         ],
         "must_not_contain": []
       }

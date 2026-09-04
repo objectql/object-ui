@@ -97,6 +97,188 @@ export function actionRendersAt(
   return Array.isArray(declared) && declared.includes(location);
 }
 
+// ============================================================================
+// Declared action arrays — ONE rule for every surface that authors a list of
+// actions by id (objectui#7182)
+// ============================================================================
+
+/**
+ * Why a declared action array is refused, and where.
+ *
+ * `index` is the position of the FIRST element that breaks the rule — the
+ * first element whose shape disagrees with element 0, or the first element
+ * that is neither an action id nor an inline action object. Naming the index
+ * is the point: an author who wrote `['convert', { … }]` is told which of the
+ * two to change, rather than that "actions" is wrong somewhere.
+ */
+export interface DeclaredActionsRefusal {
+  readonly kind: 'refused';
+  readonly index: number;
+  readonly message: string;
+}
+
+/**
+ * The SHAPE of an authored action array, judged before any lookup — the
+ * module-internal verdict behind {@link DeclaredActionsResolution}, which is
+ * the published face (objectui#7182 contract review: one public function, one
+ * public result type).
+ *
+ * Exactly three verdicts, closed on purpose (objectui#7182, maintainer ruling
+ * 2026-09-02, option C): the array is all action IDS, all inline action
+ * OBJECTS, or it is refused. A mixed `['convert', { … }]` array is the refused
+ * case — it is not "an id with an object beside it" on one surface and "an
+ * object with a string that renders nothing" on another. The two renderers
+ * that draw these arrays (`page:header`, `record:quick_actions`) used to
+ * answer that question each in its own way; this is the one answer.
+ *
+ * An empty array has nothing to classify and is reported as `objects` with an
+ * empty list, so a caller's "do I need a metadata lookup?" question is
+ * answered `false` without a special case.
+ */
+type DeclaredActionsShape =
+  | { readonly kind: 'ids'; readonly ids: readonly string[] }
+  | { readonly kind: 'objects'; readonly objects: readonly object[] }
+  | DeclaredActionsRefusal;
+
+/**
+ * What `resolveDeclaredActionIds` hands back: the array's shape verdict — all
+ * ids, all inline objects, or refused at an index — with the id arm RESOLVED
+ * against the object's registered actions.
+ *
+ * Called with `registeredActions` `undefined` (no registry yet) the verdict is
+ * registry-independent: `kind` and `ids` are final, `actions` is empty and
+ * every id is `unresolved`. That is how a renderer decides whether to request
+ * a metadata read at all — React hooks run every render, so the read is
+ * requested or skipped before the registry exists — without a second public
+ * function for the shape alone.
+ *
+ *   - `ids`: `actions` holds the resolved definitions in AUTHORED order, one
+ *     per id that named a registered action; `unresolved` lists every id that
+ *     did not, with its index. Whether an unresolved id is a typo or a lookup
+ *     still in flight is the caller's to decide (it owns the loading state),
+ *     which is why this is data and not a warning.
+ *   - `objects`: `actions` is the authored objects, passed through untouched.
+ *   - `refused`: nothing is resolved; see {@link DeclaredActionsRefusal}.
+ */
+export type DeclaredActionsResolution<T> =
+  | {
+      readonly kind: 'ids';
+      readonly ids: readonly string[];
+      readonly actions: T[];
+      readonly unresolved: ReadonlyArray<{ readonly index: number; readonly id: string }>;
+    }
+  | { readonly kind: 'objects'; readonly actions: T[] }
+  | DeclaredActionsRefusal;
+
+const DECLARED_ACTIONS_RULE =
+  'an actions array is either all action ids or all inline action objects — ' +
+  'mixed id/object action arrays are refused; use all ids or all objects';
+
+function describeDeclaredActionElement(el: unknown): string {
+  if (el === null) return 'null';
+  if (Array.isArray(el)) return 'an array';
+  return `a ${typeof el}`;
+}
+
+/**
+ * Classify an authored action array as all ids, all inline objects, or refused
+ * — the shape half of {@link resolveDeclaredActionIds}, and module-internal on
+ * purpose (objectui#7182 contract review): a renderer that must know whether
+ * a lookup is needed BEFORE it has the registry gets the same
+ * registry-independent verdict from `resolveDeclaredActionIds(elements,
+ * undefined)`, so a second public function would be a permanent surface for
+ * a need the first already serves.
+ *
+ * Element rule, closed: a string is an action id; a non-null, non-array
+ * object is an inline action definition; anything else (`null`, a number, a
+ * boolean, a nested array) is refused at its index. The array rule: every
+ * element must have the shape of element 0.
+ *
+ * Pure, zero-dependency, and deliberately typed on `unknown[]`: the arrays
+ * reach the renderers straight off authored JSON and off host props, and a
+ * narrower parameter would push a cast onto every caller — which is how a
+ * shared rule grows per-caller variants and stops being shared (the same
+ * reasoning `actionRendersAt` records for its `locations` parameter).
+ */
+function classifyDeclaredActions(elements: readonly unknown[]): DeclaredActionsShape {
+  const shapeOf = (el: unknown): 'id' | 'object' | null =>
+    typeof el === 'string'
+      ? 'id'
+      : el !== null && typeof el === 'object' && !Array.isArray(el)
+        ? 'object'
+        : null;
+  if (elements.length === 0) return { kind: 'objects', objects: [] };
+  const first = shapeOf(elements[0]);
+  for (let index = 0; index < elements.length; index += 1) {
+    const el = elements[index];
+    const shape = shapeOf(el);
+    if (shape === null) {
+      return {
+        kind: 'refused',
+        index,
+        message:
+          `element ${index} is ${describeDeclaredActionElement(el)}, which is neither an ` +
+          `action id (a string) nor an inline action object; ${DECLARED_ACTIONS_RULE}`,
+      };
+    }
+    if (shape !== first) {
+      return {
+        kind: 'refused',
+        index,
+        message:
+          `element ${index} is ${shape === 'id' ? 'an action id' : 'an inline action object'} ` +
+          `but element 0 is ${first === 'id' ? 'an action id' : 'an inline action object'}; ` +
+          DECLARED_ACTIONS_RULE,
+      };
+    }
+  }
+  return first === 'id'
+    ? { kind: 'ids', ids: elements as readonly string[] }
+    : { kind: 'objects', objects: elements as readonly object[] };
+}
+
+/**
+ * Resolve an authored action array against the actions registered on the
+ * object — the ONE function `page:header` and `record:quick_actions` both call
+ * (objectui#7182, maintainer ruling 2026-09-02, option C), replacing the
+ * whole-array switch one had and the per-element normalisation the other had.
+ *
+ * The array is classified by {@link classifyDeclaredActions} first, so a mixed
+ * array is refused HERE, before a single id is looked up. An all-id array is
+ * resolved by `name` — the identity the spec makes required and the one both
+ * renderers always keyed on; "id" in `PageHeaderProps.actions`' wording is the
+ * action's machine name, not a second key. Registration order wins on a
+ * duplicate name. An all-object array passes through as authored: that arm is
+ * renderer tolerance for the objectstack#11592 migration, still undeclared
+ * (the spec's contract is ids), and it is retired on its own card once the
+ * last inline array is converted.
+ *
+ * `registeredActions` may be `null`/`undefined` while the metadata read is in
+ * flight; every id is then `unresolved`, and the caller decides whether that
+ * is worth saying yet.
+ */
+export function resolveDeclaredActionIds<T extends { readonly name?: unknown }>(
+  elements: readonly unknown[],
+  registeredActions: readonly T[] | null | undefined,
+): DeclaredActionsResolution<T> {
+  const shape = classifyDeclaredActions(elements);
+  if (shape.kind === 'refused') return shape;
+  if (shape.kind === 'objects') return { kind: 'objects', actions: Array.from(shape.objects) as T[] };
+  const byName = new Map<string, T>();
+  for (const def of registeredActions ?? []) {
+    const key = typeof def?.name === 'string' ? def.name : '';
+    if (key && !byName.has(key)) byName.set(key, def);
+  }
+  const actions: T[] = [];
+  const unresolved: Array<{ index: number; id: string }> = [];
+  shape.ids.forEach((id, index) => {
+    const def = byName.get(id);
+    if (def) actions.push(def);
+    else unresolved.push({ index, id });
+  });
+  return { kind: 'ids', ids: shape.ids, actions, unresolved };
+}
+
 /**
  * Visual component type for actions — derived from the spec's
  * `ActionSchema.component` enum (#4074; formerly a hand-written union).

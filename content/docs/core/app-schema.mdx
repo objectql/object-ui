@@ -89,16 +89,16 @@ topic; the declaration remains the complete list.
 
 ### Navigation Menu
 
-The `menu` property accepts an array of `MenuItem` objects:
+The `menu` property accepts an array of `AppMenuItem` objects:
 
 ```ts
-interface MenuItem {
+interface AppMenuItem {
   type?: 'item' | 'group' | 'separator';
   label?: string;
   icon?: string;          // Lucide icon name
   path?: string;          // Route path
   href?: string;          // External link
-  children?: MenuItem[];  // Submenu items
+  children?: AppMenuItem[];  // Submenu items
   badge?: string | number;
   hidden?: boolean | string; // Visibility condition
 }
@@ -143,7 +143,7 @@ The `actions` property defines global toolbar buttons:
 
 ```ts
 // `AppAction.items` uses the navigation-item shape documented under "Navigation
-// Menu" above, which the barrel exports as `AppMenuItem`. The bare `MenuItem`
+// Menu" above — declared and published as `AppMenuItem`. The bare `MenuItem`
 // export is the unrelated overlay menu type used by `ui:dropdown-menu`.
 import type { AppMenuItem } from '@object-ui/types';
 
@@ -151,7 +151,7 @@ interface AppAction {
   type: 'button' | 'dropdown' | 'user';
   label?: string;
   icon?: string;
-  onClick?: string;
+  onClick?: never;        // RETIRED (objectui#7344): the handler-expression string is refused by name — author an action:button node instead
   avatar?: string;        // For type='user'
   description?: string;   // For type='user'
   items?: AppMenuItem[];  // For type='dropdown' or 'user'
@@ -245,8 +245,7 @@ const crm: AppComponentSchema = {
       type: 'button',
       label: 'Quick Actions',
       icon: 'zap',
-      variant: 'outline',
-      onClick: 'openQuickActions'
+      variant: 'outline'
     },
     {
       type: 'user',

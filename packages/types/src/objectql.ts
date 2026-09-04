@@ -2255,14 +2255,25 @@ export interface ObjectMapConfig {
  */
 export interface ObjectMapSchema extends BaseSchema {
   type: 'object-map';
-  /** ObjectQL object name */
-  objectName: string;
   /**
-   * Data source configuration. Preferred over `staticData` / `objectName`
-   * (`getDataConfig`).
+   * ObjectQL object name — the THIRD record source `getDataConfig` resolves,
+   * after {@link ObjectMapSchema.data} and {@link ObjectMapSchema.staticData}
+   * (`plugin-map/src/ObjectMap.tsx`).
+   *
+   * Optional since objectui#6939: a map authored on inline rows never reads
+   * this key, and requiring it refused three catalog entries that draw
+   * correctly. The requirement the renderer really has — at least one of
+   * `data`, `staticData`, `objectName` present — lives on the mirror as a
+   * refinement (`requireRecordSource` in `zod/objectql.zod.ts`), so the
+   * published declaration and the published validator say the same thing.
+   */
+  objectName?: string;
+  /**
+   * Data source configuration. Read FIRST by `getDataConfig`, ahead of
+   * `staticData` / `objectName`.
    */
   data?: ViewData;
-  /** Inline records, wrapped into a `{ provider: 'value' }` data config */
+  /** Inline records, wrapped into a `{ provider: 'value' }` data config; read SECOND */
   staticData?: any[];
   /** Query filter, forwarded verbatim as `$filter` */
   filter?: any[];
@@ -2342,8 +2353,30 @@ export interface ObjectTreeSchema extends BaseSchema {
  */
 export interface ObjectGanttSchema extends BaseSchema {
   type: 'object-gantt';
-  /** ObjectQL object name */
-  objectName: string;
+  /**
+   * ObjectQL object name — the THIRD record source `getDataConfig` resolves,
+   * after {@link ObjectGanttSchema.data} and {@link ObjectGanttSchema.staticData}
+   * (`plugin-gantt/src/ObjectGantt.tsx`).
+   *
+   * Optional since objectui#6939: a gantt authored on inline rows never reads
+   * this key, and requiring it refused three catalog entries that draw
+   * correctly. The requirement the renderer really has — at least one of
+   * `data`, `staticData`, `objectName` present — lives on the mirror as a
+   * refinement (`requireRecordSource` in `zod/objectql.zod.ts`), so the
+   * published declaration and the published validator say the same thing.
+   */
+  objectName?: string;
+  /**
+   * Data source configuration. Read FIRST by `getDataConfig` — `if
+   * (schema.data) return schema.data;` — ahead of `staticData` / `objectName`.
+   *
+   * Declared by objectui#6939, in the same stroke as the mirror's `data`: until
+   * then the read landed on `BaseSchema`'s index signature on this side and
+   * on `.passthrough()` on the mirror's, so the record source the resolver
+   * prefers was the one neither face named. Same type as
+   * {@link ObjectMapSchema.data}.
+   */
+  data?: ViewData;
   /** Field for task start date */
   startDateField?: string;
   /** Field for task end date */

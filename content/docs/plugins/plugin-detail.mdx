@@ -82,6 +82,9 @@ const items: FeedItem[] = [
 
 ```tsx
 import { RecordActivityTimeline } from '@object-ui/plugin-detail';
+import type { FeedItem } from '@object-ui/types';
+
+declare const items: FeedItem[];
 
 <RecordActivityTimeline
   items={items}
@@ -107,17 +110,24 @@ import { RecordActivityTimeline } from '@object-ui/plugin-detail';
 In the Console app, `RecordChatterPanel` is integrated with record detail views. Comments are fetched from the `sys_comment` object using a thread ID pattern of `{objectName}:{recordId}`:
 
 ```tsx
+import type { DataSource, FeedItem } from '@object-ui/types';
+
+// The record being viewed, and the host's data source.
+declare const objectName: string;
+declare const recordId: string;
+declare const dataSource: DataSource;
+
 // Thread ID format
 const threadId = `${objectName}:${recordId}`;
 
-// Fetch comments
+// Fetch comments — `find` resolves to a `QueryResult`, so the rows are `.data`.
 const comments = await dataSource.find('sys_comment', {
   $filter: { threadId },
   $orderby: 'createdAt asc',
 });
 
 // Map to FeedItem[]
-const feedItems: FeedItem[] = comments.map(c => ({
+const feedItems: FeedItem[] = comments.data.map((c) => ({
   id: c._id,
   type: 'comment',
   actor: c.author,
@@ -130,6 +140,12 @@ const feedItems: FeedItem[] = comments.map(c => ({
 **Full-page detail view** renders the panel non-collapsible at the bottom:
 
 ```tsx
+import { RecordChatterPanel } from '@object-ui/plugin-detail';
+import type { FeedItem } from '@object-ui/types';
+
+declare const feedItems: FeedItem[];
+declare const handleAddComment: (text: string) => void;
+
 <RecordChatterPanel
   config={{ position: 'bottom', collapsible: false }}
   items={feedItems}
@@ -140,6 +156,12 @@ const feedItems: FeedItem[] = comments.map(c => ({
 **Drawer overlay** renders the panel collapsible and default-collapsed:
 
 ```tsx
+import { RecordChatterPanel } from '@object-ui/plugin-detail';
+import type { FeedItem } from '@object-ui/types';
+
+declare const feedItems: FeedItem[];
+declare const handleAddComment: (text: string) => void;
+
 <RecordChatterPanel
   config={{ position: 'bottom', collapsible: true, defaultCollapsed: true }}
   items={feedItems}
@@ -421,7 +443,16 @@ decision as a defect is how a warning channel gets ignored:
 ## Filter Modes
 
 ```tsx
-type FeedFilterMode = 'all' | 'comments_only' | 'changes_only' | 'tasks_only';
+import { RecordChatterPanel } from '@object-ui/plugin-detail';
+import type { FeedFilterMode } from '@object-ui/plugin-detail';
+import type { FeedItem } from '@object-ui/types';
+
+// The four modes, restated against the declared union rather than beside it:
+// a typo or a retired member fails here.
+const filterModes: FeedFilterMode[] = ['all', 'comments_only', 'changes_only', 'tasks_only'];
+
+declare const items: FeedItem[];
+declare const setFilterMode: (mode: FeedFilterMode) => void;
 
 // Example: Filter to comments only
 <RecordChatterPanel

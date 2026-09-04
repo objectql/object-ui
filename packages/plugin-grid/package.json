@@ -17,7 +17,7 @@
   },
   "scripts": {
     "build": "vite build && node scripts/build-css.mjs",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/plugin-grid/",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },

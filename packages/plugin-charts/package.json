@@ -25,9 +25,9 @@
   },
   "scripts": {
     "build": "vite build",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "type-check": "tsc --noEmit",
+    "test": "vitest run --root ../.. packages/plugin-charts/",
+    "test:watch": "vitest --root ../.. packages/plugin-charts/",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
   "dependencies": {

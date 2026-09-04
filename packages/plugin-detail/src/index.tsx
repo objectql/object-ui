@@ -423,13 +423,15 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // in the `sections` description below.
   //
   // Documented member keys are exactly the spec's four (`name`, `label`,
-  // `columns`, `fields`) — deliberately NOT the extras `RecordDetailsRenderer`
-  // also honours on a section (`showBorder`, `hideEmpty`), nor `title`, which
-  // it honoured as an ALIAS of `label` until objectui#6190 converged the
-  // heading on the one declared slot. `title` stays named here because the
-  // never-teach set is about what the description may say, not about what the
-  // renderer happens to read: the spec refuses it either way, and the three
-  // producers that emitted it moved to `label` in that same change. Those are
+  // `columns`, `fields`) — deliberately NOT `showBorder`, which
+  // `RecordDetailsRenderer` also honours on a section, nor `title`, which it
+  // honoured as an ALIAS of `label` until objectui#6190 converged the heading
+  // on the one declared slot, nor `hideEmpty`, which it honoured until
+  // objectui#7129 retired the key (maintainer 2026-09-01) and left the
+  // auto-hide heuristic as the whole contract. `title` and `hideEmpty` stay
+  // named here because the never-teach set is about what the description may
+  // say, not about what the renderer happens to read: the spec refuses them
+  // either way, whether or not anything still reads them. Those are
   // undeclared upstream, and the spec's section object REFUSES them on parse
   // rather than stripping them: `RecordDetailsProps.safeParse` on a section
   // carrying any of the three returns `success: false` with
@@ -756,7 +758,7 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
   skipFallback: true,
   category: 'record',
   label: 'Alert Banner',
-  icon: 'AlertTriangle',
+  icon: 'triangle-alert',
   inputs: [
     { name: 'severity', type: 'enum', label: 'Severity', enum: ['info', 'warning', 'error', 'success'], defaultValue: 'info' },
     // Two arms each (objectui#3832). Unlike the `page:*` specimens these two

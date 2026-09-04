@@ -38,7 +38,7 @@ import {
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
-import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData, usableGroupingFields } from './useGroupedData';
 import { GroupRow } from './GroupRow';
@@ -92,6 +92,28 @@ const LINK_CELL_CLASS =
   'text-primary font-medium underline-offset-4 hover:underline cursor-pointer truncate block max-w-full';
 
 /**
+ * The same list with the one-line clamp swapped for wrapping — what a cell in a
+ * column carrying an authored `wrap: true` wears (objectui#6650).
+ *
+ * ⭐ DERIVED from {@link LINK_CELL_CLASS} rather than written out, so the two
+ * cannot drift: every future edit to the link cell's appearance lands in both
+ * faces of both variants, and the no-wrap variant stays byte-identical to what
+ * `ObjectGrid.linkCellAnchor.test.tsx` pins as full markup.
+ *
+ * ⚠️ Why this exists at all — the outer read in `data-table.tsx` is NOT enough
+ * on its own. `data-table` puts the wrap/truncate decision on the cell BODY it
+ * owns, but a link column's content is this component, and its own `truncate`
+ * clamps the text back to one line INSIDE a body that is willing to wrap. So
+ * `wrap: true` on the record-link column — column one of almost every grid —
+ * would have rendered as silently nothing: the very failure mode this card
+ * exists to end, reproduced one element deeper. Measured, not reasoned: the
+ * end-to-end pin in `ObjectGrid.columnWrapForward.test.tsx` failed on exactly
+ * this, reading back `…cursor-pointer truncate block max-w-full` from a column
+ * authored `wrap: true`.
+ */
+const LINK_CELL_CLASS_WRAP = LINK_CELL_CLASS.replace('truncate', 'whitespace-normal break-words');
+
+/**
  * A row's primary key — the value the host's record-URL builder addresses.
  * Mirrors what `useNavigationOverlay.handleClick` reads off the same row, so
  * the anchor's href and the click path can never point at different records.
@@ -138,9 +160,16 @@ const LinkCell: React.FC<{
   objectName?: string;
   /** This row's primary key. Absent (a row with no id) ⇒ no anchor. */
   recordId?: string | number | null;
+  /**
+   * The column's authored `wrap` (objectui#6650). `true` ⇒ this cell drops its
+   * one-line clamp so long link text flows onto further lines, matching what
+   * `data-table` does to the body around it. Absent / `false` ⇒ unchanged.
+   */
+  wrap?: boolean;
   children: React.ReactNode;
-}> = ({ testId, onActivate, objectName, recordId, children }) => {
+}> = ({ testId, onActivate, objectName, recordId, wrap, children }) => {
   const host = useRelatedRecordActions();
+  const cellClass = wrap ? LINK_CELL_CLASS_WRAP : LINK_CELL_CLASS;
   const href =
     objectName && recordId != null && recordId !== '' && host?.recordHref
       ? host.recordHref(objectName, recordId)
@@ -151,7 +180,7 @@ const LinkCell: React.FC<{
       <a
         href={href}
         data-testid={testId}
-        className={LINK_CELL_CLASS}
+        className={cellClass}
         onClick={(e) => {
           // The row underneath carries its own click handler (open the record,
           // and on a modifier click open it in a new tab). Following this link
@@ -186,7 +215,7 @@ const LinkCell: React.FC<{
       role="link"
       tabIndex={0}
       data-testid={testId}
-      className={LINK_CELL_CLASS}
+      className={cellClass}
       onClick={(e) => {
         e.stopPropagation();
         onActivate();
@@ -536,10 +565,12 @@ function normalizeColumns(
  * Consumers measured for THIS producer — two of them, because the array is read
  * twice before it reaches the slot:
  *
- *   - `data-table.tsx`, comments stripped, every `col.<key>` read — THIRTEEN:
+ *   - `data-table.tsx`, comments stripped, every `col.<key>` read — FOURTEEN:
  *     `accessorKey`, `width`, `align`, `header`, `className`, `cellClassName`,
  *     `sortable`, `resizable`, `editable`, `type`, `cell`, `headerIcon`,
- *     `fitContent`. ⚠️ This said fourteen until objectui#7196 re-derived it:
+ *     `fitContent`, `wrap`. ⚠️ It was THIRTEEN between objectui#7196 and
+ *     objectui#6650, which added the `wrap` read this producer now feeds; it
+ *     said fourteen before #7196 re-derived it:
  *     `name` was the fourteenth and was correct when written, but objectui#6963
  *     (2026-08-31) retired the `col.name` alias — the last undeclared spelling
  *     the adapter accepted — so the key left the consumer's read set that day.
@@ -554,6 +585,12 @@ function normalizeColumns(
  *     incompleteness, not drift. They change no verdict: each is declared on
  *     `TableColumn` and read by `data-table.tsx` as well. Recorded because a
  *     list presented as MEASURED has to be one.
+ *     ⚠️ `col.wrap` is read ONE MORE TIME here since objectui#6650, at the
+ *     `LinkCell` call sites, and that read is not a re-expression of the
+ *     forward — it is a SECOND consumer of the same authored key. The record
+ *     link wears its own `truncate`, so honouring `wrap` only downstream would
+ *     have left column one of almost every grid wrapping its cell body around
+ *     text still clamped to one line.
  *
  * Verdicts, each with the read-count behind it:
  *
@@ -572,17 +609,22 @@ function normalizeColumns(
  *     below reads it (5 reads in this file) and re-expresses it as the sticky
  *     `className` that `data-table` actually reads. `data-table` never reads
  *     `pinned` itself, and does not need to.
- *   - `wrap` — RETIRED (objectui#5453, 2026-08-28). Held here only because that
- *     card was `pm:blocked` at the time; triage unblocked it and it took the
- *     measurement this hold was waiting for. `data-table.tsx` offers NO clamp /
- *     expand / wrap affordance for long cell text: its cell wrapper is a
- *     two-way switch, `isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'`,
- *     with a `title` tooltip as the only concession to overflow, and it does
- *     not read `density` or `rowHeight` at all. So there is nothing for a
- *     per-column `wrap` to turn on, and the enforce-or-remove default applies:
- *     the forward is deleted rather than declared-and-maintained. ⚠️ Unlike
- *     `pinned`, `wrap` had NO second road to a consumer — that is the check
- *     this card's rule demands before retiring, and it came back empty.
+ *   - `wrap` — DECLARED by `TableColumn`, forwarded, and READ. This entry was
+ *     "RETIRED (objectui#5453, 2026-08-28)" and the retirement was correct on
+ *     its own measurement: `data-table.tsx` was then a two-way switch,
+ *     `isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'`, with a `title`
+ *     tooltip as the only concession to overflow, so nothing read the key and
+ *     the emit rule retired it. ⭐ What #5453 could not settle is what
+ *     objectui#6650 escalated one level up: `@objectstack/spec` never stopped
+ *     DECLARING `ListColumn.wrap`, and describes it to authors as "Allow text
+ *     wrapping" — so retiring the forward left a promise made at authoring
+ *     time and silently broken at render time. The maintainer ruled that
+ *     promise is kept rather than withdrawn (2026-09-02, Option B): the
+ *     consumer was BUILT, `TableColumn` now declares the key, and the forward
+ *     returns WITH a reader. ⚠️ Note what moved and what did not — the emit
+ *     rule is unchanged and still decided this: the key is written because the
+ *     consumer reads it, which is the same test that retired it when the
+ *     consumer did not exist.
  *   - `options` — RETIRED (see the enrichment pass below).
  *   - `type` — not adjudicated here; objectui#5853 owns its VALUE set and its
  *     fold still stands. It is the one member whose vocabulary differs between
@@ -609,11 +651,14 @@ function normalizeColumns(
  * `ListColumn` is the right derivation source because it is where this
  * producer's drift comes from: every key the emit could wrongly grow is a key
  * the author wrote on the input and someone forwarded. `pinned` is the one that
- * escaped and stayed — adjudicated HELD above. `wrap` escaped too and has since
- * been RETIRED (objectui#5453), so it is no longer carved out of the Exclude
- * and the derived band now tombstones it: re-adding the forward is a compile
- * error naming `wrap`, which is the whole point of retiring it here rather than
- * just deleting a line the next edit could put back for free.
+ * escaped and stayed — adjudicated HELD above. `wrap` escaped too, was RETIRED
+ * by objectui#5453, and has since been DECLARED on `TableColumn` by
+ * objectui#6650, so the band lets it through again — ⭐ and it does so with no
+ * edit to this line, which is the property that makes the derivation worth
+ * having. The tombstone was never a carve-out to remember to remove; it was a
+ * consequence of `TableColumn` not declaring the key, and it lifted the moment
+ * that stopped being true. A key that never earns a declaration stays refused
+ * by default, and re-adding its forward stays a compile error naming it.
  */
 export type RetiredListColumnKey = Exclude<keyof ListColumn, keyof TableColumn | 'pinned'>;
 
@@ -643,7 +688,10 @@ export interface ObjectGridColumnHolds {
    *   2. It has a live consumer BEFORE the slot — this file's own reorder pass
    *      reads it and re-expresses it as the sticky `className` that
    *      `data-table` actually reads. That is the "second road" the emit rule
-   *      demands before a key may be retired, and `wrap` failed it.
+   *      demands before a key may be retired. `wrap` failed it in 2026-08 and
+   *      was retired; objectui#6650 then BUILT its consumer rather than
+   *      reinstating a hold, which is why `wrap` is a plain declared key today
+   *      and `pinned` is still the only member here.
    */
   pinned?: 'left' | 'right';
 }
@@ -847,13 +895,26 @@ export type DeclaredDataTableSchema = RemoveIndexSignature<DataTableSchema>;
  *     it. That is precisely the ⛔ contrast `ObjectGridColumnHolds` spells out,
  *     and this type is now on the other side of it.
  *
- * ⛔ Nothing above is mechanically checked, which is how it went stale unseen.
- * `dataTableSchemaSlot-6459.test.ts` pins that the seam ACCEPTS both keys — an
- * assertion that stays green whether they are held HERE or declared THERE, so
- * it could not have caught this. The column-level twin IS guarded
- * (`columnHoldsExpiry-6424.test.ts` asserts `TableColumn` does NOT declare
- * `pinned`), and that is the shape a guard for this type would take. #7196
- * files it as a separate finding; ⛔ do not add it as a rider here.
+ * ⭐ GUARDED SINCE objectui#7201 — this is the one paragraph that changed.
+ * Until then nothing above was mechanically checked, which is how it went stale
+ * unseen: `dataTableSchemaSlot-6459.test.ts` pinned only that the seam ACCEPTS
+ * both keys, an assertion that stays green whether they are held HERE or
+ * declared THERE. That suite now also carries the column-level twin's shape
+ * (`columnHoldsExpiry-6424.test.ts`, which asserts `TableColumn` does NOT
+ * declare `pinned`), transplanted: a compile-time verdict per member of this
+ * type, recording whether `DataTableSchema` declares that key. Both members are
+ * pinned DECLARED today, so a revert upstream reddens; and the key set itself is
+ * pinned, so a member added or removed here reddens too. ⚠️ The transplant is
+ * NOT literal in one respect, deliberately: the probe reads
+ * `DeclaredDataTableSchema`, not `DataTableSchema`, because the index signature
+ * stripped above makes the raw type answer "declared" to EVERY key — measured,
+ * and pinned in that suite as its own control.
+ *
+ * ⇒ Anything in this census that a reader would otherwise have to re-measure by
+ * hand is still prose; what is mechanical is the ENTRY CONDITION of the two
+ * holds below. ⛔ Do not read the gate as covering the rest of the census — the
+ * 46-key derivation is still hand-maintained, and whether this repo wants a
+ * derivation gate over it is the question objectui#7201 left for a ruling.
  */
 export type ObjectGridDataTableSchemaHolds = {
   /**
@@ -2425,6 +2486,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                     onActivate={() => navigation.handleClick(row)}
                     objectName={schema.objectName}
                     recordId={rowRecordId(row)}
+                    wrap={col.wrap}
                   >
                     {displayContent}
                   </LinkCell>
@@ -2442,6 +2504,7 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
                     onActivate={() => navigation.handleClick(row)}
                     objectName={schema.objectName}
                     recordId={rowRecordId(row)}
+                    wrap={col.wrap}
                   >
                     {displayContent}
                   </LinkCell>
@@ -2552,6 +2615,14 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
               ...(col.resizable !== undefined && { resizable: col.resizable }),
               ...(cellRenderer && { cell: cellRenderer }),
               ...(col.pinned && { pinned: col.pinned }),
+              // objectui#6650 (maintainer ruling 2026-09-02, Option B). The hop
+              // objectui#5453 deleted, returning WITH a reader:
+              // `data-table.tsx` renders a `wrap: true` cell
+              // `whitespace-normal break-words` instead of `truncate`. Spelled
+              // `!== undefined` rather than truthy so an explicit `wrap: false`
+              // is forwarded as the author wrote it and reaches the consumer as
+              // a decision, not as an absence.
+              ...(col.wrap !== undefined && { wrap: col.wrap }),
             };
           });
       }

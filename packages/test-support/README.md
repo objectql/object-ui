@@ -83,9 +83,30 @@ code imports — nothing in `src/` of a released package may import this.
     exactly one wrapper walk in this repository and a third entry point must not
     change that.
   - Of the other Zod-internals reader classes #5872 censused, the wrapper-key
-    list is now shared as DATA (below, objectui#6923); array-element unwrapping
-    is NOT confined here yet and is still hand-copied — converting it is a
-    separate round, one reader class at a time.
+    list is now shared as DATA (below, objectui#6923) and array-element
+    unwrapping is `src/spec-array-element.ts` (below). What is still hand-copied
+    are the readers that ask a DIFFERENT question — union arms, walk-until-a-
+    shape-is-reachable, and the deliberately one-level-deep reads that carry
+    their reason in a comment. Those are not copies of these walks and must not
+    be swept onto them.
+- `src/spec-zod-wrappers.ts` — THE wrapper walk, `firstInWrapperChain`, and the
+  `MAX_WRAPPER_DEPTH` bound. Not exported from the package index: it is plumbing
+  between the two readers below, not something a gate should hold. It exists
+  because a second reader class arrived that needed the same steps with a
+  different question asked at each one, and writing that walk out again inside
+  the new reader would have been this package's own failure mode reintroduced by
+  the package that exists to end it.
+- `src/spec-array-element.ts` — the array-element reader, `arrayElementSchema`
+  (objectui#5872 class (2)). Answers "what shape does ONE entry of this array
+  have?", past `.optional()` / `.default()` / `.nullable()` / `.readonly()` /
+  `z.lazy()`, and `undefined` when the node is not an array. Unlike class (1)'s
+  four byte-identical copies, this class's three copies DISAGREED — about
+  whether to walk at all, which `def` spelling to read, and whether a non-array
+  answers `undefined` — so the module records which site each choice came from
+  and what was measured before it was made. Consumed by
+  `packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts`,
+  `packages/app-shell/src/views/metadata-admin/previews/__tests__/block-config.test.ts`
+  and `packages/app-shell/src/views/metadata-admin/clientValidation.optOuts.test.ts`.
 - `src/zod-wrapper-keys.json` + `src/zod-wrapper-keys.ts` — the Zod wrapper-key
   vocabulary, exported as `ZOD_WRAPPER_KEYS` (objectui#6923, ruled 2026-08-31 —
   objectui#5872 class (3)). The `.json` holds the data and the `.ts` holds the
@@ -118,6 +139,12 @@ code imports — nothing in `src/` of a released package may import this.
   stamp, a non-empty check against the four real `@objectstack/spec` pairs, and
   the same three halves again for `enumOptions` — including the pin that the two
   entry points agree, which is what makes the delegation observable.
+- `src/__tests__/spec-array-element.test.ts` — the calibration for the
+  array-element reader: one synthetic fixture per wrapper spelling it walks, the
+  `undefined` cases that keep a consuming suite's `toBeDefined()` from being a
+  rubber stamp, the three choices made between the disagreeing copies pinned one
+  by one (including that Zod 4's `_def.type` STRING is never returned as a
+  schema), and the non-empty check against the real `RecordDetailsProps.sections`.
 - `src/__tests__/spec-tombstones.test.ts` — the calibration for that judge: one
   synthetic fixture per recognition channel (so neither can quietly stop
   working), plus a cross-check of the structural verdict against what the

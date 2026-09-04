@@ -26,7 +26,7 @@
  * — covered in `RelatedList.headerSort.test.tsx`.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor, fireEvent, screen } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import * as React from 'react';
 import { RelatedList } from '../RelatedList';
 
@@ -48,7 +48,7 @@ const objectSchema = {
   name: 'contact',
   fields: {
     name: { type: 'text', label: 'Name' },
-    owner: { type: 'lookup', label: 'Owner', reference_to: 'sys_user' },
+    owner: { type: 'lookup', label: 'Owner', reference: 'sys_user' },
   },
 };
 

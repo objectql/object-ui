@@ -2,7 +2,7 @@
  * Tests for Unified Navigation Model
  * 
  * Validates NavigationItem, NavigationArea types, Zod schemas,
- * and the MenuItem → NavigationItem transform.
+ * and the AppMenuItem → NavigationItem transform.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -11,7 +11,7 @@ import {
   NavigationAreaSchema,
 } from '../zod/index.zod';
 import { menuItemToNavigationItem } from '../app';
-import type { MenuItem, NavigationItem, NavigationArea } from '../app';
+import type { AppMenuItem, NavigationItem, NavigationArea } from '../app';
 
 // ============================================================================
 // NavigationItem Zod Schema
@@ -288,12 +288,12 @@ describe('AppComponentSchema with unified navigation', () => {
 });
 
 // ============================================================================
-// MenuItem → NavigationItem Transform
+// AppMenuItem → NavigationItem Transform
 // ============================================================================
 
 describe('menuItemToNavigationItem', () => {
   it('should convert a simple path-based item', () => {
-    const menuItem: MenuItem = {
+    const menuItem: AppMenuItem = {
       type: 'item',
       label: 'Dashboard',
       icon: 'LayoutDashboard',
@@ -309,7 +309,7 @@ describe('menuItemToNavigationItem', () => {
   });
 
   it('should convert an external link item', () => {
-    const menuItem: MenuItem = {
+    const menuItem: AppMenuItem = {
       type: 'item',
       label: 'Docs',
       href: 'https://docs.example.com',
@@ -322,7 +322,7 @@ describe('menuItemToNavigationItem', () => {
   });
 
   it('should convert a group with children', () => {
-    const menuItem: MenuItem = {
+    const menuItem: AppMenuItem = {
       type: 'group',
       label: 'Sales',
       children: [
@@ -341,7 +341,7 @@ describe('menuItemToNavigationItem', () => {
   });
 
   it('should convert a separator', () => {
-    const menuItem: MenuItem = { type: 'separator' };
+    const menuItem: AppMenuItem = { type: 'separator' };
 
     const result = menuItemToNavigationItem(menuItem, 3);
     expect(result.type).toBe('separator');
@@ -349,7 +349,7 @@ describe('menuItemToNavigationItem', () => {
   });
 
   it('should invert hidden to visible', () => {
-    const menuItem: MenuItem = {
+    const menuItem: AppMenuItem = {
       type: 'item',
       label: 'Admin',
       path: '/admin',
@@ -361,7 +361,7 @@ describe('menuItemToNavigationItem', () => {
   });
 
   it('should preserve badge', () => {
-    const menuItem: MenuItem = {
+    const menuItem: AppMenuItem = {
       type: 'item',
       label: 'Notifications',
       path: '/notifications',
@@ -373,7 +373,7 @@ describe('menuItemToNavigationItem', () => {
   });
 
   it('should handle item without explicit type', () => {
-    const menuItem: MenuItem = {
+    const menuItem: AppMenuItem = {
       label: 'About',
       path: '/about',
     };

@@ -48,7 +48,7 @@ You don't just build components — you build a **Renderer** that interprets JSO
 
 | Package | Role | Responsibility | 🔴 Constraints |
 |---|---|---|---|
-| `@object-ui/types` | The Protocol | Pure JSON interfaces (`ComponentSchema`, `ActionSchema`) | **Zero deps. No React.** |
+| `@object-ui/types` | The Protocol | Pure JSON interfaces (`BaseSchema`, `ActionSchema`) | **Zero deps. No React.** |
 | `@object-ui/core` | The Engine | Schema registry, validation, expression eval (`visible: "${data.age > 18}"`) | No UI-lib deps. Logic only. |
 | `@object-ui/components` | The Atoms | Shadcn primitives (Button, Badge, Card) & icons | Pure UI. No business logic. |
 | `@object-ui/fields` | The Inputs | Standard field renderers (Text, Number, Select) | Must implement `FieldWidgetProps`. |
@@ -172,11 +172,14 @@ pnpm exec vitest run packages/<pkg>/                     # 只跑一个包
 pnpm test                                                # 全量(CI 就是它,可加 --shard=1/4)
 ```
 
-AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩小范围**,不是 `cd` 进包里、也不是
-`pnpm --filter <pkg> test` —— 那两条恰好就是下面的陷阱。
+AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩小范围**,不是 `cd` 进包里。
+`pnpm --filter <pkg> test` 与 `turbo run test` **现在是安全的**(objectui#3240):每个包的
+`test` 脚本都改成了显式指回仓根的 `vitest run --root ../.. packages/<pkg>/`,跑的就是仓根
+那一份配置、和 CI 同一个结论;它们只是比上面的写法多绕一层。
 
-- **陷阱一:让 vitest 的 cwd 落在包目录里(objectui#3378)。** `pnpm --filter <pkg> test`、
-  `turbo run test`、`cd packages/x && pnpm exec vitest` 都属于这类。vitest 把 root 定成该
+- **陷阱一:让 vitest 的 cwd 落在包目录里(objectui#3378)。** 今天只剩
+  `cd packages/x && pnpm exec vitest` 这一种写法(改造前 `pnpm --filter <pkg> test` 和
+  `turbo run test` 也在其中)。vitest 把 root 定成该
   目录,根级 projects(`unit`/`dom`/`dom-heavy`)的 include(`packages/**`、`examples/**`、
   `scripts/**`)相对它匹配不到任何文件;只有以**绝对路径**引入的 `apps/console` project 仍解析
   成功。于是跑的是 `@object-ui/console` 的 22 个文件、报 `Test Files 22 passed (22)`,而本包
@@ -189,19 +192,30 @@ AGENTS.md 的「只跑受影响的包」指的是**用上面的路径过滤缩�
 - **两条现在都会直接失败**,由 `scripts/vitest-invocation-guard.mjs` 拦下:vitest root 不是仓根
   → 拒绝;`--` 后面还有参数 → 拒绝。报错正文会指出机制并给出上面的正确命令。包级 `test` 脚本的
   存废是 objectui#3240;在那之前它们只失败,不撒谎。
-  - **拦截点不止 `vitest.config.mts` 一处**(objectui#5406)。vitest 只加载「启动目录里的那份」
-    config,所以根 config 顶部那一次调用,只覆盖得到「本包没有 config(向上找到根 config)」或
-    「本包 config import 了根 config(import 即执行其模块作用域)」这两条路。11 个**独立**的
-    `packages/plugin-*/vitest.config.ts` 两条都不占——它们自带 `happy-dom` + `globals` + 本地
-    setup 且**完全没有 alias 表**,于是从包目录跑就用上了一份 CI 从不使用的 config,而 guard
-    根本没被 import。实测:`cd packages/plugin-grid && pnpm exec vitest run
-    src/__tests__/ObjectGrid.exportOptionsKeys.test.ts` 曾经报 `Test Files 1 passed (1)` /
-    `Tests 5 passed (5)` 并以 0 退出。这 11 份现在各自调用 guard;新增任何一份 `vitest.config.*`
-    若两条路都不占,`scripts/__tests__/vitest-invocation-guard.test.ts` 会红。
+  - **拦截点不止 `vitest.config.mts` 一处**(objectui#5406 / objectui#3240)。vitest 只加载
+    「启动目录里的那份」config,所以根 config 顶部那一次调用,只覆盖得到「本目录没有任何
+    config(向上找到根 config)」或「本目录 config import 了根 config」这两条路。
+    - #5406 关的是第三条:11 个**独立**的 `packages/plugin-*/vitest.config.ts` 两条都不占,
+      它们自带 `happy-dom` + `globals` + 本地 setup 且**完全没有 alias 表**,于是从包目录跑
+      就用上了一份 CI 从不使用的 config。
+    - ⭐ #3240 删掉那 17 份包级 config 之前,必须先关**第四条**:vitest 的回退不止于
+      `vitest.config.*` —— 没有它就用同目录的 `vite.config.*`,而 `packages/*` 每个都有一份。
+      实测 `cd packages/plugin-ai && pnpm exec vitest run` 报 `RUN v4.1.10 /…/packages/plugin-ai`,
+      guard 一声不吭。所以每份 `packages/<pkg>/vite.config.ts` 现在也调用 guard,调用**以
+      `process.env.VITEST` 为门**(实测:vitest 读 config 时它是 `"true"`,`vite build` 读同
+      一个文件时是 `undefined`)—— 测试跑被拒,构建永远不被拒;那些 `vite.config` 里残留的
+      `test` 块(`passWithNoTests: true` + 一份根 config 从不加载的 setup)也一并删掉了。
+    新增任何一份 `vitest.config.*` / `packages/*/vite.config.*` 若不占其中一条路,
+    `scripts/__tests__/vitest-invocation-guard.test.ts` 会红。
 - **路径过滤零匹配也不再是绿的**:一旦命令行点名了文件,`passWithNoTests` 自动关闭 ——
   写错的路径 / 相对错目录的路径 → 非零退出,而不是「跑了 0 个文件然后绿」。
-- 确需从包目录启动,把 root 显式指回仓根:`pnpm exec vitest run --root ../.. packages/<pkg>/`。
+- 确需从包目录启动,把 root 显式指回仓根:`pnpm exec vitest run --root ../.. packages/<pkg>/`
+  —— 这正是 objectui#3240 给每个包级 `test` 脚本定下的写法。
   真要临时绕过 guard(自担风险):`OBJECTUI_VITEST_GUARD=off`。
+- **包级测试配置只有一份,就是仓根那份。** objectui#3240 删掉了 17 个包 +
+  `examples/schema-catalog` 的 `vitest.config.*`(维护者 2026-08-06 裁决 A);某个包确实需要
+  不同的 environment / setup / include,就在 `vitest.config.mts` 的 `projects` 里**加一个
+  project**,不要在包里新开一份 config —— 一份 config 一个结论,是这条裁决的全部内容。
 
 ### 测试纪律(flaky 测试:先找竞态,别调超时)
 
@@ -412,7 +426,8 @@ ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工�
 - **非空结果自我验证,不需要对照;空结果永远需要一个「已知必中」的对照** —— 例如某个你能用 `issue_read` 直接读到的 issue 的近逐字标题。⛔ **没跑对照的空结果不是一次读数**:它不携带任何信息,而它渲染出来恰好就是去重步骤想要的那个答案(「没有重复」),与真负例**不可区分**,不做对照就**不可证伪**。失败形态不是「报错然后重试」,是「立了一张重复卡、没人纠正、下一个席位再立一次」。
 - **每次查询都跑,不是每个会话跑一次。**「这个通道十分钟前还好好的」不是关于你眼前这次查询的证据。
 - **兜底通道**:零配额的 GitHub 网页 payload 通道实测可用(同一次去重里返回 8 个 issue 号,含 `search_issues` 看不见的那个),**它要跑同一条对照** —— 它只是「某一天、某一个容器里被测过可用」,不是永久答案。
-- ⚠️ **未解,别当已答问题用**:`search_issues` 为何对一个直读得到的 issue 返回 0 —— 索引延迟,还是读路径与搜索路径的 scope / 查询形状差异?两者的补救完全不同(前者自愈,后者会永久地、静默地收窄每一次去重),本仓尚未诊断。
+- ⭐ **已诊断的成因:`word:word` 形状的 token 被当成搜索 qualifier,静默清零整条查询。** MCP `search_issues` 把你的查询文本**逐字**贴进 GitHub search 的 `q=`,所以 GitHub 的 qualifier 语法在你以为是自由文本的地方是**活的**:粘进来的 issue 文本里一个裸的 `word:word` token(`page:header`、`record:quick_actions`、`ui:text`、`check:`、`pm:` 一类)会被解析成一个 **qualifier**,与其余词 AND 在一起,匹配不到任何东西,返回一个静默的 `total_count: 0`。实测最小对 —— 词与词序完全相同,唯一差别是一对反引号:`resolve record:quick_actions does` → **0**;把中间那个 token 用反引号包起来 → **17**。**本仓格外暴露**:这个产品的组件键本身就是 `word:word`,抽样 345 条标题里 **33 条(9.6%)**带一个 ⇒ 近逐字标题的去重查询,大约**每十次就有一次**被静默清零。⇒ **把任何标题或正文文本贴进 `search_issues` 之前,先给每个 `word:word` token 加反引号,或者把冒号换成空格** —— 前导反引号会打断 qualifier 解析。⚠️ **有意写的 qualifier 照常生效、照常有用**(`in:title`、`state:closed` 实测都被正常执行)—— 危险的只是无意撞上的那些。⛔ 这条**不取代**上面的对照要求:空结果依然永远需要一个「已知必中」的对照。
+- **两个看着更像的候选都已实测排除**,别再往那个方向追:**不是索引延迟** —— 长查询漏掉的那个 issue,同一次运行里短查询就返回了,而长查询七分钟后重跑仍是 0;**不是读路径与搜索路径的 scope 差异** —— 搜索路径**看得见**那个 issue。⚠️ 连带一条更正:本容器里未认证 REST `/search/issues` 的 403 **不是 GitHub 发的**,是本容器自己的出口代理在执行「会话只绑定到它配置的那些仓库」的路径白名单,它对 GitHub 的搜索 scope 什么都没说 —— 读到状态码就下结论、没读随之而来的 body,正是它一度被当成 scope 证据的原因。
 
 ### ⚠️ GitHub 会改写你写进 issue/PR 正文的字节 —— 每次发布后回读
 

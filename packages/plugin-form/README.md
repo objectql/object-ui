@@ -122,6 +122,8 @@ import type {
   LineItemsPanelSchema,
   DerivedDetail,
   InlineMode,
+  ChildObjectSchemaLike,
+  FieldDefaultsSchemaLike,
 } from '@object-ui/plugin-form';
 ```
 
@@ -338,9 +340,13 @@ renderer applies the same rule rather than re-deriving it (objectui#6059):
 declare const field: { required?: unknown; defaultValue?: unknown };
 declare const isCreateForm: boolean;
 declare const values: Record<string, unknown>;
-declare const objectSchema: { fields?: Record<string, { defaultValue?: unknown }> };
+declare const objectSchema: FieldDefaultsSchemaLike;
 
-import { isRequiredInForm, omitServerResolvedDefaults } from '@object-ui/plugin-form';
+import {
+  isRequiredInForm,
+  omitServerResolvedDefaults,
+  type FieldDefaultsSchemaLike,
+} from '@object-ui/plugin-form';
 
 // Should this create form enforce `required` on the field?
 const required = isRequiredInForm(field, isCreateForm);

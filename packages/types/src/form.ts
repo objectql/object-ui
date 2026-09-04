@@ -16,6 +16,7 @@
  */
 
 import type { BaseSchema, SchemaNode } from './base.js';
+import type { SelectOptionBase } from './select-option.js';
 
 /**
  * Button component
@@ -269,55 +270,34 @@ export interface SelectSchema extends BaseSchema {
 }
 
 /**
- * Select option
+ * Select option — the SDUI FORM face of the one select-option contract
+ * (objectui#7014). It extends {@link SelectOptionBase}, which derives the spec
+ * keys (`label`, `color`, `default`) from `@objectstack/spec/data` by reference
+ * and carries objectui's `visibleWhen` wire shape plus the two objectui-only
+ * keys `disabled` and `icon`. This face restates none of them; the one key it
+ * changes is named in the `Omit` below, which is where a divergence has to be
+ * written for it to stay visible.
+ *
+ * Its zod twin, `SelectOptionSchema` in `./zod/form.zod`, is the same
+ * derivation on the runtime side and diverges on the same key.
  */
-export interface SelectOption {
-  /**
-   * Option label (displayed to user)
-   */
-  label: string;
+export interface SelectOption extends Omit<SelectOptionBase, 'value'> {
   /**
    * Option value (submitted in form).
    *
-   * Widened beyond `string` (#3090) to match what `SelectOptionSchema` has
-   * always accepted: standalone UI forms legitimately bind numeric/boolean
-   * values. The renderers stringify for the string-speaking controls and map
-   * the selection back to the authored value (`matchOptionValue`), so the
-   * authored type survives the round trip instead of morphing to `"2"`.
+   * Widened beyond the spec's lowercase machine identifier (#3090): standalone
+   * UI forms legitimately bind numeric/boolean values, and this package's zod
+   * twin has always accepted them. The renderers stringify for the
+   * string-speaking controls and map the selection back to the authored value
+   * (`matchOptionValue`), so the authored type survives the round trip instead
+   * of morphing to `"2"`.
+   *
+   * This is the ONE key on which the SDUI form face is wider than the
+   * object-metadata face (`SelectOptionMetadata` in `./field-types`), which
+   * keeps the spec's `string`. Authored OBJECT metadata is validated against
+   * the spec, so a numeric option value belongs to standalone forms only.
    */
   value: string | number | boolean;
-  /**
-   * Whether option is disabled
-   */
-  disabled?: boolean;
-  /**
-   * Option icon
-   */
-  icon?: string;
-  /**
-   * Color code for badges/charts. Aligns with @objectstack/spec
-   * SelectOption.color — `@object-ui/fields` already resolves it for the
-   * select badge/dot rendering; only this contract lagged (objectstack#4115).
-   */
-  color?: string;
-  /**
-   * Whether this is the default option. Aligns with @objectstack/spec
-   * SelectOption.default.
-   */
-  default?: boolean;
-  /**
-   * Per-option visibility predicate (CEL). The option is offered only when this
-   * evaluates TRUE against the live record + `current_user` (same engine/env as
-   * field-level {@link FormFieldConfig.visibleWhen}). Omit = always available.
-   * Expresses both cascading options (`record.country == 'cn'`) and role/context
-   * gating (`'admin' in current_user.positions`). Aligns with @objectstack/spec
-   * SelectOption.visibleWhen.
-   *
-   * Client-side hiding is UX, not authorization — access-control gating must also
-   * be enforced server-side (the rule-validator rejects writes of a value whose
-   * predicate is false).
-   */
-  visibleWhen?: string | { dialect?: string; source: string };
 }
 
 /**

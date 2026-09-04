@@ -18,6 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  resolveIcon,
 } from '@object-ui/components';
 import { cva } from 'class-variance-authority';
 import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
@@ -39,7 +40,6 @@ import {
   Settings,
   Copy,
   Trash2,
-  icons,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -145,24 +145,6 @@ const viewSwitcherTabsList = cva('', {
     orientation: 'horizontal',
   },
 });
-
-function toPascalCase(str: string): string {
-  return str
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-}
-
-const iconNameMap: Record<string, string> = {
-  Home: 'House',
-};
-
-function resolveIcon(name?: string): LucideIcon | null {
-  if (!name) return null;
-  const iconName = toPascalCase(name);
-  const mapped = iconNameMap[iconName] || iconName;
-  return (icons as any)[mapped] || null;
-}
 
 function getViewLabel(view: ViewSwitcherItem): string {
   if (view.label) return view.label;

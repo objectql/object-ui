@@ -64,7 +64,7 @@ import {
   columnIdentity,
   convertSortToQueryParams,
 } from '@object-ui/core';
-import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer as ImportedSchemaRenderer, useSettledSchema } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
 import { useStableIdentity } from './stableIdentity';
@@ -636,8 +636,12 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // `getObjectSchema`, or a read that threw). `key` is compared against the
   // CURRENT object name during render, so switching objects closes the gate in
   // the same commit that changes it, not one commit later.
-  const [schemaResolution, setSchemaResolution] =
-    useState<{ key: string; def: Record<string, unknown> | null } | null>(null);
+  //
+  // Since objectui#7225 (maintainer ruling B, 2026-09-02) this is the SHARED
+  // `useSettledSchema` rather than this component's hand copy of it — the
+  // convergence #6482 asked for, amended from "migrate incidentally" to one
+  // PR once the migration's cost was measured at zero behaviour delta. The
+  // shape is unchanged because the hook was EXTRACTED from this shape.
   const schemaKey = schema.objectName ?? '';
   /**
    * Has the object schema for THIS object finished resolving? Note what this is
@@ -645,8 +649,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
    * `getObjectSchema`, or whose schema read failed, must still fetch its rows —
    * gating on a truthy schema would leave those views empty forever.
    */
-  const objectSchemaReady = schemaResolution !== null && schemaResolution.key === schemaKey;
-  const objectSchema = objectSchemaReady ? schemaResolution.def : null;
+  const { ready: objectSchemaReady, def: objectSchema } =
+    useSettledSchema<Record<string, unknown>>(schemaKey, dataSource);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>('create');
   const [selectedRecord, setSelectedRecord] = useState<Record<string, unknown> | null>(null);
@@ -767,35 +771,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
   // Navigation config
   const navigationConfig: ViewNavigationConfig | undefined = schema.navigation;
-
-  // Fetch object schema from ObjectQL/ObjectStack.
-  //
-  // Every exit settles the resolution — success, failure, and "there is nothing
-  // to read from" alike — because the non-grid record query below WAITS on this
-  // (objectui#6419). A path that returned without settling would not merely
-  // skip the expansion, it would hold that query open forever.
-  useEffect(() => {
-    let isMounted = true;
-    const key = schema.objectName ?? '';
-    const fetchObjectSchema = async () => {
-      if (!schema.objectName || !dataSource || typeof dataSource.getObjectSchema !== 'function') {
-        // No source for a schema: settle with none, so the view still queries
-        // (unexpanded — with no schema there is no expand set to derive, which
-        // is the same query this case produced before).
-        if (isMounted) setSchemaResolution({ key, def: null });
-        return;
-      }
-      try {
-        const schemaData = await dataSource.getObjectSchema(schema.objectName);
-        if (isMounted) setSchemaResolution({ key, def: schemaData });
-      } catch (err) {
-        console.error('Failed to fetch object schema:', err);
-        if (isMounted) setSchemaResolution({ key, def: null });
-      }
-    };
-    fetchObjectSchema();
-    return () => { isMounted = false; };
-  }, [schema.objectName, dataSource]);
 
   // Fetch data for non-grid view types (grid handles its own data via ObjectGrid)
   useEffect(() => {
@@ -1346,15 +1321,35 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           titleField: viewOptions.gallery?.titleField || 'name',
           ...(viewOptions.gallery || {}),
         };
-      case 'timeline':
+      case 'timeline': {
+        // objectui#7070 step ③: the SECOND route to `ObjectTimeline`, fixed the
+        // same way objectui#7029 fixed the calendar branch above.
+        // `generateViewSchema` runs precisely when no host supplied
+        // `renderListView` — the authored `object-view` element — so it never
+        // passes through `ListView`, and the deletion made there does not reach
+        // it. Left alone it would keep flooring the axis at `'created_at'` for a
+        // view that declared none, which is what makes the renderer's own
+        // refusal screen unreachable (it decides by asking whether a start-date
+        // binding is PRESENT). House posture, ruled 2026-09-01 (总监批 #28):
+        // 日期轴永不虚构 — a date axis is never fabricated.
+        //
+        // ⛔ `titleField` keeps its `'name'` floor: not a date axis, and the same
+        // display-name rung the gallery and kanban branches carry here.
+        //
+        // `startDateField` is the spec key; `dateField` is the legacy alias, and
+        // this flat prop is the only place on this face that translates one into
+        // the other — the trailing `...viewOptions.timeline` spread does not, so
+        // the alias has to be resolved before it, not folded into the spread.
+        const timelineStartDateField =
+          viewOptions.timeline?.startDateField || viewOptions.timeline?.dateField;
         return {
           type: 'object-timeline',
           ...baseProps,
-          // `startDateField` is the spec key; `dateField` is the legacy alias.
-          startDateField: viewOptions.timeline?.startDateField || viewOptions.timeline?.dateField || 'created_at',
+          ...(timelineStartDateField ? { startDateField: timelineStartDateField } : {}),
           titleField: viewOptions.timeline?.titleField || 'name',
           ...(viewOptions.timeline || {}),
         };
+      }
       case 'gantt':
         // objectui#7070: only ever restate a binding the view actually DECLARED
         // — the same correction objectui#7029 made to the calendar branch above.
@@ -1790,6 +1785,20 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           allowExport: activeView?.allowExport ?? (schema as any).allowExport,
           // Propagate display properties
           color: activeView?.color ?? (schema as any).color,
+          // The spec-canonical row-colour CONFIGURATION (objectui#7218).
+          // `ListView` seeds its `rowColorConfig` state from this key; the
+          // bare `color` above is the legacy shorthand for the same feature
+          // and was already relayed, so only the canonical spelling was
+          // missing. Copied from the interface route, which has shipped
+          // `rowColor: view.rowColor` next to `grouping`/`pagination` since
+          // ADR-0047 (`app-shell/src/views/InterfaceListPage.tsx`).
+          //
+          // View-sourced ONLY, deliberately: no fallback to the same key on
+          // the object-view node. Such a cast read would add a 28th name to
+          // the objectui#5097 HOST-COMPOSITION exemption the 2026-08-18
+          // ruling fixed at 27, which is a ruling and not a refactor.
+          // `grouping` above is the precedent for a view-only rung here.
+          rowColor: activeView?.rowColor,
           // Propagate view-config properties (Bug 4 / items 14-22)
           inlineEdit: activeView?.inlineEdit ?? (schema as any).inlineEdit,
           wrapHeaders: activeView?.wrapHeaders ?? (schema as any).wrapHeaders,

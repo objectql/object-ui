@@ -102,14 +102,26 @@
  * how ~20 per-consumer dual-key fallbacks got written under a normalizer whose
  * own docstring says it exists "so per-consumer dual-key fallbacks can't drift".
  *
- * ⛔ The two SURVIVING arms are out of this slice's scope. Choosing between
- * `reference_to` and `reference` per reader is objectui#6837's OPEN scope, and
- * its classification table measured why a mechanical sweep would be wrong: the
- * ObjectUI-side contracts (`DetailViewFieldSchema`, `LookupFieldMetadata`,
- * report columns, designer fields, related-list config) declare `reference_to`,
- * `referenceTo` and `referenceField` but NONE of them declares `reference` —
- * these readers sit on a TIER BOUNDARY rather than choosing between a legacy
- * and a canonical spelling of one key. #6837 stays open.
+ * ⭐ THAT OPEN SCOPE IS NOW CLOSED FOR THIS READER — objectui#6837 half 2.
+ * Maintainer ruling 2026-08-31 (第 6 场总监席决裁批 #14), 原文照录:
+ * "objectui不是前端的项目吗?后端的元数据只要对,前端按协议执行就行了呀".
+ * Protocol normalization belongs on the SERVER. objectstack#13847 landed that
+ * half — a `field-reference-to-alias` conversion rewrites stored
+ * `reference_to` -> `reference` on the serve path and in `os migrate meta` —
+ * so this reader keeps ONE arm, `reference`, and the `reference_to` case below
+ * moved from the live group to the refusal group.
+ *
+ * ⛔ The tier-boundary caveat this paragraph used to carry is NOT retracted, it
+ * is SCOPED: it was always about ObjectUI's OWN contracts, and those keep
+ * `reference_to` as their canonical key. `LookupFieldMetadata`,
+ * `DetailViewFieldSchema` and the `FieldMetadata` bag declare `reference_to`
+ * and never declare `reference`, so the three widget-seam readers that read
+ * THAT bag (`fields/src/index.tsx#LookupCellRenderer`,
+ * `widgets/LookupField.tsx`, `widgets/UserField.tsx`) were deliberately NOT
+ * narrowed by half 2 — narrowing them would break their in-repo producers and
+ * turn `plugin-grid`'s `relationalMetaCopySet.derivation.test.ts` red, since
+ * that gate re-derives its read set from exactly those three sources and
+ * records `reference_to` there with verdict `adapter-stamped`.
  *
  * ## 5. Ablation direction, predicted before running
  *
@@ -155,10 +167,12 @@ const PROJECTS = [
 
 /** Every probe is a `lookup`, so only the target SPELLING varies between them. */
 const FIELD_DEFS: Record<string, Record<string, unknown>> = {
-  // Live arms — the two spellings a contract actually carries at this seam.
-  canonical: { type: 'lookup', reference_to: 'projects' },
+  // Live arm — the ONE spelling the protocol declares. objectui#6837 half 2
+  // deleted the `reference_to` arm too, so this is now the whole accept set.
   spec_spelling: { type: 'lookup', reference: 'projects' },
-  // Deleted arm — refused by `FieldSchema` by name, retired at the read door.
+  // Deleted arms — both refused by `FieldSchema` by NAME, each with its own
+  // "did you mean -> `reference`?" rename.
+  legacy_snake: { type: 'lookup', reference_to: 'projects' },
   legacy_camel: { type: 'lookup', referenceTo: 'projects' },
 };
 
@@ -222,11 +236,6 @@ const fetchedDomain = (ds: any) =>
 
 describe('ObjectGantt resolves only contract-declared target spellings (objectui#6837)', () => {
   describe('live arms — the value still arrives (without these, a gantt that stopped resolving anything would pass the refusal too)', () => {
-    it("resolves `reference_to`, ObjectUI's own view/field key", async () => {
-      const { ds } = await mount(FIELD_DEFS.canonical);
-      await waitFor(() => expect(fetchedDomain(ds)).toBe(true));
-    });
-
     it('resolves `reference`, the spelling `FieldSchema` accepts', async () => {
       const { ds } = await mount(FIELD_DEFS.spec_spelling);
       await waitFor(() => expect(fetchedDomain(ds)).toBe(true));
@@ -234,7 +243,7 @@ describe('ObjectGantt resolves only contract-declared target spellings (objectui
 
     it('a resolved target widens the dropdown to the FULL domain, past the loaded rows', async () => {
       // The user-visible half: `p2`/`p3` exist only on the referenced object.
-      const { ds, view } = await mount(FIELD_DEFS.canonical);
+      const { ds, view } = await mount(FIELD_DEFS.spec_spelling);
       await waitFor(() => expect(fetchedDomain(ds)).toBe(true));
       await waitFor(() => {
         fireEvent.click(view.getByTestId('quick-filter-trigger-project'));
@@ -244,7 +253,12 @@ describe('ObjectGantt resolves only contract-declared target spellings (objectui
     });
   });
 
-  describe('refusal — one named case for the deleted key', () => {
+  describe('refusals — one named case per deleted key', () => {
+    it('does NOT read `reference_to` (objectui#6837 half 2: `FieldSchema` refuses it by name with its own rename hint; objectstack#13847 normalizes it away on the serve path)', async () => {
+      const { ds } = await mount(FIELD_DEFS.legacy_snake);
+      expect(fetchedDomain(ds)).toBe(false);
+    });
+
     it('does NOT read `referenceTo` (RETIRED_FIELD_KEY_TOMBSTONES, objectui#6041/#6519; `FieldSchema` refuses it by name)', async () => {
       const { ds } = await mount(FIELD_DEFS.legacy_camel);
       expect(fetchedDomain(ds)).toBe(false);

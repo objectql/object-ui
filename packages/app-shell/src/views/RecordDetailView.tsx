@@ -389,6 +389,20 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     'idle' | 'loading' | 'loaded' | 'missing'
   >('idle');
 
+  // Permissions context.
+  //
+  // ⚠️ [objectui#7230] THE POSITION IS LOAD-BEARING, not cosmetic. This used to
+  // be a `usePermissions()` call ~670 lines below, next to the header's
+  // Edit/Delete gates. The record-load effect immediately after this line now
+  // FLS-gates its `$expand`, and an effect's DEPENDENCY ARRAY is evaluated
+  // DURING render — so listing `perms` there while the binding was still
+  // declared below would hit the temporal dead zone and throw
+  // `Cannot access 'perms' before initialization`: a crash, not a stale value.
+  // The hook moved up; the site below destructures THIS value instead of
+  // calling the hook a second time, so the hook order is unchanged in shape.
+  // Same structural note PR #7229 recorded for `ListView`'s memo.
+  const perms = usePermissions();
+
   useEffect(() => {
     let cancelled = false;
     if (!effectivePage || !pureRecordId || !objectName || !dataSource?.findOne) {
@@ -399,7 +413,39 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // Expand lookup/master_detail fields so the page receives display
     // names (e.g. account.name) rather than raw foreign-key IDs. The
     // page subtitle interpolation and record:* renderers depend on this.
-    const expandFields = buildExpandFields(objectDef?.fields);
+    //
+    // [objectui#7230] FIELD-LEVEL SECURITY ON `$expand`, the gate
+    // objectui#7215 / PR #7229 put on the two projection sites in its scope.
+    // `$select` on a denied lookup asks the server for a bare foreign key;
+    // `$expand` asks it to RESOLVE the relation and hand back the related
+    // record — the larger of the two requests.
+    //
+    // ⚠️ NO COLUMN LIST IS PASSED HERE, which makes this the sharpest of the
+    // family: `buildExpandFields` reads an absent column list as "no column
+    // restriction" and falls back to EVERY declared relation on the object,
+    // denied ones included. Every record page in the console therefore asked
+    // for the object's full relation set by default, not by configuration.
+    //
+    // Graded as objectui#7215 graded it, by measurement rather than assumption:
+    // against ObjectStack this is defence-in-depth, because `plugin-security`'s
+    // `FieldMasker.maskRecord` does `delete result[field]` on every unreadable
+    // key and objectql's expand path writes the resolved record back under THAT
+    // SAME KEY, so one statement removes the expanded object and the bare id
+    // alike; the expansion sub-read itself takes the referenced object's full
+    // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing for a
+    // backend that does not strip.
+    //
+    // ⭐ THE GATE IS ON THE HELPER'S OUTPUT. There is no input to gate on this
+    // site, and the output holds only DECLARED reference-bearing fields, so the
+    // "`checkField` answers false for an undeclared key" trap is structurally
+    // unreachable and a derived / host-joined key is never judged. An
+    // unanswered policy filters nothing; `perms` is in this effect's dependency
+    // list, so the record is re-read the moment the answer arrives. Pinned in
+    // `RecordDetailView.expandFls-7230.test.tsx`.
+    const expandable = buildExpandFields(objectDef?.fields);
+    const expandFields = !perms?.isLoaded
+      ? expandable
+      : expandable.filter((f) => perms.checkField(objectName, f, 'read'));
     const params = expandFields.length > 0 ? { $expand: expandFields } : undefined;
     const loadRecord = () => {
       setPageRecordStatus('loading');
@@ -441,7 +487,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     };
     // #2269: recordInvalidationNonce re-runs this fetch in place whenever the
     // record (or its object) is invalidated on the bus.
-  }, [effectivePage, objectName, pureRecordId, dataSource, objectDef, recordInvalidationNonce]);
+  }, [effectivePage, objectName, pureRecordId, dataSource, objectDef, recordInvalidationNonce, perms]);
 
   // Derive a human-readable record title from the loaded `pageRecord` so
   // favourites (record:*) and the breadcrumb show e.g. "Acme Corporation"
@@ -1076,7 +1122,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // are still loading (`isLoaded === false`, e.g. no PermissionProvider in a
   // standalone embed) the gate stays open — fail-open is safe because the
   // server enforces data access regardless; this is purely a UI/DX filter.
-  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations, systemPermissions } = usePermissions();
+  const { can: canOnObject, isLoaded: permissionsLoaded, getObjectApiOperations, systemPermissions } = perms;
   // [#3546] Server-resolved effective API operation set for this object
   // (`/me/permissions` `apiOperations`). Threaded as the 2nd arg into
   // `resolveRecordHeaderActionGates` for the detail header's Edit/Delete and
@@ -1838,7 +1884,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     const sections = (() => {
           const toField = (key: string) => {
             const fieldDef = objectDef.fields[key];
-            const refTarget = fieldDef.reference_to || fieldDef.reference;
+            // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+            // belongs on the SERVER, the front end just executes the protocol.
+            // `reference` is the only target spelling `@objectstack/spec`'s
+            // `FieldSchema` declares; it refuses `reference_to` by name with its own
+            // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+            // stored `reference_to` on the serve path and in `os migrate meta`. A
+            // legacy-only def is canonicalised ONCE at the ingestion choke point
+            // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+            const refTarget = fieldDef.reference;
             return {
               name: key,
               label: fieldDef.label || key,

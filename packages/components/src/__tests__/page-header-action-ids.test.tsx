@@ -260,18 +260,64 @@ describe('page:header — declared action-id lookup (objectui#6252)', () => {
     expect(warnMessages().filter((m) => m.includes('[page:header] action id'))).toEqual([]);
   });
 
-  it('keeps the inline object shape working during the transition, including mixed arrays', async () => {
+  it('keeps the inline object shape working during the transition', async () => {
+    // Renderer tolerance for the objectstack#11592 migration, still undeclared
+    // (the spec's contract is ids). An ALL-object array passes through
+    // `resolveDeclaredActionIds` untouched and never asks the metadata layer.
+    getItem.mockClear();
     const { container } = mount({
       type: 'page:header',
       title: 'Lead',
-      actions: ['convert', { name: 'adhoc', label: 'Ad Hoc', type: 'api', locations: ['record_header'] }],
+      actions: [
+        { name: 'adhoc', label: 'Ad Hoc', type: 'api', locations: ['record_header'] },
+        { name: 'other', label: 'Other', type: 'api', locations: ['record_header'] },
+      ],
     });
-    await screen.findByRole('button', { name: /Convert Lead/i });
-    // Both render, and they are ordered by the SAME `order` rule the chain has
-    // always applied — the inline def declares none (0), `convert` declares 2 —
-    // which is the point: resolution happens above the filter chain, so a mixed
-    // array is one population, not two.
-    expect(buttonNames(container)).toEqual(['Ad Hoc', 'Convert Lead']);
+    expect(buttonNames(container)).toEqual(['Ad Hoc', 'Other']);
+    expect(getItem).not.toHaveBeenCalled();
+  });
+
+  /**
+   * objectui#7182 (maintainer ruling 2026-09-02, option C): a MIXED id/object
+   * array is refused, not half-drawn. This case replaces the one that pinned
+   * the opposite — "a mixed array resolves the id and passes the object
+   * through" — which was this renderer's own choice under objectui#6252 and
+   * exactly the divergence from `record:quick_actions` the ruling closes.
+   */
+  it('refuses a mixed id/object array — nothing authored renders, and the console names the offending index', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const adhoc = { name: 'adhoc', label: 'Ad Hoc', type: 'api', locations: ['record_header'] };
+      // Live controls FIRST: each half renders on its own, so the refusal below
+      // is about the MIX and not about either element.
+      const idsOnly = mount({ type: 'page:header', title: 'Lead', actions: ['convert'] });
+      await screen.findByRole('button', { name: /Convert Lead/i });
+      idsOnly.unmount();
+      const objectsOnly = mount({ type: 'page:header', title: 'Lead', actions: [adhoc] });
+      expect(buttonNames(objectsOnly.container)).toEqual(['Ad Hoc']);
+      objectsOnly.unmount();
+
+      getItem.mockClear();
+      const { container } = mount({ type: 'page:header', title: 'Lead', actions: ['convert', adhoc] });
+      await waitFor(() => expect(container.querySelector('h1, [data-page-actions-slot]')).toBeTruthy());
+      // Neither half: not the id the object metadata would resolve, not the
+      // inline object that needs no lookup.
+      expect(buttonNames(container)).toEqual([]);
+      expect(screen.queryByRole('button', { name: /Convert Lead/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Ad Hoc/i })).toBeNull();
+      // A refused array is refused BEFORE any lookup: the metadata layer is never asked.
+      expect(getItem).not.toHaveBeenCalled();
+
+      const hits = (error.mock.calls as unknown[][])
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('[page:header] actions refused'));
+      expect(hits.length).toBe(1);
+      expect(hits[0]).toContain('refused at index 1');
+      expect(hits[0]).toContain('element 1 is an inline action object but element 0 is an action id');
+      expect(hits[0]).toContain('mixed id/object action arrays are refused; use all ids or all objects');
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it('resolves ids authored under the spec-bridge `properties.actions` spelling', async () => {

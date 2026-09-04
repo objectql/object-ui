@@ -103,6 +103,21 @@ const renderSurface = (node: React.ReactNode) =>
     </ActionProvider>,
   );
 
+/**
+ * The standalone NODE shape for the two leaf action components (objectui#7415).
+ *
+ * `clone()` above returns a spec `ActionSchema`, whose execution type is spelled
+ * `type` — and that spelling is still correct where the declaration sits inside
+ * an `actions` array (`action:group` / `action:menu` below, untouched). As a
+ * NODE handed straight to `action:button` / `action:icon`, `type` is the SDUI
+ * component discriminator and the execution type is the renamed `actionType`
+ * input, so the two spellings are separated here rather than conflated.
+ */
+const asNode = (component: string, decl: Record<string, unknown>) => {
+  const { type, ...rest } = decl;
+  return { ...rest, type: component, actionType: type };
+};
+
 /** The renderer under test, straight off the registry (as `action:bar` gets it). */
 function surface(type: string, schema: Record<string, unknown>) {
   const C = ComponentRegistry.get(type);
@@ -129,7 +144,7 @@ async function expectHop(expected: { openIn: 'self' | 'newTab'; block: unknown }
 
 describe('ActionSchema.onSuccess reaches the runner from every declared surface (#5493)', () => {
   it('action:button — a clicked button performs the declared post-success hop', async () => {
-    renderSurface(surface('action:button', clone(ONSUCCESS_SELF)));
+    renderSurface(surface('action:button', asNode('action:button', clone(ONSUCCESS_SELF))));
 
     fireEvent.click(screen.getByRole('button', { name: 'Clone' }));
 
@@ -140,7 +155,7 @@ describe('ActionSchema.onSuccess reaches the runner from every declared surface 
     // Same declaration, dense layout. Which renderer an action gets is a host's
     // choice (`component`), so a whitelist that carries the key on one surface
     // and drops it on another makes the hop a function of the layout.
-    renderSurface(surface('action:icon', clone(ONSUCCESS_SELF)));
+    renderSurface(surface('action:icon', asNode('action:icon', clone(ONSUCCESS_SELF))));
 
     fireEvent.click(screen.getByRole('button', { name: 'Clone' }));
 

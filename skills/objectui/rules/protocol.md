@@ -77,6 +77,7 @@ declaration rather than keeping its own copy.
 | `button` | `label` |
 
 **✅ CORRECT — a dashboard number that moves with the data:**
+<!-- os:check -->
 ```json
 {
   "type": "statistic",
@@ -102,6 +103,7 @@ renders an empty frame, and the envelope itself lands in the DOM as the invalid
 attribute `props="[object Object]"`.
 
 **❌ WRONG — renders an empty card:**
+<!-- os:check -->
 ```json
 {
   "type": "card",
@@ -110,6 +112,7 @@ attribute `props="[object Object]"`.
 ```
 
 **✅ CORRECT:**
+<!-- os:check -->
 ```json
 {
   "type": "card",
@@ -151,7 +154,7 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 **❌ FORBIDDEN:** Adding custom properties not defined in `@objectstack/spec`.
 
 **Example violation:**
-```json
+```jsonc
 {
   "type": "data-table",
   "fields": [...],  // ❌ spec uses "columns"
@@ -160,7 +163,7 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 ```
 
 **✅ CORRECT:**
-```json
+```jsonc
 {
   "type": "data-table",
   "columns": [...]  // ✅ declared by DataTableSchema, read off the node
@@ -171,7 +174,7 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 
 When the entire string is a single `${expression}`, the result preserves its type:
 
-```json
+```jsonc
 "${data.count}"        // → returns number 42, not string "42"
 "${data.isActive}"     // → returns boolean true, not string "true"
 "Count: ${data.count}" // → returns string "Count: 42" (mixed template)
@@ -181,7 +184,7 @@ When the entire string is a single `${expression}`, the result preserves its typ
 
 The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`, and only a component that calls that hook reads it:
 
-```json
+```jsonc
 {
   "type": "list",
   "bind": "customerNames"  // Resolved as dataSource.customerNames
@@ -215,6 +218,7 @@ channel is objectui#4795's open question, not a taught surface.
 
 Events must be defined as arrays of action definitions:
 
+<!-- os:check -->
 ```json
 {
   "events": {
@@ -237,6 +241,7 @@ through the **same field-widget renderer the object form uses** — so any
 form-supported type (`select`, `lookup`, `date`, `file`, `image`, `richtext`,
 `color`, …) gets its real widget, never a text-box fallback (ADR-0059):
 
+<!-- os:check -->
 ```json
 {
   "name": "approve",
@@ -267,6 +272,7 @@ param support ⊇ form support).
 breakpoint object keyed `xs` / `sm` / `md` / `lg` / `xl` (`GridSchema` in
 `packages/types/src/layout.ts`):
 
+<!-- os:check -->
 ```json
 {
   "type": "grid",

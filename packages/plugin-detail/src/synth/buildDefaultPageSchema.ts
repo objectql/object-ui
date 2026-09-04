@@ -30,7 +30,7 @@ import { detectStatusField } from '@object-ui/types';
 // re-exports the same function; this module reads it from `@object-ui/core`
 // because that is the dependency this package's synth layer already carries
 // at this depth, and both spellings resolve to one table and one dedupe set.
-import { isRetiredFieldType, reportRetiredFieldType } from '@object-ui/core';
+import { isRetiredFieldType, reportRetiredFieldType, resolveNameField } from '@object-ui/core';
 import { inferDetailColumns } from '../autoLayout';
 
 /** Minimal shape of an object definition we read here. We deliberately
@@ -48,9 +48,25 @@ export interface ObjectDefLike {
   /** Semantic role (ADR-0085): the object's most important fields —
    *  drives the highlight strip (first 4). */
   highlightFields?: string[];
-  /** Name of the field that holds the record's display title (e.g. `name`,
-   *  `subject`). When present we exclude it from the auto-derived highlight
-   *  list to avoid duplicating the page H1. */
+  /**
+   * ACCEPTED BUT NEVER READ — do not "tidy" this away (objectui#7287).
+   *
+   * `primaryField` is a `DetailViewSchema` key (`@object-ui/types` `views.ts`),
+   * and reading it off an OBJECT def is the defect objectui#7287 removed:
+   * `resolveTitleField` now delegates to `@object-ui/core`'s `resolveNameField`
+   * and no code in this module consults this member. No producer can populate
+   * it either — `@objectstack/spec`'s object schema is a `strictObject` that
+   * answers `unrecognized_keys: ['primaryField']`.
+   *
+   * It stays declared because this interface is REACHABLE, which is a
+   * different question from what it describes: `ObjectDefLike` is re-exported
+   * from this package's index and `@object-ui/plugin-detail` is published, so
+   * the member is part of a shipped `.d.ts`. Deleting it narrows a published
+   * type — an external `const d: ObjectDefLike = { primaryField: 'x' }`
+   * compiles today and would stop compiling — and that is a contract change
+   * owed its own card, not a rider on a behaviour fix. Retiring it is a
+   * deliberate act for someone to take on purpose.
+   */
   primaryField?: string;
   /** Optional section grouping for the details region. The heading rides
    *  `label` — the one slot `@object-ui/types` declares (objectui#6190). */
@@ -380,28 +396,39 @@ export function deriveStages(
 }
 
 /**
- * Resolve the record's title field — the value the page renders as its H1.
- * Declared role first (`primaryField` / `nameField` / deprecated
- * `displayNameField`), else the first conventional display-field name present
- * on the object. Mirrors `record-details`' titleCandidates so "what the H1
- * shows" and "what the strip skips" can never disagree.
+ * WHICH FIELD titles this record — the field whose value the page renders as
+ * its H1, in NAME space.
+ *
+ * DELEGATES to `@object-ui/core`'s `resolveNameField`: the ONE shared ADR-0079
+ * ladder (`nameField` -> deprecated `displayNameField` / `NAME_FIELD_KEY` ->
+ * type-aware derivation), the same spelling `getRecordDisplayName` reads to
+ * produce the H1's VALUE and `leadWithNameField` reads to lead a list. It does
+ * not re-implement that ladder. ADR-0079 collapsed ~6 divergent title
+ * resolvers and this module grew one back (objectui#7287); a second ladder
+ * that agrees today diverges again on the next change, which is the whole
+ * history of this defect.
+ *
+ * Two rungs went away with the delegation:
+ *
+ *  - `def.primaryField` — a `DetailViewSchema` key (`@object-ui/types`
+ *    `views.ts`), read here off an OBJECT def and ranked ABOVE the canonical
+ *    `nameField` ADR-0079 Phase 2 made the pointer. No producer can put it
+ *    there: `@objectstack/spec`'s object schema is a `strictObject` that
+ *    answers `unrecognized_keys: ['primaryField']`, and `ObjectSchema.create()`
+ *    throws — which is why objectstack#6326 deleted the identical read from
+ *    two lint rules. A census across both repos found zero object payloads
+ *    carrying it. Same shape as the undeclared `objectDef.titleField` read
+ *    objectui#6531 measured and #6557 removed.
+ *  - the literal `['name','full_name','title','subject','display_name']` walk
+ *    — a NAME match with no type check. `deriveTitleField` ranks those same
+ *    name-ish names first AND rejects non-title types, so a `select` named
+ *    `title` stops being named as the H1 field that the H1 never shows.
+ *
+ * Returns `null` rather than `undefined` for this module's `!== titleField`
+ * filters and app-shell's `?? 'name'` call site.
  */
 export function resolveTitleField(def: ObjectDefLike | undefined): string | null {
-  if (!def) return null;
-  const fields = def.fields || {};
-  for (const candidate of [
-    def.primaryField,
-    (def as any).nameField,
-    (def as any).displayNameField,
-  ]) {
-    if (typeof candidate === 'string' && candidate.length > 0 && candidate in fields) {
-      return candidate;
-    }
-  }
-  for (const candidate of ['name', 'full_name', 'title', 'subject', 'display_name']) {
-    if (candidate in fields) return candidate;
-  }
-  return null;
+  return resolveNameField(def) ?? null;
 }
 
 /**
@@ -444,14 +471,8 @@ export function deriveHighlightFields(
     'org_id',
   ]);
   if (statusField) skip.add(statusField);
-  // The record's display/primary field is already shown as the page H1 —
-  // surfacing it again in the highlight strip duplicates content and
-  // wastes a slot (e.g. Task pages would show 主题 twice). Skip the
-  // common candidates and whatever the def declares as `primaryField`,
-  // `nameField`, or the deprecated `displayNameField` alias (ADR-0079).
-  if (def.primaryField) skip.add(def.primaryField);
-  if ((def as any).nameField) skip.add((def as any).nameField);
-  if ((def as any).displayNameField) skip.add((def as any).displayNameField);
+  // (The title field joins `skip` below, AFTER the retirement gate is defined
+  // — see the block above the selection loops for why the order matters.)
   for (const candidate of ['name', 'full_name', 'title', 'subject', 'display_name']) {
     if (candidate in (def.fields || {})) skip.add(candidate);
   }
@@ -502,6 +523,47 @@ export function deriveHighlightFields(
     reportRetiredFieldType(ftype);
     return true;
   };
+  // The record's title field is already shown as the page H1 — surfacing it
+  // again in the highlight strip duplicates content and wastes a slot (e.g.
+  // Task pages would show 主题 twice). ONE resolver decides WHICH field that
+  // is, the same one the DECLARED branch above uses, so "what the strip
+  // skips" and "what the H1 shows" cannot disagree (objectui#7287).
+  //
+  // ⚠️ This REPLACES three separate reads (`primaryField` / `nameField` /
+  // `displayNameField`, each adding whatever it found) and it is a deliberate
+  // BEHAVIOUR CHANGE, not a rewrite of them. `primaryField` is simply gone —
+  // a `DetailViewSchema` key no object payload can carry (see
+  // {@link resolveTitleField}). The other two are rungs of the shared ladder,
+  // but the ladder PICKS one rung where the old set added EVERY declared one,
+  // so old and new disagree on exactly one input: an object declaring
+  // `nameField` AND the deprecated `displayNameField` alias to DIFFERENT
+  // fields. The old set skipped both; this skips only the winner.
+  //
+  // Skipping only the winner is the intended behaviour. The loser is not the
+  // H1 — `getRecordDisplayName` reads this same `declaredNameField` ladder
+  // and renders the WINNER's value — so hiding the loser removed an ordinary
+  // field and spent a strip slot on a field the heading never shows, which is
+  // the class of bug this card is about. It also makes this heuristic branch
+  // agree with the DECLARED branch above, which has only ever filtered a
+  // single `titleField`: the "#2548 follow-up" note up there claims both
+  // branches agree, and until now that was true only for objects declaring
+  // one alias.
+  //
+  // Pinned by "skips only the winner when nameField and displayNameField
+  // disagree" in `resolveTitleField.sharedLadder-7287.test.ts`.
+  //
+  // ⚠️ Ask THE GATE first, then skip. A field skipped as the H1 never reaches
+  // the selection loops, so skipping it silently would take the objectui#4914
+  // report with it — the author of an object whose only retired-typed field
+  // happens to title the record would stop being told, while the strip looked
+  // correct. That is the same "one door left open" the gate's own docstring
+  // above is about. Hence this sits below `refusedAsRetired`, not up in the
+  // skip set.
+  const h1Field = resolveTitleField(def);
+  if (h1Field) {
+    refusedAsRetired(h1Field);
+    skip.add(h1Field);
+  }
   for (const name of preferred) {
     if (name in fields && !skip.has(name) && !refusedAsRetired(name)) out.push(name);
     if (out.length >= max) return out;
@@ -615,9 +677,12 @@ export function deriveFieldGroupDetailSections(
       label: f.label || name,
       type: f.type || 'text',
       ...(f.options ? { options: f.options } : {}),
-      ...((f as any).reference_to || (f as any).reference
-        ? { reference_to: (f as any).reference_to || (f as any).reference }
-        : {}),
+      // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+      // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+      // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+      // contract declares, and renaming it would be a separate change.
+      // Target contract here: the DetailSection field bag (`DetailViewField`).
+      ...((f as any).reference ? { reference_to: (f as any).reference } : {}),
       ...((f as any).reference_field ? { reference_field: (f as any).reference_field } : {}),
       ...((f as any).currency ? { currency: (f as any).currency } : {}),
       // Spec channel for per-field currency — renderers resolve

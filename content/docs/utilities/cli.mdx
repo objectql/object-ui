@@ -158,6 +158,37 @@ objectui validate app.json
 objectui validate ./schemas/dashboard.yaml
 ```
 
+#### Reading a failure
+
+A document is checked against a union of every component type, so a failure is
+reported first at the document root and then narrowed to the arm your `type`
+selected. Each numbered issue carries a path and a code; the `1.1`-style entries
+beneath it are that arm's own diagnosis, with the real path to the node that
+failed:
+
+```text
+1. Invalid input
+   Path: (root)
+   Code: invalid_union
+   1.1 RETIRED (objectui#6523) — dividers are `{ separator: true }`; …
+       Path: items → 0 → type
+       Code: invalid_type
+```
+
+Only the selected arm is shown. When your `type` matches no component at all,
+the report says so and offers the nearest few of the accepted values instead:
+
+```text
+1. Invalid input
+   Path: (root)
+   Code: invalid_union
+   No arm accepts type "dropdwn-menu".
+   Nearest of the 108 accepted types: dropdown-menu, context-menu, component, drawer, breadcrumb
+```
+
+A document with no `type` at all is reported the same way, without a candidate
+list — there is nothing for the suggestions to be near.
+
 ### `objectui check`
 
 Scan the project for ObjectUI schema files and report on the ones it

@@ -63,17 +63,33 @@
  * The `expect(…)` lines below are RUNTIME and are judged by vitest. Every
  * relaxation therefore carries at least one assertion of each kind, so neither
  * instrument going missing can make this file vacuous on its own.
+ *
+ * ## 3. The RETIREMENT this card's own ruling ordered (maintainer, 2026-08-30)
+ *
+ * The third section pins the opposite direction: `ReportComponentSchema.dataSource`
+ * and `ReportBuilderSchema.dataSources` are RETIRED. Both were annotated with the
+ * runtime `DataSource` ADAPTER — a shape no JSON document can author — and no read
+ * site ever consumed either key. A retirement needs its own pin for the mirror
+ * reason a widening does: `?: never` compiles for every existing caller (nobody
+ * wrote the key), so nothing would fail if a later edit restored the adapter
+ * annotation or relaxed the mirror back to `z.any()`. Both halves are pinned —
+ * the `never` TypeScript twin AND the mirror's named refusal — because either one
+ * alone leaves `declared !== enforced`, which is the defect ADR-0049 names.
  */
 
 import { describe, it, expect } from 'vitest';
 import type {
+  ReportBuilderSchema,
   ReportComponentSchema,
   ReportExportConfig,
   ReportExportFormat,
 } from '../reports.js';
 import type { ChartDataSeries } from '../data-display.js';
 import { ChartDataSeriesSchema } from '../zod/data-display.zod.js';
-import { ReportComponentSchema as ReportComponentZodSchema } from '../zod/reports.zod.js';
+import {
+  ReportBuilderSchema as ReportBuilderZodSchema,
+  ReportComponentSchema as ReportComponentZodSchema,
+} from '../zod/reports.zod.js';
 
 /** `true` only when the two types are mutually assignable AND identical. */
 type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
@@ -160,5 +176,100 @@ describe('objectui#6121 — ChartDataSeries declares the per-series family overr
   it('leaves the override optional — a plain inline series still parses', () => {
     const plain: ChartDataSeries = { name: 'Revenue' };
     expect(ChartDataSeriesSchema.parse(plain).type).toBeUndefined();
+  });
+});
+
+describe('objectui#6121 — the two report data-source keys are retired on both faces', () => {
+  // 3a. THE TYPE PIN. `?: never` resolves the member type to `undefined`, so
+  // this line fails if either key is restored to `DataSource` / `DataSource[]`
+  // — or to any other value type, including the `ViewData` binding whose key
+  // name is still an open question on this card.
+  type RetiredDataSource = ReportComponentSchema['dataSource'];
+  type RetiredDataSources = ReportBuilderSchema['dataSources'];
+  type _DataSourceStaysRetired = Assert<Eq<RetiredDataSource, undefined>>;
+  type _DataSourcesStayRetired = Assert<Eq<RetiredDataSources, undefined>>;
+
+  it('refuses an authored `dataSource` on both faces, by name', () => {
+    const authored = {
+      type: 'report' as const,
+      title: 'Quarterly Sales Analysis',
+      // The exact face `content/docs/core/report-schema.mdx` used to teach.
+      dataSource: { provider: 'api', read: { url: '/api/sales', method: 'GET' } },
+    };
+
+    // @ts-expect-error `dataSource` is retired — `?: never` admits no value
+    const typed: ReportComponentSchema = authored;
+    expect(typed).toBeTruthy();
+
+    const result = ReportComponentZodSchema.safeParse(authored);
+    expect(result.success).toBe(false);
+    // The ENVELOPE, not the fact that something failed: one issue, at this
+    // key's own path, reported as `invalid_type` (what `z.never()` emits) —
+    // and carrying the tombstone's guidance rather than zod's generic text,
+    // which is the half `retirementTombstone` exists for.
+    const issues = result.success ? [] : result.error.issues;
+    expect(issues.map((i) => [i.code, i.path.join('.')])).toEqual([['invalid_type', 'dataSource']]);
+    expect(issues[0]?.message).toContain('RETIRED (objectui#6121, ADR-0049)');
+  });
+
+  it('refuses an authored `dataSources` on the builder, by name', () => {
+    const authored = {
+      type: 'report-builder' as const,
+      dataSources: [{ provider: 'api', read: { url: '/api/sales' } }],
+    };
+
+    // @ts-expect-error `dataSources` is retired — `?: never` admits no value
+    const typed: ReportBuilderSchema = authored;
+    expect(typed).toBeTruthy();
+
+    const result = ReportBuilderZodSchema.safeParse(authored);
+    expect(result.success).toBe(false);
+    const issues = result.success ? [] : result.error.issues;
+    expect(issues.map((i) => [i.code, i.path.join('.')])).toEqual([['invalid_type', 'dataSources']]);
+    expect(issues[0]?.message).toContain('RETIRED (objectui#6121, ADR-0049)');
+  });
+
+  // 3b. CONTROLS, in the same run. Two zeros above need two things that fire:
+  // without these, a mirror that refused EVERYTHING would read as a pass, and
+  // so would a `.safeParse` that had stopped being called at all.
+  it('the same report without the retired key still parses, and the row array is untouched', () => {
+    const report: ReportComponentSchema = {
+      type: 'report',
+      title: 'Quarterly Sales Analysis',
+      // `data` is the report ROW array — a live key with a live read
+      // (`LegacyReportRenderer` reads `data.length` / `data.map`). It is NOT
+      // the retired binding, and this control is what keeps the retirement
+      // above from reading as "reports refuse data".
+      data: [{ region: 'EMEA', revenue: 1 }],
+    };
+    const result = ReportComponentZodSchema.safeParse(report);
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.data).toHaveLength(1);
+
+    const builder: ReportBuilderSchema = { type: 'report-builder', showPreview: true };
+    expect(ReportBuilderZodSchema.safeParse(builder).success).toBe(true);
+  });
+
+  // 3c. The guidance reaches the OTHER author-facing channel too — the
+  // `.describe()` metadata that feeds generated JSON Schema and the docs
+  // surface. One string, two channels, so they cannot drift apart.
+  it('publishes the retirement guidance as schema metadata', () => {
+    const shapeOf = (schema: { shape: Record<string, { description?: string }> }) => schema.shape;
+    const componentDescribe = shapeOf(
+      ReportComponentZodSchema as unknown as { shape: Record<string, { description?: string }> },
+    ).dataSource?.description;
+    const builderDescribe = shapeOf(
+      ReportBuilderZodSchema as unknown as { shape: Record<string, { description?: string }> },
+    ).dataSources?.description;
+
+    expect(componentDescribe).toContain('RETIRED (objectui#6121, ADR-0049)');
+    expect(builderDescribe).toContain('RETIRED (objectui#6121, ADR-0049)');
+    // Control for the reader itself: a NON-retired member's description is
+    // still its own noun, so the two hits above are not "every key says
+    // RETIRED".
+    expect(
+      shapeOf(ReportComponentZodSchema as unknown as { shape: Record<string, { description?: string }> })
+        .title?.description,
+    ).toBe('Report title');
   });
 });

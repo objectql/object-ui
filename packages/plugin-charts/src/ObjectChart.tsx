@@ -5,7 +5,7 @@ import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, humanizeLabel, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveFilterPlaceholders, resolveContextTokens, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, deriveDimensionLabelMaps, dimensionOptionTranslator, loadDimensionFieldMeta, relabelDimensions, localizeFieldOptions, elementDataSourceBlock, type DimensionFieldMeta, type CompareToConfig, type DrillEvent, type ChartResultField, type ChartSegmentClickEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton, DataEmptyState } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight, Inbox } from 'lucide-react';
-import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import type { DrillDownConfig } from '@object-ui/types';
 
 /**
@@ -174,7 +174,15 @@ export async function resolveGroupByLabels(
   // --- lookup / master_detail fields ---
   if (fieldType === 'lookup' || fieldType === 'master_detail') {
     // --- lookup / master_detail fields ---
-    const referenceTo = fieldDef.reference_to || fieldDef.reference;
+    // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+    // belongs on the SERVER, the front end just executes the protocol.
+    // `reference` is the only target spelling `@objectstack/spec`'s
+    // `FieldSchema` declares; it refuses `reference_to` by name with its own
+    // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+    // stored `reference_to` on the serve path and in `os migrate meta`. A
+    // legacy-only def is canonicalised ONCE at the ingestion choke point
+    // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+    const referenceTo = fieldDef.reference;
     if (!referenceTo || !dataSource || typeof dataSource.find !== 'function') {
       // Cannot resolve — return as-is but still attach the rawKey so the
       // click handler can recover the FK id.
@@ -333,9 +341,23 @@ export const ObjectChart = (props: any) => {
     [schema.dataset, schema.dimensions, schema.values],
   );
 
-  // Pie / donut / funnel are single-distribution charts where a comparison
-  // overlay would be meaningless — we skip the comparison fetch entirely.
-  const supportsCompareTo = (ct?: string) => ct !== 'pie' && ct !== 'donut' && ct !== 'funnel';
+  // Chart families that IGNORE `compareTo`: the comparison fetch is skipped
+  // entirely, so no `<valueKey>__comparison` column is produced and no overlay
+  // series is ever synthesised.
+  //
+  //  - pie / donut / funnel — single-distribution charts where a comparison
+  //    overlay would be meaningless.
+  //  - scatter (objectui#7402) — a scatter binds ONE measure: the renderer
+  //    reads y through the single `YAxis dataKey={series[0].dataKey}`, so the
+  //    synthesised overlay was painted on the PRIMARY's y and "previous
+  //    period" landed exactly on top of "current". Drawing it honestly needs
+  //    the multi-measure projection declined as option A of objectui#7194;
+  //    `compareTo` on a scatter returns WITH that projection. Until then the
+  //    published capability is removed rather than left drawing a wrong
+  //    picture — and because the overlay is never synthesised, a compare-to
+  //    document never reaches #7194's two-or-more-series scatter refusal.
+  const supportsCompareTo = (ct?: string) =>
+    ct !== 'pie' && ct !== 'donut' && ct !== 'funnel' && ct !== 'scatter';
 
   // Resolve the category dimension's option colors (P3). Best-effort: any
   // failure leaves categoryColors null and the chart keeps the theme palette.
@@ -845,13 +867,23 @@ export const ObjectChart = (props: any) => {
   // from here because `@object-ui/core` is React-free and cannot read the locale
   // bundle (same division as `dimensionOptionTranslator` above — core takes the
   // resolver, the renderer holds the provider).
+  //
+  // `builtinAggregateLabels` is the same division for a MEASURE's label
+  // (objectui#7258): a result field the server minted as a built-in default
+  // (`builtinAggregate: 'count'`, objectstack#14492) reads its legend / axis
+  // text from the locale bundle here instead of the server's English `label`;
+  // an author-declared measure carries no discriminator and keeps its label
+  // verbatim (objectui#4106).
   const datasetChart = schema.dataset
     ? buildChartSeries(
         relabelDimensions(finalData, dimensionLabels),
         schema.dimensions,
         schema.values,
         datasetFields,
-        { nullCategoryLabel: tt('chart.nullCategory', '(None)') },
+        {
+          nullCategoryLabel: tt('chart.nullCategory', '(None)'),
+          builtinAggregateLabels: builtinAggregateLabels(tt),
+        },
       )
     : null;
 
