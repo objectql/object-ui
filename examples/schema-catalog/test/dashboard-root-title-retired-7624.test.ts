@@ -20,8 +20,11 @@
  *    renders identically to one that does not — no test can go red on pixels.
  *  - **`@object-ui/types` still DECLARES it.** `DashboardComponentSchema`
  *    carries `title?: string` ("Dashboard title displayed in the header"), so
- *    tsc accepts the key and the Zod twin accepts it. A declared-but-unread
- *    key is refused by neither half of this repo's own contract.
+ *    tsc accepts the key; and the Zod twin ACCEPTS AND PRESERVES it (measured:
+ *    `safeParse` succeeds and `data.title` survives, because the twin does not
+ *    declare `title` itself and `BaseSchema` is `.passthrough()`). A
+ *    declared-but-unread key is refused by neither half of this repo's own
+ *    contract.
  *  - **`@objectstack/spec` refuses it, but is not this corpus's validator.**
  *    `DashboardSchema.safeParse` reports `unrecognized_keys(['type','title'])`
  *    naming the repair (`title` to `label`) — and reports
