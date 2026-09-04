@@ -497,25 +497,56 @@ function expandViewIssues(
  * envelope makes this client stricter than the server — the objectstack#5316
  * inversion the `view` gates above exist to avoid.
  *
- * Measured on the resolved `@objectstack/spec` 17.0.0-rc.5: every type already
- * wired below declares all 7 envelope keys. `SharingRuleSchema` declares NONE
- * of them and is `.strict()`, so it is the one shape that must not judge a
- * stored body — `safeParse({…validRule, _packageId: 'pkg'})` fails with
- * `unrecognized_keys`. Framework `origin/main` reaches the same conclusion in
- * its own words at `kernel/metadata-type-schemas.ts`, where the schema is bound
- * for the write door only: *"This shape is `.strict()` with no stored/stamped
- * envelope, so it is an AUTHOR-shape check and is applied only where author
- * shapes are submitted: the write door. It is not a filter on rows already in
- * `sys_sharing_rule`."*
+ * ── The original reason has EXPIRED. The boundary has NOT. (objectui#6982) ──
  *
- * So the type is wired on `create` — the AUTHORING door, which is exactly where
- * a permissive match-all sharing condition gets written — and deliberately not
- * on `edit`. This is NOT a tolerant fallback: nothing is coerced and no draft is
- * waved through; one door has a client gate and the other keeps the server's.
- * The contract-first repair is spec-side (the envelope belongs on
- * `SharingRuleSchema`, which framework #6931 notes went undeclared because this
- * shape sits outside the gate that enforces envelope declaration); until that
- * lands, reconstructing the envelope here would be a second de-facto contract.
+ * This block used to read: measured on `@objectstack/spec` 17.0.0-rc.5,
+ * `SharingRuleSchema` declares NONE of the 7 envelope keys and is `.strict()`,
+ * so it is the one shape that must not judge a stored body. The contract-first
+ * repair it was waiting for LANDED. Re-measured on the resolved spec 17.2.0,
+ * `SharingRuleSchema` declares all 7 (`_lock`, `_lockReason`, `_lockSource`,
+ * `_provenance`, `_packageId`, `_packageVersion`, `_lockDocsUrl`) — envelope
+ * keys MISSING: none. A `_packageId`-stamped body is legal input now, and
+ * `clientValidation.optOuts.test.ts` already pins the create door accepting it.
+ *
+ * ⛔ That does NOT make this opt-out removable, and the next person to re-read
+ * the envelope and conclude it does should read the measurement below first.
+ *
+ * A served body carries more than the envelope. The metadata read path
+ * DECORATES every item it serves with `_diagnostics` (`decorateMetadataItem`,
+ * whenever the type has a registered Zod schema — `sharing_rule` has one), and
+ * the spec names that key a READ DECORATION precisely so it is *not* allowlisted
+ * the way the envelope is: `kernel/metadata-read-decorations.ts` states that a
+ * served body "is therefore NOT a valid input to the schema that produced it
+ * until these are removed". `SharingRuleSchema` is still `.strict()`, so it
+ * rejects our own annotation with `unrecognized_keys` at the ROOT — a path
+ * length the `serverSchema.required` root-cure below cannot reach (it only
+ * suppresses ABSENT top-level fields, `path.length === 1`).
+ *
+ * Measured on the real read path (objectstack protocol over a real engine —
+ * save, then read back):
+ *
+ *   GET .../sharing_rule/:name            item keys += `_diagnostics`  -> REJECT
+ *   GET .../sharing_rule/:name?state=draft item keys += `_diagnostics` -> REJECT
+ *   layered `effective` (RAW, undecorated)                             -> ACCEPT
+ *
+ * `ResourceEditPage` builds its edit draft as `{...layered.effective,
+ * ...client.getDraft().item}` and strips nothing — so for any sharing rule with
+ * a PENDING DRAFT the gate would report a body the server accepts as broken.
+ * The server, by contrast, strips read decorations on the way in and never
+ * re-parses stored rows through this registry at all. That is the
+ * objectstack#5316 inversion wearing a different key, and it is the same defect
+ * class the framework has already paid for twice (a served `_diagnostics` 400ing
+ * every saved dataset; the cold-boot flow bind, cloud#971).
+ *
+ * So the type stays wired on `create` — the AUTHORING door, which is exactly
+ * where a permissive match-all sharing condition gets written — and deliberately
+ * not on `edit`. This is NOT a tolerant fallback: nothing is coerced and no
+ * draft is waved through; one door has a client gate and the other keeps the
+ * server's. Turning this gate on is gated on the `_diagnostics` ingress being
+ * closed first (the strip belongs where the draft is assembled, not here —
+ * reconstructing the decoration list in this file would be a second de-facto
+ * contract). Until then a gate here would refuse legitimate author input, which
+ * is worse than the defense-in-depth gap it closes.
  */
 const AUTHOR_SHAPE_ONLY_TYPES = new Set<string>(['sharing_rule']);
 
@@ -714,25 +745,6 @@ const LOADERS: Record<string, SchemaLoader> = {
       .DeclarativeConnectorEntrySchema as unknown as ZodLikeSchema,
 };
 
-// Flow node `type` values the running server accepts but the published
-// `@objectstack/spec` FlowNodeSchema enum predates. The framework HEAD opened
-// FlowNodeSchema.type to a validated string (ADR-0019 P2) and registers these
-// as built-in node descriptors, but that spec change is not yet on npm — so the
-// published closed enum spuriously flags them. We suppress only the enum
-// mismatch on the node's `.type`; every other field is still validated.
-//   - `approval`: durable-pause approval node (ADR-0019).
-//   - `connector_action`: deliberate open extension point for connector-provided
-//     node types — must never be flagged as invalid.
-const FORWARD_COMPAT_FLOW_NODE_TYPES = new Set(['approval', 'connector_action']);
-const FLOW_NODE_TYPE_ISSUE = /^nodes\.(\d+)\.type$/;
-
-function nodeTypeAt(draft: unknown, index: number): string | undefined {
-  const nodes = (draft as { nodes?: unknown })?.nodes;
-  if (!Array.isArray(nodes)) return undefined;
-  const node = nodes[index] as { type?: unknown } | undefined;
-  return typeof node?.type === 'string' ? node.type : undefined;
-}
-
 /**
  * Field conditional-rule keys validated as CEL predicates (ADR-0036 B2,
  * objectui#1582). The spec's Zod only checks the SHAPE (`string | envelope`);
@@ -930,7 +942,13 @@ export async function validateMetadataDraft(
    * field" flagged by the (possibly stale) bundled Zod is suppressed when the
    * server marks that field optional. The server's own validation on save
    * stays authoritative. This makes the editor track the live schema without a
-   * per-change shim (cf. `FORWARD_COMPAT_FLOW_NODE_TYPES`).
+   * per-change shim — which is why the one shim that did exist could be
+   * retired: `FORWARD_COMPAT_FLOW_NODE_TYPES` suppressed the published
+   * `FlowNodeSchema.type` enum mismatch for `approval` / `connector_action`
+   * until ADR-0019 P2 reached npm. Re-measured on the resolved spec 17.2.0
+   * that enum is an open non-empty string, so the mismatch it dropped can no
+   * longer be produced and the shim was removed (objectui#6982). The
+   * measurement is pinned in `clientValidation.flowNodeTypes.test.ts`.
    */
   serverSchema?: { required?: unknown },
   /**
@@ -971,19 +989,6 @@ export async function validateMetadataDraft(
       const field = String(path[0]);
       const absent = d[field] === undefined || d[field] === null;
       return !(absent && !serverRequired.has(field));
-    });
-  }
-  // Forward-compat: don't let the published flow schema's closed node-type
-  // enum reject node types the running server supports (see
-  // FORWARD_COMPAT_FLOW_NODE_TYPES). Suppress only the `.type` enum mismatch
-  // for those nodes; all other issues still surface.
-  if (type === 'flow') {
-    rawIssues = rawIssues.filter((i) => {
-      const path = (i.path ?? []).map((seg) => String(seg)).join('.');
-      const match = FLOW_NODE_TYPE_ISSUE.exec(path);
-      if (!match) return true;
-      const nodeType = nodeTypeAt(draft, Number(match[1]));
-      return !(nodeType && FORWARD_COMPAT_FLOW_NODE_TYPES.has(nodeType));
     });
   }
   if (rawIssues.length === 0 && celIssues.length === 0) return { ok: true, issues: [] };
