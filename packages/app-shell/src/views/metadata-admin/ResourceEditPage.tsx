@@ -674,7 +674,11 @@ function MetadataResourceEditPageImpl({
   // that direction is not hypothetical: objectstack#5316 (stored views
   // carrying the platform's own `isPinned` / `sortOrder`), the `report`
   // `objectName`/`columns` drift pinned by `clientValidation.skew.test.tsx`,
-  // and `FORWARD_COMPAT_FLOW_NODE_TYPES` are three landed instances.
+  // and the flow node-type shim are three landed instances. (That third shim
+  // has since been retired — the published `FlowNodeSchema.type` is an open
+  // string on spec 17.2.0, so the enum mismatch it suppressed can no longer be
+  // produced; objectui#6982. The skew CLASS it was an instance of is what this
+  // paragraph is about, and that has not gone away.)
   //
   // `clientValidation.ts`'s root-cure covers exactly ONE class of that skew: a
   // TOP-LEVEL required field, absent from the draft, that the live server

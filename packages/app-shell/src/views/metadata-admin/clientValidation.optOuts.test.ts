@@ -100,13 +100,28 @@ describe('validateMetadataDraft("sharing_rule") — objectui#3561', () => {
   /**
    * The author-shape-only boundary (`AUTHOR_SHAPE_ONLY_TYPES`).
    *
-   * `SharingRuleSchema` is `.strict()` and declares NONE of the seven ADR-0010
-   * envelope keys, while the metadata read path stamps `_packageId` onto any
-   * body served out of a package-owned overlay row, without looking at the type.
-   * So this shape may judge an AUTHORED draft and must not judge a STORED one —
-   * doing so would make this client stricter than the server (objectstack#5316).
+   * `SharingRuleSchema` is `.strict()`, so it may judge an AUTHORED draft and
+   * must not judge a STORED one — doing so would make this client stricter than
+   * the server (objectstack#5316).
    *
-   * These two pins are what keep that boundary from being "simplified" away.
+   * ⚠️ The REASON moved, and the pins below moved with it (objectui#6982). The
+   * boundary was originally justified by the seven ADR-0010 envelope keys going
+   * undeclared on this schema. That repair LANDED: on the resolved spec 17.2.0
+   * all seven are declared. The key that keeps the boundary load-bearing is a
+   * different one — `_diagnostics`, the READ DECORATION the metadata read path
+   * stamps on every served item, which the spec deliberately does NOT allowlist
+   * the way it allowlists the envelope (`kernel/metadata-read-decorations.ts`:
+   * a served body "is therefore NOT a valid input to the schema that produced
+   * it until these are removed").
+   *
+   * ⛔ An envelope-only pin is TOOTHLESS now — a `_packageId`-stamped body is
+   * accepted by this schema on both doors, so it cannot tell "the opt-out is
+   * in place" from "the opt-out was deleted". Measured: with `sharing_rule`
+   * removed from the set, that pin stays GREEN. Two assertions here do go red,
+   * and they answer different questions — `hasClientValidator(..., 'edit')`
+   * catches the deletion, while the decoration pin below is the one that says
+   * WHY the door must stay shut. Keep both; do not simplify either back to
+   * `_packageId`.
    */
   it('does not gate the edit door — a stored body may carry `_packageId`', async () => {
     const stored = { ...SHARING_RULE, _packageId: 'crm_pkg' };
@@ -145,9 +160,57 @@ describe('validateMetadataDraft("sharing_rule") — objectui#3561', () => {
 
     // Edit door: no client gate, so the server stays authoritative and the
     // client cannot report a stored body as broken. Unchanged by rc.6.
+    //
+    // ⚠️ Green on this body alone proves nothing about the opt-out — see the
+    // decoration pin below, which is the assertion that actually fails if
+    // `sharing_rule` leaves `AUTHOR_SHAPE_ONLY_TYPES`.
     const edit = await validateMetadataDraft('sharing_rule', stored, undefined, { mode: 'edit' });
     expect(edit.ok).toBe(true);
     expect(edit.issues).toEqual([]);
+  });
+
+  /**
+   * THE LOAD-BEARING PIN (objectui#6982). Deleting `sharing_rule` from
+   * `AUTHOR_SHAPE_ONLY_TYPES` turns this red.
+   *
+   * `_diagnostics` is not a hypothetical key. Measured on the real read path
+   * (objectstack protocol over a real engine: save a rule, then read it back),
+   * every served body carries it, and `ResourceEditPage` assembles its edit
+   * draft as `{...layered.effective, ...client.getDraft().item}` — the second
+   * of which is decorated — and strips nothing. So a sharing rule with a
+   * PENDING DRAFT reaches this gate carrying `_diagnostics`.
+   *
+   *   with the opt-out  → no gate runs, the server stays authoritative  (here)
+   *   without it        → `unrecognized_keys` at the ROOT, on a body the
+   *                       server accepts and re-persists byte-identical
+   *
+   * The root path matters: `validateMetadataDraft`'s `serverSchema.required`
+   * root-cure only suppresses ABSENT top-level fields (`path.length === 1`), so
+   * it cannot take this back out. That is why the boundary is the remedy and a
+   * tolerant fallback is not.
+   */
+  it('does not gate the edit door — a served body carries `_diagnostics`', async () => {
+    // The shape `decorateMetadataItem` attaches (a clean verdict is still a
+    // verdict: the key is present either way).
+    const served = {
+      ...SHARING_RULE,
+      _packageId: 'crm_pkg',
+      _diagnostics: { valid: true, errors: [], warnings: [] },
+    };
+
+    const edit = await validateMetadataDraft('sharing_rule', served, undefined, { mode: 'edit' });
+    expect(edit.issues, JSON.stringify(edit.issues)).toEqual([]);
+    expect(edit.ok).toBe(true);
+
+    // …and the counter-measurement that makes the line above load-bearing:
+    // the SAME body on the door that does gate is refused, for exactly the key
+    // this pin is about. Without this, a schema that had quietly stopped being
+    // strict would leave the assertion above green and say nothing.
+    const create = await validateMetadataDraft('sharing_rule', served, undefined, {
+      mode: 'create',
+    });
+    expect(create.ok).toBe(false);
+    expect(create.issues.map((i) => i.message).join(' ')).toContain('_diagnostics');
   });
 
   it('reports the edit door as having NO client validator', () => {
