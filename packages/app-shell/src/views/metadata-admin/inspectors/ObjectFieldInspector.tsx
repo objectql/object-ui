@@ -15,7 +15,9 @@
  * the object-fields-io helpers, preserving the original array-vs-record
  * shape AND any unknown keys on the field definition — except the
  * spec-rejected keys `object-fields-io` strips on read
- * (`RETIRED_FIELD_KEYS`).
+ * (`RETIRED_FIELD_KEYS`). The same holds one level down for a picklist
+ * option: `readOptions` carries the keys the option editor has no control
+ * for and `patchOptions` writes them back (objectui#7540).
  *
  * There is deliberately no `Indexed` control here (objectui#4644): the
  * spec has no field-level index flag, `FieldSchema.safeParse` rejects
@@ -65,22 +67,86 @@ import type { CelLintIssue } from '../celAuthoring.js';
 import { t, tFormat } from '../i18n.js';
 
 
+/**
+ * One row of the picklist option editor.
+ *
+ * `value` / `label` / `color` are the keys this editor DISPLAYS and owns — it
+ * renders a control for each and is authoritative for their values. `rest`
+ * carries every OTHER authored key of the same option verbatim, so a round
+ * trip through this inspector is not lossy for keys it has no opinion about.
+ * Today that is `default` and `visibleWhen`: both are ACCEPTED by
+ * `SelectOptionSchema` and both are honoured by the platform (`default` is
+ * ruled `enforce` on the object-field face, objectstack#7246 — the engine
+ * seeds the insert path from the option holding it), yet neither had any way
+ * to survive this editor before objectui#7540.
+ *
+ * Two properties of `rest` are load-bearing:
+ *
+ *   • It is EDITOR-INTERNAL and must never appear as a key of the WRITTEN
+ *     option. `SelectOptionSchema` is strict (`unrecognized_keys` at
+ *     `[options.<i>]` on `FieldSchema`), so leaking it would turn every save
+ *     into a 422. `patchOptions` therefore spreads its CONTENTS and never
+ *     spreads an `Option`.
+ *   • The three parts move TOGETHER. Widening this type without moving both
+ *     `readOptions` and `patchOptions` would declare keys the editor still
+ *     cannot carry — the declared-but-not-carried divergence objectui#7014
+ *     exists to remove.
+ */
 interface Option {
   value: string;
   label?: string;
   color?: string;
+  /** Authored keys this editor has no control for, carried through untouched. */
+  rest?: Record<string, unknown>;
 }
 
 /* ─────────────── Helpers ─────────────── */
 
+/**
+ * Read `def.options` into editor rows, keeping the WHOLE authored option.
+ *
+ * The three displayed keys are normalized exactly as before; everything else
+ * on the authored option travels untouched in `rest`.
+ *
+ * This projection was the loss site (objectui#7540). It used to return exactly
+ * `value` / `label` / `color`, which is why a writer-only repair could not
+ * have closed the bug: whatever `patchOptions` were taught to carry, it can
+ * only carry what this function handed it, and this function handed it three
+ * keys. The reader is where `default` and `visibleWhen` disappeared.
+ *
+ * The shape mirrors the field-level door one level up: `readFields` in
+ * `previews/object-fields-io.ts` preserves unknown keys on a field definition
+ * the same way (its `...rest`), stripping only the named keys a shipped build
+ * actually wrote that the spec now refuses (`RETIRED_FIELD_KEYS`). There is no
+ * counterpart tombstone list for OPTION keys and none is owed: this editor has
+ * only ever written `value` / `label` / `color`, so no key it authored can
+ * come back as one the spec rejects.
+ */
 function readOptions(def: Record<string, unknown>): Option[] {
   const raw = def.options;
   if (!Array.isArray(raw)) return [];
-  return raw.map((o: any) => ({
-    value: String(o?.value ?? ''),
-    label: typeof o?.label === 'string' ? o.label : undefined,
-    color: typeof o?.color === 'string' ? o.color : undefined,
-  }));
+  return raw.map((o: any) => {
+    // A non-object entry (e.g. a bare string in a hand-written `options: []`)
+    // has no keys to carry — it already collapses to an empty `value` below,
+    // and an empty-valued row is dropped on commit.
+    const rest: Record<string, unknown> =
+      o && typeof o === 'object' && !Array.isArray(o) ? { ...o } : {};
+    // The keys the editor owns live in their own named slots. Removing them
+    // here is what keeps `patchOptions` from having two sources for one key.
+    delete rest.value;
+    delete rest.label;
+    delete rest.color;
+    const row: Option = {
+      value: String(o?.value ?? ''),
+      label: typeof o?.label === 'string' ? o.label : undefined,
+      color: typeof o?.color === 'string' ? o.color : undefined,
+    };
+    // Only attach the carrier when there is something to carry, so an option
+    // with nothing extra stays byte-identical to what this reader used to
+    // produce.
+    if (Object.keys(rest).length > 0) row.rest = rest;
+    return row;
+  });
 }
 
 function isPicklist(type: string): boolean {
@@ -400,7 +466,20 @@ export function ObjectFieldInspector({
       // is precisely what the Label input has been showing the author for that
       // option all along (`value={o.label ?? ''}`), so this emits what they
       // see rather than inventing content.
-      const out: Option = { value: o.value, label: o.label ?? '' };
+      //
+      // Everything the editor does NOT display rides along in `o.rest`
+      // (objectui#7540). It is spread FIRST so the three keys this editor owns
+      // are authoritative for their own slots; `readOptions` already removed
+      // them from `rest`, so that ordering is defence in depth rather than a
+      // live collision. Note the emitted option is a plain document, NOT an
+      // `Option` — `rest` is an editor-internal carrier and spreading the row
+      // itself would leak that key into the payload, which `SelectOptionSchema`
+      // rejects outright.
+      const out: Record<string, unknown> = {
+        ...o.rest,
+        value: o.value,
+        label: o.label ?? '',
+      };
       if (o.color) out.color = o.color;
       return out;
     });
