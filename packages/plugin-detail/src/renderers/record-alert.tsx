@@ -161,7 +161,7 @@ const SEVERITY_STYLES: Record<Severity, { wrap: string; icon: string }> = {
   },
   success: {
     wrap: 'border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-950/30 dark:text-emerald-100 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-300',
-    icon: 'CheckCircle2',
+    icon: 'circle-check',
   },
 };
 
