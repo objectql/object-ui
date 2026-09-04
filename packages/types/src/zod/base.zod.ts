@@ -314,16 +314,27 @@ export const ComponentInputSchema = z.object({
   description: z.string().optional().describe('Help text'),
   advanced: z.boolean().optional().describe('Advanced option flag'),
   /**
-   * ⚠️ NOT retired with the four tombstones below (objectui#5905):
-   * `plugin-markdown`'s registration authors it, so it is declared-and-DROPPED
-   * rather than declared-and-unread. See `ComponentInput.inputType` in
-   * `../base.ts` for the fork and what a ruling on it has to decide.
+   * ADR-0049 RETIREMENT TOMBSTONE (objectui#5905) — the FIFTH key, retired
+   * later than the four below and by its own ruling (maintainer, 2026-08-31).
+   * It was declared-and-DROPPED rather than declared-and-unread:
+   * `plugin-markdown`'s registration really did author it while the serializer
+   * dropped it, so retiring it meant ruling on that registration first. The
+   * ruling deleted the write as a measured no-op and REFUSED teaching
+   * `sdui-parser` to forward the key. See `ComponentInput.inputType` in
+   * `../base.ts` for the full record.
    */
-  inputType: z.string().optional().describe('Specific input type'),
+  inputType: retirementTombstone(
+    'RETIRED (objectui#5905) — `ComponentInput.inputType` was never read, and never published: the manifest '
+    + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+    + 'so an authored value was silently dropped. Delete the key; put the control hint in `description`, '
+    + 'which IS published.',
+  ),
   /**
    * ADR-0049 RETIREMENT TOMBSTONES (objectui#5905) — `min` / `max` / `step` /
    * `placeholder`, the four `ComponentInput` keys measured with no reader on
-   * either the consumption or the publication path.
+   * either the consumption or the publication path. `inputType` directly above
+   * is a fifth tombstone of the same shape, added by a later ruling; everything
+   * this block says about the mechanism applies to it too.
    *
    * `retirementTombstone()` (`./tombstone.zod.ts`) writes each guidance string
    * ONCE into both author-facing channels — the parse-time issue message and

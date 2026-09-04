@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
+import type { ComponentInput } from '@object-ui/types';
 // Imports all renderers to register them. Module scope, NOT awaited inside a
 // `beforeAll` — there the cold transform of the renderer graph is billed to the
 // hook, against `hookTimeout`. That is what made the sibling plugin-kanban test
@@ -48,7 +49,40 @@ describe('Plugin Markdown', () => {
       expect(contentInput).toBeDefined();
       expect(contentInput?.required).toBe(true);
       expect(contentInput?.type).toBe('string');
-      expect(contentInput?.inputType).toBe('textarea');
+    });
+
+    it('no longer authors `inputType` — the write was a measured no-op (objectui#5905)', () => {
+      // FLIPPED, not deleted. This assertion used to read
+      // `expect(contentInput?.inputType).toBe('textarea')`, and it pinned the
+      // ONLY `ComponentInput.inputType` write in the repository. The manifest
+      // serializer forwards six keys — `name`, `type`, `required`, `enum`,
+      // `binding`, `description` — and this was never one of them, so the
+      // write could not reach the published `sdui.manifest.json` even in
+      // principle, and a structural census over every `inputs:` array found no
+      // reader either. Maintainer ruling 2026-08-31 (objectui#5905) deleted
+      // the write and tombstoned the key. Restated here rather than removed,
+      // so the deletion stays asserted instead of becoming a silent absence.
+      const config = ComponentRegistry.getConfig('markdown');
+      const contentInput = config?.inputs?.find((input: any) => input.name === 'content');
+
+      expect(contentInput).toBeDefined();
+      expect(contentInput?.inputType).toBeUndefined();
+    });
+
+    it('and re-authoring `inputType` is a `tsc` error at this package\'s own site', () => {
+      // REAL enforcement, not decoration: this package's `type-check` script
+      // runs `tsc -p tsconfig.test.json`, so the directive below is evaluated
+      // and an UNUSED one fails the build. Re-widening
+      // `ComponentInput.inputType` therefore turns this line red instead of
+      // quietly letting the no-op write back in.
+      const reAuthored: ComponentInput = {
+        name: 'content',
+        type: 'string',
+        // @ts-expect-error `inputType` is an ADR-0049 retirement tombstone (objectui#5905)
+        inputType: 'textarea',
+      };
+
+      expect(reAuthored.name).toBe('content');
     });
 
     it('should have sensible default props', () => {
