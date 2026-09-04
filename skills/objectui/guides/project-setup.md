@@ -277,7 +277,7 @@ import. Importing any of the three from `app-shell` does not resolve.
 import { AppShell, ObjectView, AdapterProvider, MetadataProvider } from '@object-ui/app-shell';
 
 <AdapterProvider adapter={myAdapter}>
-  <MetadataProvider value={metadata}>
+  <MetadataProvider adapter={myAdapter}>
     <AppShell sidebar={<MySidebar />}>
       <ObjectView objectName="contact" />
     </AppShell>
