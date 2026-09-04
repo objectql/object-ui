@@ -49,9 +49,9 @@
     "lint": "eslint .",
     "build:analyze": "pnpm build && echo 'Bundle analysis available at dist/stats.html'",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
+    "test": "vitest run --root ../.. apps/console/",
+    "test:watch": "vitest --root ../.. apps/console/",
+    "test:ui": "vitest --ui --root ../.. apps/console/",
     "prepublishOnly": "pnpm build"
   },
   "devDependencies": {

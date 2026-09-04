@@ -43,9 +43,63 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  *    other packages' `src/`, so the true read set of any package's test run is
  *    most of the repository. Requiring that is not a stricter version of this
  *    derivation, it is a different (and wrong) one — turbo's
- *    `dependsOn: ["^build"]` and per-package `$TURBO_DEFAULT$` already answer
+ *    `dependsOn: ["^build"]` and per-package `$TURBO_DEFAULTimport fs from 'node:fs';
+import path from 'node:path';
+import { outOfPackageProgramFiles } from './config-program';
+import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
+
+/**
+ * Derives a workspace package's **Vitest configuration program** — the set of
+ * files Vitest reads in order to know how that package's tests run.
+ *
+ * Extracted as its own module rather than folded into the guard that consumes
+ * it (`../turbo-test-inputs.test.ts`, objectui#4178) for two reasons. It is a
+ * mechanism, not a policy: the guard decides what must be true of the result,
+ * this file decides only what the result IS. And a derivation that can only be
+ * exercised through the assertions it feeds is a derivation nobody can probe —
+ * which is how a sweep quietly degrades to returning nothing while every
+ * assertion over it stays green.
+ *
+ * ## The program
+ *
+ *  1. The config file Vitest resolves for the package's `test` script,
+ *     following the script's own `--root` / `--config` flags and then Vitest's
+ *     upward search.
+ *  2. Every file that program statically imports by RELATIVE specifier,
+ *     transitively.
+ *  3. Every file it DESIGNATES through a file-valued Vitest option
+ *     (`setupFiles`, `globalSetup`, `projects`, `workspace`) — themselves
+ *     walked as program files, which is how `vitest.setup.tsx` pulls in the
+ *     `vitest.setup.dom.tsx` it imports, and how the root config's `projects`
+ *     entry pulls in `apps/console/vitest.config.ts` and the two
+ *     `scripts/vite-*.ts` plugins that one imports.
+ *
+ * Steps 2 and 3 are the generic walk, shared with the ESLint and build
+ * derivations since objectui#4184 / objectui#4185: see `./config-program.ts`,
+ * whose docblock carries the narrowings all of them share (bare specifiers not
+ * followed, designation key-directed, unresolvable designated paths throw).
+ * What is specific to Vitest, and lives here, is only which file the walk
+ * STARTS from and which option names designate files.
+ *
+ * ## Narrowings specific to this derivation
+ *
+ already answer
  *    source. The failure being guarded is "change the SHARED TEST HARNESS, get
  *    a stale verdict", and the harness is exactly this program.
+ *
+ *    ⚠️ That sentence is why the `test` task still `dependsOn: ["^build"]`, and
+ *    objectui#3240 re-derived the reason rather than inheriting it. The reason
+ *    OF RECORD was resolution: each package had its own vitest config with no
+ *    alias table, so a test run reached its siblings through their `dist`.
+ *    objectui#3240 deleted those configs — every package's `test` script now
+ *    runs the root config, whose alias map points at `src`, and CI's `pnpm test`
+ *    builds nothing at all — so nothing needs `^build` to RESOLVE any more, and
+ *    dropping it looked like free speed. It is not: `^build` is the only edge
+ *    that puts a dependency's sources into a dependent's `test` cache key. Drop
+ *    it and the narrowing above stops being true — a change under
+ *    `packages/core/src` would no longer move `@object-ui/plugin-grid#test`'s
+ *    key, and `turbo run test` would replay a stale green over code it never
+ *    ran. The edge stays, for the second reason instead of the first.
  *  - The root config holds ~45 concrete test-file paths in `domTsTests` /
  *    `heavyDomTests`; those are `include` / `exclude` inputs to project
  *    definitions, covered by their own packages' inputs — not files this
@@ -58,10 +112,12 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  * Vitest's config candidates, in its own precedence order.
  *
  * Mirrors `CONFIG_NAMES` x `CONFIG_EXTENSIONS` from `vitest/dist/chunks/
- * constants.*.js`. The order is load-bearing: `packages/components` has BOTH a
+ * constants.*.js`. The order is load-bearing: `apps/console` has BOTH a
  * `vitest.config.ts` and a `vite.config.ts`, and only the first is the config
  * Vitest reads (the second arrives as one of its imports, which is a different
- * fact).
+ * fact). The SECOND name matters more since objectui#3240 deleted the
+ * per-package vitest configs: for every `packages/*` the candidate that hits is
+ * now `vite.config.ts`, which is why each of those calls the invocation guard.
  */
 export const CONFIG_NAMES = ['vitest.config', 'vite.config'];
 export const CONFIG_EXTENSIONS = ['.ts', '.mts', '.cts', '.js', '.mjs', '.cjs'];

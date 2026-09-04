@@ -22,7 +22,7 @@
     "build": "vite build",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "clean": "rm -rf dist",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/plugin-report/",
     "lint": "eslint ."
   },
   "dependencies": {

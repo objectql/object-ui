@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/plugin-form/",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },
