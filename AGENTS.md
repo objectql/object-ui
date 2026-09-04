@@ -487,6 +487,12 @@ ls <dir>/* | wc -l                                   # 两个数不等 ⇒ 工�
 
 ⛔ 绝不 `gh pr ready`(不退出 draft)、⛔ 绝不加入合并队列、⛔ 绝不 `gh pr merge --auto` / `enable_pr_auto_merge`、⛔ 绝不自己合并。这类 PR **停在 draft,等人类合并**。**人类的那次合并动作本身就是审核记录** —— 不需要额外的逐 PR 批准点击,也别去等一个不存在的 approval。
 
+⛔ **第五条禁令 —— 绝不自己去留下那条 approval。** 上面四条管的是**落地**,这一条管的是**批准**:`scripts/check-governed-queue-guard.mjs` 的文件头部把它写成规范条款,它 `cleared` 分支的判定文本也印着同一句。此处**逐字照录、不译**(两处措辞不得漂移):
+
+> ⛔ An agent seat never submits an approving review on a governed-surface pull request, under any account. Every seat in this repository writes under a shared GitHub identity, so `GOVERNED_APPROVERS` is a technical control that is only as good as that normative rule — the same class as the seat-side no-merge rule, and the reason the DRAFT remedy is listed first.
+
+sha pin **退休**之后这条**更重、不是更轻**(维护者 2026-09-04 裁,#7606 执行、#7616 把新判据写进下面那段):一条获授权的 APPROVED review 现在清掉同一 PR 其后**每一次** push,于是在一个 agent 操作的 approver 账号与一次它自己放行的受管落地之间,**只剩这条规范禁令**。
+
 - **判据是 PR 的文件清单,不是 PR 的标题或描述。** 命中与否只看路径。
 - **混合 diff:一条命中即整个 PR 分叉,没有比例判断。** 99 个普通文件 + 1 个受管文件 = 整个 PR 等人类合并。其余部分急着落地,就把受管文件**拆成单独的 PR**,别用「占比很小」给自己开口子。
 - **起草不受限。** 写、推分支、开 PR、按 review 修改,每个席位照做不误;被保留的只有**落地**这一个动作。
