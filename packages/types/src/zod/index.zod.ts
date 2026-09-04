@@ -58,7 +58,7 @@ export {
   ComponentConfigSchema,
   HTMLAttributesSchema,
   EventHandlersSchema,
-  StylePropsSchema,
+  ClassNameStylePropsSchema,
 } from './base.zod.js';
 
 // ============================================================================

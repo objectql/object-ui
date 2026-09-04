@@ -407,9 +407,19 @@ export const HTMLAttributesSchema = z.record(z.string(), z.any()).describe('HTML
 export const EventHandlersSchema = z.record(z.string(), z.function()).describe('Event handlers');
 
 /**
- * Style Props
+ * The two CSS passthrough attributes a node exposes: a Tailwind class string and
+ * an inline style record.
+ *
+ * ⚠️ NOT a mirror of `StyleProps` in `../base.ts` (objectui#5928). That
+ * declaration is the Tailwind-SCALE vocabulary (`padding`, `margin`, `gap`,
+ * `backgroundColor`, …) and shares ZERO keys with this object — the two only ever
+ * shared a name, and pairing them by that name reported drift on a mirror
+ * relationship that does not exist. The old name is gone: with this const named
+ * for its own keys there is no like-named declaration left to pair it with, and
+ * the reason it mirrors nothing is recorded against this name in
+ * `../__tests__/zod-mirror-parity.test.ts`'s `EXCLUSIONS`.
  */
-export const StylePropsSchema = z.object({
+export const ClassNameStylePropsSchema = z.object({
   className: z.string().optional(),
   style: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 }).describe('Style properties');

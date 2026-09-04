@@ -1512,12 +1512,13 @@ export type assertionBaseSchemaKeysResolve = Expect<
  * in neither map.
  */
 const EXCLUSIONS: Readonly<Record<string, string>> = {
-  // A NAME COLLISION, not a mirror. The like-named `StyleProps` in `../base.ts` is a
-  // Tailwind-scale vocabulary (`padding`, `margin`, `gap`, `backgroundColor`, …) and
-  // shares ZERO keys with this `{ className, style }` object. A name-derived pairing
-  // put them together; `assertionEveryPairOverlaps` rejected it.
-  'base.zod.ts#StylePropsSchema':
-    'no TS declaration in this package restates it — `StyleProps` (../base.ts) is an unrelated Tailwind style vocabulary that shares no key with it',
+  // Renamed from `StylePropsSchema` by objectui#5928. Under the old name the
+  // like-named `StyleProps` (../base.ts) — the Tailwind-scale vocabulary, sharing
+  // ZERO keys with this `{ className, style }` object — read as its declaration, and
+  // a name-derived pairing duly compared two unrelated key sets. Named for its own
+  // two keys, it has no like-named declaration left to be paired with.
+  'base.zod.ts#ClassNameStylePropsSchema':
+    'no TS declaration in this package restates it — the `{ className, style }` passthrough attributes are declared inline on each schema, never as one shared interface',
   'app.zod.ts#NavigationItemTypeSchema':
     "a bare vocabulary with no `.shape`; it is checked where a mirrored KEY declares it",
   'app.zod.ts#NavigationItemSchema':
