@@ -1034,9 +1034,16 @@ export interface DashboardWidgetSchema
   // objectui#3173's measurement found zero `widget.responsive` read points in
   // the whole repo and zero authored occurrences in either corpus, so that
   // premise was false and the override only made TS accept a key the Zod twin
-  // already refused. The shared `ResponsiveConfig` shape is NOT gone — it
-  // stays live on `page.components[].responsive`, which `useResponsiveConfig`
-  // really does read.
+  // already refused. ⚠️ This note used to add that the shared `ResponsiveConfig`
+  // shape was "NOT gone — it stays live on `page.components[].responsive`,
+  // which `useResponsiveConfig` really does read". Both halves of that have
+  // since expired and it is corrected rather than left standing, because a
+  // stale liveness claim is what the next agent reads as the measurement:
+  // objectstack#11027 retired `ResponsiveConfigSchema` outright (the census
+  // behind it measured `page.components[].responsive` inert), and objectui#7580
+  // deleted `useResponsiveConfig` with it at zero callers. What survives the
+  // retirement is the BREAKPOINT vocabulary, re-homed into `@object-ui/types`
+  // and `@object-ui/layout` because `responsive-grid` renders it — not this key.
   // Pinned by `__tests__/report-chart-query-spec-parity.test.ts`.
   /** Component schema (legacy format) — objectui-only, no spec counterpart. */
   component?: SchemaNode;

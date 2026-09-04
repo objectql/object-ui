@@ -8,28 +8,56 @@
 
 import React from 'react';
 import { cn } from '@object-ui/components';
-import type { BreakpointColumnMap, BreakpointOrderMap } from '@objectstack/spec/ui';
 
 /**
- * Breakpoint column map (`BreakpointColumnMapSchema`) and breakpoint order map
- * (`BreakpointOrderMapSchema`), both re-exported from `@objectstack/spec/ui`.
+ * Breakpoint column map — grid column counts per Tailwind-style breakpoint,
+ * owned by this package since objectui#7580 (maintainer ruling 2026-09-04,
+ * option A).
  *
  * These were hand copies until objectui#4167, each carrying the word "mirrors"
  * — the doc-comment shape objectstack#4115 catalogues, where the claim is what
- * the next agent reads as canonical and the code is what actually decides. rc.6
- * publishes both names, and both copies happened to still be exact: six
- * optional numbers keyed `xs`…`2xl`, on a `$strict` schema. "Still exact" is
- * the argument FOR binding them, not against — the copies had nothing to
- * protect, so the only thing they could do from here was drift, and a
- * breakpoint the spec adds now arrives instead of silently not existing.
+ * the next agent reads as canonical and the code is what actually decides. They
+ * were then bound by reference to `@objectstack/spec/ui`, which was right for
+ * as long as the spec published them.
  *
- * `BreakpointOrderMap` has no read point in this package (`ResponsiveGrid`
- * resolves columns only); it is published because `ResponsiveConfigSchema`
- * pairs the two and an author configuring order needs the type. Bound rather
- * than deleted for that reason — deleting a published type is a separate
- * decision from stopping it being a fork.
+ * objectstack#11027 retired the whole `ui/responsive` vocabulary upstream, so
+ * there is no longer anything to bind to — and, unlike the four types that left
+ * with the key, this one has an authorable carrier that survives the
+ * retirement. `responsive-grid` is a REGISTERED SDUI component (`./index.ts`),
+ * its `columns` input is authorable, and {@link resolveColumnClasses} applies
+ * it on the render path. The tombstone's own return condition — the vocabulary
+ * "returns if and when a renderer implements it" — is met here, which is why
+ * the type is re-homed rather than deleted.
+ *
+ * ⚠️ Members are the retired `BreakpointColumnMapSchema`'s, verbatim: six
+ * optional column counts keyed `xs`…`2xl`. The schema was `$strict`, so no
+ * index signature is restored here either — an unknown breakpoint key was a
+ * parse error upstream and stays a type error here.
+ *
+ * `BreakpointOrderMap` RETIRED with the key (same ruling, item 3) and is NOT
+ * re-homed. Its own comment in this file already recorded the reason: it had no
+ * read point in this package — `ResponsiveGrid` resolves columns only — and it
+ * was published solely because the spec's `ResponsiveConfigSchema` paired the
+ * two, so an author configuring `order` needed the type. That pairing is what
+ * objectstack#11027 deleted; with the schema gone there is no order vocabulary
+ * left for it to be the type OF, and re-homing it would have re-declared a key
+ * nothing reads on either side of the boundary — the declare-without-enforce
+ * shape ADR-0049 removes.
+ *
+ * ⏳ Interim, and it self-expires: the pin is still `@objectstack/spec` 17.2.0,
+ * which PRE-dates the retirement and still exports this name, so the collision
+ * is real today and carries a reasoned entry in
+ * `scripts/check-spec-symbol-derivation.mjs`. The guard's ratchet 3 fails an
+ * ALLOW entry that excuses nothing, so the pin bump is forced to delete it.
  */
-export type { BreakpointColumnMap, BreakpointOrderMap };
+export interface BreakpointColumnMap {
+  xs?: number;
+  sm?: number;
+  md?: number;
+  lg?: number;
+  xl?: number;
+  '2xl'?: number;
+}
 
 export interface ResponsiveGridProps {
   /** Grid column map per breakpoint */

@@ -579,6 +579,46 @@ const ALLOW = {
       "case this map exists to make someone write a reason for.",
     issue: 4115,
   },
+  // ── Re-homed layout vocabulary, objectui#7580 (ruling 2026-09-04, option A) ──
+  // Both entries below are SELF-EXPIRING, and deliberately so. They are the same
+  // shape as the three theme document types noted at the end of this map: a
+  // maintainer ruling localized a vocabulary whose upstream retirement is MERGED
+  // but not yet RELEASED, so for the length of one pin interval the local
+  // declaration and a live spec export share a name. Ratchet 3 fails an ALLOW
+  // entry that excuses nothing, so the pin bump that lands objectstack#11027
+  // cannot leave either entry behind — it must delete them and pin the vacancy
+  // where it can execute, exactly as objectui#5668 did for the theme trio.
+  //
+  // ⛔ Neither is a deliberate-divergence waiver, and neither may be renewed on
+  // that reading: the local declarations are the retired spec members VERBATIM.
+  // The reason they are here is the interval, not a difference.
+  "@object-ui/types:BreakpointName": {
+    reason:
+      "Re-homed from `@objectstack/spec/ui` by the objectui#7580 ruling, NOT a fork: " +
+      "objectstack#11027 retired the whole `ui/responsive` vocabulary upstream " +
+      "(tombstone + `RETIRED_DEFS_BY_MAJOR[18]`), and this repo keeps the union because " +
+      "`responsive-grid` is a REGISTERED SDUI component whose authorable `columns` reaches " +
+      "`resolveColumnClasses` on the render path — the tombstone's own stated return " +
+      "condition, met on the renderer side. The collision is an INTERVAL, not a divergence: " +
+      "the pin is still 17.2.0, which pre-dates the retirement. Members are the retired " +
+      "enum's verbatim (`xs`…`2xl`), width-pinned by " +
+      "packages/types/src/__tests__/spec-derived-unions.test.ts. ⛔ Delete this entry on the " +
+      "pin bump — ratchet 3 will force it — and move the name to the absence pin in " +
+      "page-nav-misc-spec-parity.test.ts, the disposition objectui#5716/#5668 used for the " +
+      "theme trio.",
+    issue: 7580,
+  },
+  "@object-ui/layout:BreakpointColumnMap": {
+    reason:
+      "The `BreakpointName` entry above, one package over and for the same interval: the " +
+      "authorable `columns` input of the registered `responsive-grid` component. Declared " +
+      "verbatim from the retired `BreakpointColumnMapSchema` — six optional column counts " +
+      "keyed `xs`…`2xl`, and no index signature, because that schema was `$strict`. Its " +
+      "twin `BreakpointOrderMap` was NOT re-homed (ruling item 3): it had no read point in " +
+      "the package and existed only because the retired `ResponsiveConfigSchema` paired the " +
+      "two. ⛔ Delete this entry on the pin bump; ratchet 3 will force it.",
+    issue: 7580,
+  },
   // The three theme document types (`Theme`, `ThemeMode`, `ColorPalette`,
   // objectui#5716 ruling, option A — localize) carried ALLOW entries here from
   // the localization until the `@objectstack/spec` 17.2.0 refresh

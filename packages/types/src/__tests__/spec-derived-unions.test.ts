@@ -131,11 +131,40 @@ const _resolvableCovers = null as unknown as ActionParamFieldType satisfies Reso
 // since objectui#3009 made this file compile.)
 const _fieldBackedParam: ActionParam = { field: 'status' };
 const _minimalTypedParam: ActionParam = { name: 'priority', label: 'Priority', type: 'select' };
+// `BreakpointName` LEFT the burn-down population below — objectui#7580.
+//
+// It was in it: a local fork PROVED equivalent to the spec's and then replaced
+// by a binding. objectstack#11027 then retired the spec's whole `ui/responsive`
+// vocabulary, and the maintainer ruling of 2026-09-04 (option A) re-homed this
+// union into `../mobile` rather than retiring it with the key, because
+// `responsive-grid` is a registered SDUI component whose authorable `columns`
+// reaches a resolver on the render path — the tombstone's own return condition.
+//
+// So the assertion below is NOT the burn-down check any more, and this is the
+// restatement rather than a deletion: it never read the spec for this symbol
+// (it imports `BreakpointName` from `../mobile`, and a type alias erases, so
+// there was never a runtime witness to compare). What it pins is the union's
+// WIDTH, and that pin outlives the binding it was written under — the six
+// members are what `BreakpointColumnMap` is keyed by, so narrowing the local
+// declaration fails to compile here rather than silently dropping a breakpoint.
+// Deleting the case because its ORIGINAL reason expired would have removed live
+// coverage on the exact declaration the ruling just made this repo responsible
+// for.
+//
+// Where it goes next: at the `@objectstack/spec` pin bump that lands
+// objectstack#11027, this name joins the INVERSE population documented at the
+// top of this file — names objectui uses that the spec does NOT have, each
+// asserted absent so that the day the spec re-adopts one, this file fails. That
+// absence cannot be asserted yet: the pin is still 17.2.0, which PRE-dates the
+// retirement and still exports the name. Until then the collision is held by a
+// self-expiring entry in `scripts/check-spec-symbol-derivation.mjs`, whose
+// ratchet 3 forces the bump to come back here.
+const _breakpointCovers = null as unknown as 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' satisfies BreakpointName;
+
 // objectstack#4115 ledger burn-down: the symbols whose local declaration was
 // PROVED equivalent to the spec's and then replaced by a binding. Each listed
 // member is what the local fork carried, so re-declaring it narrower fails here
 // as well as at the guard.
-const _breakpointCovers = null as unknown as 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' satisfies BreakpointName;
 const _importModeCovers = null as unknown as 'insert' | 'update' | 'upsert' satisfies ImportWriteMode;
 const _importStatusCovers = null as unknown as
   | 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' satisfies ImportJobStatus;
