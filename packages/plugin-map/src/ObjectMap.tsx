@@ -35,6 +35,7 @@ import {
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
+  resolveRecordSourceObjectName,
 } from '@object-ui/core';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
@@ -683,8 +684,22 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
    * optimisation rather than a correctness dependency (objectui#6592).
    */
   const dataProvider = dataConfig?.provider;
+  // NOT a delegation site for `resolveRecordSourceObjectName` (objectui#7627):
+  // this is the data config's OWN object, deliberately `undefined` for every
+  // other provider so an `api`/`value` map's `objectName` changing cannot move
+  // this dependency. The shared reader's second rung would put `objectName`
+  // here and re-run both effects on a value they do not read.
   const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
   const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
+  /**
+   * The object this map is BOUND to — the resolved record source's object when
+   * it names one, else the schema's own `objectName` (objectui#7627, the
+   * objectui#6939 ladder). Hoisted to render scope so the metadata effect below
+   * reads one named value instead of re-deriving the ladder inline; it is a pure
+   * function of `dataProvider` / `dataObjectName` / `schema.objectName`, all of
+   * which that effect already depends on, so listing it adds no re-run.
+   */
+  const recordSourceObjectName = resolveRecordSourceObjectName(schema, dataConfig);
 
   // Fetch data based on provider
   useEffect(() => {
@@ -760,9 +775,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       try {
         if (!dataSource) return;
 
-        const objectName = dataProvider === 'object'
-          ? dataObjectName
-          : schema.objectName;
+        const objectName = recordSourceObjectName;
 
         if (!objectName) return;
 
@@ -776,7 +789,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     if (!hasInlineData && dataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource, hasInlineData, dataProvider, dataObjectName]);
+  }, [schema.objectName, dataSource, hasInlineData, dataProvider, dataObjectName, recordSourceObjectName]);
 
   // Transform data to map markers
   const { markers, invalidCount } = useMemo(() => {

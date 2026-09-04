@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE, resolveRecordSourceObjectName } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -1203,9 +1203,12 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Extract stable primitive/reference-stable values from schema for dependency arrays.
   // This prevents infinite re-render loops when schema is a new object on each render
   // (e.g. when rendered through SchemaRenderer which creates a fresh evaluatedSchema).
-  const objectName = dataConfig?.provider === 'object' && dataConfig && 'object' in dataConfig
-    ? (dataConfig as any).object
-    : schema.objectName;
+  // The `?? schema.objectName` tail is NOT the shared rung repeated: it stands
+  // in for the old `'object' in dataConfig` test, i.e. this site's own coercion
+  // of the OFF-CONTRACT `data: { provider: 'object' }` that carries no `object`
+  // (`ViewDataSchema` declares it required). Kept because this name gates the
+  // permission verdicts below — see the note at `inlineEditable`.
+  const objectName = resolveRecordSourceObjectName(schema, dataConfig) ?? schema.objectName;
   // [#3391] Server-resolved effective API operation set for this object
   // (/me/permissions `apiOperations`). The Export button and handler AND their
   // gate with this — a missing set (unrestricted object / old backend / no

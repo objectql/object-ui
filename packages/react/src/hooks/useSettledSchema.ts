@@ -52,10 +52,10 @@ export interface SettledSchema<TDef = unknown> {
  * half as a shared, published hook; leave GATE PLACEMENT — deciding which
  * effect branch actually waits on `ready` — to each component, because that
  * part is genuinely component-private (`ObjectCalendar` gates only its
- * `object`-provider branch and keys on `dataConfig.object ?? schema.objectName`
- * rather than `schema.objectName`, because an inline `value` data set issues
- * no metadata read at all — a whole-effect gate would hold its query open on
- * a resolution nothing was ever going to produce).
+ * `object`-provider branch and keys on the object the block RESOLVES rather
+ * than on `schema.objectName`, because an inline `value` data set issues no
+ * metadata read at all — a whole-effect gate would hold its query open on a
+ * resolution nothing was ever going to produce).
  *
  * `ready` is DERIVED at render time — `resolution !== null && resolution.key
  * === key` — from a SINGLE piece of state, `{ key, def } | null`, rather than
@@ -96,10 +96,13 @@ export interface SettledSchema<TDef = unknown> {
  * is absent, which is the exact "no source to read from" outcome that case
  * needs.
  *
- * @param key - The identity of the object THIS render is asking about (e.g.
- *   `dataConfig.object ?? schema.objectName ?? ''`). Computing the right key
- *   is the caller's job — it is the component-private half of the original
- *   hand copies, not something this hook can infer.
+ * @param key - The identity of the object THIS render is asking about — for a
+ *   record-bound view, `resolveRecordSourceObjectName(schema, dataConfig) ?? ''`
+ *   from `@object-ui/core`. ⛔ Do NOT re-spell that ladder inline here: six view
+ *   plugins each carried their own copy and had drifted, which is the whole of
+ *   objectui#7627. Choosing the key is still the caller's job — it is the
+ *   component-private half of the original hand copies, not something this hook
+ *   can infer — but the ladder behind it is published and shared.
  * @param dataSource - The data source to read the definition from. Pass
  *   `undefined`/`null` for a render that should settle immediately with no
  *   definition (no source, or a provider that needs none) rather than adding
@@ -108,12 +111,15 @@ export interface SettledSchema<TDef = unknown> {
  *
  * @example
  * ```tsx
- * const schemaKey = dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+ * const schemaKey = resolveRecordSourceObjectName(schema, dataConfig); // @object-ui/core
  * const { ready: objectSchemaReady, def: objectSchema } =
  *   useSettledSchema(schemaKey ?? '', hasInlineData ? undefined : dataSource);
  *
  * useEffect(() => {
- *   if (dataConfig?.provider === 'object' && !objectSchemaReady) return; // gate placement stays local
+ *   // A PROVIDER test, not an object-name read — it asks "is there metadata to
+ *   // wait for at all", which the shared reader deliberately does not answer.
+ *   // Gate placement stays local (objectui#6482); the ladder does not.
+ *   if (dataConfig?.provider === 'object' && !objectSchemaReady) return;
  *   // ...issue the record query, `buildExpandFields(objectSchema?.fields)`
  * }, [objectSchemaReady, objectSchema, /* ... *\/]);
  * ```

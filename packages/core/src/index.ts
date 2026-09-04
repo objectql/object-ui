@@ -112,6 +112,15 @@ export * from './utils/predicate-fields.js';
 // may group by a field it never shows (objectui#7179).
 export * from './utils/grouping-fields.js';
 export * from './utils/normalize-list-view.js';
+// The ONE record-source object-name reader (objectui#7627). Six view plugins
+// each spelled "the object this block is bound to — the resolved data config's
+// object when it names one, else `objectName`" locally, and had drifted. It is
+// deliberately SEPARATE from the `normalizeListViewSchema` gap-fill above:
+// that one answers how `objectName` gets POPULATED when absent (#7477 ruling
+// B), this one answers which object a block RESOLVES (the objectui#6939
+// three-rung ladder). Merging them would override one standing ruling or the
+// other.
+export * from './utils/record-source.js';
 // The single home for the VALUE fallback prettifier (a stored value becomes a
 // display string when nothing resolves it). `@object-ui/fields` and
 // `@object-ui/plugin-charts` each carried a byte-identical private copy;
