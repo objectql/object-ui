@@ -1343,15 +1343,24 @@ export type {
 } from '@objectstack/spec/ui';
 
 // ============================================================================
-// v2.0.7 Spec UI Types — Responsive Design
+// v2.0.7 Spec UI Types — Responsive Design: RETIRED UPSTREAM, dropped here
 // ============================================================================
-export type {
-  ResponsiveConfig as SpecResponsiveConfig,
-  BreakpointName as SpecBreakpointName,
-  // BreakpointColumnMapSchema / BreakpointOrderMapSchema dropped without a
-  // replacement: they are zod values (value-erased here, #2561) and the spec
-  // exports no companion inferred type for them.
-} from '@objectstack/spec/ui';
+// `SpecResponsiveConfig` (the spec's `ResponsiveConfig`) and
+// `SpecBreakpointName` (its `BreakpointName`) were re-exported from this
+// block under deliberately prefixed names. objectstack#11027 retired the whole
+// `ui/responsive` vocabulary, and objectui#7580 removed the only two things in
+// this repo that read the prefixed pair: `@object-ui/core`'s
+// `ResponsiveProtocol` and `@object-ui/mobile`'s `useResponsiveConfig`, both
+// measured at zero callers. So both rows are DEAD re-exports and are dropped
+// rather than re-declared locally — the same disposition, for the same reason,
+// as the five retired i18n names in the block above.
+//
+// The layout vocabulary itself is NOT dropped: `BreakpointName` is declared
+// locally in `./mobile.ts` and re-exported unprefixed from the Mobile block
+// above, and `BreakpointColumnMap` in `@object-ui/layout`'s
+// `ResponsiveGrid.tsx` — both because `responsive-grid` is a registered SDUI
+// component whose authorable `columns` reaches a resolver on the render path,
+// which is the tombstone's own stated return condition.
 
 // ============================================================================
 // Widget System - Runtime Widget Registration (Section 1.6)

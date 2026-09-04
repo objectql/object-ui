@@ -21,7 +21,13 @@
 
 export { useBreakpoint, type BreakpointState } from './useBreakpoint.js';
 export { useResponsive } from './useResponsive.js';
-export { useResponsiveConfig, type SpecResponsiveConfig, type ResolvedResponsiveState } from './useResponsiveConfig.js';
+// `useResponsiveConfig` REMOVED (objectui#7580, maintainer ruling 2026-09-04).
+// It read `@objectstack/spec`'s `ResponsiveConfigSchema`, which objectstack#11027
+// retired; it was measured at zero callers on objectui#4773. Its exported
+// `SpecResponsiveConfig` / `ResolvedResponsiveState` went with it — both named
+// the retired schema's shape and neither had a reader. No behaviour is retired:
+// the live per-breakpoint readers are `useBreakpoint` and
+// `ResponsiveContainer` below, which are untouched.
 export { useGesture, type UseGestureOptions } from './useGesture.js';
 export { useSpecGesture, type UseSpecGestureOptions } from './useSpecGesture.js';
 export { useTouchTarget, type UseTouchTargetOptions, type TouchTargetResult } from './useTouchTarget.js';

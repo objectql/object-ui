@@ -16,20 +16,57 @@
  * @packageDocumentation
  */
 
-import type { BreakpointName } from '@objectstack/spec/ui';
-
 // ============================================================================
 // Responsive Configuration
 // ============================================================================
 
 /**
- * Breakpoint names.
+ * Breakpoint names — the Tailwind-style `xs`…`2xl` layout vocabulary, owned by
+ * this package since objectui#7580 (maintainer ruling 2026-09-04, option A).
  *
- * Bound to the spec rather than re-declared (objectstack#4115): a local union
- * under a spec export's name is read by the next reader as the spec's own
- * definition, so a copy that is correct today is a planted premise tomorrow.
+ * ## Answering objectstack#4115 rather than deleting it
+ *
+ * This was bound to `@objectstack/spec/ui` instead of re-declared, under the
+ * reason objectstack#4115 recorded here verbatim: "a local union under a spec
+ * export's name is read by the next reader as the spec's own definition, so a
+ * copy that is correct today is a planted premise tomorrow." That reason was
+ * correct, and it is now SPENT — not overruled.
+ *
+ * objectstack#11027 retired the whole `ui/responsive` vocabulary upstream
+ * (`ResponsiveConfigSchema`, `BreakpointName`, `BreakpointColumnMapSchema`,
+ * `BreakpointOrderMapSchema`), leaving a tombstone and the protocol-18
+ * conversion in `RETIRED_DEFS_BY_MAJOR[18]`. So there is no spec definition
+ * left for a reader to mistake this one for: this is not a copy that may drift
+ * from an original, it is the only declaration of the name that will exist.
+ * A planted premise needs something to be wrong ABOUT.
+ *
+ * ## Why re-homed and not retired with the key
+ *
+ * The retirement's stated ground — that these types "had no other authorable
+ * carrier" — is a claim about the whole surface, and it is measurably false on
+ * this side. `responsive-grid` is a REGISTERED SDUI component (see
+ * `@object-ui/layout`'s `index.ts`) whose authorable `columns` input is typed
+ * by the sibling `BreakpointColumnMap` and applied by `resolveColumnClasses` on
+ * the render path. This union types four live readers here: `breakpoints.ts`
+ * (`BREAKPOINTS`, `BREAKPOINT_ORDER`, `getCurrentBreakpoint`),
+ * `useBreakpoint.ts`, `ResponsiveContainer.tsx`, and {@link ResponsiveValue}
+ * below. The tombstone's own return condition — the vocabulary "returns if and
+ * when a renderer implements it" — is already met over here.
+ *
+ * ⚠️ Members are the retired enum's, verbatim, and must stay so: the six
+ * `xs`…`2xl` keys that `BreakpointColumnMap` is keyed by.
+ * `__tests__/spec-derived-unions.test.ts` pins the width, so narrowing this
+ * union fails to compile rather than silently dropping a breakpoint.
+ *
+ * ⏳ Interim, and it self-expires: the pin is still `@objectstack/spec` 17.2.0,
+ * which PRE-dates the retirement and so still exports this name. The collision
+ * is therefore real today and carries a reasoned entry in
+ * `scripts/check-spec-symbol-derivation.mjs`. That entry cannot outlive the
+ * interval — the guard's ratchet 3 fails an ALLOW entry that excuses nothing —
+ * so the pin bump is forced to delete it and pin the vacancy instead, exactly
+ * as objectui#5716's theme localization was on the 17.2.0 refresh.
  */
-export type { BreakpointName };
+export type BreakpointName = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 
 /** Responsive value - different values for different breakpoints */
 export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
@@ -38,9 +75,16 @@ export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
  * Responsive layout configuration for the mobile renderer's box layout.
  *
  * Renamed off the spec's `ResponsiveConfig` name (objectstack#4115): the two
- * configure responsiveness through different vocabularies, and this package
- * already re-exports the spec's own under `SpecResponsiveConfig`, so the bare
- * name claimed an authority it did not have.
+ * configure responsiveness through different vocabularies, so the bare name
+ * claimed an authority it did not have.
+ *
+ * ⚠️ The rename's second stated ground — that this package "already re-exports
+ * the spec's own under `SpecResponsiveConfig`" — expired at objectui#7580 and is
+ * recorded rather than silently dropped, because it is the kind of sentence a
+ * later reader mistakes for a live measurement. objectstack#11027 retired the
+ * spec `ResponsiveConfig` outright and that prefixed re-export went with its two
+ * readers. The rename still stands on the FIRST ground alone: the two
+ * vocabularies genuinely differ, as the paragraph below sets out key by key.
  *
  * The spec's `ResponsiveConfig` is the SDUI grid contract —
  * `{ breakpoint, hiddenOn, columns: {xs..2xl}, order: {xs..2xl} }` — arranging a
