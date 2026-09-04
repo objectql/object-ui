@@ -71,25 +71,31 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **16 entries** in `UnmirroredDeclared`, **97 keys** across them. It read 17 / 98
+ *   - **15 entries** in `UnmirroredDeclared`, **96 keys** across them. It read 17 / 98
  *     between objectui#6576, which SEEDED the new `ObjectDataTableSchema` pair with its
  *     one measured key `drillDown` (a pair born ledgered, not growth on an existing
  *     one), and objectui#7129, which RETIRED `DetailViewSectionSchema.hideEmpty` —
  *     the ledger's first shrink by removing the DECLARATION rather than by mirroring
- *     it, and the entry's whole content, so the entry went too. ⚠️ It was
+ *     it, and the entry's whole content, so the entry went too. objectui#7623 took
+ *     that route a second time for `DashboardComponentSchema.title` (16 / 97 →
+ *     15 / 96), again the entry's whole content — and the first time it reached the
+ *     SPEC-DERIVED half. ⚠️ It was
  *     **121** when objectui#6058 seeded it; objectui#6152 moved 23 callback-shaped
  *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
  *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
  *     Anything citing "121" as the mirroring debt is citing a number that changed
- *     meaning — the comparable figure is 96 + 1 mirrored + 1 retired + 23
+ *     meaning — the comparable figure is 95 + 1 mirrored + 2 retired + 23
  *     reclassified. The full statement is on that ledger.
  *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
- *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
+ *     seven are a subset of the 15 pairs above; `TreeViewSchema` is NOT — it is
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
  *     "no entry in either" population dropped by one to 141 — went to 142 when
- *     objectui#6576 added two pairs, one of them ledgered, and stands at **143**
- *     since objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key.
+ *     objectui#6576 added two pairs, one of them ledgered, went to 143 when
+ *     objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key, and
+ *     stands at **144** since objectui#7623 retired `DashboardComponentSchema`'s
+ *     only UNMIRRORED one (that pair keeps its `KnownDrift` entry — this
+ *     population counts entries in the two unmirrored ledgers).
  *   - 160 − 40 = **120**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
@@ -904,20 +910,25 @@ interface KnownDrift {
  * invites an author to write and the published validator has never heard of.
  *
  * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION,
- * ## then 97 by the first REPAIR
+ * ## then 97 by the first REPAIR, then 96 by RETIREMENT
  *
- * objectui#6058 seeded this ledger at **121 keys**. It records **97**, and the two
+ * objectui#6058 seeded this ledger at **121 keys**. It records **96**, and the
  * movements are different facts. objectui#6152 measured the 23 callback-shaped
  * (`on*`) keys and ruled that mirroring is the wrong remedy for every one of them;
  * they moved, intact and still pinned, to `RuntimeOnlyDeclared` below — ⛔ nothing
  * was mirrored, no declaration was removed, nothing was waived by that move. Then
  * objectui#6639 MIRRORED `ObjectGridSchema.title` (census-directed maintainer
  * ruling 2026-08-29, declare branch) — one defect actually repaired, the ledger's
- * first shrink by repair.
+ * first shrink by repair. Then objectui#7129 and objectui#7623 each RETIRED a key by
+ * deleting the DECLARATION (`DetailViewSectionSchema.hideEmpty`;
+ * `DashboardComponentSchema.title`) — shrinks by removal, which is neither a repair
+ * of the mirror nor a waiver: the key stops being offered to authors at all.
  *
- * So: **97 is the mirroring debt; 97 + 1 mirrored + 23 reclassified is what "121"
- * used to mean.** A card that cites 121 as the size of the mirroring problem, or
- * 98/97 as a shrink from it, is wrong in both directions. objectui#6141 is the
+ * So: **96 is the mirroring debt; 96 − 1 seeded + 1 mirrored + 2 retired + 23
+ * reclassified is what "121" used to mean** (the seed is objectui#6576's
+ * `ObjectDataTableSchema.drillDown`, which was never part of the 121). A card that
+ * cites 121 as the size of the mirroring problem, or 98/97/96 as a shrink from it,
+ * is wrong in both directions. objectui#6141 is the
  * standing example of what a silently moved count costs — it is why this paragraph
  * is in the ledger rather than in a commit message.
  *
@@ -945,18 +956,25 @@ interface KnownDrift {
  * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
  * are recorded here so whoever works them off does not re-derive them:
  *
- *   - **SPEC-DERIVED (3 entries, 13 keys)** — `DashboardComponentSchema`,
- *     `DashboardWidgetSchema`, `ObjectViewSchema`. ⚠️ objectui#6705 invalidated the
- *     evidence for ONE of the three: `ObjectViewSchema` is no longer in
+ *   - **SPEC-DERIVED (2 entries, 12 keys)** — `DashboardWidgetSchema`,
+ *     `ObjectViewSchema`. It was 3 / 13 until objectui#7623 RETIRED
+ *     `DashboardComponentSchema.title` by deleting the DECLARATION — the
+ *     objectui#7129 route, reaching this half for the first time. That key was never
+ *     going to be answered by #2231 unification: the spec's strict `DashboardSchema`
+ *     refuses a root `title` outright, and objectui#7509 had already retired every
+ *     read of it, so the local declaration was offering a member the spec models
+ *     nowhere and no renderer consumed. ⚠️ objectui#6705 invalidated the
+ *     evidence for ONE of the two that remain: `ObjectViewSchema` is no longer in
  *     `SPEC_DERIVED_PAIRS` below, because it never referenced a spec schema — it is
  *     `BaseSchema.extend({…})` of local literals, and the pre-#6705 text scanner
- *     charged it a neighbouring private const's `Spec…` token. The split is left
- *     STANDING as written, counts and all: re-routing those keys from #2231's
+ *     charged it a neighbouring private const's `Spec…` token. That misclassification
+ *     is left STANDING as #6705 found it — neither the entry's classification nor its
+ *     key count moved for it: re-routing those keys from #2231's
  *     unification question to a local mirror edit is a remedy decision on the
  *     `UnmirroredDeclared` ledger, which #6705 was fenced out of. Whoever works
  *     this split off must re-derive `ObjectViewSchema`'s side first.
- *     For the other two the reading is unchanged:
- *     their mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
+ *     For `DashboardWidgetSchema` the reading is unchanged:
+ *     its mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
  *     unmirrored declared key there means the LOCAL declaration carries members the
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
@@ -970,10 +988,11 @@ interface KnownDrift {
  * (107 → 85; 84 since objectui#6639 mirrored `ObjectGridSchema.title`, 83 since
  * objectui#7129 retired one). The pair COUNTS did not move under the
  * reclassification — every affected pair kept keys here — so the split read 16
- * entries / 97 keys after it. Two later changes moved the entry count itself:
+ * entries / 97 keys after it. Three later changes moved the entry count itself:
  * objectui#6576 SEEDED `ObjectDataTableSchema` (a 17th entry, in neither half
- * above), and objectui#7129 RETIRED an entry from the LOCAL half. The ledger now
- * totals **16 entries / 97 keys** — 3 / 13 spec-derived, 12 / 83 local, plus the
+ * above), objectui#7129 RETIRED an entry from the LOCAL half, and objectui#7623
+ * RETIRED one from the SPEC-DERIVED half (13 → 12 keys there). The ledger now
+ * totals **15 entries / 96 keys** — 2 / 12 spec-derived, 12 / 83 local, plus the
  * seeded pair.
  *
  * ## How this was measured, and the trap that makes the number hard to get
@@ -1008,14 +1027,17 @@ interface UnmirroredDeclared {
    * heard of.
    */
   'complex.zod.ts#ChatbotSchema': 'displayMode' | 'floatingConfig' | 'requestBody';
+  // `complex.zod.ts#DashboardComponentSchema` recorded `title` here (SPEC-DERIVED)
+  // until objectui#7623 RETIRED the declaration — the objectui#7129 route, not a
+  // mirror edit: the spec's strict `DashboardSchema` refuses a root `title` outright,
+  // and objectui#7509 had already retired every read of it. The pair keeps its
+  // `KnownDrift` entry above (three TYPE-drifted keys) and records nothing here.
   /**
    * SPEC-DERIVED → objectui#2231. The mirror takes its shape by reference from
-   * `@objectstack/spec`, so `title` is a member the LOCAL declaration carries and the
-   * spec schema does not model. Its three TYPE-drifted keys are in `KnownDrift` above
-   * and route the same way.
+   * `@objectstack/spec`, so these are members the LOCAL declaration carries and the
+   * spec schema does not model. Its one TYPE-drifted key is in `KnownDrift` above and
+   * routes the same way.
    */
-  'complex.zod.ts#DashboardComponentSchema': 'title';
-  /** SPEC-DERIVED → objectui#2231, same reading as `DashboardComponentSchema`. */
   'complex.zod.ts#DashboardWidgetSchema': 'pagination' | 'searchable';
   /** LOCAL. Declared in `../data-display.ts`, absent from the mirror. */
   'data-display.zod.ts#ChartSchema': 'drillDown';
@@ -1399,14 +1421,16 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 143
- * pairs with no entry in either (160 − 17). Six of `RuntimeOnlyDeclared`'s seven
- * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 144
+ * pairs with no entry in either (160 − 16). Six of `RuntimeOnlyDeclared`'s seven
+ * pairs are a measured subset of `UnmirroredDeclared`'s 15, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
- * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 17
- * pairs and not 16. (objectui#6576 took the union to 18; objectui#7129 brought it
- * back to 17 by retiring `DetailViewSectionSchema`'s only ledgered key, leaving
- * that pair with no entry in either half.)
+ * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 16
+ * pairs and not 15. (objectui#6576 took the union to 18; objectui#7129 brought it
+ * back to 17 by retiring `DetailViewSectionSchema`'s only ledgered key, and
+ * objectui#7623 to 16 by retiring `DashboardComponentSchema`'s — each leaving its
+ * pair with no entry in either half. ⚠️ That pair still carries a `KnownDrift`
+ * entry: "no entry in either" is about the two UNMIRRORED ledgers.)
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
  * The exit code is a whole-file verdict, so it moves only while the rest of the
