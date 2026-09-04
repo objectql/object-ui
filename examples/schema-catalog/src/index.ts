@@ -33,7 +33,6 @@ import components_basic_button_group_icon_toolbar from './schemas/components-bas
 import components_basic_button_group_multiple_selection from './schemas/components-basic-button-group/multiple-selection.json' with { type: 'json' };
 import components_basic_button_group_outline_variant from './schemas/components-basic-button-group/outline-variant.json' with { type: 'json' };
 import components_basic_button_group_single_selection from './schemas/components-basic-button-group/single-selection.json' with { type: 'json' };
-import components_basic_button_group_with_icons from './schemas/components-basic-button-group/with-icons.json' with { type: 'json' };
 import components_basic_div_custom_card from './schemas/components-basic-div/custom-card.json' with { type: 'json' };
 import components_basic_div_flex_layout from './schemas/components-basic-div/flex-layout.json' with { type: 'json' };
 import components_basic_div_grid_layout from './schemas/components-basic-div/grid-layout.json' with { type: 'json' };
@@ -648,15 +647,6 @@ const REGISTRY: Record<string, Example> = {
       category: 'components-basic-button-group',
     },
     schema: components_basic_button_group_single_selection,
-  },
-  'components-basic-button-group/with-icons': {
-    id: 'components-basic-button-group/with-icons',
-    meta: {
-      title: "With Icons",
-      description: "",
-      category: 'components-basic-button-group',
-    },
-    schema: components_basic_button_group_with_icons,
   },
   'components-basic-div/custom-card': {
     id: 'components-basic-div/custom-card',

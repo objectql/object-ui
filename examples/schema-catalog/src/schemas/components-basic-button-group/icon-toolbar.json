@@ -4,19 +4,13 @@
   "size": "sm",
   "buttons": [
     {
-      "label": "Copy",
-      "icon": "copy",
-      "value": "copy"
+      "label": "Copy"
     },
     {
-      "label": "Cut",
-      "icon": "scissors",
-      "value": "cut"
+      "label": "Cut"
     },
     {
-      "label": "Paste",
-      "icon": "clipboard",
-      "value": "paste"
+      "label": "Paste"
     }
   ]
 }

@@ -32,6 +32,7 @@ ComponentRegistry.register('button-group',
             key={idx}
             variant={button.variant || schema.variant}
             size={button.size || schema.size}
+            disabled={button.disabled}
             className={cn(
               'rounded-none',
               idx === 0 && 'rounded-l-md',
