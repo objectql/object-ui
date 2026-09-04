@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { getRecordDisplayName } from '@object-ui/core';
 import {
   buildDefaultPageSchema,
   buildDefaultHeader,
@@ -138,9 +139,18 @@ describe('deriveHighlightFields', () => {
     expect(fields.length).toBeLessThanOrEqual(4);
   });
 
-  it('falls back to any field order when preferred names absent', () => {
+  it('falls back to any field order when preferred names absent, minus the H1 field', () => {
     const def: ObjectDefLike = { fields: { foo: {}, bar: {}, baz: {} } };
-    expect(deriveHighlightFields(def, null)).toEqual(['foo', 'bar', 'baz']);
+    // No conventional name field here, so the shared ADR-0079 ladder DERIVES
+    // the title: the first title-eligible field in declaration order, `foo`.
+    // The page H1 renders ITS value — so the strip sitting directly beneath
+    // must not repeat it. Before objectui#7287 this module ran its own ladder,
+    // whose literal five-name walk did not know `foo`; it returned null, and
+    // `foo` was the first chip under a heading already showing it.
+    expect(
+      getRecordDisplayName(def, { id: 'r1', foo: 'Acme', bar: 'x', baz: 'y' }),
+    ).toBe('Acme');
+    expect(deriveHighlightFields(def, null)).toEqual(['bar', 'baz']);
   });
 
   it('skips system tenancy + audit fields (organization_id, created_by, etc.)', () => {
@@ -166,9 +176,13 @@ describe('deriveHighlightFields', () => {
     expect(fields).toContain('another_useful');
   });
 
-  it('skips the record primary/title field to avoid duplicating the page H1', () => {
-    const def: ObjectDefLike = {
-      primaryField: 'subject',
+  it('skips the record title field to avoid duplicating the page H1', () => {
+    const def = {
+      // The DECLARED role, ADR-0079's canonical pointer. This fixture used to
+      // spell it `primaryField` — a `DetailViewSchema` key that no object
+      // payload can carry, and whose read this module dropped in
+      // objectui#7287.
+      nameField: 'subject',
       fields: {
         subject: {},
         name: {}, // common candidate also skipped
@@ -177,7 +191,7 @@ describe('deriveHighlightFields', () => {
         due_date: {},
         notes: {},
       },
-    };
+    } as unknown as ObjectDefLike;
     const fields = deriveHighlightFields(def, 'status');
     expect(fields).not.toContain('subject');
     expect(fields).not.toContain('name');
@@ -936,12 +950,15 @@ describe('semantic-role hints (ADR-0085 / #2065)', () => {
     });
 
     it('title resolution honours declared roles over conventional names', () => {
-      const def: ObjectDefLike = {
-        primaryField: 'subject',
+      const def = {
+        // ADR-0079's canonical pointer, which outranks the conventional
+        // `name`. (`primaryField` stood here until objectui#7287 — a
+        // `DetailViewSchema` key read off an object def.)
+        nameField: 'subject',
         fields: { subject: {}, name: {}, status: {} },
         highlightFields: ['subject', 'name', 'status'],
-      };
-      // primaryField wins → `subject` is the H1 and drops; the literal
+      } as unknown as ObjectDefLike;
+      // The declared role wins → `subject` is the H1 and drops; the literal
       // `name` field is NOT the title here and stays a chip.
       expect(deriveHighlightFields(def, null)).toEqual(['name', 'status']);
     });
