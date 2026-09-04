@@ -210,7 +210,7 @@ function validateComponent(config: unknown) {
 - `PaginationSchema`, `NavigationMenuSchema`, `ButtonGroupSchema`
 
 ### Complex Components (5)
-- `KanbanSchema`, `CalendarViewSchema`
+- `DeclarativeKanbanSchema`, `CalendarViewSchema`
 - `FilterBuilderSchema`, `CarouselSchema`, `ChatbotSchema`
 
 ## Schema Structure

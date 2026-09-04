@@ -195,7 +195,7 @@ Menus and navigation:
 
 Advanced composite components:
 
-- `KanbanSchema` - Kanban board
+- `DeclarativeKanbanSchema` - Kanban board
 - `CalendarViewSchema` - Calendar with events
 - `FilterBuilderSchema` - Advanced filter builder
 - `CarouselSchema` - Image/content carousel

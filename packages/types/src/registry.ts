@@ -92,7 +92,7 @@ import type {
 } from './navigation.js';
 
 import type {
-  KanbanSchema,
+  DeclarativeKanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,
@@ -183,7 +183,14 @@ export interface SchemaRegistry {
   'pagination': PaginationSchema;
 
   // Complex
-  'kanban': KanbanSchema;
+  // ⚠️ The renderer registered for `'kanban'` (`ObjectKanbanRenderer`, in
+  // `@object-ui/plugin-kanban`) consumes that package's own `KanbanSchema`,
+  // NOT this declarative face. The mismatch is latent — the value side of this
+  // map is reached only through `ComponentType = keyof SchemaRegistry` and
+  // nothing performs an indexed access — and objectui#6172's ruling (option A)
+  // renamed the declarative copy rather than relocating the plugin dialect
+  // into this zero-dependency layer, so the mismatch stays latent-but-named.
+  'kanban': DeclarativeKanbanSchema;
   'calendar-view': CalendarViewSchema;
   'filter-builder': FilterBuilderSchema;
   'carousel': CarouselSchema;

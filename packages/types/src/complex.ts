@@ -23,9 +23,30 @@ import type {
 import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
- * Kanban column
+ * Kanban column — the DECLARATIVE (authoring / validation) face.
+ *
+ * ## Why the name carries a `Declarative` prefix (objectui#6172)
+ *
+ * This trio and `@object-ui/plugin-kanban`'s `KanbanCard` / `KanbanColumn` /
+ * `KanbanSchema` were two declarations of one set of names, in two dialects.
+ * The 2026-08-31 maintainer ruling (决裁批 #14, option A) settled the authority:
+ * **the plugin KEEPS the bare names**, because those are what all four
+ * registered kanban renderers (`kanban`, `kanban-ui`, `kanban-enhanced`,
+ * `object-kanban`) consume, and objectui#6086 measured the failure mode of
+ * getting that backwards — an IDE or agent auto-importing the bare name picks
+ * whichever copy sorts first, and the wrong one produces a **confident empty
+ * board** instead of an abstention. So the surviving bare name has to be the
+ * one a renderer honours.
+ *
+ * What survives here is the face this package really serves: the authoring
+ * shape and its Zod mirror (`zod/complex.zod.ts`), which is the `'kanban'` arm
+ * of `ComplexSchema` → `AnyComponentSchema` → `safeValidateSchema` and so
+ * validates every authored `{ "type": "kanban" }` document the CLI's
+ * `validate` / `check` commands see. Renaming rather than retiring was the
+ * ruled outcome; ⛔ do not re-point these at the plugin — `@object-ui/types` is
+ * the zero-workspace-dependency bottom layer and cannot depend on a plugin.
  */
-export interface KanbanColumn {
+export interface DeclarativeKanbanColumn {
   /**
    * Unique column identifier
    */
@@ -45,7 +66,7 @@ export interface KanbanColumn {
    * spelling with zero read sites, which made every authored board fail
    * `safeValidateSchema` while rendering correctly (objectui#6318's bucket).
    */
-  cards: KanbanCard[];
+  cards: DeclarativeKanbanCard[];
   /**
    * Column color/variant
    */
@@ -63,7 +84,7 @@ export interface KanbanColumn {
 /**
  * Kanban card
  */
-export interface KanbanCard {
+export interface DeclarativeKanbanCard {
   /**
    * Unique card identifier
    */
@@ -105,12 +126,12 @@ export interface KanbanCard {
 /**
  * Kanban board component
  */
-export interface KanbanSchema extends BaseSchema {
+export interface DeclarativeKanbanSchema extends BaseSchema {
   type: 'kanban';
   /**
    * Kanban columns
    */
-  columns: KanbanColumn[];
+  columns: DeclarativeKanbanColumn[];
   /**
    * Enable drag and drop
    * @default true
@@ -133,7 +154,7 @@ export interface KanbanSchema extends BaseSchema {
    * name and points at the node-type spelling. Kept callable here because it is
    * forwarded by `plugin-kanban` (`onCardClick={schema.onCardClick}`).
    */
-  onCardClick?: (card: KanbanCard) => void;
+  onCardClick?: (card: DeclarativeKanbanCard) => void;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `kanban` renderer takes `({ schema })` and never reads it. The zod twin
@@ -1188,7 +1209,7 @@ export interface DashboardComponentSchema extends BaseSchema {
  * Union type of all complex schemas
  */
 export type ComplexSchema =
-  | KanbanSchema
+  | DeclarativeKanbanSchema
   | CalendarViewSchema
   | FilterBuilderSchema
   | CarouselSchema
