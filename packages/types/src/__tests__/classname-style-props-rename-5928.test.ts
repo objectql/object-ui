@@ -15,10 +15,17 @@
  *
  * The rename moves a name on a PUBLISHED surface, so the new name has to be
  * checked the way a published export is checked — by IMPORTING it through the
- * published barrel and using it — not by the type-checker's silence. A `tsc` run
- * stays green on a const that never reached the barrel, because nothing inside
- * this package imports it; only a runtime import of the published path can report
- * that the name is not there.
+ * published barrel and USING it. Nothing else in this package imports the barrel's
+ * copy of this name, so without this file the barrel line is load-bearing for
+ * nobody and can be dropped in silence. Measured on this branch by deleting
+ * `ClassNameStylePropsSchema` from `../zod/index.zod.ts`: this suite fails at
+ * module load, and `tsc -p tsconfig.test.json` fails with TS2305 at the import
+ * below — both of them only because this file names the export.
+ *
+ * The import is a VALUE import rather than a type-only one, because the type level
+ * cannot see the half that matters: a type import erases, while the `safeParse`
+ * pair below proves the published name still resolves to a LIVE zod schema at
+ * runtime and not to something that lost its identity in the rename.
  *
  * Both faces of the rename are pinned here:
  *   - the barrel publishes the new name and it VALIDATES — a live zod schema that
