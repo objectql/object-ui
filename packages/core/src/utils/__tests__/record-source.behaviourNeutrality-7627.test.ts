@@ -113,6 +113,44 @@ describe('resolveRecordSourceObjectName — behaviour neutrality (objectui#7627)
   }
 });
 
+/**
+ * The OFF-CONTRACT fork. `ViewDataSchema`'s `object` provider declares `object`
+ * REQUIRED, so `data: { provider: 'object' }` without one cannot be published —
+ * but two sites used to coerce it back to `objectName` anyway, and one of them
+ * (`ObjectGrid`) gates permission verdicts with the result. The shared reader
+ * deliberately does NOT carry that coercion (AGENTS.md #0.1); the two sites keep
+ * it as their own tail. These cases pin the tails: delete one and this goes red,
+ * which is the only thing standing between them and a future "redundant `??`"
+ * cleanup.
+ */
+const OFF_CONTRACT_TAIL_SITES = ['ObjectTree:567 headerObjectName', 'ObjectGrid:1206 objectName'];
+
+describe('the off-contract `{ provider: "object" }` tail (objectui#7627)', () => {
+  const offContract: Cfg = { provider: 'object' };
+
+  it('is not answered by the shared reader — no lenient rung was added', () => {
+    expect(resolveRecordSourceObjectName({ objectName: 'accounts' }, offContract)).toBeUndefined();
+  });
+
+  for (const id of OFF_CONTRACT_TAIL_SITES) {
+    const site = SITES.find((x) => x.id === id)!;
+    it(`${id} keeps its own tail, so the shape still resolves to \`objectName\``, () => {
+      const schema = { objectName: 'accounts' };
+      expect(site.before(schema, offContract)).toBe('accounts');
+      expect(site.after(schema, offContract)).toBe('accounts');
+    });
+  }
+
+  it('the sites that never carried the tail still resolve nothing, exactly as before', () => {
+    const schema = { objectName: 'accounts' };
+    for (const id of ['ObjectCalendar:309 schemaObjectName', 'ObjectMap:764 metadata objectName']) {
+      const site = SITES.find((x) => x.id === id)!;
+      expect(site.after(schema, offContract)).toEqual(site.before(schema, offContract));
+      expect(site.after(schema, offContract)).toBeUndefined();
+    }
+  });
+});
+
 describe('resolveRecordSourceObjectName — the ladder it carries (objectui#6939)', () => {
   // Bound rather than inlined: callers hand this reader a whole `ViewData`
   // (whose `value` member carries `items`), never a fresh literal narrowed to
