@@ -48,6 +48,26 @@ export interface ObjectDefLike {
   /** Semantic role (ADR-0085): the object's most important fields —
    *  drives the highlight strip (first 4). */
   highlightFields?: string[];
+  /**
+   * ACCEPTED BUT NEVER READ — do not "tidy" this away (objectui#7287).
+   *
+   * `primaryField` is a `DetailViewSchema` key (`@object-ui/types` `views.ts`),
+   * and reading it off an OBJECT def is the defect objectui#7287 removed:
+   * `resolveTitleField` now delegates to `@object-ui/core`'s `resolveNameField`
+   * and no code in this module consults this member. No producer can populate
+   * it either — `@objectstack/spec`'s object schema is a `strictObject` that
+   * answers `unrecognized_keys: ['primaryField']`.
+   *
+   * It stays declared because this interface is REACHABLE, which is a
+   * different question from what it describes: `ObjectDefLike` is re-exported
+   * from this package's index and `@object-ui/plugin-detail` is published, so
+   * the member is part of a shipped `.d.ts`. Deleting it narrows a published
+   * type — an external `const d: ObjectDefLike = { primaryField: 'x' }`
+   * compiles today and would stop compiling — and that is a contract change
+   * owed its own card, not a rider on a behaviour fix. Retiring it is a
+   * deliberate act for someone to take on purpose.
+   */
+  primaryField?: string;
   /** Optional section grouping for the details region. The heading rides
    *  `label` — the one slot `@object-ui/types` declares (objectui#6190). */
   sections?: Array<{ label?: string; columns?: number; fields?: any[] }>;
