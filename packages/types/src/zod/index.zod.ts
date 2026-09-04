@@ -217,9 +217,9 @@ export {
 // Complex Components - Advanced/Composite Components
 // ============================================================================
 export {
-  KanbanCardSchema,
-  KanbanColumnSchema,
-  KanbanSchema,
+  DeclarativeKanbanCardSchema,
+  DeclarativeKanbanColumnSchema,
+  DeclarativeKanbanSchema,
   CalendarViewModeSchema,
   CalendarEventSchema,
   CalendarViewSchema,

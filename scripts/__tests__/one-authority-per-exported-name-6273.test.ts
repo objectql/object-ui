@@ -394,20 +394,21 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   // authority left the tree with the spec-bridge retirement (objectui#6366,
   // 2026-08-27 maintainer ruling), so app-shell's `form-spec.ts` is now the
   // one authority and the entries would fail the stale-baseline direction.
-  // `KanbanCard` / `KanbanColumn` were the ×4 objectui#6155 measured. The THREE
-  // in-package copies converged (objectui#6172): `KanbanImpl.tsx` and
-  // `KanbanEnhanced.tsx` were strict-SUBSET copies of `./types` — an AST probe
-  // found nothing typed differently between them — so their members (`coverImage`,
-  // `cardSubtitle`, `cardFieldCells`, `collapsed`, all optional) moved onto the one
-  // in-package declaration and both files now re-point at it. Two sites remain, and
-  // they are the CROSS-package pair: the `@object-ui/types` copy is a different
-  // dialect (`items` where the plugin says `cards`, `labels` where it says
-  // `badges`), so collapsing it is a rename of a published name and needs an
-  // authority ruling the 2026-08-25 family ruling did not give for this pair — it
-  // named one only for the cross-package `FormField` clash. Escalated, not guessed.
-  ['KanbanCard', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']],
-  ['KanbanColumn', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']],
-  ['KanbanSchema', ['packages/plugin-kanban/src/types.ts', 'packages/types/src/complex.ts']], // objectui#6172 — same cross-package pair, same escalation
+  // `KanbanCard` / `KanbanColumn` / `KanbanSchema` sat here. They were the ×4
+  // objectui#6155 measured; objectui#6172 converged the THREE in-package copies
+  // (`KanbanImpl.tsx` and `KanbanEnhanced.tsx` were strict-SUBSET copies of
+  // `./types` — an AST probe found nothing typed differently — so their members
+  // moved onto the one in-package declaration and both files re-point at it),
+  // leaving the CROSS-package pair. That pair needed an authority ruling the
+  // 2026-08-25 family ruling gave only for `FormField`, and the 2026-08-31
+  // maintainer ruling (决裁批 #14, option A) gave it: `@object-ui/plugin-kanban`
+  // KEEPS the bare names — the dialect all four registered renderers consume —
+  // and the `@object-ui/types` trio is renamed `DeclarativeKanbanSchema` /
+  // `DeclarativeKanbanColumn` / `DeclarativeKanbanCard`. The deciding axis: the
+  // surviving bare name must be the one a renderer honours, because
+  // objectui#6086 measured that auto-importing the wrong copy yields a confident
+  // EMPTY BOARD rather than an abstention. One authority each now, so all three
+  // entries would fail the stale-baseline direction.
   // `MarkdownSchema` sat here, colliding between
   // `packages/plugin-markdown/src/types.ts` and `packages/types/src/data-display.ts`.
   // The copies differed on ONE member — `content`, required there and optional here —

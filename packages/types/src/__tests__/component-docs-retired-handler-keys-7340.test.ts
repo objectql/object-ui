@@ -253,8 +253,8 @@ const describeRow = (r: DocRow): string => `${r.page}:${r.line} ${r.owner}.${r.k
 
 /** Runtime-slot rows measured present on this tree — the blanket-sweep control. */
 const CONTROL = [
-  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardMove' },
-  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardClick' },
+  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardMove' },
+  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardClick' },
   { page: 'components/basic/pagination.mdx', owner: 'PaginationSchema', key: 'onPageChange' },
   { page: 'components/data-display/tree-view.mdx', owner: 'TreeViewSchema', key: 'onNodeClick' },
   { page: 'components/form/button.mdx', owner: 'ButtonSchema', key: 'onClick' },

@@ -882,7 +882,7 @@ A complete object management interface combining grid, form, search, filters, an
 
 ## Complex Schemas
 
-### KanbanSchema
+### DeclarativeKanbanSchema
 
 A drag-and-drop Kanban board with columns and cards.
 
@@ -920,7 +920,7 @@ A drag-and-drop Kanban board with columns and cards.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `columns` | `KanbanColumn[]` | **Required.** Board columns, each with `id`, `title`, `color`, and `cards`. |
+| `columns` | `DeclarativeKanbanColumn[]` | **Required.** Board columns, each with `id`, `title`, `color`, and `cards`. |
 | `draggable` | `boolean` | Enable drag-and-drop between columns. |
 | `onCardMove` | `function` | Callback when a card is moved: `(cardId, fromColumn, toColumn, position)`. |
 | `onCardClick` | `function` | Callback when a card is clicked. |
@@ -1190,7 +1190,7 @@ A toggle control that switches between different view types (list, grid, kanban,
 | `storageKey` | `string` | Storage key for persisting the preference. |
 | `onViewChange` | `string` | Expression or callback invoked on view change. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [KanbanSchema](#kanbanschema), [CalendarViewSchema](#calendarviewschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [DeclarativeKanbanSchema](#declarativekanbanschema), [CalendarViewSchema](#calendarviewschema)
 
 ---
 
@@ -1265,7 +1265,7 @@ import type { ActionSchema, DetailSchema } from '@object-ui/types';
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
 
 // Complex
-import type { KanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
+import type { DeclarativeKanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
 
 // Views
 import type { DetailViewSchema, ViewSwitcherSchema } from '@object-ui/types';
