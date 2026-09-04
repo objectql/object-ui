@@ -671,7 +671,7 @@ export const PageRenderer: React.FC<{
 const pageMeta: any = {
   namespace: 'ui',
   label: 'Page',
-  icon: 'Layout',
+  icon: 'panels-top-left',
   category: 'layout',
   inputs: [
     { name: 'title', type: 'string', label: 'Title' },

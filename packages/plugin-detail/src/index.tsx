@@ -758,7 +758,7 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
   skipFallback: true,
   category: 'record',
   label: 'Alert Banner',
-  icon: 'AlertTriangle',
+  icon: 'triangle-alert',
   inputs: [
     { name: 'severity', type: 'enum', label: 'Severity', enum: ['info', 'warning', 'error', 'success'], defaultValue: 'info' },
     // Two arms each (objectui#3832). Unlike the `page:*` specimens these two
