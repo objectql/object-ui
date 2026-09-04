@@ -154,7 +154,7 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 **❌ FORBIDDEN:** Adding custom properties not defined in `@objectstack/spec`.
 
 **Example violation:**
-```json
+```jsonc
 {
   "type": "data-table",
   "fields": [...],  // ❌ spec uses "columns"
@@ -163,7 +163,7 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 ```
 
 **✅ CORRECT:**
-```json
+```jsonc
 {
   "type": "data-table",
   "columns": [...]  // ✅ declared by DataTableSchema, read off the node
@@ -174,7 +174,7 @@ key under `props` never reaches a `ui:*` / `page:*` renderer at all.
 
 When the entire string is a single `${expression}`, the result preserves its type:
 
-```json
+```jsonc
 "${data.count}"        // → returns number 42, not string "42"
 "${data.isActive}"     // → returns boolean true, not string "true"
 "Count: ${data.count}" // → returns string "Count: 42" (mixed template)
@@ -184,7 +184,7 @@ When the entire string is a single `${expression}`, the result preserves its typ
 
 The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`, and only a component that calls that hook reads it:
 
-```json
+```jsonc
 {
   "type": "list",
   "bind": "customerNames"  // Resolved as dataSource.customerNames

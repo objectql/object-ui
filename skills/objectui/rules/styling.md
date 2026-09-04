@@ -167,7 +167,7 @@ const buttonVariants = cva(
 
 **Every component must accept `className` on its schema node** to allow JSON-level style overrides. Like every other key, it is read off the node itself — not out of a `props` envelope, which the renderers never read:
 
-```json
+```jsonc
 {
   "type": "card",
   "className": "bg-red-500",  // ✅ User can override styles

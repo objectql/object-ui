@@ -91,10 +91,16 @@ function readGuide(rel: string): string {
   return fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 }
 
-/** Every fenced ```json block body in a markdown file, in document order. */
+/**
+ * Every fenced ```json OR ```jsonc block body in a markdown file, in document
+ * order. Both tags are read on purpose: the guides tag their comment-carrying
+ * examples ```jsonc, and `parseBlock` below already strips those `//` comments
+ * before parsing. Reading only ```json would let a retag silently hide an
+ * example from every assertion here — which is a pass, not a failure.
+ */
 function jsonBlocks(md: string): string[] {
   const out: string[] = [];
-  const fence = /```json\n([\s\S]*?)```/g;
+  const fence = /```jsonc?\n([\s\S]*?)```/g;
   let m: RegExpExecArray | null;
   while ((m = fence.exec(md)) !== null) out.push(m[1]);
   return out;

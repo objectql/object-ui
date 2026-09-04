@@ -29,7 +29,7 @@ full boundary tables -- the evaluated fields, the raw ones, `visible` over
 -- are in [`rules/protocol.md`](../rules/protocol.md), which is the anchor for
 this rule. The four cases that decide most schemas:
 
-```json
+```jsonc
 // Evaluated, then dropped -- renders an empty card
 { "type": "card", "props": { "title": "${data.customer.name}" } }
 
@@ -167,7 +167,7 @@ name, so calls are case-insensitive.
 
 Each condition field has two forms — a shorthand and an `On` suffix:
 
-```json
+```jsonc
 { "hidden": true }                              // static boolean
 { "hidden": "${data.role !== 'admin'}" }        // template expression
 { "hiddenOn": "data.role !== 'admin'" }         // raw expression (no ${} needed)
@@ -325,7 +325,7 @@ what reaches the screen.
 `list` is the component authors reach for first, and it is **data-as-nodes**:
 the array it renders *is* the node list. It never reads `children`.
 
-```json
+```jsonc
 // ❌ Renders two EMPTY <li>. `children` is not a template — `list` never reads it,
 //    and `${item.name}` would render literally even if it did.
 {
@@ -352,7 +352,7 @@ descriptor:
 section exists to close: binding `list` to ordinary records produces one empty
 `<li>` per record — the right number of bullets, no text in any of them.
 
-```json
+```jsonc
 // ✅ Authored items — `title` and `ordered` are read off the node
 {
   "type": "list",
@@ -362,7 +362,7 @@ section exists to close: binding `list` to ordinary records produces one empty
 }
 ```
 
-```json
+```jsonc
 // ✅ Bound data, already node-shaped: dataSource = { rows: [{ "content": "Ada" }, { "content": "Linus" }] }
 { "type": "list", "bind": "rows" }
 ```
@@ -371,7 +371,7 @@ Only `body` entries go back through `SchemaRenderer`, so they are the one place
 inside a list where expressions are evaluated at all — against the host scope,
 never against a current element:
 
-```json
+```jsonc
 // ✅ `${data.*}` works inside `body`; there is still no `${item.*}`
 {
   "type": "list",
@@ -388,7 +388,7 @@ never against a current element:
   accessors (`accessorKey`). Cell values are plain property lookups — never
   expressions — and `table` does not read `bind`.
 
-```json
+```jsonc
 // ✅ `table`: inline rows + column accessors, no per-row scope
 {
   "type": "table",
@@ -444,7 +444,7 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 
 **Cause:** The field isn't expression-evaluated. Use `content`.
 
-```json
+```jsonc
 // ❌ Won't evaluate — `value` is read but never templated
 { "type": "text", "value": "${data.total}" }
 
@@ -460,7 +460,7 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 **Cause 1:** `visible` is also set and takes priority.
 **Cause 2:** Expression returns a non-boolean truthy value — use explicit comparison.
 
-```json
+```jsonc
 // ❌ Truthy but not boolean
 { "hidden": "${data.count}" }
 
@@ -476,7 +476,7 @@ is **not** blocked — measured through the schema path, it returns a real
 `Date`. Prefer a formula function anyway: a `Date` object stringifies into
 the DOM as a locale-dependent blob.
 
-```json
+```jsonc
 // ✅ Works, but renders "Thu Jan 01 1970 …"
 { "type": "text", "content": "${new Date(data.timestamp)}" }
 
@@ -489,7 +489,7 @@ the DOM as a locale-dependent blob.
 
 ### Object literal in expression
 
-```json
+```jsonc
 // ❌ Object literals not supported
 { "type": "text", "style": "${{ color: 'red' }}" }
 
