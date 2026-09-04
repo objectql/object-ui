@@ -2,16 +2,13 @@
   "type": "button-group",
   "buttons": [
     {
-      "label": "Left",
-      "value": "left"
+      "label": "Left"
     },
     {
-      "label": "Center",
-      "value": "center"
+      "label": "Center"
     },
     {
-      "label": "Right",
-      "value": "right"
+      "label": "Right"
     }
   ]
 }

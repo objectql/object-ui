@@ -3,16 +3,13 @@
   "variant": "outline",
   "buttons": [
     {
-      "label": "Day",
-      "value": "day"
+      "label": "Day"
     },
     {
-      "label": "Week",
-      "value": "week"
+      "label": "Week"
     },
     {
-      "label": "Month",
-      "value": "month"
+      "label": "Month"
     }
   ]
 }

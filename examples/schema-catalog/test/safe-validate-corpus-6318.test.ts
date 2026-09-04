@@ -112,10 +112,18 @@ describe('objectui#6318 — three fixtures were wrong about what their renderer 
   it('icon-toolbar: every button carries `label`, the only key the group renders', () => {
     expect(reasons(iconToolbar)).toEqual([]);
     // `button-group.tsx` renders `{button.label}` and reads neither `icon` nor
-    // `value`; the sibling `with-icons.json` — which already validated — is the
-    // corpus's own precedent for carrying all three.
+    // `value`. The labels are objectui#6318's repair and are what this pin is
+    // for: these three buttons rendered BLANK before it.
     const buttons = (iconToolbar as { buttons: Array<Record<string, unknown>> }).buttons;
     expect(buttons.map((b) => b.label)).toEqual(['Copy', 'Cut', 'Paste']);
-    expect(buttons.map((b) => b.icon)).toEqual(['copy', 'scissors', 'clipboard']);
+    // ⚠️ This row asserted `icon` was `['copy', 'scissors', 'clipboard']` until
+    // objectui#7077 (maintainer ruling 2026-09-04) retired the key from the
+    // corpus under ADR-0049: `button-group` is a presentational group, and
+    // `ButtonGroupButton` declares no `icon` for these to be read through. The
+    // assertion is INVERTED rather than deleted, so the pin still names the key
+    // that moved — a bare `.success` would go green again if a later sweep
+    // re-authored it.
+    expect(buttons.some((b) => 'icon' in b)).toBe(false);
+    expect(buttons.some((b) => 'value' in b)).toBe(false);
   });
 });
