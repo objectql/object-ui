@@ -325,7 +325,7 @@ describe('RecordAlertRenderer', () => {
   it('flat properties (legacy shape) are read as a fallback to nested .properties', () => {
     render(<RecordAlertRenderer schema={{ severity: 'success', title: 'Saved' } as any} />);
     expect(screen.getByTestId('alert-title').textContent).toBe('Saved');
-    expect(screen.getByTestId('alert-icon').getAttribute('data-name')).toBe('CheckCircle2');
+    expect(screen.getByTestId('alert-icon').getAttribute('data-name')).toBe('circle-check');
   });
 });
 
