@@ -922,10 +922,71 @@ export interface FloatingChatbotConfig {
    */
   title?: string;
   /**
-   * Custom icon name for the FAB trigger (Lucide icon name).
-   * @default 'MessageCircle'
+   * ADR-0049 RETIREMENT TOMBSTONE — `triggerIcon` (objectui#7654).
+   *
+   * `?: never` is this package's tombstone convention (see {@link
+   * ComponentInput} in `base.ts`, `crud.ts` `confirm`, and {@link
+   * StaticTableColumn} in `data-display.ts`): the key stays DECLARED and
+   * becomes UNWRITABLE, so authoring one is a `tsc` error here.
+   *
+   * What was measured, on the merge-base of the retiring PR: nothing reads it.
+   * `FloatingChatbot` (`plugin-chatbot/src/FloatingChatbot.tsx`) destructures
+   * six of this interface's seven keys — `position`, `defaultOpen`,
+   * `panelWidth`, `panelHeight`, `title`, `triggerSize` — and never this one;
+   * `FloatingChatbotTrigger` takes no icon prop at all, so the promised
+   * `'MessageCircle'` default never rendered either. A whole-repo `git grep`
+   * census over tracked files, build output excluded, returned exactly this
+   * declaration and one historical CHANGELOG line; the same pass over
+   * `triggerSize`, a key that IS read, returned ten sites across four files, so
+   * the instrument was demonstrably not blind.
+   *
+   * It is also absent from the `chatbot-floating` registration's `inputs` AND
+   * its `defaultProps` (`plugin-chatbot/src/renderer.tsx`), so no designer
+   * control ever offered it and no designer-created node carries it. The key
+   * was reachable from TypeScript alone — which is exactly the surface this
+   * tombstone closes.
+   *
+   * ## Why there is NO `retirementTombstone()` half, and why that is not an omission
+   *
+   * The other tombstones in this package pair `?: never` with a
+   * `retirementTombstone()` refusal on the Zod twin. There is no twin to carry
+   * one here: `FloatingChatbotConfig` has NO Zod mirror at all, and
+   * `floatingConfig` sits in the `UnmirroredDeclared` ledger
+   * (`__tests__/zod-mirror-parity.test.ts`, `complex.zod.ts#ChatbotSchema`).
+   * `BaseSchema` is `.passthrough()`, so the whole `floatingConfig` object
+   * rides through unvalidated — before this change and after it, byte for
+   * byte. Minting a mirror to host a refusal would be the declared-but-
+   * UNMIRRORED axis (objectui#6152), a different defect from this one: a key
+   * can be mirrored and inert, or unmirrored and live, and fixing one says
+   * nothing about the other. This retirement deliberately does not widen into
+   * it, so `triggerIcon`'s refusal is TYPE-LEVEL ONLY. Runtime parse behaviour
+   * is unchanged.
+   *
+   * ## Why a tombstone and not a deletion, with only the `tsc` channel available
+   *
+   * The usual argument for `?: never` over deletion is about the mirror (an
+   * undeclared key is silently STRIPPED by a non-strict `z.object`), and with
+   * no mirror here that argument does not apply. The tombstone earns its place
+   * on the TypeScript channel alone instead, measured both ways:
+   *
+   *   - DELETED, a fresh object literal is refused — `TS2353: Object literal
+   *     may only specify known properties` — but a WIDENED value is not.
+   *     `const raw = { triggerIcon: 'Sparkles' }; const c: FloatingChatbotConfig
+   *     = raw;` compiled CLEAN, because excess-property checking does not reach
+   *     a non-fresh type. That is the silent no-op traded for another one.
+   *   - TOMBSTONED, both paths are refused: the declared `never` makes the
+   *     assignment itself ill-typed, so freshness stops mattering.
+   *
+   * Pinned in `__tests__/floating-chatbot-trigger-icon-retired.test.ts`,
+   * including the deletion contrast, so nobody can "simplify" this back into a
+   * deletion without that file going red.
+   *
+   * RETIRED (objectui#7654, ADR-0049) — never read: the FAB trigger renders a
+   * fixed icon and takes no icon prop. There is no authored spelling that
+   * changes it; the trigger's markup is the only place to change it.
+   * @deprecated Not part of `FloatingChatbotConfig`'s contract — the value was inert.
    */
-  triggerIcon?: string;
+  triggerIcon?: never;
   /**
    * Custom size for the FAB trigger button in pixels.
    * @default 56
