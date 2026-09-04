@@ -1098,13 +1098,14 @@ const ja = {
     scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
   },
   dashboard: {
-    noRows: "行がありません",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "まだデータがありません",
       message: "このウィジェットは正常に読み込まれましたが、クエリはまだレコードを返していません。",
@@ -1145,7 +1146,6 @@ const ja = {
     saveLayout: "レイアウトを保存",
     resetLayout: "レイアウトをリセット",
     total: "合計",
-    noDataAvailable: "データがありません",
     noDataSourceFor: "データソースが利用できません：",
     config: {
       breadcrumb: {

@@ -1169,15 +1169,15 @@ const zh = {
     saveLayout: '保存布局',
     resetLayout: '重置布局',
     total: '总计',
-    noDataAvailable: '暂无数据',
     noDataSourceFor: '没有可用的数据源：',
-    noRows: '暂无数据行',
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: '暂时还没有数据',
       message: '该组件已成功加载，只是查询目前没有返回任何记录。',
