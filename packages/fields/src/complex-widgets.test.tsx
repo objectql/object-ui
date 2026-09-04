@@ -286,7 +286,7 @@ describe('Complex & Relationship Widgets', () => {
 
             const fieldWithDesc = {
                 ...dynamicField,
-                description_field: 'industry',
+                descriptionField: 'industry',
             } as any;
 
             render(<LookupField {...dynamicProps} field={fieldWithDesc} />);

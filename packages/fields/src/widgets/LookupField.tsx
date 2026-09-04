@@ -44,7 +44,7 @@ export interface LookupOption {
    * declared `SelectOptionMetadata.description` (objectui#6153 — declared
    * there, and on `@objectstack/spec`'s `SelectOptionSchema`, precisely
    * because this widget consumes it); for fetched records `recordToOption`
-   * derives it from `description_field`.
+   * derives it from `descriptionField`.
    */
   description?: string;
   [key: string]: any;
@@ -243,7 +243,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
 
   // The form renderer passes `field: field.field || field` — `.field` is the
   // declared metadata slot (objectui#3090) — so the actual objectSchema field
-  // metadata (reference_to, display_field, etc.) can arrive nested at
+  // metadata (reference_to, displayField, etc.) can arrive nested at
   // `lookupField.field`. Unwrap it so lookup-specific properties resolve
   // correctly. (This used to credit the docs-demo `createFieldRenderer` wrapper,
   // which never produced the nesting and was removed in objectui#3910; the form
@@ -257,9 +257,9 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
 
   const staticOptions: LookupOption[] = fieldMeta?.options || [];
   const multiple = fieldMeta?.multiple || false;
-  const displayField = fieldMeta?.display_field || fieldMeta?.displayField || fieldMeta?.reference_field || 'name';
-  const descriptionField: string | undefined = fieldMeta?.description_field ?? fieldMeta?.descriptionField;
-  const idField = fieldMeta?.id_field || 'id';
+  const displayField = fieldMeta?.displayField || fieldMeta?.reference_field || 'name';
+  const descriptionField: string | undefined = fieldMeta?.descriptionField;
+  const idField = fieldMeta?.idField || 'id';
   // ObjectStack convention uses `reference`; types define `reference_to` — support both
   const referenceTo: string | undefined = fieldMeta?.reference_to || fieldMeta?.reference;
   // Inline quick-create — a STANDARD capability, default ON for user-facing
@@ -275,7 +275,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
   // Enterprise Record Picker configuration
   const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns ?? fieldMeta?.lookupColumns;
   const lookupPageSize: number | undefined = fieldMeta?.lookup_page_size ?? fieldMeta?.lookupPageSize;
-  const lookupFilters: import('@object-ui/types').LookupFilterDef[] | undefined = fieldMeta?.lookup_filters ?? fieldMeta?.lookupFilters;
+  const lookupFilters: import('@object-ui/types').LookupFilterDef[] | undefined = fieldMeta?.lookupFilters;
 
   // Search-first PeoplePicker opt-in (user fields). When `picker === 'search'`
   // the Level-2 picker is the rich PeoplePicker (avatar rows + selection tray)
@@ -421,7 +421,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
 
   /**
    * Secondary line under each quick-select option. Honour explicit
-   * `description_field`; otherwise reuse the first derived non-display column so
+   * `descriptionField`; otherwise reuse the first derived non-display column so
    * the inline popover also benefits from the richer schema.
    */
   const effectiveDescriptionField = useMemo<string | undefined>(() => {
@@ -442,7 +442,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
    * formatted dates and option labels came out here as bare foreign-key ids,
    * ISO timestamps and enum codes.
    *
-   * Now one list feeds one renderer: an explicitly authored `description_field`
+   * Now one list feeds one renderer: an explicitly authored `descriptionField`
    * still leads (the author picked that column to be the subtitle), followed by
    * every non-display picker column. Both halves render through
    * `renderLookupColumnValue`, the picker's own renderer.
@@ -613,7 +613,7 @@ export function LookupField({ value, onChange, field, readonly, error: fieldErro
         const fetched: LookupOption[] = [];
         // Single id: the pre-existing cheap paths — a primary-id `findOne`
         // GET, or an equality filter when the field commits a different
-        // column (`id_field: 'name'` — e.g. position machine names,
+        // column (`idField: 'name'` — e.g. position machine names,
         // objectstack #3508).
         if (unresolved.length === 1) {
           const id = unresolved[0];

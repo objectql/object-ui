@@ -2,7 +2,7 @@
 
 /**
  * Regression (objectstack #3508): a lookup whose committed value is NOT the
- * primary id (`id_field: 'name'` — e.g. approval `position` approvers, which
+ * primary id (`idField: 'name'` — e.g. approval `position` approvers, which
  * the engine routes by machine name) must hydrate its display label by
  * FILTERING on that field. The old path always called `findOne(object, value)`
  * — a primary-id GET — so a stored machine name never resolved and the field
@@ -16,8 +16,8 @@ import { LookupField } from './LookupField';
 
 afterEach(cleanup);
 
-describe('LookupField — id_field hydration (#3508)', () => {
-  it('hydrates by filtering on id_field when it is not the primary id', async () => {
+describe('LookupField — idField hydration (#3508)', () => {
+  it('hydrates by filtering on idField when it is not the primary id', async () => {
     const find = vi.fn(async () => ({
       data: [{ id: 'pos_1', name: 'sales_manager', label: 'Sales Manager' }],
     }));
@@ -29,8 +29,8 @@ describe('LookupField — id_field hydration (#3508)', () => {
         dataSource={{ find, findOne } as never}
         field={{
           reference_to: 'sys_position',
-          id_field: 'name',
-          display_field: 'label',
+          idField: 'name',
+          displayField: 'label',
           multiple: false,
         } as never}
       />,

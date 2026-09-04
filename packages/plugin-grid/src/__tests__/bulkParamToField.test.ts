@@ -53,7 +53,7 @@ describe('bulkParamToField', () => {
       type: 'lookup',
       required: true,
       reference_to: 'queues',
-      display_field: 'title',
+      displayField: 'title',
       multiple: false,
     });
   });
@@ -148,12 +148,12 @@ describe('the data-source rule is core\'s object, not a copy (objectui#4815)', (
     // only the one under test would leave the others forked. `isLookupishParam`
     // (label prefetch + option source in BulkActionDialog), `fieldNeedsDataSource`
     // (the `dataSource` prop the dialog threads into the widget) and
-    // `bulkParamToField`'s `reference_to` / `display_field` branch must each
+    // `bulkParamToField`'s `reference_to` / `displayField` branch must each
     // reach core.
     const consumers: [string, string, () => unknown][] = [
       ['isLookupishParam', 'user', () => isLookupishParam({ name: 'u', type: 'user' })],
       ['fieldNeedsDataSource', 'user', () => fieldNeedsDataSource({ type: 'user' })],
-      // The `reference_to` / `display_field` branch, reached with the widget key
+      // The `reference_to` / `displayField` branch, reached with the widget key
       // this param resolves to.
       ['bulkParamToField', 'lookup', () => bulkParamToField({ name: 'q', type: 'lookup', object: 'queues' }, false)],
     ];

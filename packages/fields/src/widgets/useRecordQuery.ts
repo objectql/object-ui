@@ -53,7 +53,7 @@ export interface UseRecordQueryOptions {
    */
   paginate?: boolean;
   /**
-   * `$filter` — already merged by the caller (base `lookup_filters`, dependent
+   * `$filter` — already merged by the caller (base `lookupFilters`, dependent
    * lookup chain, candidate hygiene like `banned != true`, …). Compared by
    * value, so a referentially-new-but-equal object each render will not loop.
    *

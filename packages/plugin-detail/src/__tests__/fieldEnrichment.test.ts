@@ -17,9 +17,9 @@ describe('enrichDetailField', () => {
         type: 'lookup',
         reference: 'tags',
         multiple: true,
-        display_field: 'name',
-        id_field: 'code',
-        lookup_filters: [{ field: 'active', operator: 'eq', value: true }],
+        displayField: 'name',
+        idField: 'code',
+        lookupFilters: [{ field: 'active', operator: 'eq', value: true }],
         depends_on: ['category'],
         picker: 'search',
       },
@@ -30,12 +30,12 @@ describe('enrichDetailField', () => {
       // ObjectStack's `reference` spelling normalizes onto the canonical key.
       reference_to: 'tags',
       multiple: true,
-      display_field: 'name',
-      id_field: 'code',
+      displayField: 'name',
+      idField: 'code',
       picker: 'search',
       depends_on: ['category'],
     });
-    expect(enriched.lookup_filters).toEqual([{ field: 'active', operator: 'eq', value: true }]);
+    expect(enriched.lookupFilters).toEqual([{ field: 'active', operator: 'eq', value: true }]);
   });
 
   it('keeps the view field as the override — the schema only fills gaps', () => {
