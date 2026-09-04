@@ -38,6 +38,7 @@ import {
   isExpandableFieldType,
   getRecordDisplayName,
   humanizeLabel,
+  resolveRecordSourceObjectName,
 } from '@object-ui/core';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 
@@ -369,8 +370,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
    * the `schema` PROP object whose identity a host that rebuilds its schema
    * each render changes without changing which object is bound.
    */
-  const schemaKey =
-    (dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName) ?? '';
+  const schemaKey = resolveRecordSourceObjectName(schema, dataConfig) ?? '';
 
   /**
    * The object schema, and whether it has settled FOR `schemaKey` — a single
@@ -442,6 +442,11 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
    * the component rather than one effect of two.
    */
   const dataProvider = dataConfig?.provider;
+  // NOT a delegation site for `resolveRecordSourceObjectName` (objectui#7627):
+  // this is the data config's OWN object, deliberately `undefined` for every
+  // other provider so an `api`/`value` tree's `objectName` changing cannot move
+  // this dependency. The shared reader's second rung would put `objectName`
+  // here and re-run the record fetch on a value it does not read.
   const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
   const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
 
@@ -563,8 +568,12 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
   // Column labels: i18n convention key (`objects.{obj}.fields.{field}.label`)
   // first, then the object schema's authored label, then a humanized field key.
   const i18n = useSafeFieldLabel();
+  // The `?? schema.objectName` tail is NOT the shared rung repeated: it is this
+  // site's own coercion of the OFF-CONTRACT `data: { provider: 'object' }` that
+  // carries no `object` (`ViewDataSchema` declares it required), kept so the
+  // collapse changes nothing this label resolves today.
   const headerObjectName: string | undefined =
-    (dataConfig?.provider === 'object' ? (dataConfig as any).object : undefined) ?? schema.objectName;
+    resolveRecordSourceObjectName(schema, dataConfig) ?? schema.objectName;
   const fieldLabel = (field: string): string => {
     const def = objectSchema?.fields?.[field];
     const fallback =

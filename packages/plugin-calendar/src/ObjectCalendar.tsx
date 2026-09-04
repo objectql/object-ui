@@ -61,6 +61,7 @@ import {
   convertSortToQueryParams,
   getRecordDisplayName,
   createFieldColorResolver,
+  resolveRecordSourceObjectName,
 } from '@object-ui/core';
 
 export interface CalendarSchema {
@@ -305,8 +306,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   // different object. Comparing it during render means switching objects closes
   // the gate in the same commit that changes it, not one commit later, so no
   // query can carry the previous object's expand set.
-  const schemaObjectName =
-    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+  const schemaObjectName = resolveRecordSourceObjectName(schema, dataConfig);
   const schemaKey = schemaObjectName ?? '';
   /**
    * Has the object schema for THIS object finished resolving? Note what this is
@@ -966,7 +966,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       </Dialog>
 
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
-        const objectName = dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+        const objectName = resolveRecordSourceObjectName(schema, dataConfig);
         const rec = navigation.selectedRecord as Record<string, any>;
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;

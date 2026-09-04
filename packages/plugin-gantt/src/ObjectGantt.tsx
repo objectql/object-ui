@@ -61,6 +61,7 @@ import {
   getRecordDisplayName,
   resolveDataSource,
   createFieldColorResolver,
+  resolveRecordSourceObjectName,
 } from '@object-ui/core';
 import {
   getSemanticColorName,
@@ -657,8 +658,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Unified resource name for find/update/delete. For 'object' it's the bound
   // object; for 'api' the adapter ignores it (the URL carries the endpoint),
   // so an empty string is fine there.
-  const resource =
-    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName ?? '';
+  const resource = resolveRecordSourceObjectName(schema, dataConfig) ?? '';
 
   /**
    * The object schema, and whether the read for THIS object has SETTLED —
@@ -1368,6 +1368,15 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // `saveLayout` covers the quick-filter chips too: GanttView persists its own
   // snapshot under persistLayoutKey and fires onLayoutChange; the chips live up
   // here, so they get a sibling localStorage key and restore on mount.
+  //
+  // ⛔ This line does NOT delegate to `resolveRecordSourceObjectName`, and its
+  // inverted order relative to `resource` above is not the drift objectui#7627
+  // collapsed: the two were never answering the same question. What this
+  // resolves is a localStorage KEY (`gantt-layout:<key>:filters`), not a record
+  // source — re-pointing it silently orphans every saved layout and filter-chip
+  // set of any view carrying BOTH bindings. A storage-key migration is a
+  // separate, user-visible change, so the ruling on objectui#7627 excluded this
+  // site from the collapse and left the precedence exactly as it is.
   const persistLayoutKey =
     schema.persistLayout === false
       ? undefined
