@@ -116,8 +116,12 @@ describe('validateMetadataDraft("sharing_rule") — objectui#3561', () => {
    *
    * ⛔ An envelope-only pin is TOOTHLESS now — a `_packageId`-stamped body is
    * accepted by this schema on both doors, so it cannot tell "the opt-out is
-   * in place" from "the opt-out was deleted". The decoration pin below is the
-   * one that goes red on deletion; do not simplify it back to `_packageId`.
+   * in place" from "the opt-out was deleted". Measured: with `sharing_rule`
+   * removed from the set, that pin stays GREEN. Two assertions here do go red,
+   * and they answer different questions — `hasClientValidator(..., 'edit')`
+   * catches the deletion, while the decoration pin below is the one that says
+   * WHY the door must stay shut. Keep both; do not simplify either back to
+   * `_packageId`.
    */
   it('does not gate the edit door — a stored body may carry `_packageId`', async () => {
     const stored = { ...SHARING_RULE, _packageId: 'crm_pkg' };
