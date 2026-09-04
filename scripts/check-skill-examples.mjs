@@ -919,8 +919,9 @@ function stripTrailingCommas(source) {
  * tolerant parser here would bless a file no `JSON.parse` in the product would
  * accept. `jsonc` gets comments and trailing commas removed first, and nothing
  * else: that is the whole of what the `jsonc` dialect adds over `json` for the
- * shapes a guide writes. There are zero `jsonc` fences in the corpus today; the
- * language is recognised so that adding one is not a silent no-op.
+ * shapes a guide writes. The `jsonc` branch is exercised by fences already in
+ * the corpus, not merely reserved for a hypothetical one; re-derive the
+ * population with `--measure`.
  */
 export function parseJsonFence(body, language) {
   const text = language === 'jsonc' ? stripTrailingCommas(stripJsonComments(body)) : body;
