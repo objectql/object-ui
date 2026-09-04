@@ -145,10 +145,21 @@
  * report of what the bound refuses, and the harness's new ROOT-DECLARED control
  * is what proves on every run that it is still being applied.
  *
- * ⚠️ A refused fence is NOT type-checked. The four pre-existing ones are carried
- * in the shrink-only `KNOWN_ROOT_DEVDEP_EXAMPLES` below so the bound landed with
- * zero new red, and the `Root bound` and `Semantic phase` lines both say how
- * many fences that costs — a declared row is uncovered debt, never a green.
+ * ⚠️ A report OF the refusals has to be read the same way the refusals are, and
+ * when the bound landed it was not: the line came from a private regex over the
+ * block text while the bound walked the AST, so the two could name different
+ * sets over the same fences (objectui#7555). Both now read through the
+ * harness's `moduleSpecifiersOfBlock`, so the line cannot name a specifier no
+ * fence imports, and the suite pins that the two sets agree over this corpus.
+ *
+ * ⚠️ A refused fence is NOT type-checked. The four pre-existing ones were
+ * carried in the shrink-only `KNOWN_ROOT_DEVDEP_EXAMPLES` below so the bound
+ * landed with zero new red, and the `Root bound` and `Semantic phase` lines both
+ * say how many fences that costs — a declared row is uncovered debt, never a
+ * green. Those four were retired in objectui#7557 by unmarking their fences, so
+ * that list is now EMPTY and the bound refuses nothing; see its docblock for the
+ * measurement that chose unmarking over declaring, and for when a NEW row is
+ * still the right answer.
  *
  * The cost of that decision is the PRECONDITION, and it is a declared exit code
  * rather than a silent green: if a package a marked fence imports has no `dist`,
@@ -276,11 +287,13 @@
  *      and guessing it is what produces a gate people learn to ignore.
  *   2. **Whether a REFUSED fence's example is correct.** The root bound says
  *      only that this gate cannot reach the package the fence imports, never
- *      that the fence is wrong — the four declared rows are good documentation
- *      about test runners the reader installs. Retiring a row means giving the
- *      example an import the reader provably has, or the guide's owner deciding
- *      the fence should not be gated; both are skills judgements over a GOVERNED
- *      surface, made in a skills PR.
+ *      that the fence is wrong — the four rows it once declared were good
+ *      documentation about test runners the reader installs, which is why
+ *      objectui#7557 retired them by unmarking the fences rather than by editing
+ *      the examples. Retiring a row means giving the example an import the
+ *      reader provably has, or the guide's owner deciding the fence should not
+ *      be gated; both are skills judgements over a GOVERNED surface, made in a
+ *      skills PR.
  *   3. **Whether an eval's `must_contain` token is taught by the guides.** A
  *      different oracle over a different corpus, discussed at length on
  *      objectui#7359 and explicitly not this check.
@@ -295,6 +308,7 @@ import {
   compileSnippets,
   deriveDeclaredDependencyPaths,
   derivePackageTypePaths,
+  moduleSpecifiersOfBlock,
 } from './check-doc-snippet-types.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
@@ -411,8 +425,11 @@ export const EXIT_CODES = {
  *     row — which example stopped being one, and why unmarking it was the
  *     honest call rather than the cheap way out of a red.
  *
- * There is no row-with-a-reason yet, because nothing has been unmarked since
- * the gate landed. The first one to lower a number writes it here.
+ * The first lowering is `ts` 17 -> 13 (objectui#7557), and its reason is on the
+ * row itself below. Read it as the worked example of what this section asks
+ * for: the four fences it names were marked over imports the harness cannot
+ * reach, so their marks were claims no run could honour — the honest move was
+ * to withdraw the claim in the guide, not to carry it as debt forever.
  *
  * ## What this floor counts, and what the OTHER ratchet counts
  *
@@ -430,7 +447,19 @@ export const EXIT_CODES = {
  * @type {ReadonlyMap<string, number>}
  */
 export const MARKED_FLOOR = new Map([
-  ['ts', 17],
+  // 17 -> 13 (objectui#7557): the four marked fences in
+  // `skills/objectui/guides/testing.md` that imported `vitest` (`:60`, `:94`,
+  // `:218`) or `@playwright/test` (`:258`) were unmarked, with the reason
+  // written beside each fence. Those two are TEST RUNNERS the reader installs
+  // in their own project and no package this repository publishes declares
+  // either, so the root bound refused all four and NOTHING type-checked them —
+  // their markers claimed a check that could not run, and the four rows in
+  // `KNOWN_ROOT_DEVDEP_EXAMPLES` below (now empty) were that claim's standing
+  // cost. Unmarking is the honest call here and not the cheap way out of a red:
+  // the marks were not hiding a broken example, they were over-stating this
+  // gate's reach, and the guide already carried five UNMARKED `vitest` fences
+  // beside them. ⛔ Not a precedent for unmarking a fence that reds.
+  ['ts', 13],
   ['json', 39],
 ]);
 
@@ -551,36 +580,46 @@ export function bareAnyRowKey(block, finding) {
  * same direction, and the same reasoning, as `KNOWN_BARE_ANY_EXAMPLES` above.
  *
  * The corpus at the bound's branch point was FOUR rows, all in one guide, all
- * measured before the bound was armed. Each one is real documentation the gate
- * cannot verify rather than a defect:
+ * measured before the bound was armed:
  *
- *   - `testing.md:60`, `:94`, `:218` import `vitest`, and `:258` imports
+ *   - `testing.md:60`, `:94`, `:218` imported `vitest`, and `:258` imported
  *     `@playwright/test`. Both are TEST RUNNERS the reader installs in their own
  *     project — the guide's first sentence names both — and no package this
- *     repository publishes declares either, so nothing in the map covers them.
- *     They compiled until now only because THIS repository carries both as root
- *     devDependencies, which is the leak the bound closed.
+ *     repository publishes declares either, so nothing in the map covered them.
+ *     They compiled until the bound only because THIS repository carries both as
+ *     root devDependencies, which is the leak the bound closed.
  *
- * ⛔ Why they are declared here rather than unmarked in the guide: the guides
- * under `skills/**` are a GOVERNED surface (see `AGENTS.md`), and removing a
- * marker to make a gate green is the "gate weakens the guide to suit itself"
- * move the shrink-only lists exist to prevent. It would also breach
- * `MARKED_FLOOR` above, which counts MARKS: a declared row here leaves the
- * marked population exactly where it was, because the fence is still marked —
- * these two ratchets count different things on purpose, and neither one
- * substitutes for the other. Retiring a row means giving the
- * example an import the reader provably has, or the guide's owner deciding the
- * fence should not be gated — either way a skills judgement, made in a skills
- * PR, not in this one.
+ * ## The list is EMPTY, and that is the terminal state (objectui#7557)
+ *
+ * All four rows are retired. The bound's own card left the choice to the guide's
+ * owner and it was made by MEASUREMENT rather than by taste: this gate reads
+ * exactly ONE declaration on a fence — `MARKER` above, an exact-string match on
+ * the whole line, with no reason field, no install field and no capture group —
+ * and `check-doc-snippet-types.mjs`'s `FRAGMENT_MARKER` is not read here at all.
+ * The bound itself (`resolvesOnlyThroughRootManifest`) is a pure function of the
+ * specifier and two repository-wide maps, with no per-block parameter to declare
+ * into. So there was no form in which a fence could keep its mark and name its
+ * install, and the four fences were unmarked in `testing.md` with the reason
+ * written beside each. `MARKED_FLOOR` above records the matching `ts` 17 -> 13.
+ *
+ * ⚠️ This is NOT the precedent it can be misread as. Unmarking to silence a red
+ * is the "gate weakens the guide to suit itself" move these shrink-only lists
+ * exist to prevent, and it stays refused. What was withdrawn here was different:
+ * a mark over a fence the harness REFUSES is a claim no run can honour — those
+ * four were type-checked by nothing at all for the whole of their life as rows,
+ * and the summary said so on every run. The two ratchets still count different
+ * things on purpose, and neither substitutes for the other.
+ *
+ * A NEW row may still be declared if the bound ever refuses a marked fence
+ * again — the machinery below is live, and `judge()` reds an undeclared refusal.
+ * But a row is uncovered debt, never a green, so the first question stays: can
+ * this example import what the reader provably has? Declare a row only when the
+ * answer is no AND the fence must keep its mark for some reason this comment
+ * does not anticipate; otherwise unmark it here, the way these four were.
  *
  * @type {ReadonlySet<string>}
  */
-export const KNOWN_ROOT_DEVDEP_EXAMPLES = new Set([
-  'skills/objectui/guides/testing.md:60 vitest',
-  'skills/objectui/guides/testing.md:94 vitest',
-  'skills/objectui/guides/testing.md:218 vitest',
-  'skills/objectui/guides/testing.md:258 @playwright/test',
-]);
+export const KNOWN_ROOT_DEVDEP_EXAMPLES = new Set([]);
 
 /** The debt-list key for one refused specifier in one fence. */
 export function rootDevDepRowKey(block, specifier) {
@@ -889,20 +928,12 @@ export function parseJsonFence(body, language) {
 
 // ── Collection ───────────────────────────────────────────────────────────────
 
-/** Workspace package specifiers a block imports (bare specifier root only). */
-function importedSpecifiers(body) {
-  const out = new Set();
-  const patterns = [
-    /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g,
-    /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(body)) !== null) out.add(m[1]);
-  }
-  return out;
-}
+// The specifiers a block imports are read by `moduleSpecifiersOfBlock`, from the
+// shared harness. This gate carried its own regex copy of that reader until
+// objectui#7555; the harness's docblock records why a regex over a corpus that
+// is mostly prose cannot answer the question, and ONE reader is what keeps the
+// `Unmapped specifiers` line below and the harness's root bound — AST-derived
+// since it landed — from being two answers free to disagree.
 
 /**
  * Everything this run knows before any compiler is started.
@@ -951,7 +982,7 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
   const { paths, packageDirOf, sourceTyped } = derivePackageTypePaths(root);
   const neededPackages = new Set();
   for (const block of tsBlocks) {
-    for (const specifier of importedSpecifiers(block.body)) {
+    for (const specifier of moduleSpecifiersOfBlock(block.body)) {
       const owner = Object.keys(packageDirOf).find(
         (name) => specifier === name || specifier.startsWith(`${name}/`),
       );
@@ -992,7 +1023,7 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
   const mapped = new Set(Object.keys(mergedPaths));
   const unmappedSpecifiers = new Set();
   for (const block of tsBlocks) {
-    for (const specifier of importedSpecifiers(block.body)) {
+    for (const specifier of moduleSpecifiersOfBlock(block.body)) {
       if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
       const root2 = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
       if (mapped.has(root2) || mapped.has(specifier)) continue;

@@ -204,28 +204,34 @@ const [showDebug, setShowDebug] = useLocalStorage('console:metadata-panel', fals
 ## Visual Design Specs
 
 ### Color Palette
-```tsx
-// Reduce visual weight
-background: "bg-background" // Instead of "bg-muted/30"
-border: "border-border/50" // Subtle
-header: "bg-muted/5" // Barely visible
-```
+
+Reduce visual weight:
+
+| Slot | Class | Note |
+|:--|:--|:--|
+| `background` | `bg-background` | Instead of `bg-muted/30` |
+| `border` | `border-border/50` | Subtle |
+| `header` | `bg-muted/5` | Barely visible |
 
 ### Typography
-```tsx
-// Hierarchy
-title: "text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-content: "text-sm font-mono"
-label: "text-xs text-muted-foreground"
-```
+
+Hierarchy:
+
+| Slot | Classes |
+|:--|:--|
+| `title` | `text-xs font-semibold uppercase tracking-wider text-muted-foreground` |
+| `content` | `text-sm font-mono` |
+| `label` | `text-xs text-muted-foreground` |
 
 ### Spacing
-```tsx
-// More breathing room
-panel: "p-0" // Let inner components control padding
-section: "p-4 space-y-4"
-compact: "p-3 space-y-3"
-```
+
+More breathing room:
+
+| Slot | Classes | Note |
+|:--|:--|:--|
+| `panel` | `p-0` | Let inner components control padding |
+| `section` | `p-4 space-y-4` | |
+| `compact` | `p-3 space-y-3` | |
 
 ## Implementation Priority
 

@@ -24,6 +24,7 @@ import {
   findInstalledCopy,
   listDocuments,
   moduleSpecifiersOf,
+  moduleSpecifiersOfBlock,
   resolvesOnlyThroughRootManifest,
   rootDeclaredSpecifiers,
   scanFences,
@@ -89,6 +90,34 @@ function tempTree(files: Record<string, string>): string {
 }
 
 const FENCE = '```';
+
+/**
+ * The corpus specimen behind objectui#7555 — a `tsx` block whose body assigns a
+ * template literal holding a README sample, and inside that literal the line
+ * `npm install project-name`.
+ */
+const README_SAMPLE_DOC = 'content/docs/plugins/plugin-markdown.mdx';
+const README_SAMPLE_FENCE_LINE = 195;
+
+/**
+ * The regex reader objectui#7555 removed from both gates, kept HERE and only
+ * here, as the contrast that makes the pin using it a measurement rather than a
+ * tautology. ⛔ Not a fallback and not a second answer: nothing in either gate
+ * may call anything shaped like this.
+ */
+function retiredRegexReader(body: string): string[] {
+  const out = new Set<string>();
+  const patterns = [
+    /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g,
+    /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) out.add(m[1]);
+  }
+  return [...out];
+}
 
 describe('fence scanning', () => {
   it('reads ts, tsx and typescript fences and nothing else', () => {
@@ -570,12 +599,38 @@ describe('the ROOT BOUND — what only this repository declares does not resolve
     it('does NOT collect an import-shaped line inside a template literal', () => {
       // Measured while deriving the bound: a README example whose fenced body
       // held `npm install project-name` inside a template literal read as an
-      // import of `project-name` under the regex the gate uses elsewhere. A
-      // false refusal would red a document that is correct.
+      // import of `project-name` under the regex reader each gate carried
+      // privately until objectui#7555. A false refusal would red a document
+      // that is correct.
       const found = moduleSpecifiersOf(
         parse("export const readme = `\n# Project\n\nimport x from 'project-name';\n`;\n"),
       ) as string[];
       expect(found).toEqual([]);
+    });
+
+    it('reports nothing for the corpus block that finding measured', () => {
+      // The synthetic pin above paraphrases the specimen; this one is the
+      // specimen. Keyed on the fence LINE, so an edit above it forces a
+      // re-declaration here rather than a row that silently covers nothing —
+      // the convention `KNOWN_ROOT_DEVDEP_EXAMPLES` already uses in the skills
+      // gate's suite.
+      const state = analyze({}) as unknown as {
+        compiled: { doc: string; fenceLine: number; body: string }[];
+      };
+      const site = `${README_SAMPLE_DOC}:${README_SAMPLE_FENCE_LINE}`;
+      const block = state.compiled.find(
+        (b) => b.doc === README_SAMPLE_DOC && b.fenceLine === README_SAMPLE_FENCE_LINE,
+      );
+      expect(block, `no compiled block at ${site}`).toBeDefined();
+      expect(block!.body, `the README sample moved out of ${site}`).toContain(
+        'npm install project-name',
+      );
+      expect(moduleSpecifiersOfBlock(block!.body)).toEqual([]);
+      // The retired reader, kept as this pin's CONTRAST: without it, the
+      // assertion above would hold just as well for a block that imports
+      // nothing and has no template literal either, and the pin would stop
+      // being about the defect it was written for.
+      expect(retiredRegexReader(block!.body)).toEqual(['project-name']);
     });
   });
 
@@ -686,6 +741,49 @@ describe('the ROOT BOUND — what only this repository declares does not resolve
       expect(source).toContain('resolves ONLY through the repository root');
       expect(source).toContain('ROOT-');
     });
+  });
+});
+
+/**
+ * objectui#7555 — the OTHER consumer of the reader, and the one with teeth.
+ *
+ * A specifier the reader invents matters here only when it happens to equal a
+ * workspace package: that package then joins the build filter AND the
+ * unbuilt-package precondition, so the gate refuses to run (exit 2) over a
+ * package no snippet imports. On this corpus the invented name was
+ * `project-name`, which is not a workspace package, so nothing moved — luck,
+ * not construction, which is why the consequence is pinned over a tree where
+ * the name DOES collide.
+ */
+describe('what the snippets make the gate build is read by the same reader (objectui#7555)', () => {
+  const treeWithBlock = (body: string): string =>
+    tempTree({
+      'content/docs/sample.mdx': [`${FENCE}tsx`, body, FENCE].join('\n'),
+      'packages/pkg-a/package.json': JSON.stringify({ name: '@fixture/pkg-a', types: 'dist/index.d.ts' }),
+    });
+
+  type State = { neededPackages: Set<string>; findings: { reason: string }[] };
+
+  it('adds a package a block really imports — the control for the pin below', () => {
+    // Without this half, the pin below would also pass over a tree where the
+    // package was never discovered at all.
+    const state = analyze({
+      root: treeWithBlock("import { a } from '@fixture/pkg-a';\nexport const x = a;"),
+    }) as unknown as State;
+    expect([...state.neededPackages]).toEqual(['@fixture/pkg-a']);
+    expect(buildFilterArgs(state.neededPackages)).toBe('--filter=@fixture/pkg-a...');
+    expect(state.findings.map((f) => f.reason)).toContain('unbuilt-package');
+  });
+
+  it('does NOT add one named only inside a template literal', () => {
+    const state = analyze({
+      root: treeWithBlock(
+        "export const readme = `\n# Project\n\nimport { a } from '@fixture/pkg-a';\n`;",
+      ),
+    }) as unknown as State;
+    expect([...state.neededPackages]).toEqual([]);
+    expect(buildFilterArgs(state.neededPackages)).toBe('');
+    expect(state.findings.map((f) => f.reason)).not.toContain('unbuilt-package');
   });
 });
 

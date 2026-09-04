@@ -26,8 +26,8 @@
   },
   "scripts": {
     "build": "vite build && node scripts/build-css.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --root ../.. packages/plugin-kanban/",
+    "test:watch": "vitest --root ../.. packages/plugin-kanban/",
     "type-check": "tsc --noEmit && tsc -p tsconfig.test.json",
     "lint": "eslint ."
   },

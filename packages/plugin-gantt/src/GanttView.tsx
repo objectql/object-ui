@@ -71,18 +71,30 @@ export function resolveBarDragMode(
 }
 
 /**
+ * Timeline column width, in px: the width of ONE unit of the active
+ * granularity (a day in Day view, a week in Week view…).
+ *
+ * A flat FLOOR, not a container-derived curve. 110 is the user-specified
+ * minimum at which a day/week/month caption stays readable, so it applies at
+ * every container width — narrow embeds included. It is a floor rather than
+ * the final width because `columnWidth` below resolves to
+ * `columnWidthOverride ?? fitColumnWidth ?? BASE_COLUMN_W`, and the fit-stretch
+ * yields a value only when that value is strictly greater: a short project
+ * still fills a roomy timeline, and manual zoom can override either way.
+ *
+ * ⚠️ This was a container-width branch table once — 35/50/60, later bumped to
+ * 44/64/80 — until objectui#1870 replaced the curve with the 110 floor "so
+ * day/week/month stay readable". The three-arm `if` survived that change with
+ * all three arms returning 110, so it went on reading as a live responsive
+ * policy next to siblings that really do vary (objectui#7228). The arms are
+ * gone; the floor every one of them returned is unchanged.
+ */
+const BASE_COLUMN_W = 110;
+
+/**
  * Container-aware sizing helpers — replace the legacy viewport (`window.innerWidth`)
  * checks so the Gantt adapts to whatever slot it sits in (cards, sidebars, popups…).
  */
-function columnWidthForContainer(width: number) {
-  // Day/week/month columns stay readable at a 110px floor — even in narrow
-  // embeds (user-specified minimum). A short project still fills a roomy
-  // timeline via the fit-stretch below; manual zoom can override either way.
-  if (width < 640) return 110;
-  if (width < 1024) return 110;
-  return 110;
-}
-
 /**
  * Task-list geometry, in px. Every term below is traced to the markup that
  * spends it, so the Start/End threshold is DERIVED rather than estimated.
@@ -908,7 +920,6 @@ export function GanttView({
   const autoSchedule = effectiveReadOnly ? false : autoScheduleProp;
   const rescheduleOnConflict = effectiveReadOnly ? false : rescheduleOnConflictProp;
   const rowHeight = rowHeightForContainer(effectiveWidth);
-  const baseColumnWidth = columnWidthForContainer(effectiveWidth);
   // Restore a persisted layout once on first render (when persistLayoutKey set).
   // It seeds the initial granularity / zoom / list-collapse below; the prop
   // still wins for viewMode if explicitly supplied.
@@ -1004,13 +1015,13 @@ export function GanttView({
     if (avail <= 0) return null;
     // Column width that makes the natural span exactly fill the area.
     const fit = (avail / spanDays) * NOMINAL_DAYS[viewMode];
-    if (fit <= baseColumnWidth) return null; // grid already overflows → scroll
+    if (fit <= BASE_COLUMN_W) return null; // grid already overflows → scroll
     // Cap so one unit can't dominate (keep ≥ ~2 columns visible) — a sub-unit
     // project then fills most of the area with a small honest gap, not 1 slab.
     const capped = Math.min(fit, avail * 0.6);
-    return capped > baseColumnWidth ? capped : null;
-  }, [columnWidthOverride, tasks, startDate, endDate, viewMode, effectiveWidth, taskListWidth, baseColumnWidth]);
-  const columnWidth = columnWidthOverride ?? fitColumnWidth ?? baseColumnWidth;
+    return capped > BASE_COLUMN_W ? capped : null;
+  }, [columnWidthOverride, tasks, startDate, endDate, viewMode, effectiveWidth, taskListWidth]);
+  const columnWidth = columnWidthOverride ?? fitColumnWidth ?? BASE_COLUMN_W;
   // One column = one unit of the active granularity; bars/markers map time
   // linearly at pxPerDay so they stay aligned with the calendar-width columns.
   const pxPerDay = columnWidth / NOMINAL_DAYS[viewMode];
@@ -3436,7 +3447,7 @@ export function GanttView({
                   const i = VIEW_MODES.indexOf(viewMode);
                   if (i < VIEW_MODES.length - 1) {
                     changeViewMode(VIEW_MODES[i + 1]);
-                    setColumnWidthOverride(baseColumnWidth);
+                    setColumnWidthOverride(BASE_COLUMN_W);
                   }
                 }
               }}
@@ -3455,7 +3466,7 @@ export function GanttView({
                   const i = VIEW_MODES.indexOf(viewMode);
                   if (i > 0) {
                     changeViewMode(VIEW_MODES[i - 1]);
-                    setColumnWidthOverride(baseColumnWidth);
+                    setColumnWidthOverride(BASE_COLUMN_W);
                   }
                 }
               }}

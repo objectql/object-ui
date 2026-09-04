@@ -32,7 +32,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "lint": "eslint src",
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/cli/",
     "type-check": "tsc --noEmit"
   },
   "keywords": [

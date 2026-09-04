@@ -2,57 +2,66 @@
 /**
  * Rejects the two Vitest invocations that silently produce a FALSE GREEN.
  *
- * Called from the top of `vitest.config.mts` AND from the top of every
- * per-package `vitest.config.ts` that does not lead back to it, so it covers
- * EVERY entry point into this repo's Vitest: `pnpm test`,
+ * Called from the top of `vitest.config.mts` — the repo's ONE Vitest config
+ * since objectui#3240 — and from every other config file Vitest can pick up
+ * instead of it, so it covers EVERY entry point: `pnpm test`,
  * `pnpm --filter <pkg> test`, `turbo run test`, and a bare `pnpm exec vitest`
  * typed in any directory.
  *
- * ## How a config reaches this file — and the 11 that did not (objectui#5406)
+ * ## How a config reaches this file
  *
  * Vitest loads the config it finds in the directory it was launched from, so
  * "the root config calls the guard" only covers a package-cwd run when that
- * package's own config leads back to the root file. Three routes exist; this
- * docstring used to claim the first two covered everything, and was wrong
- * about 11 of the 18 non-root configs:
+ * directory's own config resolution ends at the root file. That is a claim
+ * about the tree, and this docstring has been WRONG about it once already
+ * (objectui#5406: it asserted "every per-package `vitest.config.ts`
+ * re-exports the root config" while eleven standalone ones did not). It is now
+ * ENFORCED instead of asserted — `scripts/__tests__/vitest-invocation-guard
+ * .test.ts` walks the repo and fails on any config taking none of the routes
+ * below. Read that test, not this paragraph, for what is true today.
  *
- *   1. NO `vitest.config.*` in the package (`packages/app-shell`,
- *      `packages/mobile`, ~30 others). The lookup walks up and lands on the
- *      root config, whose module scope runs the guard. Always covered.
- *   2. A package config that IMPORTS the root config — re-exporting it
- *      (`packages/core`, `react`, `types`), merging a Vite config into it
- *      (`components`, `fields`, `plugin-dashboard`, `apps/console`), or
- *      stripping one key off it (`examples/schema-catalog`). Importing it
- *      executes its module scope, so the guard runs as a side effect. 8
- *      configs, all measured refusing a package-cwd run.
- *   3. A STANDALONE package config that never mentions the root file. Nothing
- *      imports this module, so the guard never ran: 11 configs
- *      (`plugin-calendar`, `-charts`, `-detail`, `-form`, `-gantt`, `-grid`,
- *      `-kanban`, `-list`, `-map`, `-timeline`, `-view`), each declaring its
- *      own `happy-dom` + `globals` + local setup and NO alias table at all.
- *      That is not a harmless difference: the root config maps every
- *      `@object-ui/*` specifier to a sibling package's `src/`, and without it
- *      the same import resolves through `node_modules` — a genuinely different
- *      config from the one CI runs. Measured before the fix, from
- *      `packages/plugin-grid`:
- *
- *          pnpm exec vitest run src/__tests__/ObjectGrid.exportOptionsKeys.test.ts
- *          => RUN v4.1.10 /…/packages/plugin-grid   <- root is the PACKAGE
- *             Test Files  1 passed (1)
- *                  Tests  5 passed (5)              <- exit 0, guard silent
- *
- *      Route 3 now calls this module directly — same effect as route 2,
- *      without the import:
+ *   1. NO config in the directory. The lookup walks up and lands on the root
+ *      config, whose module scope runs the guard. This is now the common case:
+ *      objectui#3240 deleted the 17 per-package `vitest.config.ts` files plus
+ *      `examples/schema-catalog`'s, so no `packages/*` directory carries one.
+ *   2. A config that IMPORTS the root config — `apps/console/vitest.config.ts`,
+ *      the last one left, which the root `projects` array also brings in by
+ *      absolute path as the `@object-ui/console` project. Importing it executes
+ *      its module scope, so the guard runs as a side effect.
+ *   3. A STANDALONE `vitest.config.*` that never mentions the root file. None
+ *      exists today; the route is kept because the walk above cannot assume
+ *      that stays true. Such a config must call this module itself:
  *
  *          import { assertCanonicalVitestInvocation, repoRootFrom }
  *            from '../../scripts/vitest-invocation-guard.mjs';
  *          assertCanonicalVitestInvocation({ repoRoot: repoRootFrom(import.meta.url) });
  *
- * Because a docstring is exactly what failed here, the claim above is now
- * ENFORCED rather than written down: `scripts/__tests__/vitest-invocation-guard
- * .test.ts` walks the repo for every `vitest.config.*` and fails on any that
- * takes none of the three routes. A new standalone config cannot reopen the
- * hole silently.
+ *   4. ⭐ NO `vitest.config.*` but a `vite.config.*` — the route objectui#3240
+ *      had to close before it could delete anything. Vitest falls back to the
+ *      package's VITE config, which is a build config: root becomes the package
+ *      directory, and 22 of the 23 under `packages/` carried a vestigial
+ *      `test` block (`passWithNoTests: true`, a partial `resolve.alias`, a
+ *      setup file the root config does not use). Measured on `main` before the
+ *      change, from a package with no vitest config:
+ *
+ *          cd packages/plugin-ai && pnpm exec vitest run
+ *          => RUN v4.1.10 /…/packages/plugin-ai    <- root is the PACKAGE
+ *             (no guard output at all)
+ *
+ *      Deleting the per-package vitest configs would have moved 14 more
+ *      packages onto this route — widening the hole objectui#5406 closed, in
+ *      the name of closing it. So every `packages/<pkg>/vite.config.ts` now calls
+ *      this module, and the vestigial `test` blocks are gone. The call is
+ *      gated on `process.env.VITEST`, which Vitest sets when it loads a config
+ *      and `vite build` does not (measured both ways) — the same file has to
+ *      keep working as the build config, and a build must never be refused.
+ *
+ * ## Not covered, deliberately
+ *
+ * `examples/byo-backend-console` and `examples/console-starter` carry a
+ * `vite.config.ts` and no test script. They are templates a user copies out of
+ * the repo, so a `../../scripts/` import would break them where it matters
+ * most. Unchanged by objectui#3240 — they were on route 4 before it and after.
  *
  * ## Trap 1 — Vitest launched with the cwd inside a package (objectui#3378)
  *
@@ -110,9 +119,11 @@
  * runs those same files under the root config's aliases, project split and
  * setup files. The defect is the divergent config, not the empty collection.
  * "root == repo root" is also one comparison an agent can hold in its head,
- * unlike a heuristic that fires only sometimes. Whether the package-level
- * `test` scripts should exist at all is objectui#3240 and not this guard's
- * call; until that is decided they fail loudly instead of lying.
+ * unlike a heuristic that fires only sometimes. objectui#3240 has since settled
+ * what the package-level `test` scripts are: every one of them names the repo
+ * root explicitly (`vitest run --root ../.. packages/<pkg>/`), so they satisfy
+ * this comparison instead of tripping it, and `pnpm --filter <pkg> test` /
+ * `turbo run test` run the same config as CI.
  *
  * Escape hatch, documented in AGENTS.md: `OBJECTUI_VITEST_GUARD=off`.
  */
@@ -395,8 +406,9 @@ export function evaluateVitestInvocation({
         '的 22 个文件、报 `Test Files 22 passed (22)`,本包的一个都没跑 —— 而且没有任何',
         '"0 tests matched" 信号,计数是 22 不是 0。这就是所谓假绿。',
         '',
-        '`pnpm --filter <pkg> test`、`turbo run test`、`cd packages/x && pnpm exec vitest`',
-        '都会落进这里。包级 test 脚本的存废是 objectui#3240;在那之前它们只失败,不撒谎。',
+        '`cd packages/x && pnpm exec vitest` 会落进这里。`pnpm --filter <pkg> test` 与',
+        '`turbo run test` 不会 —— objectui#3240 把每个包级 test 脚本改成了显式指回仓根的',
+        '`vitest run --root ../.. packages/<pkg>/`,跑的和 CI 是同一份配置。',
         '',
         ...canonicalLines(pkgDir),
         '',

@@ -18,11 +18,18 @@ import { ObjectCalendarRenderer } from './index';
 //     `subscribeDataChanges` from `@object-ui/react` — against the REAL module
 //     before the mock applies. Green, by accident.
 //   - `packages/plugin-calendar/vitest.config.ts` (what `pnpm --filter … test`
-//     and `turbo run test` run): no such setup, so `@object-ui/components` is
-//     first evaluated inside the mocked graph. Vitest 4 hard-errors on a
-//     missing export instead of silently yielding `undefined`, so the suite
-//     failed to load at all: `No "subscribeDataChanges" export is defined on
-//     the "@object-ui/react" mock`.
+//     and `turbo run test` ran AT THE TIME): no such setup, so
+//     `@object-ui/components` is first evaluated inside the mocked graph.
+//     Vitest 4 hard-errors on a missing export instead of silently yielding
+//     `undefined`, so the suite failed to load at all: `No "subscribeDataChanges"
+//     export is defined on the "@object-ui/react" mock`.
+//
+// That second config no longer exists — objectui#3240 deleted all 17 of them and
+// made the root config the single entry, so both commands now run the FIRST bullet.
+// The history is kept because it is the measurement the fix below was derived from,
+// and because the fix outlives it: unification removes the disagreement between two
+// configs, not the fragility of a whole-module mock, which would still break the
+// moment `@object-ui/react` gains an export this file did not list.
 //
 // Spreading `importOriginal()` removes the sensitivity: the mock is a superset
 // of the real module under either resolution, so a transitive consumer can
