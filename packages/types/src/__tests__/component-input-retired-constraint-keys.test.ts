@@ -7,8 +7,14 @@
  */
 
 /**
- * `ComponentInput`'s four inert constraint keys are ADR-0049 RETIREMENT
+ * `ComponentInput`'s five inert authoring keys are ADR-0049 RETIREMENT
  * TOMBSTONES, and the refusal is LOUD (objectui#5905).
+ *
+ * (The file name says "constraint keys" because the first four were retired
+ * together and all four read like constraint slots. The fifth, `inputType`, is
+ * a control-kind hint rather than a constraint; it joined them later and by its
+ * own ruling — see the section below. The name is kept so the file's history
+ * stays greppable.)
  *
  * ## What was measured
  *
@@ -40,15 +46,26 @@
  * plus the CONTRAST against a genuinely undeclared key, so nobody can "simplify"
  * the tombstones into deletions without this file going red.
  *
- * ## `inputType` is NOT here, deliberately
+ * ## `inputType` IS here now — the fork closed, and how
  *
- * The fifth key objectui#5905 named is still live and still writable, because
- * the repository AUTHORS it: `packages/plugin-markdown/src/index.tsx` declares
- * `inputType: 'textarea'` on its `content` input (pinned by that package's own
- * test). That is declared-and-DROPPED — a different defect from the
- * declared-and-unread four — and it needs a ruling, not a removal. Its liveness
- * is pinned below so the fork stays visible and closing it stays a deliberate
- * edit to this file.
+ * The fifth key objectui#5905 named used to be live and writable, because the
+ * repository AUTHORED it: `packages/plugin-markdown/src/index.tsx` declared
+ * `inputType: 'textarea'` on its `content` input. That was
+ * declared-and-DROPPED — a different defect from the declared-and-unread four
+ * — so it needed a ruling rather than a removal, and its liveness was pinned
+ * here to keep the fork visible.
+ *
+ * The ruling landed: maintainer, 2026-08-31 (objectui#5905, director seat
+ * summon 6, decision batch #14), option B. The write was measured as a NO-OP
+ * (the serializer dropped it; a structural census over every `inputs:` array
+ * found no reader), so it was DELETED at zero capability cost and the key
+ * joined the tombstones. Option A — teach `sdui-parser` to forward it — is
+ * REFUSED on record: a write nothing reads is not demand for a feature.
+ *
+ * The two controls that pinned the fork's LIVE half are FLIPPED below rather
+ * than deleted (`keeps inputType WRITABLE` and `inputType still parses green`).
+ * A control is restated on success, never deleted into a vacuum — deleting them
+ * would leave the closure asserted by nothing at all.
  *
  * The `@ts-expect-error` directives are REAL enforcement: this package
  * type-checks its tests through `tsconfig.test.json`, so re-widening the
@@ -59,12 +76,16 @@ import { describe, it, expect } from 'vitest';
 import type { ComponentInput } from '../base';
 import { ComponentInputSchema } from '../zod/base.zod';
 
-/** The four retired keys, with a value an author would plausibly have written. */
+/** The five retired keys, with a value an author would plausibly have written. */
 const RETIRED = {
   min: 0,
   max: 100,
   step: 1,
   placeholder: 'Type here…',
+  // Retired later than the four above, by its own ruling (2026-08-31). The
+  // value is the exact one `plugin-markdown` used to author, so the loop below
+  // exercises the real historical write rather than an invented one.
+  inputType: 'textarea',
 } as const;
 
 type RetiredKey = keyof typeof RETIRED;
@@ -103,12 +124,24 @@ describe('the interface tombstones make authoring a `tsc` error', () => {
     expect(input.name).toBe('content');
   });
 
-  it('keeps `inputType` WRITABLE — the fork objectui#5905 reported, not an oversight', () => {
-    // No `@ts-expect-error`: `plugin-markdown` authors this key today, so
-    // retiring it is a ruling about that registration, not a cleanup. If this
-    // line ever needs a directive, the fork was closed — say so on the card.
-    const input: ComponentInput = { name: 'content', type: 'string', inputType: 'textarea' };
-    expect(input.inputType).toBe('textarea');
+  it('refuses `inputType` too — the fork objectui#5905 reported is now CLOSED', () => {
+    // FLIPPED, not deleted. This control used to carry NO directive and assert
+    // `input.inputType === 'textarea'`, pinning the key's liveness while the
+    // fork was open. Its own comment named the trigger: "If this line ever
+    // needs a directive, the fork was closed — say so on the card." The
+    // maintainer closed it on 2026-08-31 (objectui#5905, option B), so the
+    // directive is here and this is that saying-so.
+    //
+    // The directive IS the assertion: this package type-checks its tests
+    // through `tsconfig.test.json`, so re-widening the declaration fails the
+    // build on the now-unused directive.
+    const input: ComponentInput = {
+      name: 'content',
+      type: 'string',
+      // @ts-expect-error `inputType` is a retirement tombstone (objectui#5905, ruled 2026-08-31)
+      inputType: 'textarea',
+    };
+    expect(input.name).toBe('content');
   });
 });
 
@@ -126,10 +159,18 @@ describe('the zod tombstones REFUSE, loudly (objectui#5905)', () => {
     }
   });
 
-  it('`inputType` still parses green — the fork half of the same control', () => {
+  it('`inputType` now parses RED — the same fork half, restated on the ruling', () => {
+    // FLIPPED, not deleted: this asserted `success === true` while the fork was
+    // open. The parameterised loop below covers `inputType` as well, now that
+    // it is in `RETIRED`; this case is kept because it is the one a reader
+    // diffs against the old file to see the fork close.
     const result = ComponentInputSchema.safeParse({ ...LIVE_INPUT, inputType: 'textarea' });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.inputType).toBe('textarea');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => String(i.path[0]) === 'inputType');
+      expect(issue?.code).toBe('invalid_type');
+      expect(issue?.message).toContain('RETIRED (objectui#5905)');
+    }
   });
 
   for (const key of Object.keys(RETIRED) as RetiredKey[]) {
@@ -188,7 +229,7 @@ describe('a tombstone is not a deletion — the contrast, measured in one run', 
     if (result.success) expect(result.data).not.toHaveProperty('notAKeyAtAll');
   });
 
-  it('the four stay in the mirror\'s shape — a tombstone is DECLARED, just unwritable', () => {
+  it('the five stay in the mirror\'s shape — a tombstone is DECLARED, just unwritable', () => {
     for (const key of Object.keys(RETIRED)) {
       expect(shapeOf(ComponentInputSchema)).toHaveProperty(key);
       expect(describeOf(ComponentInputSchema, key)).toContain('RETIRED (objectui#5905)');

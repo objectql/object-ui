@@ -601,25 +601,35 @@ export interface ComponentInput {
   advanced?: boolean;
 
   /**
-   * Specific input type (e.g., 'email', 'password' for string)
+   * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards six keys and this is not one of them. Put the
+   * control hint in `description`, which IS published.
    *
-   * ⚠️ NOT retired alongside the four tombstones below (objectui#5905), and the
-   * difference is measured rather than stylistic. `plugin-markdown`'s
-   * registration AUTHORS this key — `inputs: [{ name: 'content', …, inputType:
-   * 'textarea' }]` in `packages/plugin-markdown/src/index.tsx`, pinned by that
-   * package's own test — while the manifest serializer still drops it. That is
-   * declared-and-DROPPED, a different defect from the declared-and-unread four
-   * below: retiring it would convert one registration's silent no-op into a
-   * build failure without first deciding what that registration should say
-   * instead (delete the line, or teach the publication path to carry it). The
-   * fork is recorded on objectui#5905 for a ruling; until then this stays a
-   * live, writable key that nothing publishes.
+   * The LAST of the five to be retired, and by its own ruling, because its
+   * defect was a different one. The four below were declared-and-UNREAD; this
+   * key was declared-and-DROPPED — the repository really did author it, on
+   * `packages/plugin-markdown`'s `content` input — so retiring it had to decide
+   * what that registration should say instead, which is why it was held back
+   * as a fork rather than retired alongside them.
+   *
+   * Maintainer ruling 2026-08-31 (objectui#5905, director seat summon 6,
+   * decision batch #14) took option B: DELETE the write. It was measured as a
+   * no-op — the serializer dropped it, and a structural census over every
+   * `inputs:` array in the repository found no reader — so deleting it costs
+   * zero capability. Option A, teaching `sdui-parser` to forward the key, is
+   * REFUSED on record: a write nothing reads is not demand for a feature. The
+   * 2026-08-17 expression-ceiling ruling quoted on `type` above is untouched
+   * by this and stays deferred, reopen condition unchanged.
+   *
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  inputType?: string;
+  inputType?: never;
 
   /**
    * ADR-0049 RETIREMENT TOMBSTONES — `min` / `max` / `step` / `placeholder`
-   * (objectui#5905).
+   * (objectui#5905). `inputType`, declared directly above, is a FIFTH tombstone
+   * of exactly this shape; it carries its own block because it was retired
+   * later, by its own ruling, out of a different defect.
    *
    * `?: never` is this package's tombstone convention (see `crud.ts` `confirm`
    * and {@link StaticTableColumn} in `data-display.ts`): the key stays
