@@ -41,7 +41,7 @@ function MobileCard() {
     threshold: 50,
   });
 
-  const listRef = usePullToRefresh<HTMLDivElement>({
+  const { ref: listRef } = usePullToRefresh<HTMLDivElement>({
     onRefresh: async () => refetch(),   // threshold?: px, default 80
   });
 
