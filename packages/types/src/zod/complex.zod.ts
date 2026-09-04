@@ -52,7 +52,7 @@ export const KanbanCardSchema = z.object({
 export const KanbanColumnSchema = z.object({
   id: z.string().describe('Column ID'),
   title: z.string().describe('Column title'),
-  items: z.array(KanbanCardSchema).describe('Column cards'),
+  cards: z.array(KanbanCardSchema).describe('Column cards'),
   color: z.string().optional().describe('Column color'),
   limit: z.number().optional().describe('Card limit'),
   collapsed: z.boolean().optional().describe('Whether column is collapsed'),
@@ -181,22 +181,99 @@ export const FilterBuilderConditionSchema: z.ZodType<any> = z.lazy(() =>
 );
 
 /**
- * Filter Group Schema
+ * Filter Group Schema — the shape `FilterBuilder` actually reads
+ * (objectui#6939, the `filter-builder` group; maintainer ruling 2026-09-02,
+ * director seat summon #8, verbatim 「同意」).
+ *
+ * The gate is `isValidGroup`, `packages/components/src/custom/filter-builder.tsx:1060`:
+ *
+ *     Array.isArray(v.conditions) && (v.logic === "and" || v.logic === "or")
+ *
+ * so `logic` is the read key and the mirror's former `operator` was a spelling
+ * with ZERO read sites. Measured through the real `SchemaRenderer`: rewriting a
+ * catalog entry's group from `{ id, logic, conditions }` to
+ * `{ operator, conditions }` fails that gate, the component falls back to
+ * `EMPTY_GROUP`, and the board EMPTIES — 76 elements and three condition rows
+ * become 11 elements and none.
+ *
+ * `id` is DECLARED here but deliberately OPTIONAL, and that is a departure from
+ * a literal reading of the ruling's `{ id, logic, conditions }`. `isValidGroup`
+ * never consults it and nothing else reads `filterGroup.id`; measured, deleting
+ * `id` from an authored group renders BYTE-IDENTICALLY (76 elements, same text,
+ * same SHA-256). Requiring it would refuse a document the renderer draws
+ * perfectly — a fresh instance of the exact class objectui#6939 exists to
+ * close. Declared rather than dropped because the component's own exported
+ * `FilterGroup` carries it, `EMPTY_GROUP` emits it, every catalog entry authors
+ * it, and it round-trips out through `onChange`; declaring it buys the type
+ * check (`id: 42` now refuses) that an undeclared key would not get, since a
+ * plain `z.object` strips unknown keys in silence.
  */
 export const FilterGroupSchema: z.ZodType<any> = z.lazy(() =>
   z.object({
-    operator: z.enum(['and', 'or']).describe('Group operator'),
+    id: z.string().optional().describe('Group id — round-tripped through `onChange`; no read site'),
+    logic: z.enum(['and', 'or']).describe('How the conditions combine — read by `isValidGroup`'),
     conditions: z.array(z.union([FilterBuilderConditionSchema, FilterGroupSchema])).describe('Conditions or sub-groups'),
   })
 );
 
 /**
- * Filter Field Schema
+ * Filter Field Schema — one entry of `FilterBuilderSchema.fields`
+ * (objectui#6939, same ruling).
+ *
+ * ## `value`, not `name`
+ *
+ * Every read site looks the entry up by `value`:
+ * `fields.find((f) => f.value === fieldValue)` in `getOperatorsForField`,
+ * `changeField`, `getInputType` and `renderValueInput`, plus `fields[0]?.value`
+ * in `addCondition` and `<SelectItem value={field.value}>` in the field
+ * dropdown — `custom/filter-builder.tsx:1099,1161,1201,1234,1239` and the row
+ * render. `name` has zero read sites, and `FilterBuilderProps.fields` (line 66
+ * of that file) declares `Array<{ value, label, type? }>`. Measured: rewriting
+ * a catalog entry's `value` to `name` loses the field on every row —
+ * `…Clear allCategoryRemove condition…` becomes
+ * `…Clear allRemove condition…`, and the three value inputs degrade from
+ * `text`/`number`/`number` to three `text` boxes.
+ *
+ * ## The type vocabulary
+ *
+ * `text` / `number` / `boolean` / `date` / `datetime` / `time` are the ruled
+ * six, and all six are live and MUTUALLY DISTINGUISHABLE at the value control
+ * (measured, one condition row each): `<input type>` `text`, `number`, `date`,
+ * `datetime-local`, `time`, and for `boolean` no input at all but an extra
+ * option Select. They are `FilterValueFamily`
+ * (`custom/filter-builder.tsx:406`), which `valueFamilyForFieldType` folds a
+ * column's `type` into and `FILTER_INPUT_TYPE_BY_FAMILY` draws from.
+ *
+ * `string` LEAVES the vocabulary: it renders identically to a nonsense
+ * spelling, because both reach the text control by the unrecognised-word
+ * fallthrough rather than by being read. It is a phantom, and `text` is the
+ * spelling the registration's own `defaultProps` and all five catalog entries
+ * use.
+ *
+ * ⚠ `select` is RETAINED, which departs from a literal reading of the ruling's
+ * six. The ruling inherits the finding card's description of `select` as
+ * "extra"; measured, it is not. `selectLikeTypes = ["select", "status"]`
+ * (`custom/filter-builder.tsx:935`) is consumed by `operatorsForFieldType`
+ * (line 989, the `equals`/`in`/`notIn` bucket) and by
+ * `isOptionDrivenValueControl` (line 739), and a `select` column draws the
+ * option-driven Select rather than a text box — 39 elements and no `<input>`,
+ * against 36 and one. Dropping it would REFUSE a spelling this mirror accepts
+ * today and the renderer draws distinctly, which is a fresh instance of the
+ * class this card closes. Flagged for contract review rather than decided here.
+ *
+ * ⚠ NOT declared, and NOT a regression this change introduces: `status`,
+ * `currency`, `percent`, `rating`, `lookup`, `master_detail` and `user` are
+ * live spellings with their own buckets and controls (`number` inputs for the
+ * first four by way of `numberLikeTypes`, the option Select for the last three
+ * by way of `lookupLikeTypes`) and every one of them is refused by this mirror
+ * BEFORE this change as well as after. Reported on objectui#6939 as a
+ * pre-existing gap; widening to them is an accept-set change the ruling does
+ * not cover.
  */
 export const FilterFieldSchema = z.object({
-  name: z.string().describe('Field name'),
+  value: z.string().describe('Field key — the identity every read site matches on'),
   label: z.string().describe('Field label'),
-  type: z.enum(['string', 'number', 'date', 'boolean', 'select']).describe('Field type'),
+  type: z.enum(['text', 'number', 'boolean', 'date', 'datetime', 'time', 'select']).describe('Field type'),
   operators: z.array(FilterOperatorSchema).optional().describe('Available operators'),
   options: z.array(z.object({
     label: z.string(),

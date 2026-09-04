@@ -129,7 +129,10 @@ const ko = {
     // there are two conditions: a reported `total` states the fact with BOTH
     // numbers, a missing one cannot name how many. Same split as
     // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
-    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
     rowCeilingNote: "전체 {{total}}개 중 처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
     rowCeilingNoteUnknownTotal: "처음 {{shown}}개를 표시합니다. 필터를 좁히세요.",
   },
@@ -1095,13 +1098,14 @@ const ko = {
     scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
   },
   dashboard: {
-    noRows: "행 없음",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "아직 데이터가 없습니다",
       message: "이 위젯은 정상적으로 로드되었지만 쿼리가 아직 레코드를 반환하지 않았습니다.",
@@ -1142,7 +1146,6 @@ const ko = {
     saveLayout: "레이아웃 저장",
     resetLayout: "레이아웃 초기화",
     total: "합계",
-    noDataAvailable: "사용 가능한 데이터 없음",
     noDataSourceFor: "데이터 소스 없음:",
     config: {
       breadcrumb: {

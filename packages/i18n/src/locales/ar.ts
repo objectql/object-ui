@@ -133,7 +133,10 @@ const ar = {
     // there are two conditions: a reported `total` states the fact with BOTH
     // numbers, a missing one cannot name how many. Same split as
     // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
-    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
     rowCeilingNote: "يتم عرض أول {{shown}} من أصل {{total}} سجل. ضيّق عامل التصفية.",
     rowCeilingNoteUnknownTotal: "يتم عرض أول {{shown}} سجل. ضيّق عامل التصفية.",
   },
@@ -1102,13 +1105,14 @@ const ar = {
     scatterOneMeasure: "المخطط المبعثر يرسم مقياسًا واحدًا فقط. أبقِ سلسلة واحدة:",
   },
   dashboard: {
-    noRows: "لا توجد صفوف",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "لا توجد بيانات بعد",
       message: "تم تحميل هذه الأداة بنجاح، لكن الاستعلام لم يُرجع أي سجلات بعد.",
@@ -1149,7 +1153,6 @@ const ar = {
     saveLayout: "حفظ التخطيط",
     resetLayout: "إعادة تعيين التخطيط",
     total: "الإجمالي",
-    noDataAvailable: "لا بيانات متاحة",
     noDataSourceFor: "لا مصدر بيانات لـ",
     config: {
       breadcrumb: {

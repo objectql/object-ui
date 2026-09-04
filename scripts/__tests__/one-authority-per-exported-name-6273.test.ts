@@ -417,7 +417,15 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   // `z.string()`, and every authored `type: 'markdown'` NODE in the repo supplies it.
   // So plugin-markdown re-points at the one authority in `@object-ui/types`
   // (objectui#6172).
-  ['MenuItem', ['packages/types/src/app.ts', 'packages/types/src/overlay.ts']],
+  // `MenuItem` sat here, colliding between `packages/types/src/app.ts` and
+  // `packages/types/src/overlay.ts`. The two are not one type measured twice:
+  // app's is a flat, all-optional `interface` whose `type` is
+  // `'item' | 'group' | 'separator'`; overlay's is a discriminated UNION
+  // (`MenuCommandItem | MenuDividerItem`) that TOMBSTONES that same key as
+  // `type?: never` (objectui#6523), so a re-point would have made an authored
+  // `type: 'separator'` legal on one side and a refusal on the other. That is
+  // the RENAME branch: app's declaration now spells `AppMenuItem`, the name
+  // `src/index.ts` always published it under (objectui#6349).
   ['MetadataTypeStatus', ['packages/app-shell/src/providers/MetadataProvider.tsx', 'packages/react/src/context/AppShellContext.tsx']],
   ['NamedActionDef', ['packages/plugin-grid/src/resolveBulkActions.ts', 'packages/plugin-grid/src/resolveLegacyRowActions.ts']],
   ['OrgTranslate', ['packages/app-shell/src/console/organizations/orgErrorMessage.ts', 'packages/app-shell/src/console/organizations/orgRoleLabel.ts']],
@@ -428,7 +436,17 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['TranslateFn', ['packages/app-shell/src/providers/saveAdvisoryToast.ts', 'packages/app-shell/src/providers/writeWarningToast.ts', 'packages/fields/src/widgets/file-size-guard.ts']],
   ['UndoRedoState', ['packages/plugin-designer/src/hooks/useUndoRedo.ts', 'packages/types/src/ui-action.ts']],
   ['UserDataAdapter', ['packages/app-shell/src/context/UserStateAdapters.tsx', 'packages/data-objectstack/src/userState.ts']],
-  ['ValidationFunction', ['packages/types/src/data-protocol.ts', 'packages/types/src/field-types.ts']],
+  // `ValidationFunction` sat here, colliding between
+  // `packages/types/src/data-protocol.ts` and `packages/types/src/field-types.ts`.
+  // The two signatures disagree at both ends of the arrow — data-protocol's takes
+  // a second `ValidationContext` parameter and returns `boolean | string`, while
+  // field-types' takes the value alone and may also return a `Promise` — so
+  // field-types' is not assignable to data-protocol's at all, and data-protocol.ts
+  // had said so in prose ("may differ from similarly named validation function
+  // types in other packages (e.g., in `field-types`)") for as long as both
+  // existed. RENAME branch again: field-types' declaration now spells
+  // `FieldValidationFunction`, the name `src/index.ts` always published it under
+  // (objectui#6349).
   ['VersionEntry', ['packages/collaboration/src/useConflictResolution.ts', 'packages/plugin-designer/src/components/VersionHistory.tsx']],
   ['ViewSwitcherProps', ['packages/plugin-list/src/ViewSwitcher.tsx', 'packages/plugin-view/src/ViewSwitcher.tsx']],
   ['ViewType', ['packages/plugin-list/src/ViewSwitcher.tsx', 'packages/types/src/views.ts']],
@@ -568,10 +586,15 @@ describe('objectui#6273 — the matcher discriminates', () => {
         { rel: 'packages/types/src/index.ts', source: "export type { KanbanCard } from './complex';" },
         { rel: 'packages/plugin-kanban/src/index.tsx', source: "export type { KanbanCard } from '@object-ui/types';" },
       ],
-      // An alias publishing a name nothing else declares — the CURE the family
-      // cards apply, e.g. `MenuItem as AppMenuItem` (types/src/index.ts:59) and
-      // `ValidationFunction as FieldValidationFunction` (:429). It must stay
-      // green or the remedy reds.
+      // An alias publishing a name nothing else declares — the shape the family
+      // cards land on, spelled below as a synthetic corpus. Today's live
+      // instances are the `Spec*` family in `packages/types/src/index.ts`
+      // (`FormField as SpecFormField`, …), which republishes @objectstack/spec
+      // names this package also declares. ⚠️ The two aliases this comment used
+      // to point at are gone: objectui#6349 renamed the DECLARATIONS to
+      // `AppMenuItem` / `FieldValidationFunction`, which is what actually
+      // removed those collisions — an alias alone cures the barrel's ambiguity,
+      // not the two authorities behind it. It must stay green or the remedy reds.
       [
         { rel: 'packages/types/src/app.ts', source: 'export interface MenuItem { id: string }' },
         { rel: 'packages/types/src/index.ts', source: "export type { MenuItem as AppMenuItem } from './app';" },
@@ -703,8 +726,9 @@ describe('objectui#6273 — every exported schema name has exactly one authority
         '  Remedy: pick the ONE authority, and re-point the others at it —\n' +
         "  `export type { X } from '<the-owner>'` is a re-export, not a second declaration,\n" +
         '  and this gate does not count it. If the two shapes are genuinely different\n' +
-        '  things, rename one (the `MenuItem as AppMenuItem` pattern in\n' +
-        '  packages/types/src/index.ts:59 is this repo’s worked example).\n' +
+        '  things, rename the loser to the name the barrel already publishes it\n' +
+        '  under — `UIActionSchema`, `AppMenuItem` and `FieldValidationFunction`\n' +
+        '  (objectui#6349) are this repo’s worked examples.\n' +
         '  ⛔ KNOWN_COLLISIONS is SHRINK-ONLY: adding a line is not a supported way\n' +
         '  to make this pass.',
     ).toEqual([]);

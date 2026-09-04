@@ -37,9 +37,9 @@
  *   | plugin-calendar  |       3 |               0 |                 0 |
  *   | plugin-chatbot   |       3 |               0 |                 0 |
  *   | plugin-dashboard |       8 |               2 |             7 / 9 |
- *   | components       |     158 |              97 |          12 .. 15 |
+ *   | components       |     158 |              95 |          12 .. 15 |
  *
- * **99 of 181 targets leak.** The `components` row is objectui#5574 and is
+ * **97 of 181 targets leak.** The `components` row is objectui#5574 and is
  * covered in its own section below; the two `plugin-dashboard` rows are the
  * older tail. Both are in {@link LEAK_LEDGER}:
  * `plugin-dashboard:metric` and `plugin-dashboard:metric-card`, the open tail
@@ -156,12 +156,14 @@
  *     a forced `schemaExtras: { name: 'check' }` to render at all; it now
  *     renders a visible placeholder for an unresolvable glyph, so it is swept
  *     as an ordinary plain target on the node this file actually authors —
- *     identity `name: 'canary_node'` and nothing else. Its
- *     {@link BARE_SPREAD_ON_SVG} row was re-measured on that node as the
- *     ruling required and is UNCHANGED: the placeholder is the same bare
- *     spread onto the same SVG host, so it leaks the same fourteen. That the
- *     row did not move is the point — the reading no longer depends on a
- *     workaround that hid whether the renderer rendered.
+ *     identity `name: 'canary_node'` and nothing else. Its `BARE_SPREAD_ON_SVG`
+ *     row was re-measured on that node as the ruling required and was
+ *     UNCHANGED: the placeholder is the same bare spread onto the same SVG
+ *     host, so it leaked the same fourteen. That the row did not move is the
+ *     point — the reading no longer depended on a workaround that hid whether
+ *     the renderer rendered. That row is now GONE, burned by objectui#5632
+ *     (see the burn-down record below); this note is kept because the phantom
+ *     it describes is a property of the SWEEP, not of the row.
  *   - 4 threw `useSidebar must be used within a SidebarProvider` and were
  *     caught by `SchemaErrorBoundary`, whose markup is attribute-clean.
  *
@@ -250,8 +252,10 @@
  * silences the warning while keeping the leak, Vitest discards console output
  * from passing tests, and the warning latches per prop name so a shared canary
  * consumes it. This family makes the point concrete: of the 14 attributes in
- * the commonest shape, the ones React would warn about are a minority, and
- * {@link BARE_SPREAD_ON_SVG} is a group React reports differently again. The
+ * the commonest shape, the ones React would warn about are a minority, and the
+ * SVG-hosted group objectui#5632 burned was one React reported differently
+ * again — camelCase survives on an SVG host, so the spelling React sees and the
+ * spelling that lands are the same and no warning distinguishes them. The
  * technique that closes the class reads the DOM, which is what this file does.
  *
  * ## Why this file lives in `packages/app-shell`
@@ -909,8 +913,8 @@ interface LedgerEntry {
 /* ── objectui#5574: the `packages/components` reading, as a LEDGER ─────────── */
 
 /**
- * 97 of the 158 `packages/components` targets leak, and they do it in exactly
- * SIX shapes (119 targets in seven shapes did on arrival; see the burn-down
+ * 95 of the 158 `packages/components` targets leak, and they do it in exactly
+ * FIVE shapes (119 targets in seven shapes did on arrival; see the burn-down
  * note below — and note the arrival count of shapes read `eight` here until
  * objectui#5632 counted them: the groups were seven, and the card's own table
  * listed seven). Writing that
@@ -958,6 +962,28 @@ interface LedgerEntry {
  *     `file-upload[buttontext]` 7, and a 34-attribute tail); the same probe
  *     reads 0 after, with `grid`'s 26 nodes at 0 both times as the control and
  *     an unchanged per-type node census across the two runs.
+ *
+ *   - objectui#5632 (the slice after that one) — the entire
+ *     `BARE_SPREAD_ON_SVG` shape, both members: `ui:icon` and `ui:spinner`.
+ *     Converged on the bare `toDomProps`, which is the answer the form-control
+ *     group above could NOT take: `IconSchema` and `SpinnerSchema` declare only
+ *     `icon` / `size` / `color`, and both renderers already consume all three by
+ *     name, so nothing legitimate was withheld and no third declaration was
+ *     warranted. The group is DELETED, so the grouping is five mechanisms now.
+ *
+ *     ⚠️ What this file could not have graded, recorded here because the next
+ *     slice needs the warning: on an SVG host the judge counts `stroke`,
+ *     `width`, `height`, `fill` and `color` as LEGITIMATE, so everything lucide
+ *     emits sits in the half this gate never reports, in either direction. Two
+ *     real behaviours lived in it. `ui:spinner` declares `size` as an ENUM and
+ *     the spread handed the string to lucide's numeric `size` prop, so every
+ *     sized spinner carried `width="lg" height="lg"`; and `ui:icon` declares
+ *     `color` as a Tailwind CLASS, which the spread also fed to lucide's
+ *     `color` prop, emitting `stroke="text-red-500"`. Both are gone, and
+ *     neither moved a number here. They are measured and pinned in
+ *     `examples/schema-catalog/test/svg-host-dom-leak-5632.test.tsx`, which
+ *     asserts the LEGITIMATE attribute sets too — the guard this gate
+ *     structurally cannot provide.
  *
  * ## This is a ledger, not an allowlist — the difference, stated once
  *
@@ -1012,26 +1038,6 @@ const BARE_SPREAD_MINUS_NAME: readonly string[] = [
   'reference_to', 'zzcanary', 'zzcanarycamel', 'zzcanarynum', 'zzcanaryobj', 'zzcanaryprop',
 ];
 
-/**
- * The same bare spread onto an SVG host — and the one group whose attribute
- * names are NOT lowercased. SVG attribute names are case-sensitive, so the
- * camelCase canaries survive exactly as authored (`ariaLabel`, not
- * `arialabel`). A ledger keyed on the lowercased spelling would have silently
- * failed to match these two.
- *
- * `ui:icon`'s membership here was re-measured under objectui#5631, on the
- * ordinary canary node rather than the forced-resolvable one the old entry
- * needed, and came back identical — see the `ui:icon` note in this file's
- * "four phantom cleans" section. `name` stays in this list: the renderer still
- * spreads the authored identity onto the SVG, and closing that is the
- * objectui#5632 burn-down, deliberately NOT folded in here.
- */
-const BARE_SPREAD_ON_SVG: readonly string[] = [
-  'ariaDescribedBy', 'ariaLabel', 'bind', 'colorVariant', 'dataSource', 'events', 'name',
-  'props', 'reference_to', 'zzcanary', 'zzcanaryCamel', 'zzcanarynum', 'zzcanaryobj',
-  'zzcanaryprop',
-];
-
 interface LedgerGroup {
   readonly attributes: readonly string[];
   readonly reason: string;
@@ -1065,16 +1071,6 @@ const COMPONENTS_LEAK_GROUPS: readonly LedgerGroup[] = [
       'ui:sidebar-menu-item', 'ui:sidebar-provider', 'ui:skeleton', 'ui:small', 'ui:span',
       'ui:strong', 'ui:sub', 'ui:sup', 'ui:table', 'ui:tabs',
       'ui:time', 'ui:toggle-group', 'ui:tree-view', 'ui:u', 'ui:ul', 'ui:utility',
-    ],
-  },
-  {
-    attributes: BARE_SPREAD_ON_SVG,
-    reason:
-      'the same bare spread onto an SVG host, where attribute names are ' +
-      'case-sensitive — so the camelCase canaries survive as authored.',
-    issue: 'objectui#5574',
-    targets: [
-      'ui:icon', 'ui:spinner',
     ],
   },
   {
@@ -1149,7 +1145,7 @@ const LEAK_LEDGER: Readonly<Record<string, LedgerEntry>> = {
     issue: 'objectui#4425',
   },
 
-  /* ── packages/components: 115 of 158 targets, in eight measured shapes ──── */
+  /* ── packages/components: 95 of 158 targets, in five measured shapes ───── */
   ...Object.fromEntries(
     COMPONENTS_LEAK_GROUPS.flatMap((group) =>
       group.targets.map((type) => [

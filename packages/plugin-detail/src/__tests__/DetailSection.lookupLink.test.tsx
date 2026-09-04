@@ -36,8 +36,8 @@ beforeAll(() => {
 const objectSchema = {
   fields: {
     work_order_id: { type: 'lookup', reference: 'mtc_work_order', readonly: true },
-    inspection_task_id: { type: 'lookup', reference_to: 'mtc_task' },
-    empty_order_id: { type: 'lookup', reference_to: 'mtc_work_order' },
+    inspection_task_id: { type: 'lookup', reference: 'mtc_task' },
+    empty_order_id: { type: 'lookup', reference: 'mtc_work_order' },
     remark: { type: 'text' },
     operator: { type: 'text' },
   },

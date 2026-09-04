@@ -1280,17 +1280,21 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const fd = fieldDefs[def.field] ?? fieldDefs[def.field.split('.')[0]];
         const type: string | undefined = fd?.type;
         if (type !== 'lookup' && type !== 'master_detail') continue;
-        // Served schemas key the target as `reference` (ObjectStack
-        // convention); `reference_to` covers ObjectUI-authored defs.
+        // ONE arm: `reference`, the only target spelling the protocol
+        // declares. `@objectstack/spec`'s `FieldSchema` refuses `reference_to`,
+        // `referenceTo` and `target` by name with `unrecognized_keys`, each
+        // carrying its own "did you mean -> `reference`?" rename.
         //
-        // A third arm, `referenceTo`, was deleted by objectui#6837: no contract
-        // declares that spelling — `@objectstack/spec`'s `FieldSchema` refuses
-        // it by name with `unrecognized_keys` ("Did you mean `referenceTo` ->
-        // `reference`?"), and it is a tombstone in `RETIRED_FIELD_KEY_TOMBSTONES`
-        // (objectui#6041), so the designer read door strips it. It was not a
-        // redundant fallback but invented tolerance surface. Pinned in
+        // The `referenceTo` arm went in objectui#6837 slice 2; the
+        // `reference_to` arm goes here, in half 2, under the maintainer's
+        // 2026-08-31 ruling that protocol normalization belongs on the SERVER
+        // (objectstack#13847 rewrites stored `reference_to` -> `reference` on
+        // the serve path and in `os migrate meta`). A def that still spells
+        // only a legacy key is canonicalised ONCE at the ingestion choke point
+        // (`normalizeSchemaReferenceKeys`, which now also warns in dev) —
+        // never by a renderer-side alias. Pinned in
         // `ObjectGantt.referenceArms-6837.test.tsx`.
-        const refObject: string | undefined = fd?.reference_to ?? fd?.reference;
+        const refObject: string | undefined = fd?.reference;
         if (!refObject) continue;
         try {
           const result = await dataSource.find(refObject, { $top: 1000 });

@@ -1218,8 +1218,18 @@ export interface TreeViewSchema extends BaseSchema {
    *
    * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:105`
    * — `const rawNodes = boundData || schema.nodes || schema.data || []`.
+   *
+   * OPTIONAL since objectui#6939. It was REQUIRED, which refused four catalog
+   * entries the renderer draws correctly — a third-choice limb cannot be the
+   * one key a document must carry.
+   *
+   * ⚠️ Kept DECLARED rather than deleted, and the distinction is measured:
+   * {@link BaseSchema} already declares `data?: any` (its zod twin is
+   * `z.any().optional()`), so removing this member would NOT reject the key —
+   * it would admit it unvalidated while the renderer still reads it. Declaring
+   * it optional is the only shape in which `declared` and `enforced` agree.
    */
-  data: TreeNode[];
+  data?: TreeNode[];
   /**
    * Tree data — the spelling the renderer reads FIRST.
    *
@@ -1228,11 +1238,12 @@ export interface TreeViewSchema extends BaseSchema {
    * {@link TreeViewSchema.data} when both are authored (and a `bind`-resolved
    * value wins over both).
    *
-   * ⚠️ Declaring `nodes` does NOT by itself make `{ type: 'tree-view', nodes }`
-   * a legal document: {@link TreeViewSchema.data} stays REQUIRED on both faces,
-   * so the validator still demands `data`. Relaxing that is an accept-set
-   * change and a separate ruling — objectui#6150 declares the read, nothing
-   * more.
+   * Declared by objectui#6150, which deliberately stopped at the declaration:
+   * `{ type: 'tree-view', nodes }` only became a LEGAL document at
+   * objectui#6939, the accept-set change that relaxed
+   * {@link TreeViewSchema.data}. The registration's own `inputs` and
+   * `defaultProps` spell it `nodes`, and the four catalog entries ARE those
+   * `defaultProps`.
    */
   nodes?: TreeNode[];
   /**
@@ -1337,9 +1348,23 @@ export type ChartType = SpecChartType;
  */
 export interface ChartDataSeries {
   /**
-   * Series name
+   * Series name — also selects this series' column within each chart-level
+   * `data` row when {@link dataKey} is absent.
+   *
+   * ⚠️ OPTIONAL since objectui#6939 (maintainer ruling 2026-09-02, the `chart`
+   * row): `normalizeSeries` reads `str(raw.dataKey) ?? str(raw.name)`, so
+   * `dataKey` alone is a complete binding and the required flag refused a
+   * document the renderer draws. At least one of the two must still be present
+   * — a series that resolves to neither is dropped in silence by the
+   * normalizer, and the zod mirror refuses it by name.
    */
-  name: string;
+  name?: string;
+  /**
+   * Column this series plots within each chart-level `data` row — the internal
+   * spelling of {@link name}, and the one the renderer takes when both are
+   * written (`normalizeChartSchema.ts:239`).
+   */
+  dataKey?: string;
   /**
    * RETIRED (objectui#6896, ADR-0049 enforce-or-remove) — the inline-data model
    * this key belonged to was never implemented. `normalizeChartSchema`'s
@@ -1419,6 +1444,29 @@ export interface ChartSchema extends BaseSchema {
    * Data series
    */
   series: ChartDataSeries[];
+  /**
+   * Rows to plot — one object per row, keyed by column name. A series' `name`
+   * (or `dataKey`) picks the column to plot within each row, and
+   * {@link xAxisKey} names the category column.
+   *
+   * ⚠️ Declared by objectui#7113. This is the data model the renderer has always
+   * implemented and this interface never declared: rows reached
+   * `ChartRenderer.tsx:164` and were read back as columns at
+   * `AdvancedChartImpl.tsx:2229` while surviving here only on `BaseSchema`'s
+   * index signature. The `ChartDataSeries.data` tombstone above has been
+   * pointing authors at this key since objectui#6896.
+   */
+  data?: Array<Record<string, any>>;
+  /**
+   * Row key holding the category (x) axis.
+   *
+   * The bare-string sibling spelling `xAxis: 'month'` folds onto this key when
+   * the zod mirror parses, and does not survive the parse. The spec's `xAxis`
+   * CONFIG OBJECT is a different key and is not folded — its `field` also
+   * answers the column question, but its `format` / `title` / `showGridLines`
+   * are presentation the fold would discard.
+   */
+  xAxisKey?: string;
   /**
    * Chart height
    */

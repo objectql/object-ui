@@ -154,7 +154,7 @@ describe('referencing the spec NavigationItemSchema would reject metadata object
     ['defaultOpen', { id: 'grp', type: 'group', label: 'G', children: [], defaultOpen: true },
       'the legacy spelling this file keeps accepting for published metadata'],
     ['visible: boolean', { id: 'ai', type: 'url', label: 'AI', url: '/ai', visible: true },
-      'menuItemToNavigationItem MANUFACTURES one when it inverts MenuItem.hidden'],
+      'menuItemToNavigationItem MANUFACTURES one when it inverts AppMenuItem.hidden'],
     ['separator label', { type: 'separator', label: 'Section' },
       'menuItemToNavigationItem emits one; the spec separator declares only id/order'],
     ['single-character id', { id: 'a', type: 'url', label: 'A', url: '/a' },

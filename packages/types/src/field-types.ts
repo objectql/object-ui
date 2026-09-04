@@ -119,7 +119,7 @@ export interface BaseFieldMetadata {
   /**
    * Custom validation function or rules
    */
-  validate?: ValidationFunction | FieldConstraints;
+  validate?: FieldValidationFunction | FieldConstraints;
   
   /**
    * Field dependencies (Phase 3.2.3)
@@ -155,7 +155,7 @@ export type VisibilityCondition = {
 /**
  * Validation function type
  */
-export type ValidationFunction = (value: any) => boolean | string | Promise<boolean | string>;
+export type FieldValidationFunction = (value: any) => boolean | string | Promise<boolean | string>;
 
 /**
  * Validation rule type
@@ -167,7 +167,7 @@ export type FieldConstraints = {
   min?: number;
   max?: number;
   pattern?: string | RegExp;
-  custom?: ValidationFunction;
+  custom?: FieldValidationFunction;
 };
 
 /**
@@ -311,12 +311,24 @@ export interface TimeFieldMetadata extends BaseFieldMetadata {
   format?: string;
 }
 
+import type { SelectOptionBase } from './select-option.js';
+
 /**
- * Select option
+ * Select option — the OBJECT-METADATA face of the one select-option contract
+ * (objectui#7014). It extends {@link SelectOptionBase}, which derives the spec
+ * keys (`label`, `value`, `color`, `default`) from `@objectstack/spec/data` by
+ * reference and carries objectui's `visibleWhen` wire shape plus the two
+ * objectui-only keys `disabled` and `icon`. This face restates none of them; it
+ * adds exactly the one key below and keeps the spec's `value` — a lowercase
+ * machine identifier — as declared.
+ *
+ * This is the declared element type of a select field's and a lookup field's
+ * `options`, so it is the runtime READ model the renderers consume. It is WIDER
+ * than what may be authored: `description`, `disabled` and `icon` are each
+ * refused BY NAME by the spec's strict `SelectOptionSchema`, which a field's
+ * `options` are routed through.
  */
-export interface SelectOptionMetadata {
-  label: string;
-  value: string;
+export interface SelectOptionMetadata extends SelectOptionBase {
   /**
    * Optional secondary/help text for the option (objectui#6153, inheriting the
    * objectui#6140 ruling frame — a key that is genuinely consumed gets
@@ -337,19 +349,6 @@ export interface SelectOptionMetadata {
    * `__tests__/select-option-spec-extension-7014.test.ts` (objectui#7014).
    */
   description?: string;
-  color?: string;
-  icon?: string;
-  disabled?: boolean;
-  /**
-   * Per-option visibility predicate (CEL). The option is offered only when TRUE,
-   * evaluated against the live record + `current_user` (same env as field-level
-   * `visibleWhen`). Omit = always available. Drives cascading/dependent options
-   * (`record.country == 'cn'`) and role/context gating
-   * (`'admin' in current_user.positions`). Aligns with @objectstack/spec
-   * SelectOption.visibleWhen. Client-side hiding is UX only — access-control
-   * gating must also be enforced server-side.
-   */
-  visibleWhen?: string | { dialect?: string; source: string };
 }
 
 /**

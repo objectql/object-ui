@@ -136,7 +136,7 @@ const childObject = (relatedListFilter?: unknown) => ({
     status: { type: 'text', label: 'Status' },
     [PARENT]: {
       type: 'master_detail',
-      reference_to: PARENT,
+      reference: PARENT,
       label: 'Task Version',
       // Declared so the table renders real cells without a `getObjectSchema`
       // on the fake adapter — the rendered-row half of the parity assertion

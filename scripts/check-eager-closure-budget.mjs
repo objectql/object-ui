@@ -47,13 +47,17 @@
  * gate just read, not against a literal frozen next to them:
  *
  *   - It must PASS on today's `main`. A gate that lands red is a gate someone
- *     disables, and this one replaced a gate nobody could fail. Headroom above
- *     the current 3,254,004 bytes: 45,996 (1.41%).
+ *     disables, and this one replaced a gate nobody could fail. ⛔ No figure is
+ *     restated here: this bullet carried one and it went a whole re-baseline
+ *     stale (objectui#7518). The headroom the CONSTANTS carry is stated once,
+ *     on {@link MAX_EAGER_CLOSURE_GZIP_BYTES}; what the LIVE closure has left
+ *     is what `pnpm check:eager-closure` prints, and it is the smaller of the
+ *     two once the payload has drifted up from the baseline.
  *   - The headroom must stay SMALLER than the regression the gate exists to
- *     catch. objectui#5266 was 89 KiB = 91,136 bytes; 45,996 < 91,136, so this
- *     ceiling would have failed on that change. Widening the headroom past ~89
- *     KiB would leave the gate green through a repeat of its own motivating
- *     incident.
+ *     catch. objectui#5266 was 89 KiB = 91,136 bytes, and this ceiling is built
+ *     to carry half of that, so it would have failed on that change. Widening
+ *     the headroom past ~89 KiB would leave the gate green through a repeat of
+ *     its own motivating incident.
  *
  * Half the regression size, rather than the ~2% this line used to carry, is a
  * deliberate choice that only became necessary once the second constraint
@@ -252,7 +256,12 @@ import { isEntrypoint } from './invoked-as.mjs';
  *     0.85x the regression this gate must catch, the blind band reopening — and
  *     the 2026-08-30 ruling made moving it part of the same change.
  *
- * Headroom is 45,686 bytes — 0.50x {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}.
+ * Headroom above {@link BASELINE} is 45,686 bytes — 0.50x
+ * {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}. ⚠️ That is arithmetic on two
+ * constants in this file, so it stays true while they do — it is NOT what the
+ * closure has left today, which is smaller by every byte the payload has
+ * drifted up since the baseline below was taken. `pnpm check:eager-closure`
+ * prints the figure in force, and that is the one governing your build.
  */
 export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_268_000;
 
@@ -449,12 +458,15 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * line per named group; inventing one for it would be a number with no
  * incident behind it.
  *
- * ⭐ Read the new `i18n-locales` headroom for what it is. 8,924 bytes is about
- * sixty translation keys at the measured ~147 gzipped bytes a short key costs
- * across ten locales — enough for the five PRs this unparked, and then the
- * AGGREGATE line (11,988 bytes of headroom) becomes the binding one. That is the
- * correct place for the constraint to live, and it is the argument for taking
- * the catalogues out of the eager closure rather than for raising anything.
+ * ⭐ Read the new `i18n-locales` headroom for what it is. 8,924 bytes above the
+ * baseline it was measured from is about sixty translation keys at the measured
+ * ~147 gzipped bytes a short key costs across ten locales — enough for the five
+ * PRs this unparked, and then the AGGREGATE line becomes the binding one. ⛔ Its
+ * headroom is not restated here: the figure that was went stale inside a
+ * fortnight (objectui#7518), and `pnpm check:eager-closure` prints both lines in
+ * force on your own build. That the aggregate is the correct place for the
+ * constraint to live is the argument for taking the catalogues out of the eager
+ * closure rather than for raising anything.
  *
  * ## Raising one
  *
@@ -545,14 +557,17 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * All four sit inside one regression, which is the whole of what "in range"
  * means here — {@link evaluateHeadroomSensitivity} calls 1.00x an error. So the
  * relationship these ceilings have to the aggregate is no longer "we are the
- * half that still works". It is narrower, and still worth having: they are the
- * TIGHTER half — 0.21x, 0.08x, 0.04x against the aggregate's 0.47x — so growth
- * in these three chunks reds the gate well before the aggregate would, and they
- * say WHERE, which one total never can.
+ * half that still works". It is narrower, and still worth having: WHICH line is
+ * tightest moves with every build and is not restated here — the ranking this
+ * sentence used to assert had inverted by the time anyone re-read it
+ * (objectui#7518) — and whichever it is, these say WHERE, which one total
+ * never can.
  *
  * ⛔ Do not size a re-baseline off the figures above. They are ONE dated run,
- * recorded so this paragraph rests on a measurement instead of an argument; the
- * answer in force is the table the gate prints on YOUR build. That this prose
+ * taken before objectui#7399 re-attributed `framework`, so its `framework` row
+ * weighs locale catalogues that line no longer holds. They are recorded so this
+ * paragraph rests on a measurement instead of an argument; the answer in force
+ * is the table the gate prints on YOUR build. That this prose
  * went three re-baselines stale while the numbers beside it could not
  * (objectui#6778) is the reason to distrust the prose first.
  *
@@ -1242,9 +1257,10 @@ export function extractCeilingDeclarations(source, names = VERDICT_CEILING_CONST
  * {@link MAX_EAGER_CLOSURE_GZIP_BYTES} from 4,086,000 to 3,345,000 on `main`,
  * and published `BUDGET_CLOSURE_BUDGET_KB: 3990.2` — 4,086,000 bytes, the
  * retired ceiling — with `conclusion: success`. It did not bite: the payload was
- * 3222.6 KB, under both numbers. With the aggregate headroom now 44.0 KB against
- * an 89.0 KB regression class, the next one has half a regression of room to
- * hide in.
+ * 3222.6 KB, under both numbers. What bounds how much the NEXT one could hide is
+ * the aggregate headroom in force, which `pnpm check:eager-closure` prints and
+ * this comment deliberately does not restate: the figure that stood here was two
+ * re-baselines out of date (objectui#7518).
  *
  * ## Why THREE readings and not two
  *

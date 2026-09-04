@@ -199,6 +199,72 @@
  *               or is not installed at all (a specifier that resolves nowhere
  *               proves nothing about how far resolution reaches).
  *
+ *   ROOT-       a synthetic module importing `vitest` MUST produce TS2307.
+ *   DECLARED    `vitest` is declared by this repository's ROOT `package.json`,
+ *               which pnpm symlinks into `/node_modules`, so it USED to resolve
+ *               here and now must not — it is the control on the bound stated
+ *               in the next section. Its three failure modes are the UNDECLARED
+ *               control's, for the same reasons: the specifier becoming mapped
+ *               (pick another), the specifier no longer being declared by the
+ *               root (it then proves nothing about the root's set), and the
+ *               specifier not being installed (a specifier that resolves
+ *               nowhere anyway proves nothing about how far resolution reaches).
+ *
+ * ## The bound: what the repository ROOT declares does not resolve either
+ *
+ * The rule in the next section maps what the IMPORTED PACKAGES declare. Nothing
+ * in it says anything about the repository's own `package.json` — and under pnpm
+ * the root's own dependency set IS symlinked into `/node_modules`, one directory
+ * above where every block is compiled. So a bare specifier that neither map
+ * covers still resolved, as long as this repository happened to declare it as a
+ * devDependency: measured, `vitest` and `@playwright/test`. A snippet importing
+ * one was green because of what THIS WORKSPACE installs to test itself, which is
+ * not a claim about anything its reader installs. The UNDECLARED control does
+ * not reach this: it bounds TRANSITIVE packages (which pnpm leaves only under
+ * `.pnpm/`, unreachable from here), a different leak.
+ *
+ *     A bare specifier that resolves ONLY through the repository root's own
+ *     manifest is REFUSED, in this harness, for every consumer of it.
+ *
+ * Ruled by the maintainer on 2026-09-03 (objectstack#14909 item 1, option A;
+ * objectui#7463 item 2) after the objectui#7490 flight measured both halves. ⛔
+ * What it is deliberately NOT: a parameter defaulting to off. Two resolution
+ * regimes behind one function would answer "did resolution stay narrow?" with
+ * "depends who is asking", which is the consumer-side tolerance this whole file
+ * is built against. There is one regime, and the control above proves it is on.
+ *
+ * ONE predicate (`resolvesOnlyThroughRootManifest`), enforced at two points
+ * because a bound needs to be both TOTAL and ATTRIBUTABLE:
+ *
+ *   - **In the resolver** (`host.resolveModuleNames`, for files inside the
+ *     virtual probe directory only — the bound is about what a SNIPPET may
+ *     import, never about how a `.d.ts` deep in `node_modules` resolves its own
+ *     imports). This is the regime, and the ROOT-DECLARED control is exactly the
+ *     probe that it is live.
+ *   - **Per block** (from the parsed AST, never a regex — the corpus is prose,
+ *     and a specifier-shaped string in a template literal is not an import). A
+ *     block importing such a specifier is kept OUT of the semantic program and
+ *     reported as its own failure class, the way an unparseable block is: its
+ *     other diagnostics would be noise cascading off an import that resolves
+ *     nowhere, and the summary's coverage count then tells the truth about what
+ *     was judged instead of counting it as checked.
+ *
+ * The manifest, not the disk, decides — the same direction as "declared, never
+ * merely installed" below. A specifier the root declares AND a mapped package
+ * declares is mapped, and stays resolvable: it reaches the reader through the
+ * package they install, so the root's copy is not what backs it.
+ *
+ * ONE exemption, and it is about authorship rather than about resolution: the
+ * JSX factory module (`react/jsx-runtime`). It is the only module the compiler
+ * imports on the author's behalf — see `JSX_RUNTIME_SPECIFIERS` for the measured
+ * reason, which is that refusing it would red blocks over a line nobody wrote,
+ * unevenly between the two corpora.
+ *
+ * ⛔ What this rule exists INSTEAD of, again: adding `@playwright/test` to some
+ * package's `dependencies` so the map covers it. See the 2026-08-24 ruling
+ * quoted at the end of the next section — a manifest is a claim about what a
+ * package needs, and a doc gate's convenience is not that claim.
+ *
  * ## Third-party specifiers resolve exactly as far as the imported packages declare
  *
  * A snippet that imports `@object-ui/layout` may also import `lucide-react`,
@@ -913,19 +979,150 @@ export function findInstalledCopy(root = repoRoot, specifier = '') {
   return null;
 }
 
-/** Workspace package specifiers a document imports (bare specifier root only). */
-function importedSpecifiers(body) {
+/**
+ * The bare-specifier ROOT: `lucide-react/dynamic` -> `lucide-react`, and a
+ * scoped `@playwright/test/foo` -> `@playwright/test`. Package manifests and
+ * `node_modules` are both keyed on this, so every question about "what does the
+ * root declare" and "what does the map cover" is asked about it.
+ */
+export function specifierRoot(specifier) {
+  return specifier.startsWith('@')
+    ? specifier.split('/').slice(0, 2).join('/')
+    : specifier.split('/')[0];
+}
+
+/**
+ * Every specifier the repository ROOT's own manifest declares — `dependencies`
+ * and `devDependencies` together.
+ *
+ * Both, deliberately, though this repository's root declares only the second
+ * today: the bound is "what makes it into the root's `/node_modules`", and pnpm
+ * links both fields there. Reading only the field that happens to be populated
+ * would leave a rule that silently reopens the day someone adds the other one.
+ */
+export function rootDeclaredSpecifiers(root = repoRoot) {
+  const manifestPath = join(root, 'package.json');
+  if (!existsSync(manifestPath)) return new Set();
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  return new Set([
+    ...Object.keys(manifest.dependencies || {}),
+    ...Object.keys(manifest.devDependencies || {}),
+  ]);
+}
+
+/**
+ * The JSX factory modules, which the bound never refuses.
+ *
+ * They are the ONE module the compiler imports on the author's behalf: every
+ * block is compiled with `jsx: ReactJSX`, so a block containing a single JSX tag
+ * needs `react/jsx-runtime` whether or not its author wrote an import at all.
+ * Refusing it would red a block for a line nobody wrote and no reader could fix,
+ * and it would do so unevenly — measured: `react` is mapped in the docs corpus
+ * only because `@object-ui/layout` happens to declare it as a real dependency,
+ * while the skills corpus imports no package that does, so the same JSX tag is
+ * bounded in one gate and not in the other. The bound is a rule about what an
+ * AUTHOR may import; whether the compiler can find its own JSX factory is a
+ * different question, and TS2875 already answers it loudly.
+ *
+ * Exempted at BOTH enforcement points, so the block-level check and the resolver
+ * cannot disagree about one specifier.
+ */
+const JSX_RUNTIME_SPECIFIERS = new Set(['react/jsx-runtime', 'react/jsx-dev-runtime']);
+
+/**
+ * THE BOUND, as one predicate (see the header section that names it): a bare
+ * specifier that nothing in the `paths` map covers and that the repository ROOT
+ * declares reaches a snippet ONLY through this workspace's own installation, so
+ * it is refused.
+ *
+ * Relative and absolute specifiers are never bounded, and neither is one the map
+ * covers — a specifier both the root and a mapped package declare reaches the
+ * reader through the package they install, so the root's copy is not what backs
+ * it and mapping wins.
+ */
+export function resolvesOnlyThroughRootManifest(specifier, { paths = {}, rootDeclared = new Set() } = {}) {
+  if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) return false;
+  if (JSX_RUNTIME_SPECIFIERS.has(specifier)) return false;
+  if (specifier in paths) return false;
+  const bare = specifierRoot(specifier);
+  if (bare in paths) return false;
+  return rootDeclared.has(bare);
+}
+
+/**
+ * Every module specifier one parsed block imports, from the AST rather than from
+ * a regex over the text.
+ *
+ * Parsing, never a regex, for the reason the corpus keeps proving: an
+ * import-shaped line inside a template literal or a prose sample is not an
+ * import, and a regex over 456 blocks finds those too (measured while this bound
+ * was being derived: a `npm install project-name` line inside a README example's
+ * template literal read as an import of `project-name`). A false refusal would
+ * red a document that is correct, which is the failure this whole file is most
+ * careful about.
+ */
+export function moduleSpecifiersOf(sourceFile) {
   const out = new Set();
-  const patterns = [
-    /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g,
-    /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(body)) !== null) out.add(m[1]);
-  }
-  return out;
+  const visit = (node) => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      out.add(node.moduleSpecifier.text);
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      out.add(node.moduleReference.expression.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length > 0 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      out.add(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return [...out];
+}
+
+/**
+ * Every module specifier ONE BLOCK BODY imports — the parse and the walk
+ * together, so that BOTH gates read imports through this one function and
+ * cannot answer the question differently.
+ *
+ * ⚠️ It replaces two copies of a regex reader, one per gate, and both were
+ * wrong the same way: prose is part of the corpus, so an import-shaped line
+ * inside a template literal or a string was read as an import. Measured on
+ * this corpus (objectui#7555): `content/docs/plugins/plugin-markdown.mdx`
+ * carries a README sample whose template literal holds `npm install
+ * project-name`, and the regex reported `project-name` as a specifier that
+ * block imports. Nothing in that block imports anything. Both consumers
+ * survived it by luck rather than by construction — a false name matters to
+ * `neededPackages` only if it happens to equal a workspace package, and it
+ * reaches the skills gate's `Unmapped specifiers` line, which since
+ * objectui#7463 item 2 is the REPORT of what the AST-derived root bound
+ * refuses, so a regex-derived line and an AST-derived refusal could disagree.
+ *
+ * ⚠️ Parsed as TSX, matching `compileSnippets` — a reader walking a different
+ * tree from the one `tsc` judges would answer about a program nobody compiled.
+ * `createSourceFile` never throws, so a block too broken to parse yields no
+ * specifiers here and is caught by the syntax leg instead.
+ */
+export function moduleSpecifiersOfBlock(body) {
+  return moduleSpecifiersOf(
+    ts.createSourceFile(
+      'block.tsx',
+      body,
+      ts.ScriptTarget.ES2020,
+      /* setParentNodes */ true,
+      ts.ScriptKind.TSX,
+    ),
+  );
 }
 
 // ── The run ──────────────────────────────────────────────────────────────────
@@ -950,6 +1147,18 @@ const CONTROL_REAL_EXPORT = 'BaseSchema';
  * and "we hope the rule is narrow".
  */
 const UNDECLARED_CONTROL_PACKAGE = '@floating-ui/react-dom';
+
+/**
+ * The ROOT-DECLARED control's specifier (see the header). The same three
+ * properties are asserted at run time rather than trusted: this repository's
+ * ROOT `package.json` declares it (so pnpm symlinks it into `/node_modules` and
+ * it is exactly the reach the bound closes), no `paths` entry covers it (a
+ * mapped specifier resolves through the map and would prove nothing about the
+ * root), and it is installed and ships real `.d.ts` files — so if the bound ever
+ * stopped being applied, the control module would compile CLEANLY rather than
+ * fail for some unrelated reason.
+ */
+const ROOT_DECLARED_CONTROL_PACKAGE = 'vitest';
 
 const COMPILER_OPTIONS = {
   target: ts.ScriptTarget.ES2020,
@@ -1030,7 +1239,7 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
   const { paths, packageDirOf, sourceTyped } = derivePackageTypePaths(root);
   const neededPackages = new Set();
   for (const block of compiled) {
-    for (const specifier of importedSpecifiers(block.body)) {
+    for (const specifier of moduleSpecifiersOfBlock(block.body)) {
       const owner = Object.keys(packageDirOf).find(
         (name) => specifier === name || specifier.startsWith(`${name}/`),
       );
@@ -1087,6 +1296,13 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
 /** Phase 1 (syntax) and phase 2 (semantics), kept apart on purpose. */
 export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpecifiers = [] }) {
   const parseFailures = [];
+  // THE BOUND (see the header): blocks importing a specifier that reaches them
+  // only through the repository root's own manifest. Kept out of the semantic
+  // program the way an unparseable block is, so the coverage count stays honest.
+  const boundFailures = [];
+  const boundedSpecifiers = new Set();
+  const rootDeclared = rootDeclaredSpecifiers(root);
+  const bounded = (specifier) => resolvesOnlyThroughRootManifest(specifier, { paths, rootDeclared });
   const virtual = new Map();
   const owners = new Map();
   compiled.forEach((block, index) => {
@@ -1100,6 +1316,12 @@ export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpec
     const probe = ts.createSourceFile('probe.tsx', block.body, ts.ScriptTarget.ES2020, true, ts.ScriptKind.TSX);
     if (probe.parseDiagnostics && probe.parseDiagnostics.length > 0) {
       parseFailures.push({ block, diagnostics: probe.parseDiagnostics });
+      return;
+    }
+    const refused = moduleSpecifiersOf(probe).filter(bounded).sort();
+    if (refused.length > 0) {
+      for (const specifier of refused) boundedSpecifiers.add(specifierRoot(specifier));
+      boundFailures.push({ block, specifiers: refused });
       return;
     }
     const name = join(root, VIRTUAL_DIR, `s${String(index).padStart(4, '0')}.tsx`);
@@ -1129,6 +1351,13 @@ export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpec
     undeclaredFile,
     `import * as undeclared from '${UNDECLARED_CONTROL_PACKAGE}';\nexport type Undeclared = typeof undeclared;\n`,
   );
+  // The bound's own control, read the same way as UNDECLARED's: a namespace
+  // import, so ANY successful resolution reports zero diagnostics.
+  const rootDeclaredFile = join(root, VIRTUAL_DIR, '__control_root_declared.ts');
+  virtual.set(
+    rootDeclaredFile,
+    `import * as rootDeclared from '${ROOT_DECLARED_CONTROL_PACKAGE}';\nexport type RootDeclared = typeof rootDeclared;\n`,
+  );
 
   const options = { ...COMPILER_OPTIONS, baseUrl: root, paths, types: [] };
   const host = ts.createCompilerHost(options, true);
@@ -1141,6 +1370,33 @@ export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpec
     virtual.has(f)
       ? ts.createSourceFile(f, virtual.get(f), languageVersion, true, f.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
       : getSourceFile(f, languageVersion, onError, shouldCreate);
+
+  // THE BOUND, at the resolver. Scoped to the virtual probe directory: the rule
+  // is about what a SNIPPET may import, and a `.d.ts` inside `node_modules`
+  // resolving its own imports is not a snippet. Without that scoping the bound
+  // would reach into unrelated type graphs and red documents for a reason that
+  // has nothing to do with them.
+  const probeDir = join(root, VIRTUAL_DIR);
+  const resolutionCache = new Map();
+  host.resolveModuleNames = (moduleNames, containingFile, _reused, _redirected, compilerOptions) =>
+    moduleNames.map((name) => {
+      const key = `${containingFile}|${name}`;
+      if (resolutionCache.has(key)) return resolutionCache.get(key);
+      const resolved = ts.resolveModuleName(
+        name,
+        containingFile,
+        compilerOptions ?? options,
+        host,
+      ).resolvedModule;
+      const inProbeDir = dirname(containingFile) === probeDir;
+      // ⚠️ Deliberately NOT added to `boundedSpecifiers`: that set reports what
+      // the bound refused THE CORPUS, and the only file that reaches this arm is
+      // the ROOT-DECLARED control, which has its own line. Counting the control
+      // there would make every run read as though a document had imported it.
+      const answer = resolved && inProbeDir && bounded(name) ? undefined : resolved;
+      resolutionCache.set(key, answer);
+      return answer;
+    });
 
   const program = ts.createProgram([...virtual.keys()], options, host);
 
@@ -1162,9 +1418,12 @@ export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpec
   const sentinelDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(sentinelFile))];
   const positiveDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(positiveFile))];
   const undeclaredDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(undeclaredFile))];
+  const rootDeclaredDiagnostics = [...program.getSemanticDiagnostics(program.getSourceFile(rootDeclaredFile))];
 
   return {
     parseFailures,
+    boundFailures,
+    boundedSpecifiers: [...boundedSpecifiers].sort(),
     semanticFailures,
     semanticallyJudged: owners.size,
     resolvedFileName,
@@ -1174,6 +1433,11 @@ export function compileSnippets({ root = repoRoot, compiled, paths, declaredSpec
     undeclaredDiagnostics,
     undeclaredDeclared: declaredSpecifiers.includes(UNDECLARED_CONTROL_PACKAGE),
     undeclaredInstalledAt: findInstalledCopy(root, UNDECLARED_CONTROL_PACKAGE),
+    rootDeclaredDiagnostics,
+    rootDeclaredControl: ROOT_DECLARED_CONTROL_PACKAGE,
+    rootDeclaredByRoot: rootDeclared.has(ROOT_DECLARED_CONTROL_PACKAGE),
+    rootDeclaredMapped: ROOT_DECLARED_CONTROL_PACKAGE in paths,
+    rootDeclaredInstalledAt: findInstalledCopy(root, ROOT_DECLARED_CONTROL_PACKAGE),
   };
 }
 
@@ -1368,6 +1632,27 @@ function main() {
       `a specifier NO imported package declares now resolves — third-party resolution has widened past the imported packages' own dependencies, so a snippet may import what no reader of these packages can get, and every document would stay green while it does`,
     );
   }
+  const rootDeclaredCodes = run.rootDeclaredDiagnostics.map((d) => d.code);
+  console.log(
+    `  root-declared importing '${run.rootDeclaredControl}' (declared by this repository's ROOT package.json, installed at ${run.rootDeclaredInstalledAt ?? '(NOT INSTALLED)'}, covered by no paths entry) produced ${run.rootDeclaredDiagnostics.length} diagnostic(s)${rootDeclaredCodes.length ? ` (TS${rootDeclaredCodes.join(', TS')})` : ''}`,
+  );
+  if (run.rootDeclaredMapped) {
+    controlFailures.push(
+      `'${run.rootDeclaredControl}' is now covered by the paths map, so it resolves through the map and can no longer show that the ROOT's own manifest is bounded — pick a control specifier the root declares and the map does not cover`,
+    );
+  } else if (!run.rootDeclaredByRoot) {
+    controlFailures.push(
+      `'${run.rootDeclaredControl}' is no longer declared by the repository ROOT's package.json, so its failure to resolve says nothing about the root's set — pick a specifier the root declares`,
+    );
+  } else if (!run.rootDeclaredInstalledAt) {
+    controlFailures.push(
+      `'${run.rootDeclaredControl}' is not installed in this workspace, so its failure to resolve proves nothing about how far resolution reaches — pick an installed specifier the root declares`,
+    );
+  } else if (!rootDeclaredCodes.includes(2307)) {
+    controlFailures.push(
+      `a specifier only the repository ROOT declares still resolves — the bound is not being applied, so a snippet may import what this workspace installs to test itself and no reader of the documented packages is told to install, and every document would stay green while it does`,
+    );
+  }
   console.log('');
 
   const total = state.compiled.length + state.declaredFragments.length;
@@ -1377,6 +1662,15 @@ function main() {
   }
   for (const { block, diagnostics } of run.semanticFailures) {
     for (const d of diagnostics) console.error(`  [semantic]  ${formatDiagnostic(d, block)}`);
+  }
+  for (const { block, specifiers } of run.boundFailures) {
+    console.error(
+      `  [bound]     ${block.doc}:${block.fenceLine}  imports ${specifiers.map((s) => `'${s}'`).join(', ')}, which ` +
+        "resolve only through this repository's ROOT package.json — this workspace's own devDependency " +
+        'set, not anything a reader of the documented packages installs. Import what an imported ' +
+        'package DECLARES, or declare the block a fragment with a reason naming what the reader must ' +
+        `install:\n                ${FRAGMENT_MARKER_EXAMPLES[0]}`,
+    );
   }
 
   // ── the summary always states semantic COVERAGE, never just a verdict ─────
@@ -1397,11 +1691,16 @@ function main() {
       : `Syntax phase:   ${parseFailedBlocks} block(s) failed to parse and were NOT semantically checked.`,
   );
   console.log(
+    run.boundFailures.length === 0
+      ? "Root bound:     no block imports a specifier that resolves only through this repository's ROOT manifest."
+      : `Root bound:     ${run.boundFailures.length} block(s) import a specifier that resolves only through the ROOT manifest (${run.boundedSpecifiers.join(', ')}) and were NOT semantically checked.`,
+  );
+  console.log(
     `Semantic phase: ${run.semanticallyJudged} of ${state.compiled.length} block(s) judged, ${run.semanticFailures.length} failed.`,
   );
-  if (parseFailedBlocks > 0) {
+  if (parseFailedBlocks > 0 || run.boundFailures.length > 0) {
     console.log(
-      `NOTE: this run's semantic result covers ${run.semanticallyJudged} block(s) only. A syntax failure is not a semantic pass.`,
+      `NOTE: this run's semantic result covers ${run.semanticallyJudged} block(s) only. A syntax failure, and a block the root bound refused, are neither of them a semantic pass.`,
     );
   }
 
@@ -1409,6 +1708,7 @@ function main() {
     controlFailures.length > 0 ||
     state.findings.length > 0 ||
     parseFailedBlocks > 0 ||
+    run.boundFailures.length > 0 ||
     run.semanticFailures.length > 0;
 
   if (controlFailures.length > 0) {
@@ -1433,4 +1733,11 @@ if (isEntrypoint(import.meta.url)) {
   process.exit(main());
 }
 
-export { UNGATED_DOCS, TS_FENCE_LANGUAGES, FRAGMENT_MARKER, UNDECLARED_CONTROL_PACKAGE, main };
+export {
+  UNGATED_DOCS,
+  TS_FENCE_LANGUAGES,
+  FRAGMENT_MARKER,
+  UNDECLARED_CONTROL_PACKAGE,
+  ROOT_DECLARED_CONTROL_PACKAGE,
+  main,
+};

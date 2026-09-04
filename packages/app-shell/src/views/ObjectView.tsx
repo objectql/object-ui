@@ -2265,6 +2265,28 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             allowExport: viewDef.allowExport ?? listSchema.allowExport,
             exportOptions: viewDef.allowExport === false ? undefined : (viewDef.exportOptions ?? listSchema.exportOptions),
             color: viewDef.color ?? listSchema.color,
+            /**
+             * The spec-canonical row-colour CONFIGURATION the author put on
+             * THIS view (objectui#7218) — `ListView` seeds `rowColorConfig`
+             * from it and colours whole rows from the named field's value.
+             *
+             * It was the one key of this relay's set with no rung, so
+             * `schema.rowColor` at the `ListView` end could only ever be what
+             * the host put on the list schema, and a per-view colour was
+             * unreachable — authored, validated, built and served, then
+             * silently dropped here. Same two-rung shape as `description`
+             * above, and the same shape the interface route has shipped all
+             * along (`InterfaceListPage.tsx`, `rowColor: view.rowColor`).
+             *
+             * The bare `color` above is the LEGACY shorthand for this same
+             * feature and already had a rung; this adds the canonical one.
+             *
+             * NOT `userActions.rowColor`, relayed above through the toolbar
+             * fold — that is a boolean permission toggle sharing this name at
+             * a different nesting level ('may the user open the colour panel'
+             * versus 'what the colours are').
+             */
+            rowColor: viewDef.rowColor ?? listSchema.rowColor,
             // Propagate view-config properties (Bug 4 / items 14-22)
             wrapHeaders: viewDef.wrapHeaders ?? listSchema.wrapHeaders,
             clickIntoRecordDetails: viewDef.clickIntoRecordDetails ?? listSchema.clickIntoRecordDetails,

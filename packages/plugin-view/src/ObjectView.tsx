@@ -1785,6 +1785,20 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           allowExport: activeView?.allowExport ?? (schema as any).allowExport,
           // Propagate display properties
           color: activeView?.color ?? (schema as any).color,
+          // The spec-canonical row-colour CONFIGURATION (objectui#7218).
+          // `ListView` seeds its `rowColorConfig` state from this key; the
+          // bare `color` above is the legacy shorthand for the same feature
+          // and was already relayed, so only the canonical spelling was
+          // missing. Copied from the interface route, which has shipped
+          // `rowColor: view.rowColor` next to `grouping`/`pagination` since
+          // ADR-0047 (`app-shell/src/views/InterfaceListPage.tsx`).
+          //
+          // View-sourced ONLY, deliberately: no fallback to the same key on
+          // the object-view node. Such a cast read would add a 28th name to
+          // the objectui#5097 HOST-COMPOSITION exemption the 2026-08-18
+          // ruling fixed at 27, which is a ruling and not a refactor.
+          // `grouping` above is the precedent for a view-only rung here.
+          rowColor: activeView?.rowColor,
           // Propagate view-config properties (Bug 4 / items 14-22)
           inlineEdit: activeView?.inlineEdit ?? (schema as any).inlineEdit,
           wrapHeaders: activeView?.wrapHeaders ?? (schema as any).wrapHeaders,

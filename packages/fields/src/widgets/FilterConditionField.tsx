@@ -108,7 +108,14 @@ function deriveFilterFields(schema: any): FilterFieldDef[] {
               : { value: String(o?.value), label: String(o?.label ?? o?.value) },
           )
         : undefined,
-      referenceTo: f.reference_to || f.reference,
+      // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+      // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+      // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+      // contract declares, and renaming it would be a separate change.
+      // Source here is `dataSource.getObjectSchema(objectName)` — an object
+      // schema, i.e. the protocol. Target contract: the local `FilterFieldDef`,
+      // which spells it camelCase `referenceTo`.
+      referenceTo: f.reference,
     });
   }
   return out;

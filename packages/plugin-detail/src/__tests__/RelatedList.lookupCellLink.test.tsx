@@ -47,8 +47,8 @@ vi.mock('@object-ui/react', async (importOriginal) => {
 const historySchema = {
   name: 'mtc_history',
   fields: {
-    equipment_id: { type: 'lookup', label: '设备', reference_to: 'mtc_equipment' },
-    work_order_id: { type: 'lookup', label: '来源维保派工单', reference_to: 'mtc_work_order' },
+    equipment_id: { type: 'lookup', label: '设备', reference: 'mtc_equipment' },
+    work_order_id: { type: 'lookup', label: '来源维保派工单', reference: 'mtc_work_order' },
   },
 };
 

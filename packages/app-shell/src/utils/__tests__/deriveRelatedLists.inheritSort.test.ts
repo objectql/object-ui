@@ -57,7 +57,7 @@ const childWithList = (list: unknown) => ({
   ...(list === undefined ? {} : { list }),
   fields: {
     seq_no: { type: 'number', label: 'Seq No' },
-    task_version: { type: 'master_detail', reference_to: 'task_version', label: 'Task Version' },
+    task_version: { type: 'master_detail', reference: 'task_version', label: 'Task Version' },
   },
 });
 
@@ -139,8 +139,8 @@ describe('deriveRelatedLists — inherited default list-view sort (objectui#5795
       list: { sort: [{ field: 'seq_no', order: 'asc' }] },
       fields: {
         seq_no: { type: 'number', label: 'Seq No' },
-        owner_version: { type: 'master_detail', reference_to: 'task_version', label: 'Owner' },
-        review_version: { type: 'lookup', reference_to: 'task_version', label: 'Reviewer' },
+        owner_version: { type: 'master_detail', reference: 'task_version', label: 'Owner' },
+        review_version: { type: 'lookup', reference: 'task_version', label: 'Reviewer' },
       },
     };
     const entries = deriveRelatedLists(PARENT, [PARENT, child as any]);
@@ -156,7 +156,7 @@ describe('deriveRelatedLists — inherited default list-view sort (objectui#5795
       name: 'attachment_note',
       label: 'Note',
       fields: {
-        task_version: { type: 'lookup', reference_to: 'task_version', label: 'Task Version' },
+        task_version: { type: 'lookup', reference: 'task_version', label: 'Task Version' },
       },
     };
     const entries = deriveRelatedLists(PARENT, [PARENT, sorted as any, unsorted as any]);

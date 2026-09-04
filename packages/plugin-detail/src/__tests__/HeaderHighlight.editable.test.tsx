@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { InlineEditProvider, useInlineEdit } from '@object-ui/react';
+import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { HeaderHighlight } from '../HeaderHighlight';
 
 // Probe the LookupField editor so the reference-key tests can assert which
@@ -113,9 +114,23 @@ describe('HeaderHighlight — editable highlights (P2)', () => {
 /**
  * objectui#2407 P2 follow-up — backend object schemas use the
  * ObjectStack-convention `reference` key (e.g. showcase_project.account has
- * `"reference": "showcase_account"`), not `reference_to`. The strip must
- * normalize both (like DetailSection) or the lookup editor gets no target
- * object: it can neither hydrate the current value nor search candidates.
+ * `"reference": "showcase_account"`), not `reference_to`. The strip must read
+ * it (like DetailSection) or the lookup editor gets no target object: it can
+ * neither hydrate the current value nor search candidates.
+ *
+ * ⭐ objectui#6837 half 2 narrowed the READ to that one key. `reference` is the
+ * only target spelling `@objectstack/spec`'s `FieldSchema` declares; it refuses
+ * `reference_to` by name with its own "did you mean -> `reference`?" rename.
+ * Maintainer 2026-08-31: protocol normalization belongs on the SERVER, the
+ * front end just executes the protocol (objectstack#13847 landed the server
+ * half). The `reference_to` case below therefore asserts a REFUSAL now, and is
+ * bounded by the choke-point control beside it.
+ *
+ * ⚠️ What did NOT change is the key the strip WRITES. `enrichDetailField`
+ * still stamps `reference_to` onto the enriched field, because that is the key
+ * `FieldMetadata` / `DetailViewField` — ObjectUI's OWN contracts — declare, and
+ * it is what `LookupField` reads. Both halves are asserted below: the read
+ * takes `reference`, the write emits `reference_to`.
  */
 describe('HeaderHighlight — lookup highlight reference-key normalization', () => {
   const lookupFields = [{ name: 'account', label: 'Account' }] as any;
@@ -157,8 +172,22 @@ describe('HeaderHighlight — lookup highlight reference-key normalization', () 
     expect(editor.getAttribute('data-reference-field')).toBe('name');
   });
 
-  it('still honors the `reference_to` key', () => {
+  it('does NOT read `reference_to` off the object schema any more (objectui#6837 half 2)', () => {
+    // This assertion is the inverse of what it was before half 2. It is a
+    // REFUSAL, and the test above is its non-vacuous control: a strip that had
+    // stopped resolving anything would satisfy this one too.
     const editor = renderStrip({ type: 'lookup', reference_to: 'showcase_account' });
+    expect(editor.getAttribute('data-reference-to')).toBe('');
+  });
+
+  it('a `reference_to`-only def that came through the ingestion choke point STILL resolves', () => {
+    // What bounds the break: `normalizeSchemaReferenceKeys` stamps `reference`
+    // from whichever spelling arrived, so any def that entered through
+    // `MetadataProvider` or `ObjectStackAdapter.getObjectSchema` is unaffected.
+    // Only a def that bypassed that door reaches this reader raw.
+    const def = { type: 'lookup', reference_to: 'showcase_account' };
+    normalizeSchemaReferenceKeys({ fields: { account: def } });
+    const editor = renderStrip(def);
     expect(editor.getAttribute('data-reference-to')).toBe('showcase_account');
   });
 });

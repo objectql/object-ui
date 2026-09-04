@@ -128,7 +128,10 @@ const es = {
     // there are two conditions: a reported `total` states the fact with BOTH
     // numbers, a missing one cannot name how many. Same split as
     // `grid.grouping.partialNotice`. Kept terse deliberately — this copy is
-    // eagerly loaded, and the per-chunk gzip budget has ~1 KB of headroom.
+    // eagerly loaded, and since objectui#7399 these bytes are budgeted by the
+    // `i18n-locales` chunk, not `framework` — a ceiling set 8,924 B above the
+    // baseline it was measured from, about sixty short keys' worth across ten
+    // locales. `pnpm check:eager-closure` prints the figure in force.
     rowCeilingNote: "Mostrando los primeros {{shown}} de {{total}} registros. Acota el filtro.",
     rowCeilingNoteUnknownTotal: "Mostrando los primeros {{shown}} registros. Acota el filtro.",
   },
@@ -1099,13 +1102,14 @@ const es = {
     scatterOneMeasure: "Un gráfico de dispersión traza una sola medida. Conserve una sola serie:",
   },
   dashboard: {
-    noRows: "Sin filas",
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
-    // when its query SUCCEEDED and returned nothing. `noRows` above is the
-    // terse fragment it replaces at the render site; the copy here has to
-    // read as a state rather than a failure, which is why it says the widget
-    // loaded. `sourceLabel` carries its own punctuation so the call site
-    // concatenates no separator (see `WidgetEmptyState`).
+    // when its query SUCCEEDED and returned nothing. It replaced the terse
+    // per-widget `noRows` / `noDataAvailable` fragments at the render site;
+    // objectui#7125 deleted those two keys from all ten packs once nothing
+    // read them. The copy here has to read as a state rather than a failure,
+    // which is why it says the widget loaded. `sourceLabel` carries its own
+    // punctuation so the call site concatenates no separator (see
+    // `WidgetEmptyState`).
     empty: {
       title: "Aún no hay datos",
       message: "Este widget se cargó correctamente, pero la consulta todavía no ha devuelto ningún registro.",
@@ -1146,7 +1150,6 @@ const es = {
     saveLayout: "Guardar diseño",
     resetLayout: "Restablecer diseño",
     total: "Total",
-    noDataAvailable: "Sin datos disponibles",
     noDataSourceFor: "Sin fuente de datos para",
     config: {
       breadcrumb: {

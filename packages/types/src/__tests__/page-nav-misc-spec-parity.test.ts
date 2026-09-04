@@ -240,7 +240,7 @@ describe('NavigationArea derives from the spec', () => {
     // whether an objectui area's items still carry semantics the spec's type
     // rejects. `visible: boolean` is the sharpest of the three blockers
     // (`menuItemToNavigationItem` MANUFACTURES one from legacy
-    // `MenuItem.hidden`), and it is the one that fails first if someone tries
+    // `AppMenuItem.hidden`), and it is the one that fails first if someone tries
     // to inherit `navigation`. The umbrella verdict and the other two blockers
     // are pinned per-key in `spec-derived-unions.test.ts`; when they lift,
     // that file fails and sends the reader back here.

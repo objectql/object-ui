@@ -615,9 +615,12 @@ export function deriveFieldGroupDetailSections(
       label: f.label || name,
       type: f.type || 'text',
       ...(f.options ? { options: f.options } : {}),
-      ...((f as any).reference_to || (f as any).reference
-        ? { reference_to: (f as any).reference_to || (f as any).reference }
-        : {}),
+      // ⚠️ objectui#6837 half 2: the READ narrows to `reference` (the only
+      // spelling the protocol declares — `FieldSchema` refuses `reference_to`
+      // by name). The EMITTED key is unchanged: it is what this emit's TARGET
+      // contract declares, and renaming it would be a separate change.
+      // Target contract here: the DetailSection field bag (`DetailViewField`).
+      ...((f as any).reference ? { reference_to: (f as any).reference } : {}),
       ...((f as any).reference_field ? { reference_field: (f as any).reference_field } : {}),
       ...((f as any).currency ? { currency: (f as any).currency } : {}),
       // Spec channel for per-field currency — renderers resolve

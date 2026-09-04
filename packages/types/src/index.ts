@@ -56,7 +56,7 @@ export type {
   NavigationItem,
   NavigationItemType,
   NavigationArea,
-  MenuItem as AppMenuItem,
+  AppMenuItem,
   AppWizardStepId,
   AppWizardStep,
   BrandingConfig,
@@ -177,6 +177,12 @@ export type {
   CodeEditorSchema,
   FormComponentSchema,
 } from './form.js';
+
+// The one select-option contract both option faces extend — `SelectOption`
+// above (the SDUI form face) and `SelectOptionMetadata` below (the
+// object-metadata face). Exported because it appears in the `extends` clause of
+// both, so a consumer that wants to name it can (objectui#7014).
+export type { SelectOptionBase } from './select-option.js';
 
 // ============================================================================
 // Data Display Components - Information Presentation
@@ -439,7 +445,7 @@ export type {
 export type {
   BaseFieldMetadata,
   VisibilityCondition,
-  ValidationFunction as FieldValidationFunction,
+  FieldValidationFunction,
   TextFieldMetadata,
   TextareaFieldMetadata,
   MarkdownFieldMetadata,
@@ -623,7 +629,6 @@ export type {
   GestureType,
   GestureConfig,
   GestureContext,
-  MobileComponentConfig,
   // The retired `@objectstack/spec/ui` touch vocabulary, now owned here —
   // see the "Spec Touch Vocabulary" note in `./mobile` (objectstack#4988).
   // `SPEC_GESTURE_TYPES` is its runtime witness and is exported as a VALUE

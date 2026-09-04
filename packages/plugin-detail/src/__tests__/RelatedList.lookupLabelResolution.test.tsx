@@ -42,7 +42,7 @@ const junctionSchema = {
     permission_set_id: {
       type: 'lookup',
       label: 'Permission Set',
-      reference_to: 'sys_permission_set',
+      reference: 'sys_permission_set',
     },
   },
 };

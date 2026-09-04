@@ -11,18 +11,32 @@ import {
   EXIT_CODES,
   JSON_FENCE_LANGUAGES,
   KNOWN_BARE_ANY_EXAMPLES,
+  KNOWN_ROOT_DEVDEP_EXAMPLES,
+  MARKED_FLOOR,
   MARKER,
   SCAN_ROOTS,
   TS_FENCE_LANGUAGES,
+  analyze,
   bareAnyRowKey,
   buildFilterArgs,
+  classifyRootDevDep,
   fenceSpans,
   findBareAny,
+  floorReport,
   listGuides,
+  markedPopulation,
   parseJsonFence,
+  reconcileFloors,
+  rootDevDepRowKey,
   scanSkillFences,
   stripJsonComments,
 } from '../check-skill-examples.mjs';
+import {
+  moduleSpecifiersOfBlock,
+  resolvesOnlyThroughRootManifest,
+  rootDeclaredSpecifiers,
+  specifierRoot,
+} from '../check-doc-snippet-types.mjs';
 
 /**
  * objectui#7359 — the test for `scripts/check-skill-examples.mjs`.
@@ -316,10 +330,11 @@ describe('the corpus this gate governs', () => {
   });
 
   it('leaves the majority unmarked — opt-in is the design, not a migration halfway done', () => {
-    // Stated as a RATIO rather than a count on purpose. objectui#7359 explicitly
-    // did NOT decide whether the marked population becomes shrink-only, and a
-    // count pinned here would be that decision taken by accident, red on the
-    // next guide anyone edits.
+    // Stated as a RATIO rather than a count on purpose, and it stays one now
+    // that objectui#7550 has made the population shrink-only: that ratchet is a
+    // FLOOR (`MARKED_FLOOR`, pinned below), which reds only downwards. An
+    // equality pinned here would red on the next fence anyone opts IN, which is
+    // the move this gate exists to encourage.
     const all = scans.flatMap(({ scan }) => scan.fences);
     const marked = all.filter((f) => f.marked);
     expect(marked.length).toBeLessThan(all.length);
@@ -336,6 +351,133 @@ describe('the corpus this gate governs', () => {
         expect(line, `${guide}:${index + 1} carries a near-spelling of the marker`).toBe(MARKER);
       }
     }
+  });
+});
+
+/**
+ * objectui#7550 — the marked population is SHRINK-ONLY, per category.
+ *
+ * objectui#7359 landed this gate with no ratchet and said so in as many words;
+ * the ruling on objectstack #14909 item 2 took the deferred decision, as a
+ * per-category FLOOR in `check-doc-fence-languages.mjs`'s shape. These pins
+ * follow that gate's test file: both directions on fixtures, plus one reading of
+ * the REAL corpus, so the committed numbers cannot drift away from the tree they
+ * claim to describe while every fixture assertion stays green.
+ *
+ * All of it runs on an UNBUILT tree — the floor is a count over the scanner's
+ * output, no compiler involved — so it belongs here rather than in `--self-test`.
+ */
+describe('the shrink-only floor on the marked population', () => {
+  type Breach = { category: string; count: number; floor: number };
+  const corpusMarked = (listGuides(repoRoot) as string[]).flatMap(
+    (guide) =>
+      (scanSkillFences(fs.readFileSync(path.join(repoRoot, guide), 'utf8')) as Scan).fences.filter(
+        (f) => f.marked,
+      ),
+  );
+
+  it('declares one floor per marked-fence category, and no others', () => {
+    // The coupling pin, in the shape `check-doc-fence-languages.test.ts` uses
+    // for its two walks: the categories are derived from the scanner rather
+    // than restated, so a THIRD fence kind cannot be added without this line
+    // going red and forcing a floor decision for it. A new kind that quietly
+    // had no floor would be shrink-only in name over a population nothing
+    // ratchets.
+    const languages = [...TS_FENCE_LANGUAGES, ...JSON_FENCE_LANGUAGES] as string[];
+    const scan: Scan = scanSkillFences(
+      languages.flatMap((language) => [MARKER, `\`\`\`${language}`, '{}', '```']).join('\n'),
+    );
+    expect(scan.fences.every((f) => f.marked)).toBe(true);
+    expect([...MARKED_FLOOR.keys()].sort()).toEqual([...new Set(scan.fences.map((f) => f.kind))].sort());
+  });
+
+  it('counts per category, and a category with no marker left reads as 0 rather than absent', () => {
+    // "Shrank to nothing" and "was never a category here" are the two readings
+    // a bare map of observed counts cannot tell apart, and the first is exactly
+    // what this floor exists to catch.
+    const population = markedPopulation([{ kind: 'ts' }, { kind: 'ts' }]) as Map<string, number>;
+    expect(population.get('ts')).toBe(2);
+    expect(population.has('json')).toBe(true);
+    expect(population.get('json')).toBe(0);
+  });
+
+  it('is green when a category MEETS its floor, and when it is above it', () => {
+    const floors = new Map([
+      ['ts', 2],
+      ['json', 1],
+    ]);
+    expect(reconcileFloors(new Map([['ts', 2], ['json', 1]]), floors)).toEqual([]);
+    // Above the floor is deliberately NOT a failure: opting one more fence in is
+    // the direction this gate travels, and a ratchet that reds on the good move
+    // is one people route around — here, by unmarking.
+    expect(reconcileFloors(new Map([['ts', 9], ['json', 4]]), floors)).toEqual([]);
+  });
+
+  it('reds BELOW the floor, naming the category, the count and the floor', () => {
+    const floors = new Map([
+      ['ts', 2],
+      ['json', 1],
+    ]);
+    expect(reconcileFloors(new Map([['ts', 1], ['json', 1]]), floors)).toEqual([
+      { category: 'ts', count: 1, floor: 2 },
+    ]);
+    expect(reconcileFloors(new Map([['ts', 0], ['json', 0]]), floors)).toEqual([
+      { category: 'ts', count: 0, floor: 2 },
+      { category: 'json', count: 0, floor: 1 },
+    ]);
+  });
+
+  it('reports the population BESIDE its floor, which is what makes the number re-derivable', () => {
+    expect(floorReport(new Map([['ts', 5]]), new Map([['ts', 3]]))).toBe('5 ts fence(s) (floor 3)');
+    // And the real line names every governed category with both numbers on it.
+    const line = floorReport(markedPopulation(corpusMarked)) as string;
+    for (const [category, floor] of MARKED_FLOOR as Map<string, number>) {
+      expect(line).toContain(`${category} fence(s) (floor ${floor})`);
+    }
+  });
+
+  it('the committed floors are MET by the corpus in this checkout', () => {
+    const breaches = reconcileFloors(markedPopulation(corpusMarked)) as Breach[];
+    expect(
+      breaches,
+      'MARKED_FLOOR is shrink-only. If a marker was deliberately removed, lower the number ' +
+        'in scripts/check-skill-examples.mjs and write the reason beside the row:\n' +
+        breaches.map((b) => `  - ${b.category}: ${b.count} marked, floor ${b.floor}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('a floor ONE ABOVE the current count reds and names itself', () => {
+    // The direction that has to fail, driven off the REAL population so it is a
+    // statement about this corpus rather than about a fixture. Without this the
+    // pin above could pass over an empty corpus, a floor of zero, or a
+    // reconciler that never returns anything.
+    const population = markedPopulation(corpusMarked) as Map<string, number>;
+    const raised = new Map(
+      [...(MARKED_FLOOR as Map<string, number>).keys()].map((c) => [c, (population.get(c) ?? 0) + 1]),
+    );
+    expect(reconcileFloors(population, raised)).toEqual(
+      [...raised].map(([category, floor]) => ({ category, count: floor - 1, floor })),
+    );
+  });
+
+  it('is READ by the gate, after the preconditions and never under `--measure`', () => {
+    // Pinned as a source-level fact for the reason the harness-import pin
+    // states for its own: a floor that is computed and never consulted passes
+    // every assertion above. The ORDER is half the contract — an unbuilt tree
+    // and an empty population are exit 2, and this ratchet must not be able to
+    // re-label either of them as exit 1.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-skill-examples.mjs'), 'utf8');
+    const main = source.slice(source.indexOf('function main()'), source.indexOf('// ── Self-test'));
+    expect(main, 'main() no longer reconciles the marked population against MARKED_FLOOR').toContain(
+      'const breaches = reconcileFloors(population);',
+    );
+    expect(main, 'a floor breach no longer exits `examplesFailed`').toMatch(
+      /if \(breaches\.length > 0\) \{[\s\S]*?return EXIT_CODES\.examplesFailed;[\s\S]*?\n {2}\}/,
+    );
+    expect(main.indexOf('PRECONDITION NOT MET')).toBeLessThan(main.indexOf('const breaches ='));
+    expect(main.indexOf('if (measure) return EXIT_CODES.verified;')).toBeLessThan(
+      main.indexOf('const breaches ='),
+    );
   });
 });
 
@@ -473,7 +615,15 @@ describe('the harness is imported, not re-rolled', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-skill-examples.mjs'), 'utf8');
     const importBlock = source.match(/import\s*\{[^}]*\}\s*from\s*'\.\/check-doc-snippet-types\.mjs';/);
     expect(importBlock, 'the shared harness import is gone — has it been forked?').not.toBeNull();
-    for (const name of ['compileSnippets', 'derivePackageTypePaths', 'deriveDeclaredDependencyPaths']) {
+    for (const name of [
+      'compileSnippets',
+      'derivePackageTypePaths',
+      'deriveDeclaredDependencyPaths',
+      // objectui#7555: the import reader too. It was a private regex copy here,
+      // and the `Unmapped specifiers` line it feeds is the REPORT of refusals
+      // the harness derives from the AST — two readers, one claim.
+      'moduleSpecifiersOfBlock',
+    ]) {
       expect(importBlock![0]).toContain(name);
     }
   });
@@ -495,6 +645,197 @@ describe('the harness is imported, not re-rolled', () => {
  * wrong — which is how gates get deleted. That boundary is the whole design, so
  * it is pinned rather than left to the implementation.
  */
+describe('the ROOT BOUND, and its declared debt (objectui#7463 item 2)', () => {
+  /**
+   * The bound itself lives in the shared harness and is pinned in
+   * `check-doc-snippet-types.test.ts`. What is this gate's own is the DEBT LIST:
+   * a refused fence is not type-checked, and the four rows that were already
+   * refused when the bound landed are carried here rather than unmarked in the
+   * guides — those are a GOVERNED surface, and a gate that removes a marker to
+   * make itself green is the exact move the shrink-only lists exist to prevent.
+   */
+  const refusal = (doc: string, fenceLine: number, specifiers: string[]) => ({
+    block: { doc, fenceLine },
+    specifiers,
+  });
+
+  it('builds a debt row key naming the guide, the fence line and the specifier', () => {
+    expect(rootDevDepRowKey({ doc: 'skills/objectui/guides/x.md', fenceLine: 42 }, 'vitest')).toBe(
+      'skills/objectui/guides/x.md:42 vitest',
+    );
+  });
+
+  it('reports an UNDECLARED refusal as red', () => {
+    const { undeclared, stale } = classifyRootDevDep(
+      [refusal('skills/objectui/guides/x.md', 7, ['vitest'])],
+      new Set<string>(),
+    ) as { undeclared: { key: string }[]; stale: string[] };
+    expect(undeclared.map((r) => r.key)).toEqual(['skills/objectui/guides/x.md:7 vitest']);
+    expect(stale).toEqual([]);
+  });
+
+  it('does not report a DECLARED refusal as red', () => {
+    const { rows, undeclared } = classifyRootDevDep(
+      [refusal('skills/objectui/guides/x.md', 7, ['vitest'])],
+      new Set(['skills/objectui/guides/x.md:7 vitest']),
+    ) as { rows: { declared: boolean }[]; undeclared: unknown[] };
+    expect(undeclared).toEqual([]);
+    expect(rows.map((r) => r.declared)).toEqual([true]);
+  });
+
+  it('splits one fence importing two refused specifiers into two rows', () => {
+    const { rows } = classifyRootDevDep(
+      [refusal('skills/objectui/guides/x.md', 7, ['@playwright/test', 'vitest'])],
+      new Set<string>(),
+    ) as { rows: { key: string }[] };
+    expect(rows.map((r) => r.key)).toEqual([
+      'skills/objectui/guides/x.md:7 @playwright/test',
+      'skills/objectui/guides/x.md:7 vitest',
+    ]);
+  });
+
+  it('reports a declared row that is no longer refused as STALE — the list only shrinks', () => {
+    const { stale } = classifyRootDevDep([], new Set(['skills/objectui/guides/x.md:7 vitest'])) as {
+      stale: string[];
+    };
+    expect(stale).toEqual(['skills/objectui/guides/x.md:7 vitest']);
+  });
+
+  it('declares its debt list as a shrink-only Set of verbatim rows', () => {
+    expect(KNOWN_ROOT_DEVDEP_EXAMPLES).toBeInstanceOf(Set);
+    for (const row of KNOWN_ROOT_DEVDEP_EXAMPLES as Set<string>) {
+      expect(row, `debt row is not \`GUIDE:LINE SPECIFIER\`: ${row}`).toMatch(
+        /^[\w./-]+\.md:\d+ (@[\w.-]+\/)?[\w.-]+$/,
+      );
+      expect(SCAN_ROOTS.some((r: string) => row.startsWith(`${r}/`))).toBe(true);
+    }
+  });
+
+  it('names only specifiers this repository ROOT actually declares', () => {
+    // A row for something the root does not declare could never be refused, so
+    // it would sit in the list forever covering nothing.
+    const declared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+    for (const row of KNOWN_ROOT_DEVDEP_EXAMPLES as Set<string>) {
+      const specifier = row.slice(row.lastIndexOf(' ') + 1);
+      expect(declared.has(specifier), `${specifier} is not declared by the root manifest`).toBe(true);
+    }
+  });
+
+  it('names only fences that exist and carry the marker', () => {
+    // Keyed on the fence LINE, so a guide edit above the fence forces a
+    // re-declaration; this pin is what turns that into a test failure rather
+    // than a row that silently stops covering anything.
+    for (const row of KNOWN_ROOT_DEVDEP_EXAMPLES as Set<string>) {
+      const [site] = row.split(' ');
+      const lastColon = site.lastIndexOf(':');
+      const guide = site.slice(0, lastColon);
+      const line = Number(site.slice(lastColon + 1));
+      const source = fs.readFileSync(path.join(repoRoot, guide), 'utf8');
+      const { fences: all } = scanSkillFences(source) as {
+        fences: { fenceLine: number; marked: boolean }[];
+      };
+      const fences = all.filter((f) => f.fenceLine === line);
+      expect(fences.length, `no fence at ${site}`).toBe(1);
+      expect(fences[0].marked, `the fence at ${site} carries no marker`).toBe(true);
+    }
+  });
+});
+
+/**
+ * objectui#7555 — the `Unmapped specifiers` line reads imports the same way the
+ * refusals it reports do.
+ *
+ * Since objectui#7463 item 2 that line is the REPORT of what the shared
+ * harness's ROOT BOUND refuses. The bound has always walked the AST; the line
+ * came from a private regex over the block text, so the two were two answers to
+ * one question and were free to name different sets over the same fences. The
+ * regex's error is one-directional and measured (`plugin-markdown.mdx:195` in
+ * the DOCS corpus: `npm install project-name` inside a template literal read as
+ * an import), so the line could name a specifier no fence imports — an
+ * invented refusal, printed on every run, in the one line a reader consults to
+ * learn what a green did NOT cover.
+ */
+describe('the `Unmapped specifiers` line and the refusals it reports (objectui#7555)', () => {
+  type State = { unmappedSpecifiers: Set<string>; neededPackages: Set<string> };
+
+  // ⚠️ `withTree` deletes the tree when its callback returns, so each case
+  // builds and reads inside one call.
+  const stateFor = (body: string): State =>
+    withTree(
+      (write) => {
+        write(
+          'skills/objectui/guides/sample.md',
+          ['# Sample', '', MARKER, '```ts', body, '```', ''].join('\n'),
+        );
+        // The workspace scan reads `packages/` directly; an absent directory is
+        // a throw, not an empty map.
+        write('packages/.keep', '');
+      },
+      (dir) => analyze({ root: dir }) as unknown as State,
+    );
+
+  it('names a specifier a marked fence really imports — the control for the pin below', () => {
+    // Without this half, the pin below would pass just as well over a tree
+    // whose guide was never scanned at all.
+    const state = stateFor("import { test } from 'some-runner';\nexport const t = test;");
+    expect([...state.unmappedSpecifiers]).toEqual(['some-runner']);
+  });
+
+  it('does NOT name one that appears only inside a template literal', () => {
+    const state = stateFor(
+      "export const readme = `\n# Project\n\nimport { test } from 'some-runner';\n`;",
+    );
+    expect([...state.unmappedSpecifiers]).toEqual([]);
+    expect([...state.neededPackages]).toEqual([]);
+  });
+
+  it('agrees with the bound over the real corpus, specifier for specifier', () => {
+    // The build-free half of the claim the gate's own run prints: the line and
+    // the refusals are now one reader, so over the SELECTED population the two
+    // sets are equal. They can only diverge on a specifier that is unmapped and
+    // NOT root-declared — which the bound leaves in the program, where it fails
+    // to resolve and reds the semantic phase. So a divergence is never silent,
+    // and a red here is a real finding rather than upkeep.
+    //
+    // ⛔ Scoped to the SELECTED population on purpose; it does NOT widen to
+    // `--measure`. Measured while writing this: under `measure: true` all 121
+    // candidate fences are selected and the two sets legitimately differ, 12
+    // names on the line against 6 refused — the extra six (`@objectstack/*`,
+    // `@tailwindcss/vite`, `@vitejs/plugin-react`) are unmapped and NOT
+    // root-declared, so they belong on the line and are correctly left in the
+    // program to fail there. Widening this pin would red on the design.
+    const state = analyze({}) as unknown as {
+      unmappedSpecifiers: Set<string>;
+      tsBlocks: { body: string }[];
+      paths: Record<string, string[]>;
+    };
+    const rootDeclared = rootDeclaredSpecifiers(repoRoot) as Set<string>;
+    const read = new Set<string>();
+    const refused = new Set<string>();
+    for (const block of state.tsBlocks) {
+      for (const specifier of moduleSpecifiersOfBlock(block.body) as string[]) {
+        read.add(specifier);
+        if (resolvesOnlyThroughRootManifest(specifier, { paths: state.paths, rootDeclared })) {
+          refused.add(specifierRoot(specifier) as string);
+        }
+      }
+    }
+    expect([...state.unmappedSpecifiers].sort()).toEqual([...refused].sort());
+    // And the reader really did run over this corpus — an equality between two
+    // sets nothing ever put anything into would pass while proving nothing.
+    //
+    // ⛔ NOT `refused.size > 0`. That asserts the corpus still MARKS a fence
+    // importing a root-only specifier, which is a fact about the markers, and
+    // the markers belong to whoever is editing the guides: unmarking the four
+    // fences in `skills/objectui/guides/testing.md` empties `refused`, leaves
+    // the equality true, and would red this pin over a change that is not about
+    // it (measured against objectui#7557's head while writing this). What this
+    // pin owns is that the two READERS agree, so its non-vacuity clause has to
+    // be about the reader.
+    expect(read.size).toBeGreaterThan(0);
+  });
+});
+
 describe('the bare-`any` assertion', () => {
   it.each([
     ['a parameter', 'export function f(ctx: any) { return ctx; }', 'parameter `ctx`'],

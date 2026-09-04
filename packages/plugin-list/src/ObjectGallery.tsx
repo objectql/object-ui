@@ -259,7 +259,15 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
         if (def.currency) enriched.currency = def.currency;
         if (def.precision !== undefined) enriched.precision = def.precision;
         if (def.format) enriched.format = def.format;
-        const refTarget = (def as any).reference_to || (def as any).reference;
+        // objectui#6837 half 2 — maintainer 2026-08-31: protocol normalization
+        // belongs on the SERVER, the front end just executes the protocol.
+        // `reference` is the only target spelling `@objectstack/spec`'s
+        // `FieldSchema` declares; it refuses `reference_to` by name with its own
+        // "did you mean -> `reference`?" rename. objectstack#13847 rewrites
+        // stored `reference_to` on the serve path and in `os migrate meta`. A
+        // legacy-only def is canonicalised ONCE at the ingestion choke point
+        // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
+        const refTarget = (def as any).reference;
         if (refTarget) enriched.reference_to = refTarget;
         if ((def as any).reference_field) enriched.reference_field = (def as any).reference_field;
       }

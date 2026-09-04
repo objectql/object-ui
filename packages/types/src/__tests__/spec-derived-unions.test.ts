@@ -239,7 +239,7 @@ const _localNavIsNotYetTheSpecUnion = false satisfies [NavigationItem] extends [
 // 1. `visible: boolean`. The spec takes a CEL string (input) / Expression
 //    envelope (output); neither tier admits a boolean. `NavigationRenderer`
 //    evaluates one, and `menuItemToNavigationItem` MANUFACTURES one when it
-//    inverts legacy `MenuItem.hidden`. Measured: binding to the input tier
+//    inverts legacy `AppMenuItem.hidden`. Measured: binding to the input tier
 //    fails with 3x TS2322 on exactly those lines.
 type SpecNavVisible =
   | NonNullable<Extract<SpecNavigationItem, { type: 'url' }>['visible']>

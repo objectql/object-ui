@@ -69,7 +69,7 @@ One row per declared member, in declaration order, so the list can be checked ag
 | `visible` | `boolean \| string` | Visibility control. Accepts a boolean **or** a predicate expression string — the renderer evaluates this key rather than reading it as a boolean. |
 | `visibleWhen` | `string` | Canonical conditional-visibility predicate (ADR-0089); the element is shown when it evaluates truthy. Evaluated **before** `visible` and `visibleOn`, and outranks both. |
 | `visibleOn` | `string` | Expression for conditional visibility. **Deprecated** (ADR-0089) — use `visibleWhen`. |
-| `hidden` | `boolean` | Inverse of `visible`. Boolean only — unlike `visible`, this key takes no expression. |
+| `hidden` | `boolean \| string` | Inverse of `visible` — the node is not rendered. Accepts a boolean **or** a predicate expression string, which the renderer evaluates rather than reading as a boolean; `hiddenOn` remains the sibling spelling. |
 | `hiddenOn` | `string` | Expression for conditional hiding. |
 | `disabled` | `boolean \| string` | Disabled state. Accepts a boolean **or** a predicate expression string, on the same evaluated path as `visible`. |
 | `disabledOn` | `string` | Expression for conditional disabling. |
@@ -524,7 +524,8 @@ A hierarchical tree component for nested data with expand/collapse and selection
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `data` | `TreeNode[]` | **Required.** Nested tree data. Each node has `id`, `label`, optional `icon` and `children`. |
+| `nodes` | `TreeNode[]` | Optional. Nested tree data — the spelling the renderer reads FIRST, and the one the component's own `inputs` and `defaultProps` use. Each node has `id`, `label`, optional `icon` and `children`. |
+| `data` | `TreeNode[]` | Optional. Nested tree data, read only when `nodes` is absent (the renderer reads `nodes` first — objectui#6939). |
 | `defaultExpandedIds` | `string[]` | Node IDs expanded on initial render. |
 | `defaultSelectedIds` | `string[]` | Node IDs selected on initial render. |
 | `expandedIds` | `string[]` | Controlled expanded state. |
