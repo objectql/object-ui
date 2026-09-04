@@ -86,20 +86,26 @@
  * because `renderCellEditor` hands the widget the whole schema def.
  * `__tests__/relationalMetaCopySet-7166.test.tsx` renders both halves.
  *
- * ## ⚠️ THE TWO POPULATIONS — why three keys went and three stayed
+ * ## ⭐ THE TWO POPULATIONS — settled by objectui#7155, not by a reader sweep
  *
- * Six copied keys have no reader on this bag; only three left. The other three
- * — `description_field`, `lookup_filters`, `id_field` — are the snake_case
- * `legacy-alias` spellings, recorded that way PRECISELY because a host
- * `DataSource` outside these two repos may hand-feed them. That is a
- * PRODUCER-side argument, and every measurement above is READER-side. Retiring
- * them on this evidence would answer a question nobody asked.
+ * Six copied keys had no reader on this bag; three left in objectui#7166. The
+ * other three — `description_field`, `lookup_filters`, `id_field` — were held
+ * back as `legacy-alias`, on a PRODUCER-side argument no reader measurement
+ * could answer: a host `DataSource` outside these two repos might hand-feed
+ * them.
  *
- * Their reader-side verdict is now on the table anyway, so the next pass
- * inherits a measurement instead of a silence. ⛔ The question still OPEN — and
- * which no evidence gathered in these two repos can close — is the producer
- * one: does any host outside them put these spellings on a field def? Closing
- * it needs a producer survey, not another sweep of this repo.
+ * That question is now CLOSED, and the answer was not the expected one. The
+ * host feeding snake_case was THIS REPO: `@object-ui/types` declared the snake
+ * spellings on `LookupFieldMetadata` / `UserFieldMetadata` and REFUSED the
+ * camelCase ones, `content/docs/fields/lookup.mdx` taught that dialect as
+ * normative, and CI compiled those snippets on every run. Two published
+ * contracts disagreed about one concept, and the read chains here served both.
+ *
+ * objectui#7155 converged them on the spec's camelCase in one payment: the
+ * widget contract was renamed, the docs and all seven in-repo producers moved
+ * with it, and the snake legs left the chains. So the four spellings are not
+ * "retired on reader evidence" — the dialect that produced them no longer
+ * exists.
  *
  * ## ⭐ THE DERIVATION IS SCOPED TO THE CELL — objectui#7187
  *
@@ -149,15 +155,21 @@
  * named — are deliberately NOT copied, and the gate proves their absence from
  * `FieldSchema` rather than taking this docblock's word for it.
  *
- * ## ⚠️ The asymmetry this file does NOT resolve
+ * ## ⭐ The asymmetry this file used to record — RESOLVED by objectui#7155
  *
- * Four keys already in the copy set — `display_field`, `description_field`,
- * `lookup_filters`, `id_field` — fail that same producer test. They are kept:
- * retiring a key that has shipped is its own adjudication (that is what
- * objectui#6711 and objectui#6874 each were), a host `DataSource` outside these
- * two repos may still hand-feed them, and legacy metadata predating the strict
- * schema is not measurable from here. Recorded as `legacy-alias` so the
- * asymmetry is visible rather than implied.
+ * Four keys in the copy set — `display_field`, `description_field`,
+ * `lookup_filters`, `id_field` — failed that same producer test and were kept
+ * as `legacy-alias`, because retiring a shipped key is its own adjudication
+ * (objectui#6711 and objectui#6874 each were one).
+ *
+ * That adjudication happened: the maintainer ruled to converge the two
+ * contracts rather than to sweep the reader. `display_field`,
+ * `description_field` and `lookup_filters` are gone in favour of the spec
+ * spellings they shadowed; `idField` stayed under a new verdict, because
+ * objectstack#3508's machine-name hydration is a picker capability with no
+ * object-metadata twin and none owed. The `legacy-alias` verdict itself is
+ * retired — the class is empty and unrepresentable, and the gate below proves
+ * the four spellings reach no consumer rather than trusting this paragraph.
  *
  * ## ⛔ Two keys were in this list and are RETIRED — do not re-add them
  *
@@ -219,8 +231,15 @@ export type RelationalMetaVerdict =
   | 'spec'
   /** Not spec-declared, but stamped onto every def by the adapter's choke point. */
   | 'adapter-stamped'
-  /** Not producible under the installed contract; copied only for back-compat. */
-  | 'legacy-alias'
+  /**
+   * Declared on `@object-ui/types`' WIDGET metadata (`LookupFieldMetadata` /
+   * `UserFieldMetadata`) and emitted by in-repo producers, with no twin on
+   * `FieldSchema` — and none needed. objectui#7155 created this category when
+   * it converged the two dialects: `idField` carries objectstack#3508's
+   * machine-name hydration, which is a picker capability and not an
+   * object-metadata one.
+   */
+  | 'widget-contract'
   /** Read, but no producer can emit it — copying it would reach nothing. */
   | 'no-producer'
   /** Producible and read, but written onto the meta by another block already. */
@@ -270,7 +289,7 @@ const LOOKUP_EDITOR_ONLY: readonly RelationalMetaConsumer[] = Object.freeze(['lo
 const PRODUCER_LICENSED_VERDICTS: ReadonlySet<RelationalMetaVerdict> = new Set([
   'spec',
   'adapter-stamped',
-  'legacy-alias',
+  'widget-contract',
 ]);
 
 export interface RelationalMetaEntry {
@@ -285,10 +304,11 @@ export interface RelationalMetaEntry {
    * Present ONLY on a key copied although NO consumer fed this bag reads it —
    * the one exit from the cell-reader rule, and it has to state its own reason.
    *
-   * ⛔ The gate confines it to `legacy-alias`, which is separately proved
-   * non-authorable. So a spec-declared key can never take this exit: it is not
-   * a widening of the rule, it is the producer-side argument the snake_case
-   * spellings were kept on, written where it can be read.
+   * ⛔ NO entry takes this exit any more. It existed for the `legacy-alias`
+   * class — the snake_case spellings kept on a producer-side argument — and
+   * objectui#7155 retired that class by converging the contracts. The field is
+   * kept, and the gate asserts it is UNUSED, so re-opening the exit is a
+   * deliberate act with a stated reason rather than a quiet re-entry.
    */
   readonly copiedWithoutCellReader?: string;
   readonly note: string;
@@ -308,16 +328,14 @@ export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEnt
   reference_field: { verdict: 'no-producer', readers: ALL_THREE, note: 'Third leg of the display-field chain. Not on FieldSchema; zero occurrences in the producer repo (control: `displayField`, 68 files). objectui#6875.' },
 
   // ── The display value ───────────────────────────────────────────────────
-  displayField: { verdict: 'spec', readers: ALL_THREE, note: 'FieldSchema.displayField. ⭐ Added by objectui#6875 — the only display spelling a spec-compliant producer can emit, and the one that never arrived.' },
-  display_field: { verdict: 'legacy-alias', readers: ALL_THREE, note: 'Runtime spelling, first leg of every display chain. Not on FieldSchema; kept for back-compat.' },
+  displayField: { verdict: 'spec', readers: ALL_THREE, note: 'FieldSchema.displayField. ⭐ Added by objectui#6875 as the only display spelling a spec-compliant producer can emit; objectui#7155 made it the ONLY one read, retiring the `display_field` leg that used to outrank it.' },
 
   // ── The picker's secondary line ─────────────────────────────────────────
-  // ⛔ The camel spelling LEFT the copy set in objectui#7166 while its snake
-  // twin stayed. That asymmetry is deliberate and is explained under "the two
-  // populations" in this file's docblock: the retirement is a READER-side
-  // finding, and only the snake spellings carry a producer-side argument.
+  // objectui#7166 took the camel spelling off the COPY SET (no reader on this
+  // bag) while its snake twin stayed on the producer-side argument.
+  // objectui#7155 settled that argument the other way — see this file's
+  // docblock — so only the spec spelling remains, still uncopied.
   descriptionField: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: "FieldSchema.descriptionField. Added by objectui#6875, RETIRED from the copy set by objectui#7166: its only reader is LookupField, which the inline editor feeds from the schema def, so the copy reached nothing. Measured by rendering — the picker's secondary line still appears with this table unchanged." },
-  description_field: { verdict: 'legacy-alias', readers: LOOKUP_EDITOR_ONLY, copiedWithoutCellReader: 'Copied with NO reader on this bag. It survives on the UNANSWERED producer question (objectui#7166): a host DataSource outside these two repos may hand-feed this runtime spelling. Closing that needs a producer survey, not another reader sweep.', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag either — it survives on the UNANSWERED producer question below, not on a measured reader.' },
 
   // ── The picker's table ──────────────────────────────────────────────────
   lookupColumns: { verdict: 'spec', readers: LOOKUP_EDITOR_ONLY, note: "FieldSchema.lookupColumns. Added by objectui#6875, RETIRED from the copy set by objectui#7166 on the same measurement as `descriptionField`. Measured by rendering — the declared columns still shape the picker with this table unchanged." },
@@ -325,10 +343,13 @@ export const RELATIONAL_META_READ_SET: Readonly<Record<string, RelationalMetaEnt
 
   // ── The picker's base scoping ───────────────────────────────────────────
   lookupFilters: { verdict: 'spec', readers: BOTH_EDITORS, note: "FieldSchema.lookupFilters. RETIRED from the copy set by objectui#7166: read off a field meta only by LookupField and UserField, both fed by the editor's schema spread. Measured by rendering — the declared filter still scopes the picker's candidates with this table unchanged." },
-  lookup_filters: { verdict: 'legacy-alias', readers: BOTH_EDITORS, copiedWithoutCellReader: 'Copied with NO reader on this bag. It survives on the UNANSWERED producer question (objectui#7166): a host DataSource outside these two repos may hand-feed this runtime spelling. Closing that needs a producer survey, not another reader sweep.', note: 'Runtime spelling. Not on FieldSchema; kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
 
   // ── The picker's id column ──────────────────────────────────────────────
-  id_field: { verdict: 'legacy-alias', readers: LOOKUP_EDITOR_ONLY, copiedWithoutCellReader: 'Copied with NO reader on this bag. It survives on the UNANSWERED producer question (objectui#7166): a host DataSource outside these two repos may hand-feed this runtime spelling. Closing that needs a producer survey, not another reader sweep.', note: 'Picker id column. Neither spelling is on FieldSchema (`idField` is absent too); kept for back-compat. Reader-side verdict (objectui#7166): NO reader on this bag; retained on the unanswered producer question, not on a measured reader.' },
+  // ⭐ The one key with NO spec twin, and none owed: `idField` commits a record
+  // field other than the id as a lookup's stored VALUE (objectstack#3508's
+  // machine-name hydration), which is picker behaviour, not object metadata.
+  // objectui#7155 kept the capability and moved it onto the widget contract.
+  idField: { verdict: 'widget-contract', readers: LOOKUP_EDITOR_ONLY, note: "LookupFieldMetadata.idField — the picker's id column. Absent from FieldSchema, and `id_field` was too: this is a widget-contract key by construction, not a spelling gap. Read only by LookupField, which the inline editor feeds from the schema def, so it stays off the copy set (objectui#7166's measurement, unchanged by the rename)." },
 
   // ── Read by the EDITOR widgets, producible, and NOT copied ──────────────
   // Found by objectui#6875's re-sweep. objectui#7154 measured WHY copying them

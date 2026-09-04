@@ -553,9 +553,9 @@ function RecordLookupCell({ binding, value, onPick, onCommit, onBlur, disabled, 
             type: 'lookup',
             name: 'value',
             reference_to: binding.object,
-            display_field: binding.displayField,
+            displayField: binding.displayField,
             // `position` commits the machine name, the rest the row id.
-            id_field: binding.valueField,
+            idField: binding.valueField,
             multiple: false,
             // A directory row is never created from a flow-authoring picker.
             allow_create: false,

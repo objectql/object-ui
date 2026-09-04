@@ -598,7 +598,21 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
     navigation: navConfig,
-    objectName: schema.objectName,
+    // The record-page URL follows the RECORD SOURCE (objectui#7638): the very
+    // `schemaObjectName` resolved above, which already keys this calendar's
+    // record query and which the detail drawer at the bottom of this file
+    // resolves the same way. Before this it read the bare `schema.objectName`,
+    // so ONE click resolved the drawer through the objectui#6939 ladder and the
+    // navigation URL through the top-level key — two receivers, one gesture,
+    // two different objects.
+    //
+    // The `?? schema.objectName` tail is NOT the shared rung repeated: it is
+    // this site's own coercion of the OFF-CONTRACT `data: { provider: 'object' }`
+    // that carries no `object` (`ViewDataSchema` declares it required), and it
+    // is here so this conversion changes nothing this component navigates to
+    // today EXCEPT the divergence it closes. `ObjectTree`'s converted site and
+    // `headerObjectName` both keep the same tail for the same reason.
+    objectName: schemaObjectName ?? schema.objectName,
     onRowClick: navIsOverlay ? undefined : onRowClick,
   });
 

@@ -18,7 +18,7 @@ import {
   FormSchema,
   CardSchema,
   DataTableSchema,
-  KanbanSchema,
+  DeclarativeKanbanSchema,
 } from '../src/zod/index.zod';
 
 // The failure accessor below is `error.issues`. Zod 4 removed the `.errors`
@@ -161,7 +161,7 @@ const kanbanExample = {
   draggable: true,
 };
 
-const kanbanResult = KanbanSchema.safeParse(kanbanExample);
+const kanbanResult = DeclarativeKanbanSchema.safeParse(kanbanExample);
 console.log('Kanban validation:', kanbanResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!kanbanResult.success) {
   console.error('Kanban errors:', kanbanResult.error.issues);

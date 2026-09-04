@@ -175,12 +175,12 @@ export function paramToField(param: ActionParamDef): Record<string, any> {
   if (EXPANDABLE_FIELD_TYPES.has(type)) {
     Object.assign(field, {
       reference_to: param.referenceTo,
-      display_field: param.displayField,
-      id_field: param.idField,
-      description_field: param.descriptionField,
+      displayField: param.displayField,
+      idField: param.idField,
+      descriptionField: param.descriptionField,
       title_format: param.titleFormat,
       lookup_columns: param.lookupColumns,
-      lookup_filters: param.lookupFilters,
+      lookupFilters: param.lookupFilters,
       lookup_page_size: param.lookupPageSize,
       depends_on: param.dependsOn,
     });

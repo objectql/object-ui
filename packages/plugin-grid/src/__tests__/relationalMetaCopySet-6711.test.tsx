@@ -15,7 +15,7 @@
  *
  * ## The control against vacuity lives in the same assertions
  *
- * Each case also asserts that the seven SURVIVING keys do arrive on the same
+ * Each case also asserts that the SURVIVING keys do arrive on the same
  * meta. An absence assertion on its own passes for the wrong reason as soon as
  * the fixture stops reaching the copy path at all (a renamed helper, a column
  * path that no longer resolves this renderer, a def the grid never reads); the
@@ -55,9 +55,14 @@ const MANAGER_DEF = {
   label: 'Manager',
   reference_to: 'users',
   reference: 'users',
-  display_field: 'name',
-  id_field: 'id',
-  description_field: 'title',
+  // The spec spelling — the only display pointer read since objectui#7155.
+  displayField: 'name',
+  // ⭐ The snake_case dialect objectui#7155 RETIRED. Kept on the fixture on
+  // purpose, exactly like `reference_to_field` below: their absence from the
+  // copied meta is then a reading, not a fixture that never offered them.
+  display_field: 'MUST_NOT_BE_COPIED',
+  id_field: 'MUST_NOT_BE_COPIED',
+  description_field: 'MUST_NOT_BE_COPIED',
   lookup_filters: [['active', '=', true]],
   lookupFilters: [['active', '=', true]],
   // Also retired, in objectui#6874, and pinned in its own file
@@ -68,11 +73,20 @@ const MANAGER_DEF = {
   reference_to_field: 'MUST_NOT_BE_COPIED',
 };
 
-/** The six keys that survive every retirement so far — the control. */
+/**
+ * The keys that survive every retirement so far — the control.
+ *
+ * ⭐ objectui#7155 shrank this from six to three. It converged the lookup
+ * dialect on the spec's camelCase, so `display_field` / `id_field` /
+ * `description_field` / `lookup_filters` are no longer copied — `displayField`
+ * carries the display pointer now, and the other three were already off the
+ * copy set (objectui#7166) under their snake spellings only.
+ *
+ * ⛔ Keep this list non-empty and keep asserting it: it is what separates "the
+ * retirement removed exactly its key" from "the copy stopped working".
+ */
 const SURVIVING_KEYS = [
-  'reference_to', 'reference',
-  'display_field', 'id_field', 'description_field',
-  'lookup_filters',
+  'reference_to', 'reference', 'displayField',
 ] as const;
 
 const ROWS = [{ id: 'r1', name: 'Tower T1', manager: 'u1' }];
@@ -161,18 +175,23 @@ describe('objectui#6711 — ObjectGrid no longer copies `reference_to_field` ont
       expect(meta).not.toHaveProperty('reference_to_field');
     });
 
-    it(`still copies the six surviving relational keys (${name})`, async () => {
+    it(`still copies the surviving relational keys (${name})`, async () => {
       const meta = await renderAndCaptureMeta(schemaExtra);
       for (const key of SURVIVING_KEYS) {
         expect(meta).toHaveProperty(key);
       }
       expect(meta.reference_to).toBe('users');
-      expect(meta.display_field).toBe('name');
+      expect(meta.displayField).toBe('name');
       // objectui#7166 retired `lookupFilters` from the copy set — its only
       // reader is an editor widget, which `renderCellEditor` feeds from the
       // schema def. The fixture above still declares it, so this absence is a
       // reading and not a fixture that never offered the key.
       expect(meta).not.toHaveProperty('lookupFilters');
+      // ⭐ objectui#7155 — the retired snake_case dialect is not copied either.
+      // The fixture declares all four, so each absence is a reading.
+      for (const retired of ['display_field', 'id_field', 'description_field', 'lookup_filters']) {
+        expect(meta, `${retired} is copied again — objectui#7155 retired it`).not.toHaveProperty(retired);
+      }
     });
   }
 });

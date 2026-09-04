@@ -83,7 +83,7 @@ import {
   CarouselSchema as CarouselZod,
   ChatbotSchema as ChatbotZod,
   FilterBuilderSchema as FilterBuilderZod,
-  KanbanSchema as KanbanZod,
+  DeclarativeKanbanSchema as KanbanZod,
 } from '../zod/complex.zod';
 import {
   AlertSchema as AlertZod,
@@ -139,7 +139,7 @@ import type {
   CarouselSchema,
   ChatbotSchema,
   FilterBuilderSchema,
-  KanbanSchema,
+  DeclarativeKanbanSchema,
 } from '../complex';
 import type { AlertSchema, DataTableSchema, ListItem, TreeViewSchema } from '../data-display';
 import type { AccordionSchema, CollapsibleSchema, ToggleGroupSchema } from '../disclosure';
@@ -214,8 +214,8 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
  * `toFormControlDomProps` whitelist, card's `<Card {...cardProps}>`).
  */
 const RUNTIME_SLOT: readonly Site[] = [
-  ['complex.zod.ts', 'KanbanSchema', 'onCardMove', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onCardClick', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardMove', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardClick', KanbanZod],
   ['complex.zod.ts', 'CalendarViewSchema', 'onViewChange', CalendarViewZod],
   ['complex.zod.ts', 'FilterBuilderSchema', 'onChange', FilterBuilderZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onError', ChatbotZod],
@@ -265,8 +265,8 @@ const RUNTIME_SLOT: readonly Site[] = [
  * from the declared `(value: string) => void`, not a consumer of it.
  */
 const RETIRED: readonly Site[] = [
-  ['complex.zod.ts', 'KanbanSchema', 'onColumnAdd', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onCardAdd', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onColumnAdd', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardAdd', KanbanZod],
   ['complex.zod.ts', 'CarouselSchema', 'onSlideChange', CarouselZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onSendMessage', ChatbotZod],
   ['data-display.zod.ts', 'AlertSchema', 'onDismiss', AlertZod],
@@ -480,8 +480,8 @@ type KeepsFunction<T> = [Extract<NonNullable<T>, (...args: never[]) => unknown>]
   : true;
 
 export type assertionRetiredKeysAreTombstoned = [
-  Expect<RetiredIsNever<KanbanSchema['onColumnAdd']>>,
-  Expect<RetiredIsNever<KanbanSchema['onCardAdd']>>,
+  Expect<RetiredIsNever<DeclarativeKanbanSchema['onColumnAdd']>>,
+  Expect<RetiredIsNever<DeclarativeKanbanSchema['onCardAdd']>>,
   Expect<RetiredIsNever<CarouselSchema['onSlideChange']>>,
   Expect<RetiredIsNever<ChatbotSchema['onSendMessage']>>,
   Expect<RetiredIsNever<AlertSchema['onDismiss']>>,
@@ -505,8 +505,8 @@ export type assertionRetiredKeysAreTombstoned = [
 ];
 
 export type assertionRuntimeSlotsKeepTheirFunctionType = [
-  Expect<KeepsFunction<KanbanSchema['onCardMove']>>,
-  Expect<KeepsFunction<KanbanSchema['onCardClick']>>,
+  Expect<KeepsFunction<DeclarativeKanbanSchema['onCardMove']>>,
+  Expect<KeepsFunction<DeclarativeKanbanSchema['onCardClick']>>,
   Expect<KeepsFunction<CalendarViewSchema['onViewChange']>>,
   Expect<KeepsFunction<FilterBuilderSchema['onChange']>>,
   Expect<KeepsFunction<ChatbotSchema['onError']>>,

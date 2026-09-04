@@ -495,9 +495,9 @@ export interface LookupFilterDef {
  *
  * Supports enterprise-grade Record Picker configuration:
  * - `lookup_columns` — columns shown in the Record Picker dialog table
- * - `description_field` — secondary description shown in quick-select popover
+ * - `descriptionField` — secondary description shown in quick-select popover
  * - `lookup_page_size` — records per page in the Record Picker dialog
- * - `lookup_filters` — base filters applied to Record Picker queries
+ * - `lookupFilters` — base filters applied to Record Picker queries
  */
 export interface LookupFieldMetadata extends BaseFieldMetadata {
   type: 'lookup' | 'master_detail';
@@ -513,7 +513,7 @@ export interface LookupFieldMetadata extends BaseFieldMetadata {
    * resolution, then the raw id.
    * @example 'label' — a position's display name
    */
-  display_field?: string;
+  displayField?: string;
 
   /**
    * Record field committed as this lookup's VALUE. Defaults to `'id'`; set it
@@ -522,7 +522,7 @@ export interface LookupFieldMetadata extends BaseFieldMetadata {
    * by machine name and names stay portable across environments
    * (objectstack #3508).
    */
-  id_field?: string;
+  idField?: string;
 
   /**
    * Offer inline "create the referenced record" from an empty/zero-result
@@ -536,7 +536,7 @@ export interface LookupFieldMetadata extends BaseFieldMetadata {
    * Secondary field shown as description in the quick-select popover.
    * @example 'industry' — shows customer industry below customer name
    */
-  description_field?: string;
+  descriptionField?: string;
 
   /**
    * Columns to display in the Record Picker dialog table.
@@ -558,7 +558,7 @@ export interface LookupFieldMetadata extends BaseFieldMetadata {
    * Use to restrict which records are selectable (e.g. only active records).
    * @example [{ field: 'status', operator: 'eq', value: 'active' }]
    */
-  lookup_filters?: LookupFilterDef[];
+  lookupFilters?: LookupFilterDef[];
 }
 
 /**
@@ -663,7 +663,7 @@ export interface UserFieldMetadata extends BaseFieldMetadata {
    * deactivated users. Defaults to excluding `banned` users for user fields.
    * @example [{ field: 'banned', operator: 'ne', value: true }]
    */
-  lookup_filters?: LookupFilterDef[];
+  lookupFilters?: LookupFilterDef[];
 }
 
 /**

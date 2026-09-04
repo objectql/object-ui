@@ -756,7 +756,7 @@ export function GridField({
                           value={row[c.name]}
                           onChange={() => {}}
                           readonly
-                          field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any}
+                          field={{ reference: c.reference, displayField: c.displayField, idField: c.idField } as any}
                         />
                       ) : c.type === 'file' || isTemporal(c.type) ? (
                         // A temporal column printed with `String(value)` puts
@@ -852,7 +852,7 @@ export function GridField({
       if (c.type === 'lookup' && val != null && val !== '') {
         return (
           <LookupField value={val} onChange={() => {}} readonly
-            field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any} />
+            field={{ reference: c.reference, displayField: c.displayField, idField: c.idField } as any} />
         );
       }
       return (
@@ -880,7 +880,7 @@ export function GridField({
           onChange={(v: any) => setCellValue(rowIdx, c.name, v)}
           onSelectRecord={(rec: any) => applyLookupSelection(rowIdx, c, rec)}
           compact
-          field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
+          field={{ reference: c.reference, displayField: c.displayField, idField: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
           disabled={locked}
           // The published `error` slot, not a hand-rolled attribute: LookupField
           // already puts `aria-invalid` on its own focusable trigger from it.

@@ -34,7 +34,7 @@ import {
 /**
  * Kanban Card Schema
  */
-export const KanbanCardSchema = z.object({
+export const DeclarativeKanbanCardSchema = z.object({
   id: z.string().describe('Card ID'),
   title: z.string().describe('Card title'),
   description: z.string().optional().describe('Card description'),
@@ -49,10 +49,10 @@ export const KanbanCardSchema = z.object({
 /**
  * Kanban Column Schema
  */
-export const KanbanColumnSchema = z.object({
+export const DeclarativeKanbanColumnSchema = z.object({
   id: z.string().describe('Column ID'),
   title: z.string().describe('Column title'),
-  cards: z.array(KanbanCardSchema).describe('Column cards'),
+  cards: z.array(DeclarativeKanbanCardSchema).describe('Column cards'),
   color: z.string().optional().describe('Column color'),
   limit: z.number().optional().describe('Card limit'),
   collapsed: z.boolean().optional().describe('Whether column is collapsed'),
@@ -61,9 +61,9 @@ export const KanbanColumnSchema = z.object({
 /**
  * Kanban Schema - Kanban board component
  */
-export const KanbanSchema = BaseSchema.extend({
+export const DeclarativeKanbanSchema = BaseSchema.extend({
   type: z.literal('kanban'),
-  columns: z.array(KanbanColumnSchema).describe('Kanban columns'),
+  columns: z.array(DeclarativeKanbanColumnSchema).describe('Kanban columns'),
   draggable: z.boolean().optional().describe('Whether cards are draggable'),
   onCardMove: handlerKeyRefusal('onCardMove', 'runtime-slot', 'Card move handler'),
   onCardClick: handlerKeyRefusal('onCardClick', 'runtime-slot', 'Card click handler'),
@@ -766,7 +766,7 @@ export const DashboardConfigSchema = z.object({
  * Complex Schema Union - All complex component schemas
  */
 export const ComplexSchema = z.discriminatedUnion('type', [
-  KanbanSchema,
+  DeclarativeKanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,
