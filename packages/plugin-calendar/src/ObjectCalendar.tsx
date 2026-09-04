@@ -23,7 +23,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
+import type { ObjectGridSchema, DataSource, CalendarConfig } from '@object-ui/types';
 import { CalendarView, type CalendarViewEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import {
@@ -61,6 +61,7 @@ import {
   convertSortToQueryParams,
   getRecordDisplayName,
   createFieldColorResolver,
+  resolveRecordSourceConfig,
   resolveRecordSourceObjectName,
 } from '@object-ui/core';
 
@@ -110,31 +111,6 @@ export interface ObjectCalendarComponentProps {
   onViewChange?: (view: 'month' | 'week' | 'day') => void;
   onEventDrop?: (record: any, newStart: Date, newEnd?: Date) => void;
   locale?: string;
-}
-
-/**
- * Helper to get data configuration from schema
- */
-function getDataConfig(schema: ObjectGridSchema | CalendarSchema): ViewData | null {
-  if ('data' in schema && schema.data) {
-    return schema.data;
-  }
-  
-  if ('staticData' in schema && schema.staticData) {
-    return {
-      provider: 'value',
-      items: schema.staticData,
-    };
-  }
-  
-  if (schema.objectName) {
-    return {
-      provider: 'object',
-      object: schema.objectName,
-    };
-  }
-  
-  return null;
 }
 
 /**
@@ -263,7 +239,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     enabled: !!dataSource && !!schema.objectName,
   });
 
-  const dataConfig = useMemo(() => getDataConfig(schema), [
+  const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [
     (schema as any).data,
     (schema as any).staticData,
     schema.objectName,
@@ -281,7 +257,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
    * The record-fetch effect below used to key on `dataConfig` itself — the
    * whole memoised object identity. `useMemo` carries no semantic
    * guarantee (React may discard its cache and recompute), and
-   * `getDataConfig(schema)` builds a fresh wrapper object on every call
+   * `resolveRecordSourceConfig(schema)` builds a fresh wrapper object on every call
    * even when its own deps haven't changed, so a discard alone was enough
    * to re-run the effect and refetch. `dataProvider` and `dataItems` are
    * the remaining primitive fields that effect reads off `dataConfig` —
