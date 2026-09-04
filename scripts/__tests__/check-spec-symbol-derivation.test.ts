@@ -14,6 +14,7 @@ import {
   normalizeDoc,
   scanFile,
   scanFileForClaims,
+  scanFileForMemberCitations,
 } from '../check-spec-symbol-derivation.mjs';
 
 /**
@@ -838,5 +839,316 @@ type ListView = 'table' | 'kanban' | 'calendar';
           { name: 'ListView', kind: 'type' },
         ])
     );
+  });
+});
+
+
+// ── Rule 4 at MEMBER granularity (objectui#7513) ─────────────────────────────
+
+/**
+ * The AUTHORED key sets the fixtures below are judged against, measured on
+ * `@objectstack/spec@17.2.0` with the same family union the guard uses (`N` /
+ * `NSchema` / `NInput` / `NParsed`, authoring side).
+ *
+ * Trimmed to the keys the fixtures exercise, and the trim is one-directional on
+ * purpose: every key a fixture cites AND expects green is listed, because
+ * omitting one makes that fixture red for a reason that exists nowhere but this
+ * map — the hazard `SPEC_NAMES` above records for symbol names, at member
+ * granularity. Absences are the real measurements and are named in place:
+ *
+ *   SelectOption   5 keys, none of them `description`   — the option schema is
+ *                  `.strict()`, so `description` on an option 422s the whole field
+ *   Field          71 keys, none of them `rows`
+ *   Dashboard      20 keys; the display name is `label`, never `title`
+ */
+const SPEC_MEMBERS = new Map<string, { authored: Set<string>; surface: Set<string> }>([
+  [
+    'SelectOption',
+    {
+      authored: new Set(['label', 'value', 'color', 'default', 'visibleWhen']),
+      // Zod hangs `.description` on every schema. That it is HERE and not in
+      // `authored` is the whole point of the ordering proof below.
+      surface: new Set(['parse', 'safeParse', 'shape', 'description', 'default', 'optional']),
+    },
+  ],
+  [
+    'Field',
+    {
+      authored: new Set(['name', 'label', 'type', 'description', 'options', 'required', 'visibleWhen']),
+      surface: new Set(['parse', 'safeParse', 'shape', 'description']),
+    },
+  ],
+  [
+    'Dashboard',
+    {
+      authored: new Set(['name', 'label', 'description', 'header', 'widgets', 'dateRange']),
+      surface: new Set(['parse', 'safeParse', 'shape', 'description']),
+    },
+  ],
+  // `NavigationMode` is a `ZodEnum` with a `.default('page')`, cited in prose as
+  // a CALL. Its authored set is what the enum admits, never `default`.
+  ['NavigationMode', { authored: new Set(['page', 'drawer', 'modal']), surface: new Set(['default', 'parse']) }],
+  // A symbol that really declares `shape` as an authored key — the control that
+  // proves the Zod vocabulary cannot override a real key.
+  ['ChartAxis', { authored: new Set(['shape', 'label']), surface: new Set(['parse', 'safeParse', 'shape']) }],
+]);
+
+/** The guard's own resolver contract: family stem, or `null` when unknowable. */
+const MEMBERS_OF = (name: string) =>
+  SPEC_MEMBERS.get(name.replace(/(?:Schema|Input|Parsed)$/, '')) ?? null;
+
+const citations = (file: string) =>
+  scanFileForMemberCitations(file, MEMBERS_OF).map(
+    (c: { symbol: string; member: string; line: number }) => `${c.symbol}.${c.member}@${c.line}`
+  );
+
+/**
+ * ⭐ The bite leg. These are the VERBATIM comments the three measured specimens
+ * carried before they were repaired (PR #7510 for the two in `field-types.ts`,
+ * PR #7520 for `DashboardView.tsx`), copied out of those PRs' removed lines.
+ *
+ * A ratchet added with only a green assertion on today's tree proves nothing
+ * about the tightening — the tree is green either way, including with the rule
+ * deleted. These fixtures are the only thing in this file that can tell the
+ * difference, which is why they are pinned as text rather than described.
+ */
+describe('rule 4 at member granularity goes RED on the pre-repair text', () => {
+  it('flags `SelectOptionSchema.description` — the key a `.strict()` option schema refuses', () => {
+    withFixture(
+      {
+        'field-types.ts': `
+export interface SelectOptionMetadata {
+  label: string;
+  value: string;
+  /**
+   * Supporting text for the option. \`LookupField\` has always searched it and its
+   * \`recordToOption\` emits the same key for fetched records — while this type
+   * never declared it, so the behaviour was real for a key no annotated
+   * literal could carry. Aligns \`@objectstack/spec\`
+   * \`SelectOptionSchema.description\`; renderers may show it as supporting
+   * text.
+   */
+  description?: string;
+  color?: string;
+}
+`,
+      },
+      ({ 'field-types.ts': file }) => expect(citations(file)).toEqual(['SelectOptionSchema.description@5'])
+    );
+  });
+
+  it('flags `FieldSchema.rows` on a MEMBER docblock, which no declaration-scoped scan reaches', () => {
+    // Both of `field-types.ts`'s pre-repair citations, on two different member
+    // docblocks. Rule 2 reads `attachedDoc(stmt)` on TOP-LEVEL statements only,
+    // so it sees neither — and widening rule 2 to member docs is objectui#7513's
+    // deferred B, deliberately not what makes these visible here.
+    withFixture(
+      {
+        'field-types.ts': `
+export interface MarkdownFieldMetadata {
+  /**
+   * Height of the editor, in text rows. The running widget honoured a key an
+   * annotated literal rejected. Aligns the \`TextareaFieldMetadata\` precedent
+   * and \`@objectstack/spec\` \`FieldSchema.rows\` (a positive integer, authorable
+   * on exactly the multiline editor types textarea/markdown/html/richtext).
+   */
+  rows?: number;
+}
+
+export interface HtmlFieldMetadata {
+  /**
+   * Height of the INLINE editor, in text rows. \`RichTextField\` reads it for all
+   * three registry keys it
+   * serves, and \`@objectstack/spec\` \`FieldSchema.rows\` declares it for the
+   * multiline editor types.
+   */
+  rows?: number;
+}
+`,
+      },
+      ({ 'field-types.ts': file }) =>
+        expect(citations(file)).toEqual(['FieldSchema.rows@3', 'FieldSchema.rows@13'])
+    );
+  });
+
+  it('flags `DashboardSchema.title` inside a FUNCTION BODY, with no claim phrase anywhere', () => {
+    // The specimen that settles two design questions at once: the comment is not
+    // attached to any declaration, and "Per @objectstack/spec, X is …" matches no
+    // CLAIM_PATTERN. A rule that needed either would have missed it.
+    withFixture(
+      {
+        'DashboardView.tsx': `
+export function DashboardView() {
+  const dashboard = load();
+  // Per @objectstack/spec, DashboardSchema.title is "the dashboard
+  // title displayed in the header". We prefer it when present, then
+  // fall back to \`label\` (the metadata display name) and finally to
+  // the raw \`name\`.
+  return dashboard.title ?? dashboard.label ?? dashboard.name;
+}
+`,
+      },
+      ({ 'DashboardView.tsx': file }) => expect(citations(file)).toEqual(['DashboardSchema.title@4'])
+    );
+  });
+
+  it('…and GREEN on the repaired wording that replaced each of them', () => {
+    // The other half of the pair. Both replacements keep the spec mention and
+    // keep naming the key — they just stop claiming the spec DECLARES it, which
+    // is precisely the distinction the rule has to be able to draw.
+    withFixture(
+      {
+        'repaired.ts': `
+export interface SelectOptionMetadata {
+  /**
+   * Supporting text. \`@objectstack/spec\`'s \`SelectOptionSchema\` is \`.strict()\`
+   * and declares \`label\`, \`value\`, \`color\`, \`default\` and \`visibleWhen\` — a
+   * \`description\` on an option earns a 422 from the save route, so this key is
+   * renderer-side only.
+   */
+  description?: string;
+}
+
+export function DashboardView() {
+  // \`title\` is NOT a spec key — it is the LEGACY objectui spelling. Measured on
+  // \`@objectstack/spec\` 17.2.0, \`DashboardSchema.label\` is the display name and
+  // the document root refuses \`title\` by name.
+  return 1;
+}
+`,
+      },
+      ({ 'repaired.ts': file }) => expect(citations(file)).toEqual([])
+    );
+  });
+});
+
+describe('rule 4 at member granularity — the precision rules, each against its near neighbour', () => {
+  const one = (source: string, name = 'probe.ts') =>
+    withFixture({ [name]: source }, (paths) => citations(paths[name]));
+
+  it('a key the spec really declares is green', () => {
+    expect(
+      one(`
+/** Aligns with \`@objectstack/spec\` \`DashboardSchema.label\` — the display name. */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('⭐ `.description` is NOT excused as Zod API, though Zod puts it on every schema', () => {
+    // The near-miss that decided the exclusion's shape. A structural "any
+    // property of the Zod type" predicate reads `SelectOptionSchema.description`
+    // as Zod's own `.description` and waves through the citation this entire
+    // rule was built for. Same for `.default`, `.type`, `.options`, `.readonly`.
+    expect(
+      one(`
+/** Aligns \`@objectstack/spec\` \`SelectOptionSchema.description\`. */
+export type X = string;
+`)
+    ).toEqual(['SelectOptionSchema.description@2']);
+  });
+
+  it('Zod API in CALL form is excused, which is how the shared names stay safe', () => {
+    // `default` is a real spec key AND a real Zod method, so it can never go in
+    // the vocabulary. The parentheses are what make this one an invocation.
+    expect(
+      one(`
+/** The spec declares \`mode: NavigationModeSchema.default('page')\` — see \`@objectstack/spec\`. */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('…while a parenthetical AFTER a citation is still a citation', () => {
+    // "\`FieldSchema.rows\` (a positive integer)" — a backtick and a space before
+    // the paren is prose, not a call. One of the three specimens is written
+    // exactly this way, so this is the difference between a bite and a no-op.
+    expect(
+      one(`
+/** \`@objectstack/spec\` \`FieldSchema.rows\` (a positive integer). */
+export type X = string;
+`)
+    ).toEqual(['FieldSchema.rows@2']);
+  });
+
+  it('bare Zod introspection vocabulary is excused', () => {
+    expect(
+      one(`
+/** \`@objectstack/spec\`: \`FieldSchema.safeParse\` on a section returns \`unrecognized_keys\`. */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('…but the AUTHORED set answers first, so a real `shape` key is never excused by it', () => {
+    // The ordering proof. `ChartAxis` declares `shape` as an authored key, so
+    // `ChartAxis.shape` is green on the strength of the SHAPE, not the
+    // vocabulary — and `ChartAxis.parse` stays excused beside it.
+    expect(
+      one(`
+/** \`@objectstack/spec\` \`ChartAxis.shape\` and \`ChartAxis.parse\`. */
+export type X = string;
+`)
+    ).toEqual([]);
+    expect(
+      one(`
+/** \`@objectstack/spec\` \`ChartAxis.widget\`. */
+export type X = string;
+`)
+    ).toEqual(['ChartAxis.widget@2']);
+  });
+
+  it('a FILE PATH is not a citation', () => {
+    // `ui/TimelineConfig.json` is a file the comment points at; `json` is an
+    // extension. Measured: four sites in the tree read this way.
+    expect(
+      one(`
+/** \`scale\` is \`@objectstack/spec\` \`ui/DashboardSchema.json\`'s spelling. */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('a citation far from the spec mention is not a spec citation', () => {
+    // `ListView.resolveTimelineDateBinding` (app-shell) is a method on this
+    // repo's own component, 755 characters from an unrelated spec mention.
+    expect(
+      one(`
+/**
+ * This page reads \`@objectstack/spec\` metadata. Padding. Padding. Padding. Padding. Padding. Padding. Padding. Padding. Padding. Padding. Padding. Padding. 
+ * \`DashboardSchema.resolveTimelineDateBinding\` is the single read-site.
+ */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('…and neither is one on the far side of a sentence boundary', () => {
+    expect(
+      one(`
+/** Renamed off \`@objectstack/spec\`. \`DashboardSchema.title\` is ours. */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('a comment that never mentions the spec is out of jurisdiction', () => {
+    expect(
+      one(`
+/** Our own \`DashboardSchema.title\`, nothing to do with the protocol. */
+export type X = string;
+`)
+    ).toEqual([]);
+  });
+
+  it('an unknowable member set keeps the rule out of the way entirely', () => {
+    // The same judgement rule 4 makes with no spec export set at all: a verdict
+    // fabricated from ignorance of the spec would flag every citation at once.
+    expect(
+      one(`
+/** \`@objectstack/spec\` \`HttpRequestSchema.body\` carries it. */
+export type X = string;
+`)
+    ).toEqual([]);
   });
 });
