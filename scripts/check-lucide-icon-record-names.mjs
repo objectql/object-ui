@@ -178,6 +178,48 @@
  *   beside a string map that resolves the same glyphs and a dead spelling gets
  *   copied across — the exact path by which `bar-chart-3` and `gantt-chart`
  *   reached a string map (objectui#5586).
+ * - A component REGISTRATION's `icon` meta is not judged, and this boundary is
+ *   now CLOSED rather than open (objectui#5936). It is the palette-entry glyph
+ *   on `ComponentRegistry.register(..., { icon })` — 45 registrations declare
+ *   one. It was left unjudged at objectui#5633 because nothing could be found
+ *   reading it, and objectui#5936 was filed to locate that reader before the
+ *   gate was extended to the population. THE READER WAS NOT FOUND, in any of
+ *   the three first-party populations anyone has:
+ *
+ *     objectui     zero  — filing seat, 2026-08-24; RE-DERIVED at objectui@24e027e93
+ *                          over all five meta-bearing registry read paths, not
+ *                          just `getMeta(...).icon`. `getMeta()` has four
+ *                          first-party callers and they read `.labelling`,
+ *                          `.namespace`, `.isContainer`, `.inputs` and
+ *                          `.deprecated`; `getPublicConfigs()` has one, reading
+ *                          `{ type, isContainer }`; `getConfig()`,
+ *                          `getAllConfigs()` and `getNamespaceComponents()`
+ *                          have none. Controls fired on the same tree: 51
+ *                          `getMeta(` occurrences, 4898 `-i icon` lines.
+ *     objectstack  zero  — PM seat, origin/main @ daacc1071, 2026-08-24.
+ *     cloud        zero  — `repo:cloud` seat, cloud@9b6abe0f2fd5, 2026-09-03
+ *                          (objectstack#12931). Structural, not just grep-deep:
+ *                          cloud has NO component-registration surface at all
+ *                          and no `@object-ui/*` dependency in any of its 19
+ *                          package.json files. Controls fired: `getMeta` without
+ *                          the paren 276, `-i icon` 412.
+ *
+ *   ⇒ ADJUDICATED 2026-09-04: the gate is NOT extended to registration `icon`
+ *   meta. Both branches objectui#5936 offered — a record-reading consumer, or a
+ *   dynamic-surface one — are NOT OBSERVED, so there is nothing to tell this
+ *   gate which vocabulary such a name would reach. Judging it anyway would be
+ *   this file's own cardinal error: guessing a vocabulary. ⛔ Do not re-open on
+ *   the strength of the local `ui:icon` pin — that pin was the reason to go
+ *   looking, not evidence of what was found, and objectui#5936 retired its
+ *   membership half for exactly this reason.
+ *
+ *   ⚠️ Three zeros close the three KNOWN populations; they are NOT a proof of
+ *   absence. A customer-authored app or an unmeasured repo could read the meta,
+ *   and `WidgetRegistry` copies `manifest.icon` INTO this meta from external
+ *   widget manifests — a first-party producer path whose consumer is expected
+ *   to be a designer palette outside this tree. So: measured dead here, not
+ *   proven dead anywhere. NEW EVIDENCE — an actual reader, in any repo — is
+ *   what re-opens this, and it re-opens it as a real extension.
  *
  * Run:     node scripts/check-lucide-icon-record-names.mjs
  *          node scripts/check-lucide-icon-record-names.mjs --report
