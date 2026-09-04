@@ -1,6 +1,5 @@
 {
   "type": "dashboard",
-  "title": "Activity Over Time",
   "columns": 2,
   "gap": 4,
   "dateRange": {

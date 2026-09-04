@@ -1,6 +1,5 @@
 {
   "type": "dashboard",
-  "title": "Sales Overview (dataset + inline)",
   "columns": 2,
   "gap": 4,
   "dateRange": {
