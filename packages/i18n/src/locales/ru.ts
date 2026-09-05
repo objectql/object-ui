@@ -1628,12 +1628,20 @@ const ru = {
           recentRecords: "Перечисли 5 последних созданных записей.",
           recordCounts: "Посчитай количество записей по каждому объекту.",
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: "Создай CRM для продаж — клиенты, контакты и воронка сделок с итогами по этапам.",
-          buildApp: "Создай трекер проектов — проекты, задачи с ответственными и сроками, доска по статусам.",
-          buildFlow: "Спроектируй службу поддержки — заявки с приоритетом, процесс статусов и связи с клиентами.",
-          buildInventory: "Создай приложение для склада — товары, остатки, поставщики и индикация низких остатков.",
-          buildRecruiting: "Создай трекер кандидатов — кандидаты, открытые вакансии, этапы собеседований и заметки.",
+          buildCrm: "Создай CRM для продаж — клиенты, контакты и сделки с полем этапа, а также дашборд с суммой сделок по этапам.",
+          buildApp: "Создай трекер проектов — проекты, задачи с ответственными и сроками, доска по статусам и календарь сроков.",
+          buildFlow: "Спроектируй службу поддержки — заявки с полями приоритета и статуса, доска по статусам и связи с клиентами.",
+          buildInventory: "Создай приложение для склада — товары, остатки, поставщики и представление, отбирающее товары ниже точки заказа.",
+          buildRecruiting: "Создай трекер кандидатов — кандидаты, открытые вакансии, поле этапа собеседования и доска по этапам.",
         },
         generic: {
           help: "Чем ты можешь мне помочь?",
@@ -2902,6 +2910,14 @@ const ru = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: "Сводка данных",
@@ -2921,16 +2937,21 @@ const ru = {
       describe_metadata: "Посмотреть метаданные",
       describe_object: "Посмотреть структуру объекта",
       get_active_package: "Получить активный пакет",
+      get_authoring_rules: "Читать правила разработки",
       get_metadata_schema: "Получить схему метаданных",
       get_package: "Получить пакет",
       list_metadata: "Список метаданных",
       list_objects: "Список объектов",
       list_packages: "Список пакетов",
+      load_tools: "Загрузить инструменты",
       modify_field: "Изменить поле",
+      open_record: "Открыть запись",
       propose_blueprint: "Спроектировать приложение",
       set_active_package: "Сменить активный пакет",
       suggest_builder: "Предложить способ сборки",
+      test_flow: "Проверить процесс",
       todo_write: "Записать задачи",
+      toggle_flow: "Включить или выключить процесс",
       update_metadata: "Обновить метаданные",
       validate_expression: "Проверить выражение",
       verify_build: "Проверить сборку",

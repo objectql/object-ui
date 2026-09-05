@@ -27,7 +27,7 @@ import {
   buildDatasetFieldHelpers,
   type DatasetResultField,
 } from '@object-ui/core';
-import { useSafeFieldLabel, useDisplayLocale } from '@object-ui/i18n';
+import { builtinAggregateLabels, useSafeFieldLabel, useSafeTranslate, useDisplayLocale } from '@object-ui/i18n';
 
 // Lazy-loaded so the (recharts-backed) chart bundle only loads when a dataset
 // preview actually renders a chart — keeps the metadata-admin bundle small.
@@ -48,6 +48,9 @@ type PreviewState =
 export function DatasetPreview({ draft }: MetadataPreviewProps) {
   const adapter = useAdapter();
   const { fieldLabel } = useSafeFieldLabel();
+  // objectui#7534 — the locale bundle's built-in aggregate labels; `@object-ui/
+  // core` is i18n-free, so the layer holding the provider resolves them.
+  const tt = useSafeTranslate();
   // The display locale the measure / dimension cells below format in
   // (objectui#4575, completing objectui#4566's channel). Deliberately NOT the
   // `locale` PROP in scope: that one is the metadata designer's own chrome
@@ -132,7 +135,17 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
   // number when the server result carries no field metadata.
   const resultFields = state.status === 'ok' ? state.fields : undefined;
   const resultObject = state.status === 'ok' ? state.object : undefined;
-  const { measureField, headerLabel } = buildDatasetFieldHelpers(resultFields, resultObject, fieldLabel);
+  // objectui#7534 — a preview column the analytics service minted as a
+  // built-in default measure carries `builtinAggregate` and a hard-coded
+  // English `label`; resolve it through the shared seam (#7258) so the author
+  // previewing a dataset on a zh console reads the same caption the published
+  // widget will show.
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(
+    resultFields,
+    resultObject,
+    fieldLabel,
+    builtinAggregateLabels(tt),
+  );
   const columns = [...dimensionNames, ...measureNames];
 
   // A ratio/percent measure (format like `0.0%`) on the same axis as a

@@ -1618,12 +1618,20 @@ const fr = {
           recentRecords: "Liste les 5 enregistrements créés le plus récemment.",
           recordCounts: "Compte les enregistrements pour chaque objet.",
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: "Crée un CRM commercial — clients, contacts et un pipeline d'affaires que je peux totaliser par étape.",
-          buildApp: "Crée un suivi de projets — projets, tâches avec responsables et échéances, et un tableau par statut.",
-          buildFlow: "Conçois un service d'assistance — tickets avec priorité, un flux de statuts et des liens vers les clients.",
-          buildInventory: "Crée une application de stock — produits, niveaux de stock, fournisseurs et visibilité des stocks faibles.",
-          buildRecruiting: "Crée un suivi de candidatures — candidats, postes ouverts, étapes d'entretien et notes.",
+          buildCrm: "Crée un CRM commercial — clients, contacts et affaires avec un champ étape, plus un tableau de bord qui totalise le montant par étape.",
+          buildApp: "Crée un suivi de projets — projets, tâches avec responsables et échéances, un tableau par statut et un calendrier des échéances.",
+          buildFlow: "Conçois un service d'assistance — tickets avec des champs priorité et statut, un tableau par statut et des liens vers les clients.",
+          buildInventory: "Crée une application de stock — produits, niveaux de stock, fournisseurs et une vue qui filtre les articles sous leur seuil de réapprovisionnement.",
+          buildRecruiting: "Crée un suivi de candidatures — candidats, postes ouverts, un champ étape d'entretien et un tableau par étape.",
         },
         generic: {
           help: "En quoi peux-tu m'aider ?",
@@ -2891,6 +2899,14 @@ const fr = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: "Agréger les données",
@@ -2910,16 +2926,21 @@ const fr = {
       describe_metadata: "Consulter les métadonnées",
       describe_object: "Consulter la structure de l’objet",
       get_active_package: "Lire le paquet actif",
+      get_authoring_rules: "Lire les règles d'écriture",
       get_metadata_schema: "Lire le schéma des métadonnées",
       get_package: "Lire le paquet",
       list_metadata: "Lister les métadonnées",
       list_objects: "Lister les objets",
       list_packages: "Lister les paquets",
+      load_tools: "Charger les outils",
       modify_field: "Modifier un champ",
+      open_record: "Ouvrir la fiche",
       propose_blueprint: "Concevoir le plan de l’application",
       set_active_package: "Changer le paquet actif",
       suggest_builder: "Proposer une méthode de construction",
+      test_flow: "Tester le flux",
       todo_write: "Noter les tâches",
+      toggle_flow: "Activer ou désactiver le flux",
       update_metadata: "Mettre à jour les métadonnées",
       validate_expression: "Valider l’expression",
       verify_build: "Vérifier la construction",

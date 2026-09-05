@@ -148,7 +148,19 @@ function BrandingSync() {
 export function App() {
   return (
     <AuthProvider authUrl={AUTH_URL}>
-      <ConsoleToaster position="bottom-right" />
+      {/* objectui#7482 — no `position` override: the console takes
+          `ConsoleToaster`'s own documented top-right anchor.
+
+          `bottom-right` predates the ChatDock (ADR-0057 P3a) and the FAB that
+          launches it, and the bottom-right corner now belongs to them: a
+          success toast landed exactly on the assistant composer's send button.
+          Two things went wrong, not one. It COVERED the button — and because
+          sonner pauses a toast's dismiss timer while the pointer is over the
+          toaster region (`expanded || interacting || isDocumentHidden`), a
+          pointer resting on the composer under it kept 「客户更新成功」 on
+          screen indefinitely, so the only way out was the × . The toaster's
+          4s default was never wrong; it just never got to run. */}
+      <ConsoleToaster />
       <MetadataHmrReloader />
       <BrowserRouter basename={BASENAME}>
         <BrandingSync />

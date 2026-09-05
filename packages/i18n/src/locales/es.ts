@@ -1620,12 +1620,20 @@ const es = {
           recentRecords: "Enumera los 5 registros creados más recientemente.",
           recordCounts: "Cuenta los registros de cada objeto.",
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: "Crea un CRM de ventas — clientes, contactos y un embudo de oportunidades que pueda totalizar por etapa.",
-          buildApp: "Crea un seguimiento de proyectos — proyectos, tareas con responsables y fechas de vencimiento, y un tablero por estado.",
-          buildFlow: "Diseña una mesa de ayuda — tickets con prioridad, un flujo de estados y vínculos con los clientes.",
-          buildInventory: "Crea una aplicación de inventario — productos, niveles de stock, proveedores y visibilidad de stock bajo.",
-          buildRecruiting: "Crea un seguimiento de candidaturas — candidatos, vacantes, etapas de entrevista y notas.",
+          buildCrm: "Crea un CRM de ventas — clientes, contactos y oportunidades con un campo de etapa, y un panel que sume el importe por etapa.",
+          buildApp: "Crea un seguimiento de proyectos — proyectos, tareas con responsables y fechas de vencimiento, un tablero por estado y un calendario de vencimientos.",
+          buildFlow: "Diseña una mesa de ayuda — tickets con campos de prioridad y estado, un tablero por estado y vínculos con los clientes.",
+          buildInventory: "Crea una aplicación de inventario — productos, niveles de stock, proveedores y una vista que filtre los artículos por debajo de su punto de pedido.",
+          buildRecruiting: "Crea un seguimiento de candidaturas — candidatos, vacantes, un campo de etapa de entrevista y un tablero por etapa.",
         },
         generic: {
           help: "¿En qué puedes ayudarme?",
@@ -2893,6 +2901,14 @@ const es = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: "Resumir datos",
@@ -2912,16 +2928,21 @@ const es = {
       describe_metadata: "Consultar metadatos",
       describe_object: "Consultar la estructura del objeto",
       get_active_package: "Obtener el paquete activo",
+      get_authoring_rules: "Leer las reglas de autoría",
       get_metadata_schema: "Obtener el esquema de metadatos",
       get_package: "Obtener paquete",
       list_metadata: "Listar metadatos",
       list_objects: "Listar objetos",
       list_packages: "Listar paquetes",
+      load_tools: "Cargar herramientas",
       modify_field: "Modificar campo",
+      open_record: "Abrir registro",
       propose_blueprint: "Diseñar el plan de la aplicación",
       set_active_package: "Cambiar el paquete activo",
       suggest_builder: "Sugerir cómo construirlo",
+      test_flow: "Probar el flujo",
       todo_write: "Anotar tareas",
+      toggle_flow: "Activar o desactivar el flujo",
       update_metadata: "Actualizar metadatos",
       validate_expression: "Validar expresión",
       verify_build: "Verificar la construcción",

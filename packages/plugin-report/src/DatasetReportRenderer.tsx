@@ -554,7 +554,16 @@ function DatasetReportTable({
     onDrill!({ dataset, groupKey, runtimeFilter, object: state.object, objectFilter });
   };
 
-  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
+  // objectui#7534 — resolve a BUILT-IN default measure's caption through the
+  // same seam the report chart already uses for its legend (#7258), so the
+  // summary header / metric caption / pivot header cannot say `Count` while the
+  // chart beside them says `计数`.
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(
+    state.fields,
+    state.object,
+    fieldLabel,
+    builtinAggregateLabels(tt),
+  );
   const columns = [...rows, ...values];
   // The rows as DISPLAYED (objectui#4330). Order and count are preserved, so
   // `state.rows[i]` / `drillRawRows[i]` stay index-aligned — which is what
@@ -946,7 +955,16 @@ function DatasetReportChart({
   // On error or empty, fall back silently to the table beneath.
   if (state.status === 'error' || state.rows.length === 0) return null;
 
-  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
+  // objectui#7534 — resolve a BUILT-IN default measure's caption through the
+  // same seam the report chart already uses for its legend (#7258), so the
+  // summary header / metric caption / pivot header cannot say `Count` while the
+  // chart beside them says `计数`.
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(
+    state.fields,
+    state.object,
+    fieldLabel,
+    builtinAggregateLabels(tt),
+  );
   // The measure's display name, resolved ONCE for every branch below
   // (objectui#4020). Three levels, highest first:
   //
@@ -1245,7 +1263,16 @@ function DatasetMatrixTable({
   if (state.status === 'error') return <FetchStates status="error" error={state.error} />;
   if (!pivot || pivot.rowHeaders.length === 0) return <NoRows />;
 
-  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
+  // objectui#7534 — resolve a BUILT-IN default measure's caption through the
+  // same seam the report chart already uses for its legend (#7258), so the
+  // summary header / metric caption / pivot header cannot say `Count` while the
+  // chart beside them says `计数`.
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(
+    state.fields,
+    state.object,
+    fieldLabel,
+    builtinAggregateLabels(tt),
+  );
   const totalText = tt('report.total', 'Total');
   const canDrill = !!onDrill;
   // Down + across dims the server can map to object fields → raw-value filter.

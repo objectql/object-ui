@@ -22,6 +22,7 @@ import type { PercentScale } from '@objectstack/spec/data';
 
 import { formatDisplayNumber, type DisplayNumberFormatOptions } from './number-display.js';
 import { formatDate, formatDateTime } from './date-display.js';
+import { resolveMeasureLabel, type BuiltinAggregateLabels } from './chart-series.js';
 
 /**
  * Column metadata the analytics server returns alongside the rows — the spec's
@@ -396,11 +397,30 @@ export function formatDimensionValue(v: unknown, locale?: string): string {
  *
  * `fieldLabel` is injected (rather than imported) so this stays React/i18n-free;
  * callers pass `useSafeFieldLabel().fieldLabel`.
+ *
+ * ## `builtinAggregateLabels` (objectui#7534, sibling of #7258)
+ *
+ * A result field the analytics service minted as a BUILT-IN default measure
+ * carries `builtinAggregate` (objectstack#14492) and a hard-coded English
+ * `label` ('Count'). {@link resolveMeasureLabel} is the ONE resolver for that —
+ * #7258 wired it into `buildChartSeries()`, so a chart legend already read
+ * `计数` on a zh console while the table underneath it, the KPI caption, the
+ * pivot header and the dataset preview all still said `Count`, because they
+ * resolve their titles through here instead.
+ *
+ * Passing the caller's resolved labels closes that gap without a second
+ * resolution order: the discriminator is consulted FIRST (exactly as on the
+ * chart seam), the existing `fieldLabel` convention still applies on top, and
+ * the raw name is still the floor. Omitting the argument reproduces the
+ * previous output byte for byte — an author-declared measure carries no
+ * discriminator and keeps its wire `label` verbatim (objectui#4106), and a
+ * provider-less host resolves no labels and so changes nothing.
  */
 export function buildDatasetFieldHelpers(
   fields: DatasetResultField[] | undefined,
   object: string | undefined,
   fieldLabel?: (objectName: string, fieldName: string, fallback: string) => string,
+  builtinAggregateLabels?: BuiltinAggregateLabels,
 ): {
   measureField: (name: string) => DatasetResultField | undefined;
   headerLabel: (name: string) => string;
@@ -408,7 +428,8 @@ export function buildDatasetFieldHelpers(
   const fieldByName = new Map((fields ?? []).map((f) => [f.name, f] as const));
   const measureField = (name: string) => fieldByName.get(name);
   const headerLabel = (name: string) => {
-    const fallback = measureField(name)?.label ?? name;
+    const field = measureField(name);
+    const fallback = field ? resolveMeasureLabel(field, builtinAggregateLabels) : name;
     return object && fieldLabel ? fieldLabel(object, name, fallback) : fallback;
   };
   return { measureField, headerLabel };
