@@ -143,6 +143,7 @@ export {
   TreeViewSchema,
   ChartTypeSchema,
   ChartDataSeriesSchema,
+  DrillDownConfigSchema,
   ChartSchema,
   TimelineEventSchema,
   TimelineSchema,
