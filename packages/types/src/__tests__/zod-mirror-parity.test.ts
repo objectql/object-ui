@@ -202,18 +202,18 @@ import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import type { z } from 'zod';
 
-import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
+import { AppActionSchema, AppComponentSchema, MenuItemSchema as AppMenuItemSchema, NavigationAreaSchema, NavigationItemSchema } from '../zod/app.zod.js';
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema, SchemaNodeSchema } from '../zod/base.zod.js';
-import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema } from '../zod/complex.zod.js';
-import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
-import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
+import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema, FilterBuilderConditionSchema, FilterGroupSchema } from '../zod/complex.zod.js';
+import { ActionCallbackSchema, ActionSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
+import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeNodeSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
 import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
 import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
-import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
+import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuItemSchema, NavigationMenuSchema, NavLinkSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
 import { ObjectCalendarSchema, ObjectChartSchema, ObjectDataTableSchema, ObjectFormSchema, ObjectGallerySchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
-import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
+import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, MenuItemSchema as OverlayMenuItemSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
 import { ReportBuilderSchema, ReportComponentSchema, ReportExportConfigSchema, ReportFieldSchema, ReportFilterSchema, ReportGroupBySchema, ReportSectionSchema, ReportViewerSchema } from '../zod/reports.zod.js';
 import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, DetailViewTabSchema, FilterUISchema, SortUISchema, ViewSwitcherSchema } from '../zod/views.zod.js';
 
@@ -2461,20 +2461,6 @@ export const ObjectGanttSchema = SpecGanttConfigSchema.extend({});
 
 /* ── Runtime: bounding the region the type level cannot see (objectui#7069) ─── */
 
-/**
- * `WiderThanDeclaredKeys` is blind wherever a mirror slot's input face is
- * `unknown`, and every such face in this registry comes from ONE const —
- * `SchemaNodeSchema`, annotated `z.ZodType< any >` to break its own `z.lazy`
- * recursion. That claim is what makes the exclusion a bounded hole rather than an
- * open one, and it is exactly the claim the type level cannot check: at the type
- * level every unconstrained face looks alike, so a SECOND annotated recursive
- * mirror would enlarge the blind region without changing anything the compiler
- * reads. At runtime the mirrors are values and the lazy nodes are identifiable.
- *
- * ⛔ This is not a count. A count of affected slots moves with every `.extend()`
- * and would be the hand-maintained number this file keeps removing; what is pinned
- * is the CAUSE — that the blind region has exactly one source.
- */
 type ZodInternals = { _zod?: { def?: Record<string, unknown> } };
 
 const defOf = (schema: unknown): Record<string, unknown> | undefined =>
@@ -2497,30 +2483,92 @@ function reachableNodes(schema: unknown, seen = new Set<unknown>()): unknown[] {
   return found;
 }
 
-describe('the wider-direction blind spot has exactly one source (objectui#7069)', () => {
-  const lazySlots: { slot: string; isSchemaNode: boolean }[] = [];
+/** Every lazy node reachable from a registered mirror, with one slot that reaches it. */
+function measureReachableLazyNodes(): Map<unknown, string> {
+  const nodes = new Map<unknown, string>();
   for (const [pair, mirror] of Object.entries(MIRRORS)) {
     const shape = defOf(mirror)?.shape as Record<string, unknown> | undefined;
     if (!shape) continue;
     for (const key of Object.keys(shape)) {
       for (const node of reachableNodes(shape[key])) {
-        if (defOf(node)?.type !== 'lazy') continue;
-        lazySlots.push({ slot: `${pair}.${key}`, isSchemaNode: node === SchemaNodeSchema });
+        if (defOf(node)?.type === 'lazy' && !nodes.has(node)) nodes.set(node, `${pair}.${key}`);
       }
     }
   }
+  return nodes;
+}
 
+/**
+ * `WiderThanDeclaredKeys` is blind wherever a mirror slot's input face is
+ * `unknown`, and that face has ONE producing spelling: a recursive mirror annotated
+ * `z.ZodType< any >` to break the cycle in its own `z.lazy`, which zod 4 reads as an
+ * `unknown` INPUT parameter. So the exclusion is only as bounded as that population
+ * is — and the population is exactly what the type level cannot report. At the type
+ * level every unconstrained face looks alike, so a NEW recursive mirror enlarges
+ * the blind region without changing one character the compiler reads. At runtime
+ * the mirrors are values and the lazy nodes are reachable, so the region can be
+ * enumerated and pinned. That is the whole reason this leg is at runtime.
+ *
+ * ⚠️ The first spelling of this leg asserted the region had a SINGLE source,
+ * `SchemaNodeSchema`. The walk refuted it on the first run — the navigation, menu,
+ * tree, action and filter-condition mirrors each carry the same annotation — and
+ * the claim was replaced by the measurement rather than repaired. It is recorded
+ * here because the wrong version is the intuitive one: the card, the triage and the
+ * dispatch all describe the producer as if it were one const.
+ *
+ * ⛔ Not a count of affected slots: that moves with every `.extend()`, since every
+ * component mirror inherits the base's schema-node slots. What is pinned is the set
+ * of SOURCES, which moves only when someone writes a new recursive mirror.
+ */
+const RECURSION_BREAKING_MIRRORS: readonly (readonly [string, unknown])[] = [
+  ['base.zod.ts#SchemaNodeSchema', SchemaNodeSchema],
+  ['app.zod.ts#NavigationItemSchema', NavigationItemSchema],
+  ['app.zod.ts#MenuItemSchema', AppMenuItemSchema],
+  ['complex.zod.ts#FilterBuilderConditionSchema', FilterBuilderConditionSchema],
+  ['complex.zod.ts#FilterGroupSchema', FilterGroupSchema],
+  ['crud.zod.ts#ActionSchema', ActionSchema],
+  ['data-display.zod.ts#TreeNodeSchema', TreeNodeSchema],
+  ['navigation.zod.ts#NavLinkSchema', NavLinkSchema],
+  ['navigation.zod.ts#NavigationMenuItemSchema', NavigationMenuItemSchema],
+  ['overlay.zod.ts#MenuItemSchema', OverlayMenuItemSchema],
+];
+
+/**
+ * Lazy nodes with no exported const to name, recorded by a slot that reaches them:
+ * an inline `z.lazy` written in the slot itself, or one inside a PRIVATE mirror.
+ * They are part of the blind region on the same terms as the named ones; they are
+ * listed separately only because there is no identity to compare against.
+ */
+const UNNAMED_LAZY_SLOTS: readonly string[] = [
+  'complex.zod.ts#DashboardComponentSchema.widgets',
+  'objectql.zod.ts#ObjectViewSchema.form',
+  'objectql.zod.ts#ObjectViewSchema.table',
+];
+
+describe('the blind region of the wider direction is bounded (objectui#7069)', () => {
   it('the walk can actually see a lazy node (non-vacuity)', () => {
     // A walk that stopped following zod's nesting would report an empty region and
-    // pass the next case while checking nothing — the failure mode objectui#6133
-    // names, on the instrument rather than on the ledger.
-    expect(lazySlots.length).toBeGreaterThan(0);
+    // pass the case below while measuring nothing — the failure mode objectui#6133
+    // names, here on the instrument rather than on a ledger.
+    expect(measureReachableLazyNodes().size).toBeGreaterThan(0);
   });
 
-  it('every lazy node under a registered mirror is SchemaNodeSchema', () => {
-    const foreign = lazySlots.filter((entry) => !entry.isSchemaNode).map((entry) => entry.slot);
-    // A second annotated recursive mirror would widen the region `Unconstrained`
-    // excludes, and the ledger's SCHEMA-NODE class note would stop being true.
-    expect(foreign).toEqual([]);
+  it('every recursion-breaking mirror in the region is named or recorded', () => {
+    // Fails when a new recursive mirror joins the region, which is precisely the
+    // event that widens what `Unconstrained` excludes and what the ledger's
+    // SCHEMA-NODE class covers — and the event nothing else in this file can see.
+    const unnamed = [...measureReachableLazyNodes().entries()]
+      .filter(([node]) => !RECURSION_BREAKING_MIRRORS.some(([, schema]) => schema === node))
+      .map(([, slot]) => slot);
+    expect([...new Set(unnamed)].sort()).toEqual([...UNNAMED_LAZY_SLOTS].sort());
+  });
+
+  it('every recorded source is really reachable — no dead entries', () => {
+    // The other direction of the same ratchet: a mirror that stops being recursive,
+    // or stops being reachable from the registry, leaves a row here asserting a
+    // region that no longer exists.
+    const live = new Set(measureReachableLazyNodes().keys());
+    const dead = RECURSION_BREAKING_MIRRORS.filter(([, schema]) => !live.has(schema)).map(([name]) => name);
+    expect(dead).toEqual([]);
   });
 });
