@@ -1424,29 +1424,45 @@ export interface ChartDataSeries {
   /**
    * Visual role. `'comparison'` is the muted period-over-period overlay
    * (`AdvancedChartImpl.tsx:2010-2033` — lower opacity, dashed stroke, and it
-   * is left out when the primary series are counted); `'primary'` and
-   * `'current'` both mean "not the overlay" and draw identically.
+   * is left out when the primary series are counted); `'primary'` (the
+   * default) is the normal treatment.
    *
-   * ⚠️ The union is the THREE values `normalizeSeries` honours
-   * (`normalizeChartSchema.ts:246-247`) — one wider than the spec's own
-   * `ChartSeries.variant` (`'primary' | 'comparison'`), because `current` is
-   * the spelling this repository's own comparison producers write
-   * (`ObjectChart.tsx:852`, `DatasetWidget.tsx:1450`) and the renderer reads.
-   * Any other value is dropped in silence by the normalizer, so the mirror
-   * refuses it by name instead (objectui#7546).
+   * The union is the spec's own `ChartSeries.variant` pair. The normalizer
+   * also tolerates a third spelling, `'current'` (`normalizeChartSchema.ts:247`),
+   * but that is the renderer's INTERNAL default — written only by the
+   * compare-to producers onto `dataKey`-shaped arrays handed straight to
+   * `ChartRenderer` (`ObjectChart.tsx:852`, `DatasetWidget.tsx:1450`), which
+   * never pass through this mirror — and by nothing an author writes (docs,
+   * fixtures and designer inputs: 0, controls lit). It is NOT a member here,
+   * so the published face does not fossilise a renderer-side tolerance into a
+   * second contract (AGENTS.md #0.1); the normalizer's own tolerance is
+   * objectui#7682's decision and is unchanged by this. Any other value is
+   * dropped in silence by the normalizer, so the mirror refuses it by name
+   * instead (objectui#7546).
    */
-  variant?: 'primary' | 'comparison' | 'current';
+  variant?: 'primary' | 'comparison';
   /**
-   * Stroke and fill opacity, 0–1. Read by `num()` (`normalizeChartSchema.ts:248`
+   * Stroke and fill opacity. Read by `num()` (`normalizeChartSchema.ts:248`
    * — any finite number; the mirror refuses `NaN`, `Infinity` and strings the
-   * same way) and applied at `AdvancedChartImpl.tsx:94-95`, where it overrides
-   * the per-family default (objectui#7546).
+   * same way) and applied at `AdvancedChartImpl.tsx:94-95` inside
+   * `comparisonStyle`, where it overrides the comparison overlay's per-family
+   * default (objectui#7546). Declared as the read's own domain: the spec's
+   * `ChartSeries.opacity` bounds it to 0–1, a bound the renderer does not
+   * enforce (SVG clamps at paint, nothing is dropped), so the mirror does not
+   * refuse an out-of-range value either.
+   *
+   * ⚠️ Today the renderer honours it ONLY on a `variant: 'comparison'` series —
+   * `comparisonStyle` returns `null` for any other variant and every mark reads
+   * `cmp?.fillOpacity` / `cmp?.strokeOpacity`, so on a primary series the value
+   * is read and unused. The spec declares it as an unconditional override, so
+   * that is a renderer gap (objectui#7698), not a reason to narrow this face.
    */
   opacity?: number;
   /**
    * SVG `stroke-dasharray` override, e.g. `"4 4"` for a dashed line
    * (`normalizeChartSchema.ts:250`; applied at `AdvancedChartImpl.tsx:96`)
-   * (objectui#7546).
+   * (objectui#7546). Same condition as {@link ChartDataSeries.opacity}: today
+   * only a `variant: 'comparison'` series reaches that read (objectui#7698).
    */
   dashArray?: string;
   /**

@@ -406,10 +406,10 @@ export const ChartDataSeriesSchema = z.object({
   label: I18nLabelSchema.optional().describe(
     'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
   ),
-  variant: z.enum(['primary', 'comparison', 'current']).optional().describe(
-    'Visual role — `comparison` draws the muted period-over-period overlay; `primary` and `current` both mean the normal treatment',
+  variant: z.enum(['primary', 'comparison']).optional().describe(
+    'Visual role — `comparison` draws the muted period-over-period overlay; `primary` (the default) is the normal treatment. The spec pair: the renderer-internal `current` spelling is not a member (objectui#7682)',
   ),
-  opacity: z.number().optional().describe('Stroke and fill opacity override, 0–1'),
+  opacity: z.number().optional().describe('Stroke and fill opacity override — any finite number, the read\'s own domain; the spec bounds it to 0–1'),
   dashArray: z.string().optional().describe('SVG stroke-dasharray override, e.g. "4 4" for a dashed line'),
   stack: z.string().optional().describe('Stack group id — series sharing one id stack together'),
   yAxis: z.enum(['left', 'right']).optional().describe('Which y-axis this series binds to on a dual-axis chart'),

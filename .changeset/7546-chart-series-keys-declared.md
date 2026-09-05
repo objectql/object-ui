@@ -57,16 +57,19 @@ for its own card; the mirror still strips it, and the pin test holds that gap vi
 ```ts
 // ChartDataSeries — all optional, all additive on the TS face
 + label?: string | I18nLabel;                       // spec I18nLabel: string | inline locale map
-+ variant?: 'primary' | 'comparison' | 'current';   // the three normalizeSeries honours
-+ opacity?: number;                                 // finite; NaN / Infinity / strings refused
++ variant?: 'primary' | 'comparison';               // the spec's own pair
++ opacity?: number;                                 // finite; NaN / Infinity / strings refused (the spec's 0–1 bound is not enforced — the read's domain)
 + dashArray?: string;
 + stack?: string;
 + yAxis?: 'left' | 'right';
 ```
 
-`variant` is one value wider than the spec's `'primary' | 'comparison'`: `current` is what this
-repository's own comparison producers write (`ObjectChart`, `DatasetWidget`) and what the renderer
-reads, and it draws identically to `primary`.
+`variant` is the spec's own pair. The normalizer also tolerates a third spelling, `current`, but that
+is the renderer's internal default — written only by the compare-to producers (`ObjectChart`,
+`DatasetWidget`) onto internal-shape arrays that never pass this mirror, and by nothing an author
+writes (docs, fixtures, designer inputs: 0, controls lit) — so it is not a member here: declaring it
+would have fossilised a renderer-side tolerance into a second contract. The normalizer's tolerance
+is unchanged; objectui#7682 owns that decision.
 
 ## Unchanged, deliberately
 

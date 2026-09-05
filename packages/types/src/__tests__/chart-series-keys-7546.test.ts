@@ -43,10 +43,13 @@
  * design ("both shapes" — `ChartRenderer.tsx:55-66`), in-repo producers write
  * them onto `type: 'chart'` nodes (`DashboardRenderer.tsx:648-652` `label`;
  * `ObjectChart.tsx:852-856` and `DatasetWidget.tsx:1444-1447` `variant`,
- * `chartType`, `yAxis`; `core/utils/chart-presentation.ts:126-131` all six on
- * the dataset path), and the narrowings (`variant`, `yAxis`) are design intent
- * the reader already enforces. Declaring them widens the accept set only
- * toward what already renders.
+ * `chartType`, `yAxis` — internal-shape callers, see block (b);
+ * `core/utils/chart-presentation.ts:126-131` all six on the dataset path),
+ * and the narrowings (`variant`, `yAxis`) are design intent the reader already
+ * enforces. Declaring them widens the accept set only toward what already
+ * renders. `variant` is the spec's PAIR, not the normalizer's three: the third
+ * spelling, `current`, is the renderer's internal default written only by the
+ * two internal-shape producers above, which never meet this mirror.
  *
  * ## The seventh — `chartType` — measured, and NOT declared
  *
@@ -128,8 +131,20 @@ describe('objectui#7546 — the card fixture parses green AND every authored key
 /* ── (b) the declarations narrow to what the renderer honours ─────────────── */
 
 describe('objectui#7546 — each declaration is the read\'s own value domain, not `unknown`', () => {
-  it.each(['primary', 'comparison', 'current'] as const)('`variant: %s` is accepted — the three `normalizeSeries` honours', (v) => {
+  it.each(['primary', 'comparison'] as const)('`variant: %s` is accepted — the spec\'s own pair', (v) => {
     expect(ChartDataSeriesSchema.safeParse({ name: 'r', variant: v }).success).toBe(true);
+  });
+
+  it('`variant` refuses the renderer-internal `current` spelling — not a member of the published face', () => {
+    // `normalizeSeries` tolerates `current` (`normalizeChartSchema.ts:247`), but
+    // it is written only by the compare-to producers onto `dataKey`-shaped
+    // arrays handed straight to `ChartRenderer` (`ObjectChart.tsx:852`,
+    // `DatasetWidget.tsx:1450`) — they never meet this mirror — and by nothing
+    // an author writes. The spec's `ChartSeries.variant` is the pair; declaring
+    // a third value here would fossilise a renderer-side tolerance into a
+    // second contract (AGENTS.md #0.1). The normalizer's tolerance itself is
+    // objectui#7682's decision, untouched by this card.
+    expect(refusalPaths({ name: 'r', variant: 'current' })).toEqual(['variant']);
   });
 
   it('`variant` refuses a value the renderer would drop in silence, at its own path', () => {
@@ -182,7 +197,7 @@ describe('objectui#7546 — the `ChartDataSeries` interface declares the same si
   });
 
   it('the unions are the reader\'s, pinned at the type level', () => {
-    const variant: Eq<ChartDataSeries['variant'], 'primary' | 'comparison' | 'current' | undefined> = true;
+    const variant: Eq<ChartDataSeries['variant'], 'primary' | 'comparison' | undefined> = true;
     const yAxis: Eq<ChartDataSeries['yAxis'], 'left' | 'right' | undefined> = true;
     expect(variant && yAxis).toBe(true);
   });

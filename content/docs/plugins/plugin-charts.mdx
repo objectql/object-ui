@@ -189,9 +189,9 @@ Each `series` entry names the column it plots (`dataKey`, or the spec spelling `
 | `color` | `string` | Series colour; wins over the positional palette. |
 | `stack` | `string` | Stack group id — series sharing one id stack together. |
 | `yAxis` | `'left' \| 'right'` | Which y-axis the series binds to, on a chart that declares a second y-axis. |
-| `variant` | `'primary' \| 'comparison' \| 'current'` | `comparison` draws the muted period-over-period overlay. |
-| `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. |
-| `opacity` | `number` | Stroke and fill opacity, 0–1. |
+| `variant` | `'primary' \| 'comparison'` | `comparison` draws the muted period-over-period overlay; `primary` (the default) is the normal treatment. |
+| `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. Today the renderer applies it only on a `variant: 'comparison'` series, where it overrides the overlay's default dash; on a primary series it is read and unused. |
+| `opacity` | `number` | Stroke and fill opacity override — any finite number (the spec bounds it to 0–1). Today the renderer applies it only on a `variant: 'comparison'` series, where it overrides the overlay's per-family default; on a primary series it is read and unused. |
 
 ```tsx
 const schema = {
@@ -204,8 +204,8 @@ const schema = {
   xAxisKey: 'month',
   series: [
     { name: 'revenue', label: 'Revenue', stack: 'money' },
-    { name: 'cost', label: 'Cost', stack: 'money', opacity: 0.6 },
-    { name: 'revenue_prev', label: 'Revenue (previous period)', variant: 'comparison', dashArray: '4 4' }
+    { name: 'cost', label: 'Cost', stack: 'money' },
+    { name: 'revenue_prev', label: 'Revenue (previous period)', variant: 'comparison', dashArray: '4 4', opacity: 0.6 }
   ]
 }
 ```
