@@ -46,6 +46,33 @@ import React from 'react';
 import { I18nProvider, useObjectTranslation } from '../provider';
 import { builtInLocales } from '../locales/index';
 
+/**
+ * The repo root, derived from THIS FILE's own location — never from
+ * `process.cwd()` (objectui#7799).
+ *
+ * It was `process.cwd()` until then, on the reasoning that
+ * `scripts/vitest-invocation-guard.mjs` refuses any invocation whose vitest root
+ * is not the repo root. That guard is real, but it is a DIFFERENT invariant:
+ * `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ * package's own `test` script — `vitest run --root ../.. packages/i18n/`, which
+ * is what `pnpm --filter … test` and `turbo run test` both run — leaves cwd at
+ * `packages/i18n/`, so every read below resolved against the package directory
+ * and the assertions guarding them failed.
+ *
+ * Spelled in string operations, copying the landed precedent of objectui#7791
+ * (PR #7796): `new URL(rel, import.meta.url)` is REWRITTEN by Vite into a
+ * `http://localhost:3000/@fs/…` dev-server URL, so only bare `import.meta.url`
+ * is read here and taken apart by hand. Measured on this card under both cwds
+ * and in both the `unit` and the `dom` project, it is
+ * `file:///…/packages/i18n/src/__tests__/<this file>`.
+ */
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / i18n / src / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
+
+
 const KEY = 'detail.showEmptyRelated';
 const SLOTS = [KEY, `${KEY}_one`, `${KEY}_other`] as const;
 
@@ -77,7 +104,7 @@ const wrapperFor = (lang: string) =>
  *  `import.meta.url` is not a file: URL in the dom project, so resolve from the
  *  vitest root — which the invocation guard pins to the repo root. */
 function sourceOf(rel: string): string {
-  const path = join(process.cwd(), rel);
+  const path = join(REPO_ROOT, rel);
   expect(existsSync(path), `source not found at ${path}`).toBe(true);
   return readFileSync(path, 'utf8');
 }
