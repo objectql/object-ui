@@ -5,7 +5,7 @@
   "children": [
     {
       "type": "text",
-      "value": "Press"
+      "content": "Press"
     },
     {
       "type": "kbd",
@@ -16,7 +16,7 @@
     },
     {
       "type": "text",
-      "value": "to save"
+      "content": "to save"
     }
   ]
 }

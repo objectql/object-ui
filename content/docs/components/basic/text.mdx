@@ -33,14 +33,25 @@ rather than ignored.
 ```plaintext
 interface TextSchema {
   type: 'text';
-  content: string;           // Text content to display
-  value?: string;            // Alias for content
+  content: string;           // Text content to display — the one spelling
   variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption' | 'overline';
   align?: 'left' | 'center' | 'right' | 'justify';
   color?: string;            // Tailwind color class
   className?: string;        // Additional CSS classes
 }
 ```
+
+> **Retired: `value`** (objectui#6951, ADR-0049 enforce-or-remove). `value` was a
+> second spelling of the one content slot — the renderer read it only as the
+> fallback of `content || value` — and it is no longer part of `TextSchema` on
+> either face. A `text` node that authors `value` now fails validation with:
+>
+> > RETIRED (objectui#6951) — `value` is no longer part of TextSchema; write
+> > `content`. …
+>
+> Rename the key to `content`; the string is unchanged. Measured before the
+> retirement: 776 `content`-only `text` nodes against 25 `value`-only across
+> `examples/`, `apps/`, `packages/*/examples` and `content/docs/**`.
 
 ## Examples
 

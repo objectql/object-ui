@@ -595,7 +595,7 @@ export interface ContextMenuSchema extends BaseSchema {
    * The right-clickable area's content.
    *
    * READ SITE: `packages/components/src/renderers/overlay/context-menu.tsx:95`
-   * — `renderChildren(schema.trigger || { type: 'text', value: 'Right click here' })`
+   * — `renderChildren(schema.trigger || { type: 'text', content: 'Right click here' })`
    * inside `ContextMenuTrigger`. ⚠️ Note the renderer renders `trigger`, NOT
    * `children` — which this member used to sit beside as a REQUIRED key and
    * which no read site consumes (objectui#6939 dropped that requirement;

@@ -159,12 +159,12 @@ ComponentRegistry.register('text',
                 style={style}
                 className={className}
             >
-                {schema.content || schema.value}
+                {schema.content}
             </Tag>
         );
     }
 
-    return <>{schema.content || schema.value}</>;
+    return <>{schema.content}</>;
   },
   {
     namespace: 'ui',
