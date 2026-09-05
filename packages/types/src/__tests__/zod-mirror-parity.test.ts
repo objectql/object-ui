@@ -1945,6 +1945,25 @@ export type WiderLedgerMismatch = {
 export const assertionWiderMatchesLedger: never = 0 as unknown as WiderLedgerMismatch;
 
 /**
+ * The same reconciliation, reported by KEY instead of by pair.
+ *
+ * Not a duplicate: the assignment above resolves to the PAIR, which is what makes a
+ * failure locatable, and it says nothing about which key moved. This one resolves
+ * to the symmetric difference between the measured set and the recorded one, so the
+ * compiler prints the key names — `Type '"variant"' is not assignable to type
+ * 'never'` — and the two messages together are the diagnosis, without anyone having
+ * to resolve a type by hand first. Both are needed and neither is sufficient: a key
+ * name alone does not say which of the pairs it appears on has moved.
+ */
+export type WiderLedgerKeyDrift = {
+  [K in MirrorKey]:
+    | Exclude< WiderOf< K >, K extends keyof WiderThanDeclared ? WiderThanDeclared[K] : never >
+    | Exclude< K extends keyof WiderThanDeclared ? WiderThanDeclared[K] : never, WiderOf< K > >;
+}[MirrorKey];
+
+export const assertionWiderLedgerRecordsEveryKey: never = 0 as unknown as WiderLedgerKeyDrift;
+
+/**
  * No pair's WIDER measurement has degenerated to `any`.
  *
  * This is not a hypothetical. `any` is assignable to `never`, so a pair whose
