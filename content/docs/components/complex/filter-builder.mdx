@@ -69,7 +69,7 @@ interface FilterBuilderSchema {
   
   // Base properties
   id?: string;
-  visible?: boolean | string | { dialect?, source };
+  visible?: boolean | string | { dialect?: string; source: string };
   testId?: string;
 }
 ```

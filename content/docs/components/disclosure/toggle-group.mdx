@@ -41,7 +41,7 @@ interface ToggleGroupSchema {
   onValueChange?: (value: string | string[]) => void;
   
   // States
-  disabled?: boolean | string | { dialect?, source };   // boolean, predicate expression, or CEL envelope
+  disabled?: boolean | string | { dialect?: string; source: string };   // boolean, predicate expression, or CEL envelope
   
   // Styling
   className?: string;

@@ -4,9 +4,11 @@
  * Every `content/docs/components/**` page that documents a schema INHERITING
  * `disabled` spells it the way `BaseSchema` declares it (objectui#7239, the
  * docs half of the objectui#7087 ruling of 2026-09-01) — `boolean | string`
- * then, `boolean | string | { dialect?, source }` since objectui#7530 declared
- * the CEL envelope on all three predicate keys (ruled 2026-09-04), the same
- * flat spelling `button-group-doc-surface-6347.test.ts` reads off the mirror.
+ * then, `boolean | string | { dialect?: string; source: string }` since
+ * objectui#7530 declared the CEL envelope on all three predicate keys (ruled
+ * 2026-09-04) — the same flat spelling `button-group-doc-surface-6347.test.ts`
+ * reads off the mirror, and the one that is valid TypeScript inside a `ts`
+ * fence (`box.mdx`), so every page carries one spelling whatever its fence.
  *
  * ## Why a pin rather than "the docs gates went green"
  *
@@ -89,7 +91,9 @@ const DOC_DIR = join(REPO_ROOT, 'content', 'docs', 'components');
 const TYPES_DIR = join(REPO_ROOT, 'packages', 'types', 'src');
 
 const DECL_RE = /^\s*(?:export\s+)?(?:interface|type)\s+([A-Za-z0-9_]+)/;
-const DISABLED_RE = /^\s*disabled\?:\s*(.+?);/;
+// Up to the `;` that ENDS the row: the inline object type carries its own `;`
+// between members (`{ dialect?: string; source: string }`, objectui#7530).
+const DISABLED_RE = /^\s*disabled\?:\s*(.+?);(?=\s*(?:\/\/.*)?$)/;
 
 /** Every `disabled?:` row under `content/docs/components`, with its owner. */
 interface DocRow {
@@ -192,7 +196,7 @@ describe('component pages spell the INHERITED `disabled` as the base union (obje
   it.each(INHERITED)('$page documents $iface with the inherited union', ({ page, iface }) => {
     const row = rowFor(page, iface);
     expect(row, `no \`disabled?:\` row attributed to ${iface} in ${page}`).toBeDefined();
-    expect(`${page} ${iface} -> ${row?.type}`).toBe(`${page} ${iface} -> boolean | string | { dialect?, source }`);
+    expect(`${page} ${iface} -> ${row?.type}`).toBe(`${page} ${iface} -> boolean | string | { dialect?: string; source: string }`);
   });
 
   it.each(INHERITED)('$iface still inherits `disabled` in the shipped tree', ({ iface }) => {

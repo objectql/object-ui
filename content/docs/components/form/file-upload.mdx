@@ -43,7 +43,7 @@ interface FileUploadSchema {
   maxFiles?: number;                    // Maximum number of files (for multiple)
   
   // States
-  disabled?: boolean | string | { dialect?, source };          // boolean, predicate expression, or CEL envelope
+  disabled?: boolean | string | { dialect?: string; source: string };          // boolean, predicate expression, or CEL envelope
   
   // Help text
   description?: string;                 // Help text or description
@@ -54,7 +54,7 @@ interface FileUploadSchema {
   wrapperClass?: string;                // Wrapper container classes
   
   // Base properties
-  visible?: boolean | string | { dialect?, source };
+  visible?: boolean | string | { dialect?: string; source: string };
   testId?: string;
 }
 ```
