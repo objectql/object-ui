@@ -71,7 +71,7 @@ interface SpanSchema {
   
   // Base properties
   id?: string;
-  visible?: boolean | string;
+  visible?: boolean | string | { dialect?: string; source: string };
   testId?: string;
 }
 ```

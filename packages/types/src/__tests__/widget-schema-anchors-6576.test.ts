@@ -71,6 +71,7 @@ import {
   ObjectGallerySchema as ObjectGalleryMirror,
   ObjectDataTableSchema as ObjectDataTableMirror,
 } from '../zod/objectql.zod.js';
+import type { ExpressionWire } from '../expression';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
@@ -97,7 +98,8 @@ export type assertionOnRowClickDeclared = Expect<Equal<ObjectDataTableSchema['on
  */
 export type assertionGalleryInheritsVisibleWhen = Expect<Equal<ObjectGallerySchema['visibleWhen'], string | undefined>>;
 export type assertionGalleryInheritsBind = Expect<Equal<ObjectGallerySchema['bind'], string | undefined>>;
-export type assertionDataTableInheritsVisible = Expect<Equal<ObjectDataTableSchema['visible'], boolean | string | undefined>>;
+// `boolean | string` until objectui#7530 declared the CEL envelope on the base union.
+export type assertionDataTableInheritsVisible = Expect<Equal<ObjectDataTableSchema['visible'], boolean | ExpressionWire | undefined>>;
 export type assertionDataTableInheritsBind = Expect<Equal<ObjectDataTableSchema['bind'], string | undefined>>;
 /** The widget-local members keep their measured spellings. */
 export type assertionGalleryDataStaysTyped = Expect<Equal<ObjectGallerySchema['data'], Record<string, unknown>[] | undefined>>;
@@ -114,7 +116,7 @@ describe('ObjectGallerySchema / ObjectDataTableSchema — compile-time pins (obj
     // the declared reason. Each directive fails the build (TS2578) the moment
     // the member stops being declared.
 
-    // @ts-expect-error — `visible` is `boolean | string | undefined` through `BaseSchema`.
+    // @ts-expect-error — `visible` is `boolean | ExpressionWire | undefined` through `BaseSchema`.
     const gallery: ObjectGallerySchema = { type: 'object-gallery', visible: 42 };
     // @ts-expect-error — same member, same reason, on the type that used to absorb it.
     const table: ObjectDataTableSchema = { type: 'object-data-table', visible: 42 };
