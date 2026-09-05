@@ -48,7 +48,7 @@ type DropdownMenuItem = DropdownMenuCommandItem | DropdownMenuDividerItem;
 
 interface DropdownMenuSchema {
   type: 'dropdown-menu';
-  trigger: SchemaNode;            // Trigger component
+  trigger: SchemaNode | SchemaNode[];  // Trigger component
   items: DropdownMenuItem[];      // Menu items
   
   // Styling

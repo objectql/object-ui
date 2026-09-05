@@ -27,7 +27,7 @@ interface AlertDialogSchema {
   description?: string;                 // Dialog description
 
   // Trigger
-  trigger: SchemaNode;                  // Component that triggers the dialog
+  trigger: SchemaNode | SchemaNode[];   // Component that triggers the dialog
 
   // Body and footer
   content?: SchemaNode | SchemaNode[];  // Rendered between the header and the footer

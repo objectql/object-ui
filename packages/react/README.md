@@ -28,7 +28,7 @@ import { SchemaRenderer } from '@object-ui/react'
 
 const schema = {
   type: 'text',
-  value: 'Hello, Object UI!'
+  content: 'Hello, Object UI!'
 }
 
 function App() {

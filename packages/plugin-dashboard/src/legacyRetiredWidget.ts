@@ -55,7 +55,7 @@ import type { DashboardWidgetSchema } from '@object-ui/types';
  */
 export const LEGACY_RETIRED_WIDGET_SCHEMA = {
   type: 'text',
-  value: 'This widget uses a retired data format. Edit it to bind a dataset.',
+  content: 'This widget uses a retired data format. Edit it to bind a dataset.',
   variant: 'caption',
   align: 'center',
   className: 'flex h-full w-full items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center text-destructive',
