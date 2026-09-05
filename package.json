@@ -76,6 +76,7 @@
     "check:shell-escape-residue": "node scripts/check-shell-escape-residue.mjs",
     "check:readme-exports": "node scripts/check-readme-exports.mjs",
     "check:unreferenced-sources": "node scripts/check-unreferenced-sources.mjs",
+    "check:doc-example-readers": "node scripts/check-doc-example-shared-reader.mjs",
     "cli": "node packages/cli/dist/cli.js",
     "objectui": "node packages/cli/dist/cli.js",
     "create-plugin": "node packages/create-plugin/dist/index.js",
