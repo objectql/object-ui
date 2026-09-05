@@ -255,6 +255,8 @@ export const CheckboxSchema = BaseSchema.extend({
   checked: z.boolean().optional().describe('Controlled checked state'),
   required: z.boolean().optional()
     .describe("Required affordance, read at renderers/form/checkbox.tsx:45 (`required=` on the Radix Checkbox) and :49 (gates the label's `*` marker) (objectui#6150)"),
+  wrapperClass: z.string().optional()
+    .describe('Classes on the wrapper div around the box and its label, read at renderers/form/checkbox.tsx:36 — `cn("flex items-center space-x-2", schema.wrapperClass)` (objectui#6938)'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
