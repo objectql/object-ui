@@ -1142,6 +1142,14 @@ const LOOKUP_OPERATORS: Array<{ value: string; label: string }> = [
 type LookupFilter = { field?: string; operator?: string; value?: unknown };
 
 function readLookupFilters(def: Record<string, unknown>): LookupFilter[] {
+  // objectui#7642 CENSUS — verdict KEEP. This is the one site of the six that
+  // reads camel FIRST and writes camel back (`patchDef({ lookupFilters })`), so
+  // its snake leg is purely a read of a STORED pre-strict document. Retiring it
+  // would show an admin an EMPTY filter list for such a document and let a save
+  // strand the real filters. The runtime widget (`@object-ui/fields` LookupField)
+  // reads `lookupFilters` ONLY since objectui#7641 (merged 2026-09-04), so both
+  // halves honour the camel key: this snake leg is the designer's read of a stored
+  // document, not one side of a competing read order.
   const raw = def.lookupFilters ?? (def as Record<string, unknown>).lookup_filters;
   return Array.isArray(raw) ? (raw as LookupFilter[]) : [];
 }

@@ -23,19 +23,27 @@ The Alert Dialog component is used to interrupt the user with important content 
 ```plaintext
 interface AlertDialogSchema {
   type: 'alert-dialog';
-  title: string;                // Dialog title
-  description: string;           // Dialog description
-  
+  title?: string;                       // Dialog title
+  description?: string;                 // Dialog description
+
   // Trigger
-  trigger: SchemaNode;           // Component that triggers the dialog
-  
-  // Actions
-  actions?: BaseSchema[];        // Action buttons
-  
+  trigger: SchemaNode;                  // Component that triggers the dialog
+
+  // Body and footer
+  content?: SchemaNode | SchemaNode[];  // Rendered between the header and the footer
+  cancelText?: string;                  // Cancel button label; no cancel button when omitted
+  actionText?: string;                  // Confirm button label; no confirm button when omitted
+
+  // Open state
+  defaultOpen?: boolean;                // Initial state when uncontrolled (default: false)
+  open?: boolean;                       // Controlled open state
+
   // Styling
   className?: string;
 }
 ```
+
+The footer is driven by the two label keys: the cancel button renders only when `cancelText` is set and the confirm button only when `actionText` is set — neither has a renderer default (the designer palette seeds `Cancel` / `Continue`). The confirm button's click handler, `onAction`, is a runtime slot a React host supplies through the TypeScript interface; it has no JSON spelling, and the validator refuses it by name.
 
 ## Examples
 
