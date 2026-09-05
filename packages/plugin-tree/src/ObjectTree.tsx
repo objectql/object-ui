@@ -20,7 +20,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import type { DataSource, ViewData } from '@object-ui/types';
+import type { DataSource } from '@object-ui/types';
 import {
   useNavigationOverlay,
   useSafeFieldLabel,
@@ -38,6 +38,7 @@ import {
   isExpandableFieldType,
   getRecordDisplayName,
   humanizeLabel,
+  resolveRecordSourceConfig,
   resolveRecordSourceObjectName,
 } from '@object-ui/core';
 import { ChevronRight, ChevronDown } from 'lucide-react';
@@ -88,13 +89,6 @@ interface TreeNode {
   record: any;
   depth: number;
   children: TreeNode[];
-}
-
-function getDataConfig(schema: any): ViewData | null {
-  if (schema.data) return schema.data;
-  if (schema.staticData) return { provider: 'value', items: schema.staticData };
-  if (schema.objectName) return { provider: 'object', object: schema.objectName };
-  return null;
 }
 
 /**
@@ -362,7 +356,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
+  const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [schema]);
 
   /**
    * The object THIS render is bound to, as a plain string — so the resolution
@@ -425,7 +419,7 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
    * The record-fetch effect below used to key on `dataConfig` itself — the
    * whole memoised object identity. `useMemo` carries no semantic guarantee:
    * React is permitted to discard its cache and recompute, and
-   * `getDataConfig(schema)` builds a fresh `{ provider, object }` /
+   * `resolveRecordSourceConfig(schema)` builds a fresh `{ provider, object }` /
    * `{ provider, items }` wrapper object on every call even when `schema`
    * hasn't changed. So a discard (not just a `schema` change) was enough to
    * re-run the effect and refetch, with nothing about the bound object

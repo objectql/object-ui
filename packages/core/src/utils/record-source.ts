@@ -1,10 +1,14 @@
 /**
- * ObjectUI — the shared record-source object-name reader
+ * ObjectUI — the shared record-source readers: the ruled three-rung ladder
+ * (`resolveRecordSourceConfig`) and the object-name it resolves to
+ * (`resolveRecordSourceObjectName`)
  * Copyright (c) 2024-present ObjectStack Inc.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+import type { ViewData } from '@object-ui/types';
 
 /**
  * The object a view block is bound to, resolved ONCE for the whole renderer
@@ -73,4 +77,94 @@ export function resolveRecordSourceObjectName(
   dataConfig: { provider?: string; object?: string } | null | undefined,
 ): string | undefined {
   return dataConfig?.provider === 'object' ? dataConfig.object : schema?.objectName;
+}
+
+/**
+ * The block's record source, resolved from the ruled three-rung ladder
+ * (objectui#7632).
+ *
+ * ## The ruled contract this is the ONE implementation of
+ *
+ * `data`, then `staticData`, then `objectName` — declared on both faces of the
+ * published contract and pinned by
+ * `objectql-record-source-refinement-6939.test.ts`:
+ *
+ *  1. **`data`** — *"Data source configuration. Read FIRST by `getDataConfig`"*.
+ *     Returned verbatim, so an `api`/`value`/`object` provider config reaches
+ *     the caller exactly as the author wrote it.
+ *  2. **`staticData`** — *"Inline records — read SECOND by `getDataConfig`,
+ *     wrapped into a `{ provider: value }` config"*.
+ *  3. **`objectName`** — *"the THIRD record source `getDataConfig` resolves,
+ *     after `data` and `staticData`"*, folded to `{ provider: 'object' }`.
+ *
+ * `null` when none of the three is present — the same "nothing is drawn" signal
+ * the zod `requireRecordSource` refinement is written against.
+ *
+ * This is the PRODUCER whose output {@link resolveRecordSourceObjectName} (the
+ * objectui#7627 reader) consumes; that function's docblock describes the same
+ * ladder from the consuming end. Five plugins — calendar, gantt, grid, map and
+ * tree — each carried a hand-copy of this ladder with no gate holding them
+ * together, which is the AGENTS.md #0.1 drift class: a change to the ruled
+ * order had five edit sites and nothing noticed a missed one.
+ *
+ * ## No lenient rung was added (AGENTS.md #0.1)
+ *
+ * Two things the hand-copies did are deliberately NOT folded in here:
+ *
+ *  - **The bare-array `data` shorthand.** `ObjectGrid` and `ObjectMap` normalize
+ *    `data: [...]` to `{ provider: 'value', items }`; calendar, gantt and tree
+ *    do not, and return the array verbatim. That shorthand is off-contract —
+ *    `ViewData` is a `z.discriminatedUnion('provider', [...])` over OBJECT
+ *    variants, so an array under `data` cannot be published — and the two sites
+ *    that accept it keep it as their own documented head, exactly as the
+ *    objectui#7627 collapse left `ObjectGrid`'s and `ObjectTree`'s off-contract
+ *    `{ provider: 'object' }` tails at the site. Hoisting their check is
+ *    behaviour-neutral because an array is ALWAYS truthy, `[]` included, so it
+ *    could never have reached rung 2 or 3.
+ *  - **Null tolerance.** All five copies dereference `schema` unguarded and
+ *    would throw on `null`; no site passes one, so no `?.` was added.
+ *
+ * `ObjectCalendar`'s copy guarded with `'data' in schema && schema.data`
+ * because its parameter is the union `ObjectGridSchema | CalendarSchema` and
+ * `CalendarSchema` declares neither `data` nor `staticData`. That `in` test is
+ * a TYPESCRIPT narrowing device, not a behavioural one: when the property is
+ * absent the read yields `undefined`, which is falsy either way, so the guard
+ * can never change which rung is taken. The optional-property parameter below
+ * accepts that union directly, which is why the guard is gone rather than
+ * flattened away.
+ *
+ * @param schema - The block's schema; only `data`, `staticData` and
+ *   `objectName` are read.
+ * @returns The resolved data config, or `null` when nothing is bound.
+ *
+ * @example
+ * ```ts
+ * const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [schema]);
+ * const objectName = resolveRecordSourceObjectName(schema, dataConfig);
+ * ```
+ */
+export function resolveRecordSourceConfig(schema: {
+  objectName?: string;
+  data?: ViewData;
+  staticData?: any[];
+}): ViewData | null {
+  if (schema.data) {
+    return schema.data;
+  }
+
+  if (schema.staticData) {
+    return {
+      provider: 'value',
+      items: schema.staticData,
+    };
+  }
+
+  if (schema.objectName) {
+    return {
+      provider: 'object',
+      object: schema.objectName,
+    };
+  }
+
+  return null;
 }
