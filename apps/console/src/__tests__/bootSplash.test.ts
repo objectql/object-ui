@@ -242,16 +242,64 @@ describe('apps/console/index.html — boot splash behaviour', () => {
   });
 
   it('survives a browser with no localStorage access', () => {
-    const getItem = vi
-      .spyOn(Storage.prototype, 'getItem')
-      .mockImplementation(() => {
-        throw new Error('storage blocked');
-      });
+    // objectui#7786 — the injected fault has to reach the SCRIPT, not merely
+    // the prototype. What stood here was
+    //   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw ... })
+    // and it never landed: measured on Node 22.22.2, the version CI pins, with
+    // that spy installed a direct `localStorage.getItem(...)` in this very tick
+    // does NOT throw. Two independent reasons, both live in this repo:
+    //   - happy-dom hands `localStorage` out through a proxy that has already
+    //     bound `getItem`, so a prototype patch installed after the store's
+    //     method was first reached is invisible to it: `localStorage.getItem`
+    //     is a THIRD function object, neither the patched prototype method nor
+    //     the pre-patch one;
+    //   - `vitest.setup.base.ts` may swap the store for a plain in-memory
+    //     object that never inherited from `Storage.prototype` at all.
+    // So this case asserted that a NORMAL boot does not throw, under a name
+    // promising a blocked browser. The repair is the shape
+    // `packages/i18n/src/__tests__/provider-locale-persistence.test.tsx`
+    // already uses against the same hazard: replace the binding the script
+    // resolves, so the throw is unavoidable however the store is handed out.
+    const storedDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    const blocked = () => {
+      throw new Error('storage blocked');
+    };
+    // A pre-existing DARK choice, so the theme assertion below discriminates:
+    // a boot that still reached storage would read it and mark the canvas dark,
+    // while a boot that genuinely cannot read storage falls through to the
+    // (light) OS preference. Without it, `light` is also what an empty store
+    // produces, and the assertion would hold either way.
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: blocked,
+        setItem: blocked,
+        removeItem: blocked,
+        clear: blocked,
+        key: blocked,
+        length: 0,
+      },
+    });
+
     try {
+      // COUNTER-PROBE. Before grading anything on the ABSENCE of a throw --
+      // which a blind instrument satisfies for the wrong reason -- assert that
+      // the fault is observable from exactly where the script reads it.
+      expect(
+        () => localStorage.getItem(THEME_STORAGE_KEY),
+        'the injected fault never reached the store: `localStorage` is still readable here, so everything below would grade an ordinary boot under a name promising a blocked browser',
+      ).toThrow('storage blocked');
+
       expect(() => runBootSplash()).not.toThrow();
       expect(document.documentElement.getAttribute('data-boot-theme')).toBe('light');
     } finally {
-      getItem.mockRestore();
+      if (storedDescriptor) Object.defineProperty(globalThis, 'localStorage', storedDescriptor);
+      else delete (globalThis as { localStorage?: Storage }).localStorage;
     }
+
+    // Handed back exactly as it was found, so nothing downstream inherits the
+    // blocked stub.
+    expect(() => localStorage.getItem(THEME_STORAGE_KEY)).not.toThrow();
   });
 });
