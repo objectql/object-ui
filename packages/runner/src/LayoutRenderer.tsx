@@ -25,7 +25,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuShortcut,
   Avatar,
   AvatarImage,
   AvatarFallback,
@@ -298,20 +297,28 @@ export const LayoutRenderer = ({ app, children, currentPath, onNavigate }: Layou
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
+                            {/*
+                              * Renders `AppAction.items` from its DECLARED type and nothing else
+                              * (objectui#6854, maintainer ruling of 2026-09-05, option B2).
+                              *
+                              * `items` is `AppMenuItem[]` (`@object-ui/types` `app.ts`), and the zod
+                              * mirror parses it with the legacy eight-member `MenuItemSchema`.
+                              * Neither declares `onClick` or `shortcut`; this map used to reach both
+                              * through `as any`, i.e. past the type it was handed. The `onClick` read
+                              * is also what made the retirement refusal's own sentence — "no renderer
+                              * reads this key, so nothing could ever run it" — false. `type` and
+                              * `label` ARE declared on `AppMenuItem` and stay.
+                              *
+                              * Whether `shortcut` should become authorable on `AppAction.items` is a
+                              * separate contract question; do not re-add either read to answer it.
+                              */}
                             {userAction.items?.map((item, idx) => {
                                 if (item.type === 'separator') {
                                     return <DropdownMenuSeparator key={idx} />;
                                 }
                                 return (
-                                    <DropdownMenuItem key={idx} onSelect={() => {
-                                        if ((item as any).onClick) {
-                                            // Handle click logic
-                                        }
-                                    }}>
+                                    <DropdownMenuItem key={idx}>
                                         {item.label}
-                                        {(item as any).shortcut && (
-                                            <DropdownMenuShortcut>{(item as any).shortcut}</DropdownMenuShortcut>
-                                        )}
                                     </DropdownMenuItem>
                                 );
                             })}

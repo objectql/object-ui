@@ -204,8 +204,16 @@ export const AppActionSchema = z.object({
   label: z.string().optional().describe('Action label'),
   icon: z.string().optional().describe('Icon name'),
   // RETIRED (objectui#7344 — the objectui#6182 ruling: the handler-expression
-  // string dialect is not an authoring form; the objectui#6124 shape). Nothing
-  // reads `AppComponentSchema.actions[]`, so the key refuses by name.
+  // string dialect is not an authoring form; the objectui#6124 shape). The
+  // `'retired'` arm's message tells an author "no renderer reads this key, so
+  // nothing could ever run it"; objectui#6854 re-measured that sentence rather
+  // than restating it. `actions[]` itself IS read (`@object-ui/runner`'s
+  // `LayoutRenderer` renders the `'button'` and `'user'` arms) — the earlier
+  // "nothing reads `actions[]`" here was wrong — but no reader touches
+  // `onClick`, on the action or on `items[]`, since the maintainer ruling of
+  // 2026-09-05 (option B2) deleted the two `as any` reads that did. Text pinned
+  // in `__tests__/app-action-onclick-refusal-6854.test.ts`; the renderer side in
+  // `packages/runner/src/__tests__/LayoutRenderer.appActionItems-6854.test.tsx`.
   onClick: handlerKeyRefusal('onClick', 'retired', 'Click handler'),
   avatar: z.string().optional().describe('User avatar URL (for type="user")'),
   description: z.string().optional().describe('Additional description (e.g., email for user)'),
