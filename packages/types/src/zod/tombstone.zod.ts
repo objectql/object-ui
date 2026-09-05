@@ -137,11 +137,22 @@ export function handlerKeyRefusal(key: string, disposition: HandlerKeyDispositio
  * The third member of this file's family, and deliberately neither of the
  * other two by NAME — while sharing {@link retirementTombstone}'s PRIMITIVE:
  *
- *   - not {@link retirementTombstone} by name: that retires a key the contract
- *     once declared (ADR-0049) and its guidance is a migration note; an alias
- *     was never a member, and its guidance must carry the canonical spelling.
- *     A census of `retirementTombstone(` sites is a census of RETIRED keys, and
- *     an alias arm filed under it would miscount.
+ *   - not {@link retirementTombstone} by name: that helper's guidance is a
+ *     MIGRATION NOTE for a key the contract is withdrawing (ADR-0049), while an
+ *     alias arm's guidance has to carry the canonical spelling instead.
+ *     ⚠️ What separates the two is NOT declaration history. Measured on this
+ *     tree: `MenuItemSchema.type` (`overlay.zod.ts:196`, objectui#6523) is a
+ *     `retirementTombstone` whose own guidance reads "`type` ('separator' or
+ *     'label') was an undeclared spelling two renderers used to read and is now
+ *     a declared refusal, not a strip", and `overlay.ts:458-464` states it
+ *     again ("a spelling the type never declared"). A never-declared,
+ *     renderer-read spelling turned into a named refusal pointing at the
+ *     canonical key therefore ALREADY had a precedent in this package, and it
+ *     was filed under `retirementTombstone`.
+ *     What is new here is the MESSAGE: this helper composes the lead sentence
+ *     `@objectstack/spec`'s `strictObject({ aliases })` answers with, so one
+ *     remedy meets the author on both faces. Same `z.never` primitive, same
+ *     `invalid_type` code, a three-line composer — a VOCABULARY, not a shape.
  *   - not {@link handlerKeyRefusal}: that says why JSON cannot author a
  *     function-valued key; an alias has a perfectly authorable value under the
  *     other name. And not its `z.custom` primitive either — measured:

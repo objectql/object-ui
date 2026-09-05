@@ -25,6 +25,14 @@ it is named here in the words a release reader can act on:
   widened assignment are `tsc` errors.
 - **Both written** (`{ type: 'bar', chartType: 'line' }`) is refused at `chartType` alone — the
   key is not folded onto `type` and no precedence is minted between the two spellings.
+- **Which documents to scan.** The narrowing does not stop at `ChartDataSeriesSchema`; it reaches
+  every document through the parents that embed it — `ChartSchema.series`
+  (`zod/data-display.zod.ts:622`, `z.array(ChartDataSeriesSchema)`) and, one level further out,
+  `ReportSectionSchema.chart` (`zod/reports.zod.ts:105`, `ChartSchema.optional()`). Authors meet it
+  through `safeValidateSchema()` (`zod/index.zod.ts:434`, which parses `AnyComponentSchema`) and
+  through the CLI's `objectui check` and `objectui validate` commands (`packages/cli/src/cli.ts:211`
+  and `:223`). In practice: every `chart` node's `series[]`, and every report section whose `chart`
+  carries one.
 
 This repository's `major` is a cross-repo pin to `@objectstack`'s major, not a severity dial; the
 break is announced here, which is the channel that carries it.
@@ -55,7 +63,14 @@ The new `aliasKeyRefusal()` helper (`zod/tombstone.zod.ts`, internal — not re-
 `handlerKeyRefusal`'s `z.custom`: measured, `z.toJSONSchema` throws on a `z.custom` arm ("Custom
 types cannot be represented in JSON Schema") and represents a `z.never` arm as `{ not: {} }` with its
 description. `z.toJSONSchema(ChartDataSeriesSchema)` succeeded before this change and still does —
-it now lists `chartType` as a refused property carrying the guidance.
+it now lists `chartType` as a refused property carrying the guidance, 11 properties to 12.
+
+⚠️ The two io modes are not affected alike, measured on this tree. In `io: 'input'` the emitted
+object carries no `additionalProperties` at all, so the accept set genuinely narrows there:
+`chartType` goes from unmentioned to a property that nothing satisfies. In `io: 'output'` — the
+default, and what a bare `z.toJSONSchema(…)` emits — the base **already** emitted
+`additionalProperties: false`, so the key was outside the accept set before this change; what that
+mode gains is the NAMED refusal and its guidance, not a narrower accept set.
 
 ## Unchanged, deliberately
 

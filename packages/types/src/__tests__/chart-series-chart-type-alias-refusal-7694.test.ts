@@ -214,12 +214,32 @@ describe('objectui#7694 — `@objectstack/spec` takes the same posture, measured
     if (r.success) expect(r.data).toHaveProperty('type', 'line');
   });
 
-  it('this mirror answers with the spec\'s own lead — "Unrecognized key(s) on this chart series" — so one remedy meets the author on both faces', () => {
+  it('this mirror answers with the spec\'s OWN lead, derived from the installed spec at assert time — one remedy meets the author on both faces', () => {
+    // ⚠️ Deliberately NOT two comparisons against a constant, which is what
+    // this assertion held before: ours matched a literal and the spec's
+    // matched a regex, never each other, so a spec reword of the lead left
+    // BOTH green while the two faces silently diverged. The expected lead is
+    // read off the spec's LIVE message here, so the pin reddens exactly when
+    // they stop matching.
+    const spec = SpecChartSeriesSchema.safeParse(AUTHORED);
+    expect(spec.success).toBe(false);
+    if (spec.success) return;
+    const specMessage = spec.error.issues[0]!.message;
+
+    // THE CUT: the spec's lead through its `Did you mean …?` remedy, and no
+    // further. Measured on the installed 17.2.0 that cut is 91 bytes and is
+    // byte-equal to ours. The clause after the `?` is the spec's own (a #4001
+    // note) and is excluded on purpose — 17.3.0 rewords only that clause, so
+    // pinning it would redden this repo on a spec bump for no author-facing
+    // gain.
+    const cut = specMessage.indexOf('?') + 1;
+    const SHARED_LEAD = specMessage.slice(0, cut);
+    // Guard the cut itself: if a reword moves the first `?` off the remedy,
+    // this fails rather than quietly pinning a shorter, weaker prefix.
+    expect(SHARED_LEAD).toMatch(DID_YOU_MEAN);
+
     const [ours] = issuesOf(AUTHORED)!;
-    expect(ours.message.startsWith('Unrecognized key(s) on this chart series: `chartType`.')).toBe(true);
-    // The rest of the spec's sentence is its own (`history`, a #4001 note) and
-    // is deliberately NOT pinned byte-for-byte: a spec reword must not turn an
-    // objectui pin red. The remedy fragment is the contract.
+    expect(ours.message.startsWith(SHARED_LEAD)).toBe(true);
   });
 });
 
