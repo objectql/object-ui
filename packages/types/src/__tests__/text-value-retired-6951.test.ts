@@ -197,7 +197,18 @@ describe('the retirement narrows exactly `value` and nothing else (objectui#6951
 
 /* ── the corpus: no shipped fixture authors the retired spelling ─────────── */
 
-/** Every `text` node (an object whose OWN `type` is `"text"`) in a parsed JSON document. */
+/**
+ * Keys whose arrays hold DESCRIPTORS, not component nodes: a filter-builder's
+ * `fields[]` entry is `{ value, label, type: "text" }`, where `type` is a FIELD
+ * type and `value` is the field key — the same three keys as a retired `text`
+ * node and a different vocabulary. The census that sized this retirement
+ * excluded them by kind (14 in the catalog); the walk below excludes them by
+ * position, so the pin measures `text` NODES and not every object that spells
+ * `type: "text"`.
+ */
+const DESCRIPTOR_SLOTS = new Set(['fields', 'columns', 'filters', 'options']);
+
+/** Every `text` node (an object whose OWN `type` is `"text"`, reached through a node slot) in a parsed JSON document. */
 function* textNodes(node: unknown, path: string): Generator<[string, Record<string, unknown>]> {
   if (Array.isArray(node)) {
     for (let i = 0; i < node.length; i++) yield* textNodes(node[i], `${path}[${i}]`);
@@ -206,7 +217,10 @@ function* textNodes(node: unknown, path: string): Generator<[string, Record<stri
   if (!node || typeof node !== 'object') return;
   const obj = node as Record<string, unknown>;
   if (obj.type === 'text') yield [path, obj];
-  for (const [k, v] of Object.entries(obj)) yield* textNodes(v, `${path}.${k}`);
+  for (const [k, v] of Object.entries(obj)) {
+    if (DESCRIPTOR_SLOTS.has(k)) continue;
+    yield* textNodes(v, `${path}.${k}`);
+  }
 }
 
 function* jsonFiles(dir: string): Generator<string> {
