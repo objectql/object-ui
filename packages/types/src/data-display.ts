@@ -1546,16 +1546,45 @@ export interface ChartDataSeries {
    * carries the same union (objectui#7546).
    */
   yAxis?: 'left' | 'right';
-  // ⛔ NOT declared: `chartType`. It is the first limb of `normalizeSeries`'
-  // `str(raw.chartType) ?? str(raw.type)` (`normalizeChartSchema.ts:244`), but
-  // it is the renderer's INTERNAL spelling of `type` above, the spec's
-  // `ChartSeriesSchema` lists it as an alias of `type` and refuses it by name
-  // (`@objectstack/spec` `ui/chart.zod.ts:231`), and no document, fixture or
-  // designer input on this face writes it (objectui#7546 — measured with lit
-  // controls). Declaring it would mint a second writable name for one override;
-  // its shape — a named alias refusal like the spec's, or a fold — is a contract
-  // decision for its own card. Until then the mirror still strips it, and
-  // `__tests__/chart-series-keys-7546.test.ts` pins that gap so it stays visible.
+  /**
+   * NOT A KEY OF THIS SERIES — a named ALIAS REFUSAL pointing at {@link type}
+   * (objectui#7694; `domain:ui` PM ruling on objectui#7546 and the contract
+   * review of PR #7684: option A, the posture `@objectstack/spec` takes).
+   *
+   * `chartType` is the renderer's INTERNAL spelling of the declared `type`: the
+   * first limb of `normalizeSeries`' `str(raw.chartType) ?? str(raw.type)`
+   * (`normalizeChartSchema.ts:244`), written only by the internal-shape
+   * producers that hand `dataKey`-shaped arrays straight to `ChartRenderer`
+   * (`ObjectChart.tsx`, `DatasetWidget.tsx`; `core/utils/chart-presentation.ts`
+   * translates authored `type` INTO it) — and by no author. Re-measured at
+   * implementation time, series-level, with lit controls
+   * (`dataKey` / `name` / `type` / `color`): docs 0 (controls 10 / 11 / 2 / 2),
+   * fixtures 0 (3 / 2 / 0 / 2), designer inputs 0 (the `chart` registration's
+   * `series` is one `code` input), src literals 0 (13 / 3 / 1 / 0), tests 9
+   * (70 / 48 / 11 / 8 — every one an internal-shape array that never meets the
+   * mirror). Limb ablation over 304 files / 5817 tests: deleting
+   * `str(raw.chartType) ??` left all green; deleting `?? str(raw.type)` went
+   * 2 red. The card's readings, re-taken, agree.
+   *
+   * The spec's `ChartSeriesSchema` lists `chartType` in its alias map as a
+   * spelling of `type` and refuses it by name — "Did you mean `chartType` →
+   * `type`?" — and this face answers with the same sentence
+   * (`aliasKeyRefusal()` in `zod/tombstone.zod.ts`). The two alternatives were
+   * ruled out: FOLDING it onto `type` would let the alias overwrite the
+   * canonical key when both are written (the renderer reads `chartType` FIRST,
+   * inverting objectui#7113's precedence rule), and DECLARING it as a second
+   * writable name would mint the N-dialects hazard of AGENTS.md #0.1 against
+   * the spec's own alias map.
+   *
+   * Until this declaration the non-strict Zod mirror STRIPPED the key in
+   * silence: `{ name: 'x', chartType: 'line' }` parsed green to `{ name: 'x' }`
+   * and the series drew in the chart's family — precisely what the author was
+   * overriding. Now the mirror refuses it by name and this `?: never` is a
+   * `tsc` error at the authoring site. Write {@link type}. The renderer's own
+   * read of the internal spelling is untouched — a reader decision, not this
+   * declaration's.
+   */
+  chartType?: never;
 }
 
 /**

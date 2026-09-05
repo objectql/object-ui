@@ -9,9 +9,12 @@
 /**
  * objectui#7546 — `ChartDataSeriesSchema` declares the SIX series keys its
  * renderer reads and honours: `label`, `variant`, `opacity`, `dashArray`,
- * `stack`, `yAxis`. The seventh key the review found, `chartType`, is measured
- * NOT live on this authoring face and is deliberately left undeclared — see the
- * last block, which pins that decision so it is visible rather than silent.
+ * `stack`, `yAxis`. The seventh key the review found, `chartType`, was measured
+ * NOT live on this authoring face and deliberately left undeclared by this card —
+ * REPORTED for its own card. That card, objectui#7694, has since ruled and landed
+ * the shape (a named alias refusal pointing at `type`); block (d) below now pins
+ * the HANDOFF, and `chart-series-chart-type-alias-refusal-7694.test.ts` pins the
+ * refusal itself.
  *
  * ## The defect (measured RED on origin/main a472b071 before the declaration)
  *
@@ -66,6 +69,7 @@
  * AGENTS.md #0.1 names. So it is REPORTED, per the ruling, not declared and
  * not retired: the right shape for it (a named alias refusal pointing at
  * `type`, as the spec does; or a fold) is a contract decision for its own card.
+ * That card is objectui#7694, and it took the refusal — see block (d).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -203,23 +207,27 @@ describe('objectui#7546 — the `ChartDataSeries` interface declares the same si
   });
 });
 
-/* ── (d) the seventh key: measured NOT live here, reported — and pinned ────── */
+/* ── (d) the seventh key: reported here, RULED and landed by objectui#7694 ──── */
 
-describe('objectui#7546 — `chartType` is NOT declared on the series (reported, not retired)', () => {
-  it('is still stripped — the split is pinned so it stays visible, not so it lasts', () => {
-    // If this goes red, someone declared `chartType` on the series. That is a
-    // contract decision this card explicitly did not take (see the file
-    // header): either its own card landed — then move this pin there — or it
-    // was added by hand, and the spec's alias posture (`chartType` -> `type`)
-    // is the thing to re-read first.
+describe('objectui#7546 — `chartType`: reported by this card, refused by name since objectui#7694', () => {
+  it('the gap this block used to pin is CLOSED — declared and refusing, no longer stripped', () => {
+    // Until objectui#7694 this block pinned `success === true` with `chartType`
+    // absent from the output — the silent strip, held visible until its own
+    // card ruled a shape. The ruling (option A: a named alias refusal pointing
+    // at `type`, the spec's own posture) landed, and the full pin — envelope,
+    // both-written, TS face, spec agreement, JSON-Schema surface — lives in
+    // `chart-series-chart-type-alias-refusal-7694.test.ts`. This is the
+    // handoff, restated rather than deleted (objectui#7070): the OLD reading
+    // must not come back, and if it does the thing to re-read first is still
+    // the spec's alias posture (`chartType` -> `type`).
     const r = ChartDataSeriesSchema.safeParse({ name: 'r', chartType: 'line' });
-    expect(r.success).toBe(true);
-    if (r.success) expect(r.data).not.toHaveProperty('chartType');
-    expect(shapeOf(ChartDataSeriesSchema)).not.toHaveProperty('chartType');
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.map((i) => i.path.join('.'))).toEqual(['chartType']);
+    expect(shapeOf(ChartDataSeriesSchema)).toHaveProperty('chartType');
   });
 
-  it('the TS face agrees — `chartType` is an excess property on `ChartDataSeries`', () => {
-    // @ts-expect-error `chartType` is the renderer's INTERNAL spelling of `type`; not a member here (objectui#7546)
+  it('the TS face agrees — `chartType` is a `?: never` tombstone on `ChartDataSeries`, not a member an author can write', () => {
+    // @ts-expect-error `chartType` is the renderer's INTERNAL spelling of `type`; refused by name — write `type` (objectui#7694)
     const s: ChartDataSeries = { name: 'r', chartType: 'line' };
     expect(s.name).toBe('r');
   });
