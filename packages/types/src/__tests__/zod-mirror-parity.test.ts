@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 157 entries at once.
+ * `assertionNoVacuousEntry` below pins that for every registered entry at once.
  *
  * ## What is registered
  *
@@ -53,8 +53,11 @@
  * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
  * entire subject is measurement that is worth stating explicitly:
  *
- *   - **157 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
- *     already pins equal to `keyof Declared`. 155 until objectui#7655 registered the
+ *   - **the pair population** — `Object.keys(MIRRORS).length`, pinned to the single
+ *     written-down constant `EXPECTED_MIRROR_PAIRS` by the runtime census at the
+ *     bottom of this file (objectui#7433); `assertionRegistryHalvesAgree` already pins
+ *     it equal to `keyof Declared`. ⛔ Read the constant, not this sentence — a digit
+ *     here is the artefact that rotted four times. 155 until objectui#7655 registered the
  *     `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` twins; 154 until objectui#7352
  *     registered `data-display.zod.ts#DrillDownConfigSchema` — a nested config mirror
  *     paired with the local `DrillDownConfig`, the `ObjectMapConfigSchema` precedent —
@@ -65,7 +68,8 @@
  *     rather than by reading the prose: `4ca30d044` wrote "160" when `MIRRORS` held
  *     **163**; `d88e20f55` (objectui#7432) took the registry to **154** without touching
  *     the sentence; objectui#7352 then added its 1 to the stale baseline and wrote 161.
- *     Two independent derivations agree on 157 today — a TypeScript AST walk counting
+ *     Two independent derivations agreed on the figure the constant now carries — a
+ *     TypeScript AST walk counting
  *     `PropertyAssignment` nodes in the `MIRRORS` initializer, and a line-oriented parse
  *     of the same block — and they agree on the historical figures above. ⛔ Do not add
  *     a delta to this number; count the registry. Nothing asserts it against a written
@@ -119,14 +123,19 @@
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), which is why
  *     the union of the two unmirrored ledgers is **15** pairs and not 14.
- *   - **142 pairs with no entry in either** unmirrored ledger — 157 − 15, measured,
- *     not stepped. ⚠️ This line used to carry a running chain of deltas (141 → 142 →
- *     143 → 144 → 147, one per card). Every one of those was computed against the
- *     stale pair count above, so they were arithmetic on a wrong base and are NOT
- *     re-derivable from this file; objectui#7352 contract review replaced the chain with
- *     the measurement (objectui#7655 re-measured: 142 = 157 − 15). ⛔ Do not restart
- *     the chain — subtract the union from the registry count, both read from the file.
- *   - 157 − 42 = **115**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *   - **the pairs with no entry in either** unmirrored ledger — the population minus
+ *     the union of the two ledgers above. ⛔ Not written down here in any form: the
+ *     census derives it and pins it (objectui#7433). ⚠️ This line used to carry a
+ *     running chain of deltas (141 → 142 → 143 → 144 → 147, one per card). Every one
+ *     of those was computed against the stale pair count above, so they were
+ *     arithmetic on a wrong base and are NOT re-derivable from this file; objectui#7352
+ *     contract review replaced the chain with a measurement, which then rotted the
+ *     same way the count under it did. ⛔ Do not restart the chain and ⛔ do not
+ *     restate the difference as a digit — subtract the union from the registry count,
+ *     both read from the file, which is what the census does.
+ *   - **the pairs with no `KnownDrift` entry** — the population minus that ledger,
+ *     the "pairs with no entry" `LedgerMismatch` speaks of. Derived by the same
+ *     census, and likewise not written down here.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -170,7 +179,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 42 of the 157 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -418,8 +427,9 @@ export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
 /**
- * …and so does a clean pair with no entry — 115 of the 157 on the `KnownDrift` half,
- * 142 on the unmirrored half (both measured, not stepped).
+ * …and so does a clean pair with no entry — the great majority of the population on
+ * the `KnownDrift` half and on the unmirrored half alike. ⛔ Both counts are derived
+ * by the runtime census (objectui#7433), never stepped and never quoted here.
  */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
@@ -1164,7 +1174,7 @@ interface KnownDrift {
  * is being let through, because there was no such thing. Seeding takes the count of
  * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
  * grow while they are worked off, and a new declared-but-unmirrored key on any of
- * the 157 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
+ * the registered pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
  * including a callback-shaped one, which reddens until it is filed in
  * `RuntimeOnlyDeclared` (`assertionSplitLedgerRejectsFreshCallback`).
  *
@@ -1810,8 +1820,9 @@ export type assertionWiderLedgerKeysAreRegistered =
 /* ── The invariant ──────────────────────────────────────────────────────────── */
 
 /**
- * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 115 pairs with no entry (157 − 42).
+ * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for every
+ * pair with no entry, which is the population minus that ledger's size. ⛔ That
+ * difference is derived by the runtime census (objectui#7433), not written down here.
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
@@ -1859,8 +1870,10 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 142
- * pairs with no entry in either (157 − 15). Six of `RuntimeOnlyDeclared`'s seven
+ * key set equals what the two ledgers TOGETHER record for it — `never` for every pair
+ * with no entry in either, which is the population minus the union of the two ledgers
+ * and is derived by the runtime census (objectui#7433), not written down here.
+ * Six of `RuntimeOnlyDeclared`'s seven
  * pairs are a measured subset of `UnmirroredDeclared`'s 14, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
  * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is one
@@ -1982,7 +1995,7 @@ export type VacuousWiderMeasurement = {
 export type assertionNoVacuousWiderMeasurement = Expect< Equal< VacuousWiderMeasurement, never > >;
 
 /**
- * Non-vacuity for all 157 entries at once.
+ * Non-vacuity for every registered entry at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the
@@ -2198,6 +2211,47 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
 
 const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
 
+/**
+ * The pair population as ONE written-down number — the only count in this file a
+ * human edits, and the base every figure the header used to quote derives from.
+ *
+ * objectui#6141 wrote down, in 2026-08, that correcting the prose "rots again the next
+ * time an entry lands". Four hand-corrections of this same figure followed. One was
+ * false the day it was written (`4ca30d044` wrote 160 while `MIRRORS` held 163); one
+ * was a careful maintainer who correctly updated the ledger counts they were looking
+ * at, correctly propagated them into a subtraction, and could not see that the
+ * MINUEND under it had moved. Nothing failed on any of those days, because nothing
+ * compared the registry to a number. objectui#7433 is that absence, not the digits.
+ */
+const EXPECTED_MIRROR_PAIRS = 157;
+
+/** This file, so the census can read its own type-level ledgers. */
+const SELF = fileURLToPath(import.meta.url);
+
+let selfAst: ts.SourceFile | undefined;
+
+/**
+ * Entry keys of one of this file's ledgers, read from its own AST.
+ *
+ * The ledgers are `interface`s — type-level, with no runtime value to count — so
+ * parsing the source is the only way to size them at test time. The census already
+ * runs the TypeScript parser for `specReferencingExports`, so this is the same
+ * instrument rather than a second one, and it is a MEASUREMENT: an entry added or
+ * removed moves it with no list to maintain, which is the whole point of the card.
+ */
+function ledgerEntryKeys(ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): string[] {
+  selfAst ??= ts.createSourceFile(
+    SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
+  );
+  const decl = selfAst.statements.find(
+    (s): s is ts.InterfaceDeclaration => ts.isInterfaceDeclaration(s) && s.name.text === ledger,
+  );
+  if (!decl) throw new Error(`no top-level interface ${ledger} in ${SELF} — it was renamed, or the reader is reading the wrong file`);
+  return decl.members
+    .filter(ts.isPropertySignature)
+    .map((m) => (ts.isStringLiteral(m.name) ? m.name.text : m.name.getText(selfAst)));
+}
+
 /** Every `export const` in the mirror directory, keyed the same way as the maps. */
 function exportedConsts(): string[] {
   const out: string[] = [];
@@ -2372,6 +2426,78 @@ exactly how objectui#4605 and #5186 stayed latent.`).toEqual([]);
   it('every exclusion carries a reason', () => {
     const empty = Object.entries(EXCLUSIONS).filter(([, why]) => why.trim().length < 20);
     expect(empty.map(([k]) => k), 'an exclusion without a reason is an oversight').toEqual([]);
+  });
+});
+
+describe('the population and its two differences are derived, not prose (objectui#7433)', () => {
+  it('the registry population matches EXPECTED_MIRROR_PAIRS', () => {
+    const actual = Object.keys(MIRRORS).length;
+    expect(actual, `
+The pair population moved: MIRRORS holds ${actual}, EXPECTED_MIRROR_PAIRS says ${EXPECTED_MIRROR_PAIRS}.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you added or removed a MIRRORS entry, taking the registry ${EXPECTED_MIRROR_PAIRS} -> ${actual}
+    => update EXPECTED_MIRROR_PAIRS from ${EXPECTED_MIRROR_PAIRS} to ${actual}, and nothing else.
+    The header quotes no digit for the population or for either difference any more,
+    so there is no prose to hand-correct alongside it.
+
+  * you edited EXPECTED_MIRROR_PAIRS itself, or carried a figure in from a card, a
+    review comment or this file's own header
+    => put it back to ${actual}. The registry is the measurement; this constant only
+    records it, and a figure quoted anywhere else is evidence about that place only.
+
+⛔ Do not reconcile the two by editing prose. That is route 1, which objectui#6141
+predicted would recur before objectui#7433 measured it recurring four more times.`)
+      .toBe(EXPECTED_MIRROR_PAIRS);
+  });
+
+  it('both differences the header speaks of derive from the pin and the live ledgers', () => {
+    const registered = Object.keys(MIRRORS);
+    const drift = new Set(ledgerEntryKeys('KnownDrift'));
+    const unmirrored = new Set([
+      ...ledgerEntryKeys('UnmirroredDeclared'),
+      ...ledgerEntryKeys('RuntimeOnlyDeclared'),
+    ]);
+
+    // Each difference is derived TWICE and the derivations compared: once by walking
+    // the registry for pairs that ledger does not name, once by the subtraction the
+    // header used to state as a digit. They part company only if a ledger records a
+    // key MIRRORS does not register — `assertionUnmirroredLedgerKeysAreRegistered`
+    // pins that at the type level for the unmirrored half; this is its runtime twin,
+    // and it covers the drift half too.
+    const why = (label: string, size: number): string => `
+${label}: the two derivations disagree — walking MIRRORS gives one answer, subtracting
+from the pinned population gives another. Population ${EXPECTED_MIRROR_PAIRS}, ledger ${size} entries.
+A ledger entry names a pair MIRRORS does not register: fix the ledger key.
+If 'the registry population matches EXPECTED_MIRROR_PAIRS' failed too, fix THAT first —
+this derivation subtracts from the pinned population, so it fails as a consequence.
+⛔ Never "fix" either one by writing the difference down.`;
+
+    expect(
+      registered.filter((k) => !drift.has(k)).length,
+      why('pairs with no KnownDrift entry', drift.size),
+    ).toBe(EXPECTED_MIRROR_PAIRS - drift.size);
+
+    expect(
+      registered.filter((k) => !unmirrored.has(k)).length,
+      why('pairs with no entry in either unmirrored ledger', unmirrored.size),
+    ).toBe(EXPECTED_MIRROR_PAIRS - unmirrored.size);
+  });
+
+  it('the ledger reader can actually see the ledgers (non-vacuity)', () => {
+    // A reader that returned [] would make both differences above equal the whole
+    // population and both assertions pass while measuring nothing — the same failure
+    // mode 'the census can actually see the directory' guards for the mirror scan.
+    const registered = new Set(Object.keys(MIRRORS));
+    for (const ledger of ['KnownDrift', 'UnmirroredDeclared', 'RuntimeOnlyDeclared'] as const) {
+      const keys = ledgerEntryKeys(ledger);
+      expect(keys.length, `${ledger} read as EMPTY — the reader is not seeing the ledger`)
+        .toBeGreaterThan(0);
+      expect(keys.filter((k) => !registered.has(k)), `${ledger} entries MIRRORS does not register`)
+        .toEqual([]);
+    }
   });
 });
 

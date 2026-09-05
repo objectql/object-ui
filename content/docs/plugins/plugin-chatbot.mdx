@@ -428,7 +428,9 @@ const aiChat: ChatbotSchema = {
 ### Support Ticket Chat
 
 ```tsx
-const supportChat = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const supportChat: ChatbotSchema = {
   type: 'chatbot',
   messages: [
     {
@@ -449,13 +451,15 @@ const supportChat = {
   userAvatarFallback: 'JD',
   assistantAvatarFallback: 'SP',
   className: 'w-full max-w-3xl mx-auto'
-}
+};
 ```
 
 ### Sales Bot
 
 ```tsx
-const salesBot = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const salesBot: ChatbotSchema = {
   type: 'chatbot',
   messages: [
     {
@@ -473,13 +477,15 @@ const salesBot = {
   autoResponseDelay: 1200,
   maxHeight: '500px',
   className: 'border-2 border-primary rounded-xl'
-}
+};
 ```
 
 ### Multi-agent Chat
 
 ```tsx
-const multiAgentChat = {
+import type { ChatbotSchema } from '@object-ui/types';
+
+const multiAgentChat: ChatbotSchema = {
   type: 'chatbot',
   messages: [
     {
@@ -508,7 +514,7 @@ const multiAgentChat = {
   ],
   showTimestamp: true,
   userAvatarFallback: 'CU'
-}
+};
 ```
 
 ## Custom Avatars
