@@ -237,7 +237,7 @@ describe('P1.1 ListView Spec Alignment', () => {
       type: 'list-view',
       objectName: 'Account',
       exportOptions: {
-        formats: ['csv', 'json', 'pdf'],
+        formats: ['csv', 'json'],
         maxRecords: 5000,
         includeHeaders: true,
         fileNamePrefix: 'accounts_export',
@@ -245,7 +245,7 @@ describe('P1.1 ListView Spec Alignment', () => {
     };
     expect(Array.isArray(schema.exportOptions)).toBe(false);
     const opts = schema.exportOptions as { formats?: string[]; maxRecords?: number };
-    expect(opts.formats).toEqual(['csv', 'json', 'pdf']);
+    expect(opts.formats).toEqual(['csv', 'json']);
     expect(opts.maxRecords).toBe(5000);
   });
 
