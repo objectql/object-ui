@@ -24,6 +24,13 @@ Accept-set change on the published validator, stated plainly:
   `{ enabled: true }` / `{ enabled: true, mode: 'record' }` blocks the dashboard
   renderer synthesises, `report`'s two structural forms, and an inline report's
   extra keys (the declaration's index signature is `.catchall(z.unknown())`).
+- Output shape, worth knowing before you read a parsed `drillDown.report`: the
+  member is a union, and its two arms differ in what they KEEP. The inline arm
+  carries the declaration's index signature as `.catchall(z.unknown())`, so extra
+  report keys survive; the named-reference arm is a plain object, so a value that
+  reaches it keeps only `name` (`{ name: 'x', columns: [] }` is accepted, and
+  parses to `{ name: 'x' }`). Both were accepted and unvalidated before, and
+  neither is refused now.
 - Unchanged: `PivotTableSchema.drillDown` has no zod mirror at all, and
   `DataTableSchema` declares the key on neither face — both are untouched here.
 - New export on `@object-ui/types/zod`: `DrillDownConfigSchema`.

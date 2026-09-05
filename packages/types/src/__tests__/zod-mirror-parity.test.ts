@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 161 entries at once.
+ * `assertionNoVacuousEntry` below pins that for all 155 entries at once.
  *
  * ## What is registered
  *
@@ -53,11 +53,20 @@
  * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
  * entire subject is measurement that is worth stating explicitly:
  *
- *   - **161 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
- *     already pins equal to `keyof Declared`. It was 160 until objectui#7352 registered
+ *   - **155 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
+ *     already pins equal to `keyof Declared`. 154 until objectui#7352 registered
  *     `data-display.zod.ts#DrillDownConfigSchema` — a nested config mirror paired with
- *     the local `DrillDownConfig`, the `ObjectMapConfigSchema` precedent —
- *     and it carries no ledger entry. Nothing asserts the number against a written
+ *     the local `DrillDownConfig`, the `ObjectMapConfigSchema` precedent — which
+ *     carries no ledger entry. ⚠️ **This line rotted twice and was re-derived at
+ *     objectui#7352 contract review.** Its history, measured by running the same walk over
+ *     this file at each revision rather than by reading the prose: `4ca30d044` wrote
+ *     "160" when `MIRRORS` held **163**; `d88e20f55` (objectui#7432) took the registry to
+ *     **154** without touching the sentence; objectui#7352 then added its 1 to the stale
+ *     baseline and wrote 161. Two independent derivations agree on 155 today — a
+ *     TypeScript AST walk counting `PropertyAssignment` nodes in the `MIRRORS`
+ *     initializer, and a line-oriented parse of the same block — and they agree on
+ *     the three historical figures above. ⛔ Do not add a delta to this number; count
+ *     the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
  *   - **40 entries** in `KnownDrift`, **56 keys** across them — 39 / 55 until
@@ -94,18 +103,18 @@
  *     meaning — the comparable figure is 95 + 1 mirrored + 2 retired + 23
  *     reclassified. The full statement is on that ledger.
  *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
- *     seven are a subset of the 15 pairs above; `TreeViewSchema` is NOT — it is
+ *     seven are a subset of the 13 pairs above; `TreeViewSchema` is NOT — it is
  *     the first pair whose ONLY ledger entry is a runtime-only one
- *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
- *     "no entry in either" population dropped by one to 141 — went to 142 when
- *     objectui#6576 added two pairs, one of them ledgered, went to 143 when
- *     objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key, and
- *     went to 144 when objectui#7623 retired `DashboardComponentSchema`'s
- *     only UNMIRRORED one (that pair keeps its `KnownDrift` entry — this
- *     population counts entries in the two unmirrored ledgers), and stands at **147**
- *     since objectui#7352: two pairs left the unmirrored ledgers by repair and the new
- *     `DrillDownConfigSchema` pair arrived clean.
- *   - 161 − 40 = **121**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), which is why
+ *     the union of the two unmirrored ledgers is **14** pairs and not 13.
+ *   - **141 pairs with no entry in either** unmirrored ledger — 155 − 14, measured,
+ *     not stepped. ⚠️ This line used to carry a running chain of deltas (141 → 142 →
+ *     143 → 144 → 147, one per card). Every one of those was computed against the
+ *     stale pair count above, so they were arithmetic on a wrong base and are NOT
+ *     re-derivable from this file; objectui#7352 contract review replaced the chain with
+ *     the measurement. ⛔ Do not restart the chain — subtract the union from the
+ *     registry count, both read from the file.
+ *   - 155 − 40 = **115**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -126,7 +135,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 40 of the 161 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 40 of the 155 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -291,7 +300,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 147 of the 161. */
+/** …and so does a clean pair with no entry, which is the case for 141 of the 155. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -958,7 +967,7 @@ interface KnownDrift {
  * is being let through, because there was no such thing. Seeding takes the count of
  * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
  * grow while they are worked off, and a new declared-but-unmirrored key on any of
- * the 161 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
+ * the 155 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
  * including a callback-shaped one, which reddens until it is filed in
  * `RuntimeOnlyDeclared` (`assertionSplitLedgerRejectsFreshCallback`).
  *
@@ -1156,15 +1165,19 @@ interface UnmirroredDeclared {
  * ## ⚠️ THIS IS WHERE 23 KEYS WENT — a RECLASSIFICATION, not a fix
  *
  * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058. It records
- * **97** today: these 23 moved here whole, and `ObjectGridSchema.title` was later
- * MIRRORED by objectui#6639 — the move recorded HERE repaired nothing. ⛔ Nothing was
+ * **94** today: these 23 moved here whole, and three keys were later MIRRORED
+ * (`ObjectGridSchema.title` by objectui#6639; `ChartSchema.drillDown` and
+ * `ObjectDataTableSchema.drillDown` by objectui#7352) while two were RETIRED by
+ * deleting the declaration (objectui#7129, objectui#7623) — the move recorded HERE
+ * repaired nothing. ⛔ Nothing was
  * mirrored by it, no declaration was removed, no defect was repaired and nothing was
  * waived: the same 23 facts are still measured, still declared-but-unmirrored, still
  * reconciled against the same measurement — under a different remedy.
  *
- * **97 is the mirroring debt; 97 + 1 mirrored + 23 reclassified is what "121" used
- * to mean.** Cite it that way. objectui#6141 is the standing example of what a
- * silently moved count costs.
+ * **94 is the mirroring debt; 94 − 1 seeded + 3 mirrored + 2 retired + 23
+ * reclassified is what "121" used to mean.** Cite it that way. objectui#6141 is the
+ * standing example of what a silently moved count costs — and the pair count in the
+ * file header is the second, re-derived at objectui#7352 contract review.
  *
  * ## Why mirroring is the wrong remedy for these (the objectui#6152 ruling)
  *
@@ -1392,7 +1405,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 121 pairs with no entry (161 − 40).
+ * 115 pairs with no entry (155 − 40).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
@@ -1440,8 +1453,8 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 147
- * pairs with no entry in either (161 − 14). Six of `RuntimeOnlyDeclared`'s seven
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 141
+ * pairs with no entry in either (155 − 14). Six of `RuntimeOnlyDeclared`'s seven
  * pairs are a measured subset of `UnmirroredDeclared`'s 13, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
  * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is one
@@ -1500,7 +1513,7 @@ export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
 }[MirrorKey];
 
 /**
- * Non-vacuity for all 161 entries at once.
+ * Non-vacuity for all 155 entries at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the

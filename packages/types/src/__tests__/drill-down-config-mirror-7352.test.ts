@@ -103,13 +103,23 @@ const ACCEPTED: Array<[string, DrillDownConfig]> = [
   }],
   ['a named report reference', { report: { name: 'pipeline' } }],
   // ⚠️ MEASURED, not assumed, and it moved here from the refusal table below. The
-  // declaration's second arm is `{ name: string }` — not an exact type — so a value
-  // with a string `name` satisfies it whatever else it carries, and TypeScript's
-  // excess-property check passes because `columns` is a member of the OTHER arm.
+  // declaration's second arm is `{ name: string }`, and THIS value reaches it: the
+  // inline arm wants `objectName`, so the value falls through to the reference arm,
+  // which a string `name` satisfies. TypeScript agrees for the same structural
+  // reason, and its excess-property check passes on this literal because `columns`
+  // is a member of the OTHER arm — ⚠️ that last part is what makes the acceptance
+  // shape-specific rather than universal: it is not "any extra key rides along".
   // This entry is annotated `DrillDownConfig`, so `tsc -p tsconfig.test.json` is the
-  // witness: if the declaration ever refused it, this line stops compiling. A mirror
-  // that refused it would be NARROWER than the declaration — the drift class this
+  // witness — if the declaration ever refused it, this line stops compiling. A mirror
+  // that refused it would be NARROWER than the declaration, the drift class this
   // ledger exists to stop, in the direction that hurts authors.
+  //
+  // ⚠️ ACCEPTED is not "unchanged": the reference arm is a plain `z.object`, so it
+  // STRIPS what it does not declare, and the parsed output here is `{ name }` — the
+  // `columns` is gone (measured: `{ name, columns: [] }` parses to `{ name }`, while
+  // the full inline shape below keeps every extra key through `.catchall`). The test
+  // right below this table pins that surviving half. Consumers read `report` after
+  // parsing, so the two arms differ in output, not only in acceptance.
   ['an inline report missing objectName, which the reference arm accepts', { report: { name: 'pipeline', columns: [] } }],
 ];
 
