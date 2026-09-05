@@ -35,6 +35,31 @@
  * an `it` that called `colorsFor` twice read the FIRST call's colour back out
  * of the second under load. See the two comments in `colorsFor`: the unmount
  * removes the second writer, the title-token predicate removes the blind spot.
+ *
+ * objectui#7466 — the same failure re-measured, because "it stopped failing"
+ * is not a mechanism. ⛔ Do not delete a guard below without re-running this;
+ * on an idle machine EVERY variant is green, so a passing run is not evidence.
+ *
+ * The lever is the METADATA fetch, not machine load. `ObjectTimeline`'s data
+ * effect lists `objectDef` in its deps and `objectDef` is set by a separate
+ * `getObjectSchema()`, so a mount paints ONCE if the two settle together and
+ * TWICE if they do not. This container settles them together — measured, one
+ * write per call — which is why plain repetition reproduces nothing. Holding
+ * `getObjectSchema` by 25ms splits them and makes the second paint appear:
+ *
+ *   pre-#7521 harness, unperturbed              0 fail / 32 runs
+ *   pre-#7521 harness, getObjectSchema +25ms    3 fail /  3 runs  <- the card's
+ *                                                 exact signature, rung 2:
+ *                                                 expected ['#abc'] to equal
+ *                                                 ['#123456']
+ *   this file, getObjectSchema +25ms            0 fail /  6 runs
+ *   this file MINUS unmount+DOM guard, +25ms    3 fail /  8 runs  <- the token
+ *                                                 predicate ALONE is not enough
+ *   ...plus the bound capture below, +25ms      0 fail / 16 runs
+ *
+ * The last two rows are why `settled` exists: they are the same tree, and the
+ * only difference is whether the returned array is the one the predicate
+ * accepted or a fresh read of the module global.
  */
 
 import React from 'react';
@@ -121,10 +146,22 @@ async function colorsFor(colorField: string, rows: any[] = [ROW]) {
     // Identify the AUTHOR, not just the arity. `lastItems.length` alone cannot
     // separate "the component I just mounted has painted" from "an earlier one
     // painted again", because both leave length === rows.length.
-    await waitFor(() =>
-      expect(lastItems.map((i) => i.title)).toEqual(stampedRows.map((r) => r.subject)),
-    );
-    return lastItems.map((i) => i.color);
+    //
+    // objectui#7466 — and RETURN THE ARRAY THE PREDICATE ACCEPTED. `lastItems`
+    // is module-level and mutable, so reading it again on the next line asks a
+    // SECOND question, and asks it after React's `act` has yielded to the
+    // macrotask queue on its way out of `waitFor` — a real window, in which a
+    // still-live writer can answer it. Capturing inside the predicate makes
+    // "the value asserted" and "the value validated" the same object by
+    // construction, so this line no longer depends on the `unmount()` below
+    // having removed every other writer. Measured: 3/8 -> 0/16 (see header).
+    let settled: typeof lastItems = [];
+    await waitFor(() => {
+      const items = lastItems;
+      expect(items.map((i) => i.title)).toEqual(stampedRows.map((r) => r.subject));
+      settled = items;
+    });
+    return settled.map((i) => i.color);
   } finally {
     // Tear THIS render down before returning. `ObjectTimeline` still has a
     // second `find()` in flight when the predicate goes green: its data effect
