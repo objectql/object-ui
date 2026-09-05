@@ -24,7 +24,7 @@
 
 import React, { useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import type { ObjectGanttSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
+import type { ObjectGanttSchema, DataSource, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 // Aliased on import, following PR #4169's convention: this repo has its OWN
 // `resolveI18nLabel` over a DIFFERENT vocabulary (the KEYED `{ key, defaultValue }`
@@ -61,6 +61,7 @@ import {
   getRecordDisplayName,
   resolveDataSource,
   createFieldColorResolver,
+  resolveRecordSourceConfig,
   resolveRecordSourceObjectName,
 } from '@object-ui/core';
 import {
@@ -313,31 +314,6 @@ export interface ObjectGanttProps {
     task: GanttTask,
     changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>,
   ) => boolean | Promise<boolean>;
-}
-
-/**
- * Helper to get data configuration from schema
- */
-function getDataConfig(schema: ObjectGanttSchema): ViewData | null {
-  if (schema.data) {
-    return schema.data;
-  }
-  
-  if (schema.staticData) {
-    return {
-      provider: 'value',
-      items: schema.staticData,
-    };
-  }
-  
-  if (schema.objectName) {
-    return {
-      provider: 'object',
-      object: schema.objectName,
-    };
-  }
-  
-  return null;
 }
 
 /**
@@ -614,7 +590,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     });
   }, [t]);
 
-  const rawDataConfig = getDataConfig(schema);
+  const rawDataConfig = resolveRecordSourceConfig(schema);
   // Memoize dataConfig using deep comparison to prevent infinite loops
   const dataConfig = useMemo(() => {
     return rawDataConfig;
