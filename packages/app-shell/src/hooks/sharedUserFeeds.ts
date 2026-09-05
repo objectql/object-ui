@@ -51,6 +51,7 @@ import { errorCodeIs } from '@object-ui/types';
 // Re-exported from `@object-ui/react` — import it through the provider module
 // so a consumer that stubs the provider stubs this too.
 import { useAdapter } from '../providers/AdapterProvider.js';
+import { useObjectPresence } from './useObjectPresence.js';
 import { bearerAuthHeaders } from '../utils/authToken.js';
 import type { ActivityItem } from '../layout/ActivityFeed.js';
 import { activityRowToActivityItem } from '../layout/activityItemType.js';
@@ -615,15 +616,49 @@ export function isMissingResource(err: unknown): boolean {
  * Not polled — it is a landing-surface feed on both consumers, and the bell
  * never polled it either. Degrades to empty when `sys_activity` is absent
  * (no plugin-audit) and retires the feed for the rest of the page.
+ *
+ * ## Not asking, rather than asking and being told no (objectui#7476)
+ *
+ * A tenant environment has no `sys_activity`, so this read 404'd on every page
+ * load. The 404 was already handled correctly at four layers — the adapter
+ * memoizes the missing collection, its quiet logger demotes it to `debug`, the
+ * feed retires as an ANSWER (`ready`, empty), and the panel renders its earned
+ * 「暂无最近动态」 — but it was still one doomed request per load, and
+ * `data-objectstack` states the rule for exactly this shape: the cure for a
+ * doomed request is not issuing it.
+ *
+ * So the object registry (which the shell loads for the nav either way)
+ * decides. It is a THREE-valued answer and only one value skips the read:
+ *
+ *   - not settled yet → no key, so nothing is asked and nothing is claimed.
+ *     `useSharedFeed` hands a consumer the `idle` snapshot in that window,
+ *     which is the honest one: this feed has not asked anything;
+ *   - `absent` → `markUnavailable()` WITHOUT a request. Same terminal state the
+ *     404 produced — `ready`, empty, poll stopped — so every consumer of this
+ *     feed and the affirmative empty copy (#4315) are byte-for-byte unchanged;
+ *   - `present` / `unknown` → the read, exactly as before. Every uncertainty
+ *     lands here on purpose (see {@link useObjectPresence}): a registry with no
+ *     provider, still loading, errored, or listing nothing is not evidence of
+ *     absence, and a wrong `absent` would cost a real deployment its feed.
  */
 export function useSharedActivityFeed(): ActivityItem[] {
   const dataSource = useAdapter();
+  const activity = useObjectPresence('sys_activity');
 
   return useSharedFeed(
     activityFeed,
-    adapterKey(dataSource),
+    // The presence verdict is part of the key so the feed re-attaches (and
+    // re-decides) when the registry finally answers — it is `null` until then,
+    // which is what keeps the doomed request from going out in that window.
+    activity.settled ? adapterKey(dataSource) : null,
     async ({ markUnavailable, markFailed }) => {
       if (!dataSource) return undefined;
+      if (activity.presence === 'absent') {
+        // This deployment declares no `sys_activity`. That IS the answer the
+        // 404 used to carry, arrived at without the round trip.
+        markUnavailable();
+        return undefined;
+      }
       const res = await Promise.resolve(
         dataSource.find('sys_activity', { $orderby: { timestamp: 'desc' }, $top: 20 }) as Promise<{
           data?: unknown[];

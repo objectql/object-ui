@@ -15,6 +15,13 @@ export {
 } from './useNavigationSync.js';
 export { useObjectActions } from './useObjectActions.js';
 export {
+  useObjectPresence,
+  objectPresence,
+  metadataTypeSettled,
+  type ObjectPresence,
+  type ObjectPresenceReading,
+} from './useObjectPresence.js';
+export {
   useAiUsage,
   type UseAiUsageOptions,
   type UseAiUsageReturn,
