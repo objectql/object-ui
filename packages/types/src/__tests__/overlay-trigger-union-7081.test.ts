@@ -163,7 +163,7 @@ export const singularStaysSingular: SingularSlot = {
 // The one in-repo `trigger` OUTSIDE the family with the same asymmetry,
 // recorded rather than resolved (`disclosure.ts`: `string | SchemaNode` on the
 // TS face, the union in `disclosure.zod.ts`, an array in `collapsible.tsx`'s
-// `defaultProps`). Fenced out of objectui#7081 and filed as its own card; the
+// `defaultProps`). Fenced out of objectui#7081 and filed as objectui#7767; the
 // day it widens, this leg goes red and the pin is re-derived deliberately.
 export type _CollapsibleStillSingular = Expect<Equal<AdmitsArray<CollapsibleSchema['trigger']>, false>>;
 
@@ -303,7 +303,7 @@ const CONTROLS: readonly Member7081[] = [
 
 const FAMILY = [...WIDENED, ...CONTROLS];
 
-describe.each(FAMILY)('$name.trigger admits a node or a node array on every face (objectui#7081)', ({ name, type, zod, optional, rest }) => {
+describe.each(FAMILY.map((member) => [member.name, member] as const))('%s.trigger admits a node or a node array on every face (objectui#7081)', (_title, { name, type, zod, optional, rest }) => {
   it('the declaration spells the union, optionality kept', () => {
     const row = members(interfaceBody(read(DECLARATION), `export interface ${name} extends BaseSchema {`, DECLARATION)).get('trigger');
     expect(row).toEqual({ optional, typeText: 'SchemaNode | SchemaNode[]' });
