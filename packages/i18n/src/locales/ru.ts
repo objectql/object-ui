@@ -19,6 +19,7 @@ const ru = {
       manage_users: "Управление пользователями",
       manage_org_users: "Управление пользователями организации",
       manage_metadata: "Управление метаданными",
+      manage_org_presentation: "Управление представлением организации",
       manage_platform_settings: "Управление настройками платформы",
       setup_access: "Доступ к настройке",
       setup_write: "Запись настроек",

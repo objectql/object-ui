@@ -19,6 +19,7 @@ const fr = {
       manage_users: "Gérer les utilisateurs",
       manage_org_users: "Gérer les utilisateurs de l'organisation",
       manage_metadata: "Gérer les métadonnées",
+      manage_org_presentation: "Gérer la présentation de l'organisation",
       manage_platform_settings: "Gérer les paramètres de la plateforme",
       setup_access: "Accès à la configuration",
       setup_write: "Écriture des paramètres",

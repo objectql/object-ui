@@ -151,6 +151,7 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'capability.label.manage_users': 'Manage Users',
   'capability.label.manage_org_users': 'Manage Organization Users',
   'capability.label.manage_metadata': 'Manage Metadata',
+  'capability.label.manage_org_presentation': 'Manage Organization Presentation',
   'capability.label.manage_platform_settings': 'Manage Platform Settings',
   'capability.label.setup_access': 'Setup Access',
   'capability.label.setup_write': 'Write Settings',

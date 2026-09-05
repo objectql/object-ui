@@ -29,6 +29,7 @@ const zh = {
       manage_users: '管理用户',
       manage_org_users: '管理组织用户',
       manage_metadata: '管理元数据',
+      manage_org_presentation: '管理组织展示',
       manage_platform_settings: '管理平台设置',
       setup_access: '访问 Setup',
       setup_write: '保存设置',

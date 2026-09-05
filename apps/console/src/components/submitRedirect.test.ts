@@ -114,6 +114,27 @@ const OUT_OF_CONTRACT: Array<[label: string, url: string]> = [
   ['a token with inner spacing', '/thanks?x={{ record.id }}'],
 ];
 
+/**
+ * A refusal CITES THE RULING it comes from — the durable property, in either
+ * spelling the spec has used for it.
+ *
+ * This assertion's job is to discriminate the spec's own author-facing
+ * prescription from a locally hand-written sentence (mutation probe 3 in
+ * `ObjectForm.submitRedirect.test.tsx`'s header depends on it). It used to be
+ * spelled `toContain('#7496')`, which pinned the CITATION FORM rather than the
+ * citation: `@objectstack/spec` 17.3.0 kept every refusal and its reasoning and
+ * only restated the provenance as `(ruled 2026-08-11)` instead of `#7496`, and
+ * 14 assertions across three files went red for a token while the behaviour
+ * they guard never moved. Same defect shape as objectui#7702 — a pin asserting
+ * an incidental token instead of the durable property.
+ *
+ * ⛔ Not re-pinned to the new prose verbatim, which would only move the
+ * brittleness one release along. What is asserted is that provenance is
+ * PRESENT and machine-recognisable in one of the two forms upstream uses; a
+ * hand-written local sentence carries neither.
+ */
+const CITES_ITS_RULING = /\(ruled \d{4}-\d{2}-\d{2}\)|#\d{3,}/;
+
 describe('the shape verdict is the contract’s, for every family', () => {
   it.each(IN_CONTRACT)('accepts %j, and so does the schema', (url) => {
     expect(specAccepts(url)).toBe(true);
@@ -130,11 +151,12 @@ describe('the shape verdict is the contract’s, for every family', () => {
     expect(verdict.ok).toBe(false);
     if (verdict.ok) return;
     // Refusals are quotable: the author gets the spec's own prescription, which
-    // names the key and cites the ruling it comes from, so the sentence read
+    // names the key and cites the ruling it comes from (in whichever form that
+    // citation currently takes — see CITES_ITS_RULING), so the sentence read
     // here is the one the authoring door would have said. An empty or generic
     // message would be a silent drop wearing an error's clothes.
     expect(verdict.refusal).toMatch(/`(submitBehavior\.)?url`/);
-    expect(verdict.refusal).toContain('#7496');
+    expect(verdict.refusal).toMatch(CITES_ITS_RULING);
     expect(verdict.refusal.length).toBeGreaterThan(40);
   });
 

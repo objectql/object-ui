@@ -30,6 +30,7 @@ const en = {
       manage_users: 'Manage Users',
       manage_org_users: 'Manage Organization Users',
       manage_metadata: 'Manage Metadata',
+      manage_org_presentation: 'Manage Organization Presentation',
       manage_platform_settings: 'Manage Platform Settings',
       setup_access: 'Setup Access',
       setup_write: 'Write Settings',

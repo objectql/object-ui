@@ -19,6 +19,7 @@ const de = {
       manage_users: "Benutzer verwalten",
       manage_org_users: "Organisationsbenutzer verwalten",
       manage_metadata: "Metadaten verwalten",
+      manage_org_presentation: "Organisationsdarstellung verwalten",
       manage_platform_settings: "Plattformeinstellungen verwalten",
       setup_access: "Zugriff auf die Einrichtung",
       setup_write: "Einstellungen schreiben",
