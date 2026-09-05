@@ -2581,12 +2581,22 @@ function metadataAssistantSuggestions(t: TranslationFn): string[] {
   // Creation-first starters: the authoring agent's job is to BUILD from a
   // natural-language description (the magic moment), so the empty-state nudges
   // toward "describe a system" rather than inspecting existing schema.
+  //
+  // cloud#1984 — these are the PRODUCT's own recommendations, so they may only
+  // ask for what ADR-0112 v1 builds: objects, fields, views (grid / kanban /
+  // calendar / gallery), pages, dashboards and sample data. No wording that
+  // promises autonomous behaviour (alert / remind / notify / automate / status
+  // workflow): v1 has no flows, actions or schedules, and the measured
+  // behaviour is that the model silently DEGRADES such a request into a board
+  // or a filtered view — so the chip promises an alert and delivers a page.
+  // REVERT to the automation wording when ADR-0112 v2 re-adds flows and
+  // actions. The `defaultValue`s below are byte-equal to the `en` pack.
   return [
-    t('console.ai.suggestions.metadataAssistant.buildCrm', { defaultValue: 'Build a sales CRM — customers, contacts, and a deal pipeline I can total by stage.' }),
-    t('console.ai.suggestions.metadataAssistant.buildApp', { defaultValue: 'Create a project tracker — projects, tasks with owners and due dates, and a board by status.' }),
-    t('console.ai.suggestions.metadataAssistant.buildFlow', { defaultValue: 'Design a support desk — tickets with priority, a status workflow, and customer links.' }),
-    t('console.ai.suggestions.metadataAssistant.buildInventory', { defaultValue: 'Build an inventory app — products, stock levels, suppliers, and low-stock visibility.' }),
-    t('console.ai.suggestions.metadataAssistant.buildRecruiting', { defaultValue: 'Make an applicant tracker — candidates, open roles, interview stages, and notes.' }),
+    t('console.ai.suggestions.metadataAssistant.buildCrm', { defaultValue: 'Build a sales CRM — customers, contacts, and deals with a stage field, plus a dashboard that totals deal value by stage.' }),
+    t('console.ai.suggestions.metadataAssistant.buildApp', { defaultValue: 'Create a project tracker — projects, tasks with owners and due dates, a board grouped by status, and a calendar of due dates.' }),
+    t('console.ai.suggestions.metadataAssistant.buildFlow', { defaultValue: 'Design a support desk — tickets with priority and status fields, a board grouped by status, and links to customers.' }),
+    t('console.ai.suggestions.metadataAssistant.buildInventory', { defaultValue: 'Build an inventory app — products, stock levels, suppliers, and a view that filters the items below their reorder point.' }),
+    t('console.ai.suggestions.metadataAssistant.buildRecruiting', { defaultValue: 'Make an applicant tracker — candidates, open roles, an interview-stage field, and a board grouped by stage.' }),
   ];
 }
 

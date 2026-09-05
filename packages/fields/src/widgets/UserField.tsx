@@ -46,11 +46,11 @@ export function UserField(props: FieldWidgetComponentProps<any>) {
   const normalized = {
     ...(meta || {}),
     reference: meta?.reference || meta?.reference_to || 'sys_user',
-    display_field: meta?.display_field || meta?.displayField || meta?.reference_field || 'name',
+    displayField: meta?.displayField || meta?.reference_field || 'name',
     picker: meta?.picker ?? 'search',
     subtitle: meta?.subtitle ?? ['primary_business_unit_id.name', 'email'],
     avatar_field: meta?.avatar_field ?? meta?.avatarField ?? 'image',
-    lookup_filters: withBannedFilter(meta?.lookup_filters ?? meta?.lookupFilters),
+    lookupFilters: withBannedFilter(meta?.lookupFilters),
   };
 
   const fieldProp = metaIsNested ? { ...raw, field: normalized } : normalized;

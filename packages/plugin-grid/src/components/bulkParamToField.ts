@@ -54,7 +54,7 @@ const USER_WIDGET_TYPES = new Set(['user']);
 /**
  * Whether the widget rendered for this key has to QUERY records to do its job —
  * so it must be handed the grid's `DataSource`, and its field shape needs the
- * `reference_to` / `display_field` the picker queries with.
+ * `reference_to` / `displayField` the picker queries with.
  *
  * The reference-bearing half is NOT restated here: it is `EXPANDABLE_FIELD_TYPES`
  * from `@object-ui/core`, the one relational-field family the `$expand` builder
@@ -178,7 +178,7 @@ export function bulkParamToField(
 
   if (widgetNeedsDataSource(type)) {
     field.reference_to = object;
-    if (typeof labelField === 'string') field.display_field = labelField;
+    if (typeof labelField === 'string') field.displayField = labelField;
   }
 
   return field;

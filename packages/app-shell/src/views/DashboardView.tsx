@@ -170,28 +170,36 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0">
         <div className="min-w-0 flex-1">
           {(() => {
-            // `title` is NOT a spec key — it is the LEGACY objectui spelling,
-            // read here only so a stored dashboard document that predates
-            // `label` still gets a header. Measured on @objectstack/spec
-            // 17.2.0: `DashboardSchema` refuses `title` BY NAME
-            // (`unrecognized_keys(title)` at the document root) and spells the
-            // display name `label`; `header` declares `showTitle` /
-            // `showDescription` / `actions` only, so it TOGGLES a title and
-            // never carries one. So authored dashboard metadata must use
-            // `label`: writing `title` earns a `422 INVALID_METADATA` /
-            // `unrecognized_keys` from the save route before persistence
-            // (see `MetadataService`), not a header.
+            // Header source: `label`, then the raw `name`. There is no `title`
+            // arm — the legacy root `title` read RETIRED here under ADR-0049
+            // (objectui#7509, maintainer ruling 2026-09-04), together with the
+            // four sibling arms in `DashboardRenderer`, `DashboardGridLayout`,
+            // `DashboardEditor` and `DashboardDesignPage`, so one spelling
+            // answers on every surface instead of two disagreeing.
             //
-            // `previewSchema` is NOT a host-supplied preview channel — it is
-            // this view's own widget-pruned copy of `dashboard` (above), so
-            // either arm of `headerSrc` reads the same stored document.
-            // `DashboardRenderer` reads the same legacy-then-canonical pair.
-            // Order: legacy `title`, then `label`, then the raw `name`.
-            const headerSrc = (previewSchema as any) || dashboard;
-            const resolvedTitle = resolveKeyedI18nLabel(headerSrc.title, t);
+            // Measured on @objectstack/spec 17.2.0: `DashboardSchema` refuses
+            // `title` BY NAME (`unrecognized_keys(title)` at the document root)
+            // and spells the display name `label`, which is REQUIRED; `header`
+            // declares `showTitle` / `showDescription` / `actions` only, so it
+            // TOGGLES a title and never carries one. Writing `title` earns a
+            // `422 INVALID_METADATA` from the save route before persistence
+            // (see `MetadataService`), not a header — so no authored document
+            // can acquire the key, and what retired is legacy-document
+            // compatibility only. A spec-valid stored document always carries
+            // `label`, so a legacy document holding BOTH now shows its `label`;
+            // one holding `title` and no `label` was already invalid and falls
+            // through to `name`.
+            //
+            // ⛔ Widget-level `widget.title` is a DIFFERENT, DECLARED key
+            // (`DashboardWidget.title`, the spec's `I18nLabel`) and is
+            // untouched. Root and widget arms are told apart by RECEIVER.
+            //
+            // `previewSchema` was never a host-supplied preview channel — it is
+            // this view's own widget-pruned copy of `dashboard` (above) — so
+            // the retired arm read the same stored document either way, which
+            // is why it is gone rather than re-pointed.
             const resolvedLabel = resolveKeyedI18nLabel(dashboard.label, t);
-            const fallbackLabel = dashboardLabel({ name: dashboard.name, label: resolvedLabel });
-            const display = resolvedTitle || fallbackLabel || dashboard.name;
+            const display = dashboardLabel({ name: dashboard.name, label: resolvedLabel }) || dashboard.name;
             return (
               <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">{display}</h1>
             );

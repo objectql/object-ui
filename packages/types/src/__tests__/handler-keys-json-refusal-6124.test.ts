@@ -48,7 +48,9 @@
  *     `schema.onX`, calls `props.onX`, or spreads leftover props onto a Radix
  *     root / DOM listener slot is a live channel (36 sites, `RUNTIME_SLOT`
  *     below — 37 since objectui#6576 minted `ObjectDataTableSchema` with an
- *     `onRowClick` arm, the first on an `objectql` mirror). A key nothing reads
+ *     `onRowClick` arm, the first on an `objectql` mirror; 38 since objectui#7104
+ *     declared `AlertDialogSchema.onAction`, a key the renderer had been reading
+ *     UNDECLARED). A key nothing reads
  *     gets the `?: never` tombstone (22 sites, `RETIRED` below; the `crud.ts`
  *     `confirm` / `base.ts` convention).
  *
@@ -82,8 +84,10 @@ import {
   CalendarViewSchema as CalendarViewZod,
   CarouselSchema as CarouselZod,
   ChatbotSchema as ChatbotZod,
+  ChatbotEnhancedSchema as ChatbotEnhancedZod,
+  ChatbotFloatingSchema as ChatbotFloatingZod,
   FilterBuilderSchema as FilterBuilderZod,
-  KanbanSchema as KanbanZod,
+  DeclarativeKanbanSchema as KanbanZod,
 } from '../zod/complex.zod';
 import {
   AlertSchema as AlertZod,
@@ -138,8 +142,10 @@ import type {
   CalendarViewSchema,
   CarouselSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   FilterBuilderSchema,
-  KanbanSchema,
+  DeclarativeKanbanSchema,
 } from '../complex';
 import type { AlertSchema, DataTableSchema, ListItem, TreeViewSchema } from '../data-display';
 import type { AccordionSchema, CollapsibleSchema, ToggleGroupSchema } from '../disclosure';
@@ -203,8 +209,12 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
 };
 
 /**
- * 36 keys whose function value REACHES a renderer at runtime — the TypeScript
- * interface keeps the function type. Channel measured per key on this tree:
+ * 44 keys whose function value REACHES a renderer at runtime — the TypeScript
+ * interface keeps the function type (36 at the objectui#6124 census; 38 since
+ * `ObjectDataTableSchema.onRowClick`, objectui#6576, and `AlertDialogSchema.onAction`,
+ * objectui#7104, joined; 44 since objectui#7655 gave `chatbot-enhanced` and
+ * `chatbot-floating` their own faces, each carrying the three slots its
+ * registration forwards). Channel measured per key on this tree:
  * `schema.onX` read/forwarded (kanban, chatbot, data-table, form, code-editor,
  * menu items), `props.onX` called after `SchemaRenderer`'s spread (input,
  * textarea, select, checkbox, file-upload, date-picker, input-otp, pagination,
@@ -214,12 +224,20 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
  * `toFormControlDomProps` whitelist, card's `<Card {...cardProps}>`).
  */
 const RUNTIME_SLOT: readonly Site[] = [
-  ['complex.zod.ts', 'KanbanSchema', 'onCardMove', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onCardClick', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardMove', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardClick', KanbanZod],
   ['complex.zod.ts', 'CalendarViewSchema', 'onViewChange', CalendarViewZod],
   ['complex.zod.ts', 'FilterBuilderSchema', 'onChange', FilterBuilderZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onError', ChatbotZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onSend', ChatbotZod],
+  // objectui#7655 — the two sibling faces forward the same two slots off `schema.*`
+  // into `useObjectChat`, and their `handleClear` calls `schema.onClear?.()`.
+  ['complex.zod.ts', 'ChatbotEnhancedSchema', 'onError', ChatbotEnhancedZod],
+  ['complex.zod.ts', 'ChatbotEnhancedSchema', 'onSend', ChatbotEnhancedZod],
+  ['complex.zod.ts', 'ChatbotEnhancedSchema', 'onClear', ChatbotEnhancedZod],
+  ['complex.zod.ts', 'ChatbotFloatingSchema', 'onError', ChatbotFloatingZod],
+  ['complex.zod.ts', 'ChatbotFloatingSchema', 'onSend', ChatbotFloatingZod],
+  ['complex.zod.ts', 'ChatbotFloatingSchema', 'onClear', ChatbotFloatingZod],
   ['data-display.zod.ts', 'DataTableSchema', 'onRowEdit', DataTableZod],
   ['data-display.zod.ts', 'DataTableSchema', 'onRowDelete', DataTableZod],
   ['data-display.zod.ts', 'DataTableSchema', 'onSelectionChange', DataTableZod],
@@ -246,6 +264,8 @@ const RUNTIME_SLOT: readonly Site[] = [
   ['objectql.zod.ts', 'ObjectDataTableSchema', 'onRowClick', ObjectDataTableZod],
   ['overlay.zod.ts', 'DialogSchema', 'onOpenChange', DialogZod],
   ['overlay.zod.ts', 'AlertDialogSchema', 'onOpenChange', AlertDialogZod],
+  // objectui#7104 — the action button's `onClick`; the renderer read `schema.onAction` UNDECLARED until then.
+  ['overlay.zod.ts', 'AlertDialogSchema', 'onAction', AlertDialogZod],
   ['overlay.zod.ts', 'SheetSchema', 'onOpenChange', SheetZod],
   ['overlay.zod.ts', 'DrawerSchema', 'onOpenChange', DrawerZod],
   ['overlay.zod.ts', 'PopoverSchema', 'onOpenChange', PopoverZod],
@@ -265,8 +285,8 @@ const RUNTIME_SLOT: readonly Site[] = [
  * from the declared `(value: string) => void`, not a consumer of it.
  */
 const RETIRED: readonly Site[] = [
-  ['complex.zod.ts', 'KanbanSchema', 'onColumnAdd', KanbanZod],
-  ['complex.zod.ts', 'KanbanSchema', 'onCardAdd', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onColumnAdd', KanbanZod],
+  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardAdd', KanbanZod],
   ['complex.zod.ts', 'CarouselSchema', 'onSlideChange', CarouselZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onSendMessage', ChatbotZod],
   ['data-display.zod.ts', 'AlertSchema', 'onDismiss', AlertZod],
@@ -351,13 +371,17 @@ describe('census: no on* key in the eight mirrors is declared z.function() (obje
     ]);
   });
 
-  it('59 sites are ledgered, 37 runtime slots + 22 retired, with no key filed twice', () => {
+  it('66 sites are ledgered, 44 runtime slots + 22 retired, with no key filed twice', () => {
     // 58 from objectui#6124; the 59th is `ObjectDataTableSchema.onRowClick`,
-    // minted with its arm by objectui#6576 / #6914.
-    expect(RUNTIME_SLOT).toHaveLength(37);
+    // minted with its arm by objectui#6576 / #6914; the 60th is
+    // `AlertDialogSchema.onAction`, declared by objectui#7104 for a key the
+    // renderer had been reading undeclared; 61–66 are the six slots the
+    // `ChatbotEnhancedSchema` / `ChatbotFloatingSchema` twins were born with
+    // (objectui#7655).
+    expect(RUNTIME_SLOT).toHaveLength(44);
     expect(RETIRED).toHaveLength(22);
     const ids = ALL_SITES.map(([file, schema, key]) => `${file}#${schema}.${key}`);
-    expect(new Set(ids).size).toBe(59);
+    expect(new Set(ids).size).toBe(66);
   });
 
   it.each(ALL_SITES)('%s %s.%s is DECLARED on the mirror shape, with the objectui#6124 guidance as its description', (_file, _schema, key, mirror) => {
@@ -480,8 +504,8 @@ type KeepsFunction<T> = [Extract<NonNullable<T>, (...args: never[]) => unknown>]
   : true;
 
 export type assertionRetiredKeysAreTombstoned = [
-  Expect<RetiredIsNever<KanbanSchema['onColumnAdd']>>,
-  Expect<RetiredIsNever<KanbanSchema['onCardAdd']>>,
+  Expect<RetiredIsNever<DeclarativeKanbanSchema['onColumnAdd']>>,
+  Expect<RetiredIsNever<DeclarativeKanbanSchema['onCardAdd']>>,
   Expect<RetiredIsNever<CarouselSchema['onSlideChange']>>,
   Expect<RetiredIsNever<ChatbotSchema['onSendMessage']>>,
   Expect<RetiredIsNever<AlertSchema['onDismiss']>>,
@@ -505,12 +529,18 @@ export type assertionRetiredKeysAreTombstoned = [
 ];
 
 export type assertionRuntimeSlotsKeepTheirFunctionType = [
-  Expect<KeepsFunction<KanbanSchema['onCardMove']>>,
-  Expect<KeepsFunction<KanbanSchema['onCardClick']>>,
+  Expect<KeepsFunction<DeclarativeKanbanSchema['onCardMove']>>,
+  Expect<KeepsFunction<DeclarativeKanbanSchema['onCardClick']>>,
   Expect<KeepsFunction<CalendarViewSchema['onViewChange']>>,
   Expect<KeepsFunction<FilterBuilderSchema['onChange']>>,
   Expect<KeepsFunction<ChatbotSchema['onError']>>,
   Expect<KeepsFunction<ChatbotSchema['onSend']>>,
+  Expect<KeepsFunction<ChatbotEnhancedSchema['onError']>>,
+  Expect<KeepsFunction<ChatbotEnhancedSchema['onSend']>>,
+  Expect<KeepsFunction<ChatbotEnhancedSchema['onClear']>>,
+  Expect<KeepsFunction<ChatbotFloatingSchema['onError']>>,
+  Expect<KeepsFunction<ChatbotFloatingSchema['onSend']>>,
+  Expect<KeepsFunction<ChatbotFloatingSchema['onClear']>>,
   Expect<KeepsFunction<DataTableSchema['onRowEdit']>>,
   Expect<KeepsFunction<DataTableSchema['onRowDelete']>>,
   Expect<KeepsFunction<DataTableSchema['onSelectionChange']>>,
@@ -536,6 +566,7 @@ export type assertionRuntimeSlotsKeepTheirFunctionType = [
   Expect<KeepsFunction<ObjectDataTableSchema['onRowClick']>>,
   Expect<KeepsFunction<DialogSchema['onOpenChange']>>,
   Expect<KeepsFunction<AlertDialogSchema['onOpenChange']>>,
+  Expect<KeepsFunction<AlertDialogSchema['onAction']>>,
   Expect<KeepsFunction<SheetSchema['onOpenChange']>>,
   Expect<KeepsFunction<DrawerSchema['onOpenChange']>>,
   Expect<KeepsFunction<PopoverSchema['onOpenChange']>>,

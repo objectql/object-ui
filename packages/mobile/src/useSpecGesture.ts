@@ -62,8 +62,9 @@ export const SPEC_GESTURE_TYPE_MAP: Record<string, GestureType> = {
 
 /**
  * Spec-aware gesture hook that maps a {@link SpecGestureConfig} — the retired
- * `@objectstack/spec` `ui/touch` shape, not this package's own
- * `GestureConfig` — onto the existing useGesture hook.
+ * `@objectstack/spec` `ui/touch` tuning shape, a different contract from the
+ * direction-fused {@link GestureType} vocabulary `useGesture` speaks — onto
+ * the existing useGesture hook.
  *
  * @example
  * ```tsx

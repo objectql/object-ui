@@ -36,7 +36,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE } from '@object-ui/core';
+import { resolveConditionalFormatting, leadWithNameField, buildExpandFields, buildExportFileName, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, isObjectInlineEditable, isProjectableField, isExpandableFieldType, isUnmaterializedFieldType, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort, toFilterNode, ROW_HEIGHT_TO_DENSITY_MODE, resolveRecordSourceConfig, resolveRecordSourceObjectName } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
@@ -422,41 +422,35 @@ export interface ObjectGridComponentProps extends ObjectGridExternalPaginationPr
 }
 
 /**
- * Helper to get data configuration from schema
- * Handles both new ViewData format and legacy inline data
+ * Helper to get data configuration from schema.
+ *
+ * The ruled three-rung ladder itself (`data`, then `staticData`, then
+ * `objectName`) is `resolveRecordSourceConfig` in `@object-ui/core` — ONE
+ * implementation of a contract published on both faces (objectui#6939), which
+ * this file used to hand-copy (objectui#7632).
+ *
+ * What stays here is the head above it: the bare-array `data` shorthand. It is
+ * OFF-CONTRACT — `ViewData` is a `z.discriminatedUnion('provider', [...])` over
+ * object variants, so an array under `data` cannot be published — and only this
+ * block and `ObjectMap` normalize it inside their ladder; calendar, gantt and
+ * tree return the array verbatim. So it is kept at the site rather than folded
+ * into the shared rung, exactly as the objectui#7627 collapse left this file's
+ * off-contract `{ provider: 'object' }` tail at the site (AGENTS.md #0.1).
+ *
+ * Hoisting the check above the shared call is behaviour-neutral: an array is
+ * ALWAYS truthy, `[]` included, so `if (schema.data)` could never have let one
+ * fall through to `staticData` or `objectName`.
  */
 function getDataConfig(schema: ObjectGridSchema): ViewData | null {
-  // New format: explicit data configuration
-  if (schema.data) {
-    // Check if data is an array (shorthand format) or already a ViewData object
-    if (Array.isArray(schema.data)) {
-      // Convert array shorthand to proper ViewData format
-      return {
-        provider: 'value',
-        items: schema.data,
-      };
-    }
-    // Already in ViewData format
-    return schema.data;
-  }
-  
-  // Legacy format: staticData field
-  if (schema.staticData) {
+  // Array shorthand -> the declared `value` provider (see docblock above).
+  if (Array.isArray(schema.data)) {
     return {
       provider: 'value',
-      items: schema.staticData,
+      items: schema.data,
     };
   }
-  
-  // Default: use object provider with objectName
-  if (schema.objectName) {
-    return {
-      provider: 'object',
-      object: schema.objectName,
-    };
-  }
-  
-  return null;
+
+  return resolveRecordSourceConfig(schema);
 }
 
 /**
@@ -1203,9 +1197,12 @@ export const ObjectGrid: React.FC<ObjectGridComponentProps> = ({
   // Extract stable primitive/reference-stable values from schema for dependency arrays.
   // This prevents infinite re-render loops when schema is a new object on each render
   // (e.g. when rendered through SchemaRenderer which creates a fresh evaluatedSchema).
-  const objectName = dataConfig?.provider === 'object' && dataConfig && 'object' in dataConfig
-    ? (dataConfig as any).object
-    : schema.objectName;
+  // The `?? schema.objectName` tail is NOT the shared rung repeated: it stands
+  // in for the old `'object' in dataConfig` test, i.e. this site's own coercion
+  // of the OFF-CONTRACT `data: { provider: 'object' }` that carries no `object`
+  // (`ViewDataSchema` declares it required). Kept because this name gates the
+  // permission verdicts below — see the note at `inlineEditable`.
+  const objectName = resolveRecordSourceObjectName(schema, dataConfig) ?? schema.objectName;
   // [#3391] Server-resolved effective API operation set for this object
   // (/me/permissions `apiOperations`). The Export button and handler AND their
   // gate with this — a missing set (unrestricted object / old backend / no

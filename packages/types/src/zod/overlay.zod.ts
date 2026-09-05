@@ -43,12 +43,25 @@ export const AlertDialogSchema = BaseSchema.extend({
   type: z.literal('alert-dialog'),
   title: z.string().optional().describe('Alert dialog title'),
   description: z.string().optional().describe('Alert dialog description'),
+  content: z
+    .union([SchemaNodeSchema, z.array(SchemaNodeSchema)])
+    .optional()
+    .describe('Dialog body, rendered between the header and the footer'),
   trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Dialog trigger'),
   defaultOpen: z.boolean().optional().describe('Default open state'),
   open: z.boolean().optional().describe('Controlled open state'),
+  cancelText: z
+    .string()
+    .optional()
+    .describe('Cancel button label; the cancel button renders only when this is set (no renderer default)'),
+  actionText: z
+    .string()
+    .optional()
+    .describe('Confirm (action) button label; the action button renders only when this is set (no renderer default)'),
   cancelLabel: z.string().optional().describe('Cancel button label'),
   confirmLabel: z.string().optional().describe('Confirm button label'),
   confirmVariant: z.enum(['default', 'destructive']).optional().describe('Confirm button variant'),
+  onAction: handlerKeyRefusal('onAction', 'runtime-slot', 'Action button click handler'),
   onConfirm: handlerKeyRefusal('onConfirm', 'retired', 'Confirm handler'),
   onCancel: handlerKeyRefusal('onCancel', 'retired', 'Cancel handler'),
   onOpenChange: handlerKeyRefusal('onOpenChange', 'runtime-slot', 'Open change handler'),

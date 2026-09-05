@@ -395,6 +395,156 @@ describe('normalizeListViewSchema (#2890)', () => {
     });
   });
 
+  describe("data: { provider: 'object', object } \u2192 objectName (#7477)", () => {
+    it('folds the object provider\'s `object` onto `objectName`', () => {
+      const out = normalizeListViewSchema({
+        type: 'list-view',
+        viewType: 'grid',
+        data: { provider: 'object', object: 'crm_task' },
+      }) as Record<string, unknown>;
+      expect(out.objectName).toBe('crm_task');
+    });
+
+    it('KEEPS `data` — unlike every other fold here, and deliberately', () => {
+      // `data` is not a legacy alias with one meaning: it has four providers,
+      // `api`/`value` are read live in ListView, and the whole block is
+      // forwarded to child views whose own `getDataConfig` reads it BEFORE
+      // `objectName`. Deleting it for one provider would rewrite what a child
+      // resolves. See the note on `normalizeListViewSchema`.
+      const data = { provider: 'object', object: 'crm_task' };
+      const out = normalizeListViewSchema({ viewType: 'grid', data }) as Record<string, unknown>;
+      expect(out.data).toEqual(data);
+    });
+
+    it('lets an existing `objectName` win — the fold only ever fills a gap', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        objectName: 'crm_task',
+        data: { provider: 'object', object: 'crm_other' },
+      }) as Record<string, unknown>;
+      expect(out.objectName).toBe('crm_task');
+    });
+
+    it('treats an EMPTY `objectName` as absent', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        objectName: '',
+        data: { provider: 'object', object: 'crm_task' },
+      }) as Record<string, unknown>;
+      expect(out.objectName).toBe('crm_task');
+    });
+
+    it.each(['api', 'value', 'schema'])('ignores the `%s` provider', (provider) => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        data: { provider, object: 'crm_task' },
+      }) as Record<string, unknown>;
+      expect(out.objectName).toBeUndefined();
+    });
+
+    it('invents no binding from an object provider that names no object', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        data: { provider: 'object' },
+      }) as Record<string, unknown>;
+      expect(out.objectName).toBeUndefined();
+    });
+
+    it.each<[unknown, string]>([['', 'empty string'], [42, 'number'], [null, 'null']])(
+      'ignores an `object` that is not a non-empty string (%s — %s)',
+      (object) => {
+        const out = normalizeListViewSchema({
+          viewType: 'grid',
+          data: { provider: 'object', object },
+        }) as Record<string, unknown>;
+        expect(out.objectName).toBeUndefined();
+      },
+    );
+
+    it('ignores a `data` that is an ARRAY (the inline-rows shorthand)', () => {
+      const out = normalizeListViewSchema({
+        viewType: 'grid',
+        data: [{ id: '1' }],
+      }) as Record<string, unknown>;
+      expect(out.objectName).toBeUndefined();
+    });
+
+    it('is idempotent', () => {
+      const once = normalizeListViewSchema({
+        viewType: 'grid',
+        data: { provider: 'object', object: 'crm_task' },
+      });
+      const twice = normalizeListViewSchema(once);
+      expect(twice).toEqual(once);
+      expect(twice).toBe(once); // objectName now present ⇒ nothing left to fold
+    });
+  });
+
+  describe('the author\'s view kind — `specType`, then `type` (#7477)', () => {
+    it('reads `specType`, where the react-page wrapper parks an author `type`', () => {
+      // The card's criterion: `type="kanban"` with no `viewType` must not be
+      // forced to `grid`.
+      const out = normalizeListViewSchema({
+        type: 'list-view',
+        specType: 'kanban',
+      }) as Record<string, unknown>;
+      expect(out.viewType).toBe('kanban');
+    });
+
+    it("reads `specType` over the view CATEGORY `'list'` too", () => {
+      const out = normalizeListViewSchema({ viewType: 'list', specType: 'calendar' }) as Record<string, unknown>;
+      expect(out.viewType).toBe('calendar');
+    });
+
+    it('lets an explicit renderable `viewType` win', () => {
+      const out = normalizeListViewSchema({ viewType: 'gallery', specType: 'kanban' }) as Record<string, unknown>;
+      expect(out.viewType).toBe('gallery');
+    });
+
+    it('reads a bare `type` when it names a kind ListView draws', () => {
+      // The spec spells the view kind `type`; on a SchemaNode that key is the
+      // component discriminator, which is why `specType` exists at all. A
+      // stored view handed straight to the block still carries the spec word.
+      const out = normalizeListViewSchema({ type: 'timeline' }) as Record<string, unknown>;
+      expect(out.viewType).toBe('timeline');
+    });
+
+    it('prefers `specType` to a bare `type`', () => {
+      const out = normalizeListViewSchema({ type: 'gantt', specType: 'map' }) as Record<string, unknown>;
+      expect(out.viewType).toBe('map');
+    });
+
+    it("does NOT read the component discriminator as a kind", () => {
+      // The control that keeps the `type` leg above from swallowing the
+      // envelope: `list-view` is a tag, never a visualization.
+      const out = normalizeListViewSchema({ type: 'list-view' }) as Record<string, unknown>;
+      expect(out.viewType).toBe('grid');
+    });
+
+    it('falls back to `grid` for a kind ListView does not draw', () => {
+      // `detail` is a different renderer; `donut` is a chart family. Neither is
+      // written through to `viewType` — the caller\'s default is the honest
+      // answer, exactly as `normalizeChartSchema` treats a family it cannot draw.
+      expect((normalizeListViewSchema({ specType: 'detail' }) as Record<string, unknown>).viewType).toBe('grid');
+      expect((normalizeListViewSchema({ specType: 'donut' }) as Record<string, unknown>).viewType).toBe('grid');
+    });
+
+    it('does not read a prototype key as a view kind', () => {
+      // `in` walks the prototype chain — the trap `rowHeightToDensityMode`
+      // documents. `hasOwnProperty` is why these stay `grid`.
+      expect((normalizeListViewSchema({ specType: 'toString' }) as Record<string, unknown>).viewType).toBe('grid');
+      expect((normalizeListViewSchema({ specType: 'constructor' }) as Record<string, unknown>).viewType).toBe('grid');
+    });
+
+    it('KEEPS `specType` — the fold is a READ, not a rename', () => {
+      // `specType` is the react tier\'s rescue slot for an author `type`, shared
+      // with the other blocks that read it (`normalizeChartSchema`). It is not
+      // an objectui alias being retired, so nothing deletes it.
+      const out = normalizeListViewSchema({ specType: 'kanban' }) as Record<string, unknown>;
+      expect(out.specType).toBe('kanban');
+    });
+  });
+
   describe('reference stability', () => {
     it('returns the input by reference when there is nothing to fold', () => {
       // Load-bearing: ListView memoizes on this identity, so allocating a fresh

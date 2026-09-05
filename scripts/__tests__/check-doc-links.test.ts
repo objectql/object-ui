@@ -5,18 +5,23 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+
 import {
   SCAN_ROOTS,
   collectBrokenLinks,
   collectFiles,
   collectSiteRoutes,
   diskPathExists,
+  headingAnchors,
   routeExists,
   selfRepoPath,
   siteAbsoluteRoute,
   siteUrlExists,
   stripCode,
 } from '../check-doc-links.mjs';
+import { GithubSlugger as VendoredSlugger, slug as vendoredSlug } from '../github-slug.mjs';
 
 /**
  * objectui#3479 — the behaviour test for `scripts/check-doc-links.mjs`.
@@ -311,13 +316,25 @@ describe('relative hrefs are resolved — the hole objectui#3479 closed', () => 
     ).toEqual(['./b.md']);
   });
 
-  it('ignores the fragment and query when resolving', () => {
+  it('resolves the fragment against the target document, and ignores the query', () => {
+    // Was 'ignores the fragment and query when resolving' — the fragment half
+    // is objectui#7644's, and this fixture used to pass BECAUSE `#a-section`
+    // was never looked at. `b.md` now has the heading it names.
     expect(
       brokenHrefs({
         'guide/a.md': '[b](./b.md#a-section) and [c](./b.md?x=1)',
-        'guide/b.md': '# B',
+        'guide/b.md': '# B\n\n## A section',
       }),
     ).toEqual([]);
+  });
+
+  it('reports a cross-file fragment naming a heading the target does not have', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': '[b](./b.md#a-section)',
+        'guide/b.md': '# B\n\n## Another section',
+      }),
+    ).toEqual(['./b.md#a-section']);
   });
 });
 
@@ -362,10 +379,15 @@ describe('absolute /docs hrefs stay strict — they are routes, not files', () =
 });
 
 describe('external and non-path hrefs are left alone', () => {
-  it('skips schemes, in-page anchors and empty targets', () => {
+  it('skips schemes and empty targets, and resolves an in-page anchor', () => {
+    // Was 'skips schemes, in-page anchors and empty targets'. Anchors stopped
+    // being skipped in objectui#7644; the other three shapes are unchanged, and
+    // the heading this one names is now in the fixture.
     expect(
       brokenHrefs({
         'guide/a.md': [
+          '# A',
+          '## Section',
           '[web](https://example.com/nope)',
           '[mail](mailto:a@b.c)',
           '[tel](tel:+1000)',
@@ -373,6 +395,12 @@ describe('external and non-path hrefs are left alone', () => {
         ].join('\n\n'),
       }),
     ).toEqual([]);
+  });
+
+  it('reports an in-page anchor with no matching heading — the objectui#7644 hole', () => {
+    expect(
+      brokenHrefs({ 'guide/a.md': '# A\n\n## Section\n\n[anchor](#renamed-section)' }),
+    ).toEqual(['#renamed-section']);
   });
 });
 
@@ -855,12 +883,19 @@ describe('examples/** and the root README are scanned as DISK paths — objectui
     ).toEqual([['/packages/core', 'example-absolute']]);
   });
 
-  it('leaves external URLs and in-page anchors alone here too', () => {
+  it('leaves external URLs alone here too, and resolves the in-page anchor', () => {
     expect(
       rejections({
-        'examples/README.md': '[web](https://example.com/nope) [mail](mailto:a@b.c) [top](#quick-start)',
+        'examples/README.md':
+          '# Examples\n\n## Quick start\n\n[web](https://example.com/nope) [mail](mailto:a@b.c) [top](#quick-start)',
       }),
     ).toEqual([]);
+  });
+
+  it('reports a dead in-page anchor on a disk surface too', () => {
+    expect(rejections({ 'examples/README.md': '# Examples\n\n## Quick start\n\n[top](#quickstart)' })).toEqual([
+      ['#quickstart', 'anchor'],
+    ]);
   });
 
   it('scans every markdown file under examples/, not only README.md', () => {
@@ -1022,9 +1057,22 @@ describe('CONTRIBUTING.md, ROADMAP.md and docs/** joined the disk surface — ob
           '[Commit Guidelines](#commit-guidelines)',
           '[Conventional Commits](https://www.conventionalcommits.org/)',
           '[Changesets](https://github.com/changesets/changesets)',
+          '## Getting Started',
+          '## Commit Guidelines',
         ].join('\n\n'),
       }),
     ).toEqual([]);
+  });
+
+  it("resolves this surface's table-of-contents anchors rather than skipping them", () => {
+    // The two headings above are what makes the case above pass now. Drop one
+    // and the link to it is reported — which is the whole point of the check
+    // objectui#7644 added, on the surface that is mostly such links.
+    expect(
+      rejections({
+        'CONTRIBUTING.md': ['[Getting Started](#getting-started)', '## Commit Guidelines'].join('\n\n'),
+      }),
+    ).toEqual([['#getting-started', 'anchor']]);
   });
 });
 
@@ -1067,9 +1115,11 @@ describe("this repo's own GitHub blob/tree URLs are resolved offline — objectu
     ).toEqual([]);
   });
 
-  it('ignores the fragment and the query — anchors are out of scope', () => {
-    // `#L42` / `?plain=1` would need the target parsed, which is a different
-    // gate. The path in front of them is still checked.
+  it('resolves a markdown fragment, keeps ignoring the query, and still checks the path', () => {
+    // Was 'ignores the fragment and the query — anchors are out of scope'. The
+    // "different gate" that comment deferred to is objectui#7644, and it is
+    // this one: a fragment on one of these URLs is resolved whenever the path
+    // names markdown in this tree. `?plain=1` is still ignored.
     expect(
       rejections({
         ...SITE_FIXTURE,
@@ -1078,7 +1128,7 @@ describe("this repo's own GitHub blob/tree URLs are resolved offline — objectu
           '[raw](https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md?plain=1)',
           '[dead](https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md#install)',
         ].join('\n\n'),
-        'packages/core/README.md': '# Core',
+        'packages/core/README.md': '# Core\n\n## Install',
       }),
     ).toEqual([['https://github.com/objectstack-ai/objectui/blob/main/packages/gone/README.md#install', 'self-repo-url']]);
   });
@@ -1160,6 +1210,7 @@ describe('every failure carries the reason that rejected it', () => {
       .matchAll(/^\s{2}'?([a-z-]+)'?:/gm);
 
     expect([...hinted].map((match) => match[1]).sort()).toEqual([
+      'anchor',
       'docs-route',
       'escapes-collection',
       'example-absolute',
@@ -1269,16 +1320,29 @@ describe("this site's own absolute URLs are resolved as internal routes — obje
     ).toEqual([]);
   });
 
-  it('ignores the fragment and the query on a site URL — anchors are out of scope', () => {
+  it('resolves the fragment on a site URL too, and still ignores the query', () => {
+    // Was 'anchors are out of scope'. The origin is stripped, the route is
+    // resolved to its file, and objectui#7644 then reads that file's headings —
+    // so this shape is judged exactly as the origin-less spelling is.
     expect(
       brokenHrefs({
         'guide/a.md': [
+          '# A',
+          '## Install',
           '[live](https://www.objectui.org/docs/guide/a#install)',
           '[live q](https://www.objectui.org/docs/guide/a?x=1)',
           '[dead](https://www.objectui.org/docs/gone#install)',
         ].join('\n\n'),
       }),
     ).toEqual(['https://www.objectui.org/docs/gone#install']);
+  });
+
+  it('reports a site URL whose route resolves but whose anchor does not', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': '# A\n\n## Install\n\n[moved](https://www.objectui.org/docs/guide/a#installation)',
+      }),
+    ).toEqual(['https://www.objectui.org/docs/guide/a#installation']);
   });
 
   it('exposes siteAbsoluteRoute: the path it extracts, and the shapes it declines', () => {
@@ -1850,3 +1914,248 @@ describe('objectui#6026 — the nested READMEs', () => {
     expect(rowsByFile.size, 'floor under the floor: nothing scanned would make the line above vacuous').toBeGreaterThanOrEqual(250);
   });
 });
+
+/**
+ * objectui#7644 — the `#fragment`, which nothing had ever resolved.
+ *
+ * The gap was measured as a two-arm control on `content/docs/api/schema-reference.md`:
+ * the same invocation exited 1 on a broken file path and 0 on a broken in-page
+ * anchor. These pin the second arm, in every shape that reaches the check, plus
+ * the thing the check is only as good as — its slug rule.
+ */
+describe('in-page and cross-document anchors are resolved — objectui#7644', () => {
+  it('resolves a duplicate heading the way the slugger disambiguates it', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': ['# A', '## Options', '## Options', '[first](#options)', '[second](#options-1)'].join('\n\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('reports the suffix the slugger never handed out', () => {
+    expect(
+      brokenHrefs({ 'guide/a.md': ['# A', '## Options', '[third](#options-2)'].join('\n\n') }),
+    ).toEqual(['#options-2']);
+  });
+
+  it('does not take a heading out of a fenced code block', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': ['# A', FENCE + 'md', '## Fenced heading', FENCE, '[x](#fenced-heading)'].join('\n'),
+      }),
+    ).toEqual(['#fenced-heading']);
+  });
+
+  it('does not take a heading out of YAML frontmatter, whose comments start with #', () => {
+    expect(
+      brokenHrefs({
+        'guide/a.md': ['---', 'title: A', '# just a yaml comment', '---', '# Real', '[x](#just-a-yaml-comment)'].join(
+          '\n',
+        ),
+      }),
+    ).toEqual(['#just-a-yaml-comment']);
+  });
+
+  it("slugs a heading's inline code as literal text, angle brackets included", () => {
+    // `### \`objectui add <component>\`` — seven headings in this repo have this
+    // shape, and stripping tag-shaped text inside a code span would break them.
+    expect(
+      brokenHrefs({
+        'guide/a.md': ['# A', '## `objectui add <component>`', '[x](#objectui-add-component)'].join('\n\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('honours fumadocs `[#custom-id]` inside content/docs, and not on a disk surface', () => {
+    // fumadocs' `remarkHeading` reads the override off the heading's last text
+    // node; GitHub has no such syntax, so on a README the brackets are just text.
+    expect(brokenHrefs({ 'guide/a.md': ['# A', '## Long Title [#short]', '[x](#short)'].join('\n\n') })).toEqual([]);
+    expect(
+      rejections({ 'docs/a.md': ['# A', '## Long Title [#short]', '[x](#short)'].join('\n\n') }),
+    ).toEqual([['#short', 'anchor']]);
+  });
+
+  it('decodes a percent-encoded fragment before comparing', () => {
+    expect(brokenHrefs({ 'guide/a.md': ['# A', '## Café', '[x](#caf%C3%A9)'].join('\n\n') })).toEqual([]);
+  });
+
+  it('judges nothing when the href names no anchor at all', () => {
+    expect(brokenHrefs({ 'guide/a.md': '# A\n\n[x](./b.md#)', 'guide/b.md': '# B' })).toEqual([]);
+  });
+
+  it('resolves a fragment on this repo’s own blob URL, and skips a line reference', () => {
+    // The objectui#3536 waiver this retires said anchors here were "a different
+    // gate". Three such links are live in this tree and all three resolve.
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/guide/a.md': [
+          '[ok](https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md#install)',
+          '[line](https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md#L42)',
+          '[gone](https://github.com/objectstack-ai/objectui/blob/main/packages/core/README.md#uninstall)',
+        ].join('\n\n'),
+        'packages/core/README.md': '# Core\n\n## Install',
+      }).map(([href, reason]) => [href.split('#')[1], reason]),
+    ).toEqual([['uninstall', 'anchor']]);
+  });
+
+  it('has no opinion on a fragment whose target is not markdown it can read', () => {
+    // A site route outside the collection is TSX, and a non-markdown file has no
+    // headings. Neither is a pass dressed as one — the gate simply cannot decide.
+    expect(
+      rejections({
+        ...SITE_FIXTURE,
+        'content/docs/guide/a.md': '[play](/playground#tab-two)',
+        'examples/demo/README.md': '[src](./App.tsx#L10) and [img](../../apps/site/public/img/guide/shot.png#x)',
+        'examples/demo/App.tsx': 'export default null',
+      }),
+    ).toEqual([]);
+  });
+
+  it('checks the DOCUMENT before the anchor — a dead path is still a dead path', () => {
+    expect(brokenHrefs({ 'guide/a.md': '[x](./gone.md#section)' })).toEqual(['./gone.md#section']);
+  });
+});
+
+describe('the anchor rule is the renderers’ own, not this gate’s — objectui#7644', () => {
+  // `scripts/github-slug.mjs` is a COPY of github-slugger, because this gate runs
+  // before `pnpm install` and may not import a package (see
+  // `check-pre-install-import-graph.mjs --list`). A copy is only safe while
+  // something proves it still equals the original — that is what this block is.
+  // Both truth sources are resolved from the workspace package that DECLARES
+  // them, so neither is a phantom dependency of the repo root:
+  //   fumadocs-core  — declared by `apps/site`, the docs renderer itself
+  //   github-slugger — declared by `@object-ui/plugin-markdown`
+  const siteRequire = createRequire(path.join(repoRoot, 'apps/site/package.json'));
+  const markdownRequire = createRequire(path.join(repoRoot, 'packages/plugin-markdown/package.json'));
+
+  const loadToc = async (): Promise<(content: string, plugins: unknown[]) => Promise<{ url: string; title: string }[]>> =>
+    (await import(pathToFileURL(siteRequire.resolve('fumadocs-core/content/toc')).href)).getTableOfContents;
+  const loadSlugger = async (): Promise<new () => { slug(value: string): string }> =>
+    (await import(pathToFileURL(markdownRequire.resolve('github-slugger')).href)).default;
+  const loadMdx = async (): Promise<unknown> => (await import('remark-mdx')).default;
+
+  /** The document body fumadocs-mdx hands the remark pipeline: frontmatter gone. */
+  function documentBody(raw: string): string {
+    const lines = raw.split('\n');
+    if (!/^---\s*$/.test(lines[0] ?? '')) return raw;
+    for (let index = 1; index < lines.length; index += 1) {
+      // Blank the frontmatter rather than dropping it, so line numbers survive.
+      if (/^(?:---|\.\.\.)\s*$/.test(lines[index])) return '\n'.repeat(index + 1) + lines.slice(index + 1).join('\n');
+    }
+    return raw;
+  }
+
+  it('reproduces github-slugger exactly, over every non-surrogate code point', async () => {
+    // The tempting shortcut — `/[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu` — is not
+    // equivalent, and this is the assertion that says so: it disagrees on the
+    // `No` digits (`²`, `¹`, `¼`) and on every letter Unicode has added since
+    // the table was generated. Character by character, no room for a near-miss.
+    const Slugger = await loadSlugger();
+    const differing: string[] = [];
+    let compared = 0;
+    for (let point = 0; point <= 0x10ffff; point += 1) {
+      if (point >= 0xd800 && point <= 0xdfff) continue; // lone surrogates are not characters
+      const char = String.fromCodePoint(point);
+      compared += 1;
+      if (vendoredSlug(char) !== new Slugger().slug(char)) {
+        differing.push(`U+${point.toString(16).toUpperCase()}`);
+        if (differing.length > 8) break;
+      }
+    }
+    expect(differing).toEqual([]);
+    expect(compared).toBe(1_112_064); // a lit instrument, not an empty loop
+  });
+
+  it('reproduces the duplicate-heading counter, which is what makes `-1` resolvable', async () => {
+    const Slugger = await loadSlugger();
+    const upstream = new Slugger();
+    const vendored = new VendoredSlugger();
+    const headings = ['Options', 'Options', 'options', 'Options!', 'Options 1', 'Options', 'Other'];
+    expect(headings.map((heading) => vendored.slug(heading))).toEqual(headings.map((heading) => upstream.slug(heading)));
+  });
+
+  it('agrees with the real renderers on every heading in the scan surface', async () => {
+    // The corpus check, and the reason the hand-written flattener in
+    // `check-doc-links.mjs` is safe to hand-write. Truth per rule:
+    //   docs — fumadocs' own `getTableOfContents`, MDX-parsed for `.mdx` exactly
+    //          as `fumadocs-mdx` compiles it. Without `remark-mdx` a JSX element
+    //          followed by a heading with no blank line between them is one HTML
+    //          block, and four real files here have that shape.
+    //   disk — GitHub, i.e. the real `github-slugger` run over the same flattened
+    //          heading titles, in document order.
+    const [getTableOfContents, Slugger, remarkMdx] = await Promise.all([loadToc(), loadSlugger(), loadMdx()]);
+    const disagreeing: string[] = [];
+    let docsFiles = 0;
+    let diskFiles = 0;
+
+    for (const row of SCAN_ROOTS as ScanRoot[]) {
+      const files = collectFiles(
+        path.join(repoRoot, row.path),
+        row.exclude ? new Set(row.exclude) : undefined,
+        row.collect ? new Set(row.collect) : undefined,
+      ) as string[];
+      for (const file of files) {
+        const raw = fs.readFileSync(file, 'utf8');
+        const toc = await getTableOfContents(documentBody(raw), file.endsWith('.mdx') ? [remarkMdx] : []);
+        let expected: Set<string>;
+        if (row.rule === 'docs') {
+          docsFiles += 1;
+          expected = new Set(toc.map((item) => item.url.slice(1)));
+        } else {
+          diskFiles += 1;
+          const slugger = new Slugger();
+          expected = new Set(toc.map((item) => slugger.slug(item.title)));
+        }
+        const actual = headingAnchors(raw, { customId: row.rule === 'docs' }) as Set<string>;
+        const only = [...expected].filter((id) => !actual.has(id)).concat([...actual].filter((id) => !expected.has(id)));
+        if (only.length > 0) disagreeing.push(`${path.relative(repoRoot, file)}: ${only.join(', ')}`);
+      }
+    }
+
+    expect(disagreeing).toEqual([]);
+    // A zero above is only a reading if something was actually compared.
+    expect(docsFiles).toBeGreaterThan(150);
+    expect(diskFiles).toBeGreaterThan(50);
+  });
+
+  it('has no setext headings, which the ATX-only scan would not see', async () => {
+    // `Title` over `---` is a heading too, and `headingAnchors()` does not read
+    // one. Nothing in this tree writes them; this is what says so out loud, so
+    // the day someone does the answer is a red test rather than a missing anchor.
+    const getTableOfContents = await loadToc();
+    const remarkMdx = await loadMdx();
+    const setext: string[] = [];
+    for (const row of SCAN_ROOTS as ScanRoot[]) {
+      const files = collectFiles(
+        path.join(repoRoot, row.path),
+        row.exclude ? new Set(row.exclude) : undefined,
+        row.collect ? new Set(row.collect) : undefined,
+      ) as string[];
+      for (const file of files) {
+        const raw = fs.readFileSync(file, 'utf8');
+        const body = documentBody(raw);
+        const lines = body.split('\n');
+        const toc = await getTableOfContents(body, file.endsWith('.mdx') ? [remarkMdx] : []);
+        // Every heading fumadocs found must have been written in ATX form; the
+        // TOC carries no position, so compare counts against the ATX scan.
+        const atx = lines.filter((line, index) => /^#{1,6}\s+\S/.test(line) && !inFence(lines, index)).length;
+        if (toc.length > atx) setext.push(`${path.relative(repoRoot, file)}: ${toc.length} headings, ${atx} ATX`);
+      }
+    }
+    expect(setext).toEqual([]);
+  });
+});
+
+/** Is `lines[target]` inside a fenced code block? */
+function inFence(lines: string[], target: number): boolean {
+  let fence: string | null = null;
+  for (let index = 0; index < target; index += 1) {
+    const match = /^\s{0,3}(`{3,}|~{3,})/.exec(lines[index]);
+    if (!match) continue;
+    const marker = match[1][0];
+    if (fence === null) fence = marker;
+    else if (marker === fence) fence = null;
+  }
+  return fence !== null;
+}

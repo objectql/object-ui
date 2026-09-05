@@ -23,9 +23,30 @@ import type {
 import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
- * Kanban column
+ * Kanban column — the DECLARATIVE (authoring / validation) face.
+ *
+ * ## Why the name carries a `Declarative` prefix (objectui#6172)
+ *
+ * This trio and `@object-ui/plugin-kanban`'s `KanbanCard` / `KanbanColumn` /
+ * `KanbanSchema` were two declarations of one set of names, in two dialects.
+ * The 2026-08-31 maintainer ruling (决裁批 #14, option A) settled the authority:
+ * **the plugin KEEPS the bare names**, because those are what all four
+ * registered kanban renderers (`kanban`, `kanban-ui`, `kanban-enhanced`,
+ * `object-kanban`) consume, and objectui#6086 measured the failure mode of
+ * getting that backwards — an IDE or agent auto-importing the bare name picks
+ * whichever copy sorts first, and the wrong one produces a **confident empty
+ * board** instead of an abstention. So the surviving bare name has to be the
+ * one a renderer honours.
+ *
+ * What survives here is the face this package really serves: the authoring
+ * shape and its Zod mirror (`zod/complex.zod.ts`), which is the `'kanban'` arm
+ * of `ComplexSchema` → `AnyComponentSchema` → `safeValidateSchema` and so
+ * validates every authored `{ "type": "kanban" }` document the CLI's
+ * `validate` / `check` commands see. Renaming rather than retiring was the
+ * ruled outcome; ⛔ do not re-point these at the plugin — `@object-ui/types` is
+ * the zero-workspace-dependency bottom layer and cannot depend on a plugin.
  */
-export interface KanbanColumn {
+export interface DeclarativeKanbanColumn {
   /**
    * Unique column identifier
    */
@@ -45,7 +66,7 @@ export interface KanbanColumn {
    * spelling with zero read sites, which made every authored board fail
    * `safeValidateSchema` while rendering correctly (objectui#6318's bucket).
    */
-  cards: KanbanCard[];
+  cards: DeclarativeKanbanCard[];
   /**
    * Column color/variant
    */
@@ -63,7 +84,7 @@ export interface KanbanColumn {
 /**
  * Kanban card
  */
-export interface KanbanCard {
+export interface DeclarativeKanbanCard {
   /**
    * Unique card identifier
    */
@@ -105,12 +126,12 @@ export interface KanbanCard {
 /**
  * Kanban board component
  */
-export interface KanbanSchema extends BaseSchema {
+export interface DeclarativeKanbanSchema extends BaseSchema {
   type: 'kanban';
   /**
    * Kanban columns
    */
-  columns: KanbanColumn[];
+  columns: DeclarativeKanbanColumn[];
   /**
    * Enable drag and drop
    * @default true
@@ -133,7 +154,7 @@ export interface KanbanSchema extends BaseSchema {
    * name and points at the node-type spelling. Kept callable here because it is
    * forwarded by `plugin-kanban` (`onCardClick={schema.onCardClick}`).
    */
-  onCardClick?: (card: KanbanCard) => void;
+  onCardClick?: (card: DeclarativeKanbanCard) => void;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `kanban` renderer takes `({ schema })` and never reads it. The zod twin
@@ -865,8 +886,214 @@ export interface ChatbotSchema extends BaseSchema {
   displayMode?: 'inline' | 'floating';
 
   /**
-   * Configuration for floating display mode.
-   * Only used when `displayMode` is `'floating'`.
+   * Configuration for the floating action button and the panel it opens —
+   * read by `chatbot-floating` alone and forwarded to `<FloatingChatbot>`.
+   */
+  floatingConfig?: FloatingChatbotConfig;
+}
+
+/**
+ * The chat-surface keys that ALL THREE `plugin-chatbot` registrations read
+ * (objectui#7655) — the members {@link ChatbotEnhancedSchema} and
+ * {@link ChatbotFloatingSchema} pick off {@link ChatbotSchema} by name, so the
+ * three faces share ONE declaration and ONE doc comment per key.
+ *
+ * Every member was read-site-censused per registration on the PR's base: one
+ * NAMED `schema.KEY` read in each of the three `ComponentRegistry.register(...)`
+ * bodies of `packages/plugin-chatbot/src/renderer.tsx`, forwarded into
+ * `useObjectChat` or onto the rendered component. (Named reads are the
+ * instrument; the `chatbot-floating` registration also has an unfiltered
+ * props spread — see {@link ChatbotFloatingSchema}.) The instrument was lit by
+ * keys that are NOT shared — `processVisibility` read 0 / 1 / 0 across
+ * `chatbot` / `chatbot-enhanced` / `chatbot-floating` and `floatingConfig`
+ * 0 / 0 / 1 — so a zero in that census is a reading, not a blind grep.
+ *
+ * Exported only because an exported interface may not extend a `Pick` over a
+ * private name (TS4022). It is a census, not an authoring face, and it is not
+ * re-exported from the package entry: the node types are.
+ */
+export type ChatbotSharedKey =
+  | 'messages'
+  | 'placeholder'
+  | 'api'
+  | 'conversationId'
+  | 'systemPrompt'
+  | 'model'
+  | 'streamingEnabled'
+  | 'headers'
+  | 'requestBody'
+  | 'maxToolRoundtrips'
+  | 'onError'
+  | 'showTimestamp'
+  | 'userAvatarUrl'
+  | 'userAvatarFallback'
+  | 'assistantAvatarUrl'
+  | 'assistantAvatarFallback'
+  | 'autoResponse'
+  | 'autoResponseText'
+  | 'autoResponseDelay'
+  | 'onSend';
+
+/**
+ * `chatbot-enhanced` component — the authoring face of the
+ * `ComponentRegistry.register('chatbot-enhanced', ...)` registration in
+ * `packages/plugin-chatbot/src/renderer.tsx` (objectui#7655, under the
+ * objectui#6169 / #6172 family ruling: every component node has exactly one
+ * named, importable authoring-face type).
+ *
+ * Until objectui#7655 this node had no importable type: {@link ChatbotSchema}
+ * pins `type` to `'chatbot'`, so an author either dropped to untyped JSON or
+ * annotated with `ChatbotSchema` and lied about `type`. The registration's
+ * parameter type was an anonymous `ChatbotSchema & { ... }` intersection
+ * local to the renderer, referenceable by nothing outside that file.
+ *
+ * What is declared here is what THIS registration reads — censused per key on
+ * the PR's base, not copied off `ChatbotSchema`:
+ *
+ *   - the twenty {@link ChatbotSharedKey} members every registration reads;
+ *   - `maxHeight` and `processVisibility`, which `chatbot-enhanced` forwards to
+ *     `<ChatbotEnhanced>` by name and `chatbot-floating` has no named read for
+ *     (its panel is sized by `floatingConfig.panelHeight`; for the second,
+ *     unnamed channel on that registration see {@link ChatbotFloatingSchema});
+ *   - `enableMarkdown`, `enableFileUpload`, `surface` and the `onClear`
+ *     runtime slot, which `ChatbotSchema` never declared.
+ *
+ * NOT declared, on purpose: `loading`, `showAvatars`, `userAvatar`,
+ * `assistantAvatar`, `markdown` and `height` — `ChatbotSchema` members this
+ * registration has no read for. `disabled` and `className` are inherited from
+ * {@link BaseSchema}: `SchemaRenderer` evaluates `disabled` / `disabledOn`
+ * for every node type and hands the verdict to the registration as a prop, so
+ * redeclaring `disabled` here as `boolean` would only narrow away the
+ * expression-string half of an inherited field (objectui#6169, #7087).
+ */
+export interface ChatbotEnhancedSchema
+  extends BaseSchema,
+    Pick<ChatbotSchema, ChatbotSharedKey | 'maxHeight' | 'processVisibility'> {
+  type: 'chatbot-enhanced';
+  /**
+   * Render assistant messages as markdown. Forwarded to `<ChatbotEnhanced>`'s
+   * `enableMarkdown` prop; an unauthored value falls back to `true` at the
+   * registration (`schema.enableMarkdown ?? true`).
+   * @default true
+   */
+  enableMarkdown?: boolean;
+  /**
+   * Show the file-attachment control in the composer. Forwarded to
+   * `<ChatbotEnhanced>`'s `enableFileUpload` prop; an unauthored value falls
+   * back to `false` at the registration.
+   * @default false
+   */
+  enableFileUpload?: boolean;
+  /**
+   * Visual chrome for the chat surface (objectui#6687, maintainer ruling
+   * 2026-08-29). `'card'` keeps the embeddable bordered panel; `'plain'`
+   * removes the panel chrome for a full-page chat workspace. Declared on this
+   * node only: `chatbot-enhanced` is the one registration that renders
+   * `<ChatbotEnhanced>` and has a `surface` prop to forward it to. Passed
+   * through `undefined` when unauthored, so the component's own `'card'`
+   * default keeps applying.
+   *
+   * The plugin's `ChatbotSurface` alias (`@object-ui/plugin-chatbot`) is the
+   * component-side spelling of this same union; the plugin's tests pin the
+   * two equal so they cannot drift into two dialects (AGENTS.md #0.1).
+   * @default 'card'
+   */
+  surface?: 'card' | 'plain';
+  /**
+   * Called after the conversation is cleared through the composer's clear
+   * control, once the chat runtime has dropped its messages.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because
+   * `plugin-chatbot`'s `handleClear` invokes `schema.onClear?.()`.
+   */
+  onClear?: () => void;
+}
+
+/**
+ * `chatbot-floating` component — the authoring face of the
+ * `ComponentRegistry.register('chatbot-floating', ...)` registration
+ * (objectui#7655; same ruling and same census discipline as
+ * {@link ChatbotEnhancedSchema}). The floating-action-button presentation: a
+ * trigger in a page corner that opens a chat panel overlay.
+ *
+ * Declared here is what THIS registration reads by name (`schema.KEY`),
+ * censused per key on the PR's base:
+ *
+ *   - the twenty {@link ChatbotSharedKey} members;
+ *   - `enableMarkdown`, `enableFileUpload` and the `onClear` runtime slot,
+ *     forwarded into the panel's `<ChatbotEnhanced>`;
+ *   - `floatingConfig`, the trigger and panel geometry
+ *     ({@link FloatingChatbotConfig}), and `displayMode` — both ALSO declared
+ *     on {@link ChatbotSchema}, unchanged there; see each member's comment.
+ *
+ * NOT declared, on purpose: `maxHeight` (the panel pins its inner chat to
+ * `100%` of `floatingConfig.panelHeight` AFTER any forwarded value, so an
+ * authored `maxHeight` is dead here), `processVisibility` and `surface` (no
+ * named read in this registration), and the six `ChatbotSchema` legacy
+ * members no registration reads by name. `disabled` / `className` are
+ * inherited from {@link BaseSchema}, as on the two sibling faces.
+ *
+ * ⚠️ The named-read census is not the only channel. This registration ends
+ * its `<FloatingChatbot>` element with a raw `{...props}` spread — every
+ * authored key `SchemaRenderer` forwards, unfiltered — and the panel is a
+ * `<ChatbotEnhanced>`, so an authored `processVisibility`, `surface` or
+ * `showAvatars` DOES reach it today (measured through the real host: each
+ * lights its marker on a `chatbot-floating` node and stays dark without the
+ * key, while `chatbot-enhanced`, whose spread is `toDomProps`-filtered, keeps
+ * `showAvatars` dark). That channel is accidental, not contract: declaring
+ * the three here would fossilise it (AGENTS.md #0.1), and fencing it is a
+ * behaviour change with its own review. Recorded on its own card,
+ * objectui#7708; this face neither declares nor promises it.
+ */
+export interface ChatbotFloatingSchema
+  extends BaseSchema,
+    Pick<ChatbotSchema, ChatbotSharedKey> {
+  type: 'chatbot-floating';
+  /**
+   * Render assistant messages as markdown inside the panel. Forwarded to the
+   * panel's `enableMarkdown` prop; an unauthored value falls back to `true` at
+   * the registration.
+   * @default true
+   */
+  enableMarkdown?: boolean;
+  /**
+   * Show the file-attachment control in the panel's composer. Forwarded to
+   * the panel's `enableFileUpload` prop; an unauthored value falls back to
+   * `false` at the registration.
+   * @default false
+   */
+  enableFileUpload?: boolean;
+  /**
+   * Called after the conversation is cleared through the panel's clear
+   * control, once the chat runtime has dropped its messages.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata; the zod twin refuses it by name. Kept callable here because
+   * `plugin-chatbot`'s `handleClear` invokes `schema.onClear?.()`.
+   */
+  onClear?: () => void;
+  /**
+   * Display mode for the chatbot.
+   * - `'inline'` (default): Embedded in the page flow.
+   * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
+   *
+   * ⚠️ RULED RETIRED — objectui#7654, maintainer ruling B (2026-09-05): the
+   * node's own `type` is the one selector of presentation, and this key is a
+   * second spelling of that choice that no renderer has ever read (measured
+   * there and re-measured here: declared, offered as a designer control in the
+   * `chatbot-floating` registration's `inputs`, seeded by its `defaultProps`,
+   * read by nothing). The retirement — `?: never` tombstone, control and seed
+   * removed — executes in that card's own PR. objectui#7655 declared the key
+   * here with the same three lines {@link ChatbotSchema} still carries, so
+   * that PR finds the member on both faces exactly as ruled; nothing was
+   * retired, tombstoned, mirrored or made live here.
+   */
+  displayMode?: 'inline' | 'floating';
+  /**
+   * Configuration for the floating action button and the panel it opens —
+   * read by `chatbot-floating` alone and forwarded to `<FloatingChatbot>`.
    */
   floatingConfig?: FloatingChatbotConfig;
 }
@@ -901,10 +1128,71 @@ export interface FloatingChatbotConfig {
    */
   title?: string;
   /**
-   * Custom icon name for the FAB trigger (Lucide icon name).
-   * @default 'MessageCircle'
+   * ADR-0049 RETIREMENT TOMBSTONE — `triggerIcon` (objectui#7654).
+   *
+   * `?: never` is this package's tombstone convention (see {@link
+   * ComponentInput} in `base.ts`, `crud.ts` `confirm`, and {@link
+   * StaticTableColumn} in `data-display.ts`): the key stays DECLARED and
+   * becomes UNWRITABLE, so authoring one is a `tsc` error here.
+   *
+   * What was measured, on the merge-base of the retiring PR: nothing reads it.
+   * `FloatingChatbot` (`plugin-chatbot/src/FloatingChatbot.tsx`) destructures
+   * six of this interface's seven keys — `position`, `defaultOpen`,
+   * `panelWidth`, `panelHeight`, `title`, `triggerSize` — and never this one;
+   * `FloatingChatbotTrigger` takes no icon prop at all, so the promised
+   * `'MessageCircle'` default never rendered either. A whole-repo `git grep`
+   * census over tracked files, build output excluded, returned exactly this
+   * declaration and one historical CHANGELOG line; the same pass over
+   * `triggerSize`, a key that IS read, returned ten sites across four files, so
+   * the instrument was demonstrably not blind.
+   *
+   * It is also absent from the `chatbot-floating` registration's `inputs` AND
+   * its `defaultProps` (`plugin-chatbot/src/renderer.tsx`), so no designer
+   * control ever offered it and no designer-created node carries it. The key
+   * was reachable from TypeScript alone — which is exactly the surface this
+   * tombstone closes.
+   *
+   * ## Why there is NO `retirementTombstone()` half, and why that is not an omission
+   *
+   * The other tombstones in this package pair `?: never` with a
+   * `retirementTombstone()` refusal on the Zod twin. There is no twin to carry
+   * one here: `FloatingChatbotConfig` has NO Zod mirror at all, and
+   * `floatingConfig` sits in the `UnmirroredDeclared` ledger
+   * (`__tests__/zod-mirror-parity.test.ts`, `complex.zod.ts#ChatbotSchema`).
+   * `BaseSchema` is `.passthrough()`, so the whole `floatingConfig` object
+   * rides through unvalidated — before this change and after it, byte for
+   * byte. Minting a mirror to host a refusal would be the declared-but-
+   * UNMIRRORED axis (objectui#6152), a different defect from this one: a key
+   * can be mirrored and inert, or unmirrored and live, and fixing one says
+   * nothing about the other. This retirement deliberately does not widen into
+   * it, so `triggerIcon`'s refusal is TYPE-LEVEL ONLY. Runtime parse behaviour
+   * is unchanged.
+   *
+   * ## Why a tombstone and not a deletion, with only the `tsc` channel available
+   *
+   * The usual argument for `?: never` over deletion is about the mirror (an
+   * undeclared key is silently STRIPPED by a non-strict `z.object`), and with
+   * no mirror here that argument does not apply. The tombstone earns its place
+   * on the TypeScript channel alone instead, measured both ways:
+   *
+   *   - DELETED, a fresh object literal is refused — `TS2353: Object literal
+   *     may only specify known properties` — but a WIDENED value is not.
+   *     `const raw = { triggerIcon: 'Sparkles' }; const c: FloatingChatbotConfig
+   *     = raw;` compiled CLEAN, because excess-property checking does not reach
+   *     a non-fresh type. That is the silent no-op traded for another one.
+   *   - TOMBSTONED, both paths are refused: the declared `never` makes the
+   *     assignment itself ill-typed, so freshness stops mattering.
+   *
+   * Pinned in `__tests__/floating-chatbot-trigger-icon-retired.test.ts`,
+   * including the deletion contrast, so nobody can "simplify" this back into a
+   * deletion without that file going red.
+   *
+   * RETIRED (objectui#7654, ADR-0049) — never read: the FAB trigger renders a
+   * fixed icon and takes no icon prop. There is no authored spelling that
+   * changes it; the trigger's markup is the only place to change it.
+   * @deprecated Not part of `FloatingChatbotConfig`'s contract — the value was inert.
    */
-  triggerIcon?: string;
+  triggerIcon?: never;
   /**
    * Custom size for the FAB trigger button in pixels.
    * @default 56
@@ -1086,8 +1374,24 @@ export interface DashboardWidgetSchema
  */
 export interface DashboardComponentSchema extends BaseSchema {
   type: 'dashboard';
-  /** Dashboard title displayed in the header */
-  title?: string;
+  // `title` was DECLARED here until objectui#7623, under the comment "Dashboard
+  // title displayed in the header" — by then a description of behaviour that had
+  // stopped existing: objectui#7509 retired all five dashboard-root `title` read
+  // arms under ADR-0049 (PR #7622), so the key was declared, documented as
+  // rendering, and inert. The header text is the spec-canonical `label`
+  // (`BaseSchema`), resolved through `pickLocalized`; `plugin-dashboard` has no
+  // dashboard-root `title` read site left (pinned by that package's
+  // `__tests__/dashboardAuthoredInputs.test.tsx`).
+  //
+  // Unlike `aria` below there is NO spec tombstone to inherit: `@objectstack/spec`'s
+  // strict `DashboardSchema` refuses a root `title` as an UNRECOGNIZED key, not with
+  // a named removal message, so the Zod twin (`zod/complex.zod.ts`, `.passthrough()`
+  // via `BaseSchema`) gains no refusal from this deletion and ⛔ must not be given a
+  // hand-written one — that would assert a spec behaviour that does not exist.
+  // Note `BaseSchema`'s index signature still types an authored `title` as `any`:
+  // this deletion removes the type-level suggestion and the false rendering claim,
+  // not a key that ever rendered. Pinned by
+  // `__tests__/dashboard-title-retired-declaration.test.ts`.
   columns?: number;
   gap?: number;
   widgets: DashboardWidgetSchema[];
@@ -1172,9 +1476,11 @@ export interface DashboardComponentSchema extends BaseSchema {
  * Union type of all complex schemas
  */
 export type ComplexSchema =
-  | KanbanSchema
+  | DeclarativeKanbanSchema
   | CalendarViewSchema
   | FilterBuilderSchema
   | CarouselSchema
   | ChatbotSchema
+  | ChatbotEnhancedSchema
+  | ChatbotFloatingSchema
   | DashboardComponentSchema;

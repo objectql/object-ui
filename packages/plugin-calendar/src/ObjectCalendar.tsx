@@ -23,7 +23,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
+import type { ObjectGridSchema, DataSource, CalendarConfig } from '@object-ui/types';
 import { CalendarView, type CalendarViewEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
 import {
@@ -61,6 +61,8 @@ import {
   convertSortToQueryParams,
   getRecordDisplayName,
   createFieldColorResolver,
+  resolveRecordSourceConfig,
+  resolveRecordSourceObjectName,
 } from '@object-ui/core';
 
 export interface CalendarSchema {
@@ -109,31 +111,6 @@ export interface ObjectCalendarComponentProps {
   onViewChange?: (view: 'month' | 'week' | 'day') => void;
   onEventDrop?: (record: any, newStart: Date, newEnd?: Date) => void;
   locale?: string;
-}
-
-/**
- * Helper to get data configuration from schema
- */
-function getDataConfig(schema: ObjectGridSchema | CalendarSchema): ViewData | null {
-  if ('data' in schema && schema.data) {
-    return schema.data;
-  }
-  
-  if ('staticData' in schema && schema.staticData) {
-    return {
-      provider: 'value',
-      items: schema.staticData,
-    };
-  }
-  
-  if (schema.objectName) {
-    return {
-      provider: 'object',
-      object: schema.objectName,
-    };
-  }
-  
-  return null;
 }
 
 /**
@@ -262,7 +239,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     enabled: !!dataSource && !!schema.objectName,
   });
 
-  const dataConfig = useMemo(() => getDataConfig(schema), [
+  const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [
     (schema as any).data,
     (schema as any).staticData,
     schema.objectName,
@@ -280,7 +257,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
    * The record-fetch effect below used to key on `dataConfig` itself — the
    * whole memoised object identity. `useMemo` carries no semantic
    * guarantee (React may discard its cache and recompute), and
-   * `getDataConfig(schema)` builds a fresh wrapper object on every call
+   * `resolveRecordSourceConfig(schema)` builds a fresh wrapper object on every call
    * even when its own deps haven't changed, so a discard alone was enough
    * to re-run the effect and refetch. `dataProvider` and `dataItems` are
    * the remaining primitive fields that effect reads off `dataConfig` —
@@ -305,8 +282,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   // different object. Comparing it during render means switching objects closes
   // the gate in the same commit that changes it, not one commit later, so no
   // query can carry the previous object's expand set.
-  const schemaObjectName =
-    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+  const schemaObjectName = resolveRecordSourceObjectName(schema, dataConfig);
   const schemaKey = schemaObjectName ?? '';
   /**
    * Has the object schema for THIS object finished resolving? Note what this is
@@ -622,7 +598,21 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
   const navIsOverlay = navConfig.mode === 'drawer' || navConfig.mode === 'modal' || navConfig.mode === 'split' || navConfig.mode === 'popover';
   const navigation = useNavigationOverlay({
     navigation: navConfig,
-    objectName: schema.objectName,
+    // The record-page URL follows the RECORD SOURCE (objectui#7638): the very
+    // `schemaObjectName` resolved above, which already keys this calendar's
+    // record query and which the detail drawer at the bottom of this file
+    // resolves the same way. Before this it read the bare `schema.objectName`,
+    // so ONE click resolved the drawer through the objectui#6939 ladder and the
+    // navigation URL through the top-level key — two receivers, one gesture,
+    // two different objects.
+    //
+    // The `?? schema.objectName` tail is NOT the shared rung repeated: it is
+    // this site's own coercion of the OFF-CONTRACT `data: { provider: 'object' }`
+    // that carries no `object` (`ViewDataSchema` declares it required), and it
+    // is here so this conversion changes nothing this component navigates to
+    // today EXCEPT the divergence it closes. `ObjectTree`'s converted site and
+    // `headerObjectName` both keep the same tail for the same reason.
+    objectName: schemaObjectName ?? schema.objectName,
     onRowClick: navIsOverlay ? undefined : onRowClick,
   });
 
@@ -966,7 +956,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
       </Dialog>
 
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
-        const objectName = dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+        const objectName = resolveRecordSourceObjectName(schema, dataConfig);
         const rec = navigation.selectedRecord as Record<string, any>;
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;

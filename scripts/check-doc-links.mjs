@@ -174,9 +174,11 @@
  *   - **Only `main`.** `blob/v1.2.0/...` or `blob/<sha>/...` names a different
  *     ref; the working tree cannot answer for it.
  *   - **Only this repo.** Other repos' GitHub URLs stay external (lychee's job).
- *   - **Only the path.** `#fragment` (`#L42`, `#readme`) is out of scope, and
- *     stripped before the check — resolving an anchor means parsing the target,
- *     which is a different gate.
+ *   - **Only the path** — WAS. Anchors were out of scope when this bullet was
+ *     written, "because resolving an anchor means parsing the target, which is
+ *     a different gate". objectui#7644 built that gate, so a `#fragment` on one
+ *     of these URLs IS resolved now, whenever the path names a markdown file in
+ *     this tree; a `#L42` line reference still is not. See that card's section.
  *   - **Only `blob|tree`.** `https://github.com/objectstack-ai/objectui/issues`
  *     and the `workflows/<name>/badge.svg` badge URLs in the root README are
  *     github.com web routes, not paths in this tree, and stay skipped.
@@ -493,6 +495,88 @@
  * one today; the exclusion is about what the name means (changesets output,
  * never authored prose), not about where the file sits.
  *
+ * ## Why this file changed again (objectui#7644): the `#fragment`, at last
+ *
+ * Everything above resolves the DOCUMENT an href names. Nothing resolved the
+ * ANCHOR inside it. `hrefPath()` and `routeExists()` both opened by cutting the
+ * href at its `#`, and `EXTERNAL_HREF_RE` waved a pure `#anchor` through by
+ * shape, so `[label](#some-heading)` was never judged by anything at all.
+ *
+ * The consequence is the failure this whole file exists to prevent, one level
+ * in: rename a heading and every cross-reference to it is orphaned silently,
+ * with this gate green. It is not a projection — objectui#7643 renamed
+ * `### KanbanSchema` to `### DeclarativeKanbanSchema` and the
+ * `[…](#kanbanschema)` one screen away had to be corrected BY HAND, because no
+ * gate in the farm could see it.
+ *
+ * objectui#7644 measured the hole as a two-arm control on one file, and the
+ * control arm is what makes the zero a reading rather than a dead instrument:
+ * the SAME invocation, on the SAME file, exited 1 on a broken file path
+ * (`Relative links must name the target FILE`) and 0 on a broken in-page
+ * anchor. Reproduced on this branch before the fix, with each mutation proved
+ * on disk by anchored count plus `git hash-object` off the HEAD blob.
+ *
+ * ### The slug rule is the renderers', and it is COPIED rather than re-derived
+ *
+ * An anchor set is only as good as the slug function that builds it — a rule
+ * that disagrees with the renderer is a false red on a correct link, which is
+ * worse than the hole. Both renderers this repository publishes through use
+ * `github-slugger`, one instance per document, walked over the headings in
+ * order so a repeated heading's `-1`/`-2` suffix lines up:
+ *
+ *   - `content/docs` (`docs` rule) is fumadocs, whose `remarkHeading` slugs
+ *     `flattenNode(heading)` and additionally honours an explicit
+ *     `## Heading [#custom-id]` override on the heading's last text node. No
+ *     file in this tree uses that syntax today; it is implemented anyway,
+ *     because the first author who does would otherwise get a false red.
+ *   - every `disk` surface is GitHub, which is what `github-slugger` exists to
+ *     reproduce, and which has no `[#custom-id]` syntax — so that branch is
+ *     applied to the `docs` rule only.
+ *
+ * `scripts/github-slug.mjs` holds the rule, vendored, and its own header says
+ * why a copy rather than an import: this gate runs BEFORE `pnpm install` (see
+ * `scripts/check-pre-install-import-graph.mjs --list`), so a package import
+ * would stop it running on exactly the markdown-only pull requests it exists
+ * for. The equivalence is not asserted by reading — the pin test compares this
+ * file's anchor sets against the REAL fumadocs `remarkHeading` and the REAL
+ * `github-slugger`, over every file in the scan surface. Measured when this
+ * landed: 273 files, 184 `docs` and 89 `disk`, ZERO disagreements. That corpus
+ * check is the thing that keeps the copy honest, and it is why the inline
+ * flattener's one non-obvious rule — a `*`/`_` run is emphasis only when it is
+ * NOT intraword — is written the way it is rather than the obvious way. The
+ * obvious way (strip them all) disagreed with mdast on two real headings here,
+ * `NON_GRID_ROW_CEILING` and a `new_window` in `ROADMAP.md`.
+ *
+ * ### What is decided, and what is left alone
+ *
+ * A fragment is judged when, and only when, the document it names is a markdown
+ * file in this tree — same page, another page, or a package README reached
+ * through this repo's own blob URL. That last one retires a waiver written four
+ * sections up: the objectui#3536 bullet said a self-repo blob URL's `#fragment`
+ * was "out of scope … resolving an anchor means parsing the target, which is a
+ * different gate". This is that gate, so the bullet no longer holds and has
+ * been corrected in place. Three such links exist today and all three resolve;
+ * a `#L42`-shaped line reference is still skipped, because it names a line in
+ * the raw view rather than a heading.
+ *
+ * Left undecidable, deliberately: a fragment on a site route outside the docs
+ * collection (`apps/site/app` is TSX, not headings), on a non-markdown target,
+ * and on any other origin (lychee's problem). Those return "no opinion", never
+ * a pass dressed as one.
+ *
+ * ### The backlog: counted, and it was one
+ *
+ * Turning a check on usually means paying its accumulated red first, and the
+ * card was dispatched expecting a shrink-only baseline. Counted from the tree
+ * rather than assumed: 143 hrefs carry a non-empty fragment, 142 of them
+ * decidable here, and exactly ONE was dead — a `#q3-the-5127-judgement-surface`
+ * in `docs/audits/2026-08-zod-to-json-schema-fidelity.md` whose heading reads
+ * `## Q3: the objectui#5127 judgement surface` and therefore slugs to
+ * `q3-the-objectui5127-judgement-surface`. It is repaired in the same commit,
+ * so this check lands FULLY STRICT with no baseline row — the objectui#3572
+ * shape, and the better outcome of the two the card's ruling allowed for. A
+ * baseline is a ratchet, not a prize; there was nothing to ratchet.
+ *
  * ## Code spans are stripped before scanning
  *
  * Required, not tidiness. Extending the scan to relative hrefs turns markdown's
@@ -513,6 +597,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isEntrypoint } from './invoked-as.mjs';
+import { GithubSlugger } from './github-slug.mjs';
 
 const DOCS_ROUTE_PREFIX = '/docs';
 const MARKDOWN_LINK_RE = /\[[^\]]+\]\(([^)]+)\)/g;
@@ -944,6 +1029,237 @@ export function siteUrlExists(pathname, site) {
 }
 
 /**
+ * A heading line, ATX form. Setext headings (`Title` over `---`) are markdown
+ * too, but this tree has none — asserted over the whole scan surface by the pin
+ * test, so the day one is written the test says so rather than this gate
+ * silently missing its anchor.
+ */
+const ATX_HEADING_RE = /^(#{1,6})\s+(.*?)\s*$/;
+/** A closing sequence of `#`s, which is decoration and not part of the text. */
+const CLOSING_HASHES_RE = /\s+#+\s*$/;
+/** fumadocs' explicit heading id: `## Heading [#custom-id]`. */
+const CUSTOM_HEADING_ID_RE = /\s*\[#([^\]]+)\]\s*$/;
+/** A document whose headings this gate can read. */
+const MARKDOWN_FILE_RE = /\.mdx?$/i;
+/** GitHub's raw-view line reference — names a line, never a heading. */
+const LINE_REF_RE = /^L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?$/;
+/** A letter or digit either side of a `*`/`_` run makes it intraword, not emphasis. */
+const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
+
+/**
+ * One heading's inline markdown reduced to the plain text the sluggers see —
+ * fumadocs' `flattenNode()` over the mdast heading, and the text GitHub renders.
+ *
+ * Written by hand for the same reason `github-slug.mjs` is vendored: this file
+ * may not import a parser. The pin test holds it to the real thing over every
+ * heading in the repository, which is what makes hand-writing it safe.
+ *
+ * Code spans win over every other construct (CommonMark reads them first), and
+ * their content is LITERAL — `### \`objectui add <component>\`` slugs through
+ * the angle brackets, so stripping tag-shaped text inside a span would be
+ * wrong. Seven headings in this tree depend on that.
+ */
+export function flattenInline(text) {
+  let out = '';
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+
+    if (char === '`') {
+      let run = 0;
+      while (text[index + run] === '`') run += 1;
+      const marker = '`'.repeat(run);
+      const close = text.indexOf(marker, index + run);
+      if (close === -1) {
+        out += marker; // an unclosed run is literal backticks
+        index += run;
+        continue;
+      }
+      out += text.slice(index + run, close);
+      index = close + run;
+      continue;
+    }
+
+    if (char === '!' && text[index + 1] === '[') {
+      const image = /^!\[[^\]]*\]\([^)]*\)/.exec(text.slice(index));
+      if (image) {
+        index += image[0].length; // an image node carries no `value` to flatten
+        continue;
+      }
+    }
+
+    if (char === '[') {
+      const link = /^\[([^\]]*)\]\([^)]*\)/.exec(text.slice(index));
+      if (link) {
+        out += flattenInline(link[1]); // a link flattens to its own text
+        index += link[0].length;
+        continue;
+      }
+    }
+
+    if (char === '<') {
+      const tag = /^<[^>]*>/.exec(text.slice(index));
+      if (tag) {
+        index += tag[0].length;
+        continue;
+      }
+    }
+
+    if (char === '*' || char === '_') {
+      let run = 0;
+      while (text[index + run] === char) run += 1;
+      // Intraword runs are not emphasis delimiters — `NON_GRID_ROW_CEILING` and
+      // `new_window` keep their underscores, and `github-slugger` keeps `_`
+      // (it is connector punctuation) while dropping `*`. Getting this wrong is
+      // silent: both spellings still produce A slug, just not the renderer's.
+      if (WORD_CHAR_RE.test(text[index - 1] ?? '') && WORD_CHAR_RE.test(text[index + run] ?? '')) {
+        out += char.repeat(run);
+      }
+      index += run;
+      continue;
+    }
+
+    out += char;
+    index += 1;
+  }
+  return out;
+}
+
+/**
+ * Every anchor one markdown document offers, in the renderer's own spelling.
+ *
+ * @param {string} source     the file's raw text, frontmatter included
+ * @param {{ customId?: boolean }} [options]  `customId` enables fumadocs'
+ *        `[#explicit-id]` override; GitHub has no such syntax, so `disk`
+ *        surfaces pass it false.
+ */
+export function headingAnchors(source, { customId = false } = {}) {
+  const ids = new Set();
+  const slugger = new GithubSlugger();
+  const lines = source.split('\n');
+
+  // YAML frontmatter is not document body, and its comments start with `#` —
+  // reading it as markdown invents an h1 out of `# some comment`.
+  let start = 0;
+  if (/^---\s*$/.test(lines[0] ?? '')) {
+    for (let index = 1; index < lines.length; index += 1) {
+      if (/^(?:---|\.\.\.)\s*$/.test(lines[index])) {
+        start = index + 1;
+        break;
+      }
+    }
+  }
+
+  let fence = null;
+  for (let index = start; index < lines.length; index += 1) {
+    const line = lines[index];
+    const fenceMatch = FENCE_RE.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0];
+      if (fence === null) fence = marker;
+      else if (marker === fence) fence = null;
+      continue;
+    }
+    if (fence !== null) continue;
+
+    const heading = ATX_HEADING_RE.exec(line);
+    if (!heading) continue;
+    const text = heading[2].replace(CLOSING_HASHES_RE, '');
+
+    if (customId) {
+      const explicit = CUSTOM_HEADING_ID_RE.exec(text);
+      // An explicit id does NOT advance the slugger — fumadocs only calls it
+      // when the heading has no id yet, so the duplicate counter must skip too.
+      if (explicit) {
+        ids.add(explicit[1]);
+        continue;
+      }
+    }
+
+    ids.add(slugger.slug(flattenInline(text).trim()));
+  }
+  return ids;
+}
+
+/**
+ * The markdown document a `docs`-rule href names, or `null` when nothing in
+ * this tree can answer for it.
+ *
+ * This is `routeExists()`'s file-producing half, factored out so the two cannot
+ * drift: that function is now this one plus the site-route table.
+ */
+export function resolveDocsFile(href, { fromFile, docsRoot }) {
+  let cleanHref = href.split('#')[0].split('?')[0].trim();
+  if (!cleanHref) return fromFile; // a pure in-page anchor names THIS document
+  try {
+    cleanHref = decodeURI(cleanHref);
+  } catch {
+    /* keep the raw form — a malformed escape is checked as written */
+  }
+
+  if (cleanHref === DOCS_ROUTE_PREFIX || cleanHref.startsWith(`${DOCS_ROUTE_PREFIX}/`)) {
+    const routePath = cleanHref.slice(DOCS_ROUTE_PREFIX.length).replace(/^\//, '');
+    return routeCandidates(routePath ? path.join(docsRoot, routePath) : docsRoot).find(isFile) ?? null;
+  }
+  // An absolute non-`/docs` href is a site route; `siteUrlExists()` judges it,
+  // and `apps/site/app` holds TSX rather than headings.
+  if (cleanHref.startsWith('/')) return null;
+
+  const base = path.resolve(path.dirname(fromFile), cleanHref);
+  if (base !== docsRoot && !base.startsWith(docsRoot + path.sep)) return null;
+  return [base, ...routeCandidates(base)].find(isFile) ?? null;
+}
+
+/** The file a `disk`-rule href names, or `null` — `diskPathExists()`'s half. */
+export function resolveDiskFile(href, { fromFile, repoRoot }) {
+  const cleanHref = hrefPath(href);
+  if (!cleanHref) return fromFile; // a pure in-page anchor names THIS document
+  if (cleanHref.startsWith('/')) return null; // github.com's root, not ours
+  const target = path.resolve(path.dirname(fromFile), cleanHref);
+  return isInside(repoRoot, target) && isFile(target) ? target : null;
+}
+
+/** The anchor an href asks for, decoded, or `null` when it names none. */
+export function fragmentOf(href) {
+  const hash = href.indexOf('#');
+  if (hash === -1) return null;
+  const raw = href.slice(hash + 1).trim();
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw; // a malformed escape is checked as written
+  }
+}
+
+/**
+ * Does the anchor an href asks for exist in the document it names?
+ *
+ * Returns `'anchor'` when it demonstrably does not, and `null` both when it
+ * does and when nothing here can decide — the two are different facts, and the
+ * undecidable ones are enumerated in the header rather than left to inference.
+ *
+ * @param {string} href
+ * @param {string | null} targetFile  the document, from one of the resolvers
+ * @param {{ customId: boolean, anchorCache?: Map<string, Set<string>> }} options
+ */
+function judgeFragment(href, targetFile, { customId, anchorCache }) {
+  const fragment = fragmentOf(href);
+  if (fragment === null) return null; // no anchor asked for
+  if (targetFile === null) return null; // no document here to ask
+  if (!MARKDOWN_FILE_RE.test(targetFile)) return null; // no headings to read
+  if (LINE_REF_RE.test(fragment)) return null; // a raw-view line, not a heading
+
+  const key = `${customId ? 'custom' : 'plain'}|${targetFile}`;
+  let anchors = anchorCache?.get(key);
+  if (!anchors) {
+    anchors = headingAnchors(readFileSync(targetFile, 'utf8'), { customId });
+    anchorCache?.set(key, anchors);
+  }
+  return anchors.has(fragment) ? null : 'anchor';
+}
+
+/**
  * Resolves one href.
  *
  * @param {string} href       the raw href as authored
@@ -958,18 +1274,12 @@ export function routeExists(href, { fromFile, docsRoot, site }) {
     /* keep the raw form — a malformed escape is checked as written */
   }
 
-  if (cleanHref === DOCS_ROUTE_PREFIX || cleanHref.startsWith(`${DOCS_ROUTE_PREFIX}/`)) {
-    const routePath = cleanHref.slice(DOCS_ROUTE_PREFIX.length).replace(/^\//, '');
-    // Route form only — see the header. A `/docs/...` href carrying a file
-    // extension is a 404 on the site even when that file exists on disk.
-    return routeCandidates(routePath ? path.join(docsRoot, routePath) : docsRoot).some(isFile);
-  }
-
   // Site routes outside this docs collection — checked against the enumerated
   // router + `public/` tree (objectui#3490). No table means the caller has not
   // supplied a truth source; failing loudly beats silently waving 404s through,
-  // which is precisely how the 18 links in #3490 accumulated.
-  if (cleanHref.startsWith('/')) {
+  // which is precisely how the 18 links in #3490 accumulated. This is the one
+  // branch `resolveDocsFile()` cannot answer, because a route is not a file.
+  if (cleanHref.startsWith('/') && !(cleanHref === DOCS_ROUTE_PREFIX || cleanHref.startsWith(`${DOCS_ROUTE_PREFIX}/`))) {
     if (!site) {
       throw new Error(
         `routeExists() needs a site route table to judge the absolute href "${href}". ` +
@@ -979,16 +1289,12 @@ export function routeExists(href, { fromFile, docsRoot, site }) {
     return siteUrlExists(cleanHref, site);
   }
 
-  const base = path.resolve(path.dirname(fromFile), cleanHref);
-  // A relative href must stay inside the collection: fumadocs' page index is
-  // the only thing that can resolve one, and it holds nothing else. Resolving
-  // on disk is not enough — `../../../packages/x/README.md` is a real file and
-  // still a 404 on the site. See the header.
-  if (base !== docsRoot && !base.startsWith(docsRoot + path.sep)) return false;
-
-  // File form first (what fumadocs' `resolveHref` keys on), then the
-  // extensionless-route spellings.
-  return [base, ...routeCandidates(base)].some(isFile);
+  // Everything else resolves to a FILE, and `resolveDocsFile()` is the single
+  // implementation of which one (objectui#7644): route form only under `/docs`,
+  // no leaving the collection, file spelling before the extensionless route
+  // spellings. It has to exist for the anchor check, and two copies of that
+  // ladder is how a gate starts disagreeing with itself.
+  return resolveDocsFile(href, { fromFile, docsRoot }) !== null;
 }
 
 /** Which of the four checks rejected this href — drives the hint printed below. */
@@ -1015,10 +1321,19 @@ function judgeHref(href, context) {
   // The two external-LOOKING shapes this script can actually decide run FIRST,
   // and in every rule: both must be reached before the by-scheme skip below
   // waves them through (objectui#3536, objectui#3603).
+  //
+  // Each branch answers the SAME two questions in order (objectui#7644): does
+  // the document resolve, and — only once it does — does the anchor inside it.
+  // The `customId` each passes is the renderer the READER lands in, which is
+  // not always the rule the linking file was scanned under: a github.com blob
+  // URL is read on GitHub even when it was written inside `content/docs`, and
+  // an `objectui.org/docs/...` URL is read in fumadocs even when it was written
+  // in a package README.
   const selfPath = selfRepoPath(href);
   if (selfPath !== null) {
     const target = path.resolve(context.repoRoot, selfPath);
-    return isInside(context.repoRoot, target) && pathExists(target) ? null : 'self-repo-url';
+    if (!isInside(context.repoRoot, target) || !pathExists(target)) return 'self-repo-url';
+    return judgeFragment(href, target, { ...context, customId: false });
   }
   // A URL on this site is an internal route wearing an origin. Strip the origin
   // and judge what is left with the same `routeExists()` every absolute href
@@ -1026,14 +1341,25 @@ function judgeHref(href, context) {
   // here too, on every surface, `content/docs` included.
   const siteRoute = siteAbsoluteRoute(href);
   if (siteRoute !== null) {
-    return routeExists(siteRoute, context) ? null : 'site-absolute-url';
+    if (!routeExists(siteRoute, context)) return 'site-absolute-url';
+    // `href` keeps the fragment the origin-stripped route dropped, and
+    // `fragmentOf()` reads only what follows the `#`, so the raw href is the
+    // right thing to hand on here.
+    return judgeFragment(href, resolveDocsFile(siteRoute, context), { ...context, customId: true });
   }
-  if (EXTERNAL_HREF_RE.test(href)) return null;
+  if (EXTERNAL_HREF_RE.test(href)) {
+    // The one shape this regex catches that names a document we hold: a pure
+    // in-page anchor, whose document is the file it was written in.
+    if (!href.startsWith('#')) return null;
+    return judgeFragment(href, context.fromFile, { ...context, customId: context.rule === 'docs' });
+  }
 
   if (context.rule === 'disk') {
-    return diskPathExists(href, context) ? null : classifyBrokenDisk(href);
+    if (!diskPathExists(href, context)) return classifyBrokenDisk(href);
+    return judgeFragment(href, resolveDiskFile(href, context), { ...context, customId: false });
   }
-  return routeExists(href, context) ? null : classifyBroken(href, context);
+  if (!routeExists(href, context)) return classifyBroken(href, context);
+  return judgeFragment(href, resolveDocsFile(href, context), { ...context, customId: true });
 }
 
 /**
@@ -1050,6 +1376,11 @@ export function collectBrokenLinks(repoRoot) {
   const broken = [];
   const docsRoot = path.join(repoRoot, 'content', 'docs');
   const site = collectSiteRoutes(path.join(repoRoot, 'apps', 'site'));
+  // One anchor set per (document, renderer) per scan, not per href: the
+  // `**Related:**` lines this card came from point many links at one page.
+  // Scoped to this call rather than the module, so a caller scanning two
+  // trees (the pin tests do) can never read the other one's headings.
+  const anchorCache = new Map();
 
   for (const scanRoot of SCAN_ROOTS) {
     const exclude = scanRoot.exclude ? new Set(scanRoot.exclude) : undefined;
@@ -1061,7 +1392,7 @@ export function collectBrokenLinks(repoRoot) {
 
       while ((match = MARKDOWN_LINK_RE.exec(source)) !== null) {
         const href = match[1].trim();
-        const reason = judgeHref(href, { fromFile: file, docsRoot, repoRoot, site, rule: scanRoot.rule });
+        const reason = judgeHref(href, { fromFile: file, docsRoot, repoRoot, site, anchorCache, rule: scanRoot.rule });
         if (reason === null) continue;
 
         broken.push({ file, href, line: source.slice(0, match.index).split('\n').length, reason });
@@ -1115,6 +1446,14 @@ const HINTS = {
     ' drop the link if no such page exists. Inside content/docs prefer the' +
     ' origin-less form (`/docs/guide/plugins`): it survives a domain change,' +
     ' and both spellings are checked identically.',
+  anchor:
+    'The link resolves to the right DOCUMENT but names an `#anchor` that document' +
+    ' does not have. Heading anchors are derived exactly as the renderer derives' +
+    ' them (`scripts/github-slug.mjs`), so the usual cause is a heading that was' +
+    ' RENAMED without its cross-references — the failure objectui#7644 added this' +
+    ' check for. Fix the fragment to the heading\'s current slug, or restore the' +
+    ' heading. Inside content/docs an explicit `## Heading [#stable-id]` pins an' +
+    ' anchor so a future rename cannot break it.',
   'self-repo-url':
     'A `https://github.com/objectstack-ai/objectui/(blob|tree)/main/...` URL' +
     ' points into this repository, so its path is checked against the working' +

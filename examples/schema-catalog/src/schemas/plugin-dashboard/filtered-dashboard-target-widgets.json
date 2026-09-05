@@ -1,6 +1,5 @@
 {
   "type": "dashboard",
-  "title": "Invoice Pipeline",
   "columns": 2,
   "gap": 4,
   "globalFilters": [

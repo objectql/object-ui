@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
+import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
@@ -285,12 +285,34 @@ export const DataTableSchema = BaseSchema.extend({
 
 /**
  * Markdown Schema - Markdown content renderer
+ *
+ * `sanitize` / `components` are ADR-0049 tombstones (objectui#6972).
+ * `sanitize` implied a switch that does not exist: sanitization is
+ * UNCONDITIONAL — the `rehypeSanitize` link is a fixed last member of a
+ * module-level `const` chain in `plugin-markdown/src/MarkdownImpl.tsx`, with
+ * no conditional path — so the enforce arm (an XSS-off switch) was refused
+ * and the key retired. `components` was a `Record<string, any>` of React
+ * overrides nothing read — not a JSON-authorable value, and no host path
+ * consumes such a map either, so there is no runtime slot to keep. Both
+ * refuse BY NAME through `retirementTombstone()` (objectui#6931), with the
+ * remedy in the message, rather than parsing green and doing nothing. The TS
+ * twins are `?: never` in `../data-display.ts`; both published faces carry the
+ * refusal (`@object-ui/types`, and `@object-ui/plugin-markdown`'s re-export of
+ * the same authority — objectui#6172).
  */
 export const MarkdownSchema = BaseSchema.extend({
   type: z.literal('markdown'),
   content: z.string().describe('Markdown content'),
-  sanitize: z.boolean().optional().describe('Sanitize HTML'),
-  components: z.record(z.string(), z.any()).optional().describe('Custom component overrides'),
+  sanitize: retirementTombstone(
+    'RETIRED (objectui#6972) — sanitization is unconditional: rehype-sanitize is a fixed last link of the '
+    + 'markdown renderer\'s rehype chain, and no value of this key ever switched it. There is no authored '
+    + 'spelling that disables XSS sanitization; delete the key.',
+  ),
+  components: retirementTombstone(
+    'RETIRED (objectui#6972) — never read: the markdown renderer forwards only `content` and `className`, '
+    + 'and a map of React component overrides is not a JSON-authorable value. Delete the key; the fenced '
+    + 'mermaid / metadata block overrides are the renderer\'s own fixed map, not an authoring surface.',
+  ),
 });
 
 /**
@@ -385,6 +407,34 @@ export const ChartDataSeriesSchema = z.object({
   // the TS declaration for the read this narrowness is taken from.
   type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
   color: z.string().optional().describe('Series color'),
+  // THE SIX KEYS THE RENDERER READS (objectui#7546). Each was undeclared, and
+  // because this object is NON-STRICT the mirror STRIPPED it in silence while
+  // `safeParse` reported success — the card's own measurement:
+  // `{ name, label, stack, yAxis, opacity, dashArray, variant }` parsed to
+  // `{ name }`. Every one is read by `normalizeSeries`
+  // (`normalizeChartSchema.ts:242-255`) and does real work in
+  // `AdvancedChartImpl.tsx`; each value domain below is the read's own, so the
+  // accept set widens only toward what already renders, and a value the
+  // renderer would drop in silence is refused by name instead. They are the
+  // spec's `ChartSeriesSchema` members under the same names; the TS twin's
+  // docblocks carry the read sites and the liveness measurement.
+  //
+  // ⛔ `chartType` is NOT among them — deliberately. It is the renderer's
+  // INTERNAL spelling of `type` (the first limb of
+  // `str(raw.chartType) ?? str(raw.type)`), the spec refuses it by name as an
+  // alias of `type`, and nothing on this authoring face writes it. Declaring it
+  // is a contract decision for its own card; `chart-series-keys-7546.test.ts`
+  // pins the gap so it stays visible.
+  label: I18nLabelSchema.optional().describe(
+    'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
+  ),
+  variant: z.enum(['primary', 'comparison']).optional().describe(
+    'Visual role — `comparison` draws the muted period-over-period overlay; `primary` (the default) is the normal treatment. The spec pair: the renderer-internal `current` spelling is not a member (objectui#7682)',
+  ),
+  opacity: z.number().optional().describe('Stroke and fill opacity override — any finite number, the read\'s own domain; the spec bounds it to 0–1'),
+  dashArray: z.string().optional().describe('SVG stroke-dasharray override, e.g. "4 4" for a dashed line'),
+  stack: z.string().optional().describe('Stack group id — series sharing one id stack together'),
+  yAxis: z.enum(['left', 'right']).optional().describe('Which y-axis this series binds to on a dual-axis chart'),
 }).superRefine((series, ctx) => {
   // `normalizeSeries` returns `undefined` when NEITHER spelling resolves
   // (`normalizeChartSchema.ts:240`, `if (!dataKey) return undefined`) and the
@@ -454,6 +504,71 @@ function foldChartXAxisAlias<T extends Record<string, unknown>>(input: T): T {
 }
 
 /**
+ * Drill-down configuration — the zod mirror of `DrillDownConfig`
+ * (`../data-display.ts`), key for key (objectui#7352).
+ *
+ * Shared by the declarations that carry `drillDown`: `ChartSchema` below and
+ * `ObjectDataTableSchema` (`objectql.zod.ts`) reference it. `PivotTableSchema`
+ * declares the key too but has no mirror of its own, so it sits in no ledger;
+ * this is the home that key uses whenever the pivot pair is mirrored. Until
+ * this mirror existed neither declaring mirror had heard of the key, so under
+ * `BaseSchema`'s `.passthrough()` a `drillDown: { enabled: 'yes' }` parsed green
+ * and reached a widget that reads `enabled` as truthy — `declared !== enforced`,
+ * ledgered in `zod-mirror-parity.test.ts` (`UnmirroredDeclared`) by
+ * objectui#6058 for `ChartSchema` and by objectui#6576 for `ObjectDataTableSchema`.
+ *
+ * ⚠️ NOT `@objectstack/spec/ui`'s `ChartDrillDownSchema`, deliberately. That
+ * object is the CHART-ONLY subset (`enabled` / `filter` / `title` / `target` /
+ * `columns` / `maxRows`), strict, and refuses `mode` and `report` BY NAME with
+ * guidance — both are live keys on this wider type: `mode` picks drill-through
+ * vs drill-to-record on tables / pivots / metrics (`DashboardRenderer` writes
+ * `{ enabled: true, mode: 'record' }` for every object-backed table widget), and
+ * `report` drills a metric into an analytical report. Referencing the spec's
+ * object would make the published validator refuse what the published
+ * TypeScript declares. No spec export is named `DrillDownConfig` or
+ * `DrillDownConfigSchema`, so `check:spec-symbols` has nothing to match; the
+ * pair is registered against the LOCAL declaration, the `ObjectMapConfigSchema`
+ * precedent. Whether `ChartSchema.drillDown` should one day narrow to the
+ * spec's chart subset is a separate ruling — the declaration says
+ * `DrillDownConfig`, and this mirror says the same.
+ *
+ * `report` keeps the declaration's structural union: an inline report shape
+ * (`name` + `objectName` + `columns`, `type` optional, every other report key
+ * riding through on the index signature — `.catchall(z.unknown())` is what
+ * `[k: string]: unknown` spells) OR a named reference `{ name }`. Arm order
+ * matters to `z.union`: the inline arm is tried first, so a value satisfying it
+ * keeps its extra keys; only a value that fails it falls through to the
+ * reference arm.
+ */
+export const DrillDownConfigSchema = z.object({
+  enabled: z.boolean().optional().describe('Master switch — true, or any other key present, turns the drill on'),
+  mode: z.enum(['filter', 'record']).optional().describe(
+    "'filter' (the aggregate default) drills through to a filtered list; 'record' (the table / list default) opens the clicked record itself",
+  ),
+  target: z.enum(['drawer', 'dialog', 'navigate']).optional().describe(
+    "Where the drill lands: 'drawer' (default), 'dialog', or 'navigate' to the object's full list page (falls back to 'drawer' without host drill navigation)",
+  ),
+  filter: z.record(z.string(), z.unknown()).optional().describe('Filter applied to the drilled list; values support ${event.*} interpolation'),
+  title: z.string().optional().describe('Drawer / dialog title; supports ${event.*} interpolation'),
+  report: z
+    .union([
+      z
+        .object({
+          name: z.string(),
+          objectName: z.string(),
+          type: z.enum(['tabular', 'summary', 'matrix', 'joined']).optional(),
+          columns: z.array(z.unknown()),
+        })
+        .catchall(z.unknown()),
+      z.object({ name: z.string() }),
+    ])
+    .optional()
+    .describe('Drill into an analytical report instead of the record list: an inline SpecReport shape, or a named report reference'),
+  columns: z.array(z.string()).optional().describe('Column whitelist for the inline drill list'),
+  maxRows: z.number().optional().describe('Hard cap on rows fetched'),
+});
+
+/**
  * Chart Schema - Chart/graph component
  *
  * ⚠️ `data` and `xAxisKey` are the DATA MODEL this node has always rendered and
@@ -506,6 +621,7 @@ export const ChartSchema = BaseSchema.extend({
   showGrid: z.boolean().optional().describe('Show grid lines'),
   animate: z.boolean().optional().describe('Enable animations'),
   config: z.record(z.string(), z.any()).optional().describe('Additional chart configuration'),
+  drillDown: DrillDownConfigSchema.optional().describe('Drill-down: clicking a chart segment opens a filtered list view (drawer / dialog)'),
 }).overwrite(foldChartXAxisAlias);
 
 /**

@@ -24,7 +24,7 @@ artifact are proposed or added by it. The fork stays open.
 | Added to the published package | **+21.5 %** of `dist` pretty, **+12.2 %** minified |
 | Is the artifact closed? | **No.** 276 of 333 objects are open; every one of the 105 node roots is open; `.strict()` is called **0** times in the mirrors |
 | Is it stricter than zod anywhere? | **No — 0 / 475** corpus files. It is a strict *relaxation* |
-| Would objectui#5127's skipped files gain judgement? | **Partly, and not because of the artifact** — see [Q3](#q3-the-5127-judgement-surface) |
+| Would objectui#5127's skipped files gain judgement? | **Partly, and not because of the artifact** — see [Q3](#q3-the-objectui5127-judgement-surface) |
 
 **The headline.** The generated artifact is a **strict relaxation** of the zod
 source: over the repo's 475 root-`type` JSON files it agrees with

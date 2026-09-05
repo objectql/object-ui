@@ -1,6 +1,5 @@
 {
   "type": "dashboard",
-  "title": "Accounts by Industry",
   "columns": 2,
   "gap": 4,
   "globalFilters": [

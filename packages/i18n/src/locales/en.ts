@@ -1976,12 +1976,20 @@ const en = {
           recentRecords: 'List the 5 most recently created records.',
           recordCounts: 'Count records for each object.',
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: 'Build a sales CRM — customers, contacts, and a deal pipeline I can total by stage.',
-          buildApp: 'Create a project tracker — projects, tasks with owners and due dates, and a board by status.',
-          buildFlow: 'Design a support desk — tickets with priority, a status workflow, and customer links.',
-          buildInventory: 'Build an inventory app — products, stock levels, suppliers, and low-stock visibility.',
-          buildRecruiting: 'Make an applicant tracker — candidates, open roles, interview stages, and notes.',
+          buildCrm: 'Build a sales CRM — customers, contacts, and deals with a stage field, plus a dashboard that totals deal value by stage.',
+          buildApp: 'Create a project tracker — projects, tasks with owners and due dates, a board grouped by status, and a calendar of due dates.',
+          buildFlow: 'Design a support desk — tickets with priority and status fields, a board grouped by status, and links to customers.',
+          buildInventory: 'Build an inventory app — products, stock levels, suppliers, and a view that filters the items below their reorder point.',
+          buildRecruiting: 'Make an applicant tracker — candidates, open roles, an interview-stage field, and a board grouped by stage.',
         },
         generic: {
           help: 'What can you help me with?',
@@ -3252,6 +3260,14 @@ const en = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: 'Aggregate data',
@@ -3271,16 +3287,21 @@ const en = {
       describe_metadata: 'Describe metadata',
       describe_object: 'Describe object',
       get_active_package: 'Get active package',
+      get_authoring_rules: 'Get authoring rules',
       get_metadata_schema: 'Get metadata schema',
       get_package: 'Get package',
       list_metadata: 'List metadata',
       list_objects: 'List objects',
       list_packages: 'List packages',
+      load_tools: 'Load tools',
       modify_field: 'Modify field',
+      open_record: 'Open record',
       propose_blueprint: 'Propose blueprint',
       set_active_package: 'Set active package',
       suggest_builder: 'Suggest builder',
+      test_flow: 'Test flow',
       todo_write: 'Todo write',
+      toggle_flow: 'Toggle flow',
       update_metadata: 'Update metadata',
       validate_expression: 'Validate expression',
       verify_build: 'Verify build',

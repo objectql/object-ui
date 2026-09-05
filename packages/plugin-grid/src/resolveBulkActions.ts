@@ -64,12 +64,12 @@
  */
 
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
-
-/** The subset of an `ActionDef` this fold reads; everything else is carried. */
-export interface NamedActionDef {
-  name?: string;
-  [key: string]: unknown;
-}
+// One authority for `NamedActionDef` (objectui#6349): `resolveLegacyRowActions.ts`
+// declares the `ActionDef` subset both folds read, and this module re-exports
+// it so the name stays reachable from here exactly as before. A re-export, not
+// a second declaration — the one-authority gate counts declarations only.
+import type { NamedActionDef } from './resolveLegacyRowActions';
+export type { NamedActionDef } from './resolveLegacyRowActions';
 
 /**
  * Concurrency for a promoted action's per-record fan-out. Well below the

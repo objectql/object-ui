@@ -244,15 +244,20 @@ export interface WidgetSourceRegistry {
  *    these. Copying them here would mirror surface that nothing reads on the
  *    face it already lives on.
  *
- *    ⚠️ FOUR of those five are now ADR-0049 RETIREMENT TOMBSTONES on
- *    `ComponentInput` (`min` / `max` / `step` / `placeholder` — `?: never` plus
- *    a named Zod refusal, objectui#5905), so what this clause records is no
- *    longer "five keys this face declines to copy" but ONE live key
- *    (`inputType`) plus four unwritable ones. Copying any of them here is now
- *    doubly wrong: the four are REFUSED on the face they already live on, and
- *    `inputType` is the open fork objectui#5905 reported — `plugin-markdown`
- *    authors it and the serializer still drops it, which is a ruling to make,
- *    not a surface to mirror.
+ *    ⚠️ ALL FIVE are now ADR-0049 RETIREMENT TOMBSTONES on `ComponentInput`
+ *    (`inputType` / `min` / `max` / `step` / `placeholder` — `?: never` plus a
+ *    named Zod refusal, objectui#5905), so what this clause records is no
+ *    longer "five keys this face declines to copy" but five keys that are
+ *    UNWRITABLE on the face they already live on. Copying any of them here
+ *    would mirror a refusal.
+ *
+ *    `inputType` was the last of the five and took its own ruling, because it
+ *    was the one the repository actually authored: `plugin-markdown` wrote it
+ *    while the serializer dropped it. Maintainer, 2026-08-31 (objectui#5905):
+ *    delete the write — measured a no-op, so zero capability lost — and
+ *    tombstone the key; teaching `sdui-parser` to forward it was REFUSED on
+ *    record. ⇒ The fork this block used to report as OPEN is CLOSED; do not
+ *    re-read it as a pending question.
  *
  * Pin: `__tests__/widget-input-control-vocabulary.test.ts`.
  */

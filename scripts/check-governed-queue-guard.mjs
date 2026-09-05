@@ -2,8 +2,8 @@
 
 /**
  * check-governed-queue-guard — a governed-surface change may not reach `main`
- * through the merge queue without a human approval pinned to the bytes that
- * approval was given for.
+ * through the merge queue without a human approval record on the pull request
+ * it is landing from.
  *
  *   node scripts/check-governed-queue-guard.mjs               # in CI, from the event payload
  *   node scripts/check-governed-queue-guard.mjs --test <paths…>  # offline: "would these govern a PR?"
@@ -27,10 +27,10 @@
  *
  * ## ⭐ The split by EVENT — the single most load-bearing decision here
  *
- *   `merge_group`   → a governed diff with no AUTHORIZED approval pinned to the
- *                     pull request's CURRENT head is a REFUSAL. The queue build
- *                     is the last thing between a speculative merge and `main`,
- *                     and it is the path the incident took.
+ *   `merge_group`   → a governed diff whose pull request carries no AUTHORIZED
+ *                     APPROVED review is a REFUSAL. The queue build is the last
+ *                     thing between a speculative merge and `main`, and it is
+ *                     the path the incident took.
  *   `pull_request`  → the identical finding is an EARLY WARNING that exits 0.
  *
  * The pull-request leg must not redden, and not out of politeness. A governed
@@ -51,13 +51,40 @@
  *
  * ## What satisfies the queue leg
  *
- * An APPROVED review by an account in `GOVERNED_APPROVERS` whose `commit_id`
- * equals the pull request's CURRENT head sha. Stale approvals (any push after
- * the approval) never count; DISMISSED and superseded approvals never count.
- * The sha pin is what makes the approval an approval OF SOMETHING: it binds the
- * clearance to the exact bytes that were read, so a later push reopens this
- * refusal instead of riding the old approval through — the generalisation of
- * #6183, where the PR's own state changed under a review nobody had given.
+ * A latest-decisive APPROVED review by an account in `GOVERNED_APPROVERS`, on
+ * WHICHEVER commit it was left. DISMISSED and superseded approvals (a later
+ * CHANGES_REQUESTED by the same reviewer) never count; an APPROVED review by an
+ * account outside that set never counts; an empty or unreadable review list
+ * fails closed. The predicate is the EXISTENCE OF A HUMAN APPROVAL RECORD, and
+ * says nothing about which bytes it was given for.
+ *
+ * ⭐ That is a REVERSAL of this file's first predicate, which required the
+ * review's `commit_id` to equal the pull request's current head. The maintainer
+ * ruled it out in the live PM chat on 2026-09-04 — quoted verbatim and
+ * untranslated, because rewriting a ruling is rewriting the ruling:
+ *
+ *     「你的门禁有问题，只需要有人工批准记录就行，不需要卡最新的提交。」
+ *
+ * It was ruled while objectui PR #7473 was being approved over and over by an
+ * authorized approver as its head moved: every push after an approval turned it
+ * stale and reopened the refusal, so the gate spent scarce human attention
+ * re-approving bytes nobody disputed. ⛔ The sha pin is RETIRED, not softened —
+ * no predicate here reads `commit_id`, there is no stale bucket, and the
+ * pull-request head read that existed only to feed the pin is gone with it. An
+ * inert "stale" reading kept for old times' sake would be a field that can never
+ * be non-empty again, and a reader would take its presence as evidence that this
+ * gate still measures staleness.
+ *
+ * ⚠️ The self-test below still WRITES a `commit_id` into its fixtures, and that
+ * is deliberate rather than leftover: "the commit does not matter" is only
+ * measurable on cases where the commits actually differ, so grepping this file
+ * for `commit_id` finds the evidence, never a surviving comparison.
+ *
+ * ⚠️ The accepted cost, stated out loud rather than left to be discovered: a
+ * push after an approval is no longer re-reviewed by this gate, so an approved
+ * governed pull request can land carrying bytes its approver never read — the
+ * maintainer accepts that, and the DRAFT remedy below (a human merge, which
+ * does read the final bytes) is still the one this refusal prints first.
  *
  * The preferred remedy is NOT approval, and the refusal text says so first:
  * take the pull request out of the queue, convert it back to DRAFT, and leave
@@ -67,7 +94,9 @@
  * request, under any account. Every seat in this repository writes under a
  * shared GitHub identity, so `GOVERNED_APPROVERS` is a technical control that
  * is only as good as that normative rule — the same class as the seat-side
- * no-merge rule, and the reason the DRAFT remedy is listed first.
+ * no-merge rule, and the reason the DRAFT remedy is listed first. ⚠️ With the
+ * pin retired that rule carries MORE weight, not less: one approval now clears
+ * every later push on the same pull request.
  *
  * ## Ordering: the path test runs FIRST, and a clear diff costs zero API calls
  *
@@ -119,14 +148,14 @@
  * ## Exit codes — the refusal is impossible to read as clean
  *
  *   0  CLEAR    — nothing governed in the diff (no API call was made), or every
- *                 governed PR carries an authorized APPROVED review pinned to
- *                 its current head, or this is the `pull_request` early warning.
+ *                 governed PR carries an authorized APPROVED review, or this is
+ *                 the `pull_request` early warning.
  *   3  REFUSED  — governed, and at least one governed PR carries no authorized
- *                 APPROVED review pinned to its current head (none at all,
- *                 unauthorized account, stale sha, dismissed or superseded).
- *   4  REFUSED  — governed, and the PR head or review list could not be READ.
- *                 Distinct from 3 on purpose: "nobody approved" and "we could
- *                 not find out" are different facts and must be separable.
+ *                 APPROVED review (none at all, unauthorized account, dismissed
+ *                 or superseded).
+ *   4  REFUSED  — governed, and the review list could not be READ. Distinct
+ *                 from 3 on purpose: "nobody approved" and "we could not find
+ *                 out" are different facts and must be separable.
  *   5  REFUSED  — governed paths on a commit attributable to no pull request.
  *   1  CANNOT RUN — unusable event payload, unsupported event, unreadable git.
  *                 Still non-zero, still red: this file has no green that means
@@ -399,53 +428,58 @@ export function approvalVerdict(reviews) {
 
 /**
  * The `merge_group` predicate: does an account in `GOVERNED_APPROVERS` hold a
- * latest-decisive APPROVED review whose `commit_id` equals the pull request's
- * CURRENT head sha?
+ * latest-decisive APPROVED review on this pull request?
  *
- * Same latest-decisive-per-reviewer reduction as `approvalVerdict`, with two
- * more ways to not count, each reported separately so a queue log can be acted
- * on: `staleApprovers` (authorized, APPROVED, wrong sha — a push happened after
- * the approval) and `unauthorizedApprovers` (APPROVED, not in the set). An empty
- * or unparsable head sha pins NOTHING: fail closed, never "any sha".
+ * Same latest-decisive-per-reviewer reduction as `approvalVerdict`, plus the
+ * authorization filter — which, now that the sha pin is retired, is the ONLY
+ * thing separating the two legs' readings. `unauthorizedApprovers` (APPROVED,
+ * not in the set) is reported separately so a queue log can be acted on rather
+ * than merely obeyed.
  *
- * ⚠️ An outstanding CHANGES_REQUESTED from another reviewer does not flip the
+ * ⛔ There is deliberately no `commit_id` reading here and no `headSha`
+ * parameter. Maintainer ruling 2026-09-04, quoted in full in the header's "What
+ * satisfies the queue leg": a human approval record suffices and is never
+ * pinned to the latest commit. The former `staleApprovers` bucket is RETIRED
+ * rather than kept as an inert reading, because under this predicate every
+ * authorized latest-decisive approval lands in `approvers` — the bucket could
+ * never be non-empty again, and an always-empty field reads as evidence that
+ * staleness is still being measured.
+ *
+ * ⚠️ An outstanding CHANGES_REQUESTED from ANOTHER reviewer does not flip the
  * verdict, and that is restraint rather than an oversight — the predicate is the
- * authorized pinned approval, and widening a governance gate past its own rule
+ * authorized approval record, and widening a governance gate past its own rule
  * is how gates acquire policy nobody agreed to. It is printed loudly instead.
+ * (One from the SAME reviewer is a different thing entirely: it supersedes their
+ * own approval in the reduction above, so it does flip the verdict.)
  *
  * Pure; the array is expected in GitHub's chronological order, so last wins.
  */
-export function pinnedApprovalVerdict(reviews, headSha) {
+export function authorizedApprovalVerdict(reviews) {
   const decisive = new Set(['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']);
   const latest = new Map();
   for (const review of Array.isArray(reviews) ? reviews : []) {
     const state = String(review?.state ?? '').toUpperCase();
     if (!decisive.has(state)) continue;
     const login = review?.user?.login ?? `(unknown:${review?.id ?? latest.size})`;
-    latest.set(login, { state, commitId: String(review?.commit_id ?? '').toLowerCase() });
+    latest.set(login, state);
   }
-  const head = /^[0-9a-f]{7,40}$/.test(String(headSha ?? '').toLowerCase()) ? String(headSha).toLowerCase() : null;
   const approvers = [];
-  const staleApprovers = [];
   const unauthorizedApprovers = [];
-  for (const [login, review] of latest) {
-    if (review.state !== 'APPROVED') continue;
-    if (!GOVERNED_APPROVERS.includes(login)) unauthorizedApprovers.push(login);
-    else if (head !== null && review.commitId === head) approvers.push(login);
-    else staleApprovers.push({ login, commitId: review.commitId });
+  for (const [login, state] of latest) {
+    if (state !== 'APPROVED') continue;
+    if (GOVERNED_APPROVERS.includes(login)) approvers.push(login);
+    else unauthorizedApprovers.push(login);
   }
   return {
     state: approvers.length > 0 ? 'approved' : 'unapproved',
     approvers,
-    staleApprovers,
     unauthorizedApprovers,
-    changesRequestedBy: [...latest].filter(([, r]) => r.state === 'CHANGES_REQUESTED').map(([login]) => login),
+    changesRequestedBy: [...latest].filter(([, s]) => s === 'CHANGES_REQUESTED').map(([login]) => login),
     reviewsRead: Array.isArray(reviews) ? reviews.length : 0,
-    headSha: head ?? String(headSha ?? ''),
   };
 }
 
-/** The refusal an unreadable PR head or review list produces. Never a pass — see the header. */
+/** The refusal an unreadable review list produces. Never a pass — see the header. */
 export function unreadableApproval(reason) {
   return { state: 'unreadable', approvers: [], changesRequestedBy: [], reviewsRead: 0, reason: String(reason ?? 'unknown error') };
 }
@@ -496,7 +530,11 @@ export function renderGuardVerdict(verdict) {
       ...(s.files.length > 12 ? [`          … and ${s.files.length - 12} more`] : []),
     ]);
 
-  const apiLabel = verdict.event === EVENT_MERGE_GROUP ? 'API read(s) (PR head + reviews)' : 'review lookup(s)';
+  // Both legs read exactly one list now. The pull-request head read existed
+  // only to feed the retired sha pin, so a label still naming it would be a log
+  // line describing traffic that no longer happens — the shape a later reader
+  // takes as evidence the pin is still live.
+  const apiLabel = 'review lookup(s)';
   lines.push(
     `${CHECK_CONTEXT_NAME} — ${verdict.event} — ${verdict.entries.length} governed pull request(s), ` +
       `${verdict.unattributed.length} unattributed governed commit(s), ${verdict.apiCalls} ${apiLabel}.`,
@@ -512,31 +550,27 @@ export function renderGuardVerdict(verdict) {
     return lines.join('\n');
   }
 
-  // A pinned verdict (the queue leg) carries `headSha`; the early-warning leg's
-  // `approvalVerdict` shape does not.
-  const pinned = (approval) => approval.headSha !== undefined;
+  // The queue leg's verdict (`authorizedApprovalVerdict`) carries the
+  // authorization split; the early-warning leg's `approvalVerdict` does not.
+  // ⚠️ This replaces a `headSha !== undefined` test — a discriminator that went
+  // away with the field the retired sha pin used to supply.
+  const authorizedLeg = (approval) => Array.isArray(approval.unauthorizedApprovers);
   for (const entry of verdict.entries) {
     lines.push('', `  #${entry.pr} — governed:`);
     lines.push(...surfaceLines(entry));
     if (entry.approval.state === 'approved') {
       lines.push(
-        pinned(entry.approval)
-          ? `        ✅ authorized APPROVED review pinned to head ${entry.approval.headSha.slice(0, 12)}, by: ${entry.approval.approvers.join(', ')}`
+        authorizedLeg(entry.approval)
+          ? `        ✅ authorized APPROVED review present, by: ${entry.approval.approvers.join(', ')} — a human approval record, on whichever commit it was left`
           : `        ✅ APPROVED review present, by: ${entry.approval.approvers.join(', ')}`,
       );
     } else if (entry.approval.state === 'unreadable') {
       lines.push(`        ⛔ the review list could NOT be read — ${entry.approval.reason}`);
-    } else if (pinned(entry.approval)) {
+    } else if (authorizedLeg(entry.approval)) {
       lines.push(
-        `        ⛔ NO authorized APPROVED review pinned to head ${String(entry.approval.headSha).slice(0, 12)} ` +
+        `        ⛔ NO authorized APPROVED review on this pull request ` +
           `(${entry.approval.reviewsRead} review(s) read; authorized: ${GOVERNED_APPROVERS.join(', ')})`,
       );
-      for (const stale of entry.approval.staleApprovers ?? []) {
-        lines.push(
-          `        ⚠️  ${stale.login} approved at ${(stale.commitId || '(no commit_id)').slice(0, 12)} but the head is ` +
-            `${String(entry.approval.headSha).slice(0, 12)} — STALE, never counts: a push after the approval reopens this gate`,
-        );
-      }
       if ((entry.approval.unauthorizedApprovers ?? []).length > 0) {
         lines.push(
           `        ℹ️  APPROVED by account(s) outside GOVERNED_APPROVERS: ${entry.approval.unauthorizedApprovers.join(', ')} — never counts`,
@@ -548,8 +582,8 @@ export function renderGuardVerdict(verdict) {
     if (entry.approval.changesRequestedBy.length > 0) {
       lines.push(
         `        ⚠️  outstanding CHANGES_REQUESTED from: ${entry.approval.changesRequestedBy.join(', ')}`,
-        '            (informational — the predicate is an authorized APPROVED review pinned to the',
-        "             pull request's current head; this guard does not widen past its own rule)",
+        '            (informational — the predicate is an authorized APPROVED review record on this',
+        '             pull request; this guard does not widen past its own rule)',
       );
     }
   }
@@ -576,16 +610,18 @@ export function renderGuardVerdict(verdict) {
       '         and converting back to a draft did NOT dequeue it. Do not send that call on this PR.',
       '',
       '      If it IS enqueued anyway, the merge-queue run of this same check REFUSES it unless every',
-      '      governed pull request above carries an authorized approval pinned to its head by then.',
+      '      governed pull request above carries an authorized APPROVED review by then.',
     );
     return lines.join('\n');
   }
   if (verdict.conclusion === 'cleared') {
     lines.push(
       '  ✅  CLEARED — every governed pull request in this merge group carries an APPROVED review by an',
-      `      authorized approver (GOVERNED_APPROVERS: ${GOVERNED_APPROVERS.join(', ')}) whose commit_id equals that`,
-      "      pull request's CURRENT head sha (a stale, dismissed, superseded or unauthorized approval never",
-      '      counts). ⛔ An agent seat never submits an approving review on a governed-surface pull request,',
+      `      authorized approver (GOVERNED_APPROVERS: ${GOVERNED_APPROVERS.join(', ')}), regardless of which commit`,
+      '      that review was left on — maintainer ruling 2026-09-04: a human approval record suffices and is',
+      '      never pinned to the latest commit. A dismissed, superseded or unauthorized approval still never',
+      '      counts. ⚠️ Accepted cost, stated rather than hidden: a push after the approval is NOT re-reviewed',
+      '      here. ⛔ An agent seat never submits an approving review on a governed-surface pull request,',
       '      under any account — every seat here writes under a shared identity, so that rule is what this',
       '      technical control rests on.',
     );
@@ -608,9 +644,9 @@ export function renderGuardVerdict(verdict) {
     );
   } else {
     lines.push(
-      '      At least one governed pull request above carries NO authorized APPROVED review pinned to its',
-      '      current head, and the merge queue would have been the entire review — the shape of objectui#6183,',
-      '      which left draft through a hidden tool side effect and landed as 5b3290fd5 unreviewed.',
+      '      At least one governed pull request above carries NO authorized APPROVED review at all, and the',
+      '      merge queue would have been the entire review — the shape of objectui#6183, which left draft',
+      '      through a hidden tool side effect and landed as 5b3290fd5 unreviewed.',
     );
   }
   lines.push(
@@ -620,9 +656,9 @@ export function renderGuardVerdict(verdict) {
     '           auto-merge alone does NOT dequeue it), and leave the merge to the maintainer. A human merge',
     '           IS the review record for a governed surface; that is the regime, not a workaround of it.',
     `        2. Or: obtain an APPROVED review by an authorized approver (GOVERNED_APPROVERS: ${GOVERNED_APPROVERS.join(', ')})`,
-    "           pinned to each governed pull request's CURRENT head sha, then re-queue (any push after the",
-    '           approval goes stale and reopens this refusal). ⛔ An agent seat never submits that approval,',
-    '           under any account.',
+    '           on each governed pull request, then re-queue. ⭐ It does NOT have to be re-given after a later',
+    '           push: maintainer ruling 2026-09-04 — a human approval record suffices and is never pinned to',
+    '           the latest commit. ⛔ An agent seat never submits that approval, under any account.',
     '      Neither of those is "edit this check".',
     '',
     '      Verify any file list before acting: node scripts/check-governed-queue-guard.mjs --test <paths…>',
@@ -637,8 +673,13 @@ export function renderGuardVerdict(verdict) {
  * nothing governed ⇒ verdict, before `fetchReviews` exists as a possibility. The
  * self-test passes a `fetchReviews` that THROWS, so "a clear diff costs zero API
  * calls" is measured rather than asserted.
+ *
+ * ⛔ There is no `fetchPullHead` parameter any more. The queue leg needed the
+ * pull request's current head sha only to pin an approval against it, and the
+ * 2026-09-04 ruling retired that pin; a read whose result feeds no verdict is a
+ * cost and a failure mode bought for nothing.
  */
-export async function runGuard({ event, rows, fetchReviews, fetchPullHead }) {
+export async function runGuard({ event, rows, fetchReviews }) {
   const { governed, unattributed } = decomposeGovernedWork(rows);
   if (governed.length === 0 && unattributed.length === 0) {
     return guardVerdict({ event, governed, unattributed, apiCalls: 0 });
@@ -647,20 +688,13 @@ export async function runGuard({ event, rows, fetchReviews, fetchPullHead }) {
   let apiCalls = 0;
   for (const entry of governed) {
     try {
-      if (event === EVENT_MERGE_GROUP) {
-        // The queue leg judges the pinned predicate, so it needs the pull
-        // request's CURRENT head sha — the merge_group payload carries no
-        // per-PR heads. Two reads, head first: an unreadable head refuses
-        // without ever constructing the review request.
-        apiCalls += 1;
-        const headSha = await fetchPullHead(entry.pr);
-        apiCalls += 1;
-        approvals.set(entry.pr, pinnedApprovalVerdict(await fetchReviews(entry.pr), headSha));
-      } else {
-        // The early-warning leg never reddens, so it never needs the head.
-        apiCalls += 1;
-        approvals.set(entry.pr, approvalVerdict(await fetchReviews(entry.pr)));
-      }
+      // Both legs read the SAME one list; they differ only in the predicate
+      // applied to it — the queue leg requires an authorized approver, the
+      // early warning takes any. One read per governed pull request, so an
+      // unreadable list is the single API failure mode either leg can have.
+      apiCalls += 1;
+      const reviews = await fetchReviews(entry.pr);
+      approvals.set(entry.pr, event === EVENT_MERGE_GROUP ? authorizedApprovalVerdict(reviews) : approvalVerdict(reviews));
     } catch (error) {
       approvals.set(entry.pr, unreadableApproval(String(error?.message ?? error).split('\n')[0]));
     }
@@ -711,7 +745,7 @@ export function enumerateRows(root, baseSha, headSha, fallbackPull = null) {
   }));
 }
 
-// -- the GitHub reads (PR head + reviews — the only API surface) -------------
+// -- the GitHub read (the review list — the only API surface) ---------------
 
 function apiHeaders(token) {
   return {
@@ -742,25 +776,10 @@ export function makeReviewReader({ apiUrl, slug, token, fetchImpl = fetch, perPa
   };
 }
 
-/**
- * The pull request's CURRENT head sha — what the predicate pins a review's
- * `commit_id` against. Same channel as the review read, under the workflow's
- * `pull-requests: read` scope and nothing wider. Throws on any non-2xx and on a
- * body with no parseable `head.sha`: a head this guard cannot read pins NOTHING,
- * and the caller turns the throw into a REFUSAL (exit 4), never a pass.
- */
-export function makePullHeadReader({ apiUrl, slug, token, fetchImpl = fetch }) {
-  return async function fetchPullHead(pull) {
-    const res = await fetchImpl(`${apiUrl}/repos/${slug}/pulls/${pull}`, { headers: apiHeaders(token) });
-    if (!res.ok) throw new Error(`GET /repos/${slug}/pulls/${pull} answered HTTP ${res.status}`);
-    const body = await res.json();
-    const sha = String(body?.head?.sha ?? '');
-    if (!/^[0-9a-f]{7,40}$/i.test(sha)) {
-      throw new Error(`GET /repos/${slug}/pulls/${pull} answered no parseable head.sha — cannot pin approvals`);
-    }
-    return sha;
-  };
-}
+// ⛔ There is no pull-request HEAD reader here any more, and its absence is a
+// decision rather than an omission: it existed only to supply the sha an
+// approval was pinned against, and the 2026-09-04 ruling retired that pin. The
+// review list is now the whole API surface of this guard.
 
 // -- the seat-side `--test` predicate ---------------------------------------
 
@@ -785,8 +804,9 @@ export function renderTestVerdict(verdict) {
     '   One governed path governs the WHOLE pull request — proportion is not a question.',
     '   ⛔ Do not flip it ready, enqueue it, or arm auto-merge. Park it as a DRAFT and leave the merge',
     '      to the maintainer; a human merge IS the review record for a governed surface.',
-    `   The merge-queue run of "${CHECK_CONTEXT_NAME}" refuses this diff unless an authorized approval`,
-    `   (GOVERNED_APPROVERS: ${GOVERNED_APPROVERS.join(', ')}) is pinned to the pull request's current head.`,
+    `   The merge-queue run of "${CHECK_CONTEXT_NAME}" refuses this diff unless an APPROVED review by an`,
+    `   authorized approver (GOVERNED_APPROVERS: ${GOVERNED_APPROVERS.join(', ')}) is on the pull request — on`,
+    '   whichever commit it was left (maintainer ruling 2026-09-04).',
   );
   return lines.join('\n');
 }
@@ -860,7 +880,6 @@ async function main() {
     event: context.event,
     rows,
     fetchReviews: makeReviewReader(reader),
-    fetchPullHead: makePullHeadReader(reader),
   });
   const report = [`${context.label} — ${rows.length} commit(s) in range`, renderGuardVerdict(verdict)].join('\n');
   console.log(report);
@@ -928,7 +947,9 @@ export async function selfTest() {
   const HEAD = 'f'.repeat(40);
   const OLD = '0'.repeat(40);
   const approvedAt = (login, sha) => ({ state: 'APPROVED', user: { login }, commit_id: sha });
-  const pinnedPass = (login = GOVERNED_APPROVERS[0]) => pinnedApprovalVerdict([approvedAt(login, HEAD)], HEAD);
+  // HEAD and OLD are both KEPT although no sha is compared any more: "the
+  // commit does not matter" is only measured by cases where the commit differs.
+  const authorizedPass = (login = GOVERNED_APPROVERS[0]) => authorizedApprovalVerdict([approvedAt(login, HEAD)]);
   const run = (event, rows, approvals = new Map()) => {
     const { governed, unattributed } = decomposeGovernedWork(rows);
     return guardVerdict({ event, governed, unattributed, approvals, apiCalls: governed.length });
@@ -1032,34 +1053,51 @@ export async function selfTest() {
   );
   assert('the-state-comparison-is-case-insensitive-the-API-has-shipped-both', approvalVerdict([{ state: 'approved', user: { login: 'a' } }]).state === 'approved');
 
-  // -- the pinned predicate (the queue leg's) --------------------------------
+  // -- the authorized predicate (the queue leg's) ----------------------------
+  //
+  // ⭐ Maintainer ruling 2026-09-04, pinned in BOTH directions: an authorized
+  // approval counts on whichever commit it was left, and every way an approval
+  // never counted still never counts. The first three cases are the ones that
+  // used to assert the opposite; they are flips, not additions.
   assert('the-authorized-set-is-the-two-carried-accounts', GOVERNED_APPROVERS.join() === 'os-zhuang,hotlong');
   for (const login of GOVERNED_APPROVERS) {
-    assert(`an-authorized-approval-pinned-to-the-current-head-passes: ${login}`, pinnedApprovalVerdict([approvedAt(login, HEAD)], HEAD).state === 'approved');
+    assert(`an-authorized-approval-counts: ${login}`, authorizedApprovalVerdict([approvedAt(login, HEAD)]).state === 'approved');
   }
-  const stale = pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], OLD)], HEAD);
-  assert('a-STALE-authorized-approval-never-counts', stale.state === 'unapproved' && stale.staleApprovers[0]?.login === GOVERNED_APPROVERS[0]);
-  assert('an-approval-with-no-commit_id-is-stale-never-pinned', pinnedApprovalVerdict(approved(GOVERNED_APPROVERS[0]), HEAD).state === 'unapproved');
-  const outsider = pinnedApprovalVerdict([approvedAt('not-authorized', HEAD)], HEAD);
-  assert('an-unauthorized-approval-never-counts-even-pinned-to-head', outsider.state === 'unapproved' && outsider.unauthorizedApprovers.join() === 'not-authorized');
+  const older = authorizedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], OLD)]);
+  assert(
+    'an-authorized-approval-left-on-an-OLDER-commit-COUNTS-the-2026-09-04-ruling',
+    older.state === 'approved' && older.approvers.join() === GOVERNED_APPROVERS[0],
+    JSON.stringify(older),
+  );
+  assert(
+    'an-authorized-approval-with-NO-commit_id-counts-a-human-record-is-not-a-sha',
+    authorizedApprovalVerdict(approved(GOVERNED_APPROVERS[0])).state === 'approved',
+  );
+  const outsider = authorizedApprovalVerdict([approvedAt('not-authorized', HEAD)]);
+  assert('an-unauthorized-approval-never-counts', outsider.state === 'unapproved' && outsider.unauthorizedApprovers.join() === 'not-authorized');
   assert(
     'an-authorized-approval-later-superseded-by-CHANGES_REQUESTED-never-counts',
-    pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], HEAD), { state: 'CHANGES_REQUESTED', user: { login: GOVERNED_APPROVERS[0] }, commit_id: HEAD }], HEAD).state === 'unapproved',
+    authorizedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], HEAD), { state: 'CHANGES_REQUESTED', user: { login: GOVERNED_APPROVERS[0] }, commit_id: HEAD }]).state === 'unapproved',
   );
   assert(
     'a-DISMISSED-authorized-approval-never-counts',
-    pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[1], HEAD), { state: 'DISMISSED', user: { login: GOVERNED_APPROVERS[1] }, commit_id: HEAD }], HEAD).state === 'unapproved',
+    authorizedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[1], HEAD), { state: 'DISMISSED', user: { login: GOVERNED_APPROVERS[1] }, commit_id: HEAD }]).state === 'unapproved',
   );
-  assert('no-reviews-at-all-is-unapproved-under-the-pinned-predicate-too', pinnedApprovalVerdict([], HEAD).state === 'unapproved');
+  assert('no-reviews-at-all-is-unapproved-under-the-authorized-predicate-too', authorizedApprovalVerdict([]).state === 'unapproved');
   assert(
-    'an-unauthorized-approval-does-not-mask-an-authorized-pinned-one',
-    pinnedApprovalVerdict([approvedAt('not-authorized', HEAD), approvedAt(GOVERNED_APPROVERS[1], HEAD)], HEAD).approvers.join() === GOVERNED_APPROVERS[1],
+    'an-unauthorized-approval-does-not-mask-an-authorized-one',
+    authorizedApprovalVerdict([approvedAt('not-authorized', HEAD), approvedAt(GOVERNED_APPROVERS[1], HEAD)]).approvers.join() === GOVERNED_APPROVERS[1],
   );
-  assert('the-sha-comparison-is-case-insensitive', pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], HEAD.toUpperCase())], HEAD).state === 'approved');
   assert(
-    'an-unparsable-head-sha-pins-NOTHING-fail-closed',
-    pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], '')], '').state === 'unapproved' &&
-      pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], HEAD)], undefined).state === 'unapproved',
+    'an-authorized-approval-on-an-UNPARSABLE-commit_id-counts-too-nothing-reads-a-sha-any-more',
+    authorizedApprovalVerdict([{ state: 'APPROVED', user: { login: GOVERNED_APPROVERS[0] }, commit_id: 'not-a-sha' }]).state === 'approved',
+  );
+  assert(
+    'only-DECISIVE-states-carry-a-decision-COMMENTED-and-PENDING-are-not-approvals',
+    authorizedApprovalVerdict([
+      { state: 'COMMENTED', user: { login: GOVERNED_APPROVERS[0] } },
+      { state: 'PENDING', user: { login: GOVERNED_APPROVERS[1] } },
+    ]).state === 'unapproved',
   );
 
   // -- decomposition, and the multi-PR group trap ----------------------------
@@ -1079,13 +1117,13 @@ export async function selfTest() {
   const clearV = run('merge_group', clearRows);
   assert('a-clear-merge-group-is-CLEAR-and-exits-0', clearV.conclusion === 'clear' && clearV.exitCode === EXIT_CLEAR);
   assert('and-it-made-zero-review-lookups', clearV.apiCalls === 0);
-  const refusedV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, pinnedApprovalVerdict([], HEAD)]]));
+  const refusedV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, authorizedApprovalVerdict([])]]));
   assert('an-unapproved-governed-merge-group-is-REFUSED-with-code-3', refusedV.conclusion === 'refused' && refusedV.exitCode === EXIT_REFUSED_UNAPPROVED);
-  const clearedV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, pinnedPass()]]));
-  assert('an-authorized-pinned-approval-CLEARS-the-merge-group-and-exits-0', clearedV.conclusion === 'cleared' && clearedV.exitCode === EXIT_CLEAR);
-  const staleV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, pinnedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], OLD)], HEAD)]]));
-  assert('a-stale-sha-approval-REFUSES-the-merge-group-with-code-3', staleV.conclusion === 'refused' && staleV.exitCode === EXIT_REFUSED_UNAPPROVED);
-  const outsiderV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, pinnedApprovalVerdict([approvedAt('not-authorized', HEAD)], HEAD)]]));
+  const clearedV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, authorizedPass()]]));
+  assert('an-authorized-approval-CLEARS-the-merge-group-and-exits-0', clearedV.conclusion === 'cleared' && clearedV.exitCode === EXIT_CLEAR);
+  const olderV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, authorizedApprovalVerdict([approvedAt(GOVERNED_APPROVERS[0], OLD)])]]));
+  assert('an-approval-left-on-an-OLDER-commit-CLEARS-the-merge-group-too', olderV.conclusion === 'cleared' && olderV.exitCode === EXIT_CLEAR);
+  const outsiderV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, authorizedApprovalVerdict([approvedAt('not-authorized', HEAD)])]]));
   assert('an-unauthorized-account-approval-REFUSES-the-merge-group-with-code-3', outsiderV.conclusion === 'refused' && outsiderV.exitCode === EXIT_REFUSED_UNAPPROVED);
   const unreadableV = run('merge_group', [row(6183, ['AGENTS.md'])], new Map([[6183, unreadableApproval('HTTP 502')]]));
   assert('an-unreadable-review-list-is-a-REFUSAL-not-a-pass', unreadableV.conclusion === 'refused' && unreadableV.exitCode === EXIT_REFUSED_UNREADABLE);
@@ -1096,7 +1134,7 @@ export async function selfTest() {
   const partial = run(
     'merge_group',
     [row(11, ['AGENTS.md']), row(12, ['skills/objectui/SKILL.md'], 'b'.repeat(40))],
-    new Map([[11, pinnedPass()], [12, pinnedApprovalVerdict([], HEAD)]]),
+    new Map([[11, authorizedPass()], [12, authorizedApprovalVerdict([])]]),
   );
   assert('one-approved-pr-does-NOT-carry-an-unapproved-sibling-through-the-same-group', partial.exitCode === EXIT_REFUSED_UNAPPROVED);
 
@@ -1114,7 +1152,7 @@ export async function selfTest() {
   // -- the replay fixtures ---------------------------------------------------
   for (const replay of REPLAYS) {
     const rows = [row(replay.pr, replay.files, 'e'.repeat(40), replay.subject)];
-    const queued = run('merge_group', rows, new Map([[replay.pr, pinnedApprovalVerdict([], HEAD)]]));
+    const queued = run('merge_group', rows, new Map([[replay.pr, authorizedApprovalVerdict([])]]));
     assert(`replay-REFUSES-at-the-queue: ${replay.name}`, queued.exitCode === EXIT_REFUSED_UNAPPROVED, JSON.stringify(queued.conclusion));
     const early = run('pull_request', rows, new Map([[replay.pr, approvalVerdict([])]]));
     assert(`replay-only-WARNS-on-the-pr: ${replay.name}`, early.conclusion === 'warned' && early.exitCode === EXIT_CLEAR);
@@ -1138,60 +1176,54 @@ export async function selfTest() {
   let orderedClear = null;
   let orderedThrow = null;
   try {
-    orderedClear = await runGuard({ event: 'merge_group', rows: clearRows, fetchReviews: explode, fetchPullHead: explode });
+    orderedClear = await runGuard({ event: 'merge_group', rows: clearRows, fetchReviews: explode });
   } catch (error) {
     orderedThrow = String(error?.message ?? error);
   }
   assert(
-    'a-clear-diff-NEVER-constructs-a-head-or-review-request',
+    'a-clear-diff-NEVER-constructs-a-review-request',
     apiTouched === 0 && orderedThrow === null && orderedClear?.exitCode === EXIT_CLEAR && orderedClear?.conclusion === 'clear',
     `apiTouched=${apiTouched} threw=${orderedThrow ?? 'no'}`,
   );
-  // …and the other half: a governed diff DOES reach both reads — head first —
-  // so the case above proves an ordering, not a dead code path.
+  // …and the other half: a governed diff DOES reach the review read, so the
+  // case above proves an ordering rather than a dead code path. The review list
+  // it gets carries an approval left on an OLDER commit — the ruled direction,
+  // measured end to end rather than only on the pure predicate.
   const trace = [];
   const traced = await runGuard({
     event: 'merge_group',
     rows: [row(1, ['AGENTS.md'])],
-    fetchPullHead: () => {
-      trace.push('head');
-      return HEAD;
-    },
     fetchReviews: () => {
       trace.push('reviews');
-      return [approvedAt(GOVERNED_APPROVERS[0], HEAD)];
+      return [approvedAt(GOVERNED_APPROVERS[0], OLD)];
     },
   });
-  assert('a-governed-queue-diff-reads-head-THEN-reviews', trace.join() === 'head,reviews', trace.join());
+  assert('a-governed-queue-diff-reads-the-review-list-and-nothing-else', trace.join() === 'reviews', trace.join());
   assert(
-    'the-pinned-predicate-is-wired-end-to-end-an-authorized-pinned-approval-CLEARS',
-    traced.conclusion === 'cleared' && traced.exitCode === EXIT_CLEAR && traced.apiCalls === 2,
+    'the-authorized-predicate-is-wired-end-to-end-an-approval-on-an-OLDER-commit-CLEARS',
+    traced.conclusion === 'cleared' && traced.exitCode === EXIT_CLEAR && traced.apiCalls === 1,
     JSON.stringify({ conclusion: traced.conclusion, apiCalls: traced.apiCalls }),
   );
-  const tracedStale = await runGuard({
+  const tracedOutsider = await runGuard({
     event: 'merge_group',
     rows: [row(1, ['AGENTS.md'])],
-    fetchPullHead: () => HEAD,
-    fetchReviews: () => [approvedAt(GOVERNED_APPROVERS[0], OLD)],
+    fetchReviews: () => [approvedAt('not-authorized', HEAD)],
   });
-  assert('the-pinned-predicate-is-wired-end-to-end-a-stale-approval-REFUSES', tracedStale.exitCode === EXIT_REFUSED_UNAPPROVED);
-  // The early-warning leg makes NO head read: it never reddens, so the stricter
-  // question would be traffic bought for nothing.
-  let prHeadReads = 0;
+  assert('the-authorized-predicate-is-wired-end-to-end-an-unauthorized-approval-still-REFUSES', tracedOutsider.exitCode === EXIT_REFUSED_UNAPPROVED);
+  // The two legs read the same list and differ only in the predicate: the queue
+  // leg requires an authorized approver, the early warning takes any. Asserting
+  // both halves in one case is what makes "the legs still differ" measured.
   const prLeg = await runGuard({
     event: 'pull_request',
     rows: [row(1, ['AGENTS.md'])],
-    fetchPullHead: () => {
-      prHeadReads += 1;
-      return HEAD;
-    },
     fetchReviews: () => approved('anyone'),
   });
   assert(
-    'the-pr-leg-makes-NO-head-read-and-keeps-the-any-approver-reading',
-    prHeadReads === 0 && prLeg.conclusion === 'warned' && prLeg.apiCalls === 1 &&
+    'the-pr-leg-keeps-the-ANY-approver-reading-while-the-queue-leg-requires-an-authorized-one',
+    prLeg.conclusion === 'warned' && prLeg.apiCalls === 1 &&
       renderGuardVerdict(prLeg).includes('✅ APPROVED review present, by: anyone') &&
-      renderGuardVerdict(prLeg).includes('1 review lookup(s).'),
+      renderGuardVerdict(prLeg).includes('1 review lookup(s).') &&
+      authorizedApprovalVerdict(approved('anyone')).state === 'unapproved',
     renderGuardVerdict(prLeg),
   );
   // A throwing reader on a GOVERNED diff becomes a refusal, never a pass — and
@@ -1204,7 +1236,6 @@ export async function selfTest() {
     thrown = await runGuard({
       event: 'merge_group',
       rows: [row(1, ['AGENTS.md'])],
-      fetchPullHead: () => HEAD,
       fetchReviews: () => {
         throw new Error('HTTP 403');
       },
@@ -1217,24 +1248,25 @@ export async function selfTest() {
     thrownEscaped === null && thrown?.exitCode === EXIT_REFUSED_UNREADABLE && /403/.test(renderGuardVerdict(thrown)),
     thrownEscaped ? `escaped: ${thrownEscaped}` : renderGuardVerdict(thrown),
   );
-  // An unreadable PR HEAD is its own refusal, and the review request is never
-  // even constructed after it — fail closed, in order.
-  let reviewsAfterHeadFailure = 0;
-  const headFailed = await runGuard({
+  // ⭐ The retired head read, measured rather than assumed. This case replaces
+  // the one that pinned "an unreadable PR head refuses with exit 4 before the
+  // review request is built": that ordering existed only because the sha pin
+  // needed a head, and a mechanism removed by a ruling must be checked ABSENT,
+  // not left to be inferred from the code reading clean. One governed pull
+  // request now costs exactly ONE lookup, and it is the review list.
+  let readsPerPull = 0;
+  const oneRead = await runGuard({
     event: 'merge_group',
     rows: [row(1, ['AGENTS.md'])],
-    fetchPullHead: () => {
-      throw new Error('HTTP 500');
-    },
     fetchReviews: () => {
-      reviewsAfterHeadFailure += 1;
-      return [];
+      readsPerPull += 1;
+      return [approvedAt(GOVERNED_APPROVERS[0], OLD)];
     },
   });
   assert(
-    'an-unreadable-pr-head-REFUSES-with-exit-4-and-never-reads-reviews',
-    headFailed.exitCode === EXIT_REFUSED_UNREADABLE && reviewsAfterHeadFailure === 0 && /500/.test(renderGuardVerdict(headFailed)),
-    `reviewsAfterHeadFailure=${reviewsAfterHeadFailure}`,
+    'the-queue-leg-costs-exactly-ONE-review-lookup-per-governed-pr-the-head-read-is-retired',
+    readsPerPull === 1 && oneRead.apiCalls === 1 && oneRead.conclusion === 'cleared',
+    `readsPerPull=${readsPerPull} apiCalls=${oneRead.apiCalls} conclusion=${oneRead.conclusion}`,
   );
 
   // -- the words a reader acts on --------------------------------------------
@@ -1266,11 +1298,11 @@ export async function selfTest() {
     refusalText,
   );
   assert('the-refusal-remedy-states-the-agent-no-approve-prohibition', /An agent seat never submits that approval/.test(refusalText), refusalText);
-  const staleText = renderGuardVerdict(staleV);
+  const olderText = renderGuardVerdict(olderV);
   assert(
-    'a-stale-refusal-names-both-shas-so-a-reader-can-see-the-push-that-unpinned-it',
-    staleText.includes(OLD.slice(0, 12)) && staleText.includes(HEAD.slice(0, 12)) && /STALE, never counts/.test(staleText),
-    staleText,
+    'an-older-commit-approval-renders-as-CLEARED-and-nothing-in-the-output-calls-it-stale',
+    /CLEARED/.test(olderText) && olderText.includes(GOVERNED_APPROVERS[0]) && !/STALE/i.test(olderText) && !olderText.includes(OLD.slice(0, 12)),
+    olderText,
   );
   assert(
     'an-unauthorized-refusal-says-the-approval-never-counts',
@@ -1279,11 +1311,15 @@ export async function selfTest() {
   );
   const clearedText = renderGuardVerdict(clearedV);
   assert(
-    'the-cleared-summary-states-the-pinned-predicate-and-derives-its-accounts-from-the-constant',
-    /commit_id equals/.test(clearedText) && GOVERNED_APPROVERS.every((login) => clearedText.includes(login)),
+    'the-cleared-summary-states-the-ruled-predicate-and-derives-its-accounts-from-the-constant',
+    /regardless of which commit/.test(clearedText) && /2026-09-04/.test(clearedText) && GOVERNED_APPROVERS.every((login) => clearedText.includes(login)),
     clearedText,
   );
-  assert('a-pinned-pass-renders-the-head-it-is-pinned-to', clearedText.includes(`pinned to head ${HEAD.slice(0, 12)}`), clearedText);
+  assert(
+    'an-authorized-pass-names-the-approver-and-pins-NO-head-sha',
+    clearedText.includes(`by: ${GOVERNED_APPROVERS[0]}`) && !clearedText.includes(HEAD.slice(0, 12)),
+    clearedText,
+  );
 
   // -- the seat-side `--test` predicate --------------------------------------
   const governedTest = testVerdict(['AGENTS.md', 'packages/core/src/index.ts']);
@@ -1347,11 +1383,13 @@ export async function selfTest() {
   console.log(
     `OK check-governed-queue-guard self-test: ${checked} cases pass ` +
       '(the five ruled surfaces pinned in both directions including the widenings NOT taken, the queue/PR ' +
-      'event split, latest-decisive approval reduction, the authorized-approval-pinned-to-head predicate on ' +
-      'the queue leg — pass, stale, unauthorized, dismissed/superseded, none — with the PR leg head-read-free, ' +
-      'multi-PR group decomposition, four replayed governed shapes, the zero-API ordering guarantee measured ' +
-      'with throwing spies, the head-then-reviews read order with both unreadable refusals, the seat-side ' +
-      '--test predicate, and the workflow + required-context wiring pins).',
+      'event split, latest-decisive approval reduction, the authorized-approval-record predicate on the queue ' +
+      'leg per the 2026-09-04 ruling — counts on an OLDER commit, on no commit_id and on an unparsable one; ' +
+      'never for an unauthorized, dismissed, superseded, non-decisive or absent review — with the PR leg ' +
+      'still taking any approver, multi-PR group decomposition, four replayed governed shapes, the zero-API ' +
+      'ordering guarantee measured with throwing spies, the retired head read measured ABSENT at one lookup ' +
+      'per governed PR, the unreadable-review-list refusal, the seat-side --test predicate, and the workflow ' +
+      '+ required-context wiring pins).',
   );
   return 0;
 }

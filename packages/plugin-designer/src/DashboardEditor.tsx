@@ -464,7 +464,27 @@ function DashboardPreview({ schema }: { schema: DashboardComponentSchema }) {
   const widgets = schema.widgets || [];
   return (
     <div data-testid="dashboard-preview" className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <h4 className="mb-3 text-sm font-semibold text-gray-700">{schema.title || t('appDesigner.dashboardPreview')}</h4>
+      {/*
+        `schema.label` is the ONLY dashboard-name source here. A legacy root
+        `title` used to be read instead; that arm RETIRED under ADR-0049
+        (objectui#7509, maintainer ruling 2026-09-04) together with the four
+        sibling root arms in `DashboardView`, `DashboardRenderer`,
+        `DashboardGridLayout` and `DashboardDesignPage`, so the designer and the
+        console can no longer disagree about one stored document's header.
+        @objectstack/spec's `DashboardSchema` refuses root `title` BY NAME
+        (`unrecognized_keys(title)`) and requires `label`.
+
+        Resolved with `pickLocalized` because `label` is the spec's `I18nLabel`
+        (objectui#4580) — the same resolver `resolveWidgetTitle` above uses, so
+        this component keeps ONE locale channel. A miss yields `''`, which is
+        falsy, so the generic heading still backstops it.
+
+        ⛔ NOT the widget arm: `widget.title` is `DashboardWidget.title`, a
+        different DECLARED key, read through `resolveWidgetTitle` and untouched.
+        Root and widget arms are told apart by RECEIVER — this receiver is the
+        dashboard ROOT.
+      */}
+      <h4 className="mb-3 text-sm font-semibold text-gray-700">{pickLocalized(schema.label, language) || t('appDesigner.dashboardPreview')}</h4>
       {widgets.length === 0 ? (
         <div className="text-xs text-gray-400">{t('appDesigner.noWidgetsPreview')}</div>
       ) : (

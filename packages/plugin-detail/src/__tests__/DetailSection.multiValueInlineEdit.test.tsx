@@ -40,7 +40,9 @@ const objectSchema = {
     tags: {
       type: 'lookup',
       reference: 'tags',
-      display_field: 'name',
+      // objectui#7155 — the spec spelling; `display_field` is no longer
+      // enriched onto the inline-edit field meta.
+      displayField: 'name',
       multiple: true,
     },
     priority: {

@@ -29,16 +29,26 @@ full boundary tables -- the evaluated fields, the raw ones, `visible` over
 -- are in [`rules/protocol.md`](../rules/protocol.md), which is the anchor for
 this rule. The four cases that decide most schemas:
 
+<!-- os:check -->
 ```jsonc
 // Evaluated, then dropped -- renders an empty card
 { "type": "card", "props": { "title": "${data.customer.name}" } }
+```
 
+<!-- os:check -->
+```jsonc
 // `card` declares `title`, so on the node it is evaluated AND read
 { "type": "card", "title": "${data.customer.name}" }
+```
 
+<!-- os:check -->
+```jsonc
 // `text` does not declare `value` -- renders the literal "${data.customer.name}"
 { "type": "text", "value": "${data.customer.name}" }
+```
 
+<!-- os:check -->
+```jsonc
 // `content` is evaluated on every component type
 { "type": "text", "content": "${data.customer.name}" }
 ```
@@ -167,10 +177,19 @@ name, so calls are case-insensitive.
 
 Each condition field has two forms — a shorthand and an `On` suffix:
 
+<!-- os:check -->
 ```jsonc
-{ "hidden": true }                              // static boolean
-{ "hidden": "${data.role !== 'admin'}" }        // template expression
-{ "hiddenOn": "data.role !== 'admin'" }         // raw expression (no ${} needed)
+{ "hidden": true } // static boolean
+```
+
+<!-- os:check -->
+```jsonc
+{ "hidden": "${data.role !== 'admin'}" } // template expression
+```
+
+<!-- os:check -->
+```jsonc
+{ "hiddenOn": "data.role !== 'admin'" } // raw expression (no ${} needed)
 ```
 
 The `On` variants accept raw expressions without `${}` wrapping — the entire string is the expression.
@@ -203,8 +222,13 @@ The `On` variants accept raw expressions without `${}` wrapping — the entire s
 
 ### Disabled patterns
 
+<!-- os:check -->
 ```json
 { "disabled": "${form.isSubmitting}" }
+```
+
+<!-- os:check -->
+```json
 { "disabledOn": "!data.canPerformAction || data.isLocked" }
 ```
 
@@ -325,6 +349,7 @@ what reaches the screen.
 `list` is the component authors reach for first, and it is **data-as-nodes**:
 the array it renders *is* the node list. It never reads `children`.
 
+<!-- os:check -->
 ```jsonc
 // ❌ Renders two EMPTY <li>. `children` is not a template — `list` never reads it,
 //    and `${item.name}` would render literally even if it did.
@@ -352,6 +377,7 @@ descriptor:
 section exists to close: binding `list` to ordinary records produces one empty
 `<li>` per record — the right number of bullets, no text in any of them.
 
+<!-- os:check -->
 ```jsonc
 // ✅ Authored items — `title` and `ordered` are read off the node
 {
@@ -362,6 +388,7 @@ section exists to close: binding `list` to ordinary records produces one empty
 }
 ```
 
+<!-- os:check -->
 ```jsonc
 // ✅ Bound data, already node-shaped: dataSource = { rows: [{ "content": "Ada" }, { "content": "Linus" }] }
 { "type": "list", "bind": "rows" }
@@ -371,6 +398,7 @@ Only `body` entries go back through `SchemaRenderer`, so they are the one place
 inside a list where expressions are evaluated at all — against the host scope,
 never against a current element:
 
+<!-- os:check -->
 ```jsonc
 // ✅ `${data.*}` works inside `body`; there is still no `${item.*}`
 {
@@ -388,6 +416,7 @@ never against a current element:
   accessors (`accessorKey`). Cell values are plain property lookups — never
   expressions — and `table` does not read `bind`.
 
+<!-- os:check -->
 ```jsonc
 // ✅ `table`: inline rows + column accessors, no per-row scope
 {
@@ -444,13 +473,20 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 
 **Cause:** The field isn't expression-evaluated. Use `content`.
 
+<!-- os:check -->
 ```jsonc
 // ❌ Won't evaluate — `value` is read but never templated
 { "type": "text", "value": "${data.total}" }
+```
 
+<!-- os:check -->
+```jsonc
 // ❌ Worse — evaluated inside the envelope, then discarded: renders nothing
 { "type": "text", "props": { "value": "${data.total}" } }
+```
 
+<!-- os:check -->
+```jsonc
 // ✅ Evaluated and read
 { "type": "text", "content": "Total: ${data.total}" }
 ```
@@ -460,10 +496,14 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 **Cause 1:** `visible` is also set and takes priority.
 **Cause 2:** Expression returns a non-boolean truthy value — use explicit comparison.
 
+<!-- os:check -->
 ```jsonc
 // ❌ Truthy but not boolean
 { "hidden": "${data.count}" }
+```
 
+<!-- os:check -->
+```jsonc
 // ✅ Explicit boolean
 { "hidden": "${data.count > 0}" }
 ```
@@ -476,23 +516,34 @@ is **not** blocked — measured through the schema path, it returns a real
 `Date`. Prefer a formula function anyway: a `Date` object stringifies into
 the DOM as a locale-dependent blob.
 
+<!-- os:check -->
 ```jsonc
 // ✅ Works, but renders "Thu Jan 01 1970 …"
 { "type": "text", "content": "${new Date(data.timestamp)}" }
+```
 
+<!-- os:check -->
+```jsonc
 // ✅ Preferred — formatted, and stable across locales
 { "type": "text", "content": "${DATEFORMAT(data.timestamp, 'YYYY-MM-DD')}" }
+```
 
+<!-- os:check -->
+```jsonc
 // ❌ Rejected — any constructor other than Date / RegExp
 { "type": "text", "content": "${new Function('return 1')()}" }
 ```
 
 ### Object literal in expression
 
+<!-- os:check -->
 ```jsonc
 // ❌ Object literals not supported
 { "type": "text", "style": "${{ color: 'red' }}" }
+```
 
+<!-- os:check -->
+```jsonc
 // ✅ Use className
 { "type": "text", "className": "text-red-500" }
 ```

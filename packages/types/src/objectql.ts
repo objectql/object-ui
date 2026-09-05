@@ -2865,6 +2865,12 @@ export interface ObjectDataTableSchema extends BaseSchema {
 
 /**
  * Union type of all ObjectQL component schemas
+ *
+ * `ObjectGallerySchema` and `ObjectDataTableSchema` joined in objectui#7363.
+ * PR #7355 (objectui#6576) minted both beside the other members and left this
+ * union alone, so `Extract< ObjectQLComponentSchema, { type: 'object-gallery' } >`
+ * was `never` and — through the zod twin in `zod/objectql.zod.ts`, which carries
+ * the same twelve members — `AnyComponentSchema` had no arm for either node.
  */
 export type ObjectQLComponentSchema =
   | ObjectGridSchema
@@ -2876,4 +2882,6 @@ export type ObjectQLComponentSchema =
   | ObjectCalendarSchema
   | ObjectKanbanSchema
   | ObjectChartSchema
+  | ObjectGallerySchema
+  | ObjectDataTableSchema
   | ListViewSchema;

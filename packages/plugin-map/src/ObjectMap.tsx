@@ -35,6 +35,8 @@ import {
   buildExpandFields,
   convertSortToQueryParams,
   getRecordDisplayName,
+  resolveRecordSourceConfig,
+  resolveRecordSourceObjectName,
 } from '@object-ui/core';
 import MapGL, { NavigationControl, Marker, Popup } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
@@ -122,54 +124,54 @@ const FLAT_MAP_CONFIG_KEYS = (Object.keys(ObjectMapConfigSchema.shape) as (keyof
 );
 
 /**
- * Helper to get data configuration from schema
+ * Helper to get data configuration from schema.
+ *
+ * The ruled three-rung ladder itself (`data`, then `staticData`, then
+ * `objectName`) is `resolveRecordSourceConfig` in `@object-ui/core` — ONE
+ * implementation of a contract published on both faces (objectui#6939), which
+ * this file used to hand-copy (objectui#7632). What stays here is the head
+ * above it, unchanged: the array shorthand.
  */
 function getDataConfig(schema: ObjectMapSchema): ViewData | null {
-  if (schema.data) {
-    // Array shorthand -> the declared `value` provider.
-    //
-    // `ObjectMapSchema.data` is declared `ViewData`, and `ViewData` resolves to
-    // @objectstack/spec's `ViewDataSchema` — a `z.discriminatedUnion('provider',
-    // [...])` over OBJECT variants, whose `value` member additionally declares
-    // `aliases: { data: 'items', rows: 'items', records: 'items' }`. So a bare
-    // array under `data` is off-contract twice over, and `staticData` is this
-    // schema's declared door for inline rows.
-    //
-    // It is normalized rather than rejected because the array shorthand is a
-    // deliberate, commented convention across this block family — ObjectGrid's
-    // own `getDataConfig` ("Check if data is an array (shorthand format)"),
-    // ListView ("Also support schema.data as a plain array (shorthand for value
-    // provider)"), ObjectTree, ObjectChart, ObjectDataTable and
-    // calendar-view-renderer all accept it. An author (or a generator) that
-    // learned the shorthand from `object-grid` writes it for `object-map` next;
-    // dropping it HERE alone would leave the one block in the family that
-    // answers the shorthand with a silently empty map.
-    //
-    // Normalizing at this single boundary — instead of a second short-circuit
-    // inside the fetch effect below — is what lets that effect read `dataConfig`
-    // only, which is already one of its dependencies (objectui#5305).
-    const authored: unknown = schema.data;
-    if (Array.isArray(authored)) {
-      return { provider: 'value', items: authored };
-    }
-    return schema.data;
+  // Array shorthand -> the declared `value` provider.
+  //
+  // `ObjectMapSchema.data` is declared `ViewData`, and `ViewData` resolves to
+  // @objectstack/spec's `ViewDataSchema` — a `z.discriminatedUnion('provider',
+  // [...])` over OBJECT variants, whose `value` member additionally declares
+  // `aliases: { data: 'items', rows: 'items', records: 'items' }`. So a bare
+  // array under `data` is off-contract twice over, and `staticData` is this
+  // schema's declared door for inline rows.
+  //
+  // It is normalized rather than rejected because the array shorthand is a
+  // deliberate, commented convention across this block family — ObjectGrid's
+  // own `getDataConfig` ("Check if data is an array (shorthand format)"),
+  // ListView ("Also support schema.data as a plain array (shorthand for value
+  // provider)"), ObjectChart, ObjectDataTable and calendar-view-renderer all
+  // accept it. An author (or a generator) that learned the shorthand from
+  // `object-grid` writes it for `object-map` next; dropping it HERE alone would
+  // leave the one block in the family that answers the shorthand with a
+  // silently empty map.
+  //
+  // ObjectTree was named in this list until objectui#7632 measured it: it has
+  // no `Array.isArray(schema.data)` anywhere, so it answers the shorthand with
+  // a silently empty tree today. ObjectGantt and ObjectCalendar do not accept
+  // it either. That divergence is NOT resolved here — it is the reason this
+  // head stays at the site instead of being folded into the shared rung
+  // (AGENTS.md #0.1), and it is filed separately rather than fixed in passing.
+  //
+  // Normalizing at this single boundary — instead of a second short-circuit
+  // inside the fetch effect below — is what lets that effect read `dataConfig`
+  // only, which is already one of its dependencies (objectui#5305).
+  //
+  // Hoisting this check above the shared call is behaviour-neutral: an array is
+  // ALWAYS truthy, `[]` included, so the `if (schema.data)` that used to wrap
+  // it could never have let one fall through to `staticData` or `objectName`.
+  const authored: unknown = schema.data;
+  if (Array.isArray(authored)) {
+    return { provider: 'value', items: authored };
   }
-  
-  if (schema.staticData) {
-    return {
-      provider: 'value',
-      items: schema.staticData,
-    };
-  }
-  
-  if (schema.objectName) {
-    return {
-      provider: 'object',
-      object: schema.objectName,
-    };
-  }
-  
-  return null;
+
+  return resolveRecordSourceConfig(schema);
 }
 
 const isDev = (): boolean =>
@@ -683,8 +685,22 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
    * optimisation rather than a correctness dependency (objectui#6592).
    */
   const dataProvider = dataConfig?.provider;
+  // NOT a delegation site for `resolveRecordSourceObjectName` (objectui#7627):
+  // this is the data config's OWN object, deliberately `undefined` for every
+  // other provider so an `api`/`value` map's `objectName` changing cannot move
+  // this dependency. The shared reader's second rung would put `objectName`
+  // here and re-run both effects on a value they do not read.
   const dataObjectName = dataConfig?.provider === 'object' ? dataConfig.object : undefined;
   const dataItems = dataConfig?.provider === 'value' ? dataConfig.items : undefined;
+  /**
+   * The object this map is BOUND to — the resolved record source's object when
+   * it names one, else the schema's own `objectName` (objectui#7627, the
+   * objectui#6939 ladder). Hoisted to render scope so the metadata effect below
+   * reads one named value instead of re-deriving the ladder inline; it is a pure
+   * function of `dataProvider` / `dataObjectName` / `schema.objectName`, all of
+   * which that effect already depends on, so listing it adds no re-run.
+   */
+  const recordSourceObjectName = resolveRecordSourceObjectName(schema, dataConfig);
 
   // Fetch data based on provider
   useEffect(() => {
@@ -760,9 +776,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
       try {
         if (!dataSource) return;
 
-        const objectName = dataProvider === 'object'
-          ? dataObjectName
-          : schema.objectName;
+        const objectName = recordSourceObjectName;
 
         if (!objectName) return;
 
@@ -776,7 +790,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     if (!hasInlineData && dataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource, hasInlineData, dataProvider, dataObjectName]);
+  }, [schema.objectName, dataSource, hasInlineData, dataProvider, dataObjectName, recordSourceObjectName]);
 
   // Transform data to map markers
   const { markers, invalidCount } = useMemo(() => {

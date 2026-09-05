@@ -41,7 +41,7 @@ const state = vi.hoisted(() => {
 
 // Static factories, matching AccessExplainPanel.test.tsx: app-shell tests stub
 // `@object-ui/fields` and `@object-ui/react` rather than load their real
-// graphs. LookupField's own behaviour (search, hydration through `id_field`,
+// graphs. LookupField's own behaviour (search, hydration through `idField`,
 // commit-on-select) is covered in the fields package — this suite verifies
 // the WIRING: which cell renders per kind, and what binding it receives.
 vi.mock('@object-ui/react', async (importOriginal) => ({
@@ -51,11 +51,11 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   subscribeDataChanges: () => () => {},
 }));
 vi.mock('@object-ui/fields', () => ({
-  LookupField: (props: { field?: { reference_to?: string; id_field?: string; multiple?: boolean } }) => (
+  LookupField: (props: { field?: { reference_to?: string; idField?: string; multiple?: boolean } }) => (
     <div
       data-testid="record-lookup"
       data-object={props.field?.reference_to}
-      data-value-field={props.field?.id_field}
+      data-value-field={props.field?.idField}
       data-multiple={String(props.field?.multiple ?? false)}
     />
   ),

@@ -535,6 +535,11 @@ export function resolveActionParam(
         // contract declares, and renaming it would be a separate change.
         // Source here is `owner.fields[param.field]` — an object schema field def,
         // i.e. the protocol. Target contract: `ActionParamDef.referenceTo`.
+        // objectui#7642 CENSUS — verdict KEEP. The in-file provenance note above is
+        // CORRECT (`ctx.objects` is `useMetadata().objects`, the `/api/v1/meta/object`
+        // documents), so this really is the object-schema def. It is still kept: the
+        // serve path runs no parse, and none of the four reads below has a camel leg,
+        // so retiring them deletes the only read of four authorable keys.
         referenceTo: param.reference ?? field.reference,
         displayField: field.display_field ?? field.reference_field,
         idField: field.id_field,

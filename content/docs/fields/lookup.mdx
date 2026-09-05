@@ -32,15 +32,15 @@ const accountId: LookupFieldMetadata = {
   required: true,
   reference_to: 'accounts',
   reference_field: 'name',
-  description_field: 'industry',
-  id_field: '_id',
+  descriptionField: 'industry',
+  idField: '_id',
   multiple: false,
   searchable: true,
   allow_create: true,
   // Record Picker dialog (Enterprise): columns accept a field name or a descriptor.
   lookup_columns: ['name', { field: 'industry', label: 'Industry', width: '160px' }],
   lookup_page_size: 10,
-  lookup_filters: [{ field: 'active', operator: 'eq', value: true }],
+  lookupFilters: [{ field: 'active', operator: 'eq', value: true }],
 };
 ```
 
@@ -85,7 +85,7 @@ When a `DataSource` is available (via `SchemaRendererContext`, explicit prop, or
   label: 'Customer',
   reference_to: 'customers',
   reference_field: 'name',        // Display field (default: 'name')
-  description_field: 'industry',  // Optional secondary field
+  descriptionField: 'industry',  // Optional secondary field
 }
 ```
 
@@ -118,7 +118,7 @@ The full **RecordPickerDialog** can be opened in two ways:
   label: 'Order',
   reference_to: 'orders',
   reference_field: 'order_number',
-  description_field: 'customer_name',
+  descriptionField: 'customer_name',
   lookup_columns: [
     { field: 'order_number', label: 'Order #' },
     { field: 'customer_name', label: 'Customer' },
@@ -179,6 +179,6 @@ import { LookupCellRenderer } from '@object-ui/fields';
 - **Secondary Field Display**: Show description/subtitle per option
 - **Quick-Create Entry**: Optional "Create new" button when no results
 - **Configurable Columns**: `lookup_columns` for multi-column picker display
-- **Base Filters**: `lookup_filters` to restrict selectable records
+- **Base Filters**: `lookupFilters` to restrict selectable records
 - **Pagination**: Page-by-page navigation in Record Picker dialog
 - **Backward Compatible**: Falls back to static options when no DataSource

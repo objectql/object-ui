@@ -1807,12 +1807,20 @@ const zh = {
           recentRecords: '帮我列出最近创建的 5 条记录。',
           recordCounts: '统计每个对象的记录数。',
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: '帮我搭建一个 CRM：客户、联系人、商机，并建立它们之间的关系。',
-          buildApp: '做一个项目管理应用：项目、任务、成员。',
-          buildFlow: '设计一个工单系统：工单、优先级、状态流转。',
-          buildInventory: '做一个库存管理应用：商品、库存量、供应商，以及低库存预警。',
-          buildRecruiting: '做一个招聘跟踪应用：候选人、在招岗位、面试阶段和面试记录。',
+          buildCrm: '帮我搭建一个 CRM：客户、联系人、商机，以及一个按阶段汇总商机金额的仪表盘。',
+          buildApp: '做一个项目管理应用：项目、任务（负责人、截止日期），按状态分组的看板，以及按截止日期的日历视图。',
+          buildFlow: '设计一个工单系统：工单、优先级、状态（下拉），以及按状态分组的看板。',
+          buildInventory: '做一个库存管理应用：商品、库存量、供应商，并用一个视图筛出低于安全库存的商品。',
+          buildRecruiting: '做一个招聘跟踪应用：候选人、在招岗位、面试阶段字段，以及按阶段分组的看板。',
         },
         generic: {
           help: '你可以帮我做什么？',
@@ -3026,6 +3034,14 @@ const zh = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: '汇总数据',
@@ -3045,16 +3061,21 @@ const zh = {
       describe_metadata: '查看元数据',
       describe_object: '查看对象结构',
       get_active_package: '读取当前应用包',
+      get_authoring_rules: '读取编写规范',
       get_metadata_schema: '读取元数据结构',
       get_package: '读取应用包',
       list_metadata: '列出元数据',
       list_objects: '列出对象',
       list_packages: '列出应用包',
+      load_tools: '加载工具',
       modify_field: '修改字段',
+      open_record: '打开记录',
       propose_blueprint: '设计应用方案',
       set_active_package: '切换当前应用包',
       suggest_builder: '推荐搭建方式',
+      test_flow: '测试流程',
       todo_write: '记录待办',
+      toggle_flow: '启停流程',
       update_metadata: '更新元数据',
       validate_expression: '校验表达式',
       verify_build: '校验搭建结果',

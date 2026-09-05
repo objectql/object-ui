@@ -178,26 +178,26 @@ export const ENRICHED_FIELD_METADATA_KEYS = [
   'dueLike',
 
   // Relational / picker configuration. Every key the lookup + user pickers read
-  // off their field metadata (both the ObjectStack snake_case convention and the
-  // camelCase alias each reader accepts), so an inline-edit picker behaves
+  // off their field metadata, so an inline-edit picker behaves
   // exactly like the same field on the object form: multi-value selection,
   // display/description/id fields, quick-create, the Level-2 record picker's
   // columns / page size / base filters, the search-first people picker, and
   // dependent-lookup gating.
   'multiple',
   'reference_field',
-  'display_field',
+  // ⭐ objectui#7155 converged the lookup dialect on the spec's camelCase and
+  // retired `display_field` / `description_field` / `id_field` / `lookup_filters`
+  // from the widget contract, the docs and every in-repo producer. Copying them
+  // here would forward keys no reader consults.
   'displayField',
-  'description_field',
   'descriptionField',
-  'id_field',
+  'idField',
   'allow_create',
   'allowCreate',
   'lookup_columns',
   'lookupColumns',
   'lookup_page_size',
   'lookupPageSize',
-  'lookup_filters',
   'lookupFilters',
   'picker',
   'subtitle',

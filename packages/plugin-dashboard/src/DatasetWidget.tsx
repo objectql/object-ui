@@ -747,7 +747,17 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
 
   // Measure metadata (label + format + currency) + header-label resolution,
   // shared with the report renderer via @object-ui/core.
-  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
+  //
+  // objectui#7534 — the same `builtinAggregateLabels` seam the chart below
+  // uses (#7258): the KPI/metric caption and the table & pivot column headers
+  // resolve through `headerLabel`, so without it a widget's legend read `计数`
+  // while its own header still said the server's built-in English `Count`.
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(
+    state.fields,
+    state.object,
+    fieldLabel,
+    builtinAggregateLabels(tt),
+  );
 
   // --- Comparison overlay (objectui#3337) ---------------------------------
   // The executor attaches a `<measure>__compare` column per measure once it has

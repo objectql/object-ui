@@ -130,16 +130,22 @@
       "chartType": "bar",
       "title": "Monthly Sales",
       "description": "Revenue breakdown by month",
-      "categories": ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+      "data": [
+        { "month": "Jan", "Revenue": 12000, "Expenses": 8000 },
+        { "month": "Feb", "Revenue": 15000, "Expenses": 9000 },
+        { "month": "Mar", "Revenue": 18000, "Expenses": 11000 },
+        { "month": "Apr", "Revenue": 14000, "Expenses": 10000 },
+        { "month": "May", "Revenue": 22000, "Expenses": 13000 },
+        { "month": "Jun", "Revenue": 25000, "Expenses": 14000 }
+      ],
+      "xAxisKey": "month",
       "series": [
         {
           "name": "Revenue",
-          "data": [12000, 15000, 18000, 14000, 22000, 25000],
           "color": "#3b82f6"
         },
         {
           "name": "Expenses",
-          "data": [8000, 9000, 11000, 10000, 13000, 14000],
           "color": "#ef4444"
         }
       ],
@@ -228,8 +234,7 @@
     "markdown": {
       "type": "markdown",
       "id": "readme",
-      "content": "# Welcome\n\nThis is a **markdown** component.\n\n- Feature 1\n- Feature 2\n- Feature 3",
-      "sanitize": true
+      "content": "# Welcome\n\nThis is a **markdown** component.\n\n- Feature 1\n- Feature 2\n- Feature 3"
     },
     "html": {
       "type": "html",
@@ -240,10 +245,8 @@
   "compositeExample": {
     "type": "flex",
     "id": "user-profile-card",
-    "props": {
-      "direction": "col",
-      "gap": 4
-    },
+    "direction": "col",
+    "gap": 4,
     "children": [
       {
         "type": "avatar",

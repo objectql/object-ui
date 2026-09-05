@@ -1,6 +1,6 @@
 /**
  * [framework#2926 ⑧] LookupCellRenderer must honor the target object's
- * configured display field. ObjectGrid forwards `display_field` on the
+ * configured display field. ObjectGrid forwards `displayField` on the
  * column meta (RELATIONAL_META_KEYS) exactly like `reference`, but the read
  * cell used to ignore it and always ran the hardcoded heuristics — `name`
  * first — so a target object whose displayNameField is a localized/label
@@ -29,14 +29,14 @@ function makeDataSource() {
   return { findOne, find: vi.fn() } as any;
 }
 
-describe('LookupCellRenderer — display_field resolution', () => {
-  it('prefers the configured display_field over the heuristic `name`', async () => {
+describe('LookupCellRenderer — displayField resolution', () => {
+  it('prefers the configured displayField over the heuristic `name`', async () => {
     const ds = makeDataSource();
     render(
       <SchemaRendererProvider dataSource={ds}>
         <LookupCellRenderer
           value={ID_A}
-          field={{ type: 'lookup', reference: 'showcase_category', display_field: 'label_zh' } as any}
+          field={{ type: 'lookup', reference: 'showcase_category', displayField: 'label_zh' } as any}
         />
       </SchemaRendererProvider>,
     );
@@ -46,7 +46,7 @@ describe('LookupCellRenderer — display_field resolution', () => {
     expect(screen.queryByText('cat_hardware')).not.toBeInTheDocument();
   });
 
-  it('keeps the heuristic (`name` first) when no display_field is configured', async () => {
+  it('keeps the heuristic (`name` first) when no displayField is configured', async () => {
     const ds = makeDataSource();
     render(
       <SchemaRendererProvider dataSource={ds}>
@@ -61,13 +61,13 @@ describe('LookupCellRenderer — display_field resolution', () => {
     });
   });
 
-  it('uses display_field on server-expanded nested objects (no fetch path)', () => {
+  it('uses displayField on server-expanded nested objects (no fetch path)', () => {
     const ds = makeDataSource();
     render(
       <SchemaRendererProvider dataSource={ds}>
         <LookupCellRenderer
           value={{ id: ID_A, name: 'cat_hardware', label_zh: '硬件' } as any}
-          field={{ type: 'lookup', reference: 'showcase_category', display_field: 'label_zh' } as any}
+          field={{ type: 'lookup', reference: 'showcase_category', displayField: 'label_zh' } as any}
         />
       </SchemaRendererProvider>,
     );
@@ -75,9 +75,9 @@ describe('LookupCellRenderer — display_field resolution', () => {
     expect(ds.findOne).not.toHaveBeenCalled();
   });
 
-  it('does not serve a cached heuristic name to a display_field column (cache key isolation)', async () => {
+  it('does not serve a cached heuristic name to a displayField column (cache key isolation)', async () => {
     const ds = makeDataSource();
-    // First: a column WITHOUT display_field resolves and caches the heuristic name.
+    // First: a column WITHOUT displayField resolves and caches the heuristic name.
     const first = render(
       <SchemaRendererProvider dataSource={ds}>
         <LookupCellRenderer
@@ -90,13 +90,13 @@ describe('LookupCellRenderer — display_field resolution', () => {
       expect(screen.getByText('cat_software')).toBeInTheDocument();
     });
     first.unmount();
-    // Then: a column WITH display_field for the same record must show the
+    // Then: a column WITH displayField for the same record must show the
     // configured field, not the previously cached heuristic name.
     render(
       <SchemaRendererProvider dataSource={ds}>
         <LookupCellRenderer
           value={ID_B}
-          field={{ type: 'lookup', reference: 'showcase_category', display_field: 'label_zh' } as any}
+          field={{ type: 'lookup', reference: 'showcase_category', displayField: 'label_zh' } as any}
         />
       </SchemaRendererProvider>,
     );

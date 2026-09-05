@@ -27,10 +27,13 @@ import {
   PopoverTrigger,
 } from "../ui/popover"
 
-export interface ComboboxOption {
-  value: string
-  label: string
-}
+// One authority for `ComboboxOption` (objectui#6349): `@object-ui/types`
+// declares it (`packages/types/src/form.ts` — the shape `ComboboxSchema.options`
+// carries and `form.zod.ts` mirrors), and this component read a strict SUBSET
+// of it, `value` and `label`. The `./form` subpath is the door because the
+// root barrel does not publish the name. A re-export, not a second declaration.
+import type { ComboboxOption } from "@object-ui/types/form"
+export type { ComboboxOption } from "@object-ui/types/form"
 
 /**
  * Beyond its own named props, the combobox accepts standard button attributes

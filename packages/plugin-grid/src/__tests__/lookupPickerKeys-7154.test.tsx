@@ -191,7 +191,8 @@ describe('objectui#7154 — the four picker keys reach the grid’s inline picke
   it('none of the four is on the relational copy set (the premise this file re-measures)', () => {
     // Control: the copy set is populated and holds the key objectui#6875 added,
     // so "does not contain" below is a reading and not an empty list.
-    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(5);
+    // objectui#7155 shrank it from 7 to 3 by retiring the snake_case dialect.
+    expect(RELATIONAL_META_KEYS.length).toBeGreaterThan(2);
     expect(RELATIONAL_META_KEYS).toContain('displayField');
     for (const key of ['multiple', 'allowCreate', 'lookupPageSize', 'dependsOn']) {
       expect(RELATIONAL_META_KEYS).not.toContain(key);

@@ -1,6 +1,5 @@
 {
   "type": "dashboard",
-  "title": "Invoice Explorer",
   "columns": 2,
   "gap": 4,
   "globalFilters": [

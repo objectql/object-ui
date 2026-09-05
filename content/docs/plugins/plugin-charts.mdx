@@ -178,6 +178,41 @@ const schema = {
 }
 ```
 
+##### Per-series options
+
+Each `series` entry names the column it plots (`dataKey`, or the spec spelling `name`) and may carry the presentation keys the renderer reads — the same keys as `@objectstack/spec`'s `ChartSeries`:
+
+| Key | Type | Effect |
+|---|---|---|
+| `label` | `string` or inline locale map | Legend / tooltip name; defaults to the column key. |
+| `type` | `'bar' \| 'line' \| 'area'` | Per-series family override — a combo chart is a series disagreeing with the chart's `chartType`. |
+| `color` | `string` | Series colour; wins over the positional palette. |
+| `stack` | `string` | Stack group id — series sharing one id stack together. |
+| `yAxis` | `'left' \| 'right'` | Which y-axis the series binds to, on a chart that declares a second y-axis. |
+| `variant` | `'primary' \| 'comparison'` | `comparison` draws the muted period-over-period overlay; `primary` (the default) is the normal treatment. |
+| `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. Today the renderer applies it only on a `variant: 'comparison'` series **and** only on a mark that has a stroke to dash — a `line` or `area` mark (the chart's `chartType`, or a per-series `type` override), where it overrides the overlay's default `"4 4"`; a comparison `bar` or `scatter` mark takes `opacity` only and drops the dash, and on a primary series of any family it is read and unused. |
+| `opacity` | `number` | Stroke and fill opacity override — any finite number (the spec bounds it to 0–1). Today the renderer applies it only on a `variant: 'comparison'` series, where it overrides the overlay's per-family default on every mark family — the fill of a `bar` or `scatter` mark, the stroke of a `line` mark, both on an `area` mark; on a primary series it is read and unused. |
+
+An `area` chart keeps every key in this example live: `stack` stacks the two primary areas, and the comparison overlay takes both the dash and the opacity (on a `bar` chart the overlay would take `opacity` only).
+
+```tsx
+const schema = {
+  type: 'chart',
+  chartType: 'area',
+  data: [
+    { month: 'Jan', revenue: 400, cost: 250, revenue_prev: 360 },
+    { month: 'Feb', revenue: 300, cost: 210, revenue_prev: 330 }
+  ],
+  xAxisKey: 'month',
+  series: [
+    { name: 'revenue', label: 'Revenue', stack: 'money' },
+    { name: 'cost', label: 'Cost', stack: 'money' },
+    // '8 4' overrides the overlay's default '4 4' dash; 0.6 lifts its 0.2 fill default (its stroke default is already 0.6)
+    { name: 'revenue_prev', label: 'Revenue (previous period)', variant: 'comparison', dashArray: '8 4', opacity: 0.6 }
+  ]
+}
+```
+
 ## Examples
 
 ### Revenue Dashboard

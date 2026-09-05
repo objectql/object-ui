@@ -143,6 +143,7 @@ export {
   TreeViewSchema,
   ChartTypeSchema,
   ChartDataSeriesSchema,
+  DrillDownConfigSchema,
   ChartSchema,
   TimelineEventSchema,
   TimelineSchema,
@@ -217,9 +218,9 @@ export {
 // Complex Components - Advanced/Composite Components
 // ============================================================================
 export {
-  KanbanCardSchema,
-  KanbanColumnSchema,
-  KanbanSchema,
+  DeclarativeKanbanCardSchema,
+  DeclarativeKanbanColumnSchema,
+  DeclarativeKanbanSchema,
   CalendarViewModeSchema,
   CalendarEventSchema,
   CalendarViewSchema,
@@ -234,6 +235,8 @@ export {
   ChatMessageSourceSchema,
   ChatMessageSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   DashboardWidgetLayoutSchema,
   DashboardWidgetTypeSchema,
   DashboardWidgetSchema,

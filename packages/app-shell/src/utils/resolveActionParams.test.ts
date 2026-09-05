@@ -263,8 +263,9 @@ describe('resolveActionParams — authored through the public ActionParam type (
     expect(authorToField(authored)).toMatchObject({
       type: 'lookup',
       reference_to: 'sys_user',
-      display_field: 'name',
-      id_field: 'id',
+      // objectui#7155 — the spec spelling, emitted by `paramToField`.
+      displayField: 'name',
+      idField: 'id',
     });
   });
 

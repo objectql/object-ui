@@ -940,11 +940,24 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         return <Fragment key={widgetKey}>{renderedNode}</Fragment>;
     };
 
-    // The spec-canonical dashboard display name is `label` (@objectstack/spec
-    // DashboardSchema); `title` is the legacy objectui spelling. Read both so
-    // spec-compliant dashboards get their header title (framework#1878/#1891;
-    // mirrors the DashboardGridLayout fallback from #2666).
-    const headerTitle = schema.title || schema.label;
+    // The dashboard display name is `label` (@objectstack/spec
+    // `DashboardSchema`, where it is REQUIRED) and nothing else. The legacy
+    // objectui `title` spelling used to be read first here; that arm RETIRED
+    // under ADR-0049 (objectui#7509, maintainer ruling 2026-09-04) together
+    // with the four sibling root arms in `DashboardView`,
+    // `DashboardGridLayout`, `DashboardEditor` and `DashboardDesignPage`, so
+    // the same stored document can no longer show one header in the console and
+    // a different one in the designer (framework#1878/#1891 record where the
+    // legacy spelling came from; #2666 is the fallback this mirrored).
+    //
+    // The spec refuses root `title` BY NAME (`unrecognized_keys(title)`), so no
+    // authored document can acquire the key and only legacy-document
+    // compatibility retires here.
+    //
+    // ⛔ NOT the widget arm: `widget.title` is `DashboardWidget.title`, the
+    // spec's `I18nLabel`, a different DECLARED key that stays. The two are told
+    // apart by RECEIVER — this one's receiver is the dashboard ROOT.
+    const headerTitle = schema.label;
     /**
      * Decide what the header would actually SHOW before deciding whether to
      * render its wrapper at all.

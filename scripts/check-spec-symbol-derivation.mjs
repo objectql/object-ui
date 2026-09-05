@@ -137,14 +137,103 @@
  *     and this rule stays out of the way entirely. A verdict fabricated from
  *     ignorance of the spec would flag every citation in the repo at once.
  *
+ * ── Rule 4 at MEMBER granularity (objectui#7513) ────────────────────────────
+ * Rule 4 above judges the SYMBOL a claim cites. It cannot see a citation that
+ * names a live symbol and a key that symbol does not have, and that is the shape
+ * three measured comments took:
+ *
+ *   `SelectOptionSchema.description`  the option schema is `.strict()` and spells
+ *                                     five keys, none of them `description`
+ *   `FieldSchema.rows`                `rows` is not a field key at all
+ *   `DashboardSchema.title`           the dashboard display name is `label`
+ *
+ * Every one of them named a symbol the spec really exports, so rule 4 passed
+ * them, and every one of them was inviting a `422 INVALID_METADATA` — the option
+ * two routed a `description` into a `.strict()` option schema, which refuses the
+ * WHOLE field. So the citation is checked at the granularity it was written at:
+ *
+ *   A comment citing `SpecSymbol.key`, where the spec's own shape for that
+ *   symbol has no `key`, is a dangling reference and is flagged.
+ *
+ * This is rule 4 tightened, not a second instrument: same question (is there
+ * anything behind what this comment points at), same answer when the answer is
+ * "no", no allowlist and no ledger of its own. Fresh citations fail on the PR
+ * that writes them; there is nothing here to accrue.
+ *
+ * Where it looks, and why that is WIDER than rule 2's jurisdiction without being
+ * rule 2's deferred widening (objectui#7513 defers that as B): every comment in
+ * the scanned files, not only the block attached to a top-level declaration.
+ * Two of the three specimens sat on interface MEMBERS and one sat inside a
+ * function body, so a declaration-scoped scan sees none of them. It is not the
+ * same widening because it asks a different question: rule 2 asks whether a
+ * DECLARATION has a compile-time tie behind its claim, which needs a declaration
+ * and a tie test; this asks only whether a NAME the prose spells exists in the
+ * spec, which needs neither. It also needs no claim phrase — one specimen read
+ * "Per @objectstack/spec, DashboardSchema.title is …", which no phrase table
+ * matches and which is wrong all the same.
+ *
+ * Four precision rules, each measured against the tree rather than imagined:
+ *
+ *   - The comment must mention `@objectstack/spec`, and the citation must sit
+ *     within CLAIM_WINDOW of that mention IN THE SAME SENTENCE — rule 2's
+ *     proximity discipline, reused rather than reinvented. Without it,
+ *     `ListView.resolveTimelineDateBinding` (a method on this repo's own
+ *     component, 755 characters from an unrelated spec mention) and
+ *     `NavigationItem.label` read as spec citations. Measured: 136 raw citations
+ *     tree-wide collapse to 73 real ones.
+ *   - A `/` on either side makes it a PATH, not a citation. `@objectstack/spec`
+ *     `ui/TimelineConfig.json` is a file the comment is pointing at, and
+ *     `json`/`tsx` are not members of anything.
+ *   - The member set is the union over the spec's symbol FAMILY — `N`,
+ *     `NSchema`, `NInput`, `NParsed` — taken on the AUTHORING side (a schema's
+ *     `.shape`, hopping through a `ZodPipe`'s `.in`) rather than the parsed
+ *     output. A citation names a concept, and the spec publishes a concept as a
+ *     family. ⭐ This is load-bearing, not tidiness: `FormField.visibleOn` is a
+ *     real authorable key that the spec's OUTPUT type deliberately drops
+ *     (`type FormField = Omit< z.infer< … >, 'visibleOn' > & …`), so reading the
+ *     output type alone reports a correct comment as dangling.
+ *   - Zod's own API is excluded BY RULE, two predicates, never by allowlist
+ *     entries — see `isZodApiCitation`.
+ *
+ * MEASURED on `1bae75bb` against `@objectstack/spec@17.2.0`:
+ *
+ *   raw `Symbol.member` citations in spec-mentioning comments   136
+ *   within CLAIM_WINDOW and the same sentence                    73
+ *     resolve against the family's authored shape                64
+ *     excluded as Zod API (5 call-form, 4 vocabulary)             9
+ *     member set unknowable, rule stays out                       0
+ *     DANGLING                                                    0
+ *
+ * Zero, because all three specimens were repaired before this landed (PR #7510,
+ * PR #7520) — which is why the pin in `scripts/__tests__/` asserts the rule goes
+ * RED on their verbatim PRE-repair text. A ratchet that only proves green on
+ * today's tree proves nothing about the tightening. These figures are a
+ * SNAPSHOT, under the same discipline the sections above record: when they move,
+ * re-take them and re-name the commit and the spec version.
+ *
  * ── The boundary the rules USED to share: exported only (objectui#5899) ─────
- * Everything above was once scoped by one filter that neither rule's account of
- * its own failure class mentions: each scanner skipped any statement without an
- * `export` modifier (`hasExportModifier`, once per scanner). The class was
- * therefore NOT fully covered by rule 1 plus rule 2. A module-local declaration
+ * ⛔ HISTORY, NOT BEHAVIOUR. Neither scanner has an export filter today. Both
+ * halves went in objectui#6291, and the two `// No export filter (objectui#6291)`
+ * comments in `scanFileForClaims` and `scanFile` are where that is stated at the
+ * code. Read this section for WHY the filter was dropped and what dropping it
+ * measured — never as a description of what the scanners currently do.
+ *
+ * The tense matters more here than it looks. This paragraph used to describe the
+ * filter in the present, beside a `hasExportModifier` helper that had already
+ * lost its last call site, and a card was filed on the strength of it: it
+ * explained a gate's blindness as "both rules skip any declaration without an
+ * `export` modifier (`hasExportModifier`, applied once per scanner)", which had
+ * not been true since objectui#6291. The author did not invent that — they read
+ * it HERE. A guard whose own header teaches a retired rule is the same planted
+ * premise this file exists to catch, wearing the maintainer's clothes, so the
+ * helper is gone too (objectui#7513) and there is nothing left to grep into a
+ * false conclusion.
+ *
+ * What the filter WAS, in the past tense it belongs in: each scanner skipped any
+ * statement without an `export` modifier, once per scanner. The class was
+ * therefore NOT fully covered by rule 1 plus rule 2 — a module-local declaration
  * sat outside the jurisdiction of both, whatever it was named and whatever its
- * doc comment claimed. BOTH halves of that filter are gone as of objectui#6291;
- * read on for what each cost.
+ * doc comment claimed. Read on for what each half cost.
  *
  * The filter was defensible on this script's own terms: an unexported type
  * cannot be imported by another package under the spec's name, so it cannot
@@ -159,9 +248,11 @@
  * mirror is not imported, but it is still READ by the next agent editing that
  * file, and it still drifts.
  *
- * What the filter costs, MEASURED (objectui#5899) on `a76b18cf2` against
+ * What the filter cost, MEASURED (objectui#5899) on `a76b18cf2` against
  * `@objectstack/spec@17.2.0` — same instrumented-copy method objectui#4592
- * used, both scanners re-run with `hasExportModifier` forced true:
+ * used. ⚠️ The instrument was an INSTRUMENTED COPY that re-imposed the filter on
+ * both scanners, not a switch either scanner still carries; the numbers are the
+ * measured price of the filter, taken while it still existed:
  *
  *   rule 1   18 findings → 47   (+29 module-local declarations)
  *   rule 2   20 findings → 22   (+2  module-local declarations)
@@ -955,6 +1046,7 @@ function specExportNames() {
   const checker = program.getTypeChecker();
 
   const names = new Map(); // name -> Set<subpath>
+  const symbols = new Map(); // name -> ts.Symbol (first wins; subpaths re-export one declaration)
   for (const entry of entries) {
     const sf = program.getSourceFile(entry.file);
     if (!sf) continue;
@@ -964,9 +1056,107 @@ function specExportNames() {
       const name = exported.getName();
       if (!names.has(name)) names.set(name, new Set());
       names.get(name).add(entry.sub);
+      if (!symbols.has(name)) symbols.set(name, exported);
     }
   }
-  return names;
+  return { names, membersOf: memberResolver(checker, symbols) };
+}
+
+/**
+ * The AUTHORING key set of one spec export, for the member-granularity half of
+ * rule 4. Two shapes reach this, and only the first is a Zod schema:
+ *
+ *   a schema value  — the keys live on `.shape`. A `.transform()`/`.refine()`
+ *                     wrapper puts the object one hop in, on the pipe's `.in`,
+ *                     which is the INPUT side and therefore the authoring side.
+ *   a type export   — its declared properties ARE the member set.
+ *
+ * Both are unioned, because a name can be both. `surface` is everything the
+ * VALUE carries (Zod's own methods included) and is kept separate on purpose —
+ * see `isZodApiCitation` for why it is never allowed to answer first.
+ */
+function memberSetOfSymbol(checker, sym) {
+  const decl = sym.declarations?.[0];
+  if (!decl) return null;
+  let valueType;
+  try {
+    valueType = checker.getTypeOfSymbolAtLocation(sym, decl);
+  } catch {
+    return null;
+  }
+  const surface = new Set(checker.getPropertiesOfType(valueType).map((prop) => prop.getName()));
+  const authored = new Set();
+
+  // Walk `.in` until a `.shape` turns up. Bounded: a pipe of pipes is finite,
+  // and an unbounded walk on a recursive type is a hang, not a finding.
+  let cursor = valueType;
+  for (let hop = 0; cursor && hop < 6; hop++) {
+    const shape = checker.getPropertyOfType(cursor, "shape");
+    if (shape) {
+      const shapeDecl = shape.declarations?.[0] ?? decl;
+      let shapeType = null;
+      try {
+        shapeType = checker.getTypeOfSymbolAtLocation(shape, shapeDecl);
+      } catch {
+        shapeType = null;
+      }
+      if (shapeType) for (const prop of checker.getPropertiesOfType(shapeType)) authored.add(prop.getName());
+      break;
+    }
+    const input = checker.getPropertyOfType(cursor, "in");
+    if (!input) break;
+    try {
+      cursor = checker.getTypeOfSymbolAtLocation(input, input.declarations?.[0] ?? decl);
+    } catch {
+      break;
+    }
+  }
+
+  let declaredType = null;
+  try {
+    declaredType = checker.getDeclaredTypeOfSymbol(sym);
+  } catch {
+    declaredType = null;
+  }
+  if (declaredType) for (const prop of checker.getPropertiesOfType(declaredType)) authored.add(prop.getName());
+
+  return { authored, surface };
+}
+
+/**
+ * `name -> { authored, surface } | null`, memoised and LAZY: resolving all ~5k
+ * spec exports up front costs seconds for the handful a comment actually cites.
+ *
+ * A citation names a CONCEPT, and the spec publishes a concept as a family, so
+ * the answer is the union over `N` / `NSchema` / `NInput` / `NParsed` — see the
+ * header's third precision rule for the `FormField.visibleOn` specimen that
+ * makes the union load-bearing rather than tidy.
+ *
+ * `null` means the member set is unknowable (an opaque `z.ZodType< … >` alias, a
+ * string union, a function). The rule then stays out of the way entirely, which
+ * is the same judgement rule 4 makes when it has no spec export set at all: a
+ * verdict fabricated from ignorance of the spec is worse than no verdict.
+ */
+export function memberResolver(checker, symbols) {
+  const FAMILY_SUFFIXES = ["", "Schema", "Input", "Parsed"];
+  const cache = new Map();
+  return (name) => {
+    if (cache.has(name)) return cache.get(name);
+    const stem = name.replace(/(?:Schema|Input|Parsed)$/, "");
+    const authored = new Set();
+    const surface = new Set();
+    for (const suffix of FAMILY_SUFFIXES) {
+      const sym = symbols.get(stem + suffix);
+      if (!sym) continue;
+      const set = memberSetOfSymbol(checker, sym);
+      if (!set) continue;
+      for (const key of set.authored) authored.add(key);
+      for (const key of set.surface) surface.add(key);
+    }
+    const resolved = authored.size > 0 ? { authored, surface } : null;
+    cache.set(name, resolved);
+    return resolved;
+  };
 }
 
 // ── 2. Scan objectui's authored source for exported declarations ─────────────
@@ -1016,9 +1206,6 @@ function packageNameFor(file) {
   }
   return packageNameCache.get(pkgDir);
 }
-
-const hasExportModifier = (node) =>
-  node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
 
 /**
  * Does this subtree reference a name bound to a spec import?
@@ -1305,6 +1492,115 @@ export function scanFileForClaims(file, specNames = new Map()) {
 }
 
 /**
+ * Zod's own API, cited in prose as something a READER does with the schema —
+ * never a key an AUTHOR may write. Two predicates, both by rule, and the ruling
+ * on objectui#7513 required exactly that: the 22 method-surface hits measured
+ * there are excluded by a documented predicate, ⛔ not by 22 allowlist entries.
+ * An entry per site would also be refused by ratchet 3 the moment the site's
+ * wording changed, and an ALLOW map with a Zod method name in it is a second
+ * copy of Zod.
+ *
+ *   1. CALL FORM — `NavigationModeSchema.default('page')`. A citation written
+ *      with its parentheses is an invocation. This is the predicate that carries
+ *      the names Zod SHARES with the authoring vocabulary, and it is why they do
+ *      not need to be listed: `default`, `options`, `type`, `required`,
+ *      `readonly` and `optional` are all real spec keys AND real Zod methods.
+ *      ⚠️ A backtick or a space before the paren is prose — "`FieldSchema.rows`
+ *      (a positive integer)" is a citation with a parenthetical after it, and
+ *      one of the three specimens is written exactly that way.
+ *   2. INTROSPECTION VOCABULARY — the bare spellings that actually occur:
+ *      "`RecordDetailsProps.safeParse` on a section carrying it returns …".
+ *
+ * ⛔ Deliberately NOT "any property of the Zod type". Zod puts `.description`,
+ * `.default`, `.optional`, `.readonly`, `.type` and `.shape` on every schema, and
+ * a structural read would have silenced `SelectOptionSchema.description` — the
+ * citation this whole rule was built for. The order in `scanFileForMemberCitations`
+ * is the second half of that safety: the family's AUTHORED set answers first, so
+ * a symbol that really declares `shape` as a key is green before this is asked.
+ */
+const ZOD_INTROSPECTION = new Set(["parse", "safeParse", "parseAsync", "safeParseAsync", "shape"]);
+
+function isZodApiCitation(member, textAfterCitation) {
+  if (ZOD_INTROSPECTION.has(member)) return true;
+  return textAfterCitation.startsWith("(") || textAfterCitation.startsWith("`(");
+}
+
+/**
+ * `Symbol.member` in prose. The negative lookarounds drop FILE PATHS — a `/` on
+ * either side means the comment is pointing at `ui/TimelineConfig.json`, where
+ * `json` is an extension rather than a member. The leading `.` exclusion stops a
+ * chained `a.B.c` from reading its middle segment as a cited symbol.
+ */
+const MEMBER_CITATION = /(?<![A-Za-z0-9_$./])([A-Z][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_]*\/)/g;
+
+/**
+ * Rule 4 at member granularity (objectui#7513) — see the header for the three
+ * measured specimens and the four precision rules.
+ *
+ * Exported for the pin in `scripts/__tests__/`, which supplies its own
+ * `membersOf` so the red/green pair is judged against a faithful, fixed spec
+ * rather than whatever version happens to be installed.
+ *
+ * Unlike `scanFileForClaims` this walks EVERY comment, not the block attached to
+ * a top-level declaration: two of the three specimens sat on interface members
+ * and one inside a function body. It needs no claim phrase either — one of them
+ * read "Per @objectstack/spec, DashboardSchema.title is …".
+ */
+export function scanFileForMemberCitations(file, membersOf) {
+  const text = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, /\.tsx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+
+  const findings = [];
+  const seen = new Set();
+
+  const readComment = (pos, end) => {
+    const key = `${pos}:${end}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const doc = normalizeDoc(text.slice(pos, end));
+    const mentions = [];
+    for (let i = doc.indexOf(SPEC_MENTION); i !== -1; i = doc.indexOf(SPEC_MENTION, i + 1)) mentions.push(i);
+    if (mentions.length === 0) return;
+
+    for (const hit of doc.matchAll(MEMBER_CITATION)) {
+      const [cited, symbol, member] = hit;
+      const set = membersOf(symbol);
+      if (!set) continue; // not a spec export, or its member set is unknowable
+
+      // Proximity AND same sentence, exactly as `findClaim` pairs a claim with
+      // its mention: a comment that mentions the spec somewhere does not make
+      // every capitalised dotted name in it a spec citation.
+      let near = false;
+      for (const at of mentions) {
+        const after = hit.index >= at + SPEC_MENTION.length;
+        const distance = after ? hit.index - (at + SPEC_MENTION.length) : at - (hit.index + cited.length);
+        if (distance < 0 || distance > CLAIM_WINDOW) continue;
+        const between = after ? doc.slice(at + SPEC_MENTION.length, hit.index) : doc.slice(hit.index + cited.length, at);
+        if (/[.;!?](?:\s|$)/.test(between)) continue;
+        near = true;
+        break;
+      }
+      if (!near) continue;
+
+      // ORDER IS THE SAFETY: the authored key set answers first, so neither Zod
+      // predicate can ever override a key the spec really declares.
+      if (set.authored.has(member)) continue;
+      if (isZodApiCitation(member, doc.slice(hit.index + cited.length, hit.index + cited.length + 2))) continue;
+
+      const { line } = sf.getLineAndCharacterOfPosition(pos);
+      findings.push({ file, line: line + 1, symbol, member, cited });
+    }
+  };
+
+  const visit = (node) => {
+    for (const range of ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []) readComment(range.pos, range.end);
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return findings;
+}
+
+/**
  * Rule 1's scan. Exported for the same reason `scanFileForClaims` is — the two
  * structural narrowings above (`rendersJsx`, `isPureAlias`) are judgement calls
  * about what this rule may NOT see, and a narrowing with no discrimination
@@ -1403,7 +1699,7 @@ export function scanFile(file, specNames) {
 
 // ── 3. Report ────────────────────────────────────────────────────────────────
 function main() {
-const specNames = specExportNames();
+const { names: specNames, membersOf } = specExportNames();
 const files = sourceFiles().filter((f) => !SKIP_PATH_SEGMENTS.some((seg) => f.includes(seg)));
 
 const violations = [];
@@ -1411,6 +1707,9 @@ for (const file of files) violations.push(...scanFile(file, specNames));
 
 const claims = [];
 for (const file of files) claims.push(...scanFileForClaims(file, specNames));
+
+const memberCitations = [];
+for (const file of files) memberCitations.push(...scanFileForMemberCitations(file, membersOf));
 
 const matchedAllowKeys = new Set();
 const unallowed = [];
@@ -1580,6 +1879,24 @@ for (const key of Object.keys(CLAIM_ALLOW)) {
   }
 }
 
+// 7. Rule 4 at MEMBER granularity (objectui#7513). No ledger and no allowlist:
+//    the measured population was zero on the commit that landed it, so a hit is
+//    always fresh and always fails on the PR that writes it.
+if (memberCitations.length > 0) {
+  claimErrors.push(
+    `${memberCitations.length} comment${memberCitations.length === 1 ? "" : "s"} cite a spec member the spec` +
+      ` does not declare:\n` +
+      memberCitations
+        .map((c) => `        \`${c.cited}\`  ${relative(root, c.file)}:${c.line}`)
+        .join("\n") +
+      `\n      The symbol is a real @objectstack/spec export; the KEY is not in its shape. Check the\n` +
+      `      installed spec's own schema and correct the comment — cite the key that exists, or say\n` +
+      `      plainly that this is a local/legacy spelling the spec refuses. A comment naming a key\n` +
+      `      the spec rejects invites a 422 INVALID_METADATA from the save route: the option schema\n` +
+      `      is \`.strict()\`, so one such key sinks the WHOLE field (objectui#7513).`
+  );
+}
+
 const outstanding = Object.values(DEBT).reduce((sum, names) => sum + names.length, 0);
 const outstandingClaims = Object.values(CLAIM_DEBT).reduce((sum, names) => sum + names.length, 0);
 
@@ -1591,7 +1908,8 @@ if (errors.length === 0 && claimErrors.length === 0) {
       `✅  spec alignment claims: ${Object.keys(CLAIM_ALLOW).length} declared deliberate ` +
       `${Object.keys(CLAIM_ALLOW).length === 1 ? "copy" : "copies"}, ` +
       `${outstandingClaims} unbacked claim${outstandingClaims === 1 ? "" : "s"} in ` +
-      `${Object.keys(CLAIM_DEBT).length} packages.`
+      `${Object.keys(CLAIM_DEBT).length} packages.\n` +
+      `✅  spec member citations: no comment cites a key its spec symbol does not declare.`
   );
   process.exit(0);
 }

@@ -34,7 +34,7 @@ import {
 /**
  * Kanban Card Schema
  */
-export const KanbanCardSchema = z.object({
+export const DeclarativeKanbanCardSchema = z.object({
   id: z.string().describe('Card ID'),
   title: z.string().describe('Card title'),
   description: z.string().optional().describe('Card description'),
@@ -49,10 +49,10 @@ export const KanbanCardSchema = z.object({
 /**
  * Kanban Column Schema
  */
-export const KanbanColumnSchema = z.object({
+export const DeclarativeKanbanColumnSchema = z.object({
   id: z.string().describe('Column ID'),
   title: z.string().describe('Column title'),
-  cards: z.array(KanbanCardSchema).describe('Column cards'),
+  cards: z.array(DeclarativeKanbanCardSchema).describe('Column cards'),
   color: z.string().optional().describe('Column color'),
   limit: z.number().optional().describe('Card limit'),
   collapsed: z.boolean().optional().describe('Whether column is collapsed'),
@@ -61,9 +61,9 @@ export const KanbanColumnSchema = z.object({
 /**
  * Kanban Schema - Kanban board component
  */
-export const KanbanSchema = BaseSchema.extend({
+export const DeclarativeKanbanSchema = BaseSchema.extend({
   type: z.literal('kanban'),
-  columns: z.array(KanbanColumnSchema).describe('Kanban columns'),
+  columns: z.array(DeclarativeKanbanColumnSchema).describe('Kanban columns'),
   draggable: z.boolean().optional().describe('Whether cards are draggable'),
   onCardMove: handlerKeyRefusal('onCardMove', 'runtime-slot', 'Card move handler'),
   onCardClick: handlerKeyRefusal('onCardClick', 'runtime-slot', 'Card click handler'),
@@ -411,6 +411,107 @@ export const ChatbotSchema = BaseSchema.extend({
   autoResponseText: z.string().optional().describe('Text of the local auto-response'),
   autoResponseDelay: z.number().optional().describe('Delay in milliseconds before the local auto-response is sent'),
   onSend: handlerKeyRefusal('onSend', 'runtime-slot', 'Called after a message is sent, in both API and local auto-response mode'),
+});
+
+/**
+ * The chat-surface arms ALL THREE `plugin-chatbot` registrations read
+ * (objectui#7655) — the Zod side of `../complex.ts`'s `ChatbotSharedKey`,
+ * taken off `ChatbotSchema`'s own shape so every shared arm has ONE spelling.
+ * Not exported: it is a census, not a mirror, and the parity census in
+ * `__tests__/zod-mirror-parity.test.ts` registers `export const`s only.
+ *
+ * `requestBody` is deliberately NOT in this pick. `ChatbotSchema` above mirrors
+ * the API body params under the key `body`, which collides with `BaseSchema`'s
+ * `body` children slot — the naming collision the parity ledger records under
+ * `KnownDrift`. The two twins below mirror the key the renderer actually reads,
+ * `requestBody`, and inherit `body` as the children slot, so they are born
+ * without the collision. Ruling on `ChatbotSchema`'s own `body` arm is a
+ * separate question and is not decided here.
+ */
+const ChatbotSharedMirrorShape = ChatbotSchema.pick({
+  messages: true,
+  placeholder: true,
+  api: true,
+  conversationId: true,
+  systemPrompt: true,
+  model: true,
+  streamingEnabled: true,
+  headers: true,
+  maxToolRoundtrips: true,
+  onError: true,
+  showTimestamp: true,
+  userAvatarUrl: true,
+  userAvatarFallback: true,
+  assistantAvatarUrl: true,
+  assistantAvatarFallback: true,
+  autoResponse: true,
+  autoResponseText: true,
+  autoResponseDelay: true,
+  onSend: true,
+}).shape;
+
+/** The arms `chatbot-enhanced` and `chatbot-floating` share beyond the pick above. */
+const chatbotRequestBodyArm = () =>
+  z.record(z.string(), z.unknown()).optional()
+    .describe('Additional body parameters sent with each API request (forwarded to the chat runtime as its `body` option)');
+const chatbotEnableMarkdownArm = () =>
+  z.boolean().optional().describe('Render assistant messages as markdown (default true)');
+const chatbotEnableFileUploadArm = () =>
+  z.boolean().optional().describe('Show the file-attachment control in the composer (default false)');
+const chatbotOnClearArm = () =>
+  handlerKeyRefusal('onClear', 'runtime-slot', 'Called after the conversation is cleared');
+
+/**
+ * Chatbot Enhanced Schema - `chatbot-enhanced` component (objectui#7655).
+ *
+ * Zod twin of `../complex.ts`'s `ChatbotEnhancedSchema`, in lockstep: every
+ * key that declaration lists is an arm here, and the three runtime slots
+ * (`onError`, `onSend`, `onClear`) are named refusals (objectui#6124).
+ */
+export const ChatbotEnhancedSchema = BaseSchema.extend({
+  type: z.literal('chatbot-enhanced'),
+  ...ChatbotSharedMirrorShape,
+  requestBody: chatbotRequestBodyArm(),
+  maxHeight: ChatbotSchema.shape.maxHeight,
+  processVisibility: ChatbotSchema.shape.processVisibility,
+  enableMarkdown: chatbotEnableMarkdownArm(),
+  enableFileUpload: chatbotEnableFileUploadArm(),
+  surface: z.enum(['card', 'plain']).optional()
+    .describe("Visual chrome for the chat surface: 'card' bordered panel (default) or 'plain' frameless full-page workspace (objectui#6687)"),
+  onClear: chatbotOnClearArm(),
+});
+
+/**
+ * Chatbot Floating Schema - `chatbot-floating` component (objectui#7655).
+ *
+ * Zod twin of `../complex.ts`'s `ChatbotFloatingSchema`. Two of that
+ * declaration's keys are deliberately NOT mirrored, and the parity ledger
+ * records both under `UnmirroredDeclared` for this pair — exactly as it
+ * records the same two keys for `ChatbotSchema`, which declares them too:
+ *
+ *   - `floatingConfig` — `FloatingChatbotConfig` has no Zod mirror at all;
+ *     minting one is the declared-but-unmirrored axis (objectui#6152), a
+ *     different defect from the one this pair closes, and the axis the
+ *     `triggerIcon` tombstone's tripwire watches (objectui#7654).
+ *   - `displayMode` — RULED RETIRED by objectui#7654 (maintainer ruling B,
+ *     2026-09-05): the node `type` is the one selector of presentation. The
+ *     retirement executes in that card's own PR — `?: never` tombstone on the
+ *     TypeScript faces, designer control and seed removed — and, per the
+ *     ruling, the mirror half (`retirementTombstone()`) is owed at the moment
+ *     objectui#6152 mints an arm for it, not before. Until then a mirror arm
+ *     here would be a parse outcome that ruling did not ask for, so this twin
+ *     has none.
+ *
+ * Both ride through `BaseSchema`'s `.passthrough()` unvalidated, byte for byte
+ * as they do on `ChatbotSchema`'s twin.
+ */
+export const ChatbotFloatingSchema = BaseSchema.extend({
+  type: z.literal('chatbot-floating'),
+  ...ChatbotSharedMirrorShape,
+  requestBody: chatbotRequestBodyArm(),
+  enableMarkdown: chatbotEnableMarkdownArm(),
+  enableFileUpload: chatbotEnableFileUploadArm(),
+  onClear: chatbotOnClearArm(),
 });
 
 /**
@@ -766,10 +867,12 @@ export const DashboardConfigSchema = z.object({
  * Complex Schema Union - All complex component schemas
  */
 export const ComplexSchema = z.discriminatedUnion('type', [
-  KanbanSchema,
+  DeclarativeKanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   DashboardComponentSchema,
 ]);
