@@ -1,5 +1,5 @@
 ---
-'@object-ui/data-objectstack': patch
+'@object-ui/data-objectstack': minor
 ---
 
 Array filters on analytics aggregates were posted un-lowered and refused by the runtime with 400; they are now lowered to the canonical `FilterCondition` before the wire.
