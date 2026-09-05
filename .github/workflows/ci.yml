@@ -292,6 +292,24 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:unreferenced-sources
 
+      # A JSDoc `@example` on an exported hook is not decoration: call sites copy it.
+      # When the ruling the example encoded moves, the prose stays, and every later
+      # copy is seeded from the prose rather than from the code — so fixing the call
+      # sites without fixing the doc comment re-seeds them. That class cost two cards
+      # and three copied call sites (objectui#7627, objectui#7638) with nothing in CI
+      # able to see it; objectui#7617's `check-spec-symbol-derivation` was cited as
+      # covering it twice and does not — its rule 4 judges `@objectstack/spec`
+      # citations at member granularity and has nothing to say about prose that
+      # prescribes a LOCAL spelling.
+      #
+      # This step fails only when a documented symbol's own `@example` hand-spells
+      # what its real call sites obtain by CALLING a shared reader. Parses sources
+      # with `typescript` through the same scanner as the two steps above, so it
+      # needs the install and nothing built.
+      - name: Verify no doc comment prescribes a spelling a shared reader owns
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:doc-example-readers
+
       # A build tsconfig that excludes tooling by FILE NAME (`*.test.ts`) stops
       # the files that happen to be named that way and nothing else. The first
       # shared helper added to a `__tests__/` directory is then a program input,
