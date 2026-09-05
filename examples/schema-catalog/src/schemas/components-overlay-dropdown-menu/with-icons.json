@@ -16,8 +16,7 @@
     },
     {
       "label": "Delete",
-      "icon": "trash",
-      "variant": "destructive"
+      "icon": "trash"
     }
   ]
 }
