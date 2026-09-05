@@ -2611,12 +2611,24 @@ function genericSuggestions(t: TranslationFn): string[] {
 // ADR-0057 A1.b — edit-mode starters: when the build surface is bound to an
 // existing app (`?package=`), nudge toward INCREMENTAL changes to that app
 // rather than describing a new system from scratch.
+//
+// objectui#7709 — same rule as `metadataAssistantSuggestions()` above: these
+// are the PRODUCT's own recommendations, so they may only ask for what
+// ADR-0112 v1 BUILDS. The fourth chip used to be `addAutomation` ("an
+// approval, a status flow, or a notification") and every capability it named
+// is refused by v1 (cloud#1956 / PR #1970), so it now asks for sample data —
+// `seed` IS on v1's whitelist, and having no data is what an existing app most
+// often lacks. REVERT: when ADR-0112 v2 re-adds flows and actions, THIS chip's
+// automation wording comes back as `addAutomation`. The `defaultValue`s below
+// are byte-equal to the `en` pack.
 function editAppSuggestions(t: TranslationFn): string[] {
   return [
     t('console.ai.suggestions.editApp.addField', { defaultValue: 'Add a field to one of the objects.' }),
     t('console.ai.suggestions.editApp.addObject', { defaultValue: 'Add a new object and relate it to an existing one.' }),
     t('console.ai.suggestions.editApp.addDashboard', { defaultValue: 'Add a dashboard for the key metrics.' }),
-    t('console.ai.suggestions.editApp.addAutomation', { defaultValue: 'Add an automation — an approval, a status flow, or a notification.' }),
+    t('console.ai.suggestions.editApp.addSampleData', {
+      defaultValue: 'Fill the existing objects with realistic sample records so I can demo the app.',
+    }),
   ];
 }
 
