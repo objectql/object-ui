@@ -5003,7 +5003,27 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           : params.filter;
       }
 
-      const data = await this.client.analytics.query(payload);
+      const contractResult = await this.client.analytics.query(payload);
+
+      // `client.analytics.query` resolved to `Promise<any>` at
+      // `@objectstack/client` 17.2.0 and resolves to `Promise<AnalyticsResult>`
+      // at 17.3.0, so the pre-envelope branches below stopped type-checking the
+      // moment the family moved. The client's own docblock states the runtime
+      // change that produced the narrower type: "BREAKING since #13079 - read
+      // `result.rows`, not `result.data.rows`; the method used to resolve to the
+      // whole envelope."
+      //
+      // Those branches are READ THROUGH a widened alias here rather than
+      // deleted, and the distinction is deliberate: deleting them is a runtime
+      // compatibility decision about servers older than #13079, NOT a type
+      // repair, and it belongs to whoever owns that decision. This alias
+      // restores exactly the compile-time latitude 17.2.0's `Promise<any>` gave
+      // the same expression and changes no runtime byte of it. When the
+      // compatibility question is ruled, the branches go and the alias goes
+      // with them - it exists only to keep a decision from being made by a
+      // build error.
+      const data = contractResult as AnalyticsResult &
+        Partial<Record<'data' | 'results', any>>;
 
       const rawRows: any[] = Array.isArray(data) ? data
         : data?.rows && Array.isArray(data.rows) ? data.rows

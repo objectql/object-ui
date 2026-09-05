@@ -279,10 +279,10 @@ importers:
         version: link:../../packages/types
       '@objectstack/client':
         specifier: ^17.0.0
-        version: 17.2.0(ai@7.0.65(zod@4.4.3))
+        version: 17.3.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/lint':
         specifier: ^17.0.0
-        version: 17.2.0(ai@7.0.65(zod@4.4.3))
+        version: 17.3.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.3.0(ai@7.0.65(zod@4.4.3))
@@ -778,10 +778,10 @@ importers:
         version: link:../types
       '@objectstack/formula':
         specifier: ^17.0.0
-        version: 17.2.0(ai@7.0.65(zod@4.4.3))
+        version: 17.3.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/lint':
         specifier: ^17.0.0
-        version: 17.2.0(ai@7.0.65(zod@4.4.3))
+        version: 17.3.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.0.0
         version: 17.3.0(ai@7.0.65(zod@4.4.3))
@@ -1194,7 +1194,7 @@ importers:
         version: link:../types
       '@objectstack/formula':
         specifier: ^17.0.0
-        version: 17.2.0(ai@7.0.65(zod@4.4.3))
+        version: 17.3.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.2.0
         version: 17.3.0(ai@7.0.65(zod@4.4.3))
@@ -1259,7 +1259,7 @@ importers:
         version: link:../types
       '@objectstack/client':
         specifier: ^17.0.0
-        version: 17.2.0(ai@7.0.65(zod@4.4.3))
+        version: 17.3.0(ai@7.0.65(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^17.2.0
         version: 17.3.0(ai@7.0.65(zod@4.4.3))
@@ -4252,32 +4252,23 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@17.2.0':
-    resolution: {integrity: sha512-bVRrWyqpn71U6HxQ2IuOuI5sg6b/xp0ZGaKms41+y1a/22bv1Q9cdTd3nY71jGvKmVZ/TJMEd8+D1poAPQQrKQ==}
+  '@objectstack/client@17.3.0':
+    resolution: {integrity: sha512-EoxDSZPxdqiInaEQ2eZlRAL0LES73sT2xVUqbUW84pXcB2f+s2uztOZmdkE/IDS65oBrMe8NnJ++q5RrwgI+wg==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/core@17.2.0':
-    resolution: {integrity: sha512-82I4eL/qcuFKOBhXWEGjJPAS9mOfwGVd9jeRbhRGuUZTm282sCuVoR/QC1JkDVxsFE0kSAtE4ej0XsYxP/spZQ==}
+  '@objectstack/core@17.3.0':
+    resolution: {integrity: sha512-MgH+HYLEl7dCQJ9XW4Wi/mBX32+WMUSf5X65DplUvHvfOeLQHnDg/GoXjnNVFBI+82A0tgkBPpvsvn7haduY8A==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/formula@17.2.0':
-    resolution: {integrity: sha512-5p6gn92AwNj0e1tfT6mCjBkIUOPjjPr4C6K7GtOAfL20MRIILKgVtf94rZBpWr8+WBGRND050RpssgtN8CqQ/A==}
+  '@objectstack/formula@17.3.0':
+    resolution: {integrity: sha512-zLR5DdFshJOvNMX9G4CPBPbWeVrWa/b1GxcMFhyNldtJCb92YlGsgd7vw8OWUkoxE+k9AnbfbxbDaxSxY2Ecgw==}
 
-  '@objectstack/lint@17.2.0':
-    resolution: {integrity: sha512-PbyvKuiDdIQ61nVTy2y+19wl3bFJ3uTQk8u0l+OpNJsUYR1YxXCMnayC/h7h66kTPLs4IgjVTOedc3hV0CiSkg==}
+  '@objectstack/lint@17.3.0':
+    resolution: {integrity: sha512-pRFjIZ+sQmlPT2N24aM9szwHK50P3AjiwmHEFi6DUHJGtDq/Tt4HtZ+89nF7WP0MfT1AK8nlNadxsDrHPF8UCg==}
     engines: {node: '>=22.0.0'}
 
-  '@objectstack/sdui-parser@17.2.0':
-    resolution: {integrity: sha512-ntkTsawiwCVx1wubBdLqfuM1KslPy+PwRTevX2YqBC567KVsRMyn2RbmcDXTAVLUDQNOl2yab7oI7vXZO82mag==}
-
-  '@objectstack/spec@17.2.0':
-    resolution: {integrity: sha512-nQzyR9+9JQEtLzFastQbj0ETLLbOm4sSY+sNUEX2k0QgZThCsMB1rKPv100c6GQZYg1BaLfz5xc8tv9oH3cKqg==}
-    engines: {node: '>=22.0.0'}
-    peerDependencies:
-      ai: ^7.0.0
-    peerDependenciesMeta:
-      ai:
-        optional: true
+  '@objectstack/sdui-parser@17.3.0':
+    resolution: {integrity: sha512-LbzxlLBoDBd0yxoIYMhYuXJ+j3iEsqvvBtrB0JWWda8Iy6mhPqbpyjj11Y5bZ2A0yGf20z0b/vXLDi1ISNIwpA==}
 
   '@objectstack/spec@17.3.0':
     resolution: {integrity: sha512-mceFp9swHHISMycZk8TjdqjBhi0GboQoapRSNeFyaI8GBIpw5cRc37GrWrIFVTZLaVCc7TF3XHSi1qqjaBNmzA==}
@@ -4287,6 +4278,10 @@ packages:
     peerDependenciesMeta:
       ai:
         optional: true
+
+  '@objectstack/types@17.3.0':
+    resolution: {integrity: sha512-G5c2+V0gzR5co5XcZ0Zs4uTOp42421Yj6fWEWVV6kEpKfIzaDYUzv1HfmwdOfLklrbtNiF3loBg6jB00BVge/g==}
+    engines: {node: '>=22.0.0'}
 
   '@open-draft/deferred-promise@2.2.0':
     resolution: {integrity: sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA==}
@@ -7669,9 +7664,6 @@ packages:
 
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
-
-  fast-uri@3.1.6:
-    resolution: {integrity: sha512-7Ical1vFEMr0onbVzEDIreM22I4khW+fzyQPwvAFWBp1iwdshSZRsL4jjRvPG9JP1uiqMHRto+YU6R2/CzDz5Q==}
 
   fast-uri@3.1.7:
     resolution: {integrity: sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==}
@@ -12718,32 +12710,33 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@17.2.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/client@17.3.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 17.2.0(ai@7.0.65(zod@4.4.3))
-      '@objectstack/spec': 17.2.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/core': 17.3.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.3.0(ai@7.0.65(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@17.2.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/core@17.3.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 17.2.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.3.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/types': 17.3.0(ai@7.0.65(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@17.2.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/formula@17.3.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 17.2.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/spec': 17.3.0(ai@7.0.65(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@17.2.0(ai@7.0.65(zod@4.4.3))':
+  '@objectstack/lint@17.3.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 17.2.0(ai@7.0.65(zod@4.4.3))
-      '@objectstack/sdui-parser': 17.2.0
-      '@objectstack/spec': 17.2.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/formula': 17.3.0(ai@7.0.65(zod@4.4.3))
+      '@objectstack/sdui-parser': 17.3.0
+      '@objectstack/spec': 17.3.0(ai@7.0.65(zod@4.4.3))
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       sucrase: 3.35.1
@@ -12751,14 +12744,7 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@17.2.0': {}
-
-  '@objectstack/spec@17.2.0(ai@7.0.65(zod@4.4.3))':
-    dependencies:
-      pg-connection-string: 2.14.0
-      zod: 4.4.3
-    optionalDependencies:
-      ai: 7.0.65(zod@4.4.3)
+  '@objectstack/sdui-parser@17.3.0': {}
 
   '@objectstack/spec@17.3.0(ai@7.0.65(zod@4.4.3))':
     dependencies:
@@ -12766,6 +12752,12 @@ snapshots:
       zod: 4.4.3
     optionalDependencies:
       ai: 7.0.65(zod@4.4.3)
+
+  '@objectstack/types@17.3.0(ai@7.0.65(zod@4.4.3))':
+    dependencies:
+      '@objectstack/spec': 17.3.0(ai@7.0.65(zod@4.4.3))
+    transitivePeerDependencies:
+      - ai
 
   '@open-draft/deferred-promise@2.2.0': {}
 
@@ -14872,7 +14864,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.6
+      fast-uri: 3.1.7
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -16271,10 +16263,7 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
-  fast-uri@3.1.6: {}
-
-  fast-uri@3.1.7:
-    optional: true
+  fast-uri@3.1.7: {}
 
   fast-wrap-ansi@0.2.2:
     dependencies:
