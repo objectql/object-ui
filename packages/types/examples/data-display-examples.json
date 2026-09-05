@@ -245,10 +245,8 @@
   "compositeExample": {
     "type": "flex",
     "id": "user-profile-card",
-    "props": {
-      "direction": "col",
-      "gap": 4
-    },
+    "direction": "col",
+    "gap": 4,
     "children": [
       {
         "type": "avatar",
