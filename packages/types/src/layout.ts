@@ -222,8 +222,12 @@ export interface SeparatorSchema extends BaseSchema {
 export interface ContainerSchema extends BaseSchema {
   type: 'container';
   /**
-   * Max width constraint
-   * @default 'lg'
+   * Max width constraint.
+   *
+   * `container.tsx` applies this as `schema.maxWidth ?? 'xl'`, so a
+   * `container` that omits the key renders `max-w-xl` — the tag said
+   * `'lg'` and no renderer ever applied it (objectui#7361).
+   * @default 'xl'
    */
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'full' | 'screen' | false;
   /**
@@ -292,8 +296,18 @@ export interface FlexLayoutProps {
    */
   justify?: 'start' | 'end' | 'center' | 'between' | 'around' | 'evenly';
   /**
-   * Align items
-   * @default 'center'
+   * Align items.
+   *
+   * Deliberately carries NO `@default` tag. The member is declared once here
+   * (see this interface's docblock and objectui#6151), but the two component
+   * types that consume it diverge on the value they apply when it is omitted:
+   * `flex.tsx` reads `schema.align || 'start'`, `stack.tsx` reads
+   * `schema.align || 'stretch'` ("Stack items usually stretch"). One tag on a
+   * shared member cannot be right for both — it would publish a single default
+   * that only one consumer applies, which is the defect objectui#7361 records
+   * (the tag here used to read `'center'`, which NEITHER renderer applies).
+   * The per-type values are stated in prose so no parser reads a value that is
+   * only conditionally true.
    */
   align?: 'start' | 'end' | 'center' | 'baseline' | 'stretch';
   /**
