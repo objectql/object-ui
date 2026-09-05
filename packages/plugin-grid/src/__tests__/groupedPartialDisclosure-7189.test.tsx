@@ -64,6 +64,33 @@ import React from 'react';
 import { ObjectGrid } from '../ObjectGrid';
 import { ActionProvider } from '@object-ui/react';
 
+/**
+ * The repo root, derived from THIS FILE's own location — never from
+ * `process.cwd()` (objectui#7799).
+ *
+ * It was `process.cwd()` until then, on the reasoning that
+ * `scripts/vitest-invocation-guard.mjs` refuses any invocation whose vitest root
+ * is not the repo root. That guard is real, but it is a DIFFERENT invariant:
+ * `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ * package's own `test` script — `vitest run --root ../.. packages/plugin-grid/`, which
+ * is what `pnpm --filter … test` and `turbo run test` both run — leaves cwd at
+ * `packages/plugin-grid/`, so every read below resolved against the package directory
+ * and the assertions guarding them failed.
+ *
+ * Spelled in string operations, copying the landed precedent of objectui#7791
+ * (PR #7796): `new URL(rel, import.meta.url)` is REWRITTEN by Vite into a
+ * `http://localhost:3000/@fs/…` dev-server URL, so only bare `import.meta.url`
+ * is read here and taken apart by hand. Measured on this card under both cwds
+ * and in both the `unit` and the `dom` project, it is
+ * `file:///…/packages/plugin-grid/src/__tests__/<this file>`.
+ */
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / plugin-grid / src / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
+
+
 const OBJECT = 'duly_task';
 
 const OBJECT_FIELDS = {
@@ -380,11 +407,13 @@ describe('ObjectGrid — a grouped grid discloses that it grouped a page (object
   it('is not width-conditional: grouping never reaches the mobile card view', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
-    // The repo root: this repo's vitest guard refuses any invocation whose
-    // root is not it (objectui#3378), so `process.cwd()` is that root by
-    // construction and needs no walking up.
+    // The repo root, derived from THIS FILE (objectui#7799). It was
+    // `process.cwd()`, on the reasoning that the vitest guard refuses any
+    // invocation whose root is not the repo root (objectui#3378) — but that
+    // guard pins VITEST's root, and the package `test` script sets that root
+    // correctly while leaving cwd at `packages/plugin-grid/`.
     const src = fs.readFileSync(
-      path.join(process.cwd(), 'packages/plugin-grid/src/ObjectGrid.tsx'),
+      path.join(REPO_ROOT, 'packages/plugin-grid/src/ObjectGrid.tsx'),
       'utf8',
     );
     // The one width-driven branch in this component excludes grouping, so the
