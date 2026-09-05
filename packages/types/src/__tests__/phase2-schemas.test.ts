@@ -363,14 +363,12 @@ describe('Phase 2: Enhanced ActionSchema Zod Validation', () => {
       headers: {
         'Authorization': 'Bearer token',
       },
-      onSuccess: {
-        type: 'toast',
-        message: 'Data loaded successfully',
-      },
-      onFailure: {
-        type: 'message',
-        message: 'Failed to load data',
-      },
+      // `onSuccess` / `onFailure` — Phase-2 `ActionCallback` objects — were RETIRED by
+      // objectui#7068; this fixture was their only in-repo producer. Both faces refuse
+      // them now, so this accept case authors the notices instead; the refusal and
+      // its controls are pinned in `action-callback-retired-7068.test.ts`.
+      successMessage: 'Data loaded successfully',
+      errorMessage: 'Failed to load data',
     };
 
     const result = ActionSchema.safeParse(ajaxAction);

@@ -284,7 +284,6 @@ export {
 // ============================================================================
 export {
   ActionExecutionModeSchema,
-  ActionCallbackSchema,
   ActionSchema,
   DetailSchema,
   CRUDDialogSchema,

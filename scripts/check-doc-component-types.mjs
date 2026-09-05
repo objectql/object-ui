@@ -474,7 +474,6 @@ const DOC_TYPE_EXEMPTIONS = {
     action:
       'ActionSchema discriminant. This page documents the action vocabulary end to end, so every ' +
       '`type: \'action\'` here is an action definition rather than a node.',
-    message: 'ActionSchema discriminant for the message/toast action under `onFailure`.',
   },
   'content/docs/core/report-schema.mdx': {
     line: 'Chart series kind under a report section\'s `chart.series`, not a node type.',

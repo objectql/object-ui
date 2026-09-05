@@ -23,39 +23,12 @@ import type { BaseSchema, SchemaNode } from './base.js';
  */
 export type ActionExecutionMode = 'sequential' | 'parallel';
 
-/**
- * Action callback configuration
- */
-export interface ActionCallback {
-  /**
-   * Callback type
-   */
-  type: 'toast' | 'message' | 'redirect' | 'reload' | 'custom' | 'ajax' | 'dialog';
-  /**
-   * Message to display
-   */
-  message?: string;
-  /**
-   * Redirect URL
-   */
-  url?: string;
-  /**
-   * API endpoint for ajax callback
-   */
-  api?: string;
-  /**
-   * HTTP method for ajax callback
-   */
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-  /**
-   * Dialog schema to open
-   */
-  dialog?: SchemaNode;
-  /**
-   * Custom callback handler expression
-   */
-  handler?: string;
-}
+// `ActionCallback` — the Phase-2 callback object the legacy `ActionSchema.onSuccess` /
+// `onFailure` keys carried — was DELETED by objectui#7068 (the objectui#7664 route for
+// a standalone retired type: name gone from both faces and from the barrels, absence
+// pinned). The two keys below stay declared as `?: never` tombstones so an authored
+// callback is a `tsc` error at the site instead of a silent index-signature admit;
+// `__tests__/action-callback-retired-7068.test.ts` pins both faces.
 
 /**
  * Action button configuration for CRUD operations
@@ -158,13 +131,38 @@ export interface ActionSchema extends BaseSchema {
    */
   errorMessage?: string;
   /**
-   * Success callback (Phase 2)
+   * RETIRED (objectui#7068, ADR-0049 enforce-or-remove) — the Phase-2 success
+   * callback, an `ActionCallback` object (`{ type: 'toast' | 'message' | 'redirect'
+   * | 'reload' | 'custom' | 'ajax' | 'dialog', message?, url?, api?, method?,
+   * dialog?, handler? }`). Measured before the retirement: zero producers outside
+   * this package's own test fixture and two docs pages, and zero runtime readers —
+   * `ActionRunner` never consumed this shape (its retired channel wanted full
+   * `ActionDef`s, and `{ type: 'toast' }` is not a registered action type), and
+   * `@objectstack/spec`'s `ActionSchema` refuses it at publish (`invalid_type` at
+   * `onSuccess.navigate` plus `unrecognized_keys` on the block). It was the THIRD
+   * meaning of this key; objectui#5934 had already converged the runner on the
+   * spec's post-success block. Maintainer ruling option 1 (2026-09-05), immediate,
+   * no deprecation window.
+   *
+   * Where the live meaning lives: the spec's `onSuccess` block `{ navigate, openIn }`,
+   * declared on `UIActionSchema` (`ui-action.ts`) and forwarded to the runner. A
+   * success notice is {@link ActionSchema.successMessage}. `?: never` rather than a
+   * deletion because {@link BaseSchema} carries an index signature that would ADMIT
+   * a deleted key unchecked; the zod twin (`zod/crud.zod.ts`) refuses it by name.
+   * @deprecated Not part of this contract — write the spec's `onSuccess` block on `UIActionSchema`, or `successMessage`.
    */
-  onSuccess?: ActionCallback;
+  onSuccess?: never;
   /**
-   * Failure callback (Phase 2)
+   * RETIRED (objectui#7068, ADR-0049 enforce-or-remove) — the Phase-2 failure
+   * callback, the same `ActionCallback` object shape {@link ActionSchema.onSuccess}
+   * carried. Zero producers, zero runtime readers (measured, see `onSuccess`), and
+   * `@objectstack/spec`'s `ActionSchema` declares no `onFailure` at all — an
+   * authored one is refused at publish as an unrecognized key. Maintainer ruling
+   * option 1 (2026-09-05), immediate, no deprecation window. A failure notice is
+   * {@link ActionSchema.errorMessage}; the zod twin refuses this key by name.
+   * @deprecated Not part of this contract — write `errorMessage`.
    */
-  onFailure?: ActionCallback;
+  onFailure?: never;
   /**
    * Action chaining - actions to execute after this one (Phase 2)
    */
