@@ -1787,10 +1787,6 @@ interface WiderThanDeclared {
   /** CONCRETE: the mirror's operator enum and the declared operator union are not the same set; also in `KnownDrift`. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
   /** SCHEMA-NODE. */
-  'complex.zod.ts#DeclarativeKanbanColumnSchema': 'cards';
-  /** SCHEMA-NODE. */
-  'complex.zod.ts#DeclarativeKanbanSchema': 'columns';
-  /** SCHEMA-NODE. */
   'crud.zod.ts#DetailSchema': 'groups' | 'tabs';
   /**
    * CONCRETE. `columns` compares an inline element shape against the named
