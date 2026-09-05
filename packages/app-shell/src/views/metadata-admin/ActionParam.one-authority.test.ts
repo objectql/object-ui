@@ -28,7 +28,7 @@
  * INSTRUMENT against declaration 2. `[k: string]: unknown` makes every string
  * a member, so `keyof` on that type is `string` and a key-set comparison
  * cannot fail whatever the file does. That is the same trap
- * `FlowNodeInspector.specKeys.test.tsx` records for `FlowNodeLike`.
+ * `FlowNodeInspector.specKeys.test.tsx` records for `InspectorFlowNode`.
  *
  * Here the index signature GOES AWAY in the convergence rather than being
  * worked around, so the key-set half becomes live — but only against the

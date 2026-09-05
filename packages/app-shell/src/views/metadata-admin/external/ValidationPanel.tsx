@@ -39,6 +39,11 @@ type RunState = 'idle' | 'running' | 'done' | 'error' | 'unavailable';
  * the union, and therefore silently unlabelled here (objectstack#4115).
  * `default_mismatch` (spec 17.0.0-rc.2) is the mechanism working as intended —
  * it arrived with the pin bump and failed this build until labelled.
+ * `unreachable` (spec 17.3.0) arrived the same way. It is the one kind that
+ * asserts NOTHING about the remote schema — introspection never completed, so
+ * the comparison never ran — and the spec's own ruling is that consumers must
+ * surface it as "cannot check", never as "schema changed": labelling it like a
+ * mismatch tells an operator to repair a schema nobody has read.
  */
 const DIFF_LABEL: Record<SchemaDiffEntry['kind'], string> = {
   missing_table: 'Missing table',
@@ -50,6 +55,7 @@ const DIFF_LABEL: Record<SchemaDiffEntry['kind'], string> = {
   index_mismatch: 'Index mismatch',
   unmapped_index: 'Unmapped index',
   default_mismatch: 'Column default mismatch',
+  unreachable: 'Not checked — remote unreachable',
 };
 
 export function ValidationPanel({ datasource }: ValidationPanelProps) {

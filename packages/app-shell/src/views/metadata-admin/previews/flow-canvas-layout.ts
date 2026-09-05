@@ -93,7 +93,7 @@ export interface FlowDesignerNode {
    *
    * ⛔ Making it required here catches nothing. Measured on `origin/main` in
    * #6287: `tsc` exit 0, ZERO errors, because every node reaches the reader
-   * types through `as FlowNodeLike[]` / `as FlowDesignerNode[]` casts out of
+   * types through `as InspectorFlowNode[]` / `as FlowDesignerNode[]` casts out of
    * `Record<string, unknown>`, and **a cast bypasses a required member**. It is
    * also mildly harmful — `node.label ?? ''` and `node.label || node.id` are
    * guards the OPTIONAL type forces, while a required `label` would let

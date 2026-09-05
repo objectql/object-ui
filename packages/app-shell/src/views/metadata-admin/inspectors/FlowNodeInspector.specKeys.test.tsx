@@ -22,7 +22,7 @@
  * Dropping `description?` from a local `interface` proves nothing on its own,
  * for two independent reasons measured on this card:
  *
- * 1. The node the inspector edits is typed `FlowNodeLike` (the exported shape
+ * 1. The node the inspector edits is typed `InspectorFlowNode` (the exported shape
  *    `locateFlowNode` returns), NOT the inspector's own module-local
  *    declaration — so narrowing only the local copy changes no read.
  * 2. Both shapes carry a deliberately load-bearing `[k: string]: unknown`
@@ -35,7 +35,7 @@
  *
  * The two assertions below survive both traps:
  *
- * - **Compile time**: the DECLARED members of `FlowNodeLike` — index signature
+ * - **Compile time**: the DECLARED members of `InspectorFlowNode` — index signature
  *   stripped — must be a subset of the spec's own `FlowNode` keys. That closes
  *   the whole class rather than the one key: any future member added to the
  *   read type that the contract refuses turns this red.
@@ -55,7 +55,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import * as Automation from '@objectstack/spec/automation';
 import type { FlowNode as SpecFlowNode } from '@objectstack/spec/automation';
-import type { FlowNodeLike } from './flow-nested-selection';
+import type { InspectorFlowNode } from './flow-nested-selection';
 
 // Same stubs the sibling suite uses: the engine config-schema hook is empty so
 // the hardcoded field groups render, and the field catalog resolves without a
@@ -129,7 +129,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ?
 /**
  * The DECLARED members of a type — its index signature removed.
  *
- * `keyof FlowNodeLike` is `string | number` while the index signature is there,
+ * `keyof InspectorFlowNode` is `string | number` while the index signature is there,
  * which is why the naive key comparison cannot see this defect at all.
  */
 type Declared<T> = {
@@ -138,14 +138,14 @@ type Declared<T> = {
 
 describe('the node read type declares no key FlowNodeSchema refuses (#6287)', () => {
   it('is pinned at compile time', () => {
-    type DeclaredNodeKeys = keyof Declared<FlowNodeLike>;
+    type DeclaredNodeKeys = keyof Declared<InspectorFlowNode>;
     type SpecNodeKeys = keyof SpecFlowNode;
 
     // Guard against a degenerate probe: were either side `any`, or the
     // index-signature strip to leave nothing behind, every assertion below
     // would pass while measuring nothing.
     type _SpecNotAny = Assert<Equal<IsAny<SpecFlowNode>, false>>;
-    type _LocalNotAny = Assert<Equal<IsAny<FlowNodeLike>, false>>;
+    type _LocalNotAny = Assert<Equal<IsAny<InspectorFlowNode>, false>>;
     type _StripLeftKeys = Assert<Equal<Equal<DeclaredNodeKeys, never>, false>>;
     type _SpecHasKeys = Assert<Extends<'label', SpecNodeKeys>>;
     // …and that the strip really removed the index signature: `description`

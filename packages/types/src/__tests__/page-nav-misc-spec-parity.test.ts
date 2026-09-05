@@ -614,6 +614,12 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     ['FileMetadata', 'UploadedFileMetadata'],
     ['PageRegion', 'PageNodeRegion'],
     ['PageRegionSchema', 'PageNodeRegionSchema'],
+    // `FlowNodeLike` became a spec export in 17.3.0 (objectui#7122), so
+    // `@object-ui/app-shell`'s two same-named local declarations became
+    // shadows and were renamed to `InspectorFlowNode` (the inspector's read
+    // type, `id` REQUIRED where the spec's is optional) and `ScopeFlowNode`
+    // (the scope walker's pre-validation probe, every member `unknown`).
+    ['FlowNodeLike', 'InspectorFlowNode'],
     // `['ResponsiveConfig', 'MobileResponsiveConfig']` left this list when the
     // local dialect was RETIRED (objectui#7519) — see the header.
     // `WidgetManifest` / `WidgetSource` moved OUT of this list on the
@@ -717,6 +723,42 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
   );
 
   /**
+   * THE TRIPWIRE'S FOURTH FIRING, on the `@objectstack/spec` 17.3.0 bump
+   * (objectui#7122). 17.3.0 published objectstack#11027's retirement of the
+   * whole `ui/responsive` vocabulary, which the objectui#7580 ruling had
+   * already localized here on the merged-but-unreleased upstream change.
+   *
+   * For the length of that one pin interval the local declarations and live
+   * spec exports shared a name, so both carried a SELF-EXPIRING ALLOW entry in
+   * `scripts/check-spec-symbol-derivation.mjs` whose own text set the
+   * expiry: "⛔ Delete this entry on the pin bump — ratchet 3 will force it —
+   * and move the name to the absence pin in page-nav-misc-spec-parity.test.ts".
+   * The bump did exactly that; these rows are where the names landed.
+   *
+   * `BreakpointName` is `@object-ui/types`'; `BreakpointColumnMap` is
+   * `@object-ui/layout`'s. Both are kept because `responsive-grid` is a
+   * REGISTERED SDUI component whose authorable `columns` reaches
+   * `resolveColumnClasses` on the render path — the tombstone's own stated
+   * return condition, met on the renderer side. The exports are live in this
+   * workspace, so a spec re-publish is a live collision, not a latent one.
+   */
+  it.each([['BreakpointName'], ['BreakpointColumnMap']])(
+    'the spec no longer owns `%s`, re-homed under the objectui#7580 ruling',
+    (localized) => {
+      expect(
+        names,
+        `spec owns '${localized}' again — the objectstack#11027 ui/responsive ` +
+          `retirement has been undone upstream while this workspace exports that exact ` +
+          `name (@object-ui/types' responsive union / @object-ui/layout's column map, ` +
+          `objectui#7580). This is a live collision: re-triage against objectstack#4115 ` +
+          `— derive from the spec again, or arbitrate the name. ⛔ Do not answer it by ` +
+          `re-adding an ALLOW entry: the deleted ones were an INTERVAL waiver, not a ` +
+          `deliberate-divergence waiver.`,
+      ).not.toContain(localized);
+    },
+  );
+
+  /**
    * `OfflineConfig` is the one the spec vacated that objectui did NOT reclaim,
    * and the reason is worth pinning rather than remembering: **the spec was
    * never the only claimant**. That rename was a cross-package arbitration
@@ -760,6 +802,8 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     // `MobileResponsiveConfig` retired with its type (objectui#7519).
     ['RuntimeWidgetManifest', 'SDUI component manifest, not the field-widget plugin'],
     ['RuntimeWidgetSource', 'objectui module/inline/registry loader union'],
+    ['InspectorFlowNode', "app-shell's flow-inspector read type, `id` REQUIRED"],
+    ['ScopeFlowNode', "app-shell's pre-validation scope probe, members `unknown`"],
   ])('the spec does not own `%s` (%s)', (name) => {
     expect(names).not.toContain(name);
   });

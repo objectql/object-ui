@@ -16,7 +16,7 @@
  * ⛔ The reader-side type is NOT the enforcement point, and this is measured,
  * not asserted. objectui#6287 made `label` required on the reader type and got
  * `tsc` exit 0 with **zero errors**: every node reaches that type through
- * `as FlowNodeLike[]` casts out of `Record<string, unknown>`, and **a cast
+ * `as InspectorFlowNode[]` casts out of `Record<string, unknown>`, and **a cast
  * bypasses a required member**. It is also mildly harmful — `node.label ?? ''`
  * and `node.label || node.id` are guards the OPTIONAL type currently forces,
  * while a required `label` would let `node.label.trim()` compile against a
@@ -279,7 +279,7 @@ function collectSites(file: string, src: string): Site[] {
   const sites: Site[] = [];
 
   // (a) a literal declared AS a flow node
-  for (const m of src.matchAll(/:\s*(?:FlowDesignerNode|FlowNodeLike|FlowNode)\s*=\s*\{/g)) {
+  for (const m of src.matchAll(/:\s*(?:FlowDesignerNode|InspectorFlowNode|FlowNodeLike|FlowNode)\s*=\s*\{/g)) {
     const open = src.indexOf('{', m.index!);
     const close = matchBracket(src, open, '{', '}');
     if (close < 0) continue;

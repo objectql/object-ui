@@ -121,8 +121,27 @@ export function regionLabelOf(regionKey: string, container?: { config?: unknown 
  * field for it (objectui#6287). `FlowNodeInspector.specKeys.test.tsx` pins the
  * declared members (index signature stripped) as a subset of the spec's own
  * node keys, so the next addition of that kind fails to compile.
+ *
+ * ## Why the name is `InspectorFlowNode` and not `FlowNodeLike`
+ *
+ * `@objectstack/spec/system` began exporting its OWN `FlowNodeLike` in spec
+ * 17.3.0 (the minimal node shape `translateFlow` consumes), so the local name
+ * became a shadow of a live spec export — read by the next agent as the spec's
+ * own definition, which is how objectstack#2901 was filed with a backwards
+ * premise. `check-spec-symbol-derivation.mjs` caught it at the pin bump
+ * (objectui#7122) and offers four remedies; the difference here is REAL, so
+ * this is remedy 3, a declared local dialect.
+ *
+ * The difference, measured rather than asserted: the spec's `FlowNodeLike`
+ * declares `id?: string` OPTIONAL, this one declares `id: string` REQUIRED.
+ * Assignability runs one way only — this type is usable where the spec's is
+ * expected, the spec's is NOT usable where this one is. Importing the spec
+ * export in place of this declaration would therefore be a silent WIDENING
+ * that drops the `id` guarantee `NodeLocation` and every `locateFlowNode`
+ * caller are built on. The tripwire lives in `@object-ui/types`'
+ * `page-nav-misc-spec-parity.test.ts`, with the other renamed dialects.
  */
-export interface FlowNodeLike {
+export interface InspectorFlowNode {
   id: string;
   type?: string;
   label?: string;
@@ -136,7 +155,7 @@ export interface FlowNodeLike {
  */
 export interface NodeLocation {
   /** The resolved node (a member of draft.nodes, or of a region sub-graph). */
-  node: FlowNodeLike;
+  node: InspectorFlowNode;
   /** True when the node lives inside a container region (not draft.nodes). */
   nested: boolean;
   /**
@@ -145,7 +164,7 @@ export interface NodeLocation {
    */
   scopeAnchorId: string;
   /** The enclosing container node — only when nested. */
-  container?: FlowNodeLike;
+  container?: InspectorFlowNode;
   /** Human region label for the inspector breadcrumb — only when nested. */
   regionLabel?: string;
   /**
@@ -157,21 +176,21 @@ export interface NodeLocation {
   write: (next: Record<string, unknown> | null) => Record<string, unknown> | null;
 }
 
-function asNodeArray(v: unknown): FlowNodeLike[] {
-  return Array.isArray(v) ? (v as FlowNodeLike[]) : [];
+function asNodeArray(v: unknown): InspectorFlowNode[] {
+  return Array.isArray(v) ? (v as InspectorFlowNode[]) : [];
 }
 
-function configOf(node: FlowNodeLike): Record<string, unknown> {
+function configOf(node: InspectorFlowNode): Record<string, unknown> {
   const c = node.config;
   return c && typeof c === 'object' && !Array.isArray(c) ? (c as Record<string, unknown>) : {};
 }
 
 /** A region object (`{ nodes, edges, name? }`) with a usable `nodes` array, or null. */
-function asRegion(v: unknown): (Record<string, unknown> & { nodes: FlowNodeLike[] }) | null {
+function asRegion(v: unknown): (Record<string, unknown> & { nodes: InspectorFlowNode[] }) | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const r = v as Record<string, unknown>;
   if (!Array.isArray(r.nodes)) return null;
-  return r as Record<string, unknown> & { nodes: FlowNodeLike[] };
+  return r as Record<string, unknown> & { nodes: InspectorFlowNode[] };
 }
 
 /** Resolve a region object out of a container's config by its structured path. */
@@ -189,9 +208,9 @@ function regionFromConfig(cfg: Record<string, unknown>, rp: RegionConfigPath) {
  * (`region.edges`, `branch.name`).
  */
 function writeNestedNode(
-  nodes: FlowNodeLike[],
+  nodes: InspectorFlowNode[],
   containerIdx: number,
-  container: FlowNodeLike,
+  container: InspectorFlowNode,
   rp: RegionConfigPath,
   nodeIdx: number,
   next: Record<string, unknown> | null,

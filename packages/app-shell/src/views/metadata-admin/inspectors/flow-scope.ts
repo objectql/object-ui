@@ -73,7 +73,19 @@ export interface FlowScope {
   trigger?: TriggerScope;
 }
 
-interface FlowNodeLike {
+/**
+ * The scope walker's read shape for a node it has NOT yet validated — every
+ * member `unknown` on purpose, because this runs over raw stored metadata and
+ * narrows each value at its use site.
+ *
+ * Named `ScopeFlowNode` rather than `FlowNodeLike` because spec 17.3.0 began
+ * exporting a `FlowNodeLike` of its own (objectui#7122): a local declaration
+ * under a live spec export's name reads as the spec's definition to the next
+ * agent. This one is a genuine dialect, not a copy — the spec's members are
+ * typed (`id?: string`), these are deliberately untyped, which is the whole
+ * point of a pre-validation probe. Tripwire: `page-nav-misc-spec-parity.test.ts`.
+ */
+interface ScopeFlowNode {
   id?: unknown;
   type?: unknown;
   label?: unknown;
@@ -154,7 +166,7 @@ export function flowAncestors(nodeId: string, edges: FlowEdgeLike[]): Set<string
  * function path — framework#4278), so suggesting them in the data picker
  * offered successors variables that never exist at run time.
  */
-export function nodeOutputRefs(node: FlowNodeLike): ScopeRef[] {
+export function nodeOutputRefs(node: ScopeFlowNode): ScopeRef[] {
   const type = str(node.type);
   const cfg = asRecord(node.config);
   const nodeId = str(node.id) ?? '';
@@ -225,7 +237,7 @@ function dedupeByToken(refs: ScopeRef[]): ScopeRef[] {
  * iterators, then trigger refs, de-duplicated by token.
  */
 export function resolveFlowScope(draft: Record<string, unknown>, nodeId: string | undefined): FlowScope {
-  const nodes = asArray(draft.nodes).map(asRecord) as FlowNodeLike[];
+  const nodes = asArray(draft.nodes).map(asRecord) as ScopeFlowNode[];
   const edges = asArray(draft.edges) as FlowEdgeLike[];
   const refs: ScopeRef[] = [];
 

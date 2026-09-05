@@ -55,7 +55,7 @@ import { useActionConfigSchemas } from '../previews/useFlowNodePalette.js';
 import { FlowNodeConfigField } from './FlowNodeConfigField.js';
 import { useFlowScope } from './useFlowScope.js';
 import { nodeOutputRefs, type ScopeRef } from './flow-scope.js';
-import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode, type FlowNodeLike } from './flow-nested-selection.js';
+import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode, type InspectorFlowNode } from './flow-nested-selection.js';
 import type { FlowDesignerEdge } from '../previews/flow-canvas-layout.js';
 import { ScreenPreview } from '../previews/ScreenPreview.js';
 
@@ -69,7 +69,7 @@ import { ScreenPreview } from '../previews/ScreenPreview.js';
  * - the node copy declared `description?: string`, a key `FlowNodeSchema`
  *   refuses by name (`.strict()`, objectstack#4001) — and the copy was not even
  *   the type the panel reads through, since `locateFlowNode` returns
- *   `FlowNodeLike`. Narrowing the copy alone would have changed nothing.
+ *   `InspectorFlowNode`. Narrowing the copy alone would have changed nothing.
  * - the edge copy still spelled `condition?: unknown`, months after
  *   `FlowEdgeInspector`'s twin was narrowed to the spec's `ExpressionInput`
  *   because the loose spelling described an envelope the server rejects — the
@@ -84,7 +84,7 @@ import { ScreenPreview } from '../previews/ScreenPreview.js';
  * spec, so this panel now inherits that pin instead of needing its own copy of
  * it.
  */
-type FlowNode = FlowNodeLike;
+type FlowNode = InspectorFlowNode;
 type FlowEdge = FlowDesignerEdge;
 
 /**
