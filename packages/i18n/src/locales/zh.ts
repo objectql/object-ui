@@ -1827,11 +1827,21 @@ const zh = {
           availableObjects: '列出可用的数据对象。',
           recentActivity: '总结我的最近动态。',
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: '给某个对象加一个字段。',
           addObject: '新增一个对象，并关联到已有对象。',
           addDashboard: '加一个展示关键指标的仪表盘。',
-          addAutomation: '加一个自动化 —— 审批、状态流转或通知。',
+          addSampleData: '给现有对象补一批贴近真实的示例数据，好拿去演示。',
         },
       },
       // objectui#3546 slice four — the AI console surfaces: the /ai chat page's app switcher,
