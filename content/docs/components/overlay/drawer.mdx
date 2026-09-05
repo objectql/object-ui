@@ -12,7 +12,7 @@ description: "Sliding panel from edge of screen"
 ```plaintext
 interface DrawerSchema {
   type: 'drawer';
-  trigger: SchemaNode;
+  trigger: SchemaNode | SchemaNode[];
   title?: string;
   children: SchemaNode[];
   side?: 'left' | 'right' | 'top' | 'bottom';

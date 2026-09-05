@@ -153,16 +153,19 @@ describe('objectui#6939 — and the repair moved the validator, not the renderer
 });
 
 describe('objectui#6939 — the fixtures were the side that was right', () => {
-  it.each(IDS)('%s: "correcting" it to `data` changes no pixel', (id) => {
-    // The card's own discriminator, re-measured here rather than quoted: the
-    // spelling swap moves nothing, so the schema was the wrong side. Contrast
-    // the same probe on the sibling groups, where the "correction" emptied the
-    // board or blanked the tile.
-    const authored = measure(asAuthored(id));
+  it.each(IDS)('%s: spelling it `data` now draws an EMPTY tree — the retired limb is not read (objectui#6951)', (id) => {
+    // Flipped. At objectui#6939 the spelling swap moved nothing (the renderer
+    // read `data` third), which is how the fixtures were shown to be the right
+    // side. objectui#6951 then RETIRED `data` on both faces and dropped the
+    // renderer's read of it, so the same swap now blanks the tree body: the
+    // title still draws, every authored root label is gone. That is the
+    // enforce-or-remove half measured through the DOM.
+    const schema = asAuthored(id) as { title: string; nodes: { label: string }[] };
+    const authored = measure(schema);
     const corrected = measure(asDataSpelling(id));
-    expect(corrected.elements).toBe(authored.elements);
-    expect(corrected.text).toBe(authored.text);
-    expect(corrected.sha256).toBe(authored.sha256);
+    expect(corrected.elements).toBeLessThan(authored.elements);
+    expect(corrected.text).toContain(schema.title);
+    for (const node of schema.nodes) expect(corrected.text).not.toContain(node.label);
   });
 
   it.each(IDS)('%s stays on the spelling its renderer reads FIRST', (id) => {
@@ -171,13 +174,21 @@ describe('objectui#6939 — the fixtures were the side that was right', () => {
     expect('data' in schema).toBe(false);
   });
 
-  it('both spellings validate — the accept set widened, it did not move', () => {
-    // ⛔ Do NOT "repair" a future red here by migrating the fixtures to `data`.
-    // The renderer reads `nodes` first and the registration's `defaultProps`
-    // spell it `nodes`; the fixtures ARE those defaults.
+  it('only `nodes` validates now — `data` is refused by name (objectui#6951)', () => {
+    // Flipped from "both spellings validate". ⛔ Do NOT "repair" a future red
+    // here by migrating the fixtures to `data`: that spelling is retired. The
+    // refusal names the key and the spelling to write instead.
     for (const id of IDS) {
       expect(reasons(asAuthored(id))).toEqual([]);
-      expect(reasons(asDataSpelling(id))).toEqual([]);
+      // The union door refuses (its top-level issue is the `invalid_union`
+      // envelope); the arm-level issue on the `data` path carries the guidance.
+      expect(reasons(asDataSpelling(id)).length).toBeGreaterThan(0);
+      const direct = TreeViewSchema.safeParse(asDataSpelling(id));
+      expect(direct.success).toBe(false);
+      if (!direct.success) {
+        const issue = direct.error.issues.find((i) => i.path.join('.') === 'data');
+        expect(issue?.message).toContain('write `nodes`');
+      }
     }
   });
 
@@ -189,12 +200,12 @@ describe('objectui#6939 — the fixtures were the side that was right', () => {
     expect(TreeViewSchema.safeParse({ type: 'tree-view', nodes: 'not-an-array' }).success).toBe(false);
     expect(TreeViewSchema.safeParse({ type: 'tree-view', data: 'not-an-array' }).success).toBe(false);
     // …and a good shape still passes, so the two above are not failing for some
-    // unrelated reason. ⚠️ The carrier carries BOTH spellings on purpose: it is
-    // legal with or without this card, so this control cannot redden for the
-    // relaxation it is controlling for. (That the authored, `nodes`-only
-    // fixtures parse is the first describe block's claim, not this one's.)
+    // unrelated reason. (`data` stays in the shape as a TOMBSTONE since
+    // objectui#6951 — declared and refused by name, never a passthrough hole.)
+    // objectui#6951: the carrier is `nodes`-only now — `data` is retired, so a
+    // both-spellings carrier would redden for the retirement, not for shape.
     expect(TreeViewSchema.safeParse({
-      type: 'tree-view', title: 'File Explorer', data: [], nodes: [{ id: '1', label: 'Documents' }],
+      type: 'tree-view', title: 'File Explorer', nodes: [{ id: '1', label: 'Documents' }],
     }).success).toBe(true);
   });
 });
