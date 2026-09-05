@@ -273,7 +273,9 @@ ComponentRegistry.register('chatbot-enhanced',
   // anonymous `ChatbotSchema & { ... }` intersection local to this file;
   // every key that intersection carried was read-site-censused before being
   // declared on `ChatbotEnhancedSchema`, and the two `ChatbotSchema` keys this
-  // registration never read (`displayMode`, `floatingConfig`) are not on it.
+  // registration never read (`floatingConfig`, and `displayMode` — since
+  // retired as a `?: never` tombstone on both faces, objectui#7654) are not on
+  // it.
   // `surface` (objectui#6687, maintainer ruling 2026-08-29) is declared there
   // too; the plugin's own `ChatbotSurface` alias is pinned equal to it in
   // `__tests__`, so the union has one contract, not two dialects
@@ -494,8 +496,18 @@ ComponentRegistry.register('chatbot-floating',
   {
     namespace: 'plugin-chatbot',
     label: 'Chatbot (Floating)',
+    // `displayMode` is NOT offered here and NOT seeded below (objectui#7654,
+    // maintainer ruling B, 2026-09-05). The control painted a "Display Mode"
+    // switch this registration never read — the node `type` is the one
+    // selector of presentation, and `<FloatingChatbot>` below renders
+    // unconditionally — while `defaultProps` wrote `'floating'` into every
+    // designer-created node. The control is restated, not deleted into a
+    // vacuum (objectui#7070): the restatement is the `?: never` tombstone on
+    // `ChatbotSchema` / `ChatbotFloatingSchema` in `@object-ui/types` and the
+    // release note. Stored documents carrying the key are unaffected — it has
+    // no Zod arm and `BaseSchema` is `.passthrough()`, so they parse exactly
+    // as before, and nothing here ever read the value.
     inputs: [
-      { name: 'displayMode', type: 'string', label: 'Display Mode', defaultValue: 'floating', description: 'Set to "floating" for FAB widget' },
       { name: 'floatingConfig.position', type: 'string', label: 'FAB Position', defaultValue: 'bottom-right', description: 'bottom-right or bottom-left' },
       { name: 'floatingConfig.defaultOpen', type: 'boolean', label: 'Default Open', defaultValue: false },
       { name: 'floatingConfig.panelWidth', type: 'number', label: 'Panel Width', defaultValue: 400 },
@@ -517,7 +529,6 @@ ComponentRegistry.register('chatbot-floating',
       { name: 'className', type: 'string', label: 'CSS Class' },
     ],
     defaultProps: {
-      displayMode: 'floating',
       floatingConfig: {
         position: 'bottom-right',
         defaultOpen: false,

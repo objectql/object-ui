@@ -1105,7 +1105,10 @@ interface UnmirroredDeclared {
   /**
    * LOCAL. `body` sits in `KnownDrift` above for an unrelated reason (a naming
    * collision on a key both sides declare); these three the mirror has simply never
-   * heard of.
+   * heard of. `displayMode` is a `?: never` tombstone since objectui#7654 (maintainer
+   * ruling B, 2026-09-05) and stays listed: the TypeScript half is the tombstone, the
+   * mirror half (`retirementTombstone()`) is owed when objectui#6152 mints the arm, and
+   * `chatbot-display-mode-retired.test.ts` pins this twin's shape as the tripwire.
    */
   'complex.zod.ts#ChatbotSchema': 'displayMode' | 'floatingConfig' | 'requestBody';
   /**
@@ -1114,12 +1117,11 @@ interface UnmirroredDeclared {
    * records them. `floatingConfig` has no `FloatingChatbotConfig` mirror at all —
    * minting one is objectui#6152's axis, and the `triggerIcon` tombstone's tripwire
    * (objectui#7654, `floating-chatbot-trigger-icon-retired.test.ts`) watches for
-   * it. `displayMode` is RULED RETIRED (objectui#7654, maintainer ruling B,
-   * 2026-09-05) and the retirement executes in that card's own PR: the TypeScript
-   * half is the `?: never` tombstone, and the mirror half (`retirementTombstone()`)
-   * is owed when objectui#6152 mints the arm — until then the key stays unmirrored
-   * here and on `ChatbotSchema` alike, and what that PR does to these two entries
-   * is its own to record. ⛔ Not a waiver: every OTHER key this pair declares is
+   * it. `displayMode` is RETIRED (objectui#7654, maintainer ruling B, 2026-09-05):
+   * a `?: never` tombstone on this face and on `ChatbotSchema` alike, still
+   * unmirrored on both twins — the mirror half (`retirementTombstone()`) is owed
+   * when objectui#6152 mints the arm, and until then the key stays in both entries;
+   * that PR moved neither. ⛔ Not a waiver: every OTHER key this pair declares is
    * mirrored, and a third key here reddens the pair like growth on any other entry.
    */
   'complex.zod.ts#ChatbotFloatingSchema': 'displayMode' | 'floatingConfig';
