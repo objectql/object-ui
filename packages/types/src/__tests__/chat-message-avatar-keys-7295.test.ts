@@ -114,8 +114,8 @@ type Expect<T extends true> = T;
 /** The canonical `any` detector: only `any` absorbs `1 &` down to something `0` extends. */
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 type HasKey<T, K extends PropertyKey> = K extends keyof T ? true : false;
-/** `{}` is assignable to `Pick<T, K>` only when `K` is optional on `T`. */
-type IsOptional<T, K extends keyof T> = {} extends Pick<T, K> ? true : false;
+/** An object with no keys is assignable to `Pick<T, K>` only when `K` is optional on `T`. */
+type IsOptional<T, K extends keyof T> = Record<string, never> extends Pick<T, K> ? true : false;
 
 // Declared as `string`, optional, and not `any`. Were a member removed, the
 // indexed access below would not fall back to an index signature (there is
