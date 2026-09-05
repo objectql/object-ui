@@ -36,14 +36,14 @@ interface CalendarSchema {
   // Constraints
   minDate?: Date | string;                  // Minimum selectable date
   maxDate?: Date | string;                  // Maximum selectable date
-  disabled?: boolean | string;              // boolean, or a predicate expression
+  disabled?: boolean | string | { dialect?, source };              // boolean, predicate expression, or CEL envelope
   
   // Styling
   className?: string;                       // Tailwind CSS classes
   
   // Base properties
   id?: string;
-  visible?: boolean | string;
+  visible?: boolean | string | { dialect?, source };
   testId?: string;
 }
 ```

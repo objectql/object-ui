@@ -189,10 +189,12 @@ const declaredOptional = (shape: ZodShape, key: string): boolean =>
  */
 interface WrapperCarrier {
   readonly options?: readonly unknown[];
+  readonly shape?: Record<string, unknown>;
   readonly def?: {
     readonly type?: string;
     readonly innerType?: unknown;
     readonly options?: readonly unknown[];
+    readonly shape?: Record<string, unknown>;
   };
   readonly _def?: { readonly innerType?: unknown };
 }
@@ -207,12 +209,29 @@ function unwrapWrappers(node: unknown): WrapperCarrier | undefined {
   return carrier;
 }
 
-/** The declared type of a member, spelled the way the page writes it. */
+/**
+ * The declared type of a member, spelled the way the page writes it.
+ *
+ * A union is FLATTENED, because the mirror composes one: since objectui#7530
+ * `disabled` is `z.union([z.boolean(), ExpressionWireSchema])`, and
+ * `ExpressionWireSchema` is itself the union `string | { dialect?, source }`
+ * reused by reference (the ruling forbids a second envelope spelling), so the
+ * page's flat `boolean | string | { dialect?, source }` is the nested mirror
+ * read through. An object arm is spelled by its keys, `?` on the optional
+ * ones, which is how the schema-reference table spells the same envelope.
+ */
 function declaredTypeText(node: unknown): string {
   const inner = unwrapWrappers(node);
   if (inner?.def?.type === 'union') {
     const options = inner.options ?? inner.def.options ?? [];
-    return options.map((option) => unwrapWrappers(option)?.def?.type ?? 'unknown').join(' | ');
+    return options.map(declaredTypeText).join(' | ');
+  }
+  if (inner?.def?.type === 'object') {
+    const shape = inner.shape ?? inner.def.shape ?? {};
+    const keys = Object.entries(shape).map(([key, member]) =>
+      (member as WrapperCarrier | undefined)?.def?.type === 'optional' ? `${key}?` : key,
+    );
+    return `{ ${keys.join(', ')} }`;
   }
   return String(inner?.def?.type ?? 'unknown');
 }
@@ -302,7 +321,9 @@ describe('button-group.mdx: the `ButtonGroupSchema` block IS the shipped mirror 
     // correctly say `boolean`: those 13 schemas redeclare it. This assertion is
     // what stops a later `disabled?: boolean` narrowing on ButtonGroupSchema
     // from leaving the page silently over-stating instead of under-stating.
-    expect(declaredTypeText(groupShape.disabled)).toBe('boolean | string');
+    // `boolean | string` until objectui#7530 declared the CEL envelope on the
+    // base union; the object arm is the shared `ExpressionWireSchema` read through.
+    expect(declaredTypeText(groupShape.disabled)).toBe('boolean | string | { dialect?, source }');
     expect(Object.keys(groupShape).includes('disabled')).toBe(true);
   });
 });

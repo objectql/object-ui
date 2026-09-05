@@ -2,8 +2,11 @@
 
 /**
  * Every `content/docs/components/**` page that documents a schema INHERITING
- * `disabled` spells it `boolean | string` (objectui#7239, the docs half of the
- * objectui#7087 ruling of 2026-09-01).
+ * `disabled` spells it the way `BaseSchema` declares it (objectui#7239, the
+ * docs half of the objectui#7087 ruling of 2026-09-01) — `boolean | string`
+ * then, `boolean | string | { dialect?, source }` since objectui#7530 declared
+ * the CEL envelope on all three predicate keys (ruled 2026-09-04), the same
+ * flat spelling `button-group-doc-surface-6347.test.ts` reads off the mirror.
  *
  * ## Why a pin rather than "the docs gates went green"
  *
@@ -185,11 +188,11 @@ const INDEPENDENT = [
   { page: 'overlay/menubar.mdx', iface: 'MenubarCommandItem', shippedName: null },
 ] as const;
 
-describe('component pages spell the INHERITED `disabled` as `boolean | string` (objectui#7239)', () => {
+describe('component pages spell the INHERITED `disabled` as the base union (objectui#7239, widened by objectui#7530)', () => {
   it.each(INHERITED)('$page documents $iface with the inherited union', ({ page, iface }) => {
     const row = rowFor(page, iface);
     expect(row, `no \`disabled?:\` row attributed to ${iface} in ${page}`).toBeDefined();
-    expect(`${page} ${iface} -> ${row?.type}`).toBe(`${page} ${iface} -> boolean | string`);
+    expect(`${page} ${iface} -> ${row?.type}`).toBe(`${page} ${iface} -> boolean | string | { dialect?, source }`);
   });
 
   it.each(INHERITED)('$iface still inherits `disabled` in the shipped tree', ({ iface }) => {

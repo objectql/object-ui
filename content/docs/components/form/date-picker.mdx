@@ -34,7 +34,7 @@ interface DatePickerSchema {
   onChange?: (date: Date | undefined) => void;
   
   // States
-  disabled?: boolean | string;   // boolean, or a predicate expression
+  disabled?: boolean | string | { dialect?, source };   // boolean, predicate expression, or CEL envelope
   
   // Styling
   className?: string;

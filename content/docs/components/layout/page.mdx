@@ -33,7 +33,7 @@ interface PageSchema {
   
   // Base properties
   id?: string;
-  visible?: boolean | string;
+  visible?: boolean | string | { dialect?, source };
   testId?: string;
 }
 ```

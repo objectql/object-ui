@@ -1736,6 +1736,8 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "a union OVER the mirrors, not an object of its own — its members are checked individually above",
   'index.zod.ts#AnyComponentSchema':
     "the barrel union OVER the mirrors, not an object of its own — its members are checked individually above",
+  'expression.zod.ts#ExpressionWireSchema':
+    "a union (`string | { dialect?, source }`) with no `.shape` of its own — the predicate WIRE shape `BaseSchema`'s `visible` / `hidden` / `disabled` and the form predicate keys carry (objectui#7530); its TS twin `ExpressionWire` (`../expression.ts`) is a type alias, not a key set, and the two faces are pinned equal in `base-schema-predicate-envelope-7530.test.ts`",
   'index.zod.ts#SCHEMA_VERSION':
     "a version string, not a schema",
 };

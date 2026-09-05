@@ -19,6 +19,7 @@
 import { z } from 'zod';
 import { I18nLabelSchema } from '@objectstack/spec/ui';
 import { retirementTombstone } from './tombstone.zod.js';
+import { ExpressionWireSchema } from './expression.zod.js';
 
 /**
  * A KEYED i18n label — the runtime mirror of `KeyedI18nLabel` in `../base.ts`.
@@ -154,8 +155,16 @@ const BaseSchemaCore = z.object({
    * `(condition: string | boolean | undefined, …) => boolean` — so the string
    * form is an implemented, evaluated capability, and this validator was the
    * one surface still refusing it.
+   *
+   * Widened again by objectui#7530 (ruled 2026-09-04, option A, all three
+   * predicate keys at once) to the CEL envelope object: the expression half is
+   * now `ExpressionWireSchema` (`./expression.zod.ts`), the one string-or-
+   * envelope union `visibleWhen` on form fields already used, imported rather
+   * than spelled a second time. Measured before: the envelope this validator
+   * refused at path `visible` (`invalid_union`) parsed on `FormField.visibleWhen`
+   * one file over, while the renderer evaluated it on both.
    */
-  visible: z.union([z.boolean(), z.string()]).optional().describe('Visibility control (boolean or predicate expression)'),
+  visible: z.union([z.boolean(), ExpressionWireSchema]).optional().describe('Visibility control (boolean, predicate expression string, or CEL envelope object)'),
 
   /**
    * Canonical conditional-visibility predicate (ADR-0089) — shown when truthy.
@@ -182,10 +191,13 @@ const BaseSchemaCore = z.object({
    * string) while the identical string on `visible` parsed -- this validator
    * was the one surface still refusing a shipped, pinned capability.
    *
-   * The CEL envelope object form is NOT declared here, and is declared on none
-   * of the three keys; objectui#7530 rules on all three together.
+   * The CEL envelope object form is declared too, since objectui#7530 (ruled
+   * 2026-09-04, option A, all three keys at once): the expression half is
+   * `ExpressionWireSchema` (`./expression.zod.ts`), shared with `visible`,
+   * `disabled` and the form predicate keys. `hasDeclaredPredicate` had accepted
+   * `{ dialect: 'cel', source }` on this key all along.
    */
-  hidden: z.union([z.boolean(), z.string()]).optional().describe('Hidden control (boolean or predicate expression)'),
+  hidden: z.union([z.boolean(), ExpressionWireSchema]).optional().describe('Hidden control (boolean, predicate expression string, or CEL envelope object)'),
 
   /**
    * Conditional hidden expression
@@ -199,8 +211,12 @@ const BaseSchemaCore = z.object({
    * #4581 under #4580's Q3-A ruling: the renderer reads this key through the
    * same `evaluateCondition` as `visible`, and the asymmetry between the two
    * was accidental rather than deliberate.
+   *
+   * Widened again by objectui#7530 (ruled 2026-09-04, option A, all three
+   * predicate keys at once) to the CEL envelope object, through the shared
+   * `ExpressionWireSchema` (`./expression.zod.ts`).
    */
-  disabled: z.union([z.boolean(), z.string()]).optional().describe('Disabled state (boolean or predicate expression)'),
+  disabled: z.union([z.boolean(), ExpressionWireSchema]).optional().describe('Disabled state (boolean, predicate expression string, or CEL envelope object)'),
 
   /**
    * Conditional disabled expression

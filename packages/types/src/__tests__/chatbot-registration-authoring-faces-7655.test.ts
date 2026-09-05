@@ -81,6 +81,7 @@ import {
   ChatbotSchema as ChatbotZod,
   ComplexSchema as ComplexZod,
 } from '../zod/complex.zod';
+import type { ExpressionWire } from '../expression';
 
 /* ── Type-level helpers (the `tsc` channel) ──────────────────────────────── */
 
@@ -204,8 +205,9 @@ export type assertionSurfaceVocabulary = Expect<
  * that dropped both keys cannot pass vacuously.
  */
 export type assertionDisabledStaysTheBaseUnion = [
-  Expect<Equal<ChatbotEnhancedSchema['disabled'], boolean | string | undefined>>,
-  Expect<Equal<ChatbotFloatingSchema['disabled'], boolean | string | undefined>>,
+  // `boolean | string` until objectui#7530 declared the CEL envelope on the base union.
+  Expect<Equal<ChatbotEnhancedSchema['disabled'], boolean | ExpressionWire | undefined>>,
+  Expect<Equal<ChatbotFloatingSchema['disabled'], boolean | ExpressionWire | undefined>>,
   Expect<Equal<ChatbotEnhancedSchema['visible'], BaseSchema['visible']>>,
   Expect<Equal<ChatbotFloatingSchema['visible'], BaseSchema['visible']>>,
 ];

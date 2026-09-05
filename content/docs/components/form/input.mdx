@@ -22,7 +22,7 @@ interface InputSchema {
   placeholder?: string;
   defaultValue?: string | number;
   required?: boolean;
-  disabled?: boolean | string;   // boolean, or a predicate expression
+  disabled?: boolean | string | { dialect?, source };   // boolean, predicate expression, or CEL envelope
   readonly?: boolean;
 }
 ```
