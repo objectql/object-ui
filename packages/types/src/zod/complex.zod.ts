@@ -456,6 +456,10 @@ export const ChatMessageSchema = z.object({
   reasoning: z.string().optional().describe('Chain-of-thought reasoning text'),
   sources: z.array(ChatMessageSourceSchema).optional().describe('Citation sources'),
   traceId: z.string().optional().describe('Backend trace id (ai_traces.id)'),
+  avatar: z.string().optional()
+    .describe('Per-message avatar image URL overriding the chatbot-level userAvatarUrl / assistantAvatarUrl, read at plugin-chatbot/src/index.tsx:173–174 — `message.avatar || userAvatarUrl` (objectui#7295)'),
+  avatarFallback: z.string().optional()
+    .describe('Per-message avatar fallback text overriding the chatbot-level userAvatarFallback / assistantAvatarFallback, read at plugin-chatbot/src/index.tsx:177–178 — `message.avatarFallback || userAvatarFallback` (objectui#7295)'),
 });
 
 /**

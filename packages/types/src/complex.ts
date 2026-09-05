@@ -809,6 +809,34 @@ export interface ChatMessage {
    * `@objectstack/service-ai`'s auto-tracing) for "view trace" affordances.
    */
   traceId?: string;
+  /**
+   * Per-message avatar image URL, overriding the chatbot-level
+   * `userAvatarUrl` / `assistantAvatarUrl` for this one message.
+   *
+   * READ SITE: `packages/plugin-chatbot/src/index.tsx:173–174` —
+   * `message.avatar || userAvatarUrl` on a user message and
+   * `message.avatar || assistantAvatarUrl` on an assistant one; the
+   * authoring-to-runtime seam (`chatMessageAdapter.ts`, `...passthrough`)
+   * carries it untouched. Undeclared until objectui#7295: this interface has
+   * no index signature (objectui#5155 — and must not gain one), so an author
+   * annotating `ChatbotSchema.messages` was told a value that renders is an
+   * error (TS2353), and the zod mirror — a plain strip-mode `z.object` —
+   * dropped it at parse. objectui#4424's `RuntimeOnlyMessageKeys` named only
+   * the three keys API mode lifts out of the stream, never the two a human
+   * author writes by hand.
+   */
+  avatar?: string;
+  /**
+   * Per-message avatar fallback text (initials), shown when `avatar` is unset
+   * or fails to load; overrides the chatbot-level `userAvatarFallback` /
+   * `assistantAvatarFallback` for this one message.
+   *
+   * READ SITE: `packages/plugin-chatbot/src/index.tsx:177–178` —
+   * `message.avatarFallback || userAvatarFallback` on a user message and
+   * `message.avatarFallback || assistantAvatarFallback` on an assistant one.
+   * Same history as `avatar` above (objectui#7295).
+   */
+  avatarFallback?: string;
 }
 
 /**
