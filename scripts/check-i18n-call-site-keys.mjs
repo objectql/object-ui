@@ -2210,7 +2210,8 @@ const HINTS = {
     ' registry — narrowing a declared vocabulary to make a red go away is how an exact' +
     ' check silently becomes a smaller one.',
   'undeclared-dynamic-family':
-    'A pack-backed template key whose static head is not in DYNAMIC_KEY_FAMILIES' +
+    'A pack-backed template key — at a call site, or built by a helper (objectui#7592) —' +
+    ' whose static head is not in DYNAMIC_KEY_FAMILIES' +
     ' (objectui#4964). Prefix-checking alone cannot see a member missing from all ten' +
     ' packs, so every family must say how its member set is known: add an entry with a' +
     ' `vocabulary` naming the declaration the call site iterates (a union, a const array,' +
@@ -2219,7 +2220,10 @@ const HINTS = {
     ' preferred over a guessed vocabulary; what is not allowed is silence.',
   'stale-dynamic-family':
     'A DYNAMIC_KEY_FAMILIES entry whose head no longer appears at any pack-backed call' +
-    ' site. Delete the entry — the registry describes the repo, and an entry nothing' +
+    ' site — nor, since objectui#7592, at any key-building helper. Delete the entry, OR' +
+    ' find out why the head stopped being seen: for a family that reaches the scan through' +
+    ' a builder, this finding is also how a detection leg that quietly stopped detecting' +
+    ' announces itself. Either way the registry describes the repo, and an entry nothing' +
     ' exercises is an exact check running against nothing.',
   'duplicate-family':
     'Two DYNAMIC_KEY_FAMILIES entries declare the same head. Only the first would be' +
