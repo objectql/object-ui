@@ -342,6 +342,17 @@ export interface CheckboxSchema extends BaseSchema {
    */
   required?: boolean;
   /**
+   * Classes on the wrapper `div` around the box and its label.
+   *
+   * READ SITE: `packages/components/src/renderers/form/checkbox.tsx:36` —
+   * `cn("flex items-center space-x-2", schema.wrapperClass)`. Undeclared until
+   * objectui#6938, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `FileUploadSchema` and
+   * `FilterBuilderSchema` declare (objectui#6150) — left out here only because
+   * the checkbox doc page's schema block is a six-line summary.
+   */
+  wrapperClass?: string;
+  /**
    * Change handler
    *
    * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
