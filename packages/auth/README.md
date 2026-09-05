@@ -325,7 +325,7 @@ not a gap.
 
 Preview mode allows visitors (e.g. marketplace customers) to explore the platform without registering or logging in. The `AuthProvider` auto-authenticates with a simulated user identity and bypasses login/registration screens.
 
-This capability is host-supplied and has no `@objectstack/spec` anchor. It aligned with `PreviewModeConfig` from `@objectstack/spec/kernel` until that symbol was retired upstream (objectstack#11846); it left the published spec in `@objectstack/spec` 17.3.0, together with the `RuntimeMode` value `'preview'`. The `previewMode` prop below is unaffected — it is the host's to supply, and always was.
+This capability is host-supplied and has no `@objectstack/spec` anchor. It aligned with `PreviewModeConfig` from `@objectstack/spec/kernel` until that symbol was retired upstream (objectstack#11846), which removed it together with the `RuntimeMode` value `'preview'`; the spec this package resolves no longer exports it. The `previewMode` prop below is unaffected — it is the host's to supply, and always was.
 
 ### Usage
 
