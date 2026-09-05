@@ -188,6 +188,28 @@ describe('UserFilters tabs — adding a tab writes nothing (ADR-0047)', () => {
     // Storage.prototype covers both sessionStorage and localStorage.
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
 
+    // COUNTER-PROBE (objectui#7786). `toHaveBeenCalledTimes(0)` at the bottom
+    // of this test is a NEGATIVE assertion, and a BLIND instrument satisfies it
+    // for the wrong reason -- measured on Node 26.7.0, where the memory-storage
+    // swap in `vitest.setup.base.ts` hands out a plain object that never
+    // inherited from `Storage.prototype`, this file passed green while the spy
+    // could not see a single write. So before asserting anything about writes
+    // this component did NOT make, assert once that the spy observes writes we
+    // make ourselves -- in BOTH stores the comment above claims to cover, since
+    // a store can be handed out already bound to its own method.
+    const PROBE_KEY = 'objectui:7786:counter-probe';
+    sessionStorage.setItem(PROBE_KEY, '1');
+    localStorage.setItem(PROBE_KEY, '1');
+    expect(
+      setItem,
+      'the Storage.prototype spy is BLIND: it did not observe the two writes made in this very test, so the zero-write assertions below would pass for the wrong reason',
+    ).toHaveBeenCalledTimes(2);
+    sessionStorage.removeItem(PROBE_KEY);
+    localStorage.removeItem(PROBE_KEY);
+    // The probe's own writes are not the component's; clear them so the
+    // load-bearing assertion below stays exactly the claim it always was.
+    setItem.mockClear();
+
     render(
       <SchemaRendererProvider dataSource={dataSource}>
         <UserFilters
