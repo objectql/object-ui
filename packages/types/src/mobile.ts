@@ -83,13 +83,24 @@ export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
 // zero authors. A value written against it could not reach a renderer by any
 // path.
 //
-// Removed outright rather than tombstoned, on the same discriminator the
-// container used: a `?: never` tombstone steers authors to a named live
-// replacement KEY or keeps loud a key the docs taught as working, and neither
-// applies — the whole interface goes, so there is no surviving object to hang
-// a `never` key on, and no documentation ever described it. Nor is there a Zod
-// mirror to host a `retirementTombstone()`: this module has never had a `zod/`
-// twin, so the refusal is type-level only (TS2305 / TS2724 at the import).
+// Removed outright rather than tombstoned, measured against the two-prong
+// discriminator the precedent changesets state (objectui#5941, #7526; the
+// one-line form in the objectui#4919 note below is under correction as
+// objectui#7678): a tombstone exists (1) to steer authors to a named live
+// replacement KEY, or (2) to keep loud a key the docs taught as working.
+// Prong 1: none — its distinctive keys (`stackOnMobile`, `showOnly`,
+// `stackBreakpoint`) have zero readers outside this declaration, and no
+// mounted type has carried a `responsive` member since objectui#5942.
+// Prong 2: the only CHANGELOG lines naming it are the objectstack#4115
+// rename-ledger row (`ResponsiveConfig` -> `MobileResponsiveConfig`, "mobile
+// box config"), replicated per package; no line taught a renderer reading it
+// and no member carried a published `@default`. Whether a rename-ledger row
+// counts as "taught as working" is recorded on objectui#7519 rather than
+// decided here. Structurally there is no silent-strip hazard for prong 2 to
+// guard: the whole interface goes, nothing ever parsed it, and there is no Zod
+// mirror to host a `retirementTombstone()` — this module has never had a
+// `zod/` twin — so the refusal is the compiler's own (TS2305 at the import),
+// already loud.
 //
 // History kept because it explains the name: this was renamed off the spec's
 // `ResponsiveConfig` in objectstack#4115 — the spec's is the SDUI grid contract
@@ -278,13 +289,25 @@ export type GestureType ='tap' | 'double-tap' | 'long-press' | 'swipe-left' | 's
 // A binding written against it could not reach a handler by any path —
 // `action` was a string nothing dispatched.
 //
-// Removed outright rather than tombstoned, on the same discriminator the
-// container used: the whole interface goes, so there is no surviving object to
-// hang a `?: never` key on; no documentation ever taught it
-// (`skills/objectui/guides/mobile.md` teaches `useGesture`); and there is no
-// Zod mirror to host a `retirementTombstone()` — this module has never had a
-// `zod/` twin — so the refusal is type-level only (TS2305 / TS2724 at the
-// import). The absence is pinned in `__tests__/mobile-residue-retired-7519.test.ts`.
+// Removed outright rather than tombstoned, measured against the two-prong
+// discriminator the precedent changesets state (objectui#5941, #7526): a
+// tombstone exists (1) to steer authors to a named live replacement KEY, or
+// (2) to keep loud a key the docs taught as working. Prong 1: none — no
+// dispatcher reads a gesture `action` (zero hits), and the only `gestures` key
+// on any type is `TouchInteraction.gestures: SpecGestureConfig[]`, a different
+// contract with no reader of its own. Prong 2: the CHANGELOG lines naming it
+// are the objectstack#4115 rename-ledger row (`GestureConfig` ->
+// `TouchGestureConfig`) and the objectui#3363 reclaim note ("the flat
+// gesture->`action` handler binding ... nothing about either shape changed");
+// no line taught a dispatcher reading it, no `@example`, and no member carried
+// a published `@default`. Whether a reclaim note counts as "taught as working"
+// is recorded on objectui#7519 rather than decided here. Structurally there is
+// no silent-strip hazard for prong 2 to guard: the whole interface goes,
+// nothing ever parsed it (`skills/objectui/guides/mobile.md` teaches
+// `useGesture`), and there is no Zod mirror to host a `retirementTombstone()`
+// — this module has never had a `zod/` twin — so the refusal is the compiler's
+// own (TS2724 at the import), already loud. The absence is pinned in
+// `__tests__/mobile-residue-retired-7519.test.ts`.
 //
 // ⚠️ `SpecGestureConfig` below is NOT a successor. It is the retired
 // `@objectstack/spec` `ui/touch` TUNING record (`{ type, label, enabled, swipe,

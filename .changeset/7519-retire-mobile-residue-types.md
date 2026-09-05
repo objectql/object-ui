@@ -20,15 +20,19 @@ either could not reach a renderer or a handler by any path. That is the same
 declared-surface-with-no-consumption-path shape as `MobileComponentConfig`
 itself and `MobileOverrides` (objectui#4919) before it, one level down.
 
-Removed outright rather than kept as `?: never` tombstones, on this package's
-own discriminator: a tombstone steers authors to a named live replacement key or
-keeps loud a key the docs taught as working, and neither applies — whole
-interfaces go, so there is no surviving object to hang a `never` key on, and no
-documentation ever described either (`skills/objectui/guides/mobile.md` teaches
-the hooks). Nor is there a Zod mirror to host a `retirementTombstone()`: the
-mobile module has never had a `zod/` twin, so the "deletion under a non-strict
-`z.object` is a silent strip" argument has no schema to apply to. The compiler
-was the only channel these names ever had, and the refusal now lives there.
+Removed outright rather than kept as `?: never` tombstones, measured against
+this package's two-prong discriminator (a tombstone steers authors to a named
+live replacement key, or keeps loud a key the docs taught as working). Prong 1:
+neither has a replacement key — the behaviour they named lives in hooks, and
+`SpecGestureConfig` is a different contract, not a successor. Prong 2: the only
+release-note lines naming either are the objectstack#4115 rename-ledger rows
+and, for `GestureConfig`, the objectui#3363 reclaim note; none taught a
+renderer or dispatcher reading them, and no member carried a published
+`@default` (contrast `triggerIcon`, tombstoned by objectui#7654 on exactly that
+evidence). Structurally there is also no silent-strip hazard for a tombstone to
+guard: whole interfaces go, nothing ever parsed them, and the mobile module has
+never had a `zod/` twin to host a `retirementTombstone()`. The compiler was the
+only channel these names ever had, and the refusal now lives there.
 
 ## Upgrading
 
