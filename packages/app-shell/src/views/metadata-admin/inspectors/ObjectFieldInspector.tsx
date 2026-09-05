@@ -1146,10 +1146,10 @@ function readLookupFilters(def: Record<string, unknown>): LookupFilter[] {
   // reads camel FIRST and writes camel back (`patchDef({ lookupFilters })`), so
   // its snake leg is purely a read of a STORED pre-strict document. Retiring it
   // would show an admin an EMPTY filter list for such a document and let a save
-  // strand the real filters. NOTE the live inversion it participates in: the
-  // runtime reads `lookup_filters ?? lookupFilters` (snake first,
-  // `@object-ui/fields` LookupField) while this designer reads camel first — a
-  // document carrying both keys is displayed one way and honoured the other.
+  // strand the real filters. The runtime widget (`@object-ui/fields` LookupField)
+  // reads `lookupFilters` ONLY since objectui#7641 (merged 2026-09-04), so both
+  // halves honour the camel key: this snake leg is the designer's read of a stored
+  // document, not one side of a competing read order.
   const raw = def.lookupFilters ?? (def as Record<string, unknown>).lookup_filters;
   return Array.isArray(raw) ? (raw as LookupFilter[]) : [];
 }

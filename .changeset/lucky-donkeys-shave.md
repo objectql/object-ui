@@ -26,20 +26,37 @@ path. Three findings moved every site to KEEP:
    on fully spec-compliant metadata those five sites already ignore a configured
    `displayField` / `descriptionField` / `lookupFilters` today. `idField` is NOT in
    that list: measured on the pinned spec 17.2.0, `FieldSchema` refuses `idField` with
-   `unrecognized_keys` exactly as it refuses `id_field` — neither spelling of the id
-   key is declared, so the `id_field` reads have no camel leg to gain and their only
-   route is the ingestion choke point (objectui#7650, option A).
+   `unrecognized_keys` exactly as it refuses `id_field` — on `FieldSchema` neither
+   spelling of the id key is declared, so the `id_field` reads have no `FieldSchema`
+   spelling to gain a leg for and their only route is the ingestion choke point
+   (objectui#7650, option A). That is a `FieldSchema` statement only: the widget
+   contract `@object-ui/types` `LookupFieldMetadata` DOES declare `idField` (kept by
+   PR #7641 as a widget-contract key), and `LookupField` reads it off the same runtime
+   object finding 3 describes.
 3. The object-schema field def and the widget bag are the same object at runtime.
    `ObjectForm` builds its fields from `getObjectSchema` and threads each def to the
-   widget, where `@object-ui/fields` `LookupField` reads `display_field` /
-   `description_field` / `id_field` / `lookup_filters` SNAKE-FIRST, and
-   `@object-ui/types`' `LookupFieldMetadata` (published) declares all four —
-   `content/docs/fields/lookup.mdx` documents three of them as authorable
-   (`description_field`, `id_field`, `lookup_filters`; `display_field` has zero hits in
-   all of `content/docs`, which document `reference_field` instead). Retiring the legs at the
-   object-schema consumers while the form widget keeps reading snake-first off the
-   same def would make one stored document render one way in the form and another in
-   the chart, list, filters and action dialogs.
+   widget, `@object-ui/fields` `LookupField`. What that widget reads moved while this
+   census was under review, so this record is dated. At this branch's base (`1ec291c0`,
+   2026-09-04) `LookupField` read `display_field` / `description_field` / `id_field` /
+   `lookup_filters` SNAKE-FIRST, the published `@object-ui/types` `LookupFieldMetadata`
+   declared all four snake members, and `content/docs/fields/lookup.mdx` documented
+   three of them as authorable (`description_field`, `id_field`, `lookup_filters`;
+   `display_field` 0 hits in all of `content/docs`, which documented `reference_field`
+   instead). PR #7641 (merged 2026-09-04T15:01:32Z as `351eb318`) then converged the
+   widget contract on the spec's camelCase. Measured on `origin/main` (`a3eb5d07`):
+   `LookupField` reads `displayField` / `descriptionField` / `idField` / `lookupFilters`
+   ONLY (its `reference_field` fallback is kept), `LookupFieldMetadata` declares the
+   camel members only, and `content/docs` has 0 hits for all four snake keys (controls
+   in the same run: `reference_field` 4, `lookupFilters` 3). On the tree this census
+   lands in, the split therefore runs the OTHER way: it is KEEPING these six snake
+   legs, while the form widget reads camel-only, that lets one stored pre-strict
+   document render one way in the form and another in the chart, list, filters and
+   action dialogs. KEEP still stands — on findings 1-2 (the serve path delivers the
+   stored key, and five sites have no camel leg, so retiring the read deletes the only
+   read) and on the ruling that refused option B and made the ingestion choke point
+   (option A, objectui#7650) the prerequisite for any retirement. The way to close the
+   split is A (canonicalise once at ingestion) plus the additive camel legs tracked on
+   objectui#7435, not a consumer-side deletion.
 
 Per site, which way the value would have flipped had the leg been retired:
 
@@ -64,9 +81,14 @@ Per site, which way the value would have flipped had the leg been retired:
   retiring it would show an admin an empty filter list and let a save strand the real
   filters.
 
-One live bug found and deliberately NOT filed as a card (open PR #7641 flips the
-runtime half and retires it on its own; the PM recorded it on objectui#7642 so it
-becomes a card the moment #7641 stops being its fix), not addressed here: the designer reads
-`lookupFilters ?? lookup_filters` (camel first) while the runtime `LookupField` reads
-`lookup_filters ?? lookupFilters` (snake first), so a document carrying both keys with
-different values is displayed one way and honoured the other.
+One live bug found during the census and deliberately NOT filed as a card, not
+addressed here: at this branch's base the designer (`ObjectFieldInspector`,
+`readLookupFilters`) read `lookupFilters ?? lookup_filters` (camel first) while the
+runtime `LookupField` read `lookup_filters ?? lookupFilters` (snake first), so a
+document carrying both keys with different values was displayed one way and honoured
+the other. It is RETIRED on `main`: PR #7641 (merged 2026-09-04T15:01:32Z, `351eb318`)
+made `LookupField` read `lookupFilters` only, so both halves now honour the camel key
+and there is nothing left to file. The fallback the PM recorded on objectui#7642 (a
+card the moment #7641 stopped being its fix) is moot — #7641 landed. The designer's
+snake leg survives as a read of a STORED pre-strict document, which is the ground of
+its KEEP above, not as one side of a competing read order.

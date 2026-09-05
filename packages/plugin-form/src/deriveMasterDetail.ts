@@ -251,6 +251,7 @@ export function deriveColumns(
       // but `deriveColumns` is a PUBLIC export of `@object-ui/plugin-form`, so an
       // external caller's `childSchema` cannot be traced from here. There is also no
       // camel `d?.displayField` leg: retiring this read deletes the only read.
+      // The same read recurs in `hydrateColumns` below; this verdict covers both.
       col.displayField = d?.display_field || d?.reference_field;
     }
     if (col.type === 'file') applyFileColumnProps(col, d);
@@ -305,6 +306,8 @@ export function hydrateColumns(
     if (type === 'select' && options && !next.options) next.options = options;
     if (type === 'lookup') {
       if (next.reference == null) next.reference = d?.reference;
+      // objectui#7642 CENSUS — verdict KEEP, same bag and same missing camel leg as
+      // `deriveColumns` above.
       if (next.displayField == null) next.displayField = d?.display_field || d?.reference_field;
     }
     if (type === 'file') applyFileColumnProps(next, d);
