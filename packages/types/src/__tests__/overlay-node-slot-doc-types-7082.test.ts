@@ -25,22 +25,24 @@
  * ## The authority here is the TS declaration, NOT the Zod mirror
  *
  * That is the one deliberate departure from the #7078 model, and it is load
- * bearing. On this tree the TS interface and its mirror DISAGREE on four
- * `trigger` rows: `AlertDialogSchema`, `SheetSchema`, `HoverCardSchema` and
- * `DropdownMenuSchema` all declare `trigger: SchemaNode` (singular) while
- * `zod/overlay.zod.ts` mirrors each as `z.union([SchemaNodeSchema,
- * z.array(SchemaNodeSchema)])`. That asymmetry is objectui#7081 -- OPEN, a
- * published-type widening awaiting a maintainer decision. Pinning these pages
- * against the mirror would publish the array form on all four and silently
- * pre-empt that ruling, so the pin follows the type an author's editor reads.
+ * bearing. When this file was written the TS interface and its mirror
+ * DISAGREED on four `trigger` rows: `AlertDialogSchema`, `SheetSchema`,
+ * `HoverCardSchema` and `DropdownMenuSchema` all declared `trigger: SchemaNode`
+ * (singular) while `zod/overlay.zod.ts` mirrored each as
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])`. That asymmetry was
+ * objectui#7081, then OPEN. Pinning these pages against the mirror would have
+ * published the array form on all four and silently pre-empted that ruling, so
+ * the pin followed the type an author's editor reads, and its type-level leg
+ * was built to go red the day the declaration widened.
  *
- * `DropdownMenuSchema.trigger` therefore stays SINGULAR on the page even
- * though its mirror, its sibling `ContextMenuSchema` and its own shipped
- * `defaultProps` (`renderers/overlay/dropdown-menu.tsx`) all use the array
- * form. The incoherence is real; it IS #7081, and it is recorded below rather
- * than resolved here. The type-level leg makes the boundary mechanical: widen
- * the declaration and `tsc -p tsconfig.test.json` fails, so whoever lands
- * #7081 is told the page owes an update.
+ * objectui#7081 has since LANDED (triage 2026-09-03: the validator's accept set
+ * does not move; the TypeScript face stops under-reporting it). All seven
+ * singular overlay `trigger` members now declare `SchemaNode | SchemaNode[]`,
+ * the four rows below were re-derived to the union in the same PR, and the
+ * legs that pinned the divergence now pin the agreement. The authority is
+ * unchanged -- the page still says what the DECLARATION says; the declaration
+ * simply agrees with its mirror now. `overlay-trigger-union-7081.test.ts` pins
+ * the widening itself, on every face it ships on.
  *
  * ## What the pages taught before, measured on `2c3cd1b`
  *
@@ -105,19 +107,20 @@ type AdmitsArray<T> = SchemaNode[] extends T ? true : false;
 
 // The seven corrected rows, asserted against the declarations themselves rather
 // than against the page text the runtime leg reads.
-export type _HoverCardTrigger = Expect<Equals<HoverCardSchema['trigger'], SchemaNode>>;
+export type _HoverCardTrigger = Expect<Equals<HoverCardSchema['trigger'], SchemaNode | SchemaNode[]>>;
 export type _HoverCardContent = Expect<Equals<HoverCardSchema['content'], SchemaNode | SchemaNode[]>>;
 // No `NonNullable` here on purpose: `SchemaNode` ALREADY admits `null |
 // undefined`, so stripping them would compare against a type neither side has.
 export type _SheetContent = Expect<Equals<SheetSchema['content'], SchemaNode | SchemaNode[]>>;
 export type _ContextMenuTrigger = Expect<Equals<ContextMenuSchema['trigger'], SchemaNode | SchemaNode[]>>;
 
-// The #7081 boundary, mechanically. `ContextMenuSchema` admits an array and its
-// page says so; `DropdownMenuSchema` refuses one and its page says so too.
+// The #7081 boundary, mechanically -- closed since objectui#7081 landed.
+// `ContextMenuSchema` always admitted an array and its page said so; the other
+// three admit one now, and their pages say so too.
 export type _ContextMenuAdmitsArray = Expect<Equals<AdmitsArray<ContextMenuSchema['trigger']>, true>>;
-export type _DropdownAdmitsArray = Expect<Equals<AdmitsArray<DropdownMenuSchema['trigger']>, false>>;
-export type _AlertDialogAdmitsArray = Expect<Equals<AdmitsArray<AlertDialogSchema['trigger']>, false>>;
-export type _SheetAdmitsArray = Expect<Equals<AdmitsArray<SheetSchema['trigger']>, false>>;
+export type _DropdownAdmitsArray = Expect<Equals<AdmitsArray<DropdownMenuSchema['trigger']>, true>>;
+export type _AlertDialogAdmitsArray = Expect<Equals<AdmitsArray<AlertDialogSchema['trigger']>, true>>;
+export type _SheetAdmitsArray = Expect<Equals<AdmitsArray<SheetSchema['trigger']>, true>>;
 
 // The premise the whole correction rests on used to be pinned here as two
 // type-level assertions: `ComponentSchema` is a real export, and it is NOT a
@@ -219,12 +222,12 @@ const declRow = (owner: string, key: string): Member | undefined => declared.get
 
 /** The seven rows objectui#7082 corrects: owner, key, and the declared text. */
 const CORRECTED: ReadonlyArray<readonly [string, string, string]> = [
-  ['AlertDialogSchema', 'trigger', 'SchemaNode'],
+  ['AlertDialogSchema', 'trigger', 'SchemaNode | SchemaNode[]'],
   ['ContextMenuSchema', 'trigger', 'SchemaNode | SchemaNode[]'],
-  ['HoverCardSchema', 'trigger', 'SchemaNode'],
+  ['HoverCardSchema', 'trigger', 'SchemaNode | SchemaNode[]'],
   ['HoverCardSchema', 'content', 'SchemaNode | SchemaNode[]'],
-  ['DropdownMenuSchema', 'trigger', 'SchemaNode'],
-  ['SheetSchema', 'trigger', 'SchemaNode'],
+  ['DropdownMenuSchema', 'trigger', 'SchemaNode | SchemaNode[]'],
+  ['SheetSchema', 'trigger', 'SchemaNode | SchemaNode[]'],
   ['SheetSchema', 'content', 'SchemaNode | SchemaNode[]'],
 ];
 
@@ -259,23 +262,24 @@ describe('six overlay/feedback pages name node slots at the declared type (objec
   });
 });
 
-describe('objectui#7081 is NOT pre-empted: the singular rows stay singular (objectui#7082)', () => {
-  it('`DropdownMenuSchema.trigger` is declared singular, so the page says singular', () => {
-    expect(declRow('DropdownMenuSchema', 'trigger')?.typeText).toBe('SchemaNode');
-    expect(docRow('DropdownMenuSchema', 'trigger')?.typeText).toBe('SchemaNode');
+describe('objectui#7081 landed: the rows that stayed singular for it now say the union on both faces (objectui#7082)', () => {
+  it('`DropdownMenuSchema.trigger` is declared as the union, so the page says the union', () => {
+    expect(declRow('DropdownMenuSchema', 'trigger')?.typeText).toBe('SchemaNode | SchemaNode[]');
+    expect(docRow('DropdownMenuSchema', 'trigger')?.typeText).toBe('SchemaNode | SchemaNode[]');
   });
 
-  it('its Zod mirror still says otherwise -- the asymmetry #7081 exists to rule on', () => {
-    // Recorded, not resolved. When #7081 lands, whichever side moves, one of
-    // these two assertions fails and the page is re-derived deliberately.
+  it('its Zod mirror says the union it always said -- the mirror is the side that did NOT move', () => {
+    // The pre-#7081 form of this pin read "still says otherwise". The
+    // assertion is byte-identical; only what it proves changed: the two faces
+    // now agree, and the declaration is the one that moved.
     const mirror = read('packages/types/src/zod/overlay.zod.ts');
     expect(mirror).toContain(
       "trigger: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).describe('Menu trigger')",
     );
   });
 
-  it('its sibling `ContextMenuSchema` really does declare the union -- the two differ', () => {
-    expect(declRow('ContextMenuSchema', 'trigger')?.typeText).not.toBe(
+  it('its sibling `ContextMenuSchema` declares the same union -- the two no longer differ', () => {
+    expect(declRow('ContextMenuSchema', 'trigger')?.typeText).toBe(
       declRow('DropdownMenuSchema', 'trigger')?.typeText,
     );
   });
@@ -362,9 +366,12 @@ describe('counter-probes: the readers above can still fail (objectui#7082)', () 
     expect(regressed.get('trigger')?.typeText).not.toBe('SchemaNode');
   });
 
-  it('a blind string replace to the array form would be caught on dropdown-menu', () => {
-    // The exact regression the card and #7081 warn about.
-    const regressed = members('  trigger: SchemaNode | SchemaNode[];  // Trigger component');
+  it('a blind revert to the singular form would be caught on dropdown-menu', () => {
+    // The mirror image of the probe this file carried while #7081 was open: the
+    // page then said `SchemaNode` and a blind replace to the union was the
+    // regression. Now the union is what the declaration says, and the singular
+    // spelling is the one that would drift.
+    const regressed = members('  trigger: SchemaNode;            // Trigger component');
     expect(regressed.get('trigger')?.typeText).not.toBe(declRow('DropdownMenuSchema', 'trigger')?.typeText);
   });
 

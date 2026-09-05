@@ -312,7 +312,9 @@ describe('the docs page publishes the read dialect (objectui#7104)', () => {
 
   it('control: the rows both faces always agreed on are still there', () => {
     expect(rows().get('type')?.typeText).toBe("'alert-dialog'");
-    expect(rows().get('trigger')?.typeText).toBe('SchemaNode');
+    // `trigger` widened to the union on both faces with objectui#7081; the row
+    // still says what the declaration says.
+    expect(rows().get('trigger')?.typeText).toBe('SchemaNode | SchemaNode[]');
   });
 });
 
