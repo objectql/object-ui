@@ -79,7 +79,13 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **42 entries** in `KnownDrift`, **63 keys** across them — 40 / 57 until
+ *   - **41 entries** in `KnownDrift`, **62 keys** across them — 42 / 63 until
+ *     objectui#7542 REPAIRED `app.zod.ts#AppComponentSchema`'s one key `hidden` by
+ *     restating the DECLARATION (`app.ts` now says `boolean`, what the spec-derived
+ *     mirror enforced all along), the entry's whole content, so the entry went too —
+ *     the ledger's first shrink on a SPEC-DERIVED pair, and the first by moving the
+ *     declared face toward the mirror rather than the mirror toward the declaration;
+ *     40 / 57 until
  *     objectui#7655 SEEDED the `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` pairs
  *     with three runtime-slot refusals each (pairs born ledgered in the #6124 shape,
  *     not growth on an existing entry); 40 / 56 until
@@ -90,7 +96,7 @@
  *     objectui#7455 SEEDED `app.zod.ts#AppComponentSchema` with its one
  *     spec-derived key `hidden` (a pair born ledgered, not growth on an existing
  *     entry: both faces read `boolean` until the base was widened, and only the
- *     DECLARED face moved — see that entry). It stood at 39 / 55 rather than
+ *     DECLARED face moved — the entry objectui#7542 removed, above). It stood at 39 / 55 rather than
  *     39 / 56 because objectui#6940
  *     REPAIRED `DataTableSchema.rowActions` (the entry kept its other four keys, so
  *     the entry count did not move). It was 12 / 17 until
@@ -910,34 +916,6 @@ export type DeclaredTypeOf< K extends MirrorKey, P extends keyof Declared[K] > =
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
-  /**
-   * SPEC-DERIVED, not a mirroring debt, and NOT closable by editing this entry.
-   *
-   * Measured on `@objectstack/spec@17.2.0` by resolving `AppSchema.shape`: the
-   * spec's `AppSchema` declares `hidden` (`z.boolean().optional()` -- accepts a
-   * boolean, refuses a string) and declares NEITHER `visible` NOR `disabled`.
-   * `AppComponentSchema` is `BaseSchema.extend(SpecAppFields.shape).extend(...)`
-   * and `SpecAppFields` excludes six keys -- `name`, `label`, `description`,
-   * `navigation`, `areas`, `contextSelectors` -- with `hidden` not among them,
-   * so on the MIRROR face the spec's boolean lands after the base's and
-   * overrides it. On the DECLARED face `interface AppComponentSchema extends
-   * BaseSchema` does not restate the key at all, so it inherits the base.
-   *
-   * That is why widening `BaseSchema.hidden` to `boolean | string`
-   * (objectui#7455, ruled 2026-09-03) moved only the TS side of THIS pair and
-   * seeded this entry, while the same widening on `visible` (objectui#4581) and
-   * `disabled` (objectui#4580 ruling Q3-A) moved both sides and seeded nothing.
-   * The asymmetry is the spec's, one layer under the one #7455 removed.
-   *
-   * The two keys collide in NAME and differ in MEANING -- the spec's is an
-   * app-catalogue flag (does the app show in the switcher), the base's is the
-   * renderer's hide predicate -- so this is a contract ruling, not a repair.
-   * objectui#7542 carries it, with the directions measured and none chosen.
-   * The one direction that reads easy and is probably wrong: dropping `hidden`
-   * from `SpecAppFields` would make a spec-DERIVED schema accept, by local
-   * divergence, a value the spec refuses.
-   */
-  'app.zod.ts#AppComponentSchema': 'hidden';
   /**
    * RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads
    * `onViewChange` off the spread props (function values only) and hands it to
