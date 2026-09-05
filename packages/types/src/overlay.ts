@@ -91,6 +91,15 @@ export interface AlertDialogSchema extends BaseSchema {
    */
   description?: string;
   /**
+   * Dialog body, rendered between the header (title / description) and the
+   * footer — the same slot every sibling overlay declares.
+   *
+   * Declared for objectui#7104: the `alert-dialog` renderer reads
+   * `schema.content` through `renderChildren`; until then the key was accepted
+   * only through `BaseSchema`'s index signature.
+   */
+  content?: SchemaNode | SchemaNode[];
+  /**
    * Dialog trigger
    */
   trigger?: SchemaNode;
@@ -103,6 +112,26 @@ export interface AlertDialogSchema extends BaseSchema {
    * Controlled open state
    */
   open?: boolean;
+  /**
+   * Cancel button label. The renderer draws `AlertDialogCancel` ONLY when this
+   * is set — omit it and no cancel button renders. There is no renderer
+   * default; the designer palette seeds `'Cancel'`.
+   *
+   * Declared for objectui#7104: this is the key the renderer reads and the key
+   * its registered `inputs` and `defaultProps` ship. `cancelLabel` below is the
+   * declared twin nothing reads.
+   */
+  cancelText?: string;
+  /**
+   * Confirm (action) button label. The renderer draws `AlertDialogAction` ONLY
+   * when this is set — omit it and no confirm button renders. There is no
+   * renderer default; the designer palette seeds `'Continue'`.
+   *
+   * Declared for objectui#7104: this is the key the renderer reads and the key
+   * its registered `inputs` and `defaultProps` ship. `confirmLabel` below is the
+   * declared twin nothing reads.
+   */
+  actionText?: string;
   /**
    * Cancel button label
    * @default 'Cancel'
@@ -118,6 +147,17 @@ export interface AlertDialogSchema extends BaseSchema {
    * @default 'default'
    */
   confirmVariant?: 'default' | 'destructive';
+  /**
+   * Confirm (action) button click handler.
+   *
+   * RUNTIME SLOT (objectui#6124 shape; declared by objectui#7104) — a
+   * host-supplied function, NOT authorable metadata: JSON has no function
+   * value, so the zod twin refuses this key by name and points at the
+   * node-type spelling. Kept callable here because the renderer wires it as
+   * `AlertDialogAction`'s `onClick`. It is the live key the retired
+   * `onConfirm` below points at.
+   */
+  onAction?: () => void;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `alert-dialog` renderer wires its action button to `schema.onAction` and
