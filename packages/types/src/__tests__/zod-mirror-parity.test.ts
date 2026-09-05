@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 160 entries at once.
+ * `assertionNoVacuousEntry` below pins that for all 162 entries at once.
  *
  * ## What is registered
  *
@@ -53,11 +53,15 @@
  * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
  * entire subject is measurement that is worth stating explicitly:
  *
- *   - **160 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
+ *   - **162 pairs** (160 until objectui#7655 registered the `ChatbotEnhancedSchema` and
+ *     `ChatbotFloatingSchema` twins) — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **40 entries** in `KnownDrift`, **56 keys** across them — 39 / 55 until
+ *   - **42 entries** in `KnownDrift`, **62 keys** across them — 40 / 56 until
+ *     objectui#7655 SEEDED the `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` pairs
+ *     with three runtime-slot refusals each (pairs born ledgered in the #6124 shape,
+ *     not growth on an existing entry), 39 / 55 until
  *     objectui#7455 SEEDED `app.zod.ts#AppComponentSchema` with its one
  *     spec-derived key `hidden` (a pair born ledgered, not growth on an existing
  *     entry: both faces read `boolean` until the base was widened, and only the
@@ -71,7 +75,10 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **15 entries** in `UnmirroredDeclared`, **96 keys** across them. It read 17 / 98
+ *   - **16 entries** in `UnmirroredDeclared`, **96 keys** across them — 15 / 96 until
+ *     objectui#7655 MOVED `displayMode` and `floatingConfig` off `ChatbotSchema`'s entry
+ *     (3 → 1 key) onto a new `ChatbotFloatingSchema` entry born with exactly those two,
+ *     so the key count did not move. It read 17 / 98
  *     between objectui#6576, which SEEDED the new `ObjectDataTableSchema` pair with its
  *     one measured key `drillDown` (a pair born ledgered, not growth on an existing
  *     one), and objectui#7129, which RETIRED `DetailViewSectionSchema.hideEmpty` —
@@ -87,16 +94,18 @@
  *     meaning — the comparable figure is 95 + 1 mirrored + 2 retired + 23
  *     reclassified. The full statement is on that ledger.
  *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
- *     seven are a subset of the 15 pairs above; `TreeViewSchema` is NOT — it is
+ *     seven are a subset of the 16 pairs above; `TreeViewSchema` is NOT — it is
  *     the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), so the
  *     "no entry in either" population dropped by one to 141 — went to 142 when
  *     objectui#6576 added two pairs, one of them ledgered, went to 143 when
  *     objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key, and
- *     stands at **144** since objectui#7623 retired `DashboardComponentSchema`'s
+ *     went to 144 when objectui#7623 retired `DashboardComponentSchema`'s
  *     only UNMIRRORED one (that pair keeps its `KnownDrift` entry — this
- *     population counts entries in the two unmirrored ledgers).
- *   - 160 − 40 = **120**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *     population counts entries in the two unmirrored ledgers), and stands at
+ *     **145** since objectui#7655 added two pairs, one of them ledgered
+ *     (`ChatbotFloatingSchema`).
+ *   - 162 − 42 = **120**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -117,7 +126,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 40 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 42 of the 162 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -151,7 +160,7 @@ import type { z } from 'zod';
 
 import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
-import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema } from '../zod/complex.zod.js';
+import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
@@ -166,7 +175,7 @@ import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, Detai
 
 import type { AppAction as Ts_AppAction, AppComponentSchema as Ts_AppComponentSchema, NavigationArea as Ts_NavigationArea } from '../app';
 import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig, ComponentInput as Ts_ComponentInput, ComponentMeta as Ts_ComponentMeta, KeyedI18nLabel as Ts_KeyedI18nLabel } from '../base';
-import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, DeclarativeKanbanCard as Ts_KanbanCard, DeclarativeKanbanColumn as Ts_KanbanColumn, DeclarativeKanbanSchema as Ts_KanbanSchema } from '../complex';
+import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatbotEnhancedSchema as Ts_ChatbotEnhancedSchema, ChatbotFloatingSchema as Ts_ChatbotFloatingSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, DeclarativeKanbanCard as Ts_KanbanCard, DeclarativeKanbanColumn as Ts_KanbanColumn, DeclarativeKanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
@@ -282,7 +291,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 143 of the 160. */
+/** …and so does a clean pair with no entry, which is the case for 145 of the 162. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -377,6 +386,8 @@ const MIRRORS = {
   'complex.zod.ts#CarouselItemSchema': CarouselItemSchema,
   'complex.zod.ts#CarouselSchema': CarouselSchema,
   'complex.zod.ts#ChatbotSchema': ChatbotSchema,
+  'complex.zod.ts#ChatbotEnhancedSchema': ChatbotEnhancedSchema,
+  'complex.zod.ts#ChatbotFloatingSchema': ChatbotFloatingSchema,
   'complex.zod.ts#ChatMessageSchema': ChatMessageSchema,
   'complex.zod.ts#ChatMessageSourceSchema': ChatMessageSourceSchema,
   'complex.zod.ts#ChatToolInvocationSchema': ChatToolInvocationSchema,
@@ -535,6 +546,8 @@ interface Declared {
   'complex.zod.ts#CarouselItemSchema': Ts_CarouselItem;
   'complex.zod.ts#CarouselSchema': Ts_CarouselSchema;
   'complex.zod.ts#ChatbotSchema': Ts_ChatbotSchema;
+  'complex.zod.ts#ChatbotEnhancedSchema': Ts_ChatbotEnhancedSchema;
+  'complex.zod.ts#ChatbotFloatingSchema': Ts_ChatbotFloatingSchema;
   'complex.zod.ts#ChatMessageSchema': Ts_ChatMessage;
   'complex.zod.ts#ChatMessageSourceSchema': Ts_ChatMessageSource;
   'complex.zod.ts#ChatToolInvocationSchema': Ts_ChatToolInvocation;
@@ -742,6 +755,19 @@ interface KnownDrift {
    */
   'complex.zod.ts#ChatbotSchema': 'body' | 'onError' | 'onSend';
   /**
+   * RUNTIME SLOT (objectui#6124) — pairs born ledgered by objectui#7655, which gave
+   * the `chatbot-enhanced` and `chatbot-floating` registrations their own faces.
+   * Each face keeps the callables its registration forwards off `schema.*` —
+   * `onError` and `onSend` into `useObjectChat`, `onClear` from `handleClear` —
+   * and the mirror refuses all three by name (`handlerKeyRefusal`). No `body`
+   * here: these twins mirror the key the renderer reads, `requestBody`, and
+   * inherit `body` as the children slot, so `ChatbotSchema`'s naming collision
+   * was deliberately not copied across.
+   */
+  'complex.zod.ts#ChatbotEnhancedSchema': 'onClear' | 'onError' | 'onSend';
+  /** The same three slots on the same channel — see `ChatbotEnhancedSchema` above. */
+  'complex.zod.ts#ChatbotFloatingSchema': 'onClear' | 'onError' | 'onSend';
+  /**
    * spec-derived shape (`SpecDashboardFields`) measured against a hand-written
    * local declaration. Needs the spec-unification triage of #2231 rather than a
    * local widening.
@@ -942,7 +968,7 @@ interface KnownDrift {
  * is being let through, because there was no such thing. Seeding takes the count of
  * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
  * grow while they are worked off, and a new declared-but-unmirrored key on any of
- * the 160 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
+ * the 162 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
  * including a callback-shaped one, which reddens until it is filed in
  * `RuntimeOnlyDeclared` (`assertionSplitLedgerRejectsFreshCallback`).
  *
@@ -979,9 +1005,11 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (12 entries, 83 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (13 entries, 83 keys)** — plain omissions from a hand-written mirror.
  *     It was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
- *     a shrink by removing the DECLARATION rather than by mirroring it.
+ *     a shrink by removing the DECLARATION rather than by mirroring it, and 12 / 83
+ *     until objectui#7655 moved two of `ChatbotSchema`'s keys onto a new
+ *     `ChatbotFloatingSchema` entry — an entry gained, no key gained.
  *
  * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
@@ -992,8 +1020,8 @@ interface KnownDrift {
  * objectui#6576 SEEDED `ObjectDataTableSchema` (a 17th entry, in neither half
  * above), objectui#7129 RETIRED an entry from the LOCAL half, and objectui#7623
  * RETIRED one from the SPEC-DERIVED half (13 → 12 keys there). The ledger now
- * totals **15 entries / 96 keys** — 2 / 12 spec-derived, 12 / 83 local, plus the
- * seeded pair.
+ * totals **16 entries / 96 keys** — 2 / 12 spec-derived, 13 / 83 local, plus the
+ * seeded pair (objectui#7655 added the 13th LOCAL entry by moving keys, not adding).
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -1023,10 +1051,25 @@ interface KnownDrift {
 interface UnmirroredDeclared {
   /**
    * LOCAL. `body` sits in `KnownDrift` above for an unrelated reason (a naming
-   * collision on a key both sides declare); these three the mirror has simply never
-   * heard of.
+   * collision on a key both sides declare); `requestBody` the mirror has simply
+   * never heard of. It was three keys until objectui#7655 MOVED `displayMode` and
+   * `floatingConfig` off this declaration — neither was the `chatbot` node's (no
+   * read, no designer control, no `defaultProps` seed on that registration) — onto
+   * `ChatbotFloatingSchema`, where the entry below records them in the same state.
    */
-  'complex.zod.ts#ChatbotSchema': 'displayMode' | 'floatingConfig' | 'requestBody';
+  'complex.zod.ts#ChatbotSchema': 'requestBody';
+  /**
+   * LOCAL — a pair born ledgered (objectui#7655) with exactly the two keys that
+   * crossed from `ChatbotSchema`'s entry above, in exactly the state they crossed
+   * in. `floatingConfig` has no `FloatingChatbotConfig` mirror at all — minting one
+   * is objectui#6152's axis, and the `triggerIcon` tombstone's tripwire
+   * (objectui#7654, `floating-chatbot-trigger-icon-retired.test.ts`) watches for
+   * it. `displayMode` is parked on a maintainer decision (objectui#7654); a mirror
+   * arm would be a parse outcome that card has not ruled on. ⛔ Not a waiver: every
+   * OTHER key this pair declares is mirrored, and a third key here reddens the
+   * pair like growth on any other entry.
+   */
+  'complex.zod.ts#ChatbotFloatingSchema': 'displayMode' | 'floatingConfig';
   // `complex.zod.ts#DashboardComponentSchema` recorded `title` here (SPEC-DERIVED)
   // until objectui#7623 RETIRED the declaration — the objectui#7129 route, not a
   // mirror edit: the spec's strict `DashboardSchema` refuses a root `title` outright,
@@ -1373,7 +1416,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 120 pairs with no entry (160 − 40).
+ * 120 pairs with no entry (162 − 42).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
@@ -1421,16 +1464,17 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 144
- * pairs with no entry in either (160 − 16). Six of `RuntimeOnlyDeclared`'s seven
- * pairs are a measured subset of `UnmirroredDeclared`'s 15, so objectui#6152's
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 145
+ * pairs with no entry in either (162 − 17). Six of `RuntimeOnlyDeclared`'s seven
+ * pairs are a measured subset of `UnmirroredDeclared`'s 16, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
  * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 16
  * pairs and not 15. (objectui#6576 took the union to 18; objectui#7129 brought it
  * back to 17 by retiring `DetailViewSectionSchema`'s only ledgered key, and
  * objectui#7623 to 16 by retiring `DashboardComponentSchema`'s — each leaving its
  * pair with no entry in either half. ⚠️ That pair still carries a `KnownDrift`
- * entry: "no entry in either" is about the two UNMIRRORED ledgers.)
+ * entry: "no entry in either" is about the two UNMIRRORED ledgers. objectui#7655
+ * then took the union to 17 by registering `ChatbotFloatingSchema` born ledgered.)
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
  * The exit code is a whole-file verdict, so it moves only while the rest of the
@@ -1480,7 +1524,7 @@ export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
 }[MirrorKey];
 
 /**
- * Non-vacuity for all 160 entries at once.
+ * Non-vacuity for all 162 entries at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the

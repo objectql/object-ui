@@ -82,6 +82,8 @@ import {
   CalendarViewSchema as CalendarViewZod,
   CarouselSchema as CarouselZod,
   ChatbotSchema as ChatbotZod,
+  ChatbotEnhancedSchema as ChatbotEnhancedZod,
+  ChatbotFloatingSchema as ChatbotFloatingZod,
   FilterBuilderSchema as FilterBuilderZod,
   DeclarativeKanbanSchema as KanbanZod,
 } from '../zod/complex.zod';
@@ -138,6 +140,8 @@ import type {
   CalendarViewSchema,
   CarouselSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   FilterBuilderSchema,
   DeclarativeKanbanSchema,
 } from '../complex';
@@ -203,7 +207,9 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
 };
 
 /**
- * 36 keys whose function value REACHES a renderer at runtime — the TypeScript
+ * 42 keys whose function value REACHES a renderer at runtime (36 until objectui#7655
+ * gave `chatbot-enhanced` and `chatbot-floating` their own faces, each carrying the
+ * three slots its registration forwards) — the TypeScript
  * interface keeps the function type. Channel measured per key on this tree:
  * `schema.onX` read/forwarded (kanban, chatbot, data-table, form, code-editor,
  * menu items), `props.onX` called after `SchemaRenderer`'s spread (input,
@@ -220,6 +226,14 @@ const RUNTIME_SLOT: readonly Site[] = [
   ['complex.zod.ts', 'FilterBuilderSchema', 'onChange', FilterBuilderZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onError', ChatbotZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onSend', ChatbotZod],
+  // objectui#7655 — the two sibling faces forward the same two slots off `schema.*`
+  // into `useObjectChat`, and their `handleClear` calls `schema.onClear?.()`.
+  ['complex.zod.ts', 'ChatbotEnhancedSchema', 'onError', ChatbotEnhancedZod],
+  ['complex.zod.ts', 'ChatbotEnhancedSchema', 'onSend', ChatbotEnhancedZod],
+  ['complex.zod.ts', 'ChatbotEnhancedSchema', 'onClear', ChatbotEnhancedZod],
+  ['complex.zod.ts', 'ChatbotFloatingSchema', 'onError', ChatbotFloatingZod],
+  ['complex.zod.ts', 'ChatbotFloatingSchema', 'onSend', ChatbotFloatingZod],
+  ['complex.zod.ts', 'ChatbotFloatingSchema', 'onClear', ChatbotFloatingZod],
   ['data-display.zod.ts', 'DataTableSchema', 'onRowEdit', DataTableZod],
   ['data-display.zod.ts', 'DataTableSchema', 'onRowDelete', DataTableZod],
   ['data-display.zod.ts', 'DataTableSchema', 'onSelectionChange', DataTableZod],
@@ -351,13 +365,15 @@ describe('census: no on* key in the eight mirrors is declared z.function() (obje
     ]);
   });
 
-  it('59 sites are ledgered, 37 runtime slots + 22 retired, with no key filed twice', () => {
+  it('65 sites are ledgered, 43 runtime slots + 22 retired, with no key filed twice', () => {
     // 58 from objectui#6124; the 59th is `ObjectDataTableSchema.onRowClick`,
-    // minted with its arm by objectui#6576 / #6914.
-    expect(RUNTIME_SLOT).toHaveLength(37);
+    // minted with its arm by objectui#6576 / #6914; 60–65 are the six slots the
+    // `ChatbotEnhancedSchema` / `ChatbotFloatingSchema` twins were born with
+    // (objectui#7655).
+    expect(RUNTIME_SLOT).toHaveLength(43);
     expect(RETIRED).toHaveLength(22);
     const ids = ALL_SITES.map(([file, schema, key]) => `${file}#${schema}.${key}`);
-    expect(new Set(ids).size).toBe(59);
+    expect(new Set(ids).size).toBe(65);
   });
 
   it.each(ALL_SITES)('%s %s.%s is DECLARED on the mirror shape, with the objectui#6124 guidance as its description', (_file, _schema, key, mirror) => {
@@ -511,6 +527,12 @@ export type assertionRuntimeSlotsKeepTheirFunctionType = [
   Expect<KeepsFunction<FilterBuilderSchema['onChange']>>,
   Expect<KeepsFunction<ChatbotSchema['onError']>>,
   Expect<KeepsFunction<ChatbotSchema['onSend']>>,
+  Expect<KeepsFunction<ChatbotEnhancedSchema['onError']>>,
+  Expect<KeepsFunction<ChatbotEnhancedSchema['onSend']>>,
+  Expect<KeepsFunction<ChatbotEnhancedSchema['onClear']>>,
+  Expect<KeepsFunction<ChatbotFloatingSchema['onError']>>,
+  Expect<KeepsFunction<ChatbotFloatingSchema['onSend']>>,
+  Expect<KeepsFunction<ChatbotFloatingSchema['onClear']>>,
   Expect<KeepsFunction<DataTableSchema['onRowEdit']>>,
   Expect<KeepsFunction<DataTableSchema['onRowDelete']>>,
   Expect<KeepsFunction<DataTableSchema['onSelectionChange']>>,

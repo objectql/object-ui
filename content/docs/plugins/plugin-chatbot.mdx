@@ -139,10 +139,19 @@ This page documents **three** registrations - `chatbot`, `chatbot-enhanced` and
 `chatbot-floating` - and they do not all read the same keys. **A row whose
 description carries no bolded scope note is read by all three.** The rows only
 some of them read say so in bold at the start of the description, and name what
-to author instead on the registrations that ignore the key. Every key below is
-declared on `ChatbotSchema`, so a key a registration ignores still type-checks
-and still parses - it is dropped silently at render time, which is why the scope
-is spelled out here rather than left to the type to express.
+to author instead on the registrations that ignore the key.
+
+Each registration has its own importable authoring-face type in
+`@object-ui/types` (objectui#7655): `ChatbotSchema` for `chatbot`,
+`ChatbotEnhancedSchema` for `chatbot-enhanced` and `ChatbotFloatingSchema` for
+`chatbot-floating`. Each declares exactly the keys its registration reads - the
+twenty shared rows below are one declaration the two newer faces pick off
+`ChatbotSchema` by name, and a scoped row is declared only on the face(s) whose
+registration reads it. A key a registration ignores is therefore not a declared
+member of its type. It still type-checks (`BaseSchema` ends in an index
+signature, so an unlisted key is `any` rather than an error) and still parses
+(the Zod twins are `.passthrough()`), and it is dropped silently at render
+time - which is why the scope is spelled out here as well as in the types.
 
 The table below is that shared chat surface. `chatbot-floating` declares
 seven more keys of its own - `displayMode` and six `floatingConfig` entries -
@@ -160,7 +169,7 @@ one, under **`chatbot-floating` panel and trigger keys**.
 | `userAvatarFallback` | string | `'You'` | Fallback text for user avatar |
 | `assistantAvatarUrl` | string | - | URL for assistant avatar image |
 | `assistantAvatarFallback` | string | `'AI'` | Fallback text for assistant avatar |
-| `maxHeight` | string | `'500px'` | **`chatbot` and `chatbot-enhanced` only.** Maximum height of the chat message container, as a CSS length. `chatbot-floating` does not read it: its panel is sized by `floatingConfig.panelHeight` (a **number** of pixels, default `520`), and the panel pins its inner chat to `maxHeight: '100%'` so it fills that panel - a `maxHeight` authored on a floating node would be overridden even if it were forwarded. Size a floating chatbot with `floatingConfig.panelHeight` instead |
+| `maxHeight` | string | `'500px'` | **`chatbot` and `chatbot-enhanced` only** (declared on `ChatbotSchema` and `ChatbotEnhancedSchema`; `ChatbotFloatingSchema` does not declare it). Maximum height of the chat message container, as a CSS length. `chatbot-floating` does not read it: its panel is sized by `floatingConfig.panelHeight` (a **number** of pixels, default `520`), and the panel pins its inner chat to `maxHeight: '100%'` so it fills that panel - a `maxHeight` authored on a floating node would be overridden even if it were forwarded. Size a floating chatbot with `floatingConfig.panelHeight` instead |
 | `autoResponse` | boolean | `false` | Enable auto-response (demo mode, ignored when `api` is set) |
 | `autoResponseText` | string | - | Text for auto-response |
 | `autoResponseDelay` | number | `1000` | Delay before auto-response (ms) |
@@ -174,8 +183,8 @@ one, under **`chatbot-floating` panel and trigger keys**.
 | `headers` | object | - | Additional headers for API requests |
 | `requestBody` | object | - | Additional body parameters sent with each API request. Authored on the node as `requestBody`; the renderer forwards it to the chat runtime under its own `body` option. Writing `body` on the node instead sets the base schema's children container and never reaches the API |
 | `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
-| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only.** Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). The `chatbot` and `chatbot-floating` registrations render different components, which have no such chrome to switch, and do not read this key |
-| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only.** Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` does not forward the key either, so its panel always renders at the `'summary'` default; there is no floating-side substitute to author |
+| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`). Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). The `chatbot` and `chatbot-floating` registrations render different components, which have no such chrome to switch, and do not read this key |
+| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`; `ChatbotSchema` still declares it too, though the `chatbot` registration has no read for it). Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` does not forward the key either, so its panel always renders at the `'summary'` default; there is no floating-side substitute to author |
 | `onError` | function | - | Error callback for streaming/API errors |
 
 ### `chatbot-floating` panel and trigger keys
@@ -184,9 +193,10 @@ The seven keys below are declared in the `chatbot-floating` registration's own
 `inputs` (`packages/plugin-chatbot/src/renderer.tsx`). They configure the
 floating action button and the panel it opens; the `chatbot` and
 `chatbot-enhanced` registrations render neither and ignore them. `displayMode`
-and `floatingConfig` are declared on `ChatbotSchema` like every key above, so
-authoring them on an inline node still type-checks and still parses - it is
-dropped at render time.
+and `floatingConfig` are declared on `ChatbotFloatingSchema` only (objectui#7655
+moved them off `ChatbotSchema`, whose `chatbot` node never read either);
+authoring them on an inline node still type-checks through the index signature
+and still parses - it is dropped at render time.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -211,25 +221,31 @@ On small screens `panelHeight` is additionally capped to the viewport
 (`min(step, 100svh - 6rem - safe-area-inset-bottom)`), and while the panel is
 fullscreen it ignores both size keys and fills the screen.
 
-Authored on the node:
+Authored on the node, with the node's own type - `ChatbotFloatingSchema` pins
+`type` to `'chatbot-floating'` and declares `floatingConfig`, so this fence
+compiles against the published types. (Until objectui#7655 no type could
+annotate a floating node - `ChatbotSchema` pins `type` to `'chatbot'` - and
+this example had to be untyped JSON.)
 
-```json
-{
-  "type": "chatbot-floating",
-  "floatingConfig": {
-    "position": "bottom-left",
-    "defaultOpen": false,
-    "panelWidth": 400,
-    "panelHeight": 520,
-    "title": "Support",
-    "triggerSize": 56
+```tsx
+import type { ChatbotFloatingSchema } from '@object-ui/types';
+
+const supportChat: ChatbotFloatingSchema = {
+  type: 'chatbot-floating',
+  messages: [], // seed with your own ChatMessage values
+  floatingConfig: {
+    position: 'bottom-left',
+    defaultOpen: false,
+    panelWidth: 400,
+    panelHeight: 520,
+    title: 'Support',
+    triggerSize: 56,
   },
-  "placeholder": "Ask us anything..."
-}
+  placeholder: 'Ask us anything...',
+};
 ```
 
-`ChatbotSchema` pins `type` to `'chatbot'`, so it cannot annotate a floating
-node, but the config object has its own exported type:
+The config object also has its own exported type:
 
 ```tsx
 import type { FloatingChatbotConfig } from '@object-ui/types';
@@ -335,6 +351,22 @@ By default, `ChatbotEnhanced` renders tool invocations as a compact agent activi
 Use `surface="plain"` for full-page chat workspaces where the surrounding app
 already provides navigation chrome. The default `surface="card"` remains a
 better fit for embedded dashboards, side panels, and floating chat windows.
+
+Both keys are authorable as metadata on a `chatbot-enhanced` node, typed with
+that node's own face (objectui#7655):
+
+```tsx
+import type { ChatbotEnhancedSchema } from '@object-ui/types';
+
+const workspace: ChatbotEnhancedSchema = {
+  type: 'chatbot-enhanced',
+  messages: [], // seed with your own ChatMessage values
+  api: '/api/v1/ai/chat',
+  surface: 'plain',
+  processVisibility: 'debug',
+  enableFileUpload: true,
+};
+```
 
 Console chat surfaces also keep a sanitized browser-side display cache for the
 current conversation. When a conversation can be reopened but the server returns
@@ -573,8 +605,13 @@ const schema: ChatbotSchema = {
 
 ## TypeScript Support
 
+Each of the three registrations has its own authoring-face type:
+`ChatbotSchema` (`chatbot`), `ChatbotEnhancedSchema` (`chatbot-enhanced`) and
+`ChatbotFloatingSchema` (`chatbot-floating`) - see the typed examples under
+**Tool Messages** and **`chatbot-floating` panel and trigger keys** above.
+
 ```plaintext
-import type { ChatbotSchema, ChatMessage, ChatToolInvocation } from '@object-ui/types'
+import type { ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessage, ChatToolInvocation } from '@object-ui/types'
 import { useObjectChat } from '@object-ui/plugin-chatbot'
 
 // Basic messages

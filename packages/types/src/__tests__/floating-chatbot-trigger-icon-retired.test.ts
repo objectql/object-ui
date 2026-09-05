@@ -53,7 +53,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { FloatingChatbotConfig } from '../complex';
-import { ChatbotSchema } from '../zod/complex.zod';
+import { ChatbotFloatingSchema } from '../zod/complex.zod';
 
 /* ── type-level pins: the `tsc` channel ──────────────────────────────────── */
 
@@ -103,15 +103,19 @@ describe('the `triggerIcon` tombstone makes authoring a `tsc` error', () => {
 /* ── the runtime channel: DELIBERATELY unchanged, and a tripwire if that ends ─ */
 
 describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () => {
+  // objectui#7655 moved `floatingConfig` onto `ChatbotFloatingSchema` — the face
+  // of the one registration that reads it — so this tripwire parses the node
+  // that actually carries the key, through that face's Zod twin.
   const node = {
-    type: 'chatbot' as const,
+    type: 'chatbot-floating' as const,
     messages: [{ id: 'm1', role: 'user' as const, content: 'hi' }],
   };
 
-  it('a chatbot node carrying `floatingConfig.triggerIcon` still parses GREEN', () => {
+  it('a chatbot-floating node carrying `floatingConfig.triggerIcon` still parses GREEN', () => {
     // `FloatingChatbotConfig` has NO zod mirror: `floatingConfig` sits in the
     // `UnmirroredDeclared` ledger (`zod-mirror-parity.test.ts`,
-    // `complex.zod.ts#ChatbotSchema`), and `BaseSchema` is `.passthrough()`, so
+    // `complex.zod.ts#ChatbotFloatingSchema` since objectui#7655; it was recorded
+    // under `ChatbotSchema` before), and `BaseSchema` is `.passthrough()`, so
     // the whole object rides through unvalidated. This was green before the
     // tombstone and is green after it — the retirement changed the TypeScript
     // face only, and this pins that it changed no parse outcome.
@@ -121,7 +125,7 @@ describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () =
     // lands the mirror must add the `retirementTombstone()` half for
     // `triggerIcon` at the same time, and flip this control rather than delete
     // it into a vacuum.
-    const result = ChatbotSchema.safeParse({
+    const result = ChatbotFloatingSchema.safeParse({
       ...node,
       floatingConfig: { title: 'Chat', triggerIcon: 'Sparkles' },
     });
@@ -129,7 +133,7 @@ describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () =
   });
 
   it('a live `floatingConfig` parses green too — the non-vacuity control', () => {
-    const result = ChatbotSchema.safeParse({
+    const result = ChatbotFloatingSchema.safeParse({
       ...node,
       floatingConfig: { title: 'Chat', triggerSize: 56 },
     });
@@ -139,7 +143,7 @@ describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () =
   it('the mirror really has no `floatingConfig` key at all', () => {
     // The load-bearing fact behind everything above, asserted rather than
     // assumed: a key the mirror declares would appear in its shape.
-    const shape = (ChatbotSchema as unknown as { shape: Record<string, unknown> }).shape;
+    const shape = (ChatbotFloatingSchema as unknown as { shape: Record<string, unknown> }).shape;
     expect(shape.floatingConfig).toBeUndefined();
     // Lit control: a key the mirror DOES declare is present, so the reading
     // above is a measurement and not an empty object.

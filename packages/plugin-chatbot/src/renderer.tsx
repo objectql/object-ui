@@ -8,13 +8,11 @@
 
 import { useMemo } from 'react';
 import { ComponentRegistry, toDomProps } from '@object-ui/core';
-import type { ChatbotSchema } from '@object-ui/types';
+import type { ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema } from '@object-ui/types';
 import { Chatbot } from './index';
 import { ChatbotEnhanced } from './ChatbotEnhanced';
-import type { ChatbotSurface } from './ChatbotEnhanced';
 import { FloatingChatbot } from './FloatingChatbot';
 import { useObjectChat } from './useObjectChat';
-import type { ObjectChatMessage } from './useObjectChat';
 import { toRuntimeMessages } from './chatMessageAdapter';
 
 /**
@@ -269,33 +267,19 @@ ComponentRegistry.register('chatbot',
 
 // Register Enhanced Chatbot
 ComponentRegistry.register('chatbot-enhanced',
-  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotSchema & {
-    enableMarkdown?: boolean; 
-    enableFileUpload?: boolean;
-    /**
-     * Visual chrome for the chat surface (objectui#6687, maintainer ruling
-     * 2026-08-29). `card` keeps the embeddable bordered panel; `plain` removes
-     * the panel chrome for a full-page chat workspace. Declared here, on the
-     * registration that actually renders `<ChatbotEnhanced>`, because that is
-     * the only one with a `surface` prop to forward it to — `chatbot` and
-     * `chatbot-floating` render different components and do not gain the key.
-     * Typed by importing `ChatbotSurface` rather than re-spelling the union:
-     * one contract, not two dialects (AGENTS.md #0.1).
-     */
-    surface?: ChatbotSurface;
-    showTimestamp?: boolean;
-    disabled?: boolean;
-    userAvatarUrl?: string;
-    userAvatarFallback?: string;
-    assistantAvatarUrl?: string;
-    assistantAvatarFallback?: string;
-    maxHeight?: string;
-    autoResponse?: boolean;
-    autoResponseText?: string;
-    autoResponseDelay?: number;
-    onSend?: (content: string, messages: ObjectChatMessage[]) => void;
-    onClear?: () => void;
-  }; className?: string; disabled?: boolean; [key: string]: any }) => {
+  // `schema` is the published authoring face of THIS registration
+  // (objectui#7655, the #6169 / #6172 family ruling: every component node has
+  // exactly one named, importable authoring-face type). It used to be an
+  // anonymous `ChatbotSchema & { ... }` intersection local to this file;
+  // every key that intersection carried was read-site-censused before being
+  // declared on `ChatbotEnhancedSchema`, and the two `ChatbotSchema` keys this
+  // registration never read (`displayMode`, `floatingConfig`) are not on it.
+  // `surface` (objectui#6687, maintainer ruling 2026-08-29) is declared there
+  // too; the plugin's own `ChatbotSurface` alias is pinned equal to it in
+  // `__tests__`, so the union has one contract, not two dialects
+  // (AGENTS.md #0.1). `disabled` is the host-EVALUATED verdict, as on
+  // `chatbot` above.
+  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotEnhancedSchema; className?: string; disabled?: boolean; [key: string]: any }) => {
     const {
       messages,
       isLoading,
@@ -419,21 +403,21 @@ ComponentRegistry.register('chatbot-enhanced',
 
 // Register Floating Chatbot (FAB widget)
 ComponentRegistry.register('chatbot-floating',
-  ({ schema, className, ...props }: { schema: ChatbotSchema & {
-    enableMarkdown?: boolean;
-    enableFileUpload?: boolean;
-    showTimestamp?: boolean;
-    disabled?: boolean;
-    userAvatarUrl?: string;
-    userAvatarFallback?: string;
-    assistantAvatarUrl?: string;
-    assistantAvatarFallback?: string;
-    autoResponse?: boolean;
-    autoResponseText?: string;
-    autoResponseDelay?: number;
-    onSend?: (content: string, messages: ObjectChatMessage[]) => void;
-    onClear?: () => void;
-  }; className?: string; [key: string]: any }) => {
+  // `schema` is the published authoring face of THIS registration
+  // (objectui#7655) — see the `chatbot-enhanced` note above. `disabled` is
+  // the host-EVALUATED verdict `SchemaRenderer` forwards for every node type,
+  // destructured under the name its two sibling registrations use. The raw
+  // `schema.disabled` read that used to sit on the `disabled` prop below was
+  // already dead: `SchemaRenderer` spreads `disabled: verdict || undefined`
+  // LAST into the props it hands a registration, and `{...props}` below is
+  // spread after that prop, so the verdict overrode the raw value on every
+  // render. Naming it changes no outcome; it keeps one carrier for one
+  // question (AGENTS.md #0.1) and lets the published face inherit
+  // `BaseSchema.disabled` (`boolean | string`) unnarrowed (objectui#7087) —
+  // a raw forward of that union into the panel's `boolean` prop would not
+  // type-check, and narrowing the face to make it fit is the shape #7087
+  // retired.
+  ({ schema, className, disabled: hostDisabled, ...props }: { schema: ChatbotFloatingSchema; className?: string; disabled?: boolean; [key: string]: any }) => {
     const {
       messages,
       isLoading,
@@ -482,7 +466,8 @@ ComponentRegistry.register('chatbot-floating',
         onClear={handleClear}
         onStop={isApiMode && isLoading ? stop : undefined}
         onReload={isApiMode ? reload : undefined}
-        disabled={schema.disabled}
+        // The evaluated verdict — see the head of this registration.
+        disabled={hostDisabled}
         isLoading={isLoading}
         error={error}
         showTimestamp={schema.showTimestamp}

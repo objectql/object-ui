@@ -414,6 +414,102 @@ export const ChatbotSchema = BaseSchema.extend({
 });
 
 /**
+ * The chat-surface arms ALL THREE `plugin-chatbot` registrations read
+ * (objectui#7655) — the Zod side of `../complex.ts`'s `ChatbotSharedKey`,
+ * taken off `ChatbotSchema`'s own shape so every shared arm has ONE spelling.
+ * Not exported: it is a census, not a mirror, and the parity census in
+ * `__tests__/zod-mirror-parity.test.ts` registers `export const`s only.
+ *
+ * `requestBody` is deliberately NOT in this pick. `ChatbotSchema` above mirrors
+ * the API body params under the key `body`, which collides with `BaseSchema`'s
+ * `body` children slot — the naming collision the parity ledger records under
+ * `KnownDrift`. The two twins below mirror the key the renderer actually reads,
+ * `requestBody`, and inherit `body` as the children slot, so they are born
+ * without the collision. Ruling on `ChatbotSchema`'s own `body` arm is a
+ * separate question and is not decided here.
+ */
+const ChatbotSharedMirrorShape = ChatbotSchema.pick({
+  messages: true,
+  placeholder: true,
+  api: true,
+  conversationId: true,
+  systemPrompt: true,
+  model: true,
+  streamingEnabled: true,
+  headers: true,
+  maxToolRoundtrips: true,
+  onError: true,
+  showTimestamp: true,
+  userAvatarUrl: true,
+  userAvatarFallback: true,
+  assistantAvatarUrl: true,
+  assistantAvatarFallback: true,
+  autoResponse: true,
+  autoResponseText: true,
+  autoResponseDelay: true,
+  onSend: true,
+}).shape;
+
+/** The arms `chatbot-enhanced` and `chatbot-floating` share beyond the pick above. */
+const chatbotRequestBodyArm = () =>
+  z.record(z.string(), z.unknown()).optional()
+    .describe('Additional body parameters sent with each API request (forwarded to the chat runtime as its `body` option)');
+const chatbotEnableMarkdownArm = () =>
+  z.boolean().optional().describe('Render assistant messages as markdown (default true)');
+const chatbotEnableFileUploadArm = () =>
+  z.boolean().optional().describe('Show the file-attachment control in the composer (default false)');
+const chatbotOnClearArm = () =>
+  handlerKeyRefusal('onClear', 'runtime-slot', 'Called after the conversation is cleared');
+
+/**
+ * Chatbot Enhanced Schema - `chatbot-enhanced` component (objectui#7655).
+ *
+ * Zod twin of `../complex.ts`'s `ChatbotEnhancedSchema`, in lockstep: every
+ * key that declaration lists is an arm here, and the three runtime slots
+ * (`onError`, `onSend`, `onClear`) are named refusals (objectui#6124).
+ */
+export const ChatbotEnhancedSchema = BaseSchema.extend({
+  type: z.literal('chatbot-enhanced'),
+  ...ChatbotSharedMirrorShape,
+  requestBody: chatbotRequestBodyArm(),
+  maxHeight: ChatbotSchema.shape.maxHeight,
+  processVisibility: ChatbotSchema.shape.processVisibility,
+  enableMarkdown: chatbotEnableMarkdownArm(),
+  enableFileUpload: chatbotEnableFileUploadArm(),
+  surface: z.enum(['card', 'plain']).optional()
+    .describe("Visual chrome for the chat surface: 'card' bordered panel (default) or 'plain' frameless full-page workspace (objectui#6687)"),
+  onClear: chatbotOnClearArm(),
+});
+
+/**
+ * Chatbot Floating Schema - `chatbot-floating` component (objectui#7655).
+ *
+ * Zod twin of `../complex.ts`'s `ChatbotFloatingSchema`. Two of that
+ * declaration's keys are deliberately NOT mirrored, and the parity ledger
+ * records both under `UnmirroredDeclared` for this pair:
+ *
+ *   - `floatingConfig` — `FloatingChatbotConfig` has no Zod mirror at all;
+ *     minting one is the declared-but-unmirrored axis (objectui#6152), a
+ *     different defect from the one this pair closes, and the axis the
+ *     `triggerIcon` tombstone's tripwire watches (objectui#7654).
+ *   - `displayMode` — its fate is objectui#7654's, parked on a maintainer
+ *     decision. A mirror arm here would be a parse outcome that card has not
+ *     ruled on, so the key crossed from `ChatbotSchema` in exactly the state it
+ *     was in: declared, unmirrored.
+ *
+ * Both ride through `BaseSchema`'s `.passthrough()` unvalidated, byte for byte
+ * as they did on `ChatbotSchema`.
+ */
+export const ChatbotFloatingSchema = BaseSchema.extend({
+  type: z.literal('chatbot-floating'),
+  ...ChatbotSharedMirrorShape,
+  requestBody: chatbotRequestBodyArm(),
+  enableMarkdown: chatbotEnableMarkdownArm(),
+  enableFileUpload: chatbotEnableFileUploadArm(),
+  onClear: chatbotOnClearArm(),
+});
+
+/**
  * Dashboard Widget Layout Schema
  */
 export const DashboardWidgetLayoutSchema = z.object({
@@ -771,5 +867,7 @@ export const ComplexSchema = z.discriminatedUnion('type', [
   FilterBuilderSchema,
   CarouselSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   DashboardComponentSchema,
 ]);
