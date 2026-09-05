@@ -266,6 +266,142 @@ describe('fence scanning', () => {
   });
 });
 
+/**
+ * objectui#7505 — a DECLARED fragment is the one block this gate never compiles,
+ * so a reason claiming the block was checked against something is an assertion
+ * the gate structurally cannot re-verify. Measured cost: the claim on
+ * `content/docs/utilities/data-objectstack.mdx` was true when written, went
+ * silently false when objectui#7503 widened the factory's return type, and three
+ * independent readers hunting for exactly that falsehood missed it because the
+ * page reads as verified.
+ *
+ * ⭐ What is pinned here is that the gate refuses the COMBINATION and nothing
+ * wider. The exemption stays legal; the claim stays legal on a compiled block;
+ * only the two together are refused. A test suite that only proved "the claim
+ * turns it red" would not notice the check growing into a phrase hunt over every
+ * reason in the corpus, which is the failure mode the card named in advance.
+ */
+describe('objectui#7505 — a fragment reason may not claim the block was checked', () => {
+  const claimDoc = (reason: string) =>
+    ['# T', '', `{/* doc-snippet: fragment — ${reason} */}`, `${FENCE}ts`, 'const x: Broken =', FENCE].join('\n');
+
+  const reasonsOf = (reason: string) =>
+    (analyze({ root: tempTree({ 'content/docs/a.mdx': claimDoc(reason) }), ungated: {} }).findings as Finding[])
+      .map((f) => f.reason);
+
+  it('turns red on the spelling that was actually written here, and names itself', () => {
+    const findings = analyze({
+      root: tempTree({
+        'content/docs/a.mdx': claimDoc(
+          'a SIGNATURE excerpt, checked against the shipped `dist/index.d.ts` with the same type',
+        ),
+      }),
+      ungated: {},
+    }).findings as Finding[];
+    const claim = findings.find((f) => f.reason === 'verification-claim-on-fragment');
+    expect(claim, 'the combination this card exists to refuse went green').toBeDefined();
+    expect(claim!.site).toBe('content/docs/a.mdx:4');
+    // The remedy has to reach the author who is standing in front of the red.
+    expect(claim!.detail).toContain('checked');
+    expect(claim!.detail).toContain('compiled tier');
+  });
+
+  it('is a verdict about the document, not a precondition — it leaves through exit 1', () => {
+    const findings = analyze({
+      root: tempTree({ 'content/docs/a.mdx': claimDoc('a shape excerpt, verified member for member') }),
+      ungated: {},
+    }).findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('verification-claim-on-fragment');
+    // `couldNotRun` would say the gate never judged the document. It did.
+    expect(blockingPreconditions(findings)).toHaveLength(0);
+  });
+
+  it('refuses the COMBINATION, not the claim: the same words on a COMPILED block are untouched', () => {
+    // No marker, so the block is in the compiled tier — where the claim is one
+    // this gate re-verifies on every commit, which is the shape the rule wants.
+    const root = tempTree({
+      'content/docs/a.mdx': [
+        '# T',
+        '',
+        `${FENCE}ts`,
+        '// verified against the shipped dist/index.d.ts, checked member for member',
+        'export const a = 1;',
+        FENCE,
+      ].join('\n'),
+    });
+    const state = analyze({ root, ungated: {} });
+    expect((state.findings as Finding[]).map((f) => f.reason)).not.toContain('verification-claim-on-fragment');
+    expect(state.compiled).toHaveLength(1);
+  });
+
+  it('leaves a reason that names the same authority to say the OPPOSITE alone', () => {
+    // content/docs/plugins/plugin-calendar.mdx's real shape: it names the shipped
+    // declaration in order to state that nothing agrees with it. Anchoring the
+    // match on "against the shipped" instead of on a verb would fail this.
+    expect(
+      reasonsOf(
+        'the half cannot compile against the SHIPPED prop type: `schema` is declared `ObjectGridSchema` and neither admits this node',
+      ),
+    ).not.toContain('verification-claim-on-fragment');
+  });
+
+  it("leaves `type-checked` alone — it names THIS gate's own action, which does re-run every commit", () => {
+    // content/docs/guide/component-registry.md's real shape. This is the good
+    // shape the rule is built to distinguish: a claim backed by a check that
+    // runs on every commit is not a fact with an expiry date.
+    expect(
+      reasonsOf(
+        'continues the block above; the literal it shows is type-checked on the complete example at the end of the page, which does compile',
+      ),
+    ).not.toContain('verification-claim-on-fragment');
+    // …while the hyphenated compound that IS a manual claim still trips it, so
+    // the guard that lets `type-checked` through is not a hole for `hand-checked`.
+    expect(reasonsOf('a signature excerpt; agreement with dist is hand-checked at each edit')).toContain(
+      'verification-claim-on-fragment',
+    );
+  });
+
+  it('trips on every verb it claims to cover, so the closed list cannot rot in silence', () => {
+    const spellings = [
+      'this excerpt was verified against the shipped declaration',
+      'this excerpt was confirmed against the shipped declaration',
+      'this excerpt was validated against the shipped declaration',
+      'this excerpt was audited against the shipped declaration',
+      'this excerpt was reconciled against the shipped declaration',
+      'this excerpt was checked against the shipped declaration',
+      'agreement with the declaration is cross-checked at each edit',
+      'agreement with the declaration is spot-checked at each edit',
+      'agreement with the declaration is double-checked at each edit',
+      'agreement with the declaration is manually checked at each edit',
+    ];
+    for (const reason of spellings) {
+      expect(reasonsOf(reason), `"${reason}" was not read as a claim`).toContain('verification-claim-on-fragment');
+    }
+  });
+
+  it("this repository's own 158 declared fragments carry no such claim", () => {
+    // The census that decided the route (the card asked for it before any gate
+    // change): 2 of 158 carried a claim, both on the page the card sampled, and
+    // both are repaired on this branch. A corpus-wide pin, so the next one is
+    // caught here and not only in CI.
+    const state = analyze({ root: repoRoot });
+    const claims = (state.findings as Finding[]).filter((f) => f.reason === 'verification-claim-on-fragment');
+    expect(claims.map((f) => f.site)).toEqual([]);
+    // Guards the pin above against going vacuous: this gate must still be
+    // reading a real population of declared fragments for "zero" to mean
+    // anything, and that population must not have moved into the compiled tier.
+    expect(state.declaredFragments.length).toBeGreaterThan(100);
+  });
+
+  it('states the rule in its own header, so it cannot drift out of the source', () => {
+    const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+    expect(source).toContain('It never claims the block was');
+    expect(source).toContain(
+      'A claim that something was verified is only as good as the check that',
+    );
+  });
+});
+
 describe('the coverage ledger is re-derived, never trusted', () => {
   it('fails on an entry naming a document that does not exist', () => {
     const root = tempTree({ 'content/docs/a.mdx': [`${FENCE}ts`, 'export const a = 1;', FENCE].join('\n') });
