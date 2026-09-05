@@ -151,7 +151,7 @@ const NODE: SchemaNode = { type: 'text', value: 'x' } as SchemaNode;
 const TEXT_CONTROL = { type: 'text' };
 const CAROUSEL_CONTROL = { type: 'carousel', items: [] };
 const FILTER_CONTROL = { type: 'filter-builder', fields: [] };
-const TREE_CONTROL = { type: 'tree-view', data: [] };
+const TREE_CONTROL = { type: 'tree-view', nodes: [] };
 const CHECKBOX_CONTROL = { type: 'checkbox', label: 'Accept' };
 const UPLOAD_CONTROL = { type: 'file-upload', label: 'Attach' };
 const HOVER_CONTROL = { type: 'hover-card', content: NODE, trigger: NODE };
@@ -180,7 +180,7 @@ const CASES: Case[] = [
 
   { type: 'TreeViewSchema', key: 'nodes', mirror: TreeViewSchema as never, control: TREE_CONTROL,
     legal: [{ id: 'a', label: 'A' }], illegal: 'not-an-array',
-    reader: R + 'data-display/tree-view.tsx', readText: 'boundData || schema.nodes || schema.data || []' },
+    reader: R + 'data-display/tree-view.tsx', readText: 'boundData || schema.nodes || []' },
   { type: 'TreeViewSchema', key: 'title', mirror: TreeViewSchema as never, control: TREE_CONTROL,
     legal: 'Folders', illegal: 42,
     reader: R + 'data-display/tree-view.tsx', readText: '{schema.title}' },
