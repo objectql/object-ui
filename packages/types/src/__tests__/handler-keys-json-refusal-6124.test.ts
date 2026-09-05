@@ -224,10 +224,18 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
  * `toFormControlDomProps` whitelist, card's `<Card {...cardProps}>`).
  */
 const RUNTIME_SLOT: readonly Site[] = [
-  // objectui#7664 — the `'kanban'` arm is the plugin dialect now: `KanbanRenderer`
-  // forwards `schema.onCardMove` and `schema.onQuickAdd`; the retired declarative
-  // face's `onCardClick` slot left with it (the object-bound board owns the click).
+  // objectui#7664 — the `'kanban'` arm is the plugin dialect now, and
+  // `KanbanRenderer` forwards all three of these off `schema.*` in one block
+  // (`plugin-kanban/src/index.tsx`). `onCardClick` is a slot on the retired
+  // declarative face AND on this one: on the `'kanban'` key `ObjectKanban`
+  // substitutes its own function, but it substitutes `onCardMove` in the same
+  // object literal, and its substitute CALLS an authored `onCardClick` through
+  // the prop `ObjectKanban` declares for it. Measured per registration in
+  // `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`; the first
+  // cut of this card dropped the key instead, which ACCEPTED a document this
+  // ledger had refused.
   ['complex.zod.ts', 'KanbanSchema', 'onCardMove', KanbanZod],
+  ['complex.zod.ts', 'KanbanSchema', 'onCardClick', KanbanZod],
   ['complex.zod.ts', 'KanbanSchema', 'onQuickAdd', KanbanZod],
   ['complex.zod.ts', 'CalendarViewSchema', 'onViewChange', CalendarViewZod],
   ['complex.zod.ts', 'FilterBuilderSchema', 'onChange', FilterBuilderZod],
@@ -376,17 +384,20 @@ describe('census: no on* key in the eight mirrors is declared z.function() (obje
     ]);
   });
 
-  it('66 sites are ledgered, 44 runtime slots + 22 retired, with no key filed twice', () => {
+  it('67 sites are ledgered, 45 runtime slots + 22 retired, with no key filed twice', () => {
     // 58 from objectui#6124; the 59th is `ObjectDataTableSchema.onRowClick`,
     // minted with its arm by objectui#6576 / #6914; the 60th is
     // `AlertDialogSchema.onAction`, declared by objectui#7104 for a key the
     // renderer had been reading undeclared; 61–66 are the six slots the
     // `ChatbotEnhancedSchema` / `ChatbotFloatingSchema` twins were born with
-    // (objectui#7655).
-    expect(RUNTIME_SLOT).toHaveLength(44);
+    // (objectui#7655); the 67th is `KanbanSchema.onQuickAdd`, the third
+    // `KanbanRenderer` forward, ledgered when objectui#7664 re-keyed this arm
+    // onto the plugin dialect — `onCardMove` and `onCardClick` carried over
+    // from the retired declarative face under the same `'kanban'` key.
+    expect(RUNTIME_SLOT).toHaveLength(45);
     expect(RETIRED).toHaveLength(22);
     const ids = ALL_SITES.map(([file, schema, key]) => `${file}#${schema}.${key}`);
-    expect(new Set(ids).size).toBe(66);
+    expect(new Set(ids).size).toBe(67);
   });
 
   it.each(ALL_SITES)('%s %s.%s is DECLARED on the mirror shape, with the objectui#6124 guidance as its description', (_file, _schema, key, mirror) => {
@@ -535,6 +546,7 @@ export type assertionRetiredKeysAreTombstoned = [
 
 export type assertionRuntimeSlotsKeepTheirFunctionType = [
   Expect<KeepsFunction<KanbanSchema['onCardMove']>>,
+  Expect<KeepsFunction<KanbanSchema['onCardClick']>>,
   Expect<KeepsFunction<KanbanSchema['onQuickAdd']>>,
   Expect<KeepsFunction<CalendarViewSchema['onViewChange']>>,
   Expect<KeepsFunction<FilterBuilderSchema['onChange']>>,

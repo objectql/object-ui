@@ -145,11 +145,30 @@ export interface KanbanColumn {
    */
   collapsed?: boolean;
   /**
-   * RETIRED with the declarative face (objectui#7664, ADR-0049) — `color` was
-   * a `DeclarativeKanbanColumn` member, and no registered board reads a
-   * column colour (measured: zero `column.color` read sites across
-   * `KanbanImpl`, `KanbanEnhanced`, `ObjectKanban`). The zod twin refuses it by
-   * name and points at the retired shape. Style a lane through `className`.
+   * RETIRED with the declarative face (objectui#7664, ADR-0049) — `color` was a
+   * `DeclarativeKanbanColumn` member, and no registered board reads a column
+   * colour (measured: zero `column.color` read sites across `KanbanImpl`,
+   * `KanbanEnhanced`, `ObjectKanban`).
+   *
+   * A tombstone rather than a plain removal on BOTH prongs of the
+   * discriminator the precedent changesets state (objectui#5941, #7526; the
+   * one-line form is under correction as objectui#7678) — a tombstone exists
+   * (1) to steer authors to a named live replacement KEY, or (2) to keep loud a
+   * key the docs taught as working:
+   *
+   *   - prong 1: `className` is that live replacement — style a lane through
+   *     it;
+   *   - prong 2: `content/docs/api/schema-reference.md` taught this key as
+   *     working. Before this card its kanban example authored a `color` on
+   *     every one of its three columns (`"color": "#6366f1"` and two more) and
+   *     its `columns` row read "each with `id`, `title`, `color`, and `cards`".
+   *
+   * ⚠️ The hazard prong 2 guards here is a SILENT STRIP, not a silent keep:
+   * `KanbanColumn` does not extend {@link BaseSchema}, so its mirror is a plain
+   * (non-passthrough) object. Measured on the built mirror: an undeclared
+   * column key is accepted and dropped from the parsed output, while this
+   * tombstone refuses `color` by name. A board that has always authored lane
+   * colours therefore gets told, instead of quietly losing them.
    * @deprecated Not part of this contract — the value was inert.
    */
   color?: never;
@@ -231,6 +250,38 @@ export interface KanbanSchema extends BaseSchema {
   onCardMove?: (cardId: string, fromColumnId: string, toColumnId: string, newIndex: number) => void;
 
   /**
+   * Callback function when a card is clicked.
+   *
+   * RUNTIME SLOT (objectui#6124) — a host-supplied function, NOT authorable
+   * metadata: JSON has no function value, so the zod twin refuses this key by
+   * name and points at the node-type spelling. Kept callable here because it is
+   * read on every channel measured (objectui#7664, the contract review of
+   * PR #7743):
+   *
+   *   - `KanbanRenderer` forwards it (`onCardClick={schema.onCardClick}`) in the
+   *     same block as {@link KanbanSchema.onCardMove} and
+   *     {@link KanbanSchema.onQuickAdd};
+   *   - on the `'kanban'` and `'object-kanban'` keys `ObjectKanban` substitutes
+   *     its own function — and substitutes `onCardMove` in the very same object
+   *     literal, so that reading retires both keys or neither;
+   *   - and its substitute CALLS the authored handler: `ObjectKanban` declares
+   *     an `onCardClick` PROP (`onCardMove` has none), which `SchemaRenderer`
+   *     supplies by spreading every non-metadata schema key as a React prop.
+   *
+   * ⛔ Do not "simplify" this back into a deletion. `BaseSchema` is
+   * `.passthrough()`, so removing the key does not refuse it — it stops being
+   * judged and the value is kept, which is how the first cut of objectui#7664
+   * turned a refused key into an accepted one with every ratchet green.
+   * `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx` derives the
+   * forwarded key set from the read site and goes red on that deletion.
+   *
+   * The event is `unknown` rather than a mouse event because this package
+   * declares zero dependencies and has no React types; `KanbanImpl` narrows it
+   * to `React.MouseEvent` at the call site.
+   */
+  onCardClick?: (card: KanbanCard, event?: unknown) => void;
+
+  /**
    * Optional CSS class name to apply custom styling.
    */
   className?: string;
@@ -294,8 +345,24 @@ export interface KanbanSchema extends BaseSchema {
    * RETIRED with the declarative face (objectui#7664, ADR-0049) — `draggable`
    * was a `DeclarativeKanbanSchema` member and no registered board reads it
    * (measured: zero `draggable` read sites in `@object-ui/plugin-kanban`;
-   * drag-and-drop is always on). The zod twin refuses it by name and points at
-   * the retired shape.
+   * drag-and-drop is always on).
+   *
+   * A tombstone rather than a plain removal on PRONG 2 of the discriminator the
+   * precedent changesets state (objectui#5941, #7526; the one-line form is
+   * under correction as objectui#7678) — a tombstone exists (1) to steer
+   * authors to a named live replacement KEY, or (2) to keep loud a key the docs
+   * taught as working. Prong 1 does not apply: drag-and-drop is unconditional,
+   * so there is no replacement key to name, and the remedy is to delete the
+   * member. Prong 2 carries it: `content/docs/api/schema-reference.md` taught
+   * this key as working — before this card its kanban example opened with
+   * `"draggable": true` and its property table read "`draggable` | `boolean` |
+   * Enable drag-and-drop between columns."
+   *
+   * ⚠️ Inertness is why the key is retired, not why it is tombstoned. A key
+   * this documented must be refused by NAME rather than dropped: {@link
+   * BaseSchema} is `.passthrough()`, so dropping it from the mirror would leave
+   * a document naming it silently accepted with the value kept — the failure
+   * this card's own first cut shipped at {@link KanbanSchema.onCardClick}.
    * @deprecated Not part of this contract — the value was inert.
    */
   draggable?: never;

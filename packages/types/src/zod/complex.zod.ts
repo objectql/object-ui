@@ -126,9 +126,13 @@ export const ColumnWidthConfigSchema = z.object({
  * {@link KanbanSchema} in `../complex.ts` key for key: the shape
  * `@object-ui/plugin-kanban`'s registered renderers read (objectui#7664).
  *
- * `onCardMove` / `onQuickAdd` are RUNTIME SLOTS (objectui#6124): `KanbanRenderer`
- * forwards both off `schema.*`, so the TypeScript twin keeps them callable and
- * this mirror refuses them by name. `onColumnAdd` / `onCardAdd` are the two
+ * `onCardMove` / `onCardClick` / `onQuickAdd` are RUNTIME SLOTS (objectui#6124):
+ * `KanbanRenderer` forwards all three off `schema.*` in one block, so the
+ * TypeScript twin keeps them callable and this mirror refuses them by name.
+ * ⛔ None of the three may be dropped instead of refused — `BaseSchema` is
+ * `.passthrough()`, so a dropped key is KEPT rather than refused (the first cut
+ * of objectui#7664 dropped `onCardClick` and turned a refused document into an
+ * accepted one). `onColumnAdd` / `onCardAdd` are the two
  * retired handler keys carried over from the declarative face so the successor
  * arm keeps refusing the spelling; `draggable` is that face's own retired key.
  * `conditionalFormatting` and `grouping` are the same schemas the `object-kanban`
@@ -145,6 +149,7 @@ export const KanbanSchema = BaseSchema.extend({
   limit: z.number().optional().describe('Row cap for the fetch (defaults to 100)'),
   columns: z.array(KanbanColumnSchema).optional().describe('Columns to display, each carrying its cards'),
   onCardMove: handlerKeyRefusal('onCardMove', 'runtime-slot', 'Card move handler'),
+  onCardClick: handlerKeyRefusal('onCardClick', 'runtime-slot', 'Card click handler'),
   className: z.string().optional().describe('CSS class name'),
   quickAdd: z.boolean().optional().describe('Enable the Quick Add button at the bottom of each column'),
   onQuickAdd: handlerKeyRefusal('onQuickAdd', 'runtime-slot', 'Quick Add handler'),

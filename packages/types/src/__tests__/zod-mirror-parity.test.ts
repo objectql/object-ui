@@ -833,20 +833,32 @@ interface KnownDrift {
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
   /**
-   * RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban`'s `KanbanRenderer` forwards
-   * `onCardMove` / `onQuickAdd` off `schema.*` into the board. Re-keyed by
-   * objectui#7664 (ruling (a)): the pair was `DeclarativeKanbanSchema` with
-   * `onCardMove` / `onCardClick` until that face retired; the plugin dialect this
-   * arm now declares has no `onCardClick` member (the object-bound board owns
-   * the click) and forwards `onQuickAdd` instead. (`onColumnAdd` / `onCardAdd`,
-   * carried over as tombstones, and the retired declarative `draggable` are NOT
-   * here: `?: never` meets the refusal arm and the pair does not drift on them.)
-   * The runtime-computed card members — `cardFieldCells`, a badge's
-   * `colorStyle` — are passed through as `z.any()` (the `headerIcon` precedent,
-   * objectui#6424), so `KanbanCardSchema` and the `columns` key above it do not
-   * drift either.
+   * RUNTIME SLOT (objectui#6124) ×3: `plugin-kanban`'s `KanbanRenderer` forwards
+   * `onCardMove`, `onCardClick` and `onQuickAdd` off `schema.*` into the board,
+   * in one block (`plugin-kanban/src/index.tsx`). Re-keyed by objectui#7664
+   * (ruling (a)): the pair was `DeclarativeKanbanSchema` with `onCardMove` /
+   * `onCardClick` until that face retired, and the plugin dialect this arm now
+   * declares carries all three.
+   *
+   * ⚠️ `onCardClick` is here on measurement, not by inheritance. On the
+   * `'kanban'` / `'object-kanban'` keys `ObjectKanban` substitutes its own
+   * function for it — but it substitutes `onCardMove` in the SAME object
+   * literal, and its substitute CALLS an authored `onCardClick` through the prop
+   * `ObjectKanban` declares for it (`SchemaRenderer` spreads every non-metadata
+   * schema key as a React prop; there is no `onCardMove` prop). The first cut of
+   * objectui#7664 read that substitution as "the object-bound board owns the
+   * click" and dropped the key, which under `.passthrough()` ACCEPTED a document
+   * this arm had refused. Per-registration readings:
+   * `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`.
+   *
+   * (`onColumnAdd` / `onCardAdd`, carried over as tombstones, and the retired
+   * declarative `draggable` are NOT here: `?: never` meets the refusal arm and
+   * the pair does not drift on them.) The runtime-computed card members —
+   * `cardFieldCells`, a badge's `colorStyle` — are passed through as `z.any()`
+   * (the `headerIcon` precedent, objectui#6424), so `KanbanCardSchema` and the
+   * `columns` key above it do not drift either.
    */
-  'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onQuickAdd';
+  'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick' | 'onQuickAdd';
   /**
    * RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — `DetailView`'s
    * `handleBack` calls `onBack()` when set. The mirror was `z.any()` (wider than

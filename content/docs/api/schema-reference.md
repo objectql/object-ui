@@ -965,6 +965,7 @@ A static board carries its cards inline:
 | `columnWidths` | `ColumnWidthConfig` | Column width configuration. |
 | `grouping` | `GroupingConfig` | ListView grouping config; its first field is the swimlane fallback. |
 | `onCardMove` | `function` | Runtime slot supplied by a React host, `(cardId, fromColumnId, toColumnId, newIndex)`; not authorable in JSON. |
+| `onCardClick` | `function` | Runtime slot supplied by a React host, `(card, event?)`; not authorable in JSON. On the object-bound board the host's handler runs alongside the record-detail overlay. |
 | `onQuickAdd` | `function` | Runtime slot supplied by a React host, `(columnId, title)`; not authorable in JSON. |
 
 > The former `@object-ui/types` kanban dialect — `DeclarativeKanbanSchema`, with a board-level `draggable`, a column `color` and card `labels` / `priority` — was retired in objectui#7664: no registered renderer read it, so a board written that way validated and rendered empty. `draggable` and a column `color` are now refused by name; a static board written with `columns[].cards[]` as above is the same document in both dialects and renders every card.

@@ -34,6 +34,20 @@ render **empty**. The ruling: the plugin dialect is authoritative.
   keys are deliberately *not* refused: a card is an open record
   (`[key: string]: any`), and `priority` or `dueDate` are legitimate record
   fields.
+- **Every handler key the retired arm refused is still refused, and one more
+  joins them.** The successor arm carries all five `#6124` refusal arms under
+  the same `'kanban'` key — `onCardMove`, `onCardClick` and `onQuickAdd` as
+  RUNTIME SLOTS (callable on the TypeScript face, refused by name on the
+  mirror: `KanbanRenderer` forwards all three off `schema.*` in one block),
+  `onColumnAdd` and `onCardAdd` as `?: never` tombstones. `onQuickAdd` is the
+  one that is newly refused — the plugin dialect declared it, the retired
+  declarative face did not. ⚠️ `onCardClick` is the key this arm must never
+  drop rather than refuse: the plugin dialect it is modelled on never declared
+  the member (the renderer read it undeclared), and because `BaseSchema` is
+  `.passthrough()`, leaving it out does not refuse it — it stops being judged
+  and the value is kept. Measured on the built dist, `{ type: 'kanban',
+  columns: [], onCardClick: { action: 'toast' } }` is REFUSED, beside the same
+  document at `onCardMove` / `onQuickAdd` / `onColumnAdd` / `draggable`.
 - **Six exports retire — the second step of the objectui#6172 rename.**
   objectui#6172 (PR #7643, same release line) renamed this package's trio from
   the bare names to `DeclarativeKanbanSchema` / `DeclarativeKanbanColumn` /

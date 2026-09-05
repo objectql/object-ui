@@ -48,8 +48,16 @@
  *   3. CENSUS — the declared body is MEASURED off `complex.ts` with the
  *      TypeScript parser, not inherited: the ruling quoted "the 18-member
  *      `KanbanSchema`", an AST census on the same day read 19 (it counts
- *      `type`), and this file was told to trust neither. Pinned at 19 live
- *      members plus the 3 tombstones, by name.
+ *      `type`), and this file was told to trust neither. Pinned at 20 live
+ *      members plus the 3 tombstones, by name — the plugin dialect's own 19,
+ *      plus `onCardClick`. That twentieth member is the one this arm ADDS to
+ *      the dialect it was modelled on: `plugin-kanban/src/types.ts` never
+ *      declared it (measured on `origin/main`: zero occurrences in that file)
+ *      while `KanbanRenderer` has always forwarded `schema.onCardClick`, so
+ *      copying the dialect member for member reproduced its undeclared read
+ *      and, under `.passthrough()`, ACCEPTED a document the retired arm had
+ *      refused. Its reachability is measured per registration in
+ *      `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`.
  *
  * ## Why the refusal keys are `draggable` and a column's `color`, not `columns`
  *
@@ -286,16 +294,16 @@ describe('the declared body is measured, not inherited (objectui#7664)', () => {
     }));
   }
 
-  it('KanbanSchema declares 19 live members (the ruling said 18; a same-day census said 19 — `type` is the difference) and exactly 3 tombstones', () => {
+  it('KanbanSchema declares 20 live members — the dialect\'s 19 (the ruling said 18; `type` is the difference) plus `onCardClick` — and exactly 3 tombstones', () => {
     const members = membersOf('KanbanSchema');
     const live = members.filter((m) => !m.never).map((m) => m.name);
     const tombstoned = members.filter((m) => m.never).map((m) => m.name);
     expect(live).toEqual([
       'type', 'objectName', 'groupBy', 'swimlaneField', 'cardTitle', 'cardFields', 'data', 'limit', 'columns',
-      'onCardMove', 'className', 'quickAdd', 'onQuickAdd', 'coverImageField', 'allowCollapse',
+      'onCardMove', 'onCardClick', 'className', 'quickAdd', 'onQuickAdd', 'coverImageField', 'allowCollapse',
       'conditionalFormatting', 'cardTemplates', 'columnWidths', 'grouping',
     ]);
-    expect(live).toHaveLength(19);
+    expect(live).toHaveLength(20);
     expect(tombstoned).toEqual(['draggable', 'onColumnAdd', 'onCardAdd']);
     // Both directions against the mirror, so the number above is the mirror's
     // too: every declared member is a key of the shape, and every shape key the
