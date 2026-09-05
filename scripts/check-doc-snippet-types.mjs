@@ -1284,6 +1284,7 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
     findings,
     paths: mergedPaths,
     workspacePaths: paths,
+    packageDirOf,
     dependencyPaths,
     dependencyDeclaredBy,
     untypedDependencies,
@@ -1520,6 +1521,39 @@ export function buildFilterArgs(packages) {
   return [...packages].sort().map((n) => `--filter=${n}...`).join(' ');
 }
 
+/**
+ * What that printed build command does NOT do, printed under it (objectui#7795).
+ *
+ * The command builds a CLOSURE — the packages the covered documents import, plus
+ * their dependencies — and it said so nowhere. Measured on `origin/main`
+ * `abdcd189c`: running it left 34 of the workspace's 40 packages with a `dist/`,
+ * and the reader who had just been told to "build what the gate needs" had no way
+ * to tell that leftover apart from a build that half-failed. Scoping the build is
+ * this gate's design, so the fix is the sentence, never a wider filter.
+ *
+ * Both counts are ARGUMENTS and the text names no package on purpose. A list of
+ * "what gets built" written out here would be a second copy of a set this file
+ * already computes, and it would rot the first time coverage moved; the reader who
+ * wants the exact set is sent to the same filter, expanded by the same tool that
+ * is about to run it. `check-doc-snippet-types.test.ts` pins that this text still
+ * carries no package name of its own.
+ *
+ * @param {number} named packages `--build-filter` names (the documents' imports)
+ * @param {number} total workspace packages under `packages/`
+ * @returns {string} one paragraph for the precondition path's stderr
+ */
+export function scopedBuildNotice(named, total) {
+  return (
+    `That build is SCOPED, and it is not a whole-tree build: --build-filter names the ${named} package(s) the ` +
+    `covered documents import (${PACKAGES_DIR}/ holds ${total}) plus each one's dependency closure, and every ` +
+    'package outside that closure is left exactly as it was. An unbuilt package still sitting there when the ' +
+    "build finishes is this gate's designed end state, not a build that half-failed — building the whole tree " +
+    'for a documentation check would slow every local loop. For the exact set, ask that same filter rather than ' +
+    'a list written down somewhere else: append --dry=text to the command above and read its "Packages in ' +
+    'scope" line.'
+  );
+}
+
 function main() {
   const argv = process.argv.slice(2);
 
@@ -1570,6 +1604,9 @@ function main() {
     console.error(
       '  pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter) --concurrency=2\n' +
         '  pnpm check:doc-snippets',
+    );
+    console.error(
+      `\n${scopedBuildNotice(state.neededPackages.size, Object.keys(state.packageDirOf).length)}`,
     );
     return EXIT_CODES.couldNotRun;
   }
