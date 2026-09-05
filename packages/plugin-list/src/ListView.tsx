@@ -1301,7 +1301,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     if (!schema.exportOptions) return undefined;
     // Spec format: simple string[] like ['csv', 'xlsx']
     if (Array.isArray(schema.exportOptions)) {
-      return { formats: schema.exportOptions as Array<'csv' | 'xlsx' | 'json' | 'pdf'> };
+      return { formats: schema.exportOptions };
     }
     // ObjectUI format: already an object
     return schema.exportOptions;
@@ -1321,7 +1321,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const declared = resolvedExportOptions?.formats || ['csv', 'json'];
     const serverAvailable = typeof dataSource?.exportDownload === 'function'
       && !!schema.objectName
-      && (resolvedExportOptions as any)?.streaming !== false;
+      && resolvedExportOptions?.streaming !== false;
     const supported = serverAvailable ? ['csv', 'xlsx', 'json'] : ['csv', 'json'];
     return declared.filter((f: string) => supported.includes(f));
   }, [resolvedExportOptions, dataSource, schema.objectName]);
@@ -2973,7 +2973,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const serverEligible = (format === 'csv' || format === 'xlsx' || format === 'json')
       && typeof dataSource?.exportDownload === 'function'
       && !!schema.objectName
-      && (exportConfig as any)?.streaming !== false;
+      && exportConfig?.streaming !== false;
     if (serverEligible) {
       const fields = effectiveFields
         .map((f: any) => columnIdentity(f))

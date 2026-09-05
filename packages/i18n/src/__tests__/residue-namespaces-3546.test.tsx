@@ -66,6 +66,33 @@ import React from 'react';
 import { I18nProvider, useObjectTranslation } from '../provider';
 import { builtInLocales } from '../locales/index';
 
+/**
+ * The repo root, derived from THIS FILE's own location — never from
+ * `process.cwd()` (objectui#7799).
+ *
+ * It was `process.cwd()` until then, on the reasoning that
+ * `scripts/vitest-invocation-guard.mjs` refuses any invocation whose vitest root
+ * is not the repo root. That guard is real, but it is a DIFFERENT invariant:
+ * `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ * package's own `test` script — `vitest run --root ../.. packages/i18n/`, which
+ * is what `pnpm --filter … test` and `turbo run test` both run — leaves cwd at
+ * `packages/i18n/`, so every read below resolved against the package directory
+ * and the assertions guarding them failed.
+ *
+ * Spelled in string operations, copying the landed precedent of objectui#7791
+ * (PR #7796): `new URL(rel, import.meta.url)` is REWRITTEN by Vite into a
+ * `http://localhost:3000/@fs/…` dev-server URL, so only bare `import.meta.url`
+ * is read here and taken apart by hand. Measured on this card under both cwds
+ * and in both the `unit` and the `dom` project, it is
+ * `file:///…/packages/i18n/src/__tests__/<this file>`.
+ */
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / i18n / src / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
+
+
 /** The 17 keys the guard measured as missing, in the ratchet's own order. */
 const MEASURED_KEYS = [
   'common.done',
@@ -152,13 +179,12 @@ const wrapperFor = (lang: string) =>
   };
 
 /**
- * Read a component's source. `import.meta.url` is not a file: URL in the dom
- * project, so resolve from the vitest root (which the invocation guard pins to
- * the repo root) — and prove the read landed, or every assertion on it is
- * vacuous.
+ * Read a component's source, resolved from THIS FILE's own location rather than
+ * from the cwd (objectui#7799) — and prove the read landed, or every assertion
+ * on it is vacuous.
  */
 function sourceOf(rel: string): string {
-  const path = join(process.cwd(), rel);
+  const path = join(REPO_ROOT, rel);
   expect(existsSync(path), `source not found at ${path}`).toBe(true);
   return readFileSync(path, 'utf8');
 }
@@ -775,7 +801,7 @@ describe('objectui#3546 slice seven — the ratchet residue', () => {
     // unfixed key missing from it, AND a fixed key still listed. With both lists
     // empty, any NEW unresolved call-site key is `unexpected` and fails — which
     // is what makes the empty file load-bearing rather than dead weight.
-    const baselinePath = join(process.cwd(), 'scripts/i18n-call-site-key-baseline.json');
+    const baselinePath = join(REPO_ROOT, 'scripts/i18n-call-site-key-baseline.json');
     expect(existsSync(baselinePath), `baseline not found at ${baselinePath}`).toBe(true);
     const raw = readFileSync(baselinePath, 'utf8');
     const baseline = JSON.parse(raw) as {

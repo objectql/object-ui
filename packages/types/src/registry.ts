@@ -6,8 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { BaseSchema } from './base.js';
-
 import type {
   DivSchema,
   BoxSchema,
@@ -94,6 +92,7 @@ import type {
 } from './navigation.js';
 
 import type {
+  KanbanSchema,
   CalendarViewSchema,
   FilterBuilderSchema,
   CarouselSchema,
@@ -184,38 +183,20 @@ export interface SchemaRegistry {
   'pagination': PaginationSchema;
 
   // Complex
-  // ⚠️ `'kanban'` is the one key whose value this layer cannot state
-  // precisely, so it deliberately states LESS rather than stating it wrongly
-  // (objectui#7645).
-  //
-  // The renderer registered for this key is `ObjectKanbanRenderer` in
-  // `@object-ui/plugin-kanban` (`ComponentRegistry.register('kanban', …)`,
-  // `plugin-kanban/src/index.tsx`), and it consumes THAT package's
-  // `KanbanSchema`. `@object-ui/types` cannot name that type, measured two
-  // ways: importing it is a phantom dependency this package does not declare
-  // (`check:phantom-deps` rejects it by file and pair), and declaring the
-  // dependency would close the cycle `@object-ui/types` →
-  // `@object-ui/plugin-kanban` → `@object-ui/types` — this is the
-  // zero-workspace-dependency bottom layer. objectui#6172's ruling (option A,
-  // 2026-08-31) kept the plugin's bare names rather than relocating that
-  // dialect down here. objectui#7664's ruling (a) (2026-09-05) reverses that
-  // half: this package's `'kanban'` arm is rewritten to the plugin's shape and
-  // this entry is re-pointed at the declared type — this value is TRANSITIONAL.
-  //
-  // Until then the entry asserts only what this layer can PROVE, and what BOTH
-  // dialects satisfy: a schema node tagged `'kanban'`. It no longer names
-  // `DeclarativeKanbanSchema` — the AUTHORING/validation face (the `'kanban'`
-  // arm of `ComplexSchema` → `AnyComponentSchema` → `safeValidateSchema`),
-  // not the type the registered renderer honours. Naming it here made a map
-  // that calls itself the Single Source of Truth describe the wrong component.
-  //
-  // ⛔ Do not "restore" a precise type here without moving the renderer's
-  // dialect into a layer this package may depend on. Two compile-time pins
-  // hold the shape: `src/__tests__/schema-registry-kanban-honesty-7645.test.ts`
-  // (the key survives in `keyof`; the value no longer claims the declarative
-  // face) and the same file name under `plugin-kanban/src/__tests__/` (the
-  // renderer's own `KanbanSchema` satisfies what this entry asserts).
-  'kanban': BaseSchema & { type: 'kanban' };
+  // `'kanban'` names the face the registered renderer honours — the plugin
+  // dialect, declared in THIS package since objectui#7664 (maintainer ruling
+  // (a), 2026-09-05): `@object-ui/plugin-kanban` imports `KanbanSchema` from here
+  // and conforms to it, so the map's value and the renderer's prop type are one
+  // declaration. Between objectui#7645 (PR #7662) and that ruling this entry
+  // read `BaseSchema & { type: 'kanban' }` — the weakest true claim — because
+  // this layer could not name the plugin's type (a phantom dependency, and a
+  // cycle). Moving the dialect down here is the route that comment named, not
+  // the one it forbade. Pinned in
+  // `src/__tests__/kanban-plugin-dialect-authoritative-7664.test.ts` (the key
+  // survives in `keyof`; the value IS the declared arm) and the same file name
+  // under `plugin-kanban/src/__tests__/` (the renderer's own prop type IS this
+  // declaration).
+  'kanban': KanbanSchema;
   'calendar-view': CalendarViewSchema;
   'filter-builder': FilterBuilderSchema;
   'carousel': CarouselSchema;

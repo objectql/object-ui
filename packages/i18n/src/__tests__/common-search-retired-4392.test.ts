@@ -53,6 +53,33 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { builtInLocales } from '../locales/index';
 
+/**
+ * The repo root, derived from THIS FILE's own location — never from
+ * `process.cwd()` (objectui#7799).
+ *
+ * It was `process.cwd()` until then, on the reasoning that
+ * `scripts/vitest-invocation-guard.mjs` refuses any invocation whose vitest root
+ * is not the repo root. That guard is real, but it is a DIFFERENT invariant:
+ * `--root` moves VITEST's root and moves nothing about `process.cwd()`. This
+ * package's own `test` script — `vitest run --root ../.. packages/i18n/`, which
+ * is what `pnpm --filter … test` and `turbo run test` both run — leaves cwd at
+ * `packages/i18n/`, so every read below resolved against the package directory
+ * and the assertions guarding them failed.
+ *
+ * Spelled in string operations, copying the landed precedent of objectui#7791
+ * (PR #7796): `new URL(rel, import.meta.url)` is REWRITTEN by Vite into a
+ * `http://localhost:3000/@fs/…` dev-server URL, so only bare `import.meta.url`
+ * is read here and taken apart by hand. Measured on this card under both cwds
+ * and in both the `unit` and the `dom` project, it is
+ * `file:///…/packages/i18n/src/__tests__/<this file>`.
+ */
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / i18n / src / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
+
+
 // Derived from the map rather than left as `string[]`: `Object.keys` erases
 // which keys it enumerated, so `builtInLocales[lang]` below would be an
 // implicit-`any` index into a `const` map (TS7053). Same convention as
@@ -183,7 +210,7 @@ describe('`common.search` is retired from the ten packs (objectui#4392)', () => 
     };
 
     for (const root of roots) {
-      const abs = join(process.cwd(), root);
+      const abs = join(REPO_ROOT, root);
       expect(existsSync(abs), `scan root missing: ${abs}`).toBe(true);
       walk(abs);
     }
@@ -229,7 +256,7 @@ describe('`common.search` is retired from the ten packs (objectui#4392)', () => 
         }
       }
     };
-    for (const root of ['packages', 'apps']) walk(join(process.cwd(), root));
+    for (const root of ['packages', 'apps']) walk(join(REPO_ROOT, root));
 
     expect(
       risky,

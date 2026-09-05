@@ -411,6 +411,50 @@ export interface AppComponentSchema extends BaseSchema {
   active?: boolean;
 
   /**
+   * Whether the app is hidden from the App Switcher -- the spec's
+   * APP-CATALOGUE flag, NOT the renderer's hide predicate (objectui#7542).
+   *
+   * On every other node `hidden` is the key `BaseSchema` declares:
+   * `boolean | ExpressionWire`, a predicate `SchemaRenderer`'s `shouldHide`
+   * chain evaluates. On the `app` node a DIFFERENT key with the same name
+   * wins: `@objectstack/spec/ui` `AppSchema.hidden`, taken BY REFERENCE
+   * through `SpecAppFields` in `./zod/app.zod.ts`, where the spec's fields
+   * land after the base's and override them. Measured on
+   * `@objectstack/spec@17.2.0` by resolving `AppSchema.shape`: `hidden` is
+   * `z.boolean().optional()`, described "Hide from the App Switcher; the
+   * shell surfaces hidden apps via the avatar menu instead (navigation only
+   * -- never an access gate)"; the spec declares NEITHER `visible` NOR
+   * `disabled` on the app node, which is why the objectui#4581 / #4580
+   * widenings of those two keys reached this node and the objectui#7455
+   * widening of this one did not.
+   *
+   * So the predicate spelling every other node accepts -- a string, or the
+   * CEL envelope object -- is REFUSED on this node on both faces: measured
+   * before this restatement, `AppComponentSchema.safeParse({ type: 'app',
+   * hidden: 'user.role == "admin"' })` failed at path `hidden`
+   * (`invalid_type`, expected boolean, received string) and so did
+   * `safeValidateSchema` on the same document, while this interface still
+   * inherited the base's union and INVITED exactly that spelling. This member
+   * pulls the declaration back to what the validator has enforced all along
+   * (direction 1 of objectui#7542); the `KnownDrift` row objectui#7455 seeded
+   * for this pair left with it, because the drift did. The in-repo reader
+   * agrees with the boolean: `filterActiveApps`
+   * (`packages/app-shell/src/utils/appRoute.ts`) keeps an app out of the
+   * launcher on `hidden !== true` and never evaluates the value, so a
+   * predicate string here would have read as "not hidden" without a sound.
+   *
+   * The open alternative is direction 2 -- give the catalogue flag its own
+   * name upstream in `@objectstack/spec` so this node can inherit the
+   * renderer's predicate again. That is a protocol change with its own
+   * producers and is NOT taken here; until it is, an `app` node cannot use
+   * the predicate spelling. Pinned by
+   * `__tests__/app-hidden-catalogue-flag-7542.test.ts`.
+   *
+   * @example true
+   */
+  hidden?: boolean;
+
+  /**
    * Global Layout Strategy
    * - sidebar: Standard admin layout with left sidebar
    * - header: Top navigation bar only

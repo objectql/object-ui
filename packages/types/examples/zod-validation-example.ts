@@ -18,7 +18,7 @@ import {
   FormSchema,
   CardSchema,
   DataTableSchema,
-  DeclarativeKanbanSchema,
+  KanbanSchema,
 } from '../src/zod/index.zod';
 
 // The failure accessor below is `error.issues`. Zod 4 removed the `.errors`
@@ -93,7 +93,7 @@ const cardExample = {
   children: [
     {
       type: 'text',
-      value: 'Card content goes here',
+      content: 'Card content goes here',
     },
   ],
 };
@@ -131,9 +131,15 @@ if (!dataTableResult.success) {
   console.error('DataTable errors:', dataTableResult.error.issues);
 }
 
-// Example 6: Validate a Kanban component
+// Example 6: Validate a Kanban component — the dialect `@object-ui/plugin-kanban`
+// renders (objectui#7664): an object-bound board, plus static columns whose
+// cards carry `badges`.
 const kanbanExample = {
   type: 'kanban' as const,
+  objectName: 'tasks',
+  groupBy: 'status',
+  cardTitle: 'title',
+  cardFields: ['assignee', 'due_date'],
   columns: [
     {
       id: 'todo',
@@ -143,7 +149,7 @@ const kanbanExample = {
           id: '1',
           title: 'Task 1',
           description: 'Do something',
-          priority: 'high' as const,
+          badges: [{ label: 'High', variant: 'destructive' as const }],
         },
       ],
     },
@@ -158,10 +164,9 @@ const kanbanExample = {
       cards: [],
     },
   ],
-  draggable: true,
 };
 
-const kanbanResult = DeclarativeKanbanSchema.safeParse(kanbanExample);
+const kanbanResult = KanbanSchema.safeParse(kanbanExample);
 console.log('Kanban validation:', kanbanResult.success ? 'PASSED ✓' : 'FAILED ✗');
 if (!kanbanResult.success) {
   console.error('Kanban errors:', kanbanResult.error.issues);

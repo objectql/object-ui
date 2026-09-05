@@ -59,7 +59,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findComponentRegistrations } from './component-registrations.mjs';
-import { readArrayPackages } from './check-side-effects-array.mjs';
+import { deriveSpellingMap, readArrayPackages } from './check-side-effects-array.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -92,8 +92,61 @@ export const RULED_CONTROLS = Object.freeze([
 export const NEGATIVE_CONTROL_KEY = 'objectui:6683-registration-pin-negative-control';
 
 /**
+ * `pkg.declared`, ordered so a module's SOURCE spelling is read before its
+ * PUBLISHED spelling.
+ *
+ * ## Why the order is fixed here rather than left to the array (objectui#6893)
+ *
+ * A `sideEffects` array names every registering module TWICE -- once as
+ * `src/x.tsx`, once as `dist/x.js` (see `check-side-effects-array.mjs`: both
+ * spellings are required, because consumers resolve the published one and
+ * in-repo bundler aliases resolve the source one). {@link derivePinnedKeys}
+ * attributes each key to the FIRST module it read the key from, so without an
+ * order of its own the attribution was decided by two things that have nothing
+ * to say about it: the literal order of the entries in `package.json`, and
+ * whether `dist/` happens to be on disk. `packages/app-shell/dist` is
+ * gitignored, so the SAME COMMIT attributed `mcp:connect-agent` to
+ * `.../src/console/connect/ConnectAgentWidget.tsx` on an unbuilt checkout and to
+ * `.../dist/console/connect/ConnectAgentWidget.js` on a built one.
+ *
+ * The published spelling is still READ -- `keys` is a union deduplicated by key,
+ * so reordering cannot change the derived population, only which spelling is
+ * reported for it. Source-first is the right end of that choice because the
+ * attribution is a diagnostic pointing an author at the module to go fix, and
+ * `dist/` is a build artifact nobody edits.
+ *
+ * `srcRoot` comes from the package's own derived spelling map rather than from a
+ * hardcoded `dist` test, so there is no second answer here to "which prefix is
+ * the source one" that could rot away from the one `check-side-effects-array`
+ * derives and round-trip-checks.
+ *
+ * @param {{name: string, dir: string, manifest: object, declared: string[]}} pkg
+ * @param {string} [root]
+ * @returns {string[]}
+ */
+export function sourceFirstEntries(pkg, root = REPO_ROOT) {
+  const map = deriveSpellingMap(pkg, root);
+  if (map.error) {
+    // Falling back to the array's own order would restore exactly the
+    // build-state-dependent attribution above, and it would do it silently.
+    // `scripts/check-side-effects-array.mjs` owns this condition and already
+    // reports it as exit 2, so a workspace that reaches here is red there too.
+    throw new Error(
+      `${pkg.name}: this gate cannot tell the package's source spelling from its published one — ` +
+        `${map.error}. Without that, the key attribution below falls back to array order, which is what ` +
+        `made this derivation answer differently on a built and an unbuilt checkout (objectui#6893).`,
+    );
+  }
+  const isSource = (entry) => entry === map.srcRoot || entry.startsWith(`${map.srcRoot}/`);
+  return [...pkg.declared.filter(isSource), ...pkg.declared.filter((entry) => !isSource(entry))];
+}
+
+/**
  * Every component key registered by a module some package's `sideEffects` array
  * names. Derived; see the header.
+ *
+ * The per-package read order is {@link sourceFirstEntries}, so `sources`
+ * answers the same spelling whether or not the tree has been built.
  *
  * @param {string} [root]
  * @returns {{keys: string[], sources: Map<string, string>, unreadable: string[], modulesRead: number}}
@@ -105,7 +158,7 @@ export function derivePinnedKeys(root = REPO_ROOT) {
   let modulesRead = 0;
 
   for (const pkg of readArrayPackages(root)) {
-    for (const entry of pkg.declared) {
+    for (const entry of sourceFirstEntries(pkg, root)) {
       if (!/\.(ts|tsx|mts|js|jsx|mjs)$/.test(entry)) continue;
       const abs = path.join(root, pkg.dir, entry);
       if (!fs.existsSync(abs)) continue; // a `dist/*` spelling in an unbuilt tree

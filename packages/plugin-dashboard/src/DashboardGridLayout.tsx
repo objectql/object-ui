@@ -359,7 +359,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     if (dispatch.family === 'unsupported') {
       return {
         type: 'text',
-        value: `「${widgetType}」chart type is not supported yet`,
+        content: `「${widgetType}」chart type is not supported yet`,
         variant: 'caption',
         align: 'center',
         className: 'flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-muted-foreground',

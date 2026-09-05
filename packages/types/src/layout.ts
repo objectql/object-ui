@@ -76,32 +76,41 @@ export interface TextSpanSchema extends BaseSchema {
 export interface TextSchema extends BaseSchema {
   type: 'text';
   /**
-   * Text content to display — the spelling the renderer reads FIRST.
+   * Text content to display — the ONE content spelling `text` reads.
    *
-   * READ SITE: `packages/components/src/renderers/basic/text.tsx:51` (the
-   * wrapped `span` arm, taken when the node carries a designer id or a
-   * className) and `:56` (the bare fragment arm), both as
-   * `{schema.content || schema.value}`. `content` therefore WINS over
-   * {@link TextSchema.value} whenever both are authored.
+   * READ SITE: `packages/components/src/renderers/basic/text.tsx:162` (the
+   * wrapped element arm, taken when the node carries a designer id, a
+   * typography class or a className) and `:167` (the bare fragment arm), both
+   * as `{schema.content}`.
    *
    * Declared by objectui#6150 (undeclared-but-consumed census). Before that
    * card the renderer read this key through `BaseSchema`'s
    * `[key: string]: any` (objectui#5155) and no shipped type mentioned it —
-   * the docs page was the only record of a capability that works.
-   *
-   * ⚠️ Two spellings for one slot is a dialect, not a design. Retiring one of
-   * them is an ADR-0049 enforce-or-remove question and is deliberately NOT
-   * decided here; this declaration records what the renderer does today.
+   * the docs page was the only record of a capability that works. #6150
+   * declared it next to a `value` fallback spelling and recorded that choosing
+   * between the two was an ADR-0049 question it did not decide; objectui#6951
+   * (maintainer ruling A1, 2026-09-04) decided it: `content` is the one
+   * spelling, and {@link TextSchema.value} is the tombstone below.
    */
   content?: string;
   /**
-   * Text content — the fallback spelling, read only when
-   * {@link TextSchema.content} is absent or falsy.
+   * RETIRED (objectui#6951 / objectui#7016, ADR-0049 enforce-or-remove) — the
+   * second spelling of the one content slot, read only as the fallback limb of
+   * `schema.content || schema.value`. Maintainer ruling A1 (2026-09-04): retire
+   * `value`, keep `content`, immediately and with no deprecation window
+   * (「项目在创业阶段,用户也很少,短期不考虑渐进。」). Measured before the
+   * retirement, on the four roots the ruling named (`examples/`, `apps/`, the
+   * `examples/` directories under `packages/`, `content/docs/**`): 776 `content`-only `text`
+   * nodes, 25 `value`-only, none authoring both — so the retired limb was the
+   * minority spelling by thirty to one.
    *
-   * READ SITE: `renderers/basic/text.tsx:51,56`, the right-hand side of
-   * `{schema.content || schema.value}`.
+   * The renderer no longer reads it (`text.tsx` renders `{schema.content}` at
+   * both arms), so an authored `value` would be a silent blank; the tombstone
+   * turns it into a `tsc` error here and a named refusal on the Zod mirror
+   * (`../zod/layout.zod.ts`) instead. Write `content`; the string is unchanged.
+   * @deprecated Not part of this contract — write `content`.
    */
-  value?: string;
+  value?: never;
   /**
    * Text variant/style
    * @default 'body'
@@ -213,8 +222,12 @@ export interface SeparatorSchema extends BaseSchema {
 export interface ContainerSchema extends BaseSchema {
   type: 'container';
   /**
-   * Max width constraint
-   * @default 'lg'
+   * Max width constraint.
+   *
+   * `container.tsx` applies this as `schema.maxWidth ?? 'xl'`, so a
+   * `container` that omits the key renders `max-w-xl` — the tag said
+   * `'lg'` and no renderer ever applied it (objectui#7361).
+   * @default 'xl'
    */
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'full' | 'screen' | false;
   /**
@@ -283,8 +296,18 @@ export interface FlexLayoutProps {
    */
   justify?: 'start' | 'end' | 'center' | 'between' | 'around' | 'evenly';
   /**
-   * Align items
-   * @default 'center'
+   * Align items.
+   *
+   * Deliberately carries NO `@default` tag. The member is declared once here
+   * (see this interface's docblock and objectui#6151), but the two component
+   * types that consume it diverge on the value they apply when it is omitted:
+   * `flex.tsx` reads `schema.align || 'start'`, `stack.tsx` reads
+   * `schema.align || 'stretch'` ("Stack items usually stretch"). One tag on a
+   * shared member cannot be right for both — it would publish a single default
+   * that only one consumer applies, which is the defect objectui#7361 records
+   * (the tag here used to read `'center'`, which NEITHER renderer applies).
+   * The per-type values are stated in prose so no parser reads a value that is
+   * only conditionally true.
    */
   align?: 'start' | 'end' | 'center' | 'baseline' | 'stretch';
   /**

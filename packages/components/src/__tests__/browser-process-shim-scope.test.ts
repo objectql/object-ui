@@ -30,7 +30,10 @@
  * Runtime was plain node in every case and all three worked — only the
  * declaration was wrong. The asymmetry is what cost real time: `packages/i18n`
  * tests read their ratchet baselines with the plain `join(process.cwd(), …)`
- * idiom, which simply did not compile one directory over.
+ * idiom, which simply did not compile one directory over. (Those reads are no
+ * longer rooted at the cwd — objectui#7799 rerooted them at each test file's own
+ * location — but the compile asymmetry above is what this file pins, and that is
+ * unchanged.)
  *
  * ## Why the shim was NOT simply deleted
  *
@@ -63,13 +66,34 @@
 
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
-// Root-form Vitest only (`scripts/vitest-invocation-guard.mjs` rejects a
-// package-cwd run), so `process.cwd()` is the repo root — the same idiom
-// `packages/i18n`'s ratchet tests use, and the one that did not compile in this
-// package before objectui#6809.
-const REPO_ROOT = process.cwd();
+/**
+ * The repo root, derived from THIS FILE's own location — never from
+ * `process.cwd()` (objectui#7799).
+ *
+ * What stood here was `const REPO_ROOT = process.cwd();` under the comment
+ * "Root-form Vitest only (`scripts/vitest-invocation-guard.mjs` rejects a
+ * package-cwd run), so `process.cwd()` is the repo root". THAT PREMISE IS FALSE,
+ * and objectui#7791 is where it was falsified: the guard rejects a run whose
+ * VITEST root is not the repo root, and this package's own `test` script —
+ * `vitest run --root ../.. packages/components/`, which is what
+ * `pnpm --filter @object-ui/components test` and `turbo run test` both run — sets
+ * that root correctly while leaving `process.cwd()` at `packages/components/`.
+ * The guard passes and the cwd is the package. Measured on objectui#7799 with
+ * cwd as the only variable: 5 passed from the repo root, 4 failed / 1 passed
+ * from the package directory.
+ *
+ * Spelled in string operations, copying the landed precedent of objectui#7791
+ * (PR #7796): `new URL(rel, import.meta.url)` is REWRITTEN by Vite into a
+ * `http://localhost:3000/@fs/…` dev-server URL, so only bare `import.meta.url`
+ * is read here and taken apart by hand.
+ */
+const SELF_DEPTH_BELOW_REPO_ROOT = 5; // packages / components / src / __tests__ / this file
+const REPO_ROOT = decodeURIComponent(new URL(import.meta.url).pathname)
+  .split('/')
+  .slice(0, -SELF_DEPTH_BELOW_REPO_ROOT)
+  .join('/');
 const PKG = join(REPO_ROOT, 'packages/components');
 
 const read = (rel: string): string => {
@@ -89,7 +113,18 @@ describe('browser `process` shim scope (objectui#6809)', () => {
     // binding is the real one rather than a compile-time fiction.
     const cwd: string = process.cwd();
     expect(typeof cwd).toBe('string');
-    expect(existsSync(join(cwd, 'pnpm-workspace.yaml'))).toBe(true);
+    // The binding is the real node one rather than a compile-time fiction: it
+    // names an absolute directory that exists. This was
+    // `expect(existsSync(join(cwd, 'pnpm-workspace.yaml'))).toBe(true)`, which
+    // asserted something else entirely — that cwd IS THE REPO ROOT. That holds
+    // only under the repo-root invocation and is false under this package's own
+    // `test` script (objectui#7799). The repo-root claim it was making is kept,
+    // on the line below, rooted at this file instead of at the cwd; nothing is
+    // dropped, and the `process.cwd()` call this test exists to compile is
+    // still made and still checked.
+    expect(isAbsolute(cwd)).toBe(true);
+    expect(existsSync(cwd)).toBe(true);
+    expect(existsSync(join(REPO_ROOT, 'pnpm-workspace.yaml'))).toBe(true);
   });
 
   it('sees node\'s process surface, not the two-property browser shim', () => {

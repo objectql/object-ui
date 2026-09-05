@@ -474,7 +474,7 @@ export interface BaseSchema {
  * @example
  * ```typescript
  * const nodes: SchemaNode[] = [
- *   { type: 'text', value: 'Hello' },
+ *   { type: 'text', content: 'Hello' },
  *   'Plain string',
  *   { type: 'button', label: 'Click' }
  * ]

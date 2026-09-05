@@ -57,7 +57,11 @@
  *     written-down constant `EXPECTED_MIRROR_PAIRS` by the runtime census at the
  *     bottom of this file (objectui#7433); `assertionRegistryHalvesAgree` already pins
  *     it equal to `keyof Declared`. ⛔ Read the constant, not this sentence — a digit
- *     here is the artefact that rotted four times. 155 until objectui#7655 registered the
+ *     here is the artefact that rotted four times. 157 until objectui#7664 retired the
+ *     three `DeclarativeKanban*` pairs and registered the five plugin-dialect ones
+ *     (`KanbanCardSchema`, `KanbanColumnSchema`, `KanbanSchema`, `CardTemplateSchema`,
+ *     `ColumnWidthConfigSchema` — the `'kanban'` arm rewritten to the shape the
+ *     registered renderer reads, ruling (a)); 155 until objectui#7655 registered the
  *     `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` twins; 154 until objectui#7352
  *     registered `data-display.zod.ts#DrillDownConfigSchema` — a nested config mirror
  *     paired with the local `DrillDownConfig`, the `ObjectMapConfigSchema` precedent —
@@ -75,7 +79,13 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **42 entries** in `KnownDrift`, **63 keys** across them — 40 / 57 until
+ *   - **41 entries** in `KnownDrift`, **62 keys** across them — 42 / 63 until
+ *     objectui#7542 REPAIRED `app.zod.ts#AppComponentSchema`'s one key `hidden` by
+ *     restating the DECLARATION (`app.ts` now says `boolean`, what the spec-derived
+ *     mirror enforced all along), the entry's whole content, so the entry went too —
+ *     the ledger's first shrink on a SPEC-DERIVED pair, and the first by moving the
+ *     declared face toward the mirror rather than the mirror toward the declaration;
+ *     40 / 57 until
  *     objectui#7655 SEEDED the `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` pairs
  *     with three runtime-slot refusals each (pairs born ledgered in the #6124 shape,
  *     not growth on an existing entry); 40 / 56 until
@@ -86,7 +96,7 @@
  *     objectui#7455 SEEDED `app.zod.ts#AppComponentSchema` with its one
  *     spec-derived key `hidden` (a pair born ledgered, not growth on an existing
  *     entry: both faces read `boolean` until the base was widened, and only the
- *     DECLARED face moved — see that entry). It stood at 39 / 55 rather than
+ *     DECLARED face moved — the entry objectui#7542 removed, above). It stood at 39 / 55 rather than
  *     39 / 56 because objectui#6940
  *     REPAIRED `DataTableSchema.rowActions` (the entry kept its other four keys, so
  *     the entry count did not move). It was 12 / 17 until
@@ -154,6 +164,29 @@
  * and must never be mirrored at all. Both are reconciled against ONE measurement,
  * through the union at `RecordedUnmirrored`, so a key cannot fall between them.
  *
+ * ## And a THIRD direction, which is a different comparison (objectui#7069)
+ *
+ * Both halves above are the FORWARD comparison: they ask whether everything the
+ * declaration admits survives the mirror. Neither can see the reverse inequality —
+ * a mirrored, data-shaped key whose mirror ACCEPTS a spelling the declaration
+ * refuses. `NarrowerThanDeclared` finds the declared type fits, so the key is
+ * silent; `UnmirroredDeclaredKeys` finds the key present in `.shape`, so it never
+ * enters. The blindness is structural, not an omission, and it is pinned as such at
+ * `assertionNarrowerOperatorIsBlindToAWidening` and
+ * `assertionUnmirroredOperatorIsBlindToAWidening` rather than argued here.
+ *
+ * It is the direction that faces the AUTHOR: the mirror is what validates written
+ * metadata, so a wider key returns a green `safeParse` on a spelling `tsc` refuses.
+ * `WiderThanDeclaredKeys` → `WiderThanDeclared` is the third ledger, reconciled by
+ * `assertionWiderMatchesLedger` and seeded at its own measured debt.
+ *
+ * ⚠️ Its measurement has a stated hole, and the hole is where the producer that
+ * motivated the card lives: a slot spelled through `SchemaNodeSchema` reads
+ * `unknown` on the input face, because that const is annotated `z.ZodType< any >`
+ * to break its own recursion. `Unconstrained` excludes that face and says why; the
+ * runtime leg at the bottom of this file bounds the excluded region by pinning that
+ * every lazy node under the registry is that one const.
+ *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
  * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
@@ -188,24 +221,24 @@ import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import type { z } from 'zod';
 
-import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zod/app.zod.js';
-import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
-import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema } from '../zod/complex.zod.js';
-import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
-import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
+import { AppActionSchema, AppComponentSchema, MenuItemSchema as AppMenuItemSchema, NavigationAreaSchema, NavigationItemSchema } from '../zod/app.zod.js';
+import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema, SchemaNodeSchema } from '../zod/base.zod.js';
+import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema, CardTemplateSchema, ColumnWidthConfigSchema, FilterBuilderConditionSchema, FilterGroupSchema } from '../zod/complex.zod.js';
+import { ActionCallbackSchema, ActionSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
+import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeNodeSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
 import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
 import { AspectRatioSchema, BoxSchema, CardSchema, ContainerSchema, DivSchema, FlexSchema, GridSchema, IconSchema, ImageSchema, PageNodeRegionSchema, PageNodeSchema, ResizablePanelSchema, ResizableSchema, ScrollAreaSchema, SeparatorSchema, StackSchema, TabItemSchema, TabsSchema, TextSchema, TextSpanSchema } from '../zod/layout.zod.js';
-import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
+import { BreadcrumbItemSchema, BreadcrumbSchema, ButtonGroupButtonSchema, ButtonGroupSchema, HeaderBarSchema, NavigationMenuItemSchema, NavigationMenuSchema, NavLinkSchema, PaginationSchema, SidebarSchema } from '../zod/navigation.zod.js';
 import { ObjectCalendarSchema, ObjectChartSchema, ObjectDataTableSchema, ObjectFormSchema, ObjectGallerySchema, ObjectGanttSchema, ObjectGridSchema, ObjectKanbanSchema, ObjectMapConfigSchema, ObjectMapSchema, ObjectTreeSchema, ObjectViewSchema, SortConfigSchema } from '../zod/objectql.zod.js';
-import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
+import { AlertDialogSchema, ContextMenuSchema, DialogSchema, DrawerSchema, DropdownMenuSchema, HoverCardSchema, MenubarMenuSchema, MenubarSchema, MenuItemSchema as OverlayMenuItemSchema, PopoverSchema, SheetSchema, TooltipSchema } from '../zod/overlay.zod.js';
 import { ReportBuilderSchema, ReportComponentSchema, ReportExportConfigSchema, ReportFieldSchema, ReportFilterSchema, ReportGroupBySchema, ReportSectionSchema, ReportViewerSchema } from '../zod/reports.zod.js';
 import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, DetailViewTabSchema, FilterUISchema, SortUISchema, ViewSwitcherSchema } from '../zod/views.zod.js';
 
 import type { AppAction as Ts_AppAction, AppComponentSchema as Ts_AppComponentSchema, NavigationArea as Ts_NavigationArea } from '../app';
 import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig, ComponentInput as Ts_ComponentInput, ComponentMeta as Ts_ComponentMeta, KeyedI18nLabel as Ts_KeyedI18nLabel } from '../base';
-import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatbotEnhancedSchema as Ts_ChatbotEnhancedSchema, ChatbotFloatingSchema as Ts_ChatbotFloatingSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, DeclarativeKanbanCard as Ts_KanbanCard, DeclarativeKanbanColumn as Ts_KanbanColumn, DeclarativeKanbanSchema as Ts_KanbanSchema } from '../complex';
+import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatbotEnhancedSchema as Ts_ChatbotEnhancedSchema, ChatbotFloatingSchema as Ts_ChatbotFloatingSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema, CardTemplate as Ts_CardTemplate, ColumnWidthConfig as Ts_ColumnWidthConfig } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, DrillDownConfig as Ts_DrillDownConfig, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
@@ -243,8 +276,10 @@ export type MirroredKeys< M > = Extract< keyof ShapeOf< M >, string >;
  *
  * Only keys present on BOTH sides are compared. A key the mirror does not declare
  * is not narrow — `BaseSchema` is `.passthrough()`, so an undeclared key rides
- * through. The opposite direction (mirror declares what the TS side does not) is a
- * different class and is not what this file measures.
+ * through. The opposite INEQUALITY — the mirror accepting what the declaration
+ * refuses — is a different class and is not what THIS type measures;
+ * `WiderThanDeclaredKeys` below measures it, and
+ * `assertionNarrowerOperatorIsBlindToAWidening` pins that this one cannot.
  */
 export type NarrowerThanDeclared< M, D > = {
   [K in MirroredKeys< M > & keyof D]: [D[K]] extends [InputOf< ShapeOf< M >[K] >] ? never : K;
@@ -300,6 +335,86 @@ export type DeclaredKeys< D > = Extract< keyof WithoutIndexSignature< D >, strin
  * refused outright. Either way `declared !== enforced`.
  */
 export type UnmirroredDeclaredKeys< M, D > = Exclude< DeclaredKeys< D >, MirroredKeys< M > >;
+
+/** `any`, told apart from `unknown` — `[unknown] extends [T]` accepts both. */
+export type IsAny< T > = 0 extends 1 & T ? true : false;
+
+/**
+ * A mirror slot whose static INPUT face carries no information: `unknown`, `any`,
+ * or a list of either.
+ *
+ * This is the hole in `WiderThanDeclaredKeys` below, and the hole is one const
+ * wide. `base.zod.ts#SchemaNodeSchema` is annotated `z.ZodType< any >` to break the
+ * recursion inside its own `z.lazy`, and zod 4 defaults such a schema's INPUT
+ * parameter to `unknown`. Every slot spelled through it therefore reads `unknown`
+ * (or `unknown[]`) on the input face — wider than every declaration BY DEFINITION,
+ * and silent about what the mirror accepts at RUNTIME, where the lazy union does
+ * validate. Comparing there would report the annotation and not the accept-set, so
+ * those keys are not measured. ⚠️ That is not a small carve-out: it is exactly
+ * where the producer objectui#7069 called systematic lives — the
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` spelling — so the
+ * producer that motivated this direction is the one the type level cannot judge.
+ * The runtime leg at the bottom of this file is what bounds the region instead.
+ *
+ * ⚠️ It is deliberately NOT recursive, and that is a measurement rather than a
+ * preference. A version descending into object properties and array elements was
+ * written and withdrawn: on the pairs with the most structure it drove the whole
+ * `WiderOf< K >` instantiation to `any`, and `any` is assignable to `never`, so the
+ * invariant below went SILENTLY GREEN on precisely those pairs — a guard that
+ * cannot fail, wearing the shape of a stricter one.
+ * `assertionNoVacuousWiderMeasurement` exists because of that attempt and pins the
+ * failure mode, so the next deeper predicate cannot land unnoticed.
+ *
+ * What the shallow form costs: an `unknown` NESTED one level further down — a
+ * schema node inside an array element's property — is not excluded, so those
+ * entries record the annotation rather than an accept-set gap. They are seeded and
+ * labelled, under the ledger's SCHEMA-NODE class note.
+ */
+export type Unconstrained< T > =
+  [unknown] extends [T] ? true
+  : true extends (NonNullable< T > extends readonly (infer E)[] ? ([unknown] extends [E] ? true : false) : false)
+    ? true
+  : false;
+
+/**
+ * The premise the exclusion rests on, asserted rather than described: the
+ * annotation really does erase `SchemaNodeSchema`'s input face. If it is ever
+ * spelled so that the face carries information, this fails and the exclusion — and
+ * the ledger's SCHEMA-NODE class with it — has to be re-derived.
+ */
+export type assertionSchemaNodeFaceIsUnconstrained =
+  Expect< Equal< Unconstrained< z.input< typeof SchemaNodeSchema > >, true > >;
+
+/**
+ * Every key whose mirror ACCEPTS a spelling the declaration REFUSES.
+ *
+ * The reverse inequality of `NarrowerThanDeclared`, and the direction objectui#7069
+ * filed as invisible BY CONSTRUCTION to every ledger that stood before it.
+ * `NarrowerThanDeclared` asks whether the DECLARED type fits through the mirror;
+ * this asks whether what the MIRROR accepts fits inside the declaration. The two
+ * are independent — a pair can fail both (disjoint vocabularies), either, or
+ * neither — which is why the reverse inequality never entered the forward
+ * comparison, and `UnmirroredDeclaredKeys` cannot see it either because a wider key
+ * IS mirrored and so never leaves the comparison. Both blindnesses are PINNED as
+ * synthetic recognition cases below rather than asserted in prose.
+ *
+ * Why this direction is not cosmetic symmetry: the mirror is the AUTHORING
+ * boundary. A wider key hands an author a green `safeParse` on a spelling `tsc`
+ * refuses, so the two published faces disagree about the accept-set and the runtime
+ * reader receives input the published types say cannot exist.
+ *
+ * `DeclaredKeys` and not `keyof D` supplies the declared half, for the reason
+ * `WithoutIndexSignature` gives: most declarations carry `BaseSchema`'s string
+ * index signature, which resolves `D[K]` to `any` for a key the declaration does
+ * not really state — and `any` absorbs the comparison in this direction exactly as
+ * silently as in the other one.
+ */
+export type WiderThanDeclaredKeys< M, D > = {
+  [K in MirroredKeys< M > & DeclaredKeys< D >]:
+    Unconstrained< InputOf< ShapeOf< M >[K] > > extends true
+      ? never
+      : [InputOf< ShapeOf< M >[K] >] extends [D[K]] ? never : K;
+}[MirroredKeys< M > & DeclaredKeys< D >];
 
 /**
  * Reconcile ONE pair's measured key set against what a ledger records for it:
@@ -403,6 +518,48 @@ export type assertionSplitLedgerRejectsStaleRuntimeOnly =
 export type assertionSplitLedgerIsBlindToWhichHalf =
   Expect< Equal< ReconcileAgainstSplitLedger< 'p', 'onX', never, 'onX' >, never > >;
 
+/* ── Recognition: the WIDER direction fires, and the other two stay blind ───── */
+
+/**
+ * A synthetic pair whose mirror accepts `string` where the declaration states two
+ * literals, and whose other key agrees on both faces.
+ *
+ * The three assertions under it are the whole argument of objectui#7069 reduced to
+ * one pair: the new operator REPORTS the widening, and both operators that stood
+ * before it are silent on the same pair — not because the drift is small, but
+ * because neither comparison is capable of expressing it.
+ */
+type SyntheticWiderMirror = { shape: { size: z.ZodString; count: z.ZodNumber } };
+interface SyntheticNarrowerDeclaration { size: 'sm' | 'lg'; count: number }
+
+/** The widening is reported: the measurement can fire at all. */
+export type assertionWiderOperatorReportsAWidening =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticWiderMirror, SyntheticNarrowerDeclaration >, 'size' > >;
+
+/** The forward operator is blind to it — the declared type still fits through the mirror. */
+export type assertionNarrowerOperatorIsBlindToAWidening =
+  Expect< Equal< NarrowerThanDeclared< SyntheticWiderMirror, SyntheticNarrowerDeclaration >, never > >;
+
+/** So is the unmirrored half — a wider key IS mirrored, so it never leaves the comparison. */
+export type assertionUnmirroredOperatorIsBlindToAWidening =
+  Expect< Equal< UnmirroredDeclaredKeys< SyntheticWiderMirror, SyntheticNarrowerDeclaration >, never > >;
+
+/**
+ * The unconstrained face is EXCLUDED — at the top level and one array deep — while
+ * a concrete widening on the SAME pair is still reported.
+ *
+ * Both halves matter. Without the first, every schema-node slot reports the
+ * `z.ZodType< any >` annotation as a finding; without the second, the exclusion is
+ * a waiver that silences the pair.
+ */
+type SyntheticUnconstrainedMirror = {
+  shape: { node: z.ZodUnknown; nodes: z.ZodArray< z.ZodUnknown >; size: z.ZodString };
+};
+interface SyntheticNodeDeclaration { node: { type: string }; nodes: { type: string }[]; size: 'sm' | 'lg' }
+
+export type assertionUnconstrainedFaceIsExcludedButNotAWaiver =
+  Expect< Equal< WiderThanDeclaredKeys< SyntheticUnconstrainedMirror, SyntheticNodeDeclaration >, 'size' > >;
+
 /* ── The registry ───────────────────────────────────────────────────────────── */
 
 /** Mirror VALUES, keyed `<file>#<export>`. Runtime, so the census below can read the keys. */
@@ -432,9 +589,11 @@ const MIRRORS = {
   'complex.zod.ts#DashboardWidgetSchema': DashboardWidgetSchema,
   'complex.zod.ts#FilterBuilderSchema': FilterBuilderSchema,
   'complex.zod.ts#FilterFieldSchema': FilterFieldSchema,
-  'complex.zod.ts#DeclarativeKanbanCardSchema': DeclarativeKanbanCardSchema,
-  'complex.zod.ts#DeclarativeKanbanColumnSchema': DeclarativeKanbanColumnSchema,
-  'complex.zod.ts#DeclarativeKanbanSchema': DeclarativeKanbanSchema,
+  'complex.zod.ts#KanbanCardSchema': KanbanCardSchema,
+  'complex.zod.ts#KanbanColumnSchema': KanbanColumnSchema,
+  'complex.zod.ts#KanbanSchema': KanbanSchema,
+  'complex.zod.ts#CardTemplateSchema': CardTemplateSchema,
+  'complex.zod.ts#ColumnWidthConfigSchema': ColumnWidthConfigSchema,
   'crud.zod.ts#ActionCallbackSchema': ActionCallbackSchema,
   'crud.zod.ts#CRUDDialogSchema': CRUDDialogSchema,
   'crud.zod.ts#DetailSchema': DetailSchema,
@@ -593,9 +752,11 @@ interface Declared {
   'complex.zod.ts#DashboardWidgetSchema': Ts_DashboardWidgetSchema;
   'complex.zod.ts#FilterBuilderSchema': Ts_FilterBuilderSchema;
   'complex.zod.ts#FilterFieldSchema': Ts_FilterField;
-  'complex.zod.ts#DeclarativeKanbanCardSchema': Ts_KanbanCard;
-  'complex.zod.ts#DeclarativeKanbanColumnSchema': Ts_KanbanColumn;
-  'complex.zod.ts#DeclarativeKanbanSchema': Ts_KanbanSchema;
+  'complex.zod.ts#KanbanCardSchema': Ts_KanbanCard;
+  'complex.zod.ts#KanbanColumnSchema': Ts_KanbanColumn;
+  'complex.zod.ts#KanbanSchema': Ts_KanbanSchema;
+  'complex.zod.ts#CardTemplateSchema': Ts_CardTemplate;
+  'complex.zod.ts#ColumnWidthConfigSchema': Ts_ColumnWidthConfig;
   'crud.zod.ts#ActionCallbackSchema': Ts_ActionCallback;
   'crud.zod.ts#CRUDDialogSchema': Ts_CRUDDialogSchema;
   'crud.zod.ts#DetailSchema': Ts_DetailSchema;
@@ -738,6 +899,16 @@ export type DriftOf< K extends MirrorKey > = NarrowerThanDeclared< (typeof MIRRO
 /** The other half: declared on the TS side, absent from the mirror's `.shape` entirely. */
 export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeof MIRRORS)[K], Declared[K] >;
 
+/** The third direction: mirrored, and the mirror ACCEPTS more than the declaration admits. */
+export type WiderOf< K extends MirrorKey > = WiderThanDeclaredKeys< (typeof MIRRORS)[K], Declared[K] >;
+
+/** What one registered pair's mirror ACCEPTS for one key — the static INPUT face. */
+export type MirrorInputOf< K extends MirrorKey, P extends MirroredKeys< (typeof MIRRORS)[K] > > =
+  InputOf< ShapeOf< (typeof MIRRORS)[K] >[P] >;
+
+/** What the DECLARATION admits for the same key, for the side-by-side comparison. */
+export type DeclaredTypeOf< K extends MirrorKey, P extends keyof Declared[K] > = Declared[K][P];
+
 /* ── The measured drift ledger ──────────────────────────────────────────────── */
 
 /**
@@ -745,34 +916,6 @@ export type UnmirroredOf< K extends MirrorKey > = UnmirroredDeclaredKeys< (typeo
  * new drift on a listed mirror fails, and so does a listed key that has been fixed.
  */
 interface KnownDrift {
-  /**
-   * SPEC-DERIVED, not a mirroring debt, and NOT closable by editing this entry.
-   *
-   * Measured on `@objectstack/spec@17.2.0` by resolving `AppSchema.shape`: the
-   * spec's `AppSchema` declares `hidden` (`z.boolean().optional()` -- accepts a
-   * boolean, refuses a string) and declares NEITHER `visible` NOR `disabled`.
-   * `AppComponentSchema` is `BaseSchema.extend(SpecAppFields.shape).extend(...)`
-   * and `SpecAppFields` excludes six keys -- `name`, `label`, `description`,
-   * `navigation`, `areas`, `contextSelectors` -- with `hidden` not among them,
-   * so on the MIRROR face the spec's boolean lands after the base's and
-   * overrides it. On the DECLARED face `interface AppComponentSchema extends
-   * BaseSchema` does not restate the key at all, so it inherits the base.
-   *
-   * That is why widening `BaseSchema.hidden` to `boolean | string`
-   * (objectui#7455, ruled 2026-09-03) moved only the TS side of THIS pair and
-   * seeded this entry, while the same widening on `visible` (objectui#4581) and
-   * `disabled` (objectui#4580 ruling Q3-A) moved both sides and seeded nothing.
-   * The asymmetry is the spec's, one layer under the one #7455 removed.
-   *
-   * The two keys collide in NAME and differ in MEANING -- the spec's is an
-   * app-catalogue flag (does the app show in the switcher), the base's is the
-   * renderer's hide predicate -- so this is a contract ruling, not a repair.
-   * objectui#7542 carries it, with the directions measured and none chosen.
-   * The one direction that reads easy and is probably wrong: dropping `hidden`
-   * from `SpecAppFields` would make a spec-DERIVED schema accept, by local
-   * divergence, a value the spec refuses.
-   */
-  'app.zod.ts#AppComponentSchema': 'hidden';
   /**
    * RUNTIME SLOT (objectui#6124): `calendar-view`'s `pickHostCallbacks` reads
    * `onViewChange` off the spread props (function values only) and hands it to
@@ -824,8 +967,33 @@ interface KnownDrift {
   'complex.zod.ts#FilterBuilderSchema': 'fields' | 'onChange';
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
-  'complex.zod.ts#DeclarativeKanbanSchema': 'onCardMove' | 'onCardClick';
+  /**
+   * RUNTIME SLOT (objectui#6124) ×3: `plugin-kanban`'s `KanbanRenderer` forwards
+   * `onCardMove`, `onCardClick` and `onQuickAdd` off `schema.*` into the board,
+   * in one block (`plugin-kanban/src/index.tsx`). Re-keyed by objectui#7664
+   * (ruling (a)): the pair was `DeclarativeKanbanSchema` with `onCardMove` /
+   * `onCardClick` until that face retired, and the plugin dialect this arm now
+   * declares carries all three.
+   *
+   * ⚠️ `onCardClick` is here on measurement, not by inheritance. On the
+   * `'kanban'` / `'object-kanban'` keys `ObjectKanban` substitutes its own
+   * function for it — but it substitutes `onCardMove` in the SAME object
+   * literal, and its substitute CALLS an authored `onCardClick` through the prop
+   * `ObjectKanban` declares for it (`SchemaRenderer` spreads every non-metadata
+   * schema key as a React prop; there is no `onCardMove` prop). The first cut of
+   * objectui#7664 read that substitution as "the object-bound board owns the
+   * click" and dropped the key, which under `.passthrough()` ACCEPTED a document
+   * this arm had refused. Per-registration readings:
+   * `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`.
+   *
+   * (`onColumnAdd` / `onCardAdd`, carried over as tombstones, and the retired
+   * declarative `draggable` are NOT here: `?: never` meets the refusal arm and
+   * the pair does not drift on them.) The runtime-computed card members —
+   * `cardFieldCells`, a badge's `colorStyle` — are passed through as `z.any()`
+   * (the `headerIcon` precedent, objectui#6424), so `KanbanCardSchema` and the
+   * `columns` key above it do not drift either.
+   */
+  'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick' | 'onQuickAdd';
   /**
    * RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — `DetailView`'s
    * `handleBack` calls `onBack()` when set. The mirror was `z.any()` (wider than
@@ -1031,31 +1199,55 @@ interface KnownDrift {
  * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
  * are recorded here so whoever works them off does not re-derive them:
  *
- *   - **SPEC-DERIVED (2 entries, 12 keys)** — `DashboardWidgetSchema`,
- *     `ObjectViewSchema`. It was 3 / 13 until objectui#7623 RETIRED
+ *   - **SPEC-DERIVED (1 entry, 2 keys)** — `DashboardWidgetSchema`. It was 2 / 12
+ *     until objectui#7279 RE-DERIVED `ObjectViewSchema`'s side and moved that entry
+ *     (ten keys) to the LOCAL half — a RECLASSIFICATION on evidence, not a repair:
+ *     no key moved between ledgers and no mirror changed. It was 3 / 13 until
+ *     objectui#7623 RETIRED
  *     `DashboardComponentSchema.title` by deleting the DECLARATION — the
  *     objectui#7129 route, reaching this half for the first time. That key was never
  *     going to be answered by #2231 unification: the spec's strict `DashboardSchema`
  *     refuses a root `title` outright, and objectui#7509 had already retired every
  *     read of it, so the local declaration was offering a member the spec models
  *     nowhere and no renderer consumed. ⚠️ objectui#6705 invalidated the
- *     evidence for ONE of the two that remain: `ObjectViewSchema` is no longer in
+ *     evidence for `ObjectViewSchema`: it is no longer in
  *     `SPEC_DERIVED_PAIRS` below, because it never referenced a spec schema — it is
  *     `BaseSchema.extend({…})` of local literals, and the pre-#6705 text scanner
  *     charged it a neighbouring private const's `Spec…` token. That misclassification
- *     is left STANDING as #6705 found it — neither the entry's classification nor its
- *     key count moved for it: re-routing those keys from #2231's
+ *     was left STANDING as #6705 found it — re-routing those keys from #2231's
  *     unification question to a local mirror edit is a remedy decision on the
- *     `UnmirroredDeclared` ledger, which #6705 was fenced out of. Whoever works
- *     this split off must re-derive `ObjectViewSchema`'s side first.
- *     For `DashboardWidgetSchema` the reading is unchanged:
+ *     `UnmirroredDeclared` ledger, which #6705 was fenced out of — until
+ *     objectui#7279 re-derived the side on two measurements. (a) The mirror
+ *     (`objectql.zod.ts`, `ObjectViewSchema = BaseSchema.extend({…})`) takes NO
+ *     shape from the spec: every member is a local literal or a `z.lazy` to a
+ *     sibling objectui mirror, and the `Spec…` consts below it (`KanbanConfig`,
+ *     `ViewKindEnum`) feed `ListViewSchema`. (b) Read through the pin
+ *     (`@objectstack/spec@17.2.0`, `ui` entry, all 122 exported object schemas
+ *     walked; control keys `objectName` / `columns` hit), the spec models FOUR of
+ *     the ten keys on View-shaped schemas — `listViews` on `ViewSchema`;
+ *     `navigation`, `searchableFields`, `filterableFields` on `ListViewSchema` and
+ *     `ObjectListViewSchema` — and SIX nowhere: `allowCreateView`,
+ *     `defaultListView`, `defaultViewType`, `showViewSwitcher`, `viewActions`,
+ *     `viewTabBar`. Neither fact makes the pair spec-derived: this route exists for
+ *     a mirror that IS the spec schema by reference, where growing a key means
+ *     diverging from the spec; this mirror can grow any key without touching it.
+ *     So the entry is LOCAL and its remedy is the ordinary local route
+ *     (objectui#6152's worklist) — a widening of ten keys is a remedy on the manual
+ *     floor, ⛔ not performed by #7279. The 4 / 6 reading is recorded on the entry
+ *     for whoever mirrors: the four take their shape BY REFERENCE from the spec slot
+ *     that models them, the six are plain hand-written omissions.
+ *     For `DashboardWidgetSchema` the reading is unchanged (reconfirmed on the tree
+ *     by objectui#7279: `specFieldsExcept(SpecDashboardWidgetSchema.shape, …)`):
  *     its mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
  *     unmirrored declared key there means the LOCAL declaration carries members the
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (12 entries, 84 keys)** — plain omissions from a hand-written mirror.
- *     It was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
+ *   - **LOCAL (13 entries, 94 keys)** — plain omissions from a hand-written mirror.
+ *     It was 12 / 84 until objectui#7279 RECLASSIFIED the `ObjectViewSchema` entry
+ *     (ten keys) into this half from the SPEC-DERIVED one — the split's first move
+ *     of an ENTRY between its halves; no key and no mirror moved. Before that it
+ *     was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
  *     a shrink by removing the DECLARATION rather than by mirroring it, 12 / 83
  *     until objectui#7352 MIRRORED `ChartSchema.drillDown` — its whole entry — and
  *     11 / 82 until objectui#7655 SEEDED a `ChatbotFloatingSchema` entry with the two
@@ -1073,8 +1265,18 @@ interface KnownDrift {
  * RETIRED one from the SPEC-DERIVED half (13 → 12 keys there), objectui#7352
  * MIRRORED two — the LOCAL `ChartSchema` entry and the seeded `ObjectDataTableSchema`
  * one — and objectui#7655 SEEDED the LOCAL `ChatbotFloatingSchema` entry, born with
- * two keys. The ledger now totals **14 entries / 96 keys** — 2 / 12 spec-derived,
- * 12 / 84 local; the seeded pair is no longer among them.
+ * two keys. objectui#7279 then moved `ObjectViewSchema` between the halves (2 / 12
+ * and 12 / 84 before it) without moving the totals. The seeded pair is no longer
+ * among them, and the ledger now totals — on ONE line, because the pin below reads
+ * this sentence off disk —
+ * **14 entries / 96 keys** — 1 / 2 spec-derived, 13 / 94 local.
+ *
+ * ⛔ The four split figures above and this totals line are PINNED: 'objectui#7279'
+ * at the bottom of this file derives every one of them from the `UnmirroredDeclared`
+ * ledger and `SPEC_DERIVED_PAIRS` membership and compares them with the figures read
+ * off this header. A figure edited by hand without the ledger moving is red, and so
+ * is a ledger that moved without its figure — which is exactly how this split drifted
+ * three times between objectui#6058 and objectui#7279.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -1105,7 +1307,10 @@ interface UnmirroredDeclared {
   /**
    * LOCAL. `body` sits in `KnownDrift` above for an unrelated reason (a naming
    * collision on a key both sides declare); these three the mirror has simply never
-   * heard of.
+   * heard of. `displayMode` is a `?: never` tombstone since objectui#7654 (maintainer
+   * ruling B, 2026-09-05) and stays listed: the TypeScript half is the tombstone, the
+   * mirror half (`retirementTombstone()`) is owed when objectui#6152 mints the arm, and
+   * `chatbot-display-mode-retired.test.ts` pins this twin's shape as the tripwire.
    */
   'complex.zod.ts#ChatbotSchema': 'displayMode' | 'floatingConfig' | 'requestBody';
   /**
@@ -1114,12 +1319,11 @@ interface UnmirroredDeclared {
    * records them. `floatingConfig` has no `FloatingChatbotConfig` mirror at all —
    * minting one is objectui#6152's axis, and the `triggerIcon` tombstone's tripwire
    * (objectui#7654, `floating-chatbot-trigger-icon-retired.test.ts`) watches for
-   * it. `displayMode` is RULED RETIRED (objectui#7654, maintainer ruling B,
-   * 2026-09-05) and the retirement executes in that card's own PR: the TypeScript
-   * half is the `?: never` tombstone, and the mirror half (`retirementTombstone()`)
-   * is owed when objectui#6152 mints the arm — until then the key stays unmirrored
-   * here and on `ChatbotSchema` alike, and what that PR does to these two entries
-   * is its own to record. ⛔ Not a waiver: every OTHER key this pair declares is
+   * it. `displayMode` is RETIRED (objectui#7654, maintainer ruling B, 2026-09-05):
+   * a `?: never` tombstone on this face and on `ChatbotSchema` alike, still
+   * unmirrored on both twins — the mirror half (`retirementTombstone()`) is owed
+   * when objectui#6152 mints the arm, and until then the key stays in both entries;
+   * that PR moved neither. ⛔ Not a waiver: every OTHER key this pair declares is
    * mirrored, and a third key here reddens the pair like growth on any other entry.
    */
   'complex.zod.ts#ChatbotFloatingSchema': 'displayMode' | 'floatingConfig';
@@ -1202,12 +1406,30 @@ interface UnmirroredDeclared {
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
     | 'singleClickEdit';
   /**
-   * SPEC-DERIVED → objectui#2231. ⭐ This pair had NO entry in EITHER ledger before
-   * objectui#6058 — eleven declared keys the published validator has never heard of,
-   * and the guard reported the pair clean. It is the clearest single instance of the
-   * blind spot this ledger exists to make visible. It was eleven: `onNavigate` is in
-   * `RuntimeOnlyDeclared` below (objectui#6152), which does NOT change the routing of
-   * the other ten — they are still spec-derived and still go to objectui#2231.
+   * LOCAL since objectui#7279 — recorded as SPEC-DERIVED → objectui#2231 from
+   * objectui#6058 until then, on the scanner false positive objectui#6705 exposed: the
+   * mirror is `BaseSchema.extend({…})` of local literals and `z.lazy` siblings, it
+   * references no spec schema, and it is not in `SPEC_DERIVED_PAIRS`. ⭐ This pair had
+   * NO entry in EITHER ledger before objectui#6058 — eleven declared keys the
+   * published validator has never heard of, and the guard reported the pair clean.
+   * It is the clearest single instance of the blind spot this ledger exists to make
+   * visible. It was eleven: `onNavigate` is in `RuntimeOnlyDeclared` below
+   * (objectui#6152), which did not change the routing of the other ten. Their route
+   * is the ordinary local one (objectui#6152's worklist); the ten-key widening is a
+   * remedy on the manual floor and was ⛔ not performed by #7279. For whoever
+   * mirrors, the spec read through the pin (`@objectstack/spec@17.2.0`, `ui` entry)
+   * splits them 4 / 6:
+   *   - FOUR the spec models on View-shaped schemas — take the shape BY REFERENCE:
+   *     `navigation` (`ListViewSchema.navigation` = `NavigationConfigSchema`, the
+   *     very type the declaration imports for `ViewNavigationConfig`);
+   *     `searchableFields` and `filterableFields` (`ListViewSchema`, `array(string)`;
+   *     the spec marks `filterableFields` a legacy shorthand for `userFilters.fields`);
+   *     `listViews` (`ViewSchema.listViews`, a record of spec list views — ⚠️ the
+   *     declaration's value is the local `NamedListView`, so the VALUE type is a
+   *     unification question the mirror edit must not paper over with a `z.any()`).
+   *   - SIX the spec models nowhere — plain hand-written omissions: `allowCreateView`,
+   *     `defaultListView`, `defaultViewType`, `showViewSwitcher`, `viewActions`,
+   *     `viewTabBar`.
    */
   'objectql.zod.ts#ObjectViewSchema':
     | 'allowCreateView' | 'defaultListView' | 'defaultViewType' | 'filterableFields'
@@ -1370,10 +1592,11 @@ interface RuntimeOnlyDeclared {
   /** 1 of `ObjectGridSchema`'s former 17. POLICY group. Read at `ObjectGrid.tsx:1334`. */
   'objectql.zod.ts#ObjectGridSchema': 'onNavigate';
   /**
-   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. This
-   * pair is ALSO spec-derived, so its other ten keys stay in `UnmirroredDeclared` and
-   * stay routed to objectui#2231; reclassifying its callback does not re-route the
-   * pair. POLICY group.
+   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. Its
+   * other ten keys stay in `UnmirroredDeclared`; reclassifying its callback did not
+   * re-route the pair, and neither did objectui#7279's move of that entry from the
+   * split's SPEC-DERIVED half to its LOCAL one (the pair was never spec-derived —
+   * see the entry above). POLICY group.
    */
   'objectql.zod.ts#ObjectViewSchema': 'onNavigate';
   /**
@@ -1469,6 +1692,192 @@ export type DoubleFiledKey = {
 }[keyof RuntimeOnlyDeclared];
 
 export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, never > >;
+
+/* ── The measured mirror-WIDER-than-declared ledger (objectui#7069) ─────────── */
+
+/**
+ * Exact WIDER key set per pair, measured against `origin/main`: keys whose mirror
+ * admits a spelling the declaration refuses. Pinned exactly, like the ledgers
+ * above — a new widening on a listed mirror fails, and so does a listed one that
+ * has been repaired.
+ *
+ * ## Two classes, and only one of them is an accept-set gap
+ *
+ * **CONCRETE** — both faces are concrete, so the comparison means what it says: an
+ * author can write the spelling, `safeParse` returns green, and `tsc` refuses it.
+ * `FormSchema.layout` and `SliderSchema.defaultValue` are the plainest instances,
+ * and the second is the shape objectui#7069 was filed about, still alive on a pair
+ * nobody had looked at.
+ *
+ * **SCHEMA-NODE** — the mirror's face carries `unknown` NESTED inside an array
+ * element or a property, from `SchemaNodeSchema`'s `z.ZodType< any >` annotation
+ * (see `Unconstrained`, which excludes that face at the top level and one array
+ * deep but not deeper). These entries record the ANNOTATION, not an accept-set
+ * gap: at runtime the lazy union does validate. ⛔ They are not defects to repair
+ * one by one, and repairing one would not move this ledger — only re-annotating
+ * `SchemaNodeSchema` would. They are seeded so the ratchet still covers those
+ * pairs: a CONCRETE widening appearing on one of them changes its key set and
+ * reddens the invariant.
+ *
+ * The runtime leg at the bottom of this file is what keeps the second class from
+ * silently spreading: it pins that every lazy node under the registered mirrors is
+ * that one const, so a second annotated recursive mirror cannot enlarge the region
+ * unnoticed.
+ *
+ * ## Seeded, and why that is a floor and not a waiver
+ *
+ * Seeded at the debt this direction was already carrying, the shape every ledger in
+ * this file landed with (objectui#6058 for the unmirrored direction, objectui#6124
+ * for the runtime-slot class). ⛔ No mirror and no declaration was moved to make it
+ * green: every entry here is a disposition still to be made, and each is its own
+ * card. `assertionRatchetRejectsFreshDrift` above is what makes the floor hold —
+ * a widening on a pair this ledger does not name reddens immediately.
+ *
+ * ## Overlap with `KnownDrift` is expected, not a double-filing
+ *
+ * A pair can be narrower on one key and wider on another, and a single key can be
+ * DISJOINT — each face refusing something the other admits — in which case it is
+ * recorded in both ledgers, measured from both sides. That is not the double-filing
+ * `assertionLedgerHalvesAreDisjoint` refuses: that one is about the two UNMIRRORED
+ * ledgers, which record one measurement between them. This ledger records a
+ * SECOND, independent measurement.
+ *
+ * ## When it fires
+ *
+ *   1. the message names the pair;
+ *   2. resolve `WiderOf< 'THE PAIR' >`, and for each key in the difference resolve
+ *      `MirrorInputOf< 'THE PAIR', 'THE KEY' >` beside
+ *      `DeclaredTypeOf< 'THE PAIR', 'THE KEY' >` — the two faces side by side are
+ *      the whole diagnosis;
+ *   3. a key APPEARED — the mirror now accepts a spelling the declaration refuses.
+ *      ⛔ Widening the declaration to match is not the default remedy: the mirror is
+ *      the authoring boundary, so the contract-first move is to NARROW THE MIRROR
+ *      unless the declaration is the face that is wrong;
+ *   4. a key DISAPPEARED — the faces agree again; correct or delete the entry.
+ */
+interface WiderThanDeclared {
+  /**
+   * CONCRETE `label` + SCHEMA-NODE `areas` / `actions`.
+
+   * `label` is the INLINE-LOCALE class: `BaseSchema`'s mirror spells the key
+   * `I18nLabelSchema` — a plain string OR an inline locale map — while this
+   * declaration restates `label?: string` and so refuses the map its own mirror
+   * accepts. The narrowing lives on the DECLARED side, which is why the forward
+   * comparison reads the pair as clean.
+   */
+  'app.zod.ts#AppComponentSchema': 'label' | 'areas' | 'actions';
+  /** SCHEMA-NODE: the element's `content` is a schema-node slot. */
+  'complex.zod.ts#CarouselSchema': 'items';
+  /**
+   * CONCRETE, and DISJOINT rather than strictly wider — the pair also carries a
+   * `KnownDrift` entry for the same key, one of the measured cases where each face
+   * refuses something the other admits. The mirror restates `body` as an arbitrary
+   * record; the declaration inherits the base's schema-node-or-list.
+   */
+  'complex.zod.ts#ChatbotSchema': 'body';
+  /**
+   * MIXED. `header` and `globalFilters` carry the inline-locale widening one level
+   * down (a nested `label`), `dateRange.defaultRange` is a bare string on the
+   * mirror against a closed literal set on the declaration, and `widgets` is
+   * SCHEMA-NODE. Three of the four also carry a `KnownDrift` entry.
+   */
+  'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters' | 'dateRange';
+  /** CONCRETE: the element shape differs from the named declaration in both directions; also in `KnownDrift`. */
+  'complex.zod.ts#FilterBuilderSchema': 'fields';
+  /** CONCRETE: the mirror's operator enum and the declared operator union are not the same set; also in `KnownDrift`. */
+  'complex.zod.ts#FilterFieldSchema': 'operators';
+  /** SCHEMA-NODE. */
+  'crud.zod.ts#DetailSchema': 'groups' | 'tabs';
+  /**
+   * CONCRETE. `columns` compares an inline element shape against the named
+   * `TableColumn`; `renderCellEditor` is the FUNCTION-SLOT class — zod 4 gives
+   * `z.function()` an opaque input brand that no concrete signature equals, so the
+   * mirror accepts any callable where the declaration states one signature.
+   */
+  'data-display.zod.ts#DataTableSchema': 'columns' | 'renderCellEditor';
+  /** SCHEMA-NODE. */
+  'data-display.zod.ts#ListSchema': 'items';
+  /**
+   * FUNCTION-SLOT. ⚠️ Not the key objectui#5853 closed: that card was `type`,
+   * the interface's literal set against a bare `z.string()` on the mirror, and it
+   * is absent here because the repair landed. `cell` is the same pair, a different
+   * key and a different class.
+   */
+  'data-display.zod.ts#TableColumnSchema': 'cell';
+  /** SCHEMA-NODE. */
+  'data-display.zod.ts#TimelineSchema': 'events';
+  /** SCHEMA-NODE. */
+  'disclosure.zod.ts#AccordionSchema': 'items';
+  /** CONCRETE and DISJOINT — the mirror admits a string, the declaration a list of dates; also in `KnownDrift`. */
+  'form.zod.ts#CalendarSchema': 'defaultValue' | 'value';
+  /** FUNCTION-SLOT. */
+  'form.zod.ts#FieldConditionSchema': 'custom';
+  /** FUNCTION-SLOT. */
+  'form.zod.ts#FieldConstraintsSchema': 'validate';
+  /** CONCRETE: `validation` compares an inline shape against the named declaration; `condition` carries a FUNCTION-SLOT one level down. */
+  'form.zod.ts#FormFieldSchema': 'validation' | 'condition';
+  /**
+   * CONCRETE. `layout` is the clearest single instance in this ledger: the mirror
+   * is `z.enum(['vertical', 'horizontal', 'grid'])` and the declaration states the
+   * first two, so the third spelling parses green and `tsc` refuses it. `fields`
+   * and `mode` are the disjoint pair objectui#5927 left in `KnownDrift` — measured
+   * here from the other side.
+   */
+  'form.zod.ts#FormSchema': 'layout' | 'fields' | 'mode';
+  /**
+   * CONCRETE, and the class objectui#7069 was filed for, ALIVE: the mirror is
+   * `z.union([z.number(), z.array(z.number())])` and the declaration states the
+   * list alone, so a single number parses green and `tsc` refuses it. That is the
+   * `DataTableSchema.toolbar` shape the card measured, one accepted arm wider than
+   * its declaration — the instance died with PR #7066, and here is the class it
+   * said would outlive it, on a pair nothing had looked at.
+   */
+  'form.zod.ts#SliderSchema': 'defaultValue' | 'value';
+  /**
+   * CONCRETE: the mirror's arm is `z.boolean()` while the declaration admits the
+   * false literal alone, so `true` parses green and `tsc` refuses it.
+   */
+  'layout.zod.ts#ContainerSchema': 'maxWidth';
+  /** MIXED: `aria` carries the inline-locale widening one level down; `regions` and `slots` are SCHEMA-NODE. */
+  'layout.zod.ts#PageNodeSchema': 'aria' | 'regions' | 'slots';
+  /** SCHEMA-NODE. */
+  'layout.zod.ts#ResizableSchema': 'panels';
+  /** SCHEMA-NODE. */
+  'layout.zod.ts#TabsSchema': 'items';
+  /** CONCRETE and DISJOINT — one variant spelling on each side the other refuses; also in `KnownDrift`. */
+  'navigation.zod.ts#HeaderBarSchema': 'variant';
+  /** CONCRETE, INLINE-LOCALE: both keys are `I18nLabelSchema` on the mirror and restated as plain strings on this declaration. */
+  'objectql.zod.ts#ObjectGridSchema': 'label' | 'description';
+  /** SCHEMA-NODE. */
+  'objectql.zod.ts#ObjectViewSchema': 'form' | 'table';
+  /** SCHEMA-NODE. */
+  'overlay.zod.ts#MenubarSchema': 'menus';
+  /** SCHEMA-NODE. */
+  'reports.zod.ts#ReportBuilderSchema': 'report';
+  /** SCHEMA-NODE. */
+  'reports.zod.ts#ReportComponentSchema': 'sections';
+  /** SCHEMA-NODE. */
+  'reports.zod.ts#ReportSectionSchema': 'chart';
+  /** SCHEMA-NODE. */
+  'reports.zod.ts#ReportViewerSchema': 'report';
+  /** CONCRETE: an inline option shape against the named `SelectOptionMetadata`. */
+  'views.zod.ts#DetailViewFieldSchema': 'options';
+  /** SCHEMA-NODE. */
+  'views.zod.ts#DetailViewSchema': 'fields' | 'tabs' | 'sections';
+  /** SCHEMA-NODE. */
+  'views.zod.ts#DetailViewSectionSchema': 'fields';
+  /** SCHEMA-NODE. */
+  'views.zod.ts#ViewSwitcherSchema': 'views';
+}
+
+/**
+ * Every entry in this ledger names a REGISTERED pair — the same guard
+ * `assertionUnmirroredLedgerKeysAreRegistered` puts on the two unmirrored ledgers,
+ * and for the same reason: a misspelled pair key is ignored by the map below while
+ * the real pair reads as having no entry, so the failure points at the wrong thing.
+ */
+export type assertionWiderLedgerKeysAreRegistered =
+  Expect< Equal< Exclude< keyof WiderThanDeclared, MirrorKey >, never > >;
 
 /* ── The invariant ──────────────────────────────────────────────────────────── */
 
@@ -1584,6 +1993,68 @@ export type RecordedUnmirrored< K extends MirrorKey > =
 export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
   [K in MirrorKey]: ReconcileAgainstLedger< K, UnmirroredOf< K >, RecordedUnmirrored< K > >;
 }[MirrorKey];
+
+/**
+ * The THIRD direction: every pair's WIDER key set equals what `WiderThanDeclared`
+ * records for it — `never` for the pairs with no entry.
+ *
+ * Routed through `ReconcileAgainstLedger` like the two above, so the recognition
+ * pins at `assertionRatchet…` cover this reconciliation too, and written as an
+ * assignment to `never` for the same reason the other two are: the compiler then
+ * prints the OFFENDING PAIR instead of `Type 'false' does not satisfy the
+ * constraint 'true'`.
+ *
+ * ⚠️ Like `assertionUnmirroredMatchesLedger`, this is a COMPILE-TIME assertion. The
+ * `describe` blocks at the bottom are a population census and a runtime scan; their
+ * passing test counts do not move when this reddens. `pnpm --filter
+ * @object-ui/types type-check` is the gate that reads it.
+ */
+export type WiderLedgerMismatch = {
+  [K in MirrorKey]: ReconcileAgainstLedger<
+    K,
+    WiderOf< K >,
+    K extends keyof WiderThanDeclared ? WiderThanDeclared[K] : never
+  >;
+}[MirrorKey];
+
+export const assertionWiderMatchesLedger: never = 0 as unknown as WiderLedgerMismatch;
+
+/**
+ * The same reconciliation, reported by KEY instead of by pair.
+ *
+ * Not a duplicate: the assignment above resolves to the PAIR, which is what makes a
+ * failure locatable, and it says nothing about which key moved. This one resolves
+ * to the symmetric difference between the measured set and the recorded one, so the
+ * compiler prints the key names — `Type '"variant"' is not assignable to type
+ * 'never'` — and the two messages together are the diagnosis, without anyone having
+ * to resolve a type by hand first. Both are needed and neither is sufficient: a key
+ * name alone does not say which of the pairs it appears on has moved.
+ */
+export type WiderLedgerKeyDrift = {
+  [K in MirrorKey]:
+    | Exclude< WiderOf< K >, K extends keyof WiderThanDeclared ? WiderThanDeclared[K] : never >
+    | Exclude< K extends keyof WiderThanDeclared ? WiderThanDeclared[K] : never, WiderOf< K > >;
+}[MirrorKey];
+
+export const assertionWiderLedgerRecordsEveryKey: never = 0 as unknown as WiderLedgerKeyDrift;
+
+/**
+ * No pair's WIDER measurement has degenerated to `any`.
+ *
+ * This is not a hypothetical. `any` is assignable to `never`, so a pair whose
+ * measurement collapses to `any` reconciles SILENTLY GREEN against any ledger entry
+ * at all — the assignment above cannot report it, and neither can the ledger. It
+ * was observed while this direction was being built: a recursive spelling of
+ * `Unconstrained` that descended into object properties drove exactly the deepest
+ * pairs to `any`, and the invariant stayed green while measuring nothing on them.
+ * `assertionNoVacuousEntry` guards the shape side of vacuity; this guards the
+ * measurement side, which the same file did not previously need.
+ */
+export type VacuousWiderMeasurement = {
+  [K in MirrorKey]: IsAny< WiderOf< K > > extends true ? K : never;
+}[MirrorKey];
+
+export type assertionNoVacuousWiderMeasurement = Expect< Equal< VacuousWiderMeasurement, never > >;
 
 /**
  * Non-vacuity for every registered entry at once.
@@ -1753,6 +2224,8 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "a union (`string | { dialect?, source }`) with no `.shape` of its own — the predicate WIRE shape `BaseSchema`'s `visible` / `hidden` / `disabled` and the form predicate keys carry (objectui#7530); its TS twin `ExpressionWire` (`../expression.ts`) is a type alias, not a key set, and the two faces are pinned equal in `base-schema-predicate-envelope-7530.test.ts`",
   'index.zod.ts#SCHEMA_VERSION':
     "a version string, not a schema",
+  'objectql.zod.ts#KanbanConditionalFormattingRuleSchema':
+    "a union of two rule dialects (native `{ field, operator, value }` | spec `{ condition, style }`) with no `.shape` of its own — exported by objectui#7664 so the `'kanban'` arm (`complex.zod.ts#KanbanSchema`) and the `'object-kanban'` arm mirror `conditionalFormatting` from ONE rule declaration; its TS twin `KanbanConditionalFormattingRule` (`../objectql.ts`) is a type union, not a key set, and both arms' `conditionalFormatting` keys are compared where they are declared",
 };
 
 /* ── Which pairs depend on @objectstack/spec ────────────────────────────────── */
@@ -1785,12 +2258,18 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   //     literal. Its declaration ends ~50 lines above the next `export const`, and
   //     the old text window ran on to that boundary, swallowing the private
   //     `KanbanConfig = SpecKanbanConfigSchema…` block that belongs to no export.
-  // ⚠️ The `ObjectViewSchema` removal has a consequence this card did NOT settle:
-  // the objectui#6058 split in this file's header routes its unmirrored declared
-  // keys as SPEC-DERIVED — a routing that rests on the false positive. That
-  // classification is deliberately left as it stands here; see the note there.
+  // ⚠️ The `ObjectViewSchema` removal had a consequence #6705 did NOT settle: the
+  // objectui#6058 split in this file's header routed its unmirrored declared keys
+  // as SPEC-DERIVED — a routing that rested on the false positive. objectui#7279
+  // re-derived that side on the tree and through the spec pin and moved the entry
+  // to the split's LOCAL half (its `UnmirroredDeclared` docblock carries the
+  // per-key reading). The split's counts now derive from THIS list's membership
+  // and are pinned against the header by 'objectui#7279' below.
   'complex.zod.ts#DashboardComponentSchema',
   'complex.zod.ts#DashboardWidgetSchema',
+  // objectui#7664: `grouping` is `SpecGroupingConfigSchema` by reference, the
+  // same way `ObjectGallerySchema` below spells it.
+  'complex.zod.ts#KanbanSchema',
   'form.zod.ts#SelectOptionSchema',
   'layout.zod.ts#PageNodeSchema',
   'objectql.zod.ts#ObjectGallerySchema',
@@ -1814,7 +2293,7 @@ const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
  * MINUEND under it had moved. Nothing failed on any of those days, because nothing
  * compared the registry to a number. objectui#7433 is that absence, not the digits.
  */
-const EXPECTED_MIRROR_PAIRS = 157;
+const EXPECTED_MIRROR_PAIRS = 159;
 
 /** This file, so the census can read its own type-level ledgers. */
 const SELF = fileURLToPath(import.meta.url);
@@ -1901,7 +2380,7 @@ function exportedConsts(): string[] {
  * POSITIVE one: a scanner that stopped seeing comments AND stopped seeing real
  * references would go green on the list below while checking nothing. The fixture
  * suite asserts both directions, and the re-check itself is the live positive
- * proof — all eight pairs in `SPEC_DERIVED_PAIRS` are found by code reference alone.
+ * proof — every pair in `SPEC_DERIVED_PAIRS` is found by code reference alone.
  */
 export function specReferencingExports(fileName: string, source: string): Set<string> {
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS);
@@ -2092,6 +2571,129 @@ this derivation subtracts from the pinned population, so it fails as a consequen
   });
 });
 
+/* ── The SPEC-DERIVED / LOCAL split is derived, and the header is pinned to it ── */
+
+/**
+ * Entry → declared-key members of one of the two unmirrored ledgers, read from this
+ * file's own AST the way `ledgerEntryKeys` reads the entry names. Each property
+ * signature's type is a union of string literals (or one literal); the literals ARE
+ * the keys, so this is the instrument that sizes a ledger in keys, not just entries.
+ *
+ * A member that is not a string literal is a hard error rather than a skipped row:
+ * a ledger that quietly grew a `string` or `never` arm would otherwise read as fewer
+ * keys, and every count below would still pass.
+ */
+function ledgerEntryMembers(ledger: 'UnmirroredDeclared' | 'RuntimeOnlyDeclared'): Map<string, string[]> {
+  selfAst ??= ts.createSourceFile(
+    SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
+  );
+  const decl = selfAst.statements.find(
+    (s): s is ts.InterfaceDeclaration => ts.isInterfaceDeclaration(s) && s.name.text === ledger,
+  );
+  if (!decl) throw new Error(`no top-level interface ${ledger} in ${SELF} — it was renamed, or the reader is reading the wrong file`);
+  const out = new Map<string, string[]>();
+  for (const m of decl.members) {
+    if (!ts.isPropertySignature(m) || !m.type) continue;
+    const entry = ts.isStringLiteral(m.name) ? m.name.text : m.name.getText(selfAst);
+    const arms = ts.isUnionTypeNode(m.type) ? m.type.types : [m.type];
+    out.set(entry, arms.map((arm) => {
+      if (ts.isLiteralTypeNode(arm) && ts.isStringLiteral(arm.literal)) return arm.literal.text;
+      throw new Error(`${ledger}['${entry}'] has a member that is not a string literal: ${arm.getText(selfAst)}`);
+    }));
+  }
+  return out;
+}
+
+/**
+ * One figure the file header writes down, read off disk. The spelling must occur
+ * EXACTLY once: a second copy — a stale figure left standing beside a corrected one —
+ * would let the pin pass on whichever copy the regex met first.
+ */
+function headerFigures(spelling: RegExp): number[] {
+  const hits = [...readFileSync(SELF, 'utf8').matchAll(new RegExp(spelling.source, 'gu'))];
+  expect(hits.length, `the header spelling ${spelling} must occur exactly once in ${SELF}; it occurs ${hits.length} times`)
+    .toBe(1);
+  return hits[0].slice(1).map(Number);
+}
+
+describe('the SPEC-DERIVED / LOCAL split is derived, and the header is pinned to it (objectui#7279)', () => {
+  /** The split, derived: `UnmirroredDeclared` entries by `SPEC_DERIVED_PAIRS` membership. */
+  const derive = () => {
+    const rows = Array.from(ledgerEntryMembers('UnmirroredDeclared'));
+    const size = (subset: typeof rows) => ({
+      entries: subset.length,
+      keys: subset.reduce((n, [, keys]) => n + keys.length, 0),
+    });
+    return {
+      specDerived: size(rows.filter(([entry]) => SPEC_DERIVED_PAIRS.includes(entry))),
+      local: size(rows.filter(([entry]) => !SPEC_DERIVED_PAIRS.includes(entry))),
+      total: size(rows),
+    };
+  };
+
+  it('the split figures and the totals the header writes down equal the ledger', () => {
+    // objectui#6058 wrote the split as prose with counts; objectui#7623, #7129, #7352
+    // and #7655 each moved the ledger and corrected the counts by hand, and #7279
+    // found the SPEC-DERIVED half still carrying an entry `SPEC_DERIVED_PAIRS` had
+    // dropped at #6705. Nothing compared the two — this does. Every figure is read
+    // off the header's OWN spelling, so a rewording that drops the digit is red too.
+    const [specEntries, specKeys] = headerFigures(/\*\*SPEC-DERIVED \((\d+) entr(?:y|ies), (\d+) keys?\)\*\*/);
+    const [localEntries, localKeys] = headerFigures(/\*\*LOCAL \((\d+) entr(?:y|ies), (\d+) keys?\)\*\*/);
+    const [totalEntries, totalKeys, tSpecEntries, tSpecKeys, tLocalEntries, tLocalKeys] = headerFigures(
+      /\*\*(\d+) entries \/ (\d+) keys\*\* — (\d+) \/ (\d+) spec-derived, (\d+) \/ (\d+) local\./,
+    );
+    const [topEntries, topKeys] = headerFigures(/\*\*(\d+) entries\*\* in `UnmirroredDeclared`, \*\*(\d+) keys\*\* across them/);
+
+    const header = {
+      specDerived: { entries: specEntries, keys: specKeys },
+      local: { entries: localEntries, keys: localKeys },
+      total: { entries: totalEntries, keys: totalKeys },
+      totalsLine: { specDerived: { entries: tSpecEntries, keys: tSpecKeys }, local: { entries: tLocalEntries, keys: tLocalKeys } },
+      topOfFile: { entries: topEntries, keys: topKeys },
+    };
+    const ledger = derive();
+    expect(header, `
+The header's SPEC-DERIVED / LOCAL split figures disagree with the ledger.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you moved an UnmirroredDeclared entry or key, or SPEC_DERIVED_PAIRS membership
+    => correct the header's figures to the derived ones below, and ADD the history
+    sentence the split keeps for every move (it is cumulative by design).
+  * you edited a header figure by hand, or carried one in from a card or a comment
+    => put it back. The ledger is the measurement; the header only records it.
+
+⛔ Never reconcile the two by editing a ledger KEY SET or SPEC_DERIVED_PAIRS: both are
+pinned elsewhere in this file against the mirrors themselves.`)
+      .toEqual({
+        specDerived: ledger.specDerived,
+        local: ledger.local,
+        total: ledger.total,
+        totalsLine: { specDerived: ledger.specDerived, local: ledger.local },
+        topOfFile: ledger.total,
+      });
+  });
+
+  it('the member reader can actually see the unions (non-vacuity)', () => {
+    // A reader that returned no members would derive 0 keys on both halves and a
+    // header written as 0 / 0 would pass while measuring nothing — the same failure
+    // mode 'the ledger reader can actually see the ledgers' guards for entry names.
+    const members = ledgerEntryMembers('UnmirroredDeclared');
+    expect(Array.from(members.keys()), 'the member reader and the entry reader disagree on the entry list')
+      .toEqual(ledgerEntryKeys('UnmirroredDeclared'));
+    const ledger = derive();
+    expect(ledger.specDerived.entries, 'the SPEC-DERIVED half read as EMPTY — `DashboardWidgetSchema` is in both the ledger and SPEC_DERIVED_PAIRS')
+      .toBeGreaterThan(0);
+    expect(ledger.local.entries, 'the LOCAL half read as EMPTY').toBeGreaterThan(0);
+    expect(ledger.total.keys, 'no entry read as a union of more than one literal — the reader is not walking union arms')
+      .toBeGreaterThan(ledger.total.entries);
+    for (const [entry, keys] of members) {
+      expect(keys.length, `${entry} read as having no keys`).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('the spec-reference scan reads code, not prose (objectui#6705)', () => {
   const scan = (src: string): string[] => [...specReferencingExports('fixture.zod.ts', src)].sort();
 
@@ -2173,5 +2775,119 @@ export const ObjectGanttSchema = SpecGanttConfigSchema.extend({});
     // while checking nothing. Pin it against the file this bug was found in.
     const src = readFileSync(join(ZOD_DIR, 'objectql.zod.ts'), 'utf8');
     expect([...specReferencingExports('objectql.zod.ts', src)]).toContain('ObjectGanttSchema');
+  });
+});
+
+/* ── Runtime: bounding the region the type level cannot see (objectui#7069) ─── */
+
+type ZodInternals = { _zod?: { def?: Record<string, unknown> } };
+
+const defOf = (schema: unknown): Record<string, unknown> | undefined =>
+  (schema as ZodInternals | undefined)?._zod?.def;
+
+/** Every schema node reachable from one slot, through the shapes zod 4 nests. */
+function reachableNodes(schema: unknown, seen = new Set<unknown>()): unknown[] {
+  const def = defOf(schema);
+  if (!def || seen.has(schema)) return [];
+  seen.add(schema);
+  const found: unknown[] = [schema];
+  for (const key of ['innerType', 'element', 'valueType', 'keyType', 'schema', 'in', 'out'] as const) {
+    found.push(...reachableNodes(def[key], seen));
+  }
+  for (const list of [def.options, def.items]) {
+    if (Array.isArray(list)) for (const arm of list) found.push(...reachableNodes(arm, seen));
+  }
+  const shape = def.shape as Record<string, unknown> | undefined;
+  if (shape) for (const key of Object.keys(shape)) found.push(...reachableNodes(shape[key], seen));
+  return found;
+}
+
+/** Every lazy node reachable from a registered mirror, with one slot that reaches it. */
+function measureReachableLazyNodes(): Map<unknown, string> {
+  const nodes = new Map<unknown, string>();
+  for (const [pair, mirror] of Object.entries(MIRRORS)) {
+    const shape = defOf(mirror)?.shape as Record<string, unknown> | undefined;
+    if (!shape) continue;
+    for (const key of Object.keys(shape)) {
+      for (const node of reachableNodes(shape[key])) {
+        if (defOf(node)?.type === 'lazy' && !nodes.has(node)) nodes.set(node, `${pair}.${key}`);
+      }
+    }
+  }
+  return nodes;
+}
+
+/**
+ * `WiderThanDeclaredKeys` is blind wherever a mirror slot's input face is
+ * `unknown`, and that face has ONE producing spelling: a recursive mirror annotated
+ * `z.ZodType< any >` to break the cycle in its own `z.lazy`, which zod 4 reads as an
+ * `unknown` INPUT parameter. So the exclusion is only as bounded as that population
+ * is — and the population is exactly what the type level cannot report. At the type
+ * level every unconstrained face looks alike, so a NEW recursive mirror enlarges
+ * the blind region without changing one character the compiler reads. At runtime
+ * the mirrors are values and the lazy nodes are reachable, so the region can be
+ * enumerated and pinned. That is the whole reason this leg is at runtime.
+ *
+ * ⚠️ The first spelling of this leg asserted the region had a SINGLE source,
+ * `SchemaNodeSchema`. The walk refuted it on the first run — the navigation, menu,
+ * tree, action and filter-condition mirrors each carry the same annotation — and
+ * the claim was replaced by the measurement rather than repaired. It is recorded
+ * here because the wrong version is the intuitive one: the card, the triage and the
+ * dispatch all describe the producer as if it were one const.
+ *
+ * ⛔ Not a count of affected slots: that moves with every `.extend()`, since every
+ * component mirror inherits the base's schema-node slots. What is pinned is the set
+ * of SOURCES, which moves only when someone writes a new recursive mirror.
+ */
+const RECURSION_BREAKING_MIRRORS: readonly (readonly [string, unknown])[] = [
+  ['base.zod.ts#SchemaNodeSchema', SchemaNodeSchema],
+  ['app.zod.ts#NavigationItemSchema', NavigationItemSchema],
+  ['app.zod.ts#MenuItemSchema', AppMenuItemSchema],
+  ['complex.zod.ts#FilterBuilderConditionSchema', FilterBuilderConditionSchema],
+  ['complex.zod.ts#FilterGroupSchema', FilterGroupSchema],
+  ['crud.zod.ts#ActionSchema', ActionSchema],
+  ['data-display.zod.ts#TreeNodeSchema', TreeNodeSchema],
+  ['navigation.zod.ts#NavLinkSchema', NavLinkSchema],
+  ['navigation.zod.ts#NavigationMenuItemSchema', NavigationMenuItemSchema],
+  ['overlay.zod.ts#MenuItemSchema', OverlayMenuItemSchema],
+];
+
+/**
+ * Lazy nodes with no exported const to name, recorded by a slot that reaches them:
+ * an inline `z.lazy` written in the slot itself, or one inside a PRIVATE mirror.
+ * They are part of the blind region on the same terms as the named ones; they are
+ * listed separately only because there is no identity to compare against.
+ */
+const UNNAMED_LAZY_SLOTS: readonly string[] = [
+  'complex.zod.ts#DashboardComponentSchema.widgets',
+  'objectql.zod.ts#ObjectViewSchema.form',
+  'objectql.zod.ts#ObjectViewSchema.table',
+];
+
+describe('the blind region of the wider direction is bounded (objectui#7069)', () => {
+  it('the walk can actually see a lazy node (non-vacuity)', () => {
+    // A walk that stopped following zod's nesting would report an empty region and
+    // pass the case below while measuring nothing — the failure mode objectui#6133
+    // names, here on the instrument rather than on a ledger.
+    expect(measureReachableLazyNodes().size).toBeGreaterThan(0);
+  });
+
+  it('every recursion-breaking mirror in the region is named or recorded', () => {
+    // Fails when a new recursive mirror joins the region, which is precisely the
+    // event that widens what `Unconstrained` excludes and what the ledger's
+    // SCHEMA-NODE class covers — and the event nothing else in this file can see.
+    const unnamed = [...measureReachableLazyNodes().entries()]
+      .filter(([node]) => !RECURSION_BREAKING_MIRRORS.some(([, schema]) => schema === node))
+      .map(([, slot]) => slot);
+    expect([...new Set(unnamed)].sort()).toEqual([...UNNAMED_LAZY_SLOTS].sort());
+  });
+
+  it('every recorded source is really reachable — no dead entries', () => {
+    // The other direction of the same ratchet: a mirror that stops being recursive,
+    // or stops being reachable from the registry, leaves a row here asserting a
+    // region that no longer exists.
+    const live = new Set(measureReachableLazyNodes().keys());
+    const dead = RECURSION_BREAKING_MIRRORS.filter(([, schema]) => !live.has(schema)).map(([name]) => name);
+    expect(dead).toEqual([]);
   });
 });

@@ -397,10 +397,10 @@ Use expressions for dynamic content:
 <!-- doc-snippet: fragment — a good/bad contrast pair of two bare schema object literals -->
 ```tsx
 // ❌ Bad - hardcoded
-{ type: 'text', value: 'Hello, John!' }
+{ type: 'text', content: 'Hello, John!' }
 
 // ✅ Good - dynamic
-{ type: 'text', value: 'Hello, ${user.name}!' }
+{ type: 'text', content: 'Hello, ${user.name}!' }
 ```
 
 ## Plugin Development

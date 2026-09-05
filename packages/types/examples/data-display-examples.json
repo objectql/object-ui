@@ -189,7 +189,7 @@
     "tree-view": {
       "type": "tree-view",
       "id": "file-explorer",
-      "data": [
+      "nodes": [
         {
           "id": "root",
           "label": "Project",

@@ -335,10 +335,25 @@ export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
  */
 export const TreeViewSchema = BaseSchema.extend({
   type: z.literal('tree-view'),
-  data: z.array(TreeNodeSchema).optional()
-    .describe('Tree data, read THIRD as the fallback limb of `boundData || schema.nodes || schema.data || []` at renderers/data-display/tree-view.tsx:105. OPTIONAL since objectui#6939 — requiring a third-choice limb refused four catalog entries the renderer draws correctly. Kept DECLARED rather than deleted: `BaseSchema.data` is `z.any().optional()`, so removing this member would not reject the key, it would admit it unvalidated while the read stays'),
+  // ADR-0049 RETIREMENT TOMBSTONE (objectui#6951, maintainer ruling B1 of
+  // 2026-09-04). `data` was the second spelling of the one inline-nodes slot,
+  // read only as the last limb of `boundData || schema.nodes || schema.data || []`;
+  // the renderer now reads `bind` then `nodes`. A plain deletion here would NOT
+  // refuse the key: `BaseSchema.data` is `z.any().optional()`, so the authored
+  // array would be admitted unvalidated and render an empty tree. The tombstone
+  // on this extended schema shadows the base member and refuses BY NAME — one
+  // string, both channels (parse-time message and `.describe()`), see
+  // `./tombstone.zod.ts`; the base-vs-extended contrast is pinned in
+  // `../__tests__/tree-view-data-retired-6951.test.ts`.
+  data: retirementTombstone(
+    'RETIRED (objectui#6951) — `data` is no longer part of TreeViewSchema; write `nodes` (or bind the tree with '
+    + '`bind`). It was the second spelling of the one inline-nodes slot, read only as the last limb of '
+    + '`boundData || schema.nodes || schema.data || []`, and was retired under ADR-0049 enforce-or-remove with no '
+    + 'deprecation window (maintainer ruling B1, 2026-09-04). The renderer reads `bind` then `nodes` now, so an '
+    + 'authored `data` would render an empty tree. Rename the key; the array is unchanged.',
+  ),
   nodes: z.array(TreeNodeSchema).optional()
-    .describe('Tree data, read FIRST at renderers/data-display/tree-view.tsx:105 — the middle limb of `boundData || schema.nodes || schema.data || []`, so it wins over `data`. Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939, which relaxed `data` (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
+    .describe('Inline tree nodes — the one inline spelling, read at renderers/data-display/tree-view.tsx:105 as the second limb of `boundData || schema.nodes || []` (a `bind`-resolved value wins, so this stays optional and no presence rule exists — objectui#6951 B1). Declared by objectui#6150; a `nodes`-only document became LEGAL at objectui#6939; the `data` fallback spelling was retired by objectui#6951 (the registration\'s own `inputs` and `defaultProps` spell it `nodes`, and the four catalog entries ARE those `defaultProps`)'),
   title: z.string().optional()
     .describe('Heading above the tree, read at renderers/data-display/tree-view.tsx:115 (presence gate) and :117 (the h3 body) (objectui#6150)'),
   defaultExpandedIds: z.array(z.string()).optional().describe('Default expanded node IDs'),

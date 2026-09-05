@@ -13,12 +13,14 @@ import type { DroppedFieldsEvent } from '@objectstack/spec/data';
 // is read off the pin instead of hand-copied here (a hand copy is the drift
 // this seam already paid for once — see `DroppedFieldsEvent`'s comment below).
 import { DroppedFieldsEventSchema } from '@objectstack/spec/data';
-// #6825 — the spec's OWN filter-AST gate, imported as a VALUE for the same
-// reason: `aggregate()`'s spec-shape branch decides whether a `where` is a
-// filter by asking the contract, not by a hand-rolled shape sniff that could
-// disagree with the door it is protecting. Same predicate the server ingress
-// runs, so the producer-side refusal and the wire-side one cannot drift.
-import { isFilterAST } from '@objectstack/spec/data';
+// #6825 / #7752 — the spec's OWN filter-AST gate and its OWN lowering sink,
+// imported as VALUES for the same reason: `aggregate()` decides whether a
+// `where` is a filter, and turns a `FilterArray` into the `FilterCondition` the
+// wire declares, by asking the contract — not by a hand-rolled shape sniff or a
+// second lowering that could disagree with the door it is feeding. Same
+// predicate and same sink the server ingress runs, so the producer-side refusal
+// and the wire-side one cannot drift.
+import { isFilterAST, parseFilterAST } from '@objectstack/spec/data';
 import type { ApiError } from '@objectstack/spec/api';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
@@ -267,6 +269,59 @@ function assertSpecShapeWhereIsFilterAst(where: unknown, resource: string): void
   throw new UnloweredAggregateWhereError(where, resource);
 }
 
+/**
+ * An ARRAY `filter` that reached `aggregate()`'s ANALYTICS branch and that the
+ * protocol's lowering sink cannot turn into a `FilterCondition` — an infix join
+ * (`[condA, 'or', condB]`) above all.
+ *
+ * WHY A REFUSAL AND NOT A DROP (objectui#7752; maintainer ruling of 2026-09-05
+ * on objectstack#15828, which reads that card as a frontend defect: the
+ * protocol is right and the adapter was wrong). `parseFilterAST` answers
+ * `undefined` for an array it cannot read, and `undefined` here would post a
+ * body with NO `where` at all: the aggregate would then be computed over every
+ * row and returned as a confident number, with the author's predicate gone and
+ * nothing on the wire to say it went. That is the same silent over-fetch
+ * {@link MalformedFilterError} exists to stop, one door further along.
+ *
+ * Deliberately NOT {@link UnloweredAggregateWhereError}, whose meaning is not
+ * widened to cover this: that one guards the SPEC-SHAPE branch, whose `where`
+ * is posted verbatim and must therefore have been lowered by its PRODUCER
+ * (objectui#6825, ruling 2026-08-30 option A — refuse, never lower). This
+ * branch's `filter` is authoring input and IS lowered here, at the door the
+ * protocol names; this error covers only the input that sink cannot lower.
+ *
+ * Carries the `INVALID_FILTER` / 400 pair both siblings carry, so
+ * `isMalformedFilterError()` recognises it and a failed widget renders "this
+ * filter is malformed" rather than "check your connection" (objectui#3066).
+ */
+export class UnlowerableAnalyticsFilterError extends Error {
+  readonly code = 'INVALID_FILTER';
+  readonly httpStatus = 400;
+  /** The filter as received, so a caller can log what its producer actually built. */
+  readonly filter: unknown;
+  /** The object `aggregate()` was called for. */
+  readonly resource: string;
+  constructor(filter: unknown, resource: string, detail?: string) {
+    const shown = JSON.stringify(filter) ?? String(filter);
+    super(
+      `aggregate('${resource}'): the analytics branch received a \`filter\` array `
+      + `that \`parseFilterAST\` cannot lower into a FilterCondition — ${shown}.`
+      + (detail ? ` (${detail})` : '')
+      + ' `where` on the analytics wire is a FilterCondition (`AnalyticsQuerySchema`, '
+      + '@objectstack/spec data/analytics.zod.ts), and a FilterArray is input-only '
+      + 'sugar lowered into one at the single sink `parseFilterAST` '
+      + '(data/filter.zod.ts, objectstack#5158 ruling C). Lowerable shapes are a '
+      + "comparison tuple (['stage','=','won']), a logical node (['and',[..],[..]]), "
+      + 'an array of such nodes, and a ViewFilterRule[] this adapter translates '
+      + "first. An infix join ([condA, 'or', condB]) is none of them. Nothing was "
+      + 'sent to the server, so no unfiltered numbers came back.',
+    );
+    this.name = 'UnlowerableAnalyticsFilterError';
+    this.filter = filter;
+    this.resource = resource;
+  }
+}
+
 function objectFilterEntryToAST(entry: any): [string, string, any] | null {
   if (!entry || typeof entry !== 'object') return null;
   // `field` only. A `?? entry.name` fallback lived here from the day the
@@ -418,6 +473,74 @@ function translateFilterToAST(filter: unknown): unknown | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Lower an analytics `filter` into the `where` the analytics wire declares.
+ *
+ * THE CONTRACT (objectstack#5158 ruling C, `data/filter.zod.ts`'s `FilterArray`
+ * docblock, verbatim): "A `FilterArray` is not a storage shape and not a
+ * protocol shape. It is lowered to a `FilterCondition` at the single sink
+ * `parseFilterAST` (`@objectstack/spec/data`) the moment it arrives, and only
+ * the lowered `FilterCondition` travels any further. `where` on a query is a
+ * `FilterCondition` and stays one." A POST body is transport, not one of the
+ * declared doors where an array may arrive (React block props, `FilterBuilder`,
+ * the REST `$filter` query string) — so the lowering happens HERE, before the
+ * body is built, and only a `FilterCondition` goes out.
+ *
+ * Three shapes, three answers:
+ *
+ * - A NON-array filter is already a `FilterCondition` — the MongoDB-style
+ *   object this branch was written for, and what `AnalyticsQuerySchema.where`
+ *   declares. Passed through untouched; translating it here would be a semantic
+ *   change, not a fix.
+ * - An EMPTY array is no filter, so no `where` key is posted at all. Decided
+ *   here rather than inferred: `parseFilterAST([])` is `undefined`, and the
+ *   in-process analytics door reads `[]` the same way ("`[]` is no filter",
+ *   objectstack#5334). The two readings agree, and this pins that they do.
+ * - Every other array is first normalised by `translateFilterArray` — the SAME
+ *   function `find()` runs in `convertQueryParams`, so one stored filter cannot
+ *   mean two things on two paths — and then lowered by the sink.
+ *
+ * Anything the sink cannot lower is refused, never posted and never dropped:
+ * see {@link UnlowerableAnalyticsFilterError} for why `undefined` on the wire
+ * would be the worst of the three possible answers.
+ */
+function lowerAnalyticsFilterForWire(filter: unknown, resource: string): unknown | undefined {
+  if (!Array.isArray(filter)) return filter;
+  if (filter.length === 0) return undefined;
+
+  // Throws `MalformedFilterError` on an untranslatable rule entry, exactly as it
+  // does on the `find()` path. Raised from here — outside `aggregate()`'s
+  // analytics `try` — so the refusal reaches the caller as itself instead of
+  // being classified as an unknown analytics failure and answered by the
+  // client-side fallback.
+  const ast = translateFilterArray(filter);
+
+  // The spec's own predicate, not a shape sniff: an array it rejects is an array
+  // the sink cannot read, and `parseFilterAST` would answer `undefined` for it.
+  if (!isFilterAST(ast)) throw new UnlowerableAnalyticsFilterError(filter, resource);
+
+  let lowered: unknown;
+  try {
+    lowered = parseFilterAST(ast);
+  } catch (e) {
+    // The sink's own refusal (a comparison tuple missing its comparand, say).
+    // Re-dressed in this adapter's `INVALID_FILTER` / 400 envelope, its message
+    // kept, so a widget can tell a malformed filter from a dead connection.
+    throw new UnlowerableAnalyticsFilterError(
+      filter, resource, e instanceof Error ? e.message : String(e),
+    );
+  }
+  // Belt to the gate's braces: the gate said this array is a filter, so the sink
+  // owes a condition. `undefined` here would post an unfiltered aggregate under
+  // a filtered question, so it is a refusal rather than a value.
+  if (lowered === undefined) {
+    throw new UnlowerableAnalyticsFilterError(
+      filter, resource, '`parseFilterAST` answered `undefined` for a non-empty filter',
+    );
+  }
+  return lowered;
 }
 
 /**
@@ -4951,6 +5074,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       return [];
     }
 
+    // Lowered BEFORE the `try` below, deliberately. A filter this adapter
+    // refuses is a defect in the request we were asked to build, not an
+    // analytics failure: raised inside the `try`, it would be handed to
+    // `classifyAnalyticsFailure`, come back `unknown`, and be answered by the
+    // client-side fallback — which would re-read the same rows through `find()`
+    // and hand the caller plausible numbers for a question the adapter had
+    // already decided it could not ask.
+    const analyticsWhere = params.filter
+      ? lowerAnalyticsFilterForWire(params.filter, resource)
+      : undefined;
+
     try {
       // Build measure name in the format expected by the backend analytics
       // service (memory-analytics / cube).  For 'count' the measure key is
@@ -4972,36 +5106,29 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // When groupBy is '_all' no dimensions are needed (single-bucket).
         dimensions: params.groupBy && params.groupBy !== '_all' ? [params.groupBy] : [],
       };
-      if (params.filter) {
-        // Dashboard widgets emit MongoDB-style FilterCondition (per
-        // spec/ui/dashboard.zod.ts). Send via the canonical `where`
-        // field of the analytics endpoint, matching the unified Query
-        // DSL (spec/data/query.zod.ts).
-        //
-        // An ARRAY filter goes through the same `translateFilterArray` the
-        // `find()` path runs in `convertQueryParams`, because an authored
-        // `ViewFilterRule[]` reaches this method exactly as it reaches that
-        // one. It used to ship RAW from here, and the analytics door is
-        // stricter than the data door: `lowerAnalyticsWhere`
-        // (`@objectstack/service-analytics`, shared by both aggregation
-        // strategies) THROWS "[analytics] received a 'where' array that is
-        // not a filter" on an array of rule objects, while accepting AST
-        // tuples. So a stored filter that a list renders correctly rendered
-        // `element:number` into its error state on every analytics-capable
-        // deployment — and analytics is the default one, since the CLI always
-        // loads it (objectui#6302).
-        //
-        // One lowering, not two: the same function, so the analytics path and
-        // the `find()` path cannot disagree about one stored filter — which is
-        // the whole reason `translateFilterArray` was made a single definition
-        // (see its header). Non-array filters keep passing through untouched:
-        // the MongoDB-style object this branch was written for is what
-        // `/analytics/query` already accepts, and translating it here would be
-        // a semantic change this fix is expressly not making.
-        payload.where = Array.isArray(params.filter)
-          ? translateFilterArray(params.filter)
-          : params.filter;
-      }
+      // `where` is a `FilterCondition` here, always — see
+      // `lowerAnalyticsFilterForWire`, which did the lowering above. Dashboard
+      // widgets already emit one (spec/ui/dashboard.zod.ts) and it passes
+      // through; an authored array is lowered through `parseFilterAST`, the
+      // single sink the protocol names, so what leaves this method is what
+      // `AnalyticsQuerySchema.where` declares.
+      //
+      // This branch used to post the array itself, normalised into filter AST
+      // but not lowered, and named `lowerAnalyticsWhere` as its door. That was
+      // the wrong hop: `lowerAnalyticsWhere` (`@objectstack/service-analytics`,
+      // objectstack#5334) is the door for IN-PROCESS callers, and objectui#6302's
+      // gate measured that function. The wire's door is one hop earlier —
+      // `POST /analytics/query` parses the body with `AnalyticsQueryRequestSchema`
+      // before any normalisation runs — and it answered `400 Invalid
+      // AnalyticsQuery body: where: ...` to every array shape, so an
+      // `element:number` (array-only since objectstack#12039) rendered into its
+      // error state on any deployment served through the runtime route
+      // (objectui#7752, objectstack#15828).
+      //
+      // `undefined` means "no filter to send", not "send nothing meaningful":
+      // only a filter that was absent or empty reaches here as `undefined`, and
+      // an array the sink cannot lower was refused above rather than dropped.
+      if (analyticsWhere !== undefined) payload.where = analyticsWhere;
 
       const contractResult = await this.client.analytics.query(payload);
 
