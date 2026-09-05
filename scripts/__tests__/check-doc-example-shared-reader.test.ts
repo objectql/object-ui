@@ -352,7 +352,10 @@ describe('check-doc-example-shared-reader — the parts', () => {
   it('reads the alternatives a reader resolves between as its rungs', () => {
     const source = `const x = dataConfig?.provider === 'object' ? dataConfig.object : schema?.objectName;`;
     const sf = ts.createSourceFile('r.ts', source, ts.ScriptTarget.Latest, true);
-    const expression = sf.statements[0].declarationList.declarations[0].initializer;
+    const statement = sf.statements[0];
+    if (!ts.isVariableStatement(statement)) throw new Error('fixture must parse to a variable statement');
+    const expression = statement.declarationList.declarations[0].initializer;
+    if (!expression) throw new Error('fixture must carry an initializer');
 
     expect(rungsOf(expression)).toEqual(
       expect.arrayContaining([
