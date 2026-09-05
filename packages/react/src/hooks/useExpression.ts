@@ -7,12 +7,7 @@
  */
 
 import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react';
-import {
-  ExpressionEvaluator,
-  evalRowPredicate,
-  isLegacyDialectSource,
-  warnNonCanonicalRowSpelling,
-} from '@object-ui/core';
+import { ExpressionEvaluator, evalRowPredicate } from '@object-ui/core';
 
 /**
  * Global predicate scope — populated by host shells (e.g. app-shell's
@@ -91,56 +86,48 @@ export { toPredicateInput } from '@object-ui/core';
  * Build the predicate context for a **row record** — the bag to hand
  * {@link useCondition} when the thing being gated is scoped to one record.
  *
- * The row is bound the THREE ways the platform's row surfaces bind it:
- * `record.status` (spec/canonical), bare `status` (row-action shorthand), and
- * `data.status` (legacy). This is not three dialects; it is one rule, and it is
- * `evalRowPredicate`'s rule (`core/evaluator/listConditional.ts` — the record
- * header, list rows, the row kebab and conditional formatting all evaluate
- * through it), restated here for the `useCondition` tier so both tiers answer
- * an author's `visible:` the same way.
+ * The row is bound ONE way: `record.status` — the canon (objectui#5330, ruled
+ * 2026-08-20; Phase 2 executed by objectui#5741). This is not a dialect choice;
+ * it is one rule, and it is `evalRowPredicate`'s rule
+ * (`core/evaluator/listConditional.ts` — the record header, list rows, the row
+ * kebab and conditional formatting all evaluate through it), restated here for
+ * the `useCondition` tier so both tiers answer an author's `visible:` the same
+ * way.
  *
- * ## Why a helper and not "just spread the row" (objectui#4075)
+ * ## The two retired spellings (objectui#5741)
  *
- * `useCondition` evaluates on `new ExpressionEvaluator({ ...scope, ...context })`,
- * so a caller that passes the row spread flat resolves the shorthand spelling
- * and NOTHING else. The canonical spelling is the `record.` root — it is what
- * `ExpressionEvaluator`'s CEL path binds (`bag.record` as the record
- * namespace), what `evalRowPredicate` binds, and what the server enforces
- * with. Under a root-only bag `record.viewer.can_act` does not read as `false`:
- * the evaluator throws `record is not defined`, and a fail-closed `visible`
- * turns that throw into "hidden". A correctly-authored predicate then deletes
- * its own button, indistinguishably from the gate having said no.
+ * Until Phase 2 this bag also carried the row spread flat (bare `status`, the
+ * row-action shorthand) and as `data` (legacy), and `useCondition` below warned
+ * once per non-canonical spelling (Phase 1, PR #5737). Both bindings and the
+ * warning are gone. A bare-field or `data.*` predicate against this bag now
+ * faults exactly as it always did on the server (`buildScope({ record })`
+ * mounts exactly `['record']`: `Unknown variable: status` / `Unknown variable:
+ * data`), and each `useCondition` leg applies its EXISTING fault policy — the
+ * throwing legs (`throwOnError`: `action:button` / `action:menu` `visible`,
+ * `DeclaredActionsBar`'s `visible`) hide and report `was hidden/disabled: its
+ * predicate threw`, naming the variable; the non-throwing legs fail soft to
+ * `true`. The same holds for a legacy `${data.x}` / `${x}` string: one bag
+ * shape, both dialects. Nothing detects a retired spelling here; it is simply
+ * unbound. `@object-ui/core`'s `evaluator/rowPredicateCanon.ts` carries the
+ * canon statement, the server measurement, the layer scoping (`data` stays
+ * canonical one layer over, in a metadata-editing form — ADR-0089 D3) and the
+ * offline detector.
  *
- * That was live, not theoretical: every declared action on framework's
- * `sys_approval_request` gates on `record.viewer.*` (framework#3310 / #3424),
- * so the whole server-declared approval decision set was invisible wherever
- * `DeclaredActionsBar` rendered until objectui#4077 bound the row this way —
- * and the four generic action renderers carried the same root-only binding
- * until objectui#4075.
+ * ## Why a helper and not "just `{ record }`" (objectui#4075 / #4080)
  *
- * ## The canon is `record.*` (objectui#5330, ruled 2026-08-20)
+ * Because the rule has two halves and every predicate face has to get both:
+ * the SHAPE — `record` is the row's one name, so `record.viewer.can_act`, what
+ * every declared action on framework's `sys_approval_request` gates on
+ * (framework#3310 / #3424), reaches the row — and the NO-ROW case below.
+ * `DeclaredActionsBar` and the four generic action renderers once carried
+ * inline copies of this bag and drifted (objectui#4077 / #4079); one named
+ * helper is what keeps a fifth copy from drifting again.
  *
- * All three spellings are bound here, and that is unchanged — but they are NOT
- * peers. `record.*` is the CONTRACT; the bare shorthand and `data.*` are
- * tolerances in a deprecation window, kept because stored metadata carries
- * them, reported once by `warnNonCanonicalRowSpelling` from `useCondition`
- * below, and removable only after a stored-metadata survey sizes the window
- * (⛔ no removal before the survey — part of the same ruling).
- *
- * The canon states the SERVER's accept set, which is narrower than this bag:
- * measured on `@objectstack/formula@17.1.0`, `buildScope({ record })` mounts
- * exactly `['record']`, so of the three spellings this helper binds, only
- * `record.*` evaluates server-side — a bare field faults `Unknown variable:
- * status` and `data.*` faults `Unknown variable: data`. This three-way bag has
- * no server counterpart at all, which is exactly why the warning belongs on
- * this side. `@object-ui/core`'s `evaluator/rowPredicateCanon.ts` carries the
- * full measurement and the layer scoping (`data` stays canonical one layer
- * over, in a metadata-editing form — ADR-0089 D3).
- *
- * `record` and `data` are written AFTER the spread deliberately: a row that
- * happens to carry a field literally named `record` or `data` must not shadow
- * the root every predicate is written against. Same precedence as
- * `evalRowPredicate`.
+ * Note the direction of the merge: `useCondition` evaluates on
+ * `new ExpressionEvaluator({ ...scope, ...context })`, so this bag's `record`
+ * shadows an ambient `record` a host put in the predicate scope — the row is
+ * the subject — while every OTHER ambient key (`features`, `user`, a host's own
+ * `data`) survives to the predicate as the host's own.
  *
  * This is the BINDING rule only. It deliberately does not touch the evaluation
  * entry — `useCondition` / `toPredicateInput` / `hasDeclaredVisibilityGate`
@@ -152,10 +139,10 @@ export { toPredicateInput } from '@object-ui/core';
  * ## No row → bind NOTHING, do not bind an empty one
  *
  * `null` / `undefined` / a non-object returns an EMPTY bag, not
- * `{ record: {}, data: {} }`. The difference is load-bearing: `useCondition`
- * merges this context OVER the ambient predicate scope, so binding an empty
- * record would blank out a `record` that a host had put in the scope itself —
- * which is exactly how `action:group`'s dropdown leaf is driven in
+ * `{ record: {} }`. The difference is load-bearing: `useCondition` merges this
+ * context OVER the ambient predicate scope, so binding an empty record would
+ * blank out a `record` that a host had put in the scope itself — which is
+ * exactly how `action:group`'s dropdown leaf is driven in
  * `action-group-dropdown-visible.test.tsx`, and it is a legitimate way for a
  * host to supply the row. "This surface has no row of its own" must stay
  * distinct from "this surface's row is empty"; only the latter is entitled to
@@ -166,8 +153,7 @@ export { toPredicateInput } from '@object-ui/core';
 export function usePredicateRecordContext(record: unknown): Record<string, any> {
   return useMemo(() => {
     if (record == null || typeof record !== 'object' || Array.isArray(record)) return {};
-    const row = record as Record<string, any>;
-    return { ...row, record: row, data: row };
+    return { record: record as Record<string, any> };
   }, [record]);
 }
 
@@ -218,40 +204,11 @@ export function useCondition(
   // We evaluate directly without caching the evaluator to avoid issues with context changes
   return useMemo(
     () => {
-      // objectui#5330 Phase 1 — report a deprecated row-predicate spelling on
-      // the `useCondition` tier. This is the BINDING half's evaluation entry:
-      // `usePredicateRecordContext` sees the row but never the predicate text,
-      // so it structurally cannot detect a spelling, and this is the first
-      // point where the two meet.
-      //
-      // Two guards, both of which can only remove a report:
-      //  - the bag must carry the `usePredicateRecordContext` signature, `data`
-      //    and `record` being the SAME object by identity. A host scope that
-      //    merely happens to carry a `data` key cannot satisfy that, so a
-      //    non-row `useCondition` call is never judged as a row predicate.
-      //  - the source must be CEL. In this tier's legacy `${…}` dialect
-      //    (`'${data.status === "active"}'` — this hook's own doc example)
-      //    `data.*` is the NORMAL spelling, and reporting it would be a false
-      //    positive on every legacy predicate.
-      const bag = context as { record?: unknown; data?: unknown };
-      const boundRow =
-        bag.record != null && typeof bag.record === 'object' && bag.record === bag.data
-          ? (bag.record as Record<string, unknown>)
-          : undefined;
-      if (boundRow !== undefined) {
-        const celSource =
-          typeof condition === 'string'
-            ? isLegacyDialectSource(condition)
-              ? undefined
-              : condition
-            : condition && typeof condition === 'object' && condition.dialect === 'cel'
-              ? condition.source
-              : undefined;
-        if (typeof celSource === 'string') {
-          warnNonCanonicalRowSpelling(celSource, boundRow, true, options?.label);
-        }
-      }
-
+      // No row-spelling detector on this tier (objectui#5741 removed the
+      // Phase-1 warning with the bindings): a retired bare-field / `data.*`
+      // spelling against a `usePredicateRecordContext` bag is simply unbound
+      // and faults like any other unknown variable, and each leg's existing
+      // fault report below is what names it.
       const evaluator = new ExpressionEvaluator({ ...scope, ...context });
       if (options?.throwOnError) {
         // Fail-closed: a predicate that can't be evaluated hides/disables
@@ -293,11 +250,11 @@ export function useCondition(
  * routes to `@object-ui/core`'s `evalRowPredicate`: a bare string is CEL (the
  * spec contract for `ActionSchema.visible`), a `{ dialect: 'cel', source }`
  * envelope is always CEL, and only a legacy-dialect string falls back to the
- * old engine (with a deprecation warning). The row is bound as `record.*` — the
- * CANON (objectui#5330) — and, for stored metadata only, as bare fields and
- * `data.*`, both of which now warn once; the ambient predicate scope
- * (`features` / `user` / …) is merged alongside so deployment-level gates keep
- * resolving.
+ * old engine (with a deprecation warning). The row is bound as `record.*` only
+ * — the canon (objectui#5330; the bare-field and `data.*` spellings retired in
+ * objectui#5741 and fault here like any unknown variable); the ambient
+ * predicate scope (`features` / `user` / …) is merged alongside so
+ * deployment-level gates keep resolving.
  *
  * @param pred     The raw predicate: `boolean` (returned as-is), a CEL string,
  *                 an `{ dialect, source }` envelope, or `null`/`undefined`/`''`.

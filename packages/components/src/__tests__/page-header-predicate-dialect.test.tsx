@@ -32,7 +32,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { ActionProvider, RecordContextProvider, PredicateScopeProvider } from '@object-ui/react';
 
@@ -204,14 +204,24 @@ describe('page:header — CEL-only constructs in action predicates (#3521)', () 
   });
 
   describe('bindings the row surfaces already offered', () => {
-    it('binds bare field names', () => {
+    // objectui#5741 (Phase 2 of the objectui#5330 canon): the bare-field and
+    // `data.*` spellings are no longer bound on a record surface. They fault,
+    // and this surface's existing policy is fail-closed — the SAME verdict on a
+    // matching and a non-matching row is what "unbound" looks like from here.
+    it('no longer binds bare field names (objectui#5741) — hidden on both rows', () => {
       renderHeader({ name: 'zoo_bare', visible: 'f_status == "open"' });
-      expect(shown()).toBe(true);
+      expect(shown()).toBe(false);
+      cleanup();
+      renderHeader({ name: 'zoo_bare_other', visible: 'f_status == "open"' }, { ...RECORD, f_status: 'closed' });
+      expect(shown()).toBe(false);
     });
 
-    it('binds `data.*`', () => {
+    it('no longer binds `data.*` (objectui#5741) — hidden on both rows', () => {
       renderHeader({ name: 'zoo_data', visible: 'data.f_status == "open"' });
-      expect(shown()).toBe(true);
+      expect(shown()).toBe(false);
+      cleanup();
+      renderHeader({ name: 'zoo_data_other', visible: 'data.f_status == "open"' }, { ...RECORD, f_status: 'closed' });
+      expect(shown()).toBe(false);
     });
 
     it('binds the host scope (`os.user.*`) alongside the record', () => {
