@@ -10,6 +10,7 @@ import {
   analyze,
   canonical,
   canonicalContains,
+  docBlocks,
   exampleFences,
   inline,
   rungsOf,
@@ -259,6 +260,73 @@ export function ObjectTree(props: any) {
    * legitimately hand-spells whatever it is pinning. Reading them would make the
    * gate accuse the pins that hold the readers still.
    */
+  /**
+   * The widening that the first run made non-optional. A JSDoc block attached to
+   * NO declaration — a file header — teaching a call to a symbol declared in a
+   * different package is the shape `navigation-overlay.tsx` carries, and a gate
+   * that only read JSDoc attached to the symbol it documents would report a clean
+   * tree over it.
+   */
+  it('reads a file-header block that documents a different symbol', () => {
+    const root = tree('header', {
+      'packages/core/src/utils/record-source.ts': READER,
+      'packages/react/src/hooks/useNavigationOverlay.ts': hook('resolveRecordSourceObjectName(schema, dataConfig)'),
+      'packages/components/src/custom/navigation-overlay.tsx': `
+/**
+ * NavigationOverlay
+ *
+ * Works in conjunction with useNavigationOverlay from @object-ui/react.
+ *
+ * @example
+ * \`\`\`tsx
+ * const nav = useNavigationOverlay({ navigation: schema.navigation, objectName: schema.objectName });
+ * \`\`\`
+ */
+import React from 'react';
+export function NavigationOverlay() {
+  return React.createElement('div');
+}
+`,
+      'packages/plugin-tree/src/ObjectTree.tsx': DELEGATING_CALLER,
+    });
+
+    const { raw } = analyze(root);
+    expect(raw.map((f) => f.file)).toEqual(['packages/components/src/custom/navigation-overlay.tsx']);
+  });
+
+  /**
+   * The other half of that widening. Once every block comment is read, an example
+   * calling `useMemo`, `useEffect` or `fetch` becomes a comparison against every
+   * reader in the tree — hundreds of meaningless pairs and a latent false
+   * positive. Only what this repository exports is compared.
+   */
+  it('does not compare a call to something this repository does not export', () => {
+    const root = tree('foreign', {
+      'packages/core/src/utils/record-source.ts': READER,
+      'packages/react/src/hooks/useThing.ts': `
+/**
+ * @example
+ * \`\`\`tsx
+ * const value = useMemo(() => schema.objectName, [schema]);
+ * \`\`\`
+ */
+export function useThing() {
+  return null;
+}
+`,
+      'packages/plugin-tree/src/ObjectTree.tsx': `
+import { resolveRecordSourceObjectName } from '@object-ui/core';
+export function ObjectTree(props: any) {
+  return useMemo(() => resolveRecordSourceObjectName(props.schema, props.dataConfig), [props]);
+}
+`,
+    });
+
+    const { raw, counters } = analyze(root);
+    expect(counters.documented, '`useMemo` is not first-party, so no example call is comparable').toBe(0);
+    expect(raw).toEqual([]);
+  });
+
   it('does not read test files as call sites', () => {
     const root = tree('tooling', {
       'packages/core/src/utils/record-source.ts': READER,
@@ -312,6 +380,14 @@ describe('check-doc-example-shared-reader — the parts', () => {
     expect(inline('getDataConfig', bindings)).toBe('(schema.data ?? null)');
   });
 
+  it('finds block comments through the shared scanner, not a regex', () => {
+    // A block-comment OPENER inside a string literal is what breaks the naive
+    // regex: it opens a phantom comment that runs to the next real terminator,
+    // swallowing the real doc block below it.
+    const source = ["const glob = '/*.ts';", '/** @example real */', 'export const x = 1;'].join('\n');
+    expect(docBlocks(source)).toEqual(['/** @example real */']);
+  });
+
   it('strips the JSDoc line prefix so the fence parses', () => {
     const fences = exampleFences(['/**', ' * @example', ' * ```tsx', ' * const a = 1;', ' * ```', ' */'].join('\n'));
     expect(fences).toEqual(['const a = 1;\n']);
@@ -351,11 +427,42 @@ describe('check-doc-example-shared-reader — this repository', () => {
     expect(pairs).toContain('useSettledSchema.#0');
   });
 
-  it('keeps the exemption ledger empty', () => {
-    // An entry here is an admission that a doc comment is live seed text, so it
-    // carries a card and comes out when that card lands. Empty is the healthy
-    // state and the gate landed on an empty one.
-    expect([...KNOWN_HAND_SPELLINGS.keys()]).toEqual([]);
+  /**
+   * The ledger is an allowlist that only shrinks. Two directions are pinned,
+   * because a waiver can go wrong both ways: a row whose defect is gone reads as
+   * a live waiver for nothing, and a row with no reason is indistinguishable
+   * from switching the gate off for that file.
+   */
+  it('keeps every exemption honest — no stale row, and a reason on each', () => {
+    expect(
+      result.stale,
+      'a KNOWN_HAND_SPELLINGS row names a doc comment this gate no longer finds — the defect ' +
+        'it waives is fixed, so the row is a live waiver for nothing. Delete it.',
+    ).toEqual([]);
+
+    for (const [key, reason] of KNOWN_HAND_SPELLINGS) {
+      expect(reason.length, `KNOWN_HAND_SPELLINGS[${key}] must carry a real justification`).toBeGreaterThan(40);
+      expect(reason, `KNOWN_HAND_SPELLINGS[${key}] must name the card that decides the prose`).toMatch(
+        /objectui#\d+/,
+      );
+    }
+  });
+
+  /**
+   * The gate's first run over this repository found one instance, and it is a
+   * real one rather than a false positive: `navigation-overlay.tsx`'s file-header
+   * `@example` still teaches objectui#7638's spelling, one file over from the doc
+   * block PR #7648 fixed. objectui#7652 fenced the prose fixes out of this PR, so
+   * it is carried as the ledger's only row and named here — a count would let it
+   * be swapped for a different waiver without anyone noticing.
+   */
+  it('carries objectui#7787 as its one waived instance, and nothing else', () => {
+    expect([...KNOWN_HAND_SPELLINGS.keys()]).toEqual([
+      'packages/components/src/custom/navigation-overlay.tsx::useNavigationOverlay::objectName',
+    ]);
+    expect(result.raw.map((f) => f.key)).toContain(
+      'packages/components/src/custom/navigation-overlay.tsx::useNavigationOverlay::objectName',
+    );
   });
 
   it('is wired where the sibling parse-based gates run', () => {

@@ -54,6 +54,8 @@
  *      fence is where a copier's cursor goes and it is the part that parses.
  *      Extending to `@param` needs a way to tell a prescription from an aside,
  *      and guessing that boundary is what produces a gate people learn to ignore.
+ *      Nor does it read `//` line comments, or any comment that does not open
+ *      `/**`.
  *   3. **Documentation under `content/docs/**`.** That surface belongs to
  *      `check-doc-snippet-types.mjs` (does the snippet still compile) and
  *      `check-doc-component-types.mjs` (does the `type` it names exist). This
@@ -81,9 +83,14 @@
  *
  * A finding needs all four of these to hold at once:
  *
- *   a. an exported symbol `S` in `packages/<pkg>/src` whose JSDoc carries a fenced
- *      `ts`/`tsx` `@example` that CALLS `S`;
- *   b. at least one real in-repo call site of `S`, outside `S`'s own file, whose
+ *   a. a JSDoc block anywhere in `packages/<pkg>/src` whose fenced `ts`/`tsx`
+ *      `@example` CALLS a symbol `S` this repository exports. Anywhere, and not
+ *      only the block attached to `S`: the live instance this gate found on its
+ *      first run is a FILE-HEADER block documenting `NavigationOverlay` in
+ *      `packages/components` whose example calls `useNavigationOverlay` from
+ *      `packages/react` (objectui#7787). First-party, because an example calls
+ *      `useMemo` and `fetch` too and comparing those means nothing here;
+ *   b. at least one real in-repo call site of `S`, in another file, whose
  *      expression for the same argument slot CALLS an exported single-`return`
  *      reader `R`;
  *   c. the `@example`'s expression for that slot does NOT call `R`;
@@ -105,10 +112,15 @@
  *
  * ## Rollout
  *
- * `KNOWN_HAND_SPELLINGS` below is empty and is an allowlist that only shrinks: an
- * entry is a live defect with a card, never a waiver. It exists so that a first
- * run finding real instances cannot force the prose fixes into the same PR as the
- * gate — the same shape `scripts/__tests__/network-escape-ledger.test.ts` uses.
+ * `KNOWN_HAND_SPELLINGS` below is an allowlist that only shrinks: an entry is a
+ * live defect with a card, never a waiver. It exists so that a first run finding
+ * real instances cannot force the prose fixes into the same PR as the gate — the
+ * same shape `scripts/__tests__/network-escape-ledger.test.ts` uses.
+ *
+ * It landed carrying exactly one row, which is the gate's own first finding:
+ * objectui#7787, `navigation-overlay.tsx`'s file-header example, the copy of
+ * objectui#7638's spelling that PR #7648's fix did not reach. A row whose defect
+ * is gone fails this gate rather than sitting there as a waiver for nothing.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -119,6 +131,7 @@ import ts from 'typescript';
 
 import { TOOLING_FILE, listSourceFiles } from './check-phantom-dependencies.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
+import { scanSource } from './js-comment-mask.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 
@@ -130,7 +143,32 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
  * live seed text, not a decision that it is fine — so it carries a card, and it
  * comes out when that card lands. The key is `file::symbol::slot`.
  */
-export const KNOWN_HAND_SPELLINGS = new Map([]);
+export const KNOWN_HAND_SPELLINGS = new Map([
+  [
+    'packages/components/src/custom/navigation-overlay.tsx::useNavigationOverlay::objectName',
+    "objectui#7787. `navigation-overlay.tsx`'s FILE-HEADER block documents " +
+      '`NavigationOverlay` while its `@example` calls `useNavigationOverlay`, and it still ' +
+      "teaches `objectName: schema.objectName` — the exact spelling objectui#7638 was filed " +
+      "about and PR #7648 removed from the hook's own doc block. That fix did not reach this " +
+      'file: different file, different package, a block documenting a different symbol. It is ' +
+      'the first thing this gate found and the reason the gate is worth having, and it is NOT ' +
+      "fixed here on purpose — objectui#7652 fenced the prose fixes out of the gate's own PR, " +
+      'so that the gate lands provably green rather than bundled with a change to what it ' +
+      'judges. Delete this row in the same change that fixes the example.',
+  ],
+]);
+
+/**
+ * A ledger row naming a doc comment this gate no longer finds is worse than no
+ * ledger: it reads as a live waiver for a defect that is gone, and the next
+ * person to fix a real one has no way to tell the two apart. So every row must
+ * still correspond to something the scan reports, and `analyze` returns the
+ * stale ones for the pin to fail on.
+ */
+export function staleExemptions(rawFindings) {
+  const live = new Set(rawFindings.map((finding) => finding.key));
+  return [...KNOWN_HAND_SPELLINGS.keys()].filter((key) => !live.has(key));
+}
 
 /** Packages are the population: this gate reads doc comments that ship. */
 export function populationFiles(root) {
@@ -185,6 +223,28 @@ export function canonical(text) {
 /** Does this expression text call `name`? Asked of text, so an inlined alias counts. */
 export function callsFunction(text, name) {
   return new RegExp(`\\b${name}\\s*\\(`).test(String(text));
+}
+
+/** Names this repository exports — the first-party surface a doc comment teaches. */
+export function exportedNames(sourceFile) {
+  const names = new Set();
+  const visit = (node) => {
+    const exported = (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    if (exported) {
+      if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) names.add(node.name.text);
+      else if (ts.isVariableStatement(node)) {
+        for (const declaration of node.declarationList.declarations) {
+          if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+        }
+      }
+    }
+    if (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)) {
+      for (const element of node.exportClause.elements) names.add(element.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sourceFile, visit);
+  return names;
 }
 
 /**
@@ -247,6 +307,31 @@ export function rungsOf(expression) {
   };
   walk(expression);
   return [...out];
+}
+
+/**
+ * Every `/**`-opening block comment in a source, read through the shared scanner
+ * rather than a regex.
+ *
+ * `js-comment-mask.mjs` exists because the naive regex opens a PHANTOM comment on
+ * a block-comment opener inside a string literal and then deletes every line to
+ * the next terminator — reporting clean over text it never looked at. A gate
+ * whose entire subject is comment text is the last place to re-derive that.
+ */
+export function docBlocks(source) {
+  const { comment } = scanSource(source);
+  const blocks = [];
+  let start = -1;
+  for (let index = 0; index < source.length; index += 1) {
+    if (comment[index] && start === -1) start = index;
+    else if (!comment[index] && start !== -1) {
+      const span = source.slice(start, index);
+      if (span.startsWith('/**')) blocks.push(span);
+      start = -1;
+    }
+  }
+  if (start !== -1 && source.slice(start).startsWith('/**')) blocks.push(source.slice(start));
+  return blocks;
 }
 
 /** `@example` fences, with the JSDoc line prefix removed so the code parses. */
@@ -337,9 +422,10 @@ export function inline(expression, bindings) {
 
 export function analyze(root) {
   const files = populationFiles(root);
-  const counters = { files: files.length, readers: 0, documented: 0, compared: 0, callSites: 0 };
+  const counters = { files: files.length, readers: 0, exported: 0, documented: 0, compared: 0, callSites: 0 };
   const parsed = new Map();
   const readers = new Map();
+  const exported = new Set();
 
   for (const file of files) {
     let text;
@@ -354,65 +440,75 @@ export function analyze(root) {
     for (const reader of readersIn(sourceFile, rel)) {
       if (!readers.has(reader.name)) readers.set(reader.name, reader);
     }
+    for (const name of exportedNames(sourceFile)) exported.add(name);
   }
   counters.readers = readers.size;
+  counters.exported = exported.size;
 
-  // Exported symbols whose own `@example` calls them.
+  // Every JSDoc block in the population, and the calls its `@example` fences make.
+  //
+  // Comment spans come from `js-comment-mask.mjs` rather than a regex: this is a
+  // gate whose whole subject is comment text, and the naive
+  // `/\/\*[\s\S]*?\*\//` family opens a phantom comment on any block-comment
+  // opener inside a string literal, which this tree really writes.
+  //
+  // Deliberately NOT restricted to a JSDoc attached to the symbol it calls. The
+  // live instance that made this widening non-optional is
+  // `packages/components/src/custom/navigation-overlay.tsx`: a FILE-HEADER block
+  // documenting `NavigationOverlay` whose `@example` calls
+  // `useNavigationOverlay` — a different symbol, in a different package, from a
+  // comment attached to no declaration at all. It carries objectui#7638's exact
+  // spelling and survived that card's fix untouched, which is the class this gate
+  // exists for happening one file over.
   const documented = new Map();
   for (const [rel, sourceFile] of parsed) {
-    const visit = (node) => {
-      let name = null;
-      if (ts.isFunctionDeclaration(node) && node.name) name = node.name.text;
-      else if (ts.isVariableStatement(node)) {
-        const declaration = node.declarationList.declarations[0];
-        if (declaration && ts.isIdentifier(declaration.name)) name = declaration.name.text;
-      }
-      if (name && !documented.has(name)) {
-        const exported = (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-        if (exported) {
-          for (const doc of ts.getJSDocCommentsAndTags(node).filter(ts.isJSDoc)) {
-            for (const fence of exampleFences(doc.getText())) {
-              const fenceFile = parseSource(fence, 'example.tsx');
-              let call = null;
-              const find = (n) => {
-                if (!call && ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === name) {
-                  call = n;
-                }
-                ts.forEachChild(n, find);
-              };
-              ts.forEachChild(fenceFile, find);
-              if (!call) continue;
-              const bindings = bindingsFor(call);
-              const slots = new Map();
-              for (const [slot, expression] of slotsOf(call)) slots.set(slot, inline(expression, bindings));
-              documented.set(name, { file: rel, slots });
-              break;
+    const text = sourceFile.getFullText();
+    for (const block of docBlocks(text)) {
+      for (const fence of exampleFences(block)) {
+        const fenceFile = parseSource(fence, 'example.tsx');
+        const find = (node) => {
+          if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+            const name = node.expression.text;
+            // First-party only. An example calls `useMemo`, `useEffect` and
+            // `fetch` too, and comparing those against every reader in the tree
+            // is a large surface of meaningless work — and a latent false
+            // positive — for a gate whose subject is THIS repository's own
+            // documented surface. Measured before narrowing: the population went
+            // from 8 comparable symbols to hundreds, all of them React or global.
+            if (!exported.has(name)) {
+              ts.forEachChild(node, find);
+              return;
             }
-            if (documented.has(name)) break;
+            const key = `${rel}::${name}`;
+            if (!documented.has(key)) {
+              const bindings = bindingsFor(node);
+              const slots = new Map();
+              for (const [slot, expression] of slotsOf(node)) slots.set(slot, inline(expression, bindings));
+              documented.set(key, { file: rel, symbol: name, slots });
+            }
           }
-        }
+          ts.forEachChild(node, find);
+        };
+        ts.forEachChild(fenceFile, find);
       }
-      ts.forEachChild(node, visit);
-    };
-    ts.forEachChild(sourceFile, visit);
+    }
   }
   counters.documented = documented.size;
 
-  // Real call sites of those symbols, outside the file that declares them.
+  // Real call sites of the symbols those fences call. Read from parsed source, so
+  // a call written inside another comment is not one of them.
+  const wanted = new Set([...documented.values()].map((entry) => entry.symbol));
   const callSites = new Map();
   for (const [rel, sourceFile] of parsed) {
     const visit = (node) => {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && wanted.has(node.expression.text)) {
         const name = node.expression.text;
-        const target = documented.get(name);
-        if (target && target.file !== rel) {
-          const bindings = bindingsFor(node);
-          const slots = new Map();
-          for (const [slot, expression] of slotsOf(node)) slots.set(slot, inline(expression, bindings));
-          if (!callSites.has(name)) callSites.set(name, []);
-          callSites.get(name).push({ file: rel, slots });
-          counters.callSites += 1;
-        }
+        const bindings = bindingsFor(node);
+        const slots = new Map();
+        for (const [slot, expression] of slotsOf(node)) slots.set(slot, inline(expression, bindings));
+        if (!callSites.has(name)) callSites.set(name, []);
+        callSites.get(name).push({ file: rel, slots });
+        counters.callSites += 1;
       }
       ts.forEachChild(node, visit);
     };
@@ -420,9 +516,11 @@ export function analyze(root) {
   }
 
   const findings = [];
+  const raw = [];
   const compared = [];
-  for (const [name, doc] of documented) {
-    const sites = callSites.get(name) ?? [];
+  for (const doc of documented.values()) {
+    const name = doc.symbol;
+    const sites = (callSites.get(name) ?? []).filter((site) => site.file !== doc.file);
     if (!sites.length) continue;
     for (const [slot, docExpression] of doc.slots) {
       const delegating = new Map();
@@ -441,13 +539,12 @@ export function analyze(root) {
       counters.compared += 1;
       for (const [readerName, users] of delegating) {
         const reader = readers.get(readerName);
-        compared.push({ symbol: name, slot, reader: readerName, users: users.length });
+        compared.push({ file: doc.file, symbol: name, slot, reader: readerName, users: users.length });
         if (callsFunction(docExpression, readerName)) continue;
         const handSpelled = reader.rungs.find((rung) => canonicalContains(docExpression, rung));
         if (!handSpelled) continue;
         const key = `${doc.file}::${name}::${slot}`;
-        if (KNOWN_HAND_SPELLINGS.has(key)) continue;
-        findings.push({
+        const finding = {
           key,
           file: doc.file,
           symbol: name,
@@ -457,11 +554,13 @@ export function analyze(root) {
           readerFile: reader.file,
           handSpelled,
           users,
-        });
+        };
+        raw.push(finding);
+        if (!KNOWN_HAND_SPELLINGS.has(key)) findings.push(finding);
       }
     }
   }
-  return { findings, counters, compared };
+  return { findings, raw, stale: staleExemptions(raw), counters, compared };
 }
 
 /**
@@ -496,7 +595,7 @@ if (invokedDirectly) {
     return index > -1 ? process.argv[index + 1] : null;
   };
   const root = resolve(argOf('--root') ?? resolve(scriptDir, '..'));
-  const { findings, counters, compared } = analyze(root);
+  const { findings, stale, counters, compared } = analyze(root);
 
   if (process.argv.includes('--list')) {
     for (const entry of compared) {
@@ -511,6 +610,15 @@ if (invokedDirectly) {
       `The scan collapsed: ${counters.files} source file(s), ${counters.readers} single-return export(s), ` +
         `${counters.documented} documented symbol(s) whose @example calls them. An empty comparison would ` +
         'pass while asserting nothing.',
+    );
+    process.exit(1);
+  }
+
+  if (stale.length) {
+    console.error(
+      `x  ${stale.length} KNOWN_HAND_SPELLINGS row(s) name a doc comment this gate no longer finds:\n` +
+        stale.map((key) => `      ${key}`).join('\n') +
+        '\n\nThe defect the row waives is gone, so the row is now a live waiver for nothing. Delete it.',
     );
     process.exit(1);
   }
