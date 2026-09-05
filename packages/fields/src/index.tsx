@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatRelativeDate, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
 // The platform's own value-shape contract, asked rather than restated
 // (objectui#6744). See `locationStoredValueSchemaFor` below for why this is a
 // runtime import in the barrel and not a hand-written coordinate range.
@@ -589,7 +589,7 @@ export { humanizeLabel };
  * moving was a second date convention in `dataset-format.ts`, which is the
  * drift #4576 already paid for once with percent.
  */
-export { formatDate, formatDateTime, formatRelativeDate };
+export { formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate };
 export type { DateDisplayOptions };
 
 /**
@@ -863,36 +863,50 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
 /**
  * DateTime field cell renderer (Airtable-style with date and time visually separated)
  */
-export function DateTimeCellRenderer({ value }: CellRendererProps): React.ReactElement {
+export function DateTimeCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   // Hook before every early return — a value flipping between null and set
   // must not change the hook count between renders (same rule as the number /
   // currency renderers above). This is the site objectui#4468 caught rendering
   // `8/11/2026 12:00 am` inside an otherwise Chinese grid: both calls passed
   // `undefined`, i.e. the machine's locale, on every session.
   const locale = useDisplayLocale();
+  const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
   const date = safe != null ? new Date(safe as string | number) : null;
   if (date === null || isNaN(date.getTime())) return <EmptyValue />;
 
-  const datePart = date.toLocaleDateString(locale, {
-    month: 'numeric',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  // `hour12` stays declared: this is the compact Airtable-style cell, and the
-  // 12-hour face is its design, not a locale artefact. Locales that write no
-  // am/pm marker simply ignore it.
-  const timePart = date.toLocaleTimeString(locale, {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).toLowerCase();
+  // `field.format` is read as a display style here for the same reason
+  // `DateCellRenderer` reads it one function up: `datetime` had no style
+  // vocabulary at all because this renderer destructured `value` only
+  // (objectui#7443). `||`, not `??`, matches the `date` cell and keeps an
+  // authored empty string on the compact face rather than dropping it into
+  // the verbose default.
+  const style = (field as any)?.format || 'compact';
+
+  // The compact face is painted in two halves — the time is muted and offset
+  // — so this branch asks the shared module for the halves rather than the
+  // joined string. Both come out of `formatDateTimeCompactParts`, which is
+  // also what `formatDateTime(value, { style: 'compact' })` joins, so the
+  // cell and every string caller of the compact face render the same instant
+  // identically.
+  // `null` is unreachable: the invalid/empty values it answers for already
+  // returned `<EmptyValue />` above.
+  if (style === 'compact') {
+    const parts = formatDateTimeCompactParts(date, { locale });
+    if (parts) {
+      return (
+        <span className="tabular-nums text-sm whitespace-nowrap">
+          <span>{parts.date}</span>
+          <span className="ml-2 text-muted-foreground">{parts.time}</span>
+        </span>
+      );
+    }
+  }
 
   return (
     <span className="tabular-nums text-sm whitespace-nowrap">
-      <span>{datePart}</span>
-      <span className="ml-2 text-muted-foreground">{timePart}</span>
+      {formatDateTime(date, { style, locale, t })}
     </span>
   );
 }
