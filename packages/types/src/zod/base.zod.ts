@@ -429,8 +429,16 @@ export const EventHandlersSchema = z.record(z.string(), z.function()).describe('
  * for its own keys there is no like-named declaration left to pair it with, and
  * the reason it mirrors nothing is recorded against this name in
  * `../__tests__/zod-mirror-parity.test.ts`'s `EXCLUSIONS`.
+ *
+ * The `.describe()` text below names those same two keys, for the half of #5928
+ * the rename could not reach (objectui#7578): `.describe()` is runtime metadata
+ * that feeds generated JSON-Schema and docs, where the const name is never in
+ * view, so the label is the only thing telling that reader what is in here. The
+ * generic wording it carried until #7578 was the one the const was renamed away
+ * from, and it left a reader hunting `padding` or `gap` under this schema in
+ * exactly the confusion #5928 was filed about, one layer down.
  */
 export const ClassNameStylePropsSchema = z.object({
   className: z.string().optional(),
   style: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
-}).describe('Style properties');
+}).describe('className and inline style');
