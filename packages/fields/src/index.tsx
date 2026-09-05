@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
+import type { DateTimeFieldMetadata, FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry, percentDisplayValue, getRecordDisplayName, humanizeLabel, isMissingForRequired, formatDate, formatDateTime, formatDateTimeCompactParts, formatRelativeDate, type ComponentMeta, type DateDisplayOptions } from '@object-ui/core';
 // The platform's own value-shape contract, asked rather than restated
 // (objectui#6744). See `locationStoredValueSchemaFor` below for why this is a
@@ -882,7 +882,11 @@ export function DateTimeCellRenderer({ value, field }: CellRendererProps): React
   // (objectui#7443). `||`, not `??`, matches the `date` cell and keeps an
   // authored empty string on the compact face rather than dropping it into
   // the verbose default.
-  const style = (field as any)?.format || 'compact';
+  // `FieldMetadata` is a 37-member union and `BaseFieldMetadata` carries no
+  // `format`, so the bare property read is `TS2339` — SOME cast is load-bearing.
+  // `DateTimeFieldMetadata` is the narrowest one that carries it (objectui#7747);
+  // `as any` would also silence a typo in the property name, this does not.
+  const style = (field as DateTimeFieldMetadata | undefined)?.format || 'compact';
 
   // The compact face is painted in two halves — the time is muted and offset
   // — so this branch asks the shared module for the halves rather than the
