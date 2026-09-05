@@ -28,7 +28,7 @@ import {
 } from '@object-ui/core';
 import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
-import { KanbanSchema } from './types';
+import type { KanbanSchema } from './types';
 import {
   collectRequiredWhenPromptFields,
   type RequiredWhenPromptField,

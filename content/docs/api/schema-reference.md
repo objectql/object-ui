@@ -896,28 +896,44 @@ A complete object management interface combining grid, form, search, filters, an
 
 ## Complex Schemas
 
-### DeclarativeKanbanSchema
+### KanbanSchema
 
-A drag-and-drop Kanban board with columns and cards.
+A drag-and-drop Kanban board. The `kanban` type key validates the shape the registered renderer (`@object-ui/plugin-kanban`) reads: bind the board to an object with `objectName` + `groupBy` (the lanes come from the group field's options), or author it statically with `columns`, each carrying its `cards`.
 
 ```json
 {
   "type": "kanban",
-  "draggable": true,
+  "objectName": "tasks",
+  "groupBy": "status",
+  "cardTitle": "title",
+  "cardFields": ["assignee", "due_date"],
+  "quickAdd": true
+}
+```
+
+A static board carries its cards inline:
+
+```json
+{
+  "type": "kanban",
   "columns": [
     {
       "id": "todo",
       "title": "To Do",
-      "color": "#6366f1",
       "cards": [
-        { "id": "task-1", "title": "Design mockups", "description": "Create wireframes for new feature" },
+        {
+          "id": "task-1",
+          "title": "Design mockups",
+          "description": "Create wireframes for new feature",
+          "badges": [{ "label": "High", "variant": "destructive" }]
+        },
         { "id": "task-2", "title": "Write tests", "description": "Unit tests for auth module" }
       ]
     },
     {
       "id": "in-progress",
       "title": "In Progress",
-      "color": "#f59e0b",
+      "limit": 3,
       "cards": [
         { "id": "task-3", "title": "API integration", "description": "Connect to payment gateway" }
       ]
@@ -925,7 +941,6 @@ A drag-and-drop Kanban board with columns and cards.
     {
       "id": "done",
       "title": "Done",
-      "color": "#22c55e",
       "cards": []
     }
   ]
@@ -934,10 +949,26 @@ A drag-and-drop Kanban board with columns and cards.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `columns` | `DeclarativeKanbanColumn[]` | **Required.** Board columns, each with `id`, `title`, `color`, and `cards`. |
-| `draggable` | `boolean` | Enable drag-and-drop between columns. |
-| `onCardMove` | `function` | Callback when a card is moved: `(cardId, fromColumn, toColumn, position)`. |
-| `onCardClick` | `function` | Callback when a card is clicked. |
+| `objectName` | `string` | Object to fetch records from. |
+| `groupBy` | `string` | Field whose values become the lanes (maps to column ids). |
+| `swimlaneField` | `string` | Field for swimlane rows (2D grouping). |
+| `cardTitle` | `string` | Field used as the card title. |
+| `cardFields` | `string[]` | Fields rendered on each card. |
+| `data` | `any[]` | Inline records, bucketed into lanes by `groupBy`. |
+| `limit` | `number` | Fetch window for the board (default 100). |
+| `columns` | `KanbanColumn[]` | Lanes, each with `id`, `title`, `cards`, and optional `limit` / `className` / `collapsed`. A card has `id`, `title`, optional `description` and `badges`. |
+| `quickAdd` | `boolean` | Show a Quick Add button at the bottom of each column. |
+| `coverImageField` | `string` | Field whose URL renders as the card cover image. |
+| `allowCollapse` | `boolean` | Allow columns to be collapsed. |
+| `conditionalFormatting` | `KanbanConditionalFormattingRule[]` | Card colouring rules — native `{ field, operator, value }` or spec `{ condition, style }`. |
+| `cardTemplates` | `CardTemplate[]` | Predefined quick-add templates. |
+| `columnWidths` | `ColumnWidthConfig` | Column width configuration. |
+| `grouping` | `GroupingConfig` | ListView grouping config; its first field is the swimlane fallback. |
+| `onCardMove` | `function` | Runtime slot supplied by a React host, `(cardId, fromColumnId, toColumnId, newIndex)`; not authorable in JSON. |
+| `onCardClick` | `function` | Runtime slot supplied by a React host, `(card, event?)`; not authorable in JSON. On the object-bound board the host's handler runs alongside the record-detail overlay. |
+| `onQuickAdd` | `function` | Runtime slot supplied by a React host, `(columnId, title)`; not authorable in JSON. |
+
+> The former `@object-ui/types` kanban dialect — `DeclarativeKanbanSchema`, with a board-level `draggable`, a column `color` and card `labels` / `priority` — was retired in objectui#7664: no registered renderer read it, so a board written that way validated and rendered empty. `draggable` and a column `color` are now refused by name; a static board written with `columns[].cards[]` as above is the same document in both dialects and renders every card.
 
 **Related:** [ObjectViewSchema](#objectviewschema), [ObjectGridSchema](#objectgridschema)
 
@@ -1211,7 +1242,7 @@ A toggle control that switches between different view types (list, grid, kanban,
 | `storageKey` | `string` | Storage key for persisting the preference. |
 | `onViewChange` | `string` | Expression or callback invoked on view change. |
 
-**Related:** [ObjectViewSchema](#objectviewschema), [DeclarativeKanbanSchema](#declarativekanbanschema), [CalendarViewSchema](#calendarviewschema)
+**Related:** [ObjectViewSchema](#objectviewschema), [KanbanSchema](#kanbanschema), [CalendarViewSchema](#calendarviewschema)
 
 ---
 
@@ -1286,7 +1317,7 @@ import type { ActionSchema, DetailSchema } from '@object-ui/types';
 import type { ObjectGridSchema, ObjectFormSchema, ObjectViewSchema } from '@object-ui/types';
 
 // Complex
-import type { DeclarativeKanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
+import type { KanbanSchema, DashboardComponentSchema, CalendarViewSchema } from '@object-ui/types';
 
 // Views
 import type { DetailViewSchema, ViewSwitcherSchema } from '@object-ui/types';

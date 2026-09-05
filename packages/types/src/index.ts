@@ -294,9 +294,11 @@ export type {
 // Complex Components - Advanced/Composite Components
 // ============================================================================
 export type {
-  DeclarativeKanbanColumn,
-  DeclarativeKanbanCard,
-  DeclarativeKanbanSchema,
+  KanbanCard,
+  KanbanColumn,
+  KanbanSchema,
+  CardTemplate,
+  ColumnWidthConfig,
   CalendarViewMode,
   CalendarEvent,
   CalendarViewSchema,

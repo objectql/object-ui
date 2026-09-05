@@ -57,7 +57,11 @@
  *     written-down constant `EXPECTED_MIRROR_PAIRS` by the runtime census at the
  *     bottom of this file (objectui#7433); `assertionRegistryHalvesAgree` already pins
  *     it equal to `keyof Declared`. ⛔ Read the constant, not this sentence — a digit
- *     here is the artefact that rotted four times. 155 until objectui#7655 registered the
+ *     here is the artefact that rotted four times. 157 until objectui#7664 retired the
+ *     three `DeclarativeKanban*` pairs and registered the five plugin-dialect ones
+ *     (`KanbanCardSchema`, `KanbanColumnSchema`, `KanbanSchema`, `CardTemplateSchema`,
+ *     `ColumnWidthConfigSchema` — the `'kanban'` arm rewritten to the shape the
+ *     registered renderer reads, ruling (a)); 155 until objectui#7655 registered the
  *     `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` twins; 154 until objectui#7352
  *     registered `data-display.zod.ts#DrillDownConfigSchema` — a nested config mirror
  *     paired with the local `DrillDownConfig`, the `ObjectMapConfigSchema` precedent —
@@ -219,7 +223,7 @@ import type { z } from 'zod';
 
 import { AppActionSchema, AppComponentSchema, MenuItemSchema as AppMenuItemSchema, NavigationAreaSchema, NavigationItemSchema } from '../zod/app.zod.js';
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema, SchemaNodeSchema } from '../zod/base.zod.js';
-import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema, FilterBuilderConditionSchema, FilterGroupSchema } from '../zod/complex.zod.js';
+import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema, CardTemplateSchema, ColumnWidthConfigSchema, FilterBuilderConditionSchema, FilterGroupSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, ActionSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeNodeSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
@@ -234,7 +238,7 @@ import { DetailViewFieldSchema, DetailViewSchema, DetailViewSectionSchema, Detai
 
 import type { AppAction as Ts_AppAction, AppComponentSchema as Ts_AppComponentSchema, NavigationArea as Ts_NavigationArea } from '../app';
 import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig, ComponentInput as Ts_ComponentInput, ComponentMeta as Ts_ComponentMeta, KeyedI18nLabel as Ts_KeyedI18nLabel } from '../base';
-import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatbotEnhancedSchema as Ts_ChatbotEnhancedSchema, ChatbotFloatingSchema as Ts_ChatbotFloatingSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, DeclarativeKanbanCard as Ts_KanbanCard, DeclarativeKanbanColumn as Ts_KanbanColumn, DeclarativeKanbanSchema as Ts_KanbanSchema } from '../complex';
+import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatbotEnhancedSchema as Ts_ChatbotEnhancedSchema, ChatbotFloatingSchema as Ts_ChatbotFloatingSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema, CardTemplate as Ts_CardTemplate, ColumnWidthConfig as Ts_ColumnWidthConfig } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, DrillDownConfig as Ts_DrillDownConfig, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
@@ -585,9 +589,11 @@ const MIRRORS = {
   'complex.zod.ts#DashboardWidgetSchema': DashboardWidgetSchema,
   'complex.zod.ts#FilterBuilderSchema': FilterBuilderSchema,
   'complex.zod.ts#FilterFieldSchema': FilterFieldSchema,
-  'complex.zod.ts#DeclarativeKanbanCardSchema': DeclarativeKanbanCardSchema,
-  'complex.zod.ts#DeclarativeKanbanColumnSchema': DeclarativeKanbanColumnSchema,
-  'complex.zod.ts#DeclarativeKanbanSchema': DeclarativeKanbanSchema,
+  'complex.zod.ts#KanbanCardSchema': KanbanCardSchema,
+  'complex.zod.ts#KanbanColumnSchema': KanbanColumnSchema,
+  'complex.zod.ts#KanbanSchema': KanbanSchema,
+  'complex.zod.ts#CardTemplateSchema': CardTemplateSchema,
+  'complex.zod.ts#ColumnWidthConfigSchema': ColumnWidthConfigSchema,
   'crud.zod.ts#ActionCallbackSchema': ActionCallbackSchema,
   'crud.zod.ts#CRUDDialogSchema': CRUDDialogSchema,
   'crud.zod.ts#DetailSchema': DetailSchema,
@@ -746,9 +752,11 @@ interface Declared {
   'complex.zod.ts#DashboardWidgetSchema': Ts_DashboardWidgetSchema;
   'complex.zod.ts#FilterBuilderSchema': Ts_FilterBuilderSchema;
   'complex.zod.ts#FilterFieldSchema': Ts_FilterField;
-  'complex.zod.ts#DeclarativeKanbanCardSchema': Ts_KanbanCard;
-  'complex.zod.ts#DeclarativeKanbanColumnSchema': Ts_KanbanColumn;
-  'complex.zod.ts#DeclarativeKanbanSchema': Ts_KanbanSchema;
+  'complex.zod.ts#KanbanCardSchema': Ts_KanbanCard;
+  'complex.zod.ts#KanbanColumnSchema': Ts_KanbanColumn;
+  'complex.zod.ts#KanbanSchema': Ts_KanbanSchema;
+  'complex.zod.ts#CardTemplateSchema': Ts_CardTemplate;
+  'complex.zod.ts#ColumnWidthConfigSchema': Ts_ColumnWidthConfig;
   'crud.zod.ts#ActionCallbackSchema': Ts_ActionCallback;
   'crud.zod.ts#CRUDDialogSchema': Ts_CRUDDialogSchema;
   'crud.zod.ts#DetailSchema': Ts_DetailSchema;
@@ -959,8 +967,33 @@ interface KnownDrift {
   'complex.zod.ts#FilterBuilderSchema': 'fields' | 'onChange';
   /** DISJOINT vocabularies: TS declares `is_empty`/`is_not_empty`, the mirror declares `is_null`/`is_not_null`. One of the two is dead; which one is a ruling. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
-  /** RUNTIME SLOT (objectui#6124) ×2: `plugin-kanban` forwards `onCardMove` / `onCardClick` off `schema.*` into the board. (`onColumnAdd` / `onCardAdd` are NOT here: nothing reads them, so both faces retire them — `?: never` meets the refusal arm and the pair does not drift on those keys.) */
-  'complex.zod.ts#DeclarativeKanbanSchema': 'onCardMove' | 'onCardClick';
+  /**
+   * RUNTIME SLOT (objectui#6124) ×3: `plugin-kanban`'s `KanbanRenderer` forwards
+   * `onCardMove`, `onCardClick` and `onQuickAdd` off `schema.*` into the board,
+   * in one block (`plugin-kanban/src/index.tsx`). Re-keyed by objectui#7664
+   * (ruling (a)): the pair was `DeclarativeKanbanSchema` with `onCardMove` /
+   * `onCardClick` until that face retired, and the plugin dialect this arm now
+   * declares carries all three.
+   *
+   * ⚠️ `onCardClick` is here on measurement, not by inheritance. On the
+   * `'kanban'` / `'object-kanban'` keys `ObjectKanban` substitutes its own
+   * function for it — but it substitutes `onCardMove` in the SAME object
+   * literal, and its substitute CALLS an authored `onCardClick` through the prop
+   * `ObjectKanban` declares for it (`SchemaRenderer` spreads every non-metadata
+   * schema key as a React prop; there is no `onCardMove` prop). The first cut of
+   * objectui#7664 read that substitution as "the object-bound board owns the
+   * click" and dropped the key, which under `.passthrough()` ACCEPTED a document
+   * this arm had refused. Per-registration readings:
+   * `plugin-kanban/src/__tests__/kanban-handler-slots-7664.test.tsx`.
+   *
+   * (`onColumnAdd` / `onCardAdd`, carried over as tombstones, and the retired
+   * declarative `draggable` are NOT here: `?: never` meets the refusal arm and
+   * the pair does not drift on them.) The runtime-computed card members —
+   * `cardFieldCells`, a badge's `colorStyle` — are passed through as `z.any()`
+   * (the `headerIcon` precedent, objectui#6424), so `KanbanCardSchema` and the
+   * `columns` key above it do not drift either.
+   */
+  'complex.zod.ts#KanbanSchema': 'onCardMove' | 'onCardClick' | 'onQuickAdd';
   /**
    * RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — `DetailView`'s
    * `handleBack` calls `onBack()` when set. The mirror was `z.any()` (wider than
@@ -1754,10 +1787,6 @@ interface WiderThanDeclared {
   /** CONCRETE: the mirror's operator enum and the declared operator union are not the same set; also in `KnownDrift`. */
   'complex.zod.ts#FilterFieldSchema': 'operators';
   /** SCHEMA-NODE. */
-  'complex.zod.ts#DeclarativeKanbanColumnSchema': 'cards';
-  /** SCHEMA-NODE. */
-  'complex.zod.ts#DeclarativeKanbanSchema': 'columns';
-  /** SCHEMA-NODE. */
   'crud.zod.ts#DetailSchema': 'groups' | 'tabs';
   /**
    * CONCRETE. `columns` compares an inline element shape against the named
@@ -2195,6 +2224,8 @@ const EXCLUSIONS: Readonly<Record<string, string>> = {
     "a union (`string | { dialect?, source }`) with no `.shape` of its own — the predicate WIRE shape `BaseSchema`'s `visible` / `hidden` / `disabled` and the form predicate keys carry (objectui#7530); its TS twin `ExpressionWire` (`../expression.ts`) is a type alias, not a key set, and the two faces are pinned equal in `base-schema-predicate-envelope-7530.test.ts`",
   'index.zod.ts#SCHEMA_VERSION':
     "a version string, not a schema",
+  'objectql.zod.ts#KanbanConditionalFormattingRuleSchema':
+    "a union of two rule dialects (native `{ field, operator, value }` | spec `{ condition, style }`) with no `.shape` of its own — exported by objectui#7664 so the `'kanban'` arm (`complex.zod.ts#KanbanSchema`) and the `'object-kanban'` arm mirror `conditionalFormatting` from ONE rule declaration; its TS twin `KanbanConditionalFormattingRule` (`../objectql.ts`) is a type union, not a key set, and both arms' `conditionalFormatting` keys are compared where they are declared",
 };
 
 /* ── Which pairs depend on @objectstack/spec ────────────────────────────────── */
@@ -2236,6 +2267,9 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   // and are pinned against the header by 'objectui#7279' below.
   'complex.zod.ts#DashboardComponentSchema',
   'complex.zod.ts#DashboardWidgetSchema',
+  // objectui#7664: `grouping` is `SpecGroupingConfigSchema` by reference, the
+  // same way `ObjectGallerySchema` below spells it.
+  'complex.zod.ts#KanbanSchema',
   'form.zod.ts#SelectOptionSchema',
   'layout.zod.ts#PageNodeSchema',
   'objectql.zod.ts#ObjectGallerySchema',
@@ -2259,7 +2293,7 @@ const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
  * MINUEND under it had moved. Nothing failed on any of those days, because nothing
  * compared the registry to a number. objectui#7433 is that absence, not the digits.
  */
-const EXPECTED_MIRROR_PAIRS = 157;
+const EXPECTED_MIRROR_PAIRS = 159;
 
 /** This file, so the census can read its own type-level ledgers. */
 const SELF = fileURLToPath(import.meta.url);
@@ -2346,7 +2380,7 @@ function exportedConsts(): string[] {
  * POSITIVE one: a scanner that stopped seeing comments AND stopped seeing real
  * references would go green on the list below while checking nothing. The fixture
  * suite asserts both directions, and the re-check itself is the live positive
- * proof — all eight pairs in `SPEC_DERIVED_PAIRS` are found by code reference alone.
+ * proof — every pair in `SPEC_DERIVED_PAIRS` is found by code reference alone.
  */
 export function specReferencingExports(fileName: string, source: string): Set<string> {
   const sf = ts.createSourceFile(fileName, source, ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS);

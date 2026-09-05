@@ -58,13 +58,13 @@
  *      the page used. This is the net for doc-LOCAL interface names, which rule
  *      2 cannot resolve by construction (`plugins/*.mdx` document `Overview` /
  *      `Features` / `Properties` blocks with no shipped counterpart).
- *   4. CONTROL — six measured runtime-slot rows are present, callable, and
+ *   4. CONTROL — seven measured runtime-slot rows are present, callable, and
  *      cross-checked against source as NOT `?: never`. This is the
  *      blanket-sweep control: an edit that deleted every `on*` row under
  *      `content/docs` turns these red, and rules 2 and 3 alone would call that
- *      a pass. Two of the six sit on pages this card edited (`input-otp.mdx`
- *      `onChange`, `schema-reference.md` `onCardMove` / `onCardClick`), which
- *      is where an over-broad edit would land first.
+ *      a pass. Four of the seven sit on pages this card edited (`input-otp.mdx`
+ *      `onChange`, `schema-reference.md` `onCardMove` / `onCardClick` /
+ *      `onQuickAdd`), which is where an over-broad edit would land first.
  *   5. PROSE — the reader flags rows, never mentions. Counter-probes feed it a
  *      sentence naming a retired key and a JSON example key and assert neither
  *      becomes a row, because "the retired `onComplete`" in running prose is
@@ -253,8 +253,12 @@ const describeRow = (r: DocRow): string => `${r.page}:${r.line} ${r.owner}.${r.k
 
 /** Runtime-slot rows measured present on this tree — the blanket-sweep control. */
 const CONTROL = [
-  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardMove' },
-  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardClick' },
+  // objectui#7664: the page documents the plugin dialect under `KanbanSchema`
+  // now, whose three runtime slots are `onCardMove` / `onCardClick` /
+  // `onQuickAdd` — the three `KanbanRenderer` forwards off `schema.*`.
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardMove' },
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardClick' },
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onQuickAdd' },
   { page: 'components/basic/pagination.mdx', owner: 'PaginationSchema', key: 'onPageChange' },
   { page: 'components/data-display/tree-view.mdx', owner: 'TreeViewSchema', key: 'onNodeClick' },
   { page: 'components/form/button.mdx', owner: 'ButtonSchema', key: 'onClick' },

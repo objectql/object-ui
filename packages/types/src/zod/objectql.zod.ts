@@ -890,7 +890,14 @@ export const ObjectCalendarSchema = BaseSchema.extend({
 // kanban rule accepts BOTH the native `{ field, operator, value }` shape and the
 // spec `{ condition, style }` shape (a CEL predicate + style map) — matching
 // list/grid `conditionalFormatting`. The type/schema now match the runtime.
-const KanbanConditionalFormattingRuleSchema = z.union([
+//
+// Exported since objectui#7664 so `complex.zod.ts`'s `KanbanSchema` (the
+// `'kanban'` arm) mirrors `conditionalFormatting` with the SAME rule union as
+// this `'object-kanban'` arm — one declaration of the rule, two arms. It is a
+// union of two rule dialects with no `.shape` of its own, so the parity census
+// EXCLUDES it rather than pairing it; its TS twin is the type union
+// `KanbanConditionalFormattingRule` (`../objectql.ts`).
+export const KanbanConditionalFormattingRuleSchema = z.union([
   z.object({
     field: z.string().describe('Field name to check'),
     operator: z.enum(['equals', 'not_equals', 'contains', 'in']).describe('Comparison operator'),
