@@ -26,7 +26,7 @@ const authClient = createAuthClient({ baseURL: '/api/v1/auth' });
 
 function App() {
   return (
-    <AuthProvider authClient={authClient}>
+    <AuthProvider authUrl="/api/v1/auth" client={authClient}>
       <AppContent />
     </AuthProvider>
   );
@@ -107,7 +107,7 @@ import { createAuthenticatedFetch, createAuthClient } from '@object-ui/auth';
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 
 const authClient = createAuthClient({ baseURL: '/api/v1/auth' });
-const authenticatedFetch = createAuthenticatedFetch(authClient);
+const authenticatedFetch = createAuthenticatedFetch();
 
 const dataSource = new ObjectStackAdapter({
   baseUrl: '/api/v1',
@@ -239,7 +239,7 @@ import { PermissionGuard } from '@object-ui/permissions';
 
 function AdminPanel() {
   return (
-    <PermissionGuard object="contacts" action="delete" fallback={<AccessDenied />}>
+    <PermissionGuard object="contacts" action="delete" fallback="custom" fallbackContent={<AccessDenied />}>
       <BulkDeleteButton />
     </PermissionGuard>
   );
@@ -325,7 +325,7 @@ Here's the typical nesting order for a full-featured app:
 
 ```typescript
 <BrowserRouter>
-  <AuthProvider authClient={authClient}>
+  <AuthProvider authUrl="/api/v1/auth" client={authClient}>
     <PermissionProvider roles={roles} permissions={perms} userRoles={userRoles}>
       <SchemaRendererProvider dataSource={authenticatedDataSource}>
         <AuthGuard fallback={<LoginPage />}>

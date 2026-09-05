@@ -99,6 +99,27 @@ expect allow 'echo a\ b'
 expect allow 'echo \\ ; grep -n worktree README.md'
 expect allow 'echo \" ; git stash list'
 
+echo "== an escaped \\\" INSIDE a double-quoted word does NOT close it =="
+# Inside "…" a backslash is special only before " \ $ ` — so an escaped `\"` is a literal
+# quote and the quoted region stays OPEN. A pass that reads it as closing goes "outside
+# quotes" while bash is still inside: separators behind it split where bash would not, and
+# the tail of a pure READ becomes a segment of its own, judged on its own head word. The
+# single-level control above (`grep -rn "cd x && git stash pop" .claude/`) is the same
+# command without the nested escape, so it isolates that escape as the only difference.
+expect allow 'grep -rn "he said \"cd x && git stash pop\" once" .claude/'
+expect allow 'echo "he said \"x && git stash pop\" once"'
+# Precision twins — this is not a blanket "ignore whatever follows a backslash". Once the
+# escapes pair up the region really is closed, and the stash behind it is still caught.
+expect block 'echo "he said \"x\"" && git stash pop'
+expect block 'echo "he said \"x\"" ; git stash drop'
+expect block 'echo "quoted" && git stash pop'
+# `\\` inside "…" is an escaped backslash, so the NEXT `"` still closes the region; without
+# the `\` arm of the escapee list that closing quote is eaten and the stash rides through.
+expect block 'echo "a \\" ; git stash pop'
+# Inside '…' nothing is special — that asymmetry is what the q='"' gate pins. Applied to
+# single quotes the branch would swallow the closing `'` and pass the stash behind it.
+expect block "echo 'a \\' ; git stash pop"
+
 echo "== escape hatch =="
 expect allow 'git stash pop' OS_ALLOW_STASH=1
 

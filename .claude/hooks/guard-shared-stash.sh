@@ -46,8 +46,8 @@
 # for anyone who means it. Widening it to string-match anywhere in the command would block
 # every `grep "git stash"` run against this very file.
 #
-# Self-test (41 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
-# 41 = 39 `expect ` lines + 2 inline specials (empty-tool_input fail-open, no-jq fallback).
+# Self-test (48 cases, no network, no build): .claude/hooks/guard-shared-stash.selftest.sh
+# 48 = 46 `expect ` lines + 2 inline specials (empty-tool_input fail-open, no-jq fallback).
 # Re-derive when the matrix changes: `grep -c '^expect ' <selftest>` + 2, and the run's own
 # tail prints the total ("N passed, N failed") — keep this number equal to it.
 
@@ -83,12 +83,31 @@ fi
 # a mere argument of `echo`. That is a fail-OPEN in the backstop for the one rule whose
 # breach silently corrupts ANOTHER agent's work (objectstack#11131, the same defect the
 # sibling hook guard-main-checkout-bash.sh carried; objectui#6042).
+#
+# INSIDE "…" the rule inverts: there a backslash is special only before " \ $ ` , and an
+# escaped `\"` is a literal quote that leaves the region OPEN. A pass that reads it as
+# CLOSING goes outside quotes while bash is still inside, so separators behind it split
+# where bash would not: the tail of a pure READ becomes a segment of its own, judged on its
+# own head word — a false BLOCK on a command that touches no stash, which is exactly what
+# the paragraph at the top of this section promises can never happen. The same gap fails
+# OPEN in the other direction: once the escapes pair up the quoted region is left hanging
+# and a real `git stash` behind it rides through as a mere argument. Inside '…' nothing is
+# special, hence the q='"' gate. This is the in-quote half of the backslash rule, in the
+# same shape and with the same escapee list as guard-main-checkout-bash.sh's
+# split_segments() carries; that guard's `word` bookkeeping has no analogue here because
+# this pass has no comment rule to track word starts for.
 segments=()
 split_segments() {
   local s="$1" seg="" q="" ch i n=${#1}
   for ((i = 0; i < n; i++)); do
     ch="${s:i:1}"
     if [ -n "$q" ]; then
+      if [ "$q" = '"' ] && [ "$ch" = '\' ] && [ $((i + 1)) -lt "$n" ]; then
+        case "${s:i+1:1}" in
+          '"' | '\' | '$' | '`')
+            seg+="$ch" ; i=$((i + 1)) ; seg+="${s:i:1}" ; continue ;;
+        esac
+      fi
       seg+="$ch"
       [ "$ch" = "$q" ] && q=""
       continue

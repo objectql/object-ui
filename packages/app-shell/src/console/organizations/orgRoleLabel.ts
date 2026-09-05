@@ -55,12 +55,13 @@
 
 import { ORG_ROLE_LABELS } from '@object-ui/auth';
 import type { OrgRole } from '@object-ui/auth';
+// One authority for `OrgTranslate` (objectui#6349): `orgErrorMessage.ts`
+// declares the translate-function shape both organization helpers take, and
+// this module re-exports it so an import from `./orgRoleLabel.js` keeps
+// resolving to the same type. A re-export, not a second declaration.
+import type { OrgTranslate } from './orgErrorMessage.js';
 
-/**
- * The translate function shape this module needs — structurally what
- * `useObjectTranslation().t` and `createSafeTranslation()` both provide.
- */
-export type OrgTranslate = (key: string, options?: Record<string, unknown>) => string;
+export type { OrgTranslate } from './orgErrorMessage.js';
 
 /** True when `role` is one of the four framework-owned membership roles. */
 function isKnownRole(role: string): role is OrgRole {
