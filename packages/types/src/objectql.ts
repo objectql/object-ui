@@ -2671,8 +2671,33 @@ export interface ObjectGanttSchema extends BaseSchema {
  */
 export interface ObjectCalendarSchema extends BaseSchema {
   type: 'object-calendar';
-  /** ObjectQL object name */
-  objectName: string;
+  /**
+   * ObjectQL object name — the THIRD record source `getDataConfig` resolves,
+   * after {@link ObjectCalendarSchema.data} and {@link ObjectCalendarSchema.staticData}
+   * (`plugin-calendar/src/ObjectCalendar.tsx`).
+   *
+   * Optional since objectui#7313 (the objectui#6939 shape): a calendar authored
+   * on inline rows never reads this key, and requiring it refused the two
+   * documented static-data examples that draw correctly. The requirement the
+   * renderer really has — at least one of
+   * `data`, `staticData`, `objectName` present — lives on the mirror as a
+   * refinement (`requireRecordSource` in `zod/objectql.zod.ts`), so the
+   * published declaration and the published validator say the same thing.
+   */
+  objectName?: string;
+  /**
+   * Data source configuration. Read FIRST by `getDataConfig` — `if
+   * (schema.data) return schema.data;` — ahead of `staticData` / `objectName`.
+   *
+   * Declared by objectui#7313, in the same stroke as the mirror's `data`: until
+   * then the read landed on `BaseSchema`'s index signature on this side and
+   * on `.passthrough()` on the mirror's, so the record source the resolver
+   * prefers was the one neither face named. Same type as
+   * {@link ObjectMapSchema.data}.
+   */
+  data?: ViewData;
+  /** Inline records, wrapped into a `{ provider: 'value' }` config by `getDataConfig`. */
+  staticData?: any[];
   /** Field for event start */
   startDateField?: string;
   /** Field for event end */

@@ -620,7 +620,7 @@ export const ObjectMapConfigSchema = z.object({
  * directory and would demand a registered TS counterpart for it.
  */
 const RECORD_SOURCE_KEYS = ['data', 'staticData', 'objectName'] as const;
-function requireRecordSource(type: 'object-map' | 'object-gantt') {
+function requireRecordSource(type: 'object-map' | 'object-gantt' | 'object-calendar') {
   return (
     schema: Partial<Record<(typeof RECORD_SOURCE_KEYS)[number], unknown>>,
     ctx: z.core.$RefinementCtx,
@@ -857,15 +857,31 @@ export const ObjectGanttSchema = BaseSchema.extend({
 
 /**
  * ObjectCalendar Schema
+ *
+ * `objectName` is OPTIONAL and the member ends in `requireRecordSource`
+ * (objectui#7313, the objectui#6939 shape): the renderer resolves its records
+ * through the shared ladder (`resolveRecordSourceConfig` in
+ * `@object-ui/core`, `plugin-calendar/src/ObjectCalendar.tsx`) — `data`, then
+ * `staticData`, then `objectName` — so a calendar authored on inline rows never
+ * reads the object name, and the two static-data examples the plugin page
+ * documents drew correctly and were refused here. `data` and `staticData` are
+ * declared for the first time in the same stroke: they are the FIRST and SECOND
+ * reads of that resolver and were undeclared on both faces (surviving on
+ * `BaseSchema`'s index signature and on `.passthrough()`), which would have
+ * left the refinement naming keys this mirror had never heard of. Both are
+ * spelled exactly as `ObjectGanttSchema` above spells them, so the members'
+ * record sources cannot fork.
  */
 export const ObjectCalendarSchema = BaseSchema.extend({
   type: z.literal('object-calendar'),
-  objectName: z.string().describe('ObjectQL object name'),
+  objectName: z.string().optional().describe('ObjectQL object name — the THIRD record source getDataConfig resolves, after data and staticData; one of the three must be present (objectui#7313)'),
+  data: ViewDataSchema.optional().describe('Data source configuration — read FIRST by getDataConfig; undeclared on either face until objectui#7313'),
+  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config — read SECOND by getDataConfig'),
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
   defaultView: z.enum(['month', 'week', 'day']).optional().describe("Default view — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5784)"),
-});
+}).superRefine(requireRecordSource('object-calendar'));
 
 /**
  * ObjectKanban Schema
