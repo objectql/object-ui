@@ -193,6 +193,8 @@ Each `series` entry names the column it plots (`dataKey`, or the spec spelling `
 | `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. Today the renderer applies it only on a `variant: 'comparison'` series **and** only on a mark that has a stroke to dash — a `line` or `area` mark (the chart's `chartType`, or a per-series `type` override), where it overrides the overlay's default `"4 4"`; a comparison `bar` or `scatter` mark takes `opacity` only and drops the dash, and on a primary series of any family it is read and unused. |
 | `opacity` | `number` | Stroke and fill opacity override — any finite number (the spec bounds it to 0–1). Today the renderer applies it only on a `variant: 'comparison'` series, where it overrides the overlay's per-family default on every mark family — the fill of a `bar` or `scatter` mark, the stroke of a `line` mark, both on an `area` mark; on a primary series it is read and unused. |
 
+`chartType` is **not** a series key. It is the renderer's internal spelling of `type` — `@objectstack/spec`'s `ChartSeries` lists it as an alias — and the validator refuses it by name (`Unrecognized key(s) on this chart series: chartType. Did you mean chartType → type?`) instead of dropping it silently, which is what it used to do. Write `type`.
+
 An `area` chart keeps every key in this example live: `stack` stacks the two primary areas, and the comparison overlay takes both the dash and the opacity (on a `bar` chart the overlay would take `opacity` only).
 
 ```tsx

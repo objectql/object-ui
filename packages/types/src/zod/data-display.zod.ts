@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
+import { aliasKeyRefusal, handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
 
 /**
@@ -406,6 +406,36 @@ export const ChartDataSeriesSchema = z.object({
   // ones `normalizeChartSchema` actually honours as a per-series override; see
   // the TS declaration for the read this narrowness is taken from.
   type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
+  // ALIAS REFUSAL (objectui#7694 — option A of the `domain:ui` PM ruling on
+  // objectui#7546 / the contract review of PR #7684). `chartType` is the
+  // renderer's INTERNAL spelling of `type` above — the first limb of
+  // `normalizeSeries`' `str(raw.chartType) ?? str(raw.type)`
+  // (`normalizeChartSchema.ts:244`) — written by the internal-shape producers
+  // that hand `dataKey`-shaped arrays straight to `ChartRenderer`, and by
+  // nothing on this authoring face: re-measured at implementation time with
+  // lit controls (docs 0, fixtures 0, designer inputs 0, src literals 0,
+  // tests 9 — all internal-shape; the limb's ablation left 304 files / 5817
+  // tests green while its `type` sibling went 2 red). The TS twin's docblock
+  // carries the numbers. This object is NON-STRICT, so until now an authored
+  // `chartType` was STRIPPED in silence and the series drew in the chart's own
+  // family — precisely what the author was overriding. Now it is DECLARED and
+  // unwritable, refusing by name in the spec's own posture (`ChartSeriesSchema`
+  // lists it as an alias of `type`: "Did you mean `chartType` → `type`?").
+  // Not a fold: when both are written the document is refused rather than one
+  // key silently winning — the renderer takes `chartType` FIRST, so a fold
+  // would invert the objectui#7113 precedence rule. Not a second writable
+  // name: that is the N-dialects hazard of AGENTS.md #0.1.
+  chartType: aliasKeyRefusal(
+    'chartType',
+    'type',
+    'this chart series',
+    '`chartType` is the renderer\'s INTERNAL spelling of the declared `type` (objectui#7694): '
+    + '`@objectstack/spec`\'s `ChartSeriesSchema` lists it as an alias of `type` and refuses it the '
+    + 'same way, and nothing on this authoring face writes it. Write `type` (`bar` | `line` | `area`) '
+    + 'for a per-series family override. Until this refusal an authored `chartType` was STRIPPED in '
+    + 'silence by this non-strict object, so the series drew in the chart\'s own family — precisely '
+    + 'what the author was overriding.',
+  ),
   color: z.string().optional().describe('Series color'),
   // THE SIX KEYS THE RENDERER READS (objectui#7546). Each was undeclared, and
   // because this object is NON-STRICT the mirror STRIPPED it in silence while
@@ -419,12 +449,8 @@ export const ChartDataSeriesSchema = z.object({
   // spec's `ChartSeriesSchema` members under the same names; the TS twin's
   // docblocks carry the read sites and the liveness measurement.
   //
-  // ⛔ `chartType` is NOT among them — deliberately. It is the renderer's
-  // INTERNAL spelling of `type` (the first limb of
-  // `str(raw.chartType) ?? str(raw.type)`), the spec refuses it by name as an
-  // alias of `type`, and nothing on this authoring face writes it. Declaring it
-  // is a contract decision for its own card; `chart-series-keys-7546.test.ts`
-  // pins the gap so it stays visible.
+  // `chartType` is NOT among the six: it is an ALIAS REFUSAL ARM, declared
+  // beside `type` above (objectui#7694).
   label: I18nLabelSchema.optional().describe(
     'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
   ),

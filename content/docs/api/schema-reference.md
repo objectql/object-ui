@@ -491,7 +491,7 @@ numbers of its own: `ChartDataSeries.data` is a retirement tombstone
 | `title` | `string` | Chart title. |
 | `description` | `string` | Chart description / subtitle. |
 | `categories` | `string[]` | An **alternative series list** — column names to plot, read only when `series` is absent, and ignored outright when it is present. Not axis labels: the category axis comes from `xAxisKey`. |
-| `series` | `ChartDataSeries[]` | Data series. Each entry's `name` (or `dataKey`) names the column it plots within a `data` row; optional `label`, `color`, a per-series `type` (`"bar"`, `"line"`, `"area"`) for combo charts, `stack`, `yAxis` (`"left"` / `"right"`), `variant` (`"primary"` / `"comparison"`), `dashArray` and `opacity`. |
+| `series` | `ChartDataSeries[]` | Data series. Each entry's `name` (or `dataKey`) names the column it plots within a `data` row; optional `label`, `color`, a per-series `type` (`"bar"`, `"line"`, `"area"`) for combo charts, `stack`, `yAxis` (`"left"` / `"right"`), `variant` (`"primary"` / `"comparison"`), `dashArray` and `opacity`. `chartType` on a series is refused by name — it is the renderer's internal spelling of `type`; write `type`. |
 | `data` | `Array<Record<string, any>>` | Rows to plot — one object per row, keyed by column name. |
 | `xAxisKey` | `string` | Row key holding the category (x) axis. The bare-string `xAxis: "month"` spelling folds onto this key at parse. |
 | `height` / `width` | `string \| number` | Chart dimensions. |
