@@ -155,7 +155,9 @@ board renders every fetched record into a lane and offers no pagination control,
 so this is the author's window on the object rather than a page size:
 
 ```tsx
-const board = {
+import type { ObjectKanbanSchema } from '@object-ui/types'
+
+const board: ObjectKanbanSchema = {
   type: 'object-kanban',
   objectName: 'opportunity',
   groupBy: 'stage',

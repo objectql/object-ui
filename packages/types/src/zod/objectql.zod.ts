@@ -36,7 +36,7 @@ import {
   NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
-import { handlerKeyRefusal } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { DrillDownConfigSchema } from './data-display.zod.js';
 
 /**
@@ -904,10 +904,20 @@ const KanbanConditionalFormattingRuleSchema = z.union([
   }),
 ]);
 
+// objectui#7322 — `groupBy` and `limit` are the keys `ObjectKanban.tsx` reads
+// (thirteen `schema.groupBy` sites; `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`
+// at `:264`); until this card neither was declared and both rode `BaseSchema`'s
+// `.passthrough()` unexamined, while the REQUIRED `groupField` had zero read
+// sites. `groupField` is now a `retirementTombstone()` — still a member, so
+// the parity ratchet's key sets stay equal and an authored value is refused
+// BY NAME rather than stripped — and it is node-local: the VIEW-LEVEL alias
+// `KanbanConfig.groupField` above is live and untouched.
 export const ObjectKanbanSchema = BaseSchema.extend({
   type: z.literal('object-kanban'),
   objectName: z.string().describe('ObjectQL object name'),
-  groupField: z.string().describe('Group field'),
+  groupBy: z.string().describe('Field whose value places a record in a lane — the lane key the object-kanban renderer reads (ObjectKanban.tsx, thirteen sites); required, as the retired groupField was'),
+  groupField: retirementTombstone('RETIRED (objectui#7322) — `groupField` is not read by the object-kanban renderer; author `groupBy`. (The view-level `kanban.groupField` alias is unaffected.)'),
+  limit: z.number().int().positive().optional().describe('Row cap — the most records the board fetches, sent as a real $top on the query (ObjectKanban.tsx:264); default 100 (DEFAULT_KANBAN_LIMIT)'),
   titleField: z.string().optional().describe('Title field'),
   cardFields: z.array(z.string()).optional().describe('Card fields'),
   quickAdd: z.boolean().optional().describe('Enable Quick Add button at column bottom'),
