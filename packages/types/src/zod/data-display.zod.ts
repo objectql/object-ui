@@ -285,12 +285,34 @@ export const DataTableSchema = BaseSchema.extend({
 
 /**
  * Markdown Schema - Markdown content renderer
+ *
+ * `sanitize` / `components` are ADR-0049 tombstones (objectui#6972).
+ * `sanitize` implied a switch that does not exist: sanitization is
+ * UNCONDITIONAL — the `rehypeSanitize` link is a fixed last member of a
+ * module-level `const` chain in `plugin-markdown/src/MarkdownImpl.tsx`, with
+ * no conditional path — so the enforce arm (an XSS-off switch) was refused
+ * and the key retired. `components` was a `Record<string, any>` of React
+ * overrides nothing read — not a JSON-authorable value, and no host path
+ * consumes such a map either, so there is no runtime slot to keep. Both
+ * refuse BY NAME through `retirementTombstone()` (objectui#6931), with the
+ * remedy in the message, rather than parsing green and doing nothing. The TS
+ * twins are `?: never` in `../data-display.ts`; both published faces carry the
+ * refusal (`@object-ui/types`, and `@object-ui/plugin-markdown`'s re-export of
+ * the same authority — objectui#6172).
  */
 export const MarkdownSchema = BaseSchema.extend({
   type: z.literal('markdown'),
   content: z.string().describe('Markdown content'),
-  sanitize: z.boolean().optional().describe('Sanitize HTML'),
-  components: z.record(z.string(), z.any()).optional().describe('Custom component overrides'),
+  sanitize: retirementTombstone(
+    'RETIRED (objectui#6972) — sanitization is unconditional: rehype-sanitize is a fixed last link of the '
+    + 'markdown renderer\'s rehype chain, and no value of this key ever switched it. There is no authored '
+    + 'spelling that disables XSS sanitization; delete the key.',
+  ),
+  components: retirementTombstone(
+    'RETIRED (objectui#6972) — never read: the markdown renderer forwards only `content` and `className`, '
+    + 'and a map of React component overrides is not a JSON-authorable value. Delete the key; the fenced '
+    + 'mermaid / metadata block overrides are the renderer\'s own fixed map, not an authoring surface.',
+  ),
 });
 
 /**

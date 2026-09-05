@@ -1161,14 +1161,71 @@ export interface MarkdownSchema extends BaseSchema {
    */
   content: string;
   /**
-   * Whether to sanitize HTML
-   * @default true
+   * ADR-0049 RETIREMENT TOMBSTONE — `sanitize` (objectui#6972).
+   *
+   * Declared `?: boolean` with `@default true` and read by NOTHING — and, worse
+   * than an ordinary inert key, it implied a switch that does not exist.
+   * Sanitization is UNCONDITIONAL: `rehypePlugins` in
+   * `packages/plugin-markdown/src/MarkdownImpl.tsx` is a module-level `const`
+   * array whose last link is `[rehypeSanitize, sanitizeSchema]`, handed to
+   * `ReactMarkdown` as-is — no ternary, no `if`, no runtime assembly. So
+   * `sanitize: false` type-checked, passed the Zod mirror and changed nothing
+   * while reading as a security-relevant control, and `sanitize: true`
+   * promised a gate the author never controlled either. Both readings lied.
+   * The enforce arm of enforce-or-remove would be a switch that DISABLES XSS
+   * sanitization, which is not an acceptable outcome, so for this key the
+   * ruling collapses to remove (triage on objectui#6972).
+   *
+   * Measured on the retiring PR's base: `MarkdownRenderer`
+   * (`plugin-markdown/src/index.tsx`) forwards exactly `content` and
+   * `className` to `MarkdownImpl`, whose props type accepts only those two;
+   * `grep -rn "schema.sanitize"` over `packages/` and `apps/` returns nothing,
+   * against a control of 20 `.tsx` files reading `schema.content` in the same
+   * query shape — the zero is a reading, not a blind query.
+   *
+   * `?: never` is this package's tombstone convention (see `crud.ts`
+   * `confirm`, {@link StaticTableColumn}, `DataTableSchema.toolbar` above),
+   * NOT a deletion: `BaseSchema`'s `[key: string]: any` would admit a deleted
+   * key as `any` again — the same silence one layer over. The Zod twin refuses
+   * it loudly via `retirementTombstone()` (`zod/data-display.zod.ts`). Both
+   * published faces carry the refusal: `@object-ui/plugin-markdown` re-exports
+   * this one authority (objectui#6172), so its consumers meet the same
+   * declaration.
+   *
+   * RETIRED (objectui#6972, ADR-0049) — sanitization is unconditional; there
+   * is no authored spelling that disables it. Delete the key.
+   * @deprecated Not part of `MarkdownSchema`'s contract — the value was inert.
    */
-  sanitize?: boolean;
+  sanitize?: never;
   /**
-   * Custom components for markdown elements
+   * ADR-0049 RETIREMENT TOMBSTONE — `components` (objectui#6972).
+   *
+   * Declared `?: Record<string, any>` ("custom components for markdown
+   * elements") and read by NOTHING: `MarkdownRenderer` forwards only `content`
+   * and `className`, `MarkdownImplProps` accepts only those two, and the
+   * `components` map `MarkdownImpl` hands to `ReactMarkdown` is its OWN
+   * module-level `mdComponents` (the mermaid / metadata fence overrides),
+   * never merged with anything off the schema. `grep -rn "schema.components"`
+   * over `packages/` and `apps/` returns nothing, against the same
+   * `schema.content` control as `sanitize` above.
+   *
+   * Removed rather than wired, under the PM's declared veto window on
+   * objectui#6972: a map of React component overrides is not a
+   * JSON-authorable value — the same shape as the handler keys objectui#6124
+   * retired ("JSON has no function value"). It is NOT a `runtime-slot`
+   * either: no host path (no `MarkdownImpl` prop, no plugin API, no app-shell
+   * or runner site) consumes such a map, so there is no TypeScript twin to
+   * keep callable for hosts. A real override slot must arrive as a proposal
+   * WITH its enforcing reader, not by reviving this key.
+   *
+   * Same convention as `sanitize` above: `?: never` here,
+   * `retirementTombstone()` on the Zod twin, both published faces.
+   *
+   * RETIRED (objectui#6972, ADR-0049) — never read by the markdown renderer.
+   * Delete the key.
+   * @deprecated Not part of `MarkdownSchema`'s contract — the value was inert.
    */
-  components?: Record<string, any>;
+  components?: never;
 }
 
 /**

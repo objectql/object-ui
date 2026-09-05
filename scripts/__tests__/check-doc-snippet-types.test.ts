@@ -97,7 +97,9 @@ const FENCE = '```';
  * `npm install project-name`.
  */
 const README_SAMPLE_DOC = 'content/docs/plugins/plugin-markdown.mdx';
-const README_SAMPLE_FENCE_LINE = 195;
+// 195 until objectui#6972 replaced two prop-table rows above it with a
+// retirement blockquote (+11 lines); re-declared here, as this pin intends.
+const README_SAMPLE_FENCE_LINE = 206;
 
 /**
  * The regex reader objectui#7555 removed from both gates, kept HERE and only
