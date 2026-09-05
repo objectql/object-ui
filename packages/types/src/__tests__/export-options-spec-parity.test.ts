@@ -267,7 +267,14 @@ describe('the zod mirror binds exportOptions to the spec field (objectui#6956)',
       expect(issues.some((i) => i.path[0] === 'exportOptions')).toBe(true);
       const messages = issues.map((i) => i.message).join('\n');
       expect(messages).toMatch(/pdf/);
-      expect(messages).toMatch(/8010|1301/);
+      // Was `/8010|1301/` — the issue numbers. `@objectstack/spec` 17.3.0
+      // stripped those citations from its refusal messages and kept the
+      // prescriptive half, so this assertion moves to that half — exactly as
+      // the sibling pin in this file's `objectui#4535` block already does. The
+      // durable content of a refusal is the repair it prescribes; the citation
+      // is the half upstream felt free to drop.
+      expect(messages).toMatch(/'csv', 'xlsx' and 'json'/);
+      expect(messages).toMatch(/os migrate meta/);
     }
     // And the TYPE refuses it too, in both spellings — the renderer's contract
     // cannot be handed a value the platform refuses at publish.
