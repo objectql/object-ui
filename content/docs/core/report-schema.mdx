@@ -318,12 +318,16 @@ const comprehensiveReport: ReportComponentSchema = {
       chart: {
         type: 'chart',
         chartType: 'line',
-        categories: ['January', 'February', 'March'],
+        xAxisKey: 'month',
+        data: [
+          { month: 'January', Revenue: 120000 },
+          { month: 'February', Revenue: 145000 },
+          { month: 'March', Revenue: 132000 }
+        ],
         series: [
           {
             name: 'Revenue',
-            type: 'line',
-            data: [120000, 145000, 132000]
+            type: 'line'
           }
         ]
       }

@@ -103,11 +103,18 @@ type ComponentInput = {
   defaultValue?: any;
   required?: boolean;
   enum?: string[] | Array<{ label: string; value: string }>;
-  description?: string;
+  description?: string;  // Also where a control hint or a numeric domain goes
   advanced?: boolean;    // Hide by default in designer
-  inputType?: string;    // Widget hint for the designer control
-  min?: number; max?: number; step?: number;   // numeric bounds
-  placeholder?: string;
+
+  // ADR-0049 RETIREMENT TOMBSTONES (objectui#5905) - DECLARED but UNWRITABLE.
+  // Authoring one is a `tsc` error here and a named refusal from the Zod
+  // mirror (`ComponentInputSchema`). They were never read and never published:
+  // the manifest serializer forwards only `name`, `type`, `required`, `enum`,
+  // `binding` and `description`, so an authored value was silently dropped.
+  // Remedy: delete the key and say it in `description`, which IS published.
+  inputType?: never;
+  min?: never; max?: never; step?: never;
+  placeholder?: never;   // `BaseSchema.placeholder` is a different key, alive
 };
 ```
 

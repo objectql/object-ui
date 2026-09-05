@@ -38,6 +38,15 @@
  * deliberately NOT reclaimed — `@object-ui/react` owns that name in-repo, and
  * that reason is pinned below rather than left as prose.
  *
+ * Two rows have since RETIRED WITH THEIR TYPE (objectui#7519): `GestureConfig`
+ * and `MobileResponsiveConfig` were each a declaration plus two barrel
+ * re-exports with no consumer once objectui#5942 removed their only mount
+ * point, and `@object-ui/types` no longer exports either name. A pin on a name
+ * this package does not hold guards nothing — the spec re-publishing
+ * `GestureConfig` or `ResponsiveConfig` would collide with no export here — so
+ * the rows went with the declarations rather than staying green as phantom
+ * checks. The absence itself is pinned in `mobile-residue-retired-7519.test.ts`.
+ *
  * Type-level assertions here are real gates: `tsconfig.test.json` compiles this
  * file, unlike the package build (see its header for why that distinction was
  * itself a bug once).
@@ -605,7 +614,8 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     ['FileMetadata', 'UploadedFileMetadata'],
     ['PageRegion', 'PageNodeRegion'],
     ['PageRegionSchema', 'PageNodeRegionSchema'],
-    ['ResponsiveConfig', 'MobileResponsiveConfig'],
+    // `['ResponsiveConfig', 'MobileResponsiveConfig']` left this list when the
+    // local dialect was RETIRED (objectui#7519) — see the header.
     // `WidgetManifest` / `WidgetSource` moved OUT of this list on the
     // 17.0.0-rc.6 bump — see the block below. The tripwire fired for the second
     // time, the same way objectui#3363 recorded the first.
@@ -628,7 +638,8 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
    * `@object-ui/types`' `mobile` module, so a workaround does not outlive its
    * reason (objectui#3169). These rows keep asserting the same thing they did
    * before the reclaim, and that is the point: they are now what makes the
-   * reclaimed names SAFE, not merely available.
+   * reclaimed names SAFE, not merely available. (`GestureConfig` has since been
+   * RETIRED outright — objectui#7519 — so only the `GestureType` row remains.)
    *
    * The third did not move — see the `OfflineConfig` block below.
    */
@@ -666,7 +677,7 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
 
   it.each([
     ['GestureType', 'TouchGestureType'],
-    ['GestureConfig', 'TouchGestureConfig'],
+    // `['GestureConfig', 'TouchGestureConfig']` retired with its type (objectui#7519).
   ])(
     'the spec still does not own `%s`, reclaimed from `%s` (objectui#3363)',
     (reclaimed) => {
@@ -737,7 +748,7 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
         `name was dropped or moved, the cross-package reason for 'PWAOfflineConfig' is ` +
         `gone — the spec vacated 'OfflineConfig' back in objectstack#4988, so the ` +
         `natural name is now free and @object-ui/types' mobile module may reclaim it ` +
-        `(objectui#3363 reclaimed 'GestureType'/'GestureConfig' the same way).`,
+        `(objectui#3363 reclaimed 'GestureType' the same way).`,
     ).toBe(true);
   });
 
@@ -746,7 +757,7 @@ describe('renamed local dialects do not collide with a spec export (objectui#307
     ['PWAOfflineConfig', 'service-worker route caching, not the offline data model'],
     ['PageNodeRegion', 'region of the objectui page NODE, holding renderer nodes'],
     ['PageNodeRegionSchema', 'zod twin of PageNodeRegion'],
-    ['MobileResponsiveConfig', 'mobile box config, not the spec SDUI grid contract'],
+    // `MobileResponsiveConfig` retired with its type (objectui#7519).
     ['RuntimeWidgetManifest', 'SDUI component manifest, not the field-widget plugin'],
     ['RuntimeWidgetSource', 'objectui module/inline/registry loader union'],
   ])('the spec does not own `%s` (%s)', (name) => {
