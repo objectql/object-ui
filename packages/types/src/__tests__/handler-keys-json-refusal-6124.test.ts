@@ -87,7 +87,7 @@ import {
   ChatbotEnhancedSchema as ChatbotEnhancedZod,
   ChatbotFloatingSchema as ChatbotFloatingZod,
   FilterBuilderSchema as FilterBuilderZod,
-  DeclarativeKanbanSchema as KanbanZod,
+  KanbanSchema as KanbanZod,
 } from '../zod/complex.zod';
 import {
   AlertSchema as AlertZod,
@@ -145,7 +145,7 @@ import type {
   ChatbotEnhancedSchema,
   ChatbotFloatingSchema,
   FilterBuilderSchema,
-  DeclarativeKanbanSchema,
+  KanbanSchema,
 } from '../complex';
 import type { AlertSchema, DataTableSchema, ListItem, TreeViewSchema } from '../data-display';
 import type { AccordionSchema, CollapsibleSchema, ToggleGroupSchema } from '../disclosure';
@@ -224,8 +224,11 @@ const objectOf = (mirror: z.ZodType, key: string): z.ZodObject<z.ZodRawShape> =>
  * `toFormControlDomProps` whitelist, card's `<Card {...cardProps}>`).
  */
 const RUNTIME_SLOT: readonly Site[] = [
-  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardMove', KanbanZod],
-  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardClick', KanbanZod],
+  // objectui#7664 — the `'kanban'` arm is the plugin dialect now: `KanbanRenderer`
+  // forwards `schema.onCardMove` and `schema.onQuickAdd`; the retired declarative
+  // face's `onCardClick` slot left with it (the object-bound board owns the click).
+  ['complex.zod.ts', 'KanbanSchema', 'onCardMove', KanbanZod],
+  ['complex.zod.ts', 'KanbanSchema', 'onQuickAdd', KanbanZod],
   ['complex.zod.ts', 'CalendarViewSchema', 'onViewChange', CalendarViewZod],
   ['complex.zod.ts', 'FilterBuilderSchema', 'onChange', FilterBuilderZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onError', ChatbotZod],
@@ -285,8 +288,10 @@ const RUNTIME_SLOT: readonly Site[] = [
  * from the declared `(value: string) => void`, not a consumer of it.
  */
 const RETIRED: readonly Site[] = [
-  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onColumnAdd', KanbanZod],
-  ['complex.zod.ts', 'DeclarativeKanbanSchema', 'onCardAdd', KanbanZod],
+  // objectui#7664 carried these two tombstones onto the successor arm under the
+  // same `'kanban'` key, so the spelling keeps refusing by name.
+  ['complex.zod.ts', 'KanbanSchema', 'onColumnAdd', KanbanZod],
+  ['complex.zod.ts', 'KanbanSchema', 'onCardAdd', KanbanZod],
   ['complex.zod.ts', 'CarouselSchema', 'onSlideChange', CarouselZod],
   ['complex.zod.ts', 'ChatbotSchema', 'onSendMessage', ChatbotZod],
   ['data-display.zod.ts', 'AlertSchema', 'onDismiss', AlertZod],
@@ -504,8 +509,8 @@ type KeepsFunction<T> = [Extract<NonNullable<T>, (...args: never[]) => unknown>]
   : true;
 
 export type assertionRetiredKeysAreTombstoned = [
-  Expect<RetiredIsNever<DeclarativeKanbanSchema['onColumnAdd']>>,
-  Expect<RetiredIsNever<DeclarativeKanbanSchema['onCardAdd']>>,
+  Expect<RetiredIsNever<KanbanSchema['onColumnAdd']>>,
+  Expect<RetiredIsNever<KanbanSchema['onCardAdd']>>,
   Expect<RetiredIsNever<CarouselSchema['onSlideChange']>>,
   Expect<RetiredIsNever<ChatbotSchema['onSendMessage']>>,
   Expect<RetiredIsNever<AlertSchema['onDismiss']>>,
@@ -529,8 +534,8 @@ export type assertionRetiredKeysAreTombstoned = [
 ];
 
 export type assertionRuntimeSlotsKeepTheirFunctionType = [
-  Expect<KeepsFunction<DeclarativeKanbanSchema['onCardMove']>>,
-  Expect<KeepsFunction<DeclarativeKanbanSchema['onCardClick']>>,
+  Expect<KeepsFunction<KanbanSchema['onCardMove']>>,
+  Expect<KeepsFunction<KanbanSchema['onQuickAdd']>>,
   Expect<KeepsFunction<CalendarViewSchema['onViewChange']>>,
   Expect<KeepsFunction<FilterBuilderSchema['onChange']>>,
   Expect<KeepsFunction<ChatbotSchema['onError']>>,

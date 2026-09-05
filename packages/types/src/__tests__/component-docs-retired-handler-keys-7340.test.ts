@@ -63,7 +63,7 @@
  *      blanket-sweep control: an edit that deleted every `on*` row under
  *      `content/docs` turns these red, and rules 2 and 3 alone would call that
  *      a pass. Two of the six sit on pages this card edited (`input-otp.mdx`
- *      `onChange`, `schema-reference.md` `onCardMove` / `onCardClick`), which
+ *      `onChange`, `schema-reference.md` `onCardMove` / `onQuickAdd`), which
  *      is where an over-broad edit would land first.
  *   5. PROSE — the reader flags rows, never mentions. Counter-probes feed it a
  *      sentence naming a retired key and a JSON example key and assert neither
@@ -253,8 +253,10 @@ const describeRow = (r: DocRow): string => `${r.page}:${r.line} ${r.owner}.${r.k
 
 /** Runtime-slot rows measured present on this tree — the blanket-sweep control. */
 const CONTROL = [
-  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardMove' },
-  { page: 'api/schema-reference.md', owner: 'DeclarativeKanbanSchema', key: 'onCardClick' },
+  // objectui#7664: the page documents the plugin dialect under `KanbanSchema`
+  // now, whose two runtime slots are `onCardMove` / `onQuickAdd`.
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onCardMove' },
+  { page: 'api/schema-reference.md', owner: 'KanbanSchema', key: 'onQuickAdd' },
   { page: 'components/basic/pagination.mdx', owner: 'PaginationSchema', key: 'onPageChange' },
   { page: 'components/data-display/tree-view.mdx', owner: 'TreeViewSchema', key: 'onNodeClick' },
   { page: 'components/form/button.mdx', owner: 'ButtonSchema', key: 'onClick' },

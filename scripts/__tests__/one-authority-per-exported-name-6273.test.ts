@@ -421,7 +421,13 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   // surviving bare name must be the one a renderer honours, because
   // objectui#6086 measured that auto-importing the wrong copy yields a confident
   // EMPTY BOARD rather than an abstention. One authority each now, so all three
-  // entries would fail the stale-baseline direction.
+  // entries would fail the stale-baseline direction. objectui#7664 (maintainer
+  // ruling (a), 2026-09-05) then reversed the "keep both faces" half: the ONE
+  // declaration of `KanbanSchema` / `KanbanColumn` / `KanbanCard` (and
+  // `CardTemplate` / `ColumnWidthConfig`) moved down to `@object-ui/types`
+  // (`complex.ts`), the `DeclarativeKanban*` trio retired, and
+  // `plugin-kanban/src/types.ts` re-exports the five — a plain re-export, not
+  // an authority, so the entries stay retired.
   // `MarkdownSchema` sat here, colliding between
   // `packages/plugin-markdown/src/types.ts` and `packages/types/src/data-display.ts`.
   // The copies differed on ONE member — `content`, required there and optional here —
