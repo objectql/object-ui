@@ -130,11 +130,16 @@ export const DATA_DOCUMENT: TsObjectCalendarSchema = {
  * objectui#7322's, and this control only says where the class currently ends.
  * When a card moves the kanban's `objectName` to optional, this directive is
  * the line that card deletes.
+ *
+ * `groupBy` is supplied because objectui#7322 made it the required lane key
+ * (and retired `groupField`), so `objectName` is the ONE member this literal
+ * is missing — the directive would otherwise be satisfied by an unrelated
+ * omission and stop saying anything about `objectName`.
  */
 // @ts-expect-error — objectName is still required on ObjectKanbanSchema (the one deliberate error here)
 export const KANBAN_STILL_REQUIRES_OBJECT_NAME: TsObjectKanbanSchema = {
   type: 'object-kanban',
-  groupField: 'status',
+  groupBy: 'status',
 };
 
 /* ── Runtime pins ─────────────────────────────────────────────────────────── */
