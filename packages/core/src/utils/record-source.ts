@@ -68,7 +68,7 @@ import type { ViewData } from '@object-ui/types';
  *
  * @example
  * ```ts
- * const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
+ * const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [schema]);
  * const objectName = resolveRecordSourceObjectName(schema, dataConfig);
  * ```
  */
