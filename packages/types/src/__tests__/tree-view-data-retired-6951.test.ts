@@ -250,11 +250,11 @@ function* jsonFiles(dir: string): Generator<string> {
 
 describe('no shipped JSON fixture authors `tree-view.data` any more (objectui#6951) — tree-scoped', () => {
   // Tree-scoped on purpose: a file-scoped pin sees only the files its author
-  // knew about. At the retirement the walk found six `tree-view` nodes in the
+  // knew about. At the retirement the walk found five `tree-view` nodes in the
   // catalog (four entries + the nested tree in
   // `components-complex-resizable/editor-interface.json`, all on `nodes`) and
   // one in `packages/types/examples/data-display-examples.json` (rewritten from
-  // `data` to `nodes`). Each is parsed per node, because `SchemaNodeSchema`
+  // `data` to `nodes`) — six in all. Each is parsed per node, because `SchemaNodeSchema`
   // does not descend into `AnyComponentSchema`.
   const CATALOG = resolve(ROOT, 'examples/schema-catalog/src/schemas');
   const TYPES_EXAMPLES = resolve(ROOT, 'packages/types/examples');
@@ -273,8 +273,8 @@ describe('no shipped JSON fixture authors `tree-view.data` any more (objectui#69
         }
       }
     }
-    // Non-vacuity: seven at the retirement; a walk that finds none is broken.
-    expect(seen).toBeGreaterThanOrEqual(7);
+    // Non-vacuity: six at the retirement; a walk that finds none is broken.
+    expect(seen).toBeGreaterThanOrEqual(6);
     expect(offenders).toEqual([]);
   });
 });

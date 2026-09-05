@@ -180,9 +180,15 @@ describe('objectui#6939 — the fixtures were the side that was right', () => {
     // refusal names the key and the spelling to write instead.
     for (const id of IDS) {
       expect(reasons(asAuthored(id))).toEqual([]);
-      const why = reasons(asDataSpelling(id));
-      expect(why.length).toBeGreaterThan(0);
-      expect(why.some((r) => r.startsWith('data:') && r.includes('write `nodes`'))).toBe(true);
+      // The union door refuses (its top-level issue is the `invalid_union`
+      // envelope); the arm-level issue on the `data` path carries the guidance.
+      expect(reasons(asDataSpelling(id)).length).toBeGreaterThan(0);
+      const direct = TreeViewSchema.safeParse(asDataSpelling(id));
+      expect(direct.success).toBe(false);
+      if (!direct.success) {
+        const issue = direct.error.issues.find((i) => i.path.join('.') === 'data');
+        expect(issue?.message).toContain('write `nodes`');
+      }
     }
   });
 
