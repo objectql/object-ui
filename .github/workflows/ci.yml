@@ -310,6 +310,30 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm check:doc-example-readers
 
+      # `BaseSchema` is `.passthrough()`, so an `on*` key that is not declared by
+      # its arm is NOT refused — it stops being judged and the value is KEPT, then
+      # reaches the renderer that reads it. objectui#7664 measured that on the built
+      # dist: `{ type: 'kanban', columns: [], onCardClick: { action: 'toast' } }`
+      # went from REFUSED to ACCEPTED with the object surviving into the parsed
+      # output, while every gate here stayed green. The objectui#6124 ledger could
+      # not see it — its population is two hand-written arrays, and that change
+      # re-keyed the arm by SUBSTITUTION, holding the length constant — so a count
+      # ratchet would have been green too (objectui#7753 rejected that option on
+      # exactly this measurement).
+      #
+      # This step derives BOTH populations instead: the arms from every
+      # `type: z.literal(…)` in `packages/types/src/zod`, and the read sites from
+      # every real `ComponentRegistry.register(…)` call, following the document
+      # into the components each registration hands it to. It has to live in
+      # `scripts/` because the read sites are spread across `@object-ui/plugin-*`
+      # and `packages/components`, which `@object-ui/types` may not import —
+      # `check:phantom-deps` rejects it and it would close a cycle. Parses sources
+      # with `typescript` through the same scanner as the steps above, so it needs
+      # the install and nothing built.
+      - name: Verify every handler key a registered renderer reads is declared by its arm
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm check:handler-key-reads
+
       # A build tsconfig that excludes tooling by FILE NAME (`*.test.ts`) stops
       # the files that happen to be named that way and nothing else. The first
       # shared helper added to a `__tests__/` directory is then a program input,
