@@ -50,7 +50,7 @@
  * Options shared by {@link formatDate} / {@link formatRelativeDate} /
  * {@link formatDateTime}. One bag, and each function reads the keys it needs:
  * `dueLike` and `t` only matter on the relative path, `style` is read by
- * `formatDateTime` only (see below).
+ * `formatDateTime` and by `formatDate` (see below).
  */
 export interface DateDisplayOptions {
   dueLike?: boolean;
@@ -59,18 +59,28 @@ export interface DateDisplayOptions {
   /** i18n translate fn for phrases `Intl` can't produce (the "Overdue Nd" wording). */
   t?: (key: string, params?: Record<string, unknown>) => string;
   /**
-   * Named face, read by {@link formatDateTime}: `'compact'` is the dense grid
-   * cell face (objectui#7443); anything else, or absent, is the default face.
+   * Named face, read by {@link formatDateTime} and {@link formatDate}. Each
+   * reads its own vocabulary: `'compact'` is `formatDateTime`'s dense grid
+   * cell face (objectui#7443), `'short'` and `'relative'` are `formatDate`'s;
+   * anything else, or absent, is that function's default face.
    *
    * It rides here rather than in a second positional parameter because
    * `formatDateTime(value, options?)` is a PUBLISHED signature with `options`
    * in position two (objectui#4272). A positional `style` would have displaced
    * it: TypeScript would reject the old call, but a JavaScript caller would
    * silently hand its options bag to the style slot and lose its locale —
-   * the #4272 defect again. {@link formatDate} still takes its style
-   * positionally and does NOT read this key; the symmetric long-run shape
-   * (both functions reading `options.style`) is additive on `formatDate` and
-   * deliberately not part of #7443.
+   * the #4272 defect again.
+   *
+   * ⚠️ On {@link formatDate} this key COLLIDES with a positional parameter of
+   * the same name, so the precedence is PINNED, not left to implementation
+   * order: **the positional argument wins**, and this key is consulted only
+   * when the positional slot is `undefined` (objectui#7745). See
+   * {@link formatDate}'s own note for why that direction and not the other.
+   *
+   * ⚠️ {@link formatRelativeDate} still does NOT read this key — the
+   * maintainer's long-run ruling on objectui#7443 names `formatDate` only, and
+   * whether the relative path's out-of-window fallback should honour it is a
+   * separate, deliberate call (objectui#7745's report).
    */
   style?: string;
 }
@@ -90,6 +100,31 @@ function formatRelativeDays(diffDays: number, locale?: string): string {
     if (diffDays === -1) return 'Yesterday';
     return diffDays > 0 ? `In ${diffDays} days` : `${Math.abs(diffDays)} days ago`;
   }
+}
+
+/**
+ * The options bag {@link formatRelativeDate} hands to {@link formatDate} for
+ * its out-of-window ABSOLUTE fallback, with `style` neutralised.
+ *
+ * Two reasons, both load-bearing since objectui#7745 made `formatDate` read
+ * `options.style`:
+ *
+ *   1. **Behaviour preservation.** `formatRelativeDate` does not read
+ *      `options.style`, and #7745 does not change that. Without the strip it
+ *      would start reading it THROUGH this delegation for dates outside the
+ *      ±7-day window only — a face change on a live path (grid cell, gantt
+ *      tooltip) that no card authorises.
+ *   2. **Termination.** `formatDate` resolves `'relative'` by calling
+ *      `formatRelativeDate`, which lands back here. With the style still in
+ *      the bag, `formatRelativeDate(v, { style: 'relative' })` on an
+ *      out-of-window date would recurse until the stack ran out.
+ *
+ * The bag is returned UNCHANGED when there is nothing to strip, so the common
+ * path allocates nothing.
+ */
+function absoluteFallbackOptions(options?: DateDisplayOptions): DateDisplayOptions | undefined {
+  if (options === undefined || options.style === undefined) return options;
+  return { ...options, style: undefined };
 }
 
 /**
@@ -114,7 +149,7 @@ export function formatRelativeDate(value: string | Date | number, options?: Date
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
   // Beyond the ±7-day window, fall back to the absolute (already localized) form.
-  if (diffDays < -7 || diffDays > 7) return formatDate(date, undefined, options);
+  if (diffDays < -7 || diffDays > 7) return formatDate(date, undefined, absoluteFallbackOptions(options));
 
   if (diffDays < -1 && options?.dueLike) {
     const absDays = Math.abs(diffDays);
@@ -126,14 +161,48 @@ export function formatRelativeDate(value: string | Date | number, options?: Date
 }
 
 /**
- * Format date value
+ * Format date value.
+ *
+ * The named face comes from EITHER spelling — the positional `style`
+ * parameter or `options.style` — and the precedence between them is pinned
+ * (objectui#7745):
+ *
+ * > **The positional argument wins. `options.style` is consulted only when the
+ * > positional slot is `undefined`.**
+ *
+ * Before #7745 only the positional spelling was read here, while
+ * {@link formatDateTime} read only the `options` one — one shared bag, two
+ * spellings for one concept, and on THIS function the options spelling did
+ * nothing at all: `formatDate(v, undefined, { style: 'short' })` silently
+ * rendered the default face with no diagnostic. Reading the key is the
+ * additive half of the maintainer's long-run ruling on objectui#7443.
+ *
+ * Why the positional wins, and not the newer key:
+ *
+ *   - It is the ONLY direction that is purely additive. It fires exactly on
+ *     the input that is a silent no-op today (positional absent, key present);
+ *     every call that renders a face today renders the same face after.
+ *   - The bag is SHARED across three functions, so it can legitimately carry a
+ *     key meant for a sibling — that is this module's convention (`dueLike`
+ *     and `t` are read by `formatRelativeDate` alone). A caller that built
+ *     `{ style: 'compact', locale }` for `formatDateTime` and reused the bag
+ *     for `formatDate(v, 'short', bag)` must keep its short face. A key aimed
+ *     at a sibling function must not outrank an argument written for THIS
+ *     call — that is objectui#7694's shape (an alias overwriting the canonical
+ *     key), and the silent-override half of objectui#4272.
+ *
+ * `??`, not `||`, is what "absent" means here: `formatDate(v, '', bag)`
+ * renders the default face today and must keep doing so, so an empty string
+ * counts as GIVEN and does not fall through to the key.
  */
 export function formatDate(value: string | Date | number, style?: string, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
 
-  if (style === 'short') {
+  const effectiveStyle = style ?? options?.style;
+
+  if (effectiveStyle === 'short') {
     // Compact format for mobile: "Jan 15, '24" / "1月 15, '24".
     // Only the MONTH token is localized: the surrounding compact shape (day,
     // apostrophe + 2-digit year) is a deliberate fixed layout for narrow
@@ -146,7 +215,7 @@ export function formatDate(value: string | Date | number, style?: string, option
     return `${month} ${day}, '${year}`;
   }
 
-  if (style === 'relative') {
+  if (effectiveStyle === 'relative') {
     return formatRelativeDate(date, options);
   }
   
