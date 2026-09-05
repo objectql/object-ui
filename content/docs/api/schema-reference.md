@@ -479,7 +479,7 @@ A chart visualization supporting multiple chart types.
 | `title` | `string` | Chart title. |
 | `description` | `string` | Chart description / subtitle. |
 | `categories` | `string[]` | X-axis category labels. |
-| `series` | `ChartSeries[]` | Data series, each with `name`, `data` array, and optional `color`. |
+| `series` | `ChartDataSeries[]` | Data series. Each names the column it plots within the chart-level `data` rows (`name`, or `dataKey`) and may carry `label`, `type` (`bar` / `line` / `area` per-series override), `color`, `stack`, `yAxis` (`left` / `right`), `variant` (`primary` / `comparison` / `current`), `dashArray` and `opacity`. |
 | `height` / `width` | `string \| number` | Chart dimensions. |
 | `showLegend` | `boolean` | Display the legend. |
 | `showGrid` | `boolean` | Display grid lines. |

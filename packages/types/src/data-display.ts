@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { ChartType as SpecChartType } from '@objectstack/spec/ui';
+import type { ChartType as SpecChartType, I18nLabel } from '@objectstack/spec/ui';
 import type { BaseSchema, SchemaNode } from './base.js';
 import type { BreadcrumbSchema } from './navigation.js';
 
@@ -1407,6 +1407,71 @@ export interface ChartDataSeries {
    * Series color
    */
   color?: string;
+  /**
+   * Legend / tooltip name for this series — the spec's `I18nLabel`: a plain
+   * string, or an inline locale map (`{ en: 'Revenue', 'zh-CN': '收入' }`),
+   * the same spelling as {@link BaseSchema.label}.
+   *
+   * Declared by objectui#7546. `normalizeSeries` reads it through `label()`
+   * (`normalizeChartSchema.ts:242` — a string as-is, the first string value of
+   * a map), and the legend takes it at `ChartRenderer.tsx:157`
+   * (`s.label || s.dataKey`) and `AdvancedChartImpl.tsx:1364`. Until this
+   * declaration the Zod mirror STRIPPED it in silence — `ChartDataSeriesSchema`
+   * is a non-strict `z.object` — so a parsed series lost its name and the
+   * legend fell back to the column key.
+   */
+  label?: string | I18nLabel;
+  /**
+   * Visual role. `'comparison'` is the muted period-over-period overlay
+   * (`AdvancedChartImpl.tsx:2010-2033` — lower opacity, dashed stroke, and it
+   * is left out when the primary series are counted); `'primary'` and
+   * `'current'` both mean "not the overlay" and draw identically.
+   *
+   * ⚠️ The union is the THREE values `normalizeSeries` honours
+   * (`normalizeChartSchema.ts:246-247`) — one wider than the spec's own
+   * `ChartSeries.variant` (`'primary' | 'comparison'`), because `current` is
+   * the spelling this repository's own comparison producers write
+   * (`ObjectChart.tsx:852`, `DatasetWidget.tsx:1450`) and the renderer reads.
+   * Any other value is dropped in silence by the normalizer, so the mirror
+   * refuses it by name instead (objectui#7546).
+   */
+  variant?: 'primary' | 'comparison' | 'current';
+  /**
+   * Stroke and fill opacity, 0–1. Read by `num()` (`normalizeChartSchema.ts:248`
+   * — any finite number; the mirror refuses `NaN`, `Infinity` and strings the
+   * same way) and applied at `AdvancedChartImpl.tsx:94-95`, where it overrides
+   * the per-family default (objectui#7546).
+   */
+  opacity?: number;
+  /**
+   * SVG `stroke-dasharray` override, e.g. `"4 4"` for a dashed line
+   * (`normalizeChartSchema.ts:250`; applied at `AdvancedChartImpl.tsx:96`)
+   * (objectui#7546).
+   */
+  dashArray?: string;
+  /**
+   * Stack group id — series sharing one id stack together. Becomes Recharts'
+   * `stackId` (`normalizeChartSchema.ts:252`; `AdvancedChartImpl.tsx:1893`,
+   * `:2023`) (objectui#7546).
+   */
+  stack?: string;
+  /**
+   * Which y-axis this series binds to on a dual-axis chart. Narrowed to the two
+   * sides the renderer binds (`normalizeChartSchema.ts:254-255`;
+   * `AdvancedChartImpl.tsx:1887`, `:2019`) — the spec's `ChartSeries.yAxis`
+   * carries the same union (objectui#7546).
+   */
+  yAxis?: 'left' | 'right';
+  // ⛔ NOT declared: `chartType`. It is the first limb of `normalizeSeries`'
+  // `str(raw.chartType) ?? str(raw.type)` (`normalizeChartSchema.ts:244`), but
+  // it is the renderer's INTERNAL spelling of `type` above, the spec's
+  // `ChartSeriesSchema` lists it as an alias of `type` and refuses it by name
+  // (`@objectstack/spec` `ui/chart.zod.ts:231`), and no document, fixture or
+  // designer input on this face writes it (objectui#7546 — measured with lit
+  // controls). Declaring it would mint a second writable name for one override;
+  // its shape — a named alias refusal like the spec's, or a fold — is a contract
+  // decision for its own card. Until then the mirror still strips it, and
+  // `__tests__/chart-series-keys-7546.test.ts` pins that gap so it stays visible.
 }
 
 /**

@@ -178,6 +178,38 @@ const schema = {
 }
 ```
 
+##### Per-series options
+
+Each `series` entry names the column it plots (`dataKey`, or the spec spelling `name`) and may carry the presentation keys the renderer reads — the same keys as `@objectstack/spec`'s `ChartSeries`:
+
+| Key | Type | Effect |
+|---|---|---|
+| `label` | `string` or inline locale map | Legend / tooltip name; defaults to the column key. |
+| `type` | `'bar' \| 'line' \| 'area'` | Per-series family override — a combo chart is a series disagreeing with the chart's `chartType`. |
+| `color` | `string` | Series colour; wins over the positional palette. |
+| `stack` | `string` | Stack group id — series sharing one id stack together. |
+| `yAxis` | `'left' \| 'right'` | Which y-axis the series binds to, on a chart that declares a second y-axis. |
+| `variant` | `'primary' \| 'comparison' \| 'current'` | `comparison` draws the muted period-over-period overlay. |
+| `dashArray` | `string` | SVG `stroke-dasharray`, e.g. `"4 4"` for a dashed line. |
+| `opacity` | `number` | Stroke and fill opacity, 0–1. |
+
+```tsx
+const schema = {
+  type: 'chart',
+  chartType: 'bar',
+  data: [
+    { month: 'Jan', revenue: 400, cost: 250, revenue_prev: 360 },
+    { month: 'Feb', revenue: 300, cost: 210, revenue_prev: 330 }
+  ],
+  xAxisKey: 'month',
+  series: [
+    { name: 'revenue', label: 'Revenue', stack: 'money' },
+    { name: 'cost', label: 'Cost', stack: 'money', opacity: 0.6 },
+    { name: 'revenue_prev', label: 'Revenue (previous period)', variant: 'comparison', dashArray: '4 4' }
+  ]
+}
+```
+
 ## Examples
 
 ### Revenue Dashboard
