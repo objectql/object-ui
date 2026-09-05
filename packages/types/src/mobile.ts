@@ -71,53 +71,42 @@ export type BreakpointName = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 /** Responsive value - different values for different breakpoints */
 export type ResponsiveValue<T> = T | Partial<Record<BreakpointName, T>>;
 
-/**
- * Responsive layout configuration for the mobile renderer's box layout.
- *
- * Renamed off the spec's `ResponsiveConfig` name (objectstack#4115): the two
- * configure responsiveness through different vocabularies, so the bare name
- * claimed an authority it did not have.
- *
- * ⚠️ The rename's second stated ground — that this package "already re-exports
- * the spec's own under `SpecResponsiveConfig`" — expired at objectui#7580 and is
- * recorded rather than silently dropped, because it is the kind of sentence a
- * later reader mistakes for a live measurement. objectstack#11027 retired the
- * spec `ResponsiveConfig` outright and that prefixed re-export went with its two
- * readers. The rename still stands on the FIRST ground alone: the two
- * vocabularies genuinely differ, as the paragraph below sets out key by key.
- *
- * The spec's `ResponsiveConfig` is the SDUI grid contract —
- * `{ breakpoint, hiddenOn, columns: {xs..2xl}, order: {xs..2xl} }` — arranging a
- * node within a grid. This one is the mobile renderer's box config: `columns`
- * also accepts a bare number, plus `gap`, `padding`, `stackOnMobile` /
- * `stackBreakpoint`, and `hidden`/`showOnly` in place of `hiddenOn`.
- *
- * It currently has NO consumer: its only one was retired by objectui#5942 (PR
- * objectui#7526), so this type is still exported from `@object-ui/types` and
- * `@object-ui/mobile` and is mounted nowhere. Whether it is retired in turn or
- * given a renderer is open as objectui#7519 — a product call rather than a
- * mechanical one, because the spec name-ownership tripwire named next outlives
- * the type either way.
- *
- * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts` fails if the spec ever
- * claims this name, so the alias cannot outlive its reason.
- */
-export interface MobileResponsiveConfig {
-  /** Number of columns at each breakpoint */
-  columns?: ResponsiveValue<number>;
-  /** Whether to stack vertically on mobile */
-  stackOnMobile?: boolean;
-  /** Breakpoint at which to stack */
-  stackBreakpoint?: BreakpointName;
-  /** Gap between items at each breakpoint */
-  gap?: ResponsiveValue<string | number>;
-  /** Padding at each breakpoint */
-  padding?: ResponsiveValue<string | number>;
-  /** Whether to hide on specific breakpoints */
-  hidden?: BreakpointName[];
-  /** Whether to show only on specific breakpoints */
-  showOnly?: BreakpointName[];
-}
+// RETIRED (objectui#7519, ADR-0049 enforce-or-remove): `MobileResponsiveConfig`
+// — the mobile renderer's box config (`columns` as a bare number or per
+// breakpoint, `gap`, `padding`, `stackOnMobile` / `stackBreakpoint`, `hidden` /
+// `showOnly`) — is gone, not narrowed. Its only consumer was the `responsive`
+// member of `MobileComponentConfig`, retired below by objectui#5942 (PR
+// objectui#7526); once that container went, the type was a declaration plus
+// two barrel re-exports and nothing else. Re-measured before removal: no type
+// mounted it, nothing extended, annotated, cast to or imported it outside the
+// two barrels, and the example apps and the `objectstack` sibling checkout had
+// zero authors. A value written against it could not reach a renderer by any
+// path.
+//
+// Removed outright rather than tombstoned, on the same discriminator the
+// container used: a `?: never` tombstone steers authors to a named live
+// replacement KEY or keeps loud a key the docs taught as working, and neither
+// applies — the whole interface goes, so there is no surviving object to hang
+// a `never` key on, and no documentation ever described it. Nor is there a Zod
+// mirror to host a `retirementTombstone()`: this module has never had a `zod/`
+// twin, so the refusal is type-level only (TS2305 / TS2724 at the import).
+//
+// History kept because it explains the name: this was renamed off the spec's
+// `ResponsiveConfig` in objectstack#4115 — the spec's is the SDUI grid contract
+// (`{ breakpoint, hiddenOn, columns, order }`), a different vocabulary. The
+// `__tests__/page-nav-misc-spec-parity.test.ts` rows that pinned the rename
+// retired with the type: a name this package no longer exports cannot collide
+// with anything, so a pin on it would guard nothing. The absence itself is
+// pinned in `__tests__/mobile-residue-retired-7519.test.ts`.
+//
+// No BEHAVIOUR is retired here. Per-breakpoint layout lives in
+// `@object-ui/mobile` as `useResponsive` / `ResponsiveContainer` /
+// `useBreakpoint`, and `ResponsiveValue` above stays — `breakpoints.ts` and
+// `useResponsive.ts` read it.
+//
+// Reopen condition: a declarative mobile box-layout surface re-enters as
+// designed product surface on its own card, with the renderer that READS it
+// landing in the same change as the declaration.
 
 // RETIRED (objectui#4919, maintainer ruling 2026-08-19, ADR-0049
 // enforce-or-remove): the mobile component-override surface and its mount
@@ -260,7 +249,8 @@ export interface OfflineRoute {
  * objectui#3363: `@objectstack/spec` owned `GestureType`, and the two unions
  * agree on only three members (the spec modelled gesture and direction
  * separately — `swipe | pinch | long_press | double_tap | drag | rotate | pan`,
- * with direction inside its `GestureConfig.swipe.direction` — while objectui
+ * with direction inside its tuning record's `swipe.direction`, the shape now
+ * owned here as {@link SpecGestureConfig} — while objectui
  * folds direction into the name: `swipe-left`, `swipe-up`, …). Neither was a
  * subset of the other; objectui has `tap`, the spec had `drag`.
  *
@@ -276,36 +266,44 @@ export interface OfflineRoute {
  */
 export type GestureType ='tap' | 'double-tap' | 'long-press' | 'swipe-left' | 'swipe-right' | 'swipe-up' | 'swipe-down' | 'pinch' | 'rotate' | 'pan';
 
-/**
- * Gesture handler configuration — binds one {@link GestureType} to an
- * action name.
- *
- * Held the prefixed name `TouchGestureConfig` from objectstack#4115 until
- * objectui#3363, for the same reason as its `type` field: the spec's
- * `GestureConfig` was a per-gesture TUNING record (`{ type, label, enabled,
- * swipe: { direction, threshold, velocity }, pinch: { minScale, maxScale },
- * longPress: { duration, moveTolerance } }`) with no notion of what the gesture
- * DOES. This one is a handler binding: flat, and its whole point is `action`,
- * which the spec's had no room for. That shape did not go away — it is
- * {@link SpecGestureConfig} below, now owned by this package — but the spec no
- * longer exports the bare name, so the dialect takes it back.
- *
- * Tripwire: `__tests__/page-nav-misc-spec-parity.test.ts`.
- */
-export interface GestureConfig {
-  /** Gesture type */
-  type: GestureType;
-  /** Action to execute */
-  action: string;
-  /** Minimum distance for swipe gestures (pixels) */
-  threshold?: number;
-  /** Duration for long-press (milliseconds) */
-  duration?: number;
-  /** Whether to prevent default browser behavior */
-  preventDefault?: boolean;
-  /** Whether gesture is enabled */
-  enabled?: boolean;
-}
+// RETIRED (objectui#7519, ADR-0049 enforce-or-remove): `GestureConfig` — the
+// flat handler binding `{ type: GestureType, action, threshold?, duration?,
+// preventDefault?, enabled? }` — is gone, not narrowed. Its only consumer was
+// the `gestures` member of `MobileComponentConfig`, retired below by
+// objectui#5942 (PR objectui#7526); once that container went, the type was a
+// declaration plus two barrel re-exports and nothing else. Re-measured before
+// removal: `useGesture` reads `GestureType` and `GestureContext`, never this
+// record, and nothing in this repo, the example apps or the `objectstack`
+// sibling checkout annotated, cast to or imported it outside the two barrels.
+// A binding written against it could not reach a handler by any path —
+// `action` was a string nothing dispatched.
+//
+// Removed outright rather than tombstoned, on the same discriminator the
+// container used: the whole interface goes, so there is no surviving object to
+// hang a `?: never` key on; no documentation ever taught it
+// (`skills/objectui/guides/mobile.md` teaches `useGesture`); and there is no
+// Zod mirror to host a `retirementTombstone()` — this module has never had a
+// `zod/` twin — so the refusal is type-level only (TS2305 / TS2724 at the
+// import). The absence is pinned in `__tests__/mobile-residue-retired-7519.test.ts`.
+//
+// ⚠️ `SpecGestureConfig` below is NOT a successor. It is the retired
+// `@objectstack/spec` `ui/touch` TUNING record (`{ type, label, enabled, swipe,
+// pinch, longPress }`) that `useSpecGesture` reads, and it has no `action`
+// member; a compiler "Did you mean" near-match on that name is lexical, not a
+// migration target. What this type named — binding a gesture to a handler —
+// lives in `@object-ui/mobile`'s `useGesture` options (`type` + `onGesture`).
+//
+// History kept because it explains the name: this held the prefixed name
+// `TouchGestureConfig` from objectstack#4115 until objectui#3363 reclaimed the
+// natural name once the spec vacated it (objectstack#4988). The
+// `__tests__/page-nav-misc-spec-parity.test.ts` row that pinned the reclaim
+// retired with the type: a name this package no longer exports cannot collide
+// with anything, so a pin on it would guard nothing. `GestureType` keeps its
+// row — it is live, read by `useGesture` and `useSpecGesture`.
+//
+// Reopen condition: a declarative gesture-binding surface re-enters as designed
+// product surface on its own card, with the dispatcher that READS `action`
+// landing in the same change as the declaration.
 
 /** Touch gesture context */
 export interface GestureContext {
@@ -380,10 +378,12 @@ export interface GestureContext {
 // The `Spec…` prefix on {@link SpecGestureConfig} is kept deliberately, and
 // objectui#3363 has now made it the ONLY thing carrying the distinction: the
 // sibling dialect above shed its own `Touch` prefix and is plain
-// {@link GestureConfig} / {@link GestureType}. The two are still a DIFFERENT
-// contract with different members (`swipe-left` vs `swipe` + a direction
-// array), so both prefixed names below stay exactly as they are — dropping
-// `Spec…` too would collapse the pair the rename just made legible.
+// {@link GestureType}. (Its record half, `GestureConfig`, was retired outright
+// by objectui#7519 — see the RETIRED note above. That does not free the
+// prefix: `SpecGestureConfig` is still a DIFFERENT contract from the dialect's
+// vocabulary — `swipe` + a direction array vs `swipe-left` — and dropping
+// `Spec…` now would read as the retired name coming back under the spec's
+// members.) Both prefixed names below stay exactly as they are.
 
 /**
  * Gesture kinds the retired `ui/touch` vocabulary recognised.

@@ -62,14 +62,17 @@ export { BREAKPOINTS, resolveResponsiveValue } from './breakpoints.js';
 export type {
   BreakpointName,
   ResponsiveValue,
-  MobileResponsiveConfig,
+  // `MobileResponsiveConfig` and `GestureConfig` RETIRED outright by
+  // objectui#7519, from this barrel and from `@object-ui/types` in the same
+  // change — see the RETIRED notes in that package's `mobile.ts`. No behaviour
+  // went with them: the live per-breakpoint and gesture readers are the hooks
+  // exported above.
   PWAConfig,
   PWAIcon,
   FetchCacheStrategy,
   PWAOfflineConfig,
   OfflineRoute,
   GestureType,
-  GestureConfig,
   GestureContext,
   SpecGestureConfig,
   SwipeGestureConfig,
