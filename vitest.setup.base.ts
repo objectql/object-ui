@@ -67,14 +67,20 @@ if (typeof (globalThis as any).ResizeObserver === 'undefined') {
 //
 //   * patching `Storage.prototype` observes NOTHING, so a suite instrumenting
 //     writes reads an empty ledger and its assertions pass vacuously;
-//   * `Object.keys(localStorage)` answers `[]` for a non-empty store, because
-//     the plain object kept its entries in a closed-over Map instead of as own
-//     properties (happy-dom's Storage is a Proxy that exposes them).
+//   * `Object.keys(localStorage)` never answers the store's ENTRIES. The plain
+//     object kept those in a closed-over Map, so its own keys are its own six
+//     members - measured, `["length","clear","getItem","key","removeItem",
+//     "setItem"]` - and a caller filtering them by key prefix sees nothing.
+//     happy-dom's Storage is a Proxy that exposes the entries instead.
 //
-// Measured on v26.7.0 before this rule: 3 of the 102 storage-touching suites
-// went red (12 tests), and the only reason they went red rather than green is
-// that all three happen to assert on writes they made themselves. Nothing
-// makes that the general case - see objectui#7271.
+// Measured on v26.7.0 before this rule, over the 102 storage-touching suites:
+// 3 files went red, 12 tests - `anonSeedScope-5746.enumeration.test.tsx`,
+// `signOut-client-cache-purge-5198.test.tsx`, `sessionUserChangePurge-5664
+// .test.tsx` - and they went red only because all three read back a write they
+// had made themselves. Two more suites that instrument `Storage.prototype`
+// stayed GREEN in the same run while the instrument was proven blind. That is
+// the general case, and the reason this rule is stated positively rather than
+// left to each suite to notice - see objectui#7271.
 //
 // So: in a DOM environment every storage global is (re)built from that
 // environment's own `Storage`; without one, both are the in-memory shim,
