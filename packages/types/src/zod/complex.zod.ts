@@ -493,14 +493,15 @@ export const ChatbotEnhancedSchema = BaseSchema.extend({
  *     minting one is the declared-but-unmirrored axis (objectui#6152), a
  *     different defect from the one this pair closes, and the axis the
  *     `triggerIcon` tombstone's tripwire watches (objectui#7654).
- *   - `displayMode` — RULED RETIRED by objectui#7654 (maintainer ruling B,
+ *   - `displayMode` — RETIRED by objectui#7654 (maintainer ruling B,
  *     2026-09-05): the node `type` is the one selector of presentation. The
- *     retirement executes in that card's own PR — `?: never` tombstone on the
- *     TypeScript faces, designer control and seed removed — and, per the
- *     ruling, the mirror half (`retirementTombstone()`) is owed at the moment
- *     objectui#6152 mints an arm for it, not before. Until then a mirror arm
- *     here would be a parse outcome that ruling did not ask for, so this twin
- *     has none.
+ *     TypeScript half landed there — `?: never` tombstone on both faces,
+ *     designer control and seed removed — and, per the ruling, the mirror
+ *     half (`retirementTombstone()`) is owed at the moment objectui#6152 mints
+ *     an arm for it, not before: a mirror arm here today would be a parse
+ *     outcome the ruling did not ask for, so this twin has none and a stored
+ *     document carrying the key parses exactly as it did
+ *     (`chatbot-display-mode-retired.test.ts` pins the shape as the tripwire).
  *
  * Both ride through `BaseSchema`'s `.passthrough()` unvalidated, byte for byte
  * as they do on `ChatbotSchema`'s twin.

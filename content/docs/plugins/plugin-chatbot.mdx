@@ -160,10 +160,10 @@ author against. That is why the scope is spelled out here as well as in the
 types.
 
 The table below is that shared chat surface. `chatbot-floating` declares
-seven more keys of its own - `displayMode` and six `floatingConfig` entries -
-which no row below carries and which the other two registrations have no
-trigger or panel to apply. They are documented in their own table after this
-one, under **`chatbot-floating` panel and trigger keys**.
+six more keys of its own - the six `floatingConfig` entries - which no row
+below carries and which the other two registrations have no trigger or panel
+to apply. They are documented in their own table after this one, under
+**`chatbot-floating` panel and trigger keys**.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -195,19 +195,33 @@ one, under **`chatbot-floating` panel and trigger keys**.
 
 ### `chatbot-floating` panel and trigger keys
 
-The seven keys below are declared in the `chatbot-floating` registration's own
+The six keys below are declared in the `chatbot-floating` registration's own
 `inputs` (`packages/plugin-chatbot/src/renderer.tsx`). They configure the
 floating action button and the panel it opens; the `chatbot` and
-`chatbot-enhanced` registrations render neither and ignore them. `displayMode`
-and `floatingConfig` are declared on `ChatbotSchema` and on
-`ChatbotFloatingSchema` alike (objectui#7655 declared the floating face with the
-same two members; `ChatbotSchema` kept its own), so authoring them on an inline
-node type-checks and parses - and is dropped at render time, because the
-`chatbot` node never read either.
+`chatbot-enhanced` registrations render neither and ignore them. `floatingConfig`
+is declared on `ChatbotSchema` and on `ChatbotFloatingSchema` alike
+(objectui#7655 declared the floating face with the same member; `ChatbotSchema`
+kept its own), so authoring it on an inline node type-checks and parses - and
+is dropped at render time, because the `chatbot` node never read it.
+
+**There is no `displayMode` key.** The presentation is selected by the node's
+own `type`: author a `chatbot-floating` node for the trigger-and-panel
+presentation, and a `chatbot` or `chatbot-enhanced` node for an inline one.
+`displayMode` (`'inline' | 'floating'`) used to be declared on both faces,
+offered as a **Display Mode** control in the designer and seeded as
+`'floating'` into every node the designer created - and read by nothing: it was
+a second spelling of the choice `type` already makes, so `'inline'` on a
+`chatbot-floating` node changed nothing and `'floating'` on a `chatbot` node
+produced no trigger. objectui#7654 retired it (maintainer ruling, 2026-09-05):
+the declaration is a `never` tombstone on `ChatbotSchema` and
+`ChatbotFloatingSchema`, so writing the key against either face is now a
+compile error, and the designer control and default are gone. Stored documents
+that still carry the key parse exactly as they did - it never had a Zod arm and
+the twins are passthrough - and the value is ignored at render time, as it
+always was.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `displayMode` | `'inline' \| 'floating'` | `'floating'` | **Declared and offered in the designer, but read by nothing.** The node's own `type` selects the presentation: a `chatbot-floating` node renders the trigger and panel unconditionally, and authoring `'inline'` here does not make it inline - author a `chatbot` node for that. The registration declares it with `defaultValue: 'floating'` and writes the same value into its `defaultProps`, so nodes created in the designer carry it. objectui#7654 ruled it retired (maintainer, 2026-09-05): the declaration becomes a `never` tombstone and the designer control and default are removed in that card's own change; until that lands the key is carried exactly as described here |
 | `floatingConfig.position` | `'bottom-right' \| 'bottom-left'` | `'bottom-right'` | Corner the trigger sits in; the panel is anchored to the same side |
 | `floatingConfig.defaultOpen` | boolean | `false` | Whether the panel is already open when the node mounts |
 | `floatingConfig.panelWidth` | number | `400` | Panel width in pixels, applied from the `sm` breakpoint up - below it the panel is full-bleed. Snapped to a step, see below |

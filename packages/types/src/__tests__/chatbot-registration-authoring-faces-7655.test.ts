@@ -37,18 +37,18 @@
  * its `@ts-expect-error` pins. The `it` blocks are the RUNTIME channel: the Zod
  * twins' accept sets.
  *
- * ## `displayMode` and `floatingConfig` live on BOTH faces; neither is decided here
+ * ## `displayMode` and `floatingConfig` live on BOTH faces; `displayMode` is a tombstone on both
  *
- * `ChatbotSchema` keeps both members exactly as it had them (declarations
- * verbatim), and `ChatbotFloatingSchema` declares the same two — the designer
- * control and the `defaultProps` seed for `displayMode` are the
- * `chatbot-floating` registration's. `displayMode` is RULED RETIRED:
- * objectui#7654, maintainer ruling B (2026-09-05) — `?: never` tombstone on
- * `ChatbotSchema`, control and seed removed — and that retirement executes in
- * #7654's own PR, which must find the member on both faces as ruled. So this
- * card carries the key untouched, and the runtime pin below asserts it STILL
- * parses green with any value, as a tripwire: that PR flips the pin
- * deliberately, with the ruling in hand, rather than have it change under it.
+ * `ChatbotSchema` keeps `floatingConfig` exactly as it had it, and
+ * `ChatbotFloatingSchema` declares the same member. `displayMode` was carried
+ * the same way — declared verbatim on both faces, untouched by this card —
+ * until objectui#7654 RETIRED it (maintainer ruling B, 2026-09-05): it is a
+ * `?: never` tombstone on both faces now, the designer control and the
+ * `defaultProps` seed in the `chatbot-floating` registration are gone, and the
+ * key stays UNMIRRORED on both twins. The runtime pin below still asserts it
+ * parses green with any value, as a tripwire for the moment objectui#6152
+ * mints an arm; the tombstone's own pins are in
+ * `chatbot-display-mode-retired.test.ts`.
  *
  * ## The census counts NAMED reads; the floating registration has a second channel
  *
@@ -147,8 +147,10 @@ export type assertionFloatingDeclaresWhatItReads = Expect<
 
 /**
  * `chatbot` keeps its WHOLE face — the six legacy keys (`loading` … `height`),
- * the `onSendMessage` tombstone, and `displayMode` / `floatingConfig` — exactly
- * where they were. This card declared faces; it retired and moved nothing.
+ * the `onSendMessage` and (since objectui#7654) `displayMode` tombstones, and
+ * `floatingConfig` — exactly where they were. A `?: never` member is still a
+ * declared key, so the census does not move when a key is tombstoned. This
+ * card declared faces; it retired and moved nothing.
  */
 export type assertionChatbotKeepsItsWholeFace = Expect<
   Equal<
@@ -164,10 +166,13 @@ export type assertionChatbotKeepsItsWholeFace = Expect<
  * here — it would read as `any` through `BaseSchema`'s index signature, wrong
  * values would compile, and the objectui#7669 `triggerIcon` tombstone would lose
  * its reach on `chatbot` nodes (all three measured on #7655's first cut, which
- * moved the keys). `Equal` is what catches the `any`.
+ * moved the keys). `Equal` is what catches the `any`. `displayMode` reads as
+ * `undefined` since objectui#7654 tombstoned it (`?: never` without
+ * `exactOptionalPropertyTypes` is `never | undefined`, which collapses) — a
+ * reading `Equal` still tells apart from the `any` a deletion would leave.
  */
 export type assertionFloatingKeysStayTypedOnChatbot = [
-  Expect<Equal<ChatbotSchema['displayMode'], 'inline' | 'floating' | undefined>>,
+  Expect<Equal<ChatbotSchema['displayMode'], undefined>>,
   Expect<Equal<ChatbotSchema['floatingConfig'], FloatingChatbotConfig | undefined>>,
 ];
 
@@ -187,7 +192,8 @@ export type assertionSharedKeysAreOneDeclaration = [
 export type assertionFloatingKeysHaveOneTypeOnBothFaces = [
   Expect<Equal<ChatbotFloatingSchema['displayMode'], ChatbotSchema['displayMode']>>,
   Expect<Equal<ChatbotFloatingSchema['floatingConfig'], ChatbotSchema['floatingConfig']>>,
-  Expect<Equal<ChatbotFloatingSchema['displayMode'], 'inline' | 'floating' | undefined>>,
+  // Both faces carry the objectui#7654 tombstone, so both read `undefined`.
+  Expect<Equal<ChatbotFloatingSchema['displayMode'], undefined>>,
   Expect<Equal<ChatbotFloatingSchema['floatingConfig'], FloatingChatbotConfig | undefined>>,
 ];
 
@@ -242,7 +248,6 @@ describe('the two faces annotate the nodes their registrations render (objectui#
       type: 'chatbot-floating',
       messages: baseMessages,
       floatingConfig: { position: 'bottom-left', defaultOpen: true, panelHeight: 520, title: 'Support' },
-      displayMode: 'floating',
       enableMarkdown: false,
       onClear: () => undefined,
     };
@@ -281,13 +286,16 @@ describe('the two faces annotate the nodes their registrations render (objectui#
       // @ts-expect-error `panelHeight` is a number of pixels, not a CSS length
       floatingConfig: { panelHeight: '520px' },
     };
-    // …and on `ChatbotSchema` too, which still declares both keys: a wrong
-    // `displayMode` is refused there, not swallowed as `any`.
+    // …and on `ChatbotSchema` too: a wrong value on a key it declares as a
+    // union is refused there, not swallowed as `any`. (`displayMode` used to
+    // be this pin's key; it is a tombstone since objectui#7654, and a tombstone
+    // refuses PRESENCE, which is a different pin — see
+    // `chatbot-display-mode-retired.test.ts`.)
     const chatbot: ChatbotSchema = {
       type: 'chatbot',
       messages: baseMessages,
-      // @ts-expect-error `displayMode` is the typed union on `ChatbotSchema`, unchanged
-      displayMode: 'bogus',
+      // @ts-expect-error `processVisibility` is the typed union on `ChatbotSchema`
+      processVisibility: 'bogus',
     };
     expect(enhanced.type).toBe('chatbot-enhanced');
     expect(floating.type).toBe('chatbot-floating');
@@ -367,7 +375,6 @@ describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and le
     const result = ChatbotFloatingZod.safeParse({
       ...node,
       floatingConfig: { position: 'bottom-left', defaultOpen: true, panelWidth: 400, panelHeight: 520, title: 'Support', triggerSize: 56 },
-      displayMode: 'floating',
       enableMarkdown: true,
       enableFileUpload: true,
       requestBody: { tenant: 'acme' },
@@ -382,15 +389,18 @@ describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and le
     }
   });
 
-  it('TRIPWIRE — `displayMode` is unmirrored here as on `ChatbotSchema`: any value still parses green (objectui#7654 ruled it retired; its own PR flips this)', () => {
-    // Declared on the face with the same `'inline' | 'floating'` type
-    // `ChatbotSchema` carries, deliberately NOT given a mirror arm: it is
-    // declared-but-unmirrored on both faces. A value the declaration would
-    // refuse rides through `.passthrough()` here, as it does on `ChatbotSchema`'s
-    // twin. objectui#7654 RULED the key retired (maintainer ruling B,
-    // 2026-09-05); that card's own PR lands the tombstone and flips this pin
-    // with the ruling in hand — if it goes red any other way, someone mirrored,
-    // retired or wired the key silently.
+  it('TRIPWIRE — `displayMode` stays unmirrored here as on `ChatbotSchema`: any value still parses green (retired by objectui#7654; the `retirementTombstone()` half is owed when objectui#6152 mints an arm)', () => {
+    // objectui#7654 retired the key (maintainer ruling B, 2026-09-05): a
+    // `?: never` tombstone on both TypeScript faces, designer control and seed
+    // removed. The RUNTIME face was deliberately left alone — the key has no
+    // mirror arm on either twin and `BaseSchema` is `.passthrough()`, so a
+    // stored document carrying it parses exactly as it did before the ruling.
+    // The SHAPE pin is the assertion that fires if objectui#6152 mints a
+    // house-style (non-strict) arm for the key; the parse-green line after it
+    // only fires for a `.strict()` mirror (objectui#7678 item 2). Red here is
+    // the signal to add the `retirementTombstone()` half at the same time, not
+    // to delete the pin. The tombstone's own pins are in
+    // `chatbot-display-mode-retired.test.ts`.
     expect((ChatbotFloatingZod.shape as Record<string, unknown>).displayMode).toBeUndefined();
     expect(ChatbotFloatingZod.safeParse({ ...node, displayMode: 'anything-at-all' }).success).toBe(true);
     // Lit control on the same instrument: a key the twin DOES declare is in its
