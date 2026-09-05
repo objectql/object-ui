@@ -25,7 +25,11 @@ import type { DataScope, DataContext, DataSource } from '@object-ui/types';
 export interface RowLevelFilter {
   /** Field to filter on */
   field: string;
-  /** Filter operator */
+  /**
+   * Filter operator. The set is closed: a rule whose operator is outside it
+   * (possible for a rule read back from stored JSON, which the type does not
+   * guard) evaluates to `false` and denies the row.
+   */
   operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'in' | 'nin' | 'contains';
   /** Filter value */
   value: any;
@@ -236,7 +240,10 @@ export class DataScopeManager implements DataContext {
 }
 
 /**
- * Evaluate a single filter condition against a field value
+ * Evaluate a single filter condition against a field value.
+ *
+ * An operator the switch does not implement evaluates to `false` (fail
+ * closed); see the `default` arm.
  */
 function evaluateFilter(fieldValue: any, operator: RowLevelFilter['operator'], filterValue: any): boolean {
   switch (operator) {
@@ -259,7 +266,15 @@ function evaluateFilter(fieldValue: any, operator: RowLevelFilter['operator'], f
     case 'contains':
       return typeof fieldValue === 'string' && fieldValue.includes(String(filterValue));
     default:
-      return true;
+      // Fail closed. A row-level rule this evaluator cannot answer must not
+      // admit the row it exists to hide: the same answer `evaluateCondition`
+      // in @object-ui/permissions gives from its own `default` arm, and the
+      // opposite of the admit-all this arm used to return. The declared union
+      // above keeps TypeScript callers off this arm; a rule read back from
+      // stored JSON arrives as a plain string and is not protected by it.
+      // Silent, like the sibling: the caller sees a narrower result set, not
+      // a thrown error (objectui#7378).
+      return false;
   }
 }
 
