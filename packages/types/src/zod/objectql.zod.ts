@@ -963,6 +963,18 @@ export const ObjectDataTableSchema = BaseSchema.extend({
 
 /**
  * ObjectQL Component Schema Union
+ *
+ * Same twelve members as the TS union in `../objectql.ts`, in the same order.
+ * `ObjectGallerySchema` and `ObjectDataTableSchema` joined in objectui#7363:
+ * PR #7355 (objectui#6576) minted both mirrors and deliberately did not extend
+ * this union, so `AnyComponentSchema` — and `validateSchema` /
+ * `safeValidateSchema` / `objectui validate` with it — had NO arm for an
+ * `object-gallery` or `object-data-table` node. Such a document was refused as
+ * matching no arm, exactly as before the mirrors existed, and a wrong-typed
+ * declared key on it (`searchable: 'yes'`) could never be diagnosed by name.
+ * Both nodes render (`plugin-list` registers `object-gallery`, `plugin-dashboard`
+ * registers `object-data-table`); this is the validating face catching up with
+ * the rendering one. The behaviour pin is `__tests__/objectql-union-arms-7363.test.ts`.
  */
 export const ObjectQLComponentSchema = z.union([
   ObjectGridSchema,
@@ -974,5 +986,7 @@ export const ObjectQLComponentSchema = z.union([
   ObjectCalendarSchema,
   ObjectKanbanSchema,
   ObjectChartSchema,
+  ObjectGallerySchema,
+  ObjectDataTableSchema,
   ListViewSchema,
 ]);
