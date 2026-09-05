@@ -269,7 +269,7 @@ const cardWithChildren = CardSchema.parse({
   type: 'card',
   title: 'My Card',
   children: [
-    { type: 'text', value: 'Hello' },
+    { type: 'text', content: 'Hello' },
     { type: 'button', label: 'Click' }
   ]
 });

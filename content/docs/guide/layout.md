@@ -137,7 +137,7 @@ The `Page` component provides a consistent wrapper for individual pages with opt
   "body": {
     "type": "container",
     "children": [
-      { "type": "text", "value": "User list goes here" }
+      { "type": "text", "content": "User list goes here" }
     ]
   }
 }
@@ -533,7 +533,7 @@ Omit `sidebar` and the content fills the width under the top bar.
   "body": {
     "type": "card",
     "children": [
-      { "type": "text", "value": "Record details..." }
+      { "type": "text", "content": "Record details..." }
     ]
   }
 }

@@ -147,7 +147,7 @@ interface Case {
   readText: string;
 }
 
-const NODE: SchemaNode = { type: 'text', value: 'x' } as SchemaNode;
+const NODE: SchemaNode = { type: 'text', content: 'x' } as SchemaNode;
 const TEXT_CONTROL = { type: 'text' };
 const CAROUSEL_CONTROL = { type: 'carousel', items: [] };
 const FILTER_CONTROL = { type: 'filter-builder', fields: [] };
@@ -162,7 +162,7 @@ const R = 'packages/components/src/renderers/';
 const CASES: Case[] = [
   { type: 'TextSchema', key: 'content', mirror: TextSchema as never, control: TEXT_CONTROL,
     legal: 'hello', illegal: 42,
-    reader: R + 'basic/text.tsx', readText: '{schema.content || schema.value}' },
+    reader: R + 'basic/text.tsx', readText: '{schema.content}' },
 
   { type: 'CarouselSchema', key: 'opts', mirror: CarouselSchema as never, control: CAROUSEL_CONTROL,
     legal: { loop: true, align: 'start' }, illegal: 'not-an-option-bag',

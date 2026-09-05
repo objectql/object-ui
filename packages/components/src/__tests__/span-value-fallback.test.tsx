@@ -74,7 +74,7 @@ describe('span reads its declared `value` key (#5050)', () => {
       type: 'span',
       className: 'both-keys',
       value: 'value must not render',
-      children: [{ type: 'text', value: 'children win' }],
+      children: [{ type: 'text', content: 'children win' }],
     };
 
     const { container } = render(<SchemaRenderer schema={schema} />);
@@ -93,7 +93,7 @@ describe('span reads its declared `value` key (#5050)', () => {
       type: 'span',
       className: 'single-child-wins',
       value: 'value must not render',
-      children: { type: 'text', value: 'lone child wins' },
+      children: { type: 'text', content: 'lone child wins' },
     };
 
     const { container } = render(<SchemaRenderer schema={schema} />);
