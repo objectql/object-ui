@@ -42,11 +42,43 @@ if (typeof (globalThis as any).ResizeObserver === 'undefined') {
   };
 }
 
-// Node 22+/25 ships a stubbed native `localStorage` / `sessionStorage` that
-// needs `--localstorage-file=<path>` to be functional. Without the flag,
-// `clear()` and `removeItem()` are missing, which breaks tests relying on a
-// working Storage. Replace with an in-memory Storage for deterministic behavior
-// across Node versions.
+// Storage globals: the DOM environment's own `Storage` must be the one every
+// test sees. Stated positively on purpose - the old rule here was "replace a
+// store that looks broken", and it half-fired.
+//
+// Node ships experimental Web Storage globals (`--experimental-webstorage` on
+// v22, ON BY DEFAULT from v26). Vitest's `populateGlobal` refuses to copy a
+// window key that already exists on `globalThis` unless the name is on its own
+// hardcoded list - `Storage` is on that list, `localStorage` and
+// `sessionStorage` are not. So inside a happy-dom environment on Node 26 the
+// three globals come from TWO different implementations (measured, v26.7.0):
+//
+//     globalThis.Storage        -> happy-dom's class          (copied)
+//     globalThis.sessionStorage -> Node's native store        (NOT copied)
+//     globalThis.localStorage   -> Node's getter, which warns
+//                                  "localStorage is not available because
+//                                  --localstorage-file was not provided"
+//                                  and answers `undefined`   (NOT copied)
+//
+// The previous shim only replaced a store that was missing or lacked
+// `clear`/`removeItem`, so it replaced `localStorage` (with a plain object
+// literal) and LEFT `sessionStorage` as Node's. Neither is an instance of
+// `globalThis.Storage`, and both failure modes that follow are SILENT:
+//
+//   * patching `Storage.prototype` observes NOTHING, so a suite instrumenting
+//     writes reads an empty ledger and its assertions pass vacuously;
+//   * `Object.keys(localStorage)` answers `[]` for a non-empty store, because
+//     the plain object kept its entries in a closed-over Map instead of as own
+//     properties (happy-dom's Storage is a Proxy that exposes them).
+//
+// Measured on v26.7.0 before this rule: 3 of the 102 storage-touching suites
+// went red (12 tests), and the only reason they went red rather than green is
+// that all three happen to assert on writes they made themselves. Nothing
+// makes that the general case - see objectui#7271.
+//
+// So: in a DOM environment every storage global is (re)built from that
+// environment's own `Storage`; without one, both are the in-memory shim,
+// unconditionally, so the `node` project behaves the same on every Node.
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();
   return {
@@ -71,14 +103,68 @@ function createMemoryStorage(): Storage {
   } as Storage;
 }
 
+/**
+ * The DOM environment's `Storage` constructor, or `null` when there is no DOM.
+ *
+ * happy-dom's `Storage` is publicly constructible; Node's native one answers
+ * `Illegal constructor`. That is what tells the two apart when both classes
+ * carry the same method names.
+ */
+const globalScope = globalThis as unknown as Record<string, unknown>;
+
+function domStorageConstructor(): (new () => Storage) | null {
+  const Ctor = globalScope.Storage as (new () => Storage) | undefined;
+  if (typeof Ctor !== 'function') return null;
+  try {
+    const probe = new Ctor();
+    return typeof probe?.setItem === 'function' ? Ctor : null;
+  } catch {
+    return null;
+  }
+}
+
+const DomStorage = domStorageConstructor();
+
 for (const name of ['localStorage', 'sessionStorage'] as const) {
-  const existing = (globalThis as any)[name];
-  if (!existing || typeof existing.clear !== 'function' || typeof existing.removeItem !== 'function') {
-    Object.defineProperty(globalThis, name, {
-      configurable: true,
-      writable: true,
-      value: createMemoryStorage(),
-    });
+  if (DomStorage) {
+    let existing: unknown;
+    // Reading Node's `localStorage` getter is what emits its ExperimentalWarning;
+    // it never throws on the versions in play, but a future one may.
+    try {
+      existing = globalScope[name];
+    } catch {
+      existing = undefined;
+    }
+    // `instanceof` only - do NOT probe the store by reading `setItem` & co.
+    // happy-dom's Storage is a Proxy that BINDS a method onto the instance as an
+    // own property the first time that method is read, freezing whatever
+    // `Storage.prototype` held at that moment. Reading one here would therefore
+    // make every later `Storage.prototype` patch invisible to this store - which
+    // is precisely the blindness this block exists to prevent. Measured: adding
+    // a four-method liveness probe here turned all 7 assertions of
+    // `anonSeedScope-5746.enumeration.test.tsx` red on Node 22.
+    if (existing instanceof DomStorage) continue;
+  }
+  Object.defineProperty(globalThis, name, {
+    configurable: true,
+    writable: true,
+    value: DomStorage ? new DomStorage() : createMemoryStorage(),
+  });
+}
+
+// Verified, not assumed - by identity, for the reason above. If a future Node or
+// Vitest breaks the reasoning in a way this repair does not cover, EVERY suite
+// fails here by name instead of one of them quietly measuring a store nobody
+// wrote to.
+if (DomStorage) {
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    if (globalScope[name] instanceof DomStorage) continue;
+    throw new Error(
+      `vitest.setup.base: globalThis.${name} is not an instance of this ` +
+        "environment's own `Storage`, so patching `Storage.prototype` would observe " +
+        'nothing and a suite reading back its own writes would pass VACUOUSLY. ' +
+        `node=${(globalScope.process as { version?: string } | undefined)?.version}. See objectui#7271.`,
+    );
   }
 }
 
