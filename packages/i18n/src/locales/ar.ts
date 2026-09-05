@@ -1643,11 +1643,21 @@ const ar = {
           availableObjects: "اذكر كائنات البيانات المتاحة.",
           recentActivity: "لخّص نشاطي الأخير.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "أضف حقلًا إلى أحد الكائنات.",
           addObject: "أضف كائنًا جديدًا واربطه بكائن موجود.",
           addDashboard: "أضف لوحة معلومات للمؤشرات الرئيسية.",
-          addAutomation: "أضف أتمتة — موافقة أو سير حالات أو إشعارًا.",
+          addSampleData: "املأ الكائنات الحالية ببيانات نموذجية واقعية تصلح للعرض التوضيحي.",
         },
       },
       changesTitle: "تأكيد التغييرات",

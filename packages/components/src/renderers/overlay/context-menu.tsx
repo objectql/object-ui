@@ -92,7 +92,7 @@ ComponentRegistry.register('context-menu',
       <ContextMenuTrigger asChild>
           {/* Usually a Right Click area */}
           <div className={triggerClass}>
-             {renderChildren(schema.trigger || { type: 'text', value: "Right click here" })}
+             {renderChildren(schema.trigger || { type: 'text', content: "Right click here" })}
           </div>
       </ContextMenuTrigger>
       <ContextMenuContent className={contentClass}>

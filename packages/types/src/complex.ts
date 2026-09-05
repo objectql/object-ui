@@ -904,14 +904,83 @@ export interface ChatbotSchema extends BaseSchema {
    */
   onSend?: (content: string, messages: ChatMessage[]) => void;
 
-  // --- Floating / FAB display mode ---
+  // --- Floating / FAB configuration ---
 
   /**
-   * Display mode for the chatbot.
-   * - `'inline'` (default): Embedded in the page flow.
-   * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
+   * ADR-0049 RETIREMENT TOMBSTONE — `displayMode` (objectui#7654, maintainer
+   * ruling B, 2026-09-05). Write the node `type` instead: `'chatbot-floating'`
+   * for the trigger-and-panel presentation, `'chatbot'` / `'chatbot-enhanced'`
+   * for an inline one. The node's `type` is the one selector of presentation;
+   * this key was a second spelling of that choice that no renderer has ever
+   * read.
+   *
+   * What was measured, on the retiring PR's base: `displayMode` was declared
+   * here and on {@link ChatbotFloatingSchema}, offered as a "Display Mode"
+   * control in the `chatbot-floating` registration's `inputs`, and seeded as
+   * `'floating'` by that registration's `defaultProps` — and read by nothing.
+   * `chatbot-floating` renders `<FloatingChatbot>` unconditionally and
+   * `chatbot` never looked at the key, so `'floating'` on a `chatbot` node
+   * produced no trigger and `'inline'` on a `chatbot-floating` node changed
+   * nothing. A whole-repo `git grep` census over tracked files, build output
+   * excluded, returned those sites, the doc comments and ledger entries beside
+   * them, one historical CHANGELOG line and two unrelated `displayMode` props
+   * (`GridField`, `MasterDetailForm`); the same pass over `floatingConfig`, a
+   * key that IS read, returned 79 lines, so the instrument was not blind. The
+   * control and the seed are removed in the same change; the restatement of
+   * that control is this tombstone plus the release note (objectui#7070: a
+   * control is restated, never deleted into a vacuum).
+   *
+   * ## Why a tombstone — discriminator prong 2 — and why it is loud-vs-silent here
+   *
+   * A `?: never` tombstone is available only on a surviving carrier
+   * (`ChatbotSchema` survives) and is used when either prong of this package's
+   * discriminator holds: it steers authors to a named live replacement KEY,
+   * or it keeps loud a key the docs taught as working. Prong 2 holds: the key
+   * was advertised in the 3.3.0 release record (`CHANGELOG.md:578`, "Extended
+   * `ChatbotSchema` with `displayMode` (`'inline' | 'floating'`) …") and its
+   * published comment told authors it selected the presentation. Prong 1 is
+   * not met by the letter — the replacement is the discriminant `type`, not a
+   * new key — which is why the guidance above names `type`.
+   *
+   * On a carrier extending {@link BaseSchema} — every component schema in this
+   * package — deleting an optional member is SILENT in every value shape,
+   * because the `[key: string]: any` index signature defeats both
+   * excess-property checking and the weak-type check. Measured on THIS member
+   * with `tsc -p tsconfig.test.json`, a no-index-signature control carrier
+   * (`FloatingChatbotConfig`) lit in the same run (TS2353 on a fresh undeclared
+   * key, TS2559 on a lone-key widened value):
+   *
+   *   | route      | fresh `'floating'` | fresh `'bogus'` | widened `'floating'` |
+   *   |------------|--------------------|-----------------|----------------------|
+   *   | declared   | clean              | TS2322          | clean                |
+   *   | DELETED    | clean              | clean           | clean                |
+   *   | TOMBSTONED | TS2322             | TS2322          | TS2322               |
+   *
+   * Deleted, the member reads as `any` through the index signature and even a
+   * wrong-typed value goes quiet. Tombstoned, PRESENCE with any value is a
+   * compile error — a channel deletion cannot produce on this carrier at all:
+   * on a `BaseSchema` carrier the two routes are loud-vs-silent, not
+   * louder-vs-quieter. Pinned, the deleted row included as a live control, in
+   * `__tests__/chatbot-display-mode-retired.test.ts`.
+   *
+   * ## Runtime: unchanged, deliberately — zero validation before and after
+   *
+   * There is NO `retirementTombstone()` half. `displayMode` has never had a
+   * Zod arm: it sits in the `UnmirroredDeclared` ledger for both
+   * `complex.zod.ts#ChatbotSchema` and `#ChatbotFloatingSchema`
+   * (`__tests__/zod-mirror-parity.test.ts`), and `BaseSchema` is
+   * `.passthrough()`, so a stored document carrying `displayMode: 'floating'`
+   * — every node the designer ever created — parsed green before this change
+   * and parses green after it, and the value is dropped at render time as it
+   * always was. Minting an arm to refuse it would be the declared-but-
+   * unmirrored axis (objectui#6152); the retirement test pins both twins'
+   * shapes as a tripwire so that whoever mints the mirror adds the
+   * `retirementTombstone()` half at that time.
+   *
+   * @deprecated Not part of this contract — the value was inert. The node
+   * `type` selects the presentation.
    */
-  displayMode?: 'inline' | 'floating';
+  displayMode?: never;
 
   /**
    * Configuration for the floating action button and the panel it opens —
@@ -1053,8 +1122,9 @@ export interface ChatbotEnhancedSchema
  *   - `enableMarkdown`, `enableFileUpload` and the `onClear` runtime slot,
  *     forwarded into the panel's `<ChatbotEnhanced>`;
  *   - `floatingConfig`, the trigger and panel geometry
- *     ({@link FloatingChatbotConfig}), and `displayMode` — both ALSO declared
- *     on {@link ChatbotSchema}, unchanged there; see each member's comment.
+ *     ({@link FloatingChatbotConfig}) — ALSO declared on {@link ChatbotSchema},
+ *     unchanged there — and `displayMode`, a `?: never` tombstone on both
+ *     faces since objectui#7654; see each member's comment.
  *
  * NOT declared, on purpose: `maxHeight` (the panel pins its inner chat to
  * `100%` of `floatingConfig.panelHeight` AFTER any forwarded value, so an
@@ -1103,22 +1173,19 @@ export interface ChatbotFloatingSchema
    */
   onClear?: () => void;
   /**
-   * Display mode for the chatbot.
-   * - `'inline'` (default): Embedded in the page flow.
-   * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
-   *
-   * ⚠️ RULED RETIRED — objectui#7654, maintainer ruling B (2026-09-05): the
-   * node's own `type` is the one selector of presentation, and this key is a
-   * second spelling of that choice that no renderer has ever read (measured
-   * there and re-measured here: declared, offered as a designer control in the
-   * `chatbot-floating` registration's `inputs`, seeded by its `defaultProps`,
-   * read by nothing). The retirement — `?: never` tombstone, control and seed
-   * removed — executes in that card's own PR. objectui#7655 declared the key
-   * here with the same three lines {@link ChatbotSchema} still carries, so
-   * that PR finds the member on both faces exactly as ruled; nothing was
-   * retired, tombstoned, mirrored or made live here.
+   * ADR-0049 RETIREMENT TOMBSTONE — the same `displayMode` retirement as
+   * {@link ChatbotSchema.displayMode} (objectui#7654, maintainer ruling B,
+   * 2026-09-05); the rationale, the measurements and the runtime note live
+   * there, once. Declared here as well because objectui#7655 put the member on
+   * this face with `ChatbotSchema`'s own three lines so the retirement would
+   * find it on both faces — and because this is the face of the one
+   * registration that offered the control: a `chatbot-floating` node IS the
+   * floating presentation, so there is nothing left for this key to select.
+   * `type: 'chatbot-floating'` is the whole spelling.
+   * @deprecated Not part of this contract — the value was inert. The node
+   * `type` selects the presentation.
    */
-  displayMode?: 'inline' | 'floating';
+  displayMode?: never;
   /**
    * Configuration for the floating action button and the panel it opens —
    * read by `chatbot-floating` alone and forwarded to `<FloatingChatbot>`.

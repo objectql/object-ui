@@ -93,7 +93,7 @@ const cardExample = {
   children: [
     {
       type: 'text',
-      value: 'Card content goes here',
+      content: 'Card content goes here',
     },
   ],
 };

@@ -31,7 +31,7 @@
  */
 
 import * as React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -254,10 +254,16 @@ const pendingRequest = (viewer: Record<string, unknown> | undefined) => ({
   ...(viewer ? { viewer } : {}),
 });
 
-let approvalsFetch: ReturnType<typeof vi.fn>;
+/**
+ * The approvals router the current test is being served by. Swapped per test
+ * (`stubApprovalsApi`) so a call count still means "this test's reads"; the
+ * GLOBAL `fetch` double that forwards to it is installed once, below.
+ */
+type ApprovalsRouter = (url: string, init?: RequestInit) => Promise<unknown>;
+let approvalsFetch: ReturnType<typeof vi.fn<ApprovalsRouter>>;
 
-function stubApprovalsApi(row: Record<string, unknown>) {
-  approvalsFetch = vi.fn(async (url: string) => {
+function makeApprovalsApi(row: Record<string, unknown>) {
+  return vi.fn(async (url: string) => {
     const u = String(url);
     if (u.includes(`/approvals/requests/${REQUEST_ID}/actions`)) {
       return { ok: true, json: async () => ({ data: [] }) } as any;
@@ -271,8 +277,45 @@ function stubApprovalsApi(row: Record<string, unknown>) {
     }
     return { ok: true, json: async () => ({ data: [] }) } as any;
   });
-  vi.stubGlobal('fetch', approvalsFetch);
 }
+
+function stubApprovalsApi(row: Record<string, unknown>) {
+  approvalsFetch = makeApprovalsApi(row);
+}
+
+/**
+ * The `fetch` double is installed ONCE, here at module scope, and is
+ * deliberately NEVER torn down — there is no `vi.unstubAllGlobals()` in this
+ * file's `afterEach`, and adding one back re-opens objectui#7439.
+ *
+ * ⛔ Why the usual per-test install/teardown pair does not work here. A decision
+ * dispatched by `DeclaredActionsBar` carries `refreshAfter: true`, so on success
+ * the record page re-reads the approval state — `RecordDetailView`'s
+ * `handleApprovalActionDone` calls `void approvals.refresh()`, and the
+ * `notifyDataChanged` it fires alongside runs the same read again through the
+ * record-invalidation effect. Both are fire-and-forget by design: nothing in the
+ * console awaits them, and no test barrier here waits for them either — the
+ * decision cases assert on the POST and return. That leaves a
+ * `GET /api/v1/approvals/requests?object=…` in flight when the test ends.
+ *
+ * Vitest runs `afterEach` hooks in reverse registration order, so a teardown in
+ * THIS file runs FIRST — before the root setup's RTL `cleanup()` and before the
+ * network-escape guard's assertion. A `vi.unstubAllGlobals()` there restored the
+ * real `fetch` while that read was still pending, and whether the read landed
+ * before or after that restore was pure timing: green on a fast worker, a
+ * `Network escape` red under load. Keeping ONE double installed for the whole
+ * file removes the window instead of widening the stub — the late read is served
+ * by the same router either way, and no test can ever end with the real `fetch`
+ * back in place.
+ *
+ * The default below answers "no requests on this record", so the double is
+ * honest even before the first `stubApprovalsApi` call and after the last test.
+ */
+approvalsFetch = vi.fn(async () => ({ ok: true, json: async () => ({ data: [] }) }));
+vi.stubGlobal(
+  'fetch',
+  ((url: string, init?: RequestInit) => approvalsFetch(url, init)) as unknown as typeof globalThis.fetch,
+);
 
 const METADATA = {
   objects: [...OBJECTS, SYS_APPROVAL_REQUEST_DEF],
@@ -319,10 +362,6 @@ const decisionButton = (name: string) => screen.queryByTestId(`declared-action-$
 beforeEach(() => {
   cleanup();
   authFetchSpy.mockClear();
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
 });
 
 describe('record page decision actions — a GROUP approver (objectui#3055)', () => {
@@ -473,7 +512,6 @@ describe('record page decision actions — the submitter (objectui#3055)', () =>
 describe('record page decision actions — no bar without a pending request', () => {
   it('renders no decision chrome when the record has no requests', async () => {
     approvalsFetch = vi.fn(async () => ({ ok: true, json: async () => ({ data: [] }) }) as any);
-    vi.stubGlobal('fetch', approvalsFetch);
     renderRecordPage();
     await waitFor(() => expect(approvalsFetch).toHaveBeenCalled());
 

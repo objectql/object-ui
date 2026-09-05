@@ -23,7 +23,7 @@ The Sheet component displays content in a panel that slides in from the edge of 
 ```plaintext
 interface SheetSchema {
   type: 'sheet';
-  trigger: SchemaNode;                  // Trigger component
+  trigger: SchemaNode | SchemaNode[];   // Trigger component
   title?: string;                       // Sheet title
   description?: string;                 // Sheet description
   content: SchemaNode | SchemaNode[];   // Sheet content

@@ -31,7 +31,7 @@ function App() {
   const schema = {
     type: "page",
     title: "My Dashboard",
-    body: { type: "text", value: "Hello" }
+    body: { type: "text", content: "Hello" }
   }
   
   return <SchemaRenderer schema={schema} />
@@ -133,7 +133,7 @@ Schemas can be nested to create complex UIs:
         "title": "Card 1",
         "body": {
           "type": "text",
-          "value": "Nested content"
+          "content": "Nested content"
         }
       },
       {
@@ -158,9 +158,9 @@ Use arrays for multiple items:
 {
   "type": "container",
   "body": [
-    { "type": "text", "value": "First item" },
-    { "type": "text", "value": "Second item" },
-    { "type": "text", "value": "Third item" }
+    { "type": "text", "content": "First item" },
+    { "type": "text", "content": "Second item" },
+    { "type": "text", "content": "Third item" }
   ]
 }
 ```
