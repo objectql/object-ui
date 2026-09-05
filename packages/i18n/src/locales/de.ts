@@ -1636,11 +1636,21 @@ const de = {
           availableObjects: "Liste die verfügbaren Datenobjekte auf.",
           recentActivity: "Fasse meine letzten Aktivitäten zusammen.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "Füge einem der Objekte ein Feld hinzu.",
           addObject: "Füge ein neues Objekt hinzu und verknüpfe es mit einem bestehenden.",
           addDashboard: "Füge ein Dashboard für die wichtigsten Kennzahlen hinzu.",
-          addAutomation: "Füge eine Automatisierung hinzu — eine Freigabe, einen Statusablauf oder eine Benachrichtigung.",
+          addSampleData: "Fülle die vorhandenen Objekte mit realistischen Beispieldatensätzen, damit ich die App vorführen kann.",
         },
       },
       changesTitle: "Änderungen bestätigen",
