@@ -49,10 +49,18 @@
  * overshoot a live risk rather than a hypothetical one, since deleting the
  * declared property altogether would leave `visible` typed `any` and every
  * fixture below still compiling.
+ *
+ * Widened again by objectui#7530 (ruled 2026-09-04, option A): the expression
+ * half is now `ExpressionWire` — the string-or-CEL-envelope union — on all three
+ * of `visible` / `hidden` / `disabled`, so `assertionVisible` below reads that
+ * union. The envelope's own pins live in
+ * `base-schema-predicate-envelope-7530.test.ts`; this file keeps the
+ * string-form ones.
  */
 
 import { describe, it, expect } from 'vitest';
 import type { BaseSchema } from '../base';
+import type { ExpressionWire } from '../expression';
 
 /* ── Type-level helpers ──────────────────────────────────────────────────── */
 
@@ -64,7 +72,7 @@ type Expect< T extends true > = T;
 /* ── The declared type is exactly what the evaluator accepts ─────────────── */
 
 export type assertionVisible = Expect<
-  Equal< BaseSchema['visible'], boolean | string | undefined >
+  Equal< BaseSchema['visible'], boolean | ExpressionWire | undefined >
 >;
 
 /* ── Authorable fixtures ─────────────────────────────────────────────────── */

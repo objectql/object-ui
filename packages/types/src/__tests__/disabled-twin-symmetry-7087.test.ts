@@ -102,6 +102,7 @@ import {
   ToggleGroupSchema as ToggleGroupMirror,
 } from '../zod/disclosure.zod';
 import * as FormMirrors from '../zod/form.zod';
+import type { ExpressionWire } from '../expression';
 
 /* ── Type-level helpers ──────────────────────────────────────────────────── */
 
@@ -110,8 +111,14 @@ type Equal< A, B > =
   (< T >() => T extends A ? 1 : 2) extends (< T >() => T extends B ? 1 : 2) ? true : false;
 type Expect< T extends true > = T;
 
-/** The union both twins carry on `BaseSchema`, pinned here so the checks below cannot drift from it. */
-type BasePredicate = boolean | string | undefined;
+/**
+ * The union both twins carry on `BaseSchema`, pinned here so the checks below
+ * cannot drift from it. `boolean | string | undefined` until objectui#7530
+ * (ruled 2026-09-04) declared the CEL envelope on all three predicate keys
+ * through the shared `ExpressionWire`; the 18 formerly-narrowed interfaces
+ * inherit the wider union exactly as they inherited the narrower one.
+ */
+type BasePredicate = boolean | ExpressionWire | undefined;
 export type assertionBaseDisabled = Expect< Equal< BaseSchema['disabled'], BasePredicate > >;
 export type assertionBaseVisible = Expect< Equal< BaseSchema['visible'], BasePredicate > >;
 

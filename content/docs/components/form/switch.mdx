@@ -17,6 +17,6 @@ interface SwitchSchema {
   name?: string;
   label?: string;
   defaultChecked?: boolean;
-  disabled?: boolean | string;   // boolean, or a predicate expression
+  disabled?: boolean | string | { dialect?: string; source: string };   // boolean, predicate expression, or CEL envelope
 }
 ```

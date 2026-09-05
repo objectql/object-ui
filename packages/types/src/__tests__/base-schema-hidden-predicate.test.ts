@@ -42,7 +42,8 @@
  * ## What this file pins, and why in this shape
  *
  *   1. Type level — `BaseSchema['hidden']` is EXACTLY
- *      `boolean | string | undefined`, invariantly. `Equal`, not `extends`:
+ *      `boolean | ExpressionWire | undefined` (`boolean | string | undefined`
+ *      until objectui#7530 declared the envelope), invariantly. `Equal`, not `extends`:
  *      the narrow `boolean` is assignable to the wide union, so a one-way check
  *      stays green on a widening that never happened, and `BaseSchema`'s
  *      `[key: string]: any` index signature means a DELETED member reads `any`,
@@ -57,15 +58,17 @@
  *      `hidden`. The refusal is the anti-overshoot guard: `z.any()` would
  *      satisfy every positive case on its own.
  *
- * ## Deliberately NOT pinned here: the CEL envelope object
+ * ## The CEL envelope object — declared since objectui#7530
  *
- * `hasDeclaredPredicate` accepts `{ dialect, source }` on this key, and NO key
- * declares it — `visible` and `disabled` are `boolean | string` and under-report
- * it too. objectui#7530 rules on all three together (declare on all three, or
- * refuse on all three). This file therefore asserts nothing about that shape in
- * either direction; pinning the current refusal on `hidden` alone would
- * pre-empt that ruling and re-introduce, in the pins, exactly the three-way
- * asymmetry the widening just removed.
+ * This file used to assert nothing about `{ dialect, source }` in either
+ * direction: `hasDeclaredPredicate` accepted it on this key while NO key
+ * declared it, and pinning the refusal on `hidden` alone would have pre-empted
+ * the ruling on all three. objectui#7530 (ruled 2026-09-04, option A) declared
+ * it on all three keys at once through one shared `ExpressionWire`, so the
+ * type-level assertion above widened with it; the envelope's own pins —
+ * validate-accepts on every key, reuse by reference, twin parity — live in
+ * `base-schema-predicate-envelope-7530.test.ts`, and the string-form pins here
+ * are unchanged.
  *
  * ADR-0089's carve-out ("the boolean `visible` ... is explicitly out of scope")
  * governs `packages/spec`'s keys, not this surface — `BaseSchema` is objectui's
@@ -76,6 +79,7 @@
 import { describe, it, expect } from 'vitest';
 import type { BaseSchema } from '../base';
 import { BaseSchema as Mirror } from '../zod/base.zod';
+import type { ExpressionWire } from '../expression';
 
 /* ── Type-level helpers ──────────────────────────────────────────────────── */
 
@@ -87,7 +91,7 @@ type Expect< T extends true > = T;
 /* ── The declared type is exactly what the evaluator accepts ─────────────── */
 
 export type assertionHidden = Expect<
-  Equal< BaseSchema['hidden'], boolean | string | undefined >
+  Equal< BaseSchema['hidden'], boolean | ExpressionWire | undefined >
 >;
 
 /** The two siblings, asserted beside it: all three keys carry one type. */

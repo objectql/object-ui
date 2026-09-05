@@ -112,6 +112,11 @@ export type {
   EventHandlers,
   StyleProps,
 } from './base.js';
+// The predicate WIRE shape `BaseSchema.visible` / `.hidden` / `.disabled` and
+// the form predicate keys share (objectui#7530): a bare string or the CEL
+// envelope `{ dialect?, source }`. Its zod twin is `ExpressionWireSchema` on
+// the `./zod` entry.
+export type { ExpressionWire } from './expression.js';
 
 // ============================================================================
 // Layout Components - Structure & Organization
