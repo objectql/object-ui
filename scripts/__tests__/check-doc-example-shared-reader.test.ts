@@ -452,18 +452,28 @@ describe('check-doc-example-shared-reader — this repository', () => {
   });
 
   /**
-   * The gate's first run over this repository found one instance, and it is a
-   * real one rather than a false positive: `navigation-overlay.tsx`'s file-header
-   * `@example` still teaches objectui#7638's spelling, one file over from the doc
-   * block PR #7648 fixed. objectui#7652 fenced the prose fixes out of this PR, so
-   * it is carried as the ledger's only row and named here — a count would let it
-   * be swapped for a different waiver without anyone noticing.
+   * The gate's first run over this repository found exactly one instance, and it
+   * was a real one rather than a false positive: `navigation-overlay.tsx`'s
+   * file-header `@example` taught objectui#7638's spelling, one file over from
+   * the doc block PR #7648 fixed. objectui#7652 fenced the prose fixes out of the
+   * gate's own PR, so it landed carried as the ledger's only row.
+   *
+   * objectui#7787 then fixed that example and deleted the row in the same change,
+   * so BOTH directions are pinned here by name rather than by count: the ledger
+   * is empty, and the instance it named is gone from the raw findings — not
+   * merely waived out of them. A count would let either be swapped for something
+   * else without anyone noticing, and `result.raw` is read (not `result.findings`)
+   * precisely because an empty ledger makes the two identical: reading the
+   * pre-waiver list is what keeps this assertion honest if a row is ever added
+   * back.
+   *
+   * That the gate still REACHES this pair is asserted above, where
+   * `useNavigationOverlay.objectName` is named among the compared pairs — without
+   * it, a scan that stopped looking at this file would satisfy everything here.
    */
-  it('carries objectui#7787 as its one waived instance, and nothing else', () => {
-    expect([...KNOWN_HAND_SPELLINGS.keys()]).toEqual([
-      'packages/components/src/custom/navigation-overlay.tsx::useNavigationOverlay::objectName',
-    ]);
-    expect(result.raw.map((f) => f.key)).toContain(
+  it('has drained its ledger: no waived instance, and objectui#7787 is really gone', () => {
+    expect([...KNOWN_HAND_SPELLINGS.keys()]).toEqual([]);
+    expect(result.raw.map((f) => f.key)).not.toContain(
       'packages/components/src/custom/navigation-overlay.tsx::useNavigationOverlay::objectName',
     );
   });

@@ -121,6 +121,11 @@
  * objectui#7787, `navigation-overlay.tsx`'s file-header example, the copy of
  * objectui#7638's spelling that PR #7648's fix did not reach. A row whose defect
  * is gone fails this gate rather than sitting there as a waiver for nothing.
+ *
+ * That row is now OUT: objectui#7787 pointed the example at
+ * `resolveRecordSourceObjectName` and deleted the row in the same change, which
+ * is the drain this ledger is shaped for. The ledger is empty, which is the
+ * healthy state, and the gate now runs with nothing waived at all.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -143,20 +148,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
  * live seed text, not a decision that it is fine — so it carries a card, and it
  * comes out when that card lands. The key is `file::symbol::slot`.
  */
-export const KNOWN_HAND_SPELLINGS = new Map([
-  [
-    'packages/components/src/custom/navigation-overlay.tsx::useNavigationOverlay::objectName',
-    "objectui#7787. `navigation-overlay.tsx`'s FILE-HEADER block documents " +
-      '`NavigationOverlay` while its `@example` calls `useNavigationOverlay`, and it still ' +
-      "teaches `objectName: schema.objectName` — the exact spelling objectui#7638 was filed " +
-      "about and PR #7648 removed from the hook's own doc block. That fix did not reach this " +
-      'file: different file, different package, a block documenting a different symbol. It is ' +
-      'the first thing this gate found and the reason the gate is worth having, and it is NOT ' +
-      "fixed here on purpose — objectui#7652 fenced the prose fixes out of the gate's own PR, " +
-      'so that the gate lands provably green rather than bundled with a change to what it ' +
-      'judges. Delete this row in the same change that fixes the example.',
-  ],
-]);
+export const KNOWN_HAND_SPELLINGS = new Map([]);
 
 /**
  * A ledger row naming a doc comment this gate no longer finds is worse than no
