@@ -34,11 +34,22 @@
  * the runner. The `en-US` literal from the card is asserted alongside them, on
  * the same instant, so a silent redesign cannot pass by moving both sides.
  *
+ * ── The call shape (maintainer ruling B, objectui#7443) ──────────────────
+ * `'compact'` rides INSIDE `options` — `formatDateTime(v, { style: 'compact',
+ * locale })` — and the published signature stays `(value, options?)`. A
+ * positional `style` parameter would have displaced the `options` objectui#4272
+ * put in position two, and a JavaScript caller that did not move its argument
+ * would silently lose its locale. The arity pin below is the mechanical guard:
+ * `formatDateTime.length` is 2 and turns 3 the moment a positional slot is
+ * inserted again.
+ *
  * ── Directions ───────────────────────────────────────────────────────────
  * Reverting `formatDateTime` to a single default face turns every `'compact'`
  * case RED. Reverting the renderer to its inlined bags leaves the `'compact'`
  * cases GREEN (they measure the function) and turns the `field.format` cases
- * RED (the renderer would read no field at all).
+ * RED (the renderer would read no field at all). Re-inserting a positional
+ * `style` turns the arity pin RED and, because `{ style, locale }` would then
+ * land in the style slot, every localized case with it.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
@@ -106,7 +117,7 @@ afterEach(() => cleanup());
 describe("formatDateTime's 'compact' style is the former cell face, byte-identical", () => {
   it.each(LOCALES)('%s — the joined face', (locale) => {
     const former = formerCellFace(INSTANT, locale);
-    expect(formatDateTime(INSTANT, 'compact', { locale })).toBe(
+    expect(formatDateTime(INSTANT, { style: 'compact', locale })).toBe(
       `${former.date} ${former.time}`,
     );
   });
@@ -117,19 +128,19 @@ describe("formatDateTime's 'compact' style is the former cell face, byte-identic
   });
 
   it('the en-US face is the one the card recorded', () => {
-    expect(formatDateTime(INSTANT, 'compact', { locale: 'en-US' })).toBe('7/4/2024 7:00 am');
+    expect(formatDateTime(INSTANT, { style: 'compact', locale: 'en-US' })).toBe('7/4/2024 7:00 am');
   });
 
   it('the joined face is exactly the two halves and one space', () => {
     const parts = formatDateTimeCompactParts(INSTANT, { locale: 'en-US' })!;
     expect(`${parts.date} ${parts.time}`).toBe(
-      formatDateTime(INSTANT, 'compact', { locale: 'en-US' }),
+      formatDateTime(INSTANT, { style: 'compact', locale: 'en-US' }),
     );
   });
 
   it('empty and invalid values answer the module dash, not a broken face', () => {
-    expect(formatDateTime('', 'compact', { locale: 'en-US' })).toBe('—');
-    expect(formatDateTime('not-a-date', 'compact', { locale: 'en-US' })).toBe('—');
+    expect(formatDateTime('', { style: 'compact', locale: 'en-US' })).toBe('—');
+    expect(formatDateTime('not-a-date', { style: 'compact', locale: 'en-US' })).toBe('—');
     expect(formatDateTimeCompactParts('', { locale: 'en-US' })).toBeNull();
     expect(formatDateTimeCompactParts('not-a-date', { locale: 'en-US' })).toBeNull();
   });
@@ -144,19 +155,49 @@ describe('the DEFAULT style is untouched — the non-cell convention still rende
       hour: '2-digit',
       minute: '2-digit',
     });
-    expect(formatDateTime(INSTANT, undefined, { locale })).toBe(verbose);
+    expect(formatDateTime(INSTANT, { locale })).toBe(verbose);
   });
 
   it('en-US default is the second row of the card table, not the compact face', () => {
-    expect(formatDateTime(INSTANT, undefined, { locale: 'en-US' })).toBe('Jul 4, 2024, 07:00 AM');
-    expect(formatDateTime(INSTANT, undefined, { locale: 'en-US' })).not.toBe(
-      formatDateTime(INSTANT, 'compact', { locale: 'en-US' }),
+    expect(formatDateTime(INSTANT, { locale: 'en-US' })).toBe('Jul 4, 2024, 07:00 AM');
+    expect(formatDateTime(INSTANT, { locale: 'en-US' })).not.toBe(
+      formatDateTime(INSTANT, { style: 'compact', locale: 'en-US' }),
     );
   });
 
   it('an unrecognised style falls to the default face, as it does on formatDate', () => {
-    expect(formatDateTime(INSTANT, 'no-such-style', { locale: 'en-US' })).toBe(
-      formatDateTime(INSTANT, undefined, { locale: 'en-US' }),
+    expect(formatDateTime(INSTANT, { style: 'no-such-style', locale: 'en-US' })).toBe(
+      formatDateTime(INSTANT, { locale: 'en-US' }),
+    );
+  });
+});
+
+describe("the signature stays (value, options?) — 'compact' rides in options (ruling B)", () => {
+  it('formatDateTime declares exactly two parameters: no positional style slot', () => {
+    // `Function.length` counts declared parameters. `(value, options?)` is 2;
+    // the refused `(value, style?, options?)` shape is 3.
+    expect(formatDateTime.length).toBe(2);
+  });
+
+  it('the objectui#4272 call shape — options in position two — still localizes', () => {
+    const zh = formatDateTime(INSTANT, { locale: 'zh' });
+    const en = formatDateTime(INSTANT, { locale: 'en-US' });
+    expect(zh).toBe(
+      new Date(INSTANT).toLocaleDateString('zh', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+    expect(zh).not.toBe(en);
+  });
+
+  it('style is read from options, so the compact face is reachable with the locale beside it', () => {
+    const former = formerCellFace(INSTANT, 'de-DE');
+    expect(formatDateTime(INSTANT, { style: 'compact', locale: 'de-DE' })).toBe(
+      `${former.date} ${former.time}`,
     );
   });
 });

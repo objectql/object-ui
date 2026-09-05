@@ -192,7 +192,7 @@ function formatMeasureDate(v: unknown, format: string | undefined, locale: strin
     return Number.isNaN(Date.parse(v)) ? undefined : formatDate(v, format, { locale });
   }
   if (ISO_DATETIME_RE.test(v)) {
-    return Number.isNaN(Date.parse(v)) ? undefined : formatDateTime(v, undefined, { locale });
+    return Number.isNaN(Date.parse(v)) ? undefined : formatDateTime(v, { locale });
   }
   return undefined;
 }

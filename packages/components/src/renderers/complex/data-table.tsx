@@ -771,7 +771,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       // independently authored `Intl.DateTimeFormat` bag here, close to but
       // not derived from the shared function. Byte-identical in en-US, zh and
       // de-DE, so no table cell changes.
-      if (hasTime) return formatDateTime(new Date(ts), undefined, { locale: language });
+      if (hasTime) return formatDateTime(new Date(ts), { locale: language });
       // The DATE-only half keeps its own bag on purpose: `formatDateTime`
       // always carries a time, and `formatDate`'s default drops the year in
       // the current year — routing this branch through either WOULD change

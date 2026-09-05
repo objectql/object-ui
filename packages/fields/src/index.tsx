@@ -887,8 +887,9 @@ export function DateTimeCellRenderer({ value, field }: CellRendererProps): React
   // The compact face is painted in two halves — the time is muted and offset
   // — so this branch asks the shared module for the halves rather than the
   // joined string. Both come out of `formatDateTimeCompactParts`, which is
-  // also what `formatDateTime(value, 'compact')` joins, so the cell and every
-  // string caller of the compact face render the same instant identically.
+  // also what `formatDateTime(value, { style: 'compact' })` joins, so the
+  // cell and every string caller of the compact face render the same instant
+  // identically.
   // `null` is unreachable: the invalid/empty values it answers for already
   // returned `<EmptyValue />` above.
   if (style === 'compact') {
@@ -905,7 +906,7 @@ export function DateTimeCellRenderer({ value, field }: CellRendererProps): React
 
   return (
     <span className="tabular-nums text-sm whitespace-nowrap">
-      {formatDateTime(date, style, { locale, t })}
+      {formatDateTime(date, { style, locale, t })}
     </span>
   );
 }

@@ -50,7 +50,7 @@ describe('formatMeasure routes a date-shaped measure through the shared date pat
   it('renders a datetime measure as a datetime, not as its raw ISO string', () => {
     const out = formatMeasure(ISO_DATETIME, undefined, undefined, undefined, EN);
     expect(out).not.toBe(ISO_DATETIME);
-    expect(out).toBe(formatDateTime(ISO_DATETIME, undefined, { locale: EN }));
+    expect(out).toBe(formatDateTime(ISO_DATETIME, { locale: EN }));
   });
 
   it('renders a date-only measure as a date, not as its raw ISO string', () => {
@@ -62,7 +62,7 @@ describe('formatMeasure routes a date-shaped measure through the shared date pat
   it('accepts the space-separated ISO spelling a backend may send', () => {
     const spaced = '2024-07-04 07:00:00';
     expect(formatMeasure(spaced, undefined, undefined, undefined, EN)).toBe(
-      formatDateTime(spaced, undefined, { locale: EN }),
+      formatDateTime(spaced, { locale: EN }),
     );
   });
 
@@ -70,7 +70,7 @@ describe('formatMeasure routes a date-shaped measure through the shared date pat
     const de = formatMeasure(ISO_DATETIME, undefined, undefined, undefined, 'de-DE');
     const en = formatMeasure(ISO_DATETIME, undefined, undefined, undefined, EN);
     expect(de).not.toBe(en);
-    expect(de).toBe(formatDateTime(ISO_DATETIME, undefined, { locale: 'de-DE' }));
+    expect(de).toBe(formatDateTime(ISO_DATETIME, { locale: 'de-DE' }));
   });
 });
 

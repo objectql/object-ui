@@ -46,13 +46,33 @@
  * in `dataset-format.ts` takes `fieldLabel`.
  */
 
-/** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
+/**
+ * Options shared by {@link formatDate} / {@link formatRelativeDate} /
+ * {@link formatDateTime}. One bag, and each function reads the keys it needs:
+ * `dueLike` and `t` only matter on the relative path, `style` is read by
+ * `formatDateTime` only (see below).
+ */
 export interface DateDisplayOptions {
   dueLike?: boolean;
   /** BCP-47 display locale (ADR-0053 tenant default); falls back to the runtime locale. */
   locale?: string;
   /** i18n translate fn for phrases `Intl` can't produce (the "Overdue Nd" wording). */
   t?: (key: string, params?: Record<string, unknown>) => string;
+  /**
+   * Named face, read by {@link formatDateTime}: `'compact'` is the dense grid
+   * cell face (objectui#7443); anything else, or absent, is the default face.
+   *
+   * It rides here rather than in a second positional parameter because
+   * `formatDateTime(value, options?)` is a PUBLISHED signature with `options`
+   * in position two (objectui#4272). A positional `style` would have displaced
+   * it: TypeScript would reject the old call, but a JavaScript caller would
+   * silently hand its options bag to the style slot and lose its locale —
+   * the #4272 defect again. {@link formatDate} still takes its style
+   * positionally and does NOT read this key; the symmetric long-run shape
+   * (both functions reading `options.style`) is additive on `formatDate` and
+   * deliberately not part of #7443.
+   */
+  style?: string;
 }
 
 /**
@@ -147,13 +167,13 @@ export function formatDate(value: string | Date | number, style?: string, option
  * The `'compact'` datetime face as the two halves a grid cell paints
  * separately — `7/4/2024` and `7:00 am` for `2024-07-04T07:00:00Z` in `en-US`.
  *
- * `formatDateTime(value, 'compact', options)` is exactly `date + ' ' + time`
- * of what this returns, so a caller that wants the face as ONE string and a
- * caller that wants to style the halves differently cannot drift apart. That
- * drift is what objectui#7443 recorded: `DateTimeCellRenderer` inlined these
- * two option bags and never called this module, so `datetime` had two display
- * conventions while `date` had one — the same shape as objectui#4576, which
- * this repo has already paid for once.
+ * `formatDateTime(value, { style: 'compact', ...options })` is exactly
+ * `date + ' ' + time` of what this returns, so a caller that wants the face
+ * as ONE string and a caller that wants to style the halves differently
+ * cannot drift apart. That drift is what objectui#7443 recorded:
+ * `DateTimeCellRenderer` inlined these two option bags and never called this
+ * module, so `datetime` had two display conventions while `date` had one —
+ * the same shape as objectui#4576, which this repo has already paid for once.
  *
  * `null` for a value this module renders as `'—'`; the cell renders its own
  * empty state for those, so it never sees the dash.
@@ -186,20 +206,20 @@ export function formatDateTimeCompactParts(
 /**
  * Format datetime value.
  *
- * `style` selects a named face, exactly as it does on {@link formatDate}:
+ * `options.style` selects a named face:
  *
  *   - `'compact'` — the dense grid face, `7/4/2024 7:00 am` in `en-US`. It is
  *     what every `datetime` CELL renders, and what `DateTimeCellRenderer`
  *     used to build from its own inlined `Intl` bags (objectui#7443).
- *   - anything else, including `undefined` — the verbose default,
+ *   - anything else, including absent — the verbose default,
  *     `Jul 4, 2024, 07:00 AM` in `en-US`. Unchanged, and still what a
  *     non-cell caller (dataset measure, gantt tooltip, data-table) gets.
  *
- * ⚠️ `style` sits in the SAME position it does on `formatDate`, which means it
- * displaced the `options` parameter objectui#4272 had added here in position
- * two. Every call passing options positionally had to move them along one;
- * the two functions being callable the same way is the point — a fourth
- * author copying whichever is nearest now copies a consistent pair.
+ * The signature is `(value, options?)`, unchanged: `style` is a key of
+ * `options`, not a positional parameter, so every existing call —
+ * `formatDateTime(v, { locale })` included — keeps meaning exactly what it
+ * meant (see the note on `DateDisplayOptions.style` for why the positional
+ * shape `formatDate` uses was refused here).
  *
  * `options` is optional, so a caller that passes nothing keeps the exact
  * runtime-default behavior it had. Before objectui#4272 the parameter did not
@@ -208,16 +228,12 @@ export function formatDateTimeCompactParts(
  * MACHINE's locale, which is neither of the repo's two locale channels.
  * Callers should pass the tag from `useDisplayLocale()`.
  */
-export function formatDateTime(
-  value: string | Date | number,
-  style?: string,
-  options?: DateDisplayOptions,
-): string {
+export function formatDateTime(value: string | Date | number, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
 
-  if (style === 'compact') {
+  if (options?.style === 'compact') {
     const parts = formatDateTimeCompactParts(date, options);
     return parts ? `${parts.date} ${parts.time}` : '—';
   }
