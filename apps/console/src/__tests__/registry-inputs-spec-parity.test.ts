@@ -794,7 +794,9 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // THESE DO NOT SELF-RETIRE ON A PIN BUMP, and that is deliberate: unlike the
   // GA-pending five above, no issue owns declaring them later. They retire only
   // if `@objectstack/spec` retires the keys upstream (an ADR-0087 D2 tombstone,
-  // which by itself would NOT make them stale here — see the record_picker trio)
+  // which by itself DOES make the entry dangling and stale here, because
+  // `specTopLevelKeys` subtracts tombstones — the record_picker trio was
+  // harvested that way, and `defaultSort` followed it at 17.3.0)
   // or if objectui un-deprecates a spelling. Do not resolve one by declaring the
   // input; that is the move the ruling refused.
   //
@@ -804,7 +806,8 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   // `@deprecated` in `ObjectGridSchema`, AND declared by GA — measures TEN. The
   // five extra (`showPagination`, `defaultSort`, `defaultFilters`,
   // `resizableColumns`, `title`) are the same class by the same test, so they are
-  // carved out with it. Trimming back to exactly five is a one-line reversal
+  // carved out with it. `defaultSort` has since been harvested — spec 17.3.0
+  // tombstoned it (see the note below), leaving nine. Trimming back to exactly five is a one-line reversal
   // (delete the entry, declare the input); publishing first and withdrawing later
   // is not, which is why the exemption is the direction taken while the card is
   // open.
@@ -820,8 +823,27 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
     '@deprecated in ObjectGridSchema ("Use searchableFields instead"); GA describes it as "read only when `searchableFields` is absent". A boolean cannot say WHICH fields to search, which is why the list is the surface. Read as back-compat, deliberately not published — the canonical `searchableFields` IS declared. Ruled carve-out, objectui#4648 (maintainer 2026-08-16).',
   'object-grid.showPagination':
     '@deprecated in ObjectGridSchema ("Use pagination config instead"); GA describes it as "read only when `pagination` is absent". Read as back-compat, deliberately not published — the canonical `pagination` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
-  'object-grid.defaultSort':
-    '@deprecated in ObjectGridSchema ("Use sort instead"); GA describes it as the "Legacy single-sort fallback ({ field, order }), read only when `sort` is absent. Prefer `sort`". Read as back-compat, deliberately not published — the canonical `sort` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
+  /*
+   * `object-grid.defaultSort` WAS THE NINTH TOMBSTONE HARVESTED HERE —
+   * `@objectstack/spec` 17.3.0, and it died the way the eight above did.
+   *
+   * 17.3.0 converted the key to an ADR-0087 D2 tombstone: its member is
+   * `z.never().optional()` and its description opens `[REMOVED] … removed in
+   * @objectstack/spec 17 (ADR-0049) — it was the legacy second spelling of
+   * `sort` … Rename the key to `sort` and wrap the value in an array`. Read
+   * from the installed artifact, not from a changelog: `safeParse` of
+   * `{ defaultSort: … }` fails `invalid_type` `expected: 'never'` at that path.
+   *
+   * So it left the AUTHORABLE set while staying listed, and the two checks that
+   * police this list reported it DANGLING and STALE exactly as designed —
+   * deleting the entry is the only way to green. The carve-out reason it used
+   * to carry is now upstream's own prescription, which is strictly better: the
+   * contract refuses the spelling by name and says what to write instead.
+   *
+   * ⛔ Not resolved by declaring the input. `sort`, the canonical spelling, is
+   * declared already, and publishing a key the contract rejects by name is the
+   * one resolution the test below forbids in so many words.
+   */
   'object-grid.defaultFilters':
     '@deprecated in ObjectGridSchema ("Use filter instead"); GA describes it as the "Legacy base-filter fallback, read only when `filter` is absent. Prefer `filter`". Read as back-compat, deliberately not published — the canonical `filter` IS declared. Same ruled carve-out class as the five the ruling enumerated, measured on this branch — objectui#4648 (maintainer 2026-08-16).',
   'object-grid.resizableColumns':
@@ -914,7 +936,6 @@ const GA_PENDING_UNPUBLISHED_KEYS = [
   'object-grid.pageSize',
   'object-grid.showSearch',
   'object-grid.showPagination',
-  'object-grid.defaultSort',
   'object-grid.defaultFilters',
   'object-grid.resizableColumns',
   'object-grid.title',
@@ -1281,10 +1302,34 @@ const refusedArms = (type: string): string[] =>
  * arrival gets REPORTED rather than declared away by editing the declaration.
  */
 const OFF_SPEC_ARM_EXEMPTIONS: Record<string, string> = {
-  'element:number.filter:array':
-    'Declared `array` (every other `filter` input in the repo is — object-grid, object-metric, record:related_list, plugin-list, data-list), while ComponentPropsMap[element:number].filter is a record/object ("Filter criteria") and refuses an array outright. The renderer is an opaque passthrough (elements.tsx:375-451, `filter?: unknown` → adapter.aggregate / find), so nothing in-tree settles which side moves: widening the spec entry to the ViewFilterRule array form every sibling filter uses, or re-declaring this one block. A contract question, filed as objectui#6206.',
-  'object-grid.data:object':
-    'Two spec authorities disagree about the KIND, so no declaration can satisfy both: ObjectGridSchema.data resolves to ViewDataSchema (an object discriminated on `provider`) while ComponentPropsMap[object-grid].data is `z.array(z.unknown())` ("Static inline rows"). The `object` arm is the DELIBERATE one — objectui#5090 / PR objectui#5108 changed it from `array` against ViewDataSchema, and plugin-grid/src/__tests__/gridDataInputContract.test.ts pins it there; flipping it back re-opens #5090 and fails `tsc` (TS2322, measured on that card). Convergence is upstream, filed as objectui#6207.',
+  /*
+   * EMPTY, AND THAT IS THE RESULT — both entries were harvested at
+   * `@objectstack/spec` 17.3.0, each resolved upstream in the direction its own
+   * reason named. Measured with this gate's own coarse probes against the
+   * installed artifact:
+   *
+   *   - `element:number.filter:array` (objectui#6206) — the spec entry was a
+   *     record and refused an array outright; 17.3.0 accepts `[]` and answers
+   *     `invalid_type` at `filter.0` for `['Account']`. So the ARRAY KIND is
+   *     accepted and only the content is judged, which is the first of the two
+   *     resolutions the reason offered: "widening the spec entry to the
+   *     ViewFilterRule array form every sibling filter uses". The declaration
+   *     was right; the contract moved to it.
+   *   - `object-grid.data:object` (objectui#6207) — the two spec authorities
+   *     that disagreed have converged. `ComponentPropsMap[object-grid].data`
+   *     was `z.array(z.unknown())`; it now answers `invalid_union` at
+   *     `data.provider` for an object probe, i.e. the discriminated
+   *     `ViewDataSchema` shape `ObjectGridSchema.data` already resolved to.
+   *     That is exactly the "convergence is upstream" the entry was waiting on,
+   *     and the `object` arm objectui#5090 / PR objectui#5108 deliberately
+   *     chose is now the contract's own.
+   *
+   * ⛔ Neither was closed by editing a declaration — both declarations are
+   * byte-identical to what they were; the contract changed underneath them.
+   * `carries no stale arm exemption` is what forced the deletion, which is this
+   * file's exemption discipline working end to end. objectui#6206 and #6207 can
+   * be closed as resolved-upstream; reported on objectui#7122.
+   */
 };
 
 describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)', () => {
@@ -1544,7 +1589,6 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // declared by GA, and deliberately NOT published (maintainer 2026-08-16).
     const CARVED_OUT_GRID_KEYS = [
       'defaultFilters',
-      'defaultSort',
       'fields',
       'pageSize',
       'resizableColumns',
