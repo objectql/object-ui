@@ -716,10 +716,19 @@ export interface AppAction {
   /**
    * RETIRED (objectui#7344; the objectui#6182 ruling of 2026-08-25 — the
    * handler-expression string dialect is not a supported authoring form — in
-   * the objectui#6124 shape). Nothing reads `AppComponentSchema.actions[]`, so
-   * no value here could ever run. The zod twin refuses the key by name; author
-   * behaviour as a node type (an `action:button` node with a declared action)
-   * instead.
+   * the objectui#6124 shape). No renderer reads THIS KEY, so no value here
+   * could ever run. The zod twin refuses the key by name; author behaviour as a
+   * node type (an `action:button` node with a declared action) instead.
+   *
+   * Re-measured at objectui#6854, which corrects the narrower claim this
+   * comment used to make. `AppComponentSchema.actions[]` IS read — the standalone
+   * runner's `LayoutRenderer` (`@object-ui/runner`) renders both the `'button'`
+   * and the `'user'` arm — so "nothing reads `actions[]`" was never the reason
+   * this key is inert. The reason is that no reader touches `onClick`: not on
+   * the action, and no longer on {@link AppAction.items}, where that renderer
+   * reached one through an `as any` cast until the maintainer ruling of
+   * 2026-09-05 (option B2) deleted it. Guarded from the renderer side by
+   * `packages/runner/src/__tests__/LayoutRenderer.appActionItems-6854.test.tsx`.
    * @deprecated Not part of this contract — the value was inert.
    */
   onClick?: never;
