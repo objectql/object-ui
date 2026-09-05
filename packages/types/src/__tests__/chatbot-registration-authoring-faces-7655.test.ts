@@ -37,15 +37,32 @@
  * its `@ts-expect-error` pins. The `it` blocks are the RUNTIME channel: the Zod
  * twins' accept sets.
  *
- * ## `displayMode` is carried, not decided (objectui#7654)
+ * ## `displayMode` and `floatingConfig` live on BOTH faces; neither is decided here
  *
- * The key crossed from `ChatbotSchema` onto `ChatbotFloatingSchema` UNCHANGED —
- * same type, still unmirrored — because the designer control and the
- * `defaultProps` seed that carry it are the `chatbot-floating` registration's.
- * Its fate is a maintainer decision parked on objectui#7654. The runtime pin
- * below asserts it STILL parses green with any value, as a tripwire: whoever
- * mirrors, retires or wires it must flip that pin deliberately, with #7654's
- * ruling in hand, rather than have it change under them.
+ * `ChatbotSchema` keeps both members exactly as it had them (declarations
+ * verbatim), and `ChatbotFloatingSchema` declares the same two — the designer
+ * control and the `defaultProps` seed for `displayMode` are the
+ * `chatbot-floating` registration's. `displayMode` is RULED RETIRED:
+ * objectui#7654, maintainer ruling B (2026-09-05) — `?: never` tombstone on
+ * `ChatbotSchema`, control and seed removed — and that retirement executes in
+ * #7654's own PR, which must find the member on both faces as ruled. So this
+ * card carries the key untouched, and the runtime pin below asserts it STILL
+ * parses green with any value, as a tripwire: that PR flips the pin
+ * deliberately, with the ruling in hand, rather than have it change under it.
+ *
+ * ## The census counts NAMED reads; the floating registration has a second channel
+ *
+ * `assertionFloatingDeclaresWhatItReads` pins the named-read instrument —
+ * `schema.KEY` inside the `chatbot-floating` registration body — and nothing
+ * else. That registration also ends its `FloatingChatbot` element with a raw
+ * `{...props}` spread, so every authored key `SchemaRenderer` forwards reaches
+ * the panel's `ChatbotEnhanced` unfiltered: `processVisibility`, `surface` and
+ * `showAvatars` are LIVE on a `chatbot-floating` node today (measured through
+ * the real host with lit/dark pairs, `chatbot-enhanced`'s `toDomProps`-filtered
+ * spread as the control — pinned as a tripwire in `plugin-chatbot`'s
+ * `renderer.authoring-faces-7655.test.tsx`). The face does not declare them:
+ * that channel is accidental and is carded for a declare-vs-fence ruling
+ * (objectui#7708).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -115,7 +132,12 @@ export type assertionEnhancedDeclaresWhatItReads = Expect<
   >
 >;
 
-/** `chatbot-floating`: the shared twenty + its three own keys + the two carried keys. NO `maxHeight`, `processVisibility` or `surface`. */
+/**
+ * `chatbot-floating`, NAMED reads only: the shared twenty + its three own keys +
+ * the two keys it declares alongside `ChatbotSchema`. NO `maxHeight`,
+ * `processVisibility` or `surface` — no named read; the raw-spread channel is NOT
+ * what this pin measures (see the header).
+ */
 export type assertionFloatingDeclaresWhatItReads = Expect<
   Equal<
     DeclaredKeys<ChatbotFloatingSchema>,
@@ -124,22 +146,30 @@ export type assertionFloatingDeclaresWhatItReads = Expect<
 >;
 
 /**
- * `chatbot` keeps every member it had EXCEPT the two that moved. The six legacy
- * keys (`loading` … `height`) and the `onSendMessage` tombstone stay exactly
- * where they were — this card declared faces, it retired nothing.
+ * `chatbot` keeps its WHOLE face — the six legacy keys (`loading` … `height`),
+ * the `onSendMessage` tombstone, and `displayMode` / `floatingConfig` — exactly
+ * where they were. This card declared faces; it retired and moved nothing.
  */
-export type assertionChatbotKeepsItsOwnFaceMinusTheTwoMoved = Expect<
+export type assertionChatbotKeepsItsWholeFace = Expect<
   Equal<
     DeclaredKeys<ChatbotSchema>,
     | BaseKeys | SharedKeys | 'loading' | 'onSendMessage' | 'showAvatars' | 'userAvatar' | 'assistantAvatar'
-    | 'markdown' | 'processVisibility' | 'height' | 'maxHeight'
+    | 'markdown' | 'processVisibility' | 'height' | 'maxHeight' | 'displayMode' | 'floatingConfig'
   >
 >;
 
-/** The two keys are not on `ChatbotSchema` any more — a move, so declared on exactly one face. */
-export type assertionMovedKeysLeftChatbot = Expect<
-  Equal<Extract<DeclaredKeys<ChatbotSchema>, 'displayMode' | 'floatingConfig'>, never>
->;
+/**
+ * The two floating keys stay TYPED on `ChatbotSchema`. Read off the member,
+ * not the key set: a member that fell off the declaration would not go missing
+ * here — it would read as `any` through `BaseSchema`'s index signature, wrong
+ * values would compile, and the objectui#7669 `triggerIcon` tombstone would lose
+ * its reach on `chatbot` nodes (all three measured on #7655's first cut, which
+ * moved the keys). `Equal` is what catches the `any`.
+ */
+export type assertionFloatingKeysStayTypedOnChatbot = [
+  Expect<Equal<ChatbotSchema['displayMode'], 'inline' | 'floating' | undefined>>,
+  Expect<Equal<ChatbotSchema['floatingConfig'], FloatingChatbotConfig | undefined>>,
+];
 
 /* ── One declaration per shared key: a pick, not a copy ──────────────────── */
 
@@ -152,9 +182,11 @@ export type assertionSharedKeysAreOneDeclaration = [
   Expect<Equal<ChatbotEnhancedSchema['processVisibility'], ChatbotSchema['processVisibility']>>,
 ];
 
-/* ── `displayMode` carried UNCHANGED; `floatingConfig` keeps its shape ───── */
+/* ── `displayMode` / `floatingConfig`: one type, both faces ─────────────── */
 
-export type assertionCarriedKeysUnchanged = [
+export type assertionFloatingKeysHaveOneTypeOnBothFaces = [
+  Expect<Equal<ChatbotFloatingSchema['displayMode'], ChatbotSchema['displayMode']>>,
+  Expect<Equal<ChatbotFloatingSchema['floatingConfig'], ChatbotSchema['floatingConfig']>>,
   Expect<Equal<ChatbotFloatingSchema['displayMode'], 'inline' | 'floating' | undefined>>,
   Expect<Equal<ChatbotFloatingSchema['floatingConfig'], FloatingChatbotConfig | undefined>>,
 ];
@@ -249,8 +281,17 @@ describe('the two faces annotate the nodes their registrations render (objectui#
       // @ts-expect-error `panelHeight` is a number of pixels, not a CSS length
       floatingConfig: { panelHeight: '520px' },
     };
+    // …and on `ChatbotSchema` too, which still declares both keys: a wrong
+    // `displayMode` is refused there, not swallowed as `any`.
+    const chatbot: ChatbotSchema = {
+      type: 'chatbot',
+      messages: baseMessages,
+      // @ts-expect-error `displayMode` is the typed union on `ChatbotSchema`, unchanged
+      displayMode: 'bogus',
+    };
     expect(enhanced.type).toBe('chatbot-enhanced');
     expect(floating.type).toBe('chatbot-floating');
+    expect(chatbot.type).toBe('chatbot');
   });
 });
 
@@ -316,7 +357,7 @@ describe('`ChatbotEnhancedSchema` (zod) validates what the face declares', () =>
   });
 });
 
-describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and carries what it carries', () => {
+describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and leaves the two shared floating keys unmirrored', () => {
   const node = {
     type: 'chatbot-floating',
     messages: [{ id: '1', role: 'user', content: 'hi' }],
@@ -341,13 +382,15 @@ describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and ca
     }
   });
 
-  it('TRIPWIRE — `displayMode` is carried UNMIRRORED: any value still parses green (objectui#7654 decides its fate, not this card)', () => {
-    // Declared on the face with its original `'inline' | 'floating'` type,
-    // deliberately NOT given a mirror arm: on `ChatbotSchema` it was
-    // declared-but-unmirrored, and it crossed in that exact state. A value the
-    // declaration would refuse rides through `.passthrough()` here, as it did
-    // before. If this goes red, someone mirrored, retired or wired the key —
-    // flip this pin with #7654's ruling in hand, never silently.
+  it('TRIPWIRE — `displayMode` is unmirrored here as on `ChatbotSchema`: any value still parses green (objectui#7654 ruled it retired; its own PR flips this)', () => {
+    // Declared on the face with the same `'inline' | 'floating'` type
+    // `ChatbotSchema` carries, deliberately NOT given a mirror arm: it is
+    // declared-but-unmirrored on both faces. A value the declaration would
+    // refuse rides through `.passthrough()` here, as it does on `ChatbotSchema`'s
+    // twin. objectui#7654 RULED the key retired (maintainer ruling B,
+    // 2026-09-05); that card's own PR lands the tombstone and flips this pin
+    // with the ruling in hand — if it goes red any other way, someone mirrored,
+    // retired or wired the key silently.
     expect((ChatbotFloatingZod.shape as Record<string, unknown>).displayMode).toBeUndefined();
     expect(ChatbotFloatingZod.safeParse({ ...node, displayMode: 'anything-at-all' }).success).toBe(true);
     // Lit control on the same instrument: a key the twin DOES declare is in its
@@ -359,7 +402,7 @@ describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and ca
   it('`floatingConfig` has no mirror here either — the objectui#6152 axis is not widened into', () => {
     expect((ChatbotFloatingZod.shape as Record<string, unknown>).floatingConfig).toBeUndefined();
     // Rides through unvalidated, wrong shape and all — byte for byte the
-    // pre-#7655 outcome on `ChatbotSchema`.
+    // outcome on `ChatbotSchema`'s twin, which has no arm for it either.
     expect(ChatbotFloatingZod.safeParse({ ...node, floatingConfig: { panelHeight: '520px' } }).success).toBe(true);
   });
 

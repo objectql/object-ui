@@ -876,14 +876,20 @@ export interface ChatbotSchema extends BaseSchema {
    */
   onSend?: (content: string, messages: ChatMessage[]) => void;
 
-  // `displayMode` and `floatingConfig` were declared here, under a "Floating /
-  // FAB display mode" heading, until objectui#7655. Neither belongs to this
-  // node: the `chatbot` registration has no read, no designer `inputs` entry
-  // and no `defaultProps` seed for either — both are the `chatbot-floating`
-  // registration's, and they are now declared on {@link ChatbotFloatingSchema},
-  // the type that names that node. Nothing was retired by the move:
-  // `displayMode` crossed UNCHANGED (its fate is objectui#7654's, still open)
-  // and `floatingConfig` kept its {@link FloatingChatbotConfig} shape.
+  // --- Floating / FAB display mode ---
+
+  /**
+   * Display mode for the chatbot.
+   * - `'inline'` (default): Embedded in the page flow.
+   * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
+   */
+  displayMode?: 'inline' | 'floating';
+
+  /**
+   * Configuration for the floating action button and the panel it opens —
+   * read by `chatbot-floating` alone and forwarded to `<FloatingChatbot>`.
+   */
+  floatingConfig?: FloatingChatbotConfig;
 }
 
 /**
@@ -893,9 +899,11 @@ export interface ChatbotSchema extends BaseSchema {
  * three faces share ONE declaration and ONE doc comment per key.
  *
  * Every member was read-site-censused per registration on the PR's base: one
- * `schema.KEY` read in each of the three `ComponentRegistry.register(...)`
+ * NAMED `schema.KEY` read in each of the three `ComponentRegistry.register(...)`
  * bodies of `packages/plugin-chatbot/src/renderer.tsx`, forwarded into
- * `useObjectChat` or onto the rendered component. The instrument was lit by
+ * `useObjectChat` or onto the rendered component. (Named reads are the
+ * instrument; the `chatbot-floating` registration also has an unfiltered
+ * props spread — see {@link ChatbotFloatingSchema}.) The instrument was lit by
  * keys that are NOT shared — `processVisibility` read 0 / 1 / 0 across
  * `chatbot` / `chatbot-enhanced` / `chatbot-floating` and `floatingConfig`
  * 0 / 0 / 1 — so a zero in that census is a reading, not a blind grep.
@@ -944,9 +952,9 @@ export type ChatbotSharedKey =
  *
  *   - the twenty {@link ChatbotSharedKey} members every registration reads;
  *   - `maxHeight` and `processVisibility`, which `chatbot-enhanced` forwards to
- *     `<ChatbotEnhanced>` and `chatbot-floating` never reads (its panel is
- *     sized by `floatingConfig.panelHeight` and always renders the `'summary'`
- *     process view);
+ *     `<ChatbotEnhanced>` by name and `chatbot-floating` has no named read for
+ *     (its panel is sized by `floatingConfig.panelHeight`; for the second,
+ *     unnamed channel on that registration see {@link ChatbotFloatingSchema});
  *   - `enableMarkdown`, `enableFileUpload`, `surface` and the `onClear`
  *     runtime slot, which `ChatbotSchema` never declared.
  *
@@ -1010,23 +1018,34 @@ export interface ChatbotEnhancedSchema
  * {@link ChatbotEnhancedSchema}). The floating-action-button presentation: a
  * trigger in a page corner that opens a chat panel overlay.
  *
- * Declared here is what THIS registration reads, censused per key on the
- * PR's base:
+ * Declared here is what THIS registration reads by name (`schema.KEY`),
+ * censused per key on the PR's base:
  *
  *   - the twenty {@link ChatbotSharedKey} members;
  *   - `enableMarkdown`, `enableFileUpload` and the `onClear` runtime slot,
  *     forwarded into the panel's `<ChatbotEnhanced>`;
  *   - `floatingConfig`, the trigger and panel geometry
- *     ({@link FloatingChatbotConfig});
- *   - `displayMode`, carried across from `ChatbotSchema` UNCHANGED — see the
- *     member's own comment.
+ *     ({@link FloatingChatbotConfig}), and `displayMode` — both ALSO declared
+ *     on {@link ChatbotSchema}, unchanged there; see each member's comment.
  *
  * NOT declared, on purpose: `maxHeight` (the panel pins its inner chat to
- * `100%` of `floatingConfig.panelHeight`, and a `maxHeight` authored here was
- * never forwarded), `processVisibility` and `surface` (not forwarded — the
- * panel renders the component defaults), and the six `ChatbotSchema` legacy
- * members no registration reads. `disabled` / `className` are inherited from
- * {@link BaseSchema}, as on the two sibling faces.
+ * `100%` of `floatingConfig.panelHeight` AFTER any forwarded value, so an
+ * authored `maxHeight` is dead here), `processVisibility` and `surface` (no
+ * named read in this registration), and the six `ChatbotSchema` legacy
+ * members no registration reads by name. `disabled` / `className` are
+ * inherited from {@link BaseSchema}, as on the two sibling faces.
+ *
+ * ⚠️ The named-read census is not the only channel. This registration ends
+ * its `<FloatingChatbot>` element with a raw `{...props}` spread — every
+ * authored key `SchemaRenderer` forwards, unfiltered — and the panel is a
+ * `<ChatbotEnhanced>`, so an authored `processVisibility`, `surface` or
+ * `showAvatars` DOES reach it today (measured through the real host: each
+ * lights its marker on a `chatbot-floating` node and stays dark without the
+ * key, while `chatbot-enhanced`, whose spread is `toDomProps`-filtered, keeps
+ * `showAvatars` dark). That channel is accidental, not contract: declaring
+ * the three here would fossilise it (AGENTS.md #0.1), and fencing it is a
+ * behaviour change with its own review. Recorded on its own card,
+ * objectui#7708; this face neither declares nor promises it.
  */
 export interface ChatbotFloatingSchema
   extends BaseSchema,
@@ -1060,15 +1079,16 @@ export interface ChatbotFloatingSchema
    * - `'inline'` (default): Embedded in the page flow.
    * - `'floating'`: Rendered as a floating action button (FAB) that opens a panel overlay.
    *
-   * ⚠️ Carried across from `ChatbotSchema` by objectui#7655 UNCHANGED — the
-   * three lines above are the original declaration's own words. Its fate is
-   * objectui#7654's, parked on a maintainer decision: measured there and
-   * re-measured here, the key is declared, offered as a designer control
-   * (the `chatbot-floating` registration's `inputs`) and seeded into that
-   * registration's `defaultProps`, and READ BY NOTHING — the node's own `type`
-   * selects the presentation. It moved onto this interface because the control
-   * and the seed are this registration's; it was not retired, tombstoned,
-   * mirrored or made live here.
+   * ⚠️ RULED RETIRED — objectui#7654, maintainer ruling B (2026-09-05): the
+   * node's own `type` is the one selector of presentation, and this key is a
+   * second spelling of that choice that no renderer has ever read (measured
+   * there and re-measured here: declared, offered as a designer control in the
+   * `chatbot-floating` registration's `inputs`, seeded by its `defaultProps`,
+   * read by nothing). The retirement — `?: never` tombstone, control and seed
+   * removed — executes in that card's own PR. objectui#7655 declared the key
+   * here with the same three lines {@link ChatbotSchema} still carries, so
+   * that PR finds the member on both faces exactly as ruled; nothing was
+   * retired, tombstoned, mirrored or made live here.
    */
   displayMode?: 'inline' | 'floating';
   /**

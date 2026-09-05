@@ -35,22 +35,39 @@ per key on the PR's base (one `schema.KEY` read per registration body in
   'plain'`, objectui#6687) and the `onClear` runtime slot — four keys
   `ChatbotSchema` never declared.
 - **`ChatbotFloatingSchema`** (`type: 'chatbot-floating'`): the shared twenty,
-  plus `enableMarkdown`, `enableFileUpload`, `onClear`, `floatingConfig`
-  (`FloatingChatbotConfig`) and `displayMode`. No `maxHeight`,
-  `processVisibility` or `surface` — the floating registration forwards none of
-  them.
+  plus `enableMarkdown`, `enableFileUpload`, `onClear`, and the two keys it
+  declares alongside `ChatbotSchema` — `floatingConfig` (`FloatingChatbotConfig`)
+  and `displayMode`. No `maxHeight`, `processVisibility` or `surface`: the
+  floating registration has no named read for any of them. (Its trailing raw
+  props spread does carry authored keys into the panel today — `processVisibility`,
+  `surface` and `showAvatars` are live there, measured through the real host;
+  that accidental channel is tracked as objectui#7708, and this face neither
+  declares nor promises it.)
 - Neither face declares `ChatbotSchema`'s six legacy members (`loading`,
   `showAvatars`, `userAvatar`, `assistantAvatar`, `markdown`, `height`) — no
-  registration reads them — and neither redeclares `disabled`, which stays
-  `BaseSchema`'s `boolean | string` (objectui#7087).
+  registration reads them by name — and neither redeclares `disabled`, which
+  stays `BaseSchema`'s `boolean | string` (objectui#7087).
 
-**Two keys MOVED off `ChatbotSchema`:** `displayMode` and `floatingConfig`. The
-`chatbot` registration has no read, no designer control and no `defaultProps`
-seed for either; both are `chatbot-floating`'s. `displayMode` crossed UNCHANGED
-— same `'inline' | 'floating'` type, still unmirrored, still read by nothing —
-because its fate is objectui#7654's and that card is parked on a maintainer
-decision; a tripwire test pins that any value still parses green. Nothing was
-retired, tombstoned, mirrored or made live.
+**`ChatbotSchema` is unchanged.** It keeps `displayMode` and `floatingConfig`
+(declarations verbatim), and the floating face declares the same two, so
+`ChatbotSchema['displayMode']` and `ChatbotSchema['floatingConfig']` stay the
+typed members they were — the objectui#7669 `triggerIcon` tombstone keeps its
+reach on `chatbot` nodes, now pinned on the node. `floatingConfig`'s doc comment
+is rewritten on both faces: the old text said it was "only used when
+`displayMode` is `'floating'`", which was false — it is read by `chatbot-floating`
+alone and forwarded to the panel. `displayMode` is RULED RETIRED — objectui#7654,
+maintainer ruling B (2026-09-05): `?: never` tombstone, designer control and
+`defaultProps` seed removed, in that card's own change. This change carries the
+key untouched on both faces (still unmirrored, still read by nothing) so that PR
+finds the member exactly as ruled, and a tripwire test pins that any value still
+parses green until that PR flips it.
+
+**New published symbol:** `ChatbotSharedKey`, the string-literal union of the
+twenty keys all three registrations read. It is exported from `complex.ts`
+because an exported interface may not extend a `Pick` over a private name
+(TS4022), so it is emitted into `dist/complex.d.ts` and is reachable through the
+published `@object-ui/types/complex` subpath (it is not re-exported from the
+package entry). It is a census, not an authoring face.
 
 ## Zod twins, in lockstep
 
@@ -59,7 +76,8 @@ retired, tombstoned, mirrored or made live.
 arm except: the three runtime slots (`onError`, `onSend`, `onClear`), refused by
 name per objectui#6124; and, on the floating twin only, `floatingConfig` (no
 `FloatingChatbotConfig` mirror exists — minting one is objectui#6152's axis) and
-`displayMode` (objectui#7654). The twins mirror the API body params under the
+`displayMode` (unmirrored on `ChatbotSchema`'s twin too; retired by ruling on
+objectui#7654 and executed there). The twins mirror the API body params under the
 key the renderer reads, `requestBody`, and inherit `body` as the children slot —
 they do not copy `ChatbotSchema`'s `body` naming collision.
 
@@ -84,7 +102,7 @@ objectui#4431. No render outcome moves; the pin renders through the real host
 both ways.
 
 This ships as `minor` for `@object-ui/types` because it widens the published
-surface with two new node types and two new Zod twins, and moves two declared
-keys from one face to another: objectui's major is pinned to `@objectstack`'s
+surface with two new node types, two new Zod twins and one new type alias;
+`ChatbotSchema`'s own accept set does not move: objectui's major is pinned to `@objectstack`'s
 (`scripts/check-changeset-no-major.mjs`), and objectui's own contract changes
 ship as `minor` with the semantics spelled out — as above.

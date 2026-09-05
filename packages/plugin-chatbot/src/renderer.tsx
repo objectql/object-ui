@@ -478,6 +478,15 @@ ComponentRegistry.register('chatbot-floating',
         enableMarkdown={schema.enableMarkdown ?? true}
         enableFileUpload={schema.enableFileUpload ?? false}
         className={className}
+        // ⚠️ Raw and LAST — the two sibling registrations spread
+        // `toDomProps(props)` FIRST. Every authored key `SchemaRenderer`
+        // forwards reaches the panel's `ChatbotEnhanced` unfiltered (so
+        // `processVisibility`, `surface` and `showAvatars` are live here
+        // although `ChatbotFloatingSchema` declares none of them), and the
+        // authored `messages` seed overrides the runtime `messages` prop
+        // written above. Measured through the real host and carded as objectui#7708
+        // — fence vs declare is that card's ruling. Deliberately NOT changed
+        // by objectui#7655, which declared faces and moved no render outcome.
         {...props}
       />
     );

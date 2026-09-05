@@ -150,8 +150,14 @@ twenty shared rows below are one declaration the two newer faces pick off
 registration reads it. A key a registration ignores is therefore not a declared
 member of its type. It still type-checks (`BaseSchema` ends in an index
 signature, so an unlisted key is `any` rather than an error) and still parses
-(the Zod twins are `.passthrough()`), and it is dropped silently at render
-time - which is why the scope is spelled out here as well as in the types.
+(the Zod twins are `.passthrough()`). On `chatbot` and `chatbot-enhanced` it is
+then dropped silently at render time. `chatbot-floating` is different today: its
+registration forwards the whole authored node to the panel through an
+unfiltered props spread, so some keys its type does not declare
+(`processVisibility`, `surface`, `showAvatars`) do reach the panel - an
+accidental channel, measured and tracked as objectui#7708, not a contract to
+author against. That is why the scope is spelled out here as well as in the
+types.
 
 The table below is that shared chat surface. `chatbot-floating` declares
 seven more keys of its own - `displayMode` and six `floatingConfig` entries -
@@ -183,8 +189,8 @@ one, under **`chatbot-floating` panel and trigger keys**.
 | `headers` | object | - | Additional headers for API requests |
 | `requestBody` | object | - | Additional body parameters sent with each API request. Authored on the node as `requestBody`; the renderer forwards it to the chat runtime under its own `body` option. Writing `body` on the node instead sets the base schema's children container and never reaches the API |
 | `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
-| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`). Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). The `chatbot` and `chatbot-floating` registrations render different components, which have no such chrome to switch, and do not read this key |
-| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`; `ChatbotSchema` still declares it too, though the `chatbot` registration has no read for it). Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` does not forward the key either, so its panel always renders at the `'summary'` default; there is no floating-side substitute to author |
+| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`). Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). `chatbot` renders the plain chat component, which has no such chrome to switch, and does not read this key. `chatbot-floating` has no named read for it and `ChatbotFloatingSchema` does not declare it; its panel is a `ChatbotEnhanced`, and an authored value currently reaches that panel only through the registration's unfiltered props spread (objectui#7708) - not a contract to author against |
+| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`; `ChatbotSchema` still declares it too, though the `chatbot` registration has no read for it). Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` has no named read for it and `ChatbotFloatingSchema` does not declare it; an authored value currently reaches its panel only through the registration's unfiltered props spread (objectui#7708), which is not a contract - there is no floating-side substitute to author |
 | `onError` | function | - | Error callback for streaming/API errors |
 
 ### `chatbot-floating` panel and trigger keys
@@ -193,14 +199,15 @@ The seven keys below are declared in the `chatbot-floating` registration's own
 `inputs` (`packages/plugin-chatbot/src/renderer.tsx`). They configure the
 floating action button and the panel it opens; the `chatbot` and
 `chatbot-enhanced` registrations render neither and ignore them. `displayMode`
-and `floatingConfig` are declared on `ChatbotFloatingSchema` only (objectui#7655
-moved them off `ChatbotSchema`, whose `chatbot` node never read either);
-authoring them on an inline node still type-checks through the index signature
-and still parses - it is dropped at render time.
+and `floatingConfig` are declared on `ChatbotSchema` and on
+`ChatbotFloatingSchema` alike (objectui#7655 declared the floating face with the
+same two members; `ChatbotSchema` kept its own), so authoring them on an inline
+node type-checks and parses - and is dropped at render time, because the
+`chatbot` node never read either.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `displayMode` | `'inline' \| 'floating'` | `'floating'` | **Declared and offered in the designer, but read by nothing.** The node's own `type` selects the presentation: a `chatbot-floating` node renders the trigger and panel unconditionally, and authoring `'inline'` here does not make it inline - author a `chatbot` node for that. The registration declares it with `defaultValue: 'floating'` and writes the same value into its `defaultProps`, so nodes created in the designer carry it |
+| `displayMode` | `'inline' \| 'floating'` | `'floating'` | **Declared and offered in the designer, but read by nothing.** The node's own `type` selects the presentation: a `chatbot-floating` node renders the trigger and panel unconditionally, and authoring `'inline'` here does not make it inline - author a `chatbot` node for that. The registration declares it with `defaultValue: 'floating'` and writes the same value into its `defaultProps`, so nodes created in the designer carry it. objectui#7654 ruled it retired (maintainer, 2026-09-05): the declaration becomes a `never` tombstone and the designer control and default are removed in that card's own change; until that lands the key is carried exactly as described here |
 | `floatingConfig.position` | `'bottom-right' \| 'bottom-left'` | `'bottom-right'` | Corner the trigger sits in; the panel is anchored to the same side |
 | `floatingConfig.defaultOpen` | boolean | `false` | Whether the panel is already open when the node mounts |
 | `floatingConfig.panelWidth` | number | `400` | Panel width in pixels, applied from the `sm` breakpoint up - below it the panel is full-bleed. Snapped to a step, see below |

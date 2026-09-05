@@ -486,19 +486,24 @@ export const ChatbotEnhancedSchema = BaseSchema.extend({
  *
  * Zod twin of `../complex.ts`'s `ChatbotFloatingSchema`. Two of that
  * declaration's keys are deliberately NOT mirrored, and the parity ledger
- * records both under `UnmirroredDeclared` for this pair:
+ * records both under `UnmirroredDeclared` for this pair — exactly as it
+ * records the same two keys for `ChatbotSchema`, which declares them too:
  *
  *   - `floatingConfig` — `FloatingChatbotConfig` has no Zod mirror at all;
  *     minting one is the declared-but-unmirrored axis (objectui#6152), a
  *     different defect from the one this pair closes, and the axis the
  *     `triggerIcon` tombstone's tripwire watches (objectui#7654).
- *   - `displayMode` — its fate is objectui#7654's, parked on a maintainer
- *     decision. A mirror arm here would be a parse outcome that card has not
- *     ruled on, so the key crossed from `ChatbotSchema` in exactly the state it
- *     was in: declared, unmirrored.
+ *   - `displayMode` — RULED RETIRED by objectui#7654 (maintainer ruling B,
+ *     2026-09-05): the node `type` is the one selector of presentation. The
+ *     retirement executes in that card's own PR — `?: never` tombstone on the
+ *     TypeScript faces, designer control and seed removed — and, per the
+ *     ruling, the mirror half (`retirementTombstone()`) is owed at the moment
+ *     objectui#6152 mints an arm for it, not before. Until then a mirror arm
+ *     here would be a parse outcome that ruling did not ask for, so this twin
+ *     has none.
  *
  * Both ride through `BaseSchema`'s `.passthrough()` unvalidated, byte for byte
- * as they did on `ChatbotSchema`.
+ * as they do on `ChatbotSchema`'s twin.
  */
 export const ChatbotFloatingSchema = BaseSchema.extend({
   type: z.literal('chatbot-floating'),
