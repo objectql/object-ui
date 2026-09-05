@@ -118,6 +118,16 @@ describe('Plugin Markdown', () => {
       expect(node.content).toBe('# Hello');
     });
 
+    it('`components` is a `tsc` error through the re-exported authority — nothing reads an override map', () => {
+      const node: MarkdownSchema = {
+        type: 'markdown',
+        content: '# Hello',
+        // @ts-expect-error `components` is an ADR-0049 retirement tombstone (objectui#6972): the renderer forwards only content and className
+        components: { h1: 'h2' },
+      };
+      expect(node.content).toBe('# Hello');
+    });
+
     it('the two values the renderer DOES forward stay writable — the non-vacuity control', () => {
       // `content` and `className` are exactly what `MarkdownRenderer` hands to
       // `MarkdownImpl`; without this leg the directive above could be satisfied

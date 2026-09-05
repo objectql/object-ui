@@ -72,16 +72,19 @@ renderer's own props type takes a non-optional `string`, and the Zod mirror
 |----------|------|---------|-------------|
 | `content` | string | — (required) | Markdown content to render |
 | `className` | string | `''` | Additional Tailwind CSS classes |
-| `components` | Record | — | Declared on the schema; not read by this renderer |
 
-> **Retired (objectui#6972):** `sanitize` used to be listed here as a boolean
-> defaulting to `true`. It was never read: sanitization is **unconditional** —
+> **Retired (objectui#6972):** `sanitize` and `components` used to be listed
+> here. Neither was ever read. `sanitize` (a boolean defaulting to `true`)
+> implied a switch that does not exist: sanitization is **unconditional** —
 > `rehype-sanitize` is a fixed last link of the renderer's rehype chain, and no
 > value of the key ever switched it, so `sanitize: false` changed nothing while
-> reading as a security control. The key is now `never` on the TypeScript face
-> and is refused **by name** by the Zod mirror, with that explanation in the
-> parse message. There is no authored spelling that disables XSS sanitization;
-> delete the key.
+> reading as a security control. `components` (a `Record` of React component
+> overrides) is not a value a JSON document can author, and the renderer's own
+> fenced-block overrides (mermaid / metadata) are a fixed internal map, not an
+> authoring surface. Both keys are now `never` on the TypeScript face and are
+> refused **by name** by the Zod mirror, with that explanation in the parse
+> message. There is no authored spelling that disables XSS sanitization, and no
+> authored spelling that overrides markdown elements; delete the keys.
 
 ## Supported Markdown Features
 

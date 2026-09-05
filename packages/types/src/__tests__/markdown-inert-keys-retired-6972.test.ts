@@ -7,10 +7,13 @@
  */
 
 /**
- * Retirement pin — `MarkdownSchema.sanitize` is REFUSED, not silently ignored
- * (objectui#6972, ADR-0049 enforce-or-remove).
+ * Retirement pin — `MarkdownSchema.sanitize` and `MarkdownSchema.components`
+ * are REFUSED, not silently ignored (objectui#6972, ADR-0049
+ * enforce-or-remove). The two keys do NOT share a disposition — triage recorded
+ * the asymmetry — so each is argued on its own below, then pinned by one
+ * mechanism.
  *
- * ## The failure this pin exists to prevent
+ * ## The failure this pin exists to prevent — `sanitize`
  *
  * `sanitize` was declared `?: boolean` with `@default true` on both published
  * faces (`data-display.ts` and the Zod mirror; `@object-ui/plugin-markdown`
@@ -32,13 +35,29 @@
  * the authoring boundary, and the refusal says why** (sanitization is
  * unconditional; there is no spelling that disables it).
  *
- * ## Why the tombstone, and not simply deleting the key
+ * ## The failure this pin exists to prevent — `components`
+ *
+ * `components` was declared `?: Record<string, any>` ("custom components for
+ * markdown elements") and read by NOTHING: the `components` map `MarkdownImpl`
+ * hands to `ReactMarkdown` is its OWN module-level `mdComponents` (the mermaid
+ * / metadata fence overrides), never merged with anything off the schema, and
+ * no host path — no `MarkdownImpl` prop, no plugin API, no app-shell or runner
+ * site — consumes such a map. Triage left both arms open here; the PM's
+ * disposition (declared veto window on objectui#6972) is remove: a map of
+ * React component overrides is not a JSON-authorable value, the same shape as
+ * the handler keys objectui#6124 retired, and with no host consumer there is
+ * no `runtime-slot` twin to keep callable. The falsifiable premise — "no host
+ * path consumes a `components` map" — was re-measured on the retiring PR's
+ * base before this half was written.
+ *
+ * ## Why the tombstone, and not simply deleting the keys
  *
  * `BaseSchema` is `.passthrough()` on the Zod side and carries a
  * `[key: string]: any` index signature on the TS side. An UNDECLARED key is
  * accepted by both halves, unvalidated — deleting `sanitize` outright would
  * hand the authored spelling exactly the silent no-op this card exists to
- * close. `?: never` / `retirementTombstone()` is this package's convention —
+ * close (and would hand `components` the same). `?: never` /
+ * `retirementTombstone()` is this package's convention —
  * {@link StaticTableColumn} (objectui#5474), `DataTableSchema.toolbar`
  * (objectui#6881), `ComponentInput.inputType` (objectui#5905) — and it is
  * lockstep: both halves or neither. The "deleted" row is pinned live below as
@@ -71,6 +90,16 @@ const RETIRED = {
       + 'spelling that disables XSS sanitization; delete the key.',
     prescriptive: 'There is no authored spelling that disables XSS sanitization; delete the key.',
   },
+  components: {
+    // The shapes an author reaching for react-markdown's `components` prop
+    // would write: a tag remap, and an empty map.
+    values: [{ h1: 'h2' }, {}] as const,
+    guidance:
+      'RETIRED (objectui#6972) — never read: the markdown renderer forwards only `content` and `className`, '
+      + 'and a map of React component overrides is not a JSON-authorable value. Delete the key; the fenced '
+      + 'mermaid / metadata block overrides are the renderer\'s own fixed map, not an authoring surface.',
+    prescriptive: 'Delete the key; the fenced mermaid / metadata block overrides are the renderer\'s own fixed map, not an authoring surface.',
+  },
 } as const;
 
 type RetiredKey = keyof typeof RETIRED;
@@ -94,17 +123,19 @@ describe.each(Object.keys(RETIRED) as RetiredKey[])(
   (key) => {
     const { values, guidance, prescriptive } = RETIRED[key];
 
-    it.each(values.map((v) => [String(v), v] as const))(
+    it.each(values.map((v) => [JSON.stringify(v), v] as const))(
       'REFUSES `%s`, naming the retired key in the path — every value, not one spelling',
       (_label, value) => {
-        // The pin. Before the retirement this document parsed GREEN (the key
-        // was `z.boolean().optional()`), measured ACCEPTED on the retiring PR's
-        // base. Asserting the ENVELOPE — not merely `success:false` — so the pin
-        // cannot be satisfied by an unrelated rejection.
+        // The pin. Before the retirement this document parsed GREEN (`sanitize`
+        // was `z.boolean().optional()`, `components` was
+        // `z.record(z.string(), z.any()).optional()`), measured ACCEPTED on the
+        // retiring PR's base. Asserting the ENVELOPE — not merely
+        // `success:false` — so the pin cannot be satisfied by an unrelated
+        // rejection.
         const result = MarkdownSchema.safeParse({ ...VALID_MARKDOWN, [key]: value });
         expect(
           result.success,
-          `an authored \`${key}: ${String(value)}\` was ACCEPTED — it parses green and changes nothing`,
+          `an authored \`${key}: ${JSON.stringify(value)}\` was ACCEPTED — it parses green and changes nothing`,
         ).toBe(false);
         if (result.success) return;
 
@@ -125,10 +156,11 @@ describe.each(Object.keys(RETIRED) as RetiredKey[])(
 
       const issue = result.error.issues.find((i) => i.path[0] === key);
       expect(issue?.message).not.toContain('Invalid input: expected never, received ');
-      // The half an author acts on: what is TRUE (sanitization is unconditional)
-      // and what to DO (delete the key). Pinned as text, because the wording is
-      // the contract here — a message that only said "retired" would leave the
-      // security-shaped misreading in place.
+      // The half an author acts on: what is TRUE (sanitization is unconditional;
+      // nothing reads an override map) and what to DO (delete the key). Pinned
+      // as text, because the wording is the contract here — a message that only
+      // said "retired" would leave the security-shaped misreading of `sanitize`
+      // in place.
       expect(issue?.message).toContain(prescriptive);
       expect(issue?.message).toBe(guidance);
       // ONE string, BOTH channels — asserted derived, so the parse message and
@@ -153,8 +185,8 @@ describe.each(Object.keys(RETIRED) as RetiredKey[])(
 /* ── the inside of the boundary: everything else is untouched ────────────── */
 
 describe('the retirement narrows exactly the retired keys and nothing else (objectui#6972)', () => {
-  it('a document that never wrote the key parses GREEN — `absent` stays valid', () => {
-    // `.optional()` on the tombstone. The retirement narrows exactly one key.
+  it('a document that never wrote either key parses GREEN — `absent` stays valid', () => {
+    // `.optional()` on both tombstones. The retirement narrows exactly two keys.
     const result = MarkdownSchema.safeParse(VALID_MARKDOWN);
     expect(result.success ? null : result.error.issues).toBe(null);
   });
@@ -179,7 +211,7 @@ describe('the retirement narrows exactly the retired keys and nothing else (obje
 
   it('the shipped example document parses GREEN — the fixture that used to author the key', () => {
     // `packages/types/examples/data-display-examples.json#examples.markdown`
-    // authored `"sanitize": true` — the one in-repo write of the key, dropped
+    // authored `"sanitize": true` — the one in-repo write of either key, dropped
     // by the retiring PR because the tombstone refuses it. Pinned here so the
     // fixture cannot silently regress into a document the published mirror
     // rejects: it is documentation consumers copy from.
@@ -199,7 +231,7 @@ describe('the retirement narrows exactly the retired keys and nothing else (obje
   it('an UNDECLARED key still rides `.passthrough()` — the DELETED row, measured live', () => {
     // This is the contrast that justifies `?: never` over deletion, pinned
     // rather than argued: a key the mirror does not declare is neither refused
-    // nor stripped, it is KEPT. Had `sanitize` been deleted instead of
+    // nor stripped, it is KEPT. Had either key been deleted instead of
     // tombstoned, an authored value would sit exactly where this one sits —
     // green, forwarded, and read by nothing.
     const result = MarkdownSchema.safeParse({ ...VALID_MARKDOWN, notAKeyAtAll: 'anything' });
@@ -256,6 +288,44 @@ describe('MarkdownSchema.sanitize is RETIRED — the TS half of the tombstone (o
     // so freshness stops mattering.
     const raw = { type: 'markdown' as const, content: '# Hello', sanitize: true };
     // @ts-expect-error — `sanitize` is RETIRED (objectui#6972), reached through a non-fresh value.
+    const document: MarkdownSchemaTS = raw;
+    expect(document.type).toBe('markdown');
+  });
+});
+
+describe('MarkdownSchema.components is RETIRED — the TS half of the tombstone (objectui#6972)', () => {
+  it('refuses the retired key at compile time', () => {
+    // On the pre-fix tree `components` is `Record<string, any> | undefined`,
+    // so this assignment is LEGAL and the directive is unused (TS2578) —
+    // red before the fix in `type-check`.
+
+    // @ts-expect-error — `components` is RETIRED (objectui#6972): declared `?: never`, so no value is authorable.
+    const retired: MarkdownSchemaTS['components'] = { h1: 'h2' };
+
+    const sibling: MarkdownSchemaTS['className'] = 'prose-lg';
+    expect([retired, sibling]).toHaveLength(2);
+  });
+
+  it('refuses the retired key in the form authors actually write', () => {
+    // Survives `BaseSchema`'s `[key: string]: any`: if the index signature
+    // won, `components` would widen back to `any` here and the directive
+    // would go unused (TS2578).
+    const retiredDocument: MarkdownSchemaTS = {
+      type: 'markdown',
+      content: '# Hello',
+      // @ts-expect-error — `components` is RETIRED (objectui#6972); the renderer forwards only `content` and `className`.
+      components: { h1: 'h2' },
+    };
+    expect(retiredDocument.type).toBe('markdown');
+  });
+
+  it('refuses it through a WIDENED value too — and there is NO runtime-slot twin to keep callable', () => {
+    // The `runtime-slot` arm (`handlerKeyRefusal`, objectui#6124) keeps a TS
+    // twin callable when a host-supplied value actually REACHES a renderer.
+    // Nothing reaches this one — `MarkdownImplProps` has no such prop — so the
+    // TS face refuses it outright, on the widened path as well.
+    const raw = { type: 'markdown' as const, content: '# Hello', components: { h1: 'h2' } };
+    // @ts-expect-error — `components` is RETIRED (objectui#6972), reached through a non-fresh value.
     const document: MarkdownSchemaTS = raw;
     expect(document.type).toBe('markdown');
   });

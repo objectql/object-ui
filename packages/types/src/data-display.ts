@@ -1198,9 +1198,34 @@ export interface MarkdownSchema extends BaseSchema {
    */
   sanitize?: never;
   /**
-   * Custom components for markdown elements
+   * ADR-0049 RETIREMENT TOMBSTONE — `components` (objectui#6972).
+   *
+   * Declared `?: Record<string, any>` ("custom components for markdown
+   * elements") and read by NOTHING: `MarkdownRenderer` forwards only `content`
+   * and `className`, `MarkdownImplProps` accepts only those two, and the
+   * `components` map `MarkdownImpl` hands to `ReactMarkdown` is its OWN
+   * module-level `mdComponents` (the mermaid / metadata fence overrides),
+   * never merged with anything off the schema. `grep -rn "schema.components"`
+   * over `packages/` and `apps/` returns nothing, against the same
+   * `schema.content` control as `sanitize` above.
+   *
+   * Removed rather than wired, under the PM's declared veto window on
+   * objectui#6972: a map of React component overrides is not a
+   * JSON-authorable value — the same shape as the handler keys objectui#6124
+   * retired ("JSON has no function value"). It is NOT a `runtime-slot`
+   * either: no host path (no `MarkdownImpl` prop, no plugin API, no app-shell
+   * or runner site) consumes such a map, so there is no TypeScript twin to
+   * keep callable for hosts. A real override slot must arrive as a proposal
+   * WITH its enforcing reader, not by reviving this key.
+   *
+   * Same convention as `sanitize` above: `?: never` here,
+   * `retirementTombstone()` on the Zod twin, both published faces.
+   *
+   * RETIRED (objectui#6972, ADR-0049) — never read by the markdown renderer.
+   * Delete the key.
+   * @deprecated Not part of `MarkdownSchema`'s contract — the value was inert.
    */
-  components?: Record<string, any>;
+  components?: never;
 }
 
 /**
