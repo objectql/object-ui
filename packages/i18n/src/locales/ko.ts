@@ -1616,12 +1616,20 @@ const ko = {
           recentRecords: "가장 최근에 생성된 레코드 5건을 보여 주세요.",
           recordCounts: "객체별 레코드 수를 세어 주세요.",
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: "영업 CRM을 만들어 줘 — 고객, 담당자, 단계별로 합계를 낼 수 있는 거래 파이프라인.",
-          buildApp: "프로젝트 트래커를 만들어 줘 — 프로젝트, 담당자와 마감일이 있는 작업, 상태별 보드.",
-          buildFlow: "고객 지원 데스크를 설계해 줘 — 우선순위가 있는 티켓, 상태 워크플로, 고객 연결.",
-          buildInventory: "재고 앱을 만들어 줘 — 제품, 재고 수량, 공급업체, 재고 부족 표시.",
-          buildRecruiting: "채용 트래커를 만들어 줘 — 지원자, 채용 중인 직무, 면접 단계, 메모.",
+          buildCrm: "영업 CRM을 만들어 줘 — 고객, 담당자, 단계 필드가 있는 거래, 단계별 금액을 합산하는 대시보드.",
+          buildApp: "프로젝트 트래커를 만들어 줘 — 프로젝트, 담당자와 마감일이 있는 작업, 상태별 보드, 마감일 캘린더.",
+          buildFlow: "고객 지원 데스크를 설계해 줘 — 우선순위와 상태 필드가 있는 티켓, 상태별 보드, 고객 연결.",
+          buildInventory: "재고 앱을 만들어 줘 — 제품, 재고 수량, 공급업체, 재주문점 미만 제품을 걸러내는 뷰.",
+          buildRecruiting: "채용 트래커를 만들어 줘 — 지원자, 채용 중인 직무, 면접 단계 필드, 단계별 보드.",
         },
         generic: {
           help: "무엇을 도와줄 수 있나요?",
@@ -2888,6 +2896,14 @@ const ko = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: "데이터 집계",
@@ -2907,16 +2923,21 @@ const ko = {
       describe_metadata: "메타데이터 확인",
       describe_object: "오브젝트 구조 확인",
       get_active_package: "현재 패키지 가져오기",
+      get_authoring_rules: "작성 규칙 가져오기",
       get_metadata_schema: "메타데이터 구조 가져오기",
       get_package: "패키지 가져오기",
       list_metadata: "메타데이터 목록",
       list_objects: "오브젝트 목록",
       list_packages: "패키지 목록",
+      load_tools: "도구 불러오기",
       modify_field: "필드 수정",
+      open_record: "레코드 열기",
       propose_blueprint: "앱 설계안 작성",
       set_active_package: "현재 패키지 전환",
       suggest_builder: "구축 방법 제안",
+      test_flow: "플로우 테스트",
       todo_write: "할 일 기록",
+      toggle_flow: "플로우 켜기·끄기",
       update_metadata: "메타데이터 업데이트",
       validate_expression: "표현식 검증",
       verify_build: "빌드 검증",

@@ -32,6 +32,7 @@ import {
   unwrapToolResult,
   type ToolTitleTranslator,
 } from './tool-display';
+import type { StickToBottomContext } from 'use-stick-to-bottom';
 import {
   Conversation,
   ConversationContent,
@@ -1748,6 +1749,38 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       }
     }, [messages, onBuildMaterialized]);
 
+    /**
+     * The thread's stick-to-bottom controls, reached from OUTSIDE the
+     * `<Conversation>` subtree (the composer and the cards live beside it, so
+     * `useStickToBottomContext()` is not available to them). `contextRef` is
+     * the library's own escape hatch, which keeps `elements/conversation.tsx`
+     * — a vendored ai-elements file — untouched.
+     */
+    const stickToBottomRef = React.useRef<StickToBottomContext | null>(null);
+
+    /**
+     * objectui#7480 — follow the thread to the bottom because the user just
+     * SENT something.
+     *
+     * `StickToBottom` only auto-follows while the view is at the bottom: read a
+     * long reply, and the lock is escaped. In the wide full-page maker a reply
+     * usually still ends on screen, so the next send looks like it scrolls; in
+     * the narrow assistant rail the same reply is two or three times taller, so
+     * the lock is almost always escaped by the time the user types — and the
+     * new user bubble, the tool steps and the streaming reply all land below
+     * the fold with no sign the agent started. Same component, opposite
+     * behaviour, purely because of the rail's width.
+     *
+     * Sending is an explicit request to see what happens next, so every send
+     * path re-arms the lock here. This is deliberately NOT hooked to message
+     * APPENDS: once re-armed, `StickToBottom` follows the stream on its own and
+     * releases the moment the user scrolls up — so a user reading back through
+     * the thread mid-answer is never yanked to the bottom.
+     */
+    const followThreadToBottom = React.useCallback(() => {
+      stickToBottomRef.current?.scrollToBottom({ animation: 'smooth' });
+    }, []);
+
     const handleSubmit = React.useCallback(
       (payload: PromptInputMessage) => {
         const hasText = Boolean(payload.text?.trim());
@@ -1767,8 +1800,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         // approval already reached the server (#2627).
         lastApprovedPlanIdRef.current = null;
         onSendMessage?.(text, files);
+        followThreadToBottom();
       },
-      [onSendMessage]
+      [onSendMessage, followThreadToBottom]
     );
 
     const handleSuggestionClick = React.useCallback(
@@ -1778,8 +1812,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         // (see the send-failure effect below).
         lastSubmittedRef.current = '';
         onSendMessage?.(text);
+        followThreadToBottom();
       },
-      [onSendMessage]
+      [onSendMessage, followThreadToBottom]
     );
 
     // The "Proposed plan" card's one-click confirm gate. Approving sends a plain
@@ -1813,8 +1848,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           });
         }
         onSendMessage?.(hasOpenQuestions ? planApproveDefaultsMessage : planApproveMessage);
+        followThreadToBottom();
       },
-      [onSendMessage, planApproveMessage, planApproveDefaultsMessage]
+      [onSendMessage, planApproveMessage, planApproveDefaultsMessage, followThreadToBottom]
     );
     // objectui#5695 — same optimistic pattern for the 确认修改 card: flip it to
     // an "Applying…" badge the moment the approval is sent (double-click guard +
@@ -1848,8 +1884,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           });
         }
         onSendMessage?.(changesConfirmMessage);
+        followThreadToBottom();
       },
-      [onSendMessage, changesConfirmMessage],
+      [onSendMessage, changesConfirmMessage, followThreadToBottom],
     );
 
     // "Adjust" doesn't send anything — it just drops the cursor into the input so
@@ -2951,7 +2988,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           </div>
         ) : null}
 
-        <Conversation className="flex-1 min-h-0">
+        <Conversation className="flex-1 min-h-0" contextRef={stickToBottomRef}>
           <ConversationContent
             className={cn(
               'space-y-4',

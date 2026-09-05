@@ -1623,12 +1623,20 @@ const ar = {
           recentRecords: "اذكر أحدث 5 سجلات تم إنشاؤها.",
           recordCounts: "احسب عدد السجلات لكل كائن.",
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: "أنشئ نظام إدارة علاقات عملاء للمبيعات — عملاء وجهات اتصال ومسار صفقات يمكنني تجميعه حسب المرحلة.",
-          buildApp: "أنشئ متتبّع مشاريع — مشاريع ومهام بمسؤولين وتواريخ استحقاق ولوحة حسب الحالة.",
-          buildFlow: "صمّم مكتب دعم — تذاكر بأولوية وسير عمل للحالات وروابط بالعملاء.",
-          buildInventory: "أنشئ تطبيق مخزون — منتجات ومستويات مخزون وموردين وتنبيه لانخفاض المخزون.",
-          buildRecruiting: "أنشئ متتبّع متقدمين — مرشحون ووظائف شاغرة ومراحل مقابلات وملاحظات.",
+          buildCrm: "أنشئ نظام إدارة علاقات عملاء للمبيعات — عملاء وجهات اتصال وصفقات بحقل للمرحلة، ولوحة معلومات تجمع قيمة الصفقات حسب المرحلة.",
+          buildApp: "أنشئ متتبّع مشاريع — مشاريع ومهام بمسؤولين وتواريخ استحقاق، ولوحة حسب الحالة، وتقويم لتواريخ الاستحقاق.",
+          buildFlow: "صمّم مكتب دعم — تذاكر بحقلي الأولوية والحالة، ولوحة حسب الحالة، وروابط بالعملاء.",
+          buildInventory: "أنشئ تطبيق مخزون — منتجات ومستويات مخزون وموردين، وعرض يصفّي الأصناف دون حد إعادة الطلب.",
+          buildRecruiting: "أنشئ متتبّع متقدمين — مرشحون ووظائف شاغرة وحقل لمرحلة المقابلة، ولوحة حسب المرحلة.",
         },
         generic: {
           help: "بماذا يمكنك مساعدتي؟",
@@ -2896,6 +2904,14 @@ const ar = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: "تجميع البيانات",
@@ -2915,16 +2931,21 @@ const ar = {
       describe_metadata: "عرض البيانات الوصفية",
       describe_object: "عرض بنية الكائن",
       get_active_package: "جلب الحزمة النشطة",
+      get_authoring_rules: "قراءة قواعد التأليف",
       get_metadata_schema: "جلب مخطط البيانات الوصفية",
       get_package: "جلب الحزمة",
       list_metadata: "سرد البيانات الوصفية",
       list_objects: "سرد الكائنات",
       list_packages: "سرد الحزم",
+      load_tools: "تحميل الأدوات",
       modify_field: "تعديل حقل",
+      open_record: "فتح السجل",
       propose_blueprint: "تصميم خطة التطبيق",
       set_active_package: "تبديل الحزمة النشطة",
       suggest_builder: "اقتراح طريقة البناء",
+      test_flow: "اختبار التدفق",
       todo_write: "تدوين المهام",
+      toggle_flow: "تفعيل أو تعطيل التدفق",
       update_metadata: "تحديث البيانات الوصفية",
       validate_expression: "التحقق من التعبير",
       verify_build: "التحقق من البناء",

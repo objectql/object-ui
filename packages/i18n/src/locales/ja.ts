@@ -1618,12 +1618,20 @@ const ja = {
           recentRecords: "最近作成されたレコードを 5 件表示してください。",
           recordCounts: "オブジェクトごとのレコード数を数えてください。",
         },
+        // cloud#1984 — these five chips are the maker's own recommendations, so
+        // they may only ask for what ADR-0112 v1 BUILDS: objects, fields, views
+        // (grid/kanban/calendar/gallery), pages, dashboards and sample data. No
+        // wording that promises autonomous behaviour (alert / remind / notify /
+        // automate / status workflow) — v1 has no flows, actions or schedules, and
+        // the model silently degrades such a request into a board or a filtered
+        // view, so the chip would promise an alert and deliver a page. REVERT to
+        // the automation wording when ADR-0112 v2 re-adds flows and actions.
         metadataAssistant: {
-          buildCrm: "営業 CRM を作って — 顧客、担当者、ステージ別に集計できる商談パイプライン。",
-          buildApp: "プロジェクト管理を作って — プロジェクト、担当者と期日つきのタスク、ステータス別ボード。",
-          buildFlow: "サポートデスクを設計して — 優先度つきチケット、ステータスのワークフロー、顧客との紐付け。",
-          buildInventory: "在庫管理アプリを作って — 商品、在庫数、仕入先、在庫僅少の可視化。",
-          buildRecruiting: "採用管理を作って — 候補者、募集職種、面接ステージ、メモ。",
+          buildCrm: "営業 CRM を作って — 顧客、担当者、ステージ項目つきの商談、ステージ別に金額を集計するダッシュボード。",
+          buildApp: "プロジェクト管理を作って — プロジェクト、担当者と期日つきのタスク、ステータス別ボード、期日のカレンダー。",
+          buildFlow: "サポートデスクを設計して — 優先度とステータスの項目を持つチケット、ステータス別ボード、顧客との紐付け。",
+          buildInventory: "在庫管理アプリを作って — 商品、在庫数、仕入先、発注点を下回る商品を絞り込むビュー。",
+          buildRecruiting: "採用管理を作って — 候補者、募集職種、面接ステージ項目、ステージ別ボード。",
         },
         generic: {
           help: "どんなことを手伝ってもらえますか？",
@@ -2891,6 +2899,14 @@ const ja = {
   //                   FAMILIES (base key + `_one`): i18next resolves every
   //                   CLDR category a pack does not enumerate to the base key,
   //                   which is what keeps ru/ar in their own language.
+  //
+  // objectui#7481 — five `tool.*` entries are NEWER than the registry above:
+  // `get_authoring_rules` (cloud#1837), `load_tools`, `open_record`, `test_flow`
+  // and `toggle_flow` are registered by cloud `service-ai-studio` but the pinned
+  // `@objectstack/spec` snapshot does not list them yet. They are kept here on
+  // purpose: a step label the user reads must not wait on a pin bump. When the
+  // pin advances, `chatbotToolLabels-locale-parity-7481` starts checking them
+  // against the registry instead of against its own hand-held list.
   chatbot: {
     tool: {
       aggregate_data: "データを集計",
@@ -2910,16 +2926,21 @@ const ja = {
       describe_metadata: "メタデータを確認",
       describe_object: "オブジェクト構造を確認",
       get_active_package: "現在のパッケージを取得",
+      get_authoring_rules: "作成ルールを取得",
       get_metadata_schema: "メタデータ構造を取得",
       get_package: "パッケージを取得",
       list_metadata: "メタデータ一覧",
       list_objects: "オブジェクト一覧",
       list_packages: "パッケージ一覧",
+      load_tools: "ツールを読み込む",
       modify_field: "項目を変更",
+      open_record: "レコードを開く",
       propose_blueprint: "アプリ設計案を作成",
       set_active_package: "現在のパッケージを切替",
       suggest_builder: "構築方法を提案",
+      test_flow: "フローをテスト",
       todo_write: "タスクを記録",
+      toggle_flow: "フローの有効・無効を切り替え",
       update_metadata: "メタデータを更新",
       validate_expression: "式を検証",
       verify_build: "構築結果を検証",

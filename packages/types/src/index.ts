@@ -312,6 +312,8 @@ export type {
   ChatMessageSource,
   ChatToolInvocation,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   FloatingChatbotConfig,
   ComplexSchema,
 } from './complex.js';
@@ -616,18 +618,20 @@ export type {
 export type {
   BreakpointName,
   ResponsiveValue,
-  MobileResponsiveConfig,
+  // `MobileResponsiveConfig` RETIRED outright by objectui#7519 — see the
+  // RETIRED note in `./mobile`; its only consumer went with objectui#5942.
   PWAConfig,
   PWAIcon,
   FetchCacheStrategy,
   PWAOfflineConfig,
   OfflineRoute,
-  // `GestureType` / `GestureConfig` reclaimed their natural names in
-  // objectui#3363 once `@objectstack/spec` deleted `ui/touch`
-  // (objectstack#4988). `PWAOfflineConfig` above deliberately did NOT — see
-  // its note in `./mobile`; `@object-ui/react`'s `useOffline` owns that name.
+  // `GestureType` reclaimed its natural name in objectui#3363 once
+  // `@objectstack/spec` deleted `ui/touch` (objectstack#4988); `GestureConfig`
+  // took the same road and was then RETIRED outright by objectui#7519 — see
+  // the RETIRED note in `./mobile`. `PWAOfflineConfig` above deliberately did
+  // NOT reclaim — see its note in `./mobile`; `@object-ui/react`'s `useOffline`
+  // owns that name.
   GestureType,
-  GestureConfig,
   GestureContext,
   // The retired `@objectstack/spec/ui` touch vocabulary, now owned here —
   // see the "Spec Touch Vocabulary" note in `./mobile` (objectstack#4988).

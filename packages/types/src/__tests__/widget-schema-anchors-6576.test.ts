@@ -171,11 +171,14 @@ const WIDGETS = [
     /** The dashboard plugin registers its widgets from the barrel, not the widget file. */
     registrationFile: 'packages/plugin-dashboard/src/index.tsx',
     mirror: ObjectDataTableMirror,
-    // `drillDown` is declared on the TS face and ledgered as unmirrored in
+    // `drillDown` was listed here while it was ledgered as unmirrored in
     // `zod-mirror-parity.test.ts` (`UnmirroredDeclared`, LOCAL — the same
-    // reading as `ChartSchema.drillDown`): `DrillDownConfig` has no zod mirror
-    // in this package, and minting one is a new export outside #6576's ruling.
-    unmirroredReads: ['drillDown'] as readonly string[],
+    // reading as `ChartSchema.drillDown`). objectui#7352 minted
+    // `DrillDownConfigSchema` and wired it into this mirror, so the key is now
+    // DECLARED by the mirror and needs no exception: the census below reads it
+    // out of `mirror.shape`. An exception left standing here would be a hole —
+    // it widens `declared` for a key nothing checks any more.
+    unmirroredReads: [] as readonly string[],
     /** The two objectui#6914 casts the declaration makes unnecessary. */
     retiredCasts: ['schema.drillDown as DrillDownConfig', '(schema as any).onRowClick'] as readonly string[],
   },

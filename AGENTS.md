@@ -158,7 +158,7 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - `.gitignore` 已锚定 `/*.png` 等防兜底,并额外忽略根级 `/--*` —— 名字以 `--` 开头的根文件必然是把 CLI 参数当成了输出文件名(#3193:一张叫 `--full-page` 的 68KB 截图被提交进来,因为没有 `.png` 后缀,`/*.png` 兜不住)。兜底只是最后一道,仍要主动清。
   - 删这类文件要用 `--` 断开参数解析:`rm -- ./--full-page`、`git rm -- './--full-page'`。
 - 任务结束:停**自己起的**后台服务(见下方"服务纪律";别按端口杀别人的)、清 `.playwright-mcp/`。
-- 改完代码提交时:**只要改了发版包的 `src/`(`.changeset/config.json` 的 `fixed` 组,含 `apps/console`),就必须新增一个 `.changeset/*.md`** —— 这一条由 `.github/workflows/changeset-presence.yml` 机械强制(objectui#3387),`pnpm changeset` 写正常 bump,**纯内部改动/只动测试就写空 frontmatter(`---` 紧跟 `---`)显式声明"不发版"**,那是合法的一等通过写法。要的是"声明一次",不是强制发版。
+- 改完代码提交时:**只要改了发版包(`.changeset/config.json` 的 `fixed` 组,含 `apps/console`)的已发布可执行源码 —— `src/` 下的任何文件、包根的 `index.html` 构建入口、或该包 `package.json` 的 `files` 列表逐字发布的文件(后两类减去 `*.md` 与 `LICENSE*`,`src/` 下不减) —— 或者挪动了该包 `package.json` 里八个发布契约字段(`sideEffects`、`exports`、`main`、`module`、`types`、`files`、`peerDependencies`、`engines`)之一的值(哪怕一个源码文件都没动),就必须新增一个 `.changeset/*.md`**;判据的权威表述是 `scripts/check-changeset-presence.mjs` 的文件头,这段话与它不一致时以它为准 —— 这一条由 `.github/workflows/changeset-presence.yml` 机械强制(objectui#3387),`pnpm changeset` 写正常 bump,**纯内部改动/只动测试就写空 frontmatter(`---` 紧跟 `---`)显式声明"不发版"**,那是合法的一等通过写法。要的是"声明一次",不是强制发版。
   - 别再按"feature 要写、bug 修复不用"来判断 —— 正是这个旧判据让三条用户可见的修复(`19716b5bf` fix(charts)、`5e7ef1141` fix(i18n)、`0e50440` #3518)搭顺风车发了出去,任何 CHANGELOG/版本号/发布记录里都查不到:平台侧的发布判据(objectstack#4731/#4843)读的就是本仓声明的 changeset。
   - 本地先自查:`node scripts/check-changeset-presence.mjs`(未提交的 changeset 也算)。
 
