@@ -1452,17 +1452,28 @@ export interface ChartDataSeries {
    * refuse an out-of-range value either.
    *
    * ⚠️ Today the renderer honours it ONLY on a `variant: 'comparison'` series —
-   * `comparisonStyle` returns `null` for any other variant and every mark reads
-   * `cmp?.fillOpacity` / `cmp?.strokeOpacity`, so on a primary series the value
-   * is read and unused. The spec declares it as an unconditional override, so
-   * that is a renderer gap (objectui#7698), not a reason to narrow this face.
+   * `comparisonStyle` returns `null` for any other variant, so on a primary
+   * series the value is read and unused. On a comparison series it reaches
+   * EVERY mark family: `fillOpacity` on a Bar (`:1911`, `:2037`) or Scatter
+   * (`:1832`) mark, `strokeOpacity` on a Line mark (`:1898`, `:2048`), both on
+   * an Area mark (`:1905`, `:2056`). The spec declares it as an unconditional
+   * override, so the primary-series half is a renderer gap (objectui#7698),
+   * not a reason to narrow this face.
    */
   opacity?: number;
   /**
    * SVG `stroke-dasharray` override, e.g. `"4 4"` for a dashed line
-   * (`normalizeChartSchema.ts:250`; applied at `AdvancedChartImpl.tsx:96`)
-   * (objectui#7546). Same condition as {@link ChartDataSeries.opacity}: today
-   * only a `variant: 'comparison'` series reaches that read (objectui#7698).
+   * (`normalizeChartSchema.ts:250`; read at `AdvancedChartImpl.tsx:96`)
+   * (objectui#7546).
+   *
+   * ⚠️ Narrower condition than {@link ChartDataSeries.opacity}: today it is
+   * honoured only on a `variant: 'comparison'` series AND only on a mark with
+   * a stroke to dash — a Line (`:1898`, `:2048`) or Area (`:1905`, `:2056`)
+   * mark, whether from the chart's `chartType` or a per-series `type`
+   * override. `comparisonStyle` returns the authored value for every family,
+   * but a Bar (`:1911`, `:2037`) or Scatter (`:1832`) mark passes
+   * `fillOpacity` only and drops `strokeDasharray` (and `strokeOpacity`); on
+   * a primary series of any family it is read and unused (objectui#7698).
    */
   dashArray?: string;
   /**

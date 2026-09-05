@@ -11,8 +11,11 @@ non-strict Zod object had been **stripping in silence** while `safeParse` report
 set widens toward what already renders — but one document class that validated before now
 **refuses**: a series carrying one of these keys with a value the renderer drops in silence
 (`variant: 'bogus'`, `yAxis: 'top'`, `opacity: '0.4'` / `Infinity`, a non-string `stack` /
-`dashArray`, a non-string non-map `label`). Such a document draws a chart today — the normalizer
-ignores the bad value — so this is a narrowing away from something that renders, which is the
+`dashArray`, a non-string non-map `label`) — and, separately, `variant: 'current'`, which the
+renderer does NOT drop: the normalizer keeps that renderer-internal spelling and draws it exactly as
+`primary`, but it is not a member of the published pair, so it now refuses at `variant` (below).
+Such a document draws a chart today — the normalizer ignores the bad value, or honours `current`
+— so this is a narrowing away from something that renders, which is the
 distinction objectui#6939's grading language turns on, and it takes the level objectui#6896 and
 objectui#7113 set for the same transition in this same file. This repository's `major` is a
 cross-repo pin to `@objectstack`'s major, not a severity dial; the change is announced here.
