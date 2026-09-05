@@ -312,6 +312,8 @@ export type {
   ChatMessageSource,
   ChatToolInvocation,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   FloatingChatbotConfig,
   ComplexSchema,
 } from './complex.js';

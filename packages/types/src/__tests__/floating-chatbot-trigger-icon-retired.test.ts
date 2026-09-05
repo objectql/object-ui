@@ -52,8 +52,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { FloatingChatbotConfig } from '../complex';
-import { ChatbotSchema } from '../zod/complex.zod';
+import type {
+  ChatbotFloatingSchema as TsChatbotFloatingSchema,
+  ChatbotSchema as TsChatbotSchema,
+  FloatingChatbotConfig,
+} from '../complex';
+import { ChatbotFloatingSchema, ChatbotSchema } from '../zod/complex.zod';
 
 /* ── type-level pins: the `tsc` channel ──────────────────────────────────── */
 
@@ -89,6 +93,30 @@ describe('the `triggerIcon` tombstone makes authoring a `tsc` error', () => {
     expect(config.triggerSize).toBe(56);
   });
 
+  it('reaches a `chatbot` node AND a `chatbot-floating` node through their faces — the tombstone bites wherever `floatingConfig` is declared', () => {
+    // Both faces declare `floatingConfig` (`ChatbotSchema` always did;
+    // objectui#7655 declared it on `ChatbotFloatingSchema` too). The pins above
+    // sit on `FloatingChatbotConfig` directly, so a face that LOST the member
+    // would not turn them red — the member would read as `any` through
+    // `BaseSchema`'s index signature and this literal would compile clean. That
+    // is exactly what #7655's contract review measured on its first cut, which
+    // moved the key off `ChatbotSchema`; pinned on the nodes since.
+    const onChatbot: TsChatbotSchema = {
+      type: 'chatbot',
+      messages: [],
+      // @ts-expect-error `triggerIcon` is a retirement tombstone (objectui#7654), reached through `ChatbotSchema.floatingConfig`
+      floatingConfig: { title: 'Chat', triggerIcon: 'Sparkles' },
+    };
+    const onFloating: TsChatbotFloatingSchema = {
+      type: 'chatbot-floating',
+      messages: [],
+      // @ts-expect-error `triggerIcon` is a retirement tombstone (objectui#7654), reached through `ChatbotFloatingSchema.floatingConfig`
+      floatingConfig: { title: 'Chat', triggerIcon: 'Sparkles' },
+    };
+    expect(onChatbot.type).toBe('chatbot');
+    expect(onFloating.type).toBe('chatbot-floating');
+  });
+
   it('a key the interface never declared still rides the widened path — the DELETED row', () => {
     // This carries NO directive on purpose. It is the measured contrast that
     // justifies `?: never` over deletion: an undeclared key IS refused in a
@@ -102,26 +130,34 @@ describe('the `triggerIcon` tombstone makes authoring a `tsc` error', () => {
 
 /* ── the runtime channel: DELIBERATELY unchanged, and a tripwire if that ends ─ */
 
-describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () => {
+// Both faces declare `floatingConfig` — `ChatbotSchema` always did, and
+// objectui#7655 declared it on `ChatbotFloatingSchema`, the face of the one
+// registration that reads it — and NEITHER twin has an arm for it, so the
+// tripwire parses both nodes, each through its own twin.
+describe.each([
+  ['chatbot', ChatbotSchema],
+  ['chatbot-floating', ChatbotFloatingSchema],
+] as const)('there is NO zod refusal on a `%s` node, and that is deliberate (objectui#7654)', (type, twin) => {
   const node = {
-    type: 'chatbot' as const,
+    type,
     messages: [{ id: 'm1', role: 'user' as const, content: 'hi' }],
   };
 
-  it('a chatbot node carrying `floatingConfig.triggerIcon` still parses GREEN', () => {
+  it(`a ${type} node carrying \`floatingConfig.triggerIcon\` still parses GREEN`, () => {
     // `FloatingChatbotConfig` has NO zod mirror: `floatingConfig` sits in the
-    // `UnmirroredDeclared` ledger (`zod-mirror-parity.test.ts`,
-    // `complex.zod.ts#ChatbotSchema`), and `BaseSchema` is `.passthrough()`, so
-    // the whole object rides through unvalidated. This was green before the
-    // tombstone and is green after it — the retirement changed the TypeScript
-    // face only, and this pins that it changed no parse outcome.
+    // `UnmirroredDeclared` ledger (`zod-mirror-parity.test.ts`, under both
+    // `complex.zod.ts#ChatbotSchema` and, since objectui#7655,
+    // `complex.zod.ts#ChatbotFloatingSchema`), and `BaseSchema` is
+    // `.passthrough()`, so the whole object rides through unvalidated. This was
+    // green before the tombstone and is green after it — the retirement changed
+    // the TypeScript face only, and this pins that it changed no parse outcome.
     //
     // ⚠️ TRIPWIRE: if objectui#6152 ever mints a `FloatingChatbotConfigSchema`,
     // this goes RED. That is the intended signal, not a nuisance — whoever
     // lands the mirror must add the `retirementTombstone()` half for
     // `triggerIcon` at the same time, and flip this control rather than delete
     // it into a vacuum.
-    const result = ChatbotSchema.safeParse({
+    const result = twin.safeParse({
       ...node,
       floatingConfig: { title: 'Chat', triggerIcon: 'Sparkles' },
     });
@@ -129,7 +165,7 @@ describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () =
   });
 
   it('a live `floatingConfig` parses green too — the non-vacuity control', () => {
-    const result = ChatbotSchema.safeParse({
+    const result = twin.safeParse({
       ...node,
       floatingConfig: { title: 'Chat', triggerSize: 56 },
     });
@@ -139,7 +175,7 @@ describe('there is NO zod refusal, and that is deliberate (objectui#7654)', () =
   it('the mirror really has no `floatingConfig` key at all', () => {
     // The load-bearing fact behind everything above, asserted rather than
     // assumed: a key the mirror declares would appear in its shape.
-    const shape = (ChatbotSchema as unknown as { shape: Record<string, unknown> }).shape;
+    const shape = (twin as unknown as { shape: Record<string, unknown> }).shape;
     expect(shape.floatingConfig).toBeUndefined();
     // Lit control: a key the mirror DOES declare is present, so the reading
     // above is a measurement and not an empty object.

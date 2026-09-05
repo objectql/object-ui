@@ -235,6 +235,8 @@ export {
   ChatMessageSourceSchema,
   ChatMessageSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
   DashboardWidgetLayoutSchema,
   DashboardWidgetTypeSchema,
   DashboardWidgetSchema,
