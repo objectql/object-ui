@@ -201,8 +201,12 @@ export async function resolveGroupByLabels(
     // the server document plus only `normalizeSchemaReferenceKeys` and
     // `applyFieldWidgetOverrides` — so a stored pre-strict def still arrives here.
     // And there is NO camel leg below to fall back to: retiring these reads would
-    // delete the only read of the value, not re-point it. Adding the declared
-    // `idField`/`displayField` is a separate, contract-shaped change.
+    // delete the only read of the value, not re-point it. Adding a `displayField`
+    // leg (the spelling `FieldSchema` declares) is a separate, contract-shaped
+    // change. `idField` is NOT such a leg: measured on the pinned spec 17.2.0,
+    // `FieldSchema` refuses `idField` with `unrecognized_keys` exactly as it
+    // refuses `id_field` (the spec's only `idField` sits on `InlineGridColumnSchema`,
+    // a different shape), so the id read has no declared spelling to re-point to.
     const idField: string = fieldDef.id_field || 'id';
 
     try {
