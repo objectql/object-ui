@@ -52,8 +52,20 @@ import { FlexSchema, LayoutSchema } from '../zod/layout.zod';
 const ROOT = resolve(__dirname, '../../../..');
 const FIXTURE = 'packages/types/examples/data-display-examples.json';
 
-function readFixture(): any {
-  return JSON.parse(readFileSync(resolve(ROOT, FIXTURE), 'utf8'));
+/** The fixture is an arbitrary JSON document, so it is read as one. */
+type JsonObject = { [key: string]: unknown };
+
+function readFixture(): JsonObject {
+  return JSON.parse(readFileSync(resolve(ROOT, FIXTURE), 'utf8')) as JsonObject;
+}
+
+/** `doc[key]`, refused loudly rather than read as `undefined` if it is not an object. */
+function objectAt(doc: JsonObject, key: string): JsonObject {
+  const value = doc[key];
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${FIXTURE}: expected an object at \`${key}\`, got ${JSON.stringify(value)}`);
+  }
+  return value as JsonObject;
 }
 
 /**
@@ -80,7 +92,7 @@ function envelopeSites(doc: unknown, path = '$'): string[] {
 
 describe('objectui#6751 — flex layout keys sit on the node, not under `props`', () => {
   it('compositeExample parses through FlexSchema with direction/gap as authored', () => {
-    const node = readFixture().compositeExample;
+    const node = objectAt(readFixture(), 'compositeExample');
     expect(node.type).toBe('flex');
 
     const parsed = FlexSchema.parse(node);
@@ -94,7 +106,7 @@ describe('objectui#6751 — flex layout keys sit on the node, not under `props`'
   });
 
   it('compositeExample parses the same way through the published LayoutSchema union', () => {
-    const parsed = LayoutSchema.parse(readFixture().compositeExample) as Record<string, unknown>;
+    const parsed = LayoutSchema.parse(objectAt(readFixture(), 'compositeExample')) as JsonObject;
     expect(parsed.type).toBe('flex');
     expect(parsed.direction).toBe('col');
     expect(parsed.gap).toBe(4);
@@ -109,7 +121,7 @@ describe('objectui#6751 — flex layout keys sit on the node, not under `props`'
     // Without this, the zero on the previous assertion could come from a walker
     // that never reports anything.
     const doc = readFixture();
-    doc.compositeExample.props = { direction: 'col', gap: 4 };
+    objectAt(doc, 'compositeExample').props = { direction: 'col', gap: 4 };
     expect(envelopeSites(doc)).toEqual(['$.compositeExample (type=flex)']);
   });
 
@@ -121,12 +133,11 @@ describe('objectui#6751 — flex layout keys sit on the node, not under `props`'
   });
 
   it('negative control — the lift left the rest of the node untouched', () => {
-    const node = readFixture().compositeExample;
+    const node = objectAt(readFixture(), 'compositeExample');
     expect(node.id).toBe('user-profile-card');
-    expect(node.children.map((c: { type: string }) => c.type)).toEqual([
-      'avatar', 'statistic', 'badge', 'list',
-    ]);
-    expect(node.children[0]).toMatchObject({
+    const children = node.children as JsonObject[];
+    expect(children.map((c) => c.type)).toEqual(['avatar', 'statistic', 'badge', 'list']);
+    expect(children[0]).toMatchObject({
       type: 'avatar', alt: 'User Avatar', fallback: 'JD', size: 'lg',
     });
   });
