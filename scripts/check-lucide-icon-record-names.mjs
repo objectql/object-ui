@@ -388,7 +388,18 @@ export const RECORD_READING_TYPES = {
     min: 1,
     resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/overlay/context-menu.tsx)',
   },
-  'data-table': { paths: ['rowActionDefs[].icon'], resolver: 'packages/components/src/renderers/complex/data-table.tsx' },
+  // `complex/data-table.tsx` does not read the record itself: it imports the
+  // shared `resolveIcon` from `renderers/action/resolve-icon`, and its row
+  // actions go through that one call — so it is a ROUTER, exactly like the
+  // `button`, `context-menu` and `dropdown-menu` entries, and its `resolver`
+  // names the seam the names actually reach, `(via …)` the renderer that
+  // carries them there. It read as the renderer alone until objectui#7492,
+  // which is a declaration naming a module that does not do the declared
+  // thing — the very class this gate exists to end, one level up.
+  'data-table': {
+    paths: ['rowActionDefs[].icon'],
+    resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/complex/data-table.tsx)',
+  },
   // The container's OWN `icon` is never read (`paths: []`); its item icons sit
   // on untyped children, recursively, and every one of them goes through the
   // single `resolveIcon(item.icon)` call that serves BOTH the leaf arm and the
