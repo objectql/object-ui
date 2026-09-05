@@ -2060,7 +2060,9 @@ predicted would recur before objectui#7433 measured it recurring four more times
 ${label}: the two derivations disagree — walking MIRRORS gives one answer, subtracting
 from the pinned population gives another. Population ${EXPECTED_MIRROR_PAIRS}, ledger ${size} entries.
 A ledger entry names a pair MIRRORS does not register: fix the ledger key.
-⛔ Never "fix" this by writing the difference down.`;
+If 'the registry population matches EXPECTED_MIRROR_PAIRS' failed too, fix THAT first —
+this derivation subtracts from the pinned population, so it fails as a consequence.
+⛔ Never "fix" either one by writing the difference down.`;
 
     expect(
       registered.filter((k) => !drift.has(k)).length,
