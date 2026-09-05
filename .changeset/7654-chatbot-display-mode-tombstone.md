@@ -93,7 +93,31 @@ Prong 2 of that discriminator licenses the tombstone: the key was advertised in 
 presentation switch. The deleted row is pinned in the test file as a live control — an
 undeclared key that rides both shapes with no directive — so the contrast cannot rot.
 
-**Accept-set change, stated plainly for reviewers:** on the TypeScript face, a write of
-`displayMode` against either chatbot face used to compile and now does not. On the
-runtime face nothing changes at all. On the designer face, one control disappears from
-the `chatbot-floating` property panel and new nodes no longer carry the key.
+## Accept-set change, one line per face
+
+- **TypeScript.** A write of `displayMode` against either chatbot face used to compile
+  and now does not.
+- **Runtime (Zod / `safeValidateSchema`).** Nothing changes at all — a stored document
+  carrying the key parses green before and after, and keeps the value.
+- **Designer.** The **Display Mode** control disappears from the `chatbot-floating`
+  property panel, and newly created nodes no longer carry the key.
+- **Manifest, author-time validator, and generated JSX props.** The `chatbot-floating`
+  registration's `inputs` go from 20 entries to 19 and its `defaultProps` from 9 keys to
+  8, so the manifest projected from them no longer lists the prop. Measured on both sides
+  of this change: `validateTree` on a stored `chatbot-floating` node carrying
+  `displayMode` goes from **0 diagnostics to exactly 1** — code `unknown-prop`, severity
+  **`warning`**, message `` `<chatbot-floating> has no prop "displayMode"` `` — which is
+  what the JSX/HTML authoring tier reports through `compile()`. In the same pair of runs
+  the props interface `generateDts` derives from those same `inputs` drops from 20 members
+  to 19, losing its `displayMode?: string` line, so a `.tsx` page written against those
+  generated intrinsics no longer type-checks the attribute.
+
+  **This is author-time only: no stored document stops parsing and nothing at render
+  moves.** The value survives compilation — `compile()` returns a tree still carrying
+  `displayMode: 'floating'`, byte-for-byte the same keys before and after — and a
+  `warning` never blocks a page, because the page renderer filters the diagnostics to
+  `severity === 'error'` before deciding whether to fail. Two neighbouring instruments are
+  untouched and worth naming so the scope is not read wider than it is: `os validate` runs
+  `safeValidateSchema`, the Zod path, and is silent on this key before and after; and the
+  build-time `sdui-intrinsics.d.ts` artifact is generated from the PUBLIC tier, which does
+  not contain `chatbot-floating` on either side of this change.

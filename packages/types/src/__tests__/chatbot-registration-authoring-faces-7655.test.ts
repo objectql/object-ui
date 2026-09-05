@@ -397,11 +397,18 @@ describe('`ChatbotFloatingSchema` (zod) validates what the face declares, and le
     // removed. The RUNTIME face was deliberately left alone — the key has no
     // mirror arm on either twin and `BaseSchema` is `.passthrough()`, so a
     // stored document carrying it parses exactly as it did before the ruling.
-    // The SHAPE pin is the assertion that fires if objectui#6152 mints a
-    // house-style (non-strict) arm for the key; the parse-green line after it
-    // only fires for a `.strict()` mirror (objectui#7678 item 2). Red here is
-    // the signal to add the `retirementTombstone()` half at the same time, not
-    // to delete the pin. The tombstone's own pins are in
+    // BOTH assertions below are tripwires, not just the shape pin. Measured on
+    // `ChatbotSchema`'s twin, which carries the key on the same terms this one
+    // does: minting the arm a scalar union takes — an optional `z.enum` over
+    // `'inline' | 'floating'` — reddened `tsc -p` on this package's
+    // `tsconfig.test.json` with exactly one error, at
+    // `zod-mirror-parity.test.ts(1586,14)`, AND `vitest` with exactly two
+    // failures: the shape pin and the parse-green line, since an enum arm
+    // refuses `'anything-at-all'`. It does NOT take a `.strict()` mirror. (The
+    // strict-vs-non-strict split objectui#7678 item 2 records was measured on
+    // OBJECT-mirror shapes; transposing it onto this scalar union is wrong.)
+    // Red here is the signal to add the `retirementTombstone()` half at the
+    // same time, not to delete the pin. The tombstone's own pins are in
     // `chatbot-display-mode-retired.test.ts`.
     expect((ChatbotFloatingZod.shape as Record<string, unknown>).displayMode).toBeUndefined();
     expect(ChatbotFloatingZod.safeParse({ ...node, displayMode: 'anything-at-all' }).success).toBe(true);

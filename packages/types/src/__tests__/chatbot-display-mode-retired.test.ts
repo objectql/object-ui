@@ -199,14 +199,24 @@ describe.each([
     expect(twin.safeParse({ ...node, displayMode: 'anything-at-all' }).success).toBe(true);
   });
 
-  it('the twin really has no `displayMode` arm — the SHAPE pin, which is the tripwire that fires', () => {
-    // ⚠️ TRIPWIRE: if objectui#6152 ever mints a house-style (non-strict) arm
-    // for `displayMode`, THIS assertion goes red — the parse-green line above
-    // stays green for a non-strict arm and only reddens for a `.strict()`
-    // mirror (objectui#7678 item 2 measured both shapes). Red here is the
-    // intended signal, not a nuisance: whoever lands the mirror adds the
-    // `retirementTombstone()` half for `displayMode` at the same time, and
-    // flips this control rather than deleting it into a vacuum.
+  it('the twin really has no `displayMode` arm — the SHAPE pin, one of the TWO assertions a minted arm reddens', () => {
+    // ⚠️ TRIPWIRE: if objectui#6152 ever mints an arm for `displayMode`, this
+    // assertion goes red — and so does the parse-green line above. That was
+    // MEASURED on this pair, not transposed from another one. Minting the arm a
+    // scalar union takes on `ChatbotSchema`'s twin — an optional `z.enum` over
+    // `'inline' | 'floating'` — reddened BOTH instruments in the same tree:
+    // `tsc -p packages/types/tsconfig.test.json` with exactly one error, at
+    // `zod-mirror-parity.test.ts(1586,14)`, and `vitest` with exactly two
+    // failures — this shape pin AND the parse-green line, which asserts that
+    // `'anything-at-all'` parses, and an enum arm refuses it. So it does NOT
+    // take a `.strict()` mirror to redden the parse line here: the tripwire
+    // fires harder than "shape pin only". (The strict-vs-non-strict split is
+    // real for OBJECT-mirror shapes, which is what objectui#7678 item 2
+    // measured; `displayMode` is a scalar union and that reading does not
+    // transpose onto it.) Red is the intended signal, not a nuisance: whoever
+    // lands the mirror adds the `retirementTombstone()` half for `displayMode`
+    // at the same time, and flips this control rather than deleting it into a
+    // vacuum.
     const shape = (twin as unknown as { shape: Record<string, unknown> }).shape;
     expect(shape.displayMode).toBeUndefined();
     // Lit control: a key the twin DOES declare is in its shape, so the reading
