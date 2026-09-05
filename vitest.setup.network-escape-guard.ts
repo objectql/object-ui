@@ -236,7 +236,23 @@ afterEach(() => {
       `\n` +
       `Fix: serve the probe from a double rather than the network. See\n` +
       `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx for the\n` +
-      `shape (vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()). Do NOT add\n` +
-      `this file to KNOWN_ESCAPES — that list only shrinks.`,
+      `shape (vi.stubGlobal('fetch', router) + vi.unstubAllGlobals()).\n` +
+      `\n` +
+      `WHERE that pair is torn down is part of the shape, not a detail\n` +
+      `(objectui#7439). Vitest runs afterEach hooks in REVERSE registration order,\n` +
+      `so a teardown written in THIS file runs FIRST — before the root setup's\n` +
+      `RTL cleanup() and before this assertion. Unstubbing there restores the real\n` +
+      `fetch while the tree is still mounted, so even a read that cleanup()'s\n` +
+      `act-flush triggers escapes. So:\n` +
+      `  - call cleanup() BEFORE vi.unstubAllGlobals(), as that\n` +
+      `    DatasetReportRenderer afterEach already does; and\n` +
+      `  - if the component can issue a read AFTER the test body returns — any\n` +
+      `    refreshAfter, any notifyDataChanged consumer, any fire-and-forget\n` +
+      `    refresh no barrier awaits — do not tear the double down at all.\n` +
+      `    Install ONE at module scope and leave it up for the whole file, so no\n` +
+      `    test can ever end with the real fetch back in place. Worked example:\n` +
+      `    packages/app-shell/src/views/RecordDetailView.approvalDeclaredActions.test.tsx\n` +
+      `\n` +
+      `Do NOT add this file to KNOWN_ESCAPES — that list only shrinks.`,
   );
 });
