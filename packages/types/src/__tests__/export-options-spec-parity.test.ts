@@ -152,7 +152,12 @@ describe('exportOptions ↔ installed @objectstack/spec (objectui#4535)', () => 
     // reduced to "Invalid input".
     const messages = (refused.error?.issues ?? []).map((i) => i.message).join('\n');
     expect(messages).toMatch(/pdf/);
-    expect(messages).toMatch(/8010|1301/);
+    // Was `/8010|1301/` — the issue numbers. 17.3.0 stripped those citations
+    // and kept the prescriptive half, so the assertion moves to the half this
+    // test's own comment above calls the point: the actionable repair (which
+    // values survive) and the migration command that lists the edits.
+    expect(messages).toMatch(/'csv', 'xlsx' and 'json'/);
+    expect(messages).toMatch(/os migrate meta/);
   });
 
   it('lifts a bare format array at PARSE — which is why the renderer still needs its own tolerance', () => {

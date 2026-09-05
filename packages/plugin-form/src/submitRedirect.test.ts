@@ -131,8 +131,15 @@ describe('the shape verdict is the contract’s, for every family', () => {
     // submitter reads on screen is the one the authoring door would have said.
     // An empty or generic message would be a silent drop wearing an error's
     // clothes — which is defect 2 with extra steps.
+    //
+    // The citation is asserted in the spelling the refusal actually carries.
+    // `@objectstack/spec` 17.3.0 stripped the `#NNNN` issue numbers from these
+    // messages while keeping the prescriptive half intact, so `#7496` stopped
+    // appearing and the ruling is now referenced by DATE. Re-pointed rather
+    // than dropped: the property this line exists for is that the sentence
+    // carries its governing ruling, not that it spells it as an issue number.
     expect(verdict.refusal).toMatch(/`(submitBehavior\.)?url`/);
-    expect(verdict.refusal).toContain('#7496');
+    expect(verdict.refusal).toContain('ruled 2026-08-11');
     expect(verdict.refusal.length).toBeGreaterThan(40);
   });
 
