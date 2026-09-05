@@ -12,7 +12,7 @@ description: "Modal dialog overlay for focused interactions"
 ```plaintext
 interface DialogSchema {
   type: 'dialog';
-  trigger: SchemaNode;
+  trigger: SchemaNode | SchemaNode[];
   title?: string;
   description?: string;
   children: SchemaNode[];

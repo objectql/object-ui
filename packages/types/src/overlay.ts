@@ -46,8 +46,14 @@ export interface DialogSchema extends BaseSchema {
   content?: SchemaNode | SchemaNode[];
   /**
    * Dialog trigger (button or element that opens the dialog)
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/dialog.tsx:26` —
+   * `renderChildren(schema.trigger)` inside `DialogTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger?: SchemaNode;
+  trigger?: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
@@ -101,8 +107,14 @@ export interface AlertDialogSchema extends BaseSchema {
   content?: SchemaNode | SchemaNode[];
   /**
    * Dialog trigger
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/alert-dialog.tsx:28` —
+   * `renderChildren(schema.trigger)` inside `AlertDialogTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger?: SchemaNode;
+  trigger?: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
@@ -205,8 +217,14 @@ export interface SheetSchema extends BaseSchema {
   content?: SchemaNode | SchemaNode[];
   /**
    * Sheet trigger
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/sheet.tsx:26` —
+   * `renderChildren(schema.trigger)` inside `SheetTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger?: SchemaNode;
+  trigger?: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
@@ -255,8 +273,14 @@ export interface DrawerSchema extends BaseSchema {
   content?: SchemaNode | SchemaNode[];
   /**
    * Drawer trigger
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/drawer.tsx:27` —
+   * `renderChildren(schema.trigger)` inside `DrawerTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger?: SchemaNode;
+  trigger?: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
@@ -293,8 +317,14 @@ export interface PopoverSchema extends BaseSchema {
   content: SchemaNode | SchemaNode[];
   /**
    * Popover trigger
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/popover.tsx:22` —
+   * `renderChildren(schema.trigger)` inside `PopoverTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger: SchemaNode;
+  trigger: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
@@ -395,8 +425,14 @@ export interface HoverCardSchema extends BaseSchema {
   content: SchemaNode | SchemaNode[];
   /**
    * Hover trigger element
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/hover-card.tsx:22` —
+   * `renderChildren(schema.trigger)` inside `HoverCardTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger: SchemaNode;
+  trigger: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
@@ -543,8 +579,14 @@ export interface DropdownMenuSchema extends BaseSchema {
   items: MenuItem[];
   /**
    * Menu trigger
+   *
+   * READ SITE: `packages/components/src/renderers/overlay/dropdown-menu.tsx:97` —
+   * `renderChildren(schema.trigger)` inside `DropdownMenuTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`)
+   * serves the array form; the same spelling {@link ContextMenuSchema.trigger}
+   * declares (objectui#7081).
    */
-  trigger: SchemaNode;
+  trigger: SchemaNode | SchemaNode[];
   /**
    * Default open state
    * @default false
