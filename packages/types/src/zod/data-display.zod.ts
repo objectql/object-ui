@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { ChartTypeSchema as SpecChartTypeSchema } from '@objectstack/spec/ui';
+import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { TABLE_COLUMN_TYPES } from '../data-display.js';
@@ -385,6 +385,34 @@ export const ChartDataSeriesSchema = z.object({
   // the TS declaration for the read this narrowness is taken from.
   type: z.enum(['bar', 'line', 'area']).optional().describe('Per-series chart family override (combo charts)'),
   color: z.string().optional().describe('Series color'),
+  // THE SIX KEYS THE RENDERER READS (objectui#7546). Each was undeclared, and
+  // because this object is NON-STRICT the mirror STRIPPED it in silence while
+  // `safeParse` reported success — the card's own measurement:
+  // `{ name, label, stack, yAxis, opacity, dashArray, variant }` parsed to
+  // `{ name }`. Every one is read by `normalizeSeries`
+  // (`normalizeChartSchema.ts:242-255`) and does real work in
+  // `AdvancedChartImpl.tsx`; each value domain below is the read's own, so the
+  // accept set widens only toward what already renders, and a value the
+  // renderer would drop in silence is refused by name instead. They are the
+  // spec's `ChartSeriesSchema` members under the same names; the TS twin's
+  // docblocks carry the read sites and the liveness measurement.
+  //
+  // ⛔ `chartType` is NOT among them — deliberately. It is the renderer's
+  // INTERNAL spelling of `type` (the first limb of
+  // `str(raw.chartType) ?? str(raw.type)`), the spec refuses it by name as an
+  // alias of `type`, and nothing on this authoring face writes it. Declaring it
+  // is a contract decision for its own card; `chart-series-keys-7546.test.ts`
+  // pins the gap so it stays visible.
+  label: I18nLabelSchema.optional().describe(
+    'Legend / tooltip name for this series — a plain string or an inline locale map; defaults to the column key',
+  ),
+  variant: z.enum(['primary', 'comparison']).optional().describe(
+    'Visual role — `comparison` draws the muted period-over-period overlay; `primary` (the default) is the normal treatment. The spec pair: the renderer-internal `current` spelling is not a member (objectui#7682)',
+  ),
+  opacity: z.number().optional().describe('Stroke and fill opacity override — any finite number, the read\'s own domain; the spec bounds it to 0–1'),
+  dashArray: z.string().optional().describe('SVG stroke-dasharray override, e.g. "4 4" for a dashed line'),
+  stack: z.string().optional().describe('Stack group id — series sharing one id stack together'),
+  yAxis: z.enum(['left', 'right']).optional().describe('Which y-axis this series binds to on a dual-axis chart'),
 }).superRefine((series, ctx) => {
   // `normalizeSeries` returns `undefined` when NEITHER spelling resolves
   // (`normalizeChartSchema.ts:240`, `if (!dataKey) return undefined`) and the
