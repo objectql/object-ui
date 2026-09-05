@@ -37,6 +37,7 @@ import {
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal } from './tombstone.zod.js';
+import { DrillDownConfigSchema } from './data-display.zod.js';
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -935,18 +936,21 @@ export const ObjectGallerySchema = BaseSchema.extend({
 /**
  * ObjectDataTable Schema (objectui#6576 / objectui#6914)
  *
- * Mirrors the `ObjectDataTableSchema` interface in `objectql.ts`. Two keys
- * follow the parity ledger's discipline rather than the literal shape:
+ * Mirrors the `ObjectDataTableSchema` interface in `objectql.ts`. One key
+ * follows the parity ledger's discipline rather than the literal shape, and
+ * one used to:
  *
  *   - `onRowClick` is a RUNTIME SLOT — a host-supplied function the widget
  *     forwards into `data-table` — so the mirror refuses it BY NAME
  *     (`handlerKeyRefusal`, the objectui#6124 shape) while the TS twin stays
  *     callable; `KnownDrift` in `zod-mirror-parity.test.ts` records the
  *     divergence.
- *   - `drillDown` is declared on the TS face and deliberately NOT mirrored:
- *     `DrillDownConfig` has no zod mirror in this package (`ChartSchema.drillDown`
- *     is in the same state), and minting one is a new export outside the
- *     objectui#6576 ruling. `UnmirroredDeclared` records it.
+ *   - `drillDown` is mirrored through `DrillDownConfigSchema`
+ *     (`data-display.zod.ts`, objectui#7352). objectui#6576 declared the key
+ *     and left it unmirrored — minting the mirror was a new export outside
+ *     that ruling — so `UnmirroredDeclared` carried it, as it had carried
+ *     `ChartSchema.drillDown` since objectui#6058; both entries left the
+ *     ledger with that mirror.
  */
 export const ObjectDataTableSchema = BaseSchema.extend({
   type: z.literal('object-data-table'),
@@ -958,11 +962,26 @@ export const ObjectDataTableSchema = BaseSchema.extend({
   columns: z.array(z.any()).optional().describe('Column definitions (names or column objects)'),
   searchable: z.boolean().optional().describe('Forwarded to the rendered data-table'),
   pagination: z.boolean().optional().describe('Forwarded to the rendered data-table'),
+  drillDown: DrillDownConfigSchema.optional().describe(
+    'Drill-to-record: clicking a row opens that record in a detail drawer (DashboardRenderer defaults object-backed table widgets to { enabled: true, mode: record })',
+  ),
   onRowClick: handlerKeyRefusal('onRowClick', 'runtime-slot', 'Row click handler (overrides drill-to-record)'),
 });
 
 /**
  * ObjectQL Component Schema Union
+ *
+ * Same twelve members as the TS union in `../objectql.ts`, in the same order.
+ * `ObjectGallerySchema` and `ObjectDataTableSchema` joined in objectui#7363:
+ * PR #7355 (objectui#6576) minted both mirrors and deliberately did not extend
+ * this union, so `AnyComponentSchema` — and `validateSchema` /
+ * `safeValidateSchema` / `objectui validate` with it — had NO arm for an
+ * `object-gallery` or `object-data-table` node. Such a document was refused as
+ * matching no arm, exactly as before the mirrors existed, and a wrong-typed
+ * declared key on it (`searchable: 'yes'`) could never be diagnosed by name.
+ * Both nodes render (`plugin-list` registers `object-gallery`, `plugin-dashboard`
+ * registers `object-data-table`); this is the validating face catching up with
+ * the rendering one. The behaviour pin is `__tests__/objectql-union-arms-7363.test.ts`.
  */
 export const ObjectQLComponentSchema = z.union([
   ObjectGridSchema,
@@ -974,5 +993,7 @@ export const ObjectQLComponentSchema = z.union([
   ObjectCalendarSchema,
   ObjectKanbanSchema,
   ObjectChartSchema,
+  ObjectGallerySchema,
+  ObjectDataTableSchema,
   ListViewSchema,
 ]);
