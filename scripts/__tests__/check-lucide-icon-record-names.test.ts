@@ -11,6 +11,7 @@ import {
   DISCOVERY_NEGATIVE_CONTROL,
   RECORD_READING_TYPES,
   analyze,
+  censusResolverProblems,
   describeName,
   icons,
   iconNames,
@@ -1039,5 +1040,105 @@ describe('the gate is wired and the local pins it subsumes are gone', () => {
       /^\s*import\s*\{[^}]*\bicons\b[^}]*\}\s*from\s*'lucide-react'/m,
     );
     expect(pin, 'the pin no longer says which card retired its membership half').toContain('objectui#5936');
+  });
+});
+
+// ── 8. the census table's own `resolver` declarations ────────────────────────
+
+/**
+ * objectui#7492. `resolver` is the string a violation report prints as
+ * `Resolved through: ...`, and until that card NOTHING judged it: an entry
+ * could name a module with no lookup in it, or a file that does not exist, and
+ * this gate stayed green. That is a declaration naming a module which does not
+ * do the declared thing — the class the gate exists to end, one level up in its
+ * own tooling.
+ *
+ * ⚠️ The check reads the table THIS FILE ships (`analyze`'s overrides are not
+ * forwarded to it, exactly as they are not to `selfTest`), so the fixture
+ * substitution every other section here uses cannot reach it. The rows below
+ * therefore drive the exported function directly, and prove the WIRING by
+ * mutating the shipped entry and restoring it — with the restoration proven by
+ * state, not by the absence of a complaint.
+ */
+describe('every `resolver` in the census table names the module it claims', () => {
+  it('is clean on the shipped table, over every entry and both forms', () => {
+    expect(censusResolverProblems()).toEqual([]);
+    // ⭐ ANTI-VACUITY. An empty problem list is what a check that judged NOTHING
+    // returns too, so the population is measured rather than assumed: every
+    // entry carries a `resolver`, and the two-part form is actually exercised.
+    const entries = Object.entries(RECORD_READING_TYPES);
+    expect(entries.length).toBeGreaterThan(10);
+    expect(entries.every(([, spec]) => typeof spec.resolver === 'string' && spec.resolver.length > 0)).toBe(true);
+    expect(entries.filter(([, spec]) => spec.resolver.includes(' (via '))).not.toHaveLength(0);
+  });
+
+  it('goes RED when an entry names a module that does not read the record', () => {
+    // The pre-#7492 `data-table` spelling, verbatim: its RENDERER, which routes
+    // through the seam and has no lookup in it.
+    const problems = censusResolverProblems(
+      { 'data-table': { paths: ['rowActionDefs[].icon'], resolver: 'packages/components/src/renderers/complex/data-table.tsx' } },
+      DECLARED_RECORD_READERS,
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('data-table');
+    expect(problems[0]).toContain('renderers/complex/data-table.tsx');
+    expect(problems[0]).toContain('NOT one of the record-reading resolvers');
+  });
+
+  it('goes RED when the `(via ...)` half names a file that does not exist', () => {
+    const problems = censusResolverProblems(
+      {
+        moved: {
+          paths: ['icon'],
+          resolver: 'packages/components/src/renderers/action/resolve-icon.ts (via renderers/complex/data-table-RENAMED.tsx)',
+        },
+      },
+      DECLARED_RECORD_READERS,
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('data-table-RENAMED.tsx');
+    expect(problems[0]).toContain('not a file under any ancestor');
+  });
+
+  it('accepts a DIRECT reader, so the two-part form is required only of routers', () => {
+    // Five `action:*` entries name the seam itself, and `icon` was spelled this
+    // way while `basic/icon.tsx` was in part 1's census. The rule is "name the
+    // module whose lookup the names reach", which both forms satisfy — not "use
+    // parentheses".
+    expect(censusResolverProblems(
+      { direct: { paths: ['icon'], resolver: DECLARED_RECORD_READERS[0] } },
+      DECLARED_RECORD_READERS,
+    )).toEqual([]);
+  });
+
+  it('is WIRED into `analyze` — a bad declaration fails the RUN, not just this file', () => {
+    const entry = RECORD_READING_TYPES['data-table'];
+    const shipped = entry.resolver;
+    try {
+      entry.resolver = 'packages/components/src/renderers/complex/data-table.tsx';
+      const result = judge('resolver-declaration-wiring', { files: {} });
+      expect(result.errors.join('\n')).toContain('census entry `data-table` declares resolver');
+    } finally {
+      entry.resolver = shipped;
+    }
+    // Restoration proven by STATE, not by the try/finally having run.
+    expect(entry.resolver).toBe(shipped);
+    expect(censusResolverProblems()).toEqual([]);
+  });
+
+  it('`data-table` names the seam — the reading objectui#7492 repaired', () => {
+    // The entry read as `renderers/complex/data-table.tsx` alone, the only
+    // routed entry not spelled in the two-part form its siblings use. The three
+    // readings that make the repair a fact about the tree rather than a
+    // convention: the renderer imports the seam, calls it, and is correctly
+    // absent from part 1's discovered record-reader set.
+    const renderer = 'packages/components/src/renderers/complex/data-table.tsx';
+    const source = fs.readFileSync(path.join(repoRoot, renderer), 'utf8');
+    expect(source).toContain("from '../action/resolve-icon'");
+    expect(source).toMatch(/resolveIcon\(/);
+    expect(repoResult.discovered.record).not.toContain(renderer);
+    expect(RECORD_READING_TYPES['data-table'].resolver).toBe(
+      'packages/components/src/renderers/action/resolve-icon.ts (via renderers/complex/data-table.tsx)',
+    );
   });
 });

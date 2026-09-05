@@ -463,6 +463,84 @@ export const RECORD_READING_TYPES = {
   },
 };
 
+// ── The census table's OWN declarations ──────────────────────────────────────
+/**
+ * `resolver` is the string printed as `Resolved through: ...` beside a
+ * violation. Until objectui#7492 NOTHING judged it: it could name a module with
+ * no lookup in it, or a file that does not exist, and this gate stayed green.
+ * That is a declaration naming a module which does not do the declared thing —
+ * the very class this gate exists to end, one level up, in its own tooling.
+ * (`data-table` was that entry: it named its RENDERER, which routes through the
+ * seam, so the string sent whoever was chasing a violation to a file with
+ * nothing in it to find.)
+ *
+ * Two halves, and neither invents a vocabulary — both are derived from what the
+ * gate already measures:
+ *
+ *  1. The part BEFORE `(via ...)` names the module whose lookup those names
+ *     reach, so it must be one of the record-reading resolvers part 1
+ *     rediscovers FROM SOURCE on every run. A router's own file can therefore
+ *     only appear after `(via `, which is what makes the two-part form its
+ *     siblings use the one shape a routed entry can take. Existence comes with
+ *     it: part 1 fails on a declared reader it cannot rediscover.
+ *  2. The part INSIDE `(via ...)` is a real path, spelled relative to one of the
+ *     ANCESTOR directories of that reader (`renderers/form/button.tsx` against
+ *     `packages/components/src/`, `plugin-view/src/ViewSwitcher.tsx` against
+ *     `packages/`) — so the roots to try are read off the reader rather than
+ *     listed here. A renamed or moved renderer otherwise leaves a string that
+ *     reads perfectly and points nowhere.
+ *
+ * ⛔ `analyze`'s `recordReadingTypes` / `declaredRecordReaders` overrides are
+ * deliberately NOT forwarded to this check: it judges the declarations THIS FILE
+ * ships, exactly as `selfTest()` judges the lucide install rather than the tree
+ * under analysis. A fixture substituting a two-row table and a fake reader path
+ * would otherwise fail over strings it never chose.
+ *
+ * @param {Record<string, RecordReadingType>} [recordReadingTypes]
+ * @param {readonly string[]} [declaredRecordReaders]
+ * @returns {string[]}
+ */
+export function censusResolverProblems(
+  recordReadingTypes = RECORD_READING_TYPES,
+  declaredRecordReaders = DECLARED_RECORD_READERS,
+) {
+  const problems = [];
+  for (const [type, spec] of Object.entries(recordReadingTypes)) {
+    const declaration = String(spec.resolver ?? '');
+    const shape = /^([^()]+?)(?: \(via ([^()]+)\))?$/.exec(declaration);
+    if (!shape) {
+      problems.push(
+        `census entry \`${type}\` declares resolver \`${declaration}\`, which is neither `
+        + '`<record reader>` nor `<record reader> (via <renderer>)` — the two forms this table uses.',
+      );
+      continue;
+    }
+    const [, reader, via] = shape;
+    if (!declaredRecordReaders.includes(reader)) {
+      problems.push(
+        `census entry \`${type}\` declares resolver \`${reader}\`, which is NOT one of the `
+        + `record-reading resolvers part 1 discovered (${declaredRecordReaders.join(', ') || 'none'}). `
+        + 'An entry whose names reach the record through a router names the READER, and the router '
+        + 'after `(via ` — naming the router alone points whoever is chasing a violation at a file '
+        + 'with no lookup in it. See objectui#7492.',
+      );
+    }
+    if (via !== undefined) {
+      const segments = reader.split('/').slice(0, -1);
+      const roots = [];
+      for (let depth = segments.length; depth >= 0; depth -= 1) roots.push(segments.slice(0, depth).join('/'));
+      if (!roots.some((root) => existsSync(join(gateRoot, root, via)))) {
+        problems.push(
+          `census entry \`${type}\` routes \`(via ${via})\`, which is not a file under any ancestor `
+          + `directory of \`${reader}\` — the renderer was renamed, moved or misspelled, and the `
+          + 'string names nothing. See objectui#7492.',
+        );
+      }
+    }
+  }
+  return problems;
+}
+
 // ── Anchored first-party maps ────────────────────────────────────────────────
 // The population the retired local pins covered, generalised. `min` is the
 // precondition that makes "every entry" mean something: an extractor that finds
@@ -976,7 +1054,7 @@ export function analyze(root, {
   negativeControl = DISCOVERY_NEGATIVE_CONTROL,
   recordReadingTypes = RECORD_READING_TYPES,
 } = {}) {
-  const errors = [...selfTest()];
+  const errors = [...selfTest(), ...censusResolverProblems()];
   const { sources, documents } = collectFiles(root);
   const discovered = discoverResolvers(root, sources);
 
