@@ -20,17 +20,12 @@ import { z } from 'zod';
 import { handlerKeyRefusal } from './tombstone.zod.js';
 import { SelectOptionSchema as SpecSelectOptionSchema } from '@objectstack/spec/data';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
-
-/**
- * The wire shape of a CEL predicate (#2212): a bare string or the spec
- * Expression object `{ dialect?, source }`. Deliberately NOT the spec's
- * ExpressionInput pipe, which canonicalizes strings into an envelope at parse
- * time and would change this module's output shape.
- */
-const ExpressionWireSchema = z.union([
-  z.string(),
-  z.object({ dialect: z.string().optional(), source: z.string() }),
-]);
+// The predicate wire shape (`string | { dialect?, source }`, #2212) was a
+// module-private const here until objectui#7530 hoisted it into
+// `./expression.zod.js`, so `BaseSchema`'s `visible` / `hidden` / `disabled`
+// and the form predicate keys below read ONE definition. Its docblock and
+// rationale moved with it.
+import { ExpressionWireSchema } from './expression.zod.js';
 
 /**
  * Select Option Schema — derived from `@objectstack/spec/data`
@@ -260,6 +255,8 @@ export const CheckboxSchema = BaseSchema.extend({
   checked: z.boolean().optional().describe('Controlled checked state'),
   required: z.boolean().optional()
     .describe("Required affordance, read at renderers/form/checkbox.tsx:45 (`required=` on the Radix Checkbox) and :49 (gates the label's `*` marker) (objectui#6150)"),
+  wrapperClass: z.string().optional()
+    .describe('Classes on the wrapper div around the box and its label, read at renderers/form/checkbox.tsx:36 — `cn("flex items-center space-x-2", schema.wrapperClass)` (objectui#6938)'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),

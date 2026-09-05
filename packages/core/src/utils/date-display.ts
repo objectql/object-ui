@@ -29,9 +29,16 @@
  * upper package re-exports it, so there is one home and nothing to drift.
  *
  * `@object-ui/fields` re-exports every symbol below under its original name,
- * so `formatDate` / `formatDateTime` / `formatRelativeDate` /
- * `DateDisplayOptions` keep working unchanged for `ObjectGrid`, `ObjectGantt`,
- * `plugin-dashboard`'s `recordFields` and the `date` cell renderer.
+ * so `formatDate` / `formatDateTime` / `formatDateTimeCompactParts` /
+ * `formatRelativeDate` / `DateDisplayOptions` keep working unchanged for
+ * `ObjectGrid`, `ObjectGantt`, `plugin-dashboard`'s `recordFields` and the
+ * `date` cell renderer.
+ *
+ * The `datetime` CELL face joined this file in objectui#7443. It used to be a
+ * second convention inlined in `DateTimeCellRenderer`: two `Intl` option bags
+ * for one field type, kept in step by nothing, while `date` had exactly one.
+ * It is `formatDateTime`'s `'compact'` style now, byte-identical to what the
+ * cell rendered before.
  *
  * Pure by construction (no React, no i18n): the only ambient inputs are `Intl`
  * and the clock, and the one phrase `Intl` cannot produce ("Overdue Nd") comes
@@ -39,13 +46,33 @@
  * in `dataset-format.ts` takes `fieldLabel`.
  */
 
-/** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
+/**
+ * Options shared by {@link formatDate} / {@link formatRelativeDate} /
+ * {@link formatDateTime}. One bag, and each function reads the keys it needs:
+ * `dueLike` and `t` only matter on the relative path, `style` is read by
+ * `formatDateTime` only (see below).
+ */
 export interface DateDisplayOptions {
   dueLike?: boolean;
   /** BCP-47 display locale (ADR-0053 tenant default); falls back to the runtime locale. */
   locale?: string;
   /** i18n translate fn for phrases `Intl` can't produce (the "Overdue Nd" wording). */
   t?: (key: string, params?: Record<string, unknown>) => string;
+  /**
+   * Named face, read by {@link formatDateTime}: `'compact'` is the dense grid
+   * cell face (objectui#7443); anything else, or absent, is the default face.
+   *
+   * It rides here rather than in a second positional parameter because
+   * `formatDateTime(value, options?)` is a PUBLISHED signature with `options`
+   * in position two (objectui#4272). A positional `style` would have displaced
+   * it: TypeScript would reject the old call, but a JavaScript caller would
+   * silently hand its options bag to the style slot and lose its locale —
+   * the #4272 defect again. {@link formatDate} still takes its style
+   * positionally and does NOT read this key; the symmetric long-run shape
+   * (both functions reading `options.style`) is additive on `formatDate` and
+   * deliberately not part of #7443.
+   */
+  style?: string;
 }
 
 /**
@@ -137,20 +164,79 @@ export function formatDate(value: string | Date | number, style?: string, option
 }
 
 /**
+ * The `'compact'` datetime face as the two halves a grid cell paints
+ * separately — `7/4/2024` and `7:00 am` for `2024-07-04T07:00:00Z` in `en-US`.
+ *
+ * `formatDateTime(value, { style: 'compact', ...options })` is exactly
+ * `date + ' ' + time` of what this returns, so a caller that wants the face
+ * as ONE string and a caller that wants to style the halves differently
+ * cannot drift apart. That drift is what objectui#7443 recorded:
+ * `DateTimeCellRenderer` inlined these two option bags and never called this
+ * module, so `datetime` had two display conventions while `date` had one —
+ * the same shape as objectui#4576, which this repo has already paid for once.
+ *
+ * `null` for a value this module renders as `'—'`; the cell renders its own
+ * empty state for those, so it never sees the dash.
+ */
+export function formatDateTimeCompactParts(
+  value: string | Date | number,
+  options?: DateDisplayOptions,
+): { date: string; time: string } | null {
+  if (value === null || value === undefined || value === '') return null;
+  const date = value instanceof Date ? value : new Date(value as any);
+  if (!(date instanceof Date) || isNaN(date.getTime())) return null;
+
+  return {
+    date: date.toLocaleDateString(options?.locale, {
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    // `hour12` stays declared: this is the compact Airtable-style cell, and
+    // the 12-hour face is its design, not a locale artefact. Locales that
+    // write no am/pm marker simply ignore it.
+    time: date.toLocaleTimeString(options?.locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).toLowerCase(),
+  };
+}
+
+/**
  * Format datetime value.
  *
- * `options` mirrors {@link formatDate}'s and is optional, so an existing
- * caller that passes nothing keeps the exact runtime-default behavior it had.
- * Before objectui#4272 the parameter did not exist at all, which meant no
- * caller could localize this function however hard it tried — it always handed
- * `Intl` an `undefined` tag, i.e. the MACHINE's locale, which is neither of
- * the repo's two locale channels. Callers should pass the tag from
- * `useDisplayLocale()`.
+ * `options.style` selects a named face:
+ *
+ *   - `'compact'` — the dense grid face, `7/4/2024 7:00 am` in `en-US`. It is
+ *     what every `datetime` CELL renders, and what `DateTimeCellRenderer`
+ *     used to build from its own inlined `Intl` bags (objectui#7443).
+ *   - anything else, including absent — the verbose default,
+ *     `Jul 4, 2024, 07:00 AM` in `en-US`. Unchanged, and still what a
+ *     non-cell caller (dataset measure, gantt tooltip, data-table) gets.
+ *
+ * The signature is `(value, options?)`, unchanged: `style` is a key of
+ * `options`, not a positional parameter, so every existing call —
+ * `formatDateTime(v, { locale })` included — keeps meaning exactly what it
+ * meant (see the note on `DateDisplayOptions.style` for why the positional
+ * shape `formatDate` uses was refused here).
+ *
+ * `options` is optional, so a caller that passes nothing keeps the exact
+ * runtime-default behavior it had. Before objectui#4272 the parameter did not
+ * exist at all, which meant no caller could localize this function however
+ * hard it tried — it always handed `Intl` an `undefined` tag, i.e. the
+ * MACHINE's locale, which is neither of the repo's two locale channels.
+ * Callers should pass the tag from `useDisplayLocale()`.
  */
 export function formatDateTime(value: string | Date | number, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
+
+  if (options?.style === 'compact') {
+    const parts = formatDateTimeCompactParts(date, options);
+    return parts ? `${parts.date} ${parts.time}` : '—';
+  }
 
   return date.toLocaleDateString(options?.locale, {
     year: 'numeric',

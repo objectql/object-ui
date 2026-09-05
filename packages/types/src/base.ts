@@ -17,6 +17,7 @@
  */
 
 import type { I18nLabel } from '@objectstack/spec/ui';
+import type { ExpressionWire } from './expression.js';
 
 /**
  * A KEYED i18n label — a reference INTO a translation bundle (objectui#4581).
@@ -274,11 +275,21 @@ export interface BaseSchema {
    * the same reason; this one simply under-reported the capability, and
    * fixtures exercising it had to cast past the declaration.
    *
+   * Accepts the CEL ENVELOPE OBJECT as well (objectui#7530, ruled 2026-09-04,
+   * option A -- on all three of `visible` / `hidden` / `disabled` at once):
+   * `evaluateCondition` routes `{ dialect: 'cel', source }` to the canonical
+   * `@objectstack/formula` engine and unwraps any other envelope onto the
+   * legacy path, so the envelope was already an evaluated input here.
+   * `ExpressionWire` (`./expression.ts`) is the string-or-envelope union
+   * `visibleWhen` on form fields already carried, reused rather than spelled a
+   * second time; its zod twin is `ExpressionWireSchema`.
+   *
    * @default true
    * @example true
    * @example "${data.role === 'admin'}"
+   * @example { dialect: 'cel', source: "record.status == 'open'" }
    */
-  visible?: boolean | string;
+  visible?: boolean | ExpressionWire;
 
   /**
    * Canonical conditional-visibility predicate (ADR-0089) — the element is shown
@@ -346,17 +357,23 @@ export interface BaseSchema {
    * evidence of intent about the same concept, which is why this widening was
    * ruled rather than applied mechanically.
    *
-   * The CEL ENVELOPE OBJECT form is deliberately NOT declared here.
-   * `hasDeclaredPredicate` accepts it on this key, and it is declared on NONE
-   * of the three: `visible` and `disabled` are `boolean | string` and
-   * under-report it too. objectui#7530 rules on all three together (declare on
-   * all three, or refuse on all three); do not declare it on this key alone.
+   * The CEL ENVELOPE OBJECT form is declared too (objectui#7530, ruled
+   * 2026-09-04, option A -- on all three keys at once, never on one alone).
+   * `hasDeclaredPredicate` had accepted `{ dialect: 'cel', source }` on this
+   * key all along, pinned through a `Record` cast in
+   * `SchemaRenderer.hiddenDeclaredGate.test.tsx`; `ExpressionWire`
+   * (`./expression.ts`) is the string-or-envelope union `visibleWhen` on form
+   * fields already carried, reused here rather than spelled a second time. The
+   * ruling rejected the alternative -- a per-key `stringOnly` branch in the
+   * shared evaluator -- because it would split the platform into two
+   * expression vocabularies.
    *
    * @default false
    * @example true
    * @example "${data.status === 'draft'}"
+   * @example { dialect: 'cel', source: "record.status == 'draft'" }
    */
-  hidden?: boolean | string;
+  hidden?: boolean | ExpressionWire;
 
   /**
    * Expression for conditional hiding.
@@ -378,11 +395,21 @@ export interface BaseSchema {
    * with `visible` was accidental rather than deliberate (#4580 ruling Q3-A);
    * the two fixtures exercising it had been casting past the declaration.
    *
+   * Accepts the CEL ENVELOPE OBJECT as well (objectui#7530, ruled 2026-09-04,
+   * option A -- on all three of `visible` / `hidden` / `disabled` at once). The
+   * `disabled` leg asks `hasDeclaredPredicate(newSchema.disabled)` and then
+   * evaluates the value, and both already honoured `{ dialect: 'cel', source }`
+   * (pinned through a `Record` cast in
+   * `SchemaRenderer.disabledDeclaredGate.test.tsx`). `ExpressionWire`
+   * (`./expression.ts`) is the one string-or-envelope union, shared with
+   * `visible`, `hidden` and the form predicate keys.
+   *
    * @default false
    * @example false
    * @example "${data.status === 'locked'}"
+   * @example { dialect: 'cel', source: "record.status == 'locked'" }
    */
-  disabled?: boolean | string;
+  disabled?: boolean | ExpressionWire;
 
   /**
    * Expression for conditional disabling.

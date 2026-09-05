@@ -119,8 +119,8 @@ function renderNode(schema: Record<string, unknown>) {
  *
  * `renderNode` above spreads a `Record<string, unknown>` through `as never`
  * because most of this file exercises shapes `BaseSchema` does not declare and
- * should not: `null`, `0`, `[]`, `{}`, and the CEL envelope object. Those keep
- * the cast.
+ * should not: `null`, `0`, `[]`, `{}`, and the EMPTY envelopes. Those keep the
+ * cast.
  *
  * The STRING form is different since objectui#7455 (ruled 2026-09-03):
  * `hidden` is declared `boolean | string`, so an expression-valued `hidden` is
@@ -130,9 +130,12 @@ function renderNode(schema: Record<string, unknown>) {
  * only thing that can see that; vitest cannot, because the annotation is erased
  * before a single case runs.
  *
- * The envelope pin below deliberately stays on `renderNode`: the envelope form
- * is declared on NONE of `visible` / `hidden` / `disabled`, and objectui#7530
- * rules on all three together.
+ * The CEL ENVELOPE is declared too since objectui#7530 (ruled 2026-09-04,
+ * option A, on all three keys at once): `hidden` is `boolean | ExpressionWire`,
+ * where `ExpressionWire` is the string-or-envelope union `visibleWhen` already
+ * carried, so the non-empty envelope pin below runs through this helper as
+ * well. That its verdict is IDENTICAL to the string form's, on all three keys
+ * and in both polarities, is `SchemaRenderer.predicateEnvelopeDeclared.test.tsx`.
  */
 function renderDeclaredNode(schema: BaseSchema) {
   return render(
@@ -214,11 +217,11 @@ describe('SchemaRenderer `hidden` — an empty predicate is not a declared gate 
     expect(rendered()).toBe(true);
   });
 
-  it('a non-empty CEL envelope keeps its verdict, both ways', () => {
-    const { unmount } = renderNode({ hidden: { dialect: 'cel', source: 'true' } });
+  it('a non-empty CEL envelope keeps its verdict, both ways -- through the DECLARED path, no cast (objectui#7530)', () => {
+    const { unmount } = renderDeclaredNode({ type: 'probe-3955', hidden: { dialect: 'cel', source: 'true' } });
     expect(rendered()).toBe(false);
     unmount();
-    renderNode({ hidden: { dialect: 'cel', source: 'false' } });
+    renderDeclaredNode({ type: 'probe-3955', hidden: { dialect: 'cel', source: 'false' } });
     expect(rendered()).toBe(true);
   });
 

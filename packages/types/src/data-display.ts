@@ -1161,14 +1161,71 @@ export interface MarkdownSchema extends BaseSchema {
    */
   content: string;
   /**
-   * Whether to sanitize HTML
-   * @default true
+   * ADR-0049 RETIREMENT TOMBSTONE — `sanitize` (objectui#6972).
+   *
+   * Declared `?: boolean` with `@default true` and read by NOTHING — and, worse
+   * than an ordinary inert key, it implied a switch that does not exist.
+   * Sanitization is UNCONDITIONAL: `rehypePlugins` in
+   * `packages/plugin-markdown/src/MarkdownImpl.tsx` is a module-level `const`
+   * array whose last link is `[rehypeSanitize, sanitizeSchema]`, handed to
+   * `ReactMarkdown` as-is — no ternary, no `if`, no runtime assembly. So
+   * `sanitize: false` type-checked, passed the Zod mirror and changed nothing
+   * while reading as a security-relevant control, and `sanitize: true`
+   * promised a gate the author never controlled either. Both readings lied.
+   * The enforce arm of enforce-or-remove would be a switch that DISABLES XSS
+   * sanitization, which is not an acceptable outcome, so for this key the
+   * ruling collapses to remove (triage on objectui#6972).
+   *
+   * Measured on the retiring PR's base: `MarkdownRenderer`
+   * (`plugin-markdown/src/index.tsx`) forwards exactly `content` and
+   * `className` to `MarkdownImpl`, whose props type accepts only those two;
+   * `grep -rn "schema.sanitize"` over `packages/` and `apps/` returns nothing,
+   * against a control of 20 `.tsx` files reading `schema.content` in the same
+   * query shape — the zero is a reading, not a blind query.
+   *
+   * `?: never` is this package's tombstone convention (see `crud.ts`
+   * `confirm`, {@link StaticTableColumn}, `DataTableSchema.toolbar` above),
+   * NOT a deletion: `BaseSchema`'s `[key: string]: any` would admit a deleted
+   * key as `any` again — the same silence one layer over. The Zod twin refuses
+   * it loudly via `retirementTombstone()` (`zod/data-display.zod.ts`). Both
+   * published faces carry the refusal: `@object-ui/plugin-markdown` re-exports
+   * this one authority (objectui#6172), so its consumers meet the same
+   * declaration.
+   *
+   * RETIRED (objectui#6972, ADR-0049) — sanitization is unconditional; there
+   * is no authored spelling that disables it. Delete the key.
+   * @deprecated Not part of `MarkdownSchema`'s contract — the value was inert.
    */
-  sanitize?: boolean;
+  sanitize?: never;
   /**
-   * Custom components for markdown elements
+   * ADR-0049 RETIREMENT TOMBSTONE — `components` (objectui#6972).
+   *
+   * Declared `?: Record<string, any>` ("custom components for markdown
+   * elements") and read by NOTHING: `MarkdownRenderer` forwards only `content`
+   * and `className`, `MarkdownImplProps` accepts only those two, and the
+   * `components` map `MarkdownImpl` hands to `ReactMarkdown` is its OWN
+   * module-level `mdComponents` (the mermaid / metadata fence overrides),
+   * never merged with anything off the schema. `grep -rn "schema.components"`
+   * over `packages/` and `apps/` returns nothing, against the same
+   * `schema.content` control as `sanitize` above.
+   *
+   * Removed rather than wired, under the PM's declared veto window on
+   * objectui#6972: a map of React component overrides is not a
+   * JSON-authorable value — the same shape as the handler keys objectui#6124
+   * retired ("JSON has no function value"). It is NOT a `runtime-slot`
+   * either: no host path (no `MarkdownImpl` prop, no plugin API, no app-shell
+   * or runner site) consumes such a map, so there is no TypeScript twin to
+   * keep callable for hosts. A real override slot must arrive as a proposal
+   * WITH its enforcing reader, not by reviving this key.
+   *
+   * Same convention as `sanitize` above: `?: never` here,
+   * `retirementTombstone()` on the Zod twin, both published faces.
+   *
+   * RETIRED (objectui#6972, ADR-0049) — never read by the markdown renderer.
+   * Delete the key.
+   * @deprecated Not part of `MarkdownSchema`'s contract — the value was inert.
    */
-  components?: Record<string, any>;
+  components?: never;
 }
 
 /**
@@ -1489,16 +1546,45 @@ export interface ChartDataSeries {
    * carries the same union (objectui#7546).
    */
   yAxis?: 'left' | 'right';
-  // ⛔ NOT declared: `chartType`. It is the first limb of `normalizeSeries`'
-  // `str(raw.chartType) ?? str(raw.type)` (`normalizeChartSchema.ts:244`), but
-  // it is the renderer's INTERNAL spelling of `type` above, the spec's
-  // `ChartSeriesSchema` lists it as an alias of `type` and refuses it by name
-  // (`@objectstack/spec` `ui/chart.zod.ts:231`), and no document, fixture or
-  // designer input on this face writes it (objectui#7546 — measured with lit
-  // controls). Declaring it would mint a second writable name for one override;
-  // its shape — a named alias refusal like the spec's, or a fold — is a contract
-  // decision for its own card. Until then the mirror still strips it, and
-  // `__tests__/chart-series-keys-7546.test.ts` pins that gap so it stays visible.
+  /**
+   * NOT A KEY OF THIS SERIES — a named ALIAS REFUSAL pointing at {@link type}
+   * (objectui#7694; `domain:ui` PM ruling on objectui#7546 and the contract
+   * review of PR #7684: option A, the posture `@objectstack/spec` takes).
+   *
+   * `chartType` is the renderer's INTERNAL spelling of the declared `type`: the
+   * first limb of `normalizeSeries`' `str(raw.chartType) ?? str(raw.type)`
+   * (`normalizeChartSchema.ts:244`), written only by the internal-shape
+   * producers that hand `dataKey`-shaped arrays straight to `ChartRenderer`
+   * (`ObjectChart.tsx`, `DatasetWidget.tsx`; `core/utils/chart-presentation.ts`
+   * translates authored `type` INTO it) — and by no author. Re-measured at
+   * implementation time, series-level, with lit controls
+   * (`dataKey` / `name` / `type` / `color`): docs 0 (controls 10 / 11 / 2 / 2),
+   * fixtures 0 (3 / 2 / 0 / 2), designer inputs 0 (the `chart` registration's
+   * `series` is one `code` input), src literals 0 (13 / 3 / 1 / 0), tests 9
+   * (70 / 48 / 11 / 8 — every one an internal-shape array that never meets the
+   * mirror). Limb ablation over 304 files / 5817 tests: deleting
+   * `str(raw.chartType) ??` left all green; deleting `?? str(raw.type)` went
+   * 2 red. The card's readings, re-taken, agree.
+   *
+   * The spec's `ChartSeriesSchema` lists `chartType` in its alias map as a
+   * spelling of `type` and refuses it by name — "Did you mean `chartType` →
+   * `type`?" — and this face answers with the same sentence
+   * (`aliasKeyRefusal()` in `zod/tombstone.zod.ts`). The two alternatives were
+   * ruled out: FOLDING it onto `type` would let the alias overwrite the
+   * canonical key when both are written (the renderer reads `chartType` FIRST,
+   * inverting objectui#7113's precedence rule), and DECLARING it as a second
+   * writable name would mint the N-dialects hazard of AGENTS.md #0.1 against
+   * the spec's own alias map.
+   *
+   * Until this declaration the non-strict Zod mirror STRIPPED the key in
+   * silence: `{ name: 'x', chartType: 'line' }` parsed green to `{ name: 'x' }`
+   * and the series drew in the chart's family — precisely what the author was
+   * overriding. Now the mirror refuses it by name and this `?: never` is a
+   * `tsc` error at the authoring site. Write {@link type}. The renderer's own
+   * read of the internal spelling is untouched — a reader decision, not this
+   * declaration's.
+   */
+  chartType?: never;
 }
 
 /**

@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ComponentInput } from '@object-ui/types';
+import type { MarkdownSchema } from './types';
 // Imports all renderers to register them. Module scope, NOT awaited inside a
 // `beforeAll` — there the cold transform of the renderer graph is billed to the
 // hook, against `hookTimeout`. That is what made the sibling plugin-kanban test
@@ -95,6 +96,44 @@ describe('Plugin Markdown', () => {
       expect(defaults?.content.length).toBeGreaterThan(0);
       // Verify it contains markdown syntax
       expect(defaults?.content).toContain('#');
+    });
+  });
+
+  describe('MarkdownSchema retirements reach this package\'s published face (objectui#6972)', () => {
+    // `./types` re-exports `MarkdownSchema` from `@object-ui/types` — ONE
+    // authority (objectui#6172), not a local copy — so an ADR-0049 tombstone
+    // declared there must be a `tsc` error through THIS package's import
+    // spelling too. That is the "two published faces" half of the retirement,
+    // pinned where the second face lives. REAL enforcement: `type-check` runs
+    // `tsc -p tsconfig.test.json`, so an unused directive fails the build —
+    // if the plugin ever re-declared a local `MarkdownSchema` that carried the
+    // key, this leg goes red before anything else does.
+    it('`sanitize` is a `tsc` error through the re-exported authority — sanitization is unconditional', () => {
+      const node: MarkdownSchema = {
+        type: 'markdown',
+        content: '# Hello',
+        // @ts-expect-error `sanitize` is an ADR-0049 retirement tombstone (objectui#6972): the renderer sanitizes unconditionally, no value switches it
+        sanitize: false,
+      };
+      expect(node.content).toBe('# Hello');
+    });
+
+    it('`components` is a `tsc` error through the re-exported authority — nothing reads an override map', () => {
+      const node: MarkdownSchema = {
+        type: 'markdown',
+        content: '# Hello',
+        // @ts-expect-error `components` is an ADR-0049 retirement tombstone (objectui#6972): the renderer forwards only content and className
+        components: { h1: 'h2' },
+      };
+      expect(node.content).toBe('# Hello');
+    });
+
+    it('the two values the renderer DOES forward stay writable — the non-vacuity control', () => {
+      // `content` and `className` are exactly what `MarkdownRenderer` hands to
+      // `MarkdownImpl`; without this leg the directive above could be satisfied
+      // by a face that lost the whole interface.
+      const node: MarkdownSchema = { type: 'markdown', content: '# Hello', className: 'prose-lg' };
+      expect(node.className).toBe('prose-lg');
     });
   });
 });

@@ -66,12 +66,12 @@ One row per declared member, in declaration order, so the list can be checked ag
 | `bind` | `string` | Data-scope path this node draws its rows or value from, resolved by `useDataScope()`. Honoured only by components that call it. |
 | `body` | `SchemaNode \| SchemaNode[]` | Child components rendered inside this component. |
 | `children` | `SchemaNode \| SchemaNode[]` | Alias for `body`. |
-| `visible` | `boolean \| string` | Visibility control. Accepts a boolean **or** a predicate expression string — the renderer evaluates this key rather than reading it as a boolean. |
+| `visible` | `boolean \| string \| { dialect?: string; source: string }` | Visibility control. Accepts a boolean, a predicate expression string, **or** the CEL envelope object (`{ dialect: 'cel', source }` — what `objectstack build` emits for every authored predicate) — the renderer evaluates this key rather than reading it as a boolean. The string-or-envelope half is `ExpressionWire`, the one wire type `visibleWhen` on form fields already carries. |
 | `visibleWhen` | `string` | Canonical conditional-visibility predicate (ADR-0089); the element is shown when it evaluates truthy. Evaluated **before** `visible` and `visibleOn`, and outranks both. |
 | `visibleOn` | `string` | Expression for conditional visibility. **Deprecated** (ADR-0089) — use `visibleWhen`. |
-| `hidden` | `boolean \| string` | Inverse of `visible` — the node is not rendered. Accepts a boolean **or** a predicate expression string, which the renderer evaluates rather than reading as a boolean; `hiddenOn` remains the sibling spelling. |
+| `hidden` | `boolean \| string \| { dialect?: string; source: string }` | Inverse of `visible` — the node is not rendered. Accepts a boolean, a predicate expression string **or** the CEL envelope object (`ExpressionWire`), which the renderer evaluates rather than reading as a boolean; `hiddenOn` remains the sibling spelling. |
 | `hiddenOn` | `string` | Expression for conditional hiding. |
-| `disabled` | `boolean \| string` | Disabled state. Accepts a boolean **or** a predicate expression string, on the same evaluated path as `visible`. |
+| `disabled` | `boolean \| string \| { dialect?: string; source: string }` | Disabled state. Accepts a boolean, a predicate expression string **or** the CEL envelope object (`ExpressionWire`), on the same evaluated path as `visible`. |
 | `disabledOn` | `string` | Expression for conditional disabling. |
 | `testId` | `string` | Test identifier, rendered as `data-testid`. |
 | `ariaLabel` | `string \| KeyedI18nLabel` | Accessibility label, rendered as `aria-label`. `KeyedI18nLabel` is the **keyed** form (`{ key, defaultValue?, params? }`), resolved by `resolveKeyedI18nLabel` — **not** the `I18nLabel` that `label` and `description` carry. The two are structurally confusable and each returns nothing useful for the other's input. |
@@ -491,7 +491,7 @@ numbers of its own: `ChartDataSeries.data` is a retirement tombstone
 | `title` | `string` | Chart title. |
 | `description` | `string` | Chart description / subtitle. |
 | `categories` | `string[]` | An **alternative series list** — column names to plot, read only when `series` is absent, and ignored outright when it is present. Not axis labels: the category axis comes from `xAxisKey`. |
-| `series` | `ChartDataSeries[]` | Data series. Each entry's `name` (or `dataKey`) names the column it plots within a `data` row; optional `label`, `color`, a per-series `type` (`"bar"`, `"line"`, `"area"`) for combo charts, `stack`, `yAxis` (`"left"` / `"right"`), `variant` (`"primary"` / `"comparison"`), `dashArray` and `opacity`. |
+| `series` | `ChartDataSeries[]` | Data series. Each entry's `name` (or `dataKey`) names the column it plots within a `data` row; optional `label`, `color`, a per-series `type` (`"bar"`, `"line"`, `"area"`) for combo charts, `stack`, `yAxis` (`"left"` / `"right"`), `variant` (`"primary"` / `"comparison"`), `dashArray` and `opacity`. `chartType` on a series is refused by name — it is the renderer's internal spelling of `type`; write `type`. |
 | `data` | `Array<Record<string, any>>` | Rows to plot — one object per row, keyed by column name. |
 | `xAxisKey` | `string` | Row key holding the category (x) axis. The bare-string `xAxis: "month"` spelling folds onto this key at parse. |
 | `height` / `width` | `string \| number` | Chart dimensions. |

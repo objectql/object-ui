@@ -142,6 +142,7 @@ import type { BaseSchema, KeyedI18nLabel } from '../base';
 // The INLINE vocabulary, bound from the spec by reference (never re-declared
 // locally) — the same binding `packages/types/src/index.ts` re-exports.
 import type { I18nLabel } from '@objectstack/spec/ui';
+import type { ExpressionWire } from '../expression';
 
 /* ── Type-level helpers ──────────────────────────────────────────────────── */
 
@@ -167,8 +168,10 @@ export type assertionAriaLabel = Expect<
   Equal< BaseSchema['ariaLabel'], string | KeyedI18nLabel | undefined >
 >;
 
+// `boolean | string` until objectui#7530 declared the CEL envelope on all three
+// predicate keys through the shared `ExpressionWire`.
 export type assertionDisabled = Expect<
-  Equal< BaseSchema['disabled'], boolean | string | undefined >
+  Equal< BaseSchema['disabled'], boolean | ExpressionWire | undefined >
 >;
 
 /* ── PIN MOVED (objectui#4580 revised Q1) ────────────────────────────────── */
