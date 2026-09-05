@@ -2,7 +2,8 @@
  * objectui#7104 — `AlertDialogSchema` declares the keys the `alert-dialog`
  * renderer READS.
  *
- * Measured on `origin/main` `a3eb5d07a`: the renderer
+ * Measured on `origin/main` `a3eb5d07a`, re-measured unchanged on `6eebc54b6`
+ * (2026-09-05, the branch's merge-base at push time): the renderer
  * (`packages/components/src/renderers/overlay/alert-dialog.tsx`) reads
  * `schema.content` (the body, through `renderChildren`), `schema.cancelText`
  * (draws `AlertDialogCancel` only when truthy), `schema.actionText` (draws
