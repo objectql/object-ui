@@ -297,6 +297,10 @@ function resolveFields(
         // legacy-only def is canonicalised ONCE at the ingestion choke point
         // (`normalizeSchemaReferenceKeys`, which warns in dev) — never here.
         referenceTo = fieldDef.reference;
+        // objectui#7642 CENSUS — verdict KEEP. `objectDef` is a PUBLIC prop typed
+        // `any` on a publicly exported component, so the bag cannot be traced past
+        // this package: the in-repo caller (`ListView`) passes `getObjectSchema`
+        // output, but an external host's is unknown. No camel leg here either.
         displayField = fieldDef.display_field ?? fieldDef.reference_field;
         idField = fieldDef.id_field;
 

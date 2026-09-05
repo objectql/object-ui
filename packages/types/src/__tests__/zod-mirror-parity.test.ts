@@ -58,10 +58,14 @@
  *     already pins equal to `keyof Declared`. Nothing asserts it against a written
  *     number, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **42 entries** in `KnownDrift`, **62 keys** across them — 40 / 56 until
+ *   - **42 entries** in `KnownDrift`, **63 keys** across them — 40 / 57 until
  *     objectui#7655 SEEDED the `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` pairs
  *     with three runtime-slot refusals each (pairs born ledgered in the #6124 shape,
- *     not growth on an existing entry), 39 / 55 until
+ *     not growth on an existing entry); 40 / 56 until
+ *     objectui#7104 declared `AlertDialogSchema.onAction`, the action button's
+ *     `onClick` the renderer had been reading UNDECLARED, as a RUNTIME SLOT on an
+ *     already-ledgered pair (growth on an existing entry, both faces measured);
+ *     39 / 55 until
  *     objectui#7455 SEEDED `app.zod.ts#AppComponentSchema` with its one
  *     spec-derived key `hidden` (a pair born ledgered, not growth on an existing
  *     entry: both faces read `boolean` until the base was widened, and only the
@@ -906,8 +910,16 @@ interface KnownDrift {
    * pre-#6124 state of that file, not a rule for new mirrors.
    */
   'objectql.zod.ts#ObjectDataTableSchema': 'onRowClick';
-  /** RUNTIME SLOT (objectui#6124): the `alert-dialog` renderer spreads leftover props onto the Radix `AlertDialog` root. (`onConfirm` / `onCancel` are NOT here: the footer is wired to `schema.onAction` and `AlertDialogCancel`, so nothing reads them — both faces retire them.) */
-  'overlay.zod.ts#AlertDialogSchema': 'onOpenChange';
+  /**
+   * RUNTIME SLOT (objectui#6124): the `alert-dialog` renderer spreads leftover props
+   * onto the Radix `AlertDialog` root (`onOpenChange`). `onAction` joined with
+   * objectui#7104, which DECLARED a key the renderer had been reading undeclared:
+   * it is the action button's `onClick`, so the TS face keeps the callable and the
+   * mirror refuses it by name. (`onConfirm` / `onCancel` are NOT here: the footer is
+   * wired to `schema.onAction` and `AlertDialogCancel`, so nothing reads them — both
+   * faces retire them.)
+   */
+  'overlay.zod.ts#AlertDialogSchema': 'onOpenChange' | 'onAction';
   /** RUNTIME SLOT (objectui#6124): the `dialog` renderer spreads leftover props onto the Radix `Dialog` root. */
   'overlay.zod.ts#DialogSchema': 'onOpenChange';
   /** RUNTIME SLOT (objectui#6124): the `drawer` renderer spreads leftover props onto the vaul `Drawer` root. */

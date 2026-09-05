@@ -57,13 +57,17 @@
  * because the type they compared against no longer exists. See the note where
  * they stood.
  *
- * ## Two rows this file records instead of asserting green
+ * ## One row this file records instead of asserting green (two until objectui#7104)
  *
- * `AlertDialogSchema.actions` and `EmptySchema.action` are documented but
+ * `AlertDialogSchema.actions` and `EmptySchema.action` were documented but
  * declared NOWHERE -- not on the TS interface, not in the mirror. Renaming
  * either to `SchemaNode` would have swapped one false claim for another, so
- * both keep their rows and are pinned as UNDECLARED. The day either is
- * declared, this file goes red and the page is owed a row.
+ * both kept their rows and were pinned as UNDECLARED. objectui#7104 then
+ * REMOVED the `actions` row from the alert-dialog page: the key was a phantom in
+ * every direction (declared nowhere, read by nothing), and the page now
+ * publishes the keys the renderer reads (`alert-dialog-read-dialect-7104.test.ts`
+ * pins those rows). `EmptySchema.action` keeps its row and its pin. The day it
+ * is declared, this file goes red and the page is owed a row.
  *
  * Likewise the requiredness of `AlertDialogSchema.trigger`, `SheetSchema.trigger`
  * and `SheetSchema.content`: all three are declared OPTIONAL and published
@@ -285,7 +289,6 @@ describe('objectui#7081 is NOT pre-empted: the singular rows stay singular (obje
 
 describe('rows a docs-only edit cannot honestly resolve, recorded rather than renamed (objectui#7082)', () => {
   it.each([
-    ['AlertDialogSchema', 'actions', 'content/docs/components/overlay/alert-dialog.mdx'],
     ['EmptySchema', 'action', 'content/docs/components/feedback/empty.mdx'],
   ])('%s.%s is documented but declared nowhere', (owner, key) => {
     expect(docRow(owner, key)).toBeDefined();
@@ -310,7 +313,7 @@ describe('rows a docs-only edit cannot honestly resolve, recorded rather than re
     expect(renderer).toContain("typeof actionSchema === 'object'");
   });
 
-  it('`AlertDialogSchema.actions` is read by nothing at all', () => {
+  it('`AlertDialogSchema.actions` is read by nothing at all -- the row objectui#7104 removed from the page was a phantom on the read side too', () => {
     const renderer = read('packages/components/src/renderers/overlay/alert-dialog.tsx');
     expect(renderer).not.toMatch(/schema\.actions/);
     // Control: this IS the renderer, and the scan can find things in it.
