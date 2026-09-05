@@ -20,17 +20,17 @@
  *
  * The entry was therefore weakened to the claim that layer can prove and both
  * dialects satisfy: a schema node tagged `'kanban'`. That claim is only worth
- * anything if it is actually TRUE of the renderer's face — and
- * `@object-ui/types` cannot check that, because it cannot name this package:
- * the import is a phantom dependency and declaring it would close the cycle
- * `@object-ui/types` → `@object-ui/plugin-kanban` → `@object-ui/types`. This
- * package depends on `@object-ui/types`, so it is the only place in the
- * workspace that can see both sides at once. That is the whole reason this
- * file exists rather than one more pin next to the map.
+ * anything if it is actually TRUE of the renderer's face — and `@object-ui/types`
+ * cannot check that: it cannot name this package (the import is a phantom
+ * dependency; declaring it would close the cycle `@object-ui/types` →
+ * `@object-ui/plugin-kanban` → `@object-ui/types`). This package depends on
+ * `@object-ui/types`, so it is the only place in the workspace that can see both
+ * sides at once — which is why this file exists, not one more pin by the map.
  *
- * ⛔ This file does not touch {@link KanbanSchema} — it only reads it. The
- * plugin dialect is the face objectui#6172 ruled kept, and `KanbanSchema.data`
- * is objectui#7651, an open maintainer decision.
+ * ⛔ This file does not touch {@link KanbanSchema} — it only reads it. It is the
+ * face objectui#6172 kept, and the one objectui#7664's ruling (a) (2026-09-05)
+ * makes the declared shape; `KanbanSchema.data` stays a raw-row input, since
+ * objectui#7651 was ruled B and closed as not_planned (2026-09-05T02:09:54Z).
  *
  * ## The instrument
  *
@@ -69,9 +69,9 @@ describe("the registered kanban renderer's schema satisfies the registry entry",
       KanbanSchema extends SchemaRegistry['kanban'] ? true : false
     >;
 
-    // 2. …and it is still two dialects, not one. If these ever converge, the
-    //    weakened entry has outlived its reason and objectui#7645 should be
-    //    re-triaged rather than left as a permanent retreat.
+    // 2. …and, at this commit, still two dialects. objectui#7664's ruling (a)
+    //    (2026-09-05) schedules their convergence; when it lands, the weakened
+    //    entry has outlived its reason and this pin retires with the re-point.
     type _StillTwoDialects = Assert<
       Equal<Equal<KanbanSchema, DeclarativeKanbanSchema>, false>
     >;

@@ -26,12 +26,12 @@
  * `@object-ui/plugin-kanban`, which consumes that package's `KanbanSchema`.
  * `@object-ui/types` cannot name it: the import is a phantom dependency
  * (`check:phantom-deps` names the pair), and declaring the dependency closes
- * the cycle `@object-ui/types` → `@object-ui/plugin-kanban` →
- * `@object-ui/types`. objectui#6172's ruling kept the plugin's bare names
- * rather than relocating that dialect into this zero-dependency layer, so the
- * gap is permanent by decision. The half of the claim that IS provable here —
- * a schema node tagged `'kanban'` — is what the entry now states, and the
- * plugin side proves its own face satisfies it in
+ * the cycle `@object-ui/types` → `@object-ui/plugin-kanban` → `@object-ui/types`.
+ * objectui#6172's ruling (2026-08-31) kept the plugin's bare names there;
+ * objectui#7664's ruling (a) (2026-09-05) reverses that half — this package's
+ * `'kanban'` arm is rewritten to the plugin's shape and the entry re-pointed at
+ * it, so the value pinned below is TRANSITIONAL. What IS provable here — a
+ * node tagged `'kanban'` — is what it states; the plugin's face satisfies it in
  * `packages/plugin-kanban/src/__tests__/schema-registry-kanban-honesty-7645.test.ts`.
  *
  * ## These assertions are compile-time only

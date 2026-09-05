@@ -25,8 +25,14 @@ here is a phantom dependency — `check:phantom-deps` rejects it by file and
 pair, type-only imports included — and declaring the dependency would close the
 cycle `@object-ui/types` → `@object-ui/plugin-kanban` → `@object-ui/types`,
 because this package is the zero-workspace-dependency bottom layer.
-objectui#6172's ruling kept the plugin's bare names rather than relocating that
-dialect down here, so the gap is permanent by decision.
+objectui#6172's ruling (2026-08-31) kept the plugin's bare names rather than
+relocating that dialect down here — that is why this entry cannot name the
+plugin's type at this commit. That half of the ruling has since been reversed:
+objectui#7664's ruling (a) (2026-09-05) rewrites this package's `'kanban'`
+arm to the plugin's shape, has `@object-ui/plugin-kanban` conform to it, and
+retires the `DeclarativeKanban*` trio; `registry.ts` is on its execution list,
+so this entry is scheduled to be re-pointed at the declared type. The value
+below is the transitional state under that ruling, not the permanent one.
 
 So the entry now asserts only what this layer can prove, and what BOTH dialects
 satisfy: `BaseSchema & { type: 'kanban' }`.

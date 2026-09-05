@@ -196,18 +196,18 @@ export interface SchemaRegistry {
   // (`check:phantom-deps` rejects it by file and pair), and declaring the
   // dependency would close the cycle `@object-ui/types` →
   // `@object-ui/plugin-kanban` → `@object-ui/types` — this is the
-  // zero-workspace-dependency bottom layer. objectui#6172's ruling (option A)
-  // kept the plugin's bare names rather than relocating that dialect down
-  // here, so the gap is permanent by decision, not by oversight.
+  // zero-workspace-dependency bottom layer. objectui#6172's ruling (option A,
+  // 2026-08-31) kept the plugin's bare names rather than relocating that
+  // dialect down here. objectui#7664's ruling (a) (2026-09-05) reverses that
+  // half: this package's `'kanban'` arm is rewritten to the plugin's shape and
+  // this entry is re-pointed at the declared type — this value is TRANSITIONAL.
   //
-  // What this entry asserts is therefore only what this layer can PROVE, and
-  // what BOTH dialects satisfy: a schema node tagged `'kanban'`. It no longer
-  // names `DeclarativeKanbanSchema` — that is the AUTHORING/validation face
-  // (the `'kanban'` arm of `ComplexSchema` → `AnyComponentSchema` →
-  // `safeValidateSchema`, still exported from `./complex.js` and unchanged),
+  // Until then the entry asserts only what this layer can PROVE, and what BOTH
+  // dialects satisfy: a schema node tagged `'kanban'`. It no longer names
+  // `DeclarativeKanbanSchema` — the AUTHORING/validation face (the `'kanban'`
+  // arm of `ComplexSchema` → `AnyComponentSchema` → `safeValidateSchema`),
   // not the type the registered renderer honours. Naming it here made a map
-  // that advertises itself as the Single Source of Truth describe a different
-  // component than the key names.
+  // that calls itself the Single Source of Truth describe the wrong component.
   //
   // ⛔ Do not "restore" a precise type here without moving the renderer's
   // dialect into a layer this package may depend on. Two compile-time pins
