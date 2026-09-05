@@ -39,6 +39,30 @@
  * as an OPTIONAL key, so every document that face accepted before it is still
  * accepted. It is asserted below rather than left implicit.
  *
+ * ## ⭐ What `@objectstack/spec` 17.3.0 changed here, and why nothing was edited
+ *
+ * 17.3.0 adopted `SelectOptionSchema.description` (maintainer ruling
+ * 2026-08-25 on objectui#6140 / objectui#6153, Option A). `SelectOptionBase`
+ * derives the spec's keys BY REFERENCE, so the key arrived on BOTH faces with
+ * no edit to `../select-option` at all — which is exactly the property the
+ * derivation exists to have, and it is worth saying out loud that the pins
+ * below moved while the type did not.
+ *
+ * Two consequences are written into the assertions rather than left implicit:
+ *
+ *   1. The FORM face gained a member it never declared, so its
+ *      pre-convergence equality became a SET DIFFERENCE — the same idiom the
+ *      object-metadata face has used for `default` since the convergence. A
+ *      plain `Equal` there would now have to be repaired every time the spec
+ *      grows, which is the hand-copy failure this file exists to prevent.
+ *   2. The two faces no longer differ on `description` — it is inherited on
+ *      both — so the "differ on exactly `value`" assertion states that
+ *      directly instead of excusing `description` from the comparison.
+ *
+ * The runtime half moved the same way: `description` is asserted ACCEPTED, and
+ * `disabled` / `icon` carry the refusal half so a schema that had gone
+ * permissive cannot pass this file.
+ *
  * ## The control the spec fixtures need
  *
  * A select option's `value` is a lowercase machine identifier with a minimum
@@ -96,9 +120,26 @@ interface PRE_CONVERGENCE_SelectOptionMetadata {
   visibleWhen?: ExpressionWire;
 }
 
-/** The SDUI form face is member-for-member what it was. */
-export type assertionFormFaceUnchanged =
-  Expect< Equal< SelectOption, PRE_CONVERGENCE_SelectOption > >;
+/**
+ * The SDUI form face kept every member it had, at the same type — stated by
+ * removing the one key the spec has since added and comparing what is left.
+ * `PRE_CONVERGENCE_SelectOption` above is a HISTORICAL record and is never
+ * edited to match; it is the fixed end of this comparison.
+ */
+export type assertionFormFaceKeptEveryMember =
+  Expect< Equal< Omit< SelectOption, 'description' >, PRE_CONVERGENCE_SelectOption > >;
+
+/**
+ * …and `description` is the ONLY key it gained since. Written as a set
+ * difference so a second key cannot ride along silently: add one and this
+ * stops being `'description'`.
+ */
+export type assertionFormFaceGainedOnlyDescription =
+  Expect< Equal< Exclude< keyof SelectOption, keyof PRE_CONVERGENCE_SelectOption >, 'description' > >;
+
+/** …and it arrived OPTIONAL, so no form that type-checked before now fails. */
+export type assertionDescriptionIsOptional =
+  Expect< Equal< SelectOption['description'], string | undefined > >;
 
 /**
  * The object-metadata face kept every member it had, at the same type — the
@@ -119,9 +160,16 @@ export type assertionMetadataFaceGainedOnlyDefault =
 export type assertionDefaultIsOptional =
   Expect< Equal< SelectOptionMetadata['default'], boolean | undefined > >;
 
-/** The two faces differ on exactly one inherited member, and it is `value`. */
+/**
+ * The two faces differ on exactly one inherited member, and it is `value`.
+ *
+ * `description` used to be excused from this comparison because only the
+ * object-metadata face declared it; 17.3.0 put it in the derivation, so both
+ * faces carry it and the comparison states the difference without an
+ * exemption. Re-adding one here would hide the next divergence.
+ */
 export type assertionOnlyValueDiffers =
-  Expect< Equal< Omit< SelectOption, 'value' >, Omit< SelectOptionMetadata, 'value' | 'description' > > >;
+  Expect< Equal< Omit< SelectOption, 'value' >, Omit< SelectOptionMetadata, 'value' > > >;
 export type assertionFormValueIsWide =
   Expect< Equal< SelectOption['value'], string | number | boolean > >;
 export type assertionMetadataValueIsSpecIdentifier =
@@ -138,6 +186,7 @@ export type assertionMetadataValueIsSpecIdentifier =
 const SPEC_KEYS_ON_BASE: readonly (keyof SelectOptionBase)[] = [
   'color',
   'default',
+  'description',
   'label',
   'value',
   'visibleWhen',
@@ -184,6 +233,7 @@ export const acceptsEveryDeclaredKeyOnFormFace = (): SelectOption => ({
   color: '#ef4444',
   default: false,
   visibleWhen: "'admin' in current_user.positions",
+  description: 'Blocks the release',
   disabled: true,
   icon: 'hash',
 });
@@ -240,7 +290,6 @@ describe('the objectui dialect keys sit OUTSIDE that vocabulary', () => {
   for (const [key, value] of [
     ['disabled', true],
     ['icon', 'flame'],
-    ['description', 'Blocks the release'],
   ] as const) {
     it(`the spec refuses \`${key}\` BY NAME, with the same option minus the key accepted`, () => {
       const res = SpecSelectOptionSchema.safeParse({ ...CONTROL, [key]: value });
@@ -251,7 +300,21 @@ describe('the objectui dialect keys sit OUTSIDE that vocabulary', () => {
     });
   }
 
-  it('a fully-populated read-model option is refused as a whole, naming all three', () => {
+  it('`description` is NOT one of them — 17.3.0 moved it inside the vocabulary', () => {
+    // The counterpart of the two refusals above, and the reason this file's
+    // dialect list is two keys and not three: `description` was an
+    // objectui-only key until the 2026-08-25 ruling declared it, so it is
+    // asserted ACCEPTED here rather than quietly dropped from the loop.
+    const res = SpecSelectOptionSchema.safeParse({ ...CONTROL, description: 'Blocks the release' });
+    expect(res.success).toBe(true);
+    expect(refusedByName(res, 'description')).toBeUndefined();
+    // Control: the schema has not gone permissive — it still refuses by name.
+    expect(
+      refusedByName(SpecSelectOptionSchema.safeParse({ ...CONTROL, icon: 'flame' }), 'icon'),
+    ).toBeDefined();
+  });
+
+  it('a fully-populated read-model option is refused as a whole, naming the two still outside', () => {
     const readModel: SelectOptionMetadata = {
       label: 'High priority',
       value: 'high_priority',
@@ -263,12 +326,16 @@ describe('the objectui dialect keys sit OUTSIDE that vocabulary', () => {
     };
     const res = SpecSelectOptionSchema.safeParse(readModel);
     expect(res.success).toBe(false);
-    for (const key of ['description', 'disabled', 'icon']) {
+    for (const key of ['disabled', 'icon']) {
       expect(refusedByName(res, key), `expected unrecognized_keys naming '${key}'`).toBeDefined();
     }
+    // …and `description` is NOT among them. Stated positively, because the
+    // whole-document refusal would still be red with `description` refused too,
+    // and this file would then be pinning a boundary the contract has left.
+    expect(refusedByName(res, 'description')).toBeUndefined();
 
     // Control: the same document with only the spec keys parses.
-    const { description: _d, disabled: _di, icon: _i, ...specOnly } = readModel;
+    const { disabled: _di, icon: _i, ...specOnly } = readModel;
     expect(SpecSelectOptionSchema.safeParse(specOnly).success).toBe(true);
   });
 });
