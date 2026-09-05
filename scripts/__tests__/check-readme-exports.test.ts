@@ -870,6 +870,61 @@ describe('the interface pin — BOTH directions, because one of them is green fo
   });
 });
 
+/**
+ * The build state of THIS repository: the per-package split every assertion
+ * below partitions by, and one line naming it, fit to end an assertion message.
+ *
+ * objectui#7460. The three cases underneath used to split the tree with the
+ * whole-tree boolean `census.packagesUnbuilt === 0`, one leg for "built" and one
+ * for "unbuilt". A PARTLY built tree is a third state neither leg describes, and
+ * it is not exotic — it is what another gate's own printed command produces:
+ *
+ *   pnpm exec turbo run build $(node scripts/check-doc-snippet-types.mjs --build-filter) --concurrency=2
+ *
+ * That filter covers, by design, only the packages the documents IT judges
+ * import (26 of 40 here), so "run the doc gate, then run the tests that read it"
+ * lands there. In it the unbuilt leg judged a mostly-built tree and two cases
+ * failed with `expected false to be true` and `expected +0 to be 3` — naming
+ * neither the counter nor the state, under titles promising the assertion held
+ * in every state. Measured cost: one round, spent suspecting the diff under test.
+ *
+ * Both halves of that are fixed, and they are separate fixes:
+ *
+ *   the SPLIT    is now per PACKAGE, which is the split the gate itself already
+ *                uses (see "THE SHRINK-ONLY RULE IS SUSPENDED WHERE NOTHING WAS
+ *                COMPARED" in check-readme-exports.mjs). It is not a second
+ *                build-state semantics, and it enumerates no states: built,
+ *                unbuilt and every mix fall out of one rule, so there is no
+ *                fourth state left to be surprised by. Measured while writing
+ *                this: there WAS a fourth. `packages/plugin-tree` is unbuilt
+ *                with zero README self-imports, so on a tree with only it
+ *                unbuilt the old "the gate must FAIL" line reddened a correct
+ *                tree — a second break in the same leg, from the same cause.
+ *   the MESSAGE  names `census.packagesUnbuilt` and the packages behind it, and
+ *                says outright that the state is not the cause — because after
+ *                the split above it cannot be. That is the half that buys the
+ *                round back, and it is owed even on assertions needing no leg.
+ */
+function buildState(result: ReturnType<typeof scan>) {
+  const unbuilt = result.packages.filter((p) => p.state === 'unbuilt');
+  const dirs = unbuilt.map((p) => p.dir).sort();
+  const unbuiltDirs = new Set(dirs);
+  return {
+    unbuiltDirs,
+    unbuiltNames: new Set(unbuilt.map((p) => p.name)),
+    /** A package dir the walk could not resolve is not "unbuilt" — it is absent. */
+    isUnbuilt: (dir: string | null) => dir !== null && unbuiltDirs.has(dir),
+    note:
+      `build state: census.packagesUnbuilt = ${result.census.packagesUnbuilt} of ` +
+      `${result.census.packages} packages (${result.census.packagesRead} read, ` +
+      `${result.census.packagesNoTypeEntry} declare no type entry)` +
+      (dirs.length ? `; unbuilt: ${dirs.join(', ')}` : '') +
+      '. Every assertion in this case is written per PACKAGE and holds on a built, ' +
+      'an unbuilt and a partly built tree alike, so reaching this message means a ' +
+      'real disagreement — NOT that you built the wrong subset of the tree.',
+  };
+}
+
 describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
   it('is keyed `<readme>::<InterfaceName>` and every entry carries a card number', () => {
     for (const [key, reason] of Object.entries(PARTIAL_EXCERPTS)) {
@@ -879,36 +934,74 @@ describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
     }
   });
 
-  it('hides ONLY omissions, and the tree says so in BOTH build states', () => {
-    // Written to hold built and unbuilt, like the `repo state` block above.
-    // Built: turning the ledger OFF must red, and every red must be a
-    // `stale-omission` at a declaration the ledger names -- so the ledger is
-    // provably not covering a fabricated key or anything else. Unbuilt: there
-    // is no export surface, so the same declarations are `unjudgeable-type`,
-    // which is the FAILURE tier 1's rule requires and not a skip.
+  it('hides ONLY omissions, at every declaration the tree can judge — in ANY build state', () => {
+    // Turning the ledger OFF must red, and every red must sit at a declaration
+    // the ledger names -- so the ledger is provably not covering a fabricated
+    // key or anything else.
+    //
+    // WHICH red is decided by the declaration's OWN package, never by the tree:
+    // built, and it is a `stale-omission`; unbuilt, and there is no export
+    // surface to compare against, so it is `unjudgeable-type` -- the FAILURE
+    // tier 1's rule requires and not a skip. That per-declaration rule is the
+    // gate's own; see `buildState` above for why the whole-tree boolean this
+    // replaces was wrong (objectui#7460).
     const off = scan(repoRoot, { excerpts: {} });
-    const built = off.census.packagesUnbuilt === 0;
-    const ledgered = new Set(Object.keys(PARTIAL_EXCERPTS));
-    if (built) {
-      const omissions = off.findings.filter((f) => f.verdict === 'stale-omission');
-      expect(omissions.length).toBeGreaterThan(0);
-      expect(new Set(omissions.map((f) => `${f.file}::${f.typeName}`))).toEqual(ledgered);
-      expect(off.findings.every((f) => f.verdict === 'stale-omission')).toBe(true);
-    } else {
-      expect(off.findings.some((f) => f.verdict === 'unjudgeable-type')).toBe(true);
-      expect(off.findings.every((f) => f.verdict === 'unjudgeable-type' || f.verdict === 'unjudgeable')).toBe(true);
-      // With the ledger OFF there is nothing for the sweep to call stale, so
-      // this leg cannot see the objectui#6214 regression on its own — the one
-      // in the `repo state` block below, with the ledger ON, is the leg that
-      // does. Stated so the pair is not mistaken for one assertion twice.
-      expect(off.census.excerptsNotJudged).toBe(0);
-    }
+    const { unbuiltNames, isUnbuilt, note } = buildState(off);
+    const at = (f: { file: string; typeName?: string | null }) => `${f.file}::${f.typeName}`;
+    const ledgered = Object.keys(PARTIAL_EXCERPTS);
+    const packageOfEntry = (key: string) => packageDirOf(repoRoot, key.split('::')[0]);
+    const judgeable = new Set(ledgered.filter((key) => !isUnbuilt(packageOfEntry(key))));
+    const suspendable = ledgered.filter((key) => isUnbuilt(packageOfEntry(key)));
+
+    expect(ledgered.length, 'the ledger is empty, so this case asserts nothing').toBeGreaterThan(0);
+
+    const omissions = off.findings.filter((f) => f.verdict === 'stale-omission');
+    const suspended = off.findings.filter((f) => f.verdict === 'unjudgeable-type');
+
+    // Every entry the tree CAN judge reds as a stale omission with the ledger
+    // off, and nothing else does -- which is what "hides ONLY omissions" means.
+    // On a fully built tree `judgeable` is the whole ledger, so this is exactly
+    // the assertion the old built leg made.
+    expect(
+      new Set(omissions.map(at)),
+      `with the ledger OFF the stale-omission set is no longer exactly the ledger entries this tree can judge. ${note}`,
+    ).toEqual(judgeable);
+
+    // Every entry it CANNOT judge is REPORTED `unjudgeable-type`, not skipped.
+    // On a completely unbuilt tree that is the whole ledger, so this is exactly
+    // the assertion the old unbuilt leg made.
+    expect(
+      suspendable.filter((key) => !suspended.some((f) => at(f) === key)),
+      `a ledger entry whose package is unbuilt was not reported \`unjudgeable-type\` -- a suspended rule must still FAIL. ${note}`,
+    ).toEqual([]);
+
+    // ...and each verdict is the one its own package earns.
+    expect(
+      suspended.filter((f) => !unbuiltNames.has(f.package)).map(at),
+      `\`unjudgeable-type\` at a declaration whose package IS built -- the gate lost an export surface it has. ${note}`,
+    ).toEqual([]);
+    expect(
+      off.findings
+        .filter((f) => !['stale-omission', 'unjudgeable-type', 'unjudgeable'].includes(f.verdict))
+        .map((f) => `${f.verdict} at ${at(f)}`),
+      `unexpected verdict with the ledger OFF. ${note}`,
+    ).toEqual([]);
+    expect(
+      off.findings.filter((f) => f.verdict === 'unjudgeable' && !unbuiltNames.has(f.package)).map(at),
+      `\`unjudgeable\` self-import in a package that IS built. ${note}`,
+    ).toEqual([]);
+
+    // With the ledger OFF there is nothing for the sweep to call stale, so this
+    // case cannot see the objectui#6214 regression on its own — the one in the
+    // `repo state` block below, with the ledger ON, is the leg that does.
+    // Stated so the pair is not mistaken for one assertion twice.
+    expect(off.census.excerptsNotJudged).toBe(0);
   });
 });
 
-describe('repo state — assertions that hold whether or not the tree is built', () => {
+describe('repo state — assertions that hold in EVERY build state: built, unbuilt, or a mix', () => {
   const result = scan(repoRoot);
-  const built = result.census.packagesUnbuilt === 0;
+  const { unbuiltDirs, unbuiltNames, isUnbuilt, note } = buildState(result);
 
   it('walked the tree: READMEs, fenced blocks and import bindings were all found', () => {
     // These three need no `dist/`, so they assert in the test shards too.
@@ -918,56 +1011,119 @@ describe('repo state — assertions that hold whether or not the tree is built',
     expect(result.census.readmesOrphaned).toBe(0);
   });
 
-  it('finds no fabricated or wrong-path import when built, and refuses to pass when not', () => {
-    // `pnpm test` never builds, so in CI this suite takes the second branch;
-    // locally, after a build, it takes the first. BOTH branches assert — a
-    // conditional that let the unbuilt tree through silently would be this
-    // gate's own defect.
+  it('finds no fabricated or wrong-path import where it can judge, and never passes silently where it cannot', () => {
+    // `pnpm test` never builds, so CI reads an unbuilt tree; a local `turbo run
+    // build` gives a built one; the doc gate's own printed `--build-filter`
+    // command gives a mix. What varies across all three is per PACKAGE, so that
+    // is what is asserted -- see `buildState` above for why the whole-tree
+    // boolean this replaces was wrong (objectui#7460).
+    //
     // The could-not-judge class has TWO verdicts since objectui#6214 added the
     // interface pin: `unjudgeable` for a self-import and `unjudgeable-type` for
     // a documented type. Both mean the same single thing — the package's export
     // surface is not on disk — so both are excluded here, exactly as the one
     // did before. This is the filter being kept correct as a new member of the
     // class arrived, NOT an exemption widened to make a red go green: the
-    // assertion below still requires the unbuilt tree to FAIL.
+    // assertions below still require an unjudgeable package to FAIL.
     const CANNOT_JUDGE = ['unjudgeable', 'unjudgeable-type'];
     const judged = result.findings.filter((f) => !CANNOT_JUDGE.includes(f.verdict));
-    if (built) {
-      expect(judged, `unexpected README drift: ${JSON.stringify(judged, null, 2)}`).toEqual([]);
-      expect(result.census.selfBindings).toBeGreaterThanOrEqual(FLOORS.selfBindings);
-      expect(result.census.exportSymbols).toBeGreaterThanOrEqual(FLOORS.exportSymbols);
-      expect(result.vacuous).toEqual([]);
-    } else {
-      expect(judged, `unbuilt tree reported a verdict it could not have judged: ${JSON.stringify(judged, null, 2)}`).toEqual([]);
-      // The specific regression this line exists for (objectui#6214, caught by
-      // `Test (shard 2/4)`): the three `PARTIAL_EXCERPTS` entries came back
-      // `stale-excerpt-entry` on CI, because they had suppressed nothing — and
-      // they had suppressed nothing only because NOTHING WAS COMPARED. Named
-      // explicitly rather than left to the `toEqual([])` above, so a future
-      // reader sees which verdict must never appear here and why.
-      expect(result.findings.filter((f) => f.verdict === 'stale-excerpt-entry')).toEqual([]);
-      expect(result.findings.filter((f) => f.verdict === 'stale-partial-marker')).toEqual([]);
-      expect(result.census.excerptsNotJudged).toBe(Object.keys(PARTIAL_EXCERPTS).length);
+
+    // Stood in BOTH legs of the old branch, so it needs no leg: nothing may
+    // carry a verdict this tree could not have reached.
+    expect(judged, `unexpected README drift: ${JSON.stringify(judged, null, 2)}. ${note}`).toEqual([]);
+
+    // The specific regression these two lines exist for (objectui#6214, caught by
+    // `Test (shard 2/4)`): the three `PARTIAL_EXCERPTS` entries came back
+    // `stale-excerpt-entry` on CI, because they had suppressed nothing — and
+    // they had suppressed nothing only because NOTHING WAS COMPARED. Named
+    // explicitly rather than left to the `toEqual([])` above, so a future
+    // reader sees which verdict must never appear here and why.
+    expect(
+      result.findings.filter((f) => f.verdict === 'stale-excerpt-entry'),
+      `a ledger entry was called stale. ${note}`,
+    ).toEqual([]);
+    expect(
+      result.findings.filter((f) => f.verdict === 'stale-partial-marker'),
+      `a README marker was called stale. ${note}`,
+    ).toEqual([]);
+
+    // ...and the number of entries whose shrink-only rule is SUSPENDED is the
+    // number whose own package is unbuilt: the whole ledger on CI, none of it on
+    // a built tree, and in between in between. The old form hard-coded
+    // `Object.keys(PARTIAL_EXCERPTS).length`, which is only the CI answer — it is
+    // the line that failed `expected +0 to be 3` on a half-built tree, where all
+    // three ledgered packages happen to be among the ones the doc gate builds.
+    const suspendable = Object.keys(PARTIAL_EXCERPTS).filter((key) =>
+      isUnbuilt(packageDirOf(repoRoot, key.split('::')[0])),
+    );
+    expect(
+      result.census.excerptsNotJudged,
+      `the ledger's suspension count is not the number of entries whose own package is unbuilt (${suspendable.join(', ') || 'none'}). ${note}`,
+    ).toBe(suspendable.length);
+
+    // An unbuilt package must be REPORTED, never silently skipped. That is the
+    // rule that makes this gate's never-built CI run FAIL instead of passing
+    // vacuously, and stated per package it survives a mix.
+    for (const record of result.packages) {
+      if (record.state !== 'unbuilt') continue;
+      const reported = result.bindings.filter(
+        (b) => b.package === record.name && b.verdict === 'unjudgeable',
+      ).length;
+      expect(
+        reported,
+        `${record.dir} is unbuilt, so all ${record.selfBindings} of its README self-imports must be reported \`unjudgeable\`; ${reported} were. ${note}`,
+      ).toBe(record.selfBindings);
+    }
+
+    // The whole-tree corollary, stated where it is TRUE. `check-readme-exports.mjs`
+    // exits 0 only on an empty `findings` AND an empty `vacuous`, so "reported"
+    // and "the gate fails" are one statement. The old form asserted this of any
+    // tree with `packagesUnbuilt > 0`, which is NOT sound and was the same leg's
+    // second break: `packages/plugin-tree` is unbuilt carrying zero README
+    // self-imports and no documented type, so a tree with only it unbuilt has
+    // nothing to report and passes correctly.
+    const unjudgeableWork =
+      result.packages
+        .filter((p) => p.state === 'unbuilt')
+        .reduce((n, p) => n + p.selfBindings, 0) +
+      result.documentedTypes.filter((d) => unbuiltNames.has(d.package)).length;
+    if (unjudgeableWork > 0) {
       expect(
         result.findings.length + result.vacuous.length,
-        'on an unbuilt tree the gate must FAIL (unjudgeable self-imports and/or a breached floor), never report OK',
+        `${unjudgeableWork} README binding(s)/declaration(s) sit in an unbuilt package, so the gate must FAIL (unjudgeable self-imports and/or a breached floor), never report OK. ${note}`,
       ).toBeGreaterThan(0);
+    }
+
+    // Floors. `selfBindings` needs no `dist/` and so is asserted everywhere; the
+    // export surface and the `vacuous` collapse sweep are about what was READ,
+    // and are asserted where the whole tree was.
+    expect(result.census.selfBindings).toBeGreaterThanOrEqual(FLOORS.selfBindings);
+    if (result.census.packagesUnbuilt === 0) {
+      expect(result.census.exportSymbols).toBeGreaterThanOrEqual(FLOORS.exportSymbols);
+      expect(result.vacuous, `the population collapsed on a fully built tree. ${note}`).toEqual([]);
     }
   });
 
-  it('judges the packages the card named, once the tree is built', () => {
-    if (!built) {
-      expect(result.census.packagesUnbuilt).toBeGreaterThan(0);
-      return;
-    }
+  it('judges the packages the card named, wherever the tree has built them', () => {
     const judgedIn = [
       ...new Set(
         result.bindings.filter((b) => b.verdict === 'real').map((b) => b.file.split('/').slice(0, 2).join('/')),
       ),
     ];
-    // The seven packages the manual sweep hit (objectui#5010-#5016).
+    // The seven packages the manual sweep hit (objectui#5010-#5016). A package
+    // that is not built cannot be judged, so it is excused BY NAME rather than
+    // by the whole case returning early on a whole-tree boolean: on the
+    // half-built tree the early return stopped this case asserting anything at
+    // all about the 34 packages that WERE built (objectui#7460).
     for (const pkg of ['plugin-calendar', 'plugin-form', 'plugin-gantt', 'plugin-grid', 'plugin-view', 'plugin-dashboard', 'plugin-report']) {
-      expect(judgedIn, `${pkg}'s README is no longer being judged`).toContain(`packages/${pkg}`);
+      const dir = `packages/${pkg}`;
+      if (unbuiltDirs.has(dir)) {
+        // Excused, and the excuse is checked against the census rather than
+        // taken on trust.
+        expect(result.census.packagesUnbuilt, note).toBeGreaterThan(0);
+        continue;
+      }
+      expect(judgedIn, `${pkg}'s README is no longer being judged. ${note}`).toContain(dir);
     }
   });
 });
