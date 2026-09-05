@@ -102,6 +102,15 @@ const ACCEPTED: Array<[string, DrillDownConfig]> = [
     report: { name: 'pipeline', objectName: 'opportunity', columns: [{ field: 'amount' }], groupBy: ['stage'] },
   }],
   ['a named report reference', { report: { name: 'pipeline' } }],
+  // ⚠️ MEASURED, not assumed, and it moved here from the refusal table below. The
+  // declaration's second arm is `{ name: string }` — not an exact type — so a value
+  // with a string `name` satisfies it whatever else it carries, and TypeScript's
+  // excess-property check passes because `columns` is a member of the OTHER arm.
+  // This entry is annotated `DrillDownConfig`, so `tsc -p tsconfig.test.json` is the
+  // witness: if the declaration ever refused it, this line stops compiling. A mirror
+  // that refused it would be NARROWER than the declaration — the drift class this
+  // ledger exists to stop, in the direction that hurts authors.
+  ['an inline report missing objectName, which the reference arm accepts', { report: { name: 'pipeline', columns: [] } }],
 ];
 
 /** Each is a DECLARED key with a value outside its declared type. */
@@ -114,7 +123,6 @@ const REFUSED: Array<[string, unknown, string]> = [
   ['columns as a string', { columns: 'name' }, 'columns'],
   ['maxRows as a string', { maxRows: '50' }, 'maxRows'],
   ['report as a bare string', { report: 'pipeline' }, 'report'],
-  ['an inline report without objectName', { report: { name: 'pipeline', columns: [] } }, 'report'],
   ['a report reference with a non-string name', { report: { name: 42 } }, 'report'],
 ];
 

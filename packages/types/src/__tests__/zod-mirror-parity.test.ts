@@ -28,7 +28,7 @@
  *
  * It reads `.shape` and not `keyof z.input<typeof Mirror>` because that spelling is
  * vacuous — `.passthrough()` collapses the inferred key union to bare `string`.
- * `assertionNoVacuousEntry` below pins that for all 160 entries at once.
+ * `assertionNoVacuousEntry` below pins that for all 161 entries at once.
  *
  * ## What is registered
  *
@@ -53,9 +53,12 @@
  * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
  * entire subject is measurement that is worth stating explicitly:
  *
- *   - **160 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
- *     already pins equal to `keyof Declared`. Nothing asserts it against a written
- *     number, so this line is prose and can rot; the pin that cannot is the one
+ *   - **161 pairs** — `Object.keys(MIRRORS).length`, which `assertionRegistryHalvesAgree`
+ *     already pins equal to `keyof Declared`. It was 160 until objectui#7352 registered
+ *     `data-display.zod.ts#DrillDownConfigSchema` — a nested config mirror paired with
+ *     the local `DrillDownConfig`, the `ObjectMapConfigSchema` precedent —
+ *     and it carries no ledger entry. Nothing asserts the number against a written
+ *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
  *   - **40 entries** in `KnownDrift`, **56 keys** across them — 39 / 55 until
  *     objectui#7455 SEEDED `app.zod.ts#AppComponentSchema` with its one
@@ -71,7 +74,11 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **15 entries** in `UnmirroredDeclared`, **96 keys** across them. It read 17 / 98
+ *   - **13 entries** in `UnmirroredDeclared`, **94 keys** across them — 15 / 96 until
+ *     objectui#7352 MIRRORED both `drillDown` rows at once (`ChartSchema` and
+ *     `ObjectDataTableSchema`, each the entry's whole content, so both entries went):
+ *     the ledger's second and third shrink by REPAIR, on the route objectui#6639 opened.
+ *     It read 17 / 98
  *     between objectui#6576, which SEEDED the new `ObjectDataTableSchema` pair with its
  *     one measured key `drillDown` (a pair born ledgered, not growth on an existing
  *     one), and objectui#7129, which RETIRED `DetailViewSectionSchema.hideEmpty` —
@@ -93,10 +100,12 @@
  *     "no entry in either" population dropped by one to 141 — went to 142 when
  *     objectui#6576 added two pairs, one of them ledgered, went to 143 when
  *     objectui#7129 retired `DetailViewSectionSchema`'s only ledgered key, and
- *     stands at **144** since objectui#7623 retired `DashboardComponentSchema`'s
+ *     went to 144 when objectui#7623 retired `DashboardComponentSchema`'s
  *     only UNMIRRORED one (that pair keeps its `KnownDrift` entry — this
- *     population counts entries in the two unmirrored ledgers).
- *   - 160 − 40 = **120**, the "pairs with no entry" `LedgerMismatch` speaks of.
+ *     population counts entries in the two unmirrored ledgers), and stands at **147**
+ *     since objectui#7352: two pairs left the unmirrored ledgers by repair and the new
+ *     `DrillDownConfigSchema` pair arrived clean.
+ *   - 161 − 40 = **121**, the "pairs with no entry" `LedgerMismatch` speaks of.
  *
  * ## Two ratchets, because the forward comparison has two halves
  *
@@ -117,7 +126,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 40 of the 160 pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 40 of the 161 pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -153,7 +162,7 @@ import { AppActionSchema, AppComponentSchema, NavigationAreaSchema } from '../zo
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema } from '../zod/base.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, DeclarativeKanbanCardSchema, DeclarativeKanbanColumnSchema, DeclarativeKanbanSchema } from '../zod/complex.zod.js';
 import { ActionCallbackSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
-import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
+import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
 import { ButtonSchema, CalendarSchema, CheckboxSchema, CodeEditorSchema, ComboboxOptionSchema, ComboboxSchema, CommandGroupSchema, CommandItemSchema, CommandSchema, DatePickerSchema, FieldConditionSchema, FieldConstraintsSchema, FileUploadSchema, FormFieldSchema, FormSchema, InputOTPSchema, InputSchema, LabelSchema, RadioGroupSchema, RadioOptionSchema, SelectOptionSchema, SelectSchema, SliderSchema, SwitchSchema, TextareaSchema, ToggleSchema } from '../zod/form.zod.js';
@@ -169,7 +178,7 @@ import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, DeclarativeKanbanCard as Ts_KanbanCard, DeclarativeKanbanColumn as Ts_KanbanColumn, DeclarativeKanbanSchema as Ts_KanbanSchema } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
 import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
-import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
+import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, DrillDownConfig as Ts_DrillDownConfig, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
 import type { ButtonSchema as Ts_ButtonSchema, CalendarSchema as Ts_CalendarSchema, CheckboxSchema as Ts_CheckboxSchema, CodeEditorSchema as Ts_CodeEditorSchema, ComboboxOption as Ts_ComboboxOption, ComboboxSchema as Ts_ComboboxSchema, CommandGroup as Ts_CommandGroup, CommandItem as Ts_CommandItem, CommandSchema as Ts_CommandSchema, DatePickerSchema as Ts_DatePickerSchema, FieldCondition as Ts_FieldCondition, FieldValidationRules as Ts_FieldValidationRules, FileUploadSchema as Ts_FileUploadSchema, FormField as Ts_FormField, FormSchema as Ts_FormSchema, InputOTPSchema as Ts_InputOTPSchema, InputSchema as Ts_InputSchema, LabelSchema as Ts_LabelSchema, RadioGroupSchema as Ts_RadioGroupSchema, RadioOption as Ts_RadioOption, SelectOption as Ts_SelectOption, SelectSchema as Ts_SelectSchema, SliderSchema as Ts_SliderSchema, SwitchSchema as Ts_SwitchSchema, TextareaSchema as Ts_TextareaSchema, ToggleSchema as Ts_ToggleSchema } from '../form';
@@ -282,7 +291,7 @@ export type ReconcileAgainstLedger< K, Measured, Recorded > =
 export type assertionRatchetAcceptsAgreement =
   Expect< Equal< ReconcileAgainstLedger< 'p', 'a', 'a' >, never > >;
 
-/** …and so does a clean pair with no entry, which is the case for 143 of the 160. */
+/** …and so does a clean pair with no entry, which is the case for 147 of the 161. */
 export type assertionRatchetAcceptsCleanPair =
   Expect< Equal< ReconcileAgainstLedger< 'p', never, never >, never > >;
 
@@ -399,6 +408,7 @@ const MIRRORS = {
   'data-display.zod.ts#ChartDataSeriesSchema': ChartDataSeriesSchema,
   'data-display.zod.ts#ChartSchema': ChartSchema,
   'data-display.zod.ts#DataTableSchema': DataTableSchema,
+  'data-display.zod.ts#DrillDownConfigSchema': DrillDownConfigSchema,
   'data-display.zod.ts#HtmlSchema': HtmlSchema,
   'data-display.zod.ts#KbdSchema': KbdSchema,
   'data-display.zod.ts#BarChartSchema': BarChartSchema,
@@ -557,6 +567,7 @@ interface Declared {
   'data-display.zod.ts#ChartDataSeriesSchema': Ts_ChartDataSeries;
   'data-display.zod.ts#ChartSchema': Ts_ChartSchema;
   'data-display.zod.ts#DataTableSchema': Ts_DataTableSchema;
+  'data-display.zod.ts#DrillDownConfigSchema': Ts_DrillDownConfig;
   'data-display.zod.ts#HtmlSchema': Ts_HtmlSchema;
   'data-display.zod.ts#KbdSchema': Ts_KbdSchema;
   'data-display.zod.ts#BarChartSchema': Ts_BarChartSchema;
@@ -910,9 +921,9 @@ interface KnownDrift {
  * invites an author to write and the published validator has never heard of.
  *
  * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION,
- * ## then 97 by the first REPAIR, then 96 by RETIREMENT
+ * ## then 97 by the first REPAIR, then 96 by RETIREMENT, then 94 by REPAIR again
  *
- * objectui#6058 seeded this ledger at **121 keys**. It records **96**, and the
+ * objectui#6058 seeded this ledger at **121 keys**. It records **94**, and the
  * movements are different facts. objectui#6152 measured the 23 callback-shaped
  * (`on*`) keys and ruled that mirroring is the wrong remedy for every one of them;
  * they moved, intact and still pinned, to `RuntimeOnlyDeclared` below — ⛔ nothing
@@ -922,12 +933,17 @@ interface KnownDrift {
  * first shrink by repair. Then objectui#7129 and objectui#7623 each RETIRED a key by
  * deleting the DECLARATION (`DetailViewSectionSchema.hideEmpty`;
  * `DashboardComponentSchema.title`) — shrinks by removal, which is neither a repair
- * of the mirror nor a waiver: the key stops being offered to authors at all.
+ * of the mirror nor a waiver: the key stops being offered to authors at all. Then
+ * objectui#7352 MIRRORED the two `drillDown` keys (`ChartSchema`,
+ * `ObjectDataTableSchema`) by minting the `DrillDownConfigSchema` both entries named
+ * as their remedy — the second and third repairs, and the first to close two entries
+ * in one change.
  *
- * So: **96 is the mirroring debt; 96 − 1 seeded + 1 mirrored + 2 retired + 23
+ * So: **94 is the mirroring debt; 94 − 1 seeded + 3 mirrored + 2 retired + 23
  * reclassified is what "121" used to mean** (the seed is objectui#6576's
- * `ObjectDataTableSchema.drillDown`, which was never part of the 121). A card that
- * cites 121 as the size of the mirroring problem, or 98/97/96 as a shrink from it,
+ * `ObjectDataTableSchema.drillDown`, which was never part of the 121 — and which
+ * objectui#7352 has since repaired). A card that
+ * cites 121 as the size of the mirroring problem, or 98/97/96/94 as a shrink from it,
  * is wrong in both directions. objectui#6141 is the
  * standing example of what a silently moved count costs — it is why this paragraph
  * is in the ledger rather than in a commit message.
@@ -942,7 +958,7 @@ interface KnownDrift {
  * is being let through, because there was no such thing. Seeding takes the count of
  * VISIBLE, RATCHETED facts from 0 to 121 and installs a floor: the problem cannot
  * grow while they are worked off, and a new declared-but-unmirrored key on any of
- * the 160 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
+ * the 161 pairs reddens immediately (`assertionRatchetRejectsFreshDrift`) —
  * including a callback-shaped one, which reddens until it is filed in
  * `RuntimeOnlyDeclared` (`assertionSplitLedgerRejectsFreshCallback`).
  *
@@ -979,9 +995,10 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (12 entries, 83 keys)** — plain omissions from a hand-written mirror.
+ *   - **LOCAL (11 entries, 82 keys)** — plain omissions from a hand-written mirror.
  *     It was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
- *     a shrink by removing the DECLARATION rather than by mirroring it.
+ *     a shrink by removing the DECLARATION rather than by mirroring it, and 12 / 83
+ *     until objectui#7352 MIRRORED `ChartSchema.drillDown` — its whole entry.
  *
  * ⚠️ Both counts moved with the reclassification: the spec-derived side lost
  * `ObjectViewSchema.onNavigate` (14 → 13) and the local side lost the other 22
@@ -990,10 +1007,11 @@ interface KnownDrift {
  * reclassification — every affected pair kept keys here — so the split read 16
  * entries / 97 keys after it. Three later changes moved the entry count itself:
  * objectui#6576 SEEDED `ObjectDataTableSchema` (a 17th entry, in neither half
- * above), objectui#7129 RETIRED an entry from the LOCAL half, and objectui#7623
- * RETIRED one from the SPEC-DERIVED half (13 → 12 keys there). The ledger now
- * totals **15 entries / 96 keys** — 2 / 12 spec-derived, 12 / 83 local, plus the
- * seeded pair.
+ * above), objectui#7129 RETIRED an entry from the LOCAL half, objectui#7623
+ * RETIRED one from the SPEC-DERIVED half (13 → 12 keys there), and objectui#7352
+ * MIRRORED two — the LOCAL `ChartSchema` entry and the seeded `ObjectDataTableSchema`
+ * one. The ledger now totals **13 entries / 94 keys** — 2 / 12 spec-derived,
+ * 11 / 82 local; the seeded pair is no longer among them.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -1039,8 +1057,14 @@ interface UnmirroredDeclared {
    * routes the same way.
    */
   'complex.zod.ts#DashboardWidgetSchema': 'pagination' | 'searchable';
-  /** LOCAL. Declared in `../data-display.ts`, absent from the mirror. */
-  'data-display.zod.ts#ChartSchema': 'drillDown';
+  // `data-display.zod.ts#ChartSchema` recorded `drillDown` here (LOCAL) from
+  // objectui#6058's seeding until objectui#7352 MIRRORED it: `DrillDownConfigSchema`
+  // (`data-display.zod.ts`, a registered pair of its own above) now restates
+  // `DrillDownConfig` key for key, and `ChartSchema.drillDown` references it. A shrink
+  // by REPAIR — the objectui#6639 route, the ledger's second and third use of it (this
+  // entry and `ObjectDataTableSchema`'s below went in the same change) — not a
+  // reclassification and not a retirement: the key is still declared, still authorable,
+  // and is now enforced. The pair holds no entry in either unmirrored ledger.
   /**
    * LOCAL, and still the largest single entry at 17. It was 29: the twelve `on*` keys
    * are in `RuntimeOnlyDeclared` below (objectui#6152). `rowActions` is in
@@ -1070,18 +1094,13 @@ interface UnmirroredDeclared {
   'form.zod.ts#LabelSchema': 'content';
   /** LOCAL. */
   'navigation.zod.ts#PaginationSchema': 'currentPage';
-  /**
-   * LOCAL — a SEED, not growth. This pair was minted by objectui#6576 (folding
-   * #6914, which found the widget reading `drillDown` behind a cast and declaring
-   * it nowhere); the declaration now carries it, and the mirror does not, for the
-   * same reason `ChartSchema.drillDown` above is here: `DrillDownConfig` has no
-   * zod mirror in this package, and minting one is a new export outside that
-   * ruling. The shrink-only rule governs keys that APPEAR on registered pairs;
-   * a pair born with its measured debt written down is the seeding discipline
-   * objectui#6058 established, applied once. Remedy when ruled: a paired
-   * `DrillDownConfigSchema` mirror, which shrinks THIS entry and `ChartSchema`'s.
-   */
-  'objectql.zod.ts#ObjectDataTableSchema': 'drillDown';
+  // `objectql.zod.ts#ObjectDataTableSchema` recorded `drillDown` here (LOCAL) as a
+  // SEED — the pair was minted by objectui#6576 with its measured debt written down,
+  // and the entry named its own remedy: "a paired `DrillDownConfigSchema` mirror,
+  // which shrinks THIS entry and `ChartSchema`'s". objectui#7352 was that ruling and
+  // did exactly that, so both rows are gone together. The pair keeps its `KnownDrift`
+  // entry above (`onRowClick`, a runtime slot the mirror refuses by name) and records
+  // nothing here.
   /**
    * LOCAL, and still the second-largest at 21. It was 26: the five `on*` keys are in
    * `RuntimeOnlyDeclared` below (objectui#6152). ⚠️ `submitHandler` is NOT among them
@@ -1373,7 +1392,7 @@ export type assertionLedgerHalvesAreDisjoint = Expect< Equal< DoubleFiledKey, ne
 
 /**
  * Every pair's TYPE drift equals what `KnownDrift` records for it — `never` for the
- * 120 pairs with no entry (160 − 40).
+ * 121 pairs with no entry (161 − 40).
  *
  * Routed through `ReconcileAgainstLedger` rather than spelling the conditional
  * inline. That is a semantics-preserving refactor and nothing else — the type is
@@ -1421,15 +1440,16 @@ export const assertionDriftMatchesLedger: never = 0 as unknown as LedgerMismatch
 
 /**
  * The SECOND half of the forward comparison: every pair's declared-but-unmirrored
- * key set equals what the two ledgers TOGETHER record for it — `never` for the 144
- * pairs with no entry in either (160 − 16). Six of `RuntimeOnlyDeclared`'s seven
- * pairs are a measured subset of `UnmirroredDeclared`'s 15, so objectui#6152's
+ * key set equals what the two ledgers TOGETHER record for it — `never` for the 147
+ * pairs with no entry in either (161 − 14). Six of `RuntimeOnlyDeclared`'s seven
+ * pairs are a measured subset of `UnmirroredDeclared`'s 13, so objectui#6152's
  * reclassification left the clean population unchanged; objectui#6150 then added
- * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is 16
- * pairs and not 15. (objectui#6576 took the union to 18; objectui#7129 brought it
- * back to 17 by retiring `DetailViewSectionSchema`'s only ledgered key, and
- * objectui#7623 to 16 by retiring `DashboardComponentSchema`'s — each leaving its
- * pair with no entry in either half. ⚠️ That pair still carries a `KnownDrift`
+ * `TreeViewSchema`, whose only entry is runtime-only, which is why the union is one
+ * pair larger than `UnmirroredDeclared` itself. (objectui#6576 took the union to 18;
+ * objectui#7129 brought it back to 17 by retiring `DetailViewSectionSchema`'s only
+ * ledgered key, objectui#7623 to 16 by retiring `DashboardComponentSchema`'s, and
+ * objectui#7352 to 14 by MIRRORING both `drillDown` entries — each leaving its
+ * pair with no entry in either half. ⚠️ Two of those pairs still carry a `KnownDrift`
  * entry: "no entry in either" is about the two UNMIRRORED ledgers.)
  *
  * ⚠️ **The discriminating signal is the PER-PAIR set, not this file's exit code.**
@@ -1480,7 +1500,7 @@ export const assertionUnmirroredMatchesLedger: never = 0 as unknown as {
 }[MirrorKey];
 
 /**
- * Non-vacuity for all 160 entries at once.
+ * Non-vacuity for all 161 entries at once.
  *
  * `NarrowerThanDeclared` is `never` — green — for an entry whose mirror exposes no
  * `.shape`, and also for one whose key union has degenerated to bare `string` (the
