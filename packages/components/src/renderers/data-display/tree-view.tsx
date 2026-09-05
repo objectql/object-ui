@@ -102,7 +102,7 @@ ComponentRegistry.register('tree-view',
 
     // Support data binding
     const boundData = useDataScope(schema.bind);
-    const rawNodes = boundData || schema.nodes || schema.data || [];
+    const rawNodes = boundData || schema.nodes || [];
     const nodes = Array.isArray(rawNodes) ? rawNodes : [];
 
     return (

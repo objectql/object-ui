@@ -2671,8 +2671,33 @@ export interface ObjectGanttSchema extends BaseSchema {
  */
 export interface ObjectCalendarSchema extends BaseSchema {
   type: 'object-calendar';
-  /** ObjectQL object name */
-  objectName: string;
+  /**
+   * ObjectQL object name — the THIRD record source `getDataConfig` resolves,
+   * after {@link ObjectCalendarSchema.data} and {@link ObjectCalendarSchema.staticData}
+   * (`plugin-calendar/src/ObjectCalendar.tsx`).
+   *
+   * Optional since objectui#7313 (the objectui#6939 shape): a calendar authored
+   * on inline rows never reads this key, and requiring it refused the two
+   * documented static-data examples that draw correctly. The requirement the
+   * renderer really has — at least one of
+   * `data`, `staticData`, `objectName` present — lives on the mirror as a
+   * refinement (`requireRecordSource` in `zod/objectql.zod.ts`), so the
+   * published declaration and the published validator say the same thing.
+   */
+  objectName?: string;
+  /**
+   * Data source configuration. Read FIRST by `getDataConfig` — `if
+   * (schema.data) return schema.data;` — ahead of `staticData` / `objectName`.
+   *
+   * Declared by objectui#7313, in the same stroke as the mirror's `data`: until
+   * then the read landed on `BaseSchema`'s index signature on this side and
+   * on `.passthrough()` on the mirror's, so the record source the resolver
+   * prefers was the one neither face named. Same type as
+   * {@link ObjectMapSchema.data}.
+   */
+  data?: ViewData;
+  /** Inline records, wrapped into a `{ provider: 'value' }` config by `getDataConfig`. */
+  staticData?: any[];
   /** Field for event start */
   startDateField?: string;
   /** Field for event end */
@@ -2694,8 +2719,61 @@ export interface ObjectKanbanSchema extends BaseSchema {
   type: 'object-kanban';
   /** ObjectQL object name */
   objectName: string;
-  /** Field to group columns by (e.g. status) */
-  groupField: string;
+  /**
+   * Field whose value places a record in a lane (e.g. `status`).
+   *
+   * The lane key the `object-kanban` renderer actually reads —
+   * `packages/plugin-kanban/src/ObjectKanban.tsx` reads `schema.groupBy` at
+   * thirteen sites: lane materialisation (`:601`, `:625`, `:640`), card moves
+   * (`:747`, `:865`) and their effect deps. Undeclared here until
+   * objectui#7322, so an authored value reached the renderer only through
+   * {@link BaseSchema}'s `[key: string]: any` — admitted, never examined.
+   *
+   * REQUIRED, as the retired `groupField` was: a board is a grouping of records
+   * by one field. The renderer's `if (!schema.groupBy)` branches (`:601`,
+   * `:613`) are defensive early-returns, not a lane-less mode — every
+   * documented and tested `object-kanban` node authors this key, and the
+   * `dataSource` binding (`ElementDataSourceGate`) supplies `objectName`,
+   * never a lane key.
+   */
+  groupBy: string;
+  /**
+   * RETIRED (objectui#7322) — the lane key this node's renderer never read.
+   * `ObjectKanban.tsx` reads {@link groupBy} thirteen times and `groupField`
+   * never, so a node authored from the old declaration validated, compiled,
+   * and rendered a board that grouped nothing, with no diagnostic on either
+   * face. Author {@link groupBy}.
+   *
+   * `?: never` is this package's tombstone convention (see
+   * `TimelineSchema.timeScale`, objectui#6355), and it is load-bearing rather
+   * than decorative: {@link BaseSchema} carries `[key: string]: any`, so
+   * DELETING this member would let the retired spelling type-check green and
+   * go on doing nothing. Keeping the key declared as `never` is what makes the
+   * retirement audible at the authoring boundary. Lockstep with the Zod twin
+   * (`zod/objectql.zod.ts`, `retirementTombstone()`): both halves or neither.
+   * Absent stays valid on both, so a node that never wrote the key is untouched.
+   *
+   * ⚠️ NODE-LOCAL. The VIEW-LEVEL kanban config's `groupField` is a live legacy
+   * alias of the spec's `groupByField` and is NOT retired:
+   * `packages/core/src/utils/normalize-list-view.ts` maps it, and
+   * `plugin-list`'s `ListView` and `plugin-view`'s `ObjectView` still read it.
+   * `groupField` is dead only on the `object-kanban` node.
+   *
+   * @deprecated RETIRED (objectui#7322) — author `groupBy` instead.
+   */
+  groupField?: never;
+  /**
+   * Row cap — the most records the board fetches, sent as a real `$top` on
+   * the query (`packages/plugin-kanban/src/ObjectKanban.tsx:264`,
+   * `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`; objectui#4025). The board
+   * renders every fetched record into a lane and offers no pagination, so
+   * this is the author's window on the object rather than a page size. A
+   * bound `dataSource` (its own `limit`, or the named view's
+   * `pagination.pageSize`) sets it too. Undeclared until objectui#7322.
+   *
+   * @default 100 — `DEFAULT_KANBAN_LIMIT`
+   */
+  limit?: number;
   /** Field for card title */
   titleField?: string;
   /** Fields to display on card */

@@ -36,7 +36,7 @@ import {
   NavigationConfigSchema as SpecNavigationConfigSchema,
 } from '@objectstack/spec/ui';
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
-import { handlerKeyRefusal } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { DrillDownConfigSchema } from './data-display.zod.js';
 
 /**
@@ -297,7 +297,8 @@ const UserFiltersSchema = z.object({
  *   - legacy vocabulary kept for back-compat: `viewType` (renamed spec `type`),
  *     `fields`/`columns`, `filters`, the `show*` toolbar flags, `densityMode`, `color`, …;
  *   - configs whose objectui shape is intentionally broader than spec's (migration
- *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`, `exportOptions`.
+ *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`
+ *     (`exportOptions` left this list with objectui#6956 — it is the spec field by reference).
  *
  * The per-view-type configs (`kanban`/`calendar`/`gantt`/`gallery`/`timeline`) are no
  * longer forks: they derive from the spec configs below, keeping only `calendar.defaultView`
@@ -511,15 +512,29 @@ export const ListViewSchema = BaseSchema
         style: z.record(z.string(), z.string()),
       }),
     ])).optional().describe('Conditional formatting rules'),
-    exportOptions: z.union([
-      z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])),
-      z.object({
-        formats: z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])).optional(),
-        maxRecords: z.number().optional(),
-        includeHeaders: z.boolean().optional(),
-        fileNamePrefix: z.string().optional(),
-      }),
-    ]).optional().describe('Export options'),
+    // `exportOptions` — the spec's own field, BY REFERENCE (objectui#6956).
+    //
+    // `ListViewExportOptionsSchema` is internal to the spec bundle (not a public
+    // export — measured by `__tests__/export-options-spec-parity.test.ts`), but
+    // the enclosing `ListViewSchema.shape.exportOptions` IS a live export, and it
+    // is the whole contract: a two-branch union of the bare format array (the
+    // legacy spelling, lifted to `{ formats }` at parse) and the STRICT five-key
+    // object (`formats` / `maxRecords` / `includeHeaders` / `fileNamePrefix` /
+    // `streaming`), with `'pdf'` refused in both spellings under an
+    // `os migrate meta --from 16` prescription (objectstack#8010).
+    //
+    // This member used to restate a pre-#8010 shape — `'pdf'` accepted in both
+    // branches, no `streaming`, a non-strict object — so `ListViewInferred`
+    // (`z.input` of this schema, and through it the `ListViewSchema` TYPE the
+    // ListView renderer is written against) disagreed with its sibling
+    // `ObjectGridSchema['exportOptions']`, and the renderer could only read
+    // `streaming` through `as any`. Binding the spec field by reference makes
+    // the two faces one contract again and keeps the description the spec
+    // wrote. The bare array stays admissible on the INPUT type on purpose:
+    // nothing on the render path parses, so a stored array reaches `ListView`
+    // un-lifted and its `resolvedExportOptions` fold is load-bearing
+    // (objectui#4535 item 4).
+    exportOptions: SpecListViewSchema.shape.exportOptions,
     // Per-view-type configs — spec-derived (see the definitions above #2231).
     // `gantt` is NOT here: it flows in from the spec fields unmodified.
     kanban: KanbanConfig.optional().describe('Kanban-specific configuration'),
@@ -605,7 +620,7 @@ export const ObjectMapConfigSchema = z.object({
  * directory and would demand a registered TS counterpart for it.
  */
 const RECORD_SOURCE_KEYS = ['data', 'staticData', 'objectName'] as const;
-function requireRecordSource(type: 'object-map' | 'object-gantt') {
+function requireRecordSource(type: 'object-map' | 'object-gantt' | 'object-calendar') {
   return (
     schema: Partial<Record<(typeof RECORD_SOURCE_KEYS)[number], unknown>>,
     ctx: z.core.$RefinementCtx,
@@ -842,15 +857,31 @@ export const ObjectGanttSchema = BaseSchema.extend({
 
 /**
  * ObjectCalendar Schema
+ *
+ * `objectName` is OPTIONAL and the member ends in `requireRecordSource`
+ * (objectui#7313, the objectui#6939 shape): the renderer resolves its records
+ * through the shared ladder (`resolveRecordSourceConfig` in
+ * `@object-ui/core`, `plugin-calendar/src/ObjectCalendar.tsx`) — `data`, then
+ * `staticData`, then `objectName` — so a calendar authored on inline rows never
+ * reads the object name, and the two static-data examples the plugin page
+ * documents drew correctly and were refused here. `data` and `staticData` are
+ * declared for the first time in the same stroke: they are the FIRST and SECOND
+ * reads of that resolver and were undeclared on both faces (surviving on
+ * `BaseSchema`'s index signature and on `.passthrough()`), which would have
+ * left the refinement naming keys this mirror had never heard of. Both are
+ * spelled exactly as `ObjectGanttSchema` above spells them, so the members'
+ * record sources cannot fork.
  */
 export const ObjectCalendarSchema = BaseSchema.extend({
   type: z.literal('object-calendar'),
-  objectName: z.string().describe('ObjectQL object name'),
+  objectName: z.string().optional().describe('ObjectQL object name — the THIRD record source getDataConfig resolves, after data and staticData; one of the three must be present (objectui#7313)'),
+  data: ViewDataSchema.optional().describe('Data source configuration — read FIRST by getDataConfig; undeclared on either face until objectui#7313'),
+  staticData: z.array(z.any()).optional().describe('Inline records, wrapped into a { provider: value } data config — read SECOND by getDataConfig'),
   startDateField: z.string().optional().describe('Start date field'),
   endDateField: z.string().optional().describe('End date field'),
   titleField: z.string().optional().describe('Title field'),
   defaultView: z.enum(['month', 'week', 'day']).optional().describe("Default view — 'month' | 'week' | 'day', the renderer's rendered set ('agenda' was retired: objectui#5784)"),
-});
+}).superRefine(requireRecordSource('object-calendar'));
 
 /**
  * ObjectKanban Schema
@@ -880,10 +911,20 @@ export const KanbanConditionalFormattingRuleSchema = z.union([
   }),
 ]);
 
+// objectui#7322 — `groupBy` and `limit` are the keys `ObjectKanban.tsx` reads
+// (thirteen `schema.groupBy` sites; `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`
+// at `:264`); until this card neither was declared and both rode `BaseSchema`'s
+// `.passthrough()` unexamined, while the REQUIRED `groupField` had zero read
+// sites. `groupField` is now a `retirementTombstone()` — still a member, so
+// the parity ratchet's key sets stay equal and an authored value is refused
+// BY NAME rather than stripped — and it is node-local: the VIEW-LEVEL alias
+// `KanbanConfig.groupField` above is live and untouched.
 export const ObjectKanbanSchema = BaseSchema.extend({
   type: z.literal('object-kanban'),
   objectName: z.string().describe('ObjectQL object name'),
-  groupField: z.string().describe('Group field'),
+  groupBy: z.string().describe('Field whose value places a record in a lane — the lane key the object-kanban renderer reads (ObjectKanban.tsx, thirteen sites); required, as the retired groupField was'),
+  groupField: retirementTombstone('RETIRED (objectui#7322) — `groupField` is not read by the object-kanban renderer; author `groupBy`. (The view-level `kanban.groupField` alias is unaffected.)'),
+  limit: z.number().int().positive().optional().describe('Row cap — the most records the board fetches, sent as a real $top on the query (ObjectKanban.tsx:264); default 100 (DEFAULT_KANBAN_LIMIT)'),
   titleField: z.string().optional().describe('Title field'),
   cardFields: z.array(z.string()).optional().describe('Card fields'),
   quickAdd: z.boolean().optional().describe('Enable Quick Add button at column bottom'),

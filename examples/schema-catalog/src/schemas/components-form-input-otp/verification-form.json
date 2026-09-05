@@ -14,7 +14,7 @@
     },
     {
       "type": "text",
-      "value": "We sent a code to your email",
+      "content": "We sent a code to your email",
       "className": "text-sm text-muted-foreground"
     }
   ]

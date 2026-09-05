@@ -1270,37 +1270,41 @@ export interface TreeNode {
 export interface TreeViewSchema extends BaseSchema {
   type: 'tree-view';
   /**
-   * Tree data — the fallback spelling, read only when
-   * {@link TreeViewSchema.nodes} is absent.
+   * RETIRED (objectui#6951, ADR-0049 enforce-or-remove) — the second spelling
+   * of the tree's one inline-nodes slot, read only as the LAST limb of
+   * `boundData || schema.nodes || schema.data || []`. Maintainer ruling B1
+   * (2026-09-04): retire `data`; `nodes` is the only inline spelling; `nodes`
+   * stays OPTIONAL and no presence refinement is added — a `bind`-only
+   * tree-view (`{ type: 'tree-view', bind: 'treeNodes' }`) is a legal,
+   * rendering document because `bind` is the FIRST source the renderer reads.
    *
-   * READ SITE: `packages/components/src/renderers/data-display/tree-view.tsx:105`
-   * — `const rawNodes = boundData || schema.nodes || schema.data || []`.
-   *
-   * OPTIONAL since objectui#6939. It was REQUIRED, which refused four catalog
-   * entries the renderer draws correctly — a third-choice limb cannot be the
-   * one key a document must carry.
-   *
-   * ⚠️ Kept DECLARED rather than deleted, and the distinction is measured:
-   * {@link BaseSchema} already declares `data?: any` (its zod twin is
-   * `z.any().optional()`), so removing this member would NOT reject the key —
-   * it would admit it unvalidated while the renderer still reads it. Declaring
-   * it optional is the only shape in which `declared` and `enforced` agree.
+   * History: REQUIRED until objectui#6939 / PR #7533 made it optional (it had
+   * refused four catalog entries the renderer draws correctly). That PR kept
+   * it DECLARED because {@link BaseSchema} declares `data?: any` (zod twin
+   * `z.any().optional()`), so deleting the member would ADMIT the key
+   * unvalidated — and that same fact is why this is a tombstone, not a
+   * deletion: `?: never` here beats the inherited `any`, and the zod tombstone
+   * on the extended schema beats the base's `z.any()`; both directions are
+   * pinned in `__tests__/tree-view-data-retired-6951.test.ts`. The renderer no
+   * longer reads it (`tree-view.tsx:105` is `boundData || schema.nodes || []`).
+   * Write `nodes` (or bind the tree with `bind`); the array is unchanged.
+   * @deprecated Not part of this contract — write `nodes`.
    */
-  data?: TreeNode[];
+  data?: never;
   /**
-   * Tree data — the spelling the renderer reads FIRST.
+   * Inline tree nodes — the ONE inline spelling.
    *
-   * READ SITE: `renderers/data-display/tree-view.tsx:105`, the middle limb of
-   * `boundData || schema.nodes || schema.data || []`, so `nodes` WINS over
-   * {@link TreeViewSchema.data} when both are authored (and a `bind`-resolved
-   * value wins over both).
+   * READ SITE: `renderers/data-display/tree-view.tsx:105`, the second limb of
+   * `boundData || schema.nodes || []` — a `bind`-resolved value wins, and
+   * {@link BaseSchema.bind} stays the first-read source, which is why this
+   * member is optional and no "at least one of" rule exists (objectui#6951 B1).
    *
    * Declared by objectui#6150, which deliberately stopped at the declaration:
    * `{ type: 'tree-view', nodes }` only became a LEGAL document at
-   * objectui#6939, the accept-set change that relaxed
-   * {@link TreeViewSchema.data}. The registration's own `inputs` and
-   * `defaultProps` spell it `nodes`, and the four catalog entries ARE those
-   * `defaultProps`.
+   * objectui#6939 (PR #7533), the accept-set change that relaxed the then
+   * required `data`; objectui#6951 retired that `data` spelling outright (the
+   * tombstone above). The registration's own `inputs` and `defaultProps`
+   * spell it `nodes`, and the four catalog entries ARE those `defaultProps`.
    */
   nodes?: TreeNode[];
   /**

@@ -514,7 +514,7 @@ A hierarchical tree component for nested data with expand/collapse and selection
   "multiSelect": false,
   "showLines": true,
   "defaultExpandedIds": ["root", "src"],
-  "data": [
+  "nodes": [
     {
       "id": "root",
       "label": "project",

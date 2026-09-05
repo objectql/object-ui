@@ -1636,11 +1636,21 @@ const ko = {
           availableObjects: "사용 가능한 데이터 객체를 나열해 주세요.",
           recentActivity: "내 최근 활동을 요약해 주세요.",
         },
+        // objectui#7709 — the edit-mode starters, shown when the maker is bound
+        // to an EXISTING app (`?package=`). Same rule as the five above: they
+        // may only ask for what ADR-0112 v1 BUILDS. The fourth chip used to be
+        // `addAutomation` ("an approval, a status flow, or a notification") and
+        // every capability it named is refused by v1 (cloud#1956 / PR #1970), so
+        // it now asks for sample data — `seed` IS on v1's whitelist, and having
+        // no data is what an existing app most often lacks. REVERT: when
+        // ADR-0112 v2 re-adds flows and actions, THIS chip's automation wording
+        // comes back as `addAutomation`; the retired string is pinned for every
+        // pack in `packages/i18n/src/__tests__/makerEditChips-v1-scope-7709.test.ts`.
         editApp: {
           addField: "객체 중 하나에 필드를 추가해 주세요.",
           addObject: "새 객체를 추가하고 기존 객체와 연결해 주세요.",
           addDashboard: "핵심 지표를 위한 대시보드를 추가해 주세요.",
-          addAutomation: "자동화를 추가해 주세요 — 승인, 상태 흐름 또는 알림.",
+          addSampleData: "기존 객체에 데모에서 보여 줄 만한 현실적인 샘플 데이터를 채워 주세요.",
         },
       },
       changesTitle: "변경 확인",

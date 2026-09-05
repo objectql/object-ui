@@ -115,12 +115,12 @@ describe('objectui#6939 — and the repair moved the validator, not the renderer
 
 describe('objectui#6939 — `children` is no longer required on either member', () => {
   it('a tooltip with no children validates', () => {
-    expect(reasons({ type: 'tooltip', trigger: { type: 'text', value: 'x' }, content: 'y' })).toEqual([]);
+    expect(reasons({ type: 'tooltip', trigger: { type: 'text', content: 'x' }, content: 'y' })).toEqual([]);
     expect(TooltipSchema.safeParse({ type: 'tooltip' }).success).toBe(true);
   });
 
   it('a context menu with no children validates', () => {
-    expect(reasons({ type: 'context-menu', trigger: { type: 'text', value: 'x' }, items: [{ label: 'a' }] })).toEqual([]);
+    expect(reasons({ type: 'context-menu', trigger: { type: 'text', content: 'x' }, items: [{ label: 'a' }] })).toEqual([]);
     expect(ContextMenuSchema.safeParse({ type: 'context-menu', items: [] }).success).toBe(true);
   });
 
@@ -135,7 +135,7 @@ describe('objectui#6939 — `children` is no longer required on either member', 
     expect(ContextMenuSchema.safeParse({
       type: 'context-menu',
       items: [{ label: 'Copy' }],
-      children: { type: 'text', value: 'Right-click here' },
+      children: { type: 'text', content: 'Right-click here' },
     }).success).toBe(true);
   });
 });
@@ -156,7 +156,7 @@ describe('objectui#6939 — the keys the renderers read are DECLARED, not passth
     const shape = (TooltipSchema as unknown as { shape: Record<string, unknown> }).shape;
     expect(Object.keys(shape)).toEqual(expect.arrayContaining(['trigger', 'content', 'body']));
     expect(TooltipSchema.safeParse({ type: 'tooltip', content: 'text only' }).success).toBe(true);
-    expect(TooltipSchema.safeParse({ type: 'tooltip', body: { type: 'text', value: 'rich only' } }).success).toBe(true);
+    expect(TooltipSchema.safeParse({ type: 'tooltip', body: { type: 'text', content: 'rich only' } }).success).toBe(true);
   });
 
   it('context-menu declares triggerClassName / contentClassName / modal', () => {

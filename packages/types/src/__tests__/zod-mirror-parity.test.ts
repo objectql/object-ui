@@ -1221,31 +1221,55 @@ interface KnownDrift {
  * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
  * are recorded here so whoever works them off does not re-derive them:
  *
- *   - **SPEC-DERIVED (2 entries, 12 keys)** — `DashboardWidgetSchema`,
- *     `ObjectViewSchema`. It was 3 / 13 until objectui#7623 RETIRED
+ *   - **SPEC-DERIVED (1 entry, 2 keys)** — `DashboardWidgetSchema`. It was 2 / 12
+ *     until objectui#7279 RE-DERIVED `ObjectViewSchema`'s side and moved that entry
+ *     (ten keys) to the LOCAL half — a RECLASSIFICATION on evidence, not a repair:
+ *     no key moved between ledgers and no mirror changed. It was 3 / 13 until
+ *     objectui#7623 RETIRED
  *     `DashboardComponentSchema.title` by deleting the DECLARATION — the
  *     objectui#7129 route, reaching this half for the first time. That key was never
  *     going to be answered by #2231 unification: the spec's strict `DashboardSchema`
  *     refuses a root `title` outright, and objectui#7509 had already retired every
  *     read of it, so the local declaration was offering a member the spec models
  *     nowhere and no renderer consumed. ⚠️ objectui#6705 invalidated the
- *     evidence for ONE of the two that remain: `ObjectViewSchema` is no longer in
+ *     evidence for `ObjectViewSchema`: it is no longer in
  *     `SPEC_DERIVED_PAIRS` below, because it never referenced a spec schema — it is
  *     `BaseSchema.extend({…})` of local literals, and the pre-#6705 text scanner
  *     charged it a neighbouring private const's `Spec…` token. That misclassification
- *     is left STANDING as #6705 found it — neither the entry's classification nor its
- *     key count moved for it: re-routing those keys from #2231's
+ *     was left STANDING as #6705 found it — re-routing those keys from #2231's
  *     unification question to a local mirror edit is a remedy decision on the
- *     `UnmirroredDeclared` ledger, which #6705 was fenced out of. Whoever works
- *     this split off must re-derive `ObjectViewSchema`'s side first.
- *     For `DashboardWidgetSchema` the reading is unchanged:
+ *     `UnmirroredDeclared` ledger, which #6705 was fenced out of — until
+ *     objectui#7279 re-derived the side on two measurements. (a) The mirror
+ *     (`objectql.zod.ts`, `ObjectViewSchema = BaseSchema.extend({…})`) takes NO
+ *     shape from the spec: every member is a local literal or a `z.lazy` to a
+ *     sibling objectui mirror, and the `Spec…` consts below it (`KanbanConfig`,
+ *     `ViewKindEnum`) feed `ListViewSchema`. (b) Read through the pin
+ *     (`@objectstack/spec@17.2.0`, `ui` entry, all 122 exported object schemas
+ *     walked; control keys `objectName` / `columns` hit), the spec models FOUR of
+ *     the ten keys on View-shaped schemas — `listViews` on `ViewSchema`;
+ *     `navigation`, `searchableFields`, `filterableFields` on `ListViewSchema` and
+ *     `ObjectListViewSchema` — and SIX nowhere: `allowCreateView`,
+ *     `defaultListView`, `defaultViewType`, `showViewSwitcher`, `viewActions`,
+ *     `viewTabBar`. Neither fact makes the pair spec-derived: this route exists for
+ *     a mirror that IS the spec schema by reference, where growing a key means
+ *     diverging from the spec; this mirror can grow any key without touching it.
+ *     So the entry is LOCAL and its remedy is the ordinary local route
+ *     (objectui#6152's worklist) — a widening of ten keys is a remedy on the manual
+ *     floor, ⛔ not performed by #7279. The 4 / 6 reading is recorded on the entry
+ *     for whoever mirrors: the four take their shape BY REFERENCE from the spec slot
+ *     that models them, the six are plain hand-written omissions.
+ *     For `DashboardWidgetSchema` the reading is unchanged (reconfirmed on the tree
+ *     by objectui#7279: `specFieldsExcept(SpecDashboardWidgetSchema.shape, …)`):
  *     its mirror takes its shape BY REFERENCE from `@objectstack/spec`. An
  *     unmirrored declared key there means the LOCAL declaration carries members the
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (12 entries, 84 keys)** — plain omissions from a hand-written mirror.
- *     It was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
+ *   - **LOCAL (13 entries, 94 keys)** — plain omissions from a hand-written mirror.
+ *     It was 12 / 84 until objectui#7279 RECLASSIFIED the `ObjectViewSchema` entry
+ *     (ten keys) into this half from the SPEC-DERIVED one — the split's first move
+ *     of an ENTRY between its halves; no key and no mirror moved. Before that it
+ *     was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
  *     a shrink by removing the DECLARATION rather than by mirroring it, 12 / 83
  *     until objectui#7352 MIRRORED `ChartSchema.drillDown` — its whole entry — and
  *     11 / 82 until objectui#7655 SEEDED a `ChatbotFloatingSchema` entry with the two
@@ -1263,8 +1287,18 @@ interface KnownDrift {
  * RETIRED one from the SPEC-DERIVED half (13 → 12 keys there), objectui#7352
  * MIRRORED two — the LOCAL `ChartSchema` entry and the seeded `ObjectDataTableSchema`
  * one — and objectui#7655 SEEDED the LOCAL `ChatbotFloatingSchema` entry, born with
- * two keys. The ledger now totals **14 entries / 96 keys** — 2 / 12 spec-derived,
- * 12 / 84 local; the seeded pair is no longer among them.
+ * two keys. objectui#7279 then moved `ObjectViewSchema` between the halves (2 / 12
+ * and 12 / 84 before it) without moving the totals. The seeded pair is no longer
+ * among them, and the ledger now totals — on ONE line, because the pin below reads
+ * this sentence off disk —
+ * **14 entries / 96 keys** — 1 / 2 spec-derived, 13 / 94 local.
+ *
+ * ⛔ The four split figures above and this totals line are PINNED: 'objectui#7279'
+ * at the bottom of this file derives every one of them from the `UnmirroredDeclared`
+ * ledger and `SPEC_DERIVED_PAIRS` membership and compares them with the figures read
+ * off this header. A figure edited by hand without the ledger moving is red, and so
+ * is a ledger that moved without its figure — which is exactly how this split drifted
+ * three times between objectui#6058 and objectui#7279.
  *
  * ## How this was measured, and the trap that makes the number hard to get
  *
@@ -1394,12 +1428,30 @@ interface UnmirroredDeclared {
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
     | 'singleClickEdit';
   /**
-   * SPEC-DERIVED → objectui#2231. ⭐ This pair had NO entry in EITHER ledger before
-   * objectui#6058 — eleven declared keys the published validator has never heard of,
-   * and the guard reported the pair clean. It is the clearest single instance of the
-   * blind spot this ledger exists to make visible. It was eleven: `onNavigate` is in
-   * `RuntimeOnlyDeclared` below (objectui#6152), which does NOT change the routing of
-   * the other ten — they are still spec-derived and still go to objectui#2231.
+   * LOCAL since objectui#7279 — recorded as SPEC-DERIVED → objectui#2231 from
+   * objectui#6058 until then, on the scanner false positive objectui#6705 exposed: the
+   * mirror is `BaseSchema.extend({…})` of local literals and `z.lazy` siblings, it
+   * references no spec schema, and it is not in `SPEC_DERIVED_PAIRS`. ⭐ This pair had
+   * NO entry in EITHER ledger before objectui#6058 — eleven declared keys the
+   * published validator has never heard of, and the guard reported the pair clean.
+   * It is the clearest single instance of the blind spot this ledger exists to make
+   * visible. It was eleven: `onNavigate` is in `RuntimeOnlyDeclared` below
+   * (objectui#6152), which did not change the routing of the other ten. Their route
+   * is the ordinary local one (objectui#6152's worklist); the ten-key widening is a
+   * remedy on the manual floor and was ⛔ not performed by #7279. For whoever
+   * mirrors, the spec read through the pin (`@objectstack/spec@17.2.0`, `ui` entry)
+   * splits them 4 / 6:
+   *   - FOUR the spec models on View-shaped schemas — take the shape BY REFERENCE:
+   *     `navigation` (`ListViewSchema.navigation` = `NavigationConfigSchema`, the
+   *     very type the declaration imports for `ViewNavigationConfig`);
+   *     `searchableFields` and `filterableFields` (`ListViewSchema`, `array(string)`;
+   *     the spec marks `filterableFields` a legacy shorthand for `userFilters.fields`);
+   *     `listViews` (`ViewSchema.listViews`, a record of spec list views — ⚠️ the
+   *     declaration's value is the local `NamedListView`, so the VALUE type is a
+   *     unification question the mirror edit must not paper over with a `z.any()`).
+   *   - SIX the spec models nowhere — plain hand-written omissions: `allowCreateView`,
+   *     `defaultListView`, `defaultViewType`, `showViewSwitcher`, `viewActions`,
+   *     `viewTabBar`.
    */
   'objectql.zod.ts#ObjectViewSchema':
     | 'allowCreateView' | 'defaultListView' | 'defaultViewType' | 'filterableFields'
@@ -1562,10 +1614,11 @@ interface RuntimeOnlyDeclared {
   /** 1 of `ObjectGridSchema`'s former 17. POLICY group. Read at `ObjectGrid.tsx:1334`. */
   'objectql.zod.ts#ObjectGridSchema': 'onNavigate';
   /**
-   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. This
-   * pair is ALSO spec-derived, so its other ten keys stay in `UnmirroredDeclared` and
-   * stay routed to objectui#2231; reclassifying its callback does not re-route the
-   * pair. POLICY group.
+   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. Its
+   * other ten keys stay in `UnmirroredDeclared`; reclassifying its callback did not
+   * re-route the pair, and neither did objectui#7279's move of that entry from the
+   * split's SPEC-DERIVED half to its LOCAL one (the pair was never spec-derived —
+   * see the entry above). POLICY group.
    */
   'objectql.zod.ts#ObjectViewSchema': 'onNavigate';
   /**
@@ -2231,10 +2284,13 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   //     literal. Its declaration ends ~50 lines above the next `export const`, and
   //     the old text window ran on to that boundary, swallowing the private
   //     `KanbanConfig = SpecKanbanConfigSchema…` block that belongs to no export.
-  // ⚠️ The `ObjectViewSchema` removal has a consequence this card did NOT settle:
-  // the objectui#6058 split in this file's header routes its unmirrored declared
-  // keys as SPEC-DERIVED — a routing that rests on the false positive. That
-  // classification is deliberately left as it stands here; see the note there.
+  // ⚠️ The `ObjectViewSchema` removal had a consequence #6705 did NOT settle: the
+  // objectui#6058 split in this file's header routed its unmirrored declared keys
+  // as SPEC-DERIVED — a routing that rested on the false positive. objectui#7279
+  // re-derived that side on the tree and through the spec pin and moved the entry
+  // to the split's LOCAL half (its `UnmirroredDeclared` docblock carries the
+  // per-key reading). The split's counts now derive from THIS list's membership
+  // and are pinned against the header by 'objectui#7279' below.
   'complex.zod.ts#DashboardComponentSchema',
   'complex.zod.ts#DashboardWidgetSchema',
   // objectui#7664: `grouping` is `SpecGroupingConfigSchema` by reference, the
@@ -2537,6 +2593,129 @@ this derivation subtracts from the pinned population, so it fails as a consequen
         .toBeGreaterThan(0);
       expect(keys.filter((k) => !registered.has(k)), `${ledger} entries MIRRORS does not register`)
         .toEqual([]);
+    }
+  });
+});
+
+/* ── The SPEC-DERIVED / LOCAL split is derived, and the header is pinned to it ── */
+
+/**
+ * Entry → declared-key members of one of the two unmirrored ledgers, read from this
+ * file's own AST the way `ledgerEntryKeys` reads the entry names. Each property
+ * signature's type is a union of string literals (or one literal); the literals ARE
+ * the keys, so this is the instrument that sizes a ledger in keys, not just entries.
+ *
+ * A member that is not a string literal is a hard error rather than a skipped row:
+ * a ledger that quietly grew a `string` or `never` arm would otherwise read as fewer
+ * keys, and every count below would still pass.
+ */
+function ledgerEntryMembers(ledger: 'UnmirroredDeclared' | 'RuntimeOnlyDeclared'): Map<string, string[]> {
+  selfAst ??= ts.createSourceFile(
+    SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
+  );
+  const decl = selfAst.statements.find(
+    (s): s is ts.InterfaceDeclaration => ts.isInterfaceDeclaration(s) && s.name.text === ledger,
+  );
+  if (!decl) throw new Error(`no top-level interface ${ledger} in ${SELF} — it was renamed, or the reader is reading the wrong file`);
+  const out = new Map<string, string[]>();
+  for (const m of decl.members) {
+    if (!ts.isPropertySignature(m) || !m.type) continue;
+    const entry = ts.isStringLiteral(m.name) ? m.name.text : m.name.getText(selfAst);
+    const arms = ts.isUnionTypeNode(m.type) ? m.type.types : [m.type];
+    out.set(entry, arms.map((arm) => {
+      if (ts.isLiteralTypeNode(arm) && ts.isStringLiteral(arm.literal)) return arm.literal.text;
+      throw new Error(`${ledger}['${entry}'] has a member that is not a string literal: ${arm.getText(selfAst)}`);
+    }));
+  }
+  return out;
+}
+
+/**
+ * One figure the file header writes down, read off disk. The spelling must occur
+ * EXACTLY once: a second copy — a stale figure left standing beside a corrected one —
+ * would let the pin pass on whichever copy the regex met first.
+ */
+function headerFigures(spelling: RegExp): number[] {
+  const hits = [...readFileSync(SELF, 'utf8').matchAll(new RegExp(spelling.source, 'gu'))];
+  expect(hits.length, `the header spelling ${spelling} must occur exactly once in ${SELF}; it occurs ${hits.length} times`)
+    .toBe(1);
+  return hits[0].slice(1).map(Number);
+}
+
+describe('the SPEC-DERIVED / LOCAL split is derived, and the header is pinned to it (objectui#7279)', () => {
+  /** The split, derived: `UnmirroredDeclared` entries by `SPEC_DERIVED_PAIRS` membership. */
+  const derive = () => {
+    const rows = Array.from(ledgerEntryMembers('UnmirroredDeclared'));
+    const size = (subset: typeof rows) => ({
+      entries: subset.length,
+      keys: subset.reduce((n, [, keys]) => n + keys.length, 0),
+    });
+    return {
+      specDerived: size(rows.filter(([entry]) => SPEC_DERIVED_PAIRS.includes(entry))),
+      local: size(rows.filter(([entry]) => !SPEC_DERIVED_PAIRS.includes(entry))),
+      total: size(rows),
+    };
+  };
+
+  it('the split figures and the totals the header writes down equal the ledger', () => {
+    // objectui#6058 wrote the split as prose with counts; objectui#7623, #7129, #7352
+    // and #7655 each moved the ledger and corrected the counts by hand, and #7279
+    // found the SPEC-DERIVED half still carrying an entry `SPEC_DERIVED_PAIRS` had
+    // dropped at #6705. Nothing compared the two — this does. Every figure is read
+    // off the header's OWN spelling, so a rewording that drops the digit is red too.
+    const [specEntries, specKeys] = headerFigures(/\*\*SPEC-DERIVED \((\d+) entr(?:y|ies), (\d+) keys?\)\*\*/);
+    const [localEntries, localKeys] = headerFigures(/\*\*LOCAL \((\d+) entr(?:y|ies), (\d+) keys?\)\*\*/);
+    const [totalEntries, totalKeys, tSpecEntries, tSpecKeys, tLocalEntries, tLocalKeys] = headerFigures(
+      /\*\*(\d+) entries \/ (\d+) keys\*\* — (\d+) \/ (\d+) spec-derived, (\d+) \/ (\d+) local\./,
+    );
+    const [topEntries, topKeys] = headerFigures(/\*\*(\d+) entries\*\* in `UnmirroredDeclared`, \*\*(\d+) keys\*\* across them/);
+
+    const header = {
+      specDerived: { entries: specEntries, keys: specKeys },
+      local: { entries: localEntries, keys: localKeys },
+      total: { entries: totalEntries, keys: totalKeys },
+      totalsLine: { specDerived: { entries: tSpecEntries, keys: tSpecKeys }, local: { entries: tLocalEntries, keys: tLocalKeys } },
+      topOfFile: { entries: topEntries, keys: topKeys },
+    };
+    const ledger = derive();
+    expect(header, `
+The header's SPEC-DERIVED / LOCAL split figures disagree with the ledger.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you moved an UnmirroredDeclared entry or key, or SPEC_DERIVED_PAIRS membership
+    => correct the header's figures to the derived ones below, and ADD the history
+    sentence the split keeps for every move (it is cumulative by design).
+  * you edited a header figure by hand, or carried one in from a card or a comment
+    => put it back. The ledger is the measurement; the header only records it.
+
+⛔ Never reconcile the two by editing a ledger KEY SET or SPEC_DERIVED_PAIRS: both are
+pinned elsewhere in this file against the mirrors themselves.`)
+      .toEqual({
+        specDerived: ledger.specDerived,
+        local: ledger.local,
+        total: ledger.total,
+        totalsLine: { specDerived: ledger.specDerived, local: ledger.local },
+        topOfFile: ledger.total,
+      });
+  });
+
+  it('the member reader can actually see the unions (non-vacuity)', () => {
+    // A reader that returned no members would derive 0 keys on both halves and a
+    // header written as 0 / 0 would pass while measuring nothing — the same failure
+    // mode 'the ledger reader can actually see the ledgers' guards for entry names.
+    const members = ledgerEntryMembers('UnmirroredDeclared');
+    expect(Array.from(members.keys()), 'the member reader and the entry reader disagree on the entry list')
+      .toEqual(ledgerEntryKeys('UnmirroredDeclared'));
+    const ledger = derive();
+    expect(ledger.specDerived.entries, 'the SPEC-DERIVED half read as EMPTY — `DashboardWidgetSchema` is in both the ledger and SPEC_DERIVED_PAIRS')
+      .toBeGreaterThan(0);
+    expect(ledger.local.entries, 'the LOCAL half read as EMPTY').toBeGreaterThan(0);
+    expect(ledger.total.keys, 'no entry read as a union of more than one literal — the reader is not walking union arms')
+      .toBeGreaterThan(ledger.total.entries);
+    for (const [entry, keys] of members) {
+      expect(keys.length, `${entry} read as having no keys`).toBeGreaterThan(0);
     }
   });
 });
