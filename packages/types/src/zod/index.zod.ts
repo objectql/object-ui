@@ -62,6 +62,11 @@ export {
 } from './base.zod.js';
 
 // ============================================================================
+// Expression wire shape - shared by the predicate keys (objectui#7530)
+// ============================================================================
+export { ExpressionWireSchema } from './expression.zod.js';
+
+// ============================================================================
 // Layout Components - Structure & Organization
 // ============================================================================
 export {
