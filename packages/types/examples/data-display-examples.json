@@ -234,8 +234,7 @@
     "markdown": {
       "type": "markdown",
       "id": "readme",
-      "content": "# Welcome\n\nThis is a **markdown** component.\n\n- Feature 1\n- Feature 2\n- Feature 3",
-      "sanitize": true
+      "content": "# Welcome\n\nThis is a **markdown** component.\n\n- Feature 1\n- Feature 2\n- Feature 3"
     },
     "html": {
       "type": "html",

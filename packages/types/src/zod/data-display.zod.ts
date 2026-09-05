@@ -285,11 +285,26 @@ export const DataTableSchema = BaseSchema.extend({
 
 /**
  * Markdown Schema - Markdown content renderer
+ *
+ * `sanitize` is an ADR-0049 tombstone (objectui#6972). It implied a switch
+ * that does not exist: sanitization is UNCONDITIONAL — the `rehypeSanitize`
+ * link is a fixed last member of a module-level `const` chain in
+ * `plugin-markdown/src/MarkdownImpl.tsx`, with no conditional path — so the
+ * enforce arm (an XSS-off switch) was refused and the key retired. It refuses
+ * BY NAME through `retirementTombstone()` (objectui#6931), with the remedy in
+ * the message, rather than parsing green and doing nothing. The TS twin is
+ * `?: never` in `../data-display.ts`; both published faces carry the refusal
+ * (`@object-ui/types`, and `@object-ui/plugin-markdown`'s re-export of the
+ * same authority — objectui#6172).
  */
 export const MarkdownSchema = BaseSchema.extend({
   type: z.literal('markdown'),
   content: z.string().describe('Markdown content'),
-  sanitize: z.boolean().optional().describe('Sanitize HTML'),
+  sanitize: retirementTombstone(
+    'RETIRED (objectui#6972) — sanitization is unconditional: rehype-sanitize is a fixed last link of the '
+    + 'markdown renderer\'s rehype chain, and no value of this key ever switched it. There is no authored '
+    + 'spelling that disables XSS sanitization; delete the key.',
+  ),
   components: z.record(z.string(), z.any()).optional().describe('Custom component overrides'),
 });
 
