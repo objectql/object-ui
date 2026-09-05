@@ -297,7 +297,8 @@ const UserFiltersSchema = z.object({
  *   - legacy vocabulary kept for back-compat: `viewType` (renamed spec `type`),
  *     `fields`/`columns`, `filters`, the `show*` toolbar flags, `densityMode`, `color`, …;
  *   - configs whose objectui shape is intentionally broader than spec's (migration
- *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`, `exportOptions`.
+ *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`
+ *     (`exportOptions` left this list with objectui#6956 — it is the spec field by reference).
  *
  * The per-view-type configs (`kanban`/`calendar`/`gantt`/`gallery`/`timeline`) are no
  * longer forks: they derive from the spec configs below, keeping only `calendar.defaultView`
@@ -511,15 +512,29 @@ export const ListViewSchema = BaseSchema
         style: z.record(z.string(), z.string()),
       }),
     ])).optional().describe('Conditional formatting rules'),
-    exportOptions: z.union([
-      z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])),
-      z.object({
-        formats: z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])).optional(),
-        maxRecords: z.number().optional(),
-        includeHeaders: z.boolean().optional(),
-        fileNamePrefix: z.string().optional(),
-      }),
-    ]).optional().describe('Export options'),
+    // `exportOptions` — the spec's own field, BY REFERENCE (objectui#6956).
+    //
+    // `ListViewExportOptionsSchema` is internal to the spec bundle (not a public
+    // export — measured by `__tests__/export-options-spec-parity.test.ts`), but
+    // the enclosing `ListViewSchema.shape.exportOptions` IS a live export, and it
+    // is the whole contract: a two-branch union of the bare format array (the
+    // legacy spelling, lifted to `{ formats }` at parse) and the STRICT five-key
+    // object (`formats` / `maxRecords` / `includeHeaders` / `fileNamePrefix` /
+    // `streaming`), with `'pdf'` refused in both spellings under an
+    // `os migrate meta --from 16` prescription (objectstack#8010).
+    //
+    // This member used to restate a pre-#8010 shape — `'pdf'` accepted in both
+    // branches, no `streaming`, a non-strict object — so `ListViewInferred`
+    // (`z.input` of this schema, and through it the `ListViewSchema` TYPE the
+    // ListView renderer is written against) disagreed with its sibling
+    // `ObjectGridSchema['exportOptions']`, and the renderer could only read
+    // `streaming` through `as any`. Binding the spec field by reference makes
+    // the two faces one contract again and keeps the description the spec
+    // wrote. The bare array stays admissible on the INPUT type on purpose:
+    // nothing on the render path parses, so a stored array reaches `ListView`
+    // un-lifted and its `resolvedExportOptions` fold is load-bearing
+    // (objectui#4535 item 4).
+    exportOptions: SpecListViewSchema.shape.exportOptions,
     // Per-view-type configs — spec-derived (see the definitions above #2231).
     // `gantt` is NOT here: it flows in from the spec fields unmodified.
     kanban: KanbanConfig.optional().describe('Kanban-specific configuration'),
