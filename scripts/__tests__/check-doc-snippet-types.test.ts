@@ -28,6 +28,7 @@ import {
   resolvesOnlyThroughRootManifest,
   rootDeclaredSpecifiers,
   scanFences,
+  scopedBuildNotice,
   specifierRoot,
 } from '../check-doc-snippet-types.mjs';
 
@@ -838,6 +839,75 @@ describe('the exit path — "I could not run" is not "I ran and found errors" (o
     const header = source.slice(0, source.indexOf('## What this gate answers'));
     expect(header).toContain('1 = THE GATE RAN AND FOUND ERRORS');
     expect(header).toContain('2 = THE GATE COULD NOT RUN');
+  });
+});
+
+/**
+ * The scoping notice on the precondition path — objectui#7795.
+ *
+ * The command that path prints builds a CLOSURE, not the tree, and said so
+ * nowhere: measured on `origin/main` `abdcd189c`, running it left 34 of the
+ * workspace's 40 packages with a `dist/`, and nothing told the reader that the
+ * leftovers were the intended end state rather than a build that half-failed.
+ *
+ * Pinned here is the half that rots unwatched — the notice must keep DERIVING its
+ * numbers and must never grow a package list of its own — plus the half that makes
+ * it worthless: the precondition path has to actually print it. That it reaches a
+ * real terminal is shown on an unbuilt tree in the pull request; this suite cannot
+ * get there, because the path only opens when this repository's own packages are
+ * unbuilt, and CI has built them by the time it runs.
+ */
+describe('the printed build command says what it does NOT build (objectui#7795)', () => {
+  it('interpolates the counts it is handed — without this, a fixed sentence passes every pin below', () => {
+    expect(scopedBuildNotice(26, 40)).toContain('26 package(s)');
+    expect(scopedBuildNotice(26, 40)).toContain('packages/ holds 40');
+    // The control: different inputs, different text. A hard-coded "26 of 40" —
+    // exactly the rotting summary this notice exists not to be — passes the
+    // assertions above and fails these.
+    const other = scopedBuildNotice(1, 2);
+    expect(other).toContain('1 package(s)');
+    expect(other).toContain('packages/ holds 2');
+    expect(other).not.toContain('26');
+    expect(other).not.toContain('40');
+  });
+
+  it('names no package of its own — the reader is sent to the filter, never to a copy of it', () => {
+    const notice = scopedBuildNotice(26, 40);
+    expect(
+      notice,
+      'a package name written here is a second list of what gets built, and it rots the first time coverage moves',
+    ).not.toMatch(/@object-ui\//);
+    expect(notice).toContain('--build-filter');
+    expect(notice, 'without a way to ask, the notice is one more thing the reader has to trust').toContain(
+      '--dry=text',
+    );
+  });
+
+  it('says the build is scoped and that what it leaves behind is the designed end state', () => {
+    const notice = scopedBuildNotice(26, 40);
+    expect(notice).toContain('not a whole-tree build');
+    expect(notice).toContain('left exactly as it was');
+  });
+
+  it('is printed on the precondition path, not merely defined', () => {
+    const source = fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+    const start = source.indexOf('PRECONDITION NOT MET');
+    expect(start, 'the precondition path must still print that headline').toBeGreaterThan(-1);
+    const end = source.indexOf('return EXIT_CODES.couldNotRun;', start);
+    expect(
+      source.slice(start, end),
+      'a notice nothing calls is a string in a file, and objectui#7795 was filed about a reader who was never told',
+    ).toContain('scopedBuildNotice(');
+  });
+
+  it('counts the workspace from what the gate itself read, not from a number written down', () => {
+    const root = tempTree({
+      'content/docs/a.mdx': [`${FENCE}ts`, 'export const x = 1;', FENCE].join('\n'),
+      'packages/pkg-a/package.json': JSON.stringify({ name: '@fixture/pkg-a', types: './dist/index.d.ts' }),
+      'packages/pkg-b/package.json': JSON.stringify({ name: '@fixture/pkg-b', types: './dist/index.d.ts' }),
+    });
+    const state = analyze({ root }) as unknown as { packageDirOf: Record<string, string> };
+    expect(Object.keys(state.packageDirOf).sort()).toEqual(['@fixture/pkg-a', '@fixture/pkg-b']);
   });
 });
 
