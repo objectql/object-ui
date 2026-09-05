@@ -127,15 +127,17 @@ async function lastBoardProps(log: 'impl' | 'enhanced', before: number, unmount:
 /**
  * Render the REGISTERED renderer for `type` directly with an authored board,
  * and return the props its board implementation was handed last. The provider
- * is what `ObjectKanbanRenderer`'s `useSchemaContext()` requires; no
- * `dataSource` is supplied because these boards author their lanes statically.
+ * is what `ObjectKanbanRenderer`'s `useSchemaContext()` requires; its
+ * `dataSource` is explicitly `undefined` because these boards author their
+ * lanes statically and nothing here fetches. (The prop is required and typed
+ * `any`, so the value has to be spelled rather than omitted.)
  */
 async function boardPropsFor(type: string, log: 'impl' | 'enhanced', schemaKeys: Record<string, unknown>) {
   const Renderer = ComponentRegistry.get(type) as React.ComponentType<Record<string, unknown>>;
   expect(Renderer, `\`${type}\` is not registered`).toBeDefined();
   const before = recorded[log].length;
   const { unmount } = render(
-    <SchemaRendererProvider>
+    <SchemaRendererProvider dataSource={undefined}>
       <Renderer schema={{ type, columns: STATIC_COLUMNS, quickAdd: true, ...schemaKeys }} />
     </SchemaRendererProvider>,
   );
@@ -150,7 +152,7 @@ async function boardPropsFor(type: string, log: 'impl' | 'enhanced', schemaKeys:
 async function boardPropsViaSchemaRenderer(schema: Record<string, unknown>) {
   const before = recorded.impl.length;
   const { unmount } = render(
-    <SchemaRendererProvider>
+    <SchemaRendererProvider dataSource={undefined}>
       <SchemaRenderer schema={schema as never} />
     </SchemaRendererProvider>,
   );
