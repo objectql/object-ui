@@ -364,7 +364,12 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['CalendarSchema', ['packages/plugin-calendar/src/ObjectCalendar.tsx', 'packages/types/src/form.ts']],
   ['ChatMessage', ['packages/plugin-chatbot/src/ChatbotEnhanced.tsx', 'packages/types/src/complex.ts']],
   ['ChatToolInvocation', ['packages/plugin-chatbot/src/ChatbotEnhanced.tsx', 'packages/types/src/complex.ts']],
-  ['ComboboxOption', ['packages/components/src/custom/combobox.tsx', 'packages/types/src/form.ts']],
+  // `ComboboxOption` sat here, colliding between
+  // `packages/components/src/custom/combobox.tsx` and `packages/types/src/form.ts`.
+  // The component's copy was a strict SUBSET (`value`, `label`; the types copy
+  // adds `disabled?`), so the component re-points at the one authority in
+  // `@object-ui/types` — through the `./form` subpath, since the root barrel
+  // does not publish the name (objectui#6349).
   // `ComponentConfig` sat here, colliding between
   // `packages/core/src/registry/Registry.ts` and `packages/types/src/base.ts`.
   // objectui#6298 made `@object-ui/types` the one authority — it gained the
@@ -385,6 +390,14 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['Diagnostic', ['packages/app-shell/src/views/metadata-admin/previews/simulator/flow-sim-types.ts', 'packages/cli/src/commands/doctor.ts', 'packages/sdui-parser/src/types.ts']],
   ['DiagnosticLevel', ['packages/app-shell/src/views/metadata-admin/previews/simulator/flow-sim-types.ts', 'packages/cli/src/commands/doctor.ts']],
   ['DomProps', ['packages/core/src/utils/dom-props.ts', 'packages/fields/src/widgets/toDomProps.ts']],
+  // ⚠️ `FilterBuilderCondition` / `FilterGroup` are NOT one shape declared twice:
+  // the component's condition carries a required `id`, a required narrow `value`
+  // and `operator: string` (the dropdown's camelCase ids); the types copy has no
+  // `id`, `value?: any` and `operator: FilterBuilderOperator` (the snake_case
+  // union). Both headers claim ONE concept, so the remedy is a re-point, and the
+  // only dependency-legal direction (components -> types) retypes `operator` —
+  // the vocabulary objectui#7561 is asking a maintainer to rule on. Both rows
+  // wait for that ruling (objectui#6349, batch 3, stop-and-report).
   ['FilterBuilderCondition', ['packages/components/src/custom/filter-builder.tsx', 'packages/types/src/complex.ts']],
   ['FilterBuilderOperator', ['packages/components/src/custom/filter-builder.tsx', 'packages/types/src/complex.ts']],
   ['FilterGroup', ['packages/components/src/custom/filter-builder.tsx', 'packages/types/src/complex.ts']],
@@ -428,8 +441,12 @@ const KNOWN_COLLISIONS: ReadonlyMap<string, readonly string[]> = new Map([
   // the RENAME branch: app's declaration now spells `AppMenuItem`, the name
   // `src/index.ts` always published it under (objectui#6349).
   ['MetadataTypeStatus', ['packages/app-shell/src/providers/MetadataProvider.tsx', 'packages/react/src/context/AppShellContext.tsx']],
-  ['NamedActionDef', ['packages/plugin-grid/src/resolveBulkActions.ts', 'packages/plugin-grid/src/resolveLegacyRowActions.ts']],
-  ['OrgTranslate', ['packages/app-shell/src/console/organizations/orgErrorMessage.ts', 'packages/app-shell/src/console/organizations/orgRoleLabel.ts']],
+  // `NamedActionDef` sat here — two IDENTICAL declarations inside plugin-grid.
+  // `resolveLegacyRowActions.ts` is the one authority; `resolveBulkActions.ts`
+  // re-exports it (objectui#6349).
+  // `OrgTranslate` sat here — two IDENTICAL declarations inside app-shell's
+  // organizations console. `orgErrorMessage.ts` is the one authority;
+  // `orgRoleLabel.ts` re-exports it (objectui#6349).
   ['PageHeaderComponentProps', ['packages/app-shell/src/layout/PageHeader.tsx', 'packages/layout/src/PageHeader.tsx']],
   ['RecordDetailDrawerProps', ['packages/plugin-dashboard/src/RecordDetailDrawer.tsx', 'packages/plugin-detail/src/RecordDetailDrawer.tsx']],
   ['SchemaNode', ['packages/sdui-parser/src/types.ts', 'packages/types/src/base.ts']],

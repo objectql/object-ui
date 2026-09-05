@@ -194,6 +194,19 @@ export async function resolveGroupByLabels(
     if (ids.length === 0) return data.map(row => ({ ...row, [rawKey]: row[groupByField] }));
 
     // Derive the ID field from metadata (fallback to 'id')
+    // objectui#7642 CENSUS — verdict KEEP (bag traced: `objectSchema` is
+    // `ds.getObjectSchema(schema.objectName)`, so this IS the object-schema def).
+    // `FieldSchema` refuses `id_field`/`display_field` on the AUTHORING path, but
+    // the SERVE path runs no parse — `ObjectStackAdapter.getObjectSchema` returns
+    // the server document plus only `normalizeSchemaReferenceKeys` and
+    // `applyFieldWidgetOverrides` — so a stored pre-strict def still arrives here.
+    // And there is NO camel leg below to fall back to: retiring these reads would
+    // delete the only read of the value, not re-point it. Adding a `displayField`
+    // leg (the spelling `FieldSchema` declares) is a separate, contract-shaped
+    // change. `idField` is NOT such a leg: measured on the pinned spec 17.2.0,
+    // `FieldSchema` refuses `idField` with `unrecognized_keys` exactly as it
+    // refuses `id_field` (the spec's only `idField` sits on `InlineGridColumnSchema`,
+    // a different shape), so the id read has no declared spelling to re-point to.
     const idField: string = fieldDef.id_field || 'id';
 
     try {
