@@ -16,14 +16,29 @@
  * Works in conjunction with useNavigationOverlay hook from @object-ui/react —
  * the hook manages state while this component handles the visual presentation.
  *
+ * What the hook is handed as `objectName` is the block's RECORD SOURCE — the
+ * object the clicked rows actually came from — read through the ONE shared
+ * reader `resolveRecordSourceObjectName` from `@object-ui/core`
+ * (objectui#7627), and never a bare top-level `schema.objectName` in its place
+ * (objectui#7638). `useNavigationOverlay`'s own doc block carries that rule in
+ * full, including the caller with NO data config whose `schema.objectName`
+ * already IS its record source; this example follows that block rather than
+ * restating it, because a ruling written out twice is a ruling one of whose
+ * copies rots — which is exactly what happened to this example (objectui#7787).
+ *
  * @example
  * ```tsx
+ * import {
+ *   resolveRecordSourceConfig,
+ *   resolveRecordSourceObjectName,
+ * } from '@object-ui/core';
  * import { useNavigationOverlay } from '@object-ui/react';
  * import { NavigationOverlay } from '@object-ui/components';
  *
+ * const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [schema]);
  * const nav = useNavigationOverlay({
  *   navigation: schema.navigation,
- *   objectName: schema.objectName,
+ *   objectName: resolveRecordSourceObjectName(schema, dataConfig),
  * });
  *
  * return (
