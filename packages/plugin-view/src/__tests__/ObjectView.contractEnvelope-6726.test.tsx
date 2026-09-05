@@ -72,6 +72,37 @@ const asData: Envelope = (rows) => ({ data: rows, total: rows.length });
 const asBareArray: Envelope = (rows) => rows;
 const asRecords: Envelope = (rows) => ({ records: rows, total: rows.length });
 
+/**
+ * Mount the view over a `find()` that answers with `envelope`, and return the
+ * LAST row array the child was handed.
+ *
+ * ⛔ Call this ONCE per case, and NEVER from inside a `waitFor` predicate
+ * (objectui#7802). It renders, and `waitFor` re-runs its callback on DOM
+ * MUTATIONS as well as on its interval, so a predicate that renders schedules
+ * its own next run — self-feeding — and every run leaks the container div
+ * `render` appends to `document.body` (RTL's `unmount()` tears down the React
+ * root but leaves that div behind). Measured on THIS helper with `interval`
+ * pinned AT `timeout`, so the interval timer can never re-run the callback:
+ *
+ *   sync predicate rendering into the document .. 200 runs / 191ms, growth 200
+ *   sync predicate rendering into a DETACHED div ... 1 run / 2006ms, growth 0
+ *   inert predicate ................................ 1 run / 2002ms, growth 0
+ *
+ * 200 where the interval permitted one — objectui#7756's worker-killing shape.
+ *
+ * An `async` predicate happened to be spared: `wait-for.js`'s `checkCallback`
+ * early-returns while `promiseStatus === 'pending'`, so a DOM mutation cannot
+ * re-enter a predicate still in flight. Same measurement, async shape: 1 run
+ * pinned, 19 runs at the default 50ms cadence, `document.body` growth equal to
+ * the run count either way.
+ *
+ * ⚠️ That early return is RTL's IMPLEMENTATION, not its contract. It made the
+ * leak BOUNDED by accident, and dropping the `async` removes the only thing
+ * holding it — measured: the synchronous form of the call below reported no
+ * tests at all and had to be killed at a 480s wall, where the file otherwise
+ * passes in under two seconds. So the render lives out here, once, and the
+ * cases assert on its answer directly.
+ */
 async function deliveredThrough(envelope: Envelope): Promise<unknown[]> {
   delivered.length = 0;
   const ds: any = {
@@ -90,6 +121,15 @@ async function deliveredThrough(envelope: Envelope): Promise<unknown[]> {
     />,
   );
   await waitFor(() => expect(ds.find).toHaveBeenCalled());
+  // `find`'s OWN answer, settled — a pure read of the mock's call record that
+  // touches no DOM. It is what makes the read below a reading of the ANSWER
+  // rather than of the mount's initial empty `data` state: `ObjectView` hands
+  // the child `data={[]}` three times before the fetch lands, so
+  // `delivered.length > 0` alone is satisfied by an EMPTY delivery. Measured
+  // (objectui#7802) with the fetch deferred 50 / 200 / 500ms, `data` envelope:
+  // waiting only on `delivered.length > 0` returned `[]` at all three; waiting
+  // on this first returned the two rows at all three.
+  await ds.find.mock.results[0].value;
   await waitFor(() => expect(delivered.length).toBeGreaterThan(0));
   return delivered[delivered.length - 1];
 }
@@ -100,7 +140,7 @@ beforeEach(() => {
 
 describe('ObjectView — the find() envelope its non-grid fetch reads (objectui#6726)', () => {
   it("reads the contract's `data` member", async () => {
-    await waitFor(async () => expect(await deliveredThrough(asData)).toHaveLength(2));
+    expect(await deliveredThrough(asData)).toHaveLength(2);
   });
 
   it('still reads a bare array — the live non-envelope shape fakes answer with', async () => {
