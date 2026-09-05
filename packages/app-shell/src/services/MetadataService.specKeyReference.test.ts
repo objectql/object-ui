@@ -141,24 +141,94 @@ describe('objectui#6041 · saveFields PUTs the relationship target as `reference
     expect(def.reference).toBe('account');
   });
 
-  it('a HALF-FILLED draft — type `lookup`, target left empty — still saves, exactly as before', async () => {
-    // The behavioural edge this card had to measure. The spec's prose calls
-    // `reference` "Required for relationship types", but that requirement is
-    // NOT enforced by the zod parse at 17.2.0: `{ type: 'lookup', label: 'L' }`
-    // parses green at field level AND through `ObjectSchema`. `undefined` is
-    // dropped by `JSON.stringify` under either spelling, so the wire bytes are
-    // byte-identical before and after this fix.
+  it('a HALF-FILLED draft — type `lookup`, target left empty — is REFUSED before any PUT', async () => {
+    // ⭐ This assertion is INVERTED from what it said at 17.2.0, and the
+    // inversion is the point of objectui#7122's ruled item 4.
     //
-    // ⚠ This case would still pass on a revert, and says so deliberately: it
-    // is here to prove the rename did NOT newly block a draft, which is a
-    // claim about the unchanged half.
+    // It used to read "still saves, exactly as before". The spec's prose called
+    // `reference` "Required for relationship types" while the zod parse did not
+    // enforce it — `{ type: 'lookup', label: 'L' }` parsed green at field level
+    // AND through `ObjectSchema` — so the designer was free to persist a
+    // target-less draft, and did.
+    //
+    // `@objectstack/spec` 17.3.0 closes that declared-but-unenforced gap: the
+    // same document is now refused by a `custom` refinement at path
+    // `reference`. Against a matched backend the PUT comes back 422
+    // `INVALID_METADATA` for the WHOLE object document, which blocks every
+    // later save of that object — so flipping this pin green on its own would
+    // have pinned a known-broken save path. The product half was fixed first
+    // (`assertRelationshipTargetPresent` in `MetadataService.ts`), and this
+    // asserts THAT: the incomplete draft never reaches the wire.
     const { adapter, puts } = makeCapturingAdapter();
 
-    await new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: undefined }]);
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: undefined }]),
+    ).rejects.toThrow(/needs a `reference`/);
+
+    // The load-bearing half: refusing is only an improvement if it happens
+    // BEFORE the request. A guard that threw after the PUT would leave the
+    // object in exactly the state this change exists to prevent.
+    expect(puts).toHaveLength(0);
+  });
+
+  it('and it is the MISSING TARGET that is refused, not the type — the control', async () => {
+    // Without this, the assertion above is satisfied by a guard that refuses
+    // every `lookup`, which would break the feature rather than fix it.
+    const { adapter, puts } = makeCapturingAdapter();
+
+    await new MetadataService(adapter).saveFields('account', [LOOKUP]);
 
     const [def] = savedFields(puts);
-    expect('reference' in def).toBe(false);
-    expect('referenceTo' in def).toBe(false);
+    expect(def.reference).toBe('account');
     expect(FieldSchema.safeParse(def).success).toBe(true);
+  });
+
+  it('an empty-string target is refused too — `reference: ""` is not a target', async () => {
+    // The spec refuses it (`.min(1)`-shaped: measured, `reference: ''` fails the
+    // same `custom` issue at path `reference`), and a designer whose picker was
+    // opened and cleared emits exactly this.
+    const { adapter, puts } = makeCapturingAdapter();
+
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: '' }]),
+    ).rejects.toThrow(/needs a `reference`/);
+    expect(puts).toHaveLength(0);
+  });
+});
+
+describe('objectui#7122 · the guarded type list is the spec’s, not a hand-kept guess', () => {
+  // `RELATIONSHIP_TYPES_REQUIRING_REFERENCE` is a named list in
+  // `MetadataService.ts` (a full `FieldSchema` parse before the PUT is refused
+  // on purpose — it would reject plugin-registered keys the server accepts).
+  // A named list can go stale in both directions, so it is DERIVED here and
+  // compared, which turns any upstream movement into a red test rather than a
+  // silent hole in the guard.
+  const REQUIRE_REFERENCE = ['lookup', 'master_detail'];
+
+  it('every spec field type that needs a target is guarded, and no other type is', () => {
+    const typeSchema = FieldSchema.shape.type as unknown as {
+      options?: string[];
+      def?: { entries?: Record<string, unknown> };
+    };
+    const allTypes: string[] =
+      typeSchema.options ?? Object.keys(typeSchema.def?.entries ?? {});
+
+    // Non-vacuity: a shape read that answered `[]` would make the derivation
+    // agree with an empty list and assert nothing at all.
+    expect(allTypes.length).toBeGreaterThan(20);
+
+    const derived = allTypes.filter((type) => {
+      const parsed = FieldSchema.safeParse({ type, label: 'L' });
+      return !parsed.success && parsed.error.issues.some((i) => i.path.join('.') === 'reference');
+    });
+
+    expect([...derived].sort()).toEqual([...REQUIRE_REFERENCE].sort());
+  });
+
+  it('a guarded type parses green once the target is supplied — the requirement is the VALUE, not the type', () => {
+    for (const type of REQUIRE_REFERENCE) {
+      expect(FieldSchema.safeParse({ type, label: 'L', reference: 'account' }).success).toBe(true);
+      expect(FieldSchema.safeParse({ type, label: 'L', reference: '' }).success).toBe(false);
+    }
   });
 });

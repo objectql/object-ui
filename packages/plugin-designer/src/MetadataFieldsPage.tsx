@@ -253,6 +253,54 @@ function fromDesignerField(
  * the one that matters: it raises BEFORE the request, so a refused list issues
  * no PUT at all.
  */
+/**
+ * Field types whose `reference` (the target object a relationship links to)
+ * `@objectstack/spec` requires to be present and non-empty — the sibling of
+ * `MetadataService`'s list, kept here for the same reason this file keeps its
+ * own `toFieldsMap` and `carryOver`: the two writers convert different input
+ * types on different paths and neither owns the other's.
+ *
+ * Measured against the installed 17.3.0 by parsing `{ type, label: 'L' }` for
+ * every one of `FieldSchema`'s 49 declared types: exactly `lookup` and
+ * `master_detail` are refused for a missing target, and no other type is
+ * refused at all on that minimal document.
+ */
+const RELATIONSHIP_TYPES_REQUIRING_REFERENCE = ['lookup', 'master_detail'];
+
+/**
+ * Refuse a relationship field whose target is missing — BEFORE the PUT.
+ *
+ * `@objectstack/spec` 17.3.0 made `reference` a hard requirement on `lookup`
+ * and `master_detail` (a `custom` refinement at path `reference`). Against a
+ * matched backend, PUTting a half-filled relationship draft returns `422
+ * INVALID_METADATA` for the WHOLE object document — so the damage is not
+ * confined to the incomplete field: every later save of that object fails the
+ * same way until the draft is completed or removed. At 17.2.0 the requirement
+ * was prose only and this page persisted such drafts freely.
+ *
+ * The maintainer's reconciliation for that change (objectui#7122, 2026-09-05,
+ * ruled item 4) is to keep the incomplete draft in the client and never PUT it.
+ * This raises inside the caller's save `try`, so the message lands in the
+ * page's existing error surface — the same banner a nameless or duplicated
+ * field already produces, and no new UI affordance.
+ */
+function assertRelationshipTargetPresent(
+  field: { type?: string; reference?: unknown },
+  fieldName: string,
+  writer: string,
+): void {
+  if (!RELATIONSHIP_TYPES_REQUIRING_REFERENCE.includes(String(field?.type))) return;
+  const reference = field?.reference;
+  if (typeof reference === 'string' && reference.trim() !== '') return;
+  throw new Error(
+    `${writer} cannot save the field \`${fieldName}\`: a \`${field?.type}\` field needs a ` +
+      '`reference` naming the object it links to, and this one has none. `@objectstack/spec` ' +
+      'requires it (17.3.0), so the server refuses the whole object document with 422 ' +
+      '`INVALID_METADATA` — which would then block EVERY later save of this object, not just ' +
+      'this field. Pick the target object, or change the field to a non-relationship type.',
+  );
+}
+
 function toFieldsMap(
   next: DesignerFieldDefinition[],
   prevFields: Record<string, ServerFieldSchema>,
@@ -288,7 +336,13 @@ function toFieldsMap(
     const prev = Object.prototype.hasOwnProperty.call(prevFields, name)
       ? prevFields[name]
       : undefined;
-    entries.push([name, fromDesignerField(designed, prev)]);
+    const emitted = fromDesignerField(designed, prev);
+    // Checked on the EMITTED entry, not on `designed`: `fromDesignerField`
+    // merges the carried-over server entry underneath the designer's values, so
+    // the target may legitimately arrive from `prev` on a field the author did
+    // not touch. Reading `designed.referenceTo` alone would refuse those.
+    assertRelationshipTargetPresent(emitted, name, '[MetadataFieldsPage]');
+    entries.push([name, emitted]);
   });
 
   return Object.fromEntries(entries);

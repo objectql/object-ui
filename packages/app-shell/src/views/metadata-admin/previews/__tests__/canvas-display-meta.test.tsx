@@ -174,7 +174,12 @@ describe('canvas chrome for a renderable-but-unoffered spelling (#5837)', () => 
     // Counter-probe. `element:text_input` is unoffered for its own reason and is
     // in no alias group; a fix keyed on "is excluded" would hand it a friendly
     // icon it has not earned.
-    for (const type of ['element:text_input', 'element:record_picker', 'element:form', 'ai:chat_window']) {
+    // `element:form` was a fourth probe here until `@objectstack/spec` 17.3.0
+    // retired it from `PageComponentType` and objectui dropped its now-stale
+    // palette exclusion with it (objectui#7122). Three probes still exercise
+    // the same property on three different exclusion reasons, so the
+    // counter-probe keeps its force.
+    for (const type of ['element:text_input', 'element:record_picker', 'ai:chat_window']) {
       expect(PALETTE_EXCLUSIONS[type], `${type} is not an exclusion any more`).toBeTruthy();
       expect(resolveBlockDisplayMeta(type), `${type} borrowed display meta`).toBeUndefined();
       expect(resolveBlockTone(type), `${type} borrowed a tone`).toBe(BLOCK_CATEGORY_TONE.misc);

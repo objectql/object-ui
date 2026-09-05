@@ -895,36 +895,42 @@ import type { ServiceObject } from '@objectstack/spec/data';
 /**
  * Client-side members the objectui runtime reads on the object document but
  * `@objectstack/spec` does not declare. Every member here must cite a live
- * runtime read — this interface is the measured client DELTA on top of the
- * spec document, not a place to restate spec keys (restating them would
- * recreate the hand-written fork objectui#5362 retired). The member list is
- * pinned by `__tests__/object-schema-metadata-spec-derivation.test.ts`, so
- * growing it is a conscious decision: promote the key upstream to the spec,
- * or add it here with the runtime read that justifies it.
+ * runtime read — this type is the measured client DELTA on top of the spec
+ * document, not a place to restate spec keys (restating them would recreate
+ * the hand-written fork objectui#5362 retired). The member list is pinned by
+ * `__tests__/object-schema-metadata-spec-derivation.test.ts`, so growing it is
+ * a conscious decision: promote the key upstream to the spec, or add it here
+ * with the runtime read that justifies it.
+ *
+ * ## The delta is EMPTY today, and that is the pinned state
+ *
+ * `editMode` was the one member. `@objectstack/spec` 17.3.0 ADOPTED it —
+ * measured on the installed build, `ObjectSchema`'s accept set went 42 → 43
+ * keys with gained set exactly `['editMode']` and an empty lost set, declared
+ * as `editMode?: 'page' | 'modal'`, the same union this file carried. So the
+ * key is no longer a client delta, and restating it here would be exactly the
+ * fork this type exists to prevent: two declarations of one key, with the
+ * local one shadowing the spec's for every reader.
+ *
+ * The retirement is what the pin's own docblock PRESCRIBED for this event
+ * ("If the spec ever adopts `editMode`, this test and the absence test above
+ * both flip — retire the extension member and let the derivation carry the
+ * key"), so it is executing a standing instruction, not a new decision.
+ *
+ * ⚠️ Nothing about `editMode` is removed from the product: it stays authorable
+ * and stays typed on {@link ObjectSchemaMetadata}, now carried by
+ * `ServiceObject`. `app-shell`'s `utils/recordFormNavigation.ts` read is
+ * unchanged. What DID change is that a published, spec-validated object
+ * document may now carry it — at 17.2.0 the spec refused the key by name.
+ *
+ * The type is kept (rather than deleted) because it is exported from
+ * `@object-ui/types` and because the derivation `spec type + client delta` is
+ * the shape this package pins; an empty delta states "objectui adds nothing
+ * here today", which is a fact worth keeping addressable. `Record<never,
+ * never>` rather than `{}`: `keyof` answers `never`, and it does not trip
+ * `@typescript-eslint/no-empty-object-type`.
  */
-export interface ObjectSchemaClientExtensions {
-  /**
-   * Default UI mode for record create/edit interactions.
-   *
-   * - `'modal'` (default) — open the record form inside a `ModalForm` dialog
-   *   overlaid on top of the current view. Suitable for short forms and
-   *   quick edits.
-   * - `'page'` — navigate to a dedicated full-screen route
-   *   (`/{objectName}/new` for create, `/{objectName}/record/:id/edit` for
-   *   edit). URLs are deep-linkable, refresh-safe, and integrate with the
-   *   browser back button. Recommended for objects with many fields,
-   *   `tabbed` / `wizard` form layouts, or scenarios that benefit from
-   *   shareable links to the create/edit form.
-   *
-   * The host application reads this flag in its central `handleEdit`
-   * dispatcher (see `@object-ui/app-shell` `AppContent` and
-   * `utils/recordFormNavigation.ts`) — switching the value requires no code
-   * changes.
-   *
-   * @default 'modal'
-   */
-  editMode?: 'modal' | 'page';
-}
+export type ObjectSchemaClientExtensions = Record<never, never>;
 
 /**
  * Object schema definition — the object document a data source's

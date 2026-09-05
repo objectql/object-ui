@@ -50,7 +50,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { FieldSchema } from '@objectstack/spec/data';
 import { MetadataClient } from '@object-ui/data-objectstack';
 import type { DesignerFieldDefinition } from '@object-ui/types';
@@ -65,6 +65,17 @@ import type { DesignerFieldDefinition } from '@object-ui/types';
  *   left behind. `carryOver` spreads the previous server def verbatim, so
  *   without a tombstone the key rides straight back out to the route that
  *   rejects it — and the object stays blocked forever.
+ *
+ *   ⚠️ `legacy_id` carries the canonical `reference` ALONGSIDE the misspelling,
+ *   which it did not need to before `@objectstack/spec` 17.3.0. 17.3.0 makes a
+ *   target-less `lookup` un-storable, and objectui#7122 fixed the product half
+ *   by refusing such a field client-side before the PUT — so a fixture whose
+ *   `legacy_id` had ONLY the retired spelling would now make every save in this
+ *   file raise, and every assertion below would be measuring the guard instead
+ *   of the strip. Both keys present is also the more faithful legacy document:
+ *   a server that stored `referenceTo` and a later client that wrote
+ *   `reference`. The strip assertion keeps its full force either way — the
+ *   retired key is refused BY NAME, so its presence alone is the 422.
  */
 const OBJECT_BODY = {
   name: 'probe_widget',
@@ -72,7 +83,7 @@ const OBJECT_BODY = {
   fields: {
     name: { type: 'text', label: 'Name', required: true },
     owner_id: { type: 'lookup', label: 'Owner', reference: 'account', inlineHelpText: 'Record owner.' },
-    legacy_id: { type: 'lookup', label: 'Legacy', referenceTo: 'contact' },
+    legacy_id: { type: 'lookup', label: 'Legacy', reference: 'contact', referenceTo: 'contact' },
   },
 };
 
@@ -256,16 +267,16 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
     expect(FieldSchema.safeParse(fields.legacy_id).success).toBe(true);
   });
 
-  it('a HALF-FILLED draft — type `lookup`, target left empty — still saves, exactly as before', async () => {
-    // The behavioural edge this card had to measure. The spec's prose calls
-    // `reference` "Required for relationship types", but that requirement is
-    // NOT enforced by the zod parse at 17.2.0: `{ type: 'lookup', label: 'L' }`
-    // parses green at field level AND through `ObjectSchema`. `undefined` is
-    // dropped by `JSON.stringify` under either spelling, so the wire bytes are
-    // byte-identical before and after this fix.
+  it('a HALF-FILLED draft — type `lookup`, target left empty — is REFUSED, with no PUT and a visible reason', async () => {
+    // ⭐ INVERTED at `@objectstack/spec` 17.3.0 (objectui#7122, ruled item 4).
     //
-    // ⚠ This case would still pass on a revert, and says so deliberately: it
-    // exists to prove the rename did NOT newly block a draft.
+    // It used to read "still saves, exactly as before": the spec's prose called
+    // `reference` "Required for relationship types" while the 17.2.0 zod parse
+    // did not enforce it, so `{ type: 'lookup', label: 'L' }` parsed green and
+    // the designer persisted target-less drafts. 17.3.0 enforces it, and a PUT
+    // of such a draft returns 422 `INVALID_METADATA` for the WHOLE object —
+    // blocking every later save of it, not just this field. So the product was
+    // fixed rather than the pin: the draft is refused in the client.
     await renderPage();
     const next: DesignerFieldDefinition[] = [
       ...designerProps!.fields,
@@ -274,10 +285,37 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
     await act(async () => {
       designerProps!.onFieldsChange!(next);
     });
+
+    // The whole point: nothing reached the wire. `onFieldsChange` is
+    // fire-and-forget, so a guard that threw anywhere but inside the page's
+    // save `try` would surface as an unhandled rejection and show the author
+    // nothing — which is the silent failure this refusal exists to end.
+    await waitFor(() =>
+      expect(screen.getByTestId('metadata-fields-page-error').textContent).toMatch(
+        /needs a `reference`/,
+      ),
+    );
+    expect(puts).toHaveLength(0);
+    // …and the author is told WHICH field, because an object save can carry
+    // dozens and a message that only says "a lookup" is not actionable.
+    expect(screen.getByTestId('metadata-fields-page-error').textContent).toContain('half_id');
+  });
+
+  it('the same draft saves once its target is picked — the control for the refusal above', async () => {
+    // Without this, the refusal is satisfied by a guard that blocks every
+    // `lookup`, which would break authoring rather than protect it.
+    await renderPage();
+    const next: DesignerFieldDefinition[] = [
+      ...designerProps!.fields,
+      { id: 'fld_half', name: 'half_id', label: 'Half', type: 'lookup', referenceTo: 'contact' },
+    ];
+    await act(async () => {
+      designerProps!.onFieldsChange!(next);
+    });
     await waitFor(() => expect(puts).toHaveLength(1));
 
     const fields = savedFields();
-    expect('reference' in fields.half_id).toBe(false);
+    expect(fields.half_id.reference).toBe('contact');
     expect('referenceTo' in fields.half_id).toBe(false);
     expect(FieldSchema.safeParse(fields.half_id).success).toBe(true);
   });

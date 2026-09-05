@@ -16,7 +16,7 @@
  *
  * | party                                     | said                       |
  * |-------------------------------------------|----------------------------|
- * | `@objectstack/spec` `RecordDetailsProps`   | ⛔ REFUSES the key          |
+ * | `@objectstack/spec` `RecordDetailsProps`   | ⛔ REFUSED it (17.2.0; see the 2026-09-05 note below) |
  * | `@object-ui/types` `DetailViewSection`     | ✅ declared it              |
  * | `./zod/views.zod.ts` `DetailViewSectionSchema` | ⛔ absent               |
  * | `RecordDetailsRenderer`                    | ✅ honoured it              |
@@ -28,6 +28,24 @@
  * (2026-09-01, 总监批 #28): retire the declaration and the read, keep the spec
  * refusing, keep the mirror absent. `DetailSection`'s auto-hide heuristic
  * (4 fields / 25% empty; 3 / 20% on mobile) is now the WHOLE contract.
+ *
+ * ## ⚠️ 2026-09-05 — the spec moved back, and this file now records a DIVERGENCE
+ *
+ * `@objectstack/spec` 17.3.0 RE-DECLARES `hideEmpty` on the `record:details`
+ * section entry (measured: the entry went 4 → 12 member keys, `hideEmpty` among
+ * the eight gained, lost set empty). One clause of the ruling — "keep the spec
+ * refusing" — therefore describes nothing any more, through no act of this
+ * repo.
+ *
+ * objectui's own three parties are UNCHANGED and still agree: the type does not
+ * declare it, the mirror omits it, the renderer does not read it. 1/4 below is
+ * pointed at the measured upstream truth so the divergence is a stated fact
+ * rather than a red test; every other assertion is untouched.
+ *
+ * ⇒ Whether objectui re-adopts the key is a MAINTAINER decision (it reverses
+ * the ruling and re-adds a deleted control) and is reported on objectui#7122,
+ * NOT taken here. If it is re-adopted, this file is the checklist: three
+ * parties to move, not one.
  *
  * ## Why one file
  *
@@ -114,23 +132,61 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('DetailViewSection.hideEmpty is retired — all four parties agree (#7129)', () => {
-  it('1/4 — `@objectstack/spec` REFUSES the key on a `record:details` section', () => {
+describe('DetailViewSection.hideEmpty is retired in objectui — and the spec re-declared it at 17.3.0 (#7129)', () => {
+  it('1/4 — ⚠️ `@objectstack/spec` 17.3.0 DECLARES the key again: the fourth party moved', () => {
+    // ⭐ READ THIS BEFORE CHANGING ANYTHING ELSE IN THIS FILE.
+    //
+    // This assertion is inverted from what it said at 17.2.0, and the inversion
+    // is NOT objectui following the spec back. It records that the ruling's
+    // fourth party changed its answer underneath the ruling.
+    //
+    // The 2026-09-01 ruling (总监批 #28) converged four disagreeing contracts on
+    // the spec's answer, in these words: "retire the declaration and the read,
+    // keep the spec refusing, keep the mirror absent". `@objectstack/spec`
+    // 17.3.0 then re-declared `hideEmpty` on the `record:details` section entry
+    // — measured, as one of eight keys the entry gained (4 → 12 members, lost
+    // set empty). So the clause "keep the spec refusing" is no longer a
+    // description of anything, through no act of this repo.
+    //
+    // ⛔ What has NOT changed, and what this file still pins in full: objectui's
+    // three parties still agree the key is retired. 2/4 (the mirror omits it),
+    // 3/4 (the type does not declare it) and 4/4 (nothing reads it, end to end)
+    // are untouched below. Authoring `hideEmpty` on this renderer still does
+    // nothing, which is the behaviour the ruling ordered.
+    //
+    // ⇒ Whether objectui should now re-adopt the key is a MAINTAINER decision —
+    // it would reverse a five-day-old ruling and re-add a control the ruling
+    // deleted — and it is reported on objectui#7122 rather than taken here. The
+    // assertion is pointed at the measured truth so that the divergence is a
+    // stated, pinned fact instead of a red test somebody eventually deletes.
     const parsed = RecordDetailsProps.safeParse({
       sections: [{ label: 'Contact', fields: ['phone'], hideEmpty: true }],
     });
 
-    // Envelope, not a bare failure: the code, and the key it names.
-    expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
-    const refused = parsed.error?.issues.flatMap(
+    expect(parsed.success).toBe(true);
+    // Value reachability, not just key presence: a declared-but-unusable key
+    // would leave the divergence smaller than this comment claims.
+    expect(
+      (parsed.data as { sections?: { hideEmpty?: boolean }[] })?.sections?.[0]?.hideEmpty,
+    ).toBe(true);
+
+    // CONTROL, and it is what stops this from reading as "the spec went soft":
+    // the section object is still STRICT, so an undeclared key is still refused
+    // by name. `hideEmpty` parses because it was DECLARED, not because
+    // unrecognized keys stopped being refused.
+    const undeclared = RecordDetailsProps.safeParse({
+      sections: [{ label: 'Contact', fields: ['phone'], __objectui_7129_probe__: true }],
+    });
+    expect(undeclared.success).toBe(false);
+    expect(undeclared.error?.issues.map((i) => i.code)).toContain('unrecognized_keys');
+    const refused = undeclared.error?.issues.flatMap(
       (i) => (i as unknown as { keys?: string[] }).keys ?? [],
     );
-    expect(refused).toContain('hideEmpty');
+    expect(refused).toContain('__objectui_7129_probe__');
 
     // CONTROL: a declared section key parses AND its value survives, so the
-    // refusal above is about `hideEmpty` and not about a section object the
-    // probe built wrong.
+    // reading above is about the section object the probe built and not about
+    // a probe that built one wrong.
     const control = RecordDetailsProps.safeParse({
       sections: [{ label: 'Contact', fields: ['phone'], columns: 2 }],
     });

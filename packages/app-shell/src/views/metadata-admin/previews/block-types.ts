@@ -149,16 +149,33 @@ export const PALETTE_EXCLUSIONS: Record<string, string> = {
   // Shell singletons — chrome the app shell owns, not page content.
   'app:launcher': 'shell singleton — lives in the app shell chrome',
   'global:notifications': 'shell singleton — lives in the app shell header',
-  'user:profile': 'shell singleton — lives in the app shell header',
-  // No renderer, by decision — and these two are the ones that MEASURE that way.
-  // Nothing registers `form` under `namespace: 'element'` (the form renderers are
-  // `ui:form` in `components/renderers/form/form.tsx` and `view:form` in
-  // `plugin-form/src/index.tsx`; the object-bound alternative named below,
-  // `object-form`, is registered in that same file), and no `ai:` namespace
-  // registration exists anywhere — `components/renderers/placeholders.tsx` keeps
-  // `ai:chat_window` out on purpose so a referencing schema fails loudly.
+  //
+  // ⛔ `user:profile` and `element:form` are NOT missing entries — they are
+  // RETIRED UPSTREAM. `@objectstack/spec` 17.3.0 dropped both from
+  // `PageComponentType` (measured: the enum went 34 → 32 options, lost set
+  // exactly `['user:profile', 'element:form']`, gained set empty), and this
+  // ledger's contract is that every entry names a REAL spec type — pinned by
+  // `__tests__/block-config.test.ts`'s "every exclusion names a real spec type
+  // and carries a reason". An exclusion for a type that no longer exists is a
+  // decision about nothing.
+  //
+  // The reconciliation was made on all sites at once rather than here alone
+  // (objectui#7122): `user:profile` also came out of `PROTOCOL_COMPONENTS` in
+  // `@object-ui/components`' `renderers/placeholders.tsx`, and out of the
+  // regenerated `@object-ui/cli` `known-schema-types.ts` that derives from it.
+  // Deleting only this entry was refused twice, and rightly: it would silence
+  // the one loud signal while objectui went on knowing a type the spec had
+  // retired. Nothing user-reachable was removed — neither type had a renderer.
+  // `user:profile` had only the dashed "Component Placeholder" scaffold (the
+  // sibling `exclusion-reason-truthfulness.test.ts` measures exactly that and
+  // records that this repo does not count the scaffold as a renderer), the
+  // shell's own profile affordance is a React slot and never this block type,
+  // and nothing anywhere registered `element:form`.
+  //
+  // No renderer, by decision. No `ai:` namespace registration exists anywhere —
+  // `components/renderers/placeholders.tsx` keeps `ai:chat_window` out on
+  // purpose so a referencing schema fails loudly.
   'ai:chat_window': 'no inline renderer — the floating chat overlay (plugin-chatbot) is canonical',
-  'element:form': 'no renderer — use the object-bound `object-form` block',
   // Renders fine — excluded because it is not PAGE CONTENT, not because it is
   // unrenderable. Both types have a registered renderer under `namespace:
   // 'element'` (`components/renderers/basic/text-input.tsx:161`,

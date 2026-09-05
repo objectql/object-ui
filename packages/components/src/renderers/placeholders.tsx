@@ -84,7 +84,19 @@ const PROTOCOL_COMPONENTS = [
   'record:details', 'record:highlights', 'record:related_list', 'record:activity', 
   'record:chatter', 'record:path',
   'app:launcher', 'nav:menu', 'nav:breadcrumb',
-  'global:search', 'global:notifications', 'user:profile',
+  'global:search', 'global:notifications',
+  // 'user:profile' intentionally omitted — `@objectstack/spec` 17.3.0 RETIRED
+  // it from `PageComponentType` (measured: the enum went 34 → 32 options, lost
+  // set exactly `['user:profile', 'element:form']`, gained set empty), so it is
+  // no longer a page block any author can legitimately write. It never had a
+  // renderer here either, only the dashed scaffold below, and the shell's own
+  // profile affordance is a React slot rather than this block type — so nothing
+  // user-reachable went with it. Same reasoning as `ai:chat_window` further
+  // down: a page schema still naming it now produces the loud "Unknown
+  // component type" panel instead of a silent grey box, which is what sends the
+  // fix to the source. Retired across all three sites at once (objectui#7122):
+  // here, the Studio palette ledger (`app-shell` `previews/block-types.ts`),
+  // and the regenerated `@object-ui/cli` `known-schema-types.ts`.
 
   // 13. Dashboard Widgets
   'widget:metric', 'widget:bar', 'widget:line', 'widget:pie', 'widget:funnel', 

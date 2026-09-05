@@ -51,7 +51,11 @@ const OBJECT_BODY = {
   label: 'Widget',
   fields: {
     name: { type: 'text', label: 'Name', required: true },
-    owner_id: { type: 'lookup', label: 'Owner', indexed: true, helpText: 'Record owner.' },
+    // `reference` is not this file's subject: it is here because a `lookup`
+    // without a target is un-storable at `@objectstack/spec` 17.3.0 and the
+    // designer now refuses one before the PUT (objectui#7122). Without it every
+    // save below would raise on the target instead of exercising `indexed`.
+    owner_id: { type: 'lookup', label: 'Owner', reference: 'account', indexed: true, helpText: 'Record owner.' },
     code: { type: 'text', label: 'Code', indexed: false },
   },
   indexes: [{ name: 'by_owner', fields: ['owner_id'] }],

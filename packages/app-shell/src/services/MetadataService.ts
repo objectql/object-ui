@@ -188,6 +188,82 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
 }
 
 /**
+ * Field types whose `reference` (the target object a relationship links to)
+ * `@objectstack/spec` requires to be present and non-empty.
+ *
+ * Measured against the installed 17.3.0 by parsing `{ type, label: 'L' }` for
+ * every one of `FieldSchema`'s 49 declared types: exactly two are refused for a
+ * missing target — `lookup` and `master_detail` — and no other type is refused
+ * at all on that minimal document. Kept as a named list rather than derived by
+ * probing at runtime, and pinned against the spec by
+ * `MetadataService.specKeyReference.test.ts` so it cannot go stale in either
+ * direction (a third type gaining the requirement, or one of these losing it).
+ *
+ * ⛔ Deliberately NOT "parse every field through `FieldSchema` before the PUT".
+ * That would refuse plugin-registered keys the SERVER accepts — measured on
+ * 17.2.0, `x_plugin_thing` is `unrecognized_keys` to the installed spec while
+ * the server that sent it takes it back — which is the same reason
+ * {@link RETIRED_FIELD_KEYS} is a named list instead of a schema filter. This
+ * guard states one invariant, not a client-side revalidation of the document.
+ */
+const RELATIONSHIP_TYPES_REQUIRING_REFERENCE = ['lookup', 'master_detail'];
+
+/**
+ * Refuse a relationship field whose target is missing — BEFORE the PUT.
+ *
+ * ## Why this raises instead of letting the server answer
+ *
+ * `@objectstack/spec` 17.3.0 made `reference` a hard requirement on `lookup`
+ * and `master_detail` (a `custom` refinement at path `reference`, not an
+ * `unrecognized_keys` name refusal). Against a matched backend the PUT of a
+ * half-filled relationship draft comes back `422 INVALID_METADATA` — and this
+ * is the expensive part, the same trap `RETIRED_FIELD_KEYS` exists for: the
+ * refused document is the WHOLE object, so the failure is not confined to the
+ * incomplete field. Every later save of that object fails the same way until
+ * the draft is completed or removed.
+ *
+ * At 17.2.0 the requirement was prose only — `{ type: 'lookup', label: 'L' }`
+ * parsed green — so the designer was free to persist a target-less draft and
+ * did. 17.3.0 closes a declared-but-unenforced gap (ADR-0049's direction), and
+ * the reconciliation the maintainer ruled for it (objectui#7122, 2026-09-05,
+ * ruled item 4) is this one: the incomplete draft stays in the client and is
+ * never PUT. ⛔ The alternative — flipping the pin green and leaving the
+ * product PUTting it — was refused on the ground that it pins a known-broken
+ * save path.
+ *
+ * ## Why an exception, and why HERE
+ *
+ * Same mechanism, same reason and the same call site as the nameless-field and
+ * duplicate-name refusals below: it raises before the request, so a refused
+ * list issues no PUT at all, and the designer page runs its save inside a
+ * `try` whose `catch` already renders the message in the page's existing error
+ * surface (`data-testid="metadata-fields-page-error"`). No new UI affordance is
+ * introduced by this guard — the author sees the same banner they already see
+ * for a nameless or duplicated field.
+ *
+ * `MetadataFieldsPage` carries the sibling copy of this check for the same
+ * reason it carries the sibling `toFieldsMap` and `carryOver`: the two writers
+ * convert different input types on different paths, and neither owns the
+ * other's. Both are pinned.
+ */
+function assertRelationshipTargetPresent(
+  field: { type?: string; reference?: unknown },
+  fieldName: string,
+  writer: string,
+): void {
+  if (!RELATIONSHIP_TYPES_REQUIRING_REFERENCE.includes(String(field?.type))) return;
+  const reference = field?.reference;
+  if (typeof reference === 'string' && reference.trim() !== '') return;
+  throw new Error(
+    `${writer} cannot save the field \`${fieldName}\`: a \`${field?.type}\` field needs a ` +
+      '`reference` naming the object it links to, and this one has none. `@objectstack/spec` ' +
+      'requires it (17.3.0), so the server refuses the whole object document with 422 ' +
+      '`INVALID_METADATA` — which would then block EVERY later save of this object, not just ' +
+      'this field. Pick the target object, or change the field to a non-relationship type.',
+  );
+}
+
+/**
  * Key a list of field payloads by field NAME — the shape `ObjectSchema.fields`
  * requires (objectui#6240).
  *
@@ -251,6 +327,7 @@ function toFieldsMap(fields: FieldMetadataPayload[]): Record<string, FieldMetada
       );
     }
     seen.add(name);
+    assertRelationshipTargetPresent(field, name, '[MetadataService]');
     entries.push([name, field]);
   });
 
