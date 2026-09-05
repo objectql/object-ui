@@ -7,6 +7,19 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  # `pull-requests: write` only lets the action add labels that ALREADY EXIST in the
+  # repository; creating one it has never seen needs `issues: write`. Upstream states
+  # both halves — actions/labeler v7 README "Recommended Permissions", and its
+  # src/labeler.ts, which on a 403 raises "The workflow does not have permission to
+  # create labels. Ensure the 'issues: write' permission is granted".
+  #
+  # This is load-bearing here rather than defensive: `.github/labeler.yml` gained 14
+  # `package: *` rules in objectui#7746, and 12 of those labels did not exist in this
+  # repository's label registry when they were added. The action applies the whole set
+  # in ONE `setLabels` call, so without this the first PR touching e.g. `packages/auth`
+  # fails the call outright and the PR gets NO labels at all — strictly worse than the
+  # coverage gap #7746 closed. Pinned by scripts/__tests__/labeler-package-coverage.test.ts.
+  issues: write
 
 jobs:
   label:

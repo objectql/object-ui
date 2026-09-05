@@ -1784,6 +1784,14 @@ each release commit are the source of truth for granular and current history.
 
 Automatically labels PRs based on file path patterns defined in `.github/labeler.yml`. Syncs labels on each push to the PR.
 
+The job holds `issues: write` in addition to `pull-requests: write`. That is load-bearing, not
+defensive: `pull-requests: write` alone lets the action attach labels that already exist in the
+repository, while creating one it has never seen requires `issues: write`. Because the action
+applies the whole label set in a single call, a config rule naming a label that does not yet
+exist would otherwise fail the call and leave the PR with **no** labels at all.
+`scripts/__tests__/labeler-package-coverage.test.ts` fails if either permission is dropped, and
+also if a directory under `packages/` draws no label (objectui#7746).
+
 ### Cross-repo Issue Closer (`cross-repo-issue-closer.yml`)
 
 **Trigger:** `pull_request_target` with type `closed`; the job acts only when the PR was actually
