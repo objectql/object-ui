@@ -40,7 +40,8 @@ vi.mock('@object-ui/react', async (importOriginal) => {
   };
 });
 
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   NavigationOverlay: () => null,
 }));
 

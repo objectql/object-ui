@@ -19,14 +19,18 @@ import { I18nProvider, LOCALE_STORAGE_KEY } from '@object-ui/i18n';
 
 // Passthrough dropdown primitives — the open/close choreography is Radix's
 // business; what matters here is what a click on a language item leaves behind.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Button: (p: any) => <button {...p} />,
   DropdownMenu: (p: any) => <div>{p.children}</div>,
   DropdownMenuTrigger: (p: any) => <div>{p.children}</div>,
   DropdownMenuContent: (p: any) => <div>{p.children}</div>,
   DropdownMenuItem: ({ onClick, children }: any) => <div onClick={onClick}>{children}</div>,
 }));
-vi.mock('lucide-react', () => ({ Globe: () => <span /> }));
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  Globe: () => <span />,
+}));
 
 import { LocaleSwitcher } from '../LocaleSwitcher';
 
