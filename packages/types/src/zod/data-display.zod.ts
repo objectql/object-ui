@@ -94,6 +94,8 @@ export const ListSchema = BaseSchema.extend({
   ordered: z.boolean().optional().describe('Whether list is ordered'),
   dividers: z.boolean().optional().describe('Show dividers between items'),
   dense: z.boolean().optional().describe('Dense spacing'),
+  wrapperClass: z.string().optional()
+    .describe('Classes on the wrapper div around the title and the list, read at renderers/data-display/list.tsx:27 — `cn("space-y-2", schema.wrapperClass)` (objectui#7722)'),
 });
 
 /**
