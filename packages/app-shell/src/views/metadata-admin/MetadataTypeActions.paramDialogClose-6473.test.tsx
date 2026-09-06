@@ -69,7 +69,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, cleanup, fireEvent } from '@testing-library/react';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   createAuthenticatedFetch: () => vi.fn(async () => ({
     ok: true,
     status: 200,

@@ -17,7 +17,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ activeOrganization: { id: 'org_1' } }),
 }));
 

@@ -64,7 +64,10 @@ import { act, renderHook } from '@testing-library/react';
 
 /** The signed-in session under test; swapped per case. */
 let userFixture: Record<string, unknown> | null = null;
-vi.mock('@object-ui/auth', () => ({ useAuth: () => ({ user: userFixture }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: userFixture }),
+}));
 
 /** Nothing here reads the adapter; stubbed so the module graph stays cheap. */
 vi.mock('../../providers/AdapterProvider', () => ({

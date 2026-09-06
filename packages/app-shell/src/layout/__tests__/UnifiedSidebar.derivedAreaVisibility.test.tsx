@@ -43,7 +43,8 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: null, activeOrganization: null }),
   useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
 }));

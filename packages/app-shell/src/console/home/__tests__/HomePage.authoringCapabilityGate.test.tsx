@@ -66,7 +66,8 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // The persona under test is an ADMIN by role in every case below — that is
 // precisely the defect: role said yes, capability said no, and only role was
 // consulted. Cases that vary the capability keep this fixed at `true`.
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Zhang San', email: 'zhangsan@acme-test.com' } }),
   useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
 }));

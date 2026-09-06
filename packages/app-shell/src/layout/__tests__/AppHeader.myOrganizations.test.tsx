@@ -140,7 +140,7 @@ let organizations: Array<Record<string, unknown>> = [ONE_ORG];
 /** `features.multiOrgEnabled` the mocked auth config resolves with. */
 let multiOrgEnabled = true;
 
-vi.mock('@object-ui/auth', () => {
+vi.mock('@object-ui/auth', async (importOriginal) => {
   /**
    * ONE stable function identity for the whole file — not a fresh arrow per
    * `useAuth()` call. Both AppHeader and WorkspaceSwitcher resolve this config
@@ -152,6 +152,7 @@ vi.mock('@object-ui/auth', () => {
    */
   const getAuthConfig = () => Promise.resolve({ features: { multiOrgEnabled } });
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     useAuth: () => ({
       user: { id: 'u1', name: 'Zhang San', email: 'zs@example.com' },
       signOut: vi.fn(),

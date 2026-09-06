@@ -66,7 +66,10 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 
 /** `null` is the pre-auth / still-settling session, not a user with no mail. */
 let userFixture: { id: string } | null = { id: 'u1' };
-vi.mock('@object-ui/auth', () => ({ useAuth: () => ({ user: userFixture }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: userFixture }),
+}));
 
 /** What `find('sys_inbox_message')` does for the current case. */
 let inboxBehaviour: () => Promise<unknown> = async () => ({ data: [] });
