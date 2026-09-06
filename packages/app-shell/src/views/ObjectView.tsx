@@ -2095,6 +2095,33 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             }
         }
 
+        /**
+         * objectui#7891 — this branch forwards the AUTHORED `chart:` block, and
+         * `config` is NOT part of it. Do not add a `config:` rung back.
+         *
+         * `@objectstack/spec`'s `ListChartConfigSchema` is a `strictObject`
+         * declaring exactly `chartType` / `dataset` / `dimensions` / `values`,
+         * and objectui binds it BY REFERENCE (`chart` is absent from
+         * `LIST_VIEW_LOCAL_OVERRIDES`), so a `config` written on this block is
+         * refused BY NAME — `unrecognized_keys ["config"]` — by the same schema
+         * the platform's metadata write door parses every save through
+         * (`saveMetaItem` -> `getMetadataTypeSchema('view')` -> 422
+         * INVALID_METADATA, draft and publish alike). No conforming author can
+         * write the key, and no write path can store it.
+         *
+         * Why nothing ever caught the forward: `ObjectChart` is published as
+         * `(props: any)`, so this literal is checked against nothing whatever.
+         * The `as any` casts that used to sit on both literals were measured
+         * INERT — `tsc --noEmit` is green without them — so they are gone too;
+         * they read as load-bearing and were not.
+         *
+         * Losing the key is a DEGRADE, not a break: `ChartRenderer` generates a
+         * container config from `series` plus a positional palette when none is
+         * present, so any non-conforming row still renders, with series-derived
+         * labels and default colours.
+         *
+         * Pinned by `ObjectView.chartConfigForward-7891.test.tsx`.
+         */
         if (viewDef.type === 'chart') {
             const chartConfig = viewDef.chart || {};
             // ADR-0021 (#1890): dataset-bound chart — the single author-facing
@@ -2115,9 +2142,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                                 chartType: chartConfig.chartType || 'bar',
                                 xAxisKey: dims[0],
                                 series: vals.map((v: string) => ({ dataKey: v, label: v })),
-                                config: chartConfig.config,
+                                // no `config` rung — see the block above (#7891)
                                 className: 'h-[400px] w-full',
-                            } as any}
+                            }}
                         />
                     </Suspense>
                 );
@@ -2149,10 +2176,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                             },
                             xAxisKey: categoryField,
                             series,
-                            config: chartConfig.config,
+                            // no `config` rung — see the block above (#7891)
                             filter: chartConfig.filter,
                             className: 'h-[400px] w-full',
-                        } as any}
+                        }}
                     />
                 </Suspense>
             );
