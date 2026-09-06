@@ -252,14 +252,25 @@ Reference actions in schemas:
 
 ```json
 {
-  "type": "button",
+  "type": "action:button",
+  "name": "call_api",
   "label": "Click Me",
-  "onClick": {
-    "actionType": "ajax",
-    "api": "/api/action"
-  }
+  "actionType": "api",
+  "endpoint": "/api/action",
+  "method": "POST"
 }
 ```
+
+Three things about the shape this replaces. A declarative action is its own NODE TYPE,
+`action:button` — a plain `button` has no authorable handler: `ButtonSchema.onClick` is a
+runtime slot for a host-supplied function, refused by name by the zod mirror, and (being
+on `SDUI_DOM_PASS_THROUGH_KEYS`) forwarded straight to the DOM listener slot, where React
+throws on the first click: "Expected `onClick` listener to be a function, instead got a
+value of `object` type." The execution type is `actionType`, and the built-in vocabulary
+is `script` | `url` | `modal` | `flow` | `api` | `form` (plus objectui's `navigation`
+alias) — anything else must be a handler your host registered on `ActionProvider`. `ajax`
+is neither. And the endpoint key is `endpoint`, with `method`; `api` is not a key any
+action renderer forwards.
 
 ## Performance Optimization
 

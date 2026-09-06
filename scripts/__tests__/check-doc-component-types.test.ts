@@ -87,12 +87,14 @@ describe('the registered-key universe is derived from the registration calls', (
         'packages/demo/src/index.tsx',
         [
           // No import of a workspace package here, not even as fixture TEXT.
-          // `scripts-type-check.test.ts` greps this project's files for the
-          // `from '<at>object-ui/…'` shape to pin the claim that
-          // `pnpm type-check:scripts` needs no build, and that grep cannot tell a
-          // string literal — or a comment quoting one — from a real import. The
-          // fixture does not need the import line: the derivation reads the
+          // The fixture does not need the import line: the derivation reads the
           // register CALL, not what the file imports.
+          //
+          // (This used to say the line was omitted because
+          // `scripts-type-check.test.ts` matched the `from '@object-ui/...'`
+          // shape in the file's TEXT. It reads import edges from the AST now —
+          // see `workspaceImportSpecifiers()` there — so the omission is a
+          // choice about this fixture, not a constraint a sibling gate imposes.)
           "ComponentRegistry.register('object-grid', Renderer, {",
           "  namespace: 'plugin-grid',",
           "  label: 'Object Grid',",
@@ -893,13 +895,35 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
    * each workflow's header is asserted beside its own gate rather than in a
    * shared sweep that would own neither.
    *
-   * Deliberately narrow: a numeral DIRECTLY qualifying a document-population
-   * noun. Issue references, `node-version`, `timeout-minutes` and "the fifth
-   * instance of the shape" are all numbers this header legitimately carries, and
+   * Deliberately narrow, and narrow in the same place as the other two copies:
+   * a numeral qualifying a document-population noun, with at most two words
+   * allowed to sit between the two. Issue references (ruled out at the pattern
+   * level by the negative lookbehind, not by luck), `node-version`,
+   * `timeout-minutes` and "the fifth instance of the shape" are all numbers
+   * this header legitimately carries, and
    * none of them rots when a page is added or deleted. It also means the header
    * must not quote another header's stale literal verbatim — this pin cannot
    * tell a quotation from a claim, and refusing both is the safe direction for a
    * check on prose accuracy.
+   *
+   * ⭐ Those two intervening words are objectui#7888, and they are the sentence
+   * above implemented rather than a new rule. This pin and its twin in
+   * `check-doc-fence-languages.test.ts` both said "a numeral DIRECTLY
+   * qualifying" and both coded it as strict adjacency, so a single adjective
+   * defeated them. Measured: run verbatim over `check-links.yml`'s header as it
+   * stood on `origin/main` at `83fe6e741` — a header carrying TWO live drifted
+   * counts — the adjacent-only pattern reported ONE of them. It found the
+   * sentence about the files the published site is built from, and scored the
+   * one reading "holds 15 INTERNAL documents" clean — which was the count that
+   * had drifted furthest (15 against a measured 17), because an adjective sat
+   * between the numeral and the noun. The pattern below is the third copy's,
+   * carried here verbatim (objectui#7825, PR objectui#7885,
+   * `check-links-workflow.test.ts`), with the noun set unchanged; the word
+   * DIRECTLY is gone from the sentence above because keeping it would only have
+   * inverted the same gap between what this pin claims and what it does.
+   *
+   * Both twin headers were clean under BOTH patterns when this was carried
+   * across, so this closes a proven hole rather than a live violation.
    */
   it('its header states the population and never counts it — no count can rot here', () => {
     const header = fs
@@ -907,9 +931,11 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
       .split('\n')
       .filter((line) => /^\s*#/.test(line))
       .join('\n');
-    const counts = [...header.matchAll(/\b\d+\s+`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi)].map(
-      (m) => m[0],
-    );
+    const counts = [
+      ...header.matchAll(
+        /(?<![#\w.])\d+(?:,\d{3})*\s+(?:[A-Za-z][\w-]*\s+){0,2}`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi,
+      ),
+    ].map((m) => m[0]);
     expect(
       counts,
       `doc-component-types.yml's header states a page count (${counts.join(', ')}). Nothing fails when ` +

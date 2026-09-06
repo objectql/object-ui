@@ -187,11 +187,15 @@ export type ViewNavigationConfig = z.infer<typeof NavigationConfigSchema>;
     // `SpecAuthoredInput` is recognised by NAME (it is the repo's own helper for
     // binding a local type to a spec schema's authoring input), so the module it
     // comes from does not change the verdict. Spelled as the relative import a
-    // file inside the react package would really use, and deliberately not as a
-    // bare workspace specifier: `scripts-type-check.test.ts` pins that no file in
-    // the scripts tsconfig program imports an `@object-ui` package, and it looks
-    // for that import TEXT — so a fixture string carrying one trips it and would
-    // move a CI step below the workspace build for no real dependency.
+    // file inside the react package would really use, which is what such a file
+    // would carry anyway.
+    //
+    // (Not, as this used to say, because a bare workspace specifier in a fixture
+    // string would trip `scripts-type-check.test.ts`. That gate still pins that
+    // no file in the scripts tsconfig program imports an `@object-ui` package,
+    // but objectui#4902 moved it to the AST walk `workspaceImportSpecifiers()`,
+    // which reads import edges rather than import TEXT — a fixture string is not
+    // one. See that function's docstring.)
     withFixture(
       {
         'authored.ts': `

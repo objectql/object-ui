@@ -90,8 +90,8 @@ const tempRoots: string[] = [];
  * would pull a 3.2k-line package source into `tsconfig.scripts.json`'s program,
  * and that project's placement in `ci.yml` rests on the premise that it reads
  * nothing outside `scripts/` — pinned by `scripts-type-check.test.ts`, whose
- * regex only looks for workspace-package specifiers and would not have caught a
- * relative one. Computing the path keeps the premise true instead of stepping
+ * AST walk reports only workspace-package specifiers and would not have
+ * caught a relative one. Computing the path keeps the premise true instead of stepping
  * around the pin that guards it.
  */
 const realEn: unknown = (
@@ -99,13 +99,17 @@ const realEn: unknown = (
 ).default;
 
 /**
- * Module specifiers that appear inside the FIXTURE SOURCES below — text to be
- * analysed, not imports of this file. They are interpolated rather than written
- * out because `scripts-type-check.test.ts` greps this directory for import
- * statements naming a workspace package, to pin that the scripts project needs
- * no workspace build, and its regex cannot tell a string literal from an import
- * statement. (Nor a code comment from either — which is why this paragraph does
- * not spell the pattern out.)
+ * The workspace specifier that appears inside the FIXTURE SOURCES below — text
+ * to be analysed, not an import of this file. Held in a constant so every
+ * fixture spells it one way and a package rename stays one edit.
+ *
+ * It is NOT interpolated to keep the specifier away from a text-level scan,
+ * which is what this comment used to say. That reason expired:
+ * `workspaceImportSpecifiers()` in `scripts-type-check.test.ts` reads import
+ * edges from the AST, so a specifier sitting in a string or a template
+ * literal's static text is not an edge to it — that function's docstring is the
+ * authoritative account. `check-i18n-dead-keys.test.ts` holds the same constant
+ * for the same reason.
  */
 const I18N_PKG = '@object-ui/i18n';
 
