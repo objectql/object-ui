@@ -918,19 +918,71 @@ describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a 
     return root;
   }
 
-  /** The nested run, with this run's own VITEST_* wiring kept out of its env. */
+  /**
+   * ANSI SGR sequences, built from the escape's CODE POINT — a raw control byte
+   * in this source is what `pnpm check:control-bytes` exists to refuse.
+   */
+  const SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+  const stripAnsi = (text: string) => text.replace(SGR, '');
+
+  /**
+   * The nested run.
+   *
+   * Three things about the child are DELIBERATE, and the first two are repairs
+   * (CI run 34003883330, job 101407488095, where three assertions here failed
+   * on output that visibly contained the text they were matching):
+   *
+   *   1. **The verdict comes from the JSON reporter, not from the summary.**
+   *      Under GitHub Actions the child colours its output, so the summary line
+   *      is really `Tests ` + SGR + `1 failed` + SGR + ` (1)` and `\s+` matches
+   *      no escape sequence. Pinning a human-readable summary through a regex
+   *      was the fragile part; the counts are read from structured data now and
+   *      the prose is only checked after `stripAnsi`, which is belt to that
+   *      brace. Reproduced byte-for-byte in `the summary matcher survives the
+   *      colour CI adds` below.
+   *   2. **`GITHUB_ACTIONS` is removed from the child's env.** Legs 1 and 3
+   *      fail ON PURPOSE, and with that variable set the child switches on
+   *      vitest's github-actions reporter and writes `::error file=…`
+   *      annotations — which the CI log shows it did, decorating the parent's
+   *      own run with failures from a fixture that is behaving correctly.
+   *   3. `NO_COLOR` asks for uncoloured output. It is not relied on: the
+   *      stripping above is what makes the assertions true either way.
+   */
   function runVitest(root: string) {
-    const env: Record<string, string> = {};
+    const env: Record<string, string> = { NO_COLOR: '1' };
     for (const [key, value] of Object.entries(process.env)) {
       if (value === undefined || key === 'VITEST' || key.startsWith('VITEST_')) continue;
+      if (key === 'GITHUB_ACTIONS' || key === 'NO_COLOR' || key === 'FORCE_COLOR') continue;
       env[key] = value;
     }
-    const run = spawnSync(path.join(repoRoot, 'node_modules/.bin/vitest'), ['run', '--root', root], {
-      cwd: root,
-      encoding: 'utf8',
-      env,
-    });
-    return { status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` };
+    const reportAt = path.join(root, 'vitest-report.json');
+    const run = spawnSync(
+      path.join(repoRoot, 'node_modules/.bin/vitest'),
+      ['run', '--root', root, '--reporter=default', '--reporter=json', `--outputFile.json=${reportAt}`],
+      { cwd: root, encoding: 'utf8', env },
+    );
+    const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    if (!fs.existsSync(reportAt)) {
+      throw new Error(`the nested vitest wrote no JSON report -- it did not run:\n${output}`);
+    }
+    const report = JSON.parse(fs.readFileSync(reportAt, 'utf8'));
+    const suite = report.testResults?.[0] ?? {};
+    return {
+      status: run.status,
+      plain: stripAnsi(output),
+      /** Structured, so no assertion here depends on how vitest PRINTS. */
+      facts: {
+        success: report.success,
+        total: report.numTotalTests,
+        passed: report.numPassedTests,
+        failed: report.numFailedTests,
+        suiteStatus: suite.status,
+        /** 0 when the file never collected: there was no test to run. */
+        assertions: suite.assertionResults?.length ?? 0,
+        /** A suite-level message is where a COLLECTION error lands. */
+        suiteMessage: String(suite.message ?? ''),
+      },
+    };
   }
 
   afterAll(() => {
@@ -942,6 +994,19 @@ describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a 
     expect(verdictFor(SPEC, INHERITING).verdict).toBe('inherits');
   });
 
+  it('the summary matcher survives the colour CI adds', () => {
+    // The exact bytes from CI run 34003883330, job 101407488095, rebuilt from
+    // the escape's code point. Under GitHub Actions the child colours its
+    // summary, so `Tests ` and `1 failed` are separated by SGR sequences rather
+    // than by whitespace -- which is why three assertions here failed on output
+    // that visibly contained the text they were matching.
+    const e = String.fromCharCode(27);
+    const asCiPrinted = `${e}[2m      Tests ${e}[22m ${e}[1m${e}[31m1 failed${e}[39m${e}[22m${e}[90m (1)${e}[39m`;
+    expect(asCiPrinted, 'the historical defect, reproduced').not.toMatch(/Tests\s+1 failed/);
+    expect(stripAnsi(asCiPrinted), 'and what this file matches on now').toMatch(/Tests\s+1 failed/);
+    expect(stripAnsi(asCiPrinted)).toBe('      Tests  1 failed (1)');
+  });
+
   it('LEG 1 — frozen factory, module-scope read: the file dies during COLLECTION', () => {
     const root = fixturePackage({
       'consumer.mjs': EAGER,
@@ -951,12 +1016,21 @@ describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a 
         `it(${Q}never runs${Q}, () => { expect(DISCARD_GUARD).toBeTypeOf(${Q}function${Q}); });`,
       ),
     });
-    const { status, output } = runVitest(root);
-    expect(status, output).not.toBe(0);
-    expect(output).toContain('No "createSafeTranslation" export is defined on the "@fixture/i18n" mock');
-    expect(output, 'the suite failed as a SUITE, before any test existed').toMatch(/Failed Suites\s+1/);
-    // The signature objectui#6768 measured: a red run with nothing to point at.
-    expect(output, 'zero failed assertions is what makes this read as flake').toMatch(/Tests\s+no tests/);
+    const { status, plain, facts } = runVitest(root);
+    expect(status, plain).not.toBe(0);
+    // STRUCTURED, so nothing here depends on how vitest prints. The suite was
+    // found and failed, and NO test inside it ever existed to be run: that is
+    // collection death, and `total: 0` is what leg 3 will contradict.
+    expect(facts.suiteStatus).toBe('failed');
+    expect(facts.total, 'a collected file would report its tests').toBe(0);
+    expect(facts.assertions, 'no test ran, so there is nothing to blame').toBe(0);
+    expect(facts.failed, 'the signature objectui#6768 measured: ZERO failed assertions').toBe(0);
+    expect(facts.suiteMessage, 'the collection error lands on the SUITE').toContain(
+      'No "createSafeTranslation" export is defined on the "@fixture/i18n" mock',
+    );
+    // ...and the human-readable half the card quotes, after ANSI is stripped.
+    expect(plain).toMatch(/Failed Suites\s+1/);
+    expect(plain, 'zero failed assertions is what makes this read as flake').toMatch(/Tests\s+no tests/);
   }, 120_000);
 
   it('LEG 2 — the converted factory, same read: it collects and passes', () => {
@@ -968,9 +1042,12 @@ describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a 
         `it(${Q}runs${Q}, () => { expect(DISCARD_GUARD).toBeTypeOf(${Q}function${Q}); });`,
       ),
     });
-    const { status, output } = runVitest(root);
-    expect(status, output).toBe(0);
-    expect(output).toMatch(/Tests\s+1 passed/);
+    const { status, plain, facts } = runVitest(root);
+    expect(status, plain).toBe(0);
+    expect(facts.success).toBe(true);
+    expect(facts.total).toBe(1);
+    expect(facts.passed).toBe(1);
+    expect(plain).toMatch(/Tests\s+1 passed/);
   }, 120_000);
 
   it('LEG 3 — the NON-VACUITY control: a lazy read fails as an ordinary test', () => {
@@ -982,12 +1059,18 @@ describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a 
         `it(${Q}collects, then fails${Q}, () => { expect(discardGuard()).toBeTypeOf(${Q}function${Q}); });`,
       ),
     });
-    const { status, output } = runVitest(root);
-    expect(status, output).not.toBe(0);
+    const { status, plain, facts } = runVitest(root);
+    expect(status, plain).not.toBe(0);
     // Same missing export, same frozen factory -- and a completely different
-    // failure shape, because the read is no longer at module scope.
-    expect(output).toContain('No "createSafeTranslation" export is defined on the "@fixture/i18n" mock');
-    expect(output, 'a lazy read collects, so the failure is an assertion').toMatch(/Tests\s+1 failed/);
-    expect(output).not.toMatch(/Failed Suites/);
+    // shape, because the read is no longer at module scope. THESE THREE are
+    // what stop leg 1 from being satisfied by any red run at all: the file
+    // COLLECTED, one test existed, and the failure is an assertion.
+    expect(facts.total, 'the file collected, so its test exists').toBe(1);
+    expect(facts.assertions, 'and it ran -- leg 1 reports 0 here').toBe(1);
+    expect(facts.failed).toBe(1);
+    expect(facts.suiteMessage, 'nothing failed at COLLECTION this time').toBe('');
+    expect(plain).toContain('No "createSafeTranslation" export is defined on the "@fixture/i18n" mock');
+    expect(plain, 'a lazy read collects, so the failure is an assertion').toMatch(/Tests\s+1 failed/);
+    expect(plain).not.toMatch(/Failed Suites/);
   }, 120_000);
 });
