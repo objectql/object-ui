@@ -114,13 +114,7 @@ const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
  */
 export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   // /api/v1/meta/object
-  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
-  // /api/v1/meta/object
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
-  // /api/v1/automation/_status
-  'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
-  // /api/v1/ai/conversations
-  'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
 ]);
 
 type Escape = { file: string; test: string; url: string };
