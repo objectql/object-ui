@@ -433,6 +433,20 @@ ComponentRegistry.register('chatbot-floating',
 
     return (
       <FloatingChatbot
+        // Fenced and FIRST — matches the two sibling registrations above
+        // (objectui#7708). Was a raw `{...props}` spread LAST: every authored
+        // key `SchemaRenderer` forwarded reached the panel's `ChatbotEnhanced`
+        // unfiltered, so `processVisibility`, `surface` and `showAvatars` were
+        // live here although `ChatbotFloatingSchema` declares none of them,
+        // AND the authored `messages` seed overrode the runtime `messages`
+        // prop written below — a sent message never rendered on a floating
+        // node. Filtering through `toDomProps` and moving it first closes
+        // both: only the DOM-safe whitelist (plus `id`/`data-*`/`aria-*`)
+        // survives, and every named prop below now wins over it. No member
+        // `ChatbotFloatingSchema` declares depends on this channel — each is
+        // consumed by `useObjectChat` above or forwarded by name below, so
+        // fencing dark-outs nothing the face promises.
+        {...toDomProps(props)}
         floatingConfig={schema.floatingConfig}
         messages={runtimeMessages}
         placeholder={schema.placeholder}
@@ -452,16 +466,6 @@ ComponentRegistry.register('chatbot-floating',
         enableMarkdown={schema.enableMarkdown ?? true}
         enableFileUpload={schema.enableFileUpload ?? false}
         className={className}
-        // ⚠️ Raw and LAST — the two sibling registrations spread
-        // `toDomProps(props)` FIRST. Every authored key `SchemaRenderer`
-        // forwards reaches the panel's `ChatbotEnhanced` unfiltered (so
-        // `processVisibility`, `surface` and `showAvatars` are live here
-        // although `ChatbotFloatingSchema` declares none of them), and the
-        // authored `messages` seed overrides the runtime `messages` prop
-        // written above. Measured through the real host and carded as objectui#7708
-        // — fence vs declare is that card's ruling. Deliberately NOT changed
-        // by objectui#7655, which declared faces and moved no render outcome.
-        {...props}
       />
     );
   },
