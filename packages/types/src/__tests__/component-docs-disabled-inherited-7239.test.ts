@@ -78,6 +78,33 @@
  * That last pair is the point of the control: a failure that reddened the
  * independent rows too would mean the sweep was indiscriminate, not that the
  * inherited rows were wrong.
+ *
+ * ## Amendments
+ *
+ * The population is a ledger, not a constant: it moves when a page gains or
+ * loses a real `disabled` row. Each move is recorded here with its cause, so a
+ * later reader can tell a deliberate claim from a number someone bumped to get
+ * back to green.
+ *
+ *   - **22 -> 23 rows, INDEPENDENT 8 -> 9 (objectui#7687).** `ComboboxOption`
+ *     joins the independent table. Its `disabled` was always DECLARED by
+ *     `packages/types/src/form.ts` and validated by `ComboboxOptionSchema`, but
+ *     the combobox component never read it, so an option authored
+ *     `disabled: true` rendered selectable; #7687 makes the component honour it
+ *     and documents the member on `form/combobox.mdx`, which is the row this
+ *     census then measured. It classifies INDEPENDENT on this file's own
+ *     criterion, not by resemblance to its neighbours: the shipped
+ *     `ComboboxOption` declares `disabled` itself and does NOT extend
+ *     `BaseSchema`, so the narrow `boolean` is the correct spelling and the
+ *     second INDEPENDENT assertion holds for it unchanged.
+ *
+ *     ⚠️ Note for the class, since the #7687 card recorded the opposite: that
+ *     page's `interface` block sits in a `plaintext` fence and the card
+ *     concluded no CI gate could see it. True of the doc-type gates named
+ *     above, and false overall — THIS census reads those `.mdx` files as text
+ *     and caught the new row. A doc edit under `content/docs/components` that
+ *     touches a `disabled` row is answerable to `packages/types`, so a run
+ *     narrowed to the package the code fix lives in cannot see it.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -184,6 +211,8 @@ const INDEPENDENT = [
   { page: 'basic/button-group.mdx', iface: 'ButtonGroupButton', shippedName: 'ButtonGroupButton' },
   { page: 'disclosure/accordion.mdx', iface: 'AccordionItem', shippedName: 'AccordionItem' },
   { page: 'disclosure/toggle-group.mdx', iface: 'ToggleGroupItem', shippedName: 'ToggleGroupItem' },
+  // Added by objectui#7687, which made the member real — see `## Amendments`.
+  { page: 'form/combobox.mdx', iface: 'ComboboxOption', shippedName: 'ComboboxOption' },
   { page: 'form/form.mdx', iface: 'FormField', shippedName: 'FormField' },
   { page: 'form/radio-group.mdx', iface: 'RadioOption', shippedName: 'RadioOption' },
   // Doc-local names; the shipped shape they illustrate is `MenuCommandItem`.
@@ -246,7 +275,7 @@ describe('the two tables account for every documented `disabled` row (objectui#7
 
   it('sees exactly the population this card measured', () => {
     expect({ rows: ROWS.length, inherited: INHERITED.length, independent: INDEPENDENT.length }).toEqual(
-      { rows: 22, inherited: 14, independent: 8 },
+      { rows: 23, inherited: 14, independent: 9 },
     );
   });
 });
