@@ -229,8 +229,40 @@ export interface ObjectViewProps {
   schema: ObjectViewSchema;
 
   /**
-   * Data source (ObjectQL or ObjectStack adapter).
-   * If not provided, falls back to SchemaRendererProvider context.
+   * Data source (ObjectQL or ObjectStack adapter) — REQUIRED. This component
+   * never resolves one for itself.
+   *
+   * This comment used to close with "If not provided, falls back to
+   * SchemaRendererProvider context", one line above a declaration that has
+   * been required for its whole life (objectui#7842). The measurement that
+   * settled which of the two was wrong: `ObjectView` holds no context read at
+   * all — no `useContext`, no `SchemaRendererContext`, and not
+   * `useElementDataSource`, which is how `@object-ui/react` spells that
+   * fallback for the components that genuinely have one. The value travels
+   * from this prop into `useSettledSchema(schemaKey, dataSource)` (which has
+   * no context read either) and into the two effects below, and every one of
+   * those sites GUARDS on it instead of resolving one —
+   * `if (!dataSource?.onMutation …) return;` and
+   * `if (!dataSource || !schema.objectName) return;`.
+   *
+   * The promise was not invented, it was MISFILED. `ObjectViewRenderer`
+   * (`./index.tsx`) — the renderer registered for the `object-view` and `view`
+   * schema tags — is the thing that does exactly what that sentence described:
+   * it reads `useContext(SchemaRendererContext)` and hands `ctx?.dataSource`
+   * down to this prop. A schema-driven host therefore does get the provider's
+   * adapter; a caller writing `<ObjectView …>` in TSX does not, and tsc
+   * refuses the omission at the call site.
+   *
+   * What happens if it is absent anyway (an untyped JS host, or that
+   * registered renderer with no provider mounted, which passes `null`):
+   * nothing throws and nothing is fetched. `useSettledSchema` settles with
+   * `def: null`, both effects return early, and the value is forwarded
+   * verbatim to `ObjectGrid` / `SchemaRenderer`, whose own `dataSource` is
+   * declared optional. The view renders its chrome and stays empty.
+   *
+   * ⛔ Making this prop optional would WIDEN a published accept set — a
+   * maintainer's ruling, not a passing edit (objectui#7842). Pinned by
+   * `__tests__/ObjectView.dataSourceContextFallback-7842.test.tsx`.
    */
   dataSource: DataSource;
 
