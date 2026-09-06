@@ -7,18 +7,28 @@ import { fileURLToPath } from 'node:url';
 
 import {
   analyze,
+  APP_DOCS,
+  appDocsDirs,
   collectNodes,
   CONTROL_FIXTURES,
   deriveChannels,
   DOCS_ROOT,
   JSON_FENCE_LANGUAGES,
+  listDocuments,
   loadCarriage,
   parseFence,
   RENDERER_SOURCE,
+  ROOT_PAGES,
   runControls,
   sanitizeFence,
   splitTopLevel,
+  SURFACE_LABEL,
 } from '../check-doc-expression-carriage.mjs';
+import {
+  APP_DOCS as TYPES_APP_DOCS,
+  appDocsDirs as typesAppDocsDirs,
+  ROOT_PAGES as TYPES_ROOT_PAGES,
+} from '../check-doc-component-types.mjs';
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../..');
 const GATE = 'scripts/check-doc-expression-carriage.mjs';
@@ -193,16 +203,130 @@ describe('check-doc-expression-carriage: the parse surface', () => {
   });
 });
 
+/**
+ * objectui#7878 — the scan surface.
+ *
+ * This census landed (PR objectui#7868) pointed at `content/docs` alone, while its
+ * two sibling doc gates had already been widened onto the per-app docs trees
+ * (objectui#6600) and the root pages (objectui#7115). That is the objectui#7115
+ * geometry rebuilt one gate over, and objectui#7115 is the card where the root
+ * `README.md` — the repository's most-read authored page — taught an unregistered
+ * component type four times for as long as the example existed, for exactly one
+ * reason: nothing read the file.
+ *
+ * ⚠️ The card's own premise was WRONG about the destination and was corrected
+ * before dispatch: it expected the widening to reach `docs/ARCHITECTURE.md`
+ * (objectui#7838's site). It does not. `check-doc-component-types` names `docs/**`
+ * in its exclusions, so the repository-root `docs/` tree is in NO gate's walk —
+ * objectui#7856's open question, deliberately not answered here.
+ *
+ * ⚠️ Widening a scan surface is the change that can be GREEN ABOUT NOTHING, so
+ * the surface is pinned as an EQUALITY against the gate it is supposed to match,
+ * and every leg of the walk is separately proven to reach a file.
+ */
+describe('check-doc-expression-carriage: the scan surface is check:doc-types’, by import', () => {
+  it('holds the other gate’s constants themselves, not equal copies of them', () => {
+    // Identity, not `toEqual`. Three gates carry COPIES of these constants for a
+    // stated reason that does not apply here (`check-doc-snippet-types` pulls in
+    // `typescript` at load; `check-doc-fence-languages` must run with no install),
+    // and `check-doc-fence-languages.test.ts` pins those three against each other.
+    // A fourth copy would need a fourth row in that pin; an import needs none,
+    // because there is nothing to drift.
+    expect(APP_DOCS).toBe(TYPES_APP_DOCS);
+    expect(ROOT_PAGES).toBe(TYPES_ROOT_PAGES);
+    expect(appDocsDirs).toBe(typesAppDocsDirs);
+  });
+
+  /**
+   * `DOCS_ROOT` is the one leg this file still spells, because
+   * `check-doc-component-types.mjs` declares it `const` rather than `export const`
+   * and this card's file surface does not extend to that file. So it is pinned
+   * against that file's SOURCE TEXT — the enumeration and the reading come from
+   * different places, which is the only shape of pin that can fail.
+   */
+  it('spells DOCS_ROOT exactly as check:doc-types declares it', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'scripts/check-doc-component-types.mjs'), 'utf8');
+    const declared = source.match(/^const DOCS_ROOT = '([^']+)';$/m)?.[1];
+    expect(declared, 'check-doc-component-types.mjs must still declare DOCS_ROOT as a string const').toBeDefined();
+    expect(DOCS_ROOT).toBe(declared);
+  });
+
+  it('walks exactly the document set that surface names — no more, no less', async () => {
+    const census = analyze(ROOT, { channels: deriveChannels(ROOT), carriage: await loadCarriage() });
+
+    // Rebuilt here from the constants rather than read off the gate, so the two
+    // sides of the comparison are not one source read twice.
+    const isDoc = (f: string) => f.endsWith('.md') || f.endsWith('.mdx');
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const entry of fs.readdirSync(dir).sort()) {
+        if (entry === 'node_modules' || entry === 'dist' || entry.startsWith('.')) continue;
+        const abs = path.join(dir, entry);
+        if (fs.statSync(abs).isDirectory()) walk(abs, out);
+        else if (isDoc(entry)) out.push(path.relative(ROOT, abs).split(path.sep).join('/'));
+      }
+      return out;
+    };
+    const expected = walk(path.join(ROOT, DOCS_ROOT));
+    for (const dir of typesAppDocsDirs(ROOT)) expected.push(...walk(dir));
+    expected.push(...TYPES_ROOT_PAGES.filter((name) => fs.existsSync(path.join(ROOT, name))));
+
+    expect([...census.documents].sort()).toEqual([...expected].sort());
+  });
+
+  /**
+   * Each leg separately, because the equality above would still pass if two legs
+   * resolved to the same empty set. A leg that reaches nothing is a surface that
+   * shrank silently, which is objectui#7115's defect exactly.
+   */
+  it('reaches every leg of the walk: the guide tree, the app docs trees, the root pages', async () => {
+    const census = analyze(ROOT, { channels: deriveChannels(ROOT), carriage: await loadCarriage() });
+    const documents: string[] = census.documents;
+
+    expect(documents.filter((f) => f.startsWith(`${DOCS_ROOT}/`)).length).toBeGreaterThan(100);
+
+    const appDirs = appDocsDirs(ROOT).map((abs: string) => path.relative(ROOT, abs).split(path.sep).join('/'));
+    expect(appDirs, `no ${APP_DOCS.dir}/*/${APP_DOCS.subdir} tree exists, so that leg pins nothing`).not.toEqual([]);
+    for (const dir of appDirs) {
+      expect(documents.some((f) => f.startsWith(`${dir}/`)), `${dir} contributed no document`).toBe(true);
+    }
+
+    for (const name of ROOT_PAGES) expect(documents).toContain(name);
+  });
+
+  it('names the surface it walked in the summary it prints', () => {
+    expect(SURFACE_LABEL).toContain(DOCS_ROOT);
+    expect(SURFACE_LABEL).toContain(`${APP_DOCS.dir}/*/${APP_DOCS.subdir}`);
+    for (const name of ROOT_PAGES) expect(SURFACE_LABEL).toContain(name);
+    // ⛔ No angle-bracket placeholder: this line is quoted into pull-request bodies
+    // and issue comments, and GitHub's body sanitizer eats tag-shaped fragments.
+    expect(SURFACE_LABEL).not.toMatch(/[<>]/);
+
+    const out = execFileSync(process.execPath, [GATE], { cwd: ROOT, encoding: 'utf8' });
+    expect(out).toContain(`file(s) across ${SURFACE_LABEL}`);
+  });
+});
+
 describe('check-doc-expression-carriage: the census on a fixture tree', () => {
-  /** A throwaway docs tree: one page with a known defect, one page that is clean. */
+  /** The same known defect, one copy on each leg of the walk. */
+  const defect = ['```json', '{', '  "type": "badge",', '  "text": "${status}"', '}', '```', ''];
+
+  /**
+   * A throwaway tree with a page on EVERY leg of the scan surface: the guide tree,
+   * an `apps/<app>/docs` tree, and a root page. One defective page per leg plus one
+   * clean page, so a leg that stops being walked costs a finding rather than
+   * nothing — objectui#7878.
+   *
+   * ⚠️ A fixture tree deliberately has no root README of its own beyond the one
+   * written here: `listDocuments` DROPS an absent root page so a throwaway tree
+   * stays scannable, which is the same bargain `check-doc-component-types.scanDocs`
+   * strikes. That is what makes the root-page leg testable at all, and it is also
+   * why the real-tree reach pin above exists.
+   */
   function fixtureTree(): string {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'carriage-docs-'));
     const docs = path.join(root, DOCS_ROOT, 'guide');
     fs.mkdirSync(docs, { recursive: true });
-    fs.writeFileSync(
-      path.join(docs, 'bad.md'),
-      ['# Bad', '', '```json', '{', '  "type": "badge",', '  "text": "${status}"', '}', '```', ''].join('\n'),
-    );
+    fs.writeFileSync(path.join(docs, 'bad.md'), ['# Bad', '', ...defect].join('\n'));
     fs.writeFileSync(
       path.join(docs, 'clean.md'),
       [
@@ -222,21 +346,61 @@ describe('check-doc-expression-carriage: the census on a fixture tree', () => {
         '',
       ].join('\n'),
     );
+    const appDocs = path.join(root, APP_DOCS.dir, 'console', APP_DOCS.subdir);
+    fs.mkdirSync(appDocs, { recursive: true });
+    fs.writeFileSync(path.join(appDocs, 'guide.md'), ['# App', '', ...defect].join('\n'));
+    fs.writeFileSync(path.join(root, ROOT_PAGES[0]), ['# Root', '', ...defect].join('\n'));
     return root;
   }
 
-  it('names the defective site and says nothing about the clean page', async () => {
+  it('names the defective site on every leg and says nothing about the clean page', async () => {
     const root = fixtureTree();
     const census = analyze(root, { channels: deriveChannels(ROOT), carriage: await loadCarriage() });
-    expect(census.counters.fences).toBe(2); // the tsx block is not this gate's surface
+    expect(census.counters.files).toBe(4);
+    expect(census.counters.fences).toBe(4); // the tsx block is not this gate's surface
     expect(census.counters.unparsed).toBe(0);
-    expect(census.sites).toHaveLength(1);
-    expect(census.sites[0]).toMatchObject({
-      file: `${DOCS_ROOT}/guide/bad.md`,
-      type: 'badge',
-      key: 'text',
+    expect(census.sites).toHaveLength(3);
+    expect(census.sites.map((site: { file: string }) => site.file).sort()).toEqual(
+      [`${APP_DOCS.dir}/console/${APP_DOCS.subdir}/guide.md`, ROOT_PAGES[0], `${DOCS_ROOT}/guide/bad.md`].sort(),
+    );
+    expect(census.sites.every((site: { type: string; key: string }) => site.type === 'badge' && site.key === 'text')).toBe(
+      true,
+    );
+    expect(census.sites.find((site: { file: string }) => site.file === `${DOCS_ROOT}/guide/bad.md`)).toMatchObject({
       line: 6,
     });
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  /**
+   * The sabotage, on the population rather than on a channel: drop the two new
+   * legs and the two new findings must disappear. ⛔ A control that cannot fail is
+   * not a control — this one fails the moment the walk stops reaching a leg, which
+   * is the only way this card's change can be green about nothing.
+   */
+  it('loses exactly the new legs’ findings when those trees are removed', async () => {
+    const root = fixtureTree();
+    const args = { channels: deriveChannels(ROOT), carriage: await loadCarriage() };
+    expect(analyze(root, args).sites).toHaveLength(3);
+
+    fs.rmSync(path.join(root, APP_DOCS.dir), { recursive: true, force: true });
+    fs.rmSync(path.join(root, ROOT_PAGES[0]), { force: true });
+
+    const narrowed = analyze(root, args);
+    expect(narrowed.counters.files).toBe(2);
+    expect(narrowed.sites).toHaveLength(1);
+    expect(narrowed.sites[0]).toMatchObject({ file: `${DOCS_ROOT}/guide/bad.md` });
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('lists the documents it walked, in walk order: guide tree, app docs, root pages', () => {
+    const root = fixtureTree();
+    expect(listDocuments(root).map((abs: string) => path.relative(root, abs).split(path.sep).join('/'))).toEqual([
+      `${DOCS_ROOT}/guide/bad.md`,
+      `${DOCS_ROOT}/guide/clean.md`,
+      `${APP_DOCS.dir}/console/${APP_DOCS.subdir}/guide.md`,
+      ROOT_PAGES[0],
+    ]);
     fs.rmSync(root, { recursive: true, force: true });
   });
 });
@@ -294,6 +458,44 @@ describe('check-doc-expression-carriage: the real tree, and the posture', () => 
     ).toEqual([]);
   });
 
+  /**
+   * objectui#7878 re-arms both sabotage directions against the WIDENED population
+   * rather than carrying PR objectui#7868's readings forward. The fixture controls
+   * above prove the instrument can see a planted defect; these prove the same on
+   * the corpus this gate actually ships against, where a silently narrowed
+   * universe would turn correct documentation into findings.
+   *
+   * ⛔ Neither pins a finding COUNT — that number moves with every card in this
+   * class and pinning it would make this gate blocking through the back door. Both
+   * are RELATIVE: sabotage the universe, and the census must report strictly more.
+   */
+  it('still notices a dropped channel on the widened corpus', async () => {
+    const carriage = await loadCarriage();
+    const real = deriveChannels(ROOT);
+    const honest = analyze(ROOT, { channels: real, carriage });
+
+    for (const key of ['visibleOn', 'content']) {
+      const crippled = { ...real, all: real.all.filter((k: string) => k !== key) };
+      const sabotaged = analyze(ROOT, { channels: crippled, carriage });
+      expect(
+        sabotaged.sites.length,
+        `dropping \`${key}\` from the evaluated channels changed nothing on the widened corpus, so ` +
+          'this control cannot fail and the census would not notice the renderer losing that leg.',
+      ).toBeGreaterThan(honest.sites.length);
+    }
+  });
+
+  it('still notices an emptied carriage map on the widened corpus', async () => {
+    const real = deriveChannels(ROOT);
+    const honest = analyze(ROOT, { channels: real, carriage: await loadCarriage() });
+    const emptied = analyze(ROOT, { channels: real, carriage: { version: 'sabotaged', keysFor: () => [] } });
+    expect(
+      emptied.sites.length,
+      'emptying `expressionBindableTextKeysFor` changed nothing, so the carriage half of the universe ' +
+        'is not reaching the judgement at all.',
+    ).toBeGreaterThan(honest.sites.length);
+  });
+
   it('is REPORT-ONLY: exit 0 on the real tree even with findings', () => {
     const run = spawnSync(process.execPath, [GATE], { cwd: ROOT, encoding: 'utf8' });
     expect(run.status, run.stderr).toBe(0);
@@ -311,7 +513,13 @@ describe('check-doc-expression-carriage: the real tree, and the posture', () => 
     // having looked at nothing.
     const orphan = fs.mkdtempSync(path.join(os.tmpdir(), 'carriage-orphan-'));
     fs.mkdirSync(path.join(orphan, 'scripts'));
-    for (const file of ['check-doc-expression-carriage.mjs', 'invoked-as.mjs']) {
+    // Three files, not two: objectui#7878 made the gate IMPORT its scan surface
+    // from `check-doc-component-types.mjs` rather than carry a fourth copy of it,
+    // so the orphan needs that module for the import to resolve at all. If this
+    // list ever falls behind the gate's imports the failure is a module-resolution
+    // stack trace rather than the message below, which is why the message is
+    // asserted and not merely the exit code.
+    for (const file of ['check-doc-expression-carriage.mjs', 'check-doc-component-types.mjs', 'invoked-as.mjs']) {
       fs.copyFileSync(path.join(ROOT, 'scripts', file), path.join(orphan, 'scripts', file));
     }
     const run = spawnSync(process.execPath, ['scripts/check-doc-expression-carriage.mjs'], {
@@ -345,5 +553,11 @@ describe('check-doc-expression-carriage: the wiring', () => {
     const row = page.split('\n').find((line) => line.startsWith('|') && line.includes(GATE));
     expect(row, 'the docs job row must name the gate').toBeDefined();
     expect(row!.toLowerCase()).toContain('report-only');
+    // objectui#7878: the row named `content/docs/**` while the walk had widened.
+    // A row that understates a gate's reach is the same defect one level up from
+    // objectui#3451 — a page describing a guardrail that is not the one that runs.
+    expect(row!).toContain(DOCS_ROOT);
+    expect(row!).toContain(`${APP_DOCS.dir}/`);
+    for (const name of ROOT_PAGES) expect(row!).toContain(name);
   });
 });
