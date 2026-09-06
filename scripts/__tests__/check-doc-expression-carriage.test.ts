@@ -11,6 +11,7 @@ import {
   CONTROL_FIXTURES,
   deriveChannels,
   DOCS_ROOT,
+  JSON_FENCE_LANGUAGES,
   loadCarriage,
   parseFence,
   RENDERER_SOURCE,
@@ -257,6 +258,39 @@ describe('check-doc-expression-carriage: the real tree, and the posture', () => 
       'a json fence under content/docs that this gate cannot parse is a fence it says NOTHING ' +
         'about — the size of its blind spot, not a docs rule. Teach `sanitizeFence` the spelling ' +
         `(see the tolerances in ${GATE}'s header), or fix the fence if it is simply malformed.`,
+    ).toEqual([]);
+  });
+
+  /**
+   * The language SET is a blind spot of its own, and it has already bitten: three
+   * teaching blocks in `guide/record-edit-modes.md` are fenced ```jsonc, and a
+   * gate reading ```json alone cannot see that page at all — found by a human
+   * reading it, which is the detection mechanism this whole card replaces.
+   */
+  it('reads jsonc as well as json, and covers the page that proved it necessary', async () => {
+    expect(JSON_FENCE_LANGUAGES).toContain('json');
+    expect(JSON_FENCE_LANGUAGES).toContain('jsonc');
+    const census = analyze(ROOT, { channels: deriveChannels(ROOT), carriage: await loadCarriage() });
+    const jsonc = census.languages.find((row: { lang: string }) => row.lang === 'jsonc');
+    expect(jsonc, 'the corpus must still hold jsonc fences for this pin to mean anything').toBeDefined();
+    expect(jsonc!.fences).toBeGreaterThan(0);
+    expect(jsonc!.unparsed).toBe(0);
+    const page = census.fences.filter(
+      (fence: { file: string }) => fence.file === `${DOCS_ROOT}/guide/record-edit-modes.md`,
+    );
+    expect(page.length, 'record-edit-modes.md must be inside this census').toBeGreaterThan(0);
+    expect(page.every((fence: { lang: string; ok: boolean }) => fence.lang === 'jsonc' && fence.ok)).toBe(true);
+  });
+
+  it('measures the DIALECT blind spot instead of asserting there is none', async () => {
+    const census = analyze(ROOT, { channels: deriveChannels(ROOT), carriage: await loadCarriage() });
+    expect(
+      census.unscannedJsonLike,
+      'a fence OUTSIDE ' +
+        JSON_FENCE_LANGUAGES.join('/') +
+        ' parses as a JSON document holding a typed node, so the census is missing a dialect. Widen ' +
+        '`JSON_FENCE_LANGUAGES` deliberately — the alternative is a human finding it by reading the ' +
+        'page, which is the detection mechanism objectui#7851 exists to replace.',
     ).toEqual([]);
   });
 

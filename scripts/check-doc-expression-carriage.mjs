@@ -91,8 +91,9 @@
  *
  * A fence this file cannot parse is a fence it says nothing about, and a census
  * that reports only its hits hides how much it never read. So every run prints
- * `parsed` and `unparsed` and names every unparsed fence with its reason;
- * `--list` prints the whole inventory, parsed and unparsed alike.
+ * `parsed` and `unparsed` PER FENCE LANGUAGE (`json` and `jsonc` today) and
+ * names every unparsed fence with its reason; `--list` prints the whole
+ * inventory, parsed and unparsed alike.
  * objectui#7418's prototype reached 0 unparsed on `guide/expressions.md`
  * (39 of 39); this file reaches 0 unparsed over the whole tree, which takes
  * four tolerances beyond `JSON.parse`, all of them REMOVALS of non-data or an
@@ -121,7 +122,33 @@
  *     false findings in both directions at once.
  *   - Anything outside a `json` / `jsonc` fence under `content/docs/**`. The
  *     `ts`/`tsx` blocks are `check-doc-snippet-types`' surface and are left to
- *     it; ⛔ this file changes no other gate's population.
+ *     it; ⛔ this file changes no other gate's population. `docs/ARCHITECTURE.md`
+ *     — objectui#7838's site — is outside `content/docs` and so outside this
+ *     census. The LANGUAGE SET is its own blind spot and is measured rather than
+ *     asserted: every run prints the per-language counts, and every fence in a
+ *     language this gate does not scan is still parsed, purely to report whether
+ *     it would have been a JSON document holding a typed node.
+ *
+ * ## ⚠️ A hit is a CANDIDATE, not a verdict — `type` is not one vocabulary
+ *
+ * `check-doc-component-types` measured this and wrote it down: across the corpus
+ * there are at least SEVEN distinct vocabularies that all spell the key `type` —
+ * SDUI component keys, action schemas, block schemas, theme and report schemas,
+ * field and JSON-Schema types, validation rules, nav and feed items. A node from
+ * another vocabulary is judged here against a carriage map that does not govern
+ * it, and can be reported while being perfectly correct. One of today's hits is
+ * exactly that: `content/docs/api/schema-reference.md`'s `ActionSchema` example
+ * authors a `${…}` on `condition`, which the ACTION runner's own gate evaluates,
+ * not `SchemaRenderer`'s node channels.
+ *
+ * ⛔ The obvious fix — classify by the enclosing key path — was BUILT and
+ * MEASURED by that gate before being rejected, because it does not converge:
+ * `items` carries nav entries on one page and renderable children on another, so
+ * any global parent-key rule is a silent false GREEN on one of them, and a
+ * misclassifying discriminator is worse than none because its mistakes are
+ * invisible in both directions. That ruling is inherited here rather than
+ * re-litigated, and report-only is what makes inheriting it safe: a candidate a
+ * human reads costs a minute, and nothing is blocked while the corpus is read.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -433,9 +460,17 @@ export function scanFences(root) {
       const fence = /^\s*```(\S*)\s*$/.exec(lines[i]);
       if (fence) {
         if (open) {
-          if (JSON_FENCE_LANGUAGES.includes(open.lang)) {
-            fences.push({ file: rel, line: open.line, lang: open.lang, body, ...parseFence(body.join('\n')) });
-          }
+          const scanned = JSON_FENCE_LANGUAGES.includes(open.lang);
+          fences.push({
+            file: rel,
+            line: open.line,
+            lang: open.lang,
+            body,
+            scanned,
+            // A fence outside the scanned languages is parsed too, but only to
+            // MEASURE the dialect blind spot below — it is never judged.
+            ...parseFence(body.join('\n')),
+          });
           open = null;
           body = [];
         } else {
@@ -445,7 +480,7 @@ export function scanFences(root) {
       }
       if (open) body.push(lines[i]);
     }
-    if (open && JSON_FENCE_LANGUAGES.includes(open.lang)) {
+    if (open) {
       // An unclosed fence read the rest of the file as code. Report it as
       // unparsed rather than guessing where it ended.
       fences.push({
@@ -453,6 +488,7 @@ export function scanFences(root) {
         line: open.line,
         lang: open.lang,
         body,
+        scanned: JSON_FENCE_LANGUAGES.includes(open.lang),
         ok: false,
         reason: 'unterminated-fence',
         values: [],
@@ -505,9 +541,10 @@ function locate(fence, key, claimed) {
  */
 export function analyze(root, { channels, carriage }) {
   const scan = scanFences(root);
+  const judged = scan.fences.filter((fence) => fence.scanned);
   const counters = {
     files: scan.files,
-    fences: scan.fences.length,
+    fences: judged.length,
     parsed: 0,
     unparsed: 0,
     wrapped: 0,
@@ -515,12 +552,35 @@ export function analyze(root, { channels, carriage }) {
     expressionSites: 0,
     carried: 0,
   };
+  /** Per fence language, so the next reader can see which dialects were read. */
+  const byLanguage = new Map();
+  const bump = (lang, field) => {
+    const row = byLanguage.get(lang) ?? { fences: 0, parsed: 0, unparsed: 0 };
+    row[field]++;
+    byLanguage.set(lang, row);
+  };
   const sites = [];
   const unparsed = [];
   const inventory = [];
+  /**
+   * The DIALECT blind spot: a fence outside the scanned languages whose body is
+   * a JSON document holding a typed node. Counted, never judged — a `jsonc`
+   * spelling was invisible to an earlier draft of this gate, and the way that
+   * was found was a human reading a page, which is the detection mechanism this
+   * whole card exists to replace.
+   */
+  const unscannedJsonLike = [];
 
   for (const fence of scan.fences) {
+    if (!fence.scanned) {
+      if (fence.ok && fence.values.some((value) => collectNodes(value).length > 0)) {
+        unscannedJsonLike.push({ file: fence.file, line: fence.line, lang: fence.lang });
+      }
+      continue;
+    }
     inventory.push({ file: fence.file, line: fence.line, lang: fence.lang, ok: fence.ok });
+    bump(fence.lang, 'fences');
+    bump(fence.lang, fence.ok ? 'parsed' : 'unparsed');
     if (!fence.ok) {
       counters.unparsed++;
       unparsed.push({ file: fence.file, line: fence.line, reason: fence.reason });
@@ -556,7 +616,8 @@ export function analyze(root, { channels, carriage }) {
   }
 
   sites.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.key.localeCompare(b.key));
-  return { counters, sites, unparsed, fences: inventory };
+  const languages = [...byLanguage.entries()].sort((a, b) => b[1].fences - a[1].fences).map(([lang, row]) => ({ lang, ...row }));
+  return { counters, sites, unparsed, fences: inventory, languages, unscannedJsonLike };
 }
 
 // ── Controls: the gate proves it can see, on every run ────────────────────────
@@ -678,7 +739,7 @@ if (isEntrypoint(import.meta.url)) {
     process.exit(1);
   }
 
-  const { counters, sites, unparsed } = census;
+  const { counters, sites, unparsed, languages, unscannedJsonLike } = census;
   console.log(
     `\nScanned ${counters.files} file(s) under ${DOCS_ROOT}: ` +
       `${counters.fences} ${JSON_FENCE_LANGUAGES.join('/')} fence(s), ` +
@@ -688,6 +749,30 @@ if (isEntrypoint(import.meta.url)) {
       `${counters.nodes} node(s) with a string \`type\`; ` +
       `${counters.expressionSites} \${…} site(s) on those nodes, ${counters.carried} of them carried.`,
   );
+
+  // Per fence language, because the SET of languages is its own blind spot and it
+  // has already bitten once: a `jsonc` spelling three teaching blocks use was
+  // invisible to an earlier draft, and the way that was found was a human reading
+  // the page. A column per dialect is what lets the next reader see at a glance
+  // whether another one is being missed.
+  console.log(
+    `By fence language: ${languages
+      .map((row) => `${row.lang} ${row.fences} (${row.parsed} parsed, ${row.unparsed} unparsed)`)
+      .join('; ')}`,
+  );
+  if (unscannedJsonLike.length === 0) {
+    console.log(
+      `✅  Dialect blind spot: none — no fence OUTSIDE ${JSON_FENCE_LANGUAGES.join('/')} parses as a JSON ` +
+        'document holding a typed node.',
+    );
+  } else {
+    console.log(
+      `\n⚠️  ${unscannedJsonLike.length} fence(s) outside ${JSON_FENCE_LANGUAGES.join('/')} parse as a JSON ` +
+        'document holding a typed node. NOT judged — reported so the language set can be widened\n' +
+        '    deliberately rather than discovered by a human reading a page:',
+    );
+    for (const fence of unscannedJsonLike) console.log(`      ${fence.file}:${fence.line}  (${fence.lang})`);
+  }
 
   // The blind spot is printed on every run, in both directions. A census that
   // reports only its hits hides how much it never looked at, and "0 unparsed" is
@@ -735,6 +820,13 @@ if (isEntrypoint(import.meta.url)) {
     the carriage keys for the node's own type, the \`properties\` and \`props\` bags, and
     the condition keys. An expression written anywhere else reaches the renderer as the
     characters the author typed, so the page teaches a form that cannot work.
+
+    \u26a0\ufe0f Read the passage before repairing: a hit is a CANDIDATE, not a verdict.
+    \`type\` is at least seven vocabularies in these pages (measured by
+    check-doc-component-types), and a node from another one — an ActionSchema, a field
+    declaration, a nav item — is judged here against a carriage map that does not govern
+    it. That gate built the obvious discriminator and rejected it as non-convergent; this
+    one inherits the ruling, which is affordable precisely because it blocks nothing.
 
     Two repairs, chosen by what the passage teaches, never one blanket rule (the
     2026-09-01 ruling on objectui#7115, fork B — 「文档教现实」):
