@@ -199,9 +199,21 @@ composed in JSX rather than authored as a JSON node. Full guide:
 The layout components are designed to work seamlessly with React Router:
 
 ```typescript
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import type { ComponentType, ReactNode } from 'react';
 import { AppShell, SidebarNav } from '@object-ui/layout';
 import { Home, Users } from 'lucide-react';
+
+// `react-router-dom` is a PEER dependency (see Installation above): your app
+// installs it, this package does not. These three stand in for what you would
+// import from it, so the composition below is still checked against the shipped
+// `@object-ui/layout` types.
+declare const BrowserRouter: ComponentType<{ children?: ReactNode }>;
+declare const Routes: ComponentType<{ children?: ReactNode }>;
+declare const Route: ComponentType<{ path: string; element: ReactNode }>;
+
+// Your own page components, one per route.
+declare const Dashboard: ComponentType;
+declare const UsersPage: ComponentType;
 
 function App() {
   return (
@@ -219,13 +231,19 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/users" element={<Users />} />
+          <Route path="/users" element={<UsersPage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>
   );
 }
 ```
+
+A route's `element` takes **your page component**, never the `lucide-react` icon
+of the same name. This example used to route `/users` to `Users` — the icon it
+imports for the sidebar — so the page rendered a 24-pixel glyph where its content
+belonged. Nothing catches that for you: an icon is a valid component, so the
+route type-checks either way, which is why the two are named apart here.
 
 ## Customization
 
@@ -235,6 +253,8 @@ per-slot `headerClassName` / `sidebarClassName` — the navbar and the sidebar a
 nodes **you** build, so style them where you build them:
 
 ```typescript
+import { AppShell } from '@object-ui/layout';
+
 <AppShell
   className="bg-gray-50"
   navbar={<div className="border-b px-4">My App</div>}
