@@ -158,16 +158,26 @@ describe('no invented calendar field name survives in the source (objectui#7029)
 
   it('CONTROL (same class): the scan still sees a REMAINING fabricated field name', () => {
     // Can this filter see the specific thing it exists to hunt — a one-rung
-    // `|| 'literal'` field-name floor? Anchored on the gallery branch's
-    // `imageField: … || 'image'`, which is the same class, is still there, and
-    // is out of scope for both objectui#7029 and objectui#7070.
+    // `|| 'literal'` field-name floor?
     //
-    // ⚠️ TO WHOEVER RETIRES `'image'`: this going red is the mechanic working,
+    // RE-ANCHORED by objectui#7547, following this case's own instruction. It
+    // used to sit on the gallery branch's `imageField: … || 'image'`; #7547
+    // retired that literal, so the anchor moved rather than the case being
+    // dropped — a scan whose last live control is deleted is a test that passes
+    // over nothing, which is the class this whole card family is about.
+    //
+    // The new anchor is the CHART branch's measure floor
+    // (`chartConfig.yAxisFields[0] || 'value'`): the same one-rung class, still
+    // present, and deliberately left standing by #7547 — deleting it needs a
+    // refusal path `ObjectChart` does not have yet, so it is reported as its own
+    // card rather than decided here.
+    //
+    // ⚠️ TO WHOEVER RETIRES `'value'`: this going red is the mechanic working,
     // not a broken test. RE-ANCHOR it onto whatever fabrication legitimately
     // remains in this file — do not delete it, and do not weaken it to the
     // machinery control above. If nothing of this class remains anywhere in this
     // face, say so in the PR body and convert this case into the assertion that
     // NONE remains, so the scan keeps making a claim about the tree.
-    expect(CODE.filter((l) => l.includes("'image'")).length).toBeGreaterThan(0);
+    expect(CODE.filter((l) => /\|\| 'value'/.test(l)).length).toBeGreaterThan(0);
   });
 });
