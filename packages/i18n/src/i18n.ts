@@ -13,7 +13,15 @@ export interface I18nConfig {
   defaultLanguage?: string;
   /** Fallback language (default: 'en') */
   fallbackLanguage?: string;
-  /** Additional translation resources to merge with built-in locales */
+  /**
+   * Additional translation resources, **deep-merged** over the built-in packs.
+   *
+   * The packs' top-level keys are the namespace groups (`common`, `calendar`,
+   * `list`, ...), so supplying a partial group merges into it and leaves the
+   * group's other keys in place:
+   * `{ en: { calendar: { today: 'Heute' } } }` overrides `calendar.today` only.
+   * Arrays are replaced wholesale, never concatenated (objectui#7572).
+   */
   resources?: Record<string, Record<string, unknown>>;
   /** Whether to detect browser language automatically (default: true) */
   detectBrowserLanguage?: boolean;
@@ -82,6 +90,59 @@ function createMissingKeyHandler(): (
 }
 
 /**
+ * A plain object — the only shape the resource merge recurses into. Arrays and
+ * `null` are excluded on purpose; see {@link deepMergeTranslations}.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Deep-merge caller-supplied translations over a built-in language pack.
+ *
+ * A language pack's top-level keys ARE the namespace groups (`common`,
+ * `calendar`, `list`, ...), each a nested object, so the one-level merge this
+ * replaced made `resources: { en: { calendar: { today: 'Heute' } } }` **replace**
+ * the whole `calendar` group: `month` / `week` / `day` / `allDay` / `newEvent` /
+ * `moreEvents` / `unscheduled` left the instance, `t('calendar.allDay')` returned
+ * the bare key, and `calendar.allDay` reached the DOM as literal text
+ * (objectui#7572). Packs nest up to four levels below the group
+ * (`console.ai.empty.build.title`), so the merge recurses rather than adding one
+ * fixed extra level.
+ *
+ * ARRAYS ARE REPLACED, NOT CONCATENATED — a deliberate choice, not a library
+ * default. Measured: no built-in pack carries an array value today (every leaf
+ * in all ten packs is a string), so nothing observable rides on this; the rule
+ * decides what a future array means. An author who writes an array is naming the
+ * whole list, so replacement is the only rule that lets them shorten or reorder
+ * one, and the only one that is idempotent when the merge runs again. This is
+ * narrower than i18next's own `deepExtend` (which the provider's async
+ * `addResourceBundle` path uses): that recurses into arrays index-wise and would
+ * leave a longer base array's tail behind — the same silent-hybrid shape this
+ * issue is about.
+ *
+ * `__proto__` is skipped. Recursive assignment, unlike the object spread it
+ * replaces, would otherwise reach the prototype setter; i18next's `deepExtend`
+ * guards the same key.
+ */
+function deepMergeTranslations(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const key of Object.keys(override)) {
+    if (key === '__proto__') continue;
+    const incoming = override[key];
+    const existing = merged[key];
+    merged[key] =
+      isPlainObject(existing) && isPlainObject(incoming)
+        ? deepMergeTranslations(existing, incoming)
+        : incoming;
+  }
+  return merged;
+}
+
+/**
  * Create and initialize an i18next instance with Object UI defaults
  */
 export function createI18n(config: I18nConfig = {}): I18nInstance {
@@ -99,10 +160,10 @@ export function createI18n(config: I18nConfig = {}): I18nInstance {
 
   for (const [lang, translations] of Object.entries(builtInLocales)) {
     mergedResources[lang] = {
-      translation: {
-        ...translations,
-        ...(resources[lang] || {}),
-      },
+      translation: deepMergeTranslations(
+        translations as unknown as Record<string, unknown>,
+        resources[lang] || {},
+      ),
     };
   }
 
