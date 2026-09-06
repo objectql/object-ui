@@ -232,3 +232,68 @@ describe('objectui#7122 · the guarded type list is the spec’s, not a hand-kep
     }
   });
 });
+
+describe('objectui#7122 · the whitespace-only divergence is DECLARED, and pinned in both directions', () => {
+  // This writer is STRICTER than the contract on exactly one value. A
+  // divergence that lives only in a `.trim()` is indistinguishable from a bug,
+  // so both halves are asserted here: what the SPEC does with the value, and
+  // what THIS WRITER does with it. The reasoning is in
+  // `assertRelationshipTargetPresent`'s docblock; this is the machine-checked
+  // half of it.
+  //
+  // ⚠️ Designed to go red when objectstack#16126 lands upstream. That red means
+  // "retire the declaration", NOT "weaken the guard" — the guard's behaviour is
+  // the same either way, and only the divergence note goes away.
+
+  it('the spec ACCEPTS `reference: "   "` — the fact objectui is diverging FROM', () => {
+    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' }).success).toBe(
+      true,
+    );
+    // Control, so "accepts" is not an artefact of a schema that accepts
+    // anything at this path: the empty string next door is refused, and that is
+    // the boundary the divergence sits on.
+    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '' }).success).toBe(false);
+  });
+
+  it('and this writer refuses it anyway, before any PUT', async () => {
+    const { adapter, puts } = makeCapturingAdapter();
+
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: '   ' }]),
+    ).rejects.toThrow(/needs a `reference`/);
+    expect(puts).toHaveLength(0);
+  });
+
+  it('and the refusal SAYS the spec accepts it, so the divergence is visible where it bites', async () => {
+    // The author is the person surprised by a stricter-than-the-contract
+    // refusal, so the message is where the declaration has to be readable — a
+    // docblock they never open is not a declaration to them.
+    const { adapter } = makeCapturingAdapter();
+
+    await expect(
+      new MetadataService(adapter).saveFields('account', [{ ...LOOKUP, referenceTo: '   ' }]),
+    ).rejects.toThrow(/ACCEPTS this value/);
+  });
+});
+
+describe('objectui#7122 · the refusal names the right defect for a NON-STRING target', () => {
+  it('does not claim the field "has none" when it holds the wrong KIND of value', async () => {
+    // Measured on 17.3.0: `reference: 42` is `invalid_type` at that path, not
+    // the missing-target `custom` issue — so "supply a target" is the wrong
+    // repair to prescribe, and the old single sentence prescribed it anyway.
+    expect(
+      FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: 42 }).error?.issues[0].code,
+    ).toBe('invalid_type');
+
+    const { adapter, puts } = makeCapturingAdapter();
+    const wrongKind = { ...LOOKUP, referenceTo: 42 as unknown as string };
+
+    await expect(new MetadataService(adapter).saveFields('account', [wrongKind])).rejects.toThrow(
+      /instead of an object name/,
+    );
+    await expect(new MetadataService(adapter).saveFields('account', [wrongKind])).rejects.toThrow(
+      /invalid_type/,
+    );
+    expect(puts).toHaveLength(0);
+  });
+});

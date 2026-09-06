@@ -301,6 +301,43 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
     expect(screen.getByTestId('metadata-fields-page-error').textContent).toContain('half_id');
   });
 
+  it('a WHITESPACE-ONLY target is refused too — the declared divergence, pinned', async () => {
+    // ⚠️ This page is STRICTER than the contract on exactly this value:
+    // measured on 17.3.0, `FieldSchema` ACCEPTS `reference: '   '` (and so does
+    // `ObjectSchema` through the whole document), while this writer refuses it.
+    // A divergence that lives only in a `.trim()` is indistinguishable from a
+    // bug, so it is asserted rather than assumed — the reasoning is in
+    // `assertRelationshipTargetPresent`'s docblock.
+    //
+    // ⚠️ Designed to go red when objectstack#16126 lands upstream. That red
+    // means "retire the declaration", NOT "weaken the guard".
+    expect(FieldSchema.safeParse({ type: 'lookup', label: 'L', reference: '   ' }).success).toBe(
+      true,
+    );
+
+    await renderPage();
+    const next: DesignerFieldDefinition[] = [
+      ...designerProps!.fields,
+      { id: 'fld_blank', name: 'blank_id', label: 'Blank', type: 'lookup', referenceTo: '   ' },
+    ];
+    await act(async () => {
+      designerProps!.onFieldsChange!(next);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('metadata-fields-page-error').textContent).toMatch(
+        /needs a `reference`/,
+      ),
+    );
+    // The author is the person surprised by a stricter-than-the-contract
+    // refusal, so the message itself carries the declaration — a docblock they
+    // never open is not a declaration to them.
+    expect(screen.getByTestId('metadata-fields-page-error').textContent).toContain(
+      'ACCEPTS this value',
+    );
+    expect(puts).toHaveLength(0);
+  });
+
   it('the same draft saves once its target is picked — the control for the refusal above', async () => {
     // Without this, the refusal is satisfied by a guard that blocks every
     // `lookup`, which would break authoring rather than protect it.
