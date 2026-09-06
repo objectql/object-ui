@@ -1301,13 +1301,27 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 | `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), and, as paths on disk: `examples/`, the internal `docs/` tree, every package and app `README.md`, the rest of each package's and app's directory tree (everything but `README.md`/`CHANGELOG.md`), every nested `README.md`, and the root-level markdown files (`README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md`, `QUICK_REFERENCE.md`) — plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
-Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
-the repo-root `docs/` (15 files of internal material — ADRs, audits, architecture notes) plus
-`README.md`. Until objectui#3449 it scanned only the latter, so no published page had ever been
-link-checked; the workflow was green about a tree almost nobody reads.
-`scripts/__tests__/check-links-workflow.test.ts` now derives the expected scope from
-`apps/site/source.config.ts`, so moving the content tree turns that test red instead of quietly
-blinding the sweep again.
+Lychee sweeps **both** documentation trees plus `README.md`: the **published** tree
+`content/docs/**` — every `.md` and `.mdx` under the fumadocs content source
+`apps/site/source.config.ts` declares (`dir: '../../content/docs'`, baseUrl `/docs`) — and the
+repo-root `docs/**` of **internal** material (ADRs, audits, architecture notes). What gets swept is
+decided by that workflow's `args` glob list and by nothing else, and
+`scripts/__tests__/check-links-workflow.test.ts` derives the expected scope from the site config
+rather than restating it, so moving the content tree turns that test red instead of quietly
+blinding the sweep.
+
+⛔ **Neither tree's size belongs on this page.** One hand-copied count per tree stood in the
+sentence above, and both had drifted by the time anyone read them, with nothing red over the whole
+distance — no gate anywhere reads either figure, which is exactly why a number written here rots
+(objectui#7448, objectui#7825, objectui#7886). State the population, as above, and point at the
+reading: in any checkout,
+`find content/docs docs -type f \( -name '*.md' -o -name '*.mdx' \) | wc -l`, and Lychee's own run
+summary, which reports what it actually scanned. This page opens by declining to count workflows,
+for the same reason.
+
+**Past tense on purpose — none of the following describes the scope today.** Until objectui#3449
+the `args` list named only the repo-root tree, so not one published page had ever been
+link-checked: the workflow was green because of what it was not looking at.
 
 It is deliberately **not** a PR gate (objectui#3213). External link checking goes over the network,
 and one 502 or rate-limit from a third-party site would redden a pull request whose author can do
