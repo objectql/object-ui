@@ -45,25 +45,16 @@ ComponentRegistry.register('toggle-group',
       { 
         name: 'selectionType', 
         type: 'enum', 
-        enum: ['single', 'multiple'], 
-        defaultValue: 'single',
-        label: 'Selection Type'
-      },
+        enum: ['single', 'multiple']      },
       { 
         name: 'variant', 
         type: 'enum', 
-        enum: ['default', 'outline'], 
-        defaultValue: 'default',
-        label: 'Variant'
-      },
+        enum: ['default', 'outline']      },
       { 
         name: 'size', 
         type: 'enum', 
-        enum: ['default', 'sm', 'lg'], 
-        defaultValue: 'default',
-        label: 'Size'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['default', 'sm', 'lg']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       selectionType: 'single',

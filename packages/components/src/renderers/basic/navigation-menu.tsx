@@ -69,7 +69,7 @@ ComponentRegistry.register('navigation-menu',
     namespace: 'ui',
     label: 'Navigation Menu',
     inputs: [
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       items: [

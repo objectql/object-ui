@@ -94,7 +94,9 @@ describe('Plugin Editor', () => {
       
       expect(readOnlyInput).toBeDefined();
       expect(readOnlyInput?.type).toBe('boolean');
-      expect(readOnlyInput?.defaultValue).toBe(false);
+      // The renderer's ACTUAL default is `defaultProps.readOnly`, pinned in the
+      // test above; the input's own `defaultValue` was a shadow copy nothing
+      // read and is an ADR-0049 tombstone since objectui#7493.
     });
   });
 });

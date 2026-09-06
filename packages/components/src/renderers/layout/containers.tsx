@@ -87,7 +87,6 @@ const PAGE_CONTAINER_INPUTS: ComponentInput[] = [
   {
     name: 'children',
     type: 'slot',
-    label: 'Content',
     description: 'Child components rendered inside this container, in order',
   },
 ];
@@ -786,10 +785,10 @@ ComponentRegistry.register('tabs', PageTabsRenderer, {
   // `unknown-prop` on an author who wrote it anyway, and the renderer honoured
   // it regardless. Same defect as `record:details.hideFields` in objectui#3808.
   inputs: [
-    { name: 'items', type: 'array', label: 'Tabs', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
-    { name: 'tabStyle', type: 'enum', label: 'Style', enum: ['line', 'card', 'pill'], defaultValue: 'line' },
-    { name: 'position', type: 'enum', label: 'Position', enum: ['top', 'left'], defaultValue: 'top' },
-    { name: 'alwaysShowStrip', type: 'boolean', label: 'Always Show Tab Strip', defaultValue: false, description: 'Keep the tab strip visible when only one tab survives. Default false: a lone pill is clutter rather than an affordance, so a one-tab strip is hidden and its panel renders bare. Count the tabs AFTER each item visibleWhen predicate has been evaluated — a page authored with four tabs of which three are conditional reaches this rule whenever the other three are false.' },
+    { name: 'items', type: 'array', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
+    { name: 'tabStyle', type: 'enum', enum: ['line', 'card', 'pill'] },
+    { name: 'position', type: 'enum', enum: ['top', 'left'] },
+    { name: 'alwaysShowStrip', type: 'boolean', description: 'Keep the tab strip visible when only one tab survives. Default false: a lone pill is clutter rather than an affordance, so a one-tab strip is hidden and its panel renders bare. Count the tabs AFTER each item visibleWhen predicate has been evaluated — a page authored with four tabs of which three are conditional reaches this rule whenever the other three are false.' },
   ],
 });
 
@@ -853,8 +852,8 @@ ComponentRegistry.register('card', PageCardRenderer, {
     // While this said `type: 'string'` the manifest gate reported
     // `type-mismatch` on the map form — the shape this input's own description
     // teaches — so the block contradicted itself on a write it recommended.
-    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'bordered', type: 'boolean', label: 'Bordered', defaultValue: true },
+    { name: 'title', type: ['string', 'object'], description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'bordered', type: 'boolean' },
     // The card's content slot, respelled from `body` to `children`
     // (objectui#4027). One slot, one spelling: objectstack#5775 (PR #6281)
     // retired `PageCardProps.body` and declared `children` in its place, so a
@@ -862,8 +861,8 @@ ComponentRegistry.register('card', PageCardRenderer, {
     // rejects by name. The renderer still READS `body` for stored documents —
     // see the comment at its read site above — but a back-compat read is not a
     // second authorable spelling, and `inputs` is the authoring surface.
-    { name: 'children', type: 'slot', label: 'Content', description: 'Card content components, in order (the card body slot)' },
-    { name: 'footer', type: 'slot', label: 'Footer' },
+    { name: 'children', type: 'slot', description: 'Card content components, in order (the card body slot)' },
+    { name: 'footer', type: 'slot' },
   ],
 });
 
@@ -963,9 +962,9 @@ ComponentRegistry.register('accordion', PageAccordionRenderer, {
   category: 'layout',
   isContainer: true,
   inputs: [
-    { name: 'items', type: 'array', label: 'Panels', required: true, description: 'Panel definitions [{ label, icon?, collapsed?, children }] — collapsed: false opens a panel by default' },
-    { name: 'allowMultiple', type: 'boolean', label: 'Allow Multiple Open', defaultValue: false },
-    { name: 'variant', type: 'enum', label: 'Variant', enum: ['flush', 'card'], defaultValue: 'flush' },
+    { name: 'items', type: 'array', required: true, description: 'Panel definitions [{ label, icon?, collapsed?, children }] — collapsed: false opens a panel by default' },
+    { name: 'allowMultiple', type: 'boolean' },
+    { name: 'variant', type: 'enum', enum: ['flush', 'card'] },
   ],
 });
 
@@ -2028,13 +2027,13 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
     // `pickLocalized` before interpolating. The single `'string'` arm they used
     // to declare is what made the manifest gate warn `type-mismatch` on the very
     // map form this description tells the author to write.
-    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
-    { name: 'subtitle', type: ['string', 'object'], label: 'Subtitle', description: 'Same interpolation as Title' },
-    { name: 'actions', type: 'array', label: 'Actions', description: "Action IDS — the names of actions declared on the object's own metadata — rendered in the header before any host-injected system actions. An id whose action declares neither record_header nor record_more in its locations renders nowhere." },
-    { name: 'breadcrumb', type: 'boolean', label: 'Breadcrumb', defaultValue: true },
-    { name: 'recordChrome', type: 'boolean', label: 'Record Chrome', defaultValue: true, description: 'Set false for the bare h1 header on non-record pages' },
-    { name: 'showStar', type: 'boolean', label: 'Show Follow Star', defaultValue: true },
-    { name: 'showCopyId', type: 'boolean', label: 'Show Copy-ID', defaultValue: true },
+    { name: 'title', type: ['string', 'object'], description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
+    { name: 'subtitle', type: ['string', 'object'], description: 'Same interpolation as Title' },
+    { name: 'actions', type: 'array', description: "Action IDS — the names of actions declared on the object's own metadata — rendered in the header before any host-injected system actions. An id whose action declares neither record_header nor record_more in its locations renders nowhere." },
+    { name: 'breadcrumb', type: 'boolean' },
+    { name: 'recordChrome', type: 'boolean', description: 'Set false for the bare h1 header on non-record pages' },
+    { name: 'showStar', type: 'boolean' },
+    { name: 'showCopyId', type: 'boolean' },
     // The inline/overflow budget, DECLARED rather than merely honoured
     // (objectui#4668). Both are @objectstack/spec 17.0.0 GA keys this renderer
     // has read since objectui#2361 (`readMax(...)` at the split above, in both
@@ -2054,8 +2053,8 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
     // express the domain: `ComponentInput.type` has no integer/min/max slot, so
     // `description` stays the only authoring-time expression of it, and spec
     // stays the sole judge of values.)
-    { name: 'maxVisible', type: 'number', label: 'Max Inline Actions', defaultValue: 3, description: 'How many header actions render as inline buttons on desktop before the rest fold into the overflow menu. A positive integer — the contract rejects 0 and fractional values. Two kinds of action are routed to the overflow menu regardless of this budget and never occupy an inline slot: an action whose locations declare record_more without record_header, and any action with component action:menu.' },
-    { name: 'mobileMaxVisible', type: 'number', label: 'Max Inline Actions (Mobile)', defaultValue: 1, description: 'The same inline-button budget on mobile viewports, where horizontal room is scarce. A positive integer, defaulting to 1; the desktop half is Max Inline Actions, and the overflow routing rules stated there apply unchanged.' },
+    { name: 'maxVisible', type: 'number', description: 'How many header actions render as inline buttons on desktop before the rest fold into the overflow menu. A positive integer — the contract rejects 0 and fractional values. Two kinds of action are routed to the overflow menu regardless of this budget and never occupy an inline slot: an action whose locations declare record_more without record_header, and any action with component action:menu.' },
+    { name: 'mobileMaxVisible', type: 'number', description: 'The same inline-button budget on mobile viewports, where horizontal room is scarce. A positive integer, defaulting to 1; the desktop half is Max Inline Actions, and the overflow routing rules stated there apply unchanged.' },
   ],
 });
 

@@ -40,8 +40,8 @@ ComponentRegistry.register('kbd',
     namespace: 'ui',
     label: 'Keyboard Key',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'label', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       label: 'K'

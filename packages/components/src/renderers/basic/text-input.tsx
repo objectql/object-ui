@@ -212,23 +212,19 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
     {
       name: 'label',
       type: ['string', 'object'],
-      label: 'Label',
       description:
         'Caption rendered ABOVE the input, in a `<label>` element — tied to the field by `htmlFor` when the node carries an `id`, so clicking it focuses the input. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string; because the `required` asterisk is drawn on this element, a required input with no label shows no asterisk at all. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`) — the `I18nLabel` union the contract admits on this key — and the renderer resolves the map against the active language at the read site, falling back through base language, a region-qualified sibling, `default`, then `en`, and finally to any remaining entry.',
     },
     {
       name: 'placeholder',
       type: ['string', 'object'],
-      label: 'Placeholder',
       description:
         'Prompt shown INSIDE the field while it is empty, as the native input\'s `placeholder` attribute — it disappears as the user types and never becomes the input\'s value, so it is never what a bound page variable receives. Display-only, with no renderer default: an absent key means no placeholder, and an authored empty string (or a map no locale limb resolves) drops the attribute altogether rather than setting an empty one. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`.',
     },
     {
       name: 'inputType',
       type: 'enum',
-      label: 'Type',
       enum: ['text', 'email', 'number', 'tel', 'url', 'password'],
-      defaultValue: 'text',
     },
     {
       name: 'defaultValue',
@@ -245,19 +241,19 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
       // neighbours the spec REJECTS a map on this key (measured), and the
       // arms exist to match the contract, not to relax the gate.
       type: ['string', 'number'],
-      label: 'Default Value',
       // Description taken from what the renderer DOES with the key (the seeding
       // effect above, and the native `defaultValue` pass-through at the
       // `<Input>`), not from restating the spec's one-liner — the two
       // behaviours differ depending on whether a page variable targets this
       // input, and an author who only knew "initial value" would not know which
-      // one they get. No `defaultValue` on this entry: the value IS the default,
-      // so a default-for-the-default would be meaningless.
+      // one they get. (No default is advertised for this entry — the value IS
+      // the default, so a default-for-the-default would be meaningless; and
+      // `ComponentInput.defaultValue` is a retired key anyway, objectui#7493.)
       description:
         'Initial value (string or number). With a page variable bound to this input — a variable whose `source` is this component id — it is pushed into that variable ONCE on mount, and only while the variable is still empty, so `page.<var>` and the submit body carry it before the user types; a variable that declares its own defaultValue wins. With no bound variable it becomes the native input\'s uncontrolled initial value and nothing else reads it.',
     },
-    { name: 'required', type: 'boolean', label: 'Required' },
-    { name: 'disabled', type: 'boolean', label: 'Disabled' },
+    { name: 'required', type: 'boolean' },
+    { name: 'disabled', type: 'boolean' },
     {
       name: 'description',
       // The third arm-widening of the trio commented above `label`, and the one
@@ -285,7 +281,6 @@ ComponentRegistry.register('text_input', ElementTextInputRenderer, {
       // computed and non-empty, and no test in this repo can prove what any
       // screen reader speaks in any given verbosity mode.
       type: ['string', 'object'],
-      label: 'Description',
       description:
         'Helper text rendered BELOW the input, in its own `<p>` — a different destination from `label` (above, in a `<label>`) and `placeholder` (inside the field), reached by the same read path. Display-only, and OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), resolved against the active language with the same fallback chain as `label`. The paragraph IS tied to the field with `aria-describedby`, so the resolved text is the input’s accessible DESCRIPTION and assistive tech announces it with the field rather than leaving it as unreachable decoration. That association does not depend on the node carrying an `id` (`label`’s `htmlFor` does): the id `aria-describedby` needs sits on the paragraph, which the renderer mints per instance, and it is emitted only when a paragraph is actually rendered — an absent or empty `description` leaves the input with no `aria-describedby` at all. Prefer `label` anyway for an instruction a user MUST NOT miss: a description is announced after the field’s name, and screen readers gate description text behind verbosity settings a user can turn down (NVDA’s “Report object descriptions”, VoiceOver hint verbosity), so it is the half of the announcement most likely to go unheard — the same advice as before, now resting on announcement order and verbosity rather than on the text being unwired.',
     },

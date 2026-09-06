@@ -45,11 +45,11 @@ ComponentRegistry.register('slider',
     namespace: 'ui',
     label: 'Slider',
     inputs: [
-      { name: 'defaultValue', type: 'array', label: 'Default Value', defaultValue: [50] },
-      { name: 'max', type: 'number', label: 'Max', defaultValue: 100 },
-      { name: 'min', type: 'number', label: 'Min', defaultValue: 0 },
-      { name: 'step', type: 'number', label: 'Step', defaultValue: 1 },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'defaultValue', type: 'array' },
+      { name: 'max', type: 'number' },
+      { name: 'min', type: 'number' },
+      { name: 'step', type: 'number' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       defaultValue: [50],

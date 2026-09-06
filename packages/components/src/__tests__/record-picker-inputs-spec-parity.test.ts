@@ -209,17 +209,13 @@ describe('element:record_picker — registry inputs vs @objectstack/spec', () =>
     expect(description).toMatch(/\$filter/);
   });
 
-  it('carries no `defaultValue` on the filter entry', () => {
-    // A default here would pre-fill every picker in the designer with a filter
-    // the renderer has no opinion about — and a filter's default is not "empty
-    // object", it is "no filter at all", which `undefined` already is. The spec
-    // declares no default either.
-    //
-    // Existence asserted first: `input('filter')?.defaultValue` is also
-    // `undefined` when the input is GONE, so without this line the check would
-    // pass most loudly in the one case it is supposed to notice.
+  it('declares no default for `filter` — the spec parses none in', () => {
+    // A filter's default is not "empty object", it is "no filter at all", which
+    // `undefined` already is, and the spec declares no default. (This used to
+    // also assert the registration carried no `ComponentInput.defaultValue`;
+    // that key is an ADR-0049 tombstone since objectui#7493, so the spec's
+    // parse is the one channel a default could reach an author through.)
     expect(input('filter')).toBeDefined();
-    expect(input('filter')?.defaultValue).toBeUndefined();
     expect(
       ElementRecordPickerPropsSchema.safeParse({ object: 'account' }).data,
     ).not.toHaveProperty('filter');

@@ -52,15 +52,14 @@ ComponentRegistry.register('list',
     namespace: 'ui',
     label: 'List',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'ordered', type: 'boolean', label: 'Ordered List (numbered)', defaultValue: false },
+      { name: 'title', type: 'string' },
+      { name: 'ordered', type: 'boolean' },
       { 
         name: 'items', 
         type: 'array', 
-        label: 'List Items',
         description: 'Array of strings or objects with content/body'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       ordered: false,

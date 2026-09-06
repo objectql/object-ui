@@ -41,8 +41,8 @@ ComponentRegistry.register('list-view', ListViewRenderer, {
   category: 'Views',
   icon: 'LayoutList',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'viewType', type: 'enum', label: 'Default View', enum: [
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'viewType', type: 'enum', enum: [
       { label: 'Grid', value: 'grid' },
       { label: 'Kanban', value: 'kanban' },
       { label: 'Gallery', value: 'gallery' },
@@ -50,11 +50,11 @@ ComponentRegistry.register('list-view', ListViewRenderer, {
       { label: 'Timeline', value: 'timeline' },
       { label: 'Gantt', value: 'gantt' },
       { label: 'Map', value: 'map' },
-    ], defaultValue: 'grid' },
-    { name: 'columns', type: 'array', label: 'Columns' },
-    { name: 'filter', type: 'array', label: 'Filter' },
-    { name: 'sort', type: 'array', label: 'Sort' },
-    { name: 'options', type: 'object', label: 'View Options' },
+    ] },
+    { name: 'columns', type: 'array' },
+    { name: 'filter', type: 'array' },
+    { name: 'sort', type: 'array' },
+    { name: 'options', type: 'object' },
   ],
   defaultProps: {
     objectName: '',
@@ -82,8 +82,8 @@ ComponentRegistry.register('list', ListViewRenderer, {
   label: 'List',
   icon: 'LayoutList',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'viewType', type: 'enum', label: 'Default View', enum: [
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'viewType', type: 'enum', enum: [
       { label: 'Grid', value: 'grid' },
       { label: 'Kanban', value: 'kanban' },
       { label: 'Gallery', value: 'gallery' },
@@ -91,10 +91,10 @@ ComponentRegistry.register('list', ListViewRenderer, {
       { label: 'Timeline', value: 'timeline' },
       { label: 'Gantt', value: 'gantt' },
       { label: 'Map', value: 'map' },
-    ], defaultValue: 'grid' },
-    { name: 'columns', type: 'array', label: 'Columns' },
-    { name: 'filter', type: 'array', label: 'Filter' },
-    { name: 'sort', type: 'array', label: 'Sort' },
-    { name: 'options', type: 'object', label: 'View Options' },
+    ] },
+    { name: 'columns', type: 'array' },
+    { name: 'filter', type: 'array' },
+    { name: 'sort', type: 'array' },
+    { name: 'options', type: 'object' },
   ]
 });

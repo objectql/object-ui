@@ -68,43 +68,51 @@ import '../renderers/basic/icon';
 // extend the gate to the whole population — ⛔ not to restore a pin over one
 // registration.
 //
-// ── What this file still asserts, and why that half survives the same argument
-// The coupling claim below is NOT a claim about lucide's vocabulary. It needs no
-// external record, no copied tokeniser and no consumer to be well-formed: it
-// says two declarations in ONE registration agree with each other. It therefore
-// cannot drift the way the membership half did, costs nothing to keep, and
-// becomes correct the instant any consumer appears.
+// ── The COUPLING half was retired at objectui#7493 ──────────────────────────
+// It asserted that the registration's `icon` meta and the glyph input's
+// `defaultValue` named the same glyph. `ComponentInput.defaultValue` is an
+// ADR-0049 retirement tombstone since objectui#7493 (with `label` and
+// `advanced`, objectui#7781): the manifest serializer never forwarded it and
+// no consumer of `ComponentMeta.inputs` — no designer, no palette, no renderer
+// — ever read it, so the "second spelling" was a shadow value only this pin
+// compared. There is no renderer default to re-pin it against either: an
+// `icon` node with no `icon` name renders the PLACEHOLDER branch and warns
+// (objectui#5631), by design — the renderer has no fallback glyph.
+//
+// ── What this file still asserts
+// The registration's `icon` meta — the ONE declared spelling left — is a real
+// icon name, and the `icon` input is still declared (it is what the manifest
+// publishes for the key). Both are preconditions the old coupling test carried;
+// they survive because the ledger in
+// `scripts/__tests__/check-lucide-icon-record-names.test.ts` keeps this file as
+// the record of the objectui#5936 retirement, and because a registration whose
+// palette glyph silently went blank is the objectui#5622 defect's other half.
 // ---------------------------------------------------------------------------
 
 const meta = ComponentRegistry.getMeta('icon', 'ui');
 const glyphInput = meta?.inputs?.find(input => input.name === 'icon');
 
-/** Both declared spellings, each labelled by the surface it drives. */
-const DECLARED_DEFAULTS: Array<[string, string | undefined]> = [
-  ['registration `icon` (the palette entry glyph)', meta?.icon],
-  ['`icon` input `defaultValue` (what a dropped `icon` renders)', glyphInput?.defaultValue as string | undefined],
-];
-
-describe('the `ui:icon` renderer\'s declared spellings agree (objectui#5622)', () => {
-  it('both declared spellings were actually found — the precondition', () => {
-    // Load-bearing, not ceremony: the assertion below compares two values that
-    // are BOTH `undefined` if the registry read comes back empty, and
-    // `undefined === undefined` passes. Without this the coupling check goes
-    // vacuously green on a registration that no longer exists.
+describe('the `ui:icon` registration\'s one declared glyph spelling (objectui#5622, objectui#7493)', () => {
+  it('the registration and its `icon` input were actually found — the precondition', () => {
+    // Load-bearing, not ceremony: `typeof undefined` is a string too, so the
+    // glyph assertion below needs the registration to exist first.
     expect(meta, '`ui:icon` is not registered — the import above no longer registers it.').toBeDefined();
     expect(
       glyphInput,
       'the `icon` input is gone from the `ui:icon` registration — fix the reader or the registration.',
     ).toBeDefined();
-    for (const [surface, spelling] of DECLARED_DEFAULTS) {
-      expect(typeof spelling, `${surface} declares no icon name at all`).toBe('string');
-    }
   });
 
-  it('keeps the palette glyph and the dropped default the same name', () => {
-    // The defect was one name in two places; the repair is only correct if they
-    // stay one name. Split them and the palette advertises a glyph the dropped
-    // component does not render.
-    expect(meta?.icon).toBe(glyphInput?.defaultValue);
+  it('declares the palette glyph as a non-empty icon name', () => {
+    expect(typeof meta?.icon, 'registration `icon` (the palette entry glyph) declares no icon name at all').toBe('string');
+    expect(meta?.icon).not.toBe('');
+  });
+
+  it('the `icon` input carries no declared default — the tombstone, read off the registry', () => {
+    // Not `toBeUndefined()` on the property: that would be vacuously green on a
+    // missing input too (the precondition above guards it), and the point is
+    // that the key is ABSENT from what the registration publishes, not that its
+    // value happens to be undefined.
+    expect(glyphInput).not.toHaveProperty('defaultValue');
   });
 });

@@ -44,6 +44,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
@@ -436,10 +438,14 @@ describe('record:details — registry inputs vs @objectstack/spec', () => {
     const description = input('inlineEdit')?.description ?? '';
     expect(description).not.toBe('');
     expect(description).toMatch(/false/);
-    // Asserted through the renderer's own default, so the text cannot drift from
-    // the read: `schema.inlineEdit ?? true`.
-    expect(input('inlineEdit')?.defaultValue).toBe(true);
-    expect(input('showHeader')?.defaultValue).toBe(false);
+    // Asserted against the renderer's OWN read, so the text cannot drift from
+    // it: `record-details.tsx` falls back with `schema.inlineEdit ?? true` and
+    // `schema.showHeader ?? false`. (The registration used to restate both as
+    // `ComponentInput.defaultValue`; that key is an ADR-0049 tombstone since
+    // objectui#7493 — nothing ever read it — so the read site is the pin.)
+    const renderer = readFileSync(resolve(__dirname, '../renderers/record-details.tsx'), 'utf8');
+    expect(renderer).toMatch(/schema\.inlineEdit \?\? true/);
+    expect(renderer).toMatch(/schema\.showHeader \?\? false/);
   });
 
   it('`fields` documents no entry shape, because the spec accepts bare names only', () => {

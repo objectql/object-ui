@@ -53,9 +53,9 @@ ComponentRegistry.register('empty',
     namespace: 'ui',
     label: 'Empty',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title', defaultValue: 'No data' },
-      { name: 'description', type: 'string', label: 'Description' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'title', type: 'string' },
+      { name: 'description', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'No data'

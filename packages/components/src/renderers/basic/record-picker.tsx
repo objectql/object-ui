@@ -342,7 +342,7 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
   // `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`, whose
   // explicit exemption for this key is deleted by the same change.
   inputs: [
-    { name: 'object', type: 'string', label: 'Object' },
+    { name: 'object', type: 'string' },
     {
       name: 'filter',
       // `'object'` is the spec's shape, not a chosen arm. `filter` is
@@ -361,15 +361,14 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
       // same reason once its render site learned to resolve both
       // (objectui#5590).
       type: 'object',
-      label: 'Filter',
       // Taken from what the renderer DOES with the key, because the one thing
       // an author cannot read off the spec is which of the two places they may
       // write a filter actually wins.
       description:
         'Filter criteria narrowing which records the picker offers, as a spec FilterCondition object — `{ status: "open" }`, or `{ $and: [ … ] }` for a group. It becomes the `$filter` of the picker\'s own query, so it decides which records exist for the user, not merely how they are shown. PRECEDENCE: a node-level `dataSource` binding wins outright. The renderer reads `dataSource.filter ?? filter`, so when the binding — or the saved view its `view` names, which AND-combine with each other because the spec calls the binding\'s filter *additional* — supplies a filter, THIS key is dropped entirely rather than merged into it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `filter` unset. A rule ARRAY (an ObjectQL AST, or a view\'s rule list) is not a FilterCondition and the spec rejects it here.',
     },
-    { name: 'labelField', type: 'string', label: 'Label Field' },
-    { name: 'valueField', type: 'string', label: 'Value Field' },
+    { name: 'labelField', type: 'string' },
+    { name: 'valueField', type: 'string' },
     {
       name: 'placeholder',
       // TWO arms, declared in the change that makes the second one render — the
@@ -383,7 +382,6 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
       // object arm would be the opposite defect — `type-mismatch` reported on a
       // legal write this input's own description teaches (objectui#5637).
       type: ['string', 'object'],
-      label: 'Placeholder',
       description:
         'Prompt shown in the closed control while no record is selected (renderer default "Select a record…"). Display-only — it never reaches the query. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), the `I18nLabel` union rc.6 widened this key to; the renderer resolves the map against the active language at the read site, falling back through base language, a region-qualified sibling, `default`, then `en`. It is REPLACED while the picker is busy: "Loading…" during the fetch and "Failed to load" after an error both win over this key. An authored empty string stays empty; the default applies only when the key is absent.',
     },
@@ -397,7 +395,6 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
       // would have advertised a shape that reached the screen wrong or not at
       // all; the read site resolves it now (objectui#5637).
       type: ['string', 'object'],
-      label: 'Label',
       description:
         'Caption rendered above the picker, in a `<label>` element — tied to the control by `htmlFor` when the node carries an `id`, so clicking it focuses the picker and the text becomes the combobox’s accessible name (objectui#5771). Display-only — it never reaches the query, and it is OMITTED entirely when the key is absent or resolves to an empty string. Accepts either a plain string or an inline per-locale map (`{ en: "Owner", "zh-CN": "负责人" }`), the `I18nLabel` union rc.6 widened this key to; the renderer resolves the map against the active language at the read site, with the same fallback chain as `placeholder`. Distinct from `labelField`, which names the RECORD field each offered row is titled by.',
     },
@@ -420,14 +417,12 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
       // does NOT, which is worth saying in the description because it is the
       // form an author is most likely to reach for.
       type: 'array',
-      label: 'Sort',
       description:
         'Row order, as an array of `{ field, order }` entries — `[{ field: "name", order: "asc" }]`. It becomes the `$orderby` of the picker\'s own query, so it decides the order records are offered in. `order` is `asc` or `desc`; the terse string form (`"name asc"`) is not accepted by the contract. PRECEDENCE: identical to `filter` above and for the same reason — the renderer reads `dataSource.sort ?? sort`, so a node-level `dataSource` binding (or the saved view its `view` names) REPLACES this key outright rather than merging with it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `sort` unset.',
     },
     {
       name: 'limit',
       type: 'number',
-      label: 'Limit',
       description:
         'Maximum number of records the picker offers, as a whole number. It becomes the `$top` of the picker\'s own query, so it bounds what the user can choose from rather than how the list is displayed — a record outside the limit cannot be picked at all, and the control gives no sign that more exist. DEFAULT: 50 when neither this nor `dataSource.limit` is set, applied by the renderer (`record-picker.tsx:107`), not by the schema. PRECEDENCE: `dataSource.limit ?? limit ?? 50` — a node-level binding wins outright.',
     },
@@ -449,7 +444,6 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
       // `element:button.label`: declare the arm in the change that makes it
       // render, never before and never after.
       type: ['string', 'object'],
-      label: 'Empty Text',
       description:
         'Text shown in place of the row list when the query returns no records (renderer default "No records", `record-picker.tsx:213`). Unlike `filter` / `sort` / `limit` this is display-only — it never reaches the query, and a node-level `dataSource` binding does not override it. Accepts either a plain string or an inline per-locale map (`{ en: "None", "zh-CN": "无记录" }`) — the `I18nLabel` union rc.6 widened this key to — and the renderer resolves the map against the active language at the read site, falling back through base language, `default`, then `en`. An authored empty string stays empty; the "No records" default applies only when the key is absent.',
     },

@@ -111,31 +111,20 @@ ComponentRegistry.register('stack',
       { 
         name: 'direction', 
         type: 'enum', 
-        label: 'Direction', 
-        enum: ['col', 'row', 'col-reverse', 'row-reverse'], 
-        defaultValue: 'col' 
-      },
+        enum: ['col', 'row', 'col-reverse', 'row-reverse']      },
       { 
         name: 'gap', 
-        type: 'number', 
-        label: 'Gap', 
-        defaultValue: 2 
-      },
+        type: 'number'      },
       { 
         name: 'align', 
         type: 'enum', 
-        label: 'Align Items',
-        enum: ['start', 'end', 'center', 'stretch', 'baseline'],
-        defaultValue: 'stretch'
-      },
+        
+        enum: ['start', 'end', 'center', 'stretch', 'baseline']      },
       { 
         name: 'justify', 
         type: 'enum', 
-        label: 'Justify Content',
-        enum: ['start', 'end', 'center', 'between', 'around', 'evenly'],
-        defaultValue: 'start'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['start', 'end', 'center', 'between', 'around', 'evenly']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       direction: 'col',

@@ -50,24 +50,24 @@ const TAGS = [
   'figure', 'figcaption', 'img', 'hr', 'br', 'time', 'address', 'cite', 'q',
 ] as const;
 
-const PER_TAG_INPUTS: Record<string, Array<{ name: string; type: 'string' | 'number'; label: string }>> = {
+const PER_TAG_INPUTS: Record<string, Array<{ name: string; type: 'string' | 'number' }>> = {
   a: [
-    { name: 'href', type: 'string', label: 'Link URL' },
-    { name: 'target', type: 'string', label: 'Target' },
-    { name: 'rel', type: 'string', label: 'Rel' },
-    { name: 'title', type: 'string', label: 'Title' },
+    { name: 'href', type: 'string' },
+    { name: 'target', type: 'string' },
+    { name: 'rel', type: 'string' },
+    { name: 'title', type: 'string' },
   ],
   img: [
-    { name: 'src', type: 'string', label: 'Image URL' },
-    { name: 'alt', type: 'string', label: 'Alt text' },
-    { name: 'width', type: 'number', label: 'Width' },
-    { name: 'height', type: 'number', label: 'Height' },
-    { name: 'title', type: 'string', label: 'Title' },
+    { name: 'src', type: 'string' },
+    { name: 'alt', type: 'string' },
+    { name: 'width', type: 'number' },
+    { name: 'height', type: 'number' },
+    { name: 'title', type: 'string' },
   ],
-  time: [{ name: 'dateTime', type: 'string', label: 'Datetime' }],
-  abbr: [{ name: 'title', type: 'string', label: 'Title' }],
-  q: [{ name: 'cite', type: 'string', label: 'Cite' }],
-  blockquote: [{ name: 'cite', type: 'string', label: 'Cite' }],
+  time: [{ name: 'dateTime', type: 'string' }],
+  abbr: [{ name: 'title', type: 'string' }],
+  q: [{ name: 'cite', type: 'string' }],
+  blockquote: [{ name: 'cite', type: 'string' }],
 };
 
 function sanitizeHref(value: unknown): string | undefined {
@@ -182,7 +182,7 @@ for (const tag of TAGS) {
     label: tag.toUpperCase(),
     category: 'basic',
     inputs: [
-      { name: 'className', type: 'string', label: 'CSS Class' },
+      { name: 'className', type: 'string' },
       ...(PER_TAG_INPUTS[tag] ?? []),
     ],
   });

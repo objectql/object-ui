@@ -21,13 +21,13 @@ ComponentRegistry.register(
     label: 'AI Form Assist',
     category: 'AI',
     inputs: [
-      { name: 'formId', type: 'string', label: 'Form ID' },
-      { name: 'objectName', type: 'string', label: 'Object Name' },
-      { name: 'fields', type: 'array', label: 'Fields to suggest' },
-      { name: 'suggestions', type: 'code', label: 'Suggestions Data' },
-      { name: 'autoFill', type: 'boolean', label: 'Auto Fill', defaultValue: false },
-      { name: 'showConfidence', type: 'boolean', label: 'Show Confidence', defaultValue: true },
-      { name: 'showReasoning', type: 'boolean', label: 'Show Reasoning', defaultValue: false },
+      { name: 'formId', type: 'string' },
+      { name: 'objectName', type: 'string' },
+      { name: 'fields', type: 'array' },
+      { name: 'suggestions', type: 'code' },
+      { name: 'autoFill', type: 'boolean' },
+      { name: 'showConfidence', type: 'boolean' },
+      { name: 'showReasoning', type: 'boolean' },
     ]
   }
 );
@@ -40,16 +40,16 @@ ComponentRegistry.register(
     label: 'AI Recommendations',
     category: 'AI',
     inputs: [
-      { name: 'objectName', type: 'string', label: 'Object Name' },
-      { name: 'recommendations', type: 'code', label: 'Recommendations Data' },
-      { name: 'maxResults', type: 'number', label: 'Max Results', defaultValue: 10 },
-      { name: 'showScores', type: 'boolean', label: 'Show Scores', defaultValue: false },
-      { name: 'layout', type: 'enum', label: 'Layout', enum: [
+      { name: 'objectName', type: 'string' },
+      { name: 'recommendations', type: 'code' },
+      { name: 'maxResults', type: 'number' },
+      { name: 'showScores', type: 'boolean' },
+      { name: 'layout', type: 'enum', enum: [
         { label: 'List', value: 'list' },
         { label: 'Grid', value: 'grid' },
         { label: 'Carousel', value: 'carousel' },
-      ], defaultValue: 'list' },
-      { name: 'emptyMessage', type: 'string', label: 'Empty Message' },
+      ] },
+      { name: 'emptyMessage', type: 'string' },
     ]
   }
 );
@@ -62,10 +62,10 @@ ComponentRegistry.register(
     label: 'Natural Language Query',
     category: 'AI',
     inputs: [
-      { name: 'objectName', type: 'string', label: 'Object Name' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder Text' },
-      { name: 'suggestions', type: 'array', label: 'Example Queries' },
-      { name: 'showHistory', type: 'boolean', label: 'Show History', defaultValue: false },
+      { name: 'objectName', type: 'string' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'suggestions', type: 'array' },
+      { name: 'showHistory', type: 'boolean' },
     ]
   }
 );

@@ -67,21 +67,19 @@ ComponentRegistry.register('table',
     namespace: 'ui',
     label: 'Table',
     inputs: [
-      { name: 'caption', type: 'string', label: 'Caption' },
-      { name: 'footer', type: 'string', label: 'Footer Content' },
+      { name: 'caption', type: 'string' },
+      { name: 'footer', type: 'string' },
       { 
           name: 'columns', 
           type: 'array', 
-          label: 'Columns',
           description: 'Array of { header, accessorKey, className, cellClassName, width }'
       },
        { 
           name: 'data', 
           type: 'array', 
-          label: 'Data',
           description: 'Array of objects'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       caption: 'Table Caption',

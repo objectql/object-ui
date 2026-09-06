@@ -55,10 +55,9 @@ ComponentRegistry.register(
       { 
         name: 'content', 
         type: 'string', 
-        label: 'Markdown Content', 
         required: true
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       content: '# Hello World\n\nThis is a **markdown** component with *formatting* support.\n\n- Item 1\n- Item 2\n- Item 3',

@@ -43,11 +43,11 @@ ComponentRegistry.register(
     label: 'Bar Chart',
     category: 'plugin',
     inputs: [
-      { name: 'data', type: 'array', label: 'Data', required: true },
-      { name: 'dataKey', type: 'string', label: 'Data Key', defaultValue: 'value' },
-      { name: 'xAxisKey', type: 'string', label: 'X-Axis Key', defaultValue: 'name' },
-      { name: 'height', type: 'number', label: 'Height', defaultValue: 400 },
-      { name: 'color', type: 'color', label: 'Color', defaultValue: '#8884d8' },
+      { name: 'data', type: 'array', required: true },
+      { name: 'dataKey', type: 'string' },
+      { name: 'xAxisKey', type: 'string' },
+      { name: 'height', type: 'number' },
+      { name: 'color', type: 'color' },
     ],
     defaultProps: {
       data: [
@@ -78,10 +78,10 @@ ComponentRegistry.register('chart', ObjectChartBlock, {
   label: 'Chart',
   skipFallback: true,
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'type', type: 'string', label: 'Chart Type' },
-    { name: 'categoryField', type: 'string', label: 'Category Field' },
-    { name: 'valueField', type: 'string', label: 'Value Field' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'type', type: 'string' },
+    { name: 'categoryField', type: 'string' },
+    { name: 'valueField', type: 'string' },
   ]
 });
 // Register the advanced chart component
@@ -96,7 +96,6 @@ ComponentRegistry.register(
       { 
         name: 'chartType', 
         type: 'enum', 
-        label: 'Chart Type',
         enum: [
           { label: 'Bar', value: 'bar' },
           { label: 'Line', value: 'line' },
@@ -105,14 +104,12 @@ ComponentRegistry.register(
           { label: 'Donut', value: 'donut' },
           { label: 'Radar', value: 'radar' },
           { label: 'Scatter', value: 'scatter' }
-        ],
-        defaultValue: 'bar'
-      },
-      { name: 'data', type: 'code', label: 'Data (JSON)', required: true },
-      { name: 'config', type: 'code', label: 'Config (JSON)' },
-      { name: 'xAxisKey', type: 'string', label: 'X Axis Key', defaultValue: 'name' },
-      { name: 'series', type: 'code', label: 'Series (JSON Array)', required: true },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        ]      },
+      { name: 'data', type: 'code', required: true },
+      { name: 'config', type: 'code' },
+      { name: 'xAxisKey', type: 'string' },
+      { name: 'series', type: 'code', required: true },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       chartType: 'bar',

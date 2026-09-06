@@ -46,7 +46,7 @@ ComponentRegistry.register('sidebar-provider',
     namespace: 'ui',
     label: 'Sidebar Provider',
     inputs: [
-      { name: 'defaultOpen', type: 'boolean', label: 'Default Open', defaultValue: true }
+      { name: 'defaultOpen', type: 'boolean' }
     ],
     defaultProps: {
       defaultOpen: true
@@ -62,9 +62,9 @@ ComponentRegistry.register('sidebar',
     namespace: 'ui',
     label: 'Sidebar',
     inputs: [
-      { name: 'collapsible', type: 'enum', enum: ['offcanvas', 'icon', 'none'], defaultValue: 'icon', label: 'Collapsible' },
-      { name: 'side', type: 'enum', enum: ['left', 'right'], defaultValue: 'left', label: 'Side' },
-      { name: 'variant', type: 'enum', enum: ['sidebar', 'floating', 'inset'], defaultValue: 'sidebar', label: 'Variant' }
+      { name: 'collapsible', type: 'enum', enum: ['offcanvas', 'icon', 'none'] },
+      { name: 'side', type: 'enum', enum: ['left', 'right'] },
+      { name: 'variant', type: 'enum', enum: ['sidebar', 'floating', 'inset'] }
     ],
     defaultProps: {
       collapsible: 'icon',
@@ -118,7 +118,7 @@ ComponentRegistry.register('sidebar-group',
     namespace: 'ui',
     label: 'Sidebar Group',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' }
+      { name: 'label', type: 'string' }
     ],
     defaultProps: {
       label: 'Menu'
@@ -169,9 +169,9 @@ ComponentRegistry.register('sidebar-menu-button',
     namespace: 'ui',
     label: 'Sidebar Menu Button',
     inputs: [
-      { name: 'active', type: 'boolean', label: 'Active', defaultValue: false },
-      { name: 'size', type: 'enum', enum: ['default', 'sm', 'lg'], defaultValue: 'default', label: 'Size' },
-      { name: 'tooltip', type: 'string', label: 'Tooltip' }
+      { name: 'active', type: 'boolean' },
+      { name: 'size', type: 'enum', enum: ['default', 'sm', 'lg'] },
+      { name: 'tooltip', type: 'string' }
     ],
     defaultProps: {
       size: 'default'
@@ -206,6 +206,6 @@ ComponentRegistry.register('sidebar-trigger',
   {
     namespace: 'ui',
     label: 'Sidebar Trigger',
-    inputs: [{ name: 'className', type: 'string', label: 'CSS Class' }]
+    inputs: [{ name: 'className', type: 'string' }]
   }
 );

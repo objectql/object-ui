@@ -26,16 +26,13 @@ ComponentRegistry.register('alert',
     namespace: 'ui',
     label: 'Alert',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title', required: true },
-      { name: 'description', type: 'string', label: 'Description' },
+      { name: 'title', type: 'string', required: true },
+      { name: 'description', type: 'string' },
       { 
         name: 'variant', 
         type: 'enum', 
-        enum: ['default', 'destructive'], 
-        defaultValue: 'default',
-        label: 'Variant'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['default', 'destructive']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'Alert Title',

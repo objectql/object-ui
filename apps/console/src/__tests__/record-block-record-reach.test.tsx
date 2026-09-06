@@ -250,7 +250,9 @@ const SAMPLE_BY_INPUT: Readonly<Record<string, unknown>> = {
 /** Fill one declared input. */
 const sampleFor = (input: any): unknown => {
   if (input.name in SAMPLE_BY_INPUT) return SAMPLE_BY_INPUT[input.name];
-  if (input.defaultValue !== undefined) return input.defaultValue;
+  // (`ComponentInput.defaultValue` is an ADR-0049 tombstone since objectui#7493 —
+  // no registration declares a default any more, so the sample is decided by the
+  // declared TYPE below, as it already was for every input without one.)
   switch (input.type) {
     case 'number': return 1;
     case 'boolean': return true;

@@ -54,18 +54,12 @@ ComponentRegistry.register('button-group',
       { 
         name: 'variant', 
         type: 'enum', 
-        enum: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link'], 
-        defaultValue: 'default',
-        label: 'Variant'
-      },
+        enum: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link']      },
       { 
         name: 'size', 
         type: 'enum', 
-        enum: ['default', 'sm', 'lg', 'icon'], 
-        defaultValue: 'default',
-        label: 'Size'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['default', 'sm', 'lg', 'icon']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       variant: 'default',
