@@ -238,16 +238,20 @@ const tsOwnKeys = Object.keys(TS_OWN_KEYS);
  * interface only, which is the drift this guard exists to stop.
  */
 const TS_ONLY_BACKLOG = new Set<string>([
-  'defaultViewType',
+  // objectui#7779 (maintainer ruling B, 2026-09-06) closed nine of the ten gaps
+  // this set held: `navigation` / `searchableFields` / `filterableFields` are the
+  // spec's `ListViewSchema` slots by reference, `allowCreateView` / `viewActions`
+  // the sibling `ViewSwitcherSchema` slots by reference, `defaultViewType` /
+  // `defaultListView` / `showViewSwitcher` local literals after a reader census,
+  // and `viewTabBar` is a tombstone on BOTH faces (declared, refused by name) —
+  // so none of the nine is TS-only any more. The one that stays:
+  //
+  // `listViews` — its VALUE type is undecided (the declaration's `NamedListView`
+  // vs the spec's strict `ObjectListViewSchema`, which refuses the named views
+  // this package's docs teach); it stays in the parity ledger with that
+  // measurement (`zod-mirror-parity.test.ts`, `UnmirroredDeclared`) until the
+  // maintainer decides. ⛔ Not closed with `z.any()`.
   'listViews',
-  'defaultListView',
-  'navigation',
-  'searchableFields',
-  'filterableFields',
-  'showViewSwitcher',
-  'viewTabBar',
-  'allowCreateView',
-  'viewActions',
   // Not a zod gap: a function, so it CANNOT be declared in a JSON protocol
   // schema. Recorded here rather than exempted silently.
   'onNavigate',
@@ -268,9 +272,9 @@ const SPEC_COUNTERPART: Record<string, { schema: unknown; key: string; note: str
   description: { schema: SpecListViewSchema, key: 'description', note: 'same name, same i18n type difference' },
   layout: { schema: SpecNavigationConfigSchema, key: 'mode', note: 'spec is a superset; fold into `navigation`, do not keep a parallel three-value enum' },
   defaultViewType: { schema: SpecListViewSchema, key: 'type', note: 'spec is a superset (adds chart, tree); ListViewSchema already imports this enum by reference' },
-  navigation: { schema: SpecListViewSchema, key: 'navigation', note: 'objectui ViewNavigationConfig is a hand-copied duplicate — re-export by reference' },
-  searchableFields: { schema: SpecListViewSchema, key: 'searchableFields', note: 'identical string[] — re-export by reference' },
-  filterableFields: { schema: SpecListViewSchema, key: 'filterableFields', note: 'identical; inherits the spec\'s "legacy shorthand for userFilters.fields" deprecation' },
+  navigation: { schema: SpecListViewSchema, key: 'navigation', note: 'DONE (objectui#7779): the zod mirror is this very slot by reference (`SpecListViewSchema.shape.navigation`); the TS face is the spec\'s `NavigationConfig` (objectui#4588)' },
+  searchableFields: { schema: SpecListViewSchema, key: 'searchableFields', note: 'DONE (objectui#7779): the zod mirror is this slot by reference' },
+  filterableFields: { schema: SpecListViewSchema, key: 'filterableFields', note: 'DONE (objectui#7779): the zod mirror is this slot by reference, and so inherits the spec\'s "legacy shorthand for userFilters.fields" deprecation' },
   showSearch: { schema: SpecUserActionsConfigSchema, key: 'search', note: 'scope A step 3, same fold' },
   showFilters: { schema: SpecUserActionsConfigSchema, key: 'filter', note: 'scope A step 3, same fold' },
   showSort: { schema: SpecUserActionsConfigSchema, key: 'sort', note: 'scope A step 3, same fold' },
@@ -304,7 +308,12 @@ const SANCTIONED_LOCAL = new Set<string>([
   'operations',
   // View-management chrome. No spec counterpart —
   // `UserActionsConfigSchema.buttons` is a string[] of action ids, a different
-  // shape.
+  // shape. `allowCreateView` / `viewActions` are READ (forwarded verbatim into
+  // the `view-switcher` node) and mirrored by reference to that sibling's slots
+  // (objectui#7779); `viewTabBar` is RETIRED by the same card — a `?: never` /
+  // `retirementTombstone()` twin, still DECLARED on both faces so an authored
+  // value is refused by name, which is why it stays in this set: the spec models
+  // no such key, and the tombstone is objectui-only surface.
   'allowCreateView',
   'viewActions',
   'viewTabBar',
@@ -388,14 +397,17 @@ describe('ObjectViewSchema declared-surface consistency (#2890 scope B)', () => 
     ).toEqual([...TS_ONLY_BACKLOG].sort());
   });
 
-  it('reproduces the 2026-07 audit\'s declared-surface figures', () => {
+  it('reproduces the 2026-07 audit\'s declared-surface figures, moved by objectui#7779', () => {
     // Kept executable so "we closed the gap" is a test edit, not a claim.
     //
-    // The audit reported "declared in zod: 13". Reproduced here as 11
-    // non-envelope keys plus the 2 narrowed envelope keys above — the same 13
-    // keys, with the arithmetic shown rather than asserted.
-    expect(ouiZodKeys.filter((k) => !ENVELOPE.has(k))).toHaveLength(11);
-    expect(ouiDeclaredKeys).toHaveLength(13);
+    // The audit reported "declared in zod: 13" — reproduced then as 11
+    // non-envelope keys plus the 2 narrowed envelope keys above. objectui#7779
+    // added NINE members to the zod shape (eight mirrored keys plus the
+    // `viewTabBar` tombstone, which is a shape member so it can refuse by name):
+    // 11 + 9 = 20 non-envelope keys, 20 + 2 = 22 declared. The TS figure below
+    // did not move — every one of the nine was already declared there.
+    expect(ouiZodKeys.filter((k) => !ENVELOPE.has(k))).toHaveLength(20);
+    expect(ouiDeclaredKeys).toHaveLength(22);
     // The interface's own surface beyond the envelope. The audit counted 25
     // declared fields including the 3 whose names the envelope also owns
     // (`type`, `description`, `className`); 22 is that figure with those three

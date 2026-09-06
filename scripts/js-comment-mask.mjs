@@ -93,8 +93,9 @@
  * (objectstack#10640): deleting the brace counting inside `${...}` fails a case
  * below, while dropping `return` from `REGEX_AFTER_KEYWORD` passes all of them
  * and is caught only by the corpus sweep. The shape that mutation misreads is
- * live in THIS tree too -- `scripts/check-changeset-presence.mjs:555` and
- * `scripts/check-doc-links.mjs:616` both write `return /.../` today -- so in
+ * live in THIS tree too -- `scripts/check-changeset-presence.mjs`'s
+ * `isDocumentation` function, and the `return /\.(md|mdx)$/.test(root)` site
+ * in `scripts/check-doc-links.mjs`, both write `return /.../` today -- so in
  * objectui that mutation is undetected by anything that runs. Recorded as a
  * known limit of the port, not as coverage.
  *

@@ -1906,9 +1906,35 @@ export interface ObjectViewSchema extends BaseSchema {
   className?: string;
 
   /**
-   * View tab bar UX configuration (inline add, context menu, overflow, indicators).
+   * RETIRED (objectui#7779) — the tab-bar config key this node's renderer never
+   * read. `packages/plugin-view/src/ObjectView.tsx` reads `schema.objectName`,
+   * `schema.layout`, `schema.defaultViewType`, `schema.allowCreateView` and
+   * `schema.viewActions` off the node and `schema.viewTabBar` never; the
+   * repo-wide census (2026-09-06, on `6a9ee323`) finds the key in no source
+   * file outside this package — only in two doc tables that listed it as
+   * authorable. The tab-bar UX config ({@link ViewTabBarConfig}, still
+   * exported) is the `config` PROP of the `ViewTabBar` component, composed by
+   * the host (`@object-ui/app-shell`), not authored metadata: `plugin-view`'s
+   * own `ObjectView` renders no tab bar at all (ADR-0053 — the host owns the
+   * switcher). The 2026-07 audit
+   * (`docs/audits/2026-07-objectview-detailview-schema.md`) had measured it
+   * "dead since introduction". Maintainer ruling B on objectui#7779
+   * (2026-09-06): a key nothing reads is retired, not mirrored.
+   *
+   * `?: never` is this package's tombstone convention (see
+   * `ObjectKanbanSchema.groupField`, objectui#7322), and it is load-bearing
+   * rather than decorative: {@link BaseSchema} carries `[key: string]: any`,
+   * so DELETING this member would let the retired spelling type-check green
+   * and go on doing nothing. Keeping the key declared as `never` is what makes
+   * the retirement audible at the authoring boundary. Lockstep with the Zod
+   * twin (`zod/objectql.zod.ts`, `retirementTombstone()`): both halves or
+   * neither. Absent stays valid on both, so a node that never wrote the key is
+   * untouched.
+   *
+   * @deprecated RETIRED (objectui#7779) — remove the key; pass `config` to
+   * `ViewTabBar` from the host instead.
    */
-  viewTabBar?: ViewTabBarConfig;
+  viewTabBar?: never;
 
   /**
    * Show "+" button in ViewSwitcher to create a new view.
