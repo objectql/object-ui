@@ -225,13 +225,23 @@ describe('the residue refusal speaks the reader\'s language (objectui#6888)', ()
 describe('arity lives in the pack VALUE, not in a hole (objectui#6888)', () => {
   const LANGS = ['en', 'zh', 'ja', 'ko', 'de', 'es', 'fr', 'pt', 'ru', 'ar'] as const;
 
+  /**
+   * One pack's `fields.location` block, READ THROUGH ITS REAL TYPE.
+   *
+   * ⛔ Deliberately not `(builtInLocales as any)[lang]`. `builtInLocales` is an
+   * `as const` object, so typing the access makes a renamed or dropped key a
+   * COMPILE error in `type-check` rather than a runtime miss that a `?.` or a
+   * `toContain` on `undefined` could swallow.
+   */
+  const locationPack = (lang: (typeof LANGS)[number]) => builtInLocales[lang].fields.location;
+
   it('gives every pack two SIBLING keys, not an i18next _one/_other family', () => {
     // `_one` would be a key `en` could carry and zh/ja/ko could not, which
     // `all-locales-key-parity` fails by design (objectstack#5430); the suffix
     // form would also need a base key for the categories no pack enumerates
     // (ru few/many, ar two/zero — objectui#3863).
     for (const lang of LANGS) {
-      const location = (builtInLocales as any)[lang].fields.location;
+      const location = locationPack(lang);
       expect(Object.keys(location), `${lang}`).toEqual(
         expect.arrayContaining(['refusedResidue', 'refusedResidueOne', 'latitude', 'longitude']),
       );
@@ -244,7 +254,7 @@ describe('arity lives in the pack VALUE, not in a hole (objectui#6888)', () => {
     // With `verb` as a hole, both values would be one sentence and the
     // difference would be an English word the widget substituted.
     for (const lang of LANGS) {
-      const location = (builtInLocales as any)[lang].fields.location;
+      const location = locationPack(lang);
       const one = location.refusedResidueOne.replace(/\{\{\w+\}\}/g, '');
       const two = location.refusedResidue.replace(/\{\{\w+\}\}/g, '');
       expect(one, `${lang} states both arities identically`).not.toBe(two);
@@ -255,8 +265,8 @@ describe('arity lives in the pack VALUE, not in a hole (objectui#6888)', () => {
     // Arabic distinguishes two from many. Two halves is exactly two, so the
     // dual is the correct form and it exists only because the whole sentence —
     // verb included — is the pack's to write.
-    expect((builtInLocales as any).ar.fields.location.refusedResidue).toContain('ليسا رقمين');
-    expect((builtInLocales as any).ar.fields.location.refusedResidueOne).toContain('ليس رقمًا');
+    expect(locationPack('ar').refusedResidue).toContain('ليسا رقمين');
+    expect(locationPack('ar').refusedResidueOne).toContain('ليس رقمًا');
   });
 
   it('keys each coordinate noun ONCE, so no pack holds two spellings of it', () => {
@@ -264,7 +274,7 @@ describe('arity lives in the pack VALUE, not in a hole (objectui#6888)', () => {
     // than written into each sentence, which is why `fields.location.latitude`
     // exists at all.
     for (const lang of LANGS) {
-      const location = (builtInLocales as any)[lang].fields.location;
+      const location = locationPack(lang);
       expect(location.refusedResidueOne, `${lang}`).toContain('{{name}}');
       expect(location.refusedResidue, `${lang}`).toContain('{{name}}');
       expect(location.refusedResidue, `${lang}`).toContain('{{otherName}}');
