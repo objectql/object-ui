@@ -82,8 +82,8 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is exactly one, and the reason is
- * measured rather than chosen. Running this file's classifier over all 1,499
+ * actually been SWEPT to zero. Today that is two, and each joined by sweep
+ * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
  *     covered set = @object-ui/react (swept by PR #6847)  ->    1 frozen
@@ -93,7 +93,15 @@
  * at 25 and `@object-ui/components` at 22. Import breadth does not separate them
  * either -- `@object-ui/react` is THIRD by measured import count (576 imports
  * across 552 files), behind `@object-ui/core` and `@object-ui/types` -- so there
- * is no threshold to derive and no honest way to widen the set today.
+ * was no threshold to derive and no honest way to widen the set that day.
+ *
+ * ⚠️ Those per-specifier figures were taken with the FIRST-ANGLE-BRACKET
+ * generic this file carried until objectui#7337, which mis-read a nested
+ * `vi.importActual` generic and over-reported `frozen`; re-derive before acting
+ * on any of them. `@object-ui/i18n` was the second member, swept and added by
+ * objectui#7337 -- 92 judged call sites, 92 inheriting, 0 frozen at the flip,
+ * with the all-specifier population moving 315 -> 314 frozen and no site moving
+ * the other way.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -174,7 +182,7 @@ import { blank, scanSource } from './js-comment-mask.mjs';
  * The workspace packages this gate judges. GROW-ONLY, and a specifier joins it
  * only after its frozen factories have been swept to zero -- see "Scope" above.
  */
-export const COVERED_SPECIFIERS = Object.freeze(['@object-ui/react']);
+export const COVERED_SPECIFIERS = Object.freeze(['@object-ui/react', '@object-ui/i18n']);
 
 /** Files the walk reads at all. */
 const SOURCE_FILE_RE = /\.[cm]?[jt]sx?$/;

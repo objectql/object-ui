@@ -58,6 +58,11 @@ const Q = String.fromCharCode(39);
 
 const COVERED = '@object-ui/react';
 
+/** Escape a specifier list for embedding in a `RegExp` source. */
+function escapeRe(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** A `vi.mock` call as SOURCE TEXT, unmatchable in this file, matchable on disk. */
 const mockCall = (spec: string, factory: string, fn: 'mock' | 'doMock' = 'mock') =>
   `vi.${fn}(${Q}${spec}${Q}, ${factory});`;
@@ -636,12 +641,18 @@ describe('repo state — the gate is green on this tree', () => {
 
   it('puts the census in the verdict, so a reader sees the population', () => {
     // "OK" alone is what a gate that does nothing also prints.
+    //
+    // The names come from `COVERED_SPECIFIERS`, not from a copy of it: the list
+    // is GROW-ONLY, and a case spelling one member reads as an assertion about
+    // the verdict line while actually asserting the set's SIZE — measured, it
+    // failed on objectui#7337's flip for that reason and nothing else.
+    const named = COVERED_SPECIFIERS.join(', ');
     const line = summarise(result);
     expect(line).toMatch(/\d+ tracked source file\(s\)/);
-    expect(line).toMatch(new RegExp(`\\d+ call site\\(s\\) on ${COVERED} judged`));
+    expect(line).toMatch(new RegExp(`\\d+ call site\\(s\\) on ${escapeRe(named)} judged`));
     const out = execFileSync('node', ['scripts/check-vi-mock-inherit.mjs'], { cwd: repoRoot, encoding: 'utf8' });
     expect(out).toMatch(/check-vi-mock-inherit: OK/);
-    expect(out).toContain(`${result.census.covered} call site(s) on ${COVERED} judged`);
+    expect(out).toContain(`${result.census.covered} call site(s) on ${named} judged`);
   });
 
   it('needs no install and no build — it is a cheap-tier gate', () => {
@@ -724,7 +735,7 @@ describe('wiring — the gate is reachable and every PR shape starts it', () => 
 // objectui#7337 — the `@object-ui/i18n` sweep
 // ---------------------------------------------------------------------------
 
-/** The specifier objectui#7337 swept. Not in `COVERED_SPECIFIERS` yet — see below. */
+/** The specifier objectui#7337 swept, and the second member of `COVERED_SPECIFIERS`. */
 const I18N = '@object-ui/i18n';
 
 /** Classify one factory in isolation against an arbitrary covered specifier. */
@@ -798,29 +809,27 @@ describe('the generic argument NESTS — `vi.importActual<Record<string, unknown
   });
 });
 
-describe('the sweep — every `@object-ui/i18n` factory inherits, bar the one held file', () => {
+describe('the sweep — every `@object-ui/i18n` factory inherits, and the specifier is covered', () => {
   /**
    * objectui#7337 converted 29 frozen factories and deleted a 30th
    * (`apps/console/dev/__tests__/setup/common-mocks.ts`, a helper with zero
-   * importers repo-wide). The 31st — `DeclaredActionsBar.test.tsx` — is held by
-   * open PR #7846 and could not be touched, so `COVERED_SPECIFIERS` was NOT
-   * widened: flipping it while a frozen factory remains turns `main` red.
-   *
-   * The assertions below are the ratchet in the meantime, and they are
-   * deliberately ONE-DIRECTIONAL. They redden when a NEW frozen factory appears
-   * — the defect — and stay green when the held one is fixed, so nobody's
-   * unrelated PR pays for finishing this.
+   * importers repo-wide). The 31st — `DeclaredActionsBar.test.tsx` — was held
+   * by an open PR at the time and kept the population at one, so the sweep
+   * shipped without widening `COVERED_SPECIFIERS`: flipping it while a frozen
+   * factory remains fails this gate on the very next run. That file has since
+   * been converted and the specifier added, in the one PR the gate's own header
+   * requires — so the assertions below are no longer a stand-in for the ratchet,
+   * they are the census the ratchet is computed over.
    */
-
-  /** Held by open PR #7846 at the time of the sweep. */
-  const HELD = 'packages/app-shell/src/views/__tests__/DeclaredActionsBar.test.tsx';
 
   const swept = () => scan(repoRoot, { covered: [I18N], floors: {} });
 
-  it('no `@object-ui/i18n` factory outside the held file freezes the surface', () => {
+  it('no `@object-ui/i18n` factory freezes the surface', () => {
     const result = swept();
-    const frozen = result.frozen.map((f: { file: string }) => f.file).filter((f: string) => f !== HELD);
-    expect(frozen, 'convert these to the obtain-and-spread form before adding the specifier').toEqual([]);
+    expect(
+      result.frozen.map((f: { file: string; line: number }) => `${f.file}:${f.line}`),
+      'convert these to the obtain-and-spread form — the specifier is covered, so the gate reds too',
+    ).toEqual([]);
     expect(result.unreadable, 'a factory the gate cannot read is never a pass').toEqual([]);
   });
 
@@ -830,17 +839,18 @@ describe('the sweep — every `@object-ui/i18n` factory inherits, bar the one he
     const census = swept().census;
     expect(census.covered).toBeGreaterThan(60);
     expect(census.inherits).toBeGreaterThan(60);
-    expect(census.covered - census.inherits - census.automock).toBeLessThanOrEqual(1);
+    expect(census.covered - census.inherits - census.automock).toBe(0);
   });
 
-  it('the specifier is NOT in COVERED_SPECIFIERS yet, and this is the reason', () => {
-    // The follow-up, in one line: once PR #7846 lands, convert
-    // `DeclaredActionsBar.test.tsx:65`, DELETE this case, and add the specifier
-    // to `COVERED_SPECIFIERS`. Until then the flip reds `main` on merge.
+  it('the specifier IS in COVERED_SPECIFIERS — the sweep is held by the gate, not by this file', () => {
+    // The positive half of the pin this replaces. Without it the third step of
+    // objectui#7337 could be reverted in silence: dropping a member makes every
+    // i18n call site unjudged, so the gate stays GREEN over a population it no
+    // longer looks at — the one direction a ratchet must never be free to move.
     expect(
       COVERED_SPECIFIERS,
-      'a frozen @object-ui/i18n factory still exists — widening the set now reds main',
-    ).not.toContain(I18N);
+      'the sweep landed; removing the specifier retires the ratchet silently',
+    ).toContain(I18N);
   });
 
   it('the zero-importer mock helper is gone, not merely unreferenced', () => {
