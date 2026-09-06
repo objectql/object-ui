@@ -182,7 +182,14 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('common.save')).toBe('Save');
     });
 
-    it('merges custom resources with built-in locales', () => {
+    // objectui#7572 — ADDING a group and OVERRIDING a group are two different
+    // operations on `resources`, and only the first used to be pinned. The old
+    // single test was called 'merges custom resources with built-in locales',
+    // which reads as though it covered both; it supplied `custom` (a key no pack
+    // has) and then checked `common.save`, i.e. a DIFFERENT group. So the merge
+    // never had to survive a collision, and the shallow-merge defect below read
+    // as already-covered. One test per operation, each named for the one it pins.
+    it('adds a NEW top-level group and leaves the built-in groups intact', () => {
       const i18n = createI18n({
         defaultLanguage: 'en',
         detectBrowserLanguage: false,
@@ -193,6 +200,108 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('custom.greeting')).toBe('Hello!');
       // Built-in translations still work
       expect(i18n.t('common.save')).toBe('Save');
+    });
+
+    it('overrides ONE key of an EXISTING group and keeps that group\'s other keys', () => {
+      // The card's exact shape. Under the one-level merge this replaced the whole
+      // `calendar` group, so the seven siblings vanished from the instance and
+      // `t('calendar.allDay')` returned the bare key — which reaches the DOM as
+      // the literal text `calendar.allDay`.
+      const i18n = createI18n({
+        defaultLanguage: 'en',
+        detectBrowserLanguage: false,
+        resources: {
+          en: { calendar: { today: 'Heute' } },
+        },
+      });
+
+      expect(i18n.t('calendar.today')).toBe('Heute');
+
+      // Every other key of the SAME group survives the partial override.
+      expect(i18n.t('calendar.month')).toBe('Month');
+      expect(i18n.t('calendar.week')).toBe('Week');
+      expect(i18n.t('calendar.day')).toBe('Day');
+      expect(i18n.t('calendar.allDay')).toBe('All Day');
+      expect(i18n.t('calendar.newEvent')).toBe('New event');
+      expect(i18n.t('calendar.moreEvents')).toBe('+{{count}} more');
+      expect(i18n.t('calendar.unscheduled')).toBe('Unscheduled ({{count}})');
+
+      // Assert the failure mode directly, not just the happy value: a dropped key
+      // resolves to its own name, so this is what the defect looked like.
+      expect(i18n.t('calendar.allDay')).not.toBe('calendar.allDay');
+    });
+
+    it('merges below the group level, not just one level deeper', () => {
+      // Packs nest up to four levels below the group, so a fixed "one more level"
+      // would still drop siblings here: `capability.group.platform` is three deep.
+      const i18n = createI18n({
+        defaultLanguage: 'en',
+        detectBrowserLanguage: false,
+        resources: {
+          en: { capability: { group: { platform: 'Plattform' } } },
+        },
+      });
+
+      expect(i18n.t('capability.group.platform')).toBe('Plattform');
+      // Siblings at the overridden level...
+      expect(i18n.t('capability.group.org')).toBe('Organization');
+      expect(i18n.t('capability.group.other')).toBe('Other');
+      // ...and the untouched sibling subtree one level up.
+      expect(i18n.t('capability.label.manage_users')).toBe('Manage Users');
+    });
+
+    it('replaces an array value instead of concatenating it', () => {
+      // The array question, answered explicitly (objectui#7572). No built-in pack
+      // carries an array today, so this pins the decision rather than existing
+      // behaviour: an author who writes an array is naming the whole list, so a
+      // shorter override must be able to shorten it.
+      const withArray = createI18n({
+        defaultLanguage: 'en',
+        detectBrowserLanguage: false,
+        resources: {
+          en: { customList: { items: ['a', 'b', 'c'] } },
+        },
+      });
+      expect(withArray.t('customList.items', { returnObjects: true })).toEqual(['a', 'b', 'c']);
+
+      // A second instance whose override is shorter must NOT inherit a stale tail.
+      const overridden = createI18n({
+        defaultLanguage: 'en',
+        detectBrowserLanguage: false,
+        resources: {
+          en: { calendar: { today: ['only-one'] } },
+        },
+      });
+      expect(overridden.t('calendar.today', { returnObjects: true })).toEqual(['only-one']);
+      expect(overridden.t('calendar.allDay')).toBe('All Day');
+    });
+
+    it('re-supplying an identical built-in pack changes nothing', () => {
+      // The shape `packages/plugin-grid/demo` uses: it hands the built-in packs
+      // straight back through `resources`. Deep-merging a pack over itself must
+      // be a no-op, not a rebuild that could reorder or drop anything.
+      const i18n = createI18n({
+        defaultLanguage: 'en',
+        detectBrowserLanguage: false,
+        resources: { en: builtInLocales.en as unknown as Record<string, unknown> },
+      });
+      expect(i18n.getResourceBundle('en', 'translation')).toEqual(builtInLocales.en);
+    });
+
+    it('does not let a resource key reach Object.prototype', () => {
+      // The merge assigns recursively where the old code spread; assignment is the
+      // form that can reach the prototype setter, so the guard is pinned here.
+      const i18n = createI18n({
+        defaultLanguage: 'en',
+        detectBrowserLanguage: false,
+        resources: JSON.parse('{"en":{"__proto__":{"polluted":"yes"}}}') as Record<
+          string,
+          Record<string, unknown>
+        >,
+      });
+      expect(i18n.t('common.save')).toBe('Save');
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      expect(Object.prototype).not.toHaveProperty('polluted');
     });
 
     it('changes language dynamically', async () => {

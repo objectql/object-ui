@@ -23,7 +23,11 @@ import type { DataScope, DataContext, DataSource } from '@object-ui/types';
  * Row-level filter for restricting data access within a scope
  */
 export interface RowLevelFilter {
-  /** Field to filter on */
+  /**
+   * Field to filter on. Read as an OWN member of the record and nothing else:
+   * a name that resolves on the prototype chain instead is refused, and the
+   * rule denies the row. See `readField`.
+   */
   field: string;
   /**
    * Filter operator. The set is closed: a rule whose operator is outside it
@@ -31,7 +35,11 @@ export interface RowLevelFilter {
    * guard) evaluates to `false` and denies the row.
    */
   operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'in' | 'nin' | 'contains';
-  /** Filter value */
+  /**
+   * Filter value. The ordered operators (`gt` / `gte` / `lt` / `lte`) compare
+   * it against the field value WITHOUT coercion — both sides must be the same
+   * comparable kind or the rule denies the row. See `isOrderedPair`.
+   */
   value: any;
 }
 
@@ -153,8 +161,11 @@ export class DataScopeManager implements DataContext {
 
     return data.filter(row => {
       return scopeFilters.every(filter => {
-        const fieldValue = row[filter.field];
-        return evaluateFilter(fieldValue, filter.operator, filter.value);
+        const read = readField(row, filter.field);
+        // Fail closed, on the #7378 principle: a rule this evaluator cannot
+        // answer FROM THE RECORD must not admit the row it exists to hide.
+        if (!read.readable) return false;
+        return evaluateFilter(read.value, filter.operator, filter.value);
       });
     });
   }
@@ -240,6 +251,106 @@ export class DataScopeManager implements DataContext {
 }
 
 /**
+ * Field names that are never record data, whatever the record looks like.
+ *
+ * `prototype` earns its place separately from the other two: it is NOT present
+ * on a plain object's chain (`'prototype' in {}` is `false`), so the own-member
+ * rule below would classify it as an ordinary absent field. Naming it here
+ * refuses it outright, the way `evaluateCondition` in `@object-ui/permissions`
+ * refuses all three.
+ */
+const PROTOTYPE_FIELD_NAMES: ReadonlySet<string> = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+]);
+
+/**
+ * The outcome of reading a rule's field off a record.
+ *
+ * `readable: false` is not "the value was falsy" — it is "this evaluator
+ * refuses to answer this rule from this record", which `applyFilters` turns
+ * into a denial.
+ */
+type FieldRead = { readable: true; value: unknown } | { readable: false };
+
+/**
+ * Read a rule's field as an OWN member of the record.
+ *
+ * Measured on the pre-fix source (objectui#7751): a rule naming a prototype
+ * member evaluated against the prototype chain rather than the record, and on
+ * a negative operator that admitted EVERY row —
+ * `{ field: 'constructor', operator: 'ne', value: 'x' }` returned the whole
+ * dataset, silently. A fail-open on a row-level permission boundary.
+ *
+ * Three cases, and the third is why this is not simply `hasOwnProperty`:
+ *
+ *   1. A name in `PROTOTYPE_FIELD_NAMES` — refused outright.
+ *   2. An own member — its value, which is the only value ever read.
+ *   3. Not an own member. Here the record is asked whether the name resolves
+ *      on its prototype chain at all:
+ *        - it does (`toString`, `valueOf`, an `Object.create` parent's field)
+ *          → REFUSED. The value exists but is not this record's data.
+ *        - it does not → the field is genuinely absent, and `undefined` is
+ *          returned exactly as before, so the ordinary "this row has no
+ *          `status`" rules keep the verdicts they have always had.
+ *
+ * Case 3 is where this goes further than the sibling, deliberately. Reading
+ * with `hasOwnProperty` alone collapses "inherited" into "absent", and on a
+ * negative operator absent ADMITS: `{ field: 'toString', operator: 'ne' }`
+ * admits every row through `evaluateCondition` in `@object-ui/permissions`
+ * today, measured, because `toString` is not one of the three names it
+ * refuses. Distinguishing inherited from absent closes the whole class rather
+ * than three spellings of it, and it is what keeps this change a NARROWING:
+ * collapsing inherited into absent would have flipped inherited-value rows
+ * from denied to admitted on `ne` / `nin`.
+ *
+ * A `null` / `undefined` row still throws from the `hasOwnProperty` call, as
+ * the direct `row[field]` access it replaces did.
+ */
+function readField(row: any, field: string): FieldRead {
+  if (PROTOTYPE_FIELD_NAMES.has(field)) return { readable: false };
+  if (Object.prototype.hasOwnProperty.call(row, field)) return { readable: true, value: row[field] };
+  if (field in Object(row)) return { readable: false };
+  return { readable: true, value: undefined };
+}
+
+/**
+ * Realm-safe `Date` test — `instanceof` answers `false` for a `Date` from
+ * another realm (an iframe, a worker, a VM context), and a row-level rule
+ * silently denying every row there would be the same class of bug this file
+ * keeps paying for.
+ */
+function isDate(value: unknown): boolean {
+  return Object.prototype.toString.call(value) === '[object Date]';
+}
+
+/**
+ * May these two values be compared with `<` / `>` without JavaScript coercing
+ * one of them?
+ *
+ * Measured on the pre-fix source (objectui#7751): `{ field: 'age',
+ * operator: 'gte', value: 0 }` admitted `null`, `'10'`, `true`, `false`, `''`
+ * and `[]` — every one of them by coercion to a number the rule's author never
+ * wrote. Requiring the two sides to be the same comparable kind refuses all of
+ * them.
+ *
+ * Same KIND, not "both numbers". `evaluateCondition` in
+ * `@object-ui/permissions` requires `typeof === 'number'` on both sides, and
+ * copying that line here would deny every row for `{ field: 'created',
+ * operator: 'gte', value: '2023-01-01' }` — ISO date strings, plain string
+ * ranges and `Date` objects all order correctly on this evaluator today
+ * (measured), and none of those comparisons coerces anything. The hazard is
+ * cross-kind comparison, so cross-kind is what this refuses; the sibling's
+ * extra strictness is not part of the property and it costs real rules.
+ */
+function isOrderedPair(a: unknown, b: unknown): boolean {
+  if (typeof a === 'number' && typeof b === 'number') return true;
+  if (typeof a === 'string' && typeof b === 'string') return true;
+  return isDate(a) && isDate(b);
+}
+
+/**
  * Evaluate a single filter condition against a field value.
  *
  * An operator the switch does not implement evaluates to `false` (fail
@@ -252,19 +363,24 @@ function evaluateFilter(fieldValue: any, operator: RowLevelFilter['operator'], f
     case 'ne':
       return fieldValue !== filterValue;
     case 'gt':
-      return fieldValue > filterValue;
+      return isOrderedPair(fieldValue, filterValue) && fieldValue > filterValue;
     case 'lt':
-      return fieldValue < filterValue;
+      return isOrderedPair(fieldValue, filterValue) && fieldValue < filterValue;
     case 'gte':
-      return fieldValue >= filterValue;
+      return isOrderedPair(fieldValue, filterValue) && fieldValue >= filterValue;
     case 'lte':
-      return fieldValue <= filterValue;
+      return isOrderedPair(fieldValue, filterValue) && fieldValue <= filterValue;
     case 'in':
       return Array.isArray(filterValue) && filterValue.includes(fieldValue);
     case 'nin':
       return Array.isArray(filterValue) && !filterValue.includes(fieldValue);
     case 'contains':
-      return typeof fieldValue === 'string' && fieldValue.includes(String(filterValue));
+      // The rule's value is required to BE a string rather than be turned into
+      // one: `String(filterValue)` made `{ operator: 'contains', value: 1 }`
+      // match the record `'10'`, which is the same unwritten coercion the
+      // ordered arms above just stopped doing. `evaluateCondition` in
+      // `@object-ui/permissions` already required both sides to be strings.
+      return typeof fieldValue === 'string' && typeof filterValue === 'string' && fieldValue.includes(filterValue);
     default:
       // Fail closed. A row-level rule this evaluator cannot answer must not
       // admit the row it exists to hide: the same answer `evaluateCondition`
