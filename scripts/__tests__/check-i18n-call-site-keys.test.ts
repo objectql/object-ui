@@ -12,6 +12,7 @@ import {
   EXCLUDED_TRANSLATORS,
   DYNAMIC_KEY_FAMILIES,
   EXTERNALLY_INTERPOLATED_HOLES,
+  FACTORY_NAMES,
   holesOf,
   PACK_HOOK,
   readVocabulary,
@@ -68,6 +69,13 @@ import {
  *      `t?.(key) ?? 'English'` really can reach its fallback, which is why the
  *      two `ContextSelectors.tsx` sites the filing card counted among the 24 are
  *      pinned here as abstentions instead.
+ *
+ *   6. objectui#7567 added a sixth, and it is class 3's promise one indirection
+ *      away: a `createSafeTranslation` defaults table is the pack value's
+ *      stand-in on a provider-less host, so a row that says something else is
+ *      the same control labelled two different ways. Its pins are written as
+ *      COUNTS rather than as "no finding", because the verdict on `main` is
+ *      zero drift and a resolver that stopped resolving reports zero too.
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -1219,6 +1227,251 @@ export const A = (name: string) => {
     // The residue route C could not reach is still IN the judged set, not
     // quietly dropped from it.
     expect(counters.spellingJudgedResidueDefaults).toBeGreaterThan(0);
+  });
+});
+
+describe('a createSafeTranslation defaults row must repeat the en value too (objectui#7567)', () => {
+  /**
+   * The same promise as objectui#3810, one indirection away. Class 3 reads the
+   * call's ARGUMENTS, so an inline `defaultValue` is visible to it and a row in
+   * the table the same hook falls back to is not — the gate classified those
+   * hooks as pack-backed, checked every key they asked for, and never read the
+   * table. objectui#7454 is what that cost: a calendar lane header that read
+   * `all-day` standalone and `All Day` in the console.
+   *
+   * The population is taken from the SOURCE — every `createSafeTranslation` /
+   * `createSafeTranslationHook` invocation — rather than from a registry, which
+   * is the difference between this and
+   * `packages/app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`
+   * (objectui#4401): that test covers the three tables somebody listed in it.
+   *
+   * Every abstention below is pinned as a COUNT, not merely as "no finding".
+   * The class's verdict on `main` is zero drift, and zero is what a resolver
+   * that stopped resolving also reports.
+   */
+
+  /** A pack with the objectui#7454 key in it, so the red case is the real shape. */
+  const EN_7567 = `const en = {
+  common: { save: 'Save', cancel: 'Cancel' },
+  calendar: { today: 'Today', allDay: 'All Day' },
+  detail: { showEmptyRelated_one: '+ {{count}} empty', showEmptyRelated_other: '+ {{count}} empty' },
+  grid: { column: { label: 'Label' } },
+} as const;
+export default en;
+`;
+
+  /** Factory findings as `key: en -> table @file:line`. */
+  function factoryDriftOf(root: string): string[] {
+    return analyze(root, { families: [] })
+      .findings.filter((f: { reason: string }) => f.reason === 'factory-default-drift')
+      .map(
+        (f: { detail: string; expected: string; actual: string; file: string; line: number }) =>
+          `${f.detail}: ${f.expected} -> ${f.actual} @${f.file}:${f.line}`,
+      )
+      .sort();
+  }
+
+  /** A module that declares a table and hands it to the factory. Writes no `t(`. */
+  function factoryModule(table: string, testKey = 'calendar.today'): string {
+    return `import { createSafeTranslation } from '${I18N_PKG}';
+export const DEFAULTS: Record<string, string> = ${table};
+export const useXTranslation = createSafeTranslation(DEFAULTS, '${testKey}');
+`;
+  }
+
+  it('is silent when every row copies the pack value byte for byte', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': factoryModule(`{ 'calendar.today': 'Today', 'calendar.allDay': 'All Day' }`),
+    });
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.factoryMatchingRows).toBe(2);
+    expect(counters.factoryComparedRows).toBe(2);
+  });
+
+  it('reports the shape objectui#7454 measured, names itself, and quotes both texts', () => {
+    // `'all-day'` in a factory table against `'All Day'` in the pack: the lane
+    // header rendered one without a provider and the other with one. This is
+    // the one known member of the class, aligned in objectui#7574 before this
+    // rule landed — which is why the rule ships with no ledger section.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': factoryModule(`{ 'calendar.today': 'Today', 'calendar.allDay': 'all-day' }`),
+    });
+    expect(factoryDriftOf(root)).toEqual(['calendar.allDay: All Day -> all-day @packages/x/src/useX.ts:2']);
+    // The reason string is the class naming itself; a finding that reported
+    // under `default-value-drift` would be filed against the wrong rule and hint.
+    expect(analyze(root, { families: [] }).findings.map((f: { reason: string }) => f.reason)).toEqual([
+      'factory-default-drift',
+    ]);
+  });
+
+  it('locates the finding at the ROW, in the file the row lives in, not at the factory call', () => {
+    // For an imported table those are two different files, and only one of them
+    // is where the fix goes.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/defaults.ts': `export const SHARED: Record<string, string> = {
+  'common.save': 'Save',
+  'common.cancel': 'Nevermind',
+};
+`,
+      'packages/x/src/useX.ts': `import { createSafeTranslation } from '${I18N_PKG}';
+import { SHARED } from './defaults.js';
+export const useXTranslation = createSafeTranslation(SHARED, 'common.save');
+`,
+    });
+    expect(factoryDriftOf(root)).toEqual(['common.cancel: Cancel -> Nevermind @packages/x/src/defaults.ts:3']);
+  });
+
+  it('follows the createSafeTranslationHook alias, which is the same function', () => {
+    // `export const createSafeTranslationHook = createSafeTranslation`. A rule
+    // that knew only the canonical name would skip DETAIL_DEFAULT_TRANSLATIONS.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': `import { createSafeTranslationHook } from '${I18N_PKG}';
+export const DEFAULTS: Record<string, string> = { 'common.save': 'Store' };
+export const useXTranslation = createSafeTranslationHook(DEFAULTS, 'common.save');
+`,
+    });
+    expect(factoryDriftOf(root)).toEqual(['common.save: Save -> Store @packages/x/src/useX.ts:2']);
+  });
+
+  it('scans a module that declares a factory and writes no t() at all', () => {
+    // The regression this pin exists for is objectui#4117's shape: the file
+    // walk used to parse only files matching the `t(` pre-filter, and nine of
+    // this repo's factory modules (useTimelineTranslation.ts and its siblings)
+    // hold a table, a factory call, and not one `t(`. Gating on that filter
+    // would drop them silently, out of the whole class at once.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': factoryModule(`{ 'common.save': 'Store' }`, 'common.save'),
+    });
+    expect(/\btt?\s*(?:\?\.)?\s*\(/.test(fs.readFileSync(path.join(root, 'packages/x/src/useX.ts'), 'utf8'))).toBe(
+      false,
+    );
+    expect(factoryDriftOf(root)).toEqual(['common.save: Save -> Store @packages/x/src/useX.ts:2']);
+  });
+
+  it('counts one table handed to two factories ONCE, so the surface is a census', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/defaults.ts': `export const SHARED: Record<string, string> = { 'common.save': 'Save' };
+`,
+      'packages/x/src/a.ts': `import { createSafeTranslation } from '${I18N_PKG}';
+import { SHARED } from './defaults.js';
+export const useATranslation = createSafeTranslation(SHARED, 'common.save');
+`,
+      'packages/x/src/b.ts': `import { createSafeTranslation } from '${I18N_PKG}';
+import { SHARED } from './defaults.js';
+export const useBTranslation = createSafeTranslation(SHARED, 'common.save');
+`,
+    });
+    const { counters } = analyze(root, { families: [] });
+    expect(counters.factorySites).toBe(2);
+    expect(counters.factoryTables).toBe(1);
+    expect(counters.factoryRows).toBe(1);
+  });
+
+  it('leaves a key en does not define to class 1, and class 1 cannot see it either', () => {
+    // The two classes stay disjoint exactly as 1 and 3 do — but here the row is
+    // reachable by NEITHER, because class 1 judges call sites and this row has
+    // none. That is why the count is printed on every run:
+    // `timeline.relative.*` is five such rows on `main` today.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': factoryModule(`{ 'calendar.today': 'Today', 'nowhere.key': 'Orphan' }`),
+    });
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.factoryRowsNoEnKey).toBe(1);
+    expect(counters.factoryComparedRows).toBe(1);
+  });
+
+  it('counts rather than judges a plural family — there is no one form to compare', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': factoryModule(`{ 'detail.showEmptyRelated': 'anything' }`),
+    });
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.factoryUnjudgedRows).toBe(1);
+    expect(counters.factoryComparedRows).toBe(0);
+  });
+
+  it('counts rather than judges a computed key and a non-static value', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': `import { createSafeTranslation } from '${I18N_PKG}';
+declare const k: string;
+declare const label: string;
+export const DEFAULTS: Record<string, string> = { [k]: 'Whatever', 'common.save': label };
+export const useXTranslation = createSafeTranslation(DEFAULTS, 'common.save');
+`,
+    });
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.factoryUnreadableRows).toBe(2);
+    expect(counters.factoryRows).toBe(2);
+  });
+
+  it('does NOT descend a nested literal — fallbackT indexes defaults[key] flat', () => {
+    // Copying the objectui#3512 test's dotted-prefix recursion here would be
+    // wrong: `{ calendar: { today: 'Today' } }` is a row nothing reads at
+    // runtime, so comparing it against `en.calendar.today` would green-light a
+    // dead row. It is unreadable, which is where a dead row belongs.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': factoryModule(`{ calendar: { today: 'Today' } }`),
+    });
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.factoryRows).toBe(1);
+    expect(counters.factoryUnreadableRows).toBe(1);
+    expect(counters.factoryComparedRows).toBe(0);
+  });
+
+  it('counts a first argument it cannot resolve as an unreadable TABLE, not as zero rows', () => {
+    // The loudest of these numbers: not one row leaving the checked surface,
+    // all of them. A silent skip here is how a whole table stops being compared
+    // while the run stays green.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7567,
+      'packages/x/src/useX.ts': `import { createSafeTranslation } from '${I18N_PKG}';
+import { ELSEWHERE } from '@object-ui/somewhere';
+export const useATranslation = createSafeTranslation(ELSEWHERE, 'common.save');
+export const useBTranslation = createSafeTranslation({ ...ELSEWHERE }, 'common.save');
+`,
+    });
+    const { findings, counters } = analyze(root, { families: [] });
+    expect(findings).toEqual([]);
+    expect(counters.factorySites).toBe(2);
+    // The package-specifier import resolves to no literal; the spread DOES
+    // resolve to a literal, whose one member is a spread — one unreadable
+    // table, one unreadable row. Both are counted, neither is silent.
+    expect(counters.factoryUnreadableTables).toBe(1);
+    expect(counters.factoryUnreadableRows).toBe(1);
+  });
+
+  it('main carries no factory drift, over a surface big enough for that to mean something', () => {
+    // The measurement this class shipped on: 32 createSafeTranslation sites, 32
+    // distinct tables, 846 rows, 841 comparable, 0 drifted — objectui#7454's
+    // instance having landed in objectui#7574 two days earlier. Both halves are
+    // asserted, because "0 findings" and "0 rows compared" read identically.
+    const { counters } = analyze(repoRoot, { families: DYNAMIC_KEY_FAMILIES });
+    expect(factoryDriftOf(repoRoot)).toEqual([]);
+    expect(counters.factoryTables).toBeGreaterThan(25);
+    expect(counters.factoryComparedRows).toBeGreaterThan(500);
+    // Every table on this tree resolves today. A number above zero here is not
+    // a failure, but it is the size of this instrument's blind spot and it
+    // should never grow unnoticed.
+    expect(counters.factoryUnreadableTables).toBe(0);
+    expect(counters.factoryUnreadableRows).toBe(0);
+  });
+
+  it('the factory-name set is the one the objectui#3512 test uses, not a second opinion', () => {
+    expect([...FACTORY_NAMES].sort()).toEqual(['createSafeTranslation', 'createSafeTranslationHook']);
   });
 });
 
