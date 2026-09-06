@@ -420,7 +420,8 @@ ComponentRegistry.register(
     category: 'view',
     inputs: [
       { name: 'objectName', type: 'string', required: true },
-      { name: 'columns', type: 'array' }
+      { name: 'columns', type: 'array' },
+      { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' }
     ]
   }
 );
@@ -431,9 +432,11 @@ ComponentRegistry.register(
     namespace: 'view',
     label: 'Kanban Board',
     category: 'view',
+    // Same renderer as `object-kanban`, therefore the same declared surface.
     inputs: [
       { name: 'objectName', type: 'string', required: true },
-      { name: 'columns', type: 'array' }
+      { name: 'columns', type: 'array' },
+      { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the board fetches. Lowered to `$filter` on the query.' }
     ]
   }
 );

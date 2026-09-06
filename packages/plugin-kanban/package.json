@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@object-ui/data-objectstack": "workspace:*",
+    "@object-ui/sdui-parser": "workspace:*",
     "@object-ui/test-support": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.18",
