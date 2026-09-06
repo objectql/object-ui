@@ -116,6 +116,81 @@ const CHART_TYPES = new Set<string>([
   ...TABULAR_CHART_TYPES,
 ]);
 
+/**
+ * The component keywords this package registers for ONE named chart family,
+ * mapped to the family each keyword names (objectui#7401).
+ *
+ * ## Why these are not just more members of {@link CHART_TYPES}
+ *
+ * `CHART_TYPES` answers "is this bare `type` a chart FAMILY" — `'pie'`,
+ * `'scatter'`, the spec's own vocabulary. These are something else: they are
+ * SDUI component discriminators, the keys `index.tsx` hands
+ * `ComponentRegistry.register`. `type: 'pie-chart'` does not name a family in
+ * any spec; it names a registration whose whole purpose is to draw one.
+ *
+ * ## Why the derivation exists at all (objectui#7401)
+ *
+ * Each of these registrations declared its family as
+ * `defaultProps: { chartType: … }` — and **nothing on the SDUI path has ever
+ * read a registration's `defaultProps`**. `SchemaRenderer` does not; the one
+ * consumer in the tree, `WidgetRegistry.ts`, WRITES manifest defaults INTO the
+ * registry rather than reading them back out. So `pie-chart`, `donut-chart`,
+ * `radar-chart` and `scatter-chart` all arrived here with no family at all and
+ * fell to `AdvancedChartImpl`'s `'bar'` default: valid data, a confidently
+ * wrong picture, and no refusal that could fire. Ruled route C (director seat,
+ * 2026-09-06, on maintainer authorisation): derive the family from the
+ * schema's own `type`, and the inert `defaultProps` go with it — a second
+ * declaration nothing reads is the `AGENTS.md` #0.1 hazard, and leaving it
+ * beside a derivation that works would fossilize exactly the wrong convention.
+ *
+ * ## Why a table and not a `-chart` suffix rule
+ *
+ * A suffix rule accepts the whole cross product of {@link RENDERABLE} — it
+ * would answer `'funnel'` for `type: 'funnel-chart'`, a keyword this package
+ * does not register and the SDUI path therefore never resolves. That answer is
+ * unreachable today and would silently become load-bearing the day someone
+ * registers the keyword with a different family in mind. The table names
+ * exactly the keywords that exist, and
+ * `__tests__/chart-family-from-type-7401.test.tsx` pins it against the live
+ * registry in both directions, so adding a registration without a family entry
+ * (or an entry without a registration) is what goes red.
+ *
+ * ⛔ `bar-chart` is deliberately ABSENT: it is registered to
+ * `ChartBarRenderer`, a different component that never calls this function.
+ * An entry for it would be inert in precisely the way this card removed.
+ */
+export const CHART_TYPE_KEYWORD_FAMILIES: ReadonlyMap<string, ChartFamily> = new Map<string, ChartFamily>([
+  ['chart:bar', 'bar'],
+  ['pie-chart', 'pie'],
+  ['donut-chart', 'donut'],
+  ['radar-chart', 'radar'],
+  ['scatter-chart', 'scatter'],
+]);
+
+/**
+ * The namespace `index.tsx` registers every keyword above under. The SDUI path
+ * reaches a registration by either spelling — bare (`pie-chart`) or namespaced
+ * (`plugin-charts:pie-chart`) — and objectui#7401 measured BOTH drawing a bar,
+ * so both are resolved here.
+ */
+const PLUGIN_CHARTS_NAMESPACE = 'plugin-charts:';
+
+/**
+ * The family a registered chart-type keyword names, or `undefined` for a
+ * `type` that is not one of them.
+ *
+ * `undefined` is the honest answer for every other discriminator that reaches
+ * a chart — `object-chart`, `chart`, a dashboard widget's own type — and the
+ * caller's own default is a better answer than a guess.
+ */
+export function familyFromComponentType(rawType: string | undefined): ChartFamily | undefined {
+  if (!rawType) return undefined;
+  const bare = rawType.startsWith(PLUGIN_CHARTS_NAMESPACE)
+    ? rawType.slice(PLUGIN_CHARTS_NAMESPACE.length)
+    : rawType;
+  return CHART_TYPE_KEYWORD_FAMILIES.get(bare);
+}
+
 export type AnyRec = Record<string, any>;
 
 /** A y-axis (or the x-axis) after normalization — spec `ChartAxis`, resolved. */
@@ -313,11 +388,17 @@ export function normalizeChartSchema(schema: unknown): NormalizedChartSchema {
   // `chartType` (internal) → `specType` (an author `type` rescued from the
   // envelope collision) → `type` (only when it is unambiguously a chart family
   // and not a component discriminator).
+  // A registered chart-type keyword (`pie-chart`) is read LAST, after both
+  // explicit spellings: an author who writes `chartType: 'line'` on a
+  // `pie-chart` node still gets a line, exactly as objectui#7401's ruling
+  // requires, and `plugin-charts:chart` with an explicit `chartType` — the
+  // card's control row — is untouched.
   const rawType = str(schema.type);
   const chartType =
     str(schema.chartType) ??
     str(schema.specType) ??
-    (rawType && CHART_TYPES.has(rawType) ? rawType : undefined);
+    (rawType && CHART_TYPES.has(rawType) ? rawType : undefined) ??
+    familyFromComponentType(rawType);
   // A family this renderer does not draw (`metric`, `table`, …) is left unset
   // rather than mapped onto a bar chart — the caller's own default is a more
   // honest answer than silently drawing the wrong picture.
