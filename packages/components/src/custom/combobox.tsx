@@ -115,6 +115,19 @@ export function Combobox({
                 <CommandItem
                   key={option.value}
                   value={option.value}
+                  // objectui#7687 — `options[].disabled` is declared by
+                  // `@object-ui/types` and validated by the zod mirror, so it
+                  // has to be READ; the sibling select renderer already spells
+                  // it this way (`disabled={opt.disabled}` on `SelectItem`).
+                  // cmdk 1.1.1 needs nothing more than the prop: a disabled
+                  // `Command.Item` renders with `onClick` undefined, never
+                  // registers the `cmdk-item-select` listener Enter
+                  // dispatches, and is excluded from the valid-item selector
+                  // the arrow keys walk — so an extra refusal inside
+                  // `onSelect` below would be unreachable. Measured, and the
+                  // behaviour half of `combobox-option-disabled.test.tsx`
+                  // keeps that measurement honest.
+                  disabled={option.disabled}
                   onSelect={(currentValue) => {
                     onValueChange?.(currentValue === value ? "" : currentValue)
                     setOpen(false)
