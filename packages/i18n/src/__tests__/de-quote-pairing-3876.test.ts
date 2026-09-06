@@ -279,7 +279,13 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // placeholder suggests („Falsche Datensatz-ID — …“) — one LITERAL span, like
     // `timeline.unsupported.objectBoundGantt` above rather than the interpolated
     // ones, because the quoted thing is sample prose this pack authored.
-    expect(okSpans, 'correctly paired spans').toBe(59);
+    // 62 once objectui#6888 keyed `LocationField`'s residue refusal: the
+    // one-half sentence quotes the offending text („{{text}}“) and the two-half
+    // one quotes both („{{text}}“ / „{{otherText}}“) — three interpolated
+    // spans, all runtime data, like the `ActivityTimeline` pair above. The two
+    // new coordinate NOUN keys (`fields.location.latitude`/`longitude`) carry
+    // no quotes at all: they are interpolated INTO those spans, not around them.
+    expect(okSpans, 'correctly paired spans').toBe(62);
   });
 
   it('keeps the count identity that replaces the card’s count(„) === count(“)', () => {
@@ -305,7 +311,9 @@ describe('objectui#3876 — de pack closes „ with “ and not with a straight 
     // each new value added a MATCHED „…“ pair, not a stray closer that would
     // have made `close === open` true for the wrong reason. 59 / 59 / 0 after
     // objectui#7173 added `aiApprovals.rejectPlaceholder`, one more matched pair.
-    expect({ open, close, rdq }).toEqual({ open: 59, close: 59, rdq: 0 });
+    // 62 / 62 / 0 after objectui#6888 keyed `LocationField`'s residue refusal —
+    // three more matched pairs across its two arity siblings, and `rdq` still 0.
+    expect({ open, close, rdq }).toEqual({ open: 62, close: 62, rdq: 0 });
     // The durable shape: every „ closed by a “, every surplus “ an English
     // opener answered by a ”. Survived translating the two English values.
     expect(close).toBe(open + rdq);

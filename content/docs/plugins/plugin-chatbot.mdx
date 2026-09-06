@@ -150,14 +150,16 @@ twenty shared rows below are one declaration the two newer faces pick off
 registration reads it. A key a registration ignores is therefore not a declared
 member of its type. It still type-checks (`BaseSchema` ends in an index
 signature, so an unlisted key is `any` rather than an error) and still parses
-(the Zod twins are `.passthrough()`). On `chatbot` and `chatbot-enhanced` it is
-then dropped silently at render time. `chatbot-floating` is different today: its
-registration forwards the whole authored node to the panel through an
-unfiltered props spread, so some keys its type does not declare
-(`processVisibility`, `surface`, `showAvatars`) do reach the panel - an
-accidental channel, measured and tracked as objectui#7708, not a contract to
-author against. That is why the scope is spelled out here as well as in the
-types.
+(the Zod twins are `.passthrough()`). It is then dropped silently at render
+time, on all three registrations alike. `chatbot-floating` used to be the
+exception: its registration ended its panel element with an unfiltered props
+spread, so three keys its type does not declare (`processVisibility`, `surface`,
+`showAvatars`) did reach the panel. That channel was accidental, not a contract
+to author against, and objectui#7708 closed it - the spread is filtered through
+the DOM-safe whitelist and moved ahead of every named prop, the shape the two
+sibling registrations already used. A `chatbot-floating` node's declared set is
+now also its delivered set. That is why the scope is spelled out here as well as
+in the types.
 
 The table below is that shared chat surface. `chatbot-floating` declares
 six more keys of its own - the six `floatingConfig` entries - which no row
@@ -189,9 +191,34 @@ to apply. They are documented in their own table after this one, under
 | `headers` | object | - | Additional headers for API requests |
 | `requestBody` | object | - | Additional body parameters sent with each API request. Authored on the node as `requestBody`; the renderer forwards it to the chat runtime under its own `body` option. Writing `body` on the node instead sets the base schema's children container and never reaches the API |
 | `maxToolRoundtrips` | number | - | **Deprecated - has no effect.** Nothing reads this value, so it never capped anything. Cap tool-calling loops on the agent instead (`planning.maxIterations`). Still accepted so existing documents keep parsing; slated for removal in a future major |
-| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`). Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). `chatbot` renders the plain chat component, which has no such chrome to switch, and does not read this key. `chatbot-floating` has no named read for it and `ChatbotFloatingSchema` does not declare it; its panel is a `ChatbotEnhanced`, and an authored value currently reaches that panel only through the registration's unfiltered props spread (objectui#7708) - not a contract to author against |
-| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`; `ChatbotSchema` still declares it too, though the `chatbot` registration has no read for it). Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` has no named read for it and `ChatbotFloatingSchema` does not declare it; an authored value currently reaches its panel only through the registration's unfiltered props spread (objectui#7708), which is not a contract - there is no floating-side substitute to author |
+| `surface` | `'card' \| 'plain'` | `'card'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`). Controls whether the chat renders as a bordered panel (`'card'`) or a frameless full-page workspace (`'plain'`). `chatbot` renders the plain chat component, which has no such chrome to switch, and does not read this key. `chatbot-floating` has no named read for it and `ChatbotFloatingSchema` does not declare it; its panel is a `ChatbotEnhanced`, and an authored value used to reach that panel through the registration's unfiltered props spread, an accidental channel objectui#7708 fenced - it is dark there now, so switch the node to `chatbot-enhanced` if you need the frameless chrome |
+| `processVisibility` | `'hidden' \| 'summary' \| 'debug'` | `'summary'` | **`chatbot-enhanced` only** (declared on `ChatbotEnhancedSchema`; `ChatbotSchema` still declares it too, though the `chatbot` registration has no read for it). Controls how much agent reasoning and tool detail is shown. `chatbot` renders the plain chat component, which has no agent-process display to configure at all - switch the node to `chatbot-enhanced` if you need one. `chatbot-floating` has no named read for it and `ChatbotFloatingSchema` does not declare it; an authored value used to reach its panel through the registration's unfiltered props spread, an accidental channel objectui#7708 fenced - it is dark there now, and there is no floating-side substitute to author |
 | `onError` | function | - | Error callback for streaming/API errors |
+
+**There are no `loading`, `showAvatars`, `userAvatar`, `assistantAvatar`,
+`markdown` or `height` keys.** All six were declared on `ChatbotSchema`, mirrored
+on its Zod twin, and read by no registration - a `showAvatars: true` or a
+`height: 400` on a `chatbot` node type-checked, parsed green, and changed
+nothing. objectui#7703 retired them (ADR-0049 enforce-or-remove, one decision per
+key): each is a `never` tombstone on the declaration and a named refusal on the
+twin, so writing one is now a compile error **and** a parse error that says what
+to write instead. Four have a live replacement, and it is the key the
+registrations already read:
+
+| retired | write instead |
+|---------|---------------|
+| `userAvatar` | `userAvatarUrl` (with `userAvatarFallback`) |
+| `assistantAvatar` | `assistantAvatarUrl` (with `assistantAvatarFallback`) |
+| `height` | `maxHeight` on `chatbot` / `chatbot-enhanced`; `floatingConfig.panelHeight` on `chatbot-floating` |
+| `markdown` | `enableMarkdown`, on a `chatbot-enhanced` or `chatbot-floating` node |
+| `loading` | nothing - chat progress is runtime state the chat runtime owns, never authored |
+| `showAvatars` | nothing - a `chatbot` node already renders an avatar beside every message; the images are the `*AvatarUrl` keys above |
+
+`showAvatars` is the one of the six that was not always inert: `ChatbotEnhanced`
+has such a prop, and until objectui#7708 fenced it the `chatbot-floating`
+registration's unfiltered props spread delivered an authored value to it. It is
+dark on all three registrations now. The other five were live on no path at any
+time.
 
 ### `chatbot-floating` panel and trigger keys
 

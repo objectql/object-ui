@@ -276,6 +276,12 @@ const pt = {
       refusedFormat:
         "Não salvo: informe um par latitude, longitude (exemplo: 30.2741, 120.1551).",
       refusedRange: "Não salvo: {{detail}}",
+      latitude: "latitude",
+      longitude: "longitude",
+      refusedResidueOne:
+        "Não salvo: {{name}} “{{text}}” não é um número. Informe decimais simples (exemplo: 30.2741, 120.1551).",
+      refusedResidue:
+        "Não salvo: {{name}} “{{text}}” e {{otherName}} “{{otherText}}” não são números. Informe decimais simples (exemplo: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Digite e pressione Enter para adicionar…",

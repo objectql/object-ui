@@ -284,6 +284,12 @@ const zh = {
       refusedFormat:
         '未保存：请输入纬度, 经度坐标对（例如 30.2741, 120.1551）。',
       refusedRange: '未保存：{{detail}}',
+      latitude: '纬度',
+      longitude: '经度',
+      refusedResidueOne:
+        '未保存：{{name}}“{{text}}”不是数字。请输入普通小数（例如 30.2741, 120.1551）。',
+      refusedResidue:
+        '未保存：{{name}}“{{text}}”和{{otherName}}“{{otherText}}”不是数字。请输入普通小数（例如 30.2741, 120.1551）。',
     },
     tags: {
       placeholder: '输入后回车添加…',
