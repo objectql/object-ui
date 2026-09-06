@@ -11,6 +11,7 @@ import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object
 import { useDataScope, useNavigationOverlay, useSafeFieldLabel, useSettledSchema } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { extractRecords, buildExpandFields, convertSortToQueryParams, createFieldColorResolver } from '@object-ui/core';
+import { usePermissions } from '@object-ui/permissions';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { z } from 'zod';
 import { TimelineRenderer } from './renderer';
@@ -231,6 +232,13 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     dataSource,
   );
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+  const perms = usePermissions();
+
   // Content keys, not identities. `filter` / `sort` are fetch inputs from here on
   // (objectstack#7137), and an inline array on a schema node is a NEW object every
   // render — depending on identity would refetch the whole object on every render.
@@ -247,8 +255,50 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
         }
         setLoading(true);
         try {
-            // Auto-inject $expand for lookup/master_detail fields
-            const expand = buildExpandFields(objectDef?.fields);
+            // Auto-inject $expand for lookup/master_detail fields.
+            //
+            // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same
+            // gate objectui#7215 / PR #7229 put on the two projection sites in
+            // its scope, and objectui#7230 / PR #7428 applied unchanged at
+            // four more. `$select` on a denied lookup asks the server for a
+            // bare foreign key; `$expand` asks it to RESOLVE the relation and
+            // return the related record, the larger of the two requests.
+            //
+            // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+            // `buildExpandFields` reads an absent column list as "no column
+            // restriction" and falls back to EVERY declared relation on the
+            // object, denied ones included. A standalone timeline therefore
+            // asks for the maximum possible set by default, not by
+            // configuration.
+            //
+            // Graded as objectui#7215 graded it, by measurement rather than
+            // assumption: against ObjectStack this is defence-in-depth,
+            // because `plugin-security`'s `FieldMasker.maskRecord` does
+            // `delete result[field]` on every unreadable key and objectql's
+            // expand path writes the resolved record back under THAT SAME
+            // KEY, so one statement removes the expanded object and the bare
+            // id alike; the expansion sub-read itself takes the referenced
+            // object's full CRUD + RLS + FLS treatment (objectstack#7626). It
+            // is load-bearing for a backend that does not strip.
+            //
+            // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+            // alternative is not merely unsound but unreachable: the call
+            // passes `undefined`, so there is no input to gate. Gating the
+            // output also gives the required ordering structurally:
+            // `buildExpandFields` returns a subset of the object's DECLARED
+            // reference-bearing fields, so every name judged here is declared
+            // by construction and the "`checkField` answers false for an
+            // undeclared key" trap cannot be reached. Pinned in
+            // `ObjectTimeline.expandFls-7429.test.tsx`.
+            //
+            // Deferral matches every other gate on this path: an unanswered
+            // policy filters nothing, and `perms` is in this effect's
+            // dependency list, so the expansion is rebuilt the moment the
+            // answer arrives.
+            const expandable = buildExpandFields(objectDef?.fields);
+            const expand = !perms?.isLoaded
+              ? expandable
+              : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
             // The authored scope reaches the query (objectstack#7137). Before this,
             // the fetch was `{ options: { $top: 100 } }` — no `$filter`, no
             // `$orderby`, and `options` is not a `QueryParams` key, so even the cap
@@ -294,7 +344,7 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
         setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `schema.filter`/`schema.sort` are tracked by CONTENT (filterKey/sortKey) on purpose; see above
-  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDefReady, objectDef, filterKey, sortKey, schema.limit]);
+  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDefReady, objectDef, filterKey, sortKey, schema.limit, perms]);
 
   const rawData = (props as any).data || boundData || fetchedData;
   const { t } = useTimelineTranslation();

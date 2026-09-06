@@ -65,6 +65,7 @@ import {
   convertSortToQueryParams,
 } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer, useSettledSchema } from '@object-ui/react';
+import { usePermissions } from '@object-ui/permissions';
 import { ViewSwitcher } from './ViewSwitcher';
 import { deriveRecordSurface } from './recordSurface';
 import { useStableIdentity } from './stableIdentity';
@@ -804,6 +805,13 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   // Navigation config
   const navigationConfig: ViewNavigationConfig | undefined = schema.navigation;
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `RecordDetailView`'s effect).
+  const perms = usePermissions();
+
   // Fetch data for non-grid view types (grid handles its own data via ObjectGrid)
   useEffect(() => {
     let isMounted = true;
@@ -912,7 +920,46 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // declares lookups queries WITH its expansion the first time —
         // `objectSchema` here is `null` only when there was nothing to resolve
         // it from.
-        const expand = buildExpandFields((objectSchema as any)?.fields);
+        //
+        // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+        // objectui#7215 / PR #7229 put on the two projection sites in its
+        // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+        // `$select` on a denied lookup asks the server for a bare foreign key;
+        // `$expand` asks it to RESOLVE the relation and return the related
+        // record, the larger of the two requests.
+        //
+        // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+        // `buildExpandFields` reads an absent column list as "no column
+        // restriction" and falls back to EVERY declared relation on the
+        // object, denied ones included. A standalone non-grid view therefore
+        // asks for the maximum possible set by default, not by configuration.
+        //
+        // Graded as objectui#7215 graded it, by measurement rather than
+        // assumption: against ObjectStack this is defence-in-depth, because
+        // `plugin-security`'s `FieldMasker.maskRecord` does
+        // `delete result[field]` on every unreadable key and objectql's
+        // expand path writes the resolved record back under THAT SAME KEY, so
+        // one statement removes the expanded object and the bare id alike;
+        // the expansion sub-read itself takes the referenced object's full
+        // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+        // for a backend that does not strip.
+        //
+        // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+        // alternative is not merely unsound but unreachable: the call passes
+        // `undefined`, so there is no input to gate. Gating the output also
+        // gives the required ordering structurally: `buildExpandFields`
+        // returns a subset of the object's DECLARED reference-bearing fields,
+        // so every name judged here is declared by construction and the
+        // "`checkField` answers false for an undeclared key" trap cannot be
+        // reached. Pinned in `ObjectView.expandFls-7429.test.tsx`.
+        //
+        // Deferral matches every other gate on this path: an unanswered
+        // policy filters nothing, and `perms` is in this effect's dependency
+        // list, so the expansion is rebuilt the moment the answer arrives.
+        const expandable = buildExpandFields((objectSchema as any)?.fields);
+        const expand = !perms?.isLoaded
+          ? expandable
+          : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
         const results = await dataSource.find(schema.objectName, {
           // `mergeFilterNodes` returns a node or `undefined`; the old
           // `.length > 0` here was the second place an object filter was lost.
@@ -975,7 +1022,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   }, [
     schema.objectName, dataSource, currentViewType, refreshKey,
     currentNamedViewConfig, activeViewQueryInputs, renderListView,
-    objectSchemaReady, objectSchema,
+    objectSchemaReady, objectSchema, perms,
   ]);
 
   // Determine layout mode. #2578: default the record surface from how heavy the
