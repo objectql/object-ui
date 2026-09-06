@@ -47,9 +47,11 @@ vi.mock('@object-ui/react', async (importOriginal) => {
   };
 });
 
-vi.mock('@object-ui/permissions', async () => {
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
   const React = await import('react');
   return {
+    ...actual,
     usePermissions: () => (React.useRef(0), { can: () => stub.can }),
     useFieldPermissions: (_objectName: string) => (React.useRef(0), {
       readableFields: (names: string[]) => names,

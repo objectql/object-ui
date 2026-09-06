@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is twelve, and each joined by sweep
+ * actually been SWEPT to zero. Today that is thirteen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -406,11 +406,66 @@
  * `@object-ui/components`. Inheriting a barrel is cheap once its own
  * dependencies are already loaded in that file.
  *
- * The remaining 98 stay on objectui#6892: `@object-ui/permissions` (24),
- * `@object-ui/app-shell` (23, ALL frozen, still only after objectui#6580 --
- * which is now CLOSED, so that reading is a git-history read rather than an
- * open card), `@object-ui/plugin-detail` (13) and `@object-ui/plugin-chatbot`
- * (11).
+ * `@object-ui/permissions` joined as objectui#6892's EIGHTH slice, re-derived
+ * on `571b4870d` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/permissions       48 judged, 24 inheriting, 24 frozen -> 0
+ *
+ * with the population moving 98 -> 74 frozen over 659 judged and no site moving
+ * the other way -- every other one of the 21 rows byte-identical between the
+ * two runs. The 24 frozen sites sit in four owning packages (17 under
+ * `packages/app-shell`, 4 under `packages/plugin-grid`, 2 under
+ * `packages/plugin-detail`, 1 under `packages/plugin-form`) and in two
+ * syntactic shapes: 23 zero-parameter object-literal arrows and one that was
+ * ALREADY `async` and still frozen -- it awaited `react`, not the module under
+ * mock, which is the shape a name-matching gate waves through.
+ *
+ * STEP 0 was taken again rather than inherited, and this barrel is the SMALLEST
+ * yet measured on this worklist and the first to come back genuinely INERT
+ * since `@object-ui/collaboration`: 27 modules and 422 module-scope statements
+ * reached from `packages/permissions/src/index.ts` -- the package plus
+ * `@object-ui/types`, and nothing else in the workspace. It is a 43-line
+ * re-export-only barrel, and a verdict on one of those is NOT free: what it
+ * re-exports is what runs. Of the 422 statements exactly 18 execute anything,
+ * and every one is allocation: ten `createDiscardProofCache()` calls (a
+ * `new WeakMap` plus a returned closure -- read at the definition, not
+ * assumed), one `createContext(null)` with its `displayName` assignment, three
+ * `new Set` of literals, one `Object.freeze` of a literal, one `new WeakMap`,
+ * and one `Symbol.for('objectui.inflightGet')`. That last one is the only
+ * effect that leaves the module, and it is the global SYMBOL REGISTRY rather
+ * than a global property: interning is idempotent, stores no value, and the
+ * empirical run confirms it puts nothing on `globalThis` (the probe's own
+ * `getOwnPropertySymbols(globalThis)` does not contain it). ZERO
+ * `ComponentRegistry.register` calls -- the first swept barrel with none --
+ * ZERO timers, globals, storage, `fetch`, connections, side-effect-only
+ * imports and CSS. Two column-anchored greps over all 27 modules agree with the
+ * walk EXACTLY, with no disagreement to record this time. Empirically:
+ * importing the real barrel under happy-dom in the light `dom` project exports
+ * 7 names, costs ~0.47s and emits ZERO `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ The free confirmation is back, and it is the strongest this worklist has
+ * had: 24 of the 48 sites -- exactly half, spread over TWELVE packages --
+ * already inherited the real barrel on `main` and passed, so the real module
+ * was known to load in the environment before anything was converted. All 48
+ * sites are `.test.tsx` and NONE is in `heavyDomTests`, so all 48 run in the
+ * single light `dom` project and one environment is the whole answer.
+ *
+ * ⭐ Slice 6's collection-death class did NOT fire, and the neighbour reading
+ * says why in advance rather than after the fact. The 24 files carry 8 frozen
+ * `sonner` factories and 7 frozen `@object-ui/plugin-list` ones -- the exact
+ * shape that killed 15 files in slice 6 -- but this barrel's graph reaches
+ * NEITHER, because it reaches nothing beyond `@object-ui/types`, `react` and
+ * `@objectstack/spec`. A frozen neighbour is dangerous only when the newly-real
+ * module's graph reaches it; walk the graph, then read the neighbours against
+ * it.
+ *
+ * The remaining 74 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
+ * frozen, still only after objectui#6580 -- which is now CLOSED, so that
+ * reading is a git-history read rather than an open card),
+ * `@object-ui/plugin-detail` (13), `@object-ui/plugin-chatbot` (11),
+ * `@object-ui/plugin-designer` (10), `@object-ui/plugin-list` (9) and
+ * `@object-ui/fields` (8).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -507,6 +562,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-form',
   '@object-ui/components',
   '@object-ui/plugin-grid',
+  '@object-ui/permissions',
 ]);
 
 /** Files the walk reads at all. */

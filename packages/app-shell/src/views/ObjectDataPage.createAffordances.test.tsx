@@ -62,21 +62,25 @@ let principal: Record<string, boolean> = {};
 /** Controllable server-resolved effective API operations (#3391); `undefined` = unrestricted. */
 let apiOperations: string[] | undefined;
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    check: () => ({ allowed: true }),
-    checkField: () => true,
-    getFieldPermissions: () => [],
-    getRowFilter: () => undefined,
-    getObjectApiOperations: () => apiOperations,
-    roles: [],
-    isLoaded: false,
-    hasCapabilities: () => true,
-    can: (_object: string, action: string) => principal[action] ?? true,
-    cannot: (_object: string, action: string) => !(principal[action] ?? true),
-  }),
-  useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      check: () => ({ allowed: true }),
+      checkField: () => true,
+      getFieldPermissions: () => [],
+      getRowFilter: () => undefined,
+      getObjectApiOperations: () => apiOperations,
+      roles: [],
+      isLoaded: false,
+      hasCapabilities: () => true,
+      can: (_object: string, action: string) => principal[action] ?? true,
+      cannot: (_object: string, action: string) => !(principal[action] ?? true),
+    }),
+    useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
+  };
+});
 
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
