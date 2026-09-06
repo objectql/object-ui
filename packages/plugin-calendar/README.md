@@ -186,9 +186,9 @@ const backwards: CalendarViewNode = shipped;
 > **What those two assignments do and do not buy.** They check every key's
 > **type**, in both directions. They do **not** check a key's **spelling**:
 > `CalendarViewSchema` extends `BaseSchema`, whose `[key: string]: any` accepts
-> any name, so a key invented or misspelled here is `any` rather than an error.
-> Key-level validity is the strict `@objectstack/spec` twin's question, not
-> TypeScript's.
+> any name, so a key invented or misspelled here is `any` rather than an error
+> (objectui#7927). Key-level validity is the strict `@objectstack/spec` twin's
+> question, not TypeScript's.
 
 There is deliberately **no authorable `events` key**: the renderer computes its
 events from `data` plus the field-name keys, and drops an authored `events`
