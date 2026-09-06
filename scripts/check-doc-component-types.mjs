@@ -264,6 +264,67 @@ export function appDocsDirs(root) {
 }
 
 /**
+ * `packages/NAME/README.md` — MEASURED, DELIBERATELY NOT WALKED (objectui#7896).
+ *
+ * This gate does not walk the package READMEs, while its two sibling doc gates
+ * both do: `check-doc-snippet-types.mjs` compiles their `ts` / `tsx` /
+ * `typescript` fences, and `check-doc-fence-languages.mjs` labels every fence in
+ * them (`join(pkgDir, entry, 'README.md')`). So a package README's `type`
+ * literals are read twice and judged never — objectui#7115's geometry rebuilt one
+ * directory over, on a surface that ships to npm inside each package's `files`.
+ * objectui#7896 measured the gap two ways, and it still reproduces on
+ * `59a3a233d`: a component `type` mutated in `packages/app-shell/README.md`
+ * leaves this gate at `EXIT=0` with byte-identical counters, while the same
+ * mutation in the root `README.md` gives `EXIT=1` at `README.md:272`. Identical
+ * counters are the proof the file is not in the scan population at all, rather
+ * than judged and forgiven.
+ *
+ * ⚠️ Why the leg is NOT here yet, and what has to happen first. The `domain:ui`
+ * ruling on objectui#7896 orders this move census-first: a change that moves a
+ * gate's scan population reports before it enforces, and the widening may land in
+ * the same pull request ONLY if the census reads zero. It does not. All 39 files
+ * were walked with this gate's own extractor and registry, and the census read
+ * **26 unregistered `type` literals across 12 files**, plus 4 blind spots (four
+ * unquoted YAML scalars in `packages/data-objectstack/README.md`, an object
+ * field-type vocabulary the same-line string-literal matcher cannot read).
+ * Landing the leg today would turn `main` red on 26 sites this card is not
+ * authorised to touch. Twenty-five of the 26 are other vocabularies with real declaration sites
+ * — dashboard widget kinds (`DashboardRenderer.tsx`), flow-graph node kinds,
+ * gesture kinds, Gantt task and dependency kinds, grid selection modes and
+ * summary aggregates, report kinds, view actions and filter kinds — i.e.
+ * candidate `DOC_TYPE_EXEMPTIONS` entries, each owed the reason that table
+ * demands. One is a real defect of the shape this gate exists to catch:
+ * `packages/plugin-detail/README.md:168` teaches a detail tab whose
+ * `content.type` is `activity-timeline`, and that content goes through
+ * `SchemaRenderer` (`DetailTabs.tsx:72`) while nothing registers that key — the
+ * registry's `OBJUI-001` panel, the same failure as the `line-chart` widget
+ * objectui#7896 recorded in `packages/plugin-dashboard/README.md`.
+ *
+ * ⛔ Do NOT reach for the exemption table to make a first run of the widened walk
+ * green. `DOC_TYPE_EXEMPTIONS` records rulings, not a switch for turning red into
+ * green, and stuffing it here would bury the one real defect among 25 entries
+ * nobody read.
+ *
+ * ⚠️ And when the leg does land, it is not the precedent the ⛔ above refuses.
+ * That ⛔ refuses widening onto an ARBITRARY unscanned tree;
+ * `packages/NAME/README.md` is not one, it is the surface this gate's own two
+ * siblings already walk, so the move aligns the third gate to its family rather
+ * than reaching into a new tree. The distinction is the whole of the ruling, and
+ * the ⛔ stays where it is.
+ *
+ * Two things the implementing change owes, recorded here so they are not
+ * rediscovered: the leg belongs BEFORE the root pages in `scanDocs`, which is the
+ * slot the two sibling walks append it in and what keeps the three lists
+ * comparable element by element; and `check-doc-expression-carriage.mjs` IMPORTS
+ * this file's surface constants and pins its own walk as an EQUALITY against a
+ * walk rebuilt from them — that pin compares against the CONSTANTS, not against
+ * this gate's actual walk, so a fourth leg added here alone leaves the pin GREEN
+ * while the two surfaces silently diverge, which is objectui#7115's shape again.
+ * The carriage census must take the same leg, and its `SURFACE_LABEL` test
+ * enumerates every leg by name.
+ */
+
+/**
  * Pages at the repository ROOT that join the walk by name.
  *
  * objectui#7115. The root `README.md` is the most-read authored file in the
