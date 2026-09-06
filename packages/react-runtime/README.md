@@ -29,7 +29,15 @@ npm install @object-ui/react-runtime
 ## Usage
 
 ```tsx
+import type { ComponentType } from 'react';
 import { ReactRunner } from '@object-ui/react-runtime';
+
+// Whatever your app already has to hand: the values it injects into the runtime
+// scope, and the sink it reports errors to.
+declare const ObjectGrid: ComponentType;
+declare const useAdapter: () => unknown;
+declare const data: unknown;
+declare const report: (error: Error) => void;
 
 <ReactRunner
   code={`
@@ -60,15 +68,22 @@ import { ReactRunner } from '@object-ui/react-runtime';
 declaration, `()`, or `class`:
 
 ```tsx
-<p>hi</p>                              // ✅ bare JSX
-function Page() { return <p/>; }       // ✅ function declaration
-() => <p>hi</p>                        // ✅ arrow expression
-class Page extends React.Component {}  // ✅ class
+// `React` is always in the runtime scope, so a source never imports it.
+declare const React: typeof import('react');
 
-const Page = () => <p/>;               // ❌ exports nothing — see below
-const Page = () => <p/>;
-export default Page;                   // ✅ export it explicitly
+<p>hi</p>                                   // ✅ bare JSX
+function PageFunction() { return <p/>; }    // ✅ function declaration
+() => <p>hi</p>                             // ✅ arrow expression
+class PageClass extends React.Component {}  // ✅ class
+
+const PageNotExported = () => <p/>;         // ❌ exports nothing — see below
+const PageExported = () => <p/>;
+export default PageExported;                // ✅ export it explicitly
 ```
+
+Each line above is a **separate source** — they are alternatives, not one file.
+They carry different names only so the block compiles as a single program; the
+rule is about the shape the source *starts with*, never about the name.
 
 The `const Page = …` form is the one authors reach for most, and it does **not**
 get the implicit export. It used to render a blank page with no error anywhere;
@@ -81,6 +96,11 @@ There is no module resolver. `import x from 'y'` compiles to a `require('y')`
 that reads `scope.import`:
 
 ```tsx
+import { ReactRunner } from '@object-ui/react-runtime';
+
+declare const code: string;
+declare const dateFns: Record<string, unknown>;
+
 <ReactRunner code={code} scope={{ import: { 'date-fns': dateFns } }} />
 ```
 
@@ -116,6 +136,13 @@ Build the scope with `useMemo` (or hoist it to module scope) and keep its
 dependencies stable.
 
 ```tsx
+import { useMemo, type ComponentType } from 'react';
+import { ReactRunner } from '@object-ui/react-runtime';
+
+declare const src: string;
+declare const ObjectGrid: ComponentType;
+declare const data: unknown;
+
 // ❌ new object every render — the page remounts and loses its useState
 <ReactRunner code={src} scope={{ ObjectGrid, data }} />
 
@@ -134,6 +161,9 @@ just transpile/eval failures. New inputs clear it and recompile.
 
 ```ts
 import { generateElement, transform, type Scope } from '@object-ui/react-runtime';
+
+declare const code: string;
+declare const scope: Scope;
 
 transform(code)                  // JSX/TS → JS (classic runtime, imports → require)
 generateElement(code, scope)     // transpile + eval → ReactElement | null (throws, see above)
