@@ -231,15 +231,21 @@ export const ObjectFormSchema = BaseSchema.extend({
  *     (`docs/audits/2026-07-objectview-detailview-schema.md`) had already
  *     measured it dead since introduction.
  *   - `listViews` — STILL UNMIRRORED, on the ruling's own fallback clause and
- *     by measurement: the declaration's value is the local `NamedListView`
- *     (~52 members, of which the renderer reads `label`, `type`, `columns`,
- *     `filter`, `sort`, `options`, `data`), while the spec slot
- *     (`ViewSchema.listViews`) is a record of the STRICT `ObjectListViewSchema`,
+ *     by measurement: the declaration's value is the local `NamedListView`,
+ *     47 declared top-level members, of which the renderer reads six —
+ *     `label`, `type`, `columns`, `filter`, `sort`, `options`. A seventh key,
+ *     `data`, is read off a named view but is NOT declared on
+ *     `NamedListView`: the renderer reaches it through an `as any` cast on the
+ *     named-view config (`ObjectView.tsx`, `(currentNamedViewConfig as any)?.data`),
+ *     so it is not one of the 47 and never was a member a mirror would carry.
+ *     Meanwhile the spec slot (`ViewSchema.listViews`) is a record of the
+ *     STRICT `ObjectListViewSchema`,
  *     which requires `columns` and refuses `options`, ObjectQL tuple filters and
  *     `default` — i.e. it refuses the named views this package's own README and
  *     `content/docs/api/schema-reference.md` teach. Neither value type can be
  *     mirrored without either losing documented behaviour (spec) or enforcing
- *     ~45 unread members into the contract (local), so the key stays in the
+ *     41 unread members (47 declared, minus the 6 that are both declared and
+ *     read) into the contract (local), so the key stays in the
  *     parity ledger with that measurement until the maintainer decides its
  *     value type. ⛔ Not `z.any()`: that was ruled out by name.
  */
