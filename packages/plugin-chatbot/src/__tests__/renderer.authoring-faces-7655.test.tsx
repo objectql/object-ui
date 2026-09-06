@@ -35,19 +35,25 @@
  *      below measure the OUTCOME through the real SDUI host — the composer is
  *      disabled when the node says so and enabled when it does not — which is
  *      what must not move.
- *   4. **`chatbot-floating` has a second channel the named-read census cannot
- *      see — TRIPWIRE, not contract.** The registration ends its
- *      `FloatingChatbot` element with a raw `{...props}` spread, LAST, where
- *      its two siblings spread `toDomProps(props)` FIRST. So three keys
- *      `ChatbotFloatingSchema` does NOT declare — and the named-read census in
+ *   4. **`chatbot-floating` no longer has the second channel the named-read
+ *      census could not see — CLOSED, objectui#7708.** The registration used to
+ *      end its `FloatingChatbot` element with a raw `{...props}` spread, LAST,
+ *      where its two siblings spread `toDomProps(props)` FIRST — so three keys
+ *      `ChatbotFloatingSchema` does NOT declare, and the named-read census in
  *      `@object-ui/types`' `chatbot-registration-authoring-faces-7655.test.ts`
- *      correctly reads 0 for — still reach the panel's `ChatbotEnhanced`:
- *      `showAvatars`, `surface`, `processVisibility`. The cases below pin that
- *      MEASUREMENT (lit/dark pairs on a floating node, `chatbot-enhanced` as the
- *      control) so the face's docblock cannot rot silently. They do not make the
- *      channel a contract: fencing the spread like the siblings, or declaring
- *      the keys, is objectui#7708's ruling, and whichever lands flips these
- *      pins with it — deliberately, never silently.
+ *      correctly read 0 for, still reached the panel's `ChatbotEnhanced`:
+ *      `showAvatars`, `surface`, `processVisibility`. objectui#7708 ruled
+ *      "fence like the siblings" (triage comment 5550678895) over "declare the
+ *      three keys" — fencing also closes that card's p2 half (an authored
+ *      `messages` seed overriding the live runtime messages) and the DOM-
+ *      attribute leak, neither of which a declare-only fix would have touched.
+ *      The cases below WERE a lit/dark MEASUREMENT of the open channel; they now
+ *      pin its closure — dark on `chatbot-floating` regardless of the key,
+ *      `chatbot-enhanced` unchanged as the control (it reads these by name).
+ *      Flipped deliberately with the fix, never silently — see
+ *      `renderer.floating-spread-fence-7708.test.tsx` for the fix's own new
+ *      coverage (the `messages` override and the attribute leak, neither of
+ *      which was pinned anywhere before this card).
  *
  * The runtime cases render through `SchemaRenderer`, not the bare component,
  * for the reason `renderer.surface.test.tsx` gives: what is measured is what
@@ -182,7 +188,7 @@ describe('chatbot-floating: `disabled` is the host-evaluated verdict (objectui#7
   });
 });
 
-/* ── 4. The raw spread is a second channel — TRIPWIRE for objectui#7708 ── */
+/* ── 4. The raw spread WAS a second channel — CLOSED by objectui#7708 ── */
 
 /** An assistant turn with a tool result: `processVisibility: 'debug'` shows the raw tool name; `'summary'` (the default) does not. */
 const ASSISTANT_WITH_TOOL = [
@@ -222,10 +228,12 @@ async function renderNode(kind: 'chatbot-floating' | 'chatbot-enhanced', extra: 
 /** The per-message avatar `MessageAvatar` renders only when `showAvatars` is on. */
 const AVATAR = 'div.size-7.rounded-full[aria-hidden="true"]';
 
-describe('chatbot-floating: three undeclared keys are LIVE through the raw spread — tripwire for objectui#7708', () => {
+describe('chatbot-floating: three undeclared keys are DARK now the spread is fenced — objectui#7708', () => {
   it('the spread really is the difference: `showAvatars` survives `props` and not `toDomProps(props)`', () => {
     // The mechanism, pinned on the whitelist itself so the render readings
-    // below have a stated cause and not just a correlation.
+    // below have a stated cause and not just a correlation. Unchanged by the
+    // fix — this pins `toDomProps` itself, not which spread the registration
+    // now uses.
     const props = { showAvatars: true, surface: 'plain', processVisibility: 'debug', className: 'x' };
     expect(toDomProps(props)).not.toHaveProperty('showAvatars');
     expect(toDomProps(props)).not.toHaveProperty('surface');
@@ -233,24 +241,24 @@ describe('chatbot-floating: three undeclared keys are LIVE through the raw sprea
     expect(toDomProps(props)).toHaveProperty('className', 'x'); // lit control
   });
 
-  it('`showAvatars: true` renders the message avatar on a floating node (lit 1 / dark 0); dark on `chatbot-enhanced` either way', async () => {
-    expect((await renderNode('chatbot-floating', { showAvatars: true })).querySelectorAll(AVATAR)).toHaveLength(1);
+  it('`showAvatars: true` no longer renders the message avatar on a floating node (dark either way); still dark on `chatbot-enhanced`, which never named-reads it', async () => {
+    expect((await renderNode('chatbot-floating', { showAvatars: true })).querySelectorAll(AVATAR)).toHaveLength(0);
     cleanup();
     expect((await renderNode('chatbot-floating', {})).querySelectorAll(AVATAR)).toHaveLength(0);
     cleanup();
     expect((await renderNode('chatbot-enhanced', { showAvatars: true })).querySelectorAll(AVATAR)).toHaveLength(0);
   });
 
-  it("`surface: 'plain'` reaches the floating panel (two `.max-w-2xl` wrappers lit / 0 dark) — `chatbot-enhanced` reads it by name, so it lights there too", async () => {
-    expect((await renderNode('chatbot-floating', { surface: 'plain' })).querySelectorAll('.max-w-2xl')).toHaveLength(2);
+  it("`surface: 'plain'` no longer reaches the floating panel (dark either way) — `chatbot-enhanced` still reads it by name, so it lights there unchanged", async () => {
+    expect((await renderNode('chatbot-floating', { surface: 'plain' })).querySelectorAll('.max-w-2xl')).toHaveLength(0);
     cleanup();
     expect((await renderNode('chatbot-floating', {})).querySelectorAll('.max-w-2xl')).toHaveLength(0);
     cleanup();
     expect((await renderNode('chatbot-enhanced', { surface: 'plain' })).querySelectorAll('.max-w-2xl')).toHaveLength(2);
   });
 
-  it("`processVisibility: 'debug'` reaches the floating panel (raw tool name shown / hidden at the default) — named read lights `chatbot-enhanced` the same way", async () => {
-    expect((await renderNode('chatbot-floating', { processVisibility: 'debug' })).textContent).toContain('search_records');
+  it("`processVisibility: 'debug'` no longer reaches the floating panel (raw tool name stays hidden either way) — named read still lights `chatbot-enhanced` unchanged", async () => {
+    expect((await renderNode('chatbot-floating', { processVisibility: 'debug' })).textContent).not.toContain('search_records');
     cleanup();
     expect((await renderNode('chatbot-floating', {})).textContent).not.toContain('search_records');
     cleanup();

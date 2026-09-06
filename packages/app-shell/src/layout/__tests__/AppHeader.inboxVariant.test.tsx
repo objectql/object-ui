@@ -118,7 +118,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
 // #4197 boundary case can assert that presence stays app-only chrome while the
 // activity feed goes user-scoped. `useTenantPresence` is a transport
 // subscription, not a `dataSource.find` — there is no presence *read* to count.
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   PresenceAvatars: () => <div data-testid="presence-avatars" />,
   useTenantPresence: () => [{ id: 'u2', name: 'Wang Wu' }],
 }));

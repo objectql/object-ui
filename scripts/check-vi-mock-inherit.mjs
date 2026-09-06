@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is eight, and each joined by sweep
+ * actually been SWEPT to zero. Today that is nine, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -149,7 +149,9 @@
  * brought in two new frozen sites (`@object-ui/plugin-form`, `@object-ui/plugin-grid`)
  * and one new inheriting `@object-ui/react` site, all landed by other PRs
  * while this one was being verified. That is the growth warning above,
- * observed a second time inside a single slice; `@object-ui/auth` stayed at 0. ⭐ That slice paid for one measurement worth keeping here, because
+ * observed a second time inside a single slice; `@object-ui/auth` stayed at 0.
+ *
+ * ⭐ That slice paid for one measurement worth keeping here, because
  * it is the question every REMAINING slice has to ask and the answer is not
  * uniform: **what does inheriting actually RUN?** Converting freezes to
  * inheritance loads the real barrel in every converted file, so a barrel with
@@ -166,6 +168,46 @@
  * remaining 209 stay on objectui#6892, `@object-ui/collaboration` (33) and
  * `@object-ui/plugin-form` (30) next by yield and `@object-ui/app-shell` (23)
  * only after objectui#6580.
+ *
+ * `@object-ui/collaboration` joined as objectui#6892's FOURTH slice, re-derived
+ * on `0caacca37` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/collaboration     33 judged, 0 inheriting, 33 frozen -> 0
+ *
+ * with the population moving 211 -> 178 frozen over 643 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. All 33 sites sit under `packages/app-shell` and all 33 are ONE
+ * syntactic shape (the multi-line object-literal arrow), so this slice needed
+ * none of the three-shape handling `@object-ui/auth` did.
+ *
+ * STEP 0 was taken again rather than inherited, and it differs from auth's in
+ * the EVIDENCE available, not in the verdict. `packages/collaboration` is a
+ * presence/realtime package -- `useRealtimeSubscription`, `usePresence`,
+ * `PresenceProvider` -- which is exactly why the walk was the point rather than
+ * a formality. Its 11-module static import graph from `index.ts` holds 11
+ * module-scope initialisers, ALL pure in-memory allocation: two `let` counters
+ * at 0, four style/label object literals, the `COLLAB_DEFAULT_TRANSLATIONS`
+ * map, one `createSafeTranslation(...)` call that only closes over that map and
+ * returns a hook, an empty `NOOP_SOURCE` object, and `React.createContext` of
+ * it. Every `WebSocket`, `setTimeout` and `window.addEventListener` in the
+ * package is indented inside a hook body, and the only RUNTIME workspace import
+ * is `@object-ui/i18n` -- already covered by this gate and already loaded in
+ * these tests. Inert, so 33 files inherit it for free.
+ *
+ * ⚠️ What auth had and this slice did NOT is the free confirmation. auth had 33
+ * of its 135 sites already inheriting on `main`, which proved the real barrel
+ * loads in that test environment before anything was converted;
+ * `@object-ui/collaboration` had ZERO -- no test in the tree loaded the real
+ * barrel at runtime. So the confirmation here is the suite run itself, which is
+ * weaker evidence than a pre-existing green site, and is recorded as such. A
+ * later slice on a specifier with 0 inheriting sites should expect the same and
+ * budget the full suite accordingly.
+ *
+ * The remaining 178 stay on objectui#6892: `@object-ui/plugin-form` (31),
+ * `@object-ui/components` (27), `@object-ui/plugin-grid` (24) and
+ * `@object-ui/app-shell` (23, still only after objectui#6580 -- which is now
+ * CLOSED, so that reading is a git-history read rather than an open card).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -255,6 +297,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-charts',
   '@object-ui/plugin-dashboard',
   '@object-ui/auth',
+  '@object-ui/collaboration',
 ]);
 
 /** Files the walk reads at all. */
