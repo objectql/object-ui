@@ -1496,6 +1496,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // list; the sheet is not opened, and this says so instead of nothing.
   'engine.studio.pkg.manageMissing':
     'Package {id} is not in the installed list — it may have been deleted or uninstalled elsewhere.',
+  // objectui#7907 — the managed-snapshot refresh that follows a lifecycle
+  // action failed. The sheet is an ACTION surface whose verb is derived from
+  // the record it holds, so it is closed rather than left re-armed with the
+  // pre-action one; this names that consequence and carries the server's own
+  // words inside it (one report, on the shared sonner id).
+  'engine.studio.pkg.manageRefreshFailed':
+    'Package {id} could not be refreshed after that change — closing the panel rather than showing the pre-change record as current. {error}',
   'engine.studio.data.savedDraft': 'Object “{label}” saved as draft',
   'engine.studio.data.lastSaved': 'Saved {time}',
   'engine.studio.publish': 'Publish',
@@ -3390,6 +3397,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.access.idLabel': '标识',
   'engine.studio.pkg.manage': '软件包信息与设置',
   'engine.studio.pkg.manageMissing': '软件包 {id} 不在已安装列表中 —— 可能已在别处被删除或卸载。',
+  'engine.studio.pkg.manageRefreshFailed':
+    '软件包 {id} 在该操作后未能刷新 —— 已关闭面板，以免把操作前的记录当作最新呈现。{error}',
   'engine.studio.data.savedDraft': '对象「{label}」已存为草稿',
   'engine.studio.data.lastSaved': '已于 {time} 保存',
   'engine.studio.publish': '发布',
