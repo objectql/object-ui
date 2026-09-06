@@ -1,11 +1,36 @@
 ---
-'@object-ui/types': patch
+'@object-ui/types': minor
 '@object-ui/components': patch
 '@object-ui/cli': patch
 '@object-ui/plugin-detail': patch
 ---
 
 Reconcile the declared surface with `@objectstack/spec` 17.3.0 (objectui#7122).
+
+⚠️ **`@object-ui/types` is graded `minor` for a breaking surface change.**
+The exported `ObjectSchemaClientExtensions` narrows from
+
+```ts
+export interface ObjectSchemaClientExtensions { editMode?: 'modal' | 'page' }
+```
+
+to
+
+```ts
+export type ObjectSchemaClientExtensions = Record<never, never>;
+```
+
+Two breaking consequences for a consumer that names the type directly. **(1)** It
+no longer declares `editMode`; the key is now carried by the spec's
+`ServiceObject`, so `ObjectSchemaMetadata` still has it, but code written against
+the extension type ALONE loses it. **(2)** `interface` → type alias also ends
+**declaration merging**: a consumer that reopened
+`declare module '@object-ui/types' { interface ObjectSchemaClientExtensions { … } }`
+to add its own client-side member no longer compiles, because an alias cannot be
+reopened. `minor` rather than `major` per `AGENTS.md`'s version-alignment rule —
+objectui's own breaking changes are graded `minor` with the semantics stated in
+the body, since any `major` in the fixed group would push all 39 packages off
+`@objectstack`'s major.
 
 **`ObjectSchema.editMode` is now the spec's.** 17.3.0 adopted the key (measured:
 the accept set went 42 → 43, gained set exactly `['editMode']`, lost set empty,
