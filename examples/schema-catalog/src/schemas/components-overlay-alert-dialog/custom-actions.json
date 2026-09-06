@@ -7,16 +7,6 @@
     "label": "Proceed",
     "variant": "default"
   },
-  "actions": [
-    {
-      "type": "button",
-      "label": "Go Back",
-      "variant": "outline"
-    },
-    {
-      "type": "button",
-      "label": "Yes, Continue",
-      "variant": "default"
-    }
-  ]
+  "cancelText": "Go Back",
+  "actionText": "Yes, Continue"
 }

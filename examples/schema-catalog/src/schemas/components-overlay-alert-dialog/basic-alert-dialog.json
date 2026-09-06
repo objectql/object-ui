@@ -6,16 +6,6 @@
     "type": "button",
     "label": "Delete Account"
   },
-  "actions": [
-    {
-      "type": "button",
-      "label": "Cancel",
-      "variant": "outline"
-    },
-    {
-      "type": "button",
-      "label": "Continue",
-      "variant": "destructive"
-    }
-  ]
+  "cancelText": "Cancel",
+  "actionText": "Continue"
 }
