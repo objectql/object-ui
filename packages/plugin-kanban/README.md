@@ -109,9 +109,12 @@ declare const columns: KanbanColumn[];
 
 // The board document. `type` is the only required member — `columns`,
 // `onCardMove` and `className` are all optional. The annotation is the type
-// this package ships, so the section below is compiled against it rather than
-// read as prose: an invented or renamed key, or a callback whose parameters
-// drift from the shipped signature, fails here.
+// this package ships, so each member below is compiled against it rather than
+// read as prose: a `columns` array of the wrong shape, or an `onCardMove`
+// whose parameters drift from the shipped signature, fails here. An unknown
+// key does not — `KanbanSchema` extends `BaseSchema`, whose index signature
+// deliberately accepts type-specific extensions, so the compiler is not what
+// catches a misspelt board key.
 const board: KanbanSchema = {
   type: 'kanban',
   columns,                            // Array of columns
