@@ -71,21 +71,25 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-vi.mock('@object-ui/permissions', () => ({
-  usePermissions: () => ({
-    check: () => ({ allowed: true }),
-    checkField: () => true,
-    getFieldPermissions: () => [],
-    getRowFilter: () => undefined,
-    getObjectApiOperations: () => undefined,
-    roles: [],
-    isLoaded: false,
-    hasCapabilities: () => true,
-    can: () => true,
-    cannot: () => false,
-  }),
-  useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
-}));
+vi.mock('@object-ui/permissions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@object-ui/permissions')>();
+  return {
+    ...actual,
+    usePermissions: () => ({
+      check: () => ({ allowed: true }),
+      checkField: () => true,
+      getFieldPermissions: () => [],
+      getRowFilter: () => undefined,
+      getObjectApiOperations: () => undefined,
+      roles: [],
+      isLoaded: false,
+      hasCapabilities: () => true,
+      can: () => true,
+      cannot: () => false,
+    }),
+    useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
+  };
+});
 
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
