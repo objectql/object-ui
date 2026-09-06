@@ -104,7 +104,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: ({ schema }: any) => {
     formSchemas.push(schema);
     return h('div', { 'data-testid': 'object-form' });
