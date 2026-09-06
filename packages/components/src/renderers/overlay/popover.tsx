@@ -30,21 +30,19 @@ ComponentRegistry.register('popover',
     namespace: 'ui',
     label: 'Popover',
     inputs: [
-      { name: 'modal', type: 'boolean', label: 'Modal' },
-      { name: 'defaultOpen', type: 'boolean', label: 'Default Open' },
-      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'], label: 'Align' },
-      { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'], label: 'Side' },
+      { name: 'modal', type: 'boolean' },
+      { name: 'defaultOpen', type: 'boolean' },
+      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'] },
+      { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'] },
       { 
         name: 'trigger', 
         type: 'slot', 
-        label: 'Trigger',
       },
       { 
         name: 'content', 
         type: 'slot', 
-        label: 'Content', 
       },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       trigger: [{ type: 'button', label: 'Open Popover', variant: 'outline' }],

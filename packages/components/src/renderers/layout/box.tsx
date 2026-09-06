@@ -72,6 +72,6 @@ ComponentRegistry.register('box', BoxRenderer, {
   // whole job is containment.
   isContainer: true,
   inputs: [
-    { name: 'className', type: 'string', label: 'CSS Class' }
+    { name: 'className', type: 'string' }
   ],
 });

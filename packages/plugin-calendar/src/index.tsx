@@ -295,8 +295,8 @@ ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
   label: 'Object Calendar',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'calendar', type: 'object', label: 'Calendar Config', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
   ],
 });
 
@@ -305,7 +305,7 @@ ComponentRegistry.register('calendar', ObjectCalendarRenderer, {
   label: 'Calendar View',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'calendar', type: 'object', label: 'Calendar Config', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
   ],
 });

@@ -68,7 +68,7 @@ tags.forEach(tag => {
       // question here instead of silently deleting a tag from every react page.
       isContainer: true,
       inputs: [
-        { name: 'className', type: 'string', label: 'CSS Class' }
+        { name: 'className', type: 'string' }
       ]
   });
 });

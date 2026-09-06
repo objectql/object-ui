@@ -44,22 +44,18 @@ ComponentRegistry.register('alert-dialog',
     namespace: 'ui',
     label: 'Alert Dialog',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'description', type: 'string', label: 'Description' },
-      { name: 'cancelText', type: 'string', label: 'Cancel Text', defaultValue: 'Cancel' },
-      { name: 'actionText', type: 'string', label: 'Action Text', defaultValue: 'Continue' },
-       { name: 'defaultOpen', type: 'boolean', label: 'Default Open' },
+      { name: 'title', type: 'string' },
+      { name: 'description', type: 'string' },
+      { name: 'cancelText', type: 'string' },
+      { name: 'actionText', type: 'string' },
+       { name: 'defaultOpen', type: 'boolean' },
       { 
         name: 'trigger', 
-        type: 'slot', 
-        label: 'Trigger'
-      },
+        type: 'slot'      },
        { 
         name: 'content', 
-        type: 'slot', 
-        label: 'Content/Body'
-      },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'Are you sure?',

@@ -169,11 +169,11 @@ ComponentRegistry.register('file-upload',
     namespace: 'ui',
     label: 'File Upload',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'buttonText', type: 'string', label: 'Button Text' },
-      { name: 'accept', type: 'string', label: 'Accepted File Types', description: 'MIME types (e.g., "image/*,application/pdf")' },
-      { name: 'multiple', type: 'boolean', label: 'Allow Multiple Files' },
-      { name: 'id', type: 'string', label: 'ID', required: true }
+      { name: 'label', type: 'string' },
+      { name: 'buttonText', type: 'string' },
+      { name: 'accept', type: 'string', description: 'MIME types (e.g., "image/*,application/pdf")' },
+      { name: 'multiple', type: 'boolean' },
+      { name: 'id', type: 'string', required: true }
     ],
     defaultProps: {
       label: 'Upload files',

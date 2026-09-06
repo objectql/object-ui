@@ -170,19 +170,20 @@ ComponentRegistry.register('text',
     namespace: 'ui',
     label: 'Text',
     inputs: [
-      { name: 'content', type: 'string', label: 'Content', required: true },
+      { name: 'content', type: 'string', required: true },
       // Declared because they are READ, in the same change as the read sites
       // above (objectui#6942). While these were missing, `page.tsx`'s JSX-page
       // prop whitelist — built from `getKnownTypes()` plus these `inputs` —
       // reported `unknown-prop` for two keys `TextSchema` publishes.
       //
-      // `defaultValue` restates the PUBLISHED default (`layout.zod.ts` declares
-      // `.default('body')`), which is what a designer should seed into a node it
-      // creates. It is not a claim about the renderer's absence path: see the
-      // ABSENCE IS NOT `body` note above — a node that never carried the key is
-      // left exactly as it was authored.
-      { name: 'variant', type: 'enum', label: 'Variant', enum: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'], defaultValue: 'body' },
-      { name: 'align', type: 'enum', label: 'Align', enum: ['left', 'center', 'right', 'justify'] }
+      // The PUBLISHED default lives in `layout.zod.ts` (`.default('body')`) and
+      // is NOT restated here: `ComponentInput.defaultValue` is an ADR-0049
+      // tombstone since objectui#7493 — the manifest never forwarded it and no
+      // designer read it. Nor is it a claim about the renderer's absence path:
+      // see the ABSENCE IS NOT `body` note above — a node that never carried
+      // the key is left exactly as it was authored.
+      { name: 'variant', type: 'enum', enum: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'] },
+      { name: 'align', type: 'enum', enum: ['left', 'center', 'right', 'justify'] }
     ],
     defaultProps: {
       content: 'Text content'

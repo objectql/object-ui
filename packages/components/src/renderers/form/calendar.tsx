@@ -27,8 +27,8 @@ ComponentRegistry.register('calendar',
     skipFallback: true,
     label: 'Calendar',
     inputs: [
-      { name: 'mode', type: 'enum', enum: ['default', 'single', 'multiple', 'range'], defaultValue: 'single', label: 'Mode' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'mode', type: 'enum', enum: ['default', 'single', 'multiple', 'range'] },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       mode: 'single',

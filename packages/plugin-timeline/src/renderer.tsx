@@ -1594,13 +1594,10 @@ ComponentRegistry.register(
         name: 'variant',
         type: 'enum',
         enum: ['vertical', 'horizontal', 'gantt'],
-        label: 'Timeline Variant',
-        defaultValue: 'vertical',
       },
       {
         name: 'items',
         type: 'array',
-        label: 'Timeline Items',
         description:
           'For vertical/horizontal: Array of { time, title, description, variant, icon, content }. For gantt: Array of { label, items: [{ title, startDate, endDate, variant }] }',
       },
@@ -1608,8 +1605,6 @@ ComponentRegistry.register(
         name: 'dateFormat',
         type: 'enum',
         enum: ['short', 'long', 'iso'],
-        label: 'Date Format',
-        defaultValue: 'short',
       },
       // The designer's axis key is `scale` — the spec's spelling
       // (`ui/TimelineConfig.json`) and, since objectui#6355 retired the
@@ -1621,28 +1616,22 @@ ComponentRegistry.register(
         name: 'scale',
         type: 'enum',
         enum: [...TIMELINE_SCALES],
-        label: 'Time Scale (Gantt only)',
-        defaultValue: 'month',
       },
       {
         name: 'rowLabel',
         type: 'string',
-        label: 'Row Label (Gantt only)',
-        defaultValue: 'Items',
       },
       {
         name: 'minDate',
         type: 'string',
-        label: 'Min Date (Gantt only)',
         description: 'Override auto-calculated min date (YYYY-MM-DD)',
       },
       {
         name: 'maxDate',
         type: 'string',
-        label: 'Max Date (Gantt only)',
         description: 'Override auto-calculated max date (YYYY-MM-DD)',
       },
-      { name: 'className', type: 'string', label: 'CSS Class' },
+      { name: 'className', type: 'string' },
     ],
     defaultProps: {
       variant: 'vertical',

@@ -353,17 +353,15 @@ ComponentRegistry.register('menu', ActionMenuRenderer, {
   skipFallback: true,
   label: 'Action Menu',
   inputs: [
-    { name: 'label', type: 'string', label: 'Trigger Label' },
-    { name: 'icon', type: 'string', label: 'Trigger Icon' },
-    { name: 'actions', type: 'object', label: 'Actions' },
+    { name: 'label', type: 'string' },
+    { name: 'icon', type: 'string' },
+    { name: 'actions', type: 'object' },
     {
       name: 'variant',
       type: 'enum',
-      label: 'Trigger Variant',
       enum: ['default', 'secondary', 'outline', 'ghost'],
-      defaultValue: 'ghost',
     },
-    { name: 'className', type: 'string', label: 'CSS Class', advanced: true },
+    { name: 'className', type: 'string' },
   ],
   defaultProps: {
     variant: 'ghost',

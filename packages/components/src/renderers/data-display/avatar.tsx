@@ -25,10 +25,10 @@ ComponentRegistry.register('avatar',
     namespace: 'ui',
     label: 'Avatar',
     inputs: [
-      { name: 'src', type: 'string', label: 'Image URL' },
-      { name: 'alt', type: 'string', label: 'Alt Text' },
-      { name: 'fallback', type: 'string', label: 'Fallback Initials', defaultValue: 'CN' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'src', type: 'string' },
+      { name: 'alt', type: 'string' },
+      { name: 'fallback', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       fallback: 'CN',

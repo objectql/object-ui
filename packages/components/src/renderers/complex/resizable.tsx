@@ -47,16 +47,15 @@ ComponentRegistry.register('resizable',
     namespace: 'ui',
     label: 'Resizable Panel Group',
     inputs: [
-      { name: 'direction', type: 'enum', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', label: 'Direction' },
-      { name: 'minHeight', type: 'string', label: 'Min Height' },
-      { name: 'withHandle', type: 'boolean', label: 'Show Handle Icon', defaultValue: true },
+      { name: 'direction', type: 'enum', enum: ['horizontal', 'vertical'] },
+      { name: 'minHeight', type: 'string' },
+      { name: 'withHandle', type: 'boolean' },
       { 
         name: 'panels', 
         type: 'array', 
-        label: 'Panels',
         description: 'Array of { defaultSize, minSize, maxSize, content }'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       direction: 'horizontal',

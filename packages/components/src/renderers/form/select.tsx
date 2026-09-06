@@ -75,15 +75,14 @@ ComponentRegistry.register('select', SelectRenderer,
     namespace: 'ui',
     label: 'Select',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'defaultValue', type: 'string', label: 'Default Value' },
-      { name: 'required', type: 'boolean', label: 'Required' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' },
+      { name: 'label', type: 'string' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'defaultValue', type: 'string' },
+      { name: 'required', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
       { 
         name: 'options', 
         type: 'array', 
-        label: 'Options',
         description: 'Array of {label, value} objects'
       }
     ],

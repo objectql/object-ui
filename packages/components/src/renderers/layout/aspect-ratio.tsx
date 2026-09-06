@@ -46,10 +46,10 @@ ComponentRegistry.register('aspect-ratio',
     // the declaration removes no injected identifier.
     isContainer: true,
     inputs: [
-      { name: 'ratio', type: 'number', label: 'Ratio', defaultValue: 16/9 },
-      { name: 'image', type: 'string', label: 'Image URL' },
-      { name: 'alt', type: 'string', label: 'Alt Text' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'ratio', type: 'number' },
+      { name: 'image', type: 'string' },
+      { name: 'alt', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       ratio: 16 / 9

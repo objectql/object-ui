@@ -145,42 +145,34 @@ ComponentRegistry.register('grid',
       { 
         name: 'columns', 
         type: 'number', 
-        label: 'Base Columns (Mobile)', 
-        defaultValue: 2,
         description: 'Number of columns on mobile devices'
       },
       { 
         name: 'smColumns', 
         type: 'number', 
-        label: 'SM Columns (Tablet)',
         description: 'Columns at sm breakpoint (>640px)'
       },
       { 
         name: 'mdColumns', 
         type: 'number', 
-        label: 'MD Columns (Laptop)',
         description: 'Columns at md breakpoint (>768px)'
       },
       { 
         name: 'lgColumns', 
         type: 'number', 
-        label: 'LG Columns (Desktop)',
         description: 'Columns at lg breakpoint (>1024px)'
       },
       { 
         name: 'xlColumns', 
         type: 'number', 
-        label: 'XL Columns (Wide)',
         description: 'Columns at xl breakpoint (>1280px)'
       },
       { 
         name: 'gap', 
         type: 'number', 
-        label: 'Gap', 
-        defaultValue: 4,
         description: 'Gap between items (0-12)'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       columns: 1,

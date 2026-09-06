@@ -107,9 +107,9 @@ ComponentRegistry.register('text', ElementTextRenderer, {
     // site above. While this said `type: 'string'` the manifest gate reported
     // `type-mismatch` on the map form, which is the shape this input's own
     // description teaches the author to write.
-    { name: 'content', type: ['string', 'object'], label: 'Content', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'variant', type: 'enum', label: 'Variant', enum: ['heading', 'subheading', 'body', 'caption'], defaultValue: 'body' },
-    { name: 'align', type: 'enum', label: 'Align', enum: ['left', 'center', 'right'], defaultValue: 'left' },
+    { name: 'content', type: ['string', 'object'], required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'variant', type: 'enum', enum: ['heading', 'subheading', 'body', 'caption'] },
+    { name: 'align', type: 'enum', enum: ['left', 'center', 'right'] },
   ],
 });
 
@@ -321,13 +321,13 @@ ComponentRegistry.register('button', ElementButtonRenderer, {
     // (objectui#4970): `ComponentPropsMap['element:button'].label` is
     // `string | Record< string, string >` on the 17.0.0 GA pin, and the rendered
     // label goes through `pickLocalized`.
-    { name: 'label', type: ['string', 'object'], label: 'Label', required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'action', type: 'object', label: 'Action', description: 'Inline ActionDef executed on click (url / navigation / api / script / modal / flow); omitted → renders inert' },
-    { name: 'variant', type: 'enum', label: 'Variant', enum: ['primary', 'secondary', 'danger', 'ghost', 'link'], defaultValue: 'primary' },
-    { name: 'size', type: 'enum', label: 'Size', enum: ['small', 'medium', 'large'], defaultValue: 'medium' },
-    { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name' },
-    { name: 'iconPosition', type: 'enum', label: 'Icon Position', enum: ['left', 'right'], defaultValue: 'left' },
-    { name: 'disabled', type: 'boolean', label: 'Disabled' },
+    { name: 'label', type: ['string', 'object'], required: true, description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'action', type: 'object', description: 'Inline ActionDef executed on click (url / navigation / api / script / modal / flow); omitted → renders inert' },
+    { name: 'variant', type: 'enum', enum: ['primary', 'secondary', 'danger', 'ghost', 'link'] },
+    { name: 'size', type: 'enum', enum: ['small', 'medium', 'large'] },
+    { name: 'icon', type: 'string', description: 'Lucide icon name' },
+    { name: 'iconPosition', type: 'enum', enum: ['left', 'right'] },
+    { name: 'disabled', type: 'boolean' },
   ],
 });
 
@@ -467,12 +467,12 @@ ComponentRegistry.register('number', ElementNumberRenderer, {
   label: 'Number',
   category: 'content',
   inputs: [
-    { name: 'object', type: 'string', label: 'Object', required: true, description: 'Object the aggregate runs over' },
-    { name: 'aggregate', type: 'enum', label: 'Aggregate', enum: ['count', 'sum', 'avg', 'min', 'max'], required: true },
-    { name: 'field', type: 'string', label: 'Field', description: 'Measure field (required for every aggregate except count)' },
-    { name: 'filter', type: 'array', label: 'Filter' },
-    { name: 'format', type: 'enum', label: 'Format', enum: ['number', 'currency', 'percent'], defaultValue: 'number' },
-    { name: 'prefix', type: 'string', label: 'Prefix' },
-    { name: 'suffix', type: 'string', label: 'Suffix' },
+    { name: 'object', type: 'string', required: true, description: 'Object the aggregate runs over' },
+    { name: 'aggregate', type: 'enum', enum: ['count', 'sum', 'avg', 'min', 'max'], required: true },
+    { name: 'field', type: 'string', description: 'Measure field (required for every aggregate except count)' },
+    { name: 'filter', type: 'array' },
+    { name: 'format', type: 'enum', enum: ['number', 'currency', 'percent'] },
+    { name: 'prefix', type: 'string' },
+    { name: 'suffix', type: 'string' },
   ],
 });

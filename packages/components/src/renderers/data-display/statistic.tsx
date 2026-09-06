@@ -67,9 +67,9 @@ ComponentRegistry.register('statistic', StatisticRenderer, {
   category: 'data-display',
   icon: 'Activity',
   inputs: [
-    { name: 'label', type: 'string', label: 'Label' },
-    { name: 'value', type: 'string', label: 'Value' },
-    { name: 'description', type: 'string', label: 'Description' },
+    { name: 'label', type: 'string' },
+    { name: 'value', type: 'string' },
+    { name: 'description', type: 'string' },
     { 
       name: 'trend', 
       type: 'enum', 
@@ -77,9 +77,7 @@ ComponentRegistry.register('statistic', StatisticRenderer, {
         { label: 'Up', value: 'up' },
         { label: 'Down', value: 'down' },
         { label: 'Neutral', value: 'neutral' }
-      ], 
-      label: 'Trend' 
-    }
+      ]    }
   ],
   defaultProps: {
     label: 'Total Revenue',

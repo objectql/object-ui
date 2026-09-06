@@ -104,8 +104,8 @@ ComponentRegistry.register('object-gantt', ObjectGanttRenderer, {
   label: 'Object Gantt',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'gantt', type: 'object', label: 'Gantt Config', description: 'startDateField, endDateField, titleField, progressField, percentageField, colorField, dependenciesField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'gantt', type: 'object', description: 'startDateField, endDateField, titleField, progressField, percentageField, colorField, dependenciesField' },
   ],
 });
 
@@ -114,7 +114,7 @@ ComponentRegistry.register('gantt', ObjectGanttRenderer, {
   label: 'Gantt View',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'gantt', type: 'object', label: 'Gantt Config', description: 'startDateField, endDateField, titleField, progressField, percentageField, colorField, dependenciesField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'gantt', type: 'object', description: 'startDateField, endDateField, titleField, progressField, percentageField, colorField, dependenciesField' },
   ],
 });

@@ -78,9 +78,9 @@ ComponentRegistry.register('definition-list', DefinitionListRenderer, {
   label: 'Definition List',
   category: 'content',
   inputs: [
-    { name: 'items', type: 'array', label: 'Items', required: true, description: 'Term/description pairs [{ term, description }]' },
-    { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2'], defaultValue: '1' },
-    { name: 'inline', type: 'boolean', label: 'Inline', description: 'Term and description on one baseline-aligned row' },
+    { name: 'items', type: 'array', required: true, description: 'Term/description pairs [{ term, description }]' },
+    { name: 'columns', type: 'enum', enum: ['1', '2'] },
+    { name: 'inline', type: 'boolean', description: 'Term and description on one baseline-aligned row' },
   ],
 });
 
@@ -187,13 +187,13 @@ ComponentRegistry.register('repeater', RepeaterRenderer, {
   label: 'Repeater',
   category: 'content',
   inputs: [
-    { name: 'object', type: 'string', label: 'Object', required: true, description: 'Object whose records the list repeats over' },
-    { name: 'titleField', type: 'string', label: 'Title Field' },
-    { name: 'fields', type: 'array', label: 'Fields', description: 'Columns per row — bare names or { field, label? }' },
-    { name: 'filter', type: 'array', label: 'Filter' },
-    { name: 'sort', type: 'array', label: 'Sort' },
-    { name: 'limit', type: 'number', label: 'Limit' },
-    { name: 'emptyText', type: 'string', label: 'Empty Text' },
-    { name: 'divided', type: 'boolean', label: 'Divided', description: 'Separator between rows' },
+    { name: 'object', type: 'string', required: true, description: 'Object whose records the list repeats over' },
+    { name: 'titleField', type: 'string' },
+    { name: 'fields', type: 'array', description: 'Columns per row — bare names or { field, label? }' },
+    { name: 'filter', type: 'array' },
+    { name: 'sort', type: 'array' },
+    { name: 'limit', type: 'number' },
+    { name: 'emptyText', type: 'string' },
+    { name: 'divided', type: 'boolean', description: 'Separator between rows' },
   ],
 });

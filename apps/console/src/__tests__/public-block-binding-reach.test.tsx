@@ -324,7 +324,9 @@ const sampleFor = (input: any): unknown => {
   if (input.name === 'details') {
     return [{ childObject: PROBE_OBJECT, title: 'Probe Detail' }];
   }
-  if (input.defaultValue !== undefined) return input.defaultValue;
+  // (`ComponentInput.defaultValue` is an ADR-0049 tombstone since objectui#7493 —
+  // no registration declares a default any more, so the sample is decided by the
+  // declared TYPE below, as it already was for every input without one.)
   switch (input.type) {
     case 'number':
       return 1;

@@ -327,13 +327,11 @@ export const ELEMENT_DATA_SOURCE_KEY = 'dataSource';
 export const ELEMENT_DATA_SOURCE_INPUT: {
   name: string;
   type: 'object';
-  label: string;
   binding: 'object';
   description: string;
 } = {
   name: ELEMENT_DATA_SOURCE_KEY,
   type: 'object',
-  label: 'Data Source',
   binding: 'object',
   description:
     'Per-element data binding: { object, view, filter, sort, limit }. Overrides the ' +

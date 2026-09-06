@@ -23,11 +23,10 @@ export const ObjectTreeRenderer: React.FC<any> = ({ schema, ...props }) => {
 };
 
 const treeInputs = [
-  { name: 'objectName', type: 'string' as const, label: 'Object Name', required: true },
+  { name: 'objectName', type: 'string' as const, required: true },
   {
     name: 'tree',
     type: 'object' as const,
-    label: 'Tree Config',
     description: 'parentField, labelField, fields, defaultExpandedDepth',
   },
 ];

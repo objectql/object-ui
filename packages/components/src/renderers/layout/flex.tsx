@@ -101,39 +101,30 @@ ComponentRegistry.register('flex',
       { 
         name: 'direction', 
         type: 'enum', 
-        enum: ['row', 'col', 'row-reverse', 'col-reverse'],
-        label: 'Direction',
-        defaultValue: 'row'
-      },
+        enum: ['row', 'col', 'row-reverse', 'col-reverse']      },
       { 
         name: 'justify', 
         type: 'enum', 
-        enum: ['start', 'end', 'center', 'between', 'around', 'evenly'],
-        label: 'Justify Content',
-        defaultValue: 'start'
-      },
+        enum: ['start', 'end', 'center', 'between', 'around', 'evenly']      },
       { 
         name: 'align', 
         type: 'enum', 
-        enum: ['start', 'end', 'center', 'baseline', 'stretch'],
-        label: 'Align Items',
-        defaultValue: 'start'
-      },
+        enum: ['start', 'end', 'center', 'baseline', 'stretch']      },
       { 
         name: 'gap', 
         type: 'number', 
-        label: 'Gap', 
-        defaultValue: 2,
+        
+        
         description: 'Gap between items (0-8)'
       },
       { 
         name: 'wrap', 
         type: 'boolean', 
-        label: 'Wrap', 
-        defaultValue: false,
+        
+        
         description: 'Allow flex items to wrap'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       direction: 'row',
