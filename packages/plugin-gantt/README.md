@@ -76,7 +76,14 @@ When you embed the lower-level `<GanttView>` directly, pass `onTaskUpdate`
 to opt in:
 
 ```tsx
-<GanttView
+import { GanttView } from '@object-ui/plugin-gantt';
+import type { GanttTask } from '@object-ui/plugin-gantt';
+
+// `tasks` is whatever you loaded; `save` stands in for your own write path.
+declare const tasks: GanttTask[];
+declare const save: (id: GanttTask['id'], changes: { start: Date; end: Date }) => void;
+
+const editableChart = <GanttView
   tasks={tasks}
   onTaskUpdate={(task, { start, end }) => {
     // `changes` is a Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>:
@@ -86,7 +93,7 @@ to opt in:
     if (!start || !end) return;
     save(task.id, { start, end });
   }}
-/>
+/>;
 ```
 
 ## Installation
@@ -212,14 +219,14 @@ that is present wins; if none is present there is no data config at all and the
 chart renders empty:
 
 ```typescript
-{
+const recordSource = {
   type: 'gantt',
 
   // Pick ONE of the three:
   objectName: 'project_tasks',                          // load through the host DataSource
   // data: { provider: 'value', items: [ /* records */ ] },  // inline records
   // staticData: [ /* records */ ],                          // shorthand for the above
-}
+};
 ```
 
 `data` is the spec's `ViewData` union — `{ provider: 'object', object }`,
@@ -239,7 +246,7 @@ it here. Before that flip the flat branch returned first, so an authored `gantt`
 block was discarded silently.
 
 ```typescript
-{
+const fieldMapping = {
   type: 'gantt',
   objectName: 'project_tasks',
 
@@ -257,7 +264,7 @@ block was discarded silently.
 
   // (b) …or the same configuration as one block, which OUTRANKS (a):
   // gantt: { startDateField: 'start_date', endDateField: 'end_date', … }
-}
+};
 ```
 
 `viewMode` is real authoring surface (`ObjectGanttSchema`, derived from the
@@ -391,6 +398,8 @@ the label field is `title` (`src/GanttView.tsx`):
 
 <!-- readme-exports: partial GanttTask — deliberate excerpt: `fields` and `hasOwnDates` are populated by ObjectGantt itself, as the paragraph below the block says -->
 ```typescript
+import type { GanttDependency, GanttTaskType } from '@object-ui/plugin-gantt';
+
 interface GanttTask {
   id: string | number;
   title: string;
@@ -486,10 +495,15 @@ When you render the component yourself, hand the callbacks in as React props:
 
 ```tsx
 import { ObjectGantt } from '@object-ui/plugin-gantt';
+import type { DataSource } from '@object-ui/types';
 
-<ObjectGantt
+// The adapter your host already talks to — see "Integration with Data
+// Sources" below for where it comes from.
+declare const dataSource: DataSource;
+
+const interactiveChart = <ObjectGantt
   schema={{
-    type: 'gantt',
+    type: 'object-gantt',
     objectName: 'project_tasks',
     startDateField: 'start_date',
     endDateField: 'end_date',
@@ -497,7 +511,7 @@ import { ObjectGantt } from '@object-ui/plugin-gantt';
   }}
   dataSource={dataSource}
   onTaskClick={(record) => console.log('Task clicked:', record)}
-/>
+/>;
 ```
 
 To turn editing off from the metadata instead, set `readOnly: true` on the
@@ -633,13 +647,18 @@ Two more chrome features ship with it:
 - **Custom markers** — vertical reference lines beyond the Today marker:
 
 ```tsx
-<GanttView
+import { GanttView } from '@object-ui/plugin-gantt';
+import type { GanttTask } from '@object-ui/plugin-gantt';
+
+declare const tasks: GanttTask[];
+
+const chartWithMarkers = <GanttView
   tasks={tasks}
   markers={[
     { date: '2026-07-01', label: 'Code freeze', color: '#ef4444' },
     { date: '2026-07-15', label: 'Release' }, // defaults to the primary theme color
   ]}
-/>
+/>;
 ```
 
 Through the schema, pass the same array as `markers` on the gantt node.
@@ -712,13 +731,14 @@ the object and the fields:
 ```tsx
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 import { ObjectGantt } from '@object-ui/plugin-gantt';
+import type { ObjectGanttSchema } from '@object-ui/types';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
   token: 'your-auth-token'
 });
 
-const schema = {
+const schema: ObjectGanttSchema = {
   type: 'object-gantt',
   objectName: 'tasks',
   titleField: 'task_name',
@@ -727,7 +747,7 @@ const schema = {
   progressField: 'progress_percent'
 };
 
-<ObjectGantt schema={schema} dataSource={dataSource} />
+const ganttWithAdapter = <ObjectGantt schema={schema} dataSource={dataSource} />;
 ```
 
 ⚠️ A `dataSource` key **on the schema node** is a different thing with the same

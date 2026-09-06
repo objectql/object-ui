@@ -137,14 +137,6 @@ export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
   // /api/v1/security/explain
   'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
 ]);
 
 type Escape = { file: string; test: string; url: string };
