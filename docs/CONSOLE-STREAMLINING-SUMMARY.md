@@ -14,7 +14,9 @@ This implementation completed **Phase 1** of the console streamlining project, e
 
 **Components**:
 - `AppShell` - Basic layout container with sidebar/header/footer support
-- `ObjectRenderer` - Renders object views (Grid, Kanban, List, etc.)
+- `ObjectView` - Renders object views (Grid, Kanban, List, etc.); it reads
+  `objectName` from the router (`useParams()`) and takes an `objects` metadata
+  array. For a router-free embed, use `ObjectView` from `@object-ui/plugin-view`.
 - `DashboardRenderer` - Renders dashboard layouts from schema
 - `PageRenderer` - Renders custom page schemas
 - `FormRenderer` - Renders forms (modal or inline)
