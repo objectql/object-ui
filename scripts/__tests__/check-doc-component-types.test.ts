@@ -45,6 +45,29 @@ import { blank, scanSource } from '../js-comment-mask.mjs';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPT = 'scripts/check-doc-component-types.mjs';
 
+/**
+ * A numeral that qualifies a document-population noun, as `match: text`.
+ *
+ * Lifted to module scope by objectui#7914 so the pin below and its positive
+ * control read ONE definition of the rule. Two copies of the same rule inside
+ * one file is a defect this repository has paid for repeatedly; the pattern
+ * itself is unchanged, character for character, from what this pin carried
+ * inline (objectui#7888) and from the third copy in
+ * `check-links-workflow.test.ts` (objectui#7825). WHY it is narrow exactly here
+ * — the two intervening words, the negative lookbehind that rules out issue
+ * references — is argued at the pin, and deliberately not restated here.
+ *
+ * A fresh `RegExp` per call: `lastIndex` on a shared global literal is exactly
+ * the kind of state that makes the second caller in a run measure something
+ * different from the first.
+ */
+const POPULATION_COUNT =
+  /(?<![#\w.])\d+(?:,\d{3})*\s+(?:[A-Za-z][\w-]*\s+){0,2}`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/i;
+
+function documentCounts(text: string): string[] {
+  return [...text.matchAll(new RegExp(POPULATION_COUNT.source, 'gi'))].map((m) => m[0].replace(/\s+/g, ' ').trim());
+}
+
 interface Finding {
   reason: string;
   site: string;
@@ -931,17 +954,77 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
       .split('\n')
       .filter((line) => /^\s*#/.test(line))
       .join('\n');
-    const counts = [
-      ...header.matchAll(
-        /(?<![#\w.])\d+(?:,\d{3})*\s+(?:[A-Za-z][\w-]*\s+){0,2}`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi,
-      ),
-    ].map((m) => m[0]);
+    const counts = documentCounts(header);
     expect(
       counts,
       `doc-component-types.yml's header states a page count (${counts.join(', ')}). Nothing fails when ` +
         'it drifts, so it will. State the population — or point at the gate\u2019s own verdict line, which ' +
         'prints the live figure on every run — instead of copying a number into a comment (objectui#7448).',
     ).toEqual([]);
+  });
+
+  /**
+   * The positive control for the pin above — objectui#7914.
+   *
+   * A pin that cannot fail is not a pin, and this repository has shipped one
+   * with zero demonstrated power before (objectui#7466: 0/32 on the broken tree
+   * AND 0/32 on the fixed one). This header carries no count today, so the pin
+   * above asserts `[] toEqual []` — and would assert exactly that if the pattern
+   * were deleted, reversed, or narrowed back to adjacency. Nothing in this file
+   * exercised the claim, which is why objectui#7888 had to demonstrate its own
+   * widening out of band, in a pull request description this repository does not
+   * hold. The shapes that actually rotted are fixtured here as POSITIVES rather
+   * than trusted to a reading of the regex. The block is carried from the third
+   * copy's control in `check-links-workflow.test.ts`, which has held this shape
+   * since objectui#7825 — one shape, three homes, so none of them may drift.
+   *
+   * The first entry is this header's own pre-fix sentence, verbatim; two more
+   * are what its twin and the third copy said. `15 INTERNAL documents` is the
+   * direction objectui#7888 turned on, and it is measured, not assumed: run over
+   * that line, the adjacency-only pattern this pin used to carry returns `[]`,
+   * because one adjective sat between the numeral and the noun.
+   *
+   * ⭐ One entry states a number that is CORRECT TODAY — this gate's own verdict
+   * line reported `Scanned 188 doc file(s)` on the day this control was written.
+   * It is rejected anyway, and that is the entire point: the rule governs the
+   * WRITING, not one wrong figure. A control that only rejected stale numbers
+   * would wave the same trap through on the day the number happens to be right,
+   * which is precisely the day it starts rotting again.
+   *
+   * The negatives are numbers this header legitimately carries. The first is a
+   * MEASURED false positive of the pre-objectui#7888 pattern: run over
+   * `#7448 documents the rule`, it returned `["7448 documents"]` — an issue
+   * reference read as a page count. The negative lookbehind rules that out at the
+   * pattern level now, and this fixture is what keeps it ruled out.
+   */
+  it('the count pin fires on the shapes that rotted, and on none of the numbers a header may keep', () => {
+    const rotted = [
+      '184 pages (144 `.mdx` + 40 `.md`)',
+      'Scanned 188 doc file(s) (.mdx + .md)',
+      'the same 222 documents `check-doc-snippet-types` covers',
+      'the repo-root `docs/**`, which holds 15 INTERNAL documents (ADRs, audits), while',
+      'the 183 files the published site is built from live in `content/docs/**`',
+      'roughly 1,204 markdown files under the two trees',
+    ];
+    for (const line of rotted) {
+      expect(documentCounts(line), `doc-component-types.yml's count pin must fire on: ${line}`).not.toEqual([]);
+    }
+
+    const legitimate = [
+      '#7448 documents the rule this gate enforces',
+      'objectui#5342 documents the `.md` widening',
+      '#3213 to #3448 spent inside the `ci.yml` docs job',
+      'objectui#4786 `stats-card`, objectui#4796 `plugin:grid`',
+      'this is the fifth instance of the shape in this repo',
+      'OBJUI-001 is the renderer error code',
+      '889 `type` literal(s) against 658 registered key(s)',
+      'node-version: 22',
+      'timeout-minutes: 10',
+      'the ruleset 60-minute timeout fails it',
+    ];
+    for (const line of legitimate) {
+      expect(documentCounts(line), `doc-component-types.yml's count pin must NOT fire on: ${line}`).toEqual([]);
+    }
   });
 });
 
