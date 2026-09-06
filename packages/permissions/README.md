@@ -24,16 +24,31 @@ npm install @object-ui/permissions
 ## Quick Start
 
 ```tsx
-import { PermissionProvider, usePermissions, PermissionGuard } from '@object-ui/permissions';
+import {
+  PermissionProvider,
+  PermissionGuard,
+  usePermissions,
+  type ObjectPermissionConfig,
+  type RoleDefinition,
+} from '@object-ui/permissions';
+
+const roles: RoleDefinition[] = [
+  { name: 'admin', label: 'Administrator' },
+  { name: 'editor', label: 'Editor' },
+];
+
+const permissions: ObjectPermissionConfig[] = [
+  {
+    object: 'orders',
+    roles: {
+      editor: { actions: ['read', 'create', 'update'] },
+    },
+  },
+];
 
 function App() {
   return (
-    <PermissionProvider
-      roles={['admin', 'editor']}
-      permissions={{
-        orders: { read: true, create: true, update: true, delete: false },
-      }}
-    >
+    <PermissionProvider roles={roles} permissions={permissions} userRoles={['editor']}>
       <Dashboard />
     </PermissionProvider>
   );
@@ -45,14 +60,18 @@ function Dashboard() {
   return (
     <div>
       <h1>Orders</h1>
-      <PermissionGuard action="create" resource="orders" fallback={<p>No access</p>}>
+      <PermissionGuard object="orders" action="create" fallback="custom" fallbackContent={<p>No access</p>}>
         <button>Create Order</button>
       </PermissionGuard>
-      {can('delete', 'orders') && <button>Delete</button>}
+      {can('orders', 'delete') && <button>Delete</button>}
     </div>
   );
 }
 ```
+
+Roles are `RoleDefinition` records (identity and inheritance); what a role may
+do lives in each object's `ObjectPermissionConfig.roles` map, and `userRoles`
+names the roles the current user actually holds.
 
 ## API
 
@@ -61,39 +80,81 @@ function Dashboard() {
 Wraps your application with permission context:
 
 ```tsx
-<PermissionProvider roles={['editor']} permissions={permissionMap}>
-  <App />
-</PermissionProvider>
+import {
+  PermissionProvider,
+  type ObjectPermissionConfig,
+  type RoleDefinition,
+} from '@object-ui/permissions';
+
+declare const roleDefinitions: RoleDefinition[];
+declare const permissionMap: ObjectPermissionConfig[];
+
+function App() {
+  return <div>Your application</div>;
+}
+
+const tree = (
+  <PermissionProvider roles={roleDefinitions} permissions={permissionMap} userRoles={['editor']}>
+    <App />
+  </PermissionProvider>
+);
 ```
 
 ### usePermissions
 
-Hook for checking permissions programmatically:
+Hook for checking permissions programmatically. `can` and `cannot` take the
+object first and the action second:
 
 ```tsx
-const { can, cannot, roles } = usePermissions();
+import { usePermissions } from '@object-ui/permissions';
 
-if (can('update', 'orders')) {
-  // allow editing
+function OrderToolbar() {
+  const { can, cannot, roles } = usePermissions();
+
+  if (can('orders', 'update')) {
+    // allow editing
+  }
+
+  return <p>{cannot('orders', 'delete') ? 'Read only' : roles.join(', ')}</p>;
 }
 ```
 
 ### useFieldPermissions
 
-Hook for field-level permission checks:
+Hook for field-level permission checks. It takes the object name, and returns
+predicates you call per field:
 
 ```tsx
-const { isVisible, isEditable } = useFieldPermissions('orders', 'discount');
+import { useFieldPermissions } from '@object-ui/permissions';
+
+function DiscountField() {
+  const { canRead, canWrite } = useFieldPermissions('orders');
+
+  const isVisible = canRead('discount');
+  const isEditable = canWrite('discount');
+
+  return isVisible ? <input readOnly={!isEditable} /> : null;
+}
 ```
 
 ### PermissionGuard
 
-Conditionally renders children based on permissions:
+Conditionally renders children based on permissions. `fallback` selects the
+denied behaviour, and `fallbackContent` carries the node rendered for
+`fallback="custom"`:
 
 ```tsx
-<PermissionGuard action="delete" resource="orders" fallback={<span>Read only</span>}>
-  <DeleteButton />
-</PermissionGuard>
+import { PermissionGuard } from '@object-ui/permissions';
+
+function DeleteButton() {
+  return <button>Delete</button>;
+}
+
+const guard = (
+  <PermissionGuard object="orders" action="delete" fallback="custom" fallbackContent={<span>Read only</span>}>
+    <DeleteButton />
+  </PermissionGuard>
+);
 ```
 
 ### evaluatePermission
@@ -101,14 +162,25 @@ Conditionally renders children based on permissions:
 Programmatic permission evaluation:
 
 ```tsx
-import { evaluatePermission } from '@object-ui/permissions';
+import {
+  evaluatePermission,
+  type ObjectPermissionConfig,
+  type RoleDefinition,
+} from '@object-ui/permissions';
+
+declare const roleDefinitions: RoleDefinition[];
+declare const permissionConfig: ObjectPermissionConfig[];
 
 const result = evaluatePermission({
-  action: 'update',
-  resource: 'orders',
-  roles: ['editor'],
+  roles: roleDefinitions,
   permissions: permissionConfig,
+  userRoles: ['editor'],
+  user: { id: 'user-1', roles: ['editor'] },
+  object: 'orders',
+  action: 'update',
 });
+
+result.allowed; // true | false
 ```
 
 ### createPermissionStore
@@ -116,8 +188,22 @@ const result = evaluatePermission({
 Creates a permission store for advanced use cases:
 
 ```tsx
-const store = createPermissionStore(permissionConfig);
-store.check('read', 'orders'); // true | false
+import {
+  createPermissionStore,
+  type ObjectPermissionConfig,
+  type RoleDefinition,
+} from '@object-ui/permissions';
+
+declare const roleDefinitions: RoleDefinition[];
+declare const permissionConfig: ObjectPermissionConfig[];
+
+const store = createPermissionStore({
+  roles: roleDefinitions,
+  permissions: permissionConfig,
+  userRoles: ['editor'],
+});
+
+store.check('orders', 'read'); // PermissionCheckResult: { allowed, reason?, ... }
 ```
 
 ## Links
