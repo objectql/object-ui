@@ -24,12 +24,34 @@ name: Doc Component Types
 # gate, one home.
 #
 # It needs no install and no build. The script reads the checkout with `node:fs`
-# only: 184 pages (144 `.mdx` + 40 `.md`, objectui#5342) for the fenced snippets
-# AND for the plugin key tables (objectui#5106), and the `packages/` + `apps/`
-# sources for the registered-key universe it compares them against. A few
+# only: every `.mdx` AND `.md` page under `content/docs/**` and `apps/*/docs/**`,
+# plus the root pages in `ROOT_PAGES` — `.md` has been in that population since
+# objectui#5342, which is the extension `ci.yml`'s diff excludes — for the fenced
+# snippets AND for the plugin key tables (objectui#5106), and the `packages/` +
+# `apps/` sources for the registered-key universe it compares them against. A few
 # seconds. Keep it that way if you add checks to it — the moment this needs
 # `pnpm install` it stops being cheap enough to run unfiltered, and the filter is
 # the hole.
+#
+# ⛔ Deliberately NO page count is written here, and none may be added
+# (objectui#7448). The sentence above used to carry one — a total and its
+# per-extension split — and every part of it had drifted, because nothing fails
+# on a stale number in a comment, which is precisely why it rots. Refreshing the
+# literal only restarts that clock; the rule above has no clock to restart, since
+# it states the population instead of counting it. This is the fix
+# `check-doc-snippet-types.mjs`'s `UNGATED_DOCS` header records being applied to
+# itself once both halves of its own copied count had drifted ("a pointer to the
+# list now rather than a copy of its length"). Two durable readings, neither a
+# copy:
+#
+#   * HOW MANY — the run below prints it, in the gate's own verdict line:
+#     "Scanned N doc file(s) (.mdx + .md), …". `pnpm check:doc-types` reprints it
+#     on demand.
+#   * WHICH — `scanDocs` in `scripts/check-doc-component-types.mjs`, which
+#     derives the population from the tree on every run.
+#
+# `scripts/__tests__/check-doc-component-types.test.ts` fails if a population
+# count reappears here, so the rule above is a gate rather than an intention.
 
 on:
   pull_request:
