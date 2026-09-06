@@ -200,8 +200,29 @@ describe('ObjectForm redirect — an in-contract destination is followed', () =>
  * vanished while the refusal, its reasoning and its prescription all stayed.
  * ⛔ Not re-pinned to the new prose verbatim — that moves the brittleness
  * instead of removing it.
+ *
+ * ## ⚠️ Why there is no bare `#\d{3,}` alternative any more
+ *
+ * The first spelling of this regex was
+ * `/\(ruled \d{4}-\d{2}-\d{2}\)|#\d{3,}/` — two alternatives, to admit
+ * either form upstream uses. The loose half discriminated NOTHING
+ * (objectui#7122 contract review): this repo's own hand-written messages
+ * routinely cite `objectui#NNNN`, so a locally authored sentence satisfied it,
+ * and telling those two apart is this assertion's entire job. Only the
+ * `(ruled …)` half was ever load-bearing.
+ *
+ * It was also unnecessary, which is the measurement that settled it. Both
+ * spellings, read off the installed artifacts rather than recalled:
+ *
+ *   17.2.0  "… and this is an absolute URL (ruled 2026-08-11 on #7496)."
+ *   17.3.0  "… and this is an absolute URL (ruled 2026-08-11)."
+ *
+ * The issue number never appears OUTSIDE that parenthesis, so `(ruled ` + a
+ * date already matched both releases on its own. The optional ` on #NNNN` tail
+ * keeps the 17.2.0 spelling admissible — the two-form latitude the alternative
+ * was added for — without admitting a bare local `#7122`.
  */
-const CITES_ITS_RULING = /\(ruled \d{4}-\d{2}-\d{2}\)|#\d{3,}/;
+const CITES_ITS_RULING = /\(ruled \d{4}-\d{2}-\d{2}(?: on #\d{3,})?\)/;
 
 describe('ObjectForm redirect — an out-of-contract destination is refused, not dropped', () => {
   it('refuses a SAME-ORIGIN absolute url and says so on screen (defects 2 + 3)', async () => {
