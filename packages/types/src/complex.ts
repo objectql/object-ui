@@ -959,7 +959,73 @@ export interface ChatToolInvocation {
 }
 
 /**
- * Chatbot component
+ * Chatbot component — the authoring face of the
+ * `ComponentRegistry.register('chatbot', ...)` registration in
+ * `packages/plugin-chatbot/src/renderer.tsx` (objectui#7655).
+ *
+ * ## Six ADR-0049 retirement tombstones (objectui#7703)
+ *
+ * `loading`, `showAvatars`, `userAvatar`, `assistantAvatar`, `markdown` and
+ * `height` are `?: never` below, each paired with a `retirementTombstone()`
+ * arm on the Zod twin (`zod/complex.zod.ts`). They were declared here,
+ * mirrored there, and read by NO registration — a published type teaching six
+ * knobs that did nothing.
+ *
+ * The instrument, re-measured on this branch's base rather than inherited
+ * from the card: one `schema.KEY` count per `ComponentRegistry.register(...)`
+ * body of `renderer.tsx`, the file split at the three register calls
+ * (`chatbot` / `chatbot-enhanced` / `chatbot-floating`). All six read
+ * 0 / 0 / 0. Lit controls on the same instrument in the same pass —
+ * `placeholder` 1 / 1 / 1, `messages` 1 / 1 / 1, `userAvatarUrl` 1 / 1 / 1,
+ * `maxHeight` 1 / 1 / 0, `floatingConfig` 0 / 0 / 1, `processVisibility`
+ * 0 / 1 / 0 — so the zeros are readings, not a blind grep.
+ *
+ * The named-read census is now the WHOLE channel. It was not always: the
+ * `chatbot-floating` registration used to end its `<FloatingChatbot>` element
+ * with a raw `{...props}` spread, which handed the panel's `<ChatbotEnhanced>`
+ * every authored key unfiltered — and that component HAS a `showAvatars` prop,
+ * so the key was live there by accident. objectui#7708 ruled FENCE: the spread
+ * is filtered through `toDomProps` and moved to the head of the element, the
+ * shape the two sibling registrations already used. ⇒ `showAvatars` is a key
+ * the FENCE turned dark, not a key nothing ever read; the other five were live
+ * on no channel at any time (`loading`, `userAvatar`, `assistantAvatar`,
+ * `markdown` and `height` are not `ChatbotEnhancedProps` members either —
+ * markdown exists there only as `enableMarkdown` — so the spread had nothing
+ * to land them on).
+ *
+ * ⚠️ `processVisibility` is deliberately NOT part of this retirement:
+ * `chatbot-enhanced` reads it (0 / 1 / 0), and objectui#7655 left the member
+ * here exactly as it was.
+ *
+ * ## Why tombstones and not deletions — the mirror decides it here
+ *
+ * All six HAVE a Zod arm, so deleting the declaration would trade one silent
+ * no-op for another: `BaseSchema` is `.passthrough()` on the Zod side and
+ * carries a `[key: string]: any` index signature on the TS side, so an
+ * UNDECLARED key is not refused, it is KEPT. That is the hazard the two-prong
+ * discriminator leaves to the carrier — where there is no mirror there is "no
+ * silent-strip hazard for prong 2 to guard" (`mobile.ts`, objectui#5941 /
+ * #7526 / #7678: a tombstone exists to steer authors to a named live
+ * replacement KEY, or to keep loud a key the docs taught as working). Here
+ * there IS a mirror to host the refusal, and prong 1 holds by the letter for
+ * four of the six — `userAvatar` → `userAvatarUrl`, `assistantAvatar` →
+ * `assistantAvatarUrl`, `height` → `maxHeight`, `markdown` →
+ * `enableMarkdown` on a `chatbot-enhanced` node. Each member's own comment
+ * names its replacement, or says there is none.
+ *
+ * ## Why not ENFORCE, decided per key
+ *
+ * The other arm of enforce-or-remove was taken key by key and refused each
+ * time. `<Chatbot>` — the component THIS registration renders
+ * (`plugin-chatbot/src/index.tsx`) — declares `messages`, `placeholder`,
+ * `onSendMessage`, `disabled`, `showTimestamp`, `userAvatarUrl`,
+ * `userAvatarFallback`, `assistantAvatarUrl`, `assistantAvatarFallback` and
+ * `maxHeight`, and not one of the six. Enforcing any of them would mean
+ * growing a component prop (a feature, not a retirement) or wiring a SECOND
+ * spelling of a key that already works — the N dialects AGENTS.md #0.1
+ * forbids. Per-key argument in each member's comment.
+ *
+ * Pinned in `__tests__/chatbot-dark-keys-retired-7703.test.ts`.
  */
 export interface ChatbotSchema extends BaseSchema {
   type: 'chatbot';
@@ -973,9 +1039,27 @@ export interface ChatbotSchema extends BaseSchema {
    */
   placeholder?: string;
   /**
-   * Whether chat is loading (thinking)
+   * ADR-0049 RETIREMENT TOMBSTONE — `loading` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Chat progress is RUNTIME state, not authorable metadata. The `chatbot`
+   * registration derives it from `useObjectChat` as `isLoading` and spends it
+   * on `disabled={hostDisabled || isLoading}`; `<Chatbot>` declares no
+   * `loading` prop for an authored value to land on. So `loading: true` never
+   * showed a spinner and `loading: false` never hid one.
+   *
+   * ENFORCE was refused here on the classification, not only on the missing
+   * prop: an authored boolean would be a static declaration of a value the
+   * chat runtime owns and updates per token — it would fight the runtime, not
+   * configure it (AGENTS.md #8: state that a refresh must survive never lives
+   * in metadata that cannot see the refresh).
+   *
+   * There is NO replacement key: nothing authorable selects this. Delete it.
+   *
+   * @deprecated Not part of this contract — the value was inert. Loading is
+   * derived from the chat runtime.
    */
-  loading?: boolean;
+  loading?: never;
   /**
    * RETIRED (objectui#6124, ADR-0049) — JSON has no function value, and the
    * `chatbot` renderer wires its own `handleSendMessage` and `toDomProps` drops
@@ -985,32 +1069,111 @@ export interface ChatbotSchema extends BaseSchema {
    */
   onSendMessage?: never;
   /**
-   * Show avatars
-   * @default true
+   * ADR-0049 RETIREMENT TOMBSTONE — `showAvatars` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * ⭐ The one key of the six whose provenance is a FENCE, not an absence.
+   * `<ChatbotEnhanced>` really does have a `showAvatars` prop, and until
+   * objectui#7708 the `chatbot-floating` registration's raw trailing
+   * `{...props}` spread delivered an authored value straight to it — measured
+   * live through the real host. That ruling was FENCE: the spread now goes
+   * through `toDomProps` at the head of the element, so the key is dark on all
+   * three registrations by ruling. It was never live on a `chatbot` node: no
+   * registration forwards it by name, and this one renders `<Chatbot>`, which
+   * has no such prop — the card's own counter-example, re-confirmed here.
+   *
+   * ENFORCE was refused: on a `chatbot` node it has no target to forward to,
+   * and re-declaring it on the two faces that CAN reach `<ChatbotEnhanced>`
+   * would re-open by declaration exactly the channel objectui#7708 closed by
+   * fence, one card earlier. `@default true` was published prose only — the
+   * plain `<Chatbot>` renders an avatar beside every message unconditionally,
+   * with no gate, and `<ChatbotEnhanced>`'s own prop defaults to `false`.
+   *
+   * There is no replacement KEY. The avatar IMAGES are `userAvatarUrl` /
+   * `assistantAvatarUrl` and their `*Fallback` siblings, which all three
+   * registrations read; delete this one.
+   *
+   * @deprecated Not part of this contract — the value was inert on a `chatbot`
+   * node and is dark everywhere since objectui#7708.
    */
-  showAvatars?: boolean;
+  showAvatars?: never;
   /**
-   * User avatar
+   * ADR-0049 RETIREMENT TOMBSTONE — `userAvatar` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Write **`userAvatarUrl`** (with `userAvatarFallback` for the text shown
+   * while it loads or fails) — the live spelling, read 1 / 1 / 1 and declared
+   * on all three faces through {@link ChatbotSharedKey}. `userAvatar` has zero
+   * word-boundary hits anywhere in `packages/plugin-chatbot/src`: not a stale
+   * read, a spelling no code ever had.
+   *
+   * ENFORCE was refused: wiring it would give one avatar image TWO authorable
+   * spellings, the second de-facto contract AGENTS.md #0.1 exists to stop.
+   *
+   * @deprecated Not part of this contract — the value was inert. Write
+   * `userAvatarUrl`.
    */
-  userAvatar?: string;
+  userAvatar?: never;
   /**
-   * Assistant avatar
+   * ADR-0049 RETIREMENT TOMBSTONE — `assistantAvatar` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Write **`assistantAvatarUrl`** (with `assistantAvatarFallback`) — the live
+   * spelling, read 1 / 1 / 1 and declared on all three faces through
+   * {@link ChatbotSharedKey}. `assistantAvatar` has zero word-boundary hits
+   * anywhere in `packages/plugin-chatbot/src`.
+   *
+   * ENFORCE was refused for the same reason as `userAvatar`: a second
+   * authorable spelling of one image is a second contract.
+   *
+   * @deprecated Not part of this contract — the value was inert. Write
+   * `assistantAvatarUrl`.
    */
-  assistantAvatar?: string;
+  assistantAvatar?: never;
   /**
-   * Enable markdown rendering
-   * @default true
+   * ADR-0049 RETIREMENT TOMBSTONE — `markdown` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * The `chatbot` node renders `<Chatbot>`, which has no markdown path at all:
+   * it prints message content as text, so there was never a renderer for this
+   * switch to reach. Markdown is a `chatbot-enhanced` / `chatbot-floating`
+   * capability, where the live spelling is **`enableMarkdown`** on
+   * {@link ChatbotEnhancedSchema} / {@link ChatbotFloatingSchema} (read
+   * 0 / 1 / 1). `markdown` is not a `ChatbotEnhancedProps` member either.
+   *
+   * ENFORCE was refused twice over: on this node it would mean building a
+   * markdown renderer into `<Chatbot>` (a feature), and on the other two it
+   * would be a second spelling of `enableMarkdown`. `@default true` was
+   * published prose the plain component never honoured.
+   *
+   * @deprecated Not part of this contract — the value was inert. Author
+   * `type: 'chatbot-enhanced'` with `enableMarkdown` instead.
    */
-  markdown?: boolean;
+  markdown?: never;
   /**
    * How much agent reasoning/tool detail to show.
    * @default 'summary'
    */
   processVisibility?: 'hidden' | 'summary' | 'debug';
   /**
-   * Chat height
+   * ADR-0049 RETIREMENT TOMBSTONE — `height` (objectui#7703). See
+   * {@link ChatbotSchema} for the census, the instrument and the route.
+   *
+   * Write **`maxHeight`** (a CSS length string, default `'500px'`) — the live
+   * spelling, read 1 / 1 / 0 and forwarded to `<Chatbot>`'s own `maxHeight`
+   * prop. On a `chatbot-floating` node neither key applies: size that panel
+   * with `floatingConfig.panelHeight`, a NUMBER of pixels, which is what the
+   * panel reads.
+   *
+   * ENFORCE was refused: `<Chatbot>` has no `height` prop, and adding one
+   * beside the `maxHeight` it already forwards would publish two authorable
+   * spellings for one dimension — with a `string | number` union that does not
+   * even match the live key's `string`.
+   *
+   * @deprecated Not part of this contract — the value was inert. Write
+   * `maxHeight`, or `floatingConfig.panelHeight` on a floating node.
    */
-  height?: string | number;
+  height?: never;
 
   // --- AI / service-ai integration fields ---
 
