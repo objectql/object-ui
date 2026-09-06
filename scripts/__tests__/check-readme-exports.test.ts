@@ -925,6 +925,66 @@ function buildState(result: ReturnType<typeof scan>) {
   };
 }
 
+/**
+ * Every DECLARED excerpt in this repository whose own package is UNBUILT — the
+ * exact population whose shrink-only rule the gate suspends, and therefore the
+ * exact number `census.excerptsNotJudged` has to come back as.
+ *
+ * objectui#7302. This used to be spelled `Object.keys(PARTIAL_EXCERPTS)`
+ * filtered by build state — the LEDGER half, alone. That was complete only
+ * while every excerpt in the tree was a ledger entry. The moment a content fix
+ * moved one to the in-README `PARTIAL_MARKER` — which is the disposition a
+ * GENUINE excerpt is meant to end at, and the ledger's own reason said so —
+ * the two assertions below expected 0 where the gate counted 1, and they went
+ * red on CI: on the UNBUILT tree the shards run, which is the only state this
+ * can fire in. The gate counts BOTH mechanisms in that one counter, on purpose
+ * and in one sentence of its header ("BOTH suppress `stale-omission` ... both
+ * are counted as `not judged` in the census"), so both belong in the
+ * expectation, under the same per-PACKAGE rule the rest of these cases use.
+ *
+ * DERIVED FROM THE READMEs, never from the counter under test: the ledger half
+ * from the exported literal, the marker half by re-reading each README of an
+ * unbuilt package through the gate's own exported grammar. So these assertions
+ * still cross-check the gate against something that is not the gate's count.
+ *
+ * The marker half is the population of the gate's `excerptFor` map — a marker
+ * that BINDS a fence and carries a long enough reason — restricted to unbuilt
+ * packages, and it deliberately does not re-parse the block to confirm the type
+ * is declared there: a bound marker whose fence declares no type of that name
+ * is reported `stale-partial-marker` in EVERY build state, and the case below
+ * asserts there are none of those. Keyed the way the gate keys it
+ * (`<fence>::<Name>`, per README), so a repeated marker collapses here exactly
+ * as it collapses there.
+ */
+function suspendedExcerpts(
+  result: ReturnType<typeof scan>,
+  excerpts: Readonly<Record<string, string>> = PARTIAL_EXCERPTS,
+) {
+  const { isUnbuilt } = buildState(result);
+  const ledger = Object.keys(excerpts).filter((key) =>
+    isUnbuilt(packageDirOf(repoRoot, key.split('::')[0])),
+  );
+  /** `<readme>::<fence>::<Name>` -> `<readme>::<Name>`, the form a finding is at. */
+  const markers = new Map<string, string>();
+  for (const record of result.packages) {
+    if (record.state !== 'unbuilt') continue;
+    for (const readme of record.readmes as string[]) {
+      const markdown = fs.readFileSync(path.join(repoRoot, readme), 'utf8');
+      for (const marker of findPartialMarkers(markdown, extractCodeBlocks(markdown))) {
+        if (marker.fence === null || marker.reason.length < MIN_PARTIAL_REASON) continue;
+        markers.set(`${readme}::${marker.fence}::${marker.name}`, `${readme}::${marker.name}`);
+      }
+    }
+  }
+  return {
+    ledger,
+    markers: [...markers.keys()],
+    /** Where each suspended marker must be REPORTED, in a finding's `<file>::<Name>` form. */
+    markerSites: [...new Set(markers.values())],
+    all: [...ledger, ...markers.keys()],
+  };
+}
+
 describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
   it('is keyed `<readme>::<InterfaceName>` and every entry carries a card number', () => {
     for (const [key, reason] of Object.entries(PARTIAL_EXCERPTS)) {
@@ -1017,13 +1077,34 @@ describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
     // case cannot see the objectui#6214 regression on its own — the one in the
     // `repo state` block below, with the ledger ON, is the leg that does.
     // Stated so the pair is not mistaken for one assertion twice.
-    expect(off.census.excerptsNotJudged).toBe(0);
+    //
+    // NOT zero, and that is objectui#7302's correction. `excerpts: {}` turns
+    // the LEDGER off, and the ledger is the only half it can turn off: a
+    // README's `PARTIAL_MARKER` lives in the README, so it still declares an
+    // excerpt in this scan, and on an unbuilt package it is still suspended and
+    // still counted. The hard-coded 0 was quietly asserting "this repository
+    // declares no excerpt by marker" under a title about the ledger, and it
+    // went red the first time one did — on CI's unbuilt tree, the only build
+    // state in which the marker half of this counter can be non-zero.
+    const suspendedOff = suspendedExcerpts(off, {});
+    expect(
+      off.census.excerptsNotJudged,
+      `with the LEDGER OFF the suspension count is not the number of MARKER-declared excerpts whose own package is unbuilt (${suspendedOff.markers.join(', ') || 'none'}). ${note}`,
+    ).toBe(suspendedOff.markers.length);
+
+    // ...and every one of those is REPORTED `unjudgeable-type`, exactly as a
+    // ledger entry is three blocks up. A suspended rule must still FAIL, and
+    // which mechanism declared the excerpt does not change that.
+    expect(
+      suspendedOff.markerSites.filter((key) => !suspended.some((f) => at(f) === key)),
+      `a marker-declared excerpt whose package is unbuilt was not reported \`unjudgeable-type\` -- a suspended rule must still FAIL. ${note}`,
+    ).toEqual([]);
   });
 });
 
 describe('repo state — assertions that hold in EVERY build state: built, unbuilt, or a mix', () => {
   const result = scan(repoRoot);
-  const { unbuiltDirs, unbuiltNames, isUnbuilt, note } = buildState(result);
+  const { unbuiltDirs, unbuiltNames, note } = buildState(result);
 
   it('walked the tree: READMEs, fenced blocks and import bindings were all found', () => {
     // These three need no `dist/`, so they assert in the test shards too.
@@ -1069,19 +1150,27 @@ describe('repo state — assertions that hold in EVERY build state: built, unbui
       `a README marker was called stale. ${note}`,
     ).toEqual([]);
 
-    // ...and the number of entries whose shrink-only rule is SUSPENDED is the
-    // number whose own package is unbuilt: the whole ledger on CI, none of it on
-    // a built tree, and in between in between. The old form hard-coded
-    // `Object.keys(PARTIAL_EXCERPTS).length`, which is only the CI answer — it is
-    // the line that failed `expected +0 to be 3` on a half-built tree, where all
-    // three ledgered packages happen to be among the ones the doc gate builds.
-    const suspendable = Object.keys(PARTIAL_EXCERPTS).filter((key) =>
-      isUnbuilt(packageDirOf(repoRoot, key.split('::')[0])),
-    );
+    // ...and the number of DECLARED excerpts whose shrink-only rule is
+    // SUSPENDED is the number whose own package is unbuilt: all of them on CI,
+    // none of them on a built tree, and in between in between. Two different
+    // cards have corrected this one line, and the second is why it reads as it
+    // does now rather than as a literal:
+    //
+    //   objectui#7460  it hard-coded `Object.keys(PARTIAL_EXCERPTS).length`,
+    //                  which is only the CI answer — the line that failed
+    //                  `expected +0 to be 3` on a half-built tree.
+    //   objectui#7302  it then counted only the LEDGER half of the population
+    //                  the gate counts. The first in-README `PARTIAL_MARKER` to
+    //                  land made it expect 0 against a gate reporting 1, red on
+    //                  `Test (shard 2/4)` and green on every built tree.
+    //
+    // See `suspendedExcerpts` for why the marker half is derived from the
+    // README bytes rather than read back off the counter it checks.
+    const suspended = suspendedExcerpts(result);
     expect(
       result.census.excerptsNotJudged,
-      `the ledger's suspension count is not the number of entries whose own package is unbuilt (${suspendable.join(', ') || 'none'}). ${note}`,
-    ).toBe(suspendable.length);
+      `the suspension count is not the number of DECLARED excerpts whose own package is unbuilt (ledger: ${suspended.ledger.join(', ') || 'none'}; marker: ${suspended.markers.join(', ') || 'none'}). ${note}`,
+    ).toBe(suspended.all.length);
 
     // An unbuilt package must be REPORTED, never silently skipped. That is the
     // rule that makes this gate's never-built CI run FAIL instead of passing
