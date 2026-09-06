@@ -215,7 +215,7 @@ describe('the zod tombstones REFUSE, loudly (objectui#5905)', () => {
     if (!result.success) {
       expect(result.error.issues[0]?.message).toBe(
         'RETIRED (objectui#5905) — `ComponentInput.placeholder` was never read, and never published: '
-        + 'the manifest serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and '
+        + 'the manifest serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and '
         + 'this is not one of them, so an authored value was silently dropped. Delete the key; put the '
         + 'hint in `description`, which IS published. `BaseSchema.placeholder`, the node-level prop, is '
         + 'a DIFFERENT key and is unaffected.',
