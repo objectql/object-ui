@@ -761,6 +761,20 @@ describe('objectui#7276 — the load leg grades only what this tree produced', (
     expect(buildProvenance(dir).code).toBe(PROVENANCE_OK);
   });
 
+  it('pins the marker PATH, because every fixture here moves with the constant', () => {
+    // Measured, and the reason this assertion is a literal: ablating
+    // TURBO_TASK_LOG to a different filename left all 52 tests in this file
+    // green. Every test above WRITES the log at TURBO_TASK_LOG, so they follow
+    // the constant wherever it goes and vouch for nothing — a sweep that is
+    // self-consistent with the thing it is checking is this card's own subject
+    // matter. The literal makes moving it a decision somebody takes on purpose.
+    //
+    // The real-world signal is elsewhere, and it is loud by construction: if
+    // turbo stops writing its task log here, EVERY package refuses at once as
+    // `no-build-log`, and PROVENANCE_REMEDY names the two identifiers to fix.
+    expect(TURBO_TASK_LOG).toBe(path.join('.turbo', 'turbo-build.log'));
+  });
+
   it('keeps exactly ONE accepting verdict, so the check cannot widen quietly', () => {
     // The way this degrades into a no-op is a second "close enough" verdict.
     // Every code that is not PROVENANCE_OK carries a remedy, and the accepting
