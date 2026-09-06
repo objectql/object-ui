@@ -243,11 +243,17 @@ ObjectUI includes a powerful expression engine for dynamic UIs:
 ```json
 {
   "type": "button",
-  "text": "Submit",
+  "label": "Submit",
   "visible": "${form.isValid && !form.isSubmitting}",
   "disabled": "${form.isSubmitting}"
 }
 ```
+
+A button's text key is `label`, and `text` is not a `ButtonSchema` key at all. Nothing
+refuses the misspelling either: `BaseSchema` is `.passthrough()`, so the validator KEEPS
+the unknown key, and the renderer — which reads `schema.label` — never looks at it.
+Measured on the node above with `text`: the button renders with an empty `textContent`,
+so it appears on screen as a blank rectangle with no text.
 
 ### Data Transformations
 
