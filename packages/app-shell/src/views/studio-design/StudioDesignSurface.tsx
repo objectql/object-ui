@@ -388,16 +388,45 @@ function PackageSwitcher({
   // snapshot (so an edit shows immediately). If the managed package was the one
   // we're editing and it's now gone (deleted), jump to another package / home.
   const onManageChanged = React.useCallback(async () => {
-    let list: PkgEntry[] = [];
+    /**
+     * `null` means "the refresh did not tell us anything", which is NOT the
+     * same fact as "the server listed the packages and yours is not among
+     * them" (objectui#7821). Those two used to be the SAME value: `list`
+     * started as `[]` and the `.catch` left it that way — the comment there
+     * said "keep the stale list", true of the `pkgs` state, which simply is
+     * not written, but never of this local. So after a failed
+     * `GET /api/v1/packages` the `!list.some(...)` below was unconditionally
+     * true, the code took the branch labelled `// Deleted`, and with `list[0]`
+     * undefined a transient 503 evicted the author from the editor to
+     * `/home` — no toast, no confirmation, package still there. Absence of
+     * evidence is not evidence of deletion.
+     */
+    let list: PkgEntry[] | null = null;
     try {
       list = await fetchPackages();
       setPkgs(list);
-    } catch {
-      /* keep the stale list */
+      // A list we did receive is current, so it also clears an earlier
+      // failure — otherwise the trigger would keep reading `failed` over
+      // names that are now fresh.
+      setPkgsErr(null);
+    } catch (e) {
+      // Reported through this surface's EXISTING posture (objectui#7368):
+      // `formatMetadataError` on the shared sonner id (one outage, one toast)
+      // and recorded, so the trigger reads `failed` rather than showing a
+      // stale list as though it were current. ⛔ Still not a `throw` — one
+      // 503 must not take the Studio down — and ⛔ still no retry, whose
+      // count / backoff / give-up state nobody has ruled on.
+      const message = formatMetadataError(e);
+      setPkgsErr(message);
+      toast.error(message, { id: PACKAGE_LIST_TOAST_ID });
     }
     const managedId = manage?.manifest.id;
     if (!managedId) return;
-    if (!list.some((p) => p.id === managedId)) {
+    // A list we actually received, that does not contain the managed package,
+    // is the ONLY evidence of deletion. `list === null` draws no inference
+    // either way: the author stays put, and the managed snapshot below is
+    // still refreshed (that call reports its own outcome).
+    if (list !== null && !list.some((p) => p.id === managedId)) {
       // Deleted — only navigate away if it was the package we're editing.
       if (managedId === packageId) {
         const next = list[0];
