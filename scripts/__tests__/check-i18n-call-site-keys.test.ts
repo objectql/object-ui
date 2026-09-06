@@ -114,6 +114,30 @@ const realEn: unknown = (
  */
 const I18N_PKG = '@object-ui/i18n';
 
+/**
+ * ONE full-repo run, shared by every case below that asks about `main`.
+ *
+ * `analyze(repoRoot)` parses ~1600 files. Seven cases wanted that answer and
+ * each paid for its own walk, which held until objectui#7877 added two more
+ * and pushed the slowest case past vitest's 15s window under a full
+ * `pnpm exec vitest run scripts/__tests__/` — measured, not predicted. That is
+ * the shape AGENTS.md 测试纪律 names as the top cause of flaky tests here: an
+ * unbounded workload counted inside a bounded one. The fix it prescribes is
+ * this one — move the cost into the IMPORT phase, where no test or hook
+ * timeout applies — and NOT raising the timeout, which only hides the race.
+ *
+ * It is also the same per-root memoisation
+ * `packages/test-support/src/defaults-table-scan.ts` already does for its own
+ * walk, for the same reason. Safe to share: `analyze` is pure over
+ * (root, options) and no case below mutates what it returns — `applyBaseline`
+ * reads `findings` and builds new arrays.
+ *
+ * ⚠️ Only for the DEFAULT options. A case that injects its own registry
+ * (`{ families: [] }`, a synthetic `handRolled`) is asking a different
+ * question and must keep its own run.
+ */
+const REPO_ANALYSIS = analyze(repoRoot);
+
 /** Dotted leaf paths of a plain object — the shape the gate compares against. */
 function leafPaths(node: unknown, prefix = ''): string[] {
   return node !== null && typeof node === 'object'
@@ -1227,7 +1251,7 @@ export const A = (name: string) => {
     // The trap this rule's own card named: a coverage number that looks like
     // success and can be reached by judging nothing. The CLI exits non-zero
     // below 500; this pins the same floor where the counter is readable.
-    const { counters } = analyze(repoRoot);
+    const { counters } = REPO_ANALYSIS;
     expect(counters.spellingJudgedDefaults).toBeGreaterThan(500);
     // The residue route C could not reach is still IN the judged set, not
     // quietly dropped from it.
@@ -1464,7 +1488,7 @@ export const useBTranslation = createSafeTranslation({ ...ELSEWHERE }, 'common.s
     // distinct tables, 846 rows, 841 comparable, 0 drifted — objectui#7454's
     // instance having landed in objectui#7574 two days earlier. Both halves are
     // asserted, because "0 findings" and "0 rows compared" read identically.
-    const { counters } = analyze(repoRoot, { families: DYNAMIC_KEY_FAMILIES });
+    const { counters } = REPO_ANALYSIS;
     expect(factoryDriftOf(repoRoot)).toEqual([]);
     expect(counters.factoryTables).toBeGreaterThan(25);
     expect(counters.factoryComparedRows).toBeGreaterThan(500);
@@ -1638,7 +1662,7 @@ export const useXTranslation = createSafeTranslation(LOCAL_DEFAULTS, 'calendar.t
     // `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`,
     // which asserts the needle-file set equals a pinned list; this is the other
     // direction — an entry that names something no longer there.
-    const { counters } = analyze(repoRoot);
+    const { counters } = REPO_ANALYSIS;
     expect(counters.handRolledDeclared).toBe(HAND_ROLLED_TABLES.length);
     expect(counters.handRolledUnreadableTables).toBe(0);
     for (const { file } of HAND_ROLLED_TABLES) {
@@ -1652,7 +1676,7 @@ export const useXTranslation = createSafeTranslation(LOCAL_DEFAULTS, 'calendar.t
     // registry that resolved nothing. The CLI exits non-zero below 150; this
     // pins the same floor where the counter is readable, and pins that 150 was
     // chosen to fail on losing EITHER table rather than only both.
-    const { counters } = analyze(repoRoot);
+    const { counters } = REPO_ANALYSIS;
     expect(counters.handRolledComparedRows).toBeGreaterThanOrEqual(150);
     expect(counters.handRolledTables).toBe(2);
     expect(counters.handRolledAlreadyFactoryCovered).toBe(1);
@@ -1925,7 +1949,7 @@ export const css = (v: string) => \`--oui.color.\${v}\`;
     // still pointed at the repo: if `toolTitleKey` is inlined, renamed into a
     // shape this leg cannot read, or moved behind a concatenation, the head
     // disappears here and `stale-dynamic-family` fails the gate.
-    const { dynamicHeads, counters, findings } = analyze(repoRoot);
+    const { dynamicHeads, counters, findings } = REPO_ANALYSIS;
     expect(counters.keyBuilderSites, 'the key-builder leg detects nothing on this tree').toBeGreaterThanOrEqual(1);
     expect(dynamicHeads.has('chatbot.tool.'), 'chatbot.tool. is no longer reached by any leg').toBe(true);
     expect(DYNAMIC_KEY_FAMILIES.some((f) => f.head === 'chatbot.tool.')).toBe(true);
@@ -1996,7 +2020,7 @@ describe('the checked-in registry describes this repo (objectui#4964)', () => {
   });
 
   it('the split is what the report says it is, and the check is not vacuous on `main`', () => {
-    const { counters, findings } = analyze(repoRoot);
+    const { counters, findings } = REPO_ANALYSIS;
     expect(counters.declaredFamilies).toBe(DYNAMIC_KEY_FAMILIES.length);
     expect(counters.enumerableFamilies + counters.notEnumerableFamilies).toBe(counters.declaredFamilies);
     // Measured on `main`: 18 of 25 families are exactly checkable. The number is
@@ -2022,7 +2046,7 @@ describe('the checked-in registry describes this repo (objectui#4964)', () => {
     expect(leaves.has('gantt.viewMode.day'), 'the fixture key this control rests on has moved').toBe(true);
     const viewMode = DYNAMIC_KEY_FAMILIES.find((f) => f.head === 'gantt.viewMode.');
     expect(readVocabulary(repoRoot, viewMode!.vocabulary!)).toContain('day');
-    expect(analyze(repoRoot).findings.filter((f: { detail: string }) => f.detail === 'gantt.viewMode.day')).toEqual([]);
+    expect(REPO_ANALYSIS.findings.filter((f: { detail: string }) => f.detail === 'gantt.viewMode.day')).toEqual([]);
   });
 });
 
@@ -2057,7 +2081,7 @@ describe('the baseline is a ratchet', () => {
     // landed, which is how a ratchet turns back into an allowlist.
     const baselineFile = path.join(repoRoot, 'scripts/i18n-call-site-key-baseline.json');
     const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
-    const { unexpected, stale } = applyBaseline(analyze(repoRoot).findings, baseline);
+    const { unexpected, stale } = applyBaseline(REPO_ANALYSIS.findings, baseline);
     expect(unexpected, `${unexpected.length} call site(s) not covered by the baseline`).toEqual([]);
     expect(stale, `${stale.length} stale baseline entr(y|ies)`).toEqual([]);
     for (const entry of Object.values(baseline.missingKeys) as Array<{ issue: string }>) {
