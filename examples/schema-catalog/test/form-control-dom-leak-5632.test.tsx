@@ -121,7 +121,15 @@ const NODE_CENSUS: Readonly<Record<string, { rendered: number; noElement: number
   // carrying an action object on `onClick`, and are now the registered
   // `toast` / `sonner` nodes their own renderers execute. Catalog-authored,
   // no renderer touched — the case this table's header sanctions.
-  button: { rendered: 126, noElement: 0 },
+  //
+  // 126 -> 118 with objectui#7693: the four `components-overlay-alert-dialog/*`
+  // fixtures each authored two `type: 'button'` nodes under an `actions` array
+  // the `alert-dialog` renderer never reads, so those eight nodes drew nothing
+  // and the demos showed an empty footer. They are now the two label keys the
+  // renderer DOES read (`cancelText` / `actionText`), which are strings rather
+  // than nodes and so leave this walk. Catalog-authored, no renderer touched —
+  // the case this table's header sanctions.
+  button: { rendered: 118, noElement: 0 },
   input: { rendered: 48, noElement: 0 },
   checkbox: { rendered: 12, noElement: 0 },
   switch: { rendered: 7, noElement: 0 },
