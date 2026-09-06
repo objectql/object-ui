@@ -45,6 +45,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import type { ObjectKanbanSchema } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
 
 // Pay the board's lazy chunk at import time, not inside a `findBy` budget
@@ -84,7 +85,7 @@ async function openDrawer(navigation?: Record<string, unknown>) {
         columns: [{ id: 'todo', title: 'To Do' }],
         data: cards,
         ...(navigation ? { navigation } : {}),
-      } as never}
+      } satisfies ObjectKanbanSchema}
     />,
   );
   const card = await screen.findByText('On the board');

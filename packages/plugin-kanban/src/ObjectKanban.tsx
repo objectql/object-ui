@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, ObjectKanbanSchema } from '@object-ui/types';
 import {
   useDataScope,
   useNavigationOverlay,
@@ -141,7 +141,60 @@ export function resolveKanbanCardFields(
  * no importer breaks. Tripwire: `__tests__/spec-symbol-4650.test.ts`.
  */
 export interface ObjectKanbanComponentProps {
-  schema: KanbanSchema;
+  /**
+   * The board node. A UNION of the two declared node types this component is
+   * registered for (objectui#7322 item ②) — `KanbanSchema` (`type: 'kanban'`)
+   * and `ObjectKanbanSchema` (`type: 'object-kanban'`).
+   *
+   * ## Why a union and not either type alone
+   *
+   * `index.tsx` registers ONE component under TWO keys —
+   * `ComponentRegistry.register('object-kanban', ObjectKanbanRenderer, …)` and
+   * `ComponentRegistry.register('kanban', ObjectKanbanRenderer, …)`, and
+   * `kanban-plugin-dialect-authoritative-7664.test.ts` pins that they resolve to
+   * the same renderer. The two keys have DIFFERENT declared node types, and the
+   * discriminants are disjoint literals, so naming one of them makes the prop
+   * lie about the other half of the nodes this component serves. That is the
+   * defect this member carried: it named `KanbanSchema` alone, so no
+   * `object-kanban` node was assignable to it, and every in-package test that
+   * mounts one had to escape the prop with `as never`.
+   *
+   * ## The read set that settled it (measured on `origin/main` `21d7989fb`)
+   *
+   * `ObjectKanban` reads thirteen keys off `schema`. Neither declaration covers
+   * them; the two TOGETHER cover twelve:
+   *
+   * | key | `BaseSchema` | `KanbanSchema` | `ObjectKanbanSchema` |
+   * |---|---|---|---|
+   * | `objectName`, `groupBy`, `limit`, `cardFields` | — | yes | yes |
+   * | `columns`, `cardTitle`, `swimlaneField`, `grouping` | — | yes | — |
+   * | `titleField` | — | — | yes |
+   * | `data`, `bind`, `className` | yes | — / yes | — |
+   * | `filter` | — | — | — |
+   *
+   * So each arm is load-bearing: dropping `ObjectKanbanSchema` loses the
+   * `titleField` read at `:350` / `:1024` (which is why that read was spelled
+   * `(schema as any).titleField` before this card), and dropping `KanbanSchema`
+   * loses four reads AND the `'kanban'` registration. `filter` (`:310`,
+   * `$filter` on the fetch) is declared by NEITHER face and still rides
+   * {@link BaseSchema}'s `[key: string]: any` — measured, filed, and NOT fixed
+   * here: this card moves the prop, not the two published schema faces.
+   *
+   * ## What the union does and does not claim
+   *
+   * It claims exactly the accept set the registry dispatches to this component,
+   * no wider: a node of some third type is still turned away. Every key above
+   * that only one arm declares reads as `any` on the union (through the other
+   * arm's index signature) — the same resolution it had before, so no read
+   * changes meaning. Widening a member of an exported prop type is additive:
+   * every caller that passed a `KanbanSchema` still compiles.
+   *
+   * ⛔ Do not narrow this back to one arm without first removing a
+   * registration. `__tests__/object-kanban-component-props-7322.test.ts`
+   * derives the registered key set from `index.tsx` off disk and goes red if
+   * the two ever stop agreeing.
+   */
+  schema: KanbanSchema | ObjectKanbanSchema;
   dataSource?: DataSource;
   className?: string; // Allow override
   /** Pre-fetched records passed by a parent (e.g. ListView). When provided, skips internal data fetching. */
@@ -347,7 +400,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // Support cardTitle property from schema (passed by ObjectView)
     // Fallback to legacy titleField for backwards compatibility
     const explicitTitleField: string | undefined =
-      schema.cardTitle || (schema as any).titleField;
+      schema.cardTitle || schema.titleField;
 
     // Title is resolved per-item below via:
     //   1. explicit titleField (schema.cardTitle / schema.titleField), if it
@@ -481,7 +534,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
       // semantic role (ADR-0085); `[]` drops to the legacy heuristic below.
       // (See `resolveKanbanCardFields` for the full priority contract.)
       const explicitCardFields: string[] = resolveKanbanCardFields(
-        (schema as any).cardFields,
+        schema.cardFields,
         objectDef,
       );
       // The field used as the card title is implicit (resolved above). Don't
@@ -1021,7 +1074,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
         const rec = navigation.selectedRecord as Record<string, any>;
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;
-        const titleField = (schema as any).cardTitle ?? (schema as any).titleField;
+        const titleField = schema.cardTitle ?? schema.titleField;
         const titleText = titleField && rec[titleField]
           ? String(rec[titleField])
           : detailTitle;

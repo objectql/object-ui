@@ -73,8 +73,25 @@ type _RegistryEntryIsThisFace = Assert<Equal<SchemaRegistry['kanban'], KanbanSch
 
 // 3. The renderers' props type-check against the declared schema:
 //    - `ObjectKanban` (behind `ObjectKanbanRenderer`, registered for `'kanban'`
-//      AND `'object-kanban'`) takes exactly the declared face as its `schema`;
-type _ObjectKanbanTakesTheDeclaredFace = Assert<Equal<ObjectKanbanComponentProps['schema'], KanbanSchema>>;
+//      AND `'object-kanban'`) ACCEPTS the declared face as its `schema`.
+//
+//      ⚠️ This leg read `Equal<…, KanbanSchema>` until objectui#7322 item ②.
+//      Identity was never what the ruling claimed — the ruling's words are that
+//      "the four registered renderers' props still type-check against the
+//      declared schema", i.e. assignability, which is the same form the
+//      `kanban-ui` leg below already uses and for the same reason. Identity was
+//      merely the shape the prop happened to have while it named ONE arm, and
+//      that was itself the defect objectui#7322 item ② filed: the same renderer
+//      is registered for `'object-kanban'` too, whose declared node type is
+//      `ObjectKanbanSchema`, and no such node was assignable to the prop. The
+//      prop is now the union of the two registered keys' declared types, so the
+//      ruling's claim holds on this arm and now holds on the other one as well.
+//      The union's own honesty is pinned in
+//      `object-kanban-component-props-7322.test.ts`, which derives the
+//      registered key set from `../index` off disk; this leg keeps guarding
+//      what objectui#7664 asserted — that THIS declaration is the one the
+//      renderer consumes.
+type _ObjectKanbanTakesTheDeclaredFace = Assert<KanbanSchema extends ObjectKanbanComponentProps['schema'] ? true : false>;
 //    - `KanbanRenderer` (`'kanban-ui'`) accepts a declared board — its inline
 //      prop schema is a looser projection (`columns?: Array<any>`), so the
 //      claim is assignability, not identity;
