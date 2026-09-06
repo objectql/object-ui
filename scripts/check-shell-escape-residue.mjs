@@ -43,7 +43,12 @@
  *      narrowing" below; the census counts those occurrences so the exclusion is
  *      a number rather than a silence.
  *
- *   ⛔ It does not look outside `SCAN_ROOTS`.
+ *   ⛔ It does not JUDGE text outside `SCAN_ROOTS`. It does make one narrow
+ *      claim ABOUT what is outside them: every `.md`/`.mdx` under a
+ *      `COVERAGE_TREES` entry must be reached by some declared root, so an
+ *      agent-tree document no row covers is RED rather than a silent gap
+ *      (objectui#7413). That is a membership test over the walk's own output --
+ *      it never reads a file the scan did not read, and it never judges one.
  *
  * The name is chosen to say all of that: `shell-escape-residue`, not
  * `shell-examples`. A gate named for a general property while checking a literal
@@ -236,7 +241,10 @@ const DOC_EXTENSIONS = ['.mdx', '.md'];
  * narrower one was declared because it is the subtree whose contents are
  * agent-read prose by construction. ⛔ It therefore does NOT reach a future
  * `.claude/agents/*.md` or `.claude/commands/*.md` -- which is this card's own
- * class one step out, and is objectui#7413 rather than pre-solved here.
+ * class one step out. That is objectui#7413, and it is closed by
+ * `COVERAGE_TREES` below rather than by widening this row: the row keeps
+ * declaring what is SCANNED, and the coverage tree turns a document the row
+ * does not reach into a RED gate that names the file.
  *
  * ⚠️ `AGENTS.md`, `CLAUDE.md`, `skills/**` and `.claude/**` are GOVERNED SURFACE
  * (AGENTS.md §受管面). This gate READS them and never writes: a finding in one of
@@ -249,6 +257,68 @@ export const SCAN_ROOTS = Object.freeze([
   { spec: 'skills', kind: 'dir', minFiles: 5 },
   { spec: '.claude/skills', kind: 'dir', minFiles: 3 },
   { spec: 'content/docs', kind: 'dir', minFiles: 100 },
+]);
+
+/**
+ * ## objectui#7413 -- coverage, which no floor can express
+ *
+ * Trees in which EVERY `.md`/`.mdx` must be reached by some `SCAN_ROOTS` row. A
+ * document under one of these that no row reaches is a FAILURE naming the file.
+ *
+ * ⭐ This is the second half of objectui#7403's lesson, and the half a floor
+ * cannot do. `minFiles` asks "did this root still return enough files?" -- a
+ * COLLAPSE detector, and collapse is only one of the two ways coverage is lost:
+ *
+ *   root walked to zero      -> `minFiles` fires        (objectui#7251's move)
+ *   root declared, file NEW  -> nothing fires           (this card)
+ *   root ROW DELETED         -> nothing fires           (this card, worse)
+ *
+ * On the day `.claude/agents/reviewer.md` is written with a fenced shell
+ * example, `.claude/skills` still returns its 4 files, every floor is satisfied,
+ * every root resolves, and the new document is simply not on the surface. That
+ * is objectui#5151's own defect one level up -- a green that means "nothing was
+ * looked at" -- and it is only ever noticed by someone going and looking. Row
+ * deletion is the same shape with no signal at all: an unresolved root is loud,
+ * but a row someone REMOVED leaves nothing behind to be loud about.
+ *
+ * ## ⛔ Why it cannot disagree with the scan about what a document is
+ *
+ * Coverage is a set-membership test over the walk's OWN output: `scan` collects
+ * every path `listDocuments` returned for every resolved root, then asks the
+ * same `listDocuments` for the tree. One walk, one `DOC_EXTENSIONS`, one
+ * definition of "document". A re-derivation -- a second glob, a prefix match on
+ * the row's `spec` -- would be a second answer to one fact, free to drift from
+ * the first (objectui#3261/#3279), and the drift would land on the side that
+ * reads as coverage. ⛔ Do not reintroduce one.
+ *
+ * ## The rows, and why `skills` is here while `content/docs` is not
+ *
+ * `.claude` is the card's own case: the declared row is a PROPER SUBTREE of it,
+ * so the tree can grow documents outside the row. Measured on `e1545cf`: 4 of 4
+ * `.claude` documents under `.claude/skills`, so this row is green today by
+ * construction and its whole job is the next file.
+ *
+ * `skills` is the generalisation objectui#7413 asked to be measured. Its row is
+ * the WHOLE tree, so today the test is a tautology -- 16 of 16 -- and it costs
+ * one extra walk of 16 files and nothing else. It is declared anyway because a
+ * tautology is exactly what it stops being under the one edit nothing else here
+ * catches: NARROWING the `skills` row to a subtree, or deleting it. Neither
+ * shows up as unresolved, and both leave the published skills tree unscanned.
+ *
+ * ⛔ `content/docs` is deliberately NOT a coverage tree. Same mechanics, but a
+ * different claim: this gate's roots are the agent-facing surface (objectui#5151
+ * ruled it, objectui#7403 widened it), and `content/docs` is published prose
+ * that happens to share the scan. Declaring coverage over it would assert a
+ * completeness promise about the docs tree that no card has ruled. If that is
+ * ever wanted, rule it on its own card -- the mechanism takes one row.
+ *
+ * ⛔ This is not an allowlist and there is no per-file opt-out: the two ways to
+ * clear a finding are to move the document under a declared root, or to declare
+ * a new root for it. Both are the deliberate decision the gap deserves.
+ */
+export const COVERAGE_TREES = Object.freeze([
+  { spec: '.claude', kind: 'dir' },
+  { spec: 'skills', kind: 'dir' },
 ]);
 
 /**
@@ -376,26 +446,34 @@ export function findResidue(source) {
  * here, so the tests exercise the real code path rather than an imitation.
  *
  * @param {string} root Repository root to scan.
- * @param {{ roots?: ReadonlyArray<object>, fenceFloor?: number }} [options]
+ * @param {{ roots?: ReadonlyArray<object>, fenceFloor?: number,
+ *          coverageTrees?: ReadonlyArray<object> }} [options]
  *   `roots` overrides `SCAN_ROOTS` (fixtures declare their own); `fenceFloor`
  *   overrides `FENCE_FLOOR` -- pass 0 for a fixture tree, which is legitimately
- *   far below any repo floor.
+ *   far below any repo floor; `coverageTrees` overrides `COVERAGE_TREES`.
  */
-export function scan(root, { roots = SCAN_ROOTS, fenceFloor = FENCE_FLOOR } = {}) {
+export function scan(root, { roots = SCAN_ROOTS, fenceFloor = FENCE_FLOOR, coverageTrees = COVERAGE_TREES } = {}) {
   const perRoot = [];
   const unresolved = [];
   const hits = [];
+  /**
+   * Every document the walk reached, repo-relative. objectui#7413's coverage
+   * test is membership in THIS set -- the scan's own output, never a second
+   * derivation of it.
+   */
+  const scanned = new Set();
   let outsideFences = 0;
 
   for (const declared of roots) {
     const resolved = resolveRoot(root, declared);
     if (!resolved.ok) {
-      unresolved.push(resolved);
+      unresolved.push({ ...resolved, role: 'scan root' });
       perRoot.push({ spec: declared.spec, files: 0, fences: 0, minFiles: declared.minFiles, resolved: false });
       continue;
     }
 
     const documents = listDocuments(root, declared.spec, declared.kind);
+    for (const rel of documents) scanned.add(rel);
     let fences = 0;
     for (const rel of documents) {
       let source;
@@ -419,6 +497,25 @@ export function scan(root, { roots = SCAN_ROOTS, fenceFloor = FENCE_FLOOR } = {}
     });
   }
 
+  // objectui#7413 -- every document under a coverage tree must have been reached
+  // by some declared root above. A tree that does not resolve is LOUD for the
+  // same reason a scan root is: a mistyped coverage tree covers nothing, and
+  // reads as coverage forever.
+  const uncovered = [];
+  const coverage = [];
+  for (const tree of coverageTrees) {
+    const resolved = resolveRoot(root, tree);
+    if (!resolved.ok) {
+      unresolved.push({ ...resolved, role: 'coverage tree' });
+      coverage.push({ spec: tree.spec, documents: 0, uncovered: 0, resolved: false });
+      continue;
+    }
+    const documents = listDocuments(root, tree.spec, tree.kind);
+    const missing = documents.filter((rel) => !scanned.has(rel));
+    for (const rel of missing) uncovered.push({ file: rel, tree: tree.spec });
+    coverage.push({ spec: tree.spec, documents: documents.length, uncovered: missing.length, resolved: true });
+  }
+
   const census = {
     roots: roots.length,
     rootsResolved: perRoot.filter((r) => r.resolved).length,
@@ -426,6 +523,7 @@ export function scan(root, { roots = SCAN_ROOTS, fenceFloor = FENCE_FLOOR } = {}
     fences: perRoot.reduce((n, r) => n + r.fences, 0),
     perRoot,
     outsideFences,
+    coverage,
   };
 
   // The population, checked for collapse. See "GREEN AT REST" in the header.
@@ -439,7 +537,7 @@ export function scan(root, { roots = SCAN_ROOTS, fenceFloor = FENCE_FLOOR } = {}
     vacuous.push({ what: 'fenced blocks examined', value: census.fences, floor: fenceFloor });
   }
 
-  return { census, hits, unresolved, vacuous };
+  return { census, hits, unresolved, uncovered, vacuous };
 }
 
 /** The census, as one line, for the verdict. */
@@ -447,18 +545,24 @@ export function summarise({ census }) {
   const per = census.perRoot
     .map((r) => `${r.spec}: ${r.resolved ? `${r.files} file(s), ${r.fences} fence(s)` : 'UNRESOLVED'}`)
     .join('; ');
+  // The coverage figure is in the verdict for the same reason the per-root
+  // census is: a reader has to see the population a green was computed over.
+  const cover = census.coverage
+    .map((c) => `${c.spec}: ${c.resolved ? `${c.documents - c.uncovered}/${c.documents}` : 'UNRESOLVED'}`)
+    .join('; ');
   return (
     `${census.rootsResolved}/${census.roots} root(s) resolved -- ${per}; ` +
     `${census.files} file(s) and ${census.fences} fenced block(s) examined in total; ` +
-    `${census.outsideFences} occurrence(s) outside a fence (counted, not judged)`
+    `${census.outsideFences} occurrence(s) outside a fence (counted, not judged); ` +
+    `coverage -- ${cover} document(s) under a declared root`
   );
 }
 
 function main() {
   const result = scan(repoRoot());
-  const { hits, unresolved, vacuous } = result;
+  const { hits, unresolved, uncovered, vacuous } = result;
 
-  if (hits.length === 0 && unresolved.length === 0 && vacuous.length === 0) {
+  if (hits.length === 0 && unresolved.length === 0 && uncovered.length === 0 && vacuous.length === 0) {
     console.log(`✅  check-shell-escape-residue: OK (${summarise(result)}).`);
     process.exit(0);
   }
@@ -488,13 +592,30 @@ examples are executable -- nothing does. See this script's header.`);
   }
 
   if (unresolved.length > 0) {
-    console.error('\n❌  check-shell-escape-residue: a declared scan root did not resolve\n');
-    for (const u of unresolved) console.error(`    - ${u.spec} (declared ${u.kind}) ${u.problem}`);
+    console.error('\n❌  check-shell-escape-residue: a declared root did not resolve\n');
+    for (const u of unresolved) console.error(`    - ${u.spec} (${u.role}, declared ${u.kind}) ${u.problem}`);
     console.error(`
 A root that is gone is reported rather than skipped, because a MISTYPED root and
 a CLEAN root produce identical output otherwise -- and the mistyped one reads as
 coverage for as long as nobody checks. If the file genuinely moved, move it in
-\`SCAN_ROOTS\` in the same change.`);
+\`SCAN_ROOTS\` -- or in \`COVERAGE_TREES\` for a coverage tree -- in the same
+change.`);
+  }
+
+  if (uncovered.length > 0) {
+    const plural = uncovered.length === 1 ? 'document is' : 'documents are';
+    console.error(`\n❌  check-shell-escape-residue: ${uncovered.length} agent-tree ${plural} on no scan root\n`);
+    for (const u of uncovered) console.error(`    - ${u.file} (under the coverage tree \`${u.tree}\`)`);
+    console.error(`
+These files exist, they are markdown in a tree this gate claims, and NO
+\`SCAN_ROOTS\` row reaches them -- so their fenced blocks are unjudged and every
+floor above is still satisfied by the files that ARE covered (objectui#7413).
+A \`minFiles\` floor detects a root that COLLAPSED; it cannot detect a document
+that was never on the surface, which is why this is a separate judgement.
+
+Two ways to clear it, both deliberate -- there is no per-file opt-out:
+  - move the document under a root \`SCAN_ROOTS\` already declares, or
+  - add a \`SCAN_ROOTS\` row for its location, in the same change that adds it.`);
   }
 
   if (vacuous.length > 0) {
@@ -522,13 +643,17 @@ Census: ${summarise(result)}`);
 if (isEntrypoint(import.meta.url)) {
   if (process.argv.includes('--json')) {
     const result = scan(repoRoot());
-    console.log(JSON.stringify({ census: result.census, hits: result.hits, unresolved: result.unresolved, vacuous: result.vacuous }, null, 2));
+    console.log(JSON.stringify({ census: result.census, hits: result.hits, unresolved: result.unresolved, uncovered: result.uncovered, vacuous: result.vacuous }, null, 2));
   } else if (process.argv.includes('--list')) {
     const result = scan(repoRoot());
     for (const r of result.census.perRoot) {
       console.log(`${r.resolved ? 'ok        ' : 'UNRESOLVED'}  ${r.spec.padEnd(16)} ${r.files} file(s), ${r.fences} fence(s)`);
     }
+    for (const c of result.census.coverage) {
+      console.log(`${c.resolved ? 'coverage  ' : 'UNRESOLVED'}  ${c.spec.padEnd(16)} ${c.documents - c.uncovered}/${c.documents} document(s) under a declared root`);
+    }
     for (const hit of result.hits) console.log(`RESIDUE     ${hit.file}:${hit.line}:${hit.column}  ${hit.patternId}`);
+    for (const u of result.uncovered) console.log(`UNCOVERED   ${u.file}  (tree ${u.tree})`);
     console.log(`\n${summarise(result)}`);
   } else {
     main();
