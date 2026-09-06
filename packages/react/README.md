@@ -72,14 +72,19 @@ function App() {
 
 ```tsx
 import { SchemaRenderer } from '@object-ui/react'
+import type { BaseSchema } from '@object-ui/types'
+
+declare const formSchema: BaseSchema
 
 function App() {
-  const handleSubmit = (data) => {
+  const handleSubmit = (data: Record<string, unknown>) => {
     console.log('Form submitted:', data)
   }
 
+  // `onSubmit` is not a prop `SchemaRenderer` reads: it is forwarded to the
+  // component the schema names, which is why the props type stays open.
   return (
-    <SchemaRenderer 
+    <SchemaRenderer
       schema={formSchema}
       onSubmit={handleSubmit}
     />
@@ -93,7 +98,13 @@ Injects the host's data source (and optional capabilities) into every renderer
 below it:
 
 ```tsx
-import { SchemaRendererProvider } from '@object-ui/react'
+import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react'
+import type { ApiFetch } from '@object-ui/react'
+import type { BaseSchema, DataSource } from '@object-ui/types'
+
+declare const adapter: DataSource
+declare const authenticatedFetch: ApiFetch
+declare const schema: BaseSchema
 
 <SchemaRendererProvider
   dataSource={adapter}
@@ -115,15 +126,19 @@ host's authentication.
 
 ### useSchemaContext
 
-Access the current schema context:
+Access what `SchemaRendererProvider` injected — `dataSource`, `debug`,
+`debugFlags` and `apiFetch`. It does **not** carry the record data: read that
+with `useDataScope`, which addresses the current data scope by path.
 
 ```tsx
-import { useSchemaContext } from '@object-ui/react'
+import { useDataScope, useSchemaContext } from '@object-ui/react'
 
 function MyComponent() {
-  const { data, updateData } = useSchemaContext()
-  
-  return <div>{data.value}</div>
+  const { dataSource, debug } = useSchemaContext()
+  const value = useDataScope('value')
+
+  if (!dataSource) return null
+  return <div data-debug={debug}>{String(value)}</div>
 }
 ```
 
@@ -136,14 +151,20 @@ views so `view` can be matched); these two apply the composed result to the
 block's schema and render the two non-final states.
 
 ```tsx
+import type { FC } from 'react'
 import { ElementDataSourceGate } from '@object-ui/react'
+import type { ElementDataSourceMapping } from '@object-ui/react'
 // The seam is imported from CORE, not from here — see the note below.
 import { elementDataSourceBlock } from '@object-ui/core'
+import type { BaseSchema } from '@object-ui/types'
+
+// The block this renderer wraps — whatever the registry resolves for its type.
+declare const ObjectGrid: FC<{ schema: BaseSchema }>
 
 // `mapping` names ONLY the keys this block reads. A composed value written onto
 // a key the block ignores would be accepted and silently dropped — the defect
 // the binding exists to remove.
-const OBJECT_GRID_BINDING = {
+const OBJECT_GRID_BINDING: ElementDataSourceMapping = {
   columns: true,          // the view's FIELD list may fill `schema.columns`
   filter: true,           // AND-combined, never replaced ("additional criteria")
   sort: true,
@@ -151,7 +172,7 @@ const OBJECT_GRID_BINDING = {
 }
 
 // `elementDataSourceBlock` is not optional decoration — see below.
-const ObjectGridRenderer = elementDataSourceBlock(({ schema, ...props }) => (
+const ObjectGridRenderer = elementDataSourceBlock<FC<{ schema: BaseSchema }>>(({ schema, ...props }) => (
   <ElementDataSourceGate schema={schema} mapping={OBJECT_GRID_BINDING} testId="object-grid">
     {(bound) => <ObjectGrid schema={bound} {...props} />}
   </ElementDataSourceGate>
@@ -204,9 +225,17 @@ waits on `ready` — stays a per-component decision; this hook only owns the
 resolution.
 
 ```tsx
+import { useEffect } from 'react'
 import { useSettledSchema } from '@object-ui/react'
+import type { DataSource } from '@object-ui/types'
 
-function ObjectSomething({ schema, dataSource }) {
+function ObjectSomething({
+  schema,
+  dataSource,
+}: {
+  schema: { objectName?: string }
+  dataSource: DataSource
+}) {
   const key = schema.objectName ?? ''
   const { ready, def } = useSettledSchema(key, dataSource)
 
@@ -235,12 +264,19 @@ import {
   applyNonGridRowCeiling,
   NonGridRowCeilingNote,
 } from '@object-ui/react'
+import type { DataSource, QueryParams } from '@object-ui/types'
+
+declare const dataSource: DataSource
+declare const objectName: string
+declare const schema: { filter?: QueryParams['$filter'] }
 
 const result = await dataSource.find(objectName, {
   $filter: schema.filter,
   $top: NON_GRID_ROW_CEILING_TOP, // the ceiling plus ONE probe row
 })
-const { rows, total, truncated } = applyNonGridRowCeiling(result)
+// The semicolon is load-bearing: the next statement opens with `<`, so without
+// it the call above is parsed as the left side of a relational expression.
+const { rows, total, truncated } = applyNonGridRowCeiling(result);
 // …draw `rows`, then:
 <NonGridRowCeilingNote drawn={NON_GRID_ROW_CEILING} total={total} truncated={truncated} />
 ```
@@ -328,6 +364,8 @@ belong (a banner is in flow, an inline notification sits next to its raiser).
 why every type looked like a toast.
 
 ```tsx
+import { useNotifications } from '@object-ui/react'
+
 const { notify } = useNotifications()
 
 notify({ title: 'Saved', severity: 'success' })                     // toast (spec default)
