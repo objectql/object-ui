@@ -39,10 +39,6 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * and must be done in lockstep with `KNOWN_ESCAPES`.
  */
 const PINNED_LEDGER: readonly string[] = [
-  'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx',
-  'packages/app-shell/src/console/home/__tests__/HomePage.notificationDeepLink.test.tsx',
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
   'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
