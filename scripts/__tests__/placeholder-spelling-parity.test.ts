@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { unresolvableSpellings } from '../check-i18n-call-site-keys.mjs';
 import { placeholderViolations } from '../../packages/i18n/src/__tests__/placeholder-spelling-rule';
 import { builtInLocales } from '../../packages/i18n/src/locales';
-import { scanDefaultsTables } from '@object-ui/test-support/defaults-table-scan';
+import { scanDefaultsTables } from '../../packages/test-support/src/defaults-table-scan';
 
 /**
  * objectui#7310 — one contract, two implementations, held to each other.
@@ -73,6 +73,29 @@ import { scanDefaultsTables } from '@object-ui/test-support/defaults-table-scan'
  * literal inline defaults byte-equal to their `en` value, and every `en` value
  * is in this corpus — and the residue is the 3 not-comparable plus the computed
  * ones, which is recorded rather than claimed as covered.
+ */
+
+/*
+ * Both package-owned imports above are RELATIVE on purpose, and it is not a
+ * style choice: `scripts/__tests__/scripts-type-check.test.ts` pins that no root
+ * file of `tsconfig.scripts.json`'s program names an `@object-ui/*` specifier,
+ * because that premise is what lets `ci.yml` run `pnpm type-check:scripts` in
+ * the cheap half of the job, ABOVE the build. Spelled
+ * `@object-ui/test-support/defaults-table-scan`, this file failed that pin
+ * (objectui#8028 review) — and note what the pin is: a categorical guard on the
+ * premise, not a measurement of whether a build is needed. Measured with no
+ * package `dist` directory on disk at all, `pnpm type-check:scripts` was green
+ * EITHER way,
+ * because that package's `exports` point at `./src/*.ts`. So the specifier
+ * would have cost nothing today and would have quietly retired the guarantee
+ * the next `@object-ui/*` import does cost — which is exactly the kind of
+ * premise a pin exists to hold.
+ *
+ * Reaching the same modules by path keeps the program's roots free of workspace
+ * specifiers while compiling the very same source files: neither
+ * `packages/i18n/src/locales` nor `packages/test-support/src/defaults-table-scan`
+ * imports anything outside node builtins and `typescript`, so this file needs no
+ * built declaration anywhere.
  */
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
