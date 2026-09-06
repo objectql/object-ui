@@ -152,13 +152,13 @@ The `Page` component provides a consistent wrapper for individual pages with opt
   "actions": [
     {
       "type": "button",
-      "text": "Add Product",
+      "label": "Add Product",
       "variant": "default",
       "icon": "plus"
     },
     {
       "type": "button", 
-      "text": "Export",
+      "label": "Export",
       "variant": "outline",
       "icon": "download"
     }
@@ -169,6 +169,10 @@ The `Page` component provides a consistent wrapper for individual pages with opt
   }
 }
 ```
+
+`label` is the button's text key — `text` is not a `ButtonSchema` key, and because
+`BaseSchema` is `.passthrough()` nothing refuses it: the validator keeps the unknown key
+and `button.tsx`, which reads `schema.label`, renders a button with no text.
 
 ### Schema API
 
@@ -516,18 +520,20 @@ Omit `sidebar` and the content fills the width under the top bar.
   ],
   "actions": [
     {
-      "type": "button",
-      "text": "Edit",
+      "type": "action:button",
+      "name": "edit_record",
+      "label": "Edit",
       "variant": "default",
       "icon": "pencil",
-      "onClick": "editRecord"
+      "actionType": "editRecord"
     },
     {
-      "type": "button",
-      "text": "Delete",
+      "type": "action:button",
+      "name": "delete_record",
+      "label": "Delete",
       "variant": "destructive",
       "icon": "trash",
-      "onClick": "deleteRecord"
+      "actionType": "deleteRecord"
     }
   ],
   "body": {
@@ -538,6 +544,19 @@ Omit `sidebar` and the content fills the width under the top bar.
   }
 }
 ```
+
+A button that RUNS something is an `action:button` node, not a `button` carrying an
+`onClick`. `ButtonSchema.onClick` is declared as a runtime slot for a host-supplied
+function and the zod mirror refuses it BY NAME — JSON has no function value, and no
+handler key consumes a declarative action object. The refusal is not the whole cost:
+`onClick` is on `SDUI_DOM_PASS_THROUGH_KEYS`, so an authored string or object is
+forwarded to the real DOM listener slot, and React throws the moment anyone clicks.
+Measured, React's own error: "Expected `onClick` listener to be a function, instead got
+a value of `object` type."
+
+The handler name goes in `actionType`, which `action:button` forwards to the action
+runner as the action's type; the runner dispatches to the handler registered under it.
+Same spelling as [Record Edit Modes](./record-edit-modes.md).
 
 ## Responsive Behavior
 
@@ -650,7 +669,7 @@ Place primary actions in page headers:
   "type": "page",
   "title": "Orders",
   "actions": [
-    { "type": "button", "text": "New Order", "variant": "default" }
+    { "type": "button", "label": "New Order", "variant": "default" }
   ]
 }
 ```
