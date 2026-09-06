@@ -36,22 +36,29 @@ function tocIds(markdown: string): string[] {
  * The three heading shapes this repository's own docs carry that hit the
  * defect: tag-shaped text inside a code span. In the DOM it is literal text
  * (a code span's content is a text value), so it is part of the anchor.
+ *
+ * `where` names FILES, never a line address. A line number in a test NAME is
+ * read by nothing, so it cannot fail: it rots silently the first time a line is
+ * inserted above the heading it points at. objectui#7853 ruled on that class —
+ * cite the assertion by CONTENT — and #6998, #7289 and #7913 are its
+ * recurrences. The heading text in `md` is the identifying content, and it is
+ * already in the name.
  */
 const LIVE_SHAPES: ReadonlyArray<{ md: string; id: string; where: string }> = [
   {
     md: '### `objectui generate <type> <name>` (alias `g`)',
     id: 'objectui-generate-type-name-alias-g',
-    where: 'content/docs/utilities/cli.mdx:136, packages/cli/README.md:108',
+    where: 'content/docs/utilities/cli.mdx, packages/cli/README.md',
   },
   {
     md: '### `objectui add <component>`',
     id: 'objectui-add-component',
-    where: 'content/docs/utilities/cli.mdx:220, packages/cli/README.md:112',
+    where: 'content/docs/utilities/cli.mdx, packages/cli/README.md',
   },
   {
     md: '#### Serving metadata over HTTP (`?api=<base>`)',
     id: 'serving-metadata-over-http-apibase',
-    where: 'content/docs/utilities/runner.mdx:106',
+    where: 'content/docs/utilities/runner.mdx',
   },
 ];
 
@@ -133,7 +140,7 @@ describe('extractToc ↔ rendered-anchor parity, emphasis flanking (objectui#766
     expect(tocIds(source)).toEqual([id]);
   };
 
-  it('resolves the anchor for ### NON_GRID_ROW_CEILING (packages/react/README.md:224)', () => {
+  it('resolves the anchor for ### NON_GRID_ROW_CEILING', () => {
     // The live instance. Before the fix the TOC said `nongridrow_ceiling`:
     // the italic rule paired the 1st and 2nd underscores and ate `GRID`, then
     // resumed past them and ate `ROW` — an id no anchor on the page carries.
