@@ -93,7 +93,8 @@ vi.mock('../../providers/AdapterProvider', () => ({
   useAdapter: () => ({ find: vi.fn(), searchAll: vi.fn() }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1' }, activeOrganization: null }),
 }));
 

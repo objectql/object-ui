@@ -25,18 +25,22 @@ npm install @object-ui/mobile
 ## Quick Start
 
 ```tsx
-import { MobileProvider, useBreakpoint, useGesture } from '@object-ui/mobile';
+import { MobileProvider, useBreakpoint } from '@object-ui/mobile';
 
-function App() {
-  return (
-    <MobileProvider>
-      <ResponsiveApp />
-    </MobileProvider>
-  );
+function MobileNav() {
+  return <nav>Mobile navigation</nav>;
+}
+
+function DesktopSidebar() {
+  return <aside>Desktop sidebar</aside>;
+}
+
+function MainContent() {
+  return <main>Main content</main>;
 }
 
 function ResponsiveApp() {
-  const { isMobile, isTablet, isDesktop } = useBreakpoint();
+  const { isMobile, isDesktop } = useBreakpoint();
 
   return (
     <div>
@@ -46,84 +50,219 @@ function ResponsiveApp() {
     </div>
   );
 }
+
+export function App() {
+  return (
+    <MobileProvider>
+      <ResponsiveApp />
+    </MobileProvider>
+  );
+}
 ```
 
 ## API
 
 ### MobileProvider
 
-Wraps your application with mobile context:
+Wraps your application with mobile context. Both props are optional: `pwa` takes a
+`PWAConfig`, `offline` takes a `PWAOfflineConfig`.
 
 ```tsx
-<MobileProvider>
-  <App />
-</MobileProvider>
+import { MobileProvider } from '@object-ui/mobile';
+
+function App() {
+  return <p>Your application</p>;
+}
+
+export function Root() {
+  return (
+    <MobileProvider>
+      <App />
+    </MobileProvider>
+  );
+}
 ```
 
 ### useBreakpoint
 
-Hook for detecting the current breakpoint:
+Hook for detecting the current breakpoint. The current breakpoint name is
+`breakpoint` — one of `xs`, `sm`, `md`, `lg`, `xl`, `2xl`:
 
 ```tsx
-const { isMobile, isTablet, isDesktop, current } = useBreakpoint();
+import { useBreakpoint } from '@object-ui/mobile';
+
+export function BreakpointBadge() {
+  const { isMobile, isTablet, isDesktop, breakpoint, width } = useBreakpoint();
+
+  return (
+    <span>
+      {breakpoint} at {width}px — mobile {String(isMobile)}, tablet {String(isTablet)}, desktop{' '}
+      {String(isDesktop)}
+    </span>
+  );
+}
 ```
+
+`isAbove(bp)` and `isBelow(bp)` are also returned, for comparisons against a named
+breakpoint.
 
 ### useResponsive
 
-Hook for responsive values based on screen size:
+Hook for responsive values based on screen size. The keys are breakpoint names; a
+breakpoint with no entry falls back to the next smaller one that has one:
 
 ```tsx
-const columns = useResponsive({ mobile: 1, tablet: 2, desktop: 4 });
+import { useResponsive } from '@object-ui/mobile';
+
+export function ResponsiveGrid() {
+  const columns = useResponsive({ xs: 1, md: 2, lg: 4 });
+
+  return <div data-columns={columns}>{columns} column(s)</div>;
+}
 ```
 
 ### useGesture / useSpecGesture
 
-Hooks for gesture detection on touch devices:
+`useGesture` detects one gesture from Object UI's direction-fused vocabulary
+(`tap`, `double-tap`, `long-press`, `swipe-left`, `swipe-right`, `swipe-up`,
+`swipe-down`, `pinch`, `rotate`, `pan`) per call, and returns a ref to attach:
 
 ```tsx
-const gestureRef = useGesture({
-  onSwipeLeft: () => navigateNext(),
-  onSwipeRight: () => navigateBack(),
-  onPinch: (scale) => handleZoom(scale),
-});
+import { useGesture } from '@object-ui/mobile';
 
-return <div ref={gestureRef}>Swipeable content</div>;
+function navigateNext() {}
+function navigateBack() {}
+
+export function SwipeArea() {
+  const nextRef = useGesture<HTMLDivElement>({
+    type: 'swipe-left',
+    onGesture: () => navigateNext(),
+  });
+  const backRef = useGesture<HTMLDivElement>({
+    type: 'swipe-right',
+    onGesture: () => navigateBack(),
+  });
+
+  return (
+    <div>
+      <div ref={nextRef}>Swipe left for the next record</div>
+      <div ref={backRef}>Swipe right to go back</div>
+    </div>
+  );
+}
+```
+
+`useSpecGesture` takes the declarative `SpecGestureConfig` tuning shape instead, and
+dispatches to per-gesture callbacks:
+
+```tsx
+import { useSpecGesture } from '@object-ui/mobile';
+
+function handleZoom(scale: number) {
+  return scale;
+}
+
+export function PinchArea() {
+  const ref = useSpecGesture<HTMLDivElement>({
+    config: { type: 'pinch', enabled: true, pinch: { minScale: 0.5, maxScale: 3 } },
+    onPinch: (scale) => handleZoom(scale),
+  });
+
+  return <div ref={ref}>Pinchable content</div>;
+}
 ```
 
 ### usePullToRefresh
 
-Hook for pull-to-refresh behavior:
+Hook for pull-to-refresh behavior. Attach the returned `ref` to the scrollable
+container:
 
 ```tsx
-const { isRefreshing } = usePullToRefresh({
-  onRefresh: async () => await fetchData(),
-});
+import { usePullToRefresh } from '@object-ui/mobile';
+
+async function fetchData(): Promise<void> {}
+
+export function Feed() {
+  const { ref, isRefreshing, pullDistance } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: async () => await fetchData(),
+  });
+
+  return (
+    <div ref={ref} data-pull-distance={pullDistance}>
+      {isRefreshing ? 'Refreshing…' : 'Pull to refresh'}
+    </div>
+  );
+}
 ```
 
 ### useTouchTarget
 
-Hook for ensuring minimum touch target sizes:
+Hook for ensuring minimum touch target sizes. It returns the `style` and `className`
+to spread onto the element; the defaults follow WCAG 2.5.5 (44×44 CSS pixels):
 
 ```tsx
-const { targetProps } = useTouchTarget({ minSize: 44 });
-return <button {...targetProps}>Tap me</button>;
+import { useTouchTarget } from '@object-ui/mobile';
+
+export function TapButton() {
+  const { style, className } = useTouchTarget({
+    config: { minWidth: 44, minHeight: 44 },
+  });
+
+  return (
+    <button style={style} className={className}>
+      Tap me
+    </button>
+  );
+}
 ```
 
 ### ResponsiveContainer
 
-Renders children based on breakpoint:
+Renders children based on breakpoint. Pick the range with `minBreakpoint` /
+`maxBreakpoint`, or name the breakpoints outright with `showOn` / `hideOn`:
 
 ```tsx
-<ResponsiveContainer mobile={<MobileView />} desktop={<DesktopView />} />
+import { ResponsiveContainer } from '@object-ui/mobile';
+
+function MobileView() {
+  return <p>Compact layout</p>;
+}
+
+function DesktopView() {
+  return <p>Full layout</p>;
+}
+
+export function BreakpointSwitch() {
+  return (
+    <div>
+      <ResponsiveContainer maxBreakpoint="md">
+        <MobileView />
+      </ResponsiveContainer>
+      <ResponsiveContainer minBreakpoint="lg">
+        <DesktopView />
+      </ResponsiveContainer>
+    </div>
+  );
+}
 ```
 
 ### PWA Utilities
 
+`PWAConfig` requires `enabled`, `name` and `shortName`. `registerServiceWorker` takes
+the script `url` and `scope` plus lifecycle callbacks — the caching strategies live in
+the generated worker (`getServiceWorkerSource`), not in this call:
+
 ```tsx
 import { generatePWAManifest, registerServiceWorker } from '@object-ui/mobile';
 
-const manifest = generatePWAManifest({ name: 'My App', themeColor: '#000' });
-registerServiceWorker({ cacheStrategy: 'network-first' });
+export const manifest = generatePWAManifest({
+  enabled: true,
+  name: 'My App',
+  shortName: 'My App',
+  themeColor: '#000',
+});
+
+void registerServiceWorker({ url: '/service-worker.js' });
 ```
 
 ## Links

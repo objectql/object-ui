@@ -17,6 +17,20 @@ This reference documents every ObjectUI schema type with annotated JSON examples
 
 ## Base Schema
 
+**"A component node" is named `BaseSchema`.** That is the object half a renderer
+receives: it carries the required `type` — the registry key that selects the renderer —
+plus the shared keys tabled below, and every schema type in this reference extends it.
+Use `BaseSchema` for any position that holds a node object: a slot's declared type, a
+prop, a type annotation in an example.
+
+Reach for `SchemaNode` only where the wider union is genuinely correct. `SchemaNode` is
+`BaseSchema` **plus** the primitive members that render as text, so it is the right word
+for a slot that also accepts a bare string (`body`, `children`) and the wrong word for a
+position that must be an object: a renderer that narrows a slot with
+`typeof node === 'object'` before reading its keys drops those primitive members on the
+floor. Naming the union where only the object half is accepted is the mismatch
+objectui#7082 had to correct nine times.
+
 ### SchemaNode
 
 The foundational building block of ObjectUI. Every component in the system is described by a `SchemaNode`. It can be a full schema object, or a primitive value rendered as text.
@@ -859,11 +873,11 @@ A complete object management interface combining grid, form, search, filters, an
       "sort": [{ "field": "value", "order": "desc" }]
     },
     "my-deals": {
-      "label": "My Deals",
       "filter": [["owner", "=", "${currentUser.id}"]],
-      "default": true
+      "label": "My Deals"
     }
   },
+  "defaultListView": "my-deals",
   "table": {
     "columns": ["name", "stage", "value", "owner", "closeDate"],
     "pageSize": 25

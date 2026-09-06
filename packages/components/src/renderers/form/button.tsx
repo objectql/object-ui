@@ -83,22 +83,17 @@ ComponentRegistry.register('button', ButtonRenderer,
     namespace: 'ui',
     label: 'Button',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label', defaultValue: 'Button' },
+      { name: 'label', type: 'string' },
       { 
         name: 'variant', 
         type: 'enum', 
-        label: 'Variant',
-        enum: ['default', 'secondary', 'destructive', 'outline', 'ghost', 'link'],
-        defaultValue: 'default'
-      },
+        enum: ['default', 'secondary', 'destructive', 'outline', 'ghost', 'link']      },
       {
         name: 'size',
         type: 'enum',
-        label: 'Size',
-        enum: ['default', 'sm', 'lg', 'icon'],
-        defaultValue: 'default'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class', advanced: true }
+        
+        enum: ['default', 'sm', 'lg', 'icon']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       label: 'Button',

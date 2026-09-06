@@ -188,9 +188,12 @@ describe('a package name that is not a module edge is not a finding', () => {
     // rewrite of this gate breaks on a documented import example that quotes
     // its own package name exactly as it would on a test constant.
     //
-    // (Spelled without the quoted specifier on purpose. `scripts-type-check.test.ts`
-    // greps every file in the scripts tsconfig program for that literal shape and
-    // cannot tell a comment from an import — see objectui#4902.)
+    // (Spelled as bare package names rather than whole import phrases. That was
+    // once required — `scripts-type-check.test.ts` matched the import shape in
+    // the file's TEXT — and it is not any more: objectui#4902 moved that gate to
+    // an AST walk, `workspaceImportSpecifiers()`, whose docstring is the
+    // authoritative account. The spelling is kept because the map wants
+    // specifiers, not import statements.)
     const specimens: Record<string, string> = {
       'packages/i18n/src/__tests__/perm-home-namespace-3546.test.tsx': '@object-ui/i18n',
       'packages/core/src/utils/freeze-schema.ts': '@object-ui/core',
@@ -454,11 +457,14 @@ describe('objectui itself', () => {
     );
     expect(body).toContain("from './index'");
     // The quoted SPECIFIER alone, without the import keyword in front of it: a
-    // quoted package name is a module edge in any of the five forms, and this
-    // is also the stronger assertion. Spelling the whole import phrase here
-    // would trip `scripts-type-check.test.ts`, whose regex cannot tell an
-    // assertion string from a real import — which is precisely the reason the
-    // gate under test parses rather than greps.
+    // quoted package name is a module edge in any of the five forms, and that
+    // is the reason this assertion is spelled the way it is: it is the stronger
+    // one. It once had a second reason — spelling the whole import phrase here
+    // would trip `scripts-type-check.test.ts` — and that one expired when
+    // objectui#4902 moved the sibling gate to the AST walk
+    // `workspaceImportSpecifiers()`, which does not read assertion strings as
+    // imports. The gate under test parses rather than greps for the same
+    // reason, and that half still stands.
     expect(body).not.toContain("'@object-ui/fields'");
   });
 

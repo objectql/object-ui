@@ -111,7 +111,18 @@
  *     and 37 / 53 until objectui#7344 swept the string / `z.any()` handler mirrors:
  *     `DetailSchema` and `DetailViewSchema` entered (one `onBack` each) and
  *     `CalendarViewSchema` grew by `onEventClick`.
- *   - **14 entries** in `UnmirroredDeclared`, **96 keys** across them — 13 / 94 until
+ *   - **14 entries** in `UnmirroredDeclared`, **87 keys** across them — 14 / 96 until
+ *     objectui#7779 closed nine of `ObjectViewSchema`'s ten keys (maintainer ruling
+ *     B, 2026-09-06): eight MIRRORED — `navigation`, `searchableFields`,
+ *     `filterableFields` by reference to the spec's `ListViewSchema` slots,
+ *     `allowCreateView` / `viewActions` by reference to the sibling
+ *     `ViewSwitcherSchema` slots the renderer forwards them into, `defaultViewType`
+ *     / `defaultListView` / `showViewSwitcher` as local literals after a reader
+ *     census — and `viewTabBar` RETIRED (tombstoned on both faces, zero reads). The
+ *     entry KEPT `listViews` on the ruling's own fallback clause (its two value types
+ *     measured incompatible), so the entry count held and only the keys moved; the
+ *     spec reference also moved the entry between the split's halves — see the
+ *     split below. 13 / 94 until
  *     objectui#7655 SEEDED a `ChatbotFloatingSchema` entry with `displayMode` and
  *     `floatingConfig`, the two keys that face declares alongside `ChatbotSchema`
  *     (whose own entry keeps all three of its keys — a pair born ledgered, not a
@@ -1202,7 +1213,14 @@ interface KnownDrift {
  * explicit that forcing the 121 per-key decisions now would be wrong. Two splits
  * are recorded here so whoever works them off does not re-derive them:
  *
- *   - **SPEC-DERIVED (1 entry, 2 keys)** — `DashboardWidgetSchema`. It was 2 / 12
+ *   - **SPEC-DERIVED (2 entries, 3 keys)** — `DashboardWidgetSchema`, and since
+ *     objectui#7779 `ObjectViewSchema` again, by MEMBERSHIP this time rather than by
+ *     the old false positive: that card made the mirror reference
+ *     `SpecListViewSchema.shape.navigation` / `.searchableFields` /
+ *     `.filterableFields` in CODE, so `SPEC_DERIVED_PAIRS` re-derives the pair
+ *     here, and its one remaining key, `listViews`, is a value-type question the
+ *     card's fallback clause left with the maintainer — NOT objectui#2231's
+ *     unification (ruled out for this pair by name). It was 1 / 2 until then; 2 / 12
  *     until objectui#7279 RE-DERIVED `ObjectViewSchema`'s side and moved that entry
  *     (ten keys) to the LOCAL half — a RECLASSIFICATION on evidence, not a repair:
  *     no key moved between ledgers and no mirror changed. It was 3 / 13 until
@@ -1213,16 +1231,18 @@ interface KnownDrift {
  *     refuses a root `title` outright, and objectui#7509 had already retired every
  *     read of it, so the local declaration was offering a member the spec models
  *     nowhere and no renderer consumed. ⚠️ objectui#6705 invalidated the
- *     evidence for `ObjectViewSchema`: it is no longer in
- *     `SPEC_DERIVED_PAIRS` below, because it never referenced a spec schema — it is
+ *     evidence for `ObjectViewSchema`: it was no longer in
+ *     `SPEC_DERIVED_PAIRS` below (until objectui#7779 put a real code reference
+ *     there), because it had never referenced a spec schema — it was
  *     `BaseSchema.extend({…})` of local literals, and the pre-#6705 text scanner
  *     charged it a neighbouring private const's `Spec…` token. That misclassification
  *     was left STANDING as #6705 found it — re-routing those keys from #2231's
  *     unification question to a local mirror edit is a remedy decision on the
  *     `UnmirroredDeclared` ledger, which #6705 was fenced out of — until
  *     objectui#7279 re-derived the side on two measurements. (a) The mirror
- *     (`objectql.zod.ts`, `ObjectViewSchema = BaseSchema.extend({…})`) takes NO
- *     shape from the spec: every member is a local literal or a `z.lazy` to a
+ *     (`objectql.zod.ts`, `ObjectViewSchema = BaseSchema.extend({…})`) took NO
+ *     shape from the spec THEN (objectui#7779 later gave it three spec slots by
+ *     reference, which is what re-derives it into this half today): every member was a local literal or a `z.lazy` to a
  *     sibling objectui mirror, and the `Spec…` consts below it (`KanbanConfig`,
  *     `ViewKindEnum`) feed `ListViewSchema`. (b) Read through the pin
  *     (`@objectstack/spec@17.2.0`, `ui` entry, all 122 exported object schemas
@@ -1246,8 +1266,12 @@ interface KnownDrift {
  *     spec schema does not model, which is objectui#2231's unification question and
  *     NOT a local mirror edit. They are marked, not exempted: exempting them in the
  *     instrument would re-blind exactly the pairs objectui#5927 leaned on hardest.
- *   - **LOCAL (13 entries, 94 keys)** — plain omissions from a hand-written mirror.
- *     It was 12 / 84 until objectui#7279 RECLASSIFIED the `ObjectViewSchema` entry
+ *   - **LOCAL (12 entries, 84 keys)** — plain omissions from a hand-written mirror.
+ *     It was 13 / 94 until objectui#7779 MIRRORED eight of `ObjectViewSchema`'s ten
+ *     keys and RETIRED a ninth, and the spec reference that mirroring introduced
+ *     re-derived the entry (down to `listViews`) into the SPEC-DERIVED half — 12 / 84
+ *     again, the figure this half read before objectui#7279, the same entry leaving by
+ *     the opposite mechanism. 12 / 84 until objectui#7279 RECLASSIFIED the `ObjectViewSchema` entry
  *     (ten keys) into this half from the SPEC-DERIVED one — the split's first move
  *     of an ENTRY between its halves; no key and no mirror moved. Before that it
  *     was 13 / 84 until objectui#7129 RETIRED `DetailViewSectionSchema.hideEmpty`,
@@ -1269,10 +1293,14 @@ interface KnownDrift {
  * MIRRORED two — the LOCAL `ChartSchema` entry and the seeded `ObjectDataTableSchema`
  * one — and objectui#7655 SEEDED the LOCAL `ChatbotFloatingSchema` entry, born with
  * two keys. objectui#7279 then moved `ObjectViewSchema` between the halves (2 / 12
- * and 12 / 84 before it) without moving the totals. The seeded pair is no longer
+ * and 12 / 84 before it) without moving the totals. objectui#7779 then shrank that
+ * same entry from ten keys to one (96 → 87 keys; the entry count held) and moved it
+ * back to the SPEC-DERIVED half by membership — the ledger's first shrink by
+ * MIRRORING BY REFERENCE across most of an entry, and its second RETIREMENT on the
+ * LOCAL half (`viewTabBar`). The seeded pair is no longer
  * among them, and the ledger now totals — on ONE line, because the pin below reads
  * this sentence off disk —
- * **14 entries / 96 keys** — 1 / 2 spec-derived, 13 / 94 local.
+ * **14 entries / 87 keys** — 2 / 3 spec-derived, 12 / 84 local.
  *
  * ⛔ The four split figures above and this totals line are PINNED: 'objectui#7279'
  * at the bottom of this file derives every one of them from the `UnmirroredDeclared`
@@ -1409,35 +1437,51 @@ interface UnmirroredDeclared {
     | 'reorderableColumns' | 'resizableColumns' | 'rowColor' | 'rowHeight' | 'rowSpecActions'
     | 'singleClickEdit';
   /**
-   * LOCAL since objectui#7279 — recorded as SPEC-DERIVED → objectui#2231 from
-   * objectui#6058 until then, on the scanner false positive objectui#6705 exposed: the
-   * mirror is `BaseSchema.extend({…})` of local literals and `z.lazy` siblings, it
-   * references no spec schema, and it is not in `SPEC_DERIVED_PAIRS`. ⭐ This pair had
-   * NO entry in EITHER ledger before objectui#6058 — eleven declared keys the
-   * published validator has never heard of, and the guard reported the pair clean.
-   * It is the clearest single instance of the blind spot this ledger exists to make
-   * visible. It was eleven: `onNavigate` is in `RuntimeOnlyDeclared` below
-   * (objectui#6152), which did not change the routing of the other ten. Their route
-   * is the ordinary local one (objectui#6152's worklist); the ten-key widening is a
-   * remedy on the manual floor and was ⛔ not performed by #7279. For whoever
-   * mirrors, the spec read through the pin (`@objectstack/spec@17.2.0`, `ui` entry)
-   * splits them 4 / 6:
-   *   - FOUR the spec models on View-shaped schemas — take the shape BY REFERENCE:
-   *     `navigation` (`ListViewSchema.navigation` = `NavigationConfigSchema`, the
-   *     very type the declaration imports for `ViewNavigationConfig`);
-   *     `searchableFields` and `filterableFields` (`ListViewSchema`, `array(string)`;
-   *     the spec marks `filterableFields` a legacy shorthand for `userFilters.fields`);
-   *     `listViews` (`ViewSchema.listViews`, a record of spec list views — ⚠️ the
-   *     declaration's value is the local `NamedListView`, so the VALUE type is a
-   *     unification question the mirror edit must not paper over with a `z.any()`).
-   *   - SIX the spec models nowhere — plain hand-written omissions: `allowCreateView`,
-   *     `defaultListView`, `defaultViewType`, `showViewSwitcher`, `viewActions`,
-   *     `viewTabBar`.
+   * SPEC-DERIVED by MEMBERSHIP since objectui#7779 (the mirror references
+   * `SpecListViewSchema.shape.*` in code, so `SPEC_DERIVED_PAIRS` re-derives it);
+   * LOCAL between objectui#7279 and then; recorded as SPEC-DERIVED → objectui#2231
+   * from objectui#6058 until #7279, on the scanner false positive objectui#6705
+   * exposed. ⭐ This pair had NO entry in EITHER ledger before objectui#6058 —
+   * eleven declared keys the published validator had never heard of, and the guard
+   * reported the pair clean. It is the clearest single instance of the blind spot
+   * this ledger exists to make visible. It was eleven: `onNavigate` is in
+   * `RuntimeOnlyDeclared` below (objectui#6152). It was TEN until objectui#7779
+   * (maintainer ruling B, 2026-09-06 — liveness first, then mirror-or-retire per
+   * key) closed nine, each with its census on the `object-view` node renderer
+   * (`packages/plugin-view/src/ObjectView.tsx`; `schema.objectName` / `schema.layout`
+   * the positive controls of the same `schema.KEY` query; pinned in
+   * `object-view-unmirrored-keys-7779.test.ts`):
+   *   - MIRRORED by reference to the spec slot (`SpecListViewSchema.shape.*`):
+   *     `navigation`, `searchableFields`, `filterableFields` — identity-pinned, so a
+   *     spec-side change moves them;
+   *   - MIRRORED by reference to the sibling `ViewSwitcherSchema` slots the renderer
+   *     forwards them into verbatim: `allowCreateView`, `viewActions`;
+   *   - MIRRORED as local literals matching the declaration: `defaultViewType` (read
+   *     `schema.defaultViewType || 'grid'`), `defaultListView` (read
+   *     `namedListViews?.[schema.defaultListView]`), `showViewSwitcher` (read
+   *     `schema.showViewSwitcher === true`);
+   *   - RETIRED (`?: never` + `retirementTombstone()`, the objectui#7129 route):
+   *     `viewTabBar` — zero reads; the tab-bar config is `ViewTabBar`'s `config` PROP
+   *     from the host, never a node key.
+   * ⚠️ `listViews` STAYS, on the ruling's own fallback clause, with the measurement
+   * that triggered it: the declaration's value is the local `NamedListView`, 47
+   * declared top-level members, six of which the renderer reads — `label`, `type`,
+   * `columns`, `filter`, `sort`, `options`. The renderer reads a seventh key off a
+   * named view, `data`, and it is NOT a declared member: it arrives through an
+   * `as any` cast on the named-view config in `plugin-view/src/ObjectView.tsx`, so
+   * it is outside the 47 this ledger counts. The spec slot `ViewSchema.listViews` is
+   * a record of the STRICT `ObjectListViewSchema`, which requires `columns` and
+   * refuses `options`, ObjectQL tuple filters and `default` — the named views
+   * `plugin-view`'s README and `content/docs/api/schema-reference.md` teach fail it
+   * at `columns` / `filter.0` / unrecognized_keys. Mirroring the spec value loses
+   * documented behaviour; mirroring the local value enforces 41 unread members
+   * (47 declared, minus the 6 that are both declared and read) into the contract
+   * (the reason ruling B
+   * refused option A for the six local keys). Neither is a mirror edit this ledger can
+   * authorise; ⛔ `z.any()` was ruled out by name. The value type is the maintainer's
+   * decision, recorded on objectui#7779's report.
    */
-  'objectql.zod.ts#ObjectViewSchema':
-    | 'allowCreateView' | 'defaultListView' | 'defaultViewType' | 'filterableFields'
-    | 'listViews' | 'navigation' | 'searchableFields' | 'showViewSwitcher'
-    | 'viewActions' | 'viewTabBar';
+  'objectql.zod.ts#ObjectViewSchema': 'listViews';
   /** LOCAL. */
   'reports.zod.ts#ReportComponentSchema': 'chartConfig' | 'conditionalFormatting' | 'reportType';
   /**
@@ -1595,11 +1639,13 @@ interface RuntimeOnlyDeclared {
   /** 1 of `ObjectGridSchema`'s former 17. POLICY group. Read at `ObjectGrid.tsx:1334`. */
   'objectql.zod.ts#ObjectGridSchema': 'onNavigate';
   /**
-   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. Its
-   * other ten keys stay in `UnmirroredDeclared`; reclassifying its callback did not
-   * re-route the pair, and neither did objectui#7279's move of that entry from the
-   * split's SPEC-DERIVED half to its LOCAL one (the pair was never spec-derived —
-   * see the entry above). POLICY group.
+   * 1 of `ObjectViewSchema`'s former 11 — the one key that sits in both stories. Of
+   * its other ten keys, nine closed with objectui#7779 (eight mirrored, `viewTabBar`
+   * retired) and `listViews` stays in `UnmirroredDeclared`; reclassifying its callback
+   * did not re-route the pair, and neither did objectui#7279's move of that entry from
+   * the split's SPEC-DERIVED half to its LOCAL one (the pair had never been
+   * spec-derived until #7779 gave the mirror real spec references — see the entry
+   * above). POLICY group.
    */
   'objectql.zod.ts#ObjectViewSchema': 'onNavigate';
   /**
@@ -2253,8 +2299,9 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   'app.zod.ts#NavigationAreaSchema',
   // `base.zod.ts#BaseSchema` and `objectql.zod.ts#ObjectViewSchema` used to stand
   // here and were removed by objectui#6705 — NOT because either mirror changed,
-  // but because the re-check below stopped mis-reading them. Neither references a
-  // spec schema; each was held here by one of the two defects that card names:
+  // but because the re-check below stopped mis-reading them. Neither referenced a
+  // spec schema THEN (`ObjectViewSchema` does since objectui#7779 — see the end of
+  // this list); each was held here by one of the two defects that card names:
   //   - `BaseSchema` — its file's ONLY `Spec…` token is in a COMMENT
   //     (`base.zod.ts`, "rather than calling `SpecSchema.omit(…)`"). Prose.
   //   - `ObjectViewSchema` — `BaseSchema.extend({…})` with every member a local
@@ -2278,6 +2325,12 @@ const SPEC_DERIVED_PAIRS: readonly string[] = [
   'objectql.zod.ts#ObjectGallerySchema',
   'objectql.zod.ts#ObjectGanttSchema',
   'objectql.zod.ts#ObjectMapSchema',
+  // objectui#7779: BACK, by a real code reference this time — `navigation`,
+  // `searchableFields` and `filterableFields` are `SpecListViewSchema.shape.*`
+  // by reference (identity-pinned in `object-view-unmirrored-keys-7779.test.ts`).
+  // Membership here is what re-derives the pair's one remaining
+  // `UnmirroredDeclared` key (`listViews`) into the split's SPEC-DERIVED half.
+  'objectql.zod.ts#ObjectViewSchema',
 ];
 
 /* ── Runtime: the population is closed ──────────────────────────────────────── */

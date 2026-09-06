@@ -54,19 +54,17 @@ ComponentRegistry.register('filter-builder',
     namespace: 'ui',
     label: 'Filter Builder',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'name', type: 'string', label: 'Name', required: true },
+      { name: 'label', type: 'string' },
+      { name: 'name', type: 'string', required: true },
       { 
         name: 'fields', 
         type: 'array', 
-        label: 'Fields',
         description: 'Array of { value: string, label: string, type?: string } objects',
         required: true
       },
       { 
         name: 'value', 
         type: 'object', 
-        label: 'Initial Value',
         description: 'FilterGroup object with conditions'
       }
     ],

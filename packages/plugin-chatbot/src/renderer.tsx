@@ -135,113 +135,85 @@ ComponentRegistry.register('chatbot',
       { 
         name: 'messages', 
         type: 'array', 
-        label: 'Initial Messages',
         description: 'Array of message objects with id, role, content, and optional timestamp'
       },
       { 
         name: 'placeholder', 
-        type: 'string', 
-        label: 'Input Placeholder',
-        defaultValue: 'Type your message...'
-      },
+        type: 'string'      },
       { 
         name: 'showTimestamp', 
-        type: 'boolean', 
-        label: 'Show Timestamps',
-        defaultValue: false
-      },
+        type: 'boolean'      },
       { 
         name: 'disabled', 
-        type: 'boolean', 
-        label: 'Disabled',
-        defaultValue: false
-      },
+        type: 'boolean'      },
       { 
         name: 'userAvatarUrl', 
         type: 'string', 
-        label: 'User Avatar URL',
+        
         description: 'URL of the user avatar image'
       },
       { 
         name: 'userAvatarFallback', 
         type: 'string', 
-        label: 'User Avatar Fallback',
-        defaultValue: 'You',
+        
+        
         description: 'Fallback text shown when user avatar image is not available'
       },
       { 
         name: 'assistantAvatarUrl', 
         type: 'string', 
-        label: 'Assistant Avatar URL',
+        
         description: 'URL of the assistant avatar image'
       },
       { 
         name: 'assistantAvatarFallback', 
         type: 'string', 
-        label: 'Assistant Avatar Fallback',
-        defaultValue: 'AI',
+        
+        
         description: 'Fallback text shown when assistant avatar image is not available'
       },
       { 
         name: 'maxHeight', 
-        type: 'string', 
-        label: 'Max Height',
-        defaultValue: '500px'
-      },
+        type: 'string'      },
       {
         name: 'api',
         type: 'string',
-        label: 'API Endpoint',
         description: 'Backend SSE endpoint (e.g., /api/v1/ai/chat). When set, enables streaming AI mode.'
       },
       {
         name: 'conversationId',
         type: 'string',
-        label: 'Conversation ID',
         description: 'Multi-turn conversation identifier'
       },
       {
         name: 'systemPrompt',
         type: 'string',
-        label: 'System Prompt',
         description: 'System prompt to configure assistant behavior'
       },
       {
         name: 'model',
         type: 'string',
-        label: 'AI Model',
         description: 'AI model identifier (e.g., gpt-4o)'
       },
       {
         name: 'streamingEnabled',
-        type: 'boolean',
-        label: 'Enable Streaming',
-        defaultValue: true
-      },
+        type: 'boolean'      },
       { 
         name: 'autoResponse', 
         type: 'boolean', 
-        label: 'Enable Auto Response (Demo)',
-        defaultValue: false,
+        
+        
         description: 'Automatically send a response after user message (for demo purposes, ignored when API is set)'
       },
       { 
         name: 'autoResponseText', 
-        type: 'string', 
-        label: 'Auto Response Text',
-        defaultValue: 'Thank you for your message!'
-      },
+        type: 'string'      },
       { 
         name: 'autoResponseDelay', 
-        type: 'number', 
-        label: 'Auto Response Delay (ms)',
-        defaultValue: 1000
-      },
+        type: 'number'      },
       { 
         name: 'className', 
-        type: 'string', 
-        label: 'CSS Class'
-      }
+        type: 'string'      }
     ],
     defaultProps: {
       messages: [
@@ -356,28 +328,28 @@ ComponentRegistry.register('chatbot-enhanced',
     namespace: 'plugin-chatbot',
     label: 'Chatbot (Enhanced)',
     inputs: [
-      { name: 'messages', type: 'array', label: 'Initial Messages' },
-      { name: 'placeholder', type: 'string', label: 'Input Placeholder', defaultValue: 'Type your message...' },
-      { name: 'showTimestamp', type: 'boolean', label: 'Show Timestamps', defaultValue: false },
-      { name: 'disabled', type: 'boolean', label: 'Disabled', defaultValue: false },
-      { name: 'enableMarkdown', type: 'boolean', label: 'Enable Markdown', defaultValue: true },
-      { name: 'enableFileUpload', type: 'boolean', label: 'Enable File Upload', defaultValue: false },
-      { name: 'processVisibility', type: 'enum', label: 'Agent Process Visibility', defaultValue: 'summary' },
-      { name: 'surface', type: 'enum', label: 'Surface Chrome', defaultValue: 'card', description: "'card' bordered panel, or 'plain' frameless full-page workspace" },
-      { name: 'userAvatarUrl', type: 'string', label: 'User Avatar URL' },
-      { name: 'userAvatarFallback', type: 'string', label: 'User Avatar Fallback', defaultValue: 'You' },
-      { name: 'assistantAvatarUrl', type: 'string', label: 'Assistant Avatar URL' },
-      { name: 'assistantAvatarFallback', type: 'string', label: 'Assistant Avatar Fallback', defaultValue: 'AI' },
-      { name: 'maxHeight', type: 'string', label: 'Max Height', defaultValue: '500px' },
-      { name: 'api', type: 'string', label: 'API Endpoint', description: 'Backend SSE endpoint for streaming AI mode' },
-      { name: 'conversationId', type: 'string', label: 'Conversation ID' },
-      { name: 'systemPrompt', type: 'string', label: 'System Prompt' },
-      { name: 'model', type: 'string', label: 'AI Model' },
-      { name: 'streamingEnabled', type: 'boolean', label: 'Enable Streaming', defaultValue: true },
-      { name: 'autoResponse', type: 'boolean', label: 'Enable Auto Response (Demo)', defaultValue: false },
-      { name: 'autoResponseText', type: 'string', label: 'Auto Response Text', defaultValue: 'Thank you for your message!' },
-      { name: 'autoResponseDelay', type: 'number', label: 'Auto Response Delay (ms)', defaultValue: 1000 },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'messages', type: 'array' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'showTimestamp', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'enableMarkdown', type: 'boolean' },
+      { name: 'enableFileUpload', type: 'boolean' },
+      { name: 'processVisibility', type: 'enum' },
+      { name: 'surface', type: 'enum', description: "'card' bordered panel, or 'plain' frameless full-page workspace" },
+      { name: 'userAvatarUrl', type: 'string' },
+      { name: 'userAvatarFallback', type: 'string' },
+      { name: 'assistantAvatarUrl', type: 'string' },
+      { name: 'assistantAvatarFallback', type: 'string' },
+      { name: 'maxHeight', type: 'string' },
+      { name: 'api', type: 'string', description: 'Backend SSE endpoint for streaming AI mode' },
+      { name: 'conversationId', type: 'string' },
+      { name: 'systemPrompt', type: 'string' },
+      { name: 'model', type: 'string' },
+      { name: 'streamingEnabled', type: 'boolean' },
+      { name: 'autoResponse', type: 'boolean' },
+      { name: 'autoResponseText', type: 'string' },
+      { name: 'autoResponseDelay', type: 'number' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       messages: [
@@ -508,25 +480,25 @@ ComponentRegistry.register('chatbot-floating',
     // no Zod arm and `BaseSchema` is `.passthrough()`, so they parse exactly
     // as before, and nothing here ever read the value.
     inputs: [
-      { name: 'floatingConfig.position', type: 'string', label: 'FAB Position', defaultValue: 'bottom-right', description: 'bottom-right or bottom-left' },
-      { name: 'floatingConfig.defaultOpen', type: 'boolean', label: 'Default Open', defaultValue: false },
-      { name: 'floatingConfig.panelWidth', type: 'number', label: 'Panel Width', defaultValue: 400 },
-      { name: 'floatingConfig.panelHeight', type: 'number', label: 'Panel Height', defaultValue: 520 },
-      { name: 'floatingConfig.title', type: 'string', label: 'Panel Title', defaultValue: 'Chat' },
-      { name: 'floatingConfig.triggerSize', type: 'number', label: 'Trigger Size', defaultValue: 56 },
-      { name: 'messages', type: 'array', label: 'Initial Messages' },
-      { name: 'placeholder', type: 'string', label: 'Input Placeholder', defaultValue: 'Type your message...' },
-      { name: 'enableMarkdown', type: 'boolean', label: 'Enable Markdown', defaultValue: true },
-      { name: 'enableFileUpload', type: 'boolean', label: 'Enable File Upload', defaultValue: false },
-      { name: 'api', type: 'string', label: 'API Endpoint', description: 'Backend SSE endpoint for streaming AI mode' },
-      { name: 'conversationId', type: 'string', label: 'Conversation ID' },
-      { name: 'systemPrompt', type: 'string', label: 'System Prompt' },
-      { name: 'model', type: 'string', label: 'AI Model' },
-      { name: 'streamingEnabled', type: 'boolean', label: 'Enable Streaming', defaultValue: true },
-      { name: 'autoResponse', type: 'boolean', label: 'Enable Auto Response (Demo)', defaultValue: false },
-      { name: 'autoResponseText', type: 'string', label: 'Auto Response Text', defaultValue: 'Thank you for your message!' },
-      { name: 'autoResponseDelay', type: 'number', label: 'Auto Response Delay (ms)', defaultValue: 1000 },
-      { name: 'className', type: 'string', label: 'CSS Class' },
+      { name: 'floatingConfig.position', type: 'string', description: 'bottom-right or bottom-left' },
+      { name: 'floatingConfig.defaultOpen', type: 'boolean' },
+      { name: 'floatingConfig.panelWidth', type: 'number' },
+      { name: 'floatingConfig.panelHeight', type: 'number' },
+      { name: 'floatingConfig.title', type: 'string' },
+      { name: 'floatingConfig.triggerSize', type: 'number' },
+      { name: 'messages', type: 'array' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'enableMarkdown', type: 'boolean' },
+      { name: 'enableFileUpload', type: 'boolean' },
+      { name: 'api', type: 'string', description: 'Backend SSE endpoint for streaming AI mode' },
+      { name: 'conversationId', type: 'string' },
+      { name: 'systemPrompt', type: 'string' },
+      { name: 'model', type: 'string' },
+      { name: 'streamingEnabled', type: 'boolean' },
+      { name: 'autoResponse', type: 'boolean' },
+      { name: 'autoResponseText', type: 'string' },
+      { name: 'autoResponseDelay', type: 'number' },
+      { name: 'className', type: 'string' },
     ],
     defaultProps: {
       floatingConfig: {

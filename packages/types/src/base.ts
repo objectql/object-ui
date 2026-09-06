@@ -598,14 +598,63 @@ export interface ComponentInput {
   type: ComponentInputControlType | ComponentInputControlType[];
 
   /**
-   * Display label in the editor
+   * ADR-0049 RETIREMENT TOMBSTONES — `label` / `defaultValue` / `advanced`
+   * (objectui#7493 item ①, objectui#7781; maintainer ruling A of 2026-09-06).
+   * The three keys the manifest serializer does not forward, retired together
+   * on both faces in the shape the five tombstones at the bottom of this block
+   * established (objectui#5905): `?: never` here, so authoring one is a `tsc`
+   * error at the registration site, and `retirementTombstone()` on the Zod
+   * twin (`zod/base.zod.ts` `ComponentInputSchema`), so an authored value is a
+   * NAMED parse refusal carrying its own remedy. Deleting the members outright
+   * was measured and NOT taken: the mirror is a non-strict `z.object`, and on
+   * the built face an undeclared key parses green and is silently STRIPPED —
+   * one silent no-op traded for another.
+   *
+   * What was measured (re-measured on the retiring PR's merge-base, not
+   * inherited from the cards): every non-test consumer of
+   * `ComponentMeta.inputs` was enumerated and none reads any of the three —
+   * the serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six
+   * keys per input (`name`, `type`, `required`, `enum`, `binding`,
+   * `description`), its boundary type has no slot for these, the registry's
+   * data-source seam reads `name` only, and neither the designer nor the
+   * app-shell inspectors consult registry `inputs` at all. The one
+   * non-test touch was a WRITE (`WidgetRegistry` copying the widget-manifest
+   * values across), deleted with this retirement. A depth-1 bracket-balanced
+   * census over every `inputs:` array in the repository counted the
+   * authorship: `label` 908, `defaultValue` 245, `advanced` 9 — against
+   * `name` 951 and `type` 951 in the same pass over the same regions, so the
+   * instrument was not blind. Written on nearly every registration, read by
+   * nothing. Authorship from OUTSIDE the repository is not measurable from here
+   * (the objectui#5674 limit); converting such a write from a silent drop into
+   * a named refusal is what the tombstones buy.
+   *
+   * What an author writes instead: NOTHING. An input is identified by its
+   * `name` on every path that reaches it, and no consumer ever rendered a
+   * label for it; the renderer's own fallback read IS the default, and the
+   * place to tell an author about it is `description`, which is published;
+   * and no designer surface ever hid an "advanced" input. Options B (tighten
+   * `defaultValue` to `unknown` — closes no error class), C (teach the
+   * serializer to forward the keys — refused on record for `inputType` in
+   * objectui#5905: a write nothing reads is not demand for a feature) and D
+   * (keep as documentation) were each ruled out.
+   *
+   * RETIRED (objectui#7493, ADR-0049) — never read, and never published. Delete
+   * the key; the input's `name` is what every consumer identifies it by.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  label?: string;
+  label?: never;
 
   /**
-   * Default value for new instances
+   * RETIRED (objectui#7493, ADR-0049) — never read, and never published: the
+   * manifest serializer forwards six keys and this is not one of them, and no
+   * renderer, registry or designer surface ever read a declared default. Delete
+   * the key; the renderer's own fallback read is the default, and `description`
+   * — which IS published — is where to state it for an author. The 245 values
+   * this carried were shadow copies of renderer fallbacks that only test pins
+   * ever compared; those pins now read the renderer's ACTUAL default.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  defaultValue?: any;
+  defaultValue?: never;
 
   /**
    * Whether this property is required
@@ -623,9 +672,14 @@ export interface ComponentInput {
   description?: string;
 
   /**
-   * Whether this is an advanced/expert option
+   * RETIRED (objectui#7493 / objectui#7781, ADR-0049) — never read, and never
+   * published: the manifest serializer forwards six keys and this is not one of
+   * them, and no designer surface ever hid an "advanced" input (nine
+   * registrations wrote it; nothing consumed it). Delete the key; there is
+   * nothing to write instead.
+   * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
-  advanced?: boolean;
+  advanced?: never;
 
   /**
    * RETIRED (objectui#5905, ADR-0049) — never read, and never published: the

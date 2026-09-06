@@ -18,9 +18,9 @@ ComponentRegistry.register('skeleton',
     namespace: 'ui',
     label: 'Skeleton',
     inputs: [
-      { name: 'width', type: 'string', label: 'Width' },
-      { name: 'height', type: 'string', label: 'Height' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'width', type: 'string' },
+      { name: 'height', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       width: '100%',

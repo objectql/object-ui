@@ -46,11 +46,8 @@ ComponentRegistry.register('separator',
       { 
         name: 'orientation', 
         type: 'enum', 
-        enum: ['horizontal', 'vertical'], 
-        defaultValue: 'horizontal',
-        label: 'Orientation'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['horizontal', 'vertical']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       orientation: 'horizontal',

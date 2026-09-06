@@ -225,7 +225,10 @@ async function exportToReact(editor: vscode.TextEditor) {
 function generateReactComponent(schema: any): string {
   const schemaJson = JSON.stringify(schema, null, 2);
 
-  return `import React from 'react';
+  return `// No React import: under the automatic JSX runtime ("jsx": "react-jsx",
+// what a new Vite or Next project is configured with) nothing here reads that
+// identifier, so it compiles as an unused local. Add the import back only if
+// this file is built with the classic "jsx": "react" transform.
 import { SchemaRenderer } from '@object-ui/react';
 // Importing the package registers every default renderer as a side effect —
 // there is no separate registration call.

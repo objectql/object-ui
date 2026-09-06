@@ -33,6 +33,7 @@ import {
 import { useMetadataLocale, t, tFormat } from './i18n.js';
 import { SchemaForm, type SchemaFormIssue } from './SchemaForm.js';
 import { getPackageSchema, getPackageForm } from './package-schema.js';
+import { readEnvelopeFailureText } from '../../utils/apiErrorEnvelope.js';
 
 const API = '/api/v1/packages';
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
@@ -58,8 +59,25 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await res.text();
   const payload = text ? JSON.parse(text) : null;
   if (!res.ok || payload?.success === false) {
+    // The ADR-0112 envelope first, by the ONE shared rule — a producer-marked
+    // `error.userMessage` outranks the diagnostic `error.message`, and
+    // `error.code` rides along behind whichever won. This reader used to read
+    // `error.message` and stop, so a marked sentence arrived on the wire (both
+    // doors serving these package routes emit the channel) and had nowhere to
+    // appear: on a marked 5xx the author was shown the generic substitution
+    // the door had put in `message` instead of the sentence written for them.
+    // See {@link readEnvelopeFailureText}.
+    //
+    // The two rungs BELOW it stay, and stay HERE rather than moving into the
+    // shared reader: they are not the ADR-0112 envelope. A bare-string `error`
+    // and a top-level `message` are older runtimes' shapes, live for this call
+    // site and not for the rule's other consumers, and folding them in would
+    // hand every one of those a tolerant dialect it never asked for.
     const msg =
-      payload?.error?.message || payload?.error || payload?.message || `Request failed (${res.status})`;
+      readEnvelopeFailureText(payload) ||
+      payload?.error ||
+      payload?.message ||
+      `Request failed (${res.status})`;
     const err = new Error(typeof msg === 'string' ? msg : `Request failed (${res.status})`);
     (err as any).status = res.status;
     throw err;
@@ -265,7 +283,10 @@ export function PackageFormDialog({
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+          <div
+            data-testid="package-form-error"
+            className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive"
+          >
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>

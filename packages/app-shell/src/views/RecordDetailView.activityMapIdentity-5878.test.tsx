@@ -76,7 +76,8 @@ import { MetadataCtx } from '@object-ui/react';
 import type { FeedItemType } from '@object-ui/types';
 import { ACTIVITY_TYPE_TO_FEED_TYPE } from '@object-ui/plugin-detail';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => vi.fn(),
 }));

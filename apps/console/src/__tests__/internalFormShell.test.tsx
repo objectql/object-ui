@@ -95,7 +95,8 @@ vi.mock('@object-ui/app-shell', () => ({
   buildExpressionUser: (user: unknown) => user,
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   AuthProvider: passthrough,
   useAuth: () => ({ user: { id: 'u1' } }),
 }));

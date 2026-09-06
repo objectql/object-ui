@@ -6,8 +6,15 @@ import { test, expect } from '@playwright/test';
  *
  * This is the empirical pin for the defect, run against the REAL stack because
  * only the server can answer the question the issue asked: does it accept a
- * rule array in `$filter`? It does not. Measured on
- * `@objectstack/*@17.0.0-rc.2` with the showcase app:
+ * rule array in `$filter`? It does not. Measured against the published backend
+ * pair this lane pins — `OBJECTSTACK_VERSION` and `OBJECTSTACK_REF` in
+ * `e2e/live/ci/backend.env`, which move together and are now held to the
+ * lockfile by `scripts/__tests__/ci-cd-pipeline-doc.test.ts` (objectui#7689).
+ * That pair has moved since this measurement was first taken, which is why it
+ * is named by FILE and not by value: a version literal written here goes stale
+ * behind the pin silently, and the whole point of objectui#7689 is that it did
+ * — for two minor versions, in the pin itself. The showcase app is the one that
+ * ref checks out:
  *
  *   GET /api/v1/data/showcase_task
  *     ?$filter=[{"field":"status","operator":"equals","value":"in_progress"}]

@@ -4,6 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The structural locator for the prose attached to an exported constant, shared
+// with `vite-declared-lazy-views.test.ts` (objectui#7289). It was written here
+// for objectui#7046 and moved out unchanged; see the helper's own header for
+// why one implementation rather than two.
+import { attachedDocs } from './helpers/attached-docs';
+
 // Plain-JS CI helper. Its types are INFERRED from the .mjs source by
 // `tsconfig.scripts.json` (`allowJs`), so no `@ts-expect-error` here —
 // re-adding one is now itself an error (TS2578). See objectui#3494.
@@ -1397,84 +1403,6 @@ describe('performance-budget.yml + vite.config.ts contract', () => {
  */
 describe('the prose attached to the baselines (objectui#7046)', () => {
   const checkerSource = fs.readFileSync(checkerPath, 'utf8');
-
-  /**
-   * The documentation ATTACHED to one exported constant, located structurally —
-   * never by a line number, which objectui#6778 demonstrated three times over
-   * rots within days.
-   *
-   * "Attached" is the JSDoc block ending immediately before the
-   * `export const NAME` declaration PLUS every comment lexically inside that
-   * declaration, with the code itself stripped out. Both halves are load-bearing
-   * and neither is a convenience:
-   *
-   *   - the leading block alone is not enough. Measured on `main` when this was
-   *     written, `BASELINE`'s leading block carries no commit hash at all — the
-   *     sentence naming the commit the measurement was taken on is the JSDoc on
-   *     the `gzipBytes` FIELD, inside the object literal. Scoping there would
-   *     make the positive pin below red on an honest file.
-   *   - the declaration TEXT is too much. `commit: '...'` would satisfy the pin
-   *     by restating the constant — the prose about the value passing because it
-   *     contains the value, which is this card's own defect one layer up.
-   */
-  function attachedDocs(source: string, exportName: string): { prose: string; code: string } {
-    const declaration = new RegExp(String.raw`^export const ${exportName}\b`, 'm').exec(source);
-    if (!declaration) throw new Error(`no \`export const ${exportName}\` in the checker`);
-    const declStart = declaration.index;
-
-    const before = source.slice(0, declStart).replace(/\s+$/, '');
-    if (!before.endsWith('*/')) {
-      throw new Error(`\`export const ${exportName}\` is not preceded by a block comment`);
-    }
-    const open = before.lastIndexOf('/**');
-    if (open === -1) throw new Error(`unterminated JSDoc above \`export const ${exportName}\``);
-
-    // Walk the initializer, skipping comments and string literals, until the
-    // brackets it opened close again. Comments met on the way are the per-field
-    // prose; everything else is code.
-    const inner: string[] = [];
-    let i = source.indexOf('=', declStart) + 1;
-    let depth = 0;
-    let opened = false;
-    while (i < source.length) {
-      const two = source.slice(i, i + 2);
-      if (two === '/*') {
-        const end = source.indexOf('*/', i + 2);
-        if (end === -1) throw new Error(`unterminated comment inside ${exportName}`);
-        inner.push(source.slice(i, end + 2));
-        i = end + 2;
-        continue;
-      }
-      if (two === '//') {
-        const end = source.indexOf('\n', i);
-        inner.push(source.slice(i, end));
-        i = end;
-        continue;
-      }
-      const c = source[i];
-      if (c === "'" || c === '"' || c === '`') {
-        i += 1;
-        while (i < source.length && source[i] !== c) i += source[i] === '\\' ? 2 : 1;
-        i += 1;
-        continue;
-      }
-      if (c === '(' || c === '{' || c === '[') {
-        depth += 1;
-        opened = true;
-      } else if (c === ')' || c === '}' || c === ']') {
-        depth -= 1;
-        if (opened && depth === 0) {
-          i += 1;
-          break;
-        }
-      } else if (!opened && c === ';') {
-        break;
-      }
-      i += 1;
-    }
-
-    return { prose: [before.slice(open), ...inner].join('\n'), code: source.slice(declStart, i) };
-  }
 
   /** Commit strings a constant carries AS DATA, found by walking its values. */
   function commitsCarriedBy(value: unknown): string[] {

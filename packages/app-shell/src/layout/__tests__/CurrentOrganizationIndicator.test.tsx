@@ -49,7 +49,8 @@ const getAuthConfig = vi.fn(() => Promise.resolve({ features }));
  * ending in `setState`, so a fresh closure per render would loop effect →
  * setState → render → effect until the heap dies.
  */
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     organizations,
     activeOrganization: organizations[0] ?? null,

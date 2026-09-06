@@ -22,7 +22,7 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 
 vi.mock('./ChartRenderer', () => ({
@@ -31,8 +31,80 @@ vi.mock('./ChartRenderer', () => ({
 
 import { ObjectChart } from './ObjectChart';
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * objectui#7307 — this file's `/api/v1/meta/object/task` escape, served here.
+ *
+ * Nothing below asks for metadata, yet every run opened a REAL TCP connection
+ * to `http://localhost:3000`. Traced with a stack probe on the network-escape
+ * guard's attribution point:
+ *
+ *   ObjectChart (option-colour effect)   packages/plugin-charts/src/ObjectChart.tsx:390
+ *     -> `const doFetch = apiFetch ?? fetch`        <- the escape
+ *       -> loadObjectSchema              ObjectChart.tsx:411
+ *         -> loadDimensionFieldMeta      packages/core/src/utils/chart-series.ts
+ *           GET /api/v1/meta/object/task
+ *
+ * That effect reads the host's AUTHENTICATED `apiFetch` off
+ * `SchemaRendererContext` and, with no `SchemaRendererProvider` in this tree,
+ * degrades to the GLOBAL `fetch` by design — a standalone embed must keep
+ * rendering rather than crash. Under happy-dom that global is a real HTTP
+ * client and the document URL defaults to `http://localhost:3000`, so the
+ * relative path resolved to a live request. The read is best-effort (every
+ * failure leaves `optionMeta` null and the chart on the theme palette), which
+ * is why the assertion below stayed green while the request always failed.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on and
+ * `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx`
+ * carries. Deliberately NOT a blanket network stub: it records every URL it is
+ * handed and `afterEach` fails on any URL that is not the metadata route, so an
+ * escape to somewhere else reds here instead of vanishing into that `catch`.
+ *
+ * The served document declares no fields, so nothing resolves and `optionMeta`
+ * settles null — the state the failing request already produced. The height
+ * assertion cannot see it either way: `ChartRenderer` is mocked to null.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const META_OBJECT_ROUTE = /^\/api\/v1\/meta\/object\/(.+)$/;
+
+/** Every URL this render handed the global `fetch`, in request order. */
+let metaCalls: string[] = [];
+
+/** Serve `/api/v1/meta/object/<name>` with a field-less doc; record everything. */
+function installMetaObjectDouble() {
+  metaCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      metaCalls.push(url);
+      const m = META_OBJECT_ROUTE.exec(url);
+      if (!m) return { ok: false, status: 404, json: async () => ({}) };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ item: { name: decodeURIComponent(m[1]), fields: {} } }),
+      };
+    }),
+  );
+}
+
+beforeEach(() => {
+  installMetaObjectDouble();
+});
+
 afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into the effect's best-effort `catch`.
+  expect(metaCalls.filter((url) => !META_OBJECT_ROUTE.test(url))).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks in
+  // reverse registration order, so this file's teardown runs before the root
+  // setup's RTL cleanup: unstubbing first would leave the tree mounted with the
+  // real global back in place, and a metadata effect settling in that window
+  // escapes again (objectui#7439).
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe('ObjectChart wrapper height chain (objectui#5451)', () => {

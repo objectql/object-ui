@@ -284,7 +284,7 @@ export function createPluginStylesheetBuilder({ postcss, tailwind }) {
           "correctly via the `build` task's `dependsOn: [\"^build\"]`; a bare single-package",
           'build does not.',
           '',
-          '  pnpm --filter @object-ui/components build',
+          '  turbo run build --filter=@object-ui/components',
         ].join('\n'),
       );
     }

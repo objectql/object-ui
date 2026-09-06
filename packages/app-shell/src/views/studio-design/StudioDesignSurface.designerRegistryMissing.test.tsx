@@ -44,7 +44,7 @@
 
 import '@testing-library/jest-dom/vitest';
 import * as React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -97,7 +97,74 @@ import { listMetadataInspectorTypes, getMetadataInspector } from '../metadata-ad
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
 import { getStudioCanvasPreview } from './studio-canvas-preview';
 
-afterEach(cleanup);
+/* ── The `automation/_status` double (objectui#7307) ──────────────────
+ * `AutomationsPillar` reads the engine's live per-flow runtime state from a
+ * mount effect — `StudioDesignSurface.tsx:3797`, a bare global `fetch` of
+ * `GET /api/v1/automation/_status` with no `apiFetch` seam on the path. Under
+ * happy-dom that global is a real HTTP client and the document URL defaults to
+ * `http://localhost:3000`, so the relative path resolved to a live socket. The
+ * effect's read is best-effort by construction (its `catch` comment: "offline /
+ * older backend → no dots"), which is why the Automations case below stayed
+ * green while the request always failed.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on, carried
+ * by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx` and by
+ * this burn-down's earlier batches. Deliberately NOT a blanket network stub: it
+ * records every URL it is handed and `afterEach` fails on any URL outside the
+ * route it serves, so an escape to somewhere else reds here instead of vanishing
+ * into that `catch`.
+ *
+ * What it answers, and why that changes no assertion here: a known-EMPTY runtime
+ * roster, in the `{ data: { flows: [...] } }` envelope the effect reads first
+ * (it also accepts a bare `{ flows }`; both parse to the same rows). Empty is
+ * load-bearing — the effect turns each row into a status DOT on the flow rail,
+ * and the failing request left `flowStatus` at `{}` with no dots at all, so an
+ * empty roster renders exactly what these cases have always rendered, while a
+ * seeded one would add a dot for `nightly` to the Automations tableau this file
+ * pins. Routes are matched on the PATHNAME; the full URL is what gets recorded.
+ * ──────────────────────────────────────────────────────────── */
+
+const AUTOMATION_STATUS_ROUTE = '/api/v1/automation/_status';
+
+/** Every URL this file's renders handed the global `fetch`, in request order. */
+let statusCalls: string[] = [];
+
+/** The route key of a recorded URL: its pathname, without any query. */
+const routeOf = (url: string) => url.split('?')[0];
+
+/** Serve `GET /api/v1/automation/_status` as an empty roster; record everything. */
+function installStatusDouble() {
+  statusCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      statusCalls.push(url);
+      if (routeOf(url) !== AUTOMATION_STATUS_ROUTE) {
+        return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) };
+      }
+      return { ok: true, status: 200, headers: new Headers(), json: async () => ({ data: { flows: [] } }) };
+    }),
+  );
+}
+
+beforeEach(installStatusDouble);
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into the effect's best-effort `catch`.
+  expect(statusCalls.filter((url) => routeOf(url) !== AUTOMATION_STATUS_ROUTE)).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch` — this replaces the bare
+  // `afterEach(cleanup)` that used to stand here, it does not drop it. Vitest
+  // runs `afterEach` hooks in reverse registration order, so this file's
+  // teardown runs before the root setup's RTL cleanup: unstubbing first would
+  // leave the tree mounted with the real global back in place, and a mount
+  // effect settling in that window escapes again (objectui#7439).
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 /**
  * Assert the registries really are empty — **with a control that MUST hit**.

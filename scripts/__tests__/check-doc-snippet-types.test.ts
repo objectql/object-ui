@@ -250,6 +250,108 @@ describe('fence scanning', () => {
     }
   });
 
+  it('attaches a blockquoted fragment marker to the fence directly beneath it', () => {
+    // objectui#7099: the marker anchor read `^[ \t]*`, so `> {/* doc-snippet:
+    // fragment ... */}` did not register as a marker at all. objectui#7086 had
+    // already brought the quoted fence under the gate's contract, and that
+    // contract has two halves — compile, OR declare why you cannot. Only the
+    // first half reached blockquotes, so a quoted block that legitimately cannot
+    // compile had no declared way to say so.
+    const { blocks, markers } = scanFences(
+      [
+        '> **Note:** the renderer is already mounted above.',
+        '> {/* doc-snippet: fragment \u2014 continues the block above */}',
+        `> ${FENCE}ts`,
+        '> renderer.mount(el);',
+        `> ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(markers, 'a quoted marker must register as a marker').toHaveLength(1);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].fragmentReason).toBe('continues the block above');
+  });
+
+  it('attaches across a bare `>` spacer — the callout shape real pages use', () => {
+    // This is the case a half-fix misses. Widening the marker anchor alone makes
+    // the pin above pass and leaves this one failing: the attachment walk wants
+    // the nearest NON-BLANK line above the fence, and `'>'.trim()` is `'>'`, not
+    // the empty string — so the walk stops on the very spacer that separates a
+    // callout's prose from its fence. Passing in tests and failing on the shape
+    // real pages use is why both mechanisms move together.
+    const { blocks } = scanFences(
+      [
+        '> **Note:** the renderer is already mounted above.',
+        '>',
+        '> {/* doc-snippet: fragment \u2014 continues the block above */}',
+        '>',
+        `> ${FENCE}ts`,
+        '> renderer.mount(el);',
+        `> ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].fragmentReason).toBe('continues the block above');
+  });
+
+  it('does not attach a marker written at a different quote depth than its fence', () => {
+    // The rule: a marker declares the fence at its OWN depth. A depth-0 marker
+    // above a quoted fence is not inside the callout the block lives in; a quoted
+    // marker above an unquoted fence is not outside it. Neither attaches, and the
+    // unattached marker is reported rather than silently dropped.
+    const outside = scanFences(
+      [
+        '{/* doc-snippet: fragment \u2014 continues the block above */}',
+        `> ${FENCE}ts`,
+        '> renderer.mount(el);',
+        `> ${FENCE}`,
+      ].join('\n'),
+    );
+    expect(outside.blocks).toHaveLength(1);
+    expect(outside.blocks[0].fragmentReason).toBeNull();
+    expect(outside.markers.map((m) => m.consumed)).toEqual([false]);
+
+    const inside = scanFences(
+      [
+        '> {/* doc-snippet: fragment \u2014 continues the block above */}',
+        `${FENCE}ts`,
+        'renderer.mount(el);',
+        FENCE,
+      ].join('\n'),
+    );
+    expect(inside.blocks).toHaveLength(1);
+    expect(inside.blocks[0].fragmentReason).toBeNull();
+    expect(inside.markers.map((m) => m.consumed)).toEqual([false]);
+  });
+
+  it('leaves the unquoted path exactly as it was — depth 0 is the identity path', () => {
+    const { blocks, markers } = scanFences(
+      [
+        '{/* doc-snippet: fragment \u2014 continues the block above */}',
+        '',
+        '',
+        `${FENCE}ts`,
+        'renderer.mount(el);',
+        FENCE,
+      ].join('\n'),
+    );
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].quoteDepth).toBe(0);
+    expect(blocks[0].fragmentReason).toBe('continues the block above');
+    expect(markers.map((m) => m.consumed)).toEqual([true]);
+  });
+
+  it('reports a blockquoted marker that declares nothing, instead of never seeing it', () => {
+    const root = tempTree({
+      'content/docs/a.mdx': [
+        '> {/* doc-snippet: fragment \u2014 nothing follows this */}',
+        '>',
+        '> Just prose.',
+      ].join('\n'),
+    });
+    const findings = analyze({ root, ungated: {} }).findings as Finding[];
+    expect(findings.map((f) => f.reason)).toContain('stale-fragment-marker');
+  });
+
   it('reports a marker that declares nothing rather than ignoring it', () => {
     const root = tempTree({
       'content/docs/a.mdx': ['{/* doc-snippet: fragment — nothing follows this */}', '', 'Just prose.'].join('\n'),

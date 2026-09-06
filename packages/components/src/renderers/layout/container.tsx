@@ -140,24 +140,18 @@ ComponentRegistry.register('container',
           { label: '7xl', value: '7xl' },
           { label: 'full', value: 'full' },
           { label: 'screen', value: 'screen' },
-        ],
-        label: 'Max Width',
-        defaultValue: 'xl'
-      },
+        ]      },
       { 
         name: 'padding', 
         type: 'number', 
-        label: 'Padding', 
-        defaultValue: 4,
+        
+        
         description: 'Padding value (0, 1-8, 10, 12, 16)'
       },
       { 
         name: 'centered', 
-        type: 'boolean', 
-        label: 'Center Horizontally', 
-        defaultValue: true
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        type: 'boolean'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       maxWidth: 'xl',

@@ -131,7 +131,14 @@ describe('buildExpandFields', () => {
     name: { type: 'text', label: 'Name' },
     f_lookup: { type: 'lookup', label: 'Account', reference: 'showcase_account' },
     f_master_detail: { type: 'master_detail', label: 'Project', reference: 'showcase_project' },
-    f_tree: { type: 'tree', label: 'Category', reference: 'showcase_category' },
+    // No `reference`: a `tree` field's `reference` is OPTIONAL and, when
+    // present, must name the DECLARING object — a hierarchy is parent/child
+    // within one object (objectstack#14892, `refuseForeignTreeReference`).
+    // This map declares no object, so there is no name to point at, and
+    // `buildExpandFields` reads `type` and never the target anyway. It used
+    // to carry a foreign one copied from the showcase zoo, which is exactly
+    // how it went stale when upstream corrected the zoo (objectui#7839).
+    f_tree: { type: 'tree', label: 'Category' },
     f_user: { type: 'user', label: 'Assignee', reference: 'sys_user' },
     status: { type: 'select', label: 'Status' },
     cover: { type: 'image', label: 'Cover' },

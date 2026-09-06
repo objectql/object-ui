@@ -40,7 +40,8 @@ import { render, act } from '@testing-library/react';
 import React from 'react';
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'User', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => vi.fn(),
 }));

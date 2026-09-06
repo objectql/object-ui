@@ -187,11 +187,15 @@ export type ViewNavigationConfig = z.infer<typeof NavigationConfigSchema>;
     // `SpecAuthoredInput` is recognised by NAME (it is the repo's own helper for
     // binding a local type to a spec schema's authoring input), so the module it
     // comes from does not change the verdict. Spelled as the relative import a
-    // file inside the react package would really use, and deliberately not as a
-    // bare workspace specifier: `scripts-type-check.test.ts` pins that no file in
-    // the scripts tsconfig program imports an `@object-ui` package, and it looks
-    // for that import TEXT — so a fixture string carrying one trips it and would
-    // move a CI step below the workspace build for no real dependency.
+    // file inside the react package would really use, which is what such a file
+    // would carry anyway.
+    //
+    // (Not, as this used to say, because a bare workspace specifier in a fixture
+    // string would trip `scripts-type-check.test.ts`. That gate still pins that
+    // no file in the scripts tsconfig program imports an `@object-ui` package,
+    // but objectui#4902 moved it to the AST walk `workspaceImportSpecifiers()`,
+    // which reads import edges rather than import TEXT — a fixture string is not
+    // one. See that function's docstring.)
     withFixture(
       {
         'authored.ts': `
@@ -724,15 +728,16 @@ describe('the guard file itself', () => {
  * Dropping it is only safe because two structural narrowings landed with it, and
  * a narrowing is a statement about what this guard may NOT see. These cases are
  * that statement's proof — one red per widening, and one green per narrowing,
- * with the RED case for each narrowing's near neighbour sitting beside it. The
- * No fixture below re-exports its declaration. That is deliberate and worth a
- * line: a bare `export { X }` over a local import carries no module specifier,
- * so the barrel skip in `scanFile` (which fires only on
- * `export { X } from './x'`) misses it and records a SECOND finding at the
- * barrel. That hole predates objectui#6291 — it is why
- * `@object-ui/plugin-list:ListView` still matches an ALLOW entry while its two
- * renderer siblings' entries were deleted — and it is filed, not fixed here.
- * Re-exporting in a fixture would measure that hole instead of these narrowings.
+ * with the RED case for each narrowing's near neighbour sitting beside it.
+ *
+ * No fixture below re-exports its declaration, and that is still deliberate: a
+ * bare `export { X }` is now resolved against the file's own imports
+ * (objectui#7275), so re-exporting here would measure THAT rule rather than
+ * these narrowings. Its own discrimination proof is the describe block below
+ * this one. The asymmetry this comment used to record — a barrel line keeping
+ * `@object-ui/plugin-list:ListView`'s ALLOW entry alive while its two renderer
+ * siblings' entries were deleted — is gone with the hole: all three names are
+ * now judged structurally and none of them has an entry.
  *
  * The near neighbours are the point: `rendersJsx` must not become "functions are
  * exempt" (that would silence `isContextToken` and `normalizeFilterOperator`,
@@ -838,6 +843,135 @@ type ListView = 'table' | 'kanban' | 'calendar';
           { name: 'NavigationConfig', kind: 'type' },
           { name: 'ListView', kind: 'type' },
         ])
+    );
+  });
+});
+
+
+// ── A bare `export { X }` is a barrel line too (objectui#7275) ───────────────
+
+/**
+ * The re-export arm skips a barrel that re-exports a module this scan already
+ * covers, because whatever it points at is judged at its own declaration site.
+ * That skip read the export's MODULE SPECIFIER, and a bare `export { X }`
+ * written over a local `import` has none — so the name was recorded at the
+ * BARREL, pointing a reader at the wrong file and, worse, putting the ALLOW /
+ * DEBT ratchets within reach of an edit to a barrel rather than to the shape.
+ * `packages/plugin-list/src/index.tsx:15` was the live instance and the only
+ * one in the tree: rule 1 reported 36 findings before the fix and 35 after, the
+ * removed one being `re-export ListView` at that barrel.
+ *
+ * The fix resolves the exported LOCAL name against the file's own imports. The
+ * four cases below are its discrimination proof, and the last two are the point
+ * — a rule that simply skipped every bare `export { X }` would pass the first
+ * two and silently lose the rest of rule 1:
+ *
+ *   a. bound by a relative / `@object-ui/*` import  → skipped, like the barrel
+ *   b. bound by an `@objectstack/spec` import       → derivation, as before
+ *   c. bound by nothing (declared in this file)     → still a visible finding
+ *   d. bound by a third-party import                → still a finding: this
+ *      scan does not cover that module, so nothing else will judge the name
+ */
+describe('a bare `export { X }` is resolved against the file own imports', () => {
+  const REEXPORT_SPEC_NAMES = new Map<string, Set<string>>([
+    ['ListView', new Set(['@objectstack/spec/ui'])],
+    ['NavigationConfig', new Set(['@objectstack/spec/ui'])],
+  ]);
+  const scanRe = (file: string) =>
+    (scanFile(file, REEXPORT_SPEC_NAMES) as { name: string; kind: string }[]).map((f) => ({
+      name: f.name,
+      kind: f.kind,
+    }));
+
+  it('a. a bare re-export of a sibling module is skipped, exactly like `export { X } from "./x"`', () => {
+    // The `packages/plugin-list/src/index.tsx` shape. Both spellings re-export
+    // the same declaration; only one of them used to be skipped.
+    withFixture(
+      {
+        'barrel.ts': `
+import { ListView } from './ListView';
+import { NavigationConfig } from '@object-ui/core';
+
+export { ListView };
+export { NavigationConfig };
+`,
+      },
+      ({ 'barrel.ts': file }) => expect(scanRe(file)).toEqual([])
+    );
+  });
+
+  it('b. …and a bare re-export of a spec import is still derivation, not a skip', () => {
+    // The arm the fix must not swallow: this is genuine derivation, and it is
+    // green for that reason rather than because the barrel rule reached it.
+    withFixture(
+      {
+        'derive.ts': `
+import type { ListView } from '@objectstack/spec/ui';
+
+export type { ListView };
+`,
+      },
+      ({ 'derive.ts': file }) => expect(scanRe(file)).toEqual([])
+    );
+  });
+
+  it('c. a bare export of a declaration made IN this file is still reported', () => {
+    // The half a blanket "skip every bare export" would delete: nothing else
+    // judges this declaration, because there is no other site to judge it at.
+    withFixture(
+      {
+        'local.ts': `
+type ListView = 'table' | 'kanban';
+const NavigationConfig = { mode: 'page' };
+
+export type { ListView };
+export { NavigationConfig };
+`,
+      },
+      ({ 'local.ts': file }) =>
+        expect(scanRe(file)).toEqual([
+          { name: 'ListView', kind: 'type' },
+          { name: 'NavigationConfig', kind: 'const' },
+          { name: 'ListView', kind: 're-export' },
+          { name: 'NavigationConfig', kind: 're-export' },
+        ])
+    );
+  });
+
+  it('d. a bare re-export of a THIRD-PARTY import is still reported', () => {
+    // The near neighbour that keeps the resolution from decaying into "any
+    // import is covered". `export { X } from "some-lib"` is not skipped either;
+    // the bare spelling must not become the cheaper way to publish a spec-owned
+    // name over something this scan never reads.
+    withFixture(
+      {
+        'vendor.ts': `
+import { ListView } from 'some-vendor-lib';
+
+export { ListView };
+`,
+      },
+      ({ 'vendor.ts': file }) => expect(scanRe(file)).toEqual([{ name: 'ListView', kind: 're-export' }])
+    );
+  });
+
+  it('e. the alias form resolves by the LOCAL name, not the exported one', () => {
+    // `export { X as Y }` is judged on `X` — where the binding is — so the
+    // sibling import is skipped and the local declaration is not, under the
+    // same exported name.
+    withFixture(
+      {
+        'alias.ts': `
+import { Table } from './Table';
+
+const Local = { mode: 'page' };
+
+export { Table as ListView };
+export { Local as NavigationConfig };
+`,
+      },
+      ({ 'alias.ts': file }) =>
+        expect(scanRe(file)).toEqual([{ name: 'NavigationConfig', kind: 're-export' }])
     );
   });
 });

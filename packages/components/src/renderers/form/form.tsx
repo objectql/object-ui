@@ -3066,43 +3066,35 @@ ComponentRegistry.register('form',
       { 
         name: 'fields', 
         type: 'array', 
-        label: 'Fields',
         description: 'Array of field configurations with name, label, type, validation, etc.'
       },
       { 
         name: 'defaultValues', 
         type: 'object', 
-        label: 'Default Values',
         description: 'Object with default values for form fields'
       },
-      { name: 'submitLabel', type: 'string', label: 'Submit Button Label', defaultValue: 'Submit' },
-      { name: 'cancelLabel', type: 'string', label: 'Cancel Button Label', defaultValue: 'Cancel' },
-      { name: 'showCancel', type: 'boolean', label: 'Show Cancel Button', defaultValue: false },
+      { name: 'submitLabel', type: 'string' },
+      { name: 'cancelLabel', type: 'string' },
+      { name: 'showCancel', type: 'boolean' },
       { 
         name: 'layout', 
         type: 'enum', 
-        enum: ['vertical', 'horizontal'],
-        label: 'Layout',
-        defaultValue: 'vertical'
-      },
+        enum: ['vertical', 'horizontal']      },
       { 
         name: 'columns', 
         type: 'number', 
-        label: 'Number of Columns',
-        defaultValue: 1,
+        
+        
         description: 'For multi-column layouts (1-4)'
       },
       { 
         name: 'validationMode', 
         type: 'enum',
-        enum: ['onSubmit', 'onBlur', 'onChange', 'onTouched', 'all'],
-        label: 'Validation Mode',
-        defaultValue: 'onSubmit'
-      },
-      { name: 'resetOnSubmit', type: 'boolean', label: 'Reset After Submit', defaultValue: false },
-      { name: 'disabled', type: 'boolean', label: 'Disabled', defaultValue: false },
-      { name: 'className', type: 'string', label: 'CSS Class' },
-      { name: 'fieldContainerClass', type: 'string', label: 'Field Container CSS Class' }
+        enum: ['onSubmit', 'onBlur', 'onChange', 'onTouched', 'all']      },
+      { name: 'resetOnSubmit', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'className', type: 'string' },
+      { name: 'fieldContainerClass', type: 'string' }
     ],
     defaultProps: {
       submitLabel: 'Submit',

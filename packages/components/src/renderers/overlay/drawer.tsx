@@ -45,27 +45,21 @@ ComponentRegistry.register('drawer',
     namespace: 'ui',
     label: 'Drawer',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'description', type: 'string', label: 'Description' },
-       { name: 'shouldScaleBackground', type: 'boolean', label: 'Scale Background' },
-        { name: 'defaultOpen', type: 'boolean', label: 'Default Open' },
-       { name: 'showClose', type: 'boolean', label: 'Show Close Button in Footer' },
+      { name: 'title', type: 'string' },
+      { name: 'description', type: 'string' },
+       { name: 'shouldScaleBackground', type: 'boolean' },
+        { name: 'defaultOpen', type: 'boolean' },
+       { name: 'showClose', type: 'boolean' },
       { 
         name: 'trigger', 
-        type: 'slot', 
-        label: 'Trigger' 
-      },
+        type: 'slot'      },
       { 
         name: 'content', 
-        type: 'slot', 
-        label: 'Content' 
-      },
+        type: 'slot'      },
        { 
         name: 'footer', 
-        type: 'slot', 
-        label: 'Footer' 
-      },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'Drawer Title',

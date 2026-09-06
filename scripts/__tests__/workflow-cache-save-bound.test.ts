@@ -40,9 +40,11 @@ import { parse as parseYaml } from 'yaml';
  *
  * Fold any split back into one `actions/cache` step and nothing goes red. The
  * cache still works, every run still passes, and the next transient upload stall
- * ejects the next green pull request — or, in the three jobs here that declare
- * no `timeout-minutes` at all, holds a required context open against GitHub's
- * 360-minute default. That is this repository's recurring "looks like
+ * ejects the next green pull request. Until objectui#7270 three of these jobs
+ * declared no `timeout-minutes` at all, so the same stall held a required
+ * context open against GitHub's 360-minute default instead; those three now
+ * carry ceilings derived from their own run distributions, and the last pin in
+ * this file is what keeps them. That is this repository's recurring "looks like
  * enforcement, isn't" class (objectui#3009, #3181, #3494).
  *
  * ## Deliberately NOT asserted
@@ -280,5 +282,69 @@ describe('every workflow cache save is bounded and non-fatal (objectui#7048)', (
           'the hang just runs longer and the gate still reports `cancelled` (objectui#6577).',
       ).toBeLessThanOrEqual(max);
     }
+  });
+
+  it('bounds the three jobs objectui#7270 found running under the 360-minute default', () => {
+    // Presence and bound in one assertion, because the two ways this can be
+    // undone need the same fix site and neither is visible in a run.
+    //
+    //   - Delete the key and the job silently returns to GitHub's 360-minute
+    //     default. Nothing goes red: a healthy job never approaches any
+    //     ceiling, so the only symptom is the next transient hang holding a
+    //     required context for six hours and then reporting `cancelled` — a
+    //     verdict the merge queue cannot tell from `failure` (objectui#5304,
+    //     objectui#6577 are the two times this repository has paid it).
+    //   - Raise the number and objectui#7048's fence is crossed in the other
+    //     direction: a larger ceiling buys a longer hang and still ends in
+    //     `cancelled`.
+    //
+    // Each number is DERIVED FOR ITS OWN JOB from that job's measured run
+    // distribution, and the derivation is written beside the key in the
+    // workflow — window, sample size, min/median/p95/max, and the rule.
+    // objectui#7048 fences copying `ci.yml`'s 10/15/20/30/40, so the three
+    // values here are not a shared constant and two of them being equal is a
+    // coincidence of the arithmetic. Pinning them means a future change to one
+    // has to move the derivation beside it in the same commit.
+    const derived: Record<string, number> = {
+      'lint.yml::lint': 25,
+      'performance-budget.yml::bundle-analysis': 25,
+      'changeset-release.yml::release': 40,
+    };
+
+    const missing: string[] = [];
+    const raised: string[] = [];
+
+    for (const [key, ceiling] of Object.entries(derived)) {
+      const [file, jobKey] = key.split('::');
+      const entry = allJobs.find((e) => e.file === file && e.jobKey === jobKey);
+      expect(entry, `${file} must still define a \`${jobKey}:\` job`).toBeDefined();
+
+      const declared = entry!.job['timeout-minutes'];
+      if (typeof declared !== 'number') {
+        missing.push(`${file} :: job \`${jobKey}\``);
+      } else if (declared > ceiling) {
+        raised.push(`${file} :: job \`${jobKey}\` declares ${declared}, derived ${ceiling}`);
+      }
+    }
+
+    expect(
+      missing,
+      'these jobs declare no job-level `timeout-minutes`, so their only backstop is GitHub\'s ' +
+        '360-minute default again:\n' +
+        missing.map((o) => `  - ${o}`).join('\n') +
+        '\n\nTwo of them are required contexts and one is the publish lane. Restore the key ' +
+        'TOGETHER WITH the derivation comment beside it — a ceiling with no recorded provenance ' +
+        'is the next reader\'s excuse to guess at it (objectui#7270).',
+    ).toEqual([]);
+
+    expect(
+      raised,
+      'these job ceilings are above the value derived for them:\n' +
+        raised.map((o) => `  - ${o}`).join('\n') +
+        '\n\nRaising a ceiling does not fix a hang — it buys a longer one and the gate still ' +
+        'reports `cancelled` (objectui#6577, objectui#7048). If a job genuinely got slower, ' +
+        're-derive it from a fresh distribution, rewrite the comment beside the key, and move ' +
+        'this pin in the same commit.',
+    ).toEqual([]);
   });
 });

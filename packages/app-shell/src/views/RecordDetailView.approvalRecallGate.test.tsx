@@ -37,7 +37,8 @@ const authFetchSpy = vi.fn(async () =>
     headers: { 'content-type': 'application/json' },
   }),
 );
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u_qcdir', name: 'QC Director', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => authFetchSpy,
 }));

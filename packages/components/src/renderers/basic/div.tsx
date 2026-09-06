@@ -135,7 +135,7 @@ ComponentRegistry.register('div',
         'use "card", "flex", or layout components like "container", "stack", or "grid"',
     },
     inputs: [
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       className: 'p-2 sm:p-4 border border-dashed border-gray-300 rounded min-h-[100px]'

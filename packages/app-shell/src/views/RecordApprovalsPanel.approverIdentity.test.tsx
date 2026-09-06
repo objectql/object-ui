@@ -25,7 +25,10 @@ import { I18nProvider } from '@object-ui/i18n';
 import { AdapterCtx } from '@object-ui/react';
 import type { ApprovalRequestLite } from '../hooks/useRecordApprovals';
 
-vi.mock('@object-ui/auth', () => ({ createAuthenticatedFetch: () => vi.fn() }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createAuthenticatedFetch: () => vi.fn(),
+}));
 vi.mock('sonner', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));

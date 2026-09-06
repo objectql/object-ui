@@ -43,27 +43,23 @@ ComponentRegistry.register('sheet',
     namespace: 'ui',
     label: 'Sheet',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'description', type: 'string', label: 'Description' },
-      { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'], defaultValue: 'right', label: 'Side' },
-      { name: 'modal', type: 'boolean', label: 'Modal', defaultValue: true },
-       { name: 'defaultOpen', type: 'boolean', label: 'Default Open' },
+      { name: 'title', type: 'string' },
+      { name: 'description', type: 'string' },
+      { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'] },
+      { name: 'modal', type: 'boolean' },
+       { name: 'defaultOpen', type: 'boolean' },
       { 
         name: 'trigger', 
         type: 'slot', 
-        label: 'Trigger',
       },
       { 
         name: 'content', 
         type: 'slot', 
-        label: 'Content', 
       },
        { 
         name: 'footer', 
-        type: 'slot', 
-        label: 'Footer' 
-      },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'Sheet Title',

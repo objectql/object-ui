@@ -63,12 +63,12 @@ ComponentRegistry.register('textarea', TextareaRenderer,
     namespace: 'ui',
     label: 'Textarea',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'rows', type: 'number', label: 'Rows' },
-      { name: 'required', type: 'boolean', label: 'Required' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' },
-      { name: 'id', type: 'string', label: 'ID', required: true }
+      { name: 'label', type: 'string' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'rows', type: 'number' },
+      { name: 'required', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'id', type: 'string', required: true }
     ],
     defaultProps: {
       label: 'Textarea label',

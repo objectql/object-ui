@@ -24,6 +24,31 @@ export default tseslint.config({
     '**/.source',
   ],
 }, {
+  // objectui#4853 — a stale `eslint-disable` is an ERROR, not a warning.
+  //
+  // ESLint's own default for this option is already `'warn'`, so every stale
+  // directive was reported on every CI run before this block existed; it was
+  // inert only because `.github/workflows/lint.yml` deliberately sets no
+  // `--max-warnings` (see the note at `lint.yml:20`, which this change does
+  // NOT touch — the threshold question is a separate card). So this is a
+  // severity change on a check already running, 1 -> 2, not a new check.
+  //
+  // Why it earns the ratchet: 49 stale directives had accumulated by #4833
+  // (PR #4849 cleared them), and 2 more appeared in the 21 days after that
+  // (PR #7909 cleared those) with nobody touching those lines. A stale
+  // directive is a silent suppression of a rule that no longer fires there,
+  // so it hides the next real finding at that site. The red names the exact
+  // file:line, which makes the remedy mechanical: delete the directive.
+  //
+  // This object deliberately carries ONLY `linterOptions` and NO `files` key,
+  // which is what makes it apply to every linted path. The rule-bearing
+  // objects below are all scoped `**/*.{ts,tsx}` or narrower, so a
+  // `linterOptions` placed on any of them would leave the `.js/.mjs/.cjs`
+  // family — everything `pnpm lint:root` walks — uncovered.
+  linterOptions: {
+    reportUnusedDisableDirectives: 'error',
+  },
+}, {
   extends: [js.configs.recommended, ...tseslint.configs.recommended],
   files: ['**/*.{ts,tsx}'],
   languageOptions: {

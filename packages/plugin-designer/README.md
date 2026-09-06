@@ -30,15 +30,28 @@ npm install @object-ui/plugin-designer
 ## Quick Start
 
 ```tsx
-import {
-  PageDesigner,
-  DataModelDesigner,
-  CollaborationProvider,
-} from '@object-ui/plugin-designer';
+import { CollaborationProvider, PageDesigner } from '@object-ui/plugin-designer';
+import type { CollaborationConfig, DesignerComponent } from '@object-ui/types';
+
+const collaboration: CollaborationConfig = {
+  enabled: true,
+  roomId: 'landing-page',
+  showCursors: true,
+};
+
+const componentList: DesignerComponent[] = [
+  {
+    id: 'headline',
+    type: 'text',
+    label: 'Headline',
+    position: { x: 0, y: 0, width: 480, height: 48 },
+    props: { value: 'Welcome' },
+  },
+];
 
 function DesignerApp() {
   return (
-    <CollaborationProvider>
+    <CollaborationProvider config={collaboration}>
       <PageDesigner
         components={componentList}
         showComponentTree
@@ -56,13 +69,19 @@ function DesignerApp() {
 Drag-and-drop page layout builder:
 
 ```tsx
+import { PageDesigner } from '@object-ui/plugin-designer';
+import type { DesignerCanvasConfig, DesignerComponent } from '@object-ui/types';
+
+declare const canvasConfig: DesignerCanvasConfig;
+declare const componentList: DesignerComponent[];
+
 <PageDesigner
   canvas={canvasConfig}
   components={componentList}
   showComponentTree
   undoRedo
   readOnly={false}
-/>
+/>;
 ```
 
 ### DataModelDesigner
@@ -70,7 +89,13 @@ Drag-and-drop page layout builder:
 Entity-relationship diagram editor:
 
 ```tsx
-<DataModelDesigner entities={entities} relationships={relationships} autoLayout />
+import { DataModelDesigner } from '@object-ui/plugin-designer';
+import type { DataModelEntity, DataModelRelationship } from '@object-ui/types';
+
+declare const entities: DataModelEntity[];
+declare const relationships: DataModelRelationship[];
+
+<DataModelDesigner entities={entities} relationships={relationships} autoLayout />;
 ```
 
 ### ProcessDesigner
@@ -78,13 +103,19 @@ Entity-relationship diagram editor:
 BPMN-style process flow editor:
 
 ```tsx
+import { ProcessDesigner } from '@object-ui/plugin-designer';
+import type { BPMNEdge, BPMNNode } from '@object-ui/types';
+
+declare const nodes: BPMNNode[];
+declare const edges: BPMNEdge[];
+
 <ProcessDesigner
   processName="Order Approval"
   nodes={nodes}
   edges={edges}
   showMinimap
   showToolbar
-/>
+/>;
 ```
 
 ### ReportDesigner
@@ -92,7 +123,12 @@ BPMN-style process flow editor:
 Visual report layout builder:
 
 ```tsx
-<ReportDesigner reportName="Sales Report" objectName="Order" sections={sections} />
+import { ReportDesigner } from '@object-ui/plugin-designer';
+import type { ReportDesignerSection } from '@object-ui/types';
+
+declare const sections: ReportDesignerSection[];
+
+<ReportDesigner reportName="Sales Report" objectName="Order" sections={sections} />;
 ```
 
 ### CollaborationProvider / ConnectionStatusIndicator
@@ -100,10 +136,19 @@ Visual report layout builder:
 Multi-user real-time editing support:
 
 ```tsx
-<CollaborationProvider>
+import {
+  CollaborationProvider,
+  ConnectionStatusIndicator,
+  PageDesigner,
+} from '@object-ui/plugin-designer';
+import type { CollaborationConfig } from '@object-ui/types';
+
+declare const collaboration: CollaborationConfig;
+
+<CollaborationProvider config={collaboration}>
   <ConnectionStatusIndicator />
-  <PageDesigner ... />
-</CollaborationProvider>
+  <PageDesigner showComponentTree undoRedo />
+</CollaborationProvider>;
 ```
 
 ### Shared Hooks
@@ -117,10 +162,13 @@ import {
   useConfirmDialog,
 } from '@object-ui/plugin-designer';
 
-const { undo, redo, canUndo, canRedo } = useUndoRedo();
-const { copy, paste, cut } = useClipboard();
-const { selected, select, selectAll, clearSelection } = useMultiSelect();
-const { zoom, pan, resetView } = useCanvasPanZoom();
+import type { DesignerComponent } from '@object-ui/types';
+
+const { undo, redo, canUndo, canRedo } = useUndoRedo<DesignerComponent[]>([]);
+const { clipboard, copy, paste, hasContent } = useClipboard<DesignerComponent>();
+const { selectedIds, selectOne, selectMany, clearSelection } = useMultiSelect();
+const { zoom, panOffset, zoomIn, zoomOut, resetZoom } = useCanvasPanZoom();
+const { confirm, isOpen } = useConfirmDialog();
 ```
 
 ### Shared Components

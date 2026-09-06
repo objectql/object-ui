@@ -443,7 +443,7 @@ the renderer distribute the fields:
   fieldTabs: [
     { key: 'basics', label: 'Basics', fields: ['subject', 'status'] },
     { key: 'detail', label: 'Detail', description: 'Anything else', fields: ['description'] },
-    { key: 'billing', label: 'Billing', fields: ['vat_id'], visibleWhen: 'status == "won"' },
+    { key: 'billing', label: 'Billing', fields: ['vat_id'], visibleWhen: 'record.status == "won"' },
   ],
   defaultFieldTab?: 'basics',                    // defaults to the first tab
   fieldTabsPosition?: 'top',                     // 'top' | 'bottom' | 'left' | 'right'

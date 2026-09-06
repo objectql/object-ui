@@ -74,19 +74,16 @@ ComponentRegistry.register('input', InputRenderer, {
     namespace: 'ui',
     label: 'Input Field',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'name', type: 'string', label: 'Field Name' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
+      { name: 'label', type: 'string' },
+      { name: 'name', type: 'string' },
+      { name: 'placeholder', type: 'string' },
       { 
         name: 'inputType', 
         type: 'enum', 
-        label: 'Type',
-        enum: ['text', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local'],
-        defaultValue: 'text'
-      },
-      { name: 'required', type: 'boolean', label: 'Required' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' },
-      { name: 'description', type: 'string', label: 'Description' }
+        enum: ['text', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local']      },
+      { name: 'required', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'description', type: 'string' }
     ],
     defaultProps: {
       inputType: 'text'
@@ -101,12 +98,12 @@ ComponentRegistry.register('email',
     label: 'Email Input',
     icon: 'mail', 
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'name', type: 'string', label: 'Field Name' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'required', type: 'boolean', label: 'Required' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' },
-      { name: 'description', type: 'string', label: 'Description' }
+      { name: 'label', type: 'string' },
+      { name: 'name', type: 'string' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'required', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'description', type: 'string' }
     ]
   }
 );
@@ -118,12 +115,12 @@ ComponentRegistry.register('password',
     label: 'Password Input',
     icon: 'lock',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'name', type: 'string', label: 'Field Name' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'required', type: 'boolean', label: 'Required' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' },
-      { name: 'description', type: 'string', label: 'Description' }
+      { name: 'label', type: 'string' },
+      { name: 'name', type: 'string' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'required', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'description', type: 'string' }
     ]
   }
 );

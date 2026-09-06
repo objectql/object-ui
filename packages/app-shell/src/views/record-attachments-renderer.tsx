@@ -72,7 +72,7 @@ ComponentRegistry.register('attachments', RecordAttachmentsRenderer, {
   category: 'record',
   label: 'Attachments',
   icon: 'Paperclip',
-  inputs: [{ name: 'className', type: 'string', label: 'CSS Class' }],
+  inputs: [{ name: 'className', type: 'string' }],
 });
 
 export default RecordAttachmentsRenderer;

@@ -76,7 +76,9 @@ const schema: ObjectGanttSchema = {
 ### With Static Data
 
 ```tsx
-const schema = {
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const schema: ObjectGanttSchema = {
   type: 'object-gantt',
   staticData: [
     {
@@ -235,7 +237,9 @@ const objectProviderGantt: ObjectGanttSchema = {
 ### Value Provider (Static)
 
 ```tsx
-const valueProviderGantt = {
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const valueProviderGantt: ObjectGanttSchema = {
   type: 'object-gantt',
   staticData: [
     { id: 1, title: 'Task 1', start: '2024-01-01', end: '2024-01-15' },
@@ -252,7 +256,9 @@ const valueProviderGantt = {
 ### API Provider
 
 ```tsx
-const apiProviderGantt = {
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const apiProviderGantt: ObjectGanttSchema = {
   type: 'object-gantt',
   data: {
     provider: 'api',
@@ -351,7 +357,9 @@ const constructionGantt: ObjectGanttSchema = {
 ### Marketing Campaign
 
 ```tsx
-const campaignGantt = {
+import type { ObjectGanttSchema } from '@object-ui/types';
+
+const campaignGantt: ObjectGanttSchema = {
   type: 'object-gantt',
   staticData: [
     {

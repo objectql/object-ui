@@ -70,10 +70,10 @@ ComponentRegistry.register('date-picker',
     namespace: 'ui',
     label: 'Date Picker',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'format', type: 'string', label: 'Date Format', description: 'date-fns format string (e.g., "PPP", "yyyy-MM-dd")' },
-      { name: 'id', type: 'string', label: 'ID', required: true }
+      { name: 'label', type: 'string' },
+      { name: 'placeholder', type: 'string' },
+      { name: 'format', type: 'string', description: 'date-fns format string (e.g., "PPP", "yyyy-MM-dd")' },
+      { name: 'id', type: 'string', required: true }
     ],
     defaultProps: {
       label: 'Date',

@@ -82,8 +82,8 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is exactly one, and the reason is
- * measured rather than chosen. Running this file's classifier over all 1,499
+ * actually been SWEPT to zero. Today that is eight, and each joined by sweep
+ * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
  *     covered set = @object-ui/react (swept by PR #6847)  ->    1 frozen
@@ -93,7 +93,79 @@
  * at 25 and `@object-ui/components` at 22. Import breadth does not separate them
  * either -- `@object-ui/react` is THIRD by measured import count (576 imports
  * across 552 files), behind `@object-ui/core` and `@object-ui/types` -- so there
- * is no threshold to derive and no honest way to widen the set today.
+ * was no threshold to derive and no honest way to widen the set that day.
+ *
+ * ⚠️ Those per-specifier figures were taken with the FIRST-ANGLE-BRACKET
+ * generic this file carried until objectui#7337, which mis-read a nested
+ * `vi.importActual` generic and over-reported `frozen`; re-derive before acting
+ * on any of them. `@object-ui/i18n` was the second member, swept and added by
+ * objectui#7337 -- 92 judged call sites, 92 inheriting, 0 frozen at the flip,
+ * with the all-specifier population moving 315 -> 314 frozen and no site moving
+ * the other way.
+ *
+ * The next three members joined together as objectui#6892's first slice, the
+ * three specifiers the worklist's triage named as the flow-proving start
+ * because each carried exactly ONE frozen factory. Re-derived on `eeda78a780`
+ * with the fixed classifier -- ⛔ never from the worklist's own table, which
+ * predates both the recogniser fix and the `@object-ui/i18n` flip:
+ *
+ *     @object-ui/plugin-markdown    1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/data-objectstack   1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/plugin-report      1 judged, 0 inheriting, 1 frozen -> 0
+ *
+ * with the all-specifier population over the 22 specifiers any `vi.mock` call
+ * site in the tree names moving 318 -> 315 frozen, and no site moving the other
+ * way.
+ *
+ * The next two joined as objectui#6892's SECOND slice, re-derived on
+ * `689127723` by the same method -- `scan()` imported with `covered` set to
+ * every workspace specifier the tree names, so the constant below was never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-charts      1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/plugin-dashboard   3 judged, 0 inheriting, 3 frozen -> 0
+ *
+ * with the same population moving 315 -> 311 frozen and, again, no site moving
+ * the other way. `@object-ui/plugin-charts` never appeared on the worklist's
+ * table at all, and the reason is a THIRD way that table goes stale, distinct
+ * from both the recogniser fix and the sweeps: its only call site did not yet
+ * exist. `ObjectView.chartConfigForward-7891.test.tsx` was ADDED by `38158c6bb`
+ * (2026-09-06), a week AFTER the `9ce20233f` snapshot (2026-08-30) -- verified
+ * by `git cat-file -e 9ce20233f:PATH` against a control path that resolves at
+ * the same commit. So the population GROWS while the worklist is being worked,
+ * and a slice scoped from the table alone would have missed this specifier
+ * entirely. Re-derive per slice; never inherit.
+ *
+ * `@object-ui/auth` joined as objectui#6892's THIRD slice -- the largest block
+ * on the worklist by a factor of three -- re-derived on `06761b351` by the same
+ * `scan()` method, the constant below again never widened-and-reverted:
+ *
+ *     @object-ui/auth             135 judged, 33 inheriting, 102 frozen -> 0
+ *
+ * with the same population moving 311 -> 209 frozen and no site moving the
+ * other way -- both figures measured on `06761b351`, the base this sweep was
+ * derived and converted on. On the merged head the population reads 211 over
+ * 643 judged, and the delta is NOT this sweep: merging `origin/main` mid-slice
+ * brought in two new frozen sites (`@object-ui/plugin-form`, `@object-ui/plugin-grid`)
+ * and one new inheriting `@object-ui/react` site, all landed by other PRs
+ * while this one was being verified. That is the growth warning above,
+ * observed a second time inside a single slice; `@object-ui/auth` stayed at 0. ⭐ That slice paid for one measurement worth keeping here, because
+ * it is the question every REMAINING slice has to ask and the answer is not
+ * uniform: **what does inheriting actually RUN?** Converting freezes to
+ * inheritance loads the real barrel in every converted file, so a barrel with
+ * module-scope side effects has those effects restored in all of them at once.
+ * Slice 2's two barrels each made 8 module-scope `ComponentRegistry.register`
+ * calls, absorbed in four files. `packages/auth/src` was measured before any
+ * conversion, by walking its 22-module static import graph and classifying
+ * every top-level statement: 8 module-scope initialisers, ALL pure in-memory
+ * allocation (two `Set`s of literal strings, an `Object.values`, a `Set` over
+ * it, `createContext(null)` plus its `displayName`, an empty listener `Set`,
+ * one alias), and ZERO registrations, timers, globals, `fetch` or
+ * side-effect-only imports. Inert -- so 102 files inherit it for free. ⛔ Do
+ * not generalise that verdict to the next barrel; take the measurement. The
+ * remaining 209 stay on objectui#6892, `@object-ui/collaboration` (33) and
+ * `@object-ui/plugin-form` (30) next by yield and `@object-ui/app-shell` (23)
+ * only after objectui#6580.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -174,7 +246,16 @@ import { blank, scanSource } from './js-comment-mask.mjs';
  * The workspace packages this gate judges. GROW-ONLY, and a specifier joins it
  * only after its frozen factories have been swept to zero -- see "Scope" above.
  */
-export const COVERED_SPECIFIERS = Object.freeze(['@object-ui/react']);
+export const COVERED_SPECIFIERS = Object.freeze([
+  '@object-ui/react',
+  '@object-ui/i18n',
+  '@object-ui/plugin-markdown',
+  '@object-ui/data-objectstack',
+  '@object-ui/plugin-report',
+  '@object-ui/plugin-charts',
+  '@object-ui/plugin-dashboard',
+  '@object-ui/auth',
+]);
 
 /** Files the walk reads at all. */
 const SOURCE_FILE_RE = /\.[cm]?[jt]sx?$/;

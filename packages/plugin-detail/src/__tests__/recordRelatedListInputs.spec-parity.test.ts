@@ -32,6 +32,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ComponentRegistry } from '@object-ui/core';
 import { PageComponentSchema, RecordRelatedListProps } from '@objectstack/spec/ui';
 import '../index';
@@ -210,13 +212,18 @@ describe('record:related_list — registry inputs vs @objectstack/spec', () => {
     }
   });
 
-  it("`relationshipValueField` publishes the renderer's default, and it matches the read site", () => {
-    // `record-related-list.tsx:95` is `schema.relationshipValueField || 'id'`, and
-    // the input carries `defaultValue: 'id'` to match. Pinned because a default
-    // published on the authoring surface that disagrees with the renderer is
-    // worse than no default: the designer would pre-fill one value and the page
-    // would behave as another, with nothing comparing them.
-    expect(input('relationshipValueField')?.defaultValue).toBe('id');
+  it("`relationshipValueField`'s description names the renderer's default, and it matches the read site", () => {
+    // `record-related-list.tsx` reads `schema.relationshipValueField || 'id'`,
+    // and the input's `description` tells the author "Defaults to "id"". Pinned
+    // because a default advertised on the authoring surface that disagrees
+    // with the renderer is worse than no default: the author would write for
+    // one value and the page would behave as another, with nothing comparing
+    // them. (The registration used to restate it as `ComponentInput.defaultValue`;
+    // that key is an ADR-0049 tombstone since objectui#7493 — nothing ever read
+    // it — so `description` and the read site are the two ends now.)
+    const renderer = readFileSync(resolve(__dirname, '../renderers/record-related-list.tsx'), 'utf8');
+    expect(renderer).toMatch(/relationshipValueField \|\| 'id'/);
+    expect(input('relationshipValueField')?.description ?? '').toMatch(/Defaults to "id"/);
 
     // And the spec agrees, so all three say `id`.
     expect(RecordRelatedListProps.safeParse(baseline).data?.relationshipValueField ?? 'id').toBe('id');

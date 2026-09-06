@@ -45,10 +45,13 @@ import { MetadataCtx } from '@object-ui/react';
 
 // Captured props of the (stubbed) DashboardRenderer — `modalHandler` is the
 // handler the view really installs on the dashboard's ActionRunner, which is
-// the thing under test. Stubbing the renderer also keeps this file out of the
-// ComponentRegistry-heavy setup.
+// the thing under test. The factory inherits the real module and overrides only
+// `DashboardRenderer`, so the package's own `ComponentRegistry.register` calls
+// DO run now (objectui#6892). The stub no longer avoids that setup; it replaces
+// the one component this file asserts on.
 const cap = vi.hoisted(() => ({ props: null as any }));
-vi.mock('@object-ui/plugin-dashboard', () => ({
+vi.mock('@object-ui/plugin-dashboard', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   DashboardRenderer: (props: any) => {
     cap.props = props;
     return null;

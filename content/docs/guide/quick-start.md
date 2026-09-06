@@ -139,22 +139,17 @@ Open [http://localhost:5173](http://localhost:5173). You should see a card and d
 
 ### Add Actions
 
-Actions are data, not inline functions. Define them in schema events:
+Actions are data, not inline functions. Declare one as an `action:button`
+node: `actionType` names the built-in executor the action runner dispatches to,
+and the action's own keys carry that executor's arguments — `target` is the
+location a `url` action navigates to:
 
 ```json
 {
-  "type": "button",
+  "type": "action:button",
   "label": "Open details",
-  "events": {
-    "onClick": [
-      {
-        "action": "navigate",
-        "params": {
-          "url": "/users/ada"
-        }
-      }
-    ]
-  }
+  "actionType": "url",
+  "target": "/users/ada"
 }
 ```
 

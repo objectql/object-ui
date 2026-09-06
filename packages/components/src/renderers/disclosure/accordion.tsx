@@ -33,15 +33,14 @@ ComponentRegistry.register('accordion',
     namespace: 'ui',
     label: 'Accordion',
     inputs: [
-      { name: 'accordionType', type: 'enum', enum: ['single', 'multiple'], defaultValue: 'single', label: 'Type' },
-      { name: 'collapsible', type: 'boolean', label: 'Collapsible (for single type)' },
+      { name: 'accordionType', type: 'enum', enum: ['single', 'multiple'] },
+      { name: 'collapsible', type: 'boolean' },
        { 
         name: 'items', 
         type: 'array', 
-        label: 'Items',
         description: 'Array of { trigger, content, value }'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       accordionType: 'single',

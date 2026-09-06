@@ -94,6 +94,12 @@ function parsedConsoleNodeProject(): ts.ParsedCommandLine {
  * kinds, only that shape. What it missed entirely was
  * `import core = require('…')` (`ImportEqualsDeclaration`), which has no
  * `from` token at all; this walk covers that form deliberately instead.
+ *
+ * Sibling suites in this directory explain their own fixture spellings by
+ * pointing HERE rather than restating what this matcher does. Keep it that way:
+ * objectui#6996 swept the directory and found six of them describing this
+ * matcher in their own words, every one of them still describing the TEXT match
+ * this walk replaced. One account can be corrected; six drift apart.
  */
 function workspaceImportSpecifiers(fileName: string, sourceText: string): string[] {
   const sourceFile = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, false);

@@ -38,6 +38,7 @@ import {
 import { BaseSchema, specFieldsExcept } from './base.zod.js';
 import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { DrillDownConfigSchema } from './data-display.zod.js';
+import { ViewSwitcherSchema } from './views.zod.js';
 
 /**
  * HTTP Method Schema — `@objectstack/spec/ui` schema re-exported by reference
@@ -192,6 +193,61 @@ export const ObjectFormSchema = BaseSchema.extend({
 
 /**
  * ObjectView Schema
+ *
+ * Ten keys the `ObjectViewSchema` interface (`../objectql.ts`) declared and this
+ * mirror never did — objectui#7279's `UnmirroredDeclared` reading — were closed
+ * nine-for-ten by objectui#7779 under the maintainer's ruling B (2026-09-06:
+ * liveness first, then mirror-or-retire per key). Every reading below was taken
+ * on the `object-view` NODE renderer, `packages/plugin-view/src/ObjectView.tsx`
+ * (registered by `plugin-view/src/index.tsx`), with `schema.objectName` /
+ * `schema.layout` as the positive controls of the same `schema.KEY` query:
+ *
+ *   - `navigation`, `searchableFields`, `filterableFields` — the spec models
+ *     all three on `ListViewSchema` (`@objectstack/spec/ui`), so they are the
+ *     spec's own slots BY REFERENCE (`SpecListViewSchema.shape.*`), never a
+ *     local restatement: the declaration already imports the spec's
+ *     `NavigationConfig` for `ViewNavigationConfig`, and a literal restating it
+ *     is the drift this repo keeps paying for (objectui#4588). The pin asserts
+ *     identity against the spec schema, so a spec-side change moves them.
+ *   - `allowCreateView`, `viewActions` — READ: the renderer forwards both
+ *     verbatim into the `view-switcher` node it composes
+ *     (`allowCreateView: schema.allowCreateView`, `viewActions: schema.viewActions`,
+ *     then `ViewSwitcher.tsx` reads `schema.allowCreateView` / `schema.viewActions`),
+ *     so they are that sibling mirror's slots by reference
+ *     (`ViewSwitcherSchema.shape.*`, `./views.zod.ts`) — one shape, two nodes.
+ *   - `defaultViewType` (READ: `schema.defaultViewType || 'grid'`),
+ *     `defaultListView` (READ: `namedListViews?.[schema.defaultListView]`),
+ *     `showViewSwitcher` (READ: `schema.showViewSwitcher === true`) — local
+ *     literals matching the declaration. `defaultViewType` is the declaration's
+ *     SEVEN-value union on purpose, not the spec's view-kind enum: `chart` and
+ *     `tree` are host-composition-only on this node (objectui#5321) and the
+ *     `NamedListView.type` twin spells the same seven.
+ *   - `viewTabBar` — RETIRED (`retirementTombstone()` below; `?: never` on the
+ *     TS face). ZERO reads of the key on the node: the tab-bar UX config
+ *     (`ViewTabBarConfig`, still exported) is the `config` PROP of the
+ *     `ViewTabBar` component, composed by the host (`@object-ui/app-shell`),
+ *     and `plugin-view`'s own `ObjectView` never renders that bar (ADR-0053:
+ *     the host owns the switcher). The 2026-07 audit
+ *     (`docs/audits/2026-07-objectview-detailview-schema.md`) had already
+ *     measured it dead since introduction.
+ *   - `listViews` — STILL UNMIRRORED, on the ruling's own fallback clause and
+ *     by measurement: the declaration's value is the local `NamedListView`,
+ *     47 declared top-level members, of which the renderer reads six —
+ *     `label`, `type`, `columns`, `filter`, `sort`, `options`. A seventh key,
+ *     `data`, is read off a named view but is NOT declared on
+ *     `NamedListView`: the renderer reaches it through an `as any` cast on the
+ *     named-view config (`ObjectView.tsx`, `(currentNamedViewConfig as any)?.data`),
+ *     so it is not one of the 47 and never was a member a mirror would carry.
+ *     Meanwhile the spec slot (`ViewSchema.listViews`) is a record of the
+ *     STRICT `ObjectListViewSchema`,
+ *     which requires `columns` and refuses `options`, ObjectQL tuple filters and
+ *     `default` — i.e. it refuses the named views this package's own README and
+ *     `content/docs/api/schema-reference.md` teach. Neither value type can be
+ *     mirrored without either losing documented behaviour (spec) or enforcing
+ *     41 unread members (47 declared, minus the 6 that are both declared and
+ *     read) into the contract (local), so the key stays in the
+ *     parity ledger with that measurement until the maintainer decides its
+ *     value type. ⛔ Not `z.any()`: that was ruled out by name.
  */
 export const ObjectViewSchema = BaseSchema.extend({
   type: z.literal('object-view'),
@@ -199,19 +255,39 @@ export const ObjectViewSchema = BaseSchema.extend({
   title: z.string().optional().describe('View title'),
   description: z.string().optional().describe('View description'),
   layout: z.enum(['drawer', 'modal', 'page']).optional().describe('Layout mode'),
+  defaultViewType: z.enum(['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'map']).optional().describe('Default list view type (grid unless a named view sets its own type)'),
+  defaultListView: z.string().optional().describe('Key of the listViews entry shown first'),
+  // Spec slot by reference (objectui#7779) — `NavigationConfigSchema.optional()`,
+  // the same object `ListViewSchema` derives its `navigation` from.
+  navigation: SpecListViewSchema.shape.navigation,
   table: z.lazy(() => ObjectGridSchema.omit({ type: true, objectName: true }).partial()).optional().describe('Table config'),
   form: z.lazy(() => ObjectFormSchema.omit({ type: true, objectName: true, mode: true }).partial()).optional().describe('Form config'),
+  // Spec slots by reference (objectui#7779) — `array(string).optional()` on
+  // both; the spec's own description marks `filterableFields` a legacy
+  // shorthand for `userFilters.fields`.
+  searchableFields: SpecListViewSchema.shape.searchableFields,
+  filterableFields: SpecListViewSchema.shape.filterableFields,
   showSearch: z.boolean().optional().describe('Show search'),
   showFilters: z.boolean().optional().describe('Show filters'),
   showSort: z.boolean().optional().describe('Show sort controls'),
   showCreate: z.boolean().optional().describe('Show create button'),
   showRefresh: z.boolean().optional().describe('Show refresh button'),
+  showViewSwitcher: z.boolean().optional().describe('Show the view-type switcher toggle (hidden unless true)'),
   operations: z.object({
     create: z.boolean().optional(),
     read: z.boolean().optional(),
     update: z.boolean().optional(),
     delete: z.boolean().optional(),
   }).optional().describe('Enabled operations'),
+  viewTabBar: retirementTombstone(
+    'RETIRED (objectui#7779) — `viewTabBar` was never read off the object-view node: the tab-bar UX config ' +
+    '(`ViewTabBarConfig`) is the `config` PROP of the `ViewTabBar` component, composed by the host ' +
+    '(`@object-ui/app-shell`), not authored metadata (ADR-0053: the host owns the switcher). Remove the key.',
+  ),
+  // Sibling slots by reference (objectui#7779): the renderer forwards both
+  // verbatim into the `view-switcher` node it composes.
+  allowCreateView: ViewSwitcherSchema.shape.allowCreateView,
+  viewActions: ViewSwitcherSchema.shape.viewActions,
 });
 
 /**

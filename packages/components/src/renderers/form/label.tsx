@@ -35,8 +35,8 @@ ComponentRegistry.register('label',
     namespace: 'ui',
     label: 'Label',
     inputs: [
-      { name: 'text', type: 'string', label: 'Text', required: true },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'text', type: 'string', required: true },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       text: 'Label Text'

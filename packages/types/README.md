@@ -31,9 +31,9 @@ Object UI follows a strict **"Protocol First"** approach with a clear inheritanc
 ```
 @objectstack/spec (v15.x)           ← The "Highest Law" - Universal protocol
     ↓
-UIComponent                         ← Base interface for all UI components
-    ↓
-BaseSchema (@object-ui/types)       ← ObjectUI extensions (visibleOn, hiddenOn, etc.)
+BaseSchema (@object-ui/types)       ← A component node: the base interface every
+                                      UI component schema extends, carrying `type`
+                                      plus the shared keys (visibleOn, hiddenOn, etc.)
     ↓
 Specific Schemas                    ← Component implementations (ChartSchema, etc.)
     ↓
@@ -217,7 +217,12 @@ Backend integration:
 Types don't assume any specific backend:
 
 ```typescript
-interface DataSource<T = any> {
+import type { DataSource, QueryParams, QueryResult } from '@object-ui/types';
+
+// Two methods quoted from the shipped `DataSource`. `extends Pick` ties the
+// quotation to the real interface: the day either member is renamed away or its
+// return type changes, this block stops compiling.
+interface DataSourceExcerpt<T = any> extends Pick<DataSource<T>, 'find' | 'create'> {
   find(resource: string, params?: QueryParams): Promise<QueryResult<T>>;
   create(resource: string, data: Partial<T>): Promise<T>;
   // Works with REST, GraphQL, ObjectQL, or anything
@@ -229,6 +234,8 @@ interface DataSource<T = any> {
 All components support `className` for Tailwind styling:
 
 ```typescript
+import type { ButtonSchema } from '@object-ui/types';
+
 const button: ButtonSchema = {
   type: 'button',
   label: 'Click Me',
@@ -241,11 +248,13 @@ const button: ButtonSchema = {
 Full TypeScript support with discriminated unions:
 
 ```typescript
-type AnySchema = 
-  | InputSchema 
-  | ButtonSchema 
-  | FormSchema 
-  | /* 50+ more */;
+import type { AnySchema, ButtonSchema, FormSchema, InputSchema } from '@object-ui/types';
+
+// The shipped `AnySchema` carries 50+ members. These three are a slice of it,
+// and the assignment below is what proves the slice really is part of the union.
+type SchemaSlice = InputSchema | ButtonSchema | FormSchema;
+declare const slice: SchemaSlice;
+const anySchema: AnySchema = slice;
 
 function render(schema: AnySchema) {
   switch (schema.type) {
@@ -260,6 +269,20 @@ function render(schema: AnySchema) {
 Components can nest indefinitely:
 
 ```typescript
+import type { ContainerSchema, FlexSchema, SidebarSchema } from '@object-ui/types';
+
+// The two leaves are annotated so the nesting below is checked against the
+// shipped types rather than absorbed by `BaseSchema`'s index signature.
+const sidebar: SidebarSchema = {
+  type: 'sidebar',
+  nav: [{ label: 'Home', href: '/' }]
+};
+
+const main: ContainerSchema = {
+  type: 'container',
+  children: [{ type: 'data-table', data: [] }]
+};
+
 const page: FlexSchema = {
   type: 'flex',
   direction: 'col',
@@ -268,10 +291,7 @@ const page: FlexSchema = {
     {
       type: 'flex',
       direction: 'row',
-      children: [
-        { type: 'sidebar', nav: [...] },
-        { type: 'container', children: [...] }
-      ]
+      children: [sidebar, main]
     }
   ]
 };

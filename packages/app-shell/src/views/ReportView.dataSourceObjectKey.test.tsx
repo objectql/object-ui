@@ -57,13 +57,17 @@ import { render, waitFor } from '@testing-library/react';
 /** Props the (stubbed) report renderer and config panel were handed. */
 const cap = vi.hoisted(() => ({ renderer: null as any, panel: null as any }));
 
-vi.mock('@object-ui/plugin-report', () => ({
+vi.mock('@object-ui/plugin-report', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ReportRenderer: (props: any) => {
     cap.renderer = props;
     return null;
   },
 }));
-vi.mock('@object-ui/plugin-dashboard', () => ({ DrillDownDrawer: () => null }));
+vi.mock('@object-ui/plugin-dashboard', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  DrillDownDrawer: () => null,
+}));
 vi.mock('./ReportConfigPanel', () => ({
   ReportConfigPanel: (props: any) => {
     cap.panel = props;
@@ -89,7 +93,10 @@ vi.mock('./metadata-admin/useMetadata', () => ({ useMetadataClient: () => ({ get
 vi.mock('./runtime-metadata-persistence', () => ({ persistRuntimeMetadata: vi.fn() }));
 vi.mock('../providers/AdapterProvider', () => ({ useAdapter: () => ({}) }));
 vi.mock('../providers/ExpressionProvider', () => ({ useExpressionContext: () => ({ app: undefined }) }));
-vi.mock('@object-ui/auth', () => ({ useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
+}));
 vi.mock('@object-ui/i18n', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: (k: string) => k }),

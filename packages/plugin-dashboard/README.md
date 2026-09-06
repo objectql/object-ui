@@ -223,25 +223,33 @@ const schema = {
       value: '$123,456'
     },
     {
-      type: 'card',
+      type: 'line',
       title: 'Sales Trend',
-      body: {
-        type: 'line-chart',
-        data: [/* chart data */],
-        height: 300
+      options: {
+        data: [/* [{ name: 'Jan', value: 1200 }, …] */],
+        xField: 'name',
+        yField: 'value'
       }
     },
     {
-      type: 'card',
+      type: 'pie',
       title: 'Category Distribution',
-      body: {
-        type: 'pie-chart',
-        data: [/* chart data */]
+      options: {
+        data: [/* [{ name: 'Hardware', value: 40 }, …] */],
+        xField: 'name',
+        yField: 'value'
       }
     }
   ]
 };
 ```
+
+A chart widget names its family in `type` — one of the spec's chart families,
+the closed vocabulary `DashboardWidgetTypeName` declares — and carries its
+inline rows under `options.data`, with `options.xField` / `options.yField`
+naming the category and value keys. There is no `card` widget family and no
+nested `body` slot: a widget whose `type` is outside that vocabulary is refused
+at validation, by `@object-ui/types/zod`'s `DashboardComponentSchema`.
 
 ### Responsive Dashboard
 

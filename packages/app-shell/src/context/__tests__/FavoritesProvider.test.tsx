@@ -12,7 +12,8 @@ import type { ReactNode } from 'react';
 
 // Mock useAuth before importing modules that consume it.
 const mockUser = { current: { id: 'user-1', name: 'Alice', email: 'a@x' } as any | null };
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: mockUser.current, isAuthenticated: !!mockUser.current, isLoading: false }),
 }));
 

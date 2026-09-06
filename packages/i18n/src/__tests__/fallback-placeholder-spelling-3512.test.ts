@@ -140,6 +140,7 @@ import {
   HAND_ROLLED_TABLES,
   scanDefaultsTables,
 } from '@object-ui/test-support/defaults-table-scan';
+import { DOUBLE_BRACE, placeholderViolations } from './placeholder-spelling-rule';
 import { builtInLocales } from '../locales';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -147,65 +148,21 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '../../../..');
 
 /* ------------------------------------------------------------------ */
-/* The rule                                                            */
+/* The rule — beside this file, so the parity gate can reach it        */
 /* ------------------------------------------------------------------ */
 
-/**
- * A `{{…}}` pair and its contents. `[^{}]*` deliberately: a placeholder never
- * nests braces, and refusing to cross one keeps an unterminated `{{` from
- * swallowing the rest of the sentence into a bogus "placeholder".
- */
-const DOUBLE_BRACE = /\{\{([^{}]*)\}\}/g;
-
-/** Every `{{` occurrence, matched or not — the balance check's other half. */
-const DOUBLE_BRACE_OPEN = /\{\{/g;
-
-/**
- * The one spelling `fallbackT` resolves. `k` comes from `Object.entries(options)`
- * and is spliced into the needle raw, so the accepted name is exactly a bare
- * identifier: no whitespace, no format spec, no `-` prefix, no dotted path.
- */
-const CANONICAL_NAME = /^[A-Za-z0-9_]+$/;
-
-/** i18next's nesting syntax. The fallback has no notion of it at all. */
-const NESTING = '$t(';
-
-/** Why one placeholder is not something `fallbackT` can resolve. */
-function reasonFor(inner: string): string {
-  if (inner !== inner.trim()) return 'whitespace inside the braces';
-  if (inner.startsWith('-')) return 'the {{- x}} unescape prefix';
-  if (inner.includes(',')) return 'an i18next format spec';
-  if (inner.includes('.')) return 'a dotted/keyed placeholder path';
-  return 'a non-identifier placeholder name';
-}
-
-/**
- * THE rule. Returns one human-readable violation per offending placeholder, and
- * `[]` for copy the provider-less fallback renders identically to i18next.
+/*
+ * The predicate was written out here until objectui#7310. It now lives in
+ * `./placeholder-spelling-rule.ts`, unchanged, because
+ * `scripts/__tests__/placeholder-spelling-parity.test.ts` has to import it
+ * alongside `check-i18n-call-site-keys.mjs`'s copy — and a `*.test.ts` is not
+ * importable for that purpose: vitest registers each `describe` into whichever
+ * file is collecting when the module evaluates, so importing this suite drags
+ * its cases into the importer. That module's header records the measurement,
+ * and why the two implementations are pinned to each other rather than merged.
  *
- * Only the inside of a `{{…}}` pair is judged, so single-brace `{x}` holes
- * (objectui#4135's downstream-fill convention) can never reach a verdict here.
+ * Every case below is this side's own self-test and is unchanged.
  */
-export function placeholderViolations(value: string): string[] {
-  const out: string[] = [];
-  const regions = [...value.matchAll(DOUBLE_BRACE)];
-  for (const region of regions) {
-    const inner = region[1];
-    if (CANONICAL_NAME.test(inner)) continue;
-    out.push(
-      `${JSON.stringify(region[0])} — ${reasonFor(inner)}; the fallback resolves only {{name}}`,
-    );
-  }
-  // An unterminated `{{` renders as literal braces on BOTH paths, so it is not
-  // an i18next divergence — but it is never intentional copy, and the regions
-  // above cannot report what they did not match.
-  const opens = (value.match(DOUBLE_BRACE_OPEN) ?? []).length;
-  if (opens > regions.length) out.push('an unterminated `{{` with no closing `}}`');
-  if (value.includes(NESTING)) {
-    out.push('`$t(` — i18next nesting, which the fallback emits verbatim');
-  }
-  return out;
-}
 
 /* ------------------------------------------------------------------ */
 /* Copy source 1 — the ten locale packs                                */

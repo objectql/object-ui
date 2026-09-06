@@ -142,13 +142,27 @@ Schemas can be nested to create complex UIs:
         "body": {
           "type": "chart",
           "chartType": "bar",
-          "data": "${chartData}"
+          "xAxisKey": "month",
+          "series": [{ "name": "revenue" }],
+          "data": [
+            { "month": "Jan", "revenue": 120 },
+            { "month": "Feb", "revenue": 80 }
+          ]
         }
       }
     ]
   }
 }
 ```
+
+The chart's rows are written out on the node, and that is the spelling that plots. A
+`${…}` on node-level `data` is **not** one of the rows `SchemaRenderer` evaluates: the raw
+string reaches `ChartRenderer`, whose `Array.isArray(schema.data) ? schema.data : []` drops
+it, and the chart frame draws with nothing in it — no error, no warning. Since objectui#7113
+that node is also refused by name, `ChartSchema.data` being `z.array(z.record(…))`. `series`
+is required alongside it: `series[].name` picks the column to plot within each row, and
+`xAxisKey` names the category column. `chart` reads no `bind` either, so resolve the array in
+your own code and hand `SchemaRenderer` a schema whose rows are already on the node.
 
 ## Array Rendering
 
@@ -252,14 +266,25 @@ Reference actions in schemas:
 
 ```json
 {
-  "type": "button",
+  "type": "action:button",
+  "name": "call_api",
   "label": "Click Me",
-  "onClick": {
-    "actionType": "ajax",
-    "api": "/api/action"
-  }
+  "actionType": "api",
+  "endpoint": "/api/action",
+  "method": "POST"
 }
 ```
+
+Three things about the shape this replaces. A declarative action is its own NODE TYPE,
+`action:button` — a plain `button` has no authorable handler: `ButtonSchema.onClick` is a
+runtime slot for a host-supplied function, refused by name by the zod mirror, and (being
+on `SDUI_DOM_PASS_THROUGH_KEYS`) forwarded straight to the DOM listener slot, where React
+throws on the first click: "Expected `onClick` listener to be a function, instead got a
+value of `object` type." The execution type is `actionType`, and the built-in vocabulary
+is `script` | `url` | `modal` | `flow` | `api` | `form` (plus objectui's `navigation`
+alias) — anything else must be a handler your host registered on `ActionProvider`. `ajax`
+is neither. And the endpoint key is `endpoint`, with `method`; `api` is not a key any
+action renderer forwards.
 
 ## Performance Optimization
 
