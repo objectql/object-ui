@@ -30,16 +30,20 @@ present:
 
 ```tsx
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
+import { DetailView } from '@object-ui/plugin-detail';
+import type { DataSource } from '@object-ui/types';
+
+declare const dataSource: DataSource;
 
 // 1. Injected by an ancestor — the pattern the rest of the family uses, and the
 //    one to reach for when a page renders several data-bound blocks.
-<SchemaRendererProvider dataSource={dataSource}>
+const viaProvider = <SchemaRendererProvider dataSource={dataSource}>
   <SchemaRenderer schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} />
-</SchemaRendererProvider>
+</SchemaRendererProvider>;
 
 // 2. Handed to one placement — what `<DetailView dataSource={…} />` has always
 //    taken, and what the examples below use.
-<DetailView schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} dataSource={dataSource} />
+const viaProp = <DetailView schema={{ type: 'detail-view', objectName: 'account', resourceId: '42' }} dataSource={dataSource} />;
 ```
 
 Route 1 is new as of objectui#5378: this block used to read the adapter from its
@@ -87,7 +91,11 @@ function ContactDetail() {
 ### With Sections
 
 ```tsx
-<DetailView
+import { DetailView } from '@object-ui/plugin-detail';
+
+declare const accountData: Record<string, unknown>;
+
+const accountDetail = <DetailView
   schema={{
     type: 'detail-view',
     title: 'Account Details',
@@ -117,13 +125,19 @@ function ContactDetail() {
     ],
     data: accountData,
   }}
-/>
+/>;
 ```
 
 ### With Tabs and Related Lists
 
 ```tsx
-<DetailView
+import { DetailView } from '@object-ui/plugin-detail';
+
+declare const activityData: Record<string, unknown>[];
+declare const navigate: (url: string) => void;
+declare const deleteAccount: (id: string) => void;
+
+const accountDetail = <DetailView
   schema={{
     type: 'detail-view',
     title: 'Account: Acme Corp',
@@ -161,13 +175,23 @@ function ContactDetail() {
         title: 'Contacts',
         type: 'table',
         api: '/api/accounts/12345/contacts',
-        columns: ['name', 'email', 'phone', 'title'],
+        columns: [
+          { accessorKey: 'name', header: 'Name' },
+          { accessorKey: 'email', header: 'Email' },
+          { accessorKey: 'phone', header: 'Phone' },
+          { accessorKey: 'title', header: 'Title' },
+        ],
       },
       {
         title: 'Opportunities',
         type: 'table',
         api: '/api/accounts/12345/opportunities',
-        columns: ['name', 'amount', 'stage', 'close_date'],
+        columns: [
+          { accessorKey: 'name', header: 'Name' },
+          { accessorKey: 'amount', header: 'Amount' },
+          { accessorKey: 'stage', header: 'Stage' },
+          { accessorKey: 'close_date', header: 'Close Date' },
+        ],
       },
     ],
     showEdit: true,
@@ -176,36 +200,47 @@ function ContactDetail() {
   onEdit={() => navigate('/accounts/12345/edit')}
   onDelete={() => deleteAccount('12345')}
   onBack={() => navigate('/accounts')}
-/>
+/>;
 ```
 
 ## Schema
 
-The DetailView component accepts a `DetailViewSchema`:
+The DetailView component accepts a `DetailViewSchema`, declared in
+`@object-ui/types`. Import it rather than re-typing it — every key below is
+checked against that declaration, so this example cannot drift from the package:
 
 ```typescript
-interface DetailViewSchema {
-  type: 'detail-view';
-  title?: string;
-  objectName?: string;
-  resourceId?: string | number;
-  api?: string;
-  data?: any;
-  sections?: DetailViewSection[];
-  fields?: DetailViewField[];
-  tabs?: DetailViewTab[];
-  related?: RelatedList[];
-  actions?: ActionSchema[];
-  showBack?: boolean;
-  showEdit?: boolean;
-  showDelete?: boolean;
-  backUrl?: string;
-  editUrl?: string;
-  deleteConfirmation?: string;
-  loading?: boolean;
-  header?: SchemaNode;
-  footer?: SchemaNode;
-}
+import type { DetailViewSchema } from '@object-ui/types';
+
+const schema: DetailViewSchema = {
+  type: 'detail-view',
+  title: 'Account Details',
+  objectName: 'accounts',
+  resourceId: '12345',
+  api: '/api/accounts/12345',
+  data: undefined,
+  // Field name whose value becomes the header title; `title` is the fallback.
+  primaryField: 'name',
+  // Field values rendered as badges beside the header title.
+  summaryFields: ['industry', 'website'],
+  layout: 'vertical',
+  columns: 2,
+  // See the examples above for the shapes these four carry.
+  sections: [],
+  fields: [],
+  tabs: [],
+  related: [],
+  actions: [],
+  showBack: true,
+  backUrl: '/accounts',
+  showEdit: true,
+  editUrl: '/accounts/12345/edit',
+  showDelete: true,
+  deleteConfirmation: 'Delete this account?',
+  loading: false,
+  header: { type: 'text', label: 'Custom header' },
+  footer: { type: 'text', label: 'Custom footer' },
+};
 ```
 
 ## Components
@@ -349,23 +384,24 @@ emits automatically when:
    inbound fields).
 3. The viewport is **≥ xl (1280 px)** — below that the rail collapses and
    the **Related** tab keeps full coverage.
-4. The objectDef does **not** opt out via `detail.hideReferenceRail`.
+4. The synth call does **not** opt out via `hideReferenceRail`.
 
 When the rail emits, the synth automatically suppresses the **Related**
 tab so the same information isn't shown twice.
 
-### Per-object opt-out
+### Opting out
 
-Add a `detail` block to the objectDef:
+The opt-out is a `buildDefaultPageSchema` **option**, not an objectDef key:
 
 ```ts
-ObjectSchema.create({
-  name: 'product',
-  // …
-  detail: {
-    hideReferenceRail: true,  // hide the rail; restore the Related tab
-    hideRelatedTab: true,     // (optional) force-hide the Related tab too
-  },
+import { buildDefaultPageSchema } from '@object-ui/plugin-detail';
+import type { ObjectDefLike } from '@object-ui/plugin-detail';
+
+declare const productDef: ObjectDefLike;
+
+const page = buildDefaultPageSchema(productDef, {
+  hideReferenceRail: true,  // hide the rail; restore the Related tab
+  hideRelatedTab: true,     // (optional) force-hide the Related tab too
 });
 ```
 
@@ -386,7 +422,7 @@ For explicit (non-synth) Pages, add an `aside` region after the `main`
 region:
 
 ```ts
-{
+const asideRegion = {
   name: 'aside',
   width: 'small',
   className: 'hidden xl:flex flex-col gap-4',
@@ -403,7 +439,7 @@ region:
       },
     },
   ],
-},
+};
 ```
 
 The renderer reads `entries` from both `schema.entries` and
