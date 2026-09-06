@@ -230,16 +230,23 @@ meeting is `completed` → `task`, hidden unless `showCompleted`; a not-yet-held
 meeting is `scheduled` → `event`, shown, because an upcoming meeting is the part
 of a timeline you still act on.
 
-A row whose `type` is in neither list is dropped and logs one `console.warn`
-naming the type — `sys_activity.type` is not validated on write, so a producer
-can store a value the platform never declared, and a silently missing row is
-indistinguishable from no activity at all.
+A row whose `type` is in neither list is **not dropped**: it renders through the
+generic `system` presentation and logs one `console.warn` naming the type.
+`sys_activity.type` is author-extensible and is not validated on write, so a
+value this map has never seen is real record activity a producer stored, not a
+mistake to discard. The warning therefore reports a **missing decision**, not
+lost data — the row is on the timeline; what it lacks is the icon and colour a
+mapped type gets. Give it one by adding the type to `ACTIVITY_TYPE_TO_FEED_TYPE`
+in `@object-ui/plugin-detail`.
 
-<Callout type="warn">
-  The console's own record page maps these rows with a second, hand-written copy
-  of the table, so the two surfaces agree on everything except `scheduled`,
-  which that page still drops. Tracked in `objectui#5878`.
-</Callout>
+The rows that really are dropped are the four the map lists as non-activity —
+`commented` / `mentioned` / `login` / `logout` — and they go silently on
+purpose: each is a decision already taken, and a warning about a decision
+teaches authors to ignore the channel.
+
+Both surfaces map rows through the same `activityRowToFeedItem`: the console's
+own record page imports it from this package rather than mapping the rows
+itself, so everything above describes that page too.
 
 ### Which inputs do what
 

@@ -36,7 +36,6 @@ interface TextSchema {
   content: string;           // Text content to display — the one spelling
   variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption' | 'overline';
   align?: 'left' | 'center' | 'right' | 'justify';
-  color?: string;            // Tailwind color class
   className?: string;        // Additional CSS classes
 }
 ```
@@ -56,6 +55,18 @@ interface TextSchema {
 ## Examples
 
 ### Colored Text
+
+Colour is `className`, not a key of its own. `TextSchema` publishes no `color`,
+and the renderer builds the element's class list from `variant`, `align` and
+`className` alone — so the three tiles below author
+`"className": "text-primary"`, `"text-destructive"` and
+`"text-muted-foreground"` on the `text` nodes themselves.
+
+⚠️ This page taught a `color` key until objectui#7444. Nothing ever declared or
+read it: `BaseSchema` is `.passthrough()`, so an authored `color` is still
+accepted today and still does nothing — it does not even reach the element,
+because `color` is not on the DOM pass-through whitelist. Rename the key to
+`className`; the Tailwind class string is unchanged.
 
 <SchemaExample id="components-basic-text/text-with-colors" />
 

@@ -7,16 +7,30 @@ name: Check Links
 # the one that gates pull requests. The two are complementary, not redundant;
 # do not move either one's job onto the other.
 #
-# The scan scope below (`args`) was wrong until #3449: it listed only the
-# repo-root `docs/**`, which holds 15 INTERNAL documents (ADRs, audits), while
-# the 183 files the published site is built from live in `content/docs/**`
-# (`apps/site/source.config.ts`: `dir: '../../content/docs'`, baseUrl `/docs`).
-# This workflow had therefore never scanned a single published page — it was
-# green because of what it was not looking at.
-# `scripts/__tests__/check-links-workflow.test.ts` pins the scope to the
-# directory the site config itself declares: if the content tree moves again
-# that test turns red, instead of this workflow silently going blind a second
-# time.
+# SCAN SCOPE — stated as populations, never counted (objectui#7448,
+# objectui#7825). What gets swept is decided by the `args` glob list below and
+# by nothing else: the published documentation tree `content/docs/**` (the
+# fumadocs content source `apps/site/source.config.ts` declares —
+# `dir: '../../content/docs'`, baseUrl `/docs`), the repo-root INTERNAL tree
+# `docs/**` (ADRs, audits), and `README.md`.
+#
+# ⛔ Never write the size of either tree back into this comment. Two hand-copied
+# sizes stood here, one per tree, and both had drifted by the time anyone
+# looked, with nothing red over the whole distance — nothing fails on a stale
+# number written in a comment, which is exactly why it rots. Point at the
+# reading instead: `find content/docs docs -type f \( -name '*.md' -o -name
+# '*.mdx' \) | wc -l` in any checkout, and Lychee's own run summary, which
+# reports what it actually scanned. `check-links-workflow.test.ts` enforces
+# this — it reds on the next numeral that qualifies a document population
+# anywhere in this header.
+#
+# HISTORY, past tense on purpose — none of the following describes the scope
+# today. Until PR #3449 the `args` list named only the repo-root `docs/**`, so
+# not one published page had ever been scanned: this workflow was green because
+# of what it was not looking at. #3449 pointed it at both trees, and
+# `scripts/__tests__/check-links-workflow.test.ts` derives the expected scope
+# from the site config rather than restating it, so moving the content tree
+# turns that test red instead of blinding the sweep a second time.
 
 on:
   workflow_dispatch:

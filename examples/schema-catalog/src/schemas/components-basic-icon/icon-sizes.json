@@ -6,22 +6,22 @@
     {
       "type": "icon",
       "icon": "star",
-      "size": "sm"
+      "size": 16
     },
     {
       "type": "icon",
       "icon": "star",
-      "size": "md"
+      "size": 24
     },
     {
       "type": "icon",
       "icon": "star",
-      "size": "lg"
+      "size": 32
     },
     {
       "type": "icon",
       "icon": "star",
-      "size": "xl"
+      "size": 48
     }
   ]
 }

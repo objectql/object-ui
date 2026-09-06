@@ -316,32 +316,43 @@ describe('only text the language would execute', () => {
 // The JSX mask — a real mis-mask in the shared scanner, measured
 // ---------------------------------------------------------------------------
 
-describe('deJsxClosingTags — the shared masker reads `</div>` as a regex literal', () => {
+describe('deJsxClosingTags — the shared masker USED to read `</div>` as a regex literal', () => {
   /**
-   * `js-comment-mask` opens a regex when a `/` follows something that is not a
-   * value. In `</div>` that something is `<`, so a PHANTOM regex opens and runs
-   * to the end of the line, swallowing whatever is there — including the `)`
-   * that closes a `vi.mock` call. Measured on this tree: SEVEN call sites in
-   * five files could not be delimited at all, one of them a covered site.
-   * Filed against the shared module as objectui#6891; worked around here.
+   * `js-comment-mask` opened a regex when a `/` followed something that is not
+   * a value. In `</div>` that something is `<`, so a PHANTOM regex opened and
+   * ran to the end of the line, swallowing whatever was there — including the
+   * `)` that closes a `vi.mock` call. Measured on this tree at the time: SEVEN
+   * call sites could not be delimited at all, one of them a covered site.
+   *
+   * Fixed in the shared module by objectui#6891, whose own pin
+   * (`scripts/__tests__/js-comment-mask-jsx-6891.test.ts`) now holds the
+   * scanner. `deJsxClosingTags` stays: it is still correct, still length-
+   * preserving, and removing it belongs to whoever owns THIS gate's source.
+   * The first case below is what makes that a decision rather than a guess.
    */
 
   const jsxFactory = `({ open, children }: any) => (open ? <div>{children}</div> : null)`;
 
-  it('the mis-mask is real: the closing tag opens a literal span in the raw source', () => {
-    // Pinning the CAUSE, not just the workaround. If the shared masker is ever
-    // fixed this case fails and the workaround can be retired deliberately.
+  it('the mis-mask is GONE: the shared masker was fixed, so this workaround is now redundant', () => {
+    // This case was written the other way up — it pinned the CAUSE, asserting
+    // the mis-mask was real, so that fixing the shared module would fail here
+    // and the workaround could be retired deliberately rather than rotting.
+    // That is what happened: objectui#6891 taught `scanSource` that a `/`
+    // whose immediately preceding byte is `<` opens nothing, and this case
+    // has been turned over to pin the fix instead.
+    //
+    // `deJsxClosingTags` is deliberately NOT removed in that change — it is a
+    // second gate's source, outside that card's file surface. It is now a
+    // no-op-in-effect on this shape, and the assertions below are what say so:
+    // the raw source, WITHOUT the rewrite, already masks correctly.
     const src = `const C = ${jsxFactory};\n`;
     const { literal } = scanSource(src);
-    // The `/` opens the phantom span, so the first byte INSIDE it is the `d`
-    // of `div` — the slash itself is consumed as the opener, not flagged.
     const inside = src.indexOf('</div>') + 2;
-    expect(literal[inside], 'the shared masker no longer mis-reads a JSX closing tag').toBe(1);
-    // ...and the phantom runs to end of line, swallowing the `)` that closes
-    // the call along with everything else after it. THAT is what breaks a
-    // delimiter walk.
-    expect(literal[src.indexOf(': null)')]).toBe(1);
-    expect(literal[src.lastIndexOf(')')]).toBe(1);
+    expect(literal[inside], 'the shared masker mis-reads a JSX closing tag again').toBe(0);
+    // ...and, the property this gate actually needs: the `)` that closes the
+    // call is code, so a delimiter walk over the RAW source balances.
+    expect(literal[src.indexOf(': null)')]).toBe(0);
+    expect(literal[src.lastIndexOf(')')]).toBe(0);
   });
 
   it('neutralises the tag while PRESERVING LENGTH, so every offset still holds', () => {

@@ -62,45 +62,54 @@ refresh the page mid-edit (the form rehydrates from the URL `:recordId`).
 ## Triggering the routes from JSON
 
 In addition to the implicit "click create/edit on a list" entry point,
-two declarative actions let you open the page-mode routes from any
-`<action:button>` in metadata:
+two declarative actions let you open the page-mode routes from an
+`action:button` in metadata. The handler name goes in `actionType`: that
+is the key the button renderer forwards to the action runner as the
+action's type, and the runner dispatches to the handler registered under
+it. Arguments go in a top-level `params` object:
 
 ```jsonc
 {
   "type": "action:button",
   "label": "New Account",
   "icon":  "plus",
-  "action": {
-    "action": "navigate_create",
-    "params": { "objectName": "account" }
-  }
+  "actionType": "navigate_create",
+  "params": { "objectName": "account" }
 }
 ```
+
+`navigate_edit` additionally needs the record to open. `params` reaches
+the handler verbatim: template expressions such as `${record.id}` are not
+evaluated inside `params`, and `action:button` does not inject the
+surrounding row, so a declared `navigate_edit` button carries a literal
+`recordId`:
 
 ```jsonc
 {
   "type": "action:button",
   "label": "Edit",
   "icon":  "pencil",
-  "action": {
-    "action": "navigate_edit",
-    "params": {
-      "objectName": "account",
-      "recordId":   "${record.id}"
-    }
+  "actionType": "navigate_edit",
+  "params": {
+    "objectName": "account",
+    "recordId":   "0015e000abcd"
   }
 }
 ```
 
+For a per-row **Edit** that follows the record under the cursor, use the
+list or detail view's built-in **Edit** entry point instead: under
+`editMode: "page"` it already routes to the same URL (see *Migrating an
+existing object* below).
+
 When invoked from inside an `ObjectView`, the action context already
-carries the active `objectName`, so `objectName` may be omitted from the
-`params`:
+carries the active `objectName`, so `params` may be omitted entirely:
 
 ```jsonc
 {
   "type": "action:button",
   "label": "New",
-  "action": { "action": "navigate_create" }
+  "actionType": "navigate_create"
 }
 ```
 
