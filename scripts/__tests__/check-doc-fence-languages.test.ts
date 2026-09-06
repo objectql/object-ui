@@ -23,6 +23,8 @@ import {
   ROOT_PAGES as COMPONENT_ROOT_PAGES,
 } from '../check-doc-component-types.mjs';
 
+import { selfTestCases, stripAnsi } from './helpers/child-verdict';
+
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../..');
 const GUARD = 'scripts/check-doc-fence-languages.mjs';
 const WORKFLOW = 'doc-fence-languages.yml';
@@ -269,7 +271,16 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
 
   it('its self-test passes — the half that makes a green scan mean something', () => {
     const out = execFileSync('node', [GUARD, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/check-doc-fence-languages self-test: \d+ cases pass/);
+    // objectui#7897 — the COUNT, not the shape. `\d+ cases pass` is satisfied
+    // by `0 cases pass`, so the old spelling passed for a self-test whose case
+    // table had gone empty: the outcome it exists to refuse. `selfTestCases`
+    // also strips ANSI, the second belt for a child that starts colouring —
+    // that is the CI-only direction, and no repo gate colours today.
+    expect(stripAnsi(out)).toMatch(/check-doc-fence-languages self-test: \d+ cases pass/);
+    expect(
+      selfTestCases(out, 'check-doc-fence-languages'),
+      'a self-test that ran no cases is not a passing self-test',
+    ).toBeGreaterThan(0);
   });
 
   /**
