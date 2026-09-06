@@ -445,6 +445,47 @@ jobs:
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.refresh_version_pr)
     runs-on: ubuntu-latest
+
+    # ── The job ceiling, DERIVED FOR THIS JOB (objectui#7270) ────────────
+    # Before this line the only backstop was GitHub's 360-minute default, on
+    # the lane that PUBLISHES. This ceiling is derived differently from the two
+    # that objectui#7270 set on `Lint` and `Bundle Analysis`, because this
+    # job's honest slowest run is not the slowest run in its sample: the `Wait
+    # for older release runs to finish` step below declares
+    # `MAX_WAIT_SECONDS: '900'`, so a contended release may legitimately spend
+    # 15 minutes waiting before it does any work at all. None of the sampled
+    # runs was contended, so that 15 minutes appears nowhere in the
+    # distribution below and has to be ADDED rather than measured.
+    #
+    # ⛔ NOT inherited from `ci.yml`'s 10/15/20/30/40 — objectui#7048 fences
+    # exactly that. The arithmetic below is this job's own.
+    #
+    #   - Population: every successful `schedule` run of this workflow, window
+    #     2026-08-23T06:08Z .. 2026-09-06T00:23Z, n=25 `Changeset Release`
+    #     jobs. Per-job wall clock from the Actions jobs endpoint
+    #     (`completed_at` minus `started_at`), never the run's total.
+    #   - min 1m23s / median 2m37s / p95 5m37s / max 7m15s.
+    #   - ⚠️ n=25 is the whole recent population, not a sample cut short. This
+    #     job is `skipped` on a push unless that push left the manifest version
+    #     absent from npm, and the 400 most recent successful `push` runs
+    #     (2026-08-30 .. 2026-09-06) skipped it 400 times out of 400. Paging
+    #     further buys skips, not samples.
+    #   - max/p95 = 1.29 — no fat tail inside the sample.
+    #
+    # Ceiling = 15min (the declared wait cap, taken at face value: it is
+    # already a hard, fail-open bound, so multiplying it would only buy slack
+    # for a clock that cannot overrun) + 3x the measured max work
+    # (3 x 7m15s = 21.8min) => 36.8min, rounded up to 40. The plain rule the
+    # other two jobs use would have given 25, which leaves a legitimately
+    # contended release (15min of waiting + 7m15s of work = 22m15s) inside 12%
+    # of its own ceiling — a ceiling set under a job's honest slowest run,
+    # which is the mirror hazard objectui#7048 fenced.
+    #
+    # ⛔ Raising this toward 360 is the ruled-out non-fix, and ⛔ lowering it
+    # under 23 minutes would let the clock truncate a release that the workflow
+    # itself says is behaving.
+    timeout-minutes: 40
+
     steps:
       # The queue the `concurrency:` key above cannot provide. GitHub offers exactly two
       # behaviours for a contended group — cancel the running one, or discard the pending
@@ -591,13 +632,17 @@ jobs:
       # `actions/cache`'s own `save-always` deprecation text points at this
       # same split.
       #
-      # ⚠️ This job declares NO `timeout-minutes`, so its ceiling is GitHub's
-      # default of 360 minutes — and this is the PUBLISH lane, where a job that
-      # hangs after `Publish to npm` has already shipped and the concurrency
-      # note above records what a long-running release job does to the pushes
-      # behind it. ⛔ Adding a ceiling is NOT the fix and is not attempted here:
-      # the release act must never be truncated by a clock. The bound below is
-      # on the bookkeeping step alone, which runs after every release step.
+      # ⚠️ This job's ceiling is `timeout-minutes: 40`, DERIVED at the job
+      # header above from this job's own run distribution PLUS the 900-second
+      # wait cap this job declares for itself (objectui#7270). Until that line
+      # existed the ceiling was GitHub's 360-minute default — and this is the
+      # PUBLISH lane, where a job that hangs after `Publish to npm` has already
+      # shipped and the concurrency note above records what a long-running
+      # release job does to the pushes behind it. The constraint that used to
+      # argue against any ceiling at all is the one that shaped 40: the release
+      # act must never be truncated by a clock, so the number is generous
+      # rather than tight. The bound below is still on the bookkeeping step
+      # alone, which runs after every release step.
       #
       # The restore half is deliberately left UNBOUNDED: a restore stall fails
       # BEFORE anything is published, which is the honest failure.

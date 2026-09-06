@@ -87,6 +87,43 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
 
+    # ── The job ceiling, DERIVED FOR THIS JOB (objectui#7270) ────────────
+    # Before this line the only backstop was GitHub's 360-minute default. This
+    # repository has been bitten twice by an unbounded step whose only backstop
+    # was the job ceiling — the `apt-get` hang (objectui#5304) and the cache-save
+    # stall that ejected an all-green pull request (objectui#6577) — and both
+    # times the ceiling converted a transient fault into a `cancelled` check,
+    # which the merge queue cannot tell from `failure`. `Lint` is a required
+    # context on `pull_request` and `merge_group` alike, so at 360 the same
+    # fault holds a shared serial queue for six hours.
+    #
+    # ⛔ NOT inherited from `ci.yml`'s 10/15/20/30/40 — objectui#7048 fences
+    # exactly that. The arithmetic below is this job's own.
+    #
+    #   - Population: the last 300 successful runs of this workflow, window
+    #     2026-09-05T11:51Z .. 2026-09-06T04:11Z, n=300 `Lint` jobs. Per-job
+    #     wall clock from the Actions jobs endpoint (`completed_at` minus
+    #     `started_at`), never the run's total.
+    #   - min 9s / median 5m16s / p95 5m46s / max 7m14s.
+    #   - Bimodal at the LOW end only: 11 runs finished in 9-14s, which is the
+    #     `Decide whether this change needs a full run` gate skipping every
+    #     step; the other 289 ran 3m27s-7m14s. A low mode cannot raise a
+    #     ceiling, so it is recorded and not used.
+    #   - By event, no material difference, so one ceiling covers all three:
+    #     merge_group n=103 (median 5m17s, max 6m06s), pull_request n=142
+    #     (median 5m15s, max 6m39s), push n=55 (median 5m14s, max 7m14s).
+    #   - max/p95 = 1.25 — no fat tail, so the multiplier is not widened.
+    #
+    # Ceiling = the smallest round number that is both >= 3x max (21.7min) and
+    # >= max + 15min (22.2min) => 25. That is ~3.5x the slowest run ever
+    # observed here, so it cannot fire on a healthy-but-slow runner; a wedge
+    # dies in 25 minutes instead of 6 hours.
+    #
+    # ⛔ Raising this toward 360 is the ruled-out non-fix (objectui#6577,
+    # objectui#7048): the hang just runs longer and the gate still reports
+    # `cancelled`.
+    timeout-minutes: 25
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -257,13 +294,14 @@ jobs:
       # pull request (objectui#6577). `actions/cache`'s own `save-always`
       # deprecation text points at this same split.
       #
-      # ⚠️ This job declares NO `timeout-minutes`, so its ceiling is GitHub's
-      # default of 360 minutes. That makes the exposure worse here, not better:
-      # `Lint` is a required context on `pull_request` and `merge_group` alike,
-      # so a stalled save would hold the shared serial queue for up to six
-      # hours before reporting `cancelled`. ⛔ Adding a ceiling is NOT the fix
-      # and is not attempted here — it would change what this gate rejects. The
-      # bound below is on the bookkeeping step alone.
+      # ⚠️ This job's ceiling is `timeout-minutes: 25`, DERIVED at the job
+      # header above from this job's own run distribution (objectui#7270).
+      # Until that line existed the ceiling was GitHub's 360-minute default,
+      # and `Lint` is a required context on `pull_request` and `merge_group`
+      # alike, so a stalled save would have held the shared serial queue for up
+      # to six hours before reporting `cancelled`. The bound below is still on
+      # the bookkeeping step alone, and both numbers are needed: 25 minutes is
+      # the backstop, 5 minutes is what a healthy save is allowed.
       #
       # The restore half is deliberately left UNBOUNDED: a restore stall fails
       # BEFORE any verdict exists — a gate that did not run, which is honest —

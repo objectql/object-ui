@@ -110,6 +110,45 @@ jobs:
   bundle-analysis:
     name: Bundle Analysis
     runs-on: ubuntu-latest
+
+    # ── The job ceiling, DERIVED FOR THIS JOB (objectui#7270) ────────────
+    # Before this line the only backstop was GitHub's 360-minute default, on a
+    # job this repository treats as a required context (objectui#6245). Two
+    # incidents put a number on that exposure: objectui#5304 (`apt-get` hang)
+    # and objectui#6577 (cache-save stall), both of which turned a transient
+    # fault into a `cancelled` check — a gate that reports nothing.
+    #
+    # ⚠️ Measured while deriving this, and worth knowing before reusing the
+    # `Lint` argument here: this workflow subscribes only `push` and
+    # `pull_request`, NOT `merge_group`, and 300 sampled runs contain zero
+    # `merge_group` runs. So this job cannot hold the merge queue the way
+    # `Lint` can; what six hours costs here is the pull request and the runner.
+    # The ceiling is still derived, because that exposure is real on its own.
+    #
+    # ⛔ NOT inherited from `ci.yml`'s 10/15/20/30/40 — objectui#7048 fences
+    # exactly that. The arithmetic below is this job's own.
+    #
+    #   - Population: the last 300 successful runs of this workflow, window
+    #     2026-09-03T11:40Z .. 2026-09-06T04:10Z, n=300 `Bundle Analysis` jobs.
+    #     Per-job wall clock from the Actions jobs endpoint (`completed_at`
+    #     minus `started_at`), never the run's total.
+    #   - min 57s / median 3m35s / p95 4m37s / max 5m23s.
+    #   - Broad rather than bimodal: 72 runs under 2m and 228 at or above it,
+    #     spread continuously across the range (Turbo cache hit versus miss),
+    #     with no isolated tail.
+    #   - By event: pull_request n=191 (median 3m37s, max 5m23s), push n=109
+    #     (median 3m31s, max 4m47s). No material difference.
+    #   - max/p95 = 1.17 — no fat tail, so the multiplier is not widened.
+    #
+    # Ceiling = the smallest round number that is both >= 3x max (16.2min) and
+    # >= max + 15min (20.4min) => 25; the second leg is the one that binds.
+    # That is ~4.6x the slowest run ever observed here.
+    #
+    # ⛔ Raising this toward 360 is the ruled-out non-fix (objectui#6577,
+    # objectui#7048): the hang just runs longer and the gate still reports
+    # `cancelled`.
+    timeout-minutes: 25
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -152,12 +191,14 @@ jobs:
       # pull request (objectui#6577). `actions/cache`'s own `save-always`
       # deprecation text points at this same split.
       #
-      # ⚠️ This job declares NO `timeout-minutes`, so its ceiling is GitHub's
-      # default of 360 minutes, and `Bundle Analysis` is a required context
-      # (objectui#6245). A stalled save would therefore hold a required check
-      # open for up to six hours before reporting `cancelled`. ⛔ Adding a
-      # ceiling is NOT the fix and is not attempted here — it would change what
-      # this gate rejects. The bound below is on the bookkeeping step alone.
+      # ⚠️ This job's ceiling is `timeout-minutes: 25`, DERIVED at the job
+      # header above from this job's own run distribution (objectui#7270).
+      # Until that line existed the ceiling was GitHub's 360-minute default on
+      # a required context (objectui#6245), so a stalled save would have held
+      # that check open for up to six hours before reporting `cancelled`. The
+      # bound below is still on the bookkeeping step alone, and both numbers
+      # are needed: 25 minutes is the backstop, 5 minutes is what a healthy
+      # save is allowed.
       #
       # The restore half is deliberately left UNBOUNDED: a restore stall fails
       # BEFORE any verdict exists — a gate that did not run, which is honest —
