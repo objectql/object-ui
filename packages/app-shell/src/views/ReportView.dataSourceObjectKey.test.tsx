@@ -57,7 +57,8 @@ import { render, waitFor } from '@testing-library/react';
 /** Props the (stubbed) report renderer and config panel were handed. */
 const cap = vi.hoisted(() => ({ renderer: null as any, panel: null as any }));
 
-vi.mock('@object-ui/plugin-report', () => ({
+vi.mock('@object-ui/plugin-report', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ReportRenderer: (props: any) => {
     cap.renderer = props;
     return null;

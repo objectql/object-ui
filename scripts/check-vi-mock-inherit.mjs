@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is two, and each joined by sweep
+ * actually been SWEPT to zero. Today that is five, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -102,6 +102,21 @@
  * objectui#7337 -- 92 judged call sites, 92 inheriting, 0 frozen at the flip,
  * with the all-specifier population moving 315 -> 314 frozen and no site moving
  * the other way.
+ *
+ * The next three members joined together as objectui#6892's first slice, the
+ * three specifiers the worklist's triage named as the flow-proving start
+ * because each carried exactly ONE frozen factory. Re-derived on `eeda78a780`
+ * with the fixed classifier -- ⛔ never from the worklist's own table, which
+ * predates both the recogniser fix and the `@object-ui/i18n` flip:
+ *
+ *     @object-ui/plugin-markdown    1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/data-objectstack   1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/plugin-report      1 judged, 0 inheriting, 1 frozen -> 0
+ *
+ * with the all-specifier population over the 22 specifiers any `vi.mock` call
+ * site in the tree names moving 318 -> 315 frozen, and no site moving the other
+ * way. The remaining 315 stay on objectui#6892, `@object-ui/auth` (102) first
+ * by yield and `@object-ui/app-shell` (23) only after objectui#6580.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -182,7 +197,13 @@ import { blank, scanSource } from './js-comment-mask.mjs';
  * The workspace packages this gate judges. GROW-ONLY, and a specifier joins it
  * only after its frozen factories have been swept to zero -- see "Scope" above.
  */
-export const COVERED_SPECIFIERS = Object.freeze(['@object-ui/react', '@object-ui/i18n']);
+export const COVERED_SPECIFIERS = Object.freeze([
+  '@object-ui/react',
+  '@object-ui/i18n',
+  '@object-ui/plugin-markdown',
+  '@object-ui/data-objectstack',
+  '@object-ui/plugin-report',
+]);
 
 /** Files the walk reads at all. */
 const SOURCE_FILE_RE = /\.[cm]?[jt]sx?$/;
