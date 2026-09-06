@@ -86,17 +86,78 @@ describe('check-upstream-port-parity is wired, not merely present', () => {
     expect(pinned).toContain('scripts/invoked-as.mjs');
   });
 
-  it('the pinned files are the ones the patrol workflow watches', () => {
-    // Both directions of the same claim: a file added to the patrol's paths
-    // filter but not to the pin drifts unwatched, and a file in the pin that
-    // the patrol no longer uses is a stale obligation.
+  it("the patrol's own ported unit is pinned, in both directions", () => {
+    // ⚠️ Re-scoped by objectui#7263, which registered the first entry OUTSIDE
+    // `scripts/`. This assertion used to read `pinned ⊆ watched` — every pinned
+    // file must appear in the patrol's paths filter — which silently encoded
+    // "the ledger only ever pins the sweeper's unit". That was true of the two
+    // entries that existed and is not a property of the ledger: the patrol runs
+    // ONE ported program, and a hook self-test has no business in its filter.
+    //
+    // Both directions are kept, each scoped to the thing it is actually about:
+    // a ported file the patrol watches but nothing pins drifts unwatched, and a
+    // pinned file from the patrol's own unit that the patrol dropped is a stale
+    // obligation. The reach of the pin BEYOND that unit is the next test's job.
     const patrol = parseYaml(
       fs.readFileSync(path.join(ROOT, '.github/workflows/half-state-patrol.yml'), 'utf8'),
     );
     const watched: string[] = patrol.on.pull_request.paths;
     const pin = JSON.parse(fs.readFileSync(path.join(ROOT, PIN), 'utf8'));
     const pinned: string[] = pin.files.map((f: { ported: string }) => f.ported);
-    for (const p of pinned) expect(watched).toContain(p);
+    // forward: everything the patrol watches, other than the workflow file that
+    // declares the watch, is a ported program and must be pinned.
+    for (const p of watched.filter((w) => !w.startsWith('.github/'))) expect(pinned).toContain(p);
+    // back: the patrol's own unit, identified by where the sweeper lives, must
+    // still be in that filter.
+    for (const p of pinned.filter((f) => f.startsWith('scripts/pm/'))) expect(watched).toContain(p);
+  });
+
+  it('every pinned file is one the gate actually runs on when it drifts', () => {
+    // The wiring claim that had to exist once the ledger reached past
+    // `scripts/` (objectui#7263). `lint.yml` runs this gate, and its `relevant`
+    // step skips every step below it when a pull request touches ONLY the paths
+    // it ignores. A ported file inside that ignore set would be pinned and
+    // unwatched at the same time: the PR that drifts it is exactly the PR on
+    // which the gate does not run, and the drift lands green — the failure this
+    // whole mechanism exists to make impossible, one level up.
+    const lintYml = fs.readFileSync(path.join(ROOT, '.github/workflows/lint.yml'), 'utf8');
+    const relevant = lintYml.slice(lintYml.indexOf('id: relevant'));
+    const ignored = [...relevant.matchAll(/':\(exclude,glob\)([^']+)'/g)].map((m) => m[1]);
+    // Tokenised, not chained replaces: a chain rewrites the `*` it has already
+    // emitted into a substitution, and the resulting pattern matches nothing —
+    // an assertion that passes because it recognises nothing, which is the
+    // shape this whole file is about.
+    const matches = (glob: string, file: string) =>
+      new RegExp(
+        `^${glob
+          .split(/(\*\*\/|\*\*|\*|\?)/)
+          .map((tok) =>
+            tok === '**/'
+              ? '(?:.*/)?'
+              : tok === '**'
+                ? '.*'
+                : tok === '*'
+                  ? '[^/]*'
+                  : tok === '?'
+                    ? '[^/]'
+                    : tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+          )
+          .join('')}$`,
+      ).test(file);
+
+    // The control leg: every glob in that list must actually recognise a file
+    // it is there to ignore. Without this the loop below is green on a matcher
+    // that never matches.
+    expect(ignored).toEqual(expect.arrayContaining(['**/*.md', 'content/**', 'docs/**', '.changeset/**']));
+    expect(ignored.filter((g) => matches(g, 'docs/adr/0001-example.md'))).toEqual(['**/*.md', 'docs/**']);
+    expect(ignored.filter((g) => matches(g, 'content/docs/guide/a.md'))).toEqual(['**/*.md', 'content/**']);
+    expect(ignored.filter((g) => matches(g, '.changeset/lucky-pans-smile.md'))).toEqual(['**/*.md', '.changeset/**']);
+
+    const pin = JSON.parse(fs.readFileSync(path.join(ROOT, PIN), 'utf8'));
+    const pinned: string[] = pin.files.map((f: { ported: string }) => f.ported);
+    for (const file of pinned) {
+      expect({ file, ignoredBy: ignored.filter((g) => matches(g, file)) }).toEqual({ file, ignoredBy: [] });
+    }
   });
 
   it('its self-test passes — the half that makes a green comparison mean something', () => {
