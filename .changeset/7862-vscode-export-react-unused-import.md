@@ -28,4 +28,9 @@ because it never named it; a compile closes the class instead of one member of i
 positive control runs on every invocation: re-adding the import must report TS6133, so
 the harness cannot go quietly, permanently green.
 
+`packages/vscode-extension/DESIGN.md`, whose section 4 hand-mirrors this preamble, is
+corrected in the same commit so the design record does not freeze the defect — the
+spelling objectui#7837 landed for the same file. What binds the two copies together is
+still nothing, and objectui#7976 holds that question.
+
 No public surface moved: no export added, no signature changed.
