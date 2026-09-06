@@ -8,7 +8,8 @@ This example demonstrates how third-party systems can integrate ObjectUI compone
 
 - ✅ Custom routing with React Router
 - ✅ Custom data adapter (mock REST API, not ObjectStack)
-- ✅ Using `@object-ui/app-shell` for rendering
+- ✅ Using `@object-ui/app-shell` for the page shell
+- ✅ Using `@object-ui/plugin-view` for object views (`ObjectView`)
 - ✅ Using `@object-ui/providers` for context
 - ✅ No console dependencies
 - ✅ ~100 lines of integration code
@@ -57,10 +58,13 @@ const mockDataSource = {
 
 ### 2. App Shell (`src/App.tsx`)
 
-Uses `@object-ui/app-shell` components:
+Uses `@object-ui/app-shell` for the shell and `@object-ui/plugin-view` for the
+object view:
 
 ```tsx
-import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
+import { Routes, Route, useParams } from 'react-router-dom';
+import { AppShell } from '@object-ui/app-shell';
+import { ObjectView } from '@object-ui/plugin-view';
 import { ThemeProvider, DataSourceProvider } from '@object-ui/providers';
 
 function App() {
@@ -69,11 +73,25 @@ function App() {
       <DataSourceProvider dataSource={mockDataSource}>
         <AppShell sidebar={<MySidebar />}>
           <Routes>
-            <Route path="/:object" element={<ObjectRenderer />} />
+            <Route path="/:objectName" element={<ObjectPage />} />
           </Routes>
         </AppShell>
       </DataSourceProvider>
     </ThemeProvider>
+  );
+}
+
+// `ObjectView` takes the object name in its schema, not from the router, and
+// its `dataSource` prop is required by the type. So a route renders a small
+// component of your own, not the view directly.
+function ObjectPage() {
+  const { objectName } = useParams<{ objectName: string }>();
+
+  return (
+    <ObjectView
+      schema={{ type: 'object-view', objectName: objectName || '' }}
+      dataSource={mockDataSource}
+    />
   );
 }
 ```
@@ -83,12 +101,31 @@ function App() {
 Full control over routes - no predefined structure:
 
 ```tsx
-<Routes>
-  <Route path="/" element={<Home />} />
-  <Route path="/contacts" element={<ObjectRenderer objectName="contact" />} />
-  <Route path="/accounts" element={<ObjectRenderer objectName="account" />} />
-  {/* Your custom routes */}
-</Routes>
+import { useDataSource } from '@object-ui/providers';
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/contacts" element={<ObjectListPage objectName="contact" />} />
+      <Route path="/accounts" element={<ObjectListPage objectName="account" />} />
+      {/* Your custom routes */}
+    </Routes>
+  );
+}
+
+// One small component per object. Inside `DataSourceProvider`, `useDataSource()`
+// supplies the data source that `ObjectView` requires.
+function ObjectListPage({ objectName }: { objectName: string }) {
+  const dataSource = useDataSource();
+
+  return (
+    <ObjectView
+      schema={{ type: 'object-view', objectName }}
+      dataSource={dataSource}
+    />
+  );
+}
 ```
 
 ## Customization Examples
@@ -99,15 +136,24 @@ Full control over routes - no predefined structure:
 // app/layout.tsx
 import { AppShell } from '@object-ui/app-shell';
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return <AppShell sidebar={<Sidebar />}>{children}</AppShell>;
 }
 
 // app/[object]/page.tsx
-import { ObjectRenderer } from '@object-ui/app-shell';
+'use client';
+import { ObjectView } from '@object-ui/plugin-view';
+import { useDataSource } from '@object-ui/providers';
 
-export default function ObjectPage({ params }) {
-  return <ObjectRenderer objectName={params.object} />;
+export default function ObjectPage({ params }: { params: { object: string } }) {
+  const dataSource = useDataSource();
+
+  return (
+    <ObjectView
+      schema={{ type: 'object-view', objectName: params.object }}
+      dataSource={dataSource}
+    />
+  );
 }
 ```
 
