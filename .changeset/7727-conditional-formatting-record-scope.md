@@ -32,8 +32,12 @@ Three changes, all on `ConditionalFormattingEditor`:
 
 - its `CelPredicateField` authors in `scope="record"`, the scope the field conditional
   rules `visibleWhen` / `readonlyWhen` / `requiredWhen` already use;
-- the exported `ROW_PREDICATE_ROOTS` loses `'data'`, which Phase 2 retired but
-  autocomplete was still recommending;
+- `ROW_PREDICATE_ROOTS` loses `'data'`, which Phase 2 retired but autocomplete was
+  still recommending. It is an `export const`, but **not** on this package's
+  published face: `@object-ui/app-shell`'s `index.ts` has no `export *` lines and
+  re-exports neither the const nor this editor, and the package `exports` map is
+  `"."` plus `./styles.css` with no deep subpath — so no consumer outside the
+  package can import it, and nothing you depend on changes shape;
 - the docblock and inline comment that described the old three-way binding are
   rewritten to the one binding that survives.
 
