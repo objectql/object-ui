@@ -29,7 +29,8 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({ appName: 'crm' }),
 }));
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     // Echo the interpolated defaultValue so assertions read naturally; fall
     // back to the key when a test doesn't provide one.

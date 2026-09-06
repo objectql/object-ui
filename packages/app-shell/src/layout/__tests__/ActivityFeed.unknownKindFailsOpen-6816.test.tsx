@@ -32,7 +32,8 @@ import type { ActivityItem, ActivityItemType } from '../activityItemType.js';
 
 // Key-echoing stub: the assertions below address the filter badges by their
 // i18n key, so a stub returning the key verbatim is what makes them legible.
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ language: 'en', t: (key: string) => key }),
 }));
 
