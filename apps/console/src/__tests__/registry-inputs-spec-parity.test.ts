@@ -1287,6 +1287,456 @@ const OFF_SPEC_ARM_EXEMPTIONS: Record<string, string> = {
     'Two spec authorities disagree about the KIND, so no declaration can satisfy both: ObjectGridSchema.data resolves to ViewDataSchema (an object discriminated on `provider`) while ComponentPropsMap[object-grid].data is `z.array(z.unknown())` ("Static inline rows"). The `object` arm is the DELIBERATE one — objectui#5090 / PR objectui#5108 changed it from `array` against ViewDataSchema, and plugin-grid/src/__tests__/gridDataInputContract.test.ts pins it there; flipping it back re-opens #5090 and fails `tsc` (TS2322, measured on that card). Convergence is upstream, filed as objectui#6207.',
 };
 
+// ── the MEMBER-PIN direction (objectui#8068) ─────────────────────────────────
+//
+// The three directions above judge a block's DECLARATION — which top-level keys
+// it publishes, and with which coarse kinds. None of them can see one layer in,
+// and the LIMIT note at the top of this file says so in as many words: an
+// `inputs` entry of type `array`/`object` declares no member shape, so a drifted
+// key INSIDE an array element or a nested object is invisible here.
+//
+// That note then names the mitigation — `record:details.sections`,
+// `record:highlights.fields` and `record:related_list.add` "publish their
+// members in prose and are pinned by per-block tests next to their renderers".
+// All three pins are real. What was NOT real is any requirement that a fourth
+// key get one.
+//
+// `page:header.actions` is that fourth key, and it is the measurement this
+// direction exists for. Array-typed, member shape in `description` prose only
+// (`packages/components/src/renderers/layout/containers.tsx`), spec
+// `z.array(z.string())` — action IDs — while the renderer read the members as
+// `ActionDef` OBJECTS and resolved nothing, so metadata satisfying the published
+// contract rendered ZERO buttons. Every layer was green: the key names are in
+// parity (forward and reverse), the `'array'` arm is a kind the contract accepts
+// (the arm direction), and no per-block test existed to look inside. It took a
+// human filing objectstack#11592 and a maintainer ruling (2026-08-25) to settle
+// it, and `packages/components/src/__tests__/page-header-action-ids.test.tsx` —
+// the fourth pin — arrived as part of that FIX (objectui#6252), not because
+// anything demanded it.
+//
+// Three keys got it right, the fourth did not, and nothing noticed the fourth.
+// So the discipline stops being voluntary here: every array/object-armed input
+// on a covered block must name a pin, or carry an exemption.
+//
+// ## WHAT THIS DIRECTION CAN AND CANNOT JUDGE
+//
+// The criterion objectui#8068 sets is a JUDGEMENT, not a computation: a pin must
+// constrain the shape the renderer actually READS, rather than restate the
+// registration. A registration saying `of: 'string'` while the code reads
+// members as objects is the exact hole, and no mechanical reader can tell the
+// two apart — the four exemplars do it four different ways (a description
+// derived from the spec's element schema, a spec-vs-declaration arm set, a
+// renderer-default comparison, and a twice-authored render equivalence).
+//
+// So this direction is built the way every exemption in this file is: the
+// judgement is made in a diff someone reviews, and what is MECHANISED is the
+// part that rots silently. A registered pin must
+//
+//   1. exist on disk — a deleted or renamed pin file is the failure mode that
+//      leaves the key uncovered while the registry entry still reads deliberate;
+//   2. be a file the test runner collects, so "pinned" means "executed";
+//   3. NAME the block and NAME the key, so an entry cannot point at a file that
+//      says nothing about this key. That is the locator, and it is why the
+//      calibration below asserts it discriminates: a check that matched any file
+//      would license every entry at once.
+//
+// ## THE POPULATION, MEASURED FIRST — 58 of 77 (objectui#8071)
+//
+// objectui#8068 required the number before the gate, because the number chooses
+// the route: single digits means add the pins and let the gate bite, dozens
+// means a transition. Measured on this branch, over this file's own `covered`
+// set: 77 array/object-armed inputs across 22 blocks, of which 19 already have a
+// pin that meets both the criterion and the locator. 58 do not.
+//
+// 58 is the transition case, and this file already owns the pattern for it —
+// `OFF_SPEC_EXEMPTIONS` / `UNPUBLISHED_EXEMPTIONS` / `OFF_SPEC_ARM_EXEMPTIONS`
+// are explicit, reasoned, issue-backed, and go RED once stale. This is the same
+// mechanism, not a second one: `MEMBER_PIN_EXEMPTIONS` below lists all 58 BY
+// NAME, every entry cites objectui#8071 (which owns writing the pins), and an
+// entry whose key acquires a pin is reported STALE and must be deleted in the
+// same change. The list has a CEILING as well as a stale check, because the
+// cheap way to green a new array key is to add a 59th entry rather than a pin.
+//
+// ## WHAT IS DELIBERATELY NOT IN THE POPULATION, stated rather than dropped
+//
+// `covered` — this file's own set, spec-carried blocks that declare inputs — is
+// the population, unchanged. The wider registration graph carries 310
+// array/object-armed inputs across 501 registered type names (aliases included:
+// `object-grid`, `plugin-grid:object-grid` and `view:grid` are three names for
+// one registration), and 233 of those sit on blocks with no `ComponentPropsMap`
+// entry. NO direction in this file has ever judged them — a member pin needs a
+// published contract to compare a member shape against, and those blocks have
+// none. That boundary is pre-existing rather than a narrowing taken here, and it
+// is recorded in objectui#8071 so it cannot go quiet.
+
+/** Coarse arms whose values have a MEMBER shape this file cannot see. */
+const STRUCTURED_ARMS = new Set(['array', 'object']);
+
+/** One declared input that carries a member shape, as this direction sees it. */
+interface StructuredInput {
+  /** `BLOCK.INPUT` — the registry/exemption key format used throughout. */
+  id: string;
+  type: string;
+  input: string;
+  arms: string[];
+}
+
+/**
+ * Every array/object-armed input on a covered block — the population this
+ * direction judges.
+ *
+ * Deliberately NOT filtered to keys the contract accepts, unlike `judgeArms`.
+ * That filter is right there — an arm makes a claim ABOUT the contract, so a key
+ * the contract does not declare has no arm question to answer — and wrong here:
+ * a member shape is a claim about what the RENDERER reads, which an off-spec key
+ * makes just as loudly. Today the two sets coincide (`no covered block declares
+ * an off-spec input`), so the choice removes nothing and cannot hide anything;
+ * it is stated because the day they diverge, the stricter reading is the one
+ * this card asked for.
+ */
+const structuredInputs: StructuredInput[] = covered.flatMap((type) =>
+  (declaredInputEntries(type) ?? [])
+    .map((input) => ({
+      id: `${type}.${input.name}`,
+      type,
+      input: input.name,
+      arms: inputTypeArms(input.type),
+    }))
+    .filter((entry) => entry.arms.some((arm) => STRUCTURED_ARMS.has(arm))),
+);
+
+/** The array/object-armed inputs of one covered block. */
+const structuredInputsOf = (type: string): StructuredInput[] =>
+  structuredInputs.filter((entry) => entry.type === type);
+
+/** A registered per-block member pin. */
+interface MemberPin {
+  /** Repo-relative path of the test file that pins this key's member shape. */
+  file: string;
+  /** WHAT it constrains — the half a reader needs and the locator cannot check. */
+  pins: string;
+}
+
+/**
+ * The per-block member pins this repo has, by key.
+ *
+ * An entry is a claim that the named file constrains the member shape the
+ * RENDERER reads for that key — the criterion objectui#8068 sets, and the one
+ * thing here that is reviewed rather than computed. `pins` says which assertion
+ * carries the claim, so the next reader can check it in one hop instead of
+ * re-deriving why the file counts.
+ *
+ * The four objectui#8068 names are all here: the three the LIMIT note at the top
+ * of this file already delegated to (`record:details.sections`,
+ * `record:highlights.fields`, `record:related_list.add`) and the fourth that
+ * arrived with objectui#6252's fix rather than from any mechanism
+ * (`page:header.actions`). They are asserted BY NAME below, because they are the
+ * calibration for everything else: if the population or the locator ever stops
+ * recognising those four, this direction has stopped describing the defect it
+ * was built for.
+ */
+const MEMBER_PINS: Record<string, MemberPin> = {
+  'element:button.label': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map `{ en, "zh-CN" }` and nothing else — driven through the real `manifestFromConfigs` + `validateTree` pair the JSX-page compiler and the save gate use, each positive paired with a value matching NEITHER arm that must still be reported (objectui#4970).',
+  },
+  'element:record_picker.emptyText': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, asserted at the render site that actually resolves one, with the non-matching controls (`42`, `["No records"]`) still reported (objectui#3832).',
+  },
+  'element:record_picker.filter': {
+    file: 'packages/components/src/__tests__/record-picker-inputs-spec-parity.test.ts',
+    pins: 'The `object` arm is `FilterConditionSchema` — field keys plus `$and`/`$or`/`$not` — with the rule-ARRAY spelling every sibling `filter` uses rejected outright, and the description pinned to the renderer\'s own precedence read (`composed?.filter ?? props.filter`), objectui#3830.',
+  },
+  'element:text.content': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, derived from the spec\'s own verdicts rather than restated, with a non-matching control (objectui#4970).',
+  },
+  'element:text_input.description': {
+    file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
+    pins: 'The I18nLabel trio: the declared arms equal the arms the spec accepts as a SET in both directions, the `object` arm is the locale map, and the description must teach `zh-CN` and the locale-aware resolution the read site performs (objectui#5717).',
+  },
+  'element:text_input.label': {
+    file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
+    pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
+  },
+  'element:text_input.placeholder': {
+    file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
+    pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
+  },
+  'object-grid.data': {
+    file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
+    pins: 'The `object` arm is `ViewDataSchema` discriminated on `provider`: each of the four providers parses, none of them is an array, the declaration is one shape across both registered tags so the alias cannot drift, and it is pinned at compile time too (objectui#5090).',
+  },
+  'page:card.title': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control that must still be reported (objectui#3832).',
+  },
+  'page:header.actions': {
+    file: 'packages/components/src/__tests__/page-header-action-ids.test.tsx',
+    pins: 'THE card\'s own key. The members are ACTION IDS, not `ActionDef` objects: the same action metadata is authored twice — once as ids, once as inline objects — and the two renders are compared, with the object-shape render as a live non-empty control so an id-side green cannot come from two empty headers agreeing. Covers placement, `requiredPermissions`, `visible` and `order` (objectui#6252, objectstack#11592).',
+  },
+  'page:header.subtitle': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'page:header.title': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'record:alert.body': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'record:alert.title': {
+    file: 'apps/console/src/__tests__/component-input-union-specimens.test.ts',
+    pins: 'The `object` arm is the inline translation map, with a non-matching control (objectui#3832).',
+  },
+  'record:details.fields': {
+    file: 'packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts',
+    pins: 'Members are BARE NAMES: the spec rejects the entry-object spelling on its value, the description is asserted non-empty first and then required to teach no entry shape, and the renderer\'s more tolerant read is recorded as unexercised drift rather than a second contract.',
+  },
+  'record:details.hideFields': {
+    file: 'packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts',
+    pins: 'Members are bare names — the object spelling is rejected on its VALUE (a full parse, not a strip), and the description may not teach `{` (objectui#3808).',
+  },
+  'record:details.sections': {
+    file: 'packages/plugin-detail/src/__tests__/recordDetailsInputs.spec-parity.test.ts',
+    pins: 'Members are OBJECTS: every spec member key must be discoverable from the description, the retired section-id spelling must be ruled out by name, and the three renderer-only keys the spec refuses (`title`, `showBorder`, `hideEmpty`) may not be taught — filtered through the spec at runtime so a stale prohibition drops out on its own (objectui#3807).',
+  },
+  'record:highlights.fields': {
+    file: 'packages/plugin-detail/src/__tests__/recordHighlightsInputs.spec-parity.test.ts',
+    pins: 'Members are objects carrying `readonly` PER ENTRY — asserted to be per-entry rather than top-level, and every spec entry key must be discoverable from the `fields` description (objectui#3407).',
+  },
+  'record:related_list.add': {
+    file: 'packages/plugin-detail/src/__tests__/recordRelatedListInputs.spec-parity.test.ts',
+    pins: 'Every spec member key of `add` must be discoverable from its description, the published defaults must be the RENDERER\'s rather than the spec\'s prose, and `picker.filter` must be documented as a real restriction (objectui#3808).',
+  },
+};
+
+/**
+ * The reason every entry in `MEMBER_PIN_EXEMPTIONS` carries today.
+ *
+ * One shared constant rather than 58 near-copies, because the reason really is
+ * uniform and a copy is what drifts: none of these keys has a pin, and writing
+ * 58 of them is not the dispatched scope of the card that built this direction.
+ * objectui#8068 prescribes the transition itself for a population this size, and
+ * objectui#8071 owns the work — key by key, deleting an entry here in the same
+ * change that registers its pin.
+ *
+ * A key that needs a DIFFERENT reason — a shape a pin genuinely cannot express,
+ * a contract question upstream owns — gets its own string. The map is
+ * `Record<string, string>` precisely so that stays possible without a second
+ * mechanism.
+ */
+const AWAITING_A_PIN =
+  'No per-block member pin today. Measured with objectui#8068: 58 of the 77 array/object-armed ' +
+  'inputs on covered blocks had none, which is the population size that card prescribes a ' +
+  'self-deleting transition for rather than a same-PR sweep. objectui#8071 owns writing the pin; ' +
+  'delete this entry in the same change that registers it.';
+
+/**
+ * Array/object-armed inputs accepted WITHOUT a member pin for now, each with the
+ * reason. Key format: `BLOCK.INPUT`.
+ *
+ * Fourth instance of this file's one exemption discipline, and the bar is the
+ * one the three above already set: the divergence is explicit, reasoned,
+ * issue-backed, and DELETED by a failing test once it stops describing anything.
+ * `carries no stale member-pin exemption` fires the moment a key here acquires a
+ * pin, and `every member-pin exemption names a key that is still
+ * array/object-armed` fires when a key leaves the population.
+ *
+ * The ceiling below is the other half, and it is what makes this a transition
+ * rather than an allowlist: a NEW array-typed key cannot be absorbed by adding a
+ * 59th entry, because the count may only go down.
+ */
+const MEMBER_PIN_EXEMPTIONS: Record<string, string> = {
+  // element:button
+  'element:button.action': AWAITING_A_PIN,
+
+  // element:number
+  'element:number.filter': AWAITING_A_PIN,
+
+  // element:record_picker
+  'element:record_picker.dataSource': AWAITING_A_PIN,
+  'element:record_picker.label': AWAITING_A_PIN,
+  'element:record_picker.placeholder': AWAITING_A_PIN,
+  'element:record_picker.sort': AWAITING_A_PIN,
+
+  // object-form
+  'object-form.customFields': AWAITING_A_PIN,
+  'object-form.dataSource': AWAITING_A_PIN,
+  'object-form.fields': AWAITING_A_PIN,
+  'object-form.initialData': AWAITING_A_PIN,
+  'object-form.initialValues': AWAITING_A_PIN,
+  'object-form.mobile': AWAITING_A_PIN,
+  'object-form.sections': AWAITING_A_PIN,
+  'object-form.submitBehavior': AWAITING_A_PIN,
+
+  // object-grid
+  'object-grid.aggregations': AWAITING_A_PIN,
+  'object-grid.batchActions': AWAITING_A_PIN,
+  'object-grid.bulkActionDefs': AWAITING_A_PIN,
+  'object-grid.bulkActions': AWAITING_A_PIN,
+  'object-grid.columns': AWAITING_A_PIN,
+  'object-grid.conditionalFormatting': AWAITING_A_PIN,
+  'object-grid.dataSource': AWAITING_A_PIN,
+  'object-grid.exportOptions': AWAITING_A_PIN,
+  'object-grid.filter': AWAITING_A_PIN,
+  'object-grid.grouping': AWAITING_A_PIN,
+  'object-grid.navigation': AWAITING_A_PIN,
+  'object-grid.operations': AWAITING_A_PIN,
+  'object-grid.pagination': AWAITING_A_PIN,
+  'object-grid.rowActions': AWAITING_A_PIN,
+  'object-grid.rowColor': AWAITING_A_PIN,
+  'object-grid.searchableFields': AWAITING_A_PIN,
+  'object-grid.selection': AWAITING_A_PIN,
+  'object-grid.sort': AWAITING_A_PIN,
+
+  // object-master-detail-form
+  'object-master-detail-form.dataSource': AWAITING_A_PIN,
+  'object-master-detail-form.details': AWAITING_A_PIN,
+  'object-master-detail-form.fields': AWAITING_A_PIN,
+  'object-master-detail-form.initialData': AWAITING_A_PIN,
+  'object-master-detail-form.initialValues': AWAITING_A_PIN,
+  'object-master-detail-form.sections': AWAITING_A_PIN,
+
+  // object-metric
+  'object-metric.aggregate': AWAITING_A_PIN,
+  'object-metric.compareTo': AWAITING_A_PIN,
+  'object-metric.dataSource': AWAITING_A_PIN,
+  'object-metric.drillDown': AWAITING_A_PIN,
+  'object-metric.filter': AWAITING_A_PIN,
+  'object-metric.trend': AWAITING_A_PIN,
+
+  // page:accordion
+  'page:accordion.items': AWAITING_A_PIN,
+
+  // page:tabs
+  'page:tabs.items': AWAITING_A_PIN,
+
+  // record:activity
+  'record:activity.types': AWAITING_A_PIN,
+
+  // record:alert
+  'record:alert.action': AWAITING_A_PIN,
+
+  // record:chatter
+  'record:chatter.feed': AWAITING_A_PIN,
+
+  // record:discussion
+  'record:discussion.feed': AWAITING_A_PIN,
+
+  // record:path
+  'record:path.stages': AWAITING_A_PIN,
+
+  // record:quick_actions
+  'record:quick_actions.actionNames': AWAITING_A_PIN,
+  'record:quick_actions.requiredPermissions': AWAITING_A_PIN,
+
+  // record:related_list
+  'record:related_list.actions': AWAITING_A_PIN,
+  'record:related_list.columns': AWAITING_A_PIN,
+  'record:related_list.dataSource': AWAITING_A_PIN,
+  'record:related_list.filter': AWAITING_A_PIN,
+  'record:related_list.sort': AWAITING_A_PIN,
+};
+
+/**
+ * How many keys may be exempt. Ratchet: this number may only ever go DOWN.
+ *
+ * Measured with objectui#8068 and pinned so the list cannot grow. Without it the
+ * cheapest way to green a newly added array-typed input is an exemption entry
+ * with the same reason as its 58 neighbours — which is exactly the "voluntary"
+ * state this direction was built to end, one entry further in.
+ */
+const MEMBER_PIN_EXEMPTION_CEILING = 58;
+
+/**
+ * Every test file a member pin can live in, as LAZY `?raw` loaders.
+ *
+ * Vite's glob, not `node:fs`, and that is a constraint rather than a taste: this
+ * app's tsconfig is browser-only (`lib: ES2020, DOM`, `types` without `node`),
+ * so a `node:fs` import passes under Vitest and fails the console's own `tsc` —
+ * the trap `insecure-origin-crypto.placement.test.ts` and
+ * `__tests__/helpers/preview-page-sources.ts` both record. It is also the better
+ * instrument here: the glob is expanded against the real directory at transform
+ * time, so the KEY SET alone answers "does this pin file still exist", which is
+ * the failure this locator exists to catch.
+ *
+ * LAZY on purpose. `eager: true` would inline the raw text of every test file in
+ * the repo — 2,000+ files, ~3 MB — into this module on every run of a gate that
+ * already loads the whole registration graph. Lazy hands back loaders, so the
+ * cost is the glob itself plus one read per REGISTERED pin (19 today).
+ */
+const PIN_SOURCES = import.meta.glob(
+  [
+    '../../../../packages/*/src/**/*.test.ts',
+    '../../../../packages/*/src/**/*.test.tsx',
+    '../../**/*.test.ts',
+    '../../**/*.test.tsx',
+  ],
+  { query: '?raw', import: 'default' },
+) as Record<string, () => Promise<string>>;
+
+/** This file's own directory, repo-relative — the anchor the glob keys resolve against. */
+const THIS_DIR = 'apps/console/src/__tests__';
+
+/** A glob key (`../../../../packages/…`) as a repo-relative path. */
+function repoPathOfGlobKey(key: string): string {
+  const out: string[] = [];
+  for (const segment of `${THIS_DIR}/${key}`.split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') out.pop();
+    else out.push(segment);
+  }
+  return out.join('/');
+}
+
+/** Pin sources by repo-relative path — the spelling `MEMBER_PINS` entries use. */
+const PIN_SOURCE_BY_PATH = new Map<string, () => Promise<string>>(
+  Object.entries(PIN_SOURCES).map(([key, load]) => [repoPathOfGlobKey(key), load]),
+);
+
+/** Vitest collects `*.test.ts` / `*.test.tsx`; anything else would never run. */
+const IS_A_COLLECTED_TEST_FILE = /\.test\.tsx?$/;
+
+/**
+ * What is WRONG with one registered pin, or `null` when nothing is.
+ *
+ * Three failures, and each is a way a pin stops covering its key while the
+ * registry entry still reads deliberate: the file was deleted, renamed or moved
+ * out of the glob's reach; it is not a file the runner collects, so "pinned"
+ * would not mean "executed"; or it does not mention this block and this key at
+ * all, which is what an entry pointed at the wrong file looks like.
+ *
+ * The key match is word-boundaried. A substring match would accept `fields` for
+ * `hideFields` — those two are pinned by the SAME file here, so the weaker form
+ * would be satisfied by the wrong assertion.
+ */
+async function memberPinProblem(id: string, pin: MemberPin): Promise<string | null> {
+  const [type, key] = splitExemptionKey(id);
+  if (!IS_A_COLLECTED_TEST_FILE.test(pin.file)) {
+    return `${id} -> ${pin.file}: not a *.test.ts(x) file, so the runner never collects it`;
+  }
+  const load = PIN_SOURCE_BY_PATH.get(pin.file);
+  if (!load) {
+    return `${id} -> ${pin.file}: no such pin file (deleted, renamed, or moved outside the glob)`;
+  }
+  const text = await load();
+  if (!text.includes(type)) return `${id} -> ${pin.file}: pin file never names the block \`${type}\``;
+  if (!new RegExp(`\\b${key}\\b`).test(text)) {
+    return `${id} -> ${pin.file}: pin file never names the key \`${key}\``;
+  }
+  return null;
+}
+
+/** Ids with neither a pin nor an exemption — the new red. */
+const unpinnedMembersOf = (type: string): string[] =>
+  structuredInputsOf(type)
+    .map((entry) => entry.id)
+    .filter((id) => !(id in MEMBER_PINS) && !(id in MEMBER_PIN_EXEMPTIONS));
+
 describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)', () => {
   it('judges every spec-carried block that declares an authoring surface', () => {
     // Non-vacuity guard. Every per-block assertion below is generated from
@@ -1962,5 +2412,178 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       expect(Object.keys(OFF_SPEC_EXEMPTIONS)).not.toContain(`${type}.${key}`);
     }
     expect(Object.keys(OFF_SPEC_EXEMPTIONS)).toEqual([]);
+  });
+
+  // ── the MEMBER-PIN direction (objectui#8068) ───────────────────────────────
+  //
+  // Same `covered` set and the same exemption discipline as the three
+  // directions above. What moves is the SUBJECT once more: not which keys a
+  // block publishes, nor with which kinds, but whether anything anywhere
+  // constrains what is INSIDE an array element or a nested object.
+
+  it('judges a non-vacuous member-shape census — every covered block, every array/object input', () => {
+    // Non-vacuity FIRST, for the reason the arm census gives next door: every
+    // assertion below is generated from `structuredInputs`, so a reader that
+    // resolved nothing (a renamed `ComponentInput.type`, an `inputTypeArms`
+    // that stopped recognising the array form) would empty the population and
+    // turn the whole direction green on nothing at all.
+    expect(structuredInputs.length).toBeGreaterThan(0);
+
+    // The partition is TOTAL and DISJOINT: every member of the population is
+    // either pinned or exempt, never both and never neither. Stated here as
+    // well as per-block below because the per-block loop cannot see the
+    // "both" case, which is the shape a stale exemption takes.
+    const ids = structuredInputs.map((entry) => entry.id);
+    expect(ids.filter((id) => id in MEMBER_PINS && id in MEMBER_PIN_EXEMPTIONS)).toEqual([]);
+    expect(
+      ids.filter((id) => !(id in MEMBER_PINS) && !(id in MEMBER_PIN_EXEMPTIONS)),
+    ).toEqual([]);
+
+    // Every arm the population was selected on is one of the two, so a widened
+    // `STRUCTURED_ARMS` cannot quietly pull in scalars.
+    for (const entry of structuredInputs) {
+      expect(entry.arms.some((arm) => STRUCTURED_ARMS.has(arm)), entry.id).toBe(true);
+    }
+  });
+
+  it.each(covered)('%s pins the member shape of every array/object input it declares', (type) => {
+    // THE new red. A block that grows an array-typed key with no pin and no
+    // exemption fails here, naming the key — which is the one thing that did
+    // not happen for `page:header.actions` through an entire contract cycle.
+    expect(unpinnedMembersOf(type)).toEqual([]);
+  });
+
+  it('the pin-source glob resolves against the right anchor', () => {
+    // Self-location, and the one thing `THIS_DIR` cannot assert about itself. A
+    // wrong anchor resolves every key to a path nothing matches, every pin then
+    // reads as MISSING, and the resulting repo-wide red looks like 19 deleted
+    // pins instead of one bad constant.
+    //
+    // NOT asserted on this file's own path: `import.meta.glob` excludes the
+    // module that calls it, so `registry-inputs-spec-parity.test.ts` is never in
+    // its own glob — measured, and the first shape of this control failed on it.
+    // The two arms below are what actually discriminate. A `THIS_DIR` off by a
+    // level still yields correct `packages/…` paths (the `..` walk bottoms out),
+    // so the `./`-anchored half is the half that catches it.
+    const resolved = [...PIN_SOURCE_BY_PATH.keys()];
+    expect(resolved.length).toBeGreaterThan(0);
+    // No key may still carry a `..`: that is the signature of an anchor the walk
+    // could not consume, and it would silently match nothing forever after.
+    expect(resolved.filter((path) => path.includes('..'))).toEqual([]);
+    // The `./`-anchored half — this directory's own siblings land back in it.
+    // Witnessed by a long-standing neighbour that is NOT a registered pin, on
+    // purpose: naming a pin file here would make a DELETED PIN red this control
+    // too, and "the anchor is broken" and "one pin is gone" are different
+    // diagnoses that must not share a signal. A generic
+    // `some(path.startsWith(THIS_DIR))` cannot do the job either — it compares
+    // the anchor against itself and passes for any wrong value.
+    expect(resolved).toContain(`${THIS_DIR}/public-contract.test.ts`);
+    // …and the `../../../../`-anchored half reaches the packages. Generic here,
+    // because a wrong anchor cannot produce a `packages/` prefix at all: the
+    // `..` walk bottoms out at the repo root either way.
+    expect(resolved.some((path) => path.startsWith('packages/'))).toBe(true);
+  });
+
+  it('every registered member pin points at a collected test file that names its block and key', async () => {
+    // The locator, and the failure mode it exists for: a pin file deleted or
+    // renamed leaves the key uncovered while its registry entry still reads
+    // deliberate. Reported as one list so a sweep names every broken entry at
+    // once rather than one per run.
+    const problems = (
+      await Promise.all(
+        Object.entries(MEMBER_PINS).map(([id, pin]) => memberPinProblem(id, pin)),
+      )
+    ).filter((problem): problem is string => problem !== null);
+    expect(problems).toEqual([]);
+  });
+
+  it('the locator discriminates — it is not a check that passes on any file', async () => {
+    // Calibration for the check above, in the direction it cannot fail on its
+    // own. A locator that matched everything would license every entry at once
+    // and read exactly like a clean sweep, which is the false-negative shape
+    // this card was dispatched to end. Every probe is aimed at a REAL registered
+    // pin, so the control cannot pass by pointing at nothing.
+    const real = MEMBER_PINS['page:header.actions'];
+    expect(await memberPinProblem('page:header.actions', real)).toBeNull();
+
+    // …a key that file never mentions is REFUSED,
+    expect(await memberPinProblem('page:header.__objectui_8068_probe__', real)).toMatch(
+      /never names the key/,
+    );
+    // …a block it never mentions is refused,
+    expect(await memberPinProblem('__objectui_8068_block__.actions', real)).toMatch(
+      /never names the block/,
+    );
+    // …a path with no file behind it is refused,
+    expect(
+      await memberPinProblem('page:header.actions', {
+        file: 'packages/components/src/__tests__/__objectui_8068_absent__.test.tsx',
+        pins: 'probe',
+      }),
+    ).toMatch(/no such pin file/);
+    // …and a file that really exists but the runner would never collect is
+    // refused too, which is what separates "present" from "executed".
+    expect(
+      await memberPinProblem('page:header.actions', { file: 'package.json', pins: 'probe' }),
+    ).toMatch(/never collects it/);
+  });
+
+  it('the four keys objectui#8068 names are in the population, and all four are pinned', () => {
+    // The calibration this whole direction is measured against. Three of these
+    // are the keys the LIMIT note at the top of this file delegates to; the
+    // fourth is the one that had no pin, drifted for a full contract cycle, and
+    // was only ever caught by a human. If a future narrowing of the population
+    // or the locator drops any of the four, the direction has stopped
+    // describing the defect it was built for — and that must be loud, not a
+    // shorter list nobody re-derives.
+    const exemplars = [
+      'record:details.sections',
+      'record:highlights.fields',
+      'record:related_list.add',
+      'page:header.actions',
+    ];
+    const ids = new Set(structuredInputs.map((entry) => entry.id));
+    for (const id of exemplars) {
+      expect(ids, `${id} left the member-shape population`).toContain(id);
+      expect(MEMBER_PINS[id], `${id} lost its pin`).toBeDefined();
+      expect(Object.keys(MEMBER_PIN_EXEMPTIONS), `${id} was exempted instead of pinned`).not.toContain(id);
+    }
+  });
+
+  it('every member pin names a key that is still array/object-armed on a covered block', () => {
+    // Dangling, the same check the three lists above carry: a pin for a key
+    // that changed kind, lost its declaration or left `covered` silently
+    // licenses nothing while reading as coverage.
+    const ids = new Set(structuredInputs.map((entry) => entry.id));
+    expect(Object.keys(MEMBER_PINS).filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it('every member-pin exemption names a key that is still array/object-armed on a covered block', () => {
+    const ids = new Set(structuredInputs.map((entry) => entry.id));
+    expect(Object.keys(MEMBER_PIN_EXEMPTIONS).filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it('every member-pin exemption states a reason and references a tracking issue', () => {
+    const unjustified = Object.entries(MEMBER_PIN_EXEMPTIONS)
+      .filter(([, reason]) => !/#\d+/.test(reason))
+      .map(([key]) => key);
+    expect(unjustified).toEqual([]);
+  });
+
+  it('carries no stale member-pin exemption — a pinned key must lose its entry', () => {
+    // The half that keeps the transition from becoming a permanent allowlist.
+    // objectui#8071 converts these to pins one at a time, and this is what
+    // demands the entry be deleted in the same change rather than left behind
+    // as cover for a key that no longer needs any.
+    expect(Object.keys(MEMBER_PIN_EXEMPTIONS).filter((id) => id in MEMBER_PINS)).toEqual([]);
+  });
+
+  it('the member-pin exemption list only ratchets DOWN', () => {
+    // The other half. A new array-typed key must be answered with a pin, not
+    // with a 59th entry carrying the same reason as its neighbours — that move
+    // is what made the discipline voluntary in the first place, one layer in.
+    expect(Object.keys(MEMBER_PIN_EXEMPTIONS).length).toBeLessThanOrEqual(
+      MEMBER_PIN_EXEMPTION_CEILING,
+    );
   });
 });
