@@ -45,15 +45,21 @@ three spec-modelled keys are optional slots on `ListViewSchema` and
 `ObjectListViewSchema`; the six local keys have no spec slot anywhere.
 
 **`listViews` stays unmirrored, on the ruling's own fallback clause.** The
-declaration's value is the local `NamedListView` (about 52 members, of which the
-renderer reads seven — `label`, `type`, `columns`, `filter`, `sort`, `options`,
-`data`); the spec's `ViewSchema.listViews` is a record of the STRICT
-`ObjectListViewSchema`, which requires `columns` and refuses `options`, ObjectQL
-tuple filters and `default` — that is, it refuses the named views this package's
-own README and `content/docs/api/schema-reference.md` teach (`{ label: 'All
-Users' }` fails at `columns`; `filter: [["owner", "=", "..."]]` fails at
-`filter.0`). Mirroring the spec value would lose documented behaviour; mirroring
-the local value would enforce roughly 45 unread members into the contract — the
+declaration's value is the local `NamedListView` — **47 declared top-level
+members**, of which the renderer reads six: `label`, `type`, `columns`,
+`filter`, `sort`, `options`. It reads a seventh key off a named view, `data`,
+but `data` is **not a declared member of `NamedListView` at all**: it reaches
+the renderer through an `as any` cast on the named-view config in
+`packages/plugin-view/src/ObjectView.tsx`, so it never was one of the declared
+members a mirror would have to carry. The spec's `ViewSchema.listViews` is a
+record of the STRICT `ObjectListViewSchema`, which requires `columns` and
+refuses `options`, ObjectQL tuple filters and `default` — that is, it refuses
+the named views this package's own README and
+`content/docs/api/schema-reference.md` teach (`{ label: 'All Users' }` fails at
+`columns`; `filter: [["owner", "=", "..."]]` fails at `filter.0`). Mirroring the
+spec value would lose documented behaviour; mirroring the local value would
+enforce **41 unread members** (47 declared, minus the 6 that are both declared
+and read) into the contract — the
 very thing ruling B refused for the six local keys. The key therefore stays in
 the parity ledger with that measurement, pinned, until the maintainer decides its
 value type. It is not papered over with `z.any()`.

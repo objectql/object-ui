@@ -1464,14 +1464,19 @@ interface UnmirroredDeclared {
    *     `viewTabBar` — zero reads; the tab-bar config is `ViewTabBar`'s `config` PROP
    *     from the host, never a node key.
    * ⚠️ `listViews` STAYS, on the ruling's own fallback clause, with the measurement
-   * that triggered it: the declaration's value is the local `NamedListView` (~52
-   * members, of which the renderer reads seven — `label`, `type`, `columns`, `filter`,
-   * `sort`, `options`, `data`); the spec slot `ViewSchema.listViews` is a record of
-   * the STRICT `ObjectListViewSchema`, which requires `columns` and refuses `options`,
-   * ObjectQL tuple filters and `default` — the named views `plugin-view`'s README and
-   * `content/docs/api/schema-reference.md` teach fail it at `columns` / `filter.0` /
-   * unrecognized_keys. Mirroring the spec value loses documented behaviour; mirroring
-   * the local value enforces ~45 unread members into the contract (the reason ruling B
+   * that triggered it: the declaration's value is the local `NamedListView`, 47
+   * declared top-level members, six of which the renderer reads — `label`, `type`,
+   * `columns`, `filter`, `sort`, `options`. The renderer reads a seventh key off a
+   * named view, `data`, and it is NOT a declared member: it arrives through an
+   * `as any` cast on the named-view config in `plugin-view/src/ObjectView.tsx`, so
+   * it is outside the 47 this ledger counts. The spec slot `ViewSchema.listViews` is
+   * a record of the STRICT `ObjectListViewSchema`, which requires `columns` and
+   * refuses `options`, ObjectQL tuple filters and `default` — the named views
+   * `plugin-view`'s README and `content/docs/api/schema-reference.md` teach fail it
+   * at `columns` / `filter.0` / unrecognized_keys. Mirroring the spec value loses
+   * documented behaviour; mirroring the local value enforces 41 unread members
+   * (47 declared, minus the 6 that are both declared and read) into the contract
+   * (the reason ruling B
    * refused option A for the six local keys). Neither is a mirror edit this ledger can
    * authorise; ⛔ `z.any()` was ruled out by name. The value type is the maintainer's
    * decision, recorded on objectui#7779's report.

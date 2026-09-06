@@ -44,8 +44,14 @@
  * ## The one that stayed, and why it is pinned too
  *
  * `listViews` is NOT mirrored. The ruling's own fallback clause fires on the
- * measurement below: the declaration's value is the local `NamedListView`
- * (about 52 members, of which the renderer reads seven), the spec's
+ * measurement below: the declaration's value is the local `NamedListView` — 47
+ * declared top-level members, of which the renderer reads six (`label`, `type`,
+ * `columns`, `filter`, `sort`, `options`), leaving 41 that a key-for-key local
+ * mirror would enforce unread. The renderer reads a SEVENTH key off a named
+ * view, `data`, which is NOT a declared member of `NamedListView`: it arrives
+ * through an `as any` cast on the named-view config in the renderer
+ * (`(currentNamedViewConfig as any)?.data`), which is why the read set below
+ * has seven entries while the arithmetic subtracts only six. The spec's
  * `ViewSchema.listViews` is a record of the STRICT `ObjectListViewSchema`, and
  * the spec value refuses the named views this package's docs teach. Both facts
  * are asserted against the SPEC schema here, so the day the spec relaxes (or
@@ -529,12 +535,34 @@ describe('objectui#7779 — `listViews` stays unmirrored on the ruling\'s fallba
     expect(readRepo('content/docs/api/schema-reference.md')).toContain('"filter": [["owner", "=", "${currentUser.id}"]],');
   });
 
-  it('the renderer reads exactly seven `NamedListView` members off a named view, of a declaration with far more — the reason a local key-for-key mirror was not the answer either', () => {
+  it('the renderer reads exactly seven keys off a named view — six of them declared `NamedListView` members, the seventh (`data`) an `as any` cast — of a declaration with far more, the reason a local key-for-key mirror was not the answer either', () => {
     expect(namedViewReads()).toEqual([...NAMED_VIEW_READS]);
     // The tab strip reads `label` off the entries too — same member, second site.
     expect(readRepo(READER)).toContain('{view.label || key}');
+    // Six of those seven are declared `NamedListView` members. The seventh,
+    // `data`, is not declared at all — it reaches the renderer through an
+    // `as any` cast on the named-view config — so the "unread" arithmetic
+    // below subtracts six, not seven. Both directions are already pinned
+    // without a new assertion: were `data` ever declared, the exact count
+    // moves 47 → 48 and fails here; were the cast read dropped,
+    // `namedViewReads()` returns six entries and fails above.
     const declared = namedListViewMemberCount();
-    expect(declared, 'NamedListView shrank to (near) its read set — re-take the listViews decision').toBeGreaterThanOrEqual(40);
+    // HOW THIS NUMBER IS TAKEN: `namedListViewMemberCount()` above — the two-space
+    // indent in its `/^ {2}[A-Za-z_$][\w$]*\??:/gm` regex is what makes it a
+    // TOP-LEVEL member count. A looser count that drops that indent anchor also
+    // matches nested object-literal lines inside the members' inline types and
+    // gives 59 on the same declaration; a hand figure between the two instruments
+    // is where the retired "about 52 members" came from. ⛔ Do not re-derive the
+    // loose number and quote it beside this one — they measure different things.
+    // Pinned EXACT rather than floored: the retired `>= 40` floor permitted the
+    // declaration to shed seven members, including a shrink toward the read set,
+    // which is exactly the condition that re-opens the `listViews` decision
+    // (objectui#7928); and a floor cannot catch growth at all, so the quoted
+    // figures could stale silently in either direction.
+    expect(
+      declared,
+      'NamedListView\'s top-level member count moved (was 47). Re-derive it with this file\'s own namedListViewMemberCount() regex, then update the "47 declared / 41 unread" figures in the three files that carry them together — .changeset/object-view-unmirrored-keys-7779.md, packages/types/src/zod/objectql.zod.ts and packages/types/src/__tests__/zod-mirror-parity.test.ts — plus this file\'s own header. A shrink toward the read set also re-opens the listViews decision (objectui#7928).',
+    ).toBe(47);
     expect(declared).toBeGreaterThan(NAMED_VIEW_READS.length);
   });
 
