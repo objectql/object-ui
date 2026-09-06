@@ -474,14 +474,55 @@ export const ChatbotSchema = BaseSchema.extend({
   type: z.literal('chatbot'),
   messages: z.array(ChatMessageSchema).describe('Chat messages'),
   placeholder: z.string().optional().describe('Input placeholder'),
-  loading: z.boolean().optional().describe('Whether chat is loading'),
+  // --- ADR-0049 retirement tombstones (objectui#7703) ---------------------
+  //
+  // Six keys this twin mirrored and no `plugin-chatbot` registration read —
+  // `loading`, `showAvatars`, `userAvatar`, `assistantAvatar`, `markdown` and
+  // `height` (that last one below, after `processVisibility`, which is NOT
+  // part of this retirement: `chatbot-enhanced` reads it). The census, the lit
+  // controls and the per-key enforce-or-remove argument live on the TS twin's
+  // `ChatbotSchema` docblock (`../complex.ts`); the pins are in
+  // `../__tests__/chatbot-dark-keys-retired-7703.test.ts`.
+  //
+  // Deleting these arms was the wrong route and is why they stay declared:
+  // `BaseSchema` is `.passthrough()`, so an undeclared key is not refused, it
+  // is KEPT — the same silent acceptance the retirement exists to close.
+  loading: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: chat progress is runtime state the chat runtime owns '
+    + '(the registration derives it from `useObjectChat` as `isLoading`), and `<Chatbot>` declares no `loading` '
+    + 'prop for an authored value to land on. There is no authored spelling that sets it; delete the key.',
+  ),
   onSendMessage: handlerKeyRefusal('onSendMessage', 'retired', 'Send message handler'),
-  showAvatars: z.boolean().optional().describe('Show user avatars'),
-  userAvatar: z.string().optional().describe('User avatar URL'),
-  assistantAvatar: z.string().optional().describe('Assistant avatar URL'),
-  markdown: z.boolean().optional().describe('Enable markdown rendering'),
+  showAvatars: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — no registration reads or forwards this key by name, and a `chatbot` '
+    + 'node renders `<Chatbot>`, which has no `showAvatars` prop; the one channel that did deliver it — the '
+    + "`chatbot-floating` registration's unfiltered props spread — was fenced by objectui#7708. Delete the key: "
+    + 'a `chatbot` node already renders an avatar beside every message, and the images are `userAvatarUrl` / '
+    + '`assistantAvatarUrl` with their `userAvatarFallback` / `assistantAvatarFallback` siblings.',
+  ),
+  userAvatar: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: this spelling has zero hits anywhere in '
+    + '`packages/plugin-chatbot`. Write `userAvatarUrl` instead (with `userAvatarFallback` for the text shown '
+    + 'while the image loads or fails), the key all three chatbot registrations read.',
+  ),
+  assistantAvatar: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: this spelling has zero hits anywhere in '
+    + '`packages/plugin-chatbot`. Write `assistantAvatarUrl` instead (with `assistantAvatarFallback` for the '
+    + 'text shown while the image loads or fails), the key all three chatbot registrations read.',
+  ),
+  markdown: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: a `chatbot` node renders `<Chatbot>`, which prints message '
+    + 'content as text and has no markdown path for this switch to reach. Author `type: "chatbot-enhanced"` '
+    + '(or `"chatbot-floating"`) with `enableMarkdown` instead — markdown is those nodes\' capability, and '
+    + '`enableMarkdown` is the key their registrations read.',
+  ),
   processVisibility: z.enum(['hidden', 'summary', 'debug']).optional().describe('How much agent reasoning/tool detail to show'),
-  height: z.union([z.string(), z.number()]).optional().describe('Chatbot height'),
+  height: retirementTombstone(
+    'RETIRED (objectui#7703, ADR-0049) — never read: `<Chatbot>` has no `height` prop. Write `maxHeight` '
+    + 'instead (a CSS length string, default "500px"), the key the `chatbot` and `chatbot-enhanced` '
+    + 'registrations forward; size a `chatbot-floating` panel with `floatingConfig.panelHeight`, a number of '
+    + 'pixels, which is what that panel reads.',
+  ),
   api: z.string().optional().describe('Backend API endpoint for streaming chat'),
   conversationId: z.string().optional().describe('Conversation ID for multi-turn context'),
   systemPrompt: z.string().optional().describe('System prompt for assistant behavior'),
