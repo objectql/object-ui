@@ -245,6 +245,30 @@ const SAMPLE_BY_INPUT: Readonly<Record<string, unknown>> = {
   // affordance is configured against something that exists rather than at a
   // dangling name.
   add: { picker: { object: PROBE_CHILD_OBJECT } },
+  // The SIXTH instance arrived with objectui#7493, which retired
+  // `ComponentInput.defaultValue`: until then `sampleFor` seeded these six from
+  // the registration's declared default, which happened to be the renderer's
+  // own fallback and the one value under which the probe is askable. The
+  // declared default is gone (nothing but this sampler ever read it), so each
+  // renderer default is restated HERE, next to the read it mirrors:
+  //   - `record:related_list` reads `relationshipValueField || 'id'`; the
+  //     generic `'x'` names a parent field the record does not carry, so the
+  //     list holds its fetch (by design) and the record cannot reach the output.
+  //   - `record:details` passes `showHeader ?? false`; with the header chrome ON
+  //     the same record renders differently twice and the stability control
+  //     (rightly) refuses to grade the probe. The header is not what this probe
+  //     asks about.
+  //   - `record:quick_actions` reads `location || 'record_header'`,
+  //     `align || 'end'`, `variant || 'default'`, `size || 'sm'`; the
+  //     probe action is declared at the header location, and the generic
+  //     samples (`'x'` for the two strings, the enum's first arm for the
+  //     other two) point the bar at a location with no actions.
+  relationshipValueField: 'id',
+  showHeader: false,
+  location: 'record_header',
+  align: 'end',
+  variant: 'default',
+  size: 'sm',
 };
 
 /** Fill one declared input. */
