@@ -69,7 +69,8 @@ vi.mock('@object-ui/auth', () => ({
 // which would make every case after the first read the first case's payload.
 // Calling the fetcher through keeps the wire path (envelope unwrap included)
 // while giving each case its own response.
-vi.mock('@object-ui/data-objectstack', () => ({
+vi.mock('@object-ui/data-objectstack', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   getSharedDiscovery: (_baseUrl: string, fetcher: () => Promise<unknown>) => fetcher(),
 }));
 
