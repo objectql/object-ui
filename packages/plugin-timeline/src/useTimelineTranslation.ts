@@ -23,11 +23,15 @@ export const TIMELINE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'timeline.bucket.later': 'Later',
   'timeline.bucket.noDate': 'No date',
   'timeline.bucket.unassigned': 'Unassigned',
-  'timeline.relative.today': 'Today',
-  'timeline.relative.tomorrow': 'Tomorrow',
-  'timeline.relative.yesterday': 'Yesterday',
-  'timeline.relative.inDays': 'In {{n}} days',
-  'timeline.relative.daysAgo': '{{n}} days ago',
+  // objectui#7874 — the five `timeline.relative.*` rows are retired as residue.
+  // They had no `en` leaf and no call site anywhere in the tree, so `fallbackT`
+  // could never be asked for one: they rendered for nobody. Day-granularity
+  // relative phrases are produced by `formatRelativeDate` (`@object-ui/core`)
+  // through `Intl.RelativeTimeFormat`, which needs no copy row at all. The five
+  // keys and their exact default strings are transcribed in
+  // `__tests__/timeline-relative-defaults-retired-7874.test.ts`, which also pins
+  // them absent — every i18n gate here runs call site -> key, so none of them
+  // can see a dead row come back.
   // Gantt axis vocabulary (objectui#4520). These were `Week ${n}` and
   // `Q${q} ${year}` template literals in `renderer.tsx`, so a zh session read
   // an English bucket label beside the Chinese date axis objectui#4513 had just
