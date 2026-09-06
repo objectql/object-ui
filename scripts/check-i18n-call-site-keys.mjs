@@ -7,11 +7,14 @@
  * to receive them (objectui#3845) — and the OTHER spelling of a fallback,
  * `t(key) || 'English'`, must not exist at all (objectui#4117) — and whatever
  * text that inline default carries must spell its placeholders the one way the
- * provider-less fallback can resolve them (objectui#4905).
+ * provider-less fallback can resolve them (objectui#4905) — and the SAME
+ * promise written one indirection away, in a `createSafeTranslation` defaults
+ * table, must say the same thing the pack does too (objectui#7567).
  *
  * Run:  node scripts/check-i18n-call-site-keys.mjs   (also `pnpm check:i18n-keys`)
  * Exit: 0 = every in-scope call-site key resolves (or is baselined), no inline
- *           default contradicts its `en` value, no call site's option names
+ *           default contradicts its `en` value, no `createSafeTranslation`
+ *           defaults row contradicts it either, no call site's option names
  *           disagree with its `en` value's holes, and no call site carries a
  *           literal sibling fallback, 1 = otherwise
  *
@@ -117,7 +120,10 @@
  * it, and the rule is the class rather than the instance: the first full run
  * found 24 such sites in four files, every one of them on a key `en` defines.
  *
- * ## Five failure classes
+ * ## Eight failure classes
+ *
+ * (The heading said "Five" while the list below held seven — a stale count
+ * corrected here rather than left to grow by one more.)
  *
  * 1. `missing-key` — a literal key with no leaf in `en`. i18next plural suffixes
  *    (`_one`, `_other`, …) count as defining the base key, and a key passed with
@@ -346,6 +352,95 @@
  *    one, like classes 3-5: the first full run found 0 violations, so there is
  *    no debt for a ratchet to hold, and 0 stops being luck.
  *
+ * 8. `factory-default-drift` (objectui#7567) — the same promise as class 3, one
+ *    indirection away, and it was blind to all seven for exactly that reason.
+ *    Class 3 reads the call's ARGUMENTS, so it sees `t(key, { defaultValue })`
+ *    and nothing else; a `createSafeTranslation(DEFAULT_TRANSLATIONS, …)` row
+ *    carries the identical string with no argument anywhere near the call site.
+ *    Before this class the gate classified those hooks as pack-backed, checked
+ *    every key they were asked for, and never once read the table they fall back
+ *    to.
+ *
+ *    THE DIRECTION IS NOT A CHOICE HERE, and stating it is half the class. Read
+ *    `packages/i18n/src/useSafeTranslation.ts`: `fallbackT` resolves
+ *    `defaults[key] || defaultValue || key`, and its own comment calls the table
+ *    "the pack value's stand-in here … it takes the pack's position in i18next's
+ *    own order". So a row that differs from `en` is not a second opinion, it is
+ *    the SAME control labelled one way on a provider-less host and another in
+ *    the console — objectui#7454's measured instance, where a calendar lane read
+ *    `all-day` standalone and `All Day` in the app, plus a ternary kept
+ *    structurally unreachable by nothing. The pack wins, for the same reason it
+ *    wins in class 3: it is what essentially all traffic renders and what the
+ *    nine other packs were translated from.
+ *
+ *    Not a new rule so much as a generalisation of one that already existed for
+ *    three tables: `packages/app-shell/src/__tests__/defaults-maps-mirror-en-pack.test.tsx`
+ *    (objectui#4401) compares `DETAIL_`/`LIST_`/`DESIGNER_DEFAULT_TRANSLATIONS`
+ *    against the pack key by key. That test found the divergence it was written
+ *    for; what it could not do is cover the other 29 tables, because each one
+ *    would have to be added by hand. This class takes the population from the
+ *    SOURCE instead — every `createSafeTranslation(...)` /
+ *    `createSafeTranslationHook(...)` invocation, whatever its table is called —
+ *    so a 33rd factory is covered on the day it is written, with nothing to
+ *    register.
+ *
+ *    HARD from day one, and here the measurement is the whole story. The census
+ *    over this tree found 32 factory sites, 32 distinct tables, 846 rows, 841 of
+ *    them comparable against `en` — and 0 drifted. objectui#7454's instance,
+ *    the one known member of the class, was aligned in objectui#7574 before this
+ *    class landed, which is why there is no ledger section here: a ledger with
+ *    nothing in it is a mechanism asserting nothing, and it would read exactly
+ *    like a populated one. The abstention counts below are printed on every run
+ *    for the same reason the dynamic-key count is — an instrument's blind spot
+ *    is a number, not a silence.
+ *
+ *    Deliberately NOT judged (counted instead), and each abstention is a
+ *    decision:
+ *
+ *      - A first argument that does not resolve to an object literal — a table
+ *        built by a spread, a call, or an identifier this parser cannot follow
+ *        to its `const`. Counted as an unreadable TABLE, which is the loudest
+ *        of these numbers: it is not one row leaving the surface, it is all of
+ *        them. 0 on this tree.
+ *      - A row whose key is computed, or whose value is not a static string.
+ *        Same abstention as a computed `defaultValue` in class 3, and for the
+ *        same reason: there is no text to compare. 0 on this tree.
+ *      - A row whose key `en` does not define. That is class 1's shape, not this
+ *        one's, and the two stay disjoint exactly as classes 1 and 3 do. It is
+ *        worth knowing that class 1 CANNOT reach these: it judges call sites,
+ *        and a table row with no call site anywhere is invisible to it. The 5
+ *        such rows on this tree (`timeline.relative.*`,
+ *        `packages/plugin-timeline/src/useTimelineTranslation.ts`) are exactly
+ *        that — no `en` leaf and no caller — which is why the count is printed
+ *        rather than absorbed.
+ *      - A key that resolves only through its plural suffixes, or an `en` leaf
+ *        this parser could not read as a string. There is no single form to
+ *        compare against; picking one would be an invention. Same words as
+ *        class 3's own abstention, because it is the same abstention.
+ *
+ *    A NESTED object literal inside a table is deliberately NOT descended into,
+ *    and this is the one place where copying
+ *    `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`'s
+ *    table reader would be wrong. That test recurses with a dotted prefix; this
+ *    class must not, because `fallbackT` does a FLAT `defaults[key]` lookup — a
+ *    row spelled `{ calendar: { today: 'Today' } }` is never read by anything at
+ *    runtime, so comparing it against `en.calendar.today` would green-light a
+ *    dead row. It falls into "value is not a static string" instead, where a
+ *    dead row belongs. 0 such rows today; the abstention is what stops the first
+ *    one being read as healthy.
+ *
+ *    WHAT THIS CLASS DOES NOT REACH, measured rather than assumed: three tables
+ *    hand-roll `fallbackT` instead of taking the factory
+ *    (`GANTT_DEFAULT_TRANSLATIONS`, `IMPORT_DEFAULT_TRANSLATIONS`, and
+ *    `TIMELINE_DEFAULT_TRANSLATIONS`, which also reaches the factory and IS
+ *    covered) — see the `HAND_ROLLED_TABLES` registry in the objectui#3512 test
+ *    named above. Reaching them needs a declared registry, because nothing in
+ *    the source says which local function is a `fallbackT`, and a registry is a
+ *    second thing to keep from rotting. They were measured while this class was
+ *    written: 215 rows, 215 comparable, 0 drifted. So the residue is real, named,
+ *    and currently clean — which is the honest way to say "this covers the
+ *    factory channel", rather than letting a coverage claim quietly round up.
+ *
  * ## Dynamic keys: the explicit policy
  *
  * A key that is not a string literal cannot be resolved statically. Those call
@@ -440,6 +535,18 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 
 /** Hook names whose `t` reaches i18next. See the header for why a name is enough. */
 export const PACK_HOOK = /^use[A-Za-z0-9_]*(Translation|Translate|T)$/;
+
+/**
+ * The defaults-table factory, and `plugin-detail`'s re-export alias for it
+ * (objectui#7567). Both spellings are ONE function —
+ * `packages/plugin-detail/src/useDetailTranslation.ts` declares
+ * `export const createSafeTranslationHook = createSafeTranslation` — so a class
+ * that knew only the canonical name would silently skip
+ * `DETAIL_DEFAULT_TRANSLATIONS`, the very table objectui#4401's hand-written
+ * mirror test was written for. Same set, same reason, as the objectui#3512 test
+ * in `packages/i18n/src/__tests__/`.
+ */
+export const FACTORY_NAMES = new Set(['createSafeTranslation', 'createSafeTranslationHook']);
 
 /**
  * Annotations that mark a forwarded `t` as a translator. Only used to tell a
@@ -1636,6 +1743,87 @@ function keyBuilderShape(node) {
  */
 const KEY_PREFIX_HEAD = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.$/;
 
+// ── the `createSafeTranslation` defaults tables (objectui#7567) ──────────────
+
+/**
+ * The initializer of a `const <name> = …` declared anywhere in `source`.
+ *
+ * Not scoped to the top level on purpose: a factory table is conventionally a
+ * module constant, but nothing enforces that, and a table declared inside a
+ * block would otherwise silently leave the checked surface rather than being
+ * counted as unreadable.
+ */
+function declaredConstant(source, name) {
+  let found = null;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name && node.initializer) {
+      found = node.initializer;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(source, visit);
+  return found;
+}
+
+/** The module specifier a named import of `name` comes from, or `null`. */
+function namedImportSpecifier(source, name) {
+  let specifier = null;
+  ts.forEachChild(source, (node) => {
+    if (specifier !== null) return;
+    if (
+      ts.isImportDeclaration(node) &&
+      node.importClause?.namedBindings &&
+      ts.isNamedImports(node.importClause.namedBindings) &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      for (const element of node.importClause.namedBindings.elements) {
+        // `import { X as Y }` — the table is declared under its ORIGINAL name in
+        // the other module, so that is the name to look for there.
+        if (element.name.text === name) specifier = { module: node.moduleSpecifier.text, declaredAs: (element.propertyName ?? element.name).text };
+      }
+    }
+  });
+  return specifier;
+}
+
+/**
+ * A `createSafeTranslation` first argument, resolved to the object literal the
+ * runtime will index (objectui#7567).
+ *
+ * Three shapes reach it on this tree: an inline literal, a `const` in the same
+ * file, and a `const` imported over a RELATIVE specifier. A package specifier
+ * is deliberately not followed — resolving `@object-ui/x` means resolving a
+ * workspace graph, and a table this returns `null` for is reported as an
+ * unreadable table rather than skipped, which is the loud outcome.
+ *
+ * @returns {{ literal: ts.ObjectLiteralExpression, source: ts.SourceFile, name: string } | { literal: null, name: string }}
+ */
+function resolveFactoryTable(root, source, argument, parseModule) {
+  const inner = unwrapExpression(argument);
+  if (!inner) return { literal: null, name: '(no argument)' };
+  if (ts.isObjectLiteralExpression(inner)) return { literal: inner, source, name: '(inline table)' };
+  if (!ts.isIdentifier(inner)) return { literal: null, name: ts.SyntaxKind[inner.kind] };
+
+  const name = inner.text;
+  let initializer = declaredConstant(source, name);
+  let owner = source;
+  if (initializer === null) {
+    const imported = namedImportSpecifier(source, name);
+    if (imported === null || !imported.module.startsWith('.')) return { literal: null, name };
+    const relPath = resolveImport(root, source.fileName, imported.module);
+    const module = parseModule(join(root, relPath));
+    if (module === null) return { literal: null, name };
+    initializer = declaredConstant(module, imported.declaredAs);
+    owner = module;
+  }
+  if (initializer === null) return { literal: null, name };
+  const literal = unwrapExpression(initializer);
+  if (!literal || !ts.isObjectLiteralExpression(literal)) return { literal: null, name };
+  return { literal, source: owner, name };
+}
+
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
@@ -1726,6 +1914,115 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     computedSiblingFallbacks: 0,
     optionalCallFallbacks: 0,
     unjudgedSiblingFallbacks: 0,
+    // objectui#7567 — class 8's own census. `factorySites` counts INVOCATIONS
+    // and `factoryTables` counts the distinct literals behind them; the two
+    // differ the moment one table is passed to two factories, and reporting
+    // only the first would overstate the surface.
+    factorySites: 0,
+    factoryTables: 0,
+    factoryUnreadableTables: 0,
+    factoryRows: 0,
+    factoryComparedRows: 0,
+    factoryMatchingRows: 0,
+    factoryRowsNoEnKey: 0,
+    factoryUnjudgedRows: 0,
+    factoryUnreadableRows: 0,
+  };
+
+  // objectui#7567 — a table may be declared in a module the factory imports, so
+  // this reader parses on demand and caches; and one table passed to two
+  // factories is scanned ONCE, keyed by the literal's own position, so the row
+  // counts stay a census rather than a multiset.
+  /** @type {Map<string, ts.SourceFile | null>} */
+  const factoryModules = new Map();
+  const parseModule = (absolute) => {
+    if (factoryModules.has(absolute)) return factoryModules.get(absolute);
+    let parsed = null;
+    try {
+      if (existsSync(absolute) && statSync(absolute).isFile()) {
+        parsed = ts.createSourceFile(absolute, readFileSync(absolute, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      }
+    } catch {
+      parsed = null;
+    }
+    factoryModules.set(absolute, parsed);
+    return parsed;
+  };
+  const scannedTables = new Set();
+
+  /**
+   * Compare one defaults table against `en`, row by row (objectui#7567).
+   *
+   * The finding is located at the ROW, not at the `createSafeTranslation` call,
+   * because the row is where the fix goes — and for an imported table those are
+   * in two different files.
+   */
+  const scanFactoryTable = (literal, owner, tableName) => {
+    const ownerRel = relative(root, owner.fileName).split('\\').join('/');
+    for (const property of literal.properties) {
+      counters.factoryRows += 1;
+      const { line, character } = owner.getLineAndCharacterOfPosition(property.getStart(owner));
+      const at = { file: ownerRel, line: line + 1, column: character + 1 };
+      if (!ts.isPropertyAssignment(property)) {
+        // A spread or a shorthand: this reader cannot say which keys it brings.
+        counters.factoryUnreadableRows += 1;
+        continue;
+      }
+      const key =
+        ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNoSubstitutionTemplateLiteral(property.name)
+          ? property.name.text
+          : null;
+      if (key === null) {
+        counters.factoryUnreadableRows += 1;
+        continue;
+      }
+      // NOT descended into — `fallbackT` indexes `defaults[key]` flat, so a
+      // nested literal is a row nothing can ever read. See the header.
+      const text = staticString(property.initializer, owner);
+      if (text === null) {
+        counters.factoryUnreadableRows += 1;
+        continue;
+      }
+      if (!resolvesLeaf(key)) {
+        // class 1's shape, and class 1 cannot reach it: it judges CALL SITES,
+        // and a table row nothing calls has none. Counted, printed, never failed.
+        counters.factoryRowsNoEnKey += 1;
+        continue;
+      }
+      const enValue = values.get(key);
+      if (enValue === undefined) {
+        // A plural family, or an `en` leaf that is not a readable static string.
+        counters.factoryUnjudgedRows += 1;
+        continue;
+      }
+      counters.factoryComparedRows += 1;
+      if (enValue === text) counters.factoryMatchingRows += 1;
+      else findings.push({ reason: 'factory-default-drift', ...at, detail: key, expected: enValue, actual: text, table: tableName });
+    }
+  };
+
+  /** Every `createSafeTranslation(...)` invocation in one parsed file. */
+  const scanFactorySites = (source) => {
+    const visit = (node) => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && FACTORY_NAMES.has(node.expression.text)) {
+        counters.factorySites += 1;
+        const { literal, source: owner, name } = resolveFactoryTable(root, source, node.arguments[0], parseModule);
+        if (literal === null) {
+          // The loudest abstention in this class: not one row leaving the
+          // checked surface, all of them. See the header.
+          counters.factoryUnreadableTables += 1;
+        } else {
+          const id = `${owner.fileName}#${literal.getStart(owner)}`;
+          if (!scannedTables.has(id)) {
+            scannedTables.add(id);
+            counters.factoryTables += 1;
+            scanFactoryTable(literal, owner, name);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    ts.forEachChild(source, visit);
   };
 
   // objectui#7592 — the key-builder leg. `keyBuilderShape()` answers the SHAPE
@@ -1786,8 +2083,23 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     // does: 97 files match it, 47 of which the line above rejects — that 47 is
     // the whole added parse cost, against 1572 files walked.
     const hasKeyTemplate = text.includes('.${');
-    if (!hasTranslatorCall && !hasKeyTemplate) continue;
-    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    // objectui#7567 — and a THIRD reason to parse, for the same structural
+    // reason as the other two: class 8's subject is a defaults TABLE, not a
+    // call, and the two do not co-occur — `useTimelineTranslation.ts` and its
+    // siblings declare a factory and its table and never write `t(` at all.
+    const declaresFactory = text.includes('createSafeTranslation');
+    if (!hasTranslatorCall && !hasKeyTemplate && !declaresFactory) continue;
+    // Each leg below is guarded by its OWN predicate, never by "this file was
+    // parsed". That is the load-bearing half of having three: a leg gated on
+    // the union would silently inherit the other two's widenings, and each
+    // card's measured blast radius (#7592's 1 builder over 47 extra files,
+    // #7567's 32 factory sites) would stop being a reading about that leg.
+    let source = factoryModules.get(file) ?? null;
+    if (source === null) {
+      source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+      factoryModules.set(file, source);
+    }
+    if (declaresFactory) scanFactorySites(source);
 
     // A file's provenance: which table its own `t` reaches. A forwarded `t`
     // inherits it, because the parser cannot follow the value across modules.
@@ -2260,6 +2572,18 @@ const HINTS = {
     ' the same change in the other nine packs. If the pack value is genuinely the wrong' +
     ' copy for this spot, that is a copy change in its own PR, or the call site is asking' +
     ' for the wrong key.',
+  'factory-default-drift':
+    'A `createSafeTranslation` defaults row says something other than the `en` value of the same' +
+    ' key (objectui#7567). That table is the pack value\'s STAND-IN: `fallbackT` resolves' +
+    ' `defaults[key] || defaultValue || key`, so with an `I18nProvider` the pack wins and with' +
+    ' none this row is what renders — the same control labelled two different ways depending on' +
+    ' where it is mounted, and the difference is invisible in the console, which is where anyone' +
+    ' would look. objectui#7454 was the measured instance. Fix it in the TABLE: copy the `en`' +
+    ' value in byte-for-byte, ellipsis and capitalisation included. Do NOT edit' +
+    ' `packages/i18n/src/locales/en.ts` to match the table — the pack value is what users read' +
+    ' today, and changing it makes `scripts/check-i18n-en-drift.mjs` demand the same change in' +
+    ' the other nine packs. If the row is genuinely dead (no key in `en`, no caller), delete the' +
+    ' row rather than inventing a pack entry for it.',
   'interpolation-parity':
     'The arguments this call site passes are not the holes the `en` value has (objectui#3845).' +
     ' An INERT argument is one i18next drops on the floor — no hole to receive it, no warning,' +
@@ -2338,6 +2662,22 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
+  // The same guard again for class 8's subject (objectui#7567), and it is the
+  // one this class needs most: its whole verdict on this tree is "0 drifted",
+  // which is indistinguishable from "the table reader stopped resolving tables"
+  // unless the size of what it compared is asserted. `factoryComparedRows` was
+  // 841 over 32 tables when the class landed.
+  if (counters.factoryComparedRows < 500) {
+    console.error(
+      `The factory-defaults scan collapsed: ${counters.factoryComparedRows} row(s) compared over` +
+        ` ${counters.factoryTables} table(s), ${counters.factoryUnreadableTables} table(s) unreadable.` +
+        ' Expected hundreds — this repo carries 30-odd `createSafeTranslation` tables, so a number' +
+        ' this small means the resolver stopped following them and the comparison is passing on an' +
+        ' empty set.',
+    );
+    process.exit(1);
+  }
+
   const { unexpected, stale } = applyBaseline(findings, readBaseline(root));
 
   console.log(
@@ -2356,6 +2696,14 @@ if (invokedDirectly) {
     `Inline default spelling: ${counters.spellingJudgedDefaults} default(s) carry readable text and are held to ` +
       `the one placeholder spelling the provider-less fallback resolves — ${counters.spellingJudgedResidueDefaults} ` +
       `of them on call sites the drift rule cannot pin, ${counters.opaqueDefaultText} with no readable text at all.`,
+  );
+  console.log(
+    `Factory defaults tables: ${counters.factorySites} createSafeTranslation site(s) over ` +
+      `${counters.factoryTables} distinct table(s) (${counters.factoryUnreadableTables} unreadable) — ` +
+      `${counters.factoryComparedRows} row(s) compared against their en value, ` +
+      `${counters.factoryMatchingRows} matching, ${counters.factoryRowsNoEnKey} on a key en does not define, ` +
+      `${counters.factoryUnjudgedRows} with no single comparable en value, ` +
+      `${counters.factoryUnreadableRows} unreadable.`,
   );
   console.log(
     `Interpolation parity: ${counters.judgedInterpolation} call sites compared against their en value's holes, ` +
@@ -2382,6 +2730,7 @@ if (invokedDirectly) {
   // says "en defines it with different holes", and one paragraph cannot honestly
   // introduce all three.
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
+  const factoryDrift = unexpected.filter((finding) => finding.reason === 'factory-default-drift');
   const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
   const siblings = unexpected.filter((finding) => finding.reason === 'dead-sibling-fallback');
   const spelling = unexpected.filter((finding) => finding.reason === 'unresolvable-default-spelling');
@@ -2399,6 +2748,7 @@ if (invokedDirectly) {
   const families = unexpected.filter((finding) => FAMILY_CLASSES.has(finding.reason));
   const VALUE_CLASSES = new Set([
     'default-value-drift',
+    'factory-default-drift',
     'interpolation-parity',
     'dead-sibling-fallback',
     'unresolvable-default-spelling',
@@ -2410,7 +2760,8 @@ if (invokedDirectly) {
   if (unexpected.length === 0 && stale.length === 0) {
     console.log(
       `Every in-scope call-site key resolves against the en pack (${enKeyCount} keys), every` +
-        ' literal inline defaultValue matches the value the pack serves, every call site passes' +
+        ' literal inline defaultValue matches the value the pack serves, every readable' +
+        ' createSafeTranslation defaults row repeats it too, every call site passes' +
         ' exactly the arguments that value has holes for, every inline defaultValue spells its' +
         ' placeholders the one way the provider-less fallback resolves, no call site carries a' +
         ' literal fallback beside itself, and every dynamic key family either checks its members' +
@@ -2441,6 +2792,22 @@ if (invokedDirectly) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}`);
       console.error(`      en renders: ${quote(finding.expected)}`);
       console.error(`      call site:  ${quote(finding.actual)}`);
+    }
+  }
+
+  if (factoryDrift.length > 0) {
+    const distinct = new Set(factoryDrift.map((finding) => finding.detail));
+    console.error(
+      `\n${factoryDrift.length} createSafeTranslation defaults row${factoryDrift.length === 1 ? '' : 's'} ` +
+        `contradict${factoryDrift.length === 1 ? 's' : ''} the en value of a key that EXISTS ` +
+        `(${distinct.size} distinct key${distinct.size === 1 ? '' : 's'}) — that table stands in for the ` +
+        'pack on a provider-less host, so this control is labelled one way there and another in the ' +
+        'console:',
+    );
+    for (const finding of factoryDrift) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}  (${finding.table})`);
+      console.error(`      en renders:      ${quote(finding.expected)}`);
+      console.error(`      defaults table:  ${quote(finding.actual)}`);
     }
   }
 
