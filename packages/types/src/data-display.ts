@@ -164,6 +164,17 @@ export interface ListSchema extends BaseSchema {
    * @default false
    */
   dense?: boolean;
+  /**
+   * Classes on the wrapper `div` around the title and the list.
+   *
+   * READ SITE: `packages/components/src/renderers/data-display/list.tsx:27` —
+   * `cn("space-y-2", schema.wrapperClass)`. Undeclared until
+   * objectui#7722, surviving only on `BaseSchema`'s index signature: the same
+   * key, on the same class of read, that `CheckboxSchema` (objectui#6938),
+   * `FileUploadSchema` and `FilterBuilderSchema` (objectui#6150) declare.
+   * Distinct from `className`, which the renderer hands to the `ul` / `ol`.
+   */
+  wrapperClass?: string;
 }
 
 /**
