@@ -148,25 +148,43 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   for (const n of liveHighlightNames) hideFieldNames.add(n);
 
   // Phase P.0: also hide the field that's already shown as the page H1
-  // title. The header chip resolves the title from objectSchema.primaryField
-  // → common display fields (name/full_name/title/subject/display_name).
-  // Repeating that same value in the body grid is pure duplication —
+  // title. Repeating that same value in the body grid is pure duplication —
   // every record detail page used to show "客户名称: Acme Corporation"
   // immediately below an H1 that said "Acme Corporation". Authors who
   // want the field anyway can override via the schema (we only add it
   // when the field exists in the data and the dedup wouldn't empty the
   // section).
+  //
+  // ⚠️ This ladder is a DEDUPE, not a title resolver: the question it answers
+  // is "which ROW disappears", and it is keyed on the record value being
+  // non-empty because a row with no value is not duplicating a heading.
+  // The H1 itself is drawn a package away, by `@object-ui/components`'
+  // `PageHeaderRenderer` (`page:header`, synthesized by
+  // `buildDefaultPageSchema`) — the names below mirror the tail of THAT
+  // chain, which is why a change to either half must re-read the other.
+  //
+  // ⛔ `objSchema?.primaryField` used to top this list, and it is gone
+  // (objectui#7586). It is a `DetailViewSchema` key (`@object-ui/types`
+  // `views.ts`) — a VIEW key, read here off an OBJECT def, where nothing can
+  // declare it: `@objectstack/spec`'s object schema is a `strictObject`
+  // answering `unrecognized_keys: ['primaryField']`, and
+  // `ObjectSchema.create()` throws. objectstack#6326 removed the identical
+  // read from two lint rules; objectui#7287 / PR #7585 removed it from
+  // `resolveTitleField`, and the same removal from the header chain above is
+  // what keeps the two halves agreeing. `DetailView.resolveDisplayTitle`
+  // still reads `schema.primaryField` off the VIEW schema and is welcome to.
+  //
+  // ⚠️ The docstring here used to name `objectSchema.primaryField` as the
+  // chip's first source. That stopped being true when PR #7585 landed, and
+  // this ladder outlived the sentence describing it — hence the rewrite
+  // above rather than a one-line deletion. Pinned in
+  // `__tests__/record-details.primaryFieldRetired-7586.test.tsx`, which
+  // asserts the DEDUPE outcome (which row the grid hides), not the title.
   const objSchema: any = (ctx as any).objectSchema;
   const data: any = ctx.data ?? {};
-  const titleCandidates = [
-    objSchema?.primaryField,
-    'name',
-    'full_name',
-    'title',
-    'subject',
-    'display_name',
-    'label',
-  ].filter((n): n is string => typeof n === 'string' && n.length > 0);
+  // No `.filter(…): n is string` guard any more: it existed solely to drop the
+  // `objSchema?.primaryField` entry when the key was absent, which was always.
+  const titleCandidates = ['name', 'full_name', 'title', 'subject', 'display_name', 'label'];
   for (const candidate of titleCandidates) {
     if (data[candidate] !== undefined && data[candidate] !== null && data[candidate] !== '') {
       hideFieldNames.add(candidate);

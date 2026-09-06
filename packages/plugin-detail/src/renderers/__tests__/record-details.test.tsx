@@ -78,7 +78,11 @@ const BOUND_CTX = {
   data: { id: 'rec_1', name: 'Acme' },
   dataSource: { update: async () => ({}) },
   refresh: async () => {},
-  objectSchema: { primaryField: 'name' },
+  // `nameField` is the canonical, spec-declared way an object says which field
+  // titles its records. This fixture spelled it `primaryField` — a
+  // `DetailViewSchema` key an object def cannot carry (objectui#7586), and one
+  // nothing in this hook-ordering suite ever read.
+  objectSchema: { nameField: 'name' },
 };
 
 beforeEach(() => {
