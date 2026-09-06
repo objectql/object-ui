@@ -722,17 +722,29 @@ function unresolvableReason(inner) {
  *     string literal or the literal segments of a template, and a JSX brace is
  *     not inside either.
  *
- * ## The sibling copy, named rather than hidden
+ * ## The sibling copy, named rather than hidden — and now pinned to it
  *
- * `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`
- * carries the same rule as `placeholderViolations`, over the ten locale packs
- * and the 31+3 defaults TABLES. This copy exists because that gate is a vitest
- * suite reading copy tables and this one is a node script reading call-site
- * ARGUMENTS — the walk that finds a `defaultValue` is the classifier this file
- * already owns, and rebuilding it there was rejected on objectui#4905. The
- * self-test pins this copy against all four i18next-only spellings and both
- * out-of-range classes, so the two can only drift by someone editing one and
- * not the other with both self-tests in front of them.
+ * `packages/i18n/src/__tests__/placeholder-spelling-rule.ts`
+ * (`placeholderViolations`, enforced by `fallback-placeholder-spelling-3512.test.ts`)
+ * carries the same rule over the ten locale packs and the discovered defaults
+ * TABLES. This copy exists because that gate is a vitest suite reading copy
+ * tables and this one is a node script reading call-site ARGUMENTS — the walk
+ * that finds a `defaultValue` is the classifier this file already owns, and
+ * rebuilding it there was rejected on objectui#4905.
+ *
+ * Until objectui#7310 the only thing holding the two together was that each
+ * names the other and each has its own self-test, which is a promise rather
+ * than a mechanism: it survives exactly as long as whoever widens one of them
+ * happens to read both. `scripts/__tests__/placeholder-spelling-parity.test.ts`
+ * is the mechanism — it feeds one corpus (both self-tests' cases, a grammar
+ * matrix over every dialect and boundary, every string leaf of the ten packs
+ * and every discovered defaults row) through BOTH implementations and fails
+ * naming the input they disagreed on. Merging the two was measured first and is
+ * closed in both directions; that file's header records what was measured.
+ *
+ * ⇒ Widening this rule means widening it on BOTH sides, in one change. The
+ * parity gate is not a thing to relax when it goes red — it going red IS the
+ * defect objectui#7310 filed.
  */
 export function unresolvableSpellings(value) {
   const out = [];
