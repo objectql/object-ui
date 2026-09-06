@@ -18,15 +18,15 @@ integration package to install. Day-to-day schema authoring is
 Every node in the UI tree follows this shape — enforce it on every input.
 
 ```typescript
-// @object-ui/types
-interface UIComponent {
+// @object-ui/types — abridged; the full BaseSchema member list is packages/types/src/base.ts
+interface BaseSchema {
   /** The unique identifier for the renderer registry (e.g., 'input', 'grid', 'card') */
   type: string;
 
   /** Unique ID for DOM accessibility and event targeting */
   id?: string;
 
-  /** Visual properties (mapped directly to Shadcn props) */
+  /** Config envelope — read only by element:* renderers; see rules/protocol.md */
   props?: Record<string, any>;
 
   /** Data binding path (e.g., 'user.address.city') */
@@ -36,14 +36,14 @@ interface UIComponent {
   className?: string;
 
   /** Dynamic Behavior */
-  hidden?: string; // Expression: "${data.role != 'admin'}"
-  disabled?: string; // Expression
+  hidden?: boolean | ExpressionWire; // e.g. "${data.role != 'admin'}"
+  disabled?: boolean | ExpressionWire; // same wire as hidden
 
   /** Event Handlers */
-  events?: Record<string, ActionDef[]>; // onClick -> [Action1, Action2]
+  events?: Record<string, ActionSchema[]>; // onClick -> [Action1, Action2]
 
   /** Layout Slots */
-  children?: UIComponent[];
+  children?: BaseSchema[]; // object half; the real slot also admits primitives
 }
 ```
 
@@ -73,7 +73,7 @@ How the schema tree becomes React:
 
 ```typescript
 // packages/react/src/SchemaRenderer.tsx
-export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
+export const SchemaRenderer = ({ schema }: { schema: BaseSchema }) => {
   const Component = resolveComponent(schema.type);
   const { isHidden } = useExpression(schema.hidden);
 
