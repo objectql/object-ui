@@ -1658,6 +1658,9 @@ const en = {
   console: {
     saveAdvisoryTitle: 'Saved — the authoring check raised {{count}} advisory finding(s)',
     publishAdvisoryTitle: 'Published — the authoring check raised {{count}} advisory finding(s)',
+    importMappingsUnavailable: 'Saved import mappings for {{object}} could not be loaded',
+    importMappingsRefused: 'The server refused this request, so this list is empty because it could not be read — not because nothing is registered. Sign in again, or ask an administrator for access.',
+    importMappingsUnreadable: 'This list is empty because it could not be read, not because nothing is registered. Try again, and report this if it keeps happening.',
     title: 'ObjectOS',
     initializing: 'Initializing application…',
     search: 'Search…',

@@ -1518,6 +1518,9 @@ const zh = {
   console: {
     saveAdvisoryTitle: '已保存 — 编辑检查提出了 {{count}} 条建议',
     publishAdvisoryTitle: '已发布 — 编辑检查提出了 {{count}} 条建议',
+    importMappingsUnavailable: "无法加载 {{object}} 的已保存导入映射",
+    importMappingsRefused: "服务器拒绝了此请求，因此该列表为空是因为读取失败，而不是因为没有注册任何映射。请重新登录，或联系管理员申请访问权限。",
+    importMappingsUnreadable: "该列表为空是因为读取失败，而不是因为没有注册任何映射。请重试；如果反复出现，请反馈此问题。",
     title: 'ObjectStack 控制台',
     initializing: '正在初始化应用程序…',
     search: '搜索…',

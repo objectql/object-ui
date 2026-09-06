@@ -1453,6 +1453,9 @@ const de = {
   console: {
     saveAdvisoryTitle: "Gespeichert — die Autorenprüfung ergab {{count}} Hinweis(e)",
     publishAdvisoryTitle: "Veröffentlicht — die Autorenprüfung ergab {{count}} Hinweis(e)",
+    importMappingsUnavailable: "Gespeicherte Importzuordnungen für {{object}} konnten nicht geladen werden",
+    importMappingsRefused: "Der Server hat diese Anfrage abgelehnt. Die Liste ist also leer, weil sie nicht gelesen werden konnte — nicht, weil nichts registriert ist. Melden Sie sich erneut an oder bitten Sie eine Administratorin oder einen Administrator um Zugriff.",
+    importMappingsUnreadable: "Diese Liste ist leer, weil sie nicht gelesen werden konnte, nicht weil nichts registriert ist. Versuchen Sie es erneut und melden Sie das Problem, wenn es weiterhin auftritt.",
     settingsHub: {
       title: "Einstellungen",
       subtitle: "Konfigurieren Sie Ihren Workspace, Integrationen und Feature-Flags.",

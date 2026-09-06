@@ -16,6 +16,7 @@ import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
 import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal.js';
 import { emitWriteWarning, type TranslateFn } from './writeWarningToast.js';
 import { emitSaveAdvisories } from './saveAdvisoryToast.js';
+import { emitMetadataReadWarning } from './metadataReadWarningToast.js';
 
 export { useAdapter } from '@object-ui/react';
 
@@ -54,6 +55,7 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
     let cancelled = false;
     let unsubscribeWriteWarning: (() => void) | undefined;
     let unsubscribeSaveAdvisory: (() => void) | undefined;
+    let unsubscribeMetadataReadWarning: (() => void) | undefined;
 
     // Expose window.__objectui.{pendingRequests,idle,whenIdle} so an automated
     // (AI) browser driver has one "is the app settled?" predicate (ADR-0054 C5).
@@ -92,6 +94,19 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
           emitSaveAdvisories(ev, tRef.current as TranslateFn, toast);
         });
 
+        // Surface a metadata READ that could not be answered and was degraded
+        // to an empty result anyway (objectui#7741). Without this the import
+        // wizard's saved-mapping selector is hidden identically whether the
+        // deployment registered no mapping or the server refused the read —
+        // the ambiguity that produced the objectstack#14026 misdiagnosis. The
+        // supported "this server does not serve that kind" case never reaches
+        // here: the adapter classifies it and emits nothing, so an older
+        // deployment stays quiet. `t` rides the same ref as the two channels
+        // above, and for the same reason.
+        unsubscribeMetadataReadWarning = a.onMetadataReadWarning((ev) => {
+          emitMetadataReadWarning(ev, tRef.current as TranslateFn, toast);
+        });
+
         await a.connect();
 
         if (!cancelled) {
@@ -109,6 +124,7 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
       cancelled = true;
       unsubscribeWriteWarning?.();
       unsubscribeSaveAdvisory?.();
+      unsubscribeMetadataReadWarning?.();
     };
   }, [externalAdapter]);
 
