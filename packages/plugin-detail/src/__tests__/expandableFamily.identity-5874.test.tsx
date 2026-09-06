@@ -116,7 +116,13 @@ const objectSchema = {
     account: { type: 'lookup', label: 'Account', reference_to: 'accounts' },
     parent_deal: { type: 'master_detail', label: 'Parent', reference_to: 'deals' },
     assignee: { type: 'user', label: 'Assignee' },
-    parent_node: { type: 'tree', label: 'Parent node', reference_to: 'deals' },
+    // No target key. It carried the retired snake_case one, which
+    // `FieldSchema` refuses BY NAME — so the line asserted nothing, and
+    // renaming it would have turned a refused key into an accepted
+    // self-annotation this fixture never made. On a `tree` the key is
+    // optional and must be the declaring object when present
+    // (objectstack#14892); the readonly rule reads `type` (objectui#7839).
+    parent_node: { type: 'tree', label: 'Parent node' },
     stage: { type: 'select', label: 'Stage' },
     notes: { type: 'textarea', label: 'Notes' },
   },

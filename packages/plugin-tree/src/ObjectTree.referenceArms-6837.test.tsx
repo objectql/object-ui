@@ -160,8 +160,13 @@ const RECORDS = [
 
 /**
  * Every probe is a self-referencing `lookup`, so only the target SPELLING
- * varies. ⚠️ `lookup` and not `tree`: `detectParentField` returns a `tree` field
- * before it ever reads a target, which would make the chain unobservable.
+ * varies. ⚠️ `lookup` and not `tree`, and objectui#7839 made that choice
+ * STRICTLY more load-bearing rather than retiring it. The `tree` arm now reads
+ * a target too (absent, or this object's own name), but it reads only the ONE
+ * declared spelling: a `tree` carrying just a refused spelling has, to that
+ * arm, no `reference` AT ALL, so it is accepted as the parent pointer and every
+ * refusal below would invert to green. On a `lookup` the same def is simply
+ * not a self-reference, which is what keeps the chain observable.
  */
 const FIELD_DEFS: Record<string, Record<string, unknown>> = {
   // Live arm — the ONE spelling the protocol declares. objectui#6837 half 2

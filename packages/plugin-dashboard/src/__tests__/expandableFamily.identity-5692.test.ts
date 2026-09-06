@@ -110,7 +110,10 @@ const objectSchema = () => ({
     account: { type: 'lookup', reference: 'accounts' },
     parent_case: { type: 'master_detail', reference: 'cases' },
     assignee: { type: 'user' },
-    parent_node: { type: 'tree', reference: 'nodes' },
+    // No `reference` — optional on a `tree`, and must name the declaring
+    // object when present (objectstack#14892). This schema declares no
+    // `name`, and every rule under test reads `type` (objectui#7839).
+    parent_node: { type: 'tree' },
     legacy_ref: { type: 'reference', reference: 'accounts' },
   },
 });
