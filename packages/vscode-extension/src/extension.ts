@@ -227,10 +227,9 @@ function generateReactComponent(schema: any): string {
 
   return `import React from 'react';
 import { SchemaRenderer } from '@object-ui/react';
-import { registerDefaultRenderers } from '@object-ui/components';
-
-// Register default components once
-registerDefaultRenderers();
+// Importing the package registers every default renderer as a side effect —
+// there is no separate registration call.
+import '@object-ui/components';
 
 const schema = ${schemaJson};
 
