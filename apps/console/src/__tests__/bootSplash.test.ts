@@ -166,7 +166,6 @@ describe('apps/console/index.html — boot splash behaviour', () => {
 
   /** Execute the shipped script against the current document. */
   function runBootSplash(): void {
-    // eslint-disable-next-line no-new-func
     new Function(extractBootSplashSource())();
   }
 
