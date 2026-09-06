@@ -188,9 +188,21 @@ const CASES: Case[] = [
     record: { owner: { id: 'U2', name: 'Grace' } },
     expected: false,
   },
-  // Bare-field and `data.*` shorthands.
-  { what: 'bare field shorthand', name: 'par_bare', visible: 'f_status == "open"', expected: true },
-  { what: '`data.*` binding', name: 'par_data', visible: 'data.f_status == "open"', expected: true },
+  // The bare-field and `data.*` spellings retired in objectui#5741 (Phase 2 of
+  // the objectui#5330 canon): unbound on every record surface, they fault and
+  // fail CLOSED on all three — the parity claim now holds for the retirement.
+  {
+    what: 'bare field shorthand — retired (objectui#5741), fails closed on all three',
+    name: 'par_bare',
+    visible: 'f_status == "open"',
+    expected: false,
+  },
+  {
+    what: '`data.*` — retired (objectui#5741), fails closed on all three',
+    name: 'par_data',
+    visible: 'data.f_status == "open"',
+    expected: false,
+  },
   // The legacy fallback lives inside the shared entry, so parity covers it too.
   {
     what: 'legacy `${…}` template — true',

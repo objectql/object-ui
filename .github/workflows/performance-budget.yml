@@ -280,7 +280,21 @@ jobs:
           # against a frozen constant, for the aggregate ceiling and each
           # per-chunk one — a ceiling that has drifted out of range of the
           # regression it must catch is exit 2, a verdict about the gauge. It is
-          # a truthful current-state ceiling, not a statement that 3.15 MB is fine.
+          # a truthful current-state ceiling, not a statement that the payload it
+          # admits is fine.
+          #
+          # ⛔ That clause names no size, and none may be put back
+          # (objectui#7528). It used to end by naming one, and the size it named
+          # was the ceiling objectui#6683 set and objectui#6776 retired — so the
+          # one sentence written to stop a reader concluding the payload is
+          # acceptable was itself quoting a ceiling the gate had not allowed
+          # since, which is why the repair here is no size rather than a fresher
+          # one. The rule this paragraph
+          # already applies to the ceiling covers the ceiling's VALUE too: the
+          # constant lives beside the reasoning that produced it, and
+          # `pnpm check:eager-closure` prints the measured payload, the ceiling
+          # and the headroom together in one verdict line. Neither number is
+          # copied to here, where nothing would fail when it moved.
           #
           # Both measurements run before either may fail the step: a run that
           # reports one number and hides the other teaches readers to distrust

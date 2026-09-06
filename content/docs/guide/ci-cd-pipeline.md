@@ -55,6 +55,7 @@ one has its own section below.
 | `spec-range-floors.yml` | Spec Range Floor Scan | Nightly cron `11 4 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `node-esm-load-gate.yml` | Node ESM Load Scan | Nightly cron `17 4 * * *`; push to `main` touching the gate; manual | No — the per-PR half is `pnpm check:esm-specifiers` in **Type Check** |
 | `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run |
+| `merge-queue-head-patrol.yml` | Merge queue head patrol | Every 15 minutes (cron `7,22,37,52 * * * *`); manual | No — it gates no branch and blocks no queue, but it **goes red on a finding**: a merge-queue head with no `merge_group` build is a live repo-wide block |
 | `hook-selftests.yml` | Hook Self-Tests | PR / push touching `.claude/hooks/**` or the workflow | **Yes** |
 
 The path filters explain most "why did nothing run on my PR?" questions:
@@ -1874,6 +1875,65 @@ never this repo's practice — 815 closed cards carry `pm:dispatched`, ~87% of t
 so that predicate would report the convention rather than a defect and bury every other finding.
 The rendered summary says that surface is **UNREAD**, never that it is clean
 ([#5791](https://github.com/objectstack-ai/objectui/issues/5791)).
+
+### Merge Queue Head Patrol (`merge-queue-head-patrol.yml`)
+
+**Trigger:** every 15 minutes (cron `7,22,37,52 * * * *`) and manual dispatch. No pull-request leg —
+see below.
+
+Runs `scripts/check-merge-queue-head.mjs`, which asks one question: **does the entry at the head of
+`main`'s merge queue have a `merge_group` build?** A head entry for which GitHub never dispatches
+`merge_group` blocks every lane in the repository — a merge queue is strictly ordered, so nothing
+behind a head that cannot merge can merge either — and it does so with *nothing red anywhere*, which
+is what made the four recorded occurrences so expensive to diagnose
+([#7010](https://github.com/objectstack-ai/objectui/issues/7010): 2026-08-17, two on 08-31, one on
+09-02; the worst ran four hours).
+
+**How the head is identified.** Each queue entry is a real branch,
+`gh-readonly-queue/main/pr-<N>-<base_sha>`, and the head is the one stacked on `main`'s current tip.
+The patrol lists those refs, picks the head, and counts `merge_group` runs on it. The ref is taken
+verbatim from the refs listing and never assembled: `GET /actions/runs?branch=` answers
+`total_count: 0` with HTTP 200 for a branch that does not exist, so a constructed ref one character
+off would report a wedge on a healthy queue.
+
+**Only the head is judged, and that is a correctness rule rather than a saving.** GitHub builds only
+the first few entries speculatively, so zero `merge_group` runs is the *normal* state of an entry
+deep in the queue — one healthy entry measured on 2026-09-05 waited 877 seconds for its first run
+simply because it was sixth in line. The head is always inside the build window, which is what makes
+zero runs anomalous there and nowhere else.
+
+**The threshold is five minutes**, one named constant (`WEDGE_THRESHOLD_MS`) carrying both of the
+boundary readings it sits between: a healthy head dispatches its runs 3–24 seconds after its queue
+commit (measured over 18 entries), and the branch ruleset's status-check timeout self-heals a wedge
+after about 60 minutes. A suspected wedge is confirmed with a second run count 60 seconds later, so
+"wedged for an hour" is never confused with the seconds after a head change.
+
+**Report-only in the queue's direction, red in its own.** The patrol never merges, dequeues, closes
+or comments, and it **never opens an issue** — a finding that fired four times an hour would produce
+one card per firing for one incident. Its only write is a PATCH of one pinned issue body, when the
+repository variable `MERGE_QUEUE_ANCHOR_ISSUE` names one; with the variable unset the run summary and
+the job status are the whole delivery, and that is not an error. The job *does* go red on a wedge
+(unlike `half-state-patrol.yml`, which is report-only throughout) because the remedy is a human
+removing that entry from the queue inside a 60-minute window, and an issue-body edit notifies nobody.
+An empty queue, a head too young to judge, and a head that could not be identified all exit 0.
+
+**A reading that could not be taken is never rendered as a healthy queue.** The script refuses its
+own verdict (`assertGrounded`) unless the evidence is there: `clear` is unreachable without an
+identified head *and* a positive run count. "I could not tell which entry is the head" is its own
+verdict with its own wording.
+
+**No `pull_request` leg, deliberately.** Every job of a `pull_request`-triggered workflow produces a
+check run, and `scripts/dependabot-merge-gate.mjs` requires every produced name to be classified as
+required, optional or not-a-gate. Adding a leg here would mean editing that declaration; instead the
+offline `--self-test` runs on every pull request through
+`scripts/__tests__/check-merge-queue-head.test.ts`, and the live transport is proven by
+`workflow_dispatch`.
+
+⛔ **Why** GitHub declines to dispatch `merge_group` for such an entry is *unestablished*. It is a
+repository/Actions-settings reading no agent seat can take, and #7010's triage split it off so the
+detection could ship without it. All four recorded heads were Dependabot pull requests, but that is
+a correlation the patrol does not encode — Dependabot pull requests have merged through this queue
+(`1a4381083`, 2026-08-25), so the failure is conditional and nobody has established on what.
 
 ### Hook Self-Tests (`hook-selftests.yml`)
 

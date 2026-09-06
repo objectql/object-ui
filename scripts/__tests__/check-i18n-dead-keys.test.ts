@@ -402,6 +402,48 @@ describe('both control groups from the card, measured on THIS repository (object
   });
 });
 
+describe('the key-builder leg reaches the sweep end to end (objectui#7592)', () => {
+  // The class the property-chain leg does NOT cover: the consumer never spells
+  // the key AND never calls t() — it builds the key in a helper and hands it to
+  // a translator it was given as a value. Before the key-builder leg all three
+  // legs were blind at once and every member of the family landed in CONFIRMED,
+  // the tier this file's header discusses deleting from.
+  const EN_TOOLS = `const en = {
+  chatbot: { tool: { apply_edit: 'Apply edit', list_objects: 'List objects' } },
+  orphan: { group: { leaf: 'Nobody reads this' } },
+} as const;
+export default en;
+`;
+  const BUILDER_CONSUMER = `
+export function toolTitleKey(name: string): string {
+  return \`chatbot.tool.\${String(name).trim()}\`;
+}
+export function humanize(name: string, translate?: (k: string, f: string) => string): string {
+  const english = name.replace(/_/g, ' ');
+  return translate ? translate(toolTitleKey(name), english) : english;
+}
+`;
+  const builderRoot = () =>
+    repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOLS,
+      'packages/x/src/tool-display.ts': BUILDER_CONSUMER,
+    });
+
+  it('POSITIVE: a helper-built family is no longer a candidate at all', () => {
+    const { confirmed, needsReview } = sweep(builderRoot());
+    const asCandidate = [...confirmed, ...needsReview.map((e: { key: string }) => e.key)].filter((k: string) =>
+      k.startsWith('chatbot.tool.'),
+    );
+    expect(asCandidate, 'a live helper-built key is still being offered for deletion').toEqual([]);
+  });
+
+  it('NEGATIVE: the leg does not hollow out the tier — a key nothing reads is STILL CONFIRMED', () => {
+    // Without this, "no chatbot.tool key is confirmed" would also pass on a
+    // sweep that confirmed nothing at all.
+    expect(sweep(builderRoot()).confirmed).toEqual(['orphan.group.leaf']);
+  });
+});
+
 describe('the collapse guard lives in the CLI block, not in sweep() itself', () => {
   it('sweep() runs against a small synthetic fixture without throwing', () => {
     // Unlike the CLI entry point (which exits 1 below ~2000 keys on the REAL

@@ -216,4 +216,50 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
     const out = execFileSync('node', [GUARD, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
     expect(out).toMatch(/check-doc-fence-languages self-test: \d+ cases pass/);
   });
+
+  /**
+   * objectui#7448. The header of this workflow described its scan surface as
+   * "the same 222 documents `check-doc-snippet-types` covers". The walk held 227
+   * when this pin was written, and NO check went red over the whole distance
+   * between the two — a count copied into a comment drifts by
+   * construction, which is the same reason the file header above declines to
+   * assert the size of the baseline, and the same fix `UNGATED_DOCS`'s header
+   * records being applied to itself ("a pointer to the list now rather than a
+   * copy of its length").
+   *
+   * Changing 222 to 227 would only have restarted that clock. This is what makes
+   * the class fail loudly instead: the header may state the population, never
+   * count it. `doc-component-types.yml` carries the twin of this pin in
+   * `check-doc-component-types.test.ts` — one gate, one home, so each workflow's
+   * header is asserted beside its own gate rather than in a shared sweep.
+   *
+   * Deliberately narrow: a numeral DIRECTLY qualifying a document-population
+   * noun. Issue references, `node-version`, `timeout-minutes` and "the sixth
+   * instance of the same shape" are all numbers this header legitimately
+   * carries, and none of them rots when a document is added or deleted. That is
+   * also why the header must not quote another header's stale literal verbatim
+   * — this pin cannot tell a quotation from a claim, and the safe direction for
+   * a check on prose accuracy is to refuse both.
+   *
+   * Only the negative half is asserted. A positive assertion ("the header names
+   * the verdict line") would pin a wording, and pinned wording is the thing this
+   * file already refuses to do elsewhere; what has to stay true is that no
+   * number is written here that a document being added would falsify.
+   */
+  it('its header states the population and never counts it — no count can rot here', () => {
+    const header = fs
+      .readFileSync(path.join(ROOT, '.github/workflows', WORKFLOW), 'utf8')
+      .split('\n')
+      .filter((line) => /^\s*#/.test(line))
+      .join('\n');
+    const counts = [...header.matchAll(/\b\d+\s+`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi)].map(
+      (m) => m[0],
+    );
+    expect(
+      counts,
+      `${WORKFLOW}'s header states a document count (${counts.join(', ')}). Nothing fails when it ` +
+        'drifts, so it will. State the population — or point at the gate\u2019s own verdict line, which ' +
+        'prints the live figure on every run — instead of copying a number into a comment (objectui#7448).',
+    ).toEqual([]);
+  });
 });

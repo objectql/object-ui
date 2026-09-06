@@ -85,8 +85,8 @@ Supported: `+`, `-`, `*`, `/`, `%`
 
 ```json
 {
-  "type": "badge",
-  "variant": "${score >= 90 ? 'success' : 'default'}"
+  "type": "text",
+  "content": "${score >= 90 ? 'Top grade' : 'Keep going'}"
 }
 ```
 
@@ -184,7 +184,7 @@ Some components provide scoped data:
   "itemTemplate": {
     "type": "card",
     "title": "${item.name}",    // 'item' is scoped data
-    "body": "${item.email}"
+    "description": "${item.email}"
   }
 }
 ```
@@ -293,12 +293,12 @@ Available: All standard `Math` functions
 
 ```json
 {
-  "type": "badge",
-  "variant": "${
-    status === 'active' ? 'success' :
-    status === 'pending' ? 'warning' :
-    status === 'error' ? 'destructive' :
-    'default'
+  "type": "text",
+  "content": "${
+    status === 'active' ? 'Active' :
+    status === 'pending' ? 'Pending review' :
+    status === 'error' ? 'Failed' :
+    'Unknown'
   }"
 }
 ```
@@ -347,18 +347,24 @@ Available: All standard `Math` functions
 
 ### Status Badge
 
+`badge` has no row in the expression carriage map, so its `label` and `variant`
+are read off the node exactly as written — a `${…}` in either reaches the screen
+as those characters. Resolve both in the data you hand the renderer and author
+the node with the resolved values; the condition keys are evaluated on every
+type and stay expressions:
+
 ```json
 {
   "type": "badge",
-  "text": "${status}",
-  "variant": "${
-    status === 'completed' ? 'success' :
-    status === 'in_progress' ? 'info' :
-    status === 'pending' ? 'warning' :
-    'default'
-  }"
+  "label": "Completed",
+  "variant": "secondary",
+  "visibleOn": "${status !== 'draft'}"
 }
 ```
+
+Two neighbouring traps: `text` is not a `badge` key at all — the badge's text is
+`label` — and `variant` is a closed set: `default`, `secondary`, `destructive`,
+`outline`.
 
 ### Price Formatting
 
@@ -398,14 +404,17 @@ the condition keys are evaluated on every type and stay expressions:
 
 ### Conditional Styling
 
+`className` has no row in the carriage map either — on `card` or on any other
+type — so an expression written there lands in the rendered `class` attribute as
+its own source text. Resolve the class list in the data you hand the renderer,
+or author each variant and gate it with a condition key:
+
 ```json
 {
   "type": "card",
-  "className": "${
-    isPriority ? 'border-red-500 border-2' :
-    isCompleted ? 'opacity-50' :
-    'border-gray-200'
-  }"
+  "title": "${task.name}",
+  "className": "border-red-500 border-2",
+  "visibleOn": "${task.isPriority}"
 }
 ```
 

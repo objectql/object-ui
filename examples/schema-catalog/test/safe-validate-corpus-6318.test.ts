@@ -41,11 +41,30 @@
  *     `.success` alone would go green again if a later sweep deleted the key
  *     and the enclosing object with it.
  *
- * ⛔ This file deliberately does NOT pin the size of the remaining bucket. The
- * 28 entries still in it are open findings on the Zod union (`tooltip` and
- * `context-menu` demand a `children` their renderers never read; `tree-view`
- * demands `data` where the renderer reads `nodes` first; and so on), and a
- * number pinned here would turn red on the card that repairs any one of them.
+ * ⛔ This file deliberately does NOT pin the size of the remaining bucket —
+ * and it does NOT name its contents either, for the same reason, word for word.
+ * What is still in that bucket are open findings on the Zod union, and they are
+ * objectui#6939's worklist: that card repairs them one group at a time, so any
+ * restatement of them kept HERE goes false on the card that repairs any one of
+ * them. Pinned, such a restatement turns red; written as prose it rots quietly,
+ * and quietly is the worse of the two.
+ *
+ * ⇒ Read the bucket where it is computed, never from a copy kept here. Run
+ * `objectui check` over `examples/schema-catalog` and read the "carries a
+ * registered ObjectUI component type but did not validate" list;
+ * `packages/cli/src/commands/check.ts` prints it uncapped and per file with its
+ * type, deliberately not as a bare number, because a count alone is not enough
+ * to act on (objectui#6075). The parent card is objectui#6318 and the repair
+ * card is objectui#6939; `ls examples/schema-catalog/test/*-6939.test.*` lists
+ * the pins its landed groups have left beside this file.
+ *
+ * ⚠️ This paragraph DID name three of them, until objectui#7548 — and the
+ * list was falsified by the very card it was tracking. objectui#7541 edited
+ * this paragraph at 19:55 on 2026-09-03 to drop the one row it had itself just
+ * repaired: 11h19m after objectui#7456 falsified another row of the same list,
+ * and 58m after objectui#7533 falsified the remaining one. It left both of
+ * those standing. ⇒ Updating such a list by hand is not the cheap fix for
+ * this defect, it IS the defect — measured, on this paragraph.
  */
 import { describe, it, expect } from 'vitest';
 import { safeValidateSchema } from '@object-ui/types/zod';

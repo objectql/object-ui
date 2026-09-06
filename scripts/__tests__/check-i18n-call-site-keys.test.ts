@@ -1379,6 +1379,115 @@ export const A = (x: string) => { const { t } = useObjectTranslation(); return t
   });
 });
 
+describe('the key-builder leg: a family whose head is never at a call site (objectui#7592)', () => {
+  // The measured shape, reduced: a module that BUILDS the key and hands it to a
+  // translator it was passed as a value. It holds no `t(`/`tt(` spelling at all,
+  // so before this leg the pre-filter dropped it before the parser ever ran.
+  const EN_TOOL = `const en = { chatbot: { tool: { apply_edit: 'Apply edit' } }, common: { save: 'Save' } } as const;\nexport default en;\n`;
+  const BUILDER = `export function toolTitleKey(name: string): string {
+  return \`chatbot.tool.\${String(name).trim()}\`;
+}
+export function humanize(name: string, translate?: (k: string, f: string) => string): string {
+  return translate ? translate(toolTitleKey(name), name) : name;
+}
+`;
+  const declared: Family[] = [
+    { head: 'chatbot.tool.', enumerable: false, why: 'external-vocabulary', reason: 'fixture' },
+  ];
+  const builderRoot = () =>
+    repoWith({ 'packages/i18n/src/locales/en.ts': EN_TOOL, 'packages/x/src/tool-display.ts': BUILDER });
+
+  it('records the head and the family with no t()/tt() call anywhere in the module', () => {
+    const { dynamicHeads, dynamicFamilies, counters, findings } = analyze(builderRoot(), { families: declared });
+    expect(counters.callSites, 'the fixture must contain no t()/tt() call at all').toBe(0);
+    expect([...dynamicHeads]).toEqual(['chatbot.tool.']);
+    expect([...dynamicFamilies.keys()]).toEqual(['chatbot.tool.']);
+    expect(counters.keyBuilderSites).toBe(1);
+    expect(findings).toEqual([]);
+  });
+
+  it('a builder family is subject to the SAME ratchet: undeclared is a red', () => {
+    expect(findingsOf(builderRoot(), 'undeclared-dynamic-family')).toEqual([
+      'chatbot.tool.@packages/x/src/tool-display.ts:1',
+    ]);
+  });
+
+  it('ANTI-VACUOUS: the leg going quiet is a RED, not a silent green', () => {
+    // The one failure mode this whole card family is about — a detection leg
+    // that degrades to a no-op while the gate stays green. Here the helper is
+    // rewritten so it is no longer a single returned template (a local, then a
+    // return): the head leaves the census, and the declaration the fix added
+    // goes STALE, which fails. Nothing about this depends on the corpus, which
+    // is clean the moment the fix lands.
+    const degraded = BUILDER.replace(
+      'return `chatbot.tool.${String(name).trim()}`;',
+      'const trimmed = String(name).trim();\n  return `chatbot.tool.${trimmed}`;',
+    );
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOL,
+      'packages/x/src/tool-display.ts': degraded,
+    });
+    const { counters, findings } = analyze(root, { families: declared });
+    expect(counters.keyBuilderSites, 'the leg must have stopped detecting for this control to mean anything').toBe(0);
+    expect(findings.map((f: { reason: string }) => f.reason)).toEqual(['stale-dynamic-family']);
+  });
+
+  it('boundary 1: only ONE returned template — a helper that does anything else is not a builder', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOL,
+      'packages/x/src/a.ts': `export function k(n: string): string {
+  if (!n) return 'chatbot.tool.unknown';
+  return \`chatbot.tool.\${n}\`;
+}
+`,
+    });
+    expect(analyze(root, { families: [] }).counters.keyBuilderSites).toBe(0);
+  });
+
+  it('boundary 2: the head must RESOLVE against en, or every dotted template becomes a family', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOL,
+      'packages/x/src/a.ts': `export const url = (v: string) => \`api.v1.\${v}\`;
+export const css = (v: string) => \`--oui.color.\${v}\`;
+`,
+    });
+    const { counters, findings } = analyze(root, { families: [] });
+    expect(counters.keyBuilderSites).toBe(0);
+    // And specifically NOT a missing-prefix red: an unresolvable head means
+    // "not a key builder", never "a key family whose every expansion misses".
+    expect(findings).toEqual([]);
+  });
+
+  it('boundary 3: a builder inside a registered local table is skipped, like its call sites are', () => {
+    const localModule = EXCLUDED_TRANSLATORS[0].module;
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOL,
+      [localModule]: `export const k = (n: string) => \`chatbot.tool.\${n}\`;\n`,
+    });
+    expect(analyze(root, { families: [] }).counters.keyBuilderSites).toBe(0);
+  });
+
+  it('a concise arrow body is the same builder, so the spelling does not decide', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_TOOL,
+      'packages/x/src/a.ts': `export const k = (n: string): string => \`chatbot.tool.\${n}\`;\n`,
+    });
+    expect(analyze(root, { families: declared }).counters.keyBuilderSites).toBe(1);
+  });
+
+  it('ANTI-VACUOUS on THIS checkout: the leg is live, and the family it feeds is real', () => {
+    // The synthetic controls above prove the shape. This one proves the leg is
+    // still pointed at the repo: if `toolTitleKey` is inlined, renamed into a
+    // shape this leg cannot read, or moved behind a concatenation, the head
+    // disappears here and `stale-dynamic-family` fails the gate.
+    const { dynamicHeads, counters, findings } = analyze(repoRoot);
+    expect(counters.keyBuilderSites, 'the key-builder leg detects nothing on this tree').toBeGreaterThanOrEqual(1);
+    expect(dynamicHeads.has('chatbot.tool.'), 'chatbot.tool. is no longer reached by any leg').toBe(true);
+    expect(DYNAMIC_KEY_FAMILIES.some((f) => f.head === 'chatbot.tool.')).toBe(true);
+    expect(findings).toEqual([]);
+  });
+});
+
 describe('readVocabulary reads each declared shape, and refuses what it cannot read', () => {
   const shapes: Array<[string, string, Omit<Spec, 'module'>, string[]]> = [
     ['union', "export type X = 'a' | 'b';", { kind: 'union', name: 'X' }, ['a', 'b']],
