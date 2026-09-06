@@ -1868,11 +1868,25 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   //   2. Author hasn't opted out via `recordChrome: false`.
   // When both pass, we resolve the chip title from (in order):
   //   - explicit `schema.title` (interpolated against data),
-  //   - `objectSchema.primaryField` / `titleFormat` (author overrides),
+  //   - `objectSchema.titleFormat` (the author override),
   //   - the unified ADR-0079 resolver (`nameField` → `displayNameField` →
   //     type-aware derivation) — same precedence as DetailView's own header,
   //   - common display fields on the record (`name`, `title`, `display_name`),
   //   - `${objectLabel} ${id}` as a last-resort.
+  //
+  // ⛔ `objectSchema.primaryField` is NOT a rung and must not become one again
+  // (objectui#7586). It used to sit directly under `schema.title`, ABOVE the
+  // unified resolver — on the surface that renders the ACTUAL H1 of a
+  // synthesized record page, so it decided the heading a user reads. It is a
+  // `DetailViewSchema` key (`@object-ui/types` `views.ts`): a VIEW key, which
+  // `DetailView.resolveDisplayTitle` reads off `schema` and is welcome to. On
+  // an OBJECT def it is undeclared — `@objectstack/spec`'s object schema is a
+  // `strictObject` answering `unrecognized_keys: ['primaryField']` and
+  // `ObjectSchema.create()` throws — which is why objectstack#6326 deleted the
+  // identical read from two lint rules and objectui#7287 / PR #7585 deleted it
+  // from `resolveTitleField`. This package's own CHANGELOG already described
+  // the probe as "not a spec property — always undefined" while this line kept
+  // honouring it. Pinned in `__tests__/page-header-title.test.tsx`.
   const hasRecord = !!(ctx?.data && (ctx as any)?.objectSchema);
   if (hasRecord && !disableRecordChrome) {
     const data: any = ctx!.data;
@@ -1882,7 +1896,6 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     const objectLabel: string | undefined = rawObjectName
       ? tObjectLabel({ name: rawObjectName, label: fallbackLabel })
       : fallbackLabel || undefined;
-    const primaryField: string | undefined = objSchema?.primaryField;
     // Honor objectSchema.titleFormat (e.g. `{first_name} {last_name}`).
     // Mirrors DetailView.resolveDisplayTitle's behaviour so default and
     // synthesized record pages produce the same title.
@@ -1912,7 +1925,6 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     })();
     const resolvedTitle =
       explicitTitle ||
-      (primaryField && data?.[primaryField]) ||
       (interpolatedTitleFormat && !interpolatedTitleFormat.includes('{') ? interpolatedTitleFormat : '') ||
       unifiedTitle ||
       data?.name ||
