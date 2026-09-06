@@ -281,6 +281,12 @@ const es = {
       refusedFormat:
         "No guardado: introduce un par latitud, longitud (ejemplo: 30.2741, 120.1551).",
       refusedRange: "No guardado: {{detail}}",
+      latitude: "latitud",
+      longitude: "longitud",
+      refusedResidueOne:
+        "No guardado: {{name}} «{{text}}» no es un número. Introduce decimales simples (ejemplo: 30.2741, 120.1551).",
+      refusedResidue:
+        "No guardado: {{name}} «{{text}}» y {{otherName}} «{{otherText}}» no son números. Introduce decimales simples (ejemplo: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Escriba y pulse Intro para añadir…",

@@ -277,6 +277,12 @@ const fr = {
       refusedFormat:
         "Non enregistré : saisissez une paire latitude, longitude (exemple : 30.2741, 120.1551).",
       refusedRange: "Non enregistré : {{detail}}",
+      latitude: "latitude",
+      longitude: "longitude",
+      refusedResidueOne:
+        "Non enregistré : {{name}} « {{text}} » n'est pas un nombre. Saisissez des décimales simples (exemple : 30.2741, 120.1551).",
+      refusedResidue:
+        "Non enregistré : {{name}} « {{text}} » et {{otherName}} « {{otherText}} » ne sont pas des nombres. Saisissez des décimales simples (exemple : 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Saisissez puis appuyez sur Entrée pour ajouter…",

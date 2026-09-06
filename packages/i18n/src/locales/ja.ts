@@ -277,6 +277,12 @@ const ja = {
       refusedFormat:
         "保存されていません: 緯度, 経度 の組で入力してください（例: 30.2741, 120.1551）。",
       refusedRange: "保存されていません: {{detail}}",
+      latitude: "緯度",
+      longitude: "経度",
+      refusedResidueOne:
+        "保存されていません: {{name}}「{{text}}」は数値ではありません。通常の小数で入力してください（例: 30.2741, 120.1551）。",
+      refusedResidue:
+        "保存されていません: {{name}}「{{text}}」と{{otherName}}「{{otherText}}」は数値ではありません。通常の小数で入力してください（例: 30.2741, 120.1551）。",
     },
     tags: {
       placeholder: "入力してEnterキーで追加…",
