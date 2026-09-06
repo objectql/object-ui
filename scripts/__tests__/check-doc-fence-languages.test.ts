@@ -51,6 +51,38 @@ function documentCounts(text: string): string[] {
 }
 
 /**
+ * The workflow header's comment prose, as the count pin reads it.
+ *
+ * Lifted to module scope by objectui#7901 for the same reason objectui#7914
+ * lifted the pattern: the pin below and the emptiness control beside it must
+ * read ONE extraction, or the control demonstrates a surface the pin does not
+ * have. The extraction itself is unchanged, character for character, from what
+ * the pin carried inline.
+ */
+function headerComments(yaml: string): string {
+  return yaml
+    .split('\n')
+    .filter((line) => /^\s*#/.test(line))
+    .join('\n');
+}
+
+/**
+ * The floor the extracted header must clear before an empty count list means
+ * anything — carried from the third copy of this pin
+ * (`check-links-workflow.test.ts`, objectui#7825), which has asserted it since
+ * that copy was written and which both twins were missing (objectui#7901).
+ *
+ * Why a floor at all: `documentCounts('')` is `[]`. A header this extraction has
+ * stopped reading — the workflow renamed or deleted, its comment markers
+ * changed, the path moved — therefore satisfies the pin perfectly, and the pin
+ * reports a clean surface it never read. The floor is what makes "no counts
+ * here" a reading rather than the absence of one. It is the same claim the
+ * scan-collapse pins in this file already make about the document walk, applied
+ * to the one surface that had none.
+ */
+const MIN_HEADER_PROSE = 400;
+
+/**
  * objectui#6135. `check-doc-snippet-types` reads `ts` / `tsx` / `typescript`
  * fences, so a TypeScript block fenced any other way is invisible to it, and
  * objectui#5867's remediation lane collected its population from `plaintext`
@@ -292,11 +324,18 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
    * number is written here that a document being added would falsify.
    */
   it('its header states the population and never counts it — no count can rot here', () => {
-    const header = fs
-      .readFileSync(path.join(ROOT, '.github/workflows', WORKFLOW), 'utf8')
-      .split('\n')
-      .filter((line) => /^\s*#/.test(line))
-      .join('\n');
+    const header = headerComments(fs.readFileSync(path.join(ROOT, '.github/workflows', WORKFLOW), 'utf8'));
+
+    // objectui#7901 — the floor first, or the assertion below is vacuous. The
+    // count half cannot distinguish a header that carries no counts from a
+    // header this pin has stopped reading; both score `[]`. Measured when this
+    // was added, so it is latent rather than live: the extraction returned 4696
+    // characters from this header, 11.7 times the floor.
+    expect(
+      header.length,
+      `${WORKFLOW}: the header prose this pin reads came back empty or near-empty, so it asserted over nothing`,
+    ).toBeGreaterThan(MIN_HEADER_PROSE);
+
     const counts = documentCounts(header);
     expect(
       counts,
@@ -368,5 +407,37 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
     for (const line of legitimate) {
       expect(documentCounts(line), `${WORKFLOW}'s count pin must NOT fire on: ${line}`).toEqual([]);
     }
+  });
+  /**
+   * The positive control for the emptiness floor — objectui#7901.
+   *
+   * The pin above has two halves and they fail differently. The control right
+   * above this one exercises the PATTERN half; this one exercises the other,
+   * and the shape it demonstrates is what makes a pin vacuous rather than
+   * merely wrong — a surface that came back empty scores clean under any
+   * pattern, however good. That is not hypothetical for this family:
+   * objectui#7466 is the pin in this repository that scored the same on the
+   * broken tree and the fixed one.
+   *
+   * Demonstrated on synthetic YAML rather than by emptying the real workflow,
+   * so the claim stays reproducible in a checkout whose header is intact —
+   * which is every checkout.
+   */
+  it('the emptiness floor fires on a header this pin has stopped reading', () => {
+    const unread = 'name: Doc Fence Languages\non:\n  workflow_dispatch:\n';
+    expect(headerComments(unread), 'the extraction returns nothing on a comment-less workflow').toBe('');
+    expect(
+      documentCounts(headerComments(unread)),
+      'and the count half alone scores that identically to a header carrying no counts',
+    ).toEqual([]);
+    expect(headerComments(unread).length, 'so the floor is the half that has to reject it').not.toBeGreaterThan(
+      MIN_HEADER_PROSE,
+    );
+
+    // Short, not empty: a header truncated to a line or two is the same defect
+    // arriving gradually, and `toBe('')` would wave it through.
+    const nearEmpty = '# Doc fence languages.\n# The gate prints its own verdict line.\nname: x\n';
+    expect(headerComments(nearEmpty).length, 'this fixture must be short, not empty').toBeGreaterThan(0);
+    expect(headerComments(nearEmpty).length).not.toBeGreaterThan(MIN_HEADER_PROSE);
   });
 });
