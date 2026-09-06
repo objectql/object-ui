@@ -462,9 +462,18 @@ describe('ablation — the 26th, reconstructed from the site this PR converts', 
   it('THE DISCRIMINATING HALF: correct neighbours in the same file are NOT flagged', () => {
     // A real file mocks several specifiers at once. Only the covered one is
     // judged, and the inheriting spellings beside it stay green.
+    //
+    // The workspace neighbour is deliberately a specifier that NO package
+    // publishes. It used to name a real uncovered package, and objectui#6892's
+    // sweep of that package turned this fixture's frozen factory into a genuine
+    // finding -- the case failed for a reason that had nothing to do with what
+    // it asserts. `COVERED_SPECIFIERS` is grow-only, so any real name here is
+    // only ever on loan; the scope resolver classifies by string prefix and
+    // never resolves the module, so a name that cannot be swept keeps this case
+    // about the resolver instead of about the covered set's current membership.
     const { root, files } = fixtureTree({
       [suiteAt]: [
-        mockCall('@object-ui/plugin-grid', `() => ({ ObjectGrid: Stub })`),
+        mockCall('@object-ui/plugin-never-swept-fixture', `() => ({ ObjectGrid: Stub })`),
         mockCall('sonner', `() => ({ toast: Stub })`),
         mockCall('./ObjectCalendar', `() => ({ ObjectCalendar: Stub })`),
         mockCall(COVERED, `async (orig) => { const actual = await (orig as any)(); return { ...actual, X: Stub }; }`),
