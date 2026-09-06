@@ -58,7 +58,9 @@
  *                              implemented as "read `userMessage` INSTEAD".
  *   §2 `userMessage` only    — the marked text is the only prose on the body.
  *                              Was `HTTP 503`; the author now reads the
- *                              sentence written for them. RED when reverted.
+ *                              sentence written for them. Its two words-pins go
+ *                              RED when reverted; its third case asserts the
+ *                              report CHANNEL and stays green either way.
  *   §3 both                  — the live 5xx case. Was the generic sentence;
  *                              now the marked one. RED when reverted.
  *
@@ -319,6 +321,13 @@ describe('Studio package lookup — a producer-marked userMessage reaches the au
       expect(shown).toContain(MARKED);
     });
 
+    /**
+     * ⭐ GREEN with the fix reverted, deliberately — measured, not predicted:
+     * this asserts the CHANNEL (objectui#7368's posture — one outage, one
+     * toast, one id), not the words, and reverting changes only the words. It
+     * is here because a fix that reached for a second reporting channel to
+     * carry the marked text would pass every words-pin above and fail here.
+     */
     it('reports once, on the shared sonner id', async () => {
       await reportedFor(500, { code: 'INTERNAL_ERROR', userMessage: MARKED });
       expect(toastError).toHaveBeenCalledTimes(1);
