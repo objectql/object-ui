@@ -38,10 +38,12 @@ describe('isLegacyDialectSource', () => {
 });
 
 describe('evalRowPredicate', () => {
-  it('evaluates a canonical CEL predicate over the row (record.* and bare)', () => {
+  it('evaluates a canonical CEL predicate over the row (`record.*`; the bare shorthand retired in objectui#5741)', () => {
     expect(evalRowPredicate("record.status == 'active'", { status: 'active' })).toBe(true);
-    expect(evalRowPredicate("status == 'active'", { status: 'active' })).toBe(true);
     expect(evalRowPredicate("record.status == 'active'", { status: 'closed' })).toBe(false);
+    // The bare shorthand is unbound: it faults into the fallback on EITHER row.
+    expect(evalRowPredicate("status == 'active'", { status: 'active' })).toBe(false);
+    expect(evalRowPredicate("status == 'active'", { status: 'closed' })).toBe(false);
   });
 
   it('supports the CEL `in` operator (which the legacy engine lacks)', () => {
@@ -94,15 +96,26 @@ describe('evalRowPredicate', () => {
     afterEach(() => warn.mockRestore());
 
     it('routes a `${…}` template string to the legacy engine and warns once', () => {
-      expect(evalRowPredicate('${data.status === "active"}', { status: 'active' })).toBe(true);
-      expect(evalRowPredicate('${data.status === "active"}', { status: 'closed' })).toBe(false);
+      expect(evalRowPredicate('${record.status === "active"}', { status: 'active' })).toBe(true);
+      expect(evalRowPredicate('${record.status === "active"}', { status: 'closed' })).toBe(false);
       // Same source warns only once.
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0][0])).toContain('legacy expression dialect');
     });
 
     it('routes a bare `===` string to the legacy engine', () => {
-      expect(evalRowPredicate("status === 'active'", { status: 'active' })).toBe(true);
+      expect(evalRowPredicate("record.status === 'active'", { status: 'active' })).toBe(true);
+    });
+
+    it('a legacy `${data.x}` / `${x}` string on a row surface retired with the CEL spellings (objectui#5741)', () => {
+      // One scope shape per surface, both dialects: `data` and the bare name
+      // are unbound on the legacy path too, so these fault into the fallback
+      // on either row — the same verdict on a matching and a non-matching one.
+      for (const pred of ['${data.status === "active"}', '${status === "active"}', "status === 'active'"]) {
+        expect(evalRowPredicate(pred, { status: 'active' }), pred).toBe(false);
+        expect(evalRowPredicate(pred, { status: 'closed' }), pred).toBe(false);
+        expect(evalRowPredicate(pred, { status: 'active' }, { fallback: true }), pred).toBe(true);
+      }
     });
   });
 
@@ -253,11 +266,17 @@ describe('evalRowPredicate — row wins over host scope (both dialect paths)', (
     expect(evalRowPredicate("record.tag === 'SCOPE'", ROW, { scope: DECOY })).toBe(false);
   });
 
-  it('binds `data` and the bare name to the row on both paths too', () => {
-    expect(evalRowPredicate("data.tag == 'ROW'", ROW, { scope: DECOY })).toBe(true);
-    expect(evalRowPredicate("data.tag === 'ROW'", ROW, { scope: DECOY })).toBe(true);
-    expect(evalRowPredicate("tag == 'ROW'", ROW, { scope: DECOY })).toBe(true);
-    expect(evalRowPredicate("tag === 'ROW'", ROW, { scope: DECOY })).toBe(true);
+  it('no longer binds `data` or the bare name to the row — on either path (objectui#5741)', () => {
+    // `data` is the HOST's own now: the decoy answers, on both dialect paths.
+    expect(evalRowPredicate("data.tag == 'SCOPE'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("data.tag === 'SCOPE'", ROW, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("data.tag == 'ROW'", ROW, { scope: DECOY })).toBe(false);
+    expect(evalRowPredicate("data.tag === 'ROW'", ROW, { scope: DECOY })).toBe(false);
+    // The bare name is bound nowhere: it faults into the fallback on both paths.
+    expect(evalRowPredicate("tag == 'ROW'", ROW, { scope: DECOY })).toBe(false);
+    expect(evalRowPredicate("tag === 'ROW'", ROW, { scope: DECOY })).toBe(false);
+    expect(evalRowPredicate("tag == 'ROW'", ROW, { scope: DECOY, fallback: true })).toBe(true);
+    expect(evalRowPredicate("tag === 'ROW'", ROW, { scope: DECOY, fallback: true })).toBe(true);
   });
 
   it('still resolves host-scope keys the row does not shadow', () => {
@@ -279,11 +298,13 @@ describe('evalRowPredicate — row wins over host scope (both dialect paths)', (
   });
 
   it('a row FIELD named `record` does not become the subject either', () => {
-    // The pin sits after the bare-field spread, so a column literally called
-    // `record` is addressable as `data.record`, never as the row root.
+    // `record` is the row's one root, so a column literally called `record` is
+    // addressable as `record.record`, never as the row root (objectui#5741: the
+    // `data.record` spelling it used to have retired with `data.*`).
     const row = { record: { tag: 'FIELD' }, tag: 'ROW' };
     expect(evalRowPredicate("record.tag == 'ROW'", row, { scope: DECOY })).toBe(true);
-    expect(evalRowPredicate("data.record.tag == 'FIELD'", row, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("record.record.tag == 'FIELD'", row, { scope: DECOY })).toBe(true);
+    expect(evalRowPredicate("data.record.tag == 'FIELD'", row, { scope: DECOY })).toBe(false);
   });
 
   it('applies through conditional formatting, which shares the entry point', () => {
@@ -433,11 +454,12 @@ describe('evalRowPredicate — relation fields', () => {
     warn.mockRestore();
   });
 
-  it('binds the collapsed value under the bare and `data.` spellings too', () => {
+  it('binds the collapsed value under `record.` only — the bare and `data.` spellings retired (objectui#5741)', () => {
     const expanded = { account: { id: 'A1', name: 'Acme' } };
 
-    expect(evalRowPredicate('account == "A1"', expanded, { fields: FIELDS })).toBe(true);
-    expect(evalRowPredicate('data.account == "A1"', expanded, { fields: FIELDS })).toBe(true);
+    expect(evalRowPredicate('record.account == "A1"', expanded, { fields: FIELDS })).toBe(true);
+    expect(evalRowPredicate('account == "A1"', expanded, { fields: FIELDS })).toBe(false);
+    expect(evalRowPredicate('data.account == "A1"', expanded, { fields: FIELDS })).toBe(false);
   });
 
   it('leaves a non-relational object field addressable as an object', () => {

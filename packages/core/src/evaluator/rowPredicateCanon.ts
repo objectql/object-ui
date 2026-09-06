@@ -7,70 +7,76 @@
  */
 
 /**
- * The row-predicate spelling CANON, and the Phase-1 deprecation warning for the
- * two spellings that are not it (objectui#5330).
+ * The row-predicate spelling CANON: on a runtime record surface the row is bound
+ * as `record.*` and nothing else (objectui#5330, maintainer ruling 2026-08-20,
+ * option B; Phase 2 executed by objectui#5741).
  *
- * ## The canon (maintainer ruling, 2026-08-20 — option B)
+ * ## The canon
  *
  * A row predicate — `visible` / `disabled` / `enabled` on an action renderer, a
- * row scope, a `record:alert` — binds the row THREE ways today: canonical
- * `record.status`, bare shorthand `status`, and legacy `data.status`
- * (objectui#4075 / PR #4079 bound all four action renderers all three ways to
- * restore consistency, deliberately without deciding which of them is
- * CONTRACT). This module is where that decision now lives:
+ * row scope, a `record:alert`, a conditional-formatting `condition` — used to
+ * bind the row THREE ways: canonical `record.status`, bare shorthand `status`,
+ * and legacy `data.status` (objectui#4075 / PR #4079 bound all four action
+ * renderers all three ways to restore consistency, deliberately without
+ * deciding which of them was CONTRACT). The ruling decided it, in two phases:
  *
- * > **The canon is `record.*`.** The bare shorthand and `data.*` are
- * > client-side tolerances in a deprecation window, kept because stored
- * > metadata carries them, warned about here, and removable only after a
- * > stored-metadata survey sizes the window (⛔ no removal before the survey).
+ * > **The canon is `record.*`.** Phase 1 (PR #5737) declared it and warned
+ * > once, in dev, on the two other spellings. Phase 2 (objectui#5741, ruled
+ * > 2026-09-02 and amended 2026-09-05) retired them: the bare shorthand and
+ * > `data.*` are no longer bound on runtime record surfaces, and the Phase-1
+ * > warning went with them. No stored-metadata survey was run (「不考虑存量」);
+ * > the Phase-1 warning period was the notice.
  *
- * It mirrors the objectstack#7917 option-② precedent for the identical shape (a
- * renderer tolerance quietly becoming a second de-facto contract — AGENTS.md
- * #0.1), whose objectui half is `utils/dashboard-filters.ts`' bare-string
- * `options` shorthand: same three phases, same reason the warning is not
- * decoration (ADR-0078 — nothing silently inert; a tolerance nothing ever
- * reports can never be retired, because nothing would ever show that the last
- * document carrying it is gone).
+ * ## What a retired spelling does now: it FAULTS, as it always did on the server
  *
- * ## The canon states the SERVER's accept set, not this client's
- *
- * The ruling made that the dev's first measurement, because a canon that only
- * describes the renderer would be the very thing it exists to end. Measured
- * against `@objectstack/formula@17.1.0` — the engine the server evaluates with,
- * and the one `fieldRules.ts` already delegates to:
+ * The canon states the SERVER's accept set. Measured against
+ * `@objectstack/formula@17.1.0` — the engine the server evaluates with, and the
+ * one `fieldRules.ts` delegates to:
  *
  * | spelling | server runtime (`buildScope` + `celEngine`) | server authoring oracle |
  * |---|---|---|
  * | `record.status` | ✅ `{ ok: true, value: true }` | ✅ accepted |
  * | bare `status`   | ❌ `Unknown variable: status` | ❌ refused (`'status'`) |
- * | `data.status`   | ❌ `Unknown variable: data`   | ⚠️ **silently accepted** |
+ * | `data.status`   | ❌ `Unknown variable: data`   | ⚠️ silently accepted |
  *
- * `buildScope({ record })` mounts exactly `['record']` — `data` is never bound
- * and the row's fields are never flattened to top level. So **the server
- * accepts `record.*` and nothing else**; both other spellings fault there. The
- * three-way binding is a client tolerance with no server counterpart, which is
- * precisely why it is the client's job to warn.
+ * `buildScope({ record })` mounts exactly `['record']`. Since Phase 2 the client
+ * binds the same set (`listConditional.ts`' scope bag and `@object-ui/react`'s
+ * `usePredicateRecordContext`), so both retired spellings fault on the client
+ * with the server's verdict, and each surface applies its EXISTING fault policy:
+ * fail-closed `visible` on the throwing `useCondition` legs, the caller's
+ * `fallback` on `evalRowPredicate` / `partitionRowsByPredicate`, fail-soft on
+ * the non-throwing `useCondition` legs. There is no runtime detector, no
+ * "treat as absent" special case and no uniform override — a retired spelling
+ * is not a recognised-and-rejected thing, it is an unknown variable like any
+ * other, and the existing fault warnings are what name it.
  *
- * ⚠️ The `data.*` row is the dangerous one and the reason this warning exists
- * at all. `data` IS in `@objectstack/formula`'s `SCOPE_ROOTS`, so the server's
- * bare-identifier oracle waves `data.status` through — that list is a
- * deliberately generous "never faults" LINT BASELINE, not the runtime accept
- * set. A `data.*` row predicate therefore passes every authoring gate the
- * platform has and then binds nothing at runtime: it is not an error, it is a
- * constant `false`, and a `visible` that is constantly false is a button that
- * silently never appears. That is the #4075 fail-closed family's exact
- * signature, and this client is the only layer positioned to catch it.
+ * One consequence, stated so it is not read back as a bug: a host scope may
+ * legitimately carry its OWN `data` (a rowless dialog's, or app-shell's ambient
+ * `data: {}`), and it is left standing. `data.*` on a record surface then reads
+ * the host's object rather than the row — which is exactly what "no longer bound
+ * to the row" means, and, against an ambient `data: {}`, the constant-false
+ * signature the Phase-1 warning text already described for the server.
  *
- * ## `data.*` is DEPRECATED HERE, not everywhere — the canon is layer-scoped
+ * ## `data.*` is retired HERE, not everywhere — the canon is layer-scoped
  *
  * `data` is the CANONICAL root one layer over, in a metadata-editing form (the
  * row under edit): objectstack's `CANONICAL_ROOT_BY_LAYER` reads
  * `{ runtime: 'record', metadata: 'data' }` (ADR-0089 D3), and objectui's own
- * `app-shell` metadata-admin `SchemaForm` binds `{ data: row }` on purpose. So
- * `data.*` is not a legacy alias to be deprecated platform-wide — it is a
- * WRONG-LAYER paste on a runtime record surface, and only that is what this
- * module reports. Stating the deprecation unqualified would contradict
- * ADR-0089 D3 and break the metadata-editing layer's own contract.
+ * `app-shell` metadata-admin `SchemaForm` binds `{ data: row }` on purpose,
+ * through its own evaluator (`views/metadata-admin/predicate.ts`) — never
+ * through `evalRowPredicate` or `usePredicateRecordContext`. So `data.*` is not
+ * retired platform-wide: it is a WRONG-LAYER spelling on a runtime record
+ * surface, and that is the only thing the detector below reports.
+ *
+ * ## What is left in this module, and why
+ *
+ * {@link detectNonCanonicalRowSpelling} is the OFFLINE instrument: it classifies
+ * an authored predicate's spelling against a row without evaluating it, so a
+ * sweep over stored or in-repo metadata (the objectui#5738 corpus sweep,
+ * PR #5758's recipe) can find the documents that still need rewriting. It is
+ * exported for that purpose and nothing on the hot path calls it — the runtime
+ * warning half Phase 1 built on it (`warnNonCanonicalRowSpelling`,
+ * `resetRowPredicateCanonWarnings`) was removed with the bindings.
  *
  * ## Why the detection reuses the server's oracle instead of a regex
  *
@@ -116,8 +122,8 @@ export type NonCanonicalRowSpelling =
  * predicate is already canonical (or is not this module's verdict to give).
  *
  * Deliberately conservative in both arms — every condition below can only
- * REMOVE a finding, never invent one, because a false deprecation warning sends
- * an author to rewrite a predicate that was correct:
+ * REMOVE a finding, never invent one, because a false finding sends an author
+ * to rewrite a predicate that was correct:
  *
  * - **Unparseable source** → `null`. Syntax is another gate's verdict.
  * - **Bare shorthand** is reported only when the undeclared identifier is an own
@@ -135,10 +141,11 @@ export type NonCanonicalRowSpelling =
  * predicate manages both it is the one the author must fix to have anything
  * evaluate at all.
  *
- * @param source       The predicate's CEL text. Callers must have already
- *                     routed legacy `${…}`-dialect strings elsewhere — in that
- *                     dialect `data.*` is the NORMAL spelling, and reporting it
- *                     here would be a false positive on every legacy predicate.
+ * @param source       The predicate's CEL text. A legacy `${…}`-dialect string
+ *                     is not CEL and returns `null` here (unparseable); classify
+ *                     it by its own dialect's rules — on a runtime record surface
+ *                     it retired with the CEL spellings (objectui#5741), while on
+ *                     the schema/widget tier `data` is a different scope entirely.
  * @param row          The row the predicate is bound against.
  * @param dataNamesRow Whether `data` is bound to that same row on this surface.
  */
@@ -178,74 +185,4 @@ export function detectNonCanonicalRowSpelling(
   }
 
   return null;
-}
-
-/**
- * Dev-mode gate, matching `utils/dashboard-filters.ts` and `actions/actionKeys.ts`
- * — a deprecation warning that floods a production console is a warning that
- * gets muted.
- */
-const isDev = (): boolean =>
-  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
-    ?.NODE_ENV !== 'production';
-
-/**
- * Warn-once memo, keyed by the `(label, predicate source)` pair — the same
- * identity `warnEvalError` uses, and JSON-encoded for the same reason: the
- * separator that boundary once used was a raw U+0000, which made the file
- * carrying it binary to grep (objectstack#5450). Keying on the source alone
- * would report the first surface carrying a shorthand `status` predicate and
- * stay silent about every other one; the label is what sends the author to the
- * right screen.
- *
- * Module scope, not per-call: these predicates are re-evaluated on every row of
- * every render, so per-call state would warn once per frame — the flood the
- * dedupe exists to prevent.
- */
-const warnedSpellings = new Set<string>();
-
-/** Reset the row-predicate spelling warn-once memo. Exported for tests. */
-export function resetRowPredicateCanonWarnings(): void {
-  warnedSpellings.clear();
-}
-
-/**
- * Report a non-canonical row-predicate spelling once, in dev.
- *
- * Phase 1 of the objectui#5330 window: the binding is UNCHANGED and every
- * spelling still resolves — this only says so out loud, so the stored
- * population stops growing and a later survey has something to count. It is a
- * warning and deliberately not a refusal: turning it into one would move the
- * accept/reject set, which this card is explicitly not entitled to do.
- */
-export function warnNonCanonicalRowSpelling(
-  source: string,
-  row: Record<string, unknown> | null | undefined,
-  dataNamesRow: boolean,
-  label?: string,
-): void {
-  if (!isDev()) return;
-  const finding = detectNonCanonicalRowSpelling(source, row, dataNamesRow);
-  if (!finding) return;
-
-  const key = JSON.stringify([label ?? '', source, finding.kind]);
-  if (warnedSpellings.has(key)) return;
-  warnedSpellings.add(key);
-
-  const where = label ? ` (${label})` : '';
-  const detail =
-    finding.kind === 'bare-shorthand'
-      ? `it references the bare field ${JSON.stringify(finding.identifier)}; ` +
-        `the server refuses that spelling outright ("Unknown variable: ${finding.identifier}")`
-      : 'it is rooted at `data.`, which is the metadata-editing-form root — on a ' +
-        'record surface the server binds no `data` at all, so the predicate is a ' +
-        'constant false there rather than an error';
-
-  console.warn(
-    `[object-ui] A row predicate${where} uses a DEPRECATED spelling: ` +
-      `${JSON.stringify(source)} — ${detail}. The canon is \`record.*\` ` +
-      `(objectui#5330, ruled 2026-08-20): write \`${finding.canonical}\`. ` +
-      'This still evaluates here for now; the tolerance retires after a ' +
-      'stored-metadata survey.',
-  );
 }

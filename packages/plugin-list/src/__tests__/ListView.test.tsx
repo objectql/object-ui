@@ -2277,9 +2277,18 @@ describe('ListView', () => {
     it('should evaluate spec format with condition and style', () => {
       const result = evaluateConditionalFormatting(
         { status: 'active', amount: 200 },
-        [{ condition: '${data.status === "active"}', style: { backgroundColor: '#e0ffe0', color: '#0a0' } }] as any,
+        [{ condition: '${record.status === "active"}', style: { backgroundColor: '#e0ffe0', color: '#0a0' } }] as any,
       );
       expect(result).toEqual({ backgroundColor: '#e0ffe0', color: '#0a0' });
+    });
+
+    it('a legacy `${data.x}` condition no longer binds the row (objectui#5741) — no style on either row', () => {
+      // One scope shape per surface for both dialects: `data` is unbound on the
+      // legacy path too, so the rule faults and fails soft to "no style"
+      // whichever row it meets.
+      const rules = [{ condition: '${data.status === "active"}', style: { backgroundColor: '#e0ffe0' } }] as any;
+      expect(evaluateConditionalFormatting({ status: 'active', amount: 200 }, rules)).toEqual({});
+      expect(evaluateConditionalFormatting({ status: 'closed', amount: 200 }, rules)).toEqual({});
     });
 
     it('binds a host predicate scope alongside the row (grid/kanban parity)', () => {
