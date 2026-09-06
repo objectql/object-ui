@@ -74,6 +74,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type * as TS from 'typescript';
+import handRolledTables from './hand-rolled-tables.json';
 
 const requireFrom = createRequire(import.meta.url);
 let compiler: typeof TS | null = null;
@@ -104,23 +105,55 @@ export const FACTORY_NAMES = new Set(['createSafeTranslation', 'createSafeTransl
  */
 export const NEEDLE_IN_SOURCE = ['.split(', '`{{', '${'].join('');
 
+/** One declared hand-rolled table: where it lives, and the `const` that holds it. */
+export interface HandRolledTable {
+  readonly file: string;
+  readonly name: string;
+}
+
 /**
- * The three tables whose packages re-implemented `fallbackT`'s literal needle
- * rather than taking the factory. Each file states its own reason for that;
- * none of them changes the grammar the needle accepts, so the rule is the same.
+ * The tables whose packages re-implemented `fallbackT`'s literal needle rather
+ * than taking the factory. Each file states its own reason for that; none of
+ * them changes the grammar the needle accepts, so the rule is the same.
  * `TIMELINE_DEFAULT_TRANSLATIONS` also reaches the factory — listed anyway, so
  * the registry mirrors the needle-file set objectui#3512's completeness case
  * pins. That deliberate double-listing is why a caller must de-duplicate on
  * `where` + `key` before reporting counts: its 21 rows are discovered twice.
+ *
+ * ## Why the DATA lives in `hand-rolled-tables.json` (objectui#7877)
+ *
+ * A second reader arrived that is not TypeScript:
+ * `scripts/check-i18n-call-site-keys.mjs` widened its `createSafeTranslation`
+ * value-compare over these tables (objectui#7567 Q2's B half). That gate is a
+ * bare `node scripts/check-*.mjs`, so it cannot import this module at all —
+ * `exports["./defaults-table-scan"]` resolves to TypeScript SOURCE with no build
+ * artefact. The shape here is the one objectui#6923 already ruled for exactly
+ * that wall, and `zod-wrapper-keys.json` is its first instance: the DATA moves
+ * to build-free JSON with its own `exports` subpath
+ * (`@object-ui/test-support/hand-rolled-tables`), `resolveJsonModule` types it
+ * for every TypeScript consumer, `node` reads the same bytes through the
+ * subpath, and this module keeps the prose JSON cannot carry.
+ *
+ * ⚠️ ONE declaration, not two pinned copies. The alternative — a second literal
+ * list inside the gate, pinned to this one by a test (the objectui#7310 /
+ * PR #8028 shape) — was available and is deliberately not what this is: two
+ * lists CAN disagree between the moment one is edited and the moment the pin
+ * runs, and the whole point of a registry that gates a scan population is that
+ * "0 drifted" must never be readable off a list that quietly lost an entry.
+ *
+ * ## The staleness ratchet lives in objectui#3512's completeness case
+ *
+ * A declared list rots when a table is added and not declared. What makes this
+ * one complete is not diligence, it is
+ * `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`'s
+ * "covers the three hand-rolled interpolators, and no fourth exists": it asserts
+ * `scan.needle` — every runtime file carrying `NEEDLE_IN_SOURCE` — equals a
+ * pinned file list, and that every entry here contributes rows. A fourth
+ * hand-rolled `fallbackT` turns that case red naming its own file, instead of
+ * quietly serving an ungated table. Because the gate now reads THIS list rather
+ * than a copy, that one ratchet covers both readers.
  */
-export const HAND_ROLLED_TABLES: readonly { readonly file: string; readonly name: string }[] = [
-  { file: 'packages/plugin-gantt/src/useGanttTranslation.ts', name: 'GANTT_DEFAULT_TRANSLATIONS' },
-  { file: 'packages/plugin-grid/src/ImportWizard.tsx', name: 'IMPORT_DEFAULT_TRANSLATIONS' },
-  {
-    file: 'packages/plugin-timeline/src/useTimelineTranslation.ts',
-    name: 'TIMELINE_DEFAULT_TRANSLATIONS',
-  },
-];
+export const HAND_ROLLED_TABLES: readonly HandRolledTable[] = handRolledTables;
 
 /** One row of one discovered table, located precisely enough to fix. */
 export interface DefaultsRow {
