@@ -128,5 +128,22 @@ jobs:
           esac
           pnpm exec turbo run build $FILTER_ARGS --concurrency=2
 
+      # REPORT-ONLY (objectui#7864). Code a generator EMITS from a template
+      # literal under `packages/*/src/**` is compiled by nothing: `tsc` sees a
+      # string, `tsup` copies it through, and this gate's own scan surface stops
+      # at `content/docs`, the per-app docs trees and the package READMEs. This
+      # step censuses that class through the same `compileSnippets()` the doc
+      # blocks go through, against the closure the step above just built.
+      #
+      # It runs BEFORE the blocking gate on purpose. The census is meant to be
+      # re-read on every run, and placed after it the number would be skipped on
+      # exactly the runs where the corpus moved. It exits 0 whatever it finds —
+      # one known member (objectui#7472) is an OPEN card — and non-zero only when
+      # the instrument itself is broken: a walk that collapsed, or a failed
+      # harness control. A check that runs, goes green and looked at nothing is
+      # the counterfeit the gate's own header is built against.
+      - name: Census the code emitted from template literals (report-only)
+        run: node scripts/check-doc-snippet-types.mjs --emit-census
+
       - name: Compile documentation snippets against the built types
         run: node scripts/check-doc-snippet-types.mjs
