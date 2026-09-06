@@ -1126,11 +1126,18 @@ export class AnalyticsQueryRejectedError extends Error {
  *     `ROUTE_NOT_FOUND` (framework#4019 stops mounting the routes at all).
  *     A client-side aggregate over a scoped `find()` answers the chart
  *     correctly, and the operator is told once that the semantic layer is off.
- *   - **`rejected`** — *THROW*. The server refused OUR body (400
- *     `VALIDATION_FAILED`; framework#4010 validates `/analytics/query` at the
- *     entry). Degrading would answer our own contract violation with plausible
- *     numbers from a different code path and bury it — the misdirection
- *     framework#3878 documented.
+ *   - **`rejected`** — *THROW*. The server refused OUR body: 400
+ *     `VALIDATION_FAILED` (framework#4010 validates `/analytics/query` at the
+ *     entry) OR any other coded 400 (objectui#7755 — e.g. `service-analytics`
+ *     ships its own 400 `INVALID_FILTER` on a filter shape it refuses). The
+ *     status alone is decisive once it is 400: a producer that refuses the
+ *     body and ships a code this consumer does not enumerate is refusing it
+ *     exactly as hard as one that ships `VALIDATION_FAILED` — the refusal is
+ *     in the transport fact, not in which code spells it. Degrading would
+ *     answer our own contract violation with plausible numbers from a
+ *     different code path (`find()`'s `$filter` accepts array shapes the
+ *     analytics body does not) and bury it — the misdirection framework#3878
+ *     documented.
  *   - **`unauthenticated`** — *THROW*. 401 `UNAUTHENTICATED`: the request was
  *     refused before it ran, so it is evidence about the SESSION and none at
  *     all about the capability. Degrading is not merely misleading here, it is
@@ -1182,16 +1189,30 @@ export function classifyAnalyticsFailure(
   // ④ Analytics answered; the cube this query named is the thing that is missing.
   if (errorCodeIs({ code }, 'CUBE_NOT_FOUND')) return { kind: 'cube-not-found', code, message };
 
-  // ⑤ Residual — the answer declared NO ADR-0112 code, so no ObjectStack route
+  // ⑤ A FLOOR beneath the four code branches above, not a fifth alongside them:
+  //   any 400 is a refusal of the body WE sent, whether or not its code is one
+  //   of the ones this function happens to enumerate (objectui#7755). Reading
+  //   the status only in the code-less residual below let a coded-but-
+  //   unrecognized 400 — `service-analytics` ships 400 `INVALID_FILTER` on a
+  //   filter shape it refuses — fall through this whole ladder to `unknown`,
+  //   and `aggregate()`'s catch has no `unknown` arm, so it silently answered
+  //   the refusal with `aggregateViaFind`'s client-side numbers instead of
+  //   throwing `AnalyticsQueryRejectedError`. This branch never fires for a
+  //   400 the branches above already claimed more specifically — none of ①-④
+  //   test the status, so none of them can be shadowed by moving this earlier.
+  if (status === 400) return { kind: 'rejected', code, message };
+
+  // ⑥ Residual — the answer declared NO ADR-0112 code, so no ObjectStack route
   //   wrote it (a proxy, a gateway, a host with no API mounted). Only here is
   //   the bare status the best signal available, and only because every code
   //   branch has already declined: this face's own 404s all ship a `code`, so a
-  //   code-less 404 cannot be the unknown-cube case.
+  //   code-less 404 cannot be the unknown-cube case. (The 400 case that used to
+  //   live here moved up to ⑤ so it applies whether or not a code is present;
+  //   this residual would never have reached it anyway once ⑤ runs first.)
   if (code === undefined) {
     if (status !== undefined && ANALYTICS_ABSENT_STATUSES.includes(status)) {
       return { kind: 'not-installed', code, message };
     }
-    if (status === 400) return { kind: 'rejected', code, message };
     if (status === 401) return { kind: 'unauthenticated', code, message };
   }
 

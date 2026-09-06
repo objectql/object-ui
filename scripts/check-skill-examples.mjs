@@ -1074,6 +1074,12 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
     untypedDependencies,
     declaredSpecifiers,
     neededPackages,
+    // Carried out so the precondition paths can say how much of the workspace
+    // their build filter leaves alone (objectui#7811). It is the map this
+    // function already walked to resolve `neededPackages`, not a second reading
+    // of the tree — the whole point of `scopedBuildNotice` is that its numbers
+    // are DERIVED, so the number it is handed has to come from here.
+    packageDirOf,
   };
 }
 
@@ -1100,6 +1106,50 @@ export function buildFilterArgs(packages) {
     .sort()
     .map((n) => `--filter=${n}...`)
     .join(' ');
+}
+
+/**
+ * What that printed build command does NOT do, printed under it — objectui#7811,
+ * porting the shape objectui#7795 landed as `check-doc-snippet-types.mjs`'s
+ * `scopedBuildNotice`.
+ *
+ * Both precondition paths tell the reader to build, and both print a command
+ * that builds a CLOSURE rather than the tree, having said so nowhere. Measured
+ * on `origin/main` `65ce8c576`: `--build-filter` names 10 of the workspace's 40
+ * packages, and expanding each one's dependency closure puts 30 in scope — so
+ * running the printed command exactly as given leaves 10 packages with no
+ * `dist/`, and nothing distinguishes that from a build that half-failed. The
+ * trimming is deliberate (`skill-examples.yml`'s header forbids the unfiltered
+ * build in as many words, under the 2026-08-16 ruling on objectui#4846), so what
+ * was missing is the sentence, never a wider filter.
+ *
+ * Both counts are ARGUMENTS and the text names no package on purpose. A list of
+ * "what gets built" written out here would be a second copy of a set this file
+ * already computes, and it would rot the first time the marked population moved;
+ * the reader who wants the exact set is sent to the same filter, expanded by the
+ * same tool that is about to run it — `--dry=text` makes turbo print a
+ * `Packages in scope` line (and, below it, a table of the same set) instead of
+ * building. `packages/` is the directory `derivePackageTypePaths` walks, which
+ * is where `total` is counted from; it is a location, not a package list.
+ *
+ * `check-skill-examples.test.ts` pins the half that rots unwatched — the numbers
+ * stay derived, no package name grows here — plus the half that would make it
+ * worthless: both precondition paths have to actually print it.
+ *
+ * @param {number} named packages `--build-filter` names (the marked examples' imports)
+ * @param {number} total packages under `packages/` this gate resolves against
+ * @returns {string} one paragraph for a precondition path's stderr
+ */
+export function scopedBuildNotice(named, total) {
+  return (
+    `That build is SCOPED, and it is not a whole-tree build: --build-filter names the ${named} package(s) the ` +
+    `marked examples import (packages/ holds ${total}) plus each one's dependency closure, and every package ` +
+    'outside that closure is left exactly as it was. An unbuilt package still sitting there when the build ' +
+    "finishes is this gate's designed end state, not a build that half-failed — a whole-workspace build for a " +
+    'guide check is what this gate\'s workflow refuses outright. For the exact set, ask that same filter rather ' +
+    'than a list written down somewhere else: append --dry=text to the command above and read its "Packages in ' +
+    'scope" line.'
+  );
 }
 
 // ── Reporting ────────────────────────────────────────────────────────────────
@@ -1284,6 +1334,9 @@ function main() {
     console.error(
       '  pnpm exec turbo run build $(node scripts/check-skill-examples.mjs --build-filter) --concurrency=2\n' +
         '  pnpm check:skill-examples',
+    );
+    console.error(
+      `\n${scopedBuildNotice(state.neededPackages.size, Object.keys(state.packageDirOf).length)}`,
     );
     return EXIT_CODES.couldNotRun;
   }
@@ -1720,6 +1773,9 @@ export function selfTest() {
     console.error(
       '  pnpm exec turbo run build $(node scripts/check-skill-examples.mjs --build-filter) --concurrency=2\n' +
         '  node scripts/check-skill-examples.mjs --self-test',
+    );
+    console.error(
+      `\n${scopedBuildNotice(state.neededPackages.size, Object.keys(state.packageDirOf).length)}`,
     );
     for (const c of cases.filter((c2) => !c2.ok)) console.error(`  ✗ ${c.name}${c.detail ? ` — ${c.detail}` : ''}`);
     return EXIT_CODES.couldNotRun;

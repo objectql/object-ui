@@ -435,7 +435,8 @@ jobs:
       # it cannot prove that a real bundler reading that array still EMITS the
       # registrations, and that is the question the hazard turns on —
       # `"sideEffects": false` is statically coherent and drops three live SDUI
-      # widget registrations to 0 chunks on a green build (objectui#6535).
+      # widget registrations out of the build entirely — they reach no chunk at
+      # all — on a green build (objectui#6535).
       #
       # The key set is derived from the array itself, so this step needs no
       # list of its own. It runs after the budget step and never instead of it:

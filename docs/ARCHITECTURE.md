@@ -15,9 +15,15 @@ This document describes the refactored architecture that enables third-party sys
 - `ObjectView` - Renders object views; it reads `objectName` from the router
   (`useParams()`) and takes an `objects` metadata array. For a router-free embed,
   use `ObjectView` from `@object-ui/plugin-view` instead - see the examples below.
-- `DashboardRenderer` - Renders dashboard layouts
-- `PageRenderer` - Renders custom pages
-- `FormRenderer` - Renders forms
+- `DashboardView` - Renders a dashboard by name. The dashboard renderer itself,
+  `DashboardRenderer`, is not an app-shell export - it ships from
+  `@object-ui/plugin-dashboard`, and `DashboardView` renders through it.
+- `PageView` - Renders a custom page by name. No package exports a
+  `PageRenderer`: a page body is dispatched through the component registry on
+  the schema node's `type` (`page`, `app`, `utility`, `home`, `record`).
+- `RecordFormPage` - Renders a full-screen create/edit page. No package exports
+  a `FormRenderer`; the exported form renderer is `ObjectForm` from
+  `@object-ui/plugin-form`, which this page delegates to.
 
 **Dependencies**: `@object-ui/react`, `@object-ui/components`, `@object-ui/fields`, `@object-ui/layout`
 
@@ -52,9 +58,9 @@ This document describes the refactored architecture that enables third-party sys
 │  @object-ui/app-shell                   │
 │  - AppShell                             │
 │  - ObjectView                           │
-│  - DashboardRenderer                    │
-│  - PageRenderer                         │
-│  - FormRenderer                         │
+│  - DashboardView                        │
+│  - PageView                             │
+│  - RecordFormPage                       │
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────┴────────────────────────┐
