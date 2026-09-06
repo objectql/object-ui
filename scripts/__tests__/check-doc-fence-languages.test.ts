@@ -233,13 +233,35 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
    * `check-doc-component-types.test.ts` — one gate, one home, so each workflow's
    * header is asserted beside its own gate rather than in a shared sweep.
    *
-   * Deliberately narrow: a numeral DIRECTLY qualifying a document-population
-   * noun. Issue references, `node-version`, `timeout-minutes` and "the sixth
-   * instance of the same shape" are all numbers this header legitimately
-   * carries, and none of them rots when a document is added or deleted. That is
+   * Deliberately narrow, and narrow in the same place as the other two copies:
+   * a numeral qualifying a document-population noun, with at most two words
+   * allowed to sit between the two. Issue references (ruled out at the pattern
+   * level by the negative lookbehind, not by luck), `node-version`,
+   * `timeout-minutes` and "the sixth instance of the same shape" are all
+   * numbers this header legitimately carries, and none of them rots when a
+   * document is added or deleted. That is
    * also why the header must not quote another header's stale literal verbatim
    * — this pin cannot tell a quotation from a claim, and the safe direction for
    * a check on prose accuracy is to refuse both.
+   *
+   * ⭐ Those two intervening words are objectui#7888, and they are the sentence
+   * above implemented rather than a new rule. This pin and its twin in
+   * `check-doc-component-types.test.ts` both said "a numeral DIRECTLY
+   * qualifying" and both coded it as strict adjacency, so a single adjective
+   * defeated them. Measured: run verbatim over `check-links.yml`'s header as it
+   * stood on `origin/main` at `83fe6e741` — a header carrying TWO live drifted
+   * counts — the adjacent-only pattern reported ONE of them. It found the
+   * sentence about the files the published site is built from, and scored the
+   * one reading "holds 15 INTERNAL documents" clean — which was the count that
+   * had drifted furthest (15 against a measured 17), because an adjective sat
+   * between the numeral and the noun. The pattern below is the third copy's,
+   * carried here verbatim (objectui#7825, PR objectui#7885,
+   * `check-links-workflow.test.ts`), with the noun set unchanged; the word
+   * DIRECTLY is gone from the sentence above because keeping it would only have
+   * inverted the same gap between what this pin claims and what it does.
+   *
+   * Both twin headers were clean under BOTH patterns when this was carried
+   * across, so this closes a proven hole rather than a live violation.
    *
    * Only the negative half is asserted. A positive assertion ("the header names
    * the verdict line") would pin a wording, and pinned wording is the thing this
@@ -252,9 +274,11 @@ describe('check-doc-fence-languages is wired, not merely present', () => {
       .split('\n')
       .filter((line) => /^\s*#/.test(line))
       .join('\n');
-    const counts = [...header.matchAll(/\b\d+\s+`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi)].map(
-      (m) => m[0],
-    );
+    const counts = [
+      ...header.matchAll(
+        /(?<![#\w.])\d+(?:,\d{3})*\s+(?:[A-Za-z][\w-]*\s+){0,2}`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi,
+      ),
+    ].map((m) => m[0]);
     expect(
       counts,
       `${WORKFLOW}'s header states a document count (${counts.join(', ')}). Nothing fails when it ` +
