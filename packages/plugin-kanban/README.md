@@ -129,6 +129,8 @@ interface KanbanCard {
   badges?: Array<{
     label: string;
     variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+    colorClass?: string;
+    colorStyle?: React.CSSProperties; // Required whenever colorClass came from getBadgeHexAppearance(color) in @object-ui/fields — the class reads CSS custom properties only this style declares (objectui#5183)
   }>;
   cardSubtitle?: string;              // Synthesized subtitle, rendered in preference to description
   cardFieldCells?: Array<{            // Structured per-field cells; wins over cardSubtitle/description
