@@ -110,6 +110,22 @@
  *     per-package (a tsconfig `exclude` that names `*.test.ts` but not
  *     `__tests__/`, a bundler entry that reaches a mock) and the fix belongs in
  *     that package's build config, as PR #4845 did for four of them.
+ *
+ * ## Build RECORDS are refused too, and they have no tooling source (objectui#7003)
+ *
+ * Everything above traces an ARTIFACT back to a tooling SOURCE: `dist/a.test.d.ts`
+ * is refused because `src/a.test.ts` exists and the convention names that stem.
+ * An incremental build record (`*.tsbuildinfo`) has no such source — it is a
+ * by-product of the compiler, not the emit of a file anyone wrote — so it
+ * matches nothing `PUBLISHED_TOOLING_FILE` describes, and objectui#7003 measured
+ * that blind spot on this gate before anything had shipped through it. It is
+ * material a consumer must not receive for the same reason the rest of this
+ * gate exists, and a sharper one: the record NAMES EVERY INPUT PATH on the
+ * machine that produced it. Every affected package publishes by directory
+ * (`files: ["dist", …]`), so a record written inside the build output ships
+ * whole. `BUILD_RECORD` below is therefore a SECOND, artifact-only term rather
+ * than an addition to `TOOLING_FILE`: see its own docblock for why the shared
+ * convention is the wrong home for it.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -186,8 +202,51 @@ export const PUBLISHED_TOOLING_FILE = new RegExp(
   `(^|/)(${CONVENTION.directories})/|\\.(${CONVENTION.stems})\\.[^/]*$`,
 );
 
-/** Whether a tarball entry is tooling material by this repository's convention. */
-export const isToolingArtifact = (path) => PUBLISHED_TOOLING_FILE.test(path);
+/**
+ * An incremental build RECORD, wherever a build wrote one.
+ *
+ * ## Why this is a separate term and not a third alternation in `TOOLING_FILE`
+ *
+ * Three reasons, and the first is mechanical (objectui#7003):
+ *
+ *  1. It would not arrive. `toolingConventionFrom` extracts exactly TWO halves
+ *     out of `TOOLING_FILE.source` — the directory alternation and the stem
+ *     alternation — and `PUBLISHED_TOOLING_FILE` is rebuilt from those two. A
+ *     third alternation added over there is dropped here silently: the sibling
+ *     gate would change behaviour and this one would not, which is the exact
+ *     drift the derivation exists to prevent.
+ *  2. `TOOLING_FILE` grades SOURCE files, and a build record is not one. Its
+ *     five other readers walk source trees filtered by `SOURCE_FILE`
+ *     (`\.[cm]?[jt]sx?$`), so the term would be inert in all of them — a rule
+ *     declared in a place that never honours it.
+ *  3. `check-published-tsconfig-tooling-exclude.mjs` turns that convention into
+ *     tsconfig `exclude` patterns. Excluding a `.tsbuildinfo` from a program is
+ *     meaningless: `tsc` writes the record, it never reads one as an input.
+ *
+ * ## What it recognises, and what it cannot
+ *
+ * Any basename, at any depth, ending `.tsbuildinfo` — `tsconfig.tsbuildinfo`,
+ * `tsconfig.build.tsbuildinfo`, a bare `.tsbuildinfo`, and the same names in a
+ * nested directory. That suffix IS this repository's spelling for the artifact:
+ * `turbo.json`'s build `outputs` name a recursive glob over `*.tsbuildinfo` and
+ * `.gitignore` ignores the same one, so a record renamed away from that suffix
+ * would already be uncached and untracked.
+ *
+ * It cannot recognise a record whose `tsBuildInfoFile` points at an arbitrary
+ * name with another extension; nothing readable from the tarball distinguishes
+ * that file from an emitted one. Stated rather than papered over with a list of
+ * guessed artifact names — a wrong guess would red a clean package, and the
+ * repository-wide convention above is the thing actually worth enforcing.
+ */
+export const BUILD_RECORD = /(^|\/)[^/]*\.tsbuildinfo$/;
+
+/**
+ * Whether a tarball entry is tooling material by this repository's convention.
+ *
+ * The union of the two terms: material traced back to a tooling SOURCE, and
+ * build records, which have none (objectui#7003).
+ */
+export const isToolingArtifact = (path) => PUBLISHED_TOOLING_FILE.test(path) || BUILD_RECORD.test(path);
 
 /** The build output directory an entry belongs to, or `null`. */
 export function outputDirOf(path) {
@@ -390,7 +449,12 @@ const HINTS = {
     `(${CONVENTION.directories.split('|').join(', ')}) from the EMITTING program, not just the ` +
     '`*.test.*` name — that name-vs-directory mismatch is what shipped in objectui#4006 and again ' +
     'in objectui#4836. If the file loses its type coverage with the emit, name it in the package\'s ' +
-    '`tsconfig.test.json` (PR #4845 did exactly this for `core.bench.ts`).',
+    '`tsconfig.test.json` (PR #4845 did exactly this for `core.bench.ts`). If the file is a ' +
+    '`*.tsbuildinfo` BUILD RECORD the remedy is a different one, because it has no tooling source ' +
+    'and no `exclude` can stop it: point that package\'s `tsBuildInfoFile` outside the published ' +
+    'build output, or leave it at its default (the package root), since `files: ["dist", …]` ' +
+    'publishes that directory whole and the record names every input path on the machine that ' +
+    'produced it (objectui#7003).',
   'no-build-output':
     'A published package produced nothing this gate could inspect. Either its build did not run ' +
     '(re-run without `--no-build`), or it now emits outside BUILD_OUTPUT_DIRS, or its `files` field ' +
@@ -461,8 +525,9 @@ if (invokedDirectly) {
     console.log(
       `src-tier (reported, not enforced — see the scope note in this gate): ${counters.srcTierTooling} ` +
         `tooling file(s) ship OUTSIDE the build output of ${srcTierPackages.join(', ')}, because those ` +
-        'packages list `src` in `files`. That is objectui#4851, a different card — see the scope note ' +
-        'in scripts/check-published-dist-tooling.mjs.',
+        'packages list `src` in `files` (objectui#4851) or publish a build record from outside a ' +
+        'build output directory (objectui#7003). Both are reported rather than enforced — see the ' +
+        'scope note in scripts/check-published-dist-tooling.mjs.',
     );
   }
 

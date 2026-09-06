@@ -1471,8 +1471,10 @@ below for the half of that mechanism which is still live.
 workflow; manual. **It carries no `pull_request` trigger, on purpose.**
 
 No published package's build output may contain tooling material — `__tests__/`, `__mocks__/`,
-`__benchmarks__/`, `*.test.*`, `*.spec.*`, `*.bench.*`, `*.stories.*`. The gate is
-`scripts/check-published-dist-tooling.mjs` (`pnpm check:published-dist`); it builds every
+`__benchmarks__/`, `*.test.*`, `*.spec.*`, `*.bench.*`, `*.stories.*`, or a `*.tsbuildinfo` build
+record ([#7003](https://github.com/objectstack-ai/objectui/issues/7003): a record has no tooling
+source to be traced back to, and it names every input path on the machine that produced it). The
+gate is `scripts/check-published-dist-tooling.mjs` (`pnpm check:published-dist`); it builds every
 published package itself, then reads each one's tarball file list from `npm pack --dry-run`.
 
 Three things about it are easy to get wrong and are written down in the script's own header
