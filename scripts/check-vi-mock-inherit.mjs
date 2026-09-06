@@ -302,32 +302,35 @@
  * the shared `js-comment-mask.mjs`, exactly as the sibling gate does it, and
  * for the same reasons (this file's own header quotes the defect in prose).
  *
- * ## `js-comment-mask` reads a JSX closing tag as a regex literal
+ * ## `js-comment-mask` USED to read a JSX closing tag as a regex literal
  *
- * The shared masker decides a `/` opens a regex when the preceding character is
- * not a value. In `</div>` the preceding character is `<`, so it opens a
- * PHANTOM regex that runs to the end of the line and swallows whatever is
+ * Kept as measured history: it is why the shared module was fixed, and the two
+ * behavioural cases in this gate's test still pin the outcome.
+ *
+ * The shared masker decided a `/` opens a regex when the preceding character is
+ * not a value. In `</div>` the preceding character is `<`, so it opened a
+ * PHANTOM regex that ran to the end of the line and swallowed whatever was
  * there -- including the `)` that closes a `vi.mock` call.
  *
- * That is not hypothetical here: measured on this tree, SEVEN `vi.mock` call
- * sites in five files could not have their argument list delimited at all
- * because of it, one of them a covered `@object-ui/react` site
+ * That was not hypothetical here: measured on this tree at the time, SEVEN
+ * `vi.mock` call sites in five files could not have their argument list
+ * delimited at all because of it, one of them a covered `@object-ui/react` site
  * (`plugin-dashboard/src/__tests__/ObjectDataTable.cells.test.tsx`). The sibling
  * gate never noticed because it only reads the specifier; this gate reads the
- * factory BODY, so it cannot.
+ * factory BODY, so it could not.
  *
- * `deJsxClosingTags` neutralises it, and the shape of the fix is what keeps it
- * safe: a JSX closing tag is rewritten to the SAME NUMBER OF BYTES
- * (`</div>` -> `<____>`) before masking, so every offset the mask returns still
- * indexes the original source, and the only bytes that change are slashes that
- * cannot be part of a spread, an identifier, or a specifier. A `</` inside a
- * string or a regex is rewritten too and does not matter: it is literal content
- * either way, and its quotes are untouched, so nothing structural moves.
- * Measured: the seven unreadable sites become zero, and no site changes verdict.
- *
- * This is a LOCAL workaround in this gate, not a change to the shared masker --
- * that module is used by many gates and its JSX behaviour is filed separately
- * as objectui#6891.
+ * This gate carried a LOCAL workaround for it -- `deJsxClosingTags`, a
+ * length-preserving rewrite of every closing tag applied before masking. The
+ * shared masker itself was then fixed by objectui#6891 (CLOSED, PR #7880),
+ * which taught `scanSource` that a `/` whose immediately preceding byte is `<`
+ * opens nothing. Re-measured on the fixed masker, the raw source with the
+ * rewrite NOT applied has ZERO undelimitable sites and the gate's verdict is
+ * byte-identical either way, so the workaround was retired by objectui#7883.
+ * ⛔ That is not "the masker is correct on JSX": objectui#6891 closed only the
+ * `<` `/` half. A `/` after `}` or `>` -- a self-closing tag, a `/` in JSX text
+ * -- still opens a phantom; that half is objectui#7882 and is still open. The
+ * retired rewrite never covered it either (its pattern matched closing tags
+ * only), which is why removing it lost no coverage.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -381,18 +384,6 @@ export const FLOORS = Object.freeze({
   testFiles: 1000,
   covered: 50,
 });
-
-/** A JSX closing tag: `</div>`, `</Foo.Bar>`, `</>`. */
-const JSX_CLOSING_TAG = /<\/([A-Za-z_$][\w$.:-]*)?\s*>/g;
-
-/**
- * `source` with the slash of every JSX closing tag replaced, PRESERVING LENGTH,
- * so offsets from the mask still index the original. See the header section on
- * `js-comment-mask` for the measurement that made this necessary.
- */
-export function deJsxClosingTags(source) {
-  return source.replace(JSX_CLOSING_TAG, (m) => `<${'_'.repeat(m.length - 2)}>`);
-}
 
 /** 1-based line number of `offset` in `source`. */
 function lineOf(source, offset) {
@@ -682,9 +673,8 @@ export function classifyFactory(masked, literal, start, end, specifier) {
  * for the instance that made this distinction necessary).
  */
 export function findCallSites(source, { covered = COVERED_SPECIFIERS } = {}) {
-  const dejsxed = deJsxClosingTags(source);
-  const { comment, literal } = scanSource(dejsxed);
-  const masked = blank(dejsxed, comment);
+  const { comment, literal } = scanSource(source);
+  const masked = blank(source, comment);
   const coveredSet = new Set(covered);
 
   const sites = [];
