@@ -479,6 +479,10 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       // Presentation policy — the page layer (ADR-0047).
       userFilters: cfg.userFilters ?? view.userFilters,
       appearance,
+      // The page author's INTENT, not the final predicate: `ListView` draws the
+      // chrome only when this whitelist INTERSECTED with its capability gate
+      // still has more than one entry (objectui#7547). Same note as the object
+      // page's twin — the whitelist is not the offer.
       showViewSwitcher: allowed.length > 1,
       showRecordCount: cfg.showRecordCount,
       // Add-record entry point (ListView gates the button on addRecord.enabled,

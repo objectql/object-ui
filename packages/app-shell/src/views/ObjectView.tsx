@@ -2277,9 +2277,18 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 : (viewDef.showDescription != null
                     ? { showDescription: viewDef.showDescription }
                     : listSchema.appearance),
-            // Offer the visualization switcher only when the author
-            // whitelisted more than one type; ListView intersects the
-            // whitelist with capability-resolvable types.
+            // The author's INTENT to offer a visualization switcher: more than
+            // one type whitelisted. Deliberately not the final predicate — this
+            // face counts the whitelist, and the whitelist is not the offer.
+            //
+            // `ListView` intersects it with the capability gate and draws the
+            // chrome only when the INTERSECTION has more than one entry
+            // (objectui#7547, `viewSwitcherOffered`). It has to be decided
+            // there: the gate that knows which types actually resolve lives in
+            // that component, so a view whitelisting `['grid', 'timeline']`
+            // with no timeline block reads as two here and one there. Counting
+            // this number alone is what drew switcher chrome around a single
+            // Grid entry.
             showViewSwitcher:
                 ((viewDef.appearance ?? listSchema.appearance)?.allowedVisualizations?.length ?? 0) > 1,
             // Toolbar policy — one vocabulary (#2890). Stored views may still
