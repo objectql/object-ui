@@ -47,10 +47,6 @@ const PINNED_LEDGER: readonly string[] = [
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
   'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
   'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
-  'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
-  'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
-  'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
-  'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
 ];
 
 describe('network-escape ledger (objectui#6640) is shrink-only', () => {
