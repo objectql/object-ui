@@ -212,7 +212,16 @@
  *
  * with the population moving 178 -> 147 frozen over 643 judged and no site
  * moving the other way -- every other one of the 21 rows byte-identical between
- * the two runs. This is the first slice whose sites span THREE owning packages
+ * the two runs. Merging `origin/main` mid-slice then brought in a THIRTY-SECOND
+ * frozen site on this same specifier (`plugin-view`'s
+ * `ObjectView.expandFls-7429.test.tsx` -- landed by objectui#7429), swept in the
+ * same PR: on the merged head the specifier reads 33 judged, 33 inheriting, 0
+ * frozen and the population reads 148 over 654. That is the growth warning
+ * above firing for the THIRD consecutive slice, and it is the reason the
+ * constant may only be widened by a run of this gate on the tree that ships,
+ * never by the derivation taken on the base.
+ *
+ * This is the first slice whose sites span THREE owning packages
  * (20 under `packages/plugin-view`, 8 under `packages/app-shell`, 4 under
  * `packages/plugin-designer`) and the first to meet a THIRD syntactic shape:
  * four `plugin-designer` sites delegated the whole factory to a shared manual
@@ -248,8 +257,8 @@
  * already inherited the real barrel on `main` and passed, so the real module
  * was known to load in that environment before anything was converted.
  *
- * The remaining 147 stay on objectui#6892: `@object-ui/components` (27),
- * `@object-ui/plugin-grid` (24), `@object-ui/app-shell` (23, still only after
+ * The remaining 148 stay on objectui#6892: `@object-ui/components` (27),
+ * `@object-ui/plugin-grid` (25), `@object-ui/app-shell` (23, still only after
  * objectui#6580 -- which is now CLOSED, so that reading is a git-history read
  * rather than an open card) and `@object-ui/permissions` (23).
  *
