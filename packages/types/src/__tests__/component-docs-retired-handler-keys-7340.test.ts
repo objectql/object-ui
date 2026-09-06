@@ -270,15 +270,20 @@ describe('the retired population is measured off the shipped tree (objectui#7340
     // 22 from objectui#6124; objectui#7344 (the objectui#6182 string-dialect
     // ruling, same shape) added `AppAction.onClick`, `ReportBuilderSchema.onSave`
     // / `.onCancel` and `CRUDDialogSchema.onClose` — a ruled move of the
-    // population, recorded here rather than waved through.
+    // population, recorded here rather than waved through. objectui#7068 added
+    // the legacy `ActionSchema.onSuccess` / `.onFailure` (crud.ts 1 → 3, total
+    // 26 → 28): NOT #6124 handler keys — they carried a callback OBJECT
+    // (`ActionCallback`, deleted), the third meaning of `onSuccess` — but the
+    // same `on*?: never` shape this name-shaped census reads, so the move is
+    // recorded here too (maintainer ruling option 1, 2026-09-05).
     const split: Record<string, number> = {};
     for (const m of RETIRED) split[m.file] = (split[m.file] ?? 0) + 1;
     expect({ total: RETIRED.length, split }).toEqual({
-      total: 26,
+      total: 28,
       split: {
         'app.ts': 1,
         'complex.ts': 4,
-        'crud.ts': 1,
+        'crud.ts': 3,
         'data-display.ts': 4,
         'feedback.ts': 1,
         'form.ts': 8,
@@ -305,6 +310,11 @@ describe('the retired population is measured off the shipped tree (objectui#7340
       'onColumnAdd',
       'onConfirm',
       'onExpandChange',
+      // objectui#7068: the legacy `ActionSchema.onFailure` callback object — no
+      // shipped interface declares an `onFailure` at all any more. `onSuccess`
+      // is NOT here: `UIActionSchema.onSuccess` is LIVE (the spec's navigation
+      // block), so that name stays ambiguous and is resolved by the pair rule.
+      'onFailure',
       'onSave',
       'onSelectChange',
       'onSendMessage',

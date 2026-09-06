@@ -70,9 +70,9 @@ turns it into the CSS variables your components already read.
 ### Advanced Actions
 
 #### [Enhanced Actions](/docs/core/enhanced-actions)
-Powerful action system with AJAX calls, chaining, conditions, and callbacks.
+Powerful action system with AJAX calls, chaining, conditions, and tracking.
 
-<!-- doc-snippet: fragment — a shape excerpt: `chain`, `onSuccess` and `tracking` are written as literal `[...]` / `{...}` ellipses so the section can list the action keys without a worked example of each -->
+<!-- doc-snippet: fragment — a shape excerpt: `chain` and `tracking` are written as literal `[...]` / `{...}` ellipses so the section can list the action keys without a worked example of each -->
 
 ```typescript
 const action: ActionSchema = {
@@ -81,7 +81,6 @@ const action: ActionSchema = {
   api: '/api/submit',
   chain: [...],
   condition: '${...}',
-  onSuccess: {...},
   tracking: {...}
 };
 ```
@@ -94,7 +93,7 @@ const action: ActionSchema = {
 **Key Features:**
 - Action chaining (sequential/parallel)
 - Conditional execution (a `condition` predicate gates whether an action runs)
-- Success/failure callbacks
+- Success / failure notices (`successMessage` / `errorMessage`)
 - Event tracking
 - Retry logic
 
@@ -274,7 +273,7 @@ The `ActionSchema` provides comprehensive action handling:
 - ✅ Action types: `ajax`, `confirm`, `dialog`
 - ✅ Action chaining via the `chain` array (sequential or parallel)
 - ✅ Conditional execution with the `condition` property
-- ✅ Success/failure callbacks: `onSuccess` and `onFailure`
+- ❌ Success/failure callbacks: `onSuccess` / `onFailure` were RETIRED (objectui#7068) — both faces refuse them; write `successMessage` / `errorMessage` for notices, and the spec's `onSuccess` block `{ navigate, openIn }` on `UIActionSchema` for post-success navigation (objectui#5934)
 - ✅ Event tracking with the `tracking` configuration
 - ✅ Automatic retry logic
 
@@ -300,7 +299,7 @@ ObjectUI includes enhanced view components:
    
 3. **Set up theming** - Hand a `Theme` document to `ThemeProvider` for consistent styling (optional)
 
-4. **Implement actions** - Use advanced action features like `confirm` and callbacks
+4. **Implement actions** - Use advanced action features like `confirm` and chaining
 
 5. **Test your application** - Verify all functionality works as expected
 

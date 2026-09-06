@@ -226,8 +226,48 @@ function normalizeAxis(raw: unknown): NormalizedAxis | undefined {
  * Merge one series entry from either shape.
  *
  * Internal (`dataKey`) wins over spec (`name`) so a caller that already speaks
- * the internal contract is untouched. `type` (spec, a ChartType) and
- * `chartType` (internal) both name the per-series family in a combo chart.
+ * the internal contract is untouched.
+ *
+ * ## `chartType` is the INTERNAL spelling, and only that (objectui#7744)
+ *
+ * The two spellings of the per-series family are NOT two authoring keys:
+ *
+ * - `type` is the AUTHORING face's key — spec `ChartSeries.type`, declared on
+ *   the mirror as `ChartDataSeriesSchema.type` (`'bar' | 'line' | 'area'`).
+ * - `chartType` is the RENDERER-INTERNAL carrier. It rides on the `dataKey`-
+ *   shaped series that `DashboardRenderer`, `ObjectView` and the dataset path
+ *   hand straight to `ChartRenderer`, which is where it is declared
+ *   (`ChartRenderer.tsx:65`, on the internal series shape) and where
+ *   {@link NormalizedSeries.chartType} is the output half of the same
+ *   contract. On the AUTHORING face it is not a member at all: it is a named
+ *   alias refusal — `ChartDataSeriesSchema.chartType`
+ *   (`packages/types/src/zod/data-display.zod.ts`, objectui#7694 / PR #7737),
+ *   pinned in that package's
+ *   `__tests__/chart-series-chart-type-alias-refusal-7694.test.ts`. Read the
+ *   rule and its remedy THERE. Restating either here would be a second copy of
+ *   a rule that only one of the two files is ever edited with.
+ *
+ * ## The split this limb carries, deliberately (objectui#7744)
+ *
+ * This function normalizes BOTH shapes, and the `family` limb below cannot
+ * tell them apart: by the time `raw` arrives it is a bag of keys with nothing
+ * on it naming its producer. So an AUTHORED series that skipped validation
+ * still gets `chartType` honoured at runtime — and honoured OVER the declared
+ * `type`, which the limb reads second — while the validator refuses that same
+ * key by name. The two faces disagree, and that is the state this comment
+ * exists to make legible rather than to fix: the objectui#7744 ruling was to
+ * annotate and pin, NOT to retire the limb at the reader, because retiring it
+ * would change what the internal producers above render — a reader-side
+ * decision of its own.
+ *
+ * ⛔ Do not delete the limb on the strength of a green ablation. Deleting
+ * `str(raw.chartType) ??` left the repo fully green when it was measured
+ * (304 files / 5817 tests) while deleting its ` ?? str(raw.type)` sibling went
+ * 2 red — green there means only that no test PINNED it, never that no
+ * producer depends on it. Both halves of the split, and the precedence between
+ * them, are now pinned in `__tests__/chartType-internal-only-7744.test.ts`;
+ * that case is what goes red if the two faces are ever brought into agreement,
+ * from either side.
  */
 function normalizeSeries(raw: unknown): NormalizedSeries | undefined {
   if (!isRec(raw)) {
@@ -241,6 +281,8 @@ function normalizeSeries(raw: unknown): NormalizedSeries | undefined {
   const out: NormalizedSeries = { dataKey };
   const lbl = label(raw.label);
   if (lbl) out.label = lbl;
+  // INTERNAL spelling FIRST, authored `type` second — see the docblock above.
+  // The order is load-bearing and pinned; neither limb is dead.
   const family = str(raw.chartType) ?? str(raw.type);
   if (family === 'bar' || family === 'line' || family === 'area') out.chartType = family;
   const variant = str(raw.variant);

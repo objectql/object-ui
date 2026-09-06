@@ -57,7 +57,12 @@
  *     written-down constant `EXPECTED_MIRROR_PAIRS` by the runtime census at the
  *     bottom of this file (objectui#7433); `assertionRegistryHalvesAgree` already pins
  *     it equal to `keyof Declared`. ⛔ Read the constant, not this sentence — a digit
- *     here is the artefact that rotted four times. 157 until objectui#7664 retired the
+ *     here is the artefact that rotted four times. 159 until objectui#7068 RETIRED the
+ *     `crud.zod.ts#ActionCallbackSchema` pair — the const and its `ActionCallback`
+ *     declaration both DELETED (the objectui#7664 route for a standalone retired pair;
+ *     the legacy `ActionSchema.onSuccess` / `onFailure` keys that carried it are `never`
+ *     / `retirementTombstone()` on the two faces), a pair with no entry in any ledger,
+ *     so no other count moved; 157 until objectui#7664 retired the
  *     three `DeclarativeKanban*` pairs and registered the five plugin-dialect ones
  *     (`KanbanCardSchema`, `KanbanColumnSchema`, `KanbanSchema`, `CardTemplateSchema`,
  *     `ColumnWidthConfigSchema` — the `'kanban'` arm rewritten to the shape the
@@ -224,7 +229,7 @@ import type { z } from 'zod';
 import { AppActionSchema, AppComponentSchema, MenuItemSchema as AppMenuItemSchema, NavigationAreaSchema, NavigationItemSchema } from '../zod/app.zod.js';
 import { BaseSchema, ComponentConfigSchema, ComponentInputSchema, ComponentMetaSchema, KeyedI18nLabelSchema, SchemaNodeSchema } from '../zod/base.zod.js';
 import { CalendarEventSchema, CalendarViewSchema, CarouselItemSchema, CarouselSchema, ChatbotSchema, ChatbotEnhancedSchema, ChatbotFloatingSchema, ChatMessageSchema, ChatMessageSourceSchema, ChatToolInvocationSchema, DashboardComponentSchema, DashboardConfigSchema, DashboardWidgetConfigSchema, DashboardWidgetLayoutSchema, DashboardWidgetSchema, FilterBuilderSchema, FilterFieldSchema, KanbanCardSchema, KanbanColumnSchema, KanbanSchema, CardTemplateSchema, ColumnWidthConfigSchema, FilterBuilderConditionSchema, FilterGroupSchema } from '../zod/complex.zod.js';
-import { ActionCallbackSchema, ActionSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
+import { ActionSchema, CRUDDialogSchema, DetailSchema } from '../zod/crud.zod.js';
 import { AlertSchema, AvatarSchema, BadgeSchema, BarChartSchema, ChartDataSeriesSchema, ChartSchema, DataTableSchema, DrillDownConfigSchema, HtmlSchema, KbdSchema, ListItemSchema, ListSchema, MarkdownSchema, StaticTableColumnSchema, StatisticSchema, TableColumnSchema, TableSchema, TimelineEventSchema, TimelineSchema, TreeNodeSchema, TreeViewSchema } from '../zod/data-display.zod.js';
 import { AccordionItemSchema, AccordionSchema, CollapsibleSchema, ToggleGroupItemSchema, ToggleGroupSchema } from '../zod/disclosure.zod.js';
 import { EmptySchema, LoadingSchema, ProgressSchema, SkeletonSchema, SonnerSchema, SpinnerSchema, ToasterSchema, ToastSchema } from '../zod/feedback.zod.js';
@@ -240,7 +245,7 @@ import type { AppAction as Ts_AppAction, AppComponentSchema as Ts_AppComponentSc
 import type { BaseSchema as Ts_BaseSchema, ComponentConfig as Ts_ComponentConfig, ComponentInput as Ts_ComponentInput, ComponentMeta as Ts_ComponentMeta, KeyedI18nLabel as Ts_KeyedI18nLabel } from '../base';
 import type { CalendarEvent as Ts_CalendarEvent, CalendarViewSchema as Ts_CalendarViewSchema, CarouselItem as Ts_CarouselItem, CarouselSchema as Ts_CarouselSchema, ChatbotSchema as Ts_ChatbotSchema, ChatbotEnhancedSchema as Ts_ChatbotEnhancedSchema, ChatbotFloatingSchema as Ts_ChatbotFloatingSchema, ChatMessage as Ts_ChatMessage, ChatMessageSource as Ts_ChatMessageSource, ChatToolInvocation as Ts_ChatToolInvocation, DashboardComponentSchema as Ts_DashboardComponentSchema, DashboardWidgetLayout as Ts_DashboardWidgetLayout, DashboardWidgetSchema as Ts_DashboardWidgetSchema, FilterBuilderSchema as Ts_FilterBuilderSchema, FilterField as Ts_FilterField, KanbanCard as Ts_KanbanCard, KanbanColumn as Ts_KanbanColumn, KanbanSchema as Ts_KanbanSchema, CardTemplate as Ts_CardTemplate, ColumnWidthConfig as Ts_ColumnWidthConfig } from '../complex';
 import type { DashboardConfig as Ts_DashboardConfig, DashboardWidgetConfig as Ts_DashboardWidgetConfig } from '../designer';
-import type { ActionCallback as Ts_ActionCallback, CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
+import type { CRUDDialogSchema as Ts_CRUDDialogSchema, DetailSchema as Ts_DetailSchema } from '../crud';
 import type { AlertSchema as Ts_AlertSchema, AvatarSchema as Ts_AvatarSchema, BadgeSchema as Ts_BadgeSchema, BarChartSchema as Ts_BarChartSchema, ChartDataSeries as Ts_ChartDataSeries, ChartSchema as Ts_ChartSchema, DataTableSchema as Ts_DataTableSchema, DrillDownConfig as Ts_DrillDownConfig, HtmlSchema as Ts_HtmlSchema, KbdSchema as Ts_KbdSchema, ListItem as Ts_ListItem, ListSchema as Ts_ListSchema, MarkdownSchema as Ts_MarkdownSchema, StaticTableColumn as Ts_StaticTableColumn, StatisticSchema as Ts_StatisticSchema, TableColumn as Ts_TableColumn, TableSchema as Ts_TableSchema, TimelineEvent as Ts_TimelineEvent, TimelineSchema as Ts_TimelineSchema, TreeViewSchema as Ts_TreeViewSchema, BreadcrumbItem as Ts_BreadcrumbItem, BreadcrumbSchema as Ts_BreadcrumbSchema } from '../data-display';
 import type { AccordionItem as Ts_AccordionItem, AccordionSchema as Ts_AccordionSchema, CollapsibleSchema as Ts_CollapsibleSchema, ToggleGroupItem as Ts_ToggleGroupItem, ToggleGroupSchema as Ts_ToggleGroupSchema } from '../disclosure';
 import type { EmptySchema as Ts_EmptySchema, LoadingSchema as Ts_LoadingSchema, ProgressSchema as Ts_ProgressSchema, SkeletonSchema as Ts_SkeletonSchema, SonnerSchema as Ts_SonnerSchema, SpinnerSchema as Ts_SpinnerSchema, ToasterSchema as Ts_ToasterSchema, ToastSchema as Ts_ToastSchema } from '../feedback';
@@ -594,7 +599,6 @@ const MIRRORS = {
   'complex.zod.ts#KanbanSchema': KanbanSchema,
   'complex.zod.ts#CardTemplateSchema': CardTemplateSchema,
   'complex.zod.ts#ColumnWidthConfigSchema': ColumnWidthConfigSchema,
-  'crud.zod.ts#ActionCallbackSchema': ActionCallbackSchema,
   'crud.zod.ts#CRUDDialogSchema': CRUDDialogSchema,
   'crud.zod.ts#DetailSchema': DetailSchema,
   'data-display.zod.ts#AlertSchema': AlertSchema,
@@ -757,7 +761,6 @@ interface Declared {
   'complex.zod.ts#KanbanSchema': Ts_KanbanSchema;
   'complex.zod.ts#CardTemplateSchema': Ts_CardTemplate;
   'complex.zod.ts#ColumnWidthConfigSchema': Ts_ColumnWidthConfig;
-  'crud.zod.ts#ActionCallbackSchema': Ts_ActionCallback;
   'crud.zod.ts#CRUDDialogSchema': Ts_CRUDDialogSchema;
   'crud.zod.ts#DetailSchema': Ts_DetailSchema;
   'data-display.zod.ts#AlertSchema': Ts_AlertSchema;
@@ -2293,7 +2296,7 @@ const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
  * MINUEND under it had moved. Nothing failed on any of those days, because nothing
  * compared the registry to a number. objectui#7433 is that absence, not the digits.
  */
-const EXPECTED_MIRROR_PAIRS = 159;
+const EXPECTED_MIRROR_PAIRS = 158;
 
 /** This file, so the census can read its own type-level ledgers. */
 const SELF = fileURLToPath(import.meta.url);

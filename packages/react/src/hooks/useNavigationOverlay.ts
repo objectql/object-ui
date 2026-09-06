@@ -210,7 +210,12 @@ export interface NavigationOverlayState {
  *
  * @example
  * ```tsx
- * const dataConfig = useMemo(() => getDataConfig(schema), [schema]);
+ * import {
+ *   resolveRecordSourceConfig,
+ *   resolveRecordSourceObjectName,
+ * } from '@object-ui/core';
+ *
+ * const dataConfig = useMemo(() => resolveRecordSourceConfig(schema), [schema]);
  * const { handleClick, isOpen, selectedRecord, mode, close, width } =
  *   useNavigationOverlay({
  *     navigation: schema.navigation,
