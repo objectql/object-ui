@@ -90,7 +90,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
   createAuthenticatedFetch: () => vi.fn(),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRealtimeSubscription: () => ({ lastMessage: null }),
   useConflictResolution: () => ({ hasConflicts: false, resolveAllConflicts: () => {} }),
 }));

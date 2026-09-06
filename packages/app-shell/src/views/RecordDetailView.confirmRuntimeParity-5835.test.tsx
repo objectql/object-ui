@@ -70,7 +70,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
   ),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRecordPresence: () => [],
   PresenceAvatars: () => null,
 }));
