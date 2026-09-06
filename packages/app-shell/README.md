@@ -604,27 +604,43 @@ These routes are deep-linkable (refresh-safe), respect the browser back
 button, and render the same `<ObjectForm>` pipeline as the modal — so
 `tabbed`, `wizard`, and section configurations work in both modes.
 
-JSON `<action:button>` schemas can also trigger the page routes directly
-via the action runner, regardless of the object's `editMode`:
+JSON `action:button` schemas can also trigger the page routes directly
+via the action runner, regardless of the object's `editMode`. The handler
+name goes in `actionType` — that is the key the button renderer forwards
+to the action runner as the action's type, and the runner dispatches to
+the handler registered under it. Arguments go in a top-level `params`
+object:
 
 ```json
 {
   "type": "action:button",
   "label": "New Account",
-  "action": { "action": "navigate_create", "params": { "objectName": "account" } }
+  "actionType": "navigate_create",
+  "params": { "objectName": "account" }
 }
 ```
+
+`navigate_edit` additionally needs the record to open. `params` reaches
+the handler verbatim: template expressions such as `${record.id}` are not
+evaluated inside `params`, and `action:button` does not inject the
+surrounding row, so a declared `navigate_edit` button carries a literal
+`recordId`:
 
 ```json
 {
   "type": "action:button",
   "label": "Edit",
-  "action": {
-    "action": "navigate_edit",
-    "params": { "objectName": "account", "recordId": "${record.id}" }
+  "actionType": "navigate_edit",
+  "params": {
+    "objectName": "account",
+    "recordId": "0015e000abcd"
   }
 }
 ```
+
+For a per-row **Edit** that follows the record under the cursor, use the
+list or detail view's built-in **Edit** entry point instead: under
+`editMode: 'page'` it already routes to the same URL.
 
 See [`content/docs/guide/record-edit-modes.md`](../../content/docs/guide/record-edit-modes.md)
 for a longer walkthrough.
