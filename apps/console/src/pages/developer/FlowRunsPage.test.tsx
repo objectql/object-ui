@@ -62,7 +62,10 @@ vi.mock('@object-ui/app-shell', async () => {
   };
 });
 
-vi.mock('@object-ui/auth', () => ({ createAuthenticatedFetch: () => authFetch }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createAuthenticatedFetch: () => authFetch,
+}));
 
 // Imported AFTER the mocks so the page picks them up.
 import { FlowRunsPage } from './FlowRunsPage';

@@ -22,7 +22,8 @@ const navigateSpy = vi.fn();
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigateSpy }));
 
 const authFetchSpy = vi.fn();
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'User', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => authFetchSpy,
 }));

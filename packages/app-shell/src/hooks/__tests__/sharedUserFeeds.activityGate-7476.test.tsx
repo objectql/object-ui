@@ -34,7 +34,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { MetadataCtx, type MetadataContextValue, type MetadataTypeStatus } from '@object-ui/react';
 
-vi.mock('@object-ui/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: { id: 'u1' } }),
+}));
 
 const ACTIVITY_ROWS = [
   {

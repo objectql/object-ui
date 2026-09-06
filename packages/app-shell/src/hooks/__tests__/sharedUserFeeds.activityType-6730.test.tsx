@@ -25,7 +25,10 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
-vi.mock('@object-ui/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: { id: 'u1' } }),
+}));
 
 /**
  * One row per branch of the reading, plus the two the card names by hand.

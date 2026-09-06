@@ -95,7 +95,8 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     get user() { return authState.user; },
     getAuthConfig,

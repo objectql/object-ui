@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is seven, and each joined by sweep
+ * actually been SWEPT to zero. Today that is eight, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -134,9 +134,38 @@
  * by `git cat-file -e 9ce20233f:PATH` against a control path that resolves at
  * the same commit. So the population GROWS while the worklist is being worked,
  * and a slice scoped from the table alone would have missed this specifier
- * entirely. Re-derive per slice; never inherit. The remaining 311 stay on
- * objectui#6892, `@object-ui/auth` (102) first by yield and
- * `@object-ui/app-shell` (23) only after objectui#6580.
+ * entirely. Re-derive per slice; never inherit.
+ *
+ * `@object-ui/auth` joined as objectui#6892's THIRD slice -- the largest block
+ * on the worklist by a factor of three -- re-derived on `06761b351` by the same
+ * `scan()` method, the constant below again never widened-and-reverted:
+ *
+ *     @object-ui/auth             135 judged, 33 inheriting, 102 frozen -> 0
+ *
+ * with the same population moving 311 -> 209 frozen and no site moving the
+ * other way -- both figures measured on `06761b351`, the base this sweep was
+ * derived and converted on. On the merged head the population reads 211 over
+ * 643 judged, and the delta is NOT this sweep: merging `origin/main` mid-slice
+ * brought in two new frozen sites (`@object-ui/plugin-form`, `@object-ui/plugin-grid`)
+ * and one new inheriting `@object-ui/react` site, all landed by other PRs
+ * while this one was being verified. That is the growth warning above,
+ * observed a second time inside a single slice; `@object-ui/auth` stayed at 0. ⭐ That slice paid for one measurement worth keeping here, because
+ * it is the question every REMAINING slice has to ask and the answer is not
+ * uniform: **what does inheriting actually RUN?** Converting freezes to
+ * inheritance loads the real barrel in every converted file, so a barrel with
+ * module-scope side effects has those effects restored in all of them at once.
+ * Slice 2's two barrels each made 8 module-scope `ComponentRegistry.register`
+ * calls, absorbed in four files. `packages/auth/src` was measured before any
+ * conversion, by walking its 22-module static import graph and classifying
+ * every top-level statement: 8 module-scope initialisers, ALL pure in-memory
+ * allocation (two `Set`s of literal strings, an `Object.values`, a `Set` over
+ * it, `createContext(null)` plus its `displayName`, an empty listener `Set`,
+ * one alias), and ZERO registrations, timers, globals, `fetch` or
+ * side-effect-only imports. Inert -- so 102 files inherit it for free. ⛔ Do
+ * not generalise that verdict to the next barrel; take the measurement. The
+ * remaining 209 stay on objectui#6892, `@object-ui/collaboration` (33) and
+ * `@object-ui/plugin-form` (30) next by yield and `@object-ui/app-shell` (23)
+ * only after objectui#6580.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -225,6 +254,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-report',
   '@object-ui/plugin-charts',
   '@object-ui/plugin-dashboard',
+  '@object-ui/auth',
 ]);
 
 /** Files the walk reads at all. */

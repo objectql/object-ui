@@ -17,7 +17,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const authFetch = vi.fn();
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   createAuthenticatedFetch: () => authFetch,
 }));
 vi.mock('../../../runtime-config', () => ({

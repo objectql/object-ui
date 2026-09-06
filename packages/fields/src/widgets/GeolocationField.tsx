@@ -10,9 +10,15 @@ import { useBadInputRefusal, BadInputMessage, BAD_INPUT_BORDER } from './numberB
  * Geolocation data structure
  */
 export interface GeolocationValue {
-  latitude?: number;
-  longitude?: number;
-  accuracy?: number;
+  /**
+   * `number | null` since objectui#6848. `null` is what an emptied box emits —
+   * the spelling `CurrencyField` / `PercentField` / `NumberField` already used
+   * for the same user action — so the type has to admit it. `undefined` stays
+   * admissible because an untouched coordinate is genuinely absent.
+   */
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
 }
 
 /**
@@ -79,7 +85,24 @@ export function GeolocationField({ value, onChange, field, readonly, error, ...p
   const handleFieldChange = (fieldName: keyof GeolocationValue, fieldValue: string) => {
     onChange({
       ...location,
-      [fieldName]: fieldValue ? Number(fieldValue) : undefined,
+      // `null`, not `undefined` (objectui#6848). An emptied box is a CLEAR, and
+      // `undefined` cannot say so past a serializer: `JSON.stringify` drops the
+      // key outright, so the emission stopped describing the user's action the
+      // moment it left memory. The other three `type="number"` widgets of this
+      // class already emit `null` for the identical action; this was the only
+      // one that did not.
+      //
+      // ⚠️ What this is NOT, measured on this card so the reasoning cannot rot
+      // into a bigger claim: it is not silent data loss against the ObjectStack
+      // adapter today. That hazard needs the dropped key to be the one the
+      // write path merges on, and here it is nested one level DOWN — the
+      // payload still carries the composite's own key, `location` is a single
+      // JSON column, and nothing on the path deep-merges, so the whole value is
+      // replaced and the cleared coordinate does not come back. The defect
+      // fixed here is the emission itself: a widget that cannot express "clear"
+      // in a form that survives serialization, in a class where its three
+      // siblings can.
+      [fieldName]: fieldValue ? Number(fieldValue) : null,
     });
   };
 

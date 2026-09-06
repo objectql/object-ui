@@ -58,7 +58,8 @@ const mocks = vi.hoisted(() => ({
 // The published AuthProvider is replaced by a recorder: what this component
 // decides about authentication IS the props it hands the provider, so that is
 // what gets asserted. Nothing else in the auth package is exercised here.
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   AuthProvider: (props: { children?: ReactNode } & Record<string, unknown>) => {
     mocks.authProviderProps.push(props);
     return <div data-testid="auth-provider">{props.children}</div>;

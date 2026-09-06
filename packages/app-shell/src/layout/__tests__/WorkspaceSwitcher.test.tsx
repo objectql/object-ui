@@ -27,7 +27,10 @@ vi.mock('react-router-dom', () => ({
 }));
 
 let authState: Record<string, unknown>;
-vi.mock('@object-ui/auth', () => ({ useAuth: () => authState }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => authState,
+}));
 
 vi.mock('../../console/organizations/resolveHomeUrl', () => ({ resolveRootUrl: () => '/root' }));
 

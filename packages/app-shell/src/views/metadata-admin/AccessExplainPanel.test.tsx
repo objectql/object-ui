@@ -19,7 +19,8 @@ const fetchSpy = vi.fn();
 // `mock`-prefixed name so vitest allows the hoisted factory to close over it.
 let mockObjectList: Array<Record<string, unknown>> = [];
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   createAuthenticatedFetch: () => fetchSpy,
 }));
 vi.mock('@object-ui/react', async (importOriginal) => ({
