@@ -16,9 +16,11 @@
  *
  * The three are the keys the manifest serializer does not forward. Every
  * non-test consumer of `ComponentMeta.inputs` was enumerated and none reads
- * any of them: `sdui-parser`'s serializer forwards exactly six keys per input
- * (`name`, `type`, `required`, `enum`, `binding`, `description`) and its
- * boundary type has no slot for these; the registry's data-source seam reads
+ * any of them: `sdui-parser`'s serializer forwarded exactly six keys per input
+ * at the time of the retirement (`name`, `type`, `required`, `enum`, `binding`,
+ * `description`) and its boundary type had no slot for these — objectui#8067
+ * has since added a SEVENTH, `of`, which is why the pins below read the
+ * serializer's CURRENT list against a named expectation rather than a count; the registry's data-source seam reads
  * `name` only; neither the designer nor the app-shell inspectors consult
  * registry `inputs` at all. The one non-test touch was a WRITE — the
  * `WidgetRegistry` seam copying widget-manifest values across — and it fed
@@ -204,7 +206,7 @@ describe('the zod tombstones REFUSE, loudly and by name (objectui#7493)', () => 
     if (!result.success) {
       expect(result.error.issues[0]?.message).toBe(
         'RETIRED (objectui#7493) — `ComponentInput.defaultValue` was never read, and never published: the manifest '
-        + 'serializer forwards `name`/`type`/`required`/`enum`/`binding`/`description` and this is not one of them, '
+        + 'serializer forwards `name`/`type`/`of`/`required`/`enum`/`binding`/`description` and this is not one of them, '
         + 'so an authored value was silently dropped. Delete the key; the renderer\'s own fallback read is the '
         + 'default, and `description`, which IS published, is where to state it.',
       );
@@ -265,30 +267,42 @@ describe('the `ComponentInput` census after the retirement', () => {
     expect(tombstones).toEqual([...ALL_TOMBSTONES].sort());
   });
 
-  it('declares exactly the five forwarded keys as writable on the TypeScript face', () => {
+  it('declares exactly the six live keys as writable on the TypeScript face', () => {
+    // `of` is the sixth, added by objectui#8067 — the member KIND of an
+    // `array`/`object` input. It is here rather than among the tombstones for
+    // the one reason this pin exists to enforce: it SHIPPED WITH READERS. The
+    // repo-wide parity gate compares every declared `of` against the contract's
+    // member position, `validateTree` reports a member no declared arm accepts,
+    // and the codegen types the generated `.d.ts` surface from it. A key added
+    // here with no reader is the objectui#5905 defect this whole file records.
     const writable = [...block.matchAll(/^\s{2}(\w+)\??: (?!never;)/gm)].map((m) => m[1]).sort();
-    expect(writable).toEqual(['description', 'enum', 'name', 'required', 'type']);
+    expect(writable).toEqual(['description', 'enum', 'name', 'of', 'required', 'type']);
   });
 
-  it('the mirror agrees member for member: eight RETIRED describes, five live keys', () => {
+  it('the mirror agrees member for member: eight RETIRED describes, six live keys', () => {
     const shape = shapeOf(ComponentInputSchema);
     const retired = Object.keys(shape).filter((k) => describeOf(ComponentInputSchema, k)?.startsWith('RETIRED (')).sort();
     const live = Object.keys(shape).filter((k) => !describeOf(ComponentInputSchema, k)?.startsWith('RETIRED (')).sort();
     expect(retired).toEqual([...ALL_TOMBSTONES].sort());
-    expect(live).toEqual(['description', 'enum', 'name', 'required', 'type']);
+    expect(live).toEqual(['description', 'enum', 'name', 'of', 'required', 'type']);
   });
 });
 
-/* ── the serializer still forwards exactly six ───────────────────────────── */
+/* ── the serializer forwards the live keys, and none of the retired ──────── */
 
-describe('the publication path is unchanged: `manifestFromConfigs` forwards exactly six keys', () => {
-  it('reads the serializer source and finds the six, and none of the three', () => {
+describe('the publication path: `manifestFromConfigs` forwards every live key', () => {
+  it('reads the serializer source and finds the seven, and none of the three', () => {
     const src = readFileSync(resolve(ROOT, 'packages/sdui-parser/src/index.ts'), 'utf8');
     const fn = src.slice(src.indexOf('export function manifestFromConfigs('));
     const forwarded = /inputs: \(c\.inputs \?\? \[\]\)\.map\(\(i\) => \(\{([\s\S]*?)\}\)\)/.exec(fn)?.[1] ?? '';
     expect(forwarded.length, 'the serializer no longer maps inputs where this pin reads it').toBeGreaterThan(0);
+    // Seven since objectui#8067 added `of`. The load-bearing half of this pin
+    // is unchanged and is the reason it is an EQUALITY: the three retired keys
+    // must not reappear here, and a serializer that quietly started forwarding
+    // one would be caught by the same assertion that lets a genuinely-read new
+    // key through in a diff someone reviews.
     const keys = [...forwarded.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]).sort();
-    expect(keys).toEqual(['binding', 'description', 'enum', 'name', 'required', 'type']);
+    expect(keys).toEqual(['binding', 'description', 'enum', 'name', 'of', 'required', 'type']);
   });
 });
 

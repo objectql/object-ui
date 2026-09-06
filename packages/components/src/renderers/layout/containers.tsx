@@ -785,7 +785,7 @@ ComponentRegistry.register('tabs', PageTabsRenderer, {
   // `unknown-prop` on an author who wrote it anyway, and the renderer honoured
   // it regardless. Same defect as `record:details.hideFields` in objectui#3808.
   inputs: [
-    { name: 'items', type: 'array', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
+    { name: 'items', type: 'array', of: 'object', required: true, description: 'Tab definitions [{ label, value?, icon?, count?, visibleWhen?, children }] — value is the stable ?tab= URL token, count auto-derives from record:related_list descendants when omitted' },
     { name: 'tabStyle', type: 'enum', enum: ['line', 'card', 'pill'] },
     { name: 'position', type: 'enum', enum: ['top', 'left'] },
     { name: 'alwaysShowStrip', type: 'boolean', description: 'Keep the tab strip visible when only one tab survives. Default false: a lone pill is clutter rather than an affordance, so a one-tab strip is hidden and its panel renders bare. Count the tabs AFTER each item visibleWhen predicate has been evaluated — a page authored with four tabs of which three are conditional reaches this rule whenever the other three are false.' },
@@ -962,7 +962,7 @@ ComponentRegistry.register('accordion', PageAccordionRenderer, {
   category: 'layout',
   isContainer: true,
   inputs: [
-    { name: 'items', type: 'array', required: true, description: 'Panel definitions [{ label, icon?, collapsed?, children }] — collapsed: false opens a panel by default' },
+    { name: 'items', type: 'array', of: 'object', required: true, description: 'Panel definitions [{ label, icon?, collapsed?, children }] — collapsed: false opens a panel by default' },
     { name: 'allowMultiple', type: 'boolean' },
     { name: 'variant', type: 'enum', enum: ['flush', 'card'] },
   ],
@@ -2029,7 +2029,7 @@ ComponentRegistry.register('header', PageHeaderRenderer, {
     // map form this description tells the author to write.
     { name: 'title', type: ['string', 'object'], description: 'Supports {field} interpolation and inline translation maps; falls back to the record title' },
     { name: 'subtitle', type: ['string', 'object'], description: 'Same interpolation as Title' },
-    { name: 'actions', type: 'array', description: "Action IDS — the names of actions declared on the object's own metadata — rendered in the header before any host-injected system actions. An id whose action declares neither record_header nor record_more in its locations renders nowhere." },
+    { name: 'actions', type: 'array', of: 'string', description: "Action IDS — the names of actions declared on the object's own metadata — rendered in the header before any host-injected system actions. An id whose action declares neither record_header nor record_more in its locations renders nowhere." },
     { name: 'breadcrumb', type: 'boolean' },
     { name: 'recordChrome', type: 'boolean', description: 'Set false for the bare h1 header on non-record pages' },
     { name: 'showStar', type: 'boolean' },
