@@ -1544,6 +1544,29 @@ jobs:
         if: steps.docs-changes.outputs.should_run == 'true'
         run: pnpm turbo run build --filter='@object-ui/site'
 
+      # REPORT-ONLY, by the 2026-09-06 ruling on objectui#7851, and it must stay
+      # that way until somebody rules otherwise. The class it censuses has four
+      # known members and three are OPEN (objectui#7440, #7444, #7838), so a
+      # blocking gate here would go red on other people's cards the day it
+      # landed. The script prints its findings and exits 0; it exits 1 only when
+      # the INSTRUMENT is broken — a derivation that matched nothing, a missing
+      # spec artifact, or a failed built-in control — because a census that runs,
+      # goes green and looked at nothing is the counterfeit this whole check
+      # exists to avoid (objectstack#4928, objectui#4690). ⛔ That is why there is
+      # no `continue-on-error` here: it would swallow exactly the failure that
+      # must be loud, and it is not what makes this step report-only.
+      #
+      # It sits in THIS job because its surface is `content/docs/**` and this job
+      # is the one that already knows whether docs changed; it needs the install
+      # (it reads the carriage map out of the built `@objectstack/spec`) and
+      # nothing built beyond it. Consequence worth stating: on a pull request that
+      # changes no `content/` or `apps/site/` file the census does not run — a
+      # spec bump that moves the carriage map is reported by the next docs PR, not
+      # by the bump itself.
+      - name: Docs expression-carriage census (report-only)
+        if: steps.docs-changes.outputs.should_run == 'true'
+        run: node scripts/check-doc-expression-carriage.mjs
+
       # The bookkeeping half of the split documented at the restore step above,
       # placed HERE — after `Build Site`, the step that records this job's
       # verdict — because that is exactly where the post phase it replaces
