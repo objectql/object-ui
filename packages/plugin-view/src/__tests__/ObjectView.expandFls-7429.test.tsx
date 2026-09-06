@@ -62,7 +62,6 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, cleanup } from '@testing-library/react';
-import React from 'react';
 import type { ObjectViewSchema } from '@object-ui/types';
 
 /** Stable stub identity — `ObjectView` carries `perms` in an effect dep list. */

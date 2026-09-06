@@ -781,6 +781,12 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           // Deferral matches every other gate on this path: an unanswered
           // policy filters nothing, and `perms` is in this effect's dependency
           // list, so the expansion is rebuilt the moment the answer arrives.
+          //
+          // `objectName` (checkField's target) and `objectSchema` (fetched
+          // keyed by `recordSourceObjectName`, the OTHER effect below) agree
+          // only because this line sits inside the `dataProvider === 'object'`
+          // branch, where the two resolvers coincide — not by construction;
+          // hoisting this gate out of that branch would let them diverge silently.
           const expandable = buildExpandFields(objectSchema?.fields);
           const expand = !perms?.isLoaded
             ? expandable
