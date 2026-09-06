@@ -9,10 +9,14 @@ import {
   EXPLICIT_EXTENSION,
   MIN_LOADED,
   MIN_PACKAGES,
+  PROVENANCE_OK,
+  PROVENANCE_REMEDY,
   SPECIFIER_DEBT,
+  TURBO_TASK_LOG,
   UNBUNDLED_NODE_UNSUPPORTED,
   attributeMissingModule,
   buildPreservesSpecifiers,
+  buildProvenance,
   effectiveNoEmit,
   emittedSources,
   esmEntryOf,
@@ -22,7 +26,7 @@ import {
   resolvesToModule,
   scanSpecifiers,
 } from '../check-node-esm-load.mjs';
-import { SKIP_DIRS } from '../check-phantom-dependencies.mjs';
+import { SKIP_DIRS, discoverPackages } from '../check-phantom-dependencies.mjs';
 
 /**
  * objectui#4538 — a published entry plain Node ESM cannot load.
@@ -55,8 +59,16 @@ import { SKIP_DIRS } from '../check-phantom-dependencies.mjs';
  *     the result; the block-comment pass did not know it was already inside a
  *     `//` line, so prose naming a package glob opened a comment that ran to
  *     the next closing delimiter anywhere in the file and blanked the live code
- *     between. The last `describe` below pins both halves of that: the hidden
- *     import is found, and the prose that must stay invisible still is.
+ *     between. The objectui#5382 `describe` below pins both halves of that:
+ *     the hidden import is found, and the prose that must stay invisible is.
+ *  7. **A build is not a production** (objectui#7276). turbo shares one cache
+ *     across every worktree of a checkout, so `pnpm build` here can be a
+ *     replay of a sibling worktree's artifacts — and the gate used to print
+ *     that it "refuses to grade artifacts it did not produce" straight over
+ *     that replay. The last `describe` pins the leg that makes the sentence
+ *     true, including the direction that used to be silent: a GREEN over
+ *     someone else's artifacts. It is written to FAIL CLOSED, so the pins
+ *     cover not knowing as well as knowing the wrong answer.
  */
 
 const tmpdir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'esm-load-gate-'));
@@ -659,6 +671,146 @@ describe('the ledger is a ratchet', () => {
     ]) {
       expect(SPECIFIER_DEBT.has(fixed)).toBe(false);
       expect(UNBUNDLED_NODE_UNSUPPORTED.has(fixed)).toBe(false);
+    }
+  });
+});
+
+/**
+ * objectui#7276 — the gate said it refuses artifacts it did not produce, over
+ * a build that could not keep the promise.
+ *
+ * Measured on turbo 2.10.9, which announces it on every run as `using shared
+ * worktree cache`: the cache is keyed by input hash and stored in the MAIN
+ * checkout's `.turbo/cache`, so a `pnpm build` in one worktree is routinely
+ * satisfied by an entry a sibling worktree wrote, and turbo restores that
+ * worktree's artifacts and its log here. Reproduced in this repository at
+ * 52cac38 — a second worktree of the same commit replayed all 43 build tasks
+ * in 272ms, every task log naming the producing worktree.
+ *
+ * The direction these pins exist for is the SILENT one. A red over someone
+ * else's artifacts is at least loud, however misattributed; a GREEN over
+ * someone else's artifacts is a verdict about a tree the caller is not
+ * standing in, and no exit code told the two apart.
+ *
+ * So the shape under test is: `own` is the ONLY verdict that lets the load leg
+ * speak, and every other outcome — including both ways of not knowing — is a
+ * refusal that names itself. A provenance check that answered "sure" when it
+ * could not read its marker would be this card's own subject matter one level
+ * up, which is why the not-knowing cases are pinned as hard as the wrong-tree
+ * one.
+ */
+describe('objectui#7276 — the load leg grades only what this tree produced', () => {
+  /** A package directory with a turbo task log in it, as turbo leaves one. */
+  const withTaskLog = (log: string) => {
+    const dir = tmpdir();
+    fs.mkdirSync(path.join(dir, path.dirname(TURBO_TASK_LOG)), { recursive: true });
+    fs.writeFileSync(path.join(dir, TURBO_TASK_LOG), log);
+    return dir;
+  };
+
+  /** pnpm's banner, in the shape every one of this repo's 43 build logs has. */
+  const taskLog = (name: string, version: string, dir: string, script = 'tsc') =>
+    ['', `> ${name}@${version} build ${dir}`, `> ${script}`, '', '✓ done', ''].join('\n');
+
+  it('accepts a log whose banner names the directory it is sitting in', () => {
+    const dir = withTaskLog('');
+    fs.writeFileSync(path.join(dir, TURBO_TASK_LOG), taskLog('@object-ui/types', '17.6.0', dir));
+    expect(buildProvenance(dir)).toEqual({ code: PROVENANCE_OK, producedIn: dir });
+  });
+
+  it('NAMES the foreign directory, which is the only thing that tells two greens apart', () => {
+    // The line as it was actually observed, from the card: a run in
+    // objectui-issue-6291 whose replayed log named objectui-issue-6606.
+    const dir = withTaskLog('');
+    const foreign = '/home/user/objectui-issue-6606/examples/byo-backend-console';
+    fs.writeFileSync(
+      path.join(dir, TURBO_TASK_LOG),
+      taskLog('@object-ui/example-byo-backend-console', '0.1.0', foreign, 'tsc && vite build'),
+    );
+    expect(buildProvenance(dir)).toEqual({ code: 'foreign', producedIn: foreign });
+  });
+
+  it('refuses a package with no task log at all, rather than grading it', () => {
+    // `--no-build` on a tree nobody built, and the state a new worktree is in.
+    // Artifacts can still be lying there from anything; nothing says who.
+    expect(buildProvenance(tmpdir())).toEqual({ code: 'no-build-log', producedIn: null });
+  });
+
+  it('refuses a log whose first `> ` line is not the banner, rather than guessing', () => {
+    // The failure mode of the day turbo or pnpm changes that line: every
+    // package in the repository refuses at once and the message says which two
+    // identifiers to update. Loud and wrong beats quiet and green.
+    const dir = withTaskLog(['', '> tsc && vite build', '', 'built'].join('\n'));
+    expect(buildProvenance(dir)).toEqual({ code: 'unreadable-build-log', producedIn: null });
+  });
+
+  it('reads the FIRST `> ` line only, so a later look-alike cannot answer for it', () => {
+    // A build's own stdout is not a provenance record. If the parser scanned on
+    // until something matched, any tool that echoes a pnpm-shaped line would be
+    // able to vouch for the tree.
+    const dir = withTaskLog(
+      ['', '> tsc && node ./tool.mjs', '> @evil/pkg@1.0.0 build /somewhere/else', ''].join('\n'),
+    );
+    expect(buildProvenance(dir)).toEqual({ code: 'unreadable-build-log', producedIn: null });
+  });
+
+  it('compares resolved paths, so a non-normalized banner is not a false foreign', () => {
+    const dir = withTaskLog('');
+    const same = path.join(dir, 'sub', '..');
+    fs.writeFileSync(path.join(dir, TURBO_TASK_LOG), taskLog('@object-ui/core', '17.6.0', same));
+    expect(buildProvenance(dir).code).toBe(PROVENANCE_OK);
+  });
+
+  it('keeps exactly ONE accepting verdict, so the check cannot widen quietly', () => {
+    // The way this degrades into a no-op is a second "close enough" verdict.
+    // Every code that is not PROVENANCE_OK carries a remedy, and the accepting
+    // one carries none — that asymmetry is the pin.
+    expect(PROVENANCE_OK).toBe('own');
+    expect(Object.keys(PROVENANCE_REMEDY)).not.toContain(PROVENANCE_OK);
+    expect(Object.keys(PROVENANCE_REMEDY).sort()).toEqual([
+      'foreign',
+      'no-build-log',
+      'unreadable-build-log',
+    ]);
+    for (const remedy of Object.values(PROVENANCE_REMEDY)) expect(remedy.length).toBeGreaterThan(40);
+  });
+
+  /**
+   * The anti-vacuous leg: the check must still be reading REAL banners.
+   *
+   * Every assertion above is a fixture, and a fixture keeps passing after the
+   * thing it models has moved. So this one is built from the repository's own
+   * manifests — real names (scoped and not), real versions, real build scripts
+   * — and asserts both directions on each: the banner line pnpm writes for that
+   * package is recognised, and the second line of that package's own build
+   * script is NOT. A floor under the sweep keeps it from becoming a loop over
+   * nothing, which is the same failure this whole file exists to refuse.
+   */
+  it('recognises the banner, and only the banner, for EVERY published package', () => {
+    // The slice of `discoverPackages`' result these assertions read, narrowed
+    // once here rather than at each use, in the same spirit as
+    // `ParsedTsconfig` above: the walk returns JSON, and a wrong assumption
+    // about a field should still be a type error.
+    type DiscoveredPackage = {
+      manifest: { name: string; version: string; private?: boolean; scripts?: Record<string, string> };
+    };
+    const discovered = discoverPackages(REPO_ROOT) as DiscoveredPackage[];
+    const published = discovered.filter((pkg) => !pkg.manifest.private);
+    expect(published.length).toBeGreaterThanOrEqual(MIN_PACKAGES);
+
+    for (const pkg of published) {
+      const { name, version, scripts } = pkg.manifest;
+      const buildScript = scripts?.build;
+      if (!buildScript) continue;
+
+      const dir = withTaskLog('');
+      fs.writeFileSync(path.join(dir, TURBO_TASK_LOG), taskLog(name, version, dir, buildScript));
+      expect(buildProvenance(dir), `banner for ${name}`).toEqual({ code: PROVENANCE_OK, producedIn: dir });
+
+      // The same package's build-script line, alone: never mistakable for a
+      // banner, or a multi-command build could vouch for the wrong tree.
+      fs.writeFileSync(path.join(dir, TURBO_TASK_LOG), ['', `> ${buildScript}`, ''].join('\n'));
+      expect(buildProvenance(dir).code, `build script line for ${name}`).toBe('unreadable-build-log');
     }
   });
 });
