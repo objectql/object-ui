@@ -723,8 +723,6 @@ const UNGATED_DOCS = {
     '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2554x2 TS2559x2 — candidate real defects, un-triaged',
   'packages/layout/README.md':
     '3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
-  'packages/mobile/README.md':
-    '19 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS1108x2 TS2345x1 TS2353x1 — candidate real defects, un-triaged',
   'packages/permissions/README.md':
     '12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x4 TS2345x1 TS2353x1 — candidate real defects, un-triaged',
   'packages/plugin-ai/README.md':
