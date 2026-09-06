@@ -98,9 +98,23 @@ const NUMERIC_ROWS = [
 const TWO_SERIES = [{ dataKey: 'ym' }, { dataKey: 'zm' }];
 const ONE_SERIES = [{ dataKey: 'ym' }];
 
+/**
+ * `SchemaRendererProvider` requires a data source, and every schema below
+ * carries its rows INLINE — so this one answers with nothing, exactly as the
+ * app-shell sweep's does. A chart that started querying instead of plotting
+ * its own `data` would show up here as an empty plot, not as a pass.
+ */
+const NO_ROWS_SOURCE = {
+  find: async () => [],
+  findOne: async () => null,
+  aggregate: async () => [],
+  count: async () => 0,
+  getObject: async () => null,
+};
+
 async function renderSchema(schema: Record<string, unknown>): Promise<HTMLElement> {
   const { container } = render(
-    <SchemaRendererProvider>
+    <SchemaRendererProvider dataSource={NO_ROWS_SOURCE as never}>
       <SchemaRenderer schema={schema as never} />
     </SchemaRendererProvider>,
   );
