@@ -4,10 +4,13 @@
  *
  * Run:  node scripts/check-node-esm-load.mjs --specifiers-only  (`pnpm check:esm-specifiers`)
  *       node scripts/check-node-esm-load.mjs                    (`pnpm check:node-esm-load`)
+ *       node scripts/check-node-esm-load.mjs --force-build      (the same, cache off)
  * Exit: 0 = no un-ledgered package emits an unresolvable relative specifier,
- *           and (full mode) every entry the gate imported either evaluated or
- *           is named as a stated boundary (UNBUNDLED_NODE_UNSUPPORTED),
- *       1 = a finding, OR the gate could not build, OR it inspected too little
+ *           and (full mode) every entry the gate GRADED was built by this tree
+ *           and either evaluated or is named as a stated boundary
+ *           (UNBUNDLED_NODE_UNSUPPORTED),
+ *       1 = a finding, OR the gate could not build, OR an artifact it was about
+ *           to grade was not produced by this tree, OR it inspected too little
  *           to be asserting anything.
  *
  * ## The defect (objectui#4538)
@@ -54,11 +57,48 @@
  *      own emitted entry was CLEAN, and the failure appeared only once
  *      evaluation crossed into `@object-ui/react`. A check that stops at
  *      RESOLUTION passes while the tree is broken, so this one evaluates.
+ *      It grades only artifacts THIS tree produced — see the leg below, which
+ *      is what makes that sentence true rather than merely printed.
+ *
+ *   3. PROVENANCE leg (full mode, runs between the build and the grading).
+ *      Reads the turbo task log beside each package and refuses to grade any
+ *      artifact a different tree produced. See `buildProvenance`, and the
+ *      section below for why a build is not by itself proof of production.
  *
  * The legs disagree by construction, and that is the point. Leg 1 cannot see a
  * defect that reaches a package through a dependency; leg 2 cannot see a
  * defect on a code path evaluation does not take. Leg 1 is the ratchet; leg 2
- * is the proof that the ratchet guards the right property.
+ * is the proof that the ratchet guards the right property; leg 3 is the proof
+ * that leg 2's verdict is about the tree the caller is standing in.
+ *
+ * ## Building is not producing (objectui#7276)
+ *
+ * This gate used to print "the load leg refuses to grade artifacts it did not
+ * produce" over a `pnpm build` that could not keep the promise. turbo keys its
+ * cache by input hash and — measured on turbo 2.10.9, which announces it every
+ * run as `using shared worktree cache` — stores it in the MAIN checkout's
+ * `.turbo/cache`, not the worktree's. On a machine running several agents in
+ * sibling worktrees of one clone, a build here is routinely satisfied by an
+ * entry another worktree wrote, and turbo restores that worktree's artifacts
+ * and its log into this one.
+ *
+ * Both directions of that are bad, and they are not equally visible. The LOUD
+ * one is a red whose cause is elsewhere: a cache entry whose `outputs` do not
+ * cover everything the build emits replays an incomplete tree, and the gate
+ * reports `no-build-output` against a change that touched neither the package
+ * nor its inputs. The SILENT one is the one that matters — a GREEN says
+ * nothing about your tree when the artifacts came from someone else's, and no
+ * exit code tells the two apart. The honest reading there is NOT MEASURED,
+ * which was not one of this gate's outputs. Leg 3 makes it one.
+ *
+ * Why detect rather than isolate: measured in this repository, a cold
+ * `turbo run build --filter=!@object-ui/site` took 3m46.7s over 43 tasks and
+ * the same run against a warm shared cache took 213ms with all 43 replayed —
+ * about 1065x. Paying that on every run to make "I produced these" true by
+ * construction is the wrong trade for a gate people run locally, so the
+ * default keeps the cache and leg 3 carries the invariant for a few file
+ * reads. `--force-build` buys the expensive form (`TURBO_FORCE`) for the
+ * caller who wants a reading with no shared-cache question in it at all.
  *
  * Leg 2 also carries this repository's one PRODUCT boundary: three
  * style-carrying plugin packages that plain Node is not expected to load, ruled
@@ -78,6 +118,14 @@
  *   - "Import it and count the successes." A run where every package failed for
  *     an unrelated reason would report no findings of the gated class. So both
  *     legs assert their own SIZE — see MIN_PACKAGES / MIN_LOADED.
+ *   - "Grade whatever artifacts are lying there." Measured, and the reason
+ *     leg 3 exists: they can be another worktree's. Leg 3 is written to FAIL
+ *     CLOSED for the same reason the floors exist — `own` is the only verdict
+ *     it grades on, so a missing task log, an unparseable one, or a marker
+ *     convention turbo changes under us all come out as a refusal that names
+ *     itself, never as a silent pass. A provenance check that answered "sure"
+ *     when it could not read the marker would be this card's own subject
+ *     matter one level up.
  *   - "Scan a text the gate MUTATED first." Leg 1 used to blank comments out of
  *     each source with two ordered regexes before matching specifiers in it,
  *     and the block-comment pass had no notion of already being inside a `//`
@@ -122,6 +170,95 @@ export const MIN_PACKAGES = 30;
  * nothing result objectui#4538 called the failure mode to look for.
  */
 export const MIN_LOADED = 3;
+
+
+// ── who built the artifacts (objectui#7276) ──────────────────────────────────
+
+/**
+ * The per-task log turbo writes beside every build, and the one fact read out
+ * of it: WHERE the script ran.
+ *
+ * The marker costs nothing to keep because turbo already keeps it. Each task's
+ * stdout is cached alongside that task's outputs, and its first banner line is
+ * pnpm's `> <name>@<version> <script> <absolute package dir>` — the directory
+ * as it was WHEN THE SCRIPT ACTUALLY RAN. A cache replay restores that line
+ * verbatim into the tree it replays into, so it keeps naming the worktree that
+ * produced the artifacts rather than the one now holding them. That is exactly
+ * the fact this gate needs and cannot get from the artifacts themselves, which
+ * are byte-identical either way.
+ */
+export const TURBO_TASK_LOG = join('.turbo', 'turbo-build.log');
+
+/**
+ * pnpm's run banner. Only the tail is an absolute path; nothing else on the
+ * line is, which is what makes the shape safe to read positionally.
+ *
+ * Anchored at both ends and applied to the FIRST `> ` line only. A build whose
+ * own stdout happens to contain a look-alike line must not be able to answer
+ * this question — and neither must the second `> ` line every multi-command
+ * build script writes (`> tsc && node ...`), which the `@` and the absolute
+ * tail already deny it.
+ */
+const PNPM_RUN_BANNER = /^> \S+@\S+ \S+ (\/.+?)\s*$/;
+
+/**
+ * The only provenance verdict the load leg will grade on.
+ *
+ * Written down as a constant, and pinned as the ONLY member of the accepting
+ * set, because the way a check like this dies quietly is by growing a second
+ * "close enough" verdict — at which point it examines everything and refuses
+ * nothing, which is the shape of gate objectui#7276 was filed about.
+ */
+export const PROVENANCE_OK = 'own';
+
+/**
+ * What each refusal means and what the caller does about it.
+ *
+ * `unreadable-build-log` names the two identifiers a future maintainer has to
+ * change, because the day turbo or pnpm moves that line is the day every
+ * package in the repository starts refusing, and this message is the only
+ * place that will say why.
+ */
+export const PROVENANCE_REMEDY = {
+  foreign:
+    'turbo shares one cache across every worktree of a checkout, so the build replayed another ' +
+    "tree's entry here. Re-run with --force-build for a reading with no shared-cache question in it.",
+  'no-build-log':
+    'no turbo task log sits beside this package, so nothing says who built what is here. Run the ' +
+    'build (drop --no-build), or --force-build.',
+  'unreadable-build-log':
+    "the task log's first `> ` line is not pnpm's `> name@version script dir`, so provenance could " +
+    'not be READ — which this gate treats as a refusal, never as a pass. If turbo or pnpm changed ' +
+    'that line, TURBO_TASK_LOG and PNPM_RUN_BANNER in this file are what need updating.',
+};
+
+/**
+ * Who produced the artifacts currently sitting in `pkgDir`.
+ *
+ * Fails closed by construction: every outcome other than `PROVENANCE_OK` is a
+ * refusal, including both ways of not knowing. "Could not read the marker" and
+ * "the marker names someone else" differ in the remedy, not in whether the
+ * load leg is allowed to speak.
+ *
+ * @param {string} pkgDir absolute path to the package directory
+ * @returns {{ code: 'own'|'foreign'|'no-build-log'|'unreadable-build-log', producedIn: string|null }}
+ */
+export function buildProvenance(pkgDir) {
+  let log;
+  try {
+    log = readFileSync(join(pkgDir, TURBO_TASK_LOG), 'utf8');
+  } catch {
+    return { code: 'no-build-log', producedIn: null };
+  }
+  const banner = log.split('\n').find((line) => line.startsWith('> '));
+  const match = banner === undefined ? null : PNPM_RUN_BANNER.exec(banner);
+  if (!match) return { code: 'unreadable-build-log', producedIn: null };
+  const producedIn = match[1];
+  return {
+    code: resolve(producedIn) === resolve(pkgDir) ? PROVENANCE_OK : 'foreign',
+    producedIn,
+  };
+}
 
 // ── which builds preserve specifiers ─────────────────────────────────────────
 
@@ -685,6 +822,15 @@ export function attributeMissingModule(missingPath, packages, root) {
 function main(argv) {
   const specifiersOnly = argv.includes('--specifiers-only');
   const noBuild = argv.includes('--no-build');
+  // Buys the expensive form of the same invariant: with the cache off, every
+  // artifact graded below is one this run produced, so leg 3 has nothing left
+  // to find. Opt-in because it is measured at ~1065x the cached build — see
+  // "Building is not producing" at the top of this file.
+  const forceBuild = argv.includes('--force-build');
+  if (noBuild && forceBuild) {
+    console.error('--no-build and --force-build ask for opposite things; pass one.');
+    return 1;
+  }
   const root = resolve(scriptDir, '..');
 
   const packages = discoverPackages(root).filter((p) => !p.manifest.private);
@@ -745,18 +891,83 @@ function main(argv) {
   if (!failed) console.log('Specifier leg: no un-ledgered package emits an extensionless relative specifier.');
 
   if (specifiersOnly) {
-    console.log('\n--specifiers-only: the load leg (which builds) was not run.');
+    // The second door into this script. It reads SOURCES and never looks at
+    // an artifact, so it has no provenance question to answer — but it must
+    // not be read as having answered the load leg's, which is why the line
+    // says what was not run rather than only that something passed.
+    console.log(
+      '\n--specifiers-only: the load leg (which builds, and grades only artifacts this tree ' +
+        'produced) was not run, so nothing above is a statement about built artifacts.',
+    );
     return failed ? 1 : 0;
   }
 
   // ── leg 2 ──
   if (!noBuild) {
-    console.log('\nBuilding every published package (the load leg refuses to grade artifacts it did not produce)…');
+    console.log(
+      forceBuild
+        ? '\nBuilding every published package with the cache OFF (TURBO_FORCE), so every artifact the ' +
+            'load leg grades below is one this run produced…'
+        : '\nBuilding every published package. turbo shares one cache across every worktree of this ' +
+            'checkout, so this build can be a replay of a sibling worktree\'s — the provenance leg ' +
+            'below reads each task log and refuses to grade what this tree did not produce ' +
+            '(objectui#7276)…',
+    );
     try {
-      execFileSync('pnpm', ['build'], { cwd: root, stdio: 'inherit' });
+      execFileSync('pnpm', ['build'], {
+        cwd: root,
+        stdio: 'inherit',
+        env: forceBuild ? { ...process.env, TURBO_FORCE: 'true' } : process.env,
+      });
     } catch (error) {
       console.error(`\n✗ the build failed, so the load leg has nothing to grade: ${error.message}`);
       return 1;
+    }
+  }
+
+  // ── leg 3 ──
+  // Asked BEFORE anything is graded, because the answer decides whether a
+  // verdict about these artifacts would be a verdict about this tree at all.
+  const gradable = esmPackages.filter((p) => esmEntryOf(p.manifest));
+  if (gradable.length === 0) {
+    console.error(
+      'no published ESM package declares an importable entry — the provenance and load legs would ' +
+        'both examine nothing, which is the one answer they are not allowed to give.',
+    );
+    return 1;
+  }
+  const provenance = new Map();
+  const refused = [];
+  for (const pkg of gradable) {
+    const verdict = buildProvenance(join(root, pkg.dir));
+    provenance.set(pkg.name, verdict);
+    if (verdict.code !== PROVENANCE_OK) refused.push({ pkg, ...verdict });
+  }
+  console.log(
+    `\nProvenance leg: ${gradable.length - refused.length} of ${gradable.length} gradable entries were ` +
+      'built by this tree.',
+  );
+  if (refused.length > 0) {
+    failed = true;
+    console.error(
+      `\n✗ ${refused.length} of ${gradable.length} entries REFUSED — the load leg does not grade what ` +
+        'this tree did not produce, so it has nothing to say about them. Grouped by why, and each one ' +
+        "names the tree it came from, because a GREEN over another tree's artifacts is the direction " +
+        'objectui#7276 was filed for and the one no exit code used to distinguish.',
+    );
+    // Grouped, and the remedy printed once per group: the same sentence
+    // repeated forty times is how a reader stops reading the paths, which are
+    // the part that says WHERE the artifacts came from.
+    for (const code of Object.keys(PROVENANCE_REMEDY)) {
+      const group = refused.filter((r) => r.code === code);
+      if (group.length === 0) continue;
+      console.error(`\n  ${code} (${group.length}):`);
+      for (const r of group.slice(0, 10)) {
+        const detail = r.producedIn ?? `nothing readable at ${join(r.pkg.dir, TURBO_TASK_LOG)}`;
+        console.error(`    ${r.pkg.name}  ←  ${detail}`);
+      }
+      if (group.length > 10) console.error(`    … and ${group.length - 10} more`);
+      console.error(`  → ${PROVENANCE_REMEDY[code]}`);
     }
   }
 
@@ -774,6 +985,7 @@ function main(argv) {
       notImportable.push(`${pkg.name} (${pkg.manifest.bin ? 'bin-only CLI' : 'no importable entry declared'})`);
       continue;
     }
+    if (provenance.get(pkg.name)?.code !== PROVENANCE_OK) continue;
     const entryPath = join(root, pkg.dir, entry);
     if (!existsSync(entryPath)) {
       loadFindings.push({
@@ -805,6 +1017,11 @@ function main(argv) {
   }
 
   console.log(`\nLoad leg: ${loaded} of ${esmPackages.length} published ESM entries imported and evaluated.`);
+  if (refused.length > 0) {
+    // Named on every run for the same reason the two lines below are: a
+    // shortfall a reader cannot see is how a count starts meaning nothing.
+    console.log(`  refused on provenance, NOT graded: ${refused.length} (named by the provenance leg above)`);
+  }
   if (notImportable.length > 0) {
     console.log(`  not importable by design: ${notImportable.join(', ')}`);
   }
