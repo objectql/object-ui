@@ -117,10 +117,11 @@ describe('QueryParams.$filter — declares the union it actually accepts (#3909)
   });
 
   it('still refuses a value that is neither shape', () => {
-    // The union documents; it must not have become `any` on the way. Note the
-    // slot sits on an interface that also carries `[key: string]: any` — these
-    // pins prove the declared property still wins over that index signature,
-    // which is the whole reason the declaration is worth anything.
+    // The union documents; it must not have become `any` on the way. When this
+    // was written the slot sat on an interface that also carried
+    // `[key: string]: any`, and these pins proved the declared property still
+    // won over that index signature; the signature is gone (objectui#7497 —
+    // see `query-params-closed-keys-7497.test.ts`), and the pins still hold.
     // @ts-expect-error a number is not a filter
     const bad: QueryParams = { $filter: 42 };
     // @ts-expect-error a string is not a filter

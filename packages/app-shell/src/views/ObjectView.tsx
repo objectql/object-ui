@@ -1854,9 +1854,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // page size. The effect therefore did the opposite of what it says: it
     // downloaded EVERY row of the object, on every mount and every refresh of
     // every list view, to read one integer off the envelope. The dead spelling
-    // type-checked because `QueryParams` carries `[key: string]: any` for
+    // type-checked because `QueryParams` then carried `[key: string]: any` for
     // adapter-specific params; `object-ui/no-unprefixed-query-params` rejects it
-    // at write time now (objectui#5458).
+    // at write time now (objectui#5458), and the index signature itself is gone
+    // (objectui#7497), so `tsc` refuses it as well.
     //
     // `total` is the only field that can still answer the question, so the
     // row-counting fallbacks are gone rather than repointed. Once we ask for
