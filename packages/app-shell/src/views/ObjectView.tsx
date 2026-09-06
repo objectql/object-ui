@@ -2432,14 +2432,39 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     ...((viewDef as any).tree || {}),
                     labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || 'name',
                 },
-                chart: {
-                    chartType: viewDef.chart?.chartType,
-                    xAxisField: viewDef.chart?.xAxisField,
-                    yAxisFields: viewDef.chart?.yAxisFields,
-                    aggregation: viewDef.chart?.aggregation,
-                    series: viewDef.chart?.series,
-                    config: viewDef.chart?.config,
-                },
+                // The chart block the view DECLARED, forwarded WHOLE — a
+                // pointer, not a copy of its key set (objectui#7823).
+                //
+                // This was a hand-listed projection of six keys (`chartType` /
+                // `xAxisField` / `yAxisFields` / `aggregation` / `series` /
+                // `config`): the PRE-ADR-0021 set, frozen. The whole ADR-0021
+                // (#1890) authoring shape (`dataset` / `dimensions` / `values`)
+                // and the legacy `categoryField` / `valueField` spelling had no
+                // rung here, so an author who declared them reached `ListView`
+                // with the binding stripped. Once objectui#7544 gave
+                // `ListView.availableViews` a chart capability check, that gate
+                // was handed six `undefined` keys and correctly answered
+                // "nothing declared" about a view whose author declared
+                // everything — the Chart toggle stayed hidden, with no
+                // diagnostic, while the legacy `xAxisField` spelling (which the
+                // projection did carry) went on resolving.
+                //
+                // ⛔ NOT widened to nine keys. A hand-listed projection is a
+                // COPY of a schema's key set and copies rot silently: three more
+                // keys would buy this ADR's correctness and re-arm the identical
+                // trap for the next block key, with nothing to fire — `viewDef`
+                // is `Record<string, any>`, so a missing rung is invisible to
+                // tsc (objectui#7559 owns that mechanism and disclaims the
+                // census this belongs to).
+                //
+                // Forwarding whole is safe because `ListView` never SPREADS this
+                // block — `resolveListChartBinding` and `case 'chart'` both read
+                // it BY NAME — so keys it does not consult are ignored exactly
+                // as they are for the `gantt` / `timeline` / `tree` blocks above,
+                // which are already relayed whole. Undeclared stays `undefined`
+                // rather than the old permanently-truthy husk, which is what
+                // keeps the gate from offering a chart nobody configured.
+                chart: viewDef.chart,
             },
         };
 

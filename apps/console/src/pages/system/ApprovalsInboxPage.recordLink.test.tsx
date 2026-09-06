@@ -107,7 +107,10 @@ const { adapterFind, approvalsApiStub, rows, ADAPTER, AUTH, I18N } = vi.hoisted(
   return { adapterFind, approvalsApiStub, rows, ADAPTER, AUTH, I18N };
 });
 
-vi.mock('@object-ui/i18n', () => ({ useObjectTranslation: () => I18N }));
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useObjectTranslation: () => I18N,
+}));
 
 vi.mock('@object-ui/auth', () => {
   const authFetch = vi.fn(async () => new Response('{}', { status: 200 }));

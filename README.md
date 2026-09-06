@@ -92,23 +92,31 @@ npm install @object-ui/react @object-ui/components @object-ui/data-objectstack
 Use ObjectUI components without the full console infrastructure. Perfect for integrating into existing apps:
 
 ```bash
-npm install @object-ui/app-shell @object-ui/providers
+npm install @object-ui/app-shell @object-ui/plugin-view @object-ui/providers
 ```
 
 Then build your own console in ~100 lines:
 ```tsx
-import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
-import { ThemeProvider, DataSourceProvider } from '@object-ui/providers';
+import { AppShell } from '@object-ui/app-shell';
+import { ObjectView } from '@object-ui/plugin-view';
+import { ThemeProvider, DataSourceProvider, useDataSource } from '@object-ui/providers';
 
 function MyConsole() {
   return (
     <ThemeProvider>
       <DataSourceProvider dataSource={myAPI}>
         <AppShell sidebar={<MySidebar />}>
-          <ObjectRenderer objectName="contact" />
+          <ContactList />
         </AppShell>
       </DataSourceProvider>
     </ThemeProvider>
+  );
+}
+
+function ContactList() {
+  const dataSource = useDataSource();
+  return (
+    <ObjectView schema={{ type: 'object-view', objectName: 'contact' }} dataSource={dataSource} />
   );
 }
 ```
@@ -206,10 +214,9 @@ pnpm add @object-ui/react @object-ui/components
 ```tsx
 import React from 'react'
 import { SchemaRenderer } from '@object-ui/react'
-import { registerDefaultRenderers } from '@object-ui/components'
-
-// Register default components once
-registerDefaultRenderers()
+// Importing the package registers every default renderer as a side effect —
+// there is no separate registration call.
+import '@object-ui/components'
 
 const schema = {
   type: "page",
@@ -369,11 +376,11 @@ Object UI is designed to work with any backend through its universal DataSource 
 ### ObjectStack Integration
 
 ```bash
-npm install @object-ui/core
+npm install @object-ui/data-objectstack
 ```
 
 ```typescript
-import { createObjectStackAdapter } from '@object-ui/core';
+import { createObjectStackAdapter } from '@object-ui/data-objectstack';
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',

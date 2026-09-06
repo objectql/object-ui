@@ -312,6 +312,64 @@ function readInitialiser(body, from) {
 const OBTAIN_TOKEN = '__OBTAINED_ORIGINAL__';
 
 /**
+ * Every `vi.importActual(<specifier>)` in `text`, as `[start, end)` spans.
+ *
+ * Deliberately NOT one regular expression. The optional generic argument
+ * NESTS -- `vi.importActual<Record<string, unknown>>('@object-ui/i18n')` is
+ * the spelling four factories in this tree write -- and the `<[^>]*>` this
+ * replaces stopped at the FIRST `>`: it consumed `<Record<string, unknown>`
+ * and then failed against the `>` that follows, so the whole call went
+ * unrecognised and the factory was reported as one that "never obtains the
+ * real module" -- on code that obtains it and spreads it.
+ *
+ * That is the failure this gate's header rules out by name: a recogniser that
+ * calls correct code broken gets the gate deleted rather than fixed. Measured
+ * on this tree at the time of the fix, with `@object-ui/i18n` as the covered
+ * specifier, 35 frozen became 31, and each of the four that moved spreads a
+ * binding initialised from this call (objectui#7337). Nothing moves the other
+ * way: this only ever ADDS a way to recognise the obtain, so no site that read
+ * `inherits` can start reading `frozen`.
+ *
+ * Angle brackets are scanned BALANCED. Anything that does not parse as the
+ * exact call shape is skipped, so the worst case for an unforeseen spelling is
+ * the verdict the regex already gave.
+ */
+export function importActualSpans(text, specifier) {
+  const spans = [];
+  const head = /\bvi\s*\.\s*importActual\s*/g;
+  let m;
+  while ((m = head.exec(text)) !== null) {
+    let i = m.index + m[0].length;
+    if (text[i] === '<') {
+      let depth = 0;
+      for (; i < text.length; i++) {
+        if (text[i] === '<') depth++;
+        else if (text[i] === '>' && --depth === 0) {
+          i++;
+          break;
+        }
+      }
+      if (depth !== 0) continue; // unbalanced -- not a call this gate can read
+      while (/\s/.test(text[i] ?? '')) i++;
+    }
+    if (text[i] !== '(') continue;
+    i++;
+    while (/\s/.test(text[i] ?? '')) i++;
+    const quote = text[i];
+    if (quote !== "'" && quote !== '"' && quote !== '`') continue;
+    if (text.slice(i + 1, i + 1 + specifier.length) !== specifier) continue;
+    let j = i + 1 + specifier.length;
+    if (text[j] !== quote) continue;
+    j++;
+    while (/\s/.test(text[j] ?? '')) j++;
+    if (text[j] !== ')') continue;
+    spans.push([m.index, j + 1]);
+    head.lastIndex = j + 1;
+  }
+  return spans;
+}
+
+/**
  * Read the head of a factory argument: its parameter names, and where its body
  * starts. Returns `null` when the argument is not a function literal at all.
  */
@@ -363,26 +421,16 @@ export function classifyFactory(masked, literal, start, end, specifier) {
   // then blank literal content -- in that order, because the specifier the
   // first pass matches on IS literal content.
   const bodyStart = head.bodyStart;
-  const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const importActualRe = new RegExp(
-    `\\bvi\\s*\\.\\s*importActual\\s*(?:<[^>]*>)?\\s*\\(\\s*(['"\`])${escaped}\\1\\s*\\)`,
-    'g',
-  );
 
   let body = '';
   for (let i = bodyStart; i < end; i++) body += literal[i] ? ' ' : masked[i];
   // ...but the importActual specifier has to survive the blanking to be
   // matched, so run that pass over the un-blanked body and pad to length.
   const rawBody = masked.slice(bodyStart, end);
-  let obtainedViaImportActual = false;
-  const marks = [];
   let m;
-  importActualRe.lastIndex = 0;
-  while ((m = importActualRe.exec(rawBody)) !== null) {
-    if (literal[bodyStart + m.index]) continue; // the call itself is quoted
-    obtainedViaImportActual = true;
-    marks.push([m.index, m.index + m[0].length]);
-  }
+  // A call whose own `vi` token sits inside a string literal is prose, not code.
+  const marks = importActualSpans(rawBody, specifier).filter(([from]) => !literal[bodyStart + from]);
+  const obtainedViaImportActual = marks.length > 0;
   for (const [from, to] of marks) {
     body = body.slice(0, from) + OBTAIN_TOKEN.padEnd(to - from, ' ') + body.slice(to);
   }

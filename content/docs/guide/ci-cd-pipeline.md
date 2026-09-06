@@ -55,6 +55,7 @@ one has its own section below.
 | `spec-range-floors.yml` | Spec Range Floor Scan | Nightly cron `11 4 * * *`; push to `main` touching the gate; manual | No — the blocking copy runs on the publish path, not here |
 | `node-esm-load-gate.yml` | Node ESM Load Scan | Nightly cron `17 4 * * *`; push to `main` touching the gate; manual | No — the per-PR half is `pnpm check:esm-specifiers` in **Type Check** |
 | `half-state-patrol.yml` | Half-State Patrol | 6-hourly cron `37 1,7,13,19 * * *`; manual; PR touching the sweeper or the workflow | No — **report-only**; it fails only when the sweep could not run |
+| `merge-queue-head-patrol.yml` | Merge queue head patrol | Every 15 minutes (cron `7,22,37,52 * * * *`); manual | No — it gates no branch and blocks no queue, but it **goes red on a finding**: a merge-queue head with no `merge_group` build is a live repo-wide block |
 | `hook-selftests.yml` | Hook Self-Tests | PR / push touching `.claude/hooks/**` or the workflow | **Yes** |
 
 The path filters explain most "why did nothing run on my PR?" questions:
@@ -213,7 +214,7 @@ it green — which is how two of `type-check`'s gates came to be missing from th
 | `test-coverage` | Test (coverage shard N/4) | `pnpm test:coverage --reporter=blob --shard=N/4` across a 4-runner matrix with `fail-fast: false`. Each shard writes `.vitest-reports/blob-N-4.json` — raw coverage and test results in one file — and uploads it as an artifact even when the shard is red, which is what makes a failing coverage run diagnosable at all (vitest deletes `coverage/` on a red run unless `coverage.reportOnFailure` is set, [#5402](https://github.com/objectstack-ai/objectui/issues/5402)). The configured coverage thresholds are neutralised on the shard legs, because a quarter of the suite judged against a whole-suite threshold is not a defect signal; they are enforced once, on the merged report, by the job below ([#5403](https://github.com/objectstack-ai/objectui/issues/5403)). | **Push only** |
 | `coverage-report` | Test (coverage) | Downloads the four blob reports, refuses to continue unless all four arrived, merges them with `pnpm test:coverage --merge-reports` into one complete report — which is where the configured coverage thresholds are enforced, over the whole merged map, the shard legs having overridden them to zero — and publishes that report as the `coverage-report` artifact (kept 7 days, the same as the blobs it is derived from). Its last step runs on every path and states the outcome: the job is **red, with an error annotation**, whenever the gate did not run for the commit — before [#5403](https://github.com/objectstack-ai/objectui/issues/5403) the final step carried the implicit `success()` and was silently skipped by 311 of 373 coverage jobs, which is how four days of a 100%-failing coverage job went unnoticed. A breach of the thresholds is reported *separately* from a lane that never delivered, because the two call for opposite actions. ⛔ It never merges a report from fewer than four shards: a wrong coverage number is worse than a missing one. The Codecov upload this job used to carry was retired by [#5436](https://github.com/objectstack-ai/objectui/issues/5436) — `CODECOV_TOKEN` was never set, so it failed on every push; the trend dashboard and PR coverage comments are gone with it, the gate is not. | **Push only** |
 | `e2e` | Build & E2E | Builds the console with `vite build` (`VITE_BASE_PATH=/console/`), verifies the artifact, then `pnpm test:e2e --project=chromium`. Uploads the Playwright report on failure. | Every run; on a PR the steps short-circuit when only ignored paths changed |
-| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` then hid exactly the docs-only PRs a link check needs to see. #3523 has since removed that filter from the `pull_request` trigger, but the check stays in its own home: `docs-links.yml` still runs where this workflow does not (a docs-only push to `main`), and one gate with one home was the point of #3448. | Every run (build itself conditional) |
+| `docs` | Build Docs | `turbo run build --filter='@object-ui/site'`. On a PR it first diffs against the base and skips the build when nothing under `apps/site/` or `content/` changed. Then `scripts/check-doc-expression-carriage.mjs`, which is **report-only**: it censuses every `json` fence under `content/docs/**` for a `${…}` authored on a key `SchemaRenderer` never evaluates — the class that reached `main` four times under green gates, because `check:doc-types` judges the `type` literal only and `check:doc-snippets` compiles the ts/tsx blocks only ([#7851](https://github.com/objectstack-ai/objectui/issues/7851)). It prints its findings and **exits 0 regardless**, so it can block no merge; it exits 1 only when the instrument itself is broken — a derivation that matched nothing, a missing `@objectstack/spec` artifact, or a failed built-in control — because a check that runs, goes green and looked at nothing is worse than none. Report-only is a ruling, not an oversight: three cards of the class it reports ([#7440](https://github.com/objectstack-ai/objectui/issues/7440), [#7444](https://github.com/objectstack-ai/objectui/issues/7444), [#7838](https://github.com/objectstack-ai/objectui/issues/7838)) are open and each fixes its own sites. It does **not** check docs links any more — that moved to `docs-links.yml` (#3448), because this workflow's `paths-ignore` then hid exactly the docs-only PRs a link check needs to see. #3523 has since removed that filter from the `pull_request` trigger, but the check stays in its own home: `docs-links.yml` still runs where this workflow does not (a docs-only push to `main`), and one gate with one home was the point of #3448. | Every run (build itself conditional) |
 
 Uses: Node 22.x, pnpm via `corepack`, `actions/cache` over `.turbo/cache`.
 
@@ -1300,13 +1301,27 @@ There are **two** link checkers, and they cover different things (objectui#3213)
 | `scripts/check-doc-links.mjs` | **Internal** links in `content/docs/` (relative hrefs, `/docs/...` routes, every other site-absolute href against `apps/site`), and, as paths on disk: `examples/`, the internal `docs/` tree, every package and app `README.md`, the rest of each package's and app's directory tree (everything but `README.md`/`CHANGELOG.md`), every nested `README.md`, and the root-level markdown files (`README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `AGENTS.md`, `CHANGELOG.md`, `CLAUDE.md`, `LICENSE-THIRD-PARTY.md`, `QUICK_REFERENCE.md`) — plus this repo's own `blob/main/` and `tree/main/` GitHub URLs and this site's own `objectui.org` URLs everywhere — **except** anything inside a code fence | No | `docs-links.yml` — every push and PR, no path filter (previous section) |
 | Lychee (this workflow) | **External** URLs, plus **relative** in-repo file links, in `content/docs/`, `docs/` and `README.md` | Yes | Weekly cron and manual dispatch |
 
-Lychee sweeps **both** documentation trees: `content/docs/` (the 183 pages the site publishes) and
-the repo-root `docs/` (15 files of internal material — ADRs, audits, architecture notes) plus
-`README.md`. Until objectui#3449 it scanned only the latter, so no published page had ever been
-link-checked; the workflow was green about a tree almost nobody reads.
-`scripts/__tests__/check-links-workflow.test.ts` now derives the expected scope from
-`apps/site/source.config.ts`, so moving the content tree turns that test red instead of quietly
-blinding the sweep again.
+Lychee sweeps **both** documentation trees plus `README.md`: the **published** tree
+`content/docs/**` — every `.md` and `.mdx` under the fumadocs content source
+`apps/site/source.config.ts` declares (`dir: '../../content/docs'`, baseUrl `/docs`) — and the
+repo-root `docs/**` of **internal** material (ADRs, audits, architecture notes). What gets swept is
+decided by that workflow's `args` glob list and by nothing else, and
+`scripts/__tests__/check-links-workflow.test.ts` derives the expected scope from the site config
+rather than restating it, so moving the content tree turns that test red instead of quietly
+blinding the sweep.
+
+⛔ **Neither tree's size belongs on this page.** One hand-copied count per tree stood in the
+sentence above, and both had drifted by the time anyone read them, with nothing red over the whole
+distance — no gate anywhere reads either figure, which is exactly why a number written here rots
+(objectui#7448, objectui#7825, objectui#7886). State the population, as above, and point at the
+reading: in any checkout,
+`find content/docs docs -type f \( -name '*.md' -o -name '*.mdx' \) | wc -l`, and Lychee's own run
+summary, which reports what it actually scanned. This page opens by declining to count workflows,
+for the same reason.
+
+**Past tense on purpose — none of the following describes the scope today.** Until objectui#3449
+the `args` list named only the repo-root tree, so not one published page had ever been
+link-checked: the workflow was green because of what it was not looking at.
 
 It is deliberately **not** a PR gate (objectui#3213). External link checking goes over the network,
 and one 502 or rate-limit from a third-party site would redden a pull request whose author can do
@@ -1874,6 +1889,65 @@ never this repo's practice — 815 closed cards carry `pm:dispatched`, ~87% of t
 so that predicate would report the convention rather than a defect and bury every other finding.
 The rendered summary says that surface is **UNREAD**, never that it is clean
 ([#5791](https://github.com/objectstack-ai/objectui/issues/5791)).
+
+### Merge Queue Head Patrol (`merge-queue-head-patrol.yml`)
+
+**Trigger:** every 15 minutes (cron `7,22,37,52 * * * *`) and manual dispatch. No pull-request leg —
+see below.
+
+Runs `scripts/check-merge-queue-head.mjs`, which asks one question: **does the entry at the head of
+`main`'s merge queue have a `merge_group` build?** A head entry for which GitHub never dispatches
+`merge_group` blocks every lane in the repository — a merge queue is strictly ordered, so nothing
+behind a head that cannot merge can merge either — and it does so with *nothing red anywhere*, which
+is what made the four recorded occurrences so expensive to diagnose
+([#7010](https://github.com/objectstack-ai/objectui/issues/7010): 2026-08-17, two on 08-31, one on
+09-02; the worst ran four hours).
+
+**How the head is identified.** Each queue entry is a real branch,
+`gh-readonly-queue/main/pr-<N>-<base_sha>`, and the head is the one stacked on `main`'s current tip.
+The patrol lists those refs, picks the head, and counts `merge_group` runs on it. The ref is taken
+verbatim from the refs listing and never assembled: `GET /actions/runs?branch=` answers
+`total_count: 0` with HTTP 200 for a branch that does not exist, so a constructed ref one character
+off would report a wedge on a healthy queue.
+
+**Only the head is judged, and that is a correctness rule rather than a saving.** GitHub builds only
+the first few entries speculatively, so zero `merge_group` runs is the *normal* state of an entry
+deep in the queue — one healthy entry measured on 2026-09-05 waited 877 seconds for its first run
+simply because it was sixth in line. The head is always inside the build window, which is what makes
+zero runs anomalous there and nowhere else.
+
+**The threshold is five minutes**, one named constant (`WEDGE_THRESHOLD_MS`) carrying both of the
+boundary readings it sits between: a healthy head dispatches its runs 3–24 seconds after its queue
+commit (measured over 18 entries), and the branch ruleset's status-check timeout self-heals a wedge
+after about 60 minutes. A suspected wedge is confirmed with a second run count 60 seconds later, so
+"wedged for an hour" is never confused with the seconds after a head change.
+
+**Report-only in the queue's direction, red in its own.** The patrol never merges, dequeues, closes
+or comments, and it **never opens an issue** — a finding that fired four times an hour would produce
+one card per firing for one incident. Its only write is a PATCH of one pinned issue body, when the
+repository variable `MERGE_QUEUE_ANCHOR_ISSUE` names one; with the variable unset the run summary and
+the job status are the whole delivery, and that is not an error. The job *does* go red on a wedge
+(unlike `half-state-patrol.yml`, which is report-only throughout) because the remedy is a human
+removing that entry from the queue inside a 60-minute window, and an issue-body edit notifies nobody.
+An empty queue, a head too young to judge, and a head that could not be identified all exit 0.
+
+**A reading that could not be taken is never rendered as a healthy queue.** The script refuses its
+own verdict (`assertGrounded`) unless the evidence is there: `clear` is unreachable without an
+identified head *and* a positive run count. "I could not tell which entry is the head" is its own
+verdict with its own wording.
+
+**No `pull_request` leg, deliberately.** Every job of a `pull_request`-triggered workflow produces a
+check run, and `scripts/dependabot-merge-gate.mjs` requires every produced name to be classified as
+required, optional or not-a-gate. Adding a leg here would mean editing that declaration; instead the
+offline `--self-test` runs on every pull request through
+`scripts/__tests__/check-merge-queue-head.test.ts`, and the live transport is proven by
+`workflow_dispatch`.
+
+⛔ **Why** GitHub declines to dispatch `merge_group` for such an entry is *unestablished*. It is a
+repository/Actions-settings reading no agent seat can take, and #7010's triage split it off so the
+detection could ship without it. All four recorded heads were Dependabot pull requests, but that is
+a correlation the patrol does not encode — Dependabot pull requests have merged through this queue
+(`1a4381083`, 2026-08-25), so the failure is conditional and nobody has established on what.
 
 ### Hook Self-Tests (`hook-selftests.yml`)
 

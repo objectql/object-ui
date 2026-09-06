@@ -287,6 +287,52 @@ export function ObjectFieldInspector({
     formulaEdited.current = false;
   }, [name]);
 
+  /* ─── Who owns the API name (objectui#7615) ──────────────────────────────
+   *
+   * The Label derives the API name only for as long as the API name is still
+   * the derivation's OWN output. Before #7615 that question was answered by
+   * pattern-matching `entry.name` against the auto-generated placeholder
+   * shapes (`field_<N>` / `<type>` / `<type>_<N>`) — and the first derivation
+   * DESTROYS the very shape it gated on. Measured: typing `Health Score` one
+   * key at a time renamed `field_10` -> `h` on the `H`, after which `h` no
+   * longer looked auto-generated and every later keystroke was ignored. One
+   * paste of the same string still worked, which is why a single-`change`
+   * test never saw it.
+   *
+   * So RECORD the answer instead of re-deriving it from a string this feature
+   * itself rewrites. Same posture the object/app create surfaces already use
+   * (`CreateViewDialog`'s `nameTouched`, `useCreateDerive`'s touched set): the
+   * derivation yields the moment the value has an authoritative source.
+   *
+   *   'label'  — this inspector wrote the name from the label; the next label
+   *              change may move it again.
+   *   'author' — the author typed the name into the API name box; nothing the
+   *              label does moves it again. This is the third state the triage
+   *              asked to be answered explicitly: an unconditional follow
+   *              would silently erase what the author had just typed, which is
+   *              worse than not syncing at all. It also covers the one case no
+   *              string test can decide — a hand-typed `field_9` is the
+   *              author's value, not `nextFieldName()`'s output.
+   *
+   * A name that arrived from the store (a saved field, e.g. `priority`) is in
+   * NEITHER state: it matches no placeholder shape and carries no record, so
+   * it is locked — #2260's "lock it on first save" boundary. The record is
+   * per mounted inspector, so a reload always falls back to that check; what
+   * it buys is the one session in which the author is still creating the
+   * field. A tighter signal would need the host to say "this field is
+   * persisted", which is a prop this inspector does not have.
+   *
+   * Stamped with the OBJECT as well as the field name so it can only ever
+   * speak for the field it was written for: one inspector instance serves
+   * every selection, and selections cross objects. */
+  const apiNameOwnerRef = React.useRef<{
+    object: string;
+    field: string;
+    owner: 'label' | 'author';
+  } | null>(null);
+  /** The object this field belongs to — `draft` is the object document. */
+  const objectName = String(draft.name ?? '');
+
   /* ─── Blocking CEL verdicts → the host's Save gate (objectui#4306) ─────
    *
    * Mirrors the shape PermissionAdvancedFacets uses for its per-clause map:
@@ -377,13 +423,32 @@ export function ObjectFieldInspector({
 
   const setKey = (rawNext: string) => {
     const nextName = toFieldNameLoose(rawNext);
-    if (!nextName || nextName === entry.name) return;
-    // Disallow collision
-    if (view.entries.some((e, i) => i !== idx && e.name === nextName)) return;
+    const rejected =
+      !nextName ||
+      nextName === entry.name ||
+      // Disallow collision
+      view.entries.some((e, i) => i !== idx && e.name === nextName);
+    // Every keystroke in the API name box is the author claiming that value —
+    // recorded even when the edit is REJECTED just above (cleared, unchanged,
+    // or colliding), because a rejected keystroke is still an authorial edit
+    // and the Label must not resume overwriting what they are typing. The
+    // stamp names whichever value the field is left carrying (objectui#7615).
+    apiNameOwnerRef.current = {
+      object: objectName,
+      field: rejected ? entry.name : nextName,
+      owner: 'author',
+    };
+    if (rejected) return;
     const nextEntries = [...view.entries];
     nextEntries[idx] = { ...entry, name: nextName };
     writeView({ shape: view.shape, entries: nextEntries });
     onSelectionChange?.({ kind: 'field', id: nextName, label: String(def.label ?? nextName) });
+  };
+
+  /** The recorded owner of this field's API name, or null if none. */
+  const recordedOwner = (): 'label' | 'author' | null => {
+    const rec = apiNameOwnerRef.current;
+    return rec && rec.object === objectName && rec.field === entry.name ? rec.owner : null;
   };
 
   // Derive the API name from the label live, per keystroke — with
@@ -397,8 +462,16 @@ export function ObjectFieldInspector({
   // would have the second clobber the first.
   const deriveNameFor = (label: string): string | null => {
     if (readOnly) return null;
+    const owner = recordedOwner();
+    // The author's own value wins outright — including one that happens to be
+    // SHAPED like a placeholder (objectui#7615).
+    if (owner === 'author') return null;
     const base = type === 'select' ? 'status' : type;
     const isAutoName =
+      // A name this derivation itself produced is still the label's to move;
+      // the placeholder shapes below can only answer for a name the
+      // derivation has NOT yet rewritten (objectui#7615).
+      owner === 'label' ||
       entry.name === base ||
       (entry.name.startsWith(`${base}_`) && /^\d+$/.test(entry.name.slice(base.length + 1))) ||
       // Freshly added fields are named by nextFieldName() as `field_<N>`
@@ -555,6 +628,14 @@ export function ObjectFieldInspector({
             };
             writeView({ shape: view.shape, entries: nextEntries });
             if (derivedName) {
+              // Carry the "still the label's" record forward onto the name we
+              // just wrote, so the NEXT keystroke can move it again
+              // (objectui#7615).
+              apiNameOwnerRef.current = {
+                object: objectName,
+                field: derivedName,
+                owner: 'label',
+              };
               onSelectionChange?.({ kind: 'field', id: derivedName, label: v });
             }
           }}

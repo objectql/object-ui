@@ -195,9 +195,9 @@ describe('evaluateClosureBudget', () => {
 /**
  * objectui#5490 — per-chunk ceilings on top of the aggregate.
  *
- * The aggregate is one number over 52 chunks: inside its headroom a single
- * chunk can absorb the whole allowance while the others shrink, and the total
- * never moves. objectui#5266 is that shape exactly — 89 KiB, all of it in
+ * The aggregate is one number over the whole eager closure: inside its headroom
+ * a single chunk can absorb the whole allowance while the others shrink, and the
+ * total never moves. objectui#5266 is that shape exactly — 89 KiB, all of it in
  * `vendor-objectstack`. These tests hold the two properties that decide whether
  * the per-chunk half is worth anything: it must be red when a budgeted chunk
  * grows, and it must be red — not silent — when a budgeted chunk is not there
@@ -1585,5 +1585,204 @@ describe('the prose attached to the baselines (objectui#7046)', () => {
   it('pins every chunk name PER_CHUNK_BASELINE carries into its own attached prose', () => {
     const { prose } = attachedDocs(checkerSource, 'PER_CHUNK_BASELINE');
     expect(Object.keys(PER_CHUNK_BASELINE).filter((chunk) => !prose.includes(chunk))).toEqual([]);
+  });
+});
+
+/**
+ * objectui#7528 — a chunk count in this gate's prose stays pinned to the commit
+ * it was measured on, or it is not written.
+ *
+ * Three sentences here and in the checker described the aggregate as "one number
+ * over N chunks" with N written out as a literal. By the time the card was worked
+ * that literal, the checker's own frozen `BASELINE.chunks`, and the figure the
+ * gate's verdict line printed were three DIFFERENT numbers, with no check red
+ * anywhere across the spread, because nothing fails on a stale number in a
+ * comment. The count was never load-bearing either: the sentence is rhetorical
+ * ("one total over N chunks cannot say WHERE the payload moved"), which is
+ * exactly why nothing caught it. Refreshing the literal to today's reading would
+ * have turned three numbers into two and restarted the clock; this makes the
+ * class fail loudly instead.
+ *
+ * ⚠️ It also means this docblock may not quote the old literal back: the reader
+ * below cannot tell a quotation from a claim, and refusing both is the safe
+ * direction for a check on prose accuracy. The numbers live in the card and in
+ * the pull request that closed it.
+ *
+ * The rule is the one the checker's header already states for its motivating
+ * table — "that table is the MOTIVATING measurement and stays pinned to
+ * `77f846a8b`; it is not the current reading" — generalised and made mechanical.
+ * An ANCHORED count is a measurement of a named build and cannot go stale; an
+ * unanchored one is a standing claim about the live closure, which moves on most
+ * builds. The same distinction is why objectui#7528 declined to file
+ * `vite-declared-lazy-views.ts`'s "42.5 KB of headroom": it sits in a paragraph
+ * dated to a `b98352a15` measurement and reads as history.
+ *
+ * Deliberately narrow, and each limit is a decision rather than an oversight:
+ *
+ *   - NUMERALS qualifying a CHUNK noun. "144 modules" and "166 modules" are
+ *     module counts inside anchored change records, not claims about the shape
+ *     of the closure, and none of them rots when a chunk is added.
+ *   - OWN-LINE comments — block comments and `//` lines, the form every
+ *     paragraph of prose in these two files is written in.
+ *   - The anchor window is a paragraph PLUS the one before it, because the
+ *     header writes its lead-in ("Measured on `77f846a8b`:") and its table as
+ *     two paragraphs. A sha cannot reach across code: a code line breaks the
+ *     paragraph, so a hash in one block never anchors a count in another.
+ *
+ * The window is a heuristic in one direction and is left that way knowingly: a
+ * lead-in paragraph anchors what follows it, so a hash written for one reason can
+ * vouch for a count beside it. It errs toward ALLOWING, which is the tolerable
+ * side for a check on prose — the intolerable side is a standing claim nobody
+ * refuses. The two legs of the reader's own self-test above hold each direction.
+ *
+ * ⚠️ `.github/workflows/performance-budget.yml` is edited by the same card and is
+ * NOT in this population (objectui#7850). Its comments count chunks once as the
+ * OUTCOME of a hazard — a `"sideEffects": false` that emits none at all on a
+ * green build, objectui#6535 — which is structural, has no build that can move
+ * it, and would need either a rewrite or an exemption here; exemption lists are
+ * how a pin decays. Its own frozen-SIZE defect is a different class, repaired
+ * there in prose: a pin for it would have to tell a retired ceiling from the
+ * several sizes that paragraph legitimately carries, which is not this test.
+ *
+ * Only the negative half is asserted. A positive "the prose names the verdict
+ * line" pin would fix a wording, and what has to stay true is narrower: that no
+ * number is written here which the next build could falsify.
+ */
+describe("chunk counts in this gate's prose (objectui#7528)", () => {
+  const PROSE_FILES: Record<string, string> = {
+    'check-eager-closure-budget.mjs': checkerPath,
+    'check-eager-closure-budget.test.ts': fileURLToPath(import.meta.url),
+  };
+
+  /** A chunk population written as a numeral: "N chunks", or "N of M chunks". */
+  const CHUNK_COUNT = /\b\d[\d,_]*\s+(?:of\s+\d[\d,_]*\s+)?chunks?\b/gi;
+
+  /** A commit named the way both files name one: a backticked short hash. */
+  const NAMES_A_COMMIT = /`[0-9a-f]{7,40}`/;
+
+  /**
+   * One entry per source line: the comment's text, `''` for a blank comment
+   * line, and `null` for code. The three are distinguished because a blank
+   * comment line separates two paragraphs of one argument while a line of code
+   * separates two unrelated blocks, and only the first may carry an anchor
+   * across.
+   */
+  function proseLines(source: string): (string | null)[] {
+    const lines: (string | null)[] = [];
+    let inBlock = false;
+    for (const raw of source.split('\n')) {
+      const line = raw.trim();
+      if (inBlock) {
+        lines.push(line.replace(/^\*\/?\s?/, '').replace(/\*\/$/, ''));
+        if (line.includes('*/')) inBlock = false;
+        continue;
+      }
+      if (line.startsWith('/*')) {
+        inBlock = !line.includes('*/');
+        lines.push(line.replace(/^\/\*+\s?/, '').replace(/\*\/$/, ''));
+        continue;
+      }
+      if (line.startsWith('//')) lines.push(line.replace(/^\/\/\s?/, ''));
+      else lines.push(line === '' ? '' : null);
+    }
+    return lines;
+  }
+
+  /**
+   * Prose paragraphs in order, each carrying whether code stands between it and
+   * the paragraph before — which is what decides how far back its anchor may be
+   * looked for.
+   */
+  function paragraphs(source: string): { text: string; afterCode: boolean }[] {
+    const paras: { text: string; afterCode: boolean }[] = [];
+    let current: string[] = [];
+    let startsAfterCode = false;
+    let pendingCode = false;
+    const flush = () => {
+      if (current.length > 0) paras.push({ text: current.join('\n'), afterCode: startsAfterCode });
+      current = [];
+    };
+    for (const line of proseLines(source)) {
+      if (line === null) {
+        flush();
+        pendingCode = true;
+        continue;
+      }
+      if (line.trim() === '') {
+        flush();
+        continue;
+      }
+      if (current.length === 0) {
+        startsAfterCode = pendingCode;
+        pendingCode = false;
+      }
+      current.push(line);
+    }
+    flush();
+    return paras;
+  }
+
+  /** Every chunk count in a file's prose, each tagged with whether a commit anchors it. */
+  function chunkCounts(source: string): { text: string; anchored: boolean }[] {
+    const paras = paragraphs(source);
+    return paras.flatMap((para, i) => {
+      const lead = para.afterCode ? '' : (paras[i - 1]?.text ?? '');
+      const anchored = NAMES_A_COMMIT.test(`${lead}\n${para.text}`);
+      return [...para.text.matchAll(CHUNK_COUNT)].map((m) => ({
+        text: m[0].replace(/\s+/g, ' '),
+        anchored,
+      }));
+    });
+  }
+
+  /**
+   * The reader itself, on strings rather than on the repository. A pin whose
+   * matcher silently found nothing would be green forever; this fails instead,
+   * and it holds the anchoring rule in both directions without pinning a line of
+   * either file.
+   */
+  it('reads a count and its anchor — so a matcher that found nothing cannot pass', () => {
+    expect(chunkCounts('/**\n * The aggregate is one number over 52 chunks.\n */')).toEqual([
+      { text: '52 chunks', anchored: false },
+    ]);
+
+    // A lead-in paragraph anchors the table under it — the header's own shape.
+    expect(
+      chunkCounts('/**\n * Measured on `77f846a8b`:\n *\n *   | the closure — 58 of 507 chunks |\n */'),
+    ).toEqual([{ text: '58 of 507 chunks', anchored: true }]);
+
+    // ...but a hash in a different comment block does not reach across code.
+    expect(chunkCounts('// Measured on `77f846a8b`.\nconst x = 1;\n// One total over 52 chunks.')).toEqual([
+      { text: '52 chunks', anchored: false },
+    ]);
+
+    // Code is not prose, and a module count is not a chunk count.
+    expect(chunkCounts("const n = 52; // the chunk held 144 modules\n")).toEqual([]);
+  });
+
+  /**
+   * The allowed branch is live: the checker really does carry an anchored count,
+   * so the pin below is passing because nothing is unanchored rather than because
+   * nothing was read. A deliberate must-hit control, in the manner of the
+   * objectui#7046 block above.
+   */
+  it('sees the anchored measurement it must not refuse', () => {
+    const anchored = chunkCounts(fs.readFileSync(checkerPath, 'utf8'))
+      .filter((count) => count.anchored)
+      .map((count) => count.text);
+    expect(anchored).toContain('58 of 507 chunks');
+  });
+
+  it.each(Object.entries(PROSE_FILES))('%s writes no chunk count that no commit anchors', (name, file) => {
+    const loose = chunkCounts(fs.readFileSync(file, 'utf8'))
+      .filter((count) => !count.anchored)
+      .map((count) => count.text);
+    expect(
+      loose,
+      `${name} states a chunk count (${loose.join(', ')}) that names no commit, so it reads as a claim ` +
+        'about the live closure — which moves on most builds, while nothing goes red when a number in a ' +
+        'comment goes stale. Pin it to the commit it was measured on, or name the population and let the ' +
+        'gate’s own verdict line print the figure on every run (objectui#7528).',
+    ).toEqual([]);
   });
 });

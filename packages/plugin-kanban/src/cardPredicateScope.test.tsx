@@ -76,12 +76,18 @@ describe('kanban card conditional formatting · host predicate scope (ADR-0058)'
     expect(findByBg(container, HOT_BG)).toBeUndefined();
   });
 
-  it('bare-field conditions keep working without any provider (row spread)', () => {
+  it('a bare-field condition no longer binds the card (objectui#5741) — no style; `record.*` does', () => {
+    // The bare shorthand retired with Phase 2 of the objectui#5330 canon: it is
+    // unbound, faults, and conditional formatting's existing policy is fail-soft
+    // to "no style". The canonical spelling on the same card is the control
+    // that proves the rule was consulted at all.
     const bareRules = [{ condition: 'id == "c1"', style: { backgroundColor: HOT_BG } }] as any;
-    const { container } = render(
-      <KanbanEnhanced columns={columns} conditionalFormatting={bareRules} />,
-    );
-    expect(findByBg(container, HOT_BG)).toBeTruthy();
+    const bare = render(<KanbanEnhanced columns={columns} conditionalFormatting={bareRules} />);
+    expect(findByBg(bare.container, HOT_BG)).toBeUndefined();
+    cleanup();
+    const canonRules = [{ condition: 'record.id == "c1"', style: { backgroundColor: HOT_BG } }] as any;
+    const canon = render(<KanbanEnhanced columns={columns} conditionalFormatting={canonRules} />);
+    expect(findByBg(canon.container, HOT_BG)).toBeTruthy();
   });
 });
 

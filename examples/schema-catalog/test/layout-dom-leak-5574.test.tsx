@@ -57,9 +57,9 @@
  *   2. The JUDGE is self-checked against a deliberately leaking element, so a
  *      zero can never come from an attribute reader that reports nothing.
  *
- * The 162 `text` nodes that render NO element are recorded rather than hidden:
+ * The 159 `text` nodes that render NO element are recorded rather than hidden:
  * `text` returns a bare fragment when a node carries neither designer id,
- * className, `variant` nor `align`, and 162 catalog nodes take that path. They
+ * className, `variant` nor `align`, and 159 catalog nodes take that path. They
  * were never evidence of safety, which is the phantom-clean class
  * objectui#5574's first pass found seven real leaks behind. (176 before
  * objectui#6942 taught `ui:text` to read `variant` and `align`: a node that
@@ -115,7 +115,11 @@ const NODE_CENSUS: Readonly<Record<string, { rendered: number; noElement: number
   // `components-layout-container/basic-container` and
   // `components-layout-stack/basic-stack`. This is the census moving in the
   // SAFE direction: fewer phantom-clean nodes, more elements actually read.
-  text: { rendered: 701, noElement: 162 },
+  // 162 -> 159 with objectui#7444, the same move one card later: the three
+  // `components-basic-text/text-with-colors` nodes authored a phantom `color`
+  // nothing declared or read, and now author `className`, which the renderer
+  // DOES forward — so each one needs an element to carry its colour class.
+  text: { rendered: 701, noElement: 159 },
   // The objectui#3965 migration population (80 nodes retyped from `div`) plus
   // the 4 nodes of the components-layout-box exemplars. `box` is born on
   // `toDomProps` and class-transparency, so it joins the measured set as a

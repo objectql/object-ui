@@ -18,7 +18,8 @@ vi.mock('../PreviewModeContext', () => ({
   markPreviewExit: vi.fn(),
   PREVIEW_QUERY_FLAG: 'preview',
 }));
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (_k: string, o?: { defaultValue?: string }) => o?.defaultValue ?? _k,
   }),

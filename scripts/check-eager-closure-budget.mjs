@@ -28,6 +28,30 @@
  * is not the current reading. {@link BASELINE} carries today's, and the ceiling
  * section below does the arithmetic against it.
  *
+ * ⛔ That rule is general, and since objectui#7528 it is a gate rather than an
+ * intention: a chunk count written in this file's prose — or in
+ * `scripts/__tests__/check-eager-closure-budget.test.ts`'s — stays pinned to the
+ * commit it was measured on, as the table above is, or it is not written at all.
+ * An UNANCHORED count is a standing claim about the LIVE closure, and the live
+ * closure's count moves on most builds. Three sentences here made exactly that
+ * claim ("one number over N chunks"), and by the time objectui#7528 read them
+ * back the prose, {@link BASELINE}'s frozen `chunks` and the gate's own output
+ * were three DIFFERENT numbers — with nothing red anywhere across that spread,
+ * because nothing fails on a stale number in a comment. Refreshing the literal
+ * would only restart that clock; naming the population has no clock to restart.
+ * Two durable readings, neither of them a copy:
+ *
+ *   * HOW MANY — `pnpm check:eager-closure` prints it, in the gate's own verdict
+ *     line: "Console eager closure is N KB gzipped across E of T chunks
+ *     (budget: ... KB, headroom: ... KB)".
+ *   * WHICH — `apps/console/dist/eager-closure.json`, written by
+ *     `emitEagerClosureReport` in `apps/console/vite.config.ts` on every build.
+ *
+ * {@link BASELINE} is not an exception to it. That constant NAMES the commit it
+ * was measured on, which is the anchored form the rule asks for: a frozen
+ * measurement that says which build it came from cannot go stale, it can only
+ * become old, and re-baselining is what that has instead of a rewrite.
+ *
  * ## Where the number comes from
  *
  * `apps/console/vite.config.ts` (`emitEagerClosureReport`) writes
@@ -188,10 +212,18 @@
  * onto a fresh measurement is not that. Nothing here should be read as a
  * finding that 3.12 MB is acceptable.
  *
+ * The two figures in that paragraph are one constant each, rendered in MiB, and
+ * not a contradiction: 3.07 MB is {@link BASELINE}'s measured payload and
+ * 3.12 MB is {@link MAX_EAGER_CLOSURE_GZIP_BYTES}, the ceiling standing over it.
+ * Saying which is which is the whole of this note — a paragraph that names two
+ * sizes without naming their subjects reads as one number that changed its mind
+ * (objectui#7528).
+ *
  * ## Per-chunk ceilings (objectui#5490)
  *
- * One total over 52 chunks cannot say WHERE the payload moved, and inside its
- * headroom one chunk can grow by the whole allowance while the others shrink.
+ * One total over the whole eager closure cannot say WHERE the payload moved, and
+ * inside its headroom one chunk can grow by the whole allowance while the others
+ * shrink.
  * {@link PER_CHUNK_GZIP_CEILINGS} adds a line per big chunk on top of the
  * aggregate — same truthful-current-state discipline, same checked constraints,
  * keyed on the chunk names the REPORT carries so a renamed or vanished chunk
@@ -348,8 +380,9 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  *
  * ## Why the aggregate ceiling is not enough
  *
- * The aggregate is one number over 52 chunks. Inside its headroom, a single
- * chunk can grow by the whole allowance while every other chunk shrinks by the
+ * The aggregate is one number over every chunk in the closure. Inside its
+ * headroom, a single chunk can grow by the whole allowance while every other
+ * chunk shrinks by the
  * same amount, and the gate reports a green tick either way. That is not a
  * hypothetical shape: objectui#5266 put 89 KiB on every page load and ALL of it
  * landed in `vendor-objectstack`, the chunk that is 29% of the closure today.

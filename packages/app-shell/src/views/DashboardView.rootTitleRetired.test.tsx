@@ -65,7 +65,8 @@ vi.mock('./MetadataInspector', () => ({
 }));
 vi.mock('../providers/AdapterProvider', () => ({ useAdapter: () => ({}) }));
 vi.mock('../providers/ExpressionProvider', () => ({ useExpressionContext: () => ({ app: undefined }) }));
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: (k: string) => k }),
   // Pass-through: the i18n bundle is a SEPARATE channel with its own tests, and
   // resolving through it here would let a bundle entry answer for the key this

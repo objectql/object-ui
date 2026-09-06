@@ -7,35 +7,39 @@
  */
 
 /**
- * objectui#5330 — the row-predicate spelling CANON (`record.*`) and its Phase-1
- * deprecation warning.
+ * objectui#5330 — the row-predicate spelling CANON (`record.*`), and
+ * objectui#5741 — Phase 2, where the two other spellings stopped being bound.
  *
- * These pins are deliberately split in two, because the card's two halves fail
- * in opposite directions:
+ * Two halves, and the second is pinned in the OPPOSITE direction from the
+ * Phase-1 file this replaces:
  *
- *  - the CANON pins assert the binding is UNCHANGED. The ruling defers every
- *    removal behind a stored-metadata survey, so a test that stopped resolving
- *    the shorthand would be the regression, not the feature.
- *  - the WARNING pins assert the tolerance is no longer silent — the ADR-0078
- *    reason a tolerance nothing reports can never be retired.
+ *  - the DETECTOR pins are unchanged. `detectNonCanonicalRowSpelling` stays
+ *    exported as the OFFLINE instrument (the objectui#5738 corpus sweep runs on
+ *    it), and its three stand-downs still hold.
+ *  - the BINDING pins now assert the removal. `record.*` still discriminates;
+ *    a bare-field or `data.*` predicate — and a legacy `${data.x}` / `${x}`
+ *    string, one scope shape for both dialects — reaches the SAME verdict on a
+ *    matching and a non-matching row (it faults and takes the caller's
+ *    fallback); the fault warning names the unknown variable; the Phase-1
+ *    deprecation warning is gone, together with its runtime half of the module.
  *
- * The `record-alert` renderer's own three-spelling pins landed separately with
- * PR #5688 (`plugin-detail/.../record-alert.rowBinding.test.tsx`) and are NOT
- * duplicated here; this file pins the shared evaluator tier those renderers sit
- * on, plus the detector itself.
+ * The `record-alert` renderer's own pins live in
+ * `plugin-detail/.../record-alert.rowBinding.test.tsx`, the `useCondition`
+ * tier's in `react/.../useCondition.canonSpelling.test.tsx`; this file pins the
+ * shared evaluator tier those renderers sit on, plus the detector itself.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
+import * as core from '../index.js';
 import {
   detectNonCanonicalRowSpelling,
-  resetRowPredicateCanonWarnings,
   ROW_PREDICATE_CANONICAL_ROOT,
   evalRowPredicate,
+  partitionRowsByPredicate,
 } from '../index.js';
 
 const row = { status: 'in_review', amount: 10 };
-
-beforeEach(() => resetRowPredicateCanonWarnings());
+const other = { status: 'draft', amount: 1 };
 
 describe('[#5330] the canon is `record.*`', () => {
   it('names `record` as the one canonical root', () => {
@@ -47,7 +51,7 @@ describe('[#5330] the canon is `record.*`', () => {
   });
 });
 
-describe('[#5330] non-canonical spellings are DETECTED', () => {
+describe('[#5330] non-canonical spellings are DETECTED (the offline instrument, kept by #5741)', () => {
   it('reports the bare shorthand, and names the canonical rewrite', () => {
     expect(detectNonCanonicalRowSpelling("status == 'in_review'", row, true)).toEqual({
       kind: 'bare-shorthand',
@@ -68,8 +72,8 @@ describe('[#5330] non-canonical spellings are DETECTED', () => {
 /**
  * Every case here is a spelling the detector must NOT report. They are the
  * whole reason it consults the row and the caller's binding rather than
- * pattern-matching the source: a false deprecation warning sends an author to
- * rewrite a predicate that was correct.
+ * pattern-matching the source: a false finding sends an author to rewrite a
+ * predicate that was correct.
  */
 describe('[#5330] the detector stands down rather than guessing', () => {
   it('leaves `data.*` alone when `data` is NOT this row (rowless / metadata-editing layer)', () => {
@@ -92,59 +96,94 @@ describe('[#5330] the detector stands down rather than guessing', () => {
   });
 });
 
-describe('[#5330] `evalRowPredicate` — the binding is UNCHANGED (no removal before the survey)', () => {
-  it('still resolves all three spellings against the row', () => {
-    expect(evalRowPredicate("record.status == 'in_review'", row)).toBe(true);
-    expect(evalRowPredicate("status == 'in_review'", row)).toBe(true);
-    expect(evalRowPredicate("data.status == 'in_review'", row)).toBe(true);
-  });
-
-  it('still tells the three spellings apart on a NON-matching row (not vacuously true)', () => {
-    const other = { status: 'draft', amount: 1 };
-    expect(evalRowPredicate("record.status == 'in_review'", other)).toBe(false);
-    expect(evalRowPredicate("status == 'in_review'", other)).toBe(false);
-    expect(evalRowPredicate("data.status == 'in_review'", other)).toBe(false);
-  });
-});
-
-describe('[#5330] `evalRowPredicate` — the tolerance is no longer silent', () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+describe('[#5741] `evalRowPredicate` — the row is bound as `record.*` only', () => {
+  let warn: MockInstance<typeof console.warn>;
   beforeEach(() => {
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
   afterEach(() => warn.mockRestore());
 
-  const deprecationWarnings = (): string[] =>
-    warn.mock.calls.map((c: unknown[]) => String(c[0])).filter((m: string) => m.includes('DEPRECATED spelling'));
+  const messages = (): string[] => warn.mock.calls.map((c) => String(c[0]));
+  const faultReports = (): string[] => messages().filter((m) => m.includes('failed to evaluate'));
 
-  it('warns on the bare shorthand and prescribes `record.status`', () => {
+  it('`record.*` still discriminates: true on the matching row, false on the other, silently', () => {
+    expect(evalRowPredicate("record.status == 'in_review'", row)).toBe(true);
+    expect(evalRowPredicate("record.status == 'in_review'", other)).toBe(false);
+    expect(messages()).toHaveLength(0);
+  });
+
+  it.each([
+    ['bare shorthand', "status == 'in_review'"],
+    ['`data.*`', "data.status == 'in_review'"],
+    ['legacy `${data.x}`', '${data.status === "in_review"}'],
+    ['legacy `${x}`', '${status === "in_review"}'],
+  ])('a %s predicate no longer discriminates — the caller fallback on BOTH rows', (_what, pred) => {
+    // A retired spelling is unbound: it faults, and the fault takes the
+    // caller's fallback, so the verdict is the same whichever row is bound.
+    // Both fallbacks are driven, so a constant that happened to equal one of
+    // them could not pass by accident.
+    expect(evalRowPredicate(pred, row)).toBe(false);
+    expect(evalRowPredicate(pred, other)).toBe(false);
+    expect(evalRowPredicate(pred, row, { fallback: true })).toBe(true);
+    expect(evalRowPredicate(pred, other, { fallback: true })).toBe(true);
+  });
+
+  it('the fault warning on the fast route names the unknown variable and carries the `record.` hint', () => {
+    evalRowPredicate('amount > 5', row, { label: 'row action "approve"' });
+    const faults = faultReports();
+    expect(faults).toHaveLength(1);
+    expect(faults[0]).toContain('Unknown variable: amount');
+    expect(faults[0]).toContain("bound under 'record.'");
+    expect(faults[0]).toContain('row action "approve"');
+  });
+
+  it('… and on the fail-closed route (`warnOnError`) it names the variable (no `record.` hint there)', () => {
+    expect(evalRowPredicate('data.amount > 5', row, { warnOnError: true, label: 'grid' })).toBe(false);
+    const faults = faultReports();
+    expect(faults).toHaveLength(1);
+    expect(faults[0]).toContain('Unknown variable: data');
+    expect(faults[0]).toContain('(grid)');
+    expect(faults[0]).not.toContain("bound under 'record.'");
+  });
+
+  it('a legacy `${…}` string on a row surface lands in the SAME fallback / warning path', () => {
+    expect(evalRowPredicate('${amount > 5}', row, { warnOnError: true, label: 'kanban' })).toBe(false);
+    const faults = faultReports();
+    expect(faults).toHaveLength(1);
+    expect(faults[0]).toContain('[legacy]');
+    expect(faults[0]).toContain('amount is not defined');
+    expect(faults[0]).toContain('(kanban)');
+  });
+
+  it('the Phase-1 deprecation warning is gone', () => {
     evalRowPredicate("status == 'in_review'", row, { label: 'row action "approve"' });
-    const msgs = deprecationWarnings();
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('record.status');
-    expect(msgs[0]).toContain('objectui#5330');
-    expect(msgs[0]).toContain('row action "approve"');
+    evalRowPredicate("data.status == 'in_review'", row, { label: 'row action "approve"' });
+    expect(messages().filter((m) => m.includes('DEPRECATED spelling'))).toHaveLength(0);
   });
 
-  it('warns on `data.*` and says the server binds no `data` at all', () => {
-    evalRowPredicate("data.status == 'in_review'", row);
-    const msgs = deprecationWarnings();
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('metadata-editing-form root');
+  it('… and so is its runtime half of the module: only the offline detector is exported', () => {
+    expect('warnNonCanonicalRowSpelling' in core).toBe(false);
+    expect('resetRowPredicateCanonWarnings' in core).toBe(false);
+    expect(typeof core.detectNonCanonicalRowSpelling).toBe('function');
+    expect(core.ROW_PREDICATE_CANONICAL_ROOT).toBe('record');
   });
 
-  it('stays silent for the canonical spelling', () => {
-    evalRowPredicate("record.status == 'in_review'", row);
-    expect(deprecationWarnings()).toHaveLength(0);
+  it('`partitionRowsByPredicate`: `record.*` still partitions; a retired spelling excludes EVERY row', () => {
+    expect(partitionRowsByPredicate("record.status == 'in_review'", [row, other])).toEqual({
+      eligible: [row],
+      skipped: 1,
+    });
+    expect(partitionRowsByPredicate("status == 'in_review'", [row, other])).toEqual({ eligible: [], skipped: 2 });
+    expect(partitionRowsByPredicate("data.status == 'in_review'", [row, other])).toEqual({ eligible: [], skipped: 2 });
   });
 
-  it('warns ONCE per (label, predicate) — these run on every row of every frame', () => {
-    for (let i = 0; i < 5; i++) evalRowPredicate("status == 'in_review'", row, { label: 'grid' });
-    expect(deprecationWarnings()).toHaveLength(1);
-  });
-
-  it('does NOT report a legacy `${…}`-dialect predicate, where `data.*` is the normal spelling', () => {
-    evalRowPredicate('${data.status === "in_review"}', row);
-    expect(deprecationWarnings()).toHaveLength(0);
+  it("a host's own `data` is left standing: `data.*` reads the HOST object, never the row", () => {
+    const host = { data: { status: 'draft' } };
+    // The same verdict on both rows — the row never enters it.
+    expect(evalRowPredicate("data.status == 'draft'", row, { scope: host })).toBe(true);
+    expect(evalRowPredicate("data.status == 'draft'", other, { scope: host })).toBe(true);
+    expect(evalRowPredicate("data.status == 'in_review'", row, { scope: host })).toBe(false);
+    // …while `record` is still the row, pinned over any host key of that name.
+    expect(evalRowPredicate("record.status == 'in_review'", row, { scope: { ...host, record: other } })).toBe(true);
   });
 });
