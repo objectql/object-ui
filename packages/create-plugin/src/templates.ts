@@ -198,6 +198,35 @@ export function buildTsconfig(): Record<string, unknown> {
  * ships already-correct rather than warning on an author's first `pnpm build`.
  * Safe unconditionally here: the repo requires Node >= 22 and vite defines
  * `import.meta.dirname` under the bundle loader too.
+ *
+ * Scaffolding INTO this monorepo is a case this output deliberately does NOT
+ * serve, and it needs no change here because THIS repo already refuses it
+ * loudly (objectui#7524, measured on a9e6f04b4). Running the generator into
+ * `packages/` and re-running `pnpm exec vitest run scripts/__tests__/` turns
+ * 11 assertions red across 7 files, every one naming the generated package;
+ * four are about this shape specifically:
+ *
+ * - `scripts/__tests__/vitest-invocation-guard.test.ts` — "calls the guard
+ *   from every one of them", "declares no `test` block - a build config must
+ *   not carry test semantics", and "derives the repo root instead of counting
+ *   `..`" (objectui#3240 / objectui#5406);
+ * - `scripts/__tests__/runner-package-test-entry-3746.test.ts` — "admits no
+ *   package beyond the recorded baseline" (objectui#3746), which reads the
+ *   generated `"test": "vitest run"` from {@link buildPackageJson}.
+ *
+ * Those pins exist because inside this repo a package-cwd `vitest run` picks
+ * up a package-local `test` block instead of `vitest.config.mts` and goes
+ * green under a config CI never uses. Measured for the scaffold too: the
+ * generated `pnpm test` passes with `RUN v4.1.10 .../packages/plugin-NAME` as
+ * its root and no guard output at all - which is exactly why the pins, not
+ * the reviewer, are what catches it. In this repo a package needing different
+ * test semantics declares a PROJECT in `vitest.config.mts`.
+ *
+ * None of that is true of the audience this generator serves - a plugin in
+ * its OWN repo, where the emitted config is the only config and the block
+ * below is the only thing giving the example test a DOM. Do not teach these
+ * templates to detect an in-repo target: the two answers differ because the
+ * questions differ, and the in-repo answer is already enforced above.
  */
 export function buildViteConfig(vars: PluginTemplateVars): string {
   return `import { defineConfig } from 'vite';
