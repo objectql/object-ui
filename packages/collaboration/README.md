@@ -30,24 +30,31 @@ import {
   LiveCursors,
   PresenceAvatars,
   CommentThread,
+  type Comment,
+  type PresenceUser,
 } from '@object-ui/collaboration';
 
+declare const broadcastPresence: (user: PresenceUser) => void;
+declare const comments: Comment[];
+declare const currentUser: { id: string; name: string };
+
 function CollaborativeEditor() {
-  const { users, updatePresence } = usePresence({
-    channel: 'document-123',
+  const { users, updateCursor } = usePresence(broadcastPresence, {
+    user: { id: 'user-1', name: 'Alice' },
   });
 
-  const { data, connectionState } = useRealtimeSubscription({
+  const { lastMessage, connectionState } = useRealtimeSubscription({
     channel: 'document-123',
-    event: 'update',
   });
 
   return (
-    <div>
+    <div data-connection={connectionState}>
       <PresenceAvatars users={users} />
       <LiveCursors users={users} />
-      <Editor data={data} onCursorMove={(pos) => updatePresence({ cursor: pos })} />
-      <CommentThread threadId="thread-1" />
+      <div onMouseMove={(event) => updateCursor({ x: event.clientX, y: event.clientY })}>
+        {lastMessage ? lastMessage.channel : 'waiting for updates'}
+      </div>
+      <CommentThread threadId="thread-1" comments={comments} currentUser={currentUser} />
     </div>
   );
 }
@@ -57,34 +64,41 @@ function CollaborativeEditor() {
 
 ### useRealtimeSubscription
 
-Hook for WebSocket data subscriptions:
+Hook for WebSocket data subscriptions. `channel` is the only required key, and the
+result carries the connection state plus the messages received so far:
 
 ```tsx
-const { data, connectionState, error } = useRealtimeSubscription({
+import { useRealtimeSubscription } from '@object-ui/collaboration';
+
+const { lastMessage, messages, connectionState, error } = useRealtimeSubscription({
   channel: 'orders',
-  event: 'update',
 });
 ```
 
 ### usePresence
 
-Hook for tracking user presence:
+Hook for tracking user presence. The broadcast callback comes first and the
+configuration second; the configuration carries the current user:
 
 ```tsx
-const { users, updatePresence } = usePresence({
-  channel: 'document-123',
+import { usePresence, type PresenceUser } from '@object-ui/collaboration';
+
+declare const broadcastPresence: (user: PresenceUser) => void;
+
+const { users, updateCursor, currentUser } = usePresence(broadcastPresence, {
   user: { id: 'user-1', name: 'Alice' },
 });
 ```
 
 ### useConflictResolution
 
-Hook for version history and conflict management:
+Hook for version history and conflict management. It is called with the current
+user's id, optionally their name:
 
 ```tsx
-const { versions, conflicts, resolve } = useConflictResolution({
-  resourceId: 'doc-123',
-});
+import { useConflictResolution } from '@object-ui/collaboration';
+
+const { versions, conflicts, resolveConflict } = useConflictResolution('user-1', 'Alice');
 ```
 
 ### LiveCursors
@@ -92,7 +106,11 @@ const { versions, conflicts, resolve } = useConflictResolution({
 Displays remote user cursors on the page:
 
 ```tsx
-<LiveCursors users={presenceUsers} />
+import { LiveCursors, type PresenceUser } from '@object-ui/collaboration';
+
+declare const presenceUsers: PresenceUser[];
+
+const cursors = <LiveCursors users={presenceUsers} />;
 ```
 
 ### PresenceAvatars
@@ -100,19 +118,33 @@ Displays remote user cursors on the page:
 Shows avatar badges for active users:
 
 ```tsx
-<PresenceAvatars users={presenceUsers} maxVisible={5} />
+import { PresenceAvatars, type PresenceUser } from '@object-ui/collaboration';
+
+declare const presenceUsers: PresenceUser[];
+
+const avatars = <PresenceAvatars users={presenceUsers} maxVisible={5} />;
 ```
 
 ### CommentThread
 
-Threaded comment component with @mentions:
+Threaded comment component with @mentions. `comments` and `currentUser` are
+required; new comments arrive through `onAddComment`:
 
 ```tsx
-<CommentThread
-  threadId="thread-1"
-  comments={comments}
-  onSubmit={(comment) => saveComment(comment)}
-/>
+import { CommentThread, type Comment } from '@object-ui/collaboration';
+
+declare const comments: Comment[];
+declare const currentUser: { id: string; name: string };
+declare const saveComment: (content: string, mentions: string[]) => void;
+
+const thread = (
+  <CommentThread
+    threadId="thread-1"
+    comments={comments}
+    currentUser={currentUser}
+    onAddComment={(content, mentions) => saveComment(content, mentions)}
+  />
+);
 ```
 
 ## Links
