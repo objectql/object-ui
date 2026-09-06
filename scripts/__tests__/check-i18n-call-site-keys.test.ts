@@ -13,6 +13,7 @@ import {
   DYNAMIC_KEY_FAMILIES,
   EXTERNALLY_INTERPOLATED_HOLES,
   FACTORY_NAMES,
+  HAND_ROLLED_TABLES,
   holesOf,
   PACK_HOOK,
   readVocabulary,
@@ -112,6 +113,30 @@ const realEn: unknown = (
  * for the same reason.
  */
 const I18N_PKG = '@object-ui/i18n';
+
+/**
+ * ONE full-repo run, shared by every case below that asks about `main`.
+ *
+ * `analyze(repoRoot)` parses ~1600 files. Seven cases wanted that answer and
+ * each paid for its own walk, which held until objectui#7877 added two more
+ * and pushed the slowest case past vitest's 15s window under a full
+ * `pnpm exec vitest run scripts/__tests__/` — measured, not predicted. That is
+ * the shape AGENTS.md 测试纪律 names as the top cause of flaky tests here: an
+ * unbounded workload counted inside a bounded one. The fix it prescribes is
+ * this one — move the cost into the IMPORT phase, where no test or hook
+ * timeout applies — and NOT raising the timeout, which only hides the race.
+ *
+ * It is also the same per-root memoisation
+ * `packages/test-support/src/defaults-table-scan.ts` already does for its own
+ * walk, for the same reason. Safe to share: `analyze` is pure over
+ * (root, options) and no case below mutates what it returns — `applyBaseline`
+ * reads `findings` and builds new arrays.
+ *
+ * ⚠️ Only for the DEFAULT options. A case that injects its own registry
+ * (`{ families: [] }`, a synthetic `handRolled`) is asking a different
+ * question and must keep its own run.
+ */
+const REPO_ANALYSIS = analyze(repoRoot);
 
 /** Dotted leaf paths of a plain object — the shape the gate compares against. */
 function leafPaths(node: unknown, prefix = ''): string[] {
@@ -1226,7 +1251,7 @@ export const A = (name: string) => {
     // The trap this rule's own card named: a coverage number that looks like
     // success and can be reached by judging nothing. The CLI exits non-zero
     // below 500; this pins the same floor where the counter is readable.
-    const { counters } = analyze(repoRoot);
+    const { counters } = REPO_ANALYSIS;
     expect(counters.spellingJudgedDefaults).toBeGreaterThan(500);
     // The residue route C could not reach is still IN the judged set, not
     // quietly dropped from it.
@@ -1463,7 +1488,7 @@ export const useBTranslation = createSafeTranslation({ ...ELSEWHERE }, 'common.s
     // distinct tables, 846 rows, 841 comparable, 0 drifted — objectui#7454's
     // instance having landed in objectui#7574 two days earlier. Both halves are
     // asserted, because "0 findings" and "0 rows compared" read identically.
-    const { counters } = analyze(repoRoot, { families: DYNAMIC_KEY_FAMILIES });
+    const { counters } = REPO_ANALYSIS;
     expect(factoryDriftOf(repoRoot)).toEqual([]);
     expect(counters.factoryTables).toBeGreaterThan(25);
     expect(counters.factoryComparedRows).toBeGreaterThan(500);
@@ -1476,6 +1501,193 @@ export const useBTranslation = createSafeTranslation({ ...ELSEWHERE }, 'common.s
 
   it('the factory-name set is the one the objectui#3512 test uses, not a second opinion', () => {
     expect([...FACTORY_NAMES].sort()).toEqual(['createSafeTranslation', 'createSafeTranslationHook']);
+  });
+});
+
+describe('the hand-rolled tables are reached through a DECLARED registry (objectui#7877)', () => {
+  /**
+   * The B half of the ruling on objectui#7567 Q2. The class above takes its
+   * population from the SOURCE, which is why a 33rd factory needs nobody to
+   * remember it — and is also why it cannot see a table whose package
+   * re-implemented `fallbackT` instead of calling the factory: nothing in that
+   * source says which local function is the interpolator. Covering those takes
+   * a declaration, and a declaration is a second thing that rots.
+   *
+   * So three separate things are pinned here, and they fail for three different
+   * reasons:
+   *
+   *   1. The RULE — a declared table's rows are compared exactly as a factory
+   *      table's are, and a drifted row names itself under its own reason.
+   *   2. The DE-DUPLICATION — `TIMELINE_DEFAULT_TRANSLATIONS` is in the registry
+   *      AND reachable from the factory, so its rows must be counted once. A
+   *      census that double-counts is not a census.
+   *   3. The DECLARATION ITSELF — that the list this gate reads is the same
+   *      bytes `packages/test-support/src/defaults-table-scan.ts` reads, not a
+   *      copy of them, and that the collapse floor sits where losing a single
+   *      declared table fails rather than merely shrinking.
+   *
+   * ⛔ What is deliberately NOT pinned is an inferred population. Option C on
+   * objectui#7567 — matching identifier names, or every `Record<string, string>`
+   * that looks like a defaults map — was rejected there for inventing a
+   * heuristic where a declaration is available.
+   */
+
+  const EN_7877 = `const en = {
+  common: { save: 'Save', cancel: 'Cancel' },
+  calendar: { today: 'Today', allDay: 'All Day' },
+} as const;
+export default en;
+`;
+
+  /** A module that hand-rolls the interpolator: a table, and no factory call. */
+  function handRolledModule(table: string): string {
+    return `export const LOCAL_DEFAULTS: Record<string, string> = ${table};
+export const fallbackT = (key: string) => LOCAL_DEFAULTS[key] ?? key;
+`;
+  }
+
+  /** Widened-half findings as `key: en -> table @file:line`. */
+  function handRolledDriftOf(root: string, handRolled: { file: string; name: string }[]): string[] {
+    return analyze(root, { families: [], handRolled })
+      .findings.filter((f: { reason: string }) => f.reason === 'hand-rolled-default-drift')
+      .map(
+        (f: { detail: string; expected: string; actual: string; file: string; line: number }) =>
+          `${f.detail}: ${f.expected} -> ${f.actual} @${f.file}:${f.line}`,
+      )
+      .sort();
+  }
+
+  const REGISTRY = [{ file: 'packages/x/src/local.ts', name: 'LOCAL_DEFAULTS' }];
+
+  it('compares a declared table the factory walk cannot see, and stays silent when it matches', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7877,
+      'packages/x/src/local.ts': handRolledModule(
+        `{ 'calendar.today': 'Today', 'calendar.allDay': 'All Day' }`,
+      ),
+    });
+    const { findings, counters } = analyze(root, { families: [], handRolled: REGISTRY });
+    expect(findings).toEqual([]);
+    // The factory half saw nothing at all here — which is the whole point of
+    // this class existing, and why its counters are separate.
+    expect(counters.factorySites).toBe(0);
+    expect(counters.factoryComparedRows).toBe(0);
+    expect(counters.handRolledDeclared).toBe(1);
+    expect(counters.handRolledTables).toBe(1);
+    expect(counters.handRolledComparedRows).toBe(2);
+    expect(counters.handRolledMatchingRows).toBe(2);
+  });
+
+  it('names the table, the key and both texts when a declared row drifts', () => {
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7877,
+      'packages/x/src/local.ts': handRolledModule(
+        `{ 'calendar.today': 'Today', 'calendar.allDay': 'all-day' }`,
+      ),
+    });
+    expect(handRolledDriftOf(root, REGISTRY)).toEqual([
+      'calendar.allDay: All Day -> all-day @packages/x/src/local.ts:1',
+    ]);
+    const findings = analyze(root, { families: [], handRolled: REGISTRY }).findings;
+    // Its OWN reason, not the factory class's: the two halves are reached
+    // differently, and the hint that tells you how to fix one names a registry
+    // the other does not have.
+    expect(findings.map((f: { reason: string }) => f.reason)).toEqual(['hand-rolled-default-drift']);
+    expect(findings.map((f: { table: string }) => f.table)).toEqual([
+      'LOCAL_DEFAULTS (packages/x/src/local.ts)',
+    ]);
+  });
+
+  it('counts a declared table the factory ALSO reaches once, on the factory side', () => {
+    // `TIMELINE_DEFAULT_TRANSLATIONS` is the real instance: it is in the
+    // registry because that registry mirrors the needle-file set objectui#3512
+    // pins, and it takes the factory as well. Counting its rows in both halves
+    // would inflate both censuses and let the widened floor be satisfied by a
+    // table this class is not responsible for.
+    const root = repoWith({
+      'packages/i18n/src/locales/en.ts': EN_7877,
+      'packages/x/src/local.ts': `import { createSafeTranslation } from '${I18N_PKG}';
+export const LOCAL_DEFAULTS: Record<string, string> = { 'calendar.today': 'Today' };
+export const useXTranslation = createSafeTranslation(LOCAL_DEFAULTS, 'calendar.today');
+`,
+    });
+    const { counters } = analyze(root, { families: [], handRolled: REGISTRY });
+    expect(counters.factoryTables).toBe(1);
+    expect(counters.factoryComparedRows).toBe(1);
+    expect(counters.handRolledDeclared).toBe(1);
+    expect(counters.handRolledAlreadyFactoryCovered).toBe(1);
+    expect(counters.handRolledTables).toBe(0);
+    expect(counters.handRolledComparedRows).toBe(0);
+  });
+
+  it('counts a declaration that no longer resolves as an unreadable TABLE, not as zero rows', () => {
+    // The registry rotting in the direction nothing else would notice: the
+    // entry is still there, the file or the `const` is not. Silence here would
+    // be "0 drifted" over a table that left the surface.
+    const root = repoWith({ 'packages/i18n/src/locales/en.ts': EN_7877 });
+    const { findings, counters } = analyze(root, { families: [], handRolled: REGISTRY });
+    expect(findings).toEqual([]);
+    expect(counters.handRolledDeclared).toBe(1);
+    expect(counters.handRolledUnreadableTables).toBe(1);
+    expect(counters.handRolledComparedRows).toBe(0);
+  });
+
+  it('reads the SAME bytes as the test-support declaration — one list, not two', () => {
+    // objectui#6923's ruling, second instance. The gate is a bare
+    // `node scripts/check-*.mjs`, so it cannot import
+    // `@object-ui/test-support/defaults-table-scan` — that `exports` entry
+    // resolves to TypeScript source with no build artefact. The DATA therefore
+    // lives in JSON with its own subpath, and this asserts the gate really is
+    // reading it rather than a copy that can be stale for the window between
+    // two edits.
+    const declared = JSON.parse(
+      fs.readFileSync(
+        path.join(repoRoot, 'packages/test-support/src/hand-rolled-tables.json'),
+        'utf8',
+      ),
+    );
+    expect(HAND_ROLLED_TABLES).toEqual(declared);
+    // The subpath is what makes both readers reach one file; a package that
+    // stopped exporting it would send the gate to a resolution error rather
+    // than to a stale copy, and this says so out loud.
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'packages/test-support/package.json'), 'utf8'),
+    );
+    expect(pkg.exports['./hand-rolled-tables']).toBe('./src/hand-rolled-tables.json');
+  });
+
+  it('every declared entry names a file that exists and a const that resolves on main', () => {
+    // The staleness reading, this side of it. The ratchet that catches a table
+    // added and NOT declared lives in
+    // `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`,
+    // which asserts the needle-file set equals a pinned list; this is the other
+    // direction — an entry that names something no longer there.
+    const { counters } = REPO_ANALYSIS;
+    expect(counters.handRolledDeclared).toBe(HAND_ROLLED_TABLES.length);
+    expect(counters.handRolledUnreadableTables).toBe(0);
+    for (const { file } of HAND_ROLLED_TABLES) {
+      expect(fs.existsSync(path.join(repoRoot, file)), `${file} left the tree`).toBe(true);
+    }
+  });
+
+  it('and main is measured, not merely green — the floor is above the LARGER table', () => {
+    // The objectui#7567 ⛔ #2 property, one level down: "0 drifted" and "0 rows
+    // compared" read identically, and the factory half's 841 rows would hide a
+    // registry that resolved nothing. The CLI exits non-zero below 150; this
+    // pins the same floor where the counter is readable, and pins that 150 was
+    // chosen to fail on losing EITHER table rather than only both.
+    const { counters } = REPO_ANALYSIS;
+    expect(counters.handRolledComparedRows).toBeGreaterThanOrEqual(150);
+    expect(counters.handRolledTables).toBe(2);
+    expect(counters.handRolledAlreadyFactoryCovered).toBe(1);
+    // The abstention counts are printed on every run for the reason
+    // objectui#7874 exists: a gate that hides its blind-spot size reads as 100%
+    // coverage forever. They are zero today, and zero is a READING here only
+    // because the compared count above says the scan had something to judge.
+    expect(counters.handRolledRowsNoEnKey).toBe(0);
+    expect(counters.handRolledUnjudgedRows).toBe(0);
+    expect(counters.handRolledUnreadableRows).toBe(0);
+    expect(counters.handRolledMatchingRows).toBe(counters.handRolledComparedRows);
   });
 });
 
@@ -1737,7 +1949,7 @@ export const css = (v: string) => \`--oui.color.\${v}\`;
     // still pointed at the repo: if `toolTitleKey` is inlined, renamed into a
     // shape this leg cannot read, or moved behind a concatenation, the head
     // disappears here and `stale-dynamic-family` fails the gate.
-    const { dynamicHeads, counters, findings } = analyze(repoRoot);
+    const { dynamicHeads, counters, findings } = REPO_ANALYSIS;
     expect(counters.keyBuilderSites, 'the key-builder leg detects nothing on this tree').toBeGreaterThanOrEqual(1);
     expect(dynamicHeads.has('chatbot.tool.'), 'chatbot.tool. is no longer reached by any leg').toBe(true);
     expect(DYNAMIC_KEY_FAMILIES.some((f) => f.head === 'chatbot.tool.')).toBe(true);
@@ -1808,7 +2020,7 @@ describe('the checked-in registry describes this repo (objectui#4964)', () => {
   });
 
   it('the split is what the report says it is, and the check is not vacuous on `main`', () => {
-    const { counters, findings } = analyze(repoRoot);
+    const { counters, findings } = REPO_ANALYSIS;
     expect(counters.declaredFamilies).toBe(DYNAMIC_KEY_FAMILIES.length);
     expect(counters.enumerableFamilies + counters.notEnumerableFamilies).toBe(counters.declaredFamilies);
     // Measured on `main`: 18 of 25 families are exactly checkable. The number is
@@ -1834,7 +2046,7 @@ describe('the checked-in registry describes this repo (objectui#4964)', () => {
     expect(leaves.has('gantt.viewMode.day'), 'the fixture key this control rests on has moved').toBe(true);
     const viewMode = DYNAMIC_KEY_FAMILIES.find((f) => f.head === 'gantt.viewMode.');
     expect(readVocabulary(repoRoot, viewMode!.vocabulary!)).toContain('day');
-    expect(analyze(repoRoot).findings.filter((f: { detail: string }) => f.detail === 'gantt.viewMode.day')).toEqual([]);
+    expect(REPO_ANALYSIS.findings.filter((f: { detail: string }) => f.detail === 'gantt.viewMode.day')).toEqual([]);
   });
 });
 
@@ -1869,7 +2081,7 @@ describe('the baseline is a ratchet', () => {
     // landed, which is how a ratchet turns back into an allowlist.
     const baselineFile = path.join(repoRoot, 'scripts/i18n-call-site-key-baseline.json');
     const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
-    const { unexpected, stale } = applyBaseline(analyze(repoRoot).findings, baseline);
+    const { unexpected, stale } = applyBaseline(REPO_ANALYSIS.findings, baseline);
     expect(unexpected, `${unexpected.length} call site(s) not covered by the baseline`).toEqual([]);
     expect(stale, `${stale.length} stale baseline entr(y|ies)`).toEqual([]);
     for (const entry of Object.values(baseline.missingKeys) as Array<{ issue: string }>) {
