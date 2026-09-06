@@ -28,5 +28,15 @@ sibling select renderer, which already sets `disabled={opt.disabled}` on its
 `SelectItem`.
 
 Nothing else moves. The whole-control `disabled` prop (the one forwarded to the
-trigger button) is untouched, `@object-ui/types` is untouched, and no new key is
-introduced — this release only starts reading one that was already published.
+trigger button) is untouched, no key is added to `@object-ui/types`, and no new
+key is introduced — this release only starts reading one that was already
+published.
+
+`@object-ui/types` is deliberately **not** given its own bump. The one file that
+changes there is a test, `component-docs-disabled-inherited-7239.test.ts`: its
+census over `content/docs/components` counts every documented `disabled?:` row,
+and documenting the member adds a legitimate row that the ledger now claims as
+INDEPENDENT (the shipped `ComboboxOption` declares `disabled` itself and does not
+extend `BaseSchema`, so the narrow `boolean` spelling is correct for it). No
+shipped type or value moves in that package, so there is no behaviour there to
+version.
