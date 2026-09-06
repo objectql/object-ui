@@ -389,6 +389,7 @@ pulses it — useful in deep or long trees.
 what `ObjectGantt` produces from each record. Dates are real `Date` objects and
 the label field is `title` (`src/GanttView.tsx`):
 
+<!-- readme-exports: partial GanttTask — deliberate excerpt: `fields` and `hasOwnDates` are populated by ObjectGantt itself, as the paragraph below the block says -->
 ```typescript
 interface GanttTask {
   id: string | number;

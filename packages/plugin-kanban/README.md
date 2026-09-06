@@ -115,8 +115,10 @@ interface KanbanColumn {
   id: string;
   title: string;
   cards: KanbanCard[];
-  limit?: number;                     // Maximum cards allowed
+  limit?: number;                     // WIP limit — the count at which the lane warns
   className?: string;
+  collapsed?: boolean;                // Lane renders collapsed (honoured by KanbanEnhanced)
+  color?: never;                      // RETIRED — refused by name; style a lane through className
 }
 
 // Card structure
@@ -128,6 +130,13 @@ interface KanbanCard {
     label: string;
     variant?: 'default' | 'secondary' | 'destructive' | 'outline';
   }>;
+  cardSubtitle?: string;              // Synthesized subtitle, rendered in preference to description
+  cardFieldCells?: Array<{            // Structured per-field cells; wins over cardSubtitle/description
+    field: string;
+    label?: string;
+    node: React.ReactNode;
+  }>;
+  coverImage?: string;                // Resolved cover-image URL, from the board's coverImageField
 }
 ```
 

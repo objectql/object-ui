@@ -953,7 +953,29 @@ describe('the PARTIAL_EXCERPTS ledger, as it stands in this repository', () => {
     const judgeable = new Set(ledgered.filter((key) => !isUnbuilt(packageOfEntry(key))));
     const suspendable = ledgered.filter((key) => isUnbuilt(packageOfEntry(key)));
 
-    expect(ledgered.length, 'the ledger is empty, so this case asserts nothing').toBeGreaterThan(0);
+    // THE LEDGER IS EMPTY TODAY, and this line is what says so out loud.
+    // objectui#7302 paid off the three entries objectui#6214 opened with, and
+    // the guard that stood here (`expect(ledgered.length).toBeGreaterThan(0)`,
+    // "the ledger is empty, so this case asserts nothing") went red on that
+    // content fix. It was right to: the per-ENTRY leg below does stop asserting
+    // when there is no entry. But this case does NOT go vacuous with it --
+    // `judgeable` becomes the empty set, so the equality two blocks down reads
+    // "NO declaration in this tree reds as a stale omission with the ledger
+    // off", which is the strongest state this repository can be in and reds on
+    // the next README that drifts.
+    //
+    // So the guard is replaced by the FACT, asserted rather than assumed: an
+    // entry arriving flips this line, in the same file that explains what the
+    // entry then has to satisfy. The per-entry property itself never depended
+    // on the repository carrying an entry -- it is pinned on the fixture tree
+    // above ('the LEDGER suppresses the omission it records', 'the LEDGER does
+    // NOT suppress a fabricated key either', and the two stale-entry cases),
+    // which carry an entry by construction and cannot be emptied by a content
+    // card.
+    expect(
+      ledgered,
+      'the ledger is no longer empty -- flip this assertion to the entries and re-read the case above it',
+    ).toEqual([]);
 
     const omissions = off.findings.filter((f) => f.verdict === 'stale-omission');
     const suspended = off.findings.filter((f) => f.verdict === 'unjudgeable-type');
