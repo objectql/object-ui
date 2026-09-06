@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { afterAll, describe, expect, it } from 'vitest';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -707,4 +707,287 @@ describe('wiring — the gate is reachable and every PR shape starts it', () => 
     expect(yaml).not.toMatch(/pnpm install/);
     expect(yaml.indexOf(SCRIPT)).toBeGreaterThan(-1);
   });
+});
+
+// ---------------------------------------------------------------------------
+// objectui#7337 — the `@object-ui/i18n` sweep
+// ---------------------------------------------------------------------------
+
+/** The specifier objectui#7337 swept. Not in `COVERED_SPECIFIERS` yet — see below. */
+const I18N = '@object-ui/i18n';
+
+/** Classify one factory in isolation against an arbitrary covered specifier. */
+function verdictFor(spec: string, factory: string) {
+  const sites = findCallSites(mockCall(spec, factory), { covered: [spec] });
+  expect(sites, 'the fixture must produce exactly one call site').toHaveLength(1);
+  return sites[0];
+}
+
+describe('the generic argument NESTS — `vi.importActual<Record<string, unknown>>(…)`', () => {
+  /**
+   * The recogniser's optional generic was `<[^>]*>`, which stops at the FIRST
+   * `>`. Against `vi.importActual<Record<string, unknown>>('@object-ui/i18n')`
+   * it consumed `<Record<string, unknown>` and then failed on the `>` that
+   * follows, so the whole call went unmatched and the factory was reported as
+   * one that "never obtains the real module" — on code that obtains it and
+   * spreads it.
+   *
+   * That is the failure this gate's own header rules out by name, and it stayed
+   * invisible because the covered set was `@object-ui/react`, where nobody
+   * writes the spelling. Measured over the whole tree at the fix: 349 frozen
+   * across all 21 workspace specifiers became 344, and no site moved the other
+   * way.
+   */
+
+  const RECEIVER = `async () => { const actual = await OBTAIN; return { ...actual, X: Stub }; }`;
+  const withObtain = (generic: string) => RECEIVER.replace('OBTAIN', importActual(I18N, generic));
+
+  it('reads the NESTED generic the four real files write', () => {
+    expect(verdictFor(I18N, withObtain('<Record<string, unknown>>')).verdict).toBe('inherits');
+  });
+
+  it('still reads the spellings that always worked — no generic, and a flat one', () => {
+    expect(verdictFor(I18N, withObtain('')).verdict).toBe('inherits');
+    expect(verdictFor(I18N, withObtain('<any>')).verdict).toBe('inherits');
+    expect(verdictFor(I18N, withObtain(`<typeof import(${Q}${I18N}${Q})>`)).verdict).toBe('inherits');
+  });
+
+  it('reads a generic nested twice — the scan is balanced, not one level deep', () => {
+    expect(verdictFor(I18N, withObtain('<Record<string, Record<string, unknown>>>')).verdict).toBe('inherits');
+  });
+
+  it('an UNBALANCED angle bracket is not read as an obtain — it stays FROZEN', () => {
+    // The failure direction of an unforeseen spelling is the verdict the old
+    // regex already gave, never a false GREEN.
+    expect(verdictFor(I18N, withObtain('<Record<string, unknown>')).verdict).toBe('frozen');
+  });
+
+  it('an importActual of a DIFFERENT specifier still does not inherit this one', () => {
+    const other = RECEIVER.replace('OBTAIN', importActual('@object-ui/auth', '<Record<string, unknown>>'));
+    expect(verdictFor(I18N, other).verdict).toBe('frozen');
+  });
+
+  it('THE FOUR REAL FILES: each obtains and spreads through the nested spelling', () => {
+    // Pinned against the files on disk, not against a reconstruction: these are
+    // the four the old regex called frozen, and a future edit reddens here.
+    const misread = [
+      'packages/app-shell/src/console/cloud-connection/__tests__/CloudConnectionPanel.bindError.test.tsx',
+      'packages/app-shell/src/console/cloud-connection/__tests__/CloudConnectionPanel.bindErrorLocale.test.tsx',
+      'packages/app-shell/src/layout/__tests__/AppSwitcher.publishState.test.tsx',
+      'packages/app-shell/src/preview/__tests__/UnpublishedAppBar.test.tsx',
+    ];
+    for (const file of misread) {
+      const source = fs.readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(source, `${file} no longer writes the nested-generic obtain`).toContain(
+        `${'importActual'}<Record<string, unknown>>`,
+      );
+      const judged = findCallSites(source, { covered: [I18N] }).filter((s: { scope: string }) => s.scope === 'covered');
+      expect(judged.map((s: { verdict: string }) => s.verdict), file).toEqual(['inherits']);
+    }
+  });
+});
+
+describe('the sweep — every `@object-ui/i18n` factory inherits, bar the one held file', () => {
+  /**
+   * objectui#7337 converted 29 frozen factories and deleted a 30th
+   * (`apps/console/dev/__tests__/setup/common-mocks.ts`, a helper with zero
+   * importers repo-wide). The 31st — `DeclaredActionsBar.test.tsx` — is held by
+   * open PR #7846 and could not be touched, so `COVERED_SPECIFIERS` was NOT
+   * widened: flipping it while a frozen factory remains turns `main` red.
+   *
+   * The assertions below are the ratchet in the meantime, and they are
+   * deliberately ONE-DIRECTIONAL. They redden when a NEW frozen factory appears
+   * — the defect — and stay green when the held one is fixed, so nobody's
+   * unrelated PR pays for finishing this.
+   */
+
+  /** Held by open PR #7846 at the time of the sweep. */
+  const HELD = 'packages/app-shell/src/views/__tests__/DeclaredActionsBar.test.tsx';
+
+  const swept = () => scan(repoRoot, { covered: [I18N], floors: {} });
+
+  it('no `@object-ui/i18n` factory outside the held file freezes the surface', () => {
+    const result = swept();
+    const frozen = result.frozen.map((f: { file: string }) => f.file).filter((f: string) => f !== HELD);
+    expect(frozen, 'convert these to the obtain-and-spread form before adding the specifier').toEqual([]);
+    expect(result.unreadable, 'a factory the gate cannot read is never a pass').toEqual([]);
+  });
+
+  it('walked a real population — a collapsed scan cannot read as a swept one', () => {
+    // Same discipline as `FLOORS`: this describe's green is a claim about 92
+    // call sites, so the count is asserted rather than assumed.
+    const census = swept().census;
+    expect(census.covered).toBeGreaterThan(60);
+    expect(census.inherits).toBeGreaterThan(60);
+    expect(census.covered - census.inherits - census.automock).toBeLessThanOrEqual(1);
+  });
+
+  it('the specifier is NOT in COVERED_SPECIFIERS yet, and this is the reason', () => {
+    // The follow-up, in one line: once PR #7846 lands, convert
+    // `DeclaredActionsBar.test.tsx:65`, DELETE this case, and add the specifier
+    // to `COVERED_SPECIFIERS`. Until then the flip reds `main` on merge.
+    expect(
+      COVERED_SPECIFIERS,
+      'a frozen @object-ui/i18n factory still exists — widening the set now reds main',
+    ).not.toContain(I18N);
+  });
+
+  it('the zero-importer mock helper is gone, not merely unreferenced', () => {
+    // The needle is ASSEMBLED, for the reason "Fixture discipline" gives above:
+    // spelt whole it would appear in this file and the search would find
+    // itself. Measured — the first draft of this case failed exactly that way.
+    const needle = `applyCommon${'ConsoleMocks'}`;
+    expect(fs.existsSync(path.join(repoRoot, 'apps/console/dev/__tests__/setup/common-mocks.ts'))).toBe(false);
+    // `git grep` exits 1 on no match, which is the PASSING case, so the run is
+    // read rather than thrown: `execFileSync` would turn the pass into an error.
+    const hits = spawnSync('git', ['grep', '-l', needle, '--', '.'], { cwd: repoRoot, encoding: 'utf8' });
+    expect((hits.stdout ?? '').trim(), 'the deleted helper is named again somewhere').toBe('');
+    expect(hits.status, 'git grep itself failed — the search never ran').toBe(1);
+  });
+});
+
+describe('THE DEATH — a frozen factory kills the file at COLLECTION, not in a test', () => {
+  /**
+   * The gate's verdict is a prediction about what vitest does. This case makes
+   * the prediction and then checks it by running vitest for real, over a
+   * throwaway package whose "next export" is the one added the day after the
+   * factory was written — objectui#7337's own reproduction, minus the repo.
+   *
+   * Three legs, and the third is what stops the first from being vacuous:
+   *
+   *   1. FROZEN factory + a MODULE-SCOPE read  -> the suite never collects.
+   *      `Tests  no tests`: zero failed assertions, which is why objectui#6768
+   *      records that this reads as flake and bills the wrong author.
+   *   2. INHERITING factory, same read         -> collects and passes.
+   *   3. FROZEN factory + a LAZY read          -> collects, and fails as an
+   *      ordinary assertion pointing at the culprit. So leg 1 is measuring the
+   *      MODULE-SCOPE read, not merely the presence of a frozen factory —
+   *      without leg 3 a suite that failed for any reason at all would satisfy
+   *      it.
+   */
+
+  /** A specifier that exists only inside the fixture tree. */
+  const SPEC = '@fixture/i18n';
+
+  const REAL_MODULE = [
+    `export const useObjectTranslation = () => ({ t: (k) => k });`,
+    `// The export added the day AFTER every frozen factory below was written.`,
+    `export const createSafeTranslation = (defaults) => () => ({ t: (k) => defaults?.[k] ?? k });`,
+    '',
+  ].join('\n');
+
+  const FROZEN = `() => ({ useObjectTranslation: () => ({ t: (k) => k }) })`;
+  const INHERITING = `async (importOriginal) => ({ ...(await importOriginal()), useObjectTranslation: () => ({ t: (k) => k }) })`;
+
+  const EAGER = [
+    `import { createSafeTranslation } from ${Q}${SPEC}${Q};`,
+    `export const DISCARD_GUARD = createSafeTranslation({ discard: ${Q}Discard?${Q} });`,
+    '',
+  ].join('\n');
+
+  const LAZY = [
+    `import { createSafeTranslation } from ${Q}${SPEC}${Q};`,
+    `export const discardGuard = () => createSafeTranslation({ discard: ${Q}Discard?${Q} });`,
+    '',
+  ].join('\n');
+
+  const suite = (factory: string, importLine: string, body: string) =>
+    [`import { expect, it, vi } from ${Q}vitest${Q};`, mockCall(SPEC, factory), importLine, body, ''].join('\n');
+
+  const roots: string[] = [];
+
+  /**
+   * A throwaway package tree. `vitest` is resolved by walking UP from the
+   * fixture, so one symlink is everything it borrows from this repo; the mocked
+   * specifier is a REAL package inside the fixture's own `node_modules`, which
+   * is what makes it a bare specifier the gate judges rather than a relative
+   * one it declines to.
+   */
+  function fixturePackage(files: Record<string, string>) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vi-mock-collection-death-'));
+    roots.push(root);
+    const pkg = path.join(root, 'node_modules', SPEC);
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.symlinkSync(path.join(repoRoot, 'node_modules/vitest'), path.join(root, 'node_modules/vitest'));
+    fs.writeFileSync(
+      path.join(pkg, 'package.json'),
+      `${JSON.stringify({ name: SPEC, version: '0.0.0', type: 'module', main: 'index.mjs' }, null, 2)}\n`,
+    );
+    fs.writeFileSync(path.join(pkg, 'index.mjs'), REAL_MODULE);
+    for (const [rel, body] of Object.entries(files)) fs.writeFileSync(path.join(root, rel), body);
+    return root;
+  }
+
+  /** The nested run, with this run's own VITEST_* wiring kept out of its env. */
+  function runVitest(root: string) {
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value === undefined || key === 'VITEST' || key.startsWith('VITEST_')) continue;
+      env[key] = value;
+    }
+    const run = spawnSync(path.join(repoRoot, 'node_modules/.bin/vitest'), ['run', '--root', root], {
+      cwd: root,
+      encoding: 'utf8',
+      env,
+    });
+    return { status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` };
+  }
+
+  afterAll(() => {
+    for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('the gate PREDICTS the two outcomes before either is run', () => {
+    expect(verdictFor(SPEC, FROZEN).verdict).toBe('frozen');
+    expect(verdictFor(SPEC, INHERITING).verdict).toBe('inherits');
+  });
+
+  it('LEG 1 — frozen factory, module-scope read: the file dies during COLLECTION', () => {
+    const root = fixturePackage({
+      'consumer.mjs': EAGER,
+      'frozen.test.mjs': suite(
+        FROZEN,
+        `import { DISCARD_GUARD } from ${Q}./consumer.mjs${Q};`,
+        `it(${Q}never runs${Q}, () => { expect(DISCARD_GUARD).toBeTypeOf(${Q}function${Q}); });`,
+      ),
+    });
+    const { status, output } = runVitest(root);
+    expect(status, output).not.toBe(0);
+    expect(output).toContain('No "createSafeTranslation" export is defined on the "@fixture/i18n" mock');
+    expect(output, 'the suite failed as a SUITE, before any test existed').toMatch(/Failed Suites\s+1/);
+    // The signature objectui#6768 measured: a red run with nothing to point at.
+    expect(output, 'zero failed assertions is what makes this read as flake').toMatch(/Tests\s+no tests/);
+  }, 120_000);
+
+  it('LEG 2 — the converted factory, same read: it collects and passes', () => {
+    const root = fixturePackage({
+      'consumer.mjs': EAGER,
+      'inheriting.test.mjs': suite(
+        INHERITING,
+        `import { DISCARD_GUARD } from ${Q}./consumer.mjs${Q};`,
+        `it(${Q}runs${Q}, () => { expect(DISCARD_GUARD).toBeTypeOf(${Q}function${Q}); });`,
+      ),
+    });
+    const { status, output } = runVitest(root);
+    expect(status, output).toBe(0);
+    expect(output).toMatch(/Tests\s+1 passed/);
+  }, 120_000);
+
+  it('LEG 3 — the NON-VACUITY control: a lazy read fails as an ordinary test', () => {
+    const root = fixturePackage({
+      'lazy-consumer.mjs': LAZY,
+      'lazy.test.mjs': suite(
+        FROZEN,
+        `import { discardGuard } from ${Q}./lazy-consumer.mjs${Q};`,
+        `it(${Q}collects, then fails${Q}, () => { expect(discardGuard()).toBeTypeOf(${Q}function${Q}); });`,
+      ),
+    });
+    const { status, output } = runVitest(root);
+    expect(status, output).not.toBe(0);
+    // Same missing export, same frozen factory -- and a completely different
+    // failure shape, because the read is no longer at module scope.
+    expect(output).toContain('No "createSafeTranslation" export is defined on the "@fixture/i18n" mock');
+    expect(output, 'a lazy read collects, so the failure is an assertion').toMatch(/Tests\s+1 failed/);
+    expect(output).not.toMatch(/Failed Suites/);
+  }, 120_000);
 });

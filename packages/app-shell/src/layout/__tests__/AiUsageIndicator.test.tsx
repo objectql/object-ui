@@ -11,7 +11,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { AiUsageResponse, AiMeterUsage } from '../../hooks/useAiUsage';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     // Interpolates `{{name}}` from the options object (mirrors real i18next
     // closely enough for count-driven copy like `resetsWeeklyDays`) — a plain

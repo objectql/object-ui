@@ -72,7 +72,8 @@ vi.mock('../../utils/getIcon', () => ({
  * worth anything if the APPROVER NAMES actually land in it, so the assertions
  * below read the composed English sentence rather than a key name.
  */
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectLabel: () => ({
     actionLabel: (_o: unknown, _n: unknown, fallback: string) => fallback,
     actionConfirm: (_o: unknown, _n: unknown, fallback?: string) => fallback,

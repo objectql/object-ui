@@ -32,7 +32,8 @@ vi.mock('@object-ui/auth', () => ({
   createAuthenticatedFetch: () => authFetchSpy,
 }));
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: (k: string, o?: any) => o?.defaultValue ?? o?.name ?? k }),
   useObjectLabel: () => ({
     fieldLabel: (_o: any, _n: any, l: any) => l,

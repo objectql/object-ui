@@ -95,19 +95,23 @@
  * ## Why the walk is not restricted to test-NAMED files
  *
  * The obvious population is the `*.test.*` / `*.spec.*` naming. It has a hole,
- * measured on this tree: TWO files carrying a real call site match no such
- * suffix, and ONE of those matches no test-file naming convention at all, not
- * even a `__tests__/` directory --
+ * measured on this tree: ONE file carrying a real call site matches no such
+ * suffix, and it matches no test-file naming convention at all, not even a
+ * `__tests__/` directory --
  *
- *     apps/console/dev/__tests__/setup/common-mocks.ts   (suffix: no, dir: yes)
  *     vitest.setup.base.ts                               (neither)
  *
- * It was THREE until objectui#3240. `packages/plugin-map/vitest.setup.ts` also
- * carried one -- a `maplibre-gl` mock duplicating the one in
- * `vitest.setup.base.ts` -- and only that package's own vitest config ever
- * loaded it, so it never ran under the invocation CI uses. Deleting the config
- * took the copy with it. The hole this walk exists for is unchanged: a setup
- * file is still exactly where a repo-wide mock gets written.
+ * It was THREE until objectui#3240 and TWO until objectui#7337, and both
+ * departures are the same story. `packages/plugin-map/vitest.setup.ts` carried
+ * a `maplibre-gl` mock duplicating the one in `vitest.setup.base.ts`, and only
+ * that package's own vitest config ever loaded it, so it never ran under the
+ * invocation CI uses; deleting the config took the copy with it.
+ * `apps/console/dev/__tests__/setup/common-mocks.ts` carried a frozen
+ * `@object-ui/i18n` factory in a helper with ZERO importers repo-wide, and the
+ * i18n sweep deleted it rather than leave dead code wearing the shape.
+ * The hole this walk exists for is unchanged: a setup file -- and a mock helper
+ * -- is still exactly where a repo-wide mock gets written, and the walk has to
+ * be the thing that decides that, not the filename.
  *
  * A setup file is exactly where a repo-wide mock gets written, and a mock helper
  * shared by a directory of suites is exactly where one goes unreviewed. So the

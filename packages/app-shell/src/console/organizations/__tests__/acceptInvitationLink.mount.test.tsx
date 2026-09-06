@@ -26,7 +26,8 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
   }),
