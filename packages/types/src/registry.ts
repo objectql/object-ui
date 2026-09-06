@@ -97,6 +97,8 @@ import type {
   FilterBuilderSchema,
   CarouselSchema,
   ChatbotSchema,
+  ChatbotEnhancedSchema,
+  ChatbotFloatingSchema,
 } from './complex.js';
 
 /**
@@ -201,6 +203,41 @@ export interface SchemaRegistry {
   'filter-builder': FilterBuilderSchema;
   'carousel': CarouselSchema;
   'chatbot': ChatbotSchema;
+  // `'chatbot-enhanced'` and `'chatbot-floating'` are the other two keys
+  // `packages/plugin-chatbot/src/renderer.tsx` registers (`:241`, `:379`).
+  // They were absent from this map until objectui#7704, so `ComponentType`
+  // — the published `keyof SchemaRegistry` union — told a consumer
+  // discriminating on it that two registered keys do not exist, and
+  // `packages/cli/src/utils/known-schema-types.ts` had to keep its own
+  // parallel list (`:83-84`) to know they do.
+  //
+  // Why they can be added now, and could not before: this map's value has to
+  // be the type the registered renderer honours, and until objectui#7655
+  // there was no honest one to point at. `ChatbotSchema` pins `type` to
+  // `'chatbot'`, and the two registrations' real key sets lived in anonymous
+  // `ChatbotSchema & { ... }` intersections local to the renderer file,
+  // referenceable by nothing outside it. objectui#7655 gave each registration
+  // one named authoring face, declared HERE — so both entries are honest (each
+  // value pins `type` to its own key) AND reachable (this is a
+  // zero-workspace-dependency layer; both faces are its own declarations, not
+  // a plugin's). That is what separated this from the `kanban` case
+  // objectui#7645 measured, where the honoured type lived in
+  // `@object-ui/plugin-kanban` and naming it from here would have been a
+  // phantom dependency and a cycle — resolved the other way, by moving the
+  // dialect down here (objectui#7664, the `'kanban'` note above).
+  //
+  // The two registrations already take these exact types as their `schema`
+  // parameter (`renderer.tsx:256`, `:394`), so the map's value and the
+  // renderer's prop type are one declaration, the same property the `'kanban'`
+  // arm above has.
+  //
+  // Pinned in `src/__tests__/schema-registry-chatbot-keys-7704.test.ts`: the
+  // keys survive in `keyof`, each value IS the face its renderer honours, and
+  // each value's `type` literal IS its own key. Scope note — objectui#7704 is
+  // these two keys, whose faces now exist; it is NOT a sweep of the map's
+  // other entries, which objectui#7665 holds.
+  'chatbot-enhanced': ChatbotEnhancedSchema;
+  'chatbot-floating': ChatbotFloatingSchema;
 }
 
 /**
