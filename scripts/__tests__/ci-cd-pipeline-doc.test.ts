@@ -1434,3 +1434,164 @@ describe('ci-cd-pipeline.md — live-e2e backend pin (#7689)', () => {
     ).toMatch(/^[0-9a-f]{40}$/);
   });
 });
+
+/**
+ * objectui#8043 — the Half-State Patrol section told readers the sweeper's closed-card reader was
+ * "switched **off** here via `PM_SWEEP_CLOSED_WINDOW_PAGES: '0'`". The workflow stopped setting
+ * that variable on 2026-08-28: the reader is ON with a dated floor (`PM_SWEEP_CLOSED_FLOOR`), the
+ * page window is deliberately absent, and the retired knob survives only in the workflow's header
+ * comments as history. So the page sent anyone looking for the switch to a variable nothing sets,
+ * and — worse in the direction this page is read — it described a predicate as disabled while it
+ * runs four times a day.
+ *
+ * The `workflow inventory` block above cannot see this: it matches filenames in headings, so a
+ * false sentence *inside* a documented section is exactly the drift it is blind to (objectui#7852
+ * says so in as many words). This block closes that gap for the one thing on this page that names
+ * the sweeper's wiring by identifier.
+ *
+ * ⛔ The comparison reads the workflow's `env:` KEYS, never the file as text. A whole-file grep
+ * would find `PM_SWEEP_CLOSED_WINDOW_PAGES` in the header at `:39` / `:80` and accept the very
+ * sentence this block exists to reject — the retired knob is *discussed* there precisely because
+ * it is retired. `envKeysOf` below is unit-controlled against that shape.
+ */
+const HALF_STATE_WORKFLOW = 'half-state-patrol.yml';
+
+/**
+ * Every key of every `env:` mapping in a workflow — i.e. the variables the workflow actually SETS.
+ *
+ * Whole-line comments go first (`withoutComments`), and only children at exactly `env:`'s
+ * indentation + 2 are read, so the continuation lines of a folded scalar (`PROVENANCE: >-` runs to
+ * three of them here) cannot be mistaken for further keys.
+ */
+function envKeysOf(yaml: string): Set<string> {
+  const keys = new Set<string>();
+  const lines = withoutComments(yaml).split('\n');
+
+  lines.forEach((line, index) => {
+    const opener = line.match(/^(\s*)env:\s*$/);
+    if (!opener) return;
+    const openIndent = opener[1].length;
+
+    for (const child of lines.slice(index + 1)) {
+      if (child.trim() === '') continue;
+      const indent = child.match(/^\s*/)![0].length;
+      if (indent <= openIndent) break;
+      if (indent !== openIndent + 2) continue;
+      const key = child.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
+      if (key) keys.add(key[1]);
+    }
+  });
+
+  return keys;
+}
+
+/** The page section headed by `<heading> (`<file>`)`, up to the next heading at that level or above. */
+function sectionForWorkflow(file: string): string {
+  const lines = doc.split('\n');
+  const start = lines.findIndex((line) => /^#{1,6}\s/.test(line) && line.includes(file));
+  if (start === -1) return '';
+  const level = lines[start].match(/^#+/)![0].length;
+  const after = lines.slice(start + 1);
+  const next = after.findIndex((line) => new RegExp(`^#{1,${level}}\\s`).test(line));
+  return (next === -1 ? after : after.slice(0, next)).join('\n');
+}
+
+const SWEEP_NAME = /PM_SWEEP_[A-Z0-9_]+/g;
+
+describe('ci-cd-pipeline.md — Half-State Patrol sweeper wiring (#8043)', () => {
+  const section = sectionForWorkflow(HALF_STATE_WORKFLOW);
+  const set = [...envKeysOf(readWorkflow(HALF_STATE_WORKFLOW))].filter((k) => k.startsWith('PM_SWEEP_')).sort();
+  const named = [...new Set([...section.matchAll(SWEEP_NAME)].map((m) => m[0]))].sort();
+
+  it('has both sides to compare — neither may be empty', () => {
+    // The vacuity legs. Each of the three below has a failure mode that renders the comparison
+    // green while checking nothing, and each fails silently: a renamed heading empties the
+    // section, a restructured `env:` empties the workflow side, and a rewrite that drops every
+    // identifier leaves the page describing the wiring without naming any of it.
+    expect(
+      section,
+      `No heading on the page names \`${HALF_STATE_WORKFLOW}\`, so this block has no section to ` +
+        'read and its comparison below would pass vacuously. The `workflow inventory` block ' +
+        'requires that heading to exist; if it moved, teach `sectionForWorkflow` where it went.',
+    ).not.toBe('');
+
+    expect(
+      set,
+      `${HALF_STATE_WORKFLOW} sets no \`PM_SWEEP_*\` variable in any \`env:\` block. Either the ` +
+        'wiring moved out of `env:` — in which case `envKeysOf` is reading the wrong thing and ' +
+        'every name on the page would now be reported as a phantom — or the sweeper is no longer ' +
+        'called with any of it, and this section is describing a configuration that is gone.',
+    ).not.toEqual([]);
+
+    expect(
+      named,
+      'The Half-State Patrol section names no `PM_SWEEP_*` variable at all. The reader needs at ' +
+        'least the closure floor: it is the one thing about this install that is not the ' +
+        "sweeper's own default, and a section that omits it sends the next reader to the upstream " +
+        'script for behaviour that is decided in the workflow (objectui#8043).',
+    ).not.toEqual([]);
+  });
+
+  it('reads the workflow\'s env keys, not the file as text', () => {
+    // The control for the paragraph above: a commented-out key is HISTORY, and a whole-file grep
+    // cannot tell it from a setting. That is not hypothetical here — it is the exact shape of
+    // `half-state-patrol.yml`'s header, and it is why the wrong sentence survived.
+    const specimen = [
+      'jobs:',
+      '  patrol:',
+      '    steps:',
+      '      - name: sweep',
+      '        env:',
+      "          # PM_SWEEP_RETIRED: '0'  — read this until the cutover; history, not a setting",
+      "          PM_SWEEP_LIVE: 'x'",
+      '          FOLDED: >-',
+      '            PM_SWEEP_NOT_A_KEY: still just prose',
+      '',
+    ].join('\n');
+
+    expect([...envKeysOf(specimen)].sort()).toEqual(['FOLDED', 'PM_SWEEP_LIVE']);
+  });
+
+  it('names only variables the workflow actually sets', () => {
+    const phantom = named.filter((name) => !set.includes(name));
+
+    expect(
+      phantom,
+      'The Half-State Patrol section names these `PM_SWEEP_*` variables:\n' +
+        phantom.map((n) => `  - ${n}`).join('\n') +
+        `\n\n…and \`${HALF_STATE_WORKFLOW}\` sets none of them. What it does set is:\n` +
+        set.map((n) => `  - ${n}`).join('\n') +
+        '\n\nA reader who goes looking for the knob the page names finds a variable nothing ' +
+        'assigns, and — the expensive direction — believes whatever the page says that knob is ' +
+        'doing. That is objectui#8043 verbatim: the page claimed the closed-card reader was ' +
+        "switched off by `PM_SWEEP_CLOSED_WINDOW_PAGES: '0'` for the eight days after the " +
+        'workflow stopped setting it, while the reader ran four times a day. Fix the page ' +
+        'against the workflow, not the other way round: the `env:` block and the header ' +
+        'divergence list are where this install records its wiring.',
+    ).toEqual([]);
+  });
+
+  it('quotes the closure floor the sweep step is actually given', () => {
+    const floor = withoutComments(readWorkflow(HALF_STATE_WORKFLOW)).match(
+      /^\s*PM_SWEEP_CLOSED_FLOOR:\s*'([^']+)'\s*$/m,
+    )?.[1];
+
+    expect(
+      floor,
+      '`PM_SWEEP_CLOSED_FLOOR` is no longer set to a quoted literal in ' +
+        `${HALF_STATE_WORKFLOW}. If the floor was removed, the closed-card reader now judges the ` +
+        'whole window and the section above is wrong in the other direction; if it merely moved ' +
+        'to an expression, this assertion needs to read it from wherever the value now lives.',
+    ).toBeDefined();
+
+    expect(named, 'the section must keep naming the floor variable').toContain('PM_SWEEP_CLOSED_FLOOR');
+
+    expect(
+      section,
+      `The workflow floors H22 at ${floor}, and the Half-State Patrol section does not say so. ` +
+        'The date is the whole of the divergence — it is what separates "the reader is off" from ' +
+        '"the reader judges everything closed since the convention started" — so a page that ' +
+        'names the variable without its value tells a reader nothing they can check.',
+    ).toContain(floor!);
+  });
+});
