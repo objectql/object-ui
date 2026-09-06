@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is nine, and each joined by sweep
+ * actually been SWEPT to zero. Today that is ten, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -204,10 +204,54 @@
  * later slice on a specifier with 0 inheriting sites should expect the same and
  * budget the full suite accordingly.
  *
- * The remaining 178 stay on objectui#6892: `@object-ui/plugin-form` (31),
- * `@object-ui/components` (27), `@object-ui/plugin-grid` (24) and
- * `@object-ui/app-shell` (23, still only after objectui#6580 -- which is now
- * CLOSED, so that reading is a git-history read rather than an open card).
+ * `@object-ui/plugin-form` joined as objectui#6892's FIFTH slice, re-derived
+ * on `d5c1f527e` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-form       32 judged, 1 inheriting, 31 frozen -> 0
+ *
+ * with the population moving 178 -> 147 frozen over 643 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. This is the first slice whose sites span THREE owning packages
+ * (20 under `packages/plugin-view`, 8 under `packages/app-shell`, 4 under
+ * `packages/plugin-designer`) and the first to meet a THIRD syntactic shape:
+ * four `plugin-designer` sites delegated the whole factory to a shared manual
+ * mock module (`() => import('./__mocks__/plugin-form')`), which inherits
+ * nothing. Those become an async factory that spreads the real barrel FIRST and
+ * the manual mock module SECOND, so the hand-written `ModalForm` / `DrawerForm`
+ * still win and every other export is the real one.
+ *
+ * STEP 0 was taken again rather than inherited, and here it found what the two
+ * previous barrels did not: `packages/plugin-form/src` is NOT inert. Its
+ * 28-module static import graph from `index.tsx` holds 75 module-scope
+ * statements, and six of them are `ComponentRegistry.register(...)` calls in
+ * the barrel itself (`object-form`, `form`, `embeddable-form`,
+ * `form-analytics`, `object-master-detail-form`, `line_items`). The slice
+ * proceeded anyway, and the reason is the class of the effect rather than its
+ * absence: `register()` is a `Map.set` into an in-memory registry plus a
+ * `console.warn` on the un-namespaced spelling, all six pass a namespace, and
+ * this is the same effect slice 2 absorbed for `plugin-charts` and
+ * `plugin-dashboard`. The other 69 statements are pure allocation -- `Set`s of
+ * literal strings, style and threshold literals, one regular expression, four
+ * `createSafeTranslation(...)` factory calls (already measured pure by slice 3)
+ * and four `elementDataSourceBlock(...)` marks into a module-level `Set` in
+ * `@object-ui/core`. ZERO timers, globals, storage, `fetch`, connections, and
+ * zero side-effect-only imports; two column-anchored greps over all 28 modules
+ * agree with the walk exactly. The registry question the ruling asks was also
+ * answered on the CONSUMING side: of the 31 converted files exactly one names
+ * `ComponentRegistry` at all, and it READS one entry (`get('object-view')`)
+ * rather than asserting emptiness or a count, so no converted assertion can be
+ * broken by the six new entries.
+ *
+ * ⭐ Unlike `@object-ui/collaboration`, this specifier DID have the free
+ * confirmation: `packages/app-shell/src/views/studio-design/StudioDesignSurface.formFields.test.tsx`
+ * already inherited the real barrel on `main` and passed, so the real module
+ * was known to load in that environment before anything was converted.
+ *
+ * The remaining 147 stay on objectui#6892: `@object-ui/components` (27),
+ * `@object-ui/plugin-grid` (24), `@object-ui/app-shell` (23, still only after
+ * objectui#6580 -- which is now CLOSED, so that reading is a git-history read
+ * rather than an open card) and `@object-ui/permissions` (23).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -298,6 +342,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-dashboard',
   '@object-ui/auth',
   '@object-ui/collaboration',
+  '@object-ui/plugin-form',
 ]);
 
 /** Files the walk reads at all. */

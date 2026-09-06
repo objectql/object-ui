@@ -74,7 +74,10 @@ vi.mock('@object-ui/plugin-grid', () => ({
     return <div data-testid="object-grid" />;
   },
 }));
-vi.mock('@object-ui/plugin-form', () => ({ ObjectForm: () => <div data-testid="object-form" /> }));
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  ObjectForm: () => <div data-testid="object-form" />,
+}));
 
 const mockDataSource = () => ({
   find: vi.fn().mockResolvedValue({ data: [], total: 0 }),

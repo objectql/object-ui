@@ -27,7 +27,8 @@ import userEvent from '@testing-library/user-event';
 let releaseForm: () => void = () => {};
 const formLoaded = new Promise<void>((resolve) => { releaseForm = resolve; });
 
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: lazy(async () => {
     await formLoaded;
     return { default: ({ schema }: any) => <button onClick={() => schema?.onSuccess?.({ id: 'rec_1' })}>Save &amp; Continue</button> };

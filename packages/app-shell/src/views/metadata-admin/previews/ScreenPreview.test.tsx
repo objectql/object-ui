@@ -11,7 +11,8 @@ const { objectFormSpy, adapterRef, objectsRef } = vi.hoisted(() => ({
   objectsRef: { current: [] as unknown[] },
 }));
 
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: ({ schema }: { schema: unknown }) => {
     objectFormSpy(schema);
     return <div data-testid="object-form" />;

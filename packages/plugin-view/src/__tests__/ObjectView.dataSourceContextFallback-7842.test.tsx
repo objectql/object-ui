@@ -76,7 +76,8 @@ vi.mock('@object-ui/plugin-grid', () => ({
   ),
 }));
 
-vi.mock('@object-ui/plugin-form', () => ({
+vi.mock('@object-ui/plugin-form', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectForm: () => <div data-testid="object-form" />,
 }));
 
