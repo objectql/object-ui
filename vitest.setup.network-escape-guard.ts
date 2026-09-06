@@ -129,14 +129,6 @@ export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
   // /api/v1/ai/conversations
   'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
-  // /api/task/42, /api/v1/security/explain
-  'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
 ]);
 
 type Escape = { file: string; test: string; url: string };
