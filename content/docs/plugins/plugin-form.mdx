@@ -220,9 +220,12 @@ drawing, and nothing else:**
   errors, the same hygiene a field's own `visibleWhen` applies.
 
 These are not tab-specific rules: they are the ruled hidden-group semantics
-every section `visibleWhen` follows, inherited through the same mechanism a
-field's own FALSE predicate uses (the fields simply stop being drawn; the form
-keeps their values and skips unmounted controls at validation).
+every section `visibleWhen` follows, inherited through the same *drawing*
+mechanism a field's own FALSE predicate uses (the fields simply stop being
+drawn, and unmounted controls skip validation). The value half does **not**
+carry across: a field hidden by its **own** `visibleWhen` / `visibleOn` has its
+value cleared (objectui#6958), while a field hidden by its **section's** or its
+**tab's** predicate keeps it, exactly as stated above.
 
 Two mechanics worth knowing:
 

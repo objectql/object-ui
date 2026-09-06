@@ -32,6 +32,15 @@ vi.mock('recharts', async () => {
 });
 
 import { ChartRenderer } from './ChartRenderer';
+// `ChartRenderer` lazy-loads its implementation
+// (`React.lazy(() => import('./AdvancedChartImpl'))`); every assertion in
+// this file waits for the real plot to appear PAST that boundary. Import it
+// eagerly, with the SAME specifier, so its cost lands in the import phase
+// rather than inside `waitFor`'s 1000ms budget — under full-suite parallel
+// load the dynamic import alone can exceed that budget, which read as this
+// file's OWN tests flaking rather than a race with the module loader
+// (AGENTS.md "测试纪律(flaky 测试:先找竞态,别调超时)").
+import './AdvancedChartImpl';
 
 afterEach(cleanup);
 
@@ -97,6 +106,31 @@ describe('ChartRenderer — the spec `series` shape', () => {
           series: [{ dataKey: 'revenue' }, { dataKey: 'margin', chartType: 'line' }],
           isAnimationActive: false,
         }}
+      />,
+    );
+    expect(await plotted(container)).toEqual({ bars: 1, lines: 1 });
+  });
+
+  it('honours `series[].type` on an internal-shape (`dataKey`) entry too (objectui#7681)', async () => {
+    // #7681: the `isInternalShaped` fast path took the raw array whenever
+    // every entry already carried `dataKey`, bypassing `normalizeSeries` —
+    // the only place `type` is translated to the renderer-internal
+    // `chartType`. An author who wrote the documented `dataKey` binding AND
+    // the documented `type` override together (both valid independently on
+    // `ChartDataSeriesSchema`) got neither: predicted/observed 2 bars / 0
+    // lines before the fix. `type` on a `dataKey` entry is off the
+    // `ChartRendererProps` TS union (`as any` matches the schema's own
+    // acceptance, not this internal prop type — see the docblock).
+    const { container } = render(
+      <ChartRenderer
+        schema={{
+          type: 'chart',
+          chartType: 'bar',
+          data: DATA,
+          xAxisKey: 'month',
+          series: [{ dataKey: 'revenue' }, { dataKey: 'margin', type: 'line' }],
+          isAnimationActive: false,
+        } as any}
       />,
     );
     expect(await plotted(container)).toEqual({ bars: 1, lines: 1 });

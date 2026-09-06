@@ -31,6 +31,7 @@ import {
   NonGridRowCeilingNote,
 } from '@object-ui/react';
 import { NavigationOverlay, cn, useIsMobile } from '@object-ui/components';
+import { usePermissions } from '@object-ui/permissions';
 import {
   buildExpandFields,
   convertSortToQueryParams,
@@ -702,6 +703,13 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
    */
   const recordSourceObjectName = resolveRecordSourceObjectName(schema, dataConfig);
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+  const perms = usePermissions();
+
   // Fetch data based on provider
   useEffect(() => {
     const fetchData = async () => {
@@ -736,8 +744,53 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
           // union declares it required, same as the pre-refactor narrowing
           // this replaces.
           const objectName = dataObjectName as string;
-          // Auto-inject $expand for lookup/master_detail fields
-          const expand = buildExpandFields(objectSchema?.fields);
+          // Auto-inject $expand for lookup/master_detail fields.
+          //
+          // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+          // objectui#7215 / PR #7229 put on the two projection sites in its
+          // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+          // `$select` on a denied lookup asks the server for a bare foreign
+          // key; `$expand` asks it to RESOLVE the relation and return the
+          // related record, the larger of the two requests.
+          //
+          // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+          // `buildExpandFields` reads an absent column list as "no column
+          // restriction" and falls back to EVERY declared relation on the
+          // object, denied ones included. A standalone map therefore asks for
+          // the maximum possible set by default, not by configuration.
+          //
+          // Graded as objectui#7215 graded it, by measurement rather than
+          // assumption: against ObjectStack this is defence-in-depth, because
+          // `plugin-security`'s `FieldMasker.maskRecord` does
+          // `delete result[field]` on every unreadable key and objectql's
+          // expand path writes the resolved record back under THAT SAME KEY, so
+          // one statement removes the expanded object and the bare id alike;
+          // the expansion sub-read itself takes the referenced object's full
+          // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+          // for a backend that does not strip.
+          //
+          // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+          // alternative is not merely unsound but unreachable: the call passes
+          // `undefined`, so there is no input to gate. Gating the output also
+          // gives the required ordering structurally: `buildExpandFields`
+          // returns a subset of the object's DECLARED reference-bearing fields,
+          // so every name judged here is declared by construction and the
+          // "`checkField` answers false for an undeclared key" trap cannot be
+          // reached. Pinned in `ObjectMap.expandFls-7429.test.tsx`.
+          //
+          // Deferral matches every other gate on this path: an unanswered
+          // policy filters nothing, and `perms` is in this effect's dependency
+          // list, so the expansion is rebuilt the moment the answer arrives.
+          //
+          // `objectName` (checkField's target) and `objectSchema` (fetched
+          // keyed by `recordSourceObjectName`, the OTHER effect below) agree
+          // only because this line sits inside the `dataProvider === 'object'`
+          // branch, where the two resolvers coincide — not by construction;
+          // hoisting this gate out of that branch would let them diverge silently.
+          const expandable = buildExpandFields(objectSchema?.fields);
+          const expand = !perms?.isLoaded
+            ? expandable
+            : expandable.filter((f) => perms.checkField(objectName, f, 'read'));
           const result = await dataSource.find(objectName, {
             $filter: schema.filter,
             $orderby: convertSortToQueryParams(schema.sort),
@@ -768,7 +821,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
     };
 
     fetchData();
-  }, [dataProp, dataProvider, dataObjectName, dataItems, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+  }, [dataProp, dataProvider, dataObjectName, dataItems, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema, perms]);
 
   // Fetch object schema for field metadata
   useEffect(() => {

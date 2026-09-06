@@ -1282,6 +1282,67 @@ ComponentRegistry.register('form',
       return locked;
     }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
 
+    // Fields hidden RIGHT NOW by their OWN authored conditional-visibility
+    // predicate — `visibleWhen` (canonical, ADR-0089) or its deprecated
+    // view-level sibling `visibleOn` (#2212). The pair is one verdict here for
+    // the same reason the stale-error effect below already folds them into one:
+    // they are two spellings of "this field does not apply to the record as it
+    // now stands", and splitting them would give one authored intent two
+    // behaviours.
+    //
+    // Feeds the clear-on-hide effect (objectui#6958). Fields declaring NEITHER
+    // key are skipped outright, so a form that does not use conditional
+    // visibility recomputes nothing and behaves exactly as before.
+    //
+    // ⛔ Deliberately NOT the union of every reason a field is not drawn. A
+    // field claimed by a hidden section (#6236), a field on a hidden tab
+    // (#6237) and a statically `hidden` field are all absent from this set:
+    // the first two carry the 2026-08-27 maintainer ruling (visibility decides
+    // what is DRAWN and nothing else — their values still submit) and the
+    // third is not conditional at all, it is how a fixed value is carried into
+    // a payload. Re-evaluating the predicates the render path also evaluates
+    // cannot double-warn: `warnPredicateFailure` dedupes by predicate source,
+    // which `readonlyFieldNames` above already leans on.
+    const conditionallyHiddenFieldNames = React.useMemo(() => {
+      const hidden = new Set<string>();
+      for (const f of fields as FormFieldConfig[]) {
+        const name = f?.name;
+        if (!name) continue;
+        const visibleWhen = (f as any).visibleWhen;
+        const visibleOn = (f as any).visibleOn;
+        if (visibleWhen == null && visibleOn == null) continue;
+        if (visibleWhen != null) {
+          const st = resolveFieldRuleState(
+            { visibleWhen, readonlyWhen: (f as any).readonlyWhen, requiredWhen: (f as any).requiredWhen },
+            ruleRecord,
+            {
+              required: !!f.required,
+              readonly: (f as any).readonly === true,
+              serverOwnedValue: isServerOwnedValue(f, isCreateForm),
+            },
+            previousRecord,
+            predicateScope,
+            // Same locator the render path uses (#5149), so a faulted
+            // predicate is reported once, against the field.
+            `field '${name}'`,
+          );
+          if (!st.visible) {
+            hidden.add(name);
+            continue;
+          }
+        }
+        if (
+          visibleOn != null &&
+          !evalFieldPredicate(visibleOn, ruleRecord, true, previousRecord, predicateScope, {
+            context: `visibleOn of field '${name}'`,
+          })
+        ) {
+          hidden.add(name);
+        }
+      }
+      return hidden;
+    }, [fields, ruleRecord, previousRecord, isCreateForm, predicateScope]);
+
     // ── The section grouping contract (objectui#6236, maintainer ruling
     // 2026-08-27) ─────────────────────────────────────────────────────────────
     // A `section-divider` that CLAIMS its member fields (`fields: string[]` —
@@ -1705,6 +1766,67 @@ ComponentRegistry.register('form',
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ruleRecord, predicateScope]);
+
+    // Clear-on-hide (objectui#6958) — the field's own `visibleWhen` turning it
+    // invisible clears its value.
+    //
+    // ## The dead end this closes
+    //
+    // Hiding a populated field without clearing it made a declared exclusivity
+    // impossible to satisfy: the Console kept the value in form state and
+    // submitted it anyway, so the server refused the row — correctly — by
+    // naming a column that was no longer on screen to clear. On the EDIT path
+    // the stored value was re-sent on EVERY attempt, so such a record could
+    // never be retyped through the Console at all. Measured against a real app
+    // (twelve rows in that state) and graded p1: `visibleWhen` on a populated
+    // field must stop producing an unsubmittable form.
+    //
+    // ## Why `null` and not `undefined`, and why not "just withhold the key"
+    //
+    // The card offered a second shape — omit invisible fields from the payload
+    // — and it cannot fix the edit path. objectui#6848 measured the write
+    // contract: `driver-memory`'s `update()` merges `{ ...stored, ...data }`
+    // and `driver-sql` issues `SET` for the keys PRESENT, so an absent key
+    // keeps the stored value and an explicit `null` overwrites it ("to clear
+    // the stored value write null; to leave it unchanged omit the field"). A
+    // withheld `crm_contact` therefore leaves the stored contact in the row and
+    // the same refusal comes back. `undefined` is the same trap one level down:
+    // it satisfies a `== null` check and then vanishes from `JSON.stringify`.
+    // So a cleared scalar is `null` — the sentinel every other clearing widget
+    // in this workspace already emits — and a cleared multi-value is `[]`,
+    // matching the cascade clear above.
+    //
+    // ## Transition-only, and only over a value that exists
+    //
+    // A field is cleared when its verdict goes VISIBLE → HIDDEN, which is the
+    // card's own wording ("clear a field's value when its `visibleWhen` TURNS
+    // it invisible"). The first pass only records the baseline, so opening a
+    // record never nulls a column the user has not seen: a save that changed
+    // one unrelated field cannot silently strip the stored values of every
+    // conditionally-hidden column. Values that are already empty are never
+    // written to either, so a create form cannot turn an absent key into an
+    // explicit `null` and suppress the server-side default the author declared
+    // (#4069).
+    //
+    // A cleared field that comes back into view comes back EMPTY: this is a
+    // clear, not a stash. Re-hiding it then writes nothing (the value is
+    // already empty), so the pair cannot oscillate.
+    const previouslyHiddenFieldNames = React.useRef<Set<string> | undefined>(undefined);
+    React.useEffect(() => {
+      const before = previouslyHiddenFieldNames.current;
+      previouslyHiddenFieldNames.current = conditionallyHiddenFieldNames;
+      if (!before) return;
+      for (const name of conditionallyHiddenFieldNames) {
+        if (before.has(name)) continue;
+        const current = form.getValues(name);
+        if (current === undefined || current === null || current === '') continue;
+        form.setValue(name, Array.isArray(current) ? [] : null, {
+          shouldValidate: false,
+          shouldDirty: true,
+        });
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [conditionallyHiddenFieldNames]);
 
     // React to defaultValues changes — but ONLY when the values actually
     // change, not on every new object identity. Callers often pass a freshly

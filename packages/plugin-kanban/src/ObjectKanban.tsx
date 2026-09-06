@@ -27,6 +27,7 @@ import {
   getRecordDisplayName,
 } from '@object-ui/core';
 import { getBadgeColorClasses, getBadgeHexAppearance, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { usePermissions } from '@object-ui/permissions';
 import { KanbanRenderer, KANBAN_UNCOLUMNED_ID } from './index';
 import type { KanbanSchema } from './types';
 import {
@@ -198,6 +199,13 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
   // Resolve bound data if 'bind' property exists
   const boundData = useDataScope(schema.bind);
 
+  // Permissions context, read here rather than inside the fetch effect below:
+  // an effect's DEPENDENCY ARRAY is evaluated during render, so `perms` has to
+  // be a binding that already exists by the time this component's render
+  // reaches that effect (objectui#7429, same structural note PR #7229 /
+  // PR #7428 recorded for `ListView`'s memo and `ObjectCalendar`'s effect).
+  const perms = usePermissions();
+
   // P2: Auto-subscribe to DataSource mutation events (standalone mode only).
   // When rendered as a child of ListView, data is managed externally and this is skipped.
   useEffect(() => {
@@ -252,7 +260,46 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
             // object declares lookups queries WITH its expansion the first
             // time — `objectDef` here is `null` only when there was nothing to
             // resolve it from.
-            const expand = buildExpandFields(objectDef?.fields);
+            //
+            // [objectui#7429] FIELD-LEVEL SECURITY ON `$expand` — the same gate
+            // objectui#7215 / PR #7229 put on the two projection sites in its
+            // scope, and objectui#7230 / PR #7428 applied unchanged at four more.
+            // `$select` on a denied lookup asks the server for a bare foreign
+            // key; `$expand` asks it to RESOLVE the relation and return the
+            // related record, the larger of the two requests.
+            //
+            // THIS SITE PASSES NO COLUMN LIST, which makes it the sharp one:
+            // `buildExpandFields` reads an absent column list as "no column
+            // restriction" and falls back to EVERY declared relation on the
+            // object, denied ones included. A standalone board therefore asks
+            // for the maximum possible set by default, not by configuration.
+            //
+            // Graded as objectui#7215 graded it, by measurement rather than
+            // assumption: against ObjectStack this is defence-in-depth, because
+            // `plugin-security`'s `FieldMasker.maskRecord` does
+            // `delete result[field]` on every unreadable key and objectql's
+            // expand path writes the resolved record back under THAT SAME KEY, so
+            // one statement removes the expanded object and the bare id alike;
+            // the expansion sub-read itself takes the referenced object's full
+            // CRUD + RLS + FLS treatment (objectstack#7626). It is load-bearing
+            // for a backend that does not strip.
+            //
+            // THE GATE IS ON THE HELPER'S OUTPUT, and on this site the
+            // alternative is not merely unsound but unreachable: the call passes
+            // `undefined`, so there is no input to gate. Gating the output also
+            // gives the required ordering structurally: `buildExpandFields`
+            // returns a subset of the object's DECLARED reference-bearing fields,
+            // so every name judged here is declared by construction and the
+            // "`checkField` answers false for an undeclared key" trap cannot be
+            // reached. Pinned in `__tests__/ObjectKanban.expandFls-7429.test.tsx`.
+            //
+            // Deferral matches every other gate on this path: an unanswered
+            // policy filters nothing, and `perms` is in this effect's dependency
+            // list, so the expansion is rebuilt the moment the answer arrives.
+            const expandable = buildExpandFields(objectDef?.fields);
+            const expand = !perms?.isLoaded
+              ? expandable
+              : expandable.filter((f) => perms.checkField(schema.objectName as string, f, 'read'));
             // The row cap is a REAL `$top` (objectui#4025). It used to be
             // `{ options: { $top: 100 } }` — `$filter` at the top level where the
             // adapters read it, the cap one level down under a key that is not a
@@ -288,7 +335,7 @@ export const ObjectKanban: React.FC<ObjectKanbanComponentProps> = ({
     // `objectDef` stays listed because the body reads it, and with the gate in
     // place the two flip together in one commit — the pre-resolution run now
     // returns above without querying instead of issuing an unexpanded one.
-  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey]);
+  }, [schema.objectName, dataSource, boundData, schema.data, schema.filter, schema.limit, hasExternalData, objectDefReady, objectDef, refreshKey, perms]);
 
   // Determine which data to use: external -> bound -> inline -> fetched
   const rawData = (hasExternalData ? externalData : undefined) || boundData || schema.data || fetchedData;

@@ -58,8 +58,15 @@ export interface ChartRendererProps {
      * the same key, so declaring only the internal shape here made
      * `series: [{ name: 'total' }]` a type error on an author who was writing
      * the protocol correctly — and, until #2945, one whose chart also rendered
-     * blank. `normalizeChartSchema` translates; an array that already speaks the
-     * internal shape passes through untouched.
+     * blank. `normalizeChartSchema` translates every entry, of either shape,
+     * uniformly — see the normalization comment in the component body.
+     *
+     * This TS union stays as declared (the `dataKey` arm has no `type`, the
+     * `name` arm has no `chartType`): at RUNTIME `type` is honoured on a
+     * `dataKey`-shaped entry too (objectui#7681, both keys are independently
+     * optional on `ChartDataSeriesSchema`), because JSON metadata never goes
+     * through this TS type. Widening the arm to match is a separate,
+     * public-face decision this fix does not make.
      */
     series?: Array<
       | { dataKey: string; label?: string; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; chartType?: 'bar' | 'line' | 'area'; stack?: string; yAxis?: 'left' | 'right'; color?: string }
@@ -121,15 +128,30 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
     // the per-series family override went with it (#2945). Every other spec
     // binding has a distinct name (`xAxis` vs `xAxisKey`) and so was unaffected.
     //
-    // Prefer the raw array only when it ALREADY speaks the internal shape, which
-    // keeps every internal caller byte-for-byte. Otherwise take the normalized
-    // one — `normalizeSeries` reads `dataKey ?? name` per entry, so it is also
-    // the right answer for an array that mixes the two.
+    // #2945's fix took the raw array whenever it ALREADY spoke the internal
+    // shape (every entry has `dataKey`), on the theory that an internal
+    // producer's array should pass through untouched — but that same fast path
+    // skips `normalizeSeries` entirely, and `normalizeSeries`'s
+    // `str(raw.chartType) ?? str(raw.type)` is the ONLY place the declared
+    // per-series override (`ChartDataSeries.type`, objectui#6121) is translated
+    // to the renderer-internal `chartType`. So an author who writes the
+    // documented `dataKey` binding *and* the documented `type` override
+    // together — both valid on `ChartDataSeriesSchema` independently — got
+    // NEITHER honoured (objectui#7681).
+    //
+    // `normalizeSeries` is a no-op on a well-formed internal-shaped entry: it
+    // round-trips every key the internal arm of `ChartRendererProps.series`
+    // declares (`dataKey`/`label`/`chartType`/`variant`/`opacity`/`dashArray`/
+    // `stack`/`yAxis`/`color`) unchanged. So always taking the normalized array
+    // is not a second read site for `type` (AGENTS.md #0.1) — it is routing
+    // EVERY entry, of either shape, through the ONE normalization layer
+    // (objectui#2880 S1) instead of special-casing one shape around it, which
+    // is what made the fast path a second, un-normalized path in the first
+    // place. `authored` remains only as the fallback for a series
+    // `normalizeSeries` could not translate at all (no `dataKey` and no `name`
+    // on any entry).
     const authored = Array.isArray(schema.series) ? schema.series : undefined;
-    const isInternalShaped = authored?.length
-      ? authored.every((s) => !!s && typeof s === 'object' && 'dataKey' in s)
-      : false;
-    let series: any[] | undefined = (isInternalShaped ? authored : spec.series) ?? authored;
+    let series: any[] | undefined = spec.series ?? authored;
     let xAxisKey = schema.xAxisKey ?? spec.xAxisKey;
     let config = schema.config;
 
