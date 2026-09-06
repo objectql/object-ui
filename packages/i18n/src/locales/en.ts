@@ -338,6 +338,12 @@ const en = {
       refusedFormat:
         'Not saved: enter a latitude, longitude pair (example: 30.2741, 120.1551).',
       refusedRange: 'Not saved: {{detail}}',
+      latitude: 'latitude',
+      longitude: 'longitude',
+      refusedResidueOne:
+        'Not saved: {{name}} "{{text}}" is not a number. Enter plain decimals (example: 30.2741, 120.1551).',
+      refusedResidue:
+        'Not saved: {{name}} "{{text}}" and {{otherName}} "{{otherText}}" are not numbers. Enter plain decimals (example: 30.2741, 120.1551).',
     },
     // objectui#3342 — the tags widget's input hint, shown while the tag list
     // is empty. The author-declared `field.placeholder` always wins over this.

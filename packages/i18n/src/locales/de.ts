@@ -277,6 +277,12 @@ const de = {
       refusedFormat:
         "Nicht gespeichert: Geben Sie ein Paar aus Breitengrad, Längengrad ein (Beispiel: 30.2741, 120.1551).",
       refusedRange: "Nicht gespeichert: {{detail}}",
+      latitude: "Breitengrad",
+      longitude: "Längengrad",
+      refusedResidueOne:
+        "Nicht gespeichert: {{name}} „{{text}}“ ist keine Zahl. Geben Sie einfache Dezimalzahlen ein (Beispiel: 30.2741, 120.1551).",
+      refusedResidue:
+        "Nicht gespeichert: {{name}} „{{text}}“ und {{otherName}} „{{otherText}}“ sind keine Zahlen. Geben Sie einfache Dezimalzahlen ein (Beispiel: 30.2741, 120.1551).",
     },
     tags: {
       placeholder: "Tippen und mit der Eingabetaste hinzufügen…",
