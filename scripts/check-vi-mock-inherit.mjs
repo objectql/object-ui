@@ -550,8 +550,8 @@
  * ⚠️ The per-file marginal cost here is BIMODAL, and it is the first counter-
  * example to slice 9's carry-forward reading as uniform. Ten of the eleven files
  * already reach 422 of the barrel's 454 modules at module scope, so inheriting
- * adds 32 modules and costs +0.4s to +0.8s -- slice 9's range. The eleventh,
- * `useAiSurface.test.ts`, reaches ZERO of the 454: it is a four-test hook file
+ * adds 32 modules and costs +0.4s to +0.8s -- slice 9's range. The eleventh
+ * (the `useAiSurface` hook spec) reaches ZERO of the 454: it is a four-test file
  * whose only route to the barrel is the mock itself, so inheriting adds all 454
  * modules plus 58 external leaves and the file goes 0.68s -> 7.77s, an 11.4x
  * marginal cost squarely inside objectui#6580's STOP band. What settled the
