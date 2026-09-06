@@ -29,6 +29,7 @@ import {
   reconcileFloors,
   rootDevDepRowKey,
   scanSkillFences,
+  scopedBuildNotice,
   stripJsonComments,
 } from '../check-skill-examples.mjs';
 import {
@@ -500,6 +501,139 @@ describe('the build filter carries the dependency closure', () => {
     // A bare `turbo run build` over the whole workspace is the one thing the
     // workflow's header forbids, so the empty case must be visibly empty here.
     expect(buildFilterArgs([])).toBe('');
+  });
+});
+
+/**
+ * The scoping notice under the printed build command — objectui#7811, porting
+ * the shape objectui#7795 landed for `check-doc-snippet-types.mjs`.
+ *
+ * Two precondition paths tell the reader to build and print a command that
+ * builds a CLOSURE rather than the tree, and neither said so. Measured on
+ * `origin/main` `65ce8c576`: `--build-filter` names 10 of the workspace's 40
+ * packages and turbo expands those to 30 in scope, so the reader who ran the
+ * printed command is left looking at 10 packages with no `dist/` and nothing to
+ * tell that apart from a build that half-failed.
+ *
+ * Pinned here is the half that rots unwatched — the notice must keep DERIVING
+ * its numbers and must never grow a package list of its own — plus the half that
+ * would make it worthless: both paths have to actually print it. That it reaches
+ * a real terminal is shown on an unbuilt tree in the pull request; this suite
+ * cannot get there, because those paths only open when this repository's own
+ * packages are unbuilt, and CI has built them by the time it runs.
+ */
+describe('the printed build command says what it does NOT build (objectui#7811)', () => {
+  const SCRIPT = 'scripts/check-skill-examples.mjs';
+  /** A workspace package name, as the notice would spell one if it grew a list. */
+  const PACKAGE_NAME = /@object-ui\//;
+  const sourceOfScript = () => fs.readFileSync(path.join(repoRoot, SCRIPT), 'utf8');
+
+  /**
+   * Every place the gate prints the build command, paired with the slice that
+   * runs from it to the `couldNotRun` exit that site leaves through.
+   *
+   * Anchored on the printed COMMAND rather than on `PRECONDITION NOT MET`: the
+   * empty-marked-population path prints that headline too and correctly prints
+   * no build command, so a scan anchored on the headline would demand a notice
+   * where there is nothing to scope.
+   */
+  const buildCommandSites = (source: string): string[] => {
+    const marker = 'check-skill-examples.mjs --build-filter) --concurrency=2';
+    const slices: string[] = [];
+    for (let at = source.indexOf(marker); at !== -1; at = source.indexOf(marker, at + 1)) {
+      const end = source.indexOf('EXIT_CODES.couldNotRun;', at);
+      expect(end, 'a site that prints the build command must still leave through exit 2').toBeGreaterThan(at);
+      slices.push(source.slice(at, end));
+    }
+    return slices;
+  };
+
+  it('interpolates the counts it is handed — without this, a fixed sentence passes every pin below', () => {
+    expect(scopedBuildNotice(10, 40)).toContain('10 package(s)');
+    expect(scopedBuildNotice(10, 40)).toContain('packages/ holds 40');
+    // The control: different inputs, different text. A hard-coded "10 of 40" —
+    // exactly the rotting summary this notice exists not to be — passes both
+    // assertions above and fails these.
+    const other = scopedBuildNotice(1, 2);
+    expect(other).toContain('1 package(s)');
+    expect(other).toContain('packages/ holds 2');
+    expect(other).not.toContain('10');
+    expect(other).not.toContain('40');
+  });
+
+  it('names no package of its own — the reader is sent to the filter, never to a copy of it', () => {
+    const notice = scopedBuildNotice(10, 40);
+    // The control, and it has to be taken from THIS tree: a matcher that catches
+    // no package name anywhere would satisfy the refusal below while proving
+    // nothing. The names come from the gate's own reading of the workspace,
+    // which is the very set a second copy would be copied from.
+    const named = [...(analyze({}) as unknown as { neededPackages: Set<string> }).neededPackages];
+    expect(
+      named.filter((n) => PACKAGE_NAME.test(n)),
+      'nothing in this tree matches the matcher, so the refusal below is vacuous',
+    ).not.toHaveLength(0);
+    expect(
+      notice,
+      'a package name written here is a second list of what gets built, and it rots the first time the marked population moves',
+    ).not.toMatch(PACKAGE_NAME);
+    expect(notice).toContain('--build-filter');
+    expect(notice, 'without a way to ask, the notice is one more thing the reader has to trust').toContain(
+      '--dry=text',
+    );
+  });
+
+  it('says the build is scoped and that what it leaves behind is the designed end state', () => {
+    const notice = scopedBuildNotice(10, 40);
+    expect(notice).toContain('not a whole-tree build');
+    expect(notice).toContain('left exactly as it was');
+    expect(notice).toContain('designed end state');
+  });
+
+  it('is printed on BOTH precondition paths that print the command, not merely defined', () => {
+    const slices = buildCommandSites(sourceOfScript());
+    expect(
+      slices,
+      'objectui#7811 named two sites — the regular path and the --self-test type-check leg',
+    ).toHaveLength(2);
+    for (const slice of slices) {
+      expect(
+        slice,
+        'a notice nothing calls is a string in a file, and objectui#7811 was filed about a reader who was never told',
+      ).toContain('scopedBuildNotice(');
+    }
+  });
+
+  it('is handed numbers the gate read, never a literal at the call site', () => {
+    for (const slice of buildCommandSites(sourceOfScript())) {
+      const call = slice.slice(slice.indexOf('scopedBuildNotice('));
+      expect(call).toContain('state.neededPackages.size');
+      expect(call).toContain('state.packageDirOf');
+      expect(
+        call,
+        'a number written at the call site is the rotting summary this notice exists not to be',
+      ).not.toMatch(/scopedBuildNotice\(\s*\d/);
+    }
+  });
+
+  it('counts the workspace from what the gate itself read, not from a number written down', () => {
+    const names = withTree(
+      (write) => {
+        write('skills/objectui/guides/sample.md', '# Sample\n');
+        write(
+          'packages/pkg-a/package.json',
+          JSON.stringify({ name: '@fixture/pkg-a', types: './dist/index.d.ts' }),
+        );
+        write(
+          'packages/pkg-b/package.json',
+          JSON.stringify({ name: '@fixture/pkg-b', types: './dist/index.d.ts' }),
+        );
+      },
+      (dir) =>
+        Object.keys(
+          (analyze({ root: dir }) as unknown as { packageDirOf: Record<string, string> }).packageDirOf,
+        ).sort(),
+    );
+    expect(names).toEqual(['@fixture/pkg-a', '@fixture/pkg-b']);
   });
 });
 
