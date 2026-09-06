@@ -42,7 +42,8 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // is surfaced as `data-variant` rather than dropped: it is the only rendered
 // consequence of the SECOND preferences read (the toggle badge's own state),
 // so keeping it is what lets a test observe that read at all.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Button: ({ children, variant, size: _size, ...p }: Record<string, any>) => (
     <button type="button" data-variant={variant} {...p}>{children}</button>
   ),
@@ -59,11 +60,13 @@ vi.mock('@object-ui/components', () => ({
 // Named test ids so a row's icon identifies WHICH presentation it rendered
 // through — "it did not throw" is a weaker claim than "it took the generic
 // bucket".
-vi.mock('lucide-react', () => {
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const icon = (name: string) => (props: Record<string, unknown>) => (
     <span data-testid={`icon-${name}`} {...props} />
   );
   return {
+    ...actual,
     Activity: icon('Activity'),
     Plus: icon('Plus'),
     Pencil: icon('Pencil'),

@@ -44,7 +44,8 @@ vi.mock('../../context/NavigationContext', () => ({
 
 // Passthrough primitives so the popover body renders without driving Radix
 // open/close in jsdom (the pattern WorkspaceSwitcher.test.tsx uses).
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Button: ({ children, ...p }: any) => <button type="button" {...p}>{children}</button>,
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverTrigger: ({ children }: any) => <div>{children}</div>,
@@ -55,7 +56,8 @@ vi.mock('@object-ui/components', () => ({
   TabsContent: ({ children }: any) => <div>{children}</div>,
 }));
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Bell: () => <span />,
   CheckSquare: () => <span />,
   Activity: () => <span />,

@@ -56,10 +56,12 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 // primitives for a flat list of buttons calling `onValueChange`; the outer
 // `data-current` is the rendered value, which is how the clobber is observed
 // synchronously (no `waitFor` to smear the timing being asserted).
-vi.mock('@object-ui/components', async () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const R = await import('react');
   const PickCtx = R.createContext<(value: string) => void>(() => {});
   return {
+    ...actual,
     getLazyIcon: () => () => null,
     Select: ({ value, onValueChange, children }: any) => (
       <PickCtx.Provider value={onValueChange}>

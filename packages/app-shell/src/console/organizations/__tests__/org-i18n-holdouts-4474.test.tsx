@@ -102,9 +102,11 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({ invitationId: 'inv-1' }),
 }));
 
-vi.mock('@object-ui/components', () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const passthrough = (tag: string) => (p: any) => React.createElement(tag, p, p.children);
   return {
+    ...actual,
     Dialog: ({ open, children }: any) => (open ? <div>{children}</div> : null),
     DialogContent: passthrough('div'),
     DialogDescription: passthrough('p'),
@@ -152,9 +154,11 @@ vi.mock('@object-ui/components', () => {
 // object's own keys, and a Proxy has none — every icon reads as undefined. The
 // stub is spelled inside the factory because `vi.mock` is hoisted above every
 // top-level binding in this file.
-vi.mock('lucide-react', () => {
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const icon = () => <span />;
   return {
+    ...actual,
     Loader2: icon,
     Copy: icon,
     Check: icon,

@@ -74,7 +74,8 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // `onOpenChange`. The sibling mocks swallow both, which is fine for asserting a
 // navigation target but makes "the popover closes" unobservable, and staying
 // open on a spent row is half of what this card reported.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Button: ({ children, ...p }: any) => <button type="button" {...p}>{children}</button>,
   Popover: ({ open, onOpenChange, children }: any) => (
     <div data-testid="popover" data-open={String(Boolean(open))}>
@@ -92,7 +93,8 @@ vi.mock('@object-ui/components', () => ({
   TabsContent: ({ children }: any) => <div>{children}</div>,
 }));
 
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Bell: () => <span />,
   CheckSquare: () => <span />,
   Activity: () => <span />,

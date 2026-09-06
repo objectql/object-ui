@@ -35,7 +35,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
 vi.mock('../../console/organizations/resolveHomeUrl', () => ({ resolveRootUrl: () => '/root' }));
 
 // Passthrough dropdown primitives so label/hint render without interaction.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   DropdownMenu: (p: any) => <div>{p.children}</div>,
   DropdownMenuTrigger: (p: any) => <button {...p} />,
   DropdownMenuContent: (p: any) => <div>{p.children}</div>,
@@ -43,7 +44,8 @@ vi.mock('@object-ui/components', () => ({
   DropdownMenuLabel: (p: any) => <div {...p} />,
   DropdownMenuSeparator: () => <hr />,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ChevronsUpDown: () => <span />,
   Check: () => <span />,
   Plus: () => <span />,

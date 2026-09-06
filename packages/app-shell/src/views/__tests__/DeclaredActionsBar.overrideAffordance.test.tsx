@@ -90,17 +90,19 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   pickLocalized: (value: unknown) => (typeof value === 'string' ? value : ''),
 }));
 
-vi.mock('@object-ui/components', async () => {
-  const { hasDeclaredVisibilityGate } = await import(
-    '../../../../components/src/renderers/action/visibility-gate'
-  );
+// The components barrel is INHERITED (objectui#6892 slice 6) and only the two
+// primitives this suite drives are overridden, so `hasDeclaredVisibilityGate`
+// reaches the bar as the real barrel's re-export rather than as a test-double
+// re-spelling of it (objectui#3492, and objectui#3142 on what copies cost).
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button onClick={onClick} {...props}>{children}</button>
     ),
     Separator: () => <hr />,
     cn: (...args: any[]) => args.filter(Boolean).join(' '),
-    hasDeclaredVisibilityGate,
   };
 });
 
