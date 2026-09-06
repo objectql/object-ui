@@ -716,8 +716,6 @@ const UNGATED_DOCS = {
     '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
   'packages/plugin-editor/README.md':
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/plugin-kanban/README.md':
-    '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-map/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 1 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x1 — candidate real defects, un-triaged',
   'packages/plugin-markdown/README.md':
