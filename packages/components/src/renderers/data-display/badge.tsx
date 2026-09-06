@@ -37,15 +37,12 @@ ComponentRegistry.register('badge',
     namespace: 'ui',
     label: 'Badge',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
+      { name: 'label', type: 'string' },
       { 
         name: 'variant', 
         type: 'enum', 
-        enum: ['default', 'secondary', 'destructive', 'outline'], 
-        defaultValue: 'default',
-        label: 'Variant'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['default', 'secondary', 'destructive', 'outline']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       label: 'Badge',

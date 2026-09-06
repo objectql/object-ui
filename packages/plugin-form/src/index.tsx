@@ -186,54 +186,54 @@ ComponentRegistry.register('object-form', ObjectFormRenderer, {
   label: 'Object Form',
   category: 'plugin',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'fields', type: 'array', label: 'Fields' },
-    { name: 'mode', type: 'enum', label: 'Mode', enum: ['create', 'edit', 'view'] },
-    { name: 'formType', type: 'enum', label: 'Form Type', enum: ['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal'] },
-    { name: 'sections', type: 'array', label: 'Sections' },
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'description', type: 'string', label: 'Description' },
-    { name: 'layout', type: 'enum', label: 'Layout', enum: ['vertical', 'horizontal', 'inline', 'grid'] },
-    { name: 'columns', type: 'number', label: 'Columns' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'fields', type: 'array' },
+    { name: 'mode', type: 'enum', enum: ['create', 'edit', 'view'] },
+    { name: 'formType', type: 'enum', enum: ['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal'] },
+    { name: 'sections', type: 'array' },
+    { name: 'title', type: 'string' },
+    { name: 'description', type: 'string' },
+    { name: 'layout', type: 'enum', enum: ['vertical', 'horizontal', 'inline', 'grid'] },
+    { name: 'columns', type: 'number' },
     // Tabbed
-    { name: 'defaultTab', type: 'string', label: 'Default Tab' },
-    { name: 'tabPosition', type: 'enum', label: 'Tab Position', enum: ['top', 'bottom', 'left', 'right'] },
+    { name: 'defaultTab', type: 'string' },
+    { name: 'tabPosition', type: 'enum', enum: ['top', 'bottom', 'left', 'right'] },
     // Wizard
-    { name: 'allowSkip', type: 'boolean', label: 'Allow Skip Steps' },
-    { name: 'showStepIndicator', type: 'boolean', label: 'Show Step Indicator' },
+    { name: 'allowSkip', type: 'boolean' },
+    { name: 'showStepIndicator', type: 'boolean' },
     // Split
-    { name: 'splitDirection', type: 'enum', label: 'Split Direction', enum: ['horizontal', 'vertical'] },
-    { name: 'splitSize', type: 'number', label: 'Split Panel Size (%)' },
-    { name: 'splitResizable', type: 'boolean', label: 'Split Resizable' },
+    { name: 'splitDirection', type: 'enum', enum: ['horizontal', 'vertical'] },
+    { name: 'splitSize', type: 'number' },
+    { name: 'splitResizable', type: 'boolean' },
     // Drawer
-    { name: 'drawerSide', type: 'enum', label: 'Drawer Side', enum: ['top', 'bottom', 'left', 'right'] },
-    { name: 'drawerWidth', type: 'string', label: 'Drawer Width' },
+    { name: 'drawerSide', type: 'enum', enum: ['top', 'bottom', 'left', 'right'] },
+    { name: 'drawerWidth', type: 'string' },
     // Modal
-    { name: 'modalSize', type: 'enum', label: 'Modal Size', enum: ['sm', 'default', 'lg', 'xl', 'full'] },
-    { name: 'modalCloseButton', type: 'boolean', label: 'Modal Close Button', description: 'Show the modal presentation’s close button. Read at ObjectForm.tsx:361 and honoured by ModalForm.' },
-    { name: 'contentLayout', type: 'enum', label: 'Modal Content Layout', enum: ['simple', 'tabbed'], description: 'How the modal presentation lays out sections. `tabbed` needs more than one section to differ from `simple` (ModalForm.tsx:638).' },
-    { name: 'confirmOnDiscard', type: 'boolean', label: 'Confirm On Discard', description: 'Ask before discarding unsaved edits when a drawer/modal form is dismissed. Set `false` to close immediately.' },
+    { name: 'modalSize', type: 'enum', enum: ['sm', 'default', 'lg', 'xl', 'full'] },
+    { name: 'modalCloseButton', type: 'boolean', description: 'Show the modal presentation’s close button. Read at ObjectForm.tsx:361 and honoured by ModalForm.' },
+    { name: 'contentLayout', type: 'enum', enum: ['simple', 'tabbed'], description: 'How the modal presentation lays out sections. `tabbed` needs more than one section to differ from `simple` (ModalForm.tsx:638).' },
+    { name: 'confirmOnDiscard', type: 'boolean', description: 'Ask before discarding unsaved edits when a drawer/modal form is dismissed. Set `false` to close immediately.' },
     // Record binding
-    { name: 'recordId', type: 'string', label: 'Record Id', description: 'The record to load in `edit` / `view` mode. Leave unset for `create`.' },
-    { name: 'customFields', type: 'array', label: 'Custom Fields', description: 'Field definitions merged over the set generated from object metadata. With inline definitions and no data source, this becomes the only field source.' },
-    { name: 'initialValues', type: 'object', label: 'Initial Values', description: 'Values to prefill in `create` mode.' },
-    { name: 'initialData', type: 'object', label: 'Initial Data', description: 'Alternate spelling of `initialValues` that the drawer/modal presentations read FIRST (`schema.initialData || schema.initialValues`). Prefer `initialValues` in new schemas.' },
-    { name: 'readOnly', type: 'boolean', label: 'Read Only', description: 'Render every field read-only, whatever `mode` says.' },
+    { name: 'recordId', type: 'string', description: 'The record to load in `edit` / `view` mode. Leave unset for `create`.' },
+    { name: 'customFields', type: 'array', description: 'Field definitions merged over the set generated from object metadata. With inline definitions and no data source, this becomes the only field source.' },
+    { name: 'initialValues', type: 'object', description: 'Values to prefill in `create` mode.' },
+    { name: 'initialData', type: 'object', description: 'Alternate spelling of `initialValues` that the drawer/modal presentations read FIRST (`schema.initialData || schema.initialValues`). Prefer `initialValues` in new schemas.' },
+    { name: 'readOnly', type: 'boolean', description: 'Render every field read-only, whatever `mode` says.' },
     // Buttons
-    { name: 'submitText', type: 'string', label: 'Submit Button Text' },
-    { name: 'cancelText', type: 'string', label: 'Cancel Button Text' },
-    { name: 'nextText', type: 'string', label: 'Next Button Text', description: 'Label of the next-step button (wizard).' },
-    { name: 'prevText', type: 'string', label: 'Previous Button Text', description: 'Label of the previous-step button (wizard).' },
-    { name: 'showSubmit', type: 'boolean', label: 'Show Submit Button' },
-    { name: 'showCancel', type: 'boolean', label: 'Show Cancel Button' },
-    { name: 'showReset', type: 'boolean', label: 'Show Reset Button' },
+    { name: 'submitText', type: 'string' },
+    { name: 'cancelText', type: 'string' },
+    { name: 'nextText', type: 'string', description: 'Label of the next-step button (wizard).' },
+    { name: 'prevText', type: 'string', description: 'Label of the previous-step button (wizard).' },
+    { name: 'showSubmit', type: 'boolean' },
+    { name: 'showCancel', type: 'boolean' },
+    { name: 'showReset', type: 'boolean' },
     // After a successful submit
-    { name: 'submitBehavior', type: 'object', label: 'Submit Behavior', description: 'Declarative post-submit behaviour, one of `{ kind: "thank-you", title?, message? }`, `{ kind: "redirect", url, delayMs? }`, `{ kind: "continue" }`, `{ kind: "next-record" }`. When present it takes precedence over `successMessage` / `navigateOnSuccess` / `resetOnSuccess`.' },
-    { name: 'successMessage', type: 'string', label: 'Success Message', description: 'Toast shown after a successful submit. Ignored when `submitBehavior` or `navigateOnSuccess` is set.' },
-    { name: 'navigateOnSuccess', type: 'string', label: 'Navigate On Success', description: 'Path to navigate to after a successful create/update. Supports `{id}` / `{recordId}` interpolation from the saved record and is same-origin-guarded. Takes precedence over `successMessage`.' },
-    { name: 'resetOnSuccess', type: 'boolean', label: 'Reset On Success', description: 'Clear the form after a successful submit instead of keeping the saved values.' },
+    { name: 'submitBehavior', type: 'object', description: 'Declarative post-submit behaviour, one of `{ kind: "thank-you", title?, message? }`, `{ kind: "redirect", url, delayMs? }`, `{ kind: "continue" }`, `{ kind: "next-record" }`. When present it takes precedence over `successMessage` / `navigateOnSuccess` / `resetOnSuccess`.' },
+    { name: 'successMessage', type: 'string', description: 'Toast shown after a successful submit. Ignored when `submitBehavior` or `navigateOnSuccess` is set.' },
+    { name: 'navigateOnSuccess', type: 'string', description: 'Path to navigate to after a successful create/update. Supports `{id}` / `{recordId}` interpolation from the saved record and is same-origin-guarded. Takes precedence over `successMessage`.' },
+    { name: 'resetOnSuccess', type: 'boolean', description: 'Clear the form after a successful submit instead of keeping the saved values.' },
     // Mobile
-    { name: 'mobile', type: 'object', label: 'Mobile Overrides', description: 'Phone-only presentation overrides, e.g. `{ stepper: "auto", stepperMinFields: 8, fullscreenLongText: true }`.' },
+    { name: 'mobile', type: 'object', description: 'Phone-only presentation overrides, e.g. `{ stepper: "auto", stepperMinFields: 8, fullscreenLongText: true }`.' },
   ]
 });
 
@@ -246,9 +246,9 @@ ComponentRegistry.register('form', ObjectFormRenderer, {
   label: 'Data Form View',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'fields', type: 'array', label: 'Fields' },
-    { name: 'mode', type: 'enum', label: 'Mode', enum: ['create', 'edit', 'view'] },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'fields', type: 'array' },
+    { name: 'mode', type: 'enum', enum: ['create', 'edit', 'view'] },
   ]
 });
 
@@ -297,12 +297,12 @@ ComponentRegistry.register('embeddable-form', EmbeddableFormRenderer, {
   label: 'Embeddable Form',
   category: 'plugin',
   inputs: [
-    { name: 'formId', type: 'string', label: 'Form ID', required: true },
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'title', type: 'string', label: 'Form Title' },
-    { name: 'description', type: 'string', label: 'Description' },
-    { name: 'fields', type: 'array', label: 'Fields' },
-    { name: 'allowMultiple', type: 'boolean', label: 'Allow Multiple Submissions' },
+    { name: 'formId', type: 'string', required: true },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'title', type: 'string' },
+    { name: 'description', type: 'string' },
+    { name: 'fields', type: 'array' },
+    { name: 'allowMultiple', type: 'boolean' },
   ]
 });
 
@@ -318,9 +318,9 @@ ComponentRegistry.register('form-analytics', FormAnalyticsRenderer, {
   label: 'Form Analytics',
   category: 'plugin',
   inputs: [
-    { name: 'formId', type: 'string', label: 'Form ID', required: true },
-    { name: 'formTitle', type: 'string', label: 'Form Title' },
-    { name: 'metrics', type: 'object', label: 'Submission Metrics' },
+    { name: 'formId', type: 'string', required: true },
+    { name: 'formTitle', type: 'string' },
+    { name: 'metrics', type: 'object' },
   ]
 });
 
@@ -362,11 +362,11 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
   label: 'Master-Detail Form',
   category: 'plugin',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Parent Object', required: true },
-    { name: 'mode', type: 'enum', label: 'Mode', enum: ['create', 'edit'] },
-    { name: 'sections', type: 'array', label: 'Parent Sections' },
-    { name: 'details', type: 'array', label: 'Detail Collections', required: true },
-    { name: 'recordId', type: 'string', label: 'Parent Record Id', description: 'The parent record to load in `edit` mode. Leave unset for `create`.' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'mode', type: 'enum', enum: ['create', 'edit'] },
+    { name: 'sections', type: 'array' },
+    { name: 'details', type: 'array', required: true },
+    { name: 'recordId', type: 'string', description: 'The parent record to load in `edit` mode. Leave unset for `create`.' },
     // TWO values, not the six `object-form` declares (objectui#5939). A bare
     // `string` here let an out-of-vocabulary value match NO renderer branch and
     // fall through to the flat field list with no diagnostic — measured: a
@@ -384,15 +384,15 @@ ComponentRegistry.register('object-master-detail-form', MasterDetailFormRenderer
     // panels but persists through `dataSource.create` instead of the batch.
     // Declaring them would mint choices an authoring UI offers and this block
     // cannot honour.
-    { name: 'formType', type: 'enum', label: 'Parent Form Presentation', enum: ['simple', 'tabbed'], description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
-    { name: 'fields', type: 'array', label: 'Parent Fields', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists.' },
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'submitText', type: 'string', label: 'Submit Button Text', description: 'Label of the button that saves the parent and every detail row in one batch.' },
-    { name: 'cancelText', type: 'string', label: 'Cancel Button Text' },
-    { name: 'showSubmit', type: 'boolean', label: 'Show Submit Button' },
-    { name: 'initialValues', type: 'object', label: 'Initial Values', description: 'Values to prefill on the PARENT record in `create` mode.' },
-    { name: 'initialData', type: 'object', label: 'Initial Data', description: 'Alternate spelling of `initialValues` the renderer also reads (MasterDetailForm.tsx:602). Prefer `initialValues` in new schemas.' },
-    { name: 'taxRateField', type: 'string', label: 'Tax Rate Field', description: 'Name of the field ON THE CHILD object that holds each line’s tax rate. Feeds the line-items totals row; leave unset when the detail rows carry no tax.' },
+    { name: 'formType', type: 'enum', enum: ['simple', 'tabbed'], description: 'How the PARENT half of the form is presented. The detail grids below it are unaffected.' },
+    { name: 'fields', type: 'array', description: 'Which parent fields to show, in order. Ignored when `sections` is given — sections carry their own field lists.' },
+    { name: 'title', type: 'string' },
+    { name: 'submitText', type: 'string', description: 'Label of the button that saves the parent and every detail row in one batch.' },
+    { name: 'cancelText', type: 'string' },
+    { name: 'showSubmit', type: 'boolean' },
+    { name: 'initialValues', type: 'object', description: 'Values to prefill on the PARENT record in `create` mode.' },
+    { name: 'initialData', type: 'object', description: 'Alternate spelling of `initialValues` the renderer also reads (MasterDetailForm.tsx:602). Prefer `initialValues` in new schemas.' },
+    { name: 'taxRateField', type: 'string', description: 'Name of the field ON THE CHILD object that holds each line’s tax rate. Feeds the line-items totals row; leave unset when the detail rows carry no tax.' },
   ],
 });
 
@@ -460,10 +460,10 @@ ComponentRegistry.register('line_items', LineItemsPanelRenderer, {
   label: 'Line Items',
   category: 'record',
   inputs: [
-    { name: 'childObject', type: 'string', label: 'Child Object', required: true },
-    { name: 'relationshipField', type: 'string', label: 'Relationship Field', required: true },
-    { name: 'columns', type: 'array', label: 'Columns', required: true },
-    { name: 'totalField', type: 'string', label: 'Parent Total Field' },
-    { name: 'amountField', type: 'string', label: 'Amount Column' },
+    { name: 'childObject', type: 'string', required: true },
+    { name: 'relationshipField', type: 'string', required: true },
+    { name: 'columns', type: 'array', required: true },
+    { name: 'totalField', type: 'string' },
+    { name: 'amountField', type: 'string' },
   ],
 });

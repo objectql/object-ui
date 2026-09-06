@@ -286,27 +286,27 @@ ComponentRegistry.register('detail-view', DetailViewRenderer, {
   category: 'Views',
   icon: 'FileText',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'objectName', type: 'string', label: 'Object Name' },
-    { name: 'resourceId', type: 'string', label: 'Resource ID' },
-    { name: 'api', type: 'string', label: 'API Endpoint' },
-    { name: 'data', type: 'object', label: 'Data' },
-    { name: 'layout', type: 'enum', label: 'Layout Mode', enum: ['vertical', 'horizontal', 'grid'] },
-    { name: 'columns', type: 'number', label: 'Grid Columns' },
-    { name: 'sections', type: 'array', label: 'Sections' },
-    { name: 'fields', type: 'array', label: 'Fields' },
-    { name: 'tabs', type: 'array', label: 'Tabs' },
-    { name: 'related', type: 'array', label: 'Related Lists' },
-    { name: 'actions', type: 'array', label: 'Actions' },
-    { name: 'showBack', type: 'boolean', label: 'Show Back Button', defaultValue: true },
-    { name: 'backUrl', type: 'string', label: 'Back URL' },
-    { name: 'showEdit', type: 'boolean', label: 'Show Edit Button', defaultValue: false },
-    { name: 'editUrl', type: 'string', label: 'Edit URL' },
-    { name: 'showDelete', type: 'boolean', label: 'Show Delete Button', defaultValue: false },
-    { name: 'deleteConfirmation', type: 'string', label: 'Delete Confirmation Message' },
-    { name: 'loading', type: 'boolean', label: 'Show Loading State' },
-    { name: 'header', type: 'object', label: 'Custom Header' },
-    { name: 'footer', type: 'object', label: 'Custom Footer' },
+    { name: 'title', type: 'string' },
+    { name: 'objectName', type: 'string' },
+    { name: 'resourceId', type: 'string' },
+    { name: 'api', type: 'string' },
+    { name: 'data', type: 'object' },
+    { name: 'layout', type: 'enum', enum: ['vertical', 'horizontal', 'grid'] },
+    { name: 'columns', type: 'number' },
+    { name: 'sections', type: 'array' },
+    { name: 'fields', type: 'array' },
+    { name: 'tabs', type: 'array' },
+    { name: 'related', type: 'array' },
+    { name: 'actions', type: 'array' },
+    { name: 'showBack', type: 'boolean' },
+    { name: 'backUrl', type: 'string' },
+    { name: 'showEdit', type: 'boolean' },
+    { name: 'editUrl', type: 'string' },
+    { name: 'showDelete', type: 'boolean' },
+    { name: 'deleteConfirmation', type: 'string' },
+    { name: 'loading', type: 'boolean' },
+    { name: 'header', type: 'object' },
+    { name: 'footer', type: 'object' },
   ],
   defaultProps: {
     title: 'Detail View',
@@ -326,14 +326,14 @@ ComponentRegistry.register('detail-section', DetailSection, {
   label: 'Detail Section',
   category: 'Detail Components',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'description', type: 'string', label: 'Description' },
-    { name: 'fields', type: 'array', label: 'Fields', required: true },
-    { name: 'collapsible', type: 'boolean', label: 'Collapsible', defaultValue: false },
-    { name: 'defaultCollapsed', type: 'boolean', label: 'Default Collapsed', defaultValue: false },
-    { name: 'columns', type: 'number', label: 'Columns', defaultValue: 2 },
-    { name: 'showBorder', type: 'boolean', label: 'Show Border', defaultValue: true },
-    { name: 'headerColor', type: 'string', label: 'Header Color' },
+    { name: 'title', type: 'string' },
+    { name: 'description', type: 'string' },
+    { name: 'fields', type: 'array', required: true },
+    { name: 'collapsible', type: 'boolean' },
+    { name: 'defaultCollapsed', type: 'boolean' },
+    { name: 'columns', type: 'number' },
+    { name: 'showBorder', type: 'boolean' },
+    { name: 'headerColor', type: 'string' },
   ],
 });
 
@@ -343,15 +343,15 @@ ComponentRegistry.register('related-list', RelatedList, {
   label: 'Related List',
   category: 'Detail Components',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title', required: true },
-    { name: 'type', type: 'enum', label: 'Type', enum: [
+    { name: 'title', type: 'string', required: true },
+    { name: 'type', type: 'enum', enum: [
       { label: 'List', value: 'list' },
       { label: 'Grid', value: 'grid' },
       { label: 'Table', value: 'table' }
-    ], defaultValue: 'table' },
-    { name: 'api', type: 'string', label: 'API Endpoint' },
-    { name: 'data', type: 'array', label: 'Data' },
-    { name: 'columns', type: 'array', label: 'Columns' },
+    ] },
+    { name: 'api', type: 'string' },
+    { name: 'data', type: 'array' },
+    { name: 'columns', type: 'array' },
   ],
 });
 
@@ -362,9 +362,9 @@ ComponentRegistry.register('detail', DetailView, {
   label: 'Detail',
   icon: 'FileText',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'recordId', type: 'string', label: 'Record ID' },
-    { name: 'fields', type: 'array', label: 'Fields' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'recordId', type: 'string' },
+    { name: 'fields', type: 'array' },
   ]
 });
 
@@ -445,9 +445,9 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // spec's own refusal message still recounts, and the `layout` paragraph
   // above already said `rejects`.)
   inputs: [
-    { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
-    { name: 'sections', type: 'array', label: 'Sections', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Authoring `sections` at all makes it the only source of the detail body; omit it and the body falls back to the object\'s highlightFields.' },
-    { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides highlightFields)' },
+    { name: 'columns', type: 'enum', enum: ['1', '2', '3', '4'], description: 'Number of columns for field layout (1-4)' },
+    { name: 'sections', type: 'array', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Authoring `sections` at all makes it the only source of the detail body; omit it and the body falls back to the object\'s highlightFields.' },
+    { name: 'fields', type: 'array', description: 'Explicit field list (overrides highlightFields)' },
     // `hideFields` is DECLARED, not merely honoured (objectui#3808). The spec
     // declares it (objectstack#5611) and `RecordDetailsRenderer` has read it
     // since the highlight-dedup phase (`renderers/record-details.tsx:147`), but
@@ -466,7 +466,7 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
     // The "hiding every field drops the section" sentence is read off
     // `DetailSection.tsx:439` (`visibleFields.length === 0 &&
     // emptyCount === section.fields.length` returns null), not assumed.
-    { name: 'hideFields', type: 'array', label: 'Hide Fields', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
+    { name: 'hideFields', type: 'array', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
     // `inlineEdit` and `showHeader` are DECLARED, not merely honoured
     // (objectui#4668) — the same reverse-direction defect `hideFields` above
     // records, on the two keys @objectstack/spec 17.0.0 GA added to this block.
@@ -490,8 +490,8 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
     // open editing the platform refuses; only `false` is unconditional. Saying
     // "enables inline editing" would advertise an authority this key does not
     // have.
-    { name: 'inlineEdit', type: 'boolean', label: 'Inline Edit', defaultValue: true, description: 'Offer the per-field double-click / pencil inline-edit affordances in the detail body. On by default, and an OPT-OUT only: the value is combined with the object\'s own editability (system, engine-owned, append-only and better-auth objects are not user-editable unless they opened userActions.edit) and with the server\'s effective API operation set for the object, so `false` always wins while `true` cannot open editing the platform refuses. The edit session and the atomic Save bar are hosted by the page, so one draft spans the highlights strip and this body.' },
-    { name: 'showHeader', type: 'boolean', label: 'Show Body Header', defaultValue: false, description: 'Render the detail body\'s own title / follow-star / copy-id chip above the fields. Off by default because this block is normally composed under a `page:header` that already draws that chrome, and turning it on there shows the record title twice. Set it true only when this block is the whole page.' },
+    { name: 'inlineEdit', type: 'boolean', description: 'Offer the per-field double-click / pencil inline-edit affordances in the detail body. On by default, and an OPT-OUT only: the value is combined with the object\'s own editability (system, engine-owned, append-only and better-auth objects are not user-editable unless they opened userActions.edit) and with the server\'s effective API operation set for the object, so `false` always wins while `true` cannot open editing the platform refuses. The edit session and the atomic Save bar are hosted by the page, so one draft spans the highlights strip and this body.' },
+    { name: 'showHeader', type: 'boolean', description: 'Render the detail body\'s own title / follow-star / copy-id chip above the fields. Off by default because this block is normally composed under a `page:header` that already draws that chrome, and turning it on there shows the record title twice. Set it true only when this block is the whole page.' },
   ],
 });
 
@@ -513,12 +513,12 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
   // in particular is not cosmetic — without it declared, the ONLY published way
   // to build a junction-assignment list was to write an undiscoverable key.
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Related Object', required: true, description: 'Related object name (e.g. "task")' },
-    { name: 'relationshipField', type: 'string', label: 'Relationship Field', required: true, description: 'Field on the related object pointing back to this record' },
-    { name: 'relationshipValueField', type: 'string', label: 'Relationship Value Field', defaultValue: 'id', description: 'Which field OF THIS PARENT record `relationshipField` stores. Defaults to "id"; set it to the field a name-keyed junction points at (e.g. "name" when sys_user_position.position holds sys_position.name). The resolved value drives three things at once — the list filter, the Add-picker link value, and the pre-filled create form — so they cannot drift apart. While the parent record is still loading, a non-"id" field resolves to null and the list holds its fetch rather than querying on an empty value.' },
-    { name: 'columns', type: 'array', label: 'Columns', required: true, description: 'Fields to display in the related list' },
-    { name: 'sort', type: 'array', label: 'Sort' },
-    { name: 'limit', type: 'number', label: 'Limit', defaultValue: 5, description: 'Records to display initially' },
+    { name: 'objectName', type: 'string', required: true, description: 'Related object name (e.g. "task")' },
+    { name: 'relationshipField', type: 'string', required: true, description: 'Field on the related object pointing back to this record' },
+    { name: 'relationshipValueField', type: 'string', description: 'Which field OF THIS PARENT record `relationshipField` stores. Defaults to "id"; set it to the field a name-keyed junction points at (e.g. "name" when sys_user_position.position holds sys_position.name). The resolved value drives three things at once — the list filter, the Add-picker link value, and the pre-filled create form — so they cannot drift apart. While the parent record is still loading, a non-"id" field resolves to null and the list holds its fetch rather than querying on an empty value.' },
+    { name: 'columns', type: 'array', required: true, description: 'Fields to display in the related list' },
+    { name: 'sort', type: 'array' },
+    { name: 'limit', type: 'number', description: 'Records to display initially' },
     // `type: 'array'` matches the spec (`RecordRelatedListProps.filter` is
     // `z.array(ViewFilterRuleSchema)`), and the description now names the MEMBER
     // shape for the reason `add`'s does: `ComponentInput` is flat, so an array
@@ -527,10 +527,10 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     // which is the part a wrong guess makes dangerous rather than merely broken:
     // an author who reads "filter" as "the list's whole filter" would expect it
     // to be able to widen past the parent record, and it cannot (objectstack#7118).
-    { name: 'filter', type: 'array', label: 'Filter', description: 'Additional filter criteria, as spec `ViewFilterRule` entries (`[{ field, operator, value }]`). AND-combined with the parent relationship condition, never a replacement for it: it can only narrow this record\'s children. Also the key a per-element `dataSource` binding\'s composed filter lands on.' },
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'showViewAll', type: 'boolean', label: 'Show "View All"', defaultValue: true },
-    { name: 'actions', type: 'array', label: 'Actions', description: 'Action IDs available for related records' },
+    { name: 'filter', type: 'array', description: 'Additional filter criteria, as spec `ViewFilterRule` entries (`[{ field, operator, value }]`). AND-combined with the parent relationship condition, never a replacement for it: it can only narrow this record\'s children. Also the key a per-element `dataSource` binding\'s composed filter lands on.' },
+    { name: 'title', type: 'string' },
+    { name: 'showViewAll', type: 'boolean' },
+    { name: 'actions', type: 'array', description: 'Action IDs available for related records' },
     // `add` publishes its MEMBER shape in prose for the reason the sibling
     // array-of-objects inputs do (`record:details.sections`,
     // `record:highlights.fields`, `record:path.stages`): `ComponentInput` is flat
@@ -553,7 +553,7 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     // KNOWN GAP sentence here until then, on the
     // `record:activity.showSubscriptionToggle` precedent; the sentence went away
     // with the gap, not before it.
-    { name: 'add', type: 'object', label: 'Add Existing', description: 'Adds an "Add" button that assigns EXISTING records instead of creating one — the m2m/junction case. Shape: `{ picker: { object, valueField?, labelField?, filter? }, linkField?, label? }`. `picker.object` (required) is the object whose records the dialog offers. `picker.valueField` is the field of the picked record used as the link value (default "id"); `picker.labelField` is the column shown in the picker rows (default "name", and the other columns are derived from that object\'s schema). With `linkField` set, selecting records CREATES rows in this list\'s own object as `{ [relationshipField]: parentValue, [linkField]: pickedId }` — the junction case; omit `linkField` and the picked child is RE-PARENTED instead, by setting its own `relationshipField` to this parent. `label` is the button text (default "Add", localizable inline). Setting `add` also enables generic link removal on rows when no host delete handler is wired. `picker.filter` restricts which records the dialog offers — a list of `{ field, operator, value }` rules in the same vocabulary as this list\'s own `filter`, applied as a hard constraint the user cannot widen (it never appears as an editable filter row).' },
+    { name: 'add', type: 'object', description: 'Adds an "Add" button that assigns EXISTING records instead of creating one — the m2m/junction case. Shape: `{ picker: { object, valueField?, labelField?, filter? }, linkField?, label? }`. `picker.object` (required) is the object whose records the dialog offers. `picker.valueField` is the field of the picked record used as the link value (default "id"); `picker.labelField` is the column shown in the picker rows (default "name", and the other columns are derived from that object\'s schema). With `linkField` set, selecting records CREATES rows in this list\'s own object as `{ [relationshipField]: parentValue, [linkField]: pickedId }` — the junction case; omit `linkField` and the picked child is RE-PARENTED instead, by setting its own `relationshipField` to this parent. `label` is the button text (default "Add", localizable inline). Setting `add` also enables generic link removal on rows when no host delete handler is wired. `picker.filter` restricts which records the dialog offers — a list of `{ field, operator, value }` rules in the same vocabulary as this list\'s own `filter`, applied as a hard constraint the user cannot widen (it never appears as an editable filter row).' },
   ],
 });
 
@@ -589,8 +589,8 @@ ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   // publishes its member keys in prose, the same way `record:path.stages` and
   // `record:alert.action` do. objectui#3407 / objectstack#5176.
   inputs: [
-    { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?,readonly?}. Set readonly: true on an entry to render that chip read-only — it suppresses the inline-edit affordance and the HeaderHighlight editability gate enforces it. Use it for hook/automation-maintained columns that must not be hand-edited from the record header; marking the OBJECT field readonly instead would also strip the hook\'s own write-back.' },
-    { name: 'layout', type: 'enum', label: 'Layout', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', description: 'Layout orientation for highlight fields' },
+    { name: 'fields', type: 'array', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?,readonly?}. Set readonly: true on an entry to render that chip read-only — it suppresses the inline-edit affordance and the HeaderHighlight editability gate enforces it. Use it for hook/automation-maintained columns that must not be hand-edited from the record header; marking the OBJECT field readonly instead would also strip the hook\'s own write-back.' },
+    { name: 'layout', type: 'enum', enum: ['horizontal', 'vertical'], description: 'Layout orientation for highlight fields' },
   ],
 });
 
@@ -621,30 +621,28 @@ ComponentRegistry.register('activity', RecordActivityRenderer, {
   // DiscussionContext (record detail pages do); `showSubscriptionToggle` is a
   // declared-but-inert GAP and says so here rather than looking configurable.
   inputs: [
-    { name: 'types', type: 'array', label: 'Activity Types', description: 'Allow-list of feed item types to show (comment, field_change, task, event, email, call, note, file, record_create, record_delete, approval, sharing, system). Omit for all; unrecognised entries are ignored.' },
+    { name: 'types', type: 'array', description: 'Allow-list of feed item types to show (comment, field_change, task, event, email, call, note, file, record_create, record_delete, approval, sharing, system). Omit for all; unrecognised entries are ignored.' },
     {
       name: 'filterMode',
       type: 'enum',
-      label: 'Filter Mode',
       enum: ['all', 'comments_only', 'changes_only', 'tasks_only'],
-      defaultValue: 'all',
       description: 'Filter the timeline dropdown starts on. The user can still change it; an unrecognised value falls back to "all".',
     },
-    { name: 'showFilterToggle', type: 'boolean', label: 'Show Filter Toggle', defaultValue: true, description: 'Expose the activity-type filter dropdown in the panel header' },
-    { name: 'limit', type: 'number', label: 'Limit', defaultValue: 20, description: 'Items per page. Also caps the scoped sys_activity read; "Load more" grows the window by this much.' },
-    { name: 'showCompleted', type: 'boolean', label: 'Show Completed', defaultValue: false, description: 'Include completed activities (sys_activity type "completed", which surfaces as a task item). Off by default.' },
-    { name: 'unifiedTimeline', type: 'boolean', label: 'Unified Timeline', defaultValue: true, description: 'Mix field changes and comments in one timeline (Airtable style). Off keeps the panel a discussion stream — field changes stay in record:history.' },
-    { name: 'showCommentInput', type: 'boolean', label: 'Show Comment Input', defaultValue: true, description: 'Show the composer. Requires a host discussion context to persist the comment (record detail pages provide one); without it the feed is read-only.' },
-    { name: 'enableMentions', type: 'boolean', label: 'Enable @mentions', defaultValue: true, description: 'Offer @-mention autocomplete in the composer, from the host discussion context\'s user list. Off withholds the suggestions.' },
-    { name: 'enableReactions', type: 'boolean', label: 'Enable Reactions', defaultValue: false, description: 'Show emoji reactions on feed items. Toggling one requires a host discussion context; without it existing reactions still render, read-only.' },
-    { name: 'enableThreading', type: 'boolean', label: 'Enable Threaded Replies', defaultValue: false, description: 'Group replies under their parent comment. Posting a reply requires a host discussion context.' },
+    { name: 'showFilterToggle', type: 'boolean', description: 'Expose the activity-type filter dropdown in the panel header' },
+    { name: 'limit', type: 'number', description: 'Items per page. Also caps the scoped sys_activity read; "Load more" grows the window by this much.' },
+    { name: 'showCompleted', type: 'boolean', description: 'Include completed activities (sys_activity type "completed", which surfaces as a task item). Off by default.' },
+    { name: 'unifiedTimeline', type: 'boolean', description: 'Mix field changes and comments in one timeline (Airtable style). Off keeps the panel a discussion stream — field changes stay in record:history.' },
+    { name: 'showCommentInput', type: 'boolean', description: 'Show the composer. Requires a host discussion context to persist the comment (record detail pages provide one); without it the feed is read-only.' },
+    { name: 'enableMentions', type: 'boolean', description: 'Offer @-mention autocomplete in the composer, from the host discussion context\'s user list. Off withholds the suggestions.' },
+    { name: 'enableReactions', type: 'boolean', description: 'Show emoji reactions on feed items. Toggling one requires a host discussion context; without it existing reactions still render, read-only.' },
+    { name: 'enableThreading', type: 'boolean', description: 'Group replies under their parent comment. Posting a reply requires a host discussion context.' },
     {
       name: 'showSubscriptionToggle',
       type: 'boolean',
-      label: 'Show Subscribe Toggle',
-      // No `defaultValue`: the spec defaults it true and this renderer treats
-      // it as false, and pinning either number here would advertise a default
-      // for something that has no behaviour to default to.
+      // No default is advertised: the spec defaults it true and this renderer
+      // treats it as false, and naming either value in `description` would
+      // advertise a default for something that has no behaviour to default to.
+      // (`ComponentInput.defaultValue` itself is retired — objectui#7493.)
       // KNOWN GAP (objectui#3165). Declared because @objectstack/spec declares
       // it, and left visible rather than quietly dropped so the two
       // declarations stay in parity — but it renders nothing: the bell needs a
@@ -662,11 +660,11 @@ ComponentRegistry.register('activity', RecordActivityRenderer, {
 // the wild. Both carry the same inputs — an author who reaches for either gets
 // the same configuration surface.
 const CHATTER_INPUTS: ComponentInput[] = [
-  { name: 'position', type: 'enum', label: 'Position', enum: ['bottom', 'right', 'left'], defaultValue: 'bottom', description: 'Where the panel docks relative to the record body' },
-  { name: 'width', type: 'string', label: 'Width', description: 'Panel width as a CSS value (side positions only)' },
-  { name: 'collapsible', type: 'boolean', label: 'Collapsible', defaultValue: false },
-  { name: 'defaultCollapsed', type: 'boolean', label: 'Start Collapsed' },
-  { name: 'feed', type: 'object', label: 'Feed Options', description: 'Activity-feed config nested inside the panel — same shape as record:activity' },
+  { name: 'position', type: 'enum', enum: ['bottom', 'right', 'left'], description: 'Where the panel docks relative to the record body' },
+  { name: 'width', type: 'string', description: 'Panel width as a CSS value (side positions only)' },
+  { name: 'collapsible', type: 'boolean' },
+  { name: 'defaultCollapsed', type: 'boolean' },
+  { name: 'feed', type: 'object', description: 'Activity-feed config nested inside the panel — same shape as record:activity' },
 ];
 
 ComponentRegistry.register('chatter', RecordChatterRenderer, {
@@ -696,8 +694,8 @@ ComponentRegistry.register('path', RecordPathRenderer, {
   icon: 'GitBranch',
   // Mirrors @objectstack/spec RecordPathProps.
   inputs: [
-    { name: 'statusField', type: 'string', label: 'Status Field', required: true, description: 'Field representing the current status/stage' },
-    { name: 'stages', type: 'array', label: 'Stages', description: 'Explicit stage definitions [{ value, label }] (else derived from field metadata)' },
+    { name: 'statusField', type: 'string', required: true, description: 'Field representing the current status/stage' },
+    { name: 'stages', type: 'array', description: 'Explicit stage definitions [{ value, label }] (else derived from field metadata)' },
   ],
 });
 
@@ -718,14 +716,14 @@ ComponentRegistry.register('quick_actions', RecordQuickActionsRenderer, {
     // taught to authors and to tooling — objectstack#8744 quoted it verbatim.
     // Implementing the fallback would be a behaviour expansion and needs its own
     // card; pinned by `recordQuickActionsInputs.actionNamesFallback.test.tsx`.
-    { name: 'actionNames', type: 'array', label: 'Actions', description: 'Action names to expose, in order — resolved from the actions declared on the object. With no names (and no host-supplied actions) nothing is looked up and the bar renders its empty placeholder' },
-    { name: 'requiredPermissions', type: 'array', label: 'Required Permissions', description: 'Hide the whole bar unless the user holds these permissions' },
+    { name: 'actionNames', type: 'array', description: 'Action names to expose, in order — resolved from the actions declared on the object. With no names (and no host-supplied actions) nothing is looked up and the bar renders its empty placeholder' },
+    { name: 'requiredPermissions', type: 'array', description: 'Hide the whole bar unless the user holds these permissions' },
     // Derived from the spec's own vocabulary rather than restated — #3019.
-    { name: 'location', type: 'enum', label: 'Location', enum: [...ACTION_LOCATIONS], defaultValue: 'record_header', description: 'Which declared action location this bar renders' },
-    { name: 'align', type: 'enum', label: 'Align', enum: ['start', 'center', 'end'], defaultValue: 'end' },
-    { name: 'inline', type: 'boolean', label: 'Inline', description: 'Render in the flow instead of folding into the record header' },
-    { name: 'variant', type: 'string', label: 'Button Variant', defaultValue: 'default', description: 'Passed to the Button primitive; a per-action variant overrides it' },
-    { name: 'size', type: 'string', label: 'Button Size', defaultValue: 'sm', description: 'Passed to the Button primitive; a per-action size overrides it' },
+    { name: 'location', type: 'enum', enum: [...ACTION_LOCATIONS], description: 'Which declared action location this bar renders' },
+    { name: 'align', type: 'enum', enum: ['start', 'center', 'end'] },
+    { name: 'inline', type: 'boolean', description: 'Render in the flow instead of folding into the record header' },
+    { name: 'variant', type: 'string', description: 'Passed to the Button primitive; a per-action variant overrides it' },
+    { name: 'size', type: 'string', description: 'Passed to the Button primitive; a per-action size overrides it' },
   ],
 });
 
@@ -736,9 +734,9 @@ ComponentRegistry.register('history', RecordHistoryRenderer, {
   label: 'History Timeline',
   icon: 'Clock',
   inputs: [
-    { name: 'limit', type: 'number', label: 'Limit', defaultValue: 50, description: 'Maximum history entries to display' },
-    { name: 'emptyText', type: 'string', label: 'Empty Text', description: 'Copy shown when the record has no history' },
-    { name: 'unknownUserText', type: 'string', label: 'Unknown User Text', description: 'Copy substituted when an entry has no resolvable actor' },
+    { name: 'limit', type: 'number', description: 'Maximum history entries to display' },
+    { name: 'emptyText', type: 'string', description: 'Copy shown when the record has no history' },
+    { name: 'unknownUserText', type: 'string', description: 'Copy substituted when an entry has no resolvable actor' },
   ],
 });
 
@@ -749,7 +747,7 @@ ComponentRegistry.register('reference_rail', RecordReferenceRailRenderer, {
   label: 'Reference Rail',
   icon: 'PanelRight',
   inputs: [
-    { name: 'hideEmpty', type: 'boolean', label: 'Hide When Empty', defaultValue: true, description: 'Drop the rail entirely when no entries resolve' },
+    { name: 'hideEmpty', type: 'boolean', description: 'Drop the rail entirely when no entries resolve' },
   ],
 });
 
@@ -760,7 +758,7 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
   label: 'Alert Banner',
   icon: 'triangle-alert',
   inputs: [
-    { name: 'severity', type: 'enum', label: 'Severity', enum: ['info', 'warning', 'error', 'success'], defaultValue: 'info' },
+    { name: 'severity', type: 'enum', enum: ['info', 'warning', 'error', 'success'] },
     // Two arms each (objectui#3832). Unlike the `page:*` specimens these two
     // have no props schema to measure against — `ComponentPropsMap` carries no
     // `record:alert` entry at rc.6 — so the second arm is justified by the
@@ -768,13 +766,13 @@ ComponentRegistry.register('alert', RecordAlertRenderer, {
     // `pickLocalized`, which is exactly what these descriptions teach. Declaring
     // the map arm therefore adds no shape the block does not already honour; it
     // stops the manifest gate warning `type-mismatch` on the recommended write.
-    { name: 'title', type: ['string', 'object'], label: 'Title', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'body', type: ['string', 'object'], label: 'Body', description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
-    { name: 'visible', type: 'string', label: 'Visible When', description: 'Expression gating the banner against the current record' },
-    { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name; defaults to the severity icon' },
-    { name: 'action', type: 'object', label: 'Call to Action', description: '{ actionName, label?, variant? } — the action the banner offers' },
-    { name: 'dismissible', type: 'boolean', label: 'Dismissible' },
-    { name: 'dismissKey', type: 'string', label: 'Dismiss Key', description: 'Stable key the dismissal is remembered under' },
+    { name: 'title', type: ['string', 'object'], description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'body', type: ['string', 'object'], description: 'Accepts an inline translation map ({ en, "zh-CN", … })' },
+    { name: 'visible', type: 'string', description: 'Expression gating the banner against the current record' },
+    { name: 'icon', type: 'string', description: 'Lucide icon name; defaults to the severity icon' },
+    { name: 'action', type: 'object', description: '{ actionName, label?, variant? } — the action the banner offers' },
+    { name: 'dismissible', type: 'boolean' },
+    { name: 'dismissKey', type: 'string', description: 'Stable key the dismissal is remembered under' },
   ],
 });
 

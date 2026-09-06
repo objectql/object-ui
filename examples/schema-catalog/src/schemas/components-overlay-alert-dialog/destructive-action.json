@@ -7,15 +7,6 @@
     "label": "Delete",
     "variant": "destructive"
   },
-  "actions": [
-    {
-      "type": "button",
-      "label": "Cancel"
-    },
-    {
-      "type": "button",
-      "label": "Delete",
-      "variant": "destructive"
-    }
-  ]
+  "cancelText": "Cancel",
+  "actionText": "Delete"
 }

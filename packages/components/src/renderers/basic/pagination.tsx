@@ -97,9 +97,9 @@ ComponentRegistry.register('pagination',
     namespace: 'ui',
     label: 'Pagination',
     inputs: [
-      { name: 'currentPage', type: 'number', label: 'Current Page', defaultValue: 1 },
-      { name: 'totalPages', type: 'number', label: 'Total Pages', defaultValue: 10 },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'currentPage', type: 'number' },
+      { name: 'totalPages', type: 'number' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       currentPage: 1,

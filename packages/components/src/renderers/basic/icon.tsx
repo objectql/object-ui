@@ -264,10 +264,10 @@ ComponentRegistry.register('icon',
       //
       // The `name:` on the left is the INPUT DESCRIPTOR's own key — which
       // schema property this input edits. Its value is what changed.
-      { name: 'icon', type: 'string', label: 'Icon Name', defaultValue: 'face-slightly-smiling' },
-      { name: 'size', type: 'number', label: 'Size (px)' },
-      { name: 'color', type: 'string', label: 'Color Class' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'icon', type: 'string' },
+      { name: 'size', type: 'number' },
+      { name: 'color', type: 'string' },
+      { name: 'className', type: 'string' }
     ]
   }
 );

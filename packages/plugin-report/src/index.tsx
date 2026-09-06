@@ -80,9 +80,9 @@ ComponentRegistry.register(
     label: 'Report',
     category: 'Report',
     inputs: [
-        { name: 'title', type: 'string', label: 'Title' },
-        { name: 'description', type: 'string', label: 'Description' },
-        { name: 'chart', type: 'code', label: 'Chart Configuration' },
+        { name: 'title', type: 'string' },
+        { name: 'description', type: 'string' },
+        { name: 'chart', type: 'code' },
     ]
   }
 );
@@ -96,8 +96,8 @@ ComponentRegistry.register(
     label: 'Spec Report',
     category: 'Report',
     inputs: [
-        { name: 'dataset', type: 'string', label: 'Dataset' },
-        { name: 'type', type: 'string', label: 'Report Type' },
+        { name: 'dataset', type: 'string' },
+        { name: 'type', type: 'string' },
     ]
   }
 );
@@ -111,8 +111,8 @@ ComponentRegistry.register(
     label: 'Report Viewer',
     category: 'Report',
     inputs: [
-        { name: 'report', type: 'code', label: 'Report Definition' },
-        { name: 'showToolbar', type: 'boolean', label: 'Show Toolbar' }
+        { name: 'report', type: 'code' },
+        { name: 'showToolbar', type: 'boolean' }
     ]
   }
 );

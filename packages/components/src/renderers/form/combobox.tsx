@@ -39,10 +39,10 @@ ComponentRegistry.register('combobox',
     namespace: 'ui',
     label: 'Combobox',
     inputs: [
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'value', type: 'string', label: 'Value' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled', defaultValue: false },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'placeholder', type: 'string' },
+      { name: 'value', type: 'string' },
+      { name: 'disabled', type: 'boolean' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       placeholder: 'Select option...',

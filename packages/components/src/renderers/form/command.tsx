@@ -65,9 +65,9 @@ ComponentRegistry.register('command',
     namespace: 'ui',
     label: 'Command',
     inputs: [
-      { name: 'placeholder', type: 'string', label: 'Placeholder' },
-      { name: 'emptyText', type: 'string', label: 'Empty Text' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'placeholder', type: 'string' },
+      { name: 'emptyText', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       placeholder: 'Type a command or search...',

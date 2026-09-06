@@ -1179,10 +1179,10 @@ ComponentRegistry.register('object-chart', ObjectChartBlock, {
     label: 'Object Chart',
     category: 'view',
     inputs: [
-        { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-        { name: 'data', type: 'array', label: 'Data', description: 'Optional static data' },
-        { name: 'filter', type: 'array', label: 'Filter' },
-        { name: 'aggregate', type: 'object', label: 'Aggregate', description: 'Aggregation config: { field, function, groupBy }' },
+        { name: 'objectName', type: 'string', required: true },
+        { name: 'data', type: 'array', description: 'Optional static data' },
+        { name: 'filter', type: 'array' },
+        { name: 'aggregate', type: 'object', description: 'Aggregation config: { field, function, groupBy }' },
         // framework#5022. The manifest built from these `inputs` is what the
         // SDUI save gate validates a page's JSX against, so an undeclared prop
         // is reported as `unknown-prop` — which is what an author writing the
@@ -1210,6 +1210,6 @@ ComponentRegistry.register('object-chart', ObjectChartBlock, {
         // `view` / `sort` are gone from `DrillDownConfig` entirely
         // (objectui#3354) — no renderer ever read them, so there is no longer a
         // key to advertise or withhold.
-        { name: 'drillDown', type: 'object', label: 'Drill-down', description: "Segment drill config: { enabled?, filter?, title?, target?: 'drawer' | 'dialog', columns?, maxRows? }. Present = on; {} is enough. Clicking a segment opens the underlying records filtered by the clicked category." },
+        { name: 'drillDown', type: 'object', description: "Segment drill config: { enabled?, filter?, title?, target?: 'drawer' | 'dialog', columns?, maxRows? }. Present = on; {} is enough. Clicking a segment opens the underlying records filtered by the clicked category." },
     ]
 });

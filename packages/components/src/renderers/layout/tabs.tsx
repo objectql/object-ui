@@ -76,13 +76,11 @@ ComponentRegistry.register('tabs', TabsRenderer,
     namespace: 'ui',
     label: 'Tabs',
     inputs: [
-      { name: 'defaultValue', type: 'string', label: 'Default Value', required: true },
-      { name: 'className', type: 'string', label: 'CSS Class' },
+      { name: 'defaultValue', type: 'string', required: true },
+      { name: 'className', type: 'string' },
       { 
         name: 'items', 
-        type: 'array', 
-        label: 'Items'
-      }
+        type: 'array'      }
     ],
     defaultProps: {
       defaultValue: 'tab1',

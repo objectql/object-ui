@@ -117,9 +117,9 @@ const READ_TEXT: Record<Mirrored, ReadonlyArray<readonly [file: string, text: st
 
 /** The registration's editable-props meta names the three local literals too. */
 const REGISTRATION_TEXT: readonly string[] = [
-  "{ name: 'defaultViewType', type: 'enum', label: 'Default View Type', enum: ['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'map'] },",
-  "{ name: 'defaultListView', type: 'string', label: 'Default Named View' },",
-  "{ name: 'showViewSwitcher', type: 'boolean', label: 'Show View Switcher' },",
+  "{ name: 'defaultViewType', type: 'enum', enum: ['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'map'] },",
+  "{ name: 'defaultListView', type: 'string' },",
+  "{ name: 'showViewSwitcher', type: 'boolean' },",
 ];
 
 /** A declared-keys-only control of the read set: read, declared, untouched. */

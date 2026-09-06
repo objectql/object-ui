@@ -90,11 +90,15 @@ const RETIRED = {
 
 type RetiredKey = keyof typeof RETIRED;
 
-/** A fully live input — every key here is declared AND forwarded by the serializer. */
+/**
+ * A fully live input — every key here is declared AND forwarded by the serializer.
+ * (`label` used to sit here as a live key; it became a tombstone of the same
+ * shape under objectui#7493 / objectui#7781, pinned in
+ * `component-input-retired-keys-7493.test.ts`.)
+ */
 const LIVE_INPUT = {
   name: 'content',
   type: 'string',
-  label: 'Markdown Content',
   required: true,
   description: 'A positive integer — the contract rejects 0 and fractional values',
 } as const;

@@ -43,28 +43,24 @@ ComponentRegistry.register('dialog',
     namespace: 'ui',
     label: 'Dialog',
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'description', type: 'string', label: 'Description' },
-      { name: 'modal', type: 'boolean', label: 'Modal', defaultValue: true },
-      { name: 'defaultOpen', type: 'boolean', label: 'Default Open' },
+      { name: 'title', type: 'string' },
+      { name: 'description', type: 'string' },
+      { name: 'modal', type: 'boolean' },
+      { name: 'defaultOpen', type: 'boolean' },
       { 
         name: 'trigger', 
         type: 'slot', 
-        label: 'Trigger',
         description: 'Element that opens the dialog' 
       },
       { 
         name: 'content', 
         type: 'slot', 
-        label: 'Content', 
         description: 'Main content of the dialog' 
       },
       { 
         name: 'footer', 
-        type: 'slot', 
-        label: 'Footer' 
-      },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       title: 'Dialog Title',

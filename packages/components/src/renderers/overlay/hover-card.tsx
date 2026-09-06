@@ -30,21 +30,17 @@ ComponentRegistry.register('hover-card',
     namespace: 'ui',
     label: 'Hover Card',
     inputs: [
-       { name: 'openDelay', type: 'number', label: 'Open Delay' },
-        { name: 'closeDelay', type: 'number', label: 'Close Delay' },
-         { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'], label: 'Side' },
-      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'], label: 'Align' },
+       { name: 'openDelay', type: 'number' },
+        { name: 'closeDelay', type: 'number' },
+         { name: 'side', type: 'enum', enum: ['top', 'right', 'bottom', 'left'] },
+      { name: 'align', type: 'enum', enum: ['start', 'center', 'end'] },
        { 
         name: 'trigger', 
-        type: 'slot', 
-        label: 'Trigger' 
-      },
+        type: 'slot'      },
       { 
         name: 'content', 
-        type: 'slot', 
-        label: 'Content' 
-      },
-      { name: 'className', type: 'string', label: 'Content CSS Class' }
+        type: 'slot'      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       trigger: [{ type: 'button', label: 'Hover me', variant: 'link' }],

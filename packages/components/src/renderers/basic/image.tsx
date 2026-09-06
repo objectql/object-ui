@@ -38,9 +38,9 @@ ComponentRegistry.register('image',
     icon: 'image',
     category: 'basic',
     inputs: [
-      { name: 'src', type: 'string', label: 'Source URL' },
-      { name: 'alt', type: 'string', label: 'Alt Text' },
-      { name: 'className', type: 'string', label: 'Classes' }
+      { name: 'src', type: 'string' },
+      { name: 'alt', type: 'string' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       className: 'max-w-full h-auto'

@@ -123,13 +123,12 @@ export function registerLayout() {
     category: 'Layout',
     isContainer: true,
     inputs: [
-      { name: 'title', type: 'string', label: 'Title' },
-      { name: 'subtitle', type: 'string', label: 'Subtitle' },
-      { name: 'icon', type: 'string', label: 'Icon', description: 'Lucide icon name' },
+      { name: 'title', type: 'string' },
+      { name: 'subtitle', type: 'string' },
+      { name: 'icon', type: 'string', description: 'Lucide icon name' },
       {
         name: 'actions',
         type: 'array',
-        label: 'Actions',
         description: 'ActionDef list (or action ids) rendered through record:quick_actions',
       },
     ],
@@ -275,8 +274,6 @@ export function registerLayout() {
         name: 'mobileNavMode',
         type: 'enum',
         enum: ['drawer', 'bottom_nav'],
-        defaultValue: 'drawer',
-        label: 'Mobile Nav Mode',
         description:
           'Mobile navigation mode. "drawer" (default) puts the sidebar in the mobile sheet overlay; "bottom_nav" additionally renders a fixed bottom bar. These are the only two modes the renderer implements.',
       },

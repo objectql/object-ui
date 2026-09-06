@@ -61,11 +61,11 @@ ComponentRegistry.register('checkbox', CheckboxRenderer,
     namespace: 'ui',
     label: 'Checkbox',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label', required: true },
-      { name: 'id', type: 'string', label: 'ID', required: true },
-      { name: 'checked', type: 'boolean', label: 'Checked' },
-      { name: 'required', type: 'boolean', label: 'Required' },
-      { name: 'disabled', type: 'boolean', label: 'Disabled' }
+      { name: 'label', type: 'string', required: true },
+      { name: 'id', type: 'string', required: true },
+      { name: 'checked', type: 'boolean' },
+      { name: 'required', type: 'boolean' },
+      { name: 'disabled', type: 'boolean' }
     ],
     defaultProps: {
       label: 'Checkbox label',

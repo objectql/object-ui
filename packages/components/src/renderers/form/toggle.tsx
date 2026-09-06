@@ -43,11 +43,11 @@ ComponentRegistry.register('toggle',
     namespace: 'ui',
     label: 'Toggle',
     inputs: [
-      { name: 'label', type: 'string', label: 'Label' },
-      { name: 'pressed', type: 'boolean', label: 'Pressed' },
-      { name: 'variant', type: 'enum', enum: ['default', 'outline'], defaultValue: 'default', label: 'Variant' },
-      { name: 'size', type: 'enum', enum: ['default', 'sm', 'lg'], defaultValue: 'default', label: 'Size' },
-      { name: 'ariaLabel', type: 'string', label: 'Aria Label' }
+      { name: 'label', type: 'string' },
+      { name: 'pressed', type: 'boolean' },
+      { name: 'variant', type: 'enum', enum: ['default', 'outline'] },
+      { name: 'size', type: 'enum', enum: ['default', 'sm', 'lg'] },
+      { name: 'ariaLabel', type: 'string' }
     ],
     defaultProps: {
       label: 'Toggle',

@@ -723,8 +723,6 @@ const UNGATED_DOCS = {
     '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2554x2 TS2559x2 — candidate real defects, un-triaged',
   'packages/layout/README.md':
     '3 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 3 unresolved-module diagnostic(s)',
-  'packages/mobile/README.md':
-    '19 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS1108x2 TS2345x1 TS2353x1 — candidate real defects, un-triaged',
   'packages/permissions/README.md':
     '12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2322x4 TS2345x1 TS2353x1 — candidate real defects, un-triaged',
   'packages/plugin-ai/README.md':
@@ -733,8 +731,6 @@ const UNGATED_DOCS = {
     '6 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-chatbot/README.md':
     '5 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s); plus TS17000x1 TS2322x1 — candidate real defects, un-triaged',
-  'packages/plugin-designer/README.md':
-    '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 12 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2339x6 TS2554x1 TS2741x1 — candidate real defects, un-triaged',
   'packages/plugin-detail/README.md':
     '5 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines',
   'packages/plugin-editor/README.md':

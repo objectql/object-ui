@@ -77,16 +77,15 @@ ComponentRegistry.register('radio-group',
     namespace: 'ui',
     label: 'Radio Group',
     inputs: [
-      { name: 'defaultValue', type: 'string', label: 'Default Value' },
-      { name: 'id', type: 'string', label: 'Group ID', required: true },
+      { name: 'defaultValue', type: 'string' },
+      { name: 'id', type: 'string', required: true },
       { 
         name: 'options', 
         type: 'array', 
-        label: 'Options',
         description: 'Array of {label, value} objects'
       },
-      { name: 'orientation', type: 'enum', enum: ['horizontal', 'vertical'], defaultValue: 'vertical', label: 'Orientation' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'orientation', type: 'enum', enum: ['horizontal', 'vertical'] },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       id: 'radio-group', // Will be made unique by designer's ensureNodeIds

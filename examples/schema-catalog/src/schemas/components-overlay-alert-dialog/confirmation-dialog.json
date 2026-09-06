@@ -7,16 +7,6 @@
     "label": "Close",
     "variant": "outline"
   },
-  "actions": [
-    {
-      "type": "button",
-      "label": "Don't Save",
-      "variant": "ghost"
-    },
-    {
-      "type": "button",
-      "label": "Save",
-      "variant": "default"
-    }
-  ]
+  "cancelText": "Don't Save",
+  "actionText": "Save"
 }

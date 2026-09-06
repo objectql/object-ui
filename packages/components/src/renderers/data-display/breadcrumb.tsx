@@ -142,9 +142,9 @@ ComponentRegistry.register('breadcrumb',
     namespace: 'ui',
     label: 'Breadcrumb',
     inputs: [
-      { name: 'className', type: 'string', label: 'CSS Class' },
-      { name: 'separator', type: 'string', label: 'Separator' },
-      { name: 'maxItems', type: 'number', label: 'Max Items Before Collapsing' }
+      { name: 'className', type: 'string' },
+      { name: 'separator', type: 'string' },
+      { name: 'maxItems', type: 'number' }
     ],
     defaultProps: {
       items: [

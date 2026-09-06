@@ -18,8 +18,8 @@ ComponentRegistry.register('progress',
     namespace: 'ui',
     label: 'Progress',
     inputs: [
-      { name: 'value', type: 'number', label: 'Value', defaultValue: 0 },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'value', type: 'number' },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       value: 50,

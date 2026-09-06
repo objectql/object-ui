@@ -161,12 +161,14 @@ import type { Plugin, Rollup } from 'vite';
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 
 /**
- * The module whose `lazy()` declarations are the subject. Repo-relative POSIX.
+ * The module whose `lazy()` declarations are the subject:
+ * `packages/app-shell/src/console/AppContent.tsx`, repo-relative POSIX.
  */
 export const APP_CONTENT_PATH = 'packages/app-shell/src/console/AppContent.tsx';
 
 /**
- * The positive control for the eager walk: statically imported by
+ * The positive control for the eager walk:
+ * `packages/app-shell/src/views/ObjectView.tsx`, statically imported by
  * {@link APP_CONTENT_PATH}'s "eagerly loaded — always needed" block, so it is
  * eager by construction. See counter-probe 2 in the header.
  */
@@ -181,7 +183,7 @@ export const EAGER_WALK_CONTROL = 'packages/app-shell/src/views/ObjectView.tsx';
  * ONE entry stands, and it does not stand for the barrel re-export
  * objectui#6535 removed:
  *
- *  - `RecordDetailView` — a real static edge.
+ *  - `packages/app-shell/src/views/RecordDetailView.tsx` — a real static edge.
  *    `packages/app-shell/src/views/ObjectView.tsx` imports it by name, and
  *    `ObjectView` sits in AppContent's own "eagerly loaded — always needed"
  *    block. Splitting it would mean giving `ObjectView` a lazy boundary.

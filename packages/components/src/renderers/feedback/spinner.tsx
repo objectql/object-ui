@@ -72,11 +72,8 @@ ComponentRegistry.register('spinner',
       { 
         name: 'size', 
         type: 'enum', 
-        enum: ['sm', 'md', 'lg', 'xl'], 
-        defaultValue: 'md',
-        label: 'Size'
-      },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+        enum: ['sm', 'md', 'lg', 'xl']      },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       size: 'md'

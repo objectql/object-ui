@@ -202,7 +202,7 @@ ComponentRegistry.register('my-widget', MyWidgetComponent, {
   category: 'Custom',
   icon: 'box',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' }
+    { name: 'title', type: 'string' }
   ]
 })
 ```

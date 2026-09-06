@@ -40,10 +40,10 @@ ComponentRegistry.register('scroll-area',
     namespace: 'ui',
     label: 'Scroll Area',
     inputs: [
-      { name: 'height', type: 'string', label: 'Height (e.g. 200px)' },
-      { name: 'width', type: 'string', label: 'Width' },
-      { name: 'orientation', type: 'enum', enum: ['vertical', 'horizontal', 'both'], defaultValue: 'vertical', label: 'Orientation' },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'height', type: 'string' },
+      { name: 'width', type: 'string' },
+      { name: 'orientation', type: 'enum', enum: ['vertical', 'horizontal', 'both'] },
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       height: '200px',

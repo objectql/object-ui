@@ -15,7 +15,7 @@
 import React, { useMemo } from 'react';
 import type { BaseSchema, PageNodeSchema, PageNodeRegion, SchemaNode } from '@object-ui/types';
 import { SchemaRenderer, toRenderableSchema, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, toDomProps } from '@object-ui/core';
 import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
 import { ReactKindPage } from './react-page';
 import { cn } from '../../lib/utils';
@@ -490,43 +490,35 @@ export const PageRenderer: React.FC<{
   // (framework#1878 §3 naming-drift recheck).
   const pageTitle = schema.title ?? (schema as any).label;
 
-  // Extract designer-related props and strip schema-only metadata that
-  // would otherwise leak onto the wrapper <div> as invalid HTML attributes
-  // (e.g. `isDefault`, `assignedProfiles`, `_packageId`, `aria` object).
-  // We keep this list aligned with `PageSchema` in `@object-ui/types`. As a
-  // safety net we also drop any `_`-prefixed keys (internal metadata from
-  // the synth pipeline) before spreading the remainder onto the DOM.
+  // What may become an attribute on the wrapper <div>, and nothing else.
+  //
+  // This used to be a hand-maintained destructure list of every PageSchema
+  // descriptor, plus a `_`-prefix filter as a safety net, with the standing
+  // instruction to "keep this list aligned with PageSchema". Keeping it
+  // aligned is the part that failed: an authored key the list did not name was
+  // not dropped, it was SPREAD — and React forwards an unknown lowercase
+  // attribute in complete silence, stringifying object values. An authored
+  // `actions: [{…}, {…}]` reached the DOM as `actions="[object Object],[object
+  // Object]"` (objectui#7933), neither read by this renderer nor dropped.
+  //
+  // A deny-list bounded by enumeration cannot be finished, because the set of
+  // keys an author may put on a node is unbounded; a whitelist bounded by
+  // declaration can. That is the objectui#4425 ruling, and `toDomProps` is the
+  // one mechanism it promoted to `@object-ui/core` for exactly this — the same
+  // executor every converged SDUI widget already calls. This renderer was one
+  // of the last faces still closing the leak with an enumeration of its own.
+  //
+  // `style` stays forwarded BY NAME: it is a deliberate DOM pass-through that
+  // is not on the element-agnostic whitelist, which is how every other call
+  // site handles it (objectui#4435 — declare it and forward it, never reopen
+  // the spread). `data-obj-id` / `data-obj-type` are read by name here and
+  // also ride the open `data-*` family, so they arrive either way.
   const {
     'data-obj-id': dataObjId,
     'data-obj-type': dataObjType,
     style,
-    // PageSchema descriptors — UI metadata, not DOM attributes
-    pageType: _pageTypeProp,
-    schema: _schemaProp,
-    regions: _regionsProp,
-    template: _templateProp,
-    title: _titleProp,
-    icon: _iconProp,
-    description: _descriptionProp,
-    object: _objectProp,
-    variables: _variablesProp,
-    body: _bodyProp,
-    isDefault: _isDefaultProp,
-    assignedProfiles: _assignedProfilesProp,
-    aria: _ariaProp,
-    recordOverride: _recordOverrideProp,
-    permissions: _permissionsProp,
-    requiredPermissions: _requiredPermissionsProp,
-    enforceFieldSecurity: _enforceFLSProp,
-    redactFields: _redactFieldsProp,
-    children: _childrenProp,
-    ...rawPageProps
   } = props;
-  // Drop any `_`-prefixed keys (e.g. `_packageId`, `_synth`) — these are
-  // internal metadata that React would warn about if forwarded to the DOM.
-  const pageProps = Object.fromEntries(
-    Object.entries(rawPageProps).filter(([k]) => !k.startsWith('_')),
-  );
+  const pageProps = toDomProps(props);
 
   // Select the layout variant based on template or page type
   const layoutElement = useMemo(() => {
@@ -674,27 +666,24 @@ const pageMeta: any = {
   icon: 'panels-top-left',
   category: 'layout',
   inputs: [
-    { name: 'title', type: 'string', label: 'Title' },
-    { name: 'description', type: 'string', label: 'Description' },
-    { name: 'pageType', type: 'string', label: 'Page Type' },
-    { name: 'object', type: 'string', label: 'Object Name' },
-    { name: 'template', type: 'string', label: 'Template' },
+    { name: 'title', type: 'string' },
+    { name: 'description', type: 'string' },
+    { name: 'pageType', type: 'string' },
+    { name: 'object', type: 'string' },
+    { name: 'template', type: 'string' },
     {
       name: 'regions',
       type: 'array',
-      label: 'Regions',
       itemType: 'object',
     },
     {
       name: 'variables',
       type: 'array',
-      label: 'Variables',
       itemType: 'object',
     },
     {
       name: 'body',
       type: 'array',
-      label: 'Content (Legacy)',
       itemType: 'component',
     },
   ],

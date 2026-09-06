@@ -64,8 +64,8 @@ ComponentRegistry.register('object-map', ObjectMapRenderer, {
   label: 'Object Map',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'map', type: 'object', label: 'Map Config', description: 'latitudeField, longitudeField, titleField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'map', type: 'object', description: 'latitudeField, longitudeField, titleField' },
   ],
 });
 
@@ -74,7 +74,7 @@ ComponentRegistry.register('map', ObjectMapRenderer, {
   label: 'Map View',
   category: 'view',
   inputs: [
-    { name: 'objectName', type: 'string', label: 'Object Name', required: true },
-    { name: 'map', type: 'object', label: 'Map Config', description: 'latitudeField, longitudeField, titleField' },
+    { name: 'objectName', type: 'string', required: true },
+    { name: 'map', type: 'object', description: 'latitudeField, longitudeField, titleField' },
   ],
 });

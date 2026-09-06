@@ -188,17 +188,13 @@ describe('element:text_input — registry inputs vs @objectstack/spec', () => {
     expect(description).toMatch(/empty/i);
   });
 
-  it('carries no `defaultValue` OF ITS OWN on the defaultValue entry', () => {
-    // A `ComponentInput.defaultValue` on this input would publish a default for
-    // the default — the designer would pre-fill a seed value the renderer has no
-    // opinion about, and every text input in the gallery would come up carrying
-    // it. The spec declares no default here either.
-    //
-    // Existence asserted first: `input('defaultValue')?.defaultValue` is also
-    // `undefined` when the input is GONE, so without this line the check would
-    // pass most loudly in the one case it is supposed to notice.
+  it('declares no default OF ITS OWN for the defaultValue entry — the spec parses none in', () => {
+    // A default for the default would seed every text input in the gallery with
+    // a value the renderer has no opinion about; the spec declares none. (This
+    // used to also assert the registration carried no `ComponentInput.defaultValue`;
+    // that key is an ADR-0049 tombstone since objectui#7493, so the spec's parse
+    // is the one channel a default could reach an author through.)
     expect(input('defaultValue')).toBeDefined();
-    expect(input('defaultValue')?.defaultValue).toBeUndefined();
     expect(ElementTextInputPropsSchema.safeParse({}).data).not.toHaveProperty('defaultValue');
   });
 });

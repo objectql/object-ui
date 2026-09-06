@@ -396,42 +396,31 @@ ComponentRegistry.register('calendar-view',
       { 
         name: 'data', 
         type: 'array', 
-        label: 'Data',
         description: 'Array of record objects to display as events'
       },
       { 
         name: 'titleField', 
         type: 'string', 
-        label: 'Title Field',
-        defaultValue: 'title',
         description: 'Field name to use for event title'
       },
       { 
         name: 'startDateField', 
         type: 'string', 
-        label: 'Start Date Field',
-        defaultValue: 'start',
         description: 'Field name for event start date'
       },
       { 
         name: 'endDateField', 
         type: 'string', 
-        label: 'End Date Field',
-        defaultValue: 'end',
         description: 'Field name for event end date (optional)'
       },
       { 
         name: 'allDayField', 
         type: 'string', 
-        label: 'All Day Field',
-        defaultValue: 'allDay',
         description: 'Field name for all-day flag'
       },
       { 
         name: 'colorField', 
         type: 'string', 
-        label: 'Color Field',
-        defaultValue: 'color',
         description: 'Field name for event color'
       },
       // `colorMapping` used to be declared here and is RETIRED (objectui#4493,
@@ -449,24 +438,19 @@ ComponentRegistry.register('calendar-view',
         name: 'view', 
         type: 'enum', 
         enum: ['month', 'week', 'day'], 
-        defaultValue: 'month', 
-        label: 'View Mode',
         description: 'Calendar view mode (month, week, or day)'
       },
       {
         name: 'currentDate',
         type: 'string',
-        label: 'Current Date',
         description: 'ISO date string for initial calendar date'
       },
       { 
         name: 'allowCreate', 
         type: 'boolean', 
-        label: 'Allow Create',
-        defaultValue: false,
         description: 'Allow creating events by clicking on dates'
       },
-      { name: 'className', type: 'string', label: 'CSS Class' }
+      { name: 'className', type: 'string' }
     ],
     defaultProps: {
       view: 'month',
