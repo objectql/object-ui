@@ -93,7 +93,11 @@ describe('ObjectFieldInspector — duplicate field', () => {
 });
 
 describe('ObjectFieldInspector — label derives API name until customised', () => {
-  it('syncs field_<N> (the nextFieldName() auto-name) to the label live, per keystroke', () => {
+  // One `change` event — the paste/autofill shape. This case was already
+  // green while typing the same label key by key stopped at its first
+  // character; the per-keystroke cases live in
+  // ObjectFieldInspector.apiNameSync.test.tsx (objectui#7615).
+  it('syncs field_<N> (the nextFieldName() auto-name) to the label in one input event', () => {
     const { onPatch, onSelectionChange } = renderField(
       { field_2: { type: 'text', label: '' } },
       'field_2',
