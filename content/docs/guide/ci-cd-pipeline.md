@@ -1882,13 +1882,28 @@ guess an issue number and rewrite an unrelated card.
 
 **Ported from objectstack, with the divergences listed in the workflow header.** The pair
 (`scripts/pm/check-half-states.mjs` + this workflow) is adopted from `objectstack-ai/objectstack`
-and is meant to stay re-syncable, so this install keeps its differences in one place. The
-behavioural one: the sweeper's closed-card reader (`pm:*` labels left on cards that already closed)
-is switched **off** here via `PM_SWEEP_CLOSED_WINDOW_PAGES: '0'`. Stripping `pm:*` on close was
-never this repo's practice — 815 closed cards carry `pm:dispatched`, ~87% of the reader's window —
-so that predicate would report the convention rather than a defect and bury every other finding.
-The rendered summary says that surface is **UNREAD**, never that it is clean
-([#5791](https://github.com/objectstack-ai/objectui/issues/5791)).
+and is meant to stay re-syncable, so this install keeps its differences in one place
+([#5791](https://github.com/objectstack-ai/objectui/issues/5791)). The behavioural one is how the
+sweeper's closed-card reader (`pm:*` labels left on cards that already closed) is *called* here: the
+reader is **on**, with a dated floor. The sweep step sets `PM_SWEEP_CLOSED_FLOOR: '2026-08-28'`, so
+only cards closed on or after that cutover are judged, and the page window is deliberately left
+unset — back to the sweeper's own upstream default of 4 pages. The floor, not a zeroed window, is
+what holds the historical carriers out.
+
+**Why a floor rather than a plain "on".** Stripping `pm:*` on close only became this repo's practice
+on the cutover date, and the measurement taken just before it says what an unfloored reader would do
+here: 815 closed cards carry `pm:dispatched`, and ~87% of the issues in the default window carried
+some `pm:*` residue — against the 26% upstream measured. That predicate would report the
+*convention* rather than a defect, and its rows would consume the whole body budget and trim every
+other predicate out of the anchor. Cards closed before the cutover are inert history — the dispatch
+loop reads state on open cards only — so judging from the cutover forward buys the row's whole value
+with no backfill: no bulk relabelling of closed cards was run, none is owed, and the sweeper writes
+no label under any code path ([#5985](https://github.com/objectstack-ai/objectui/issues/5985)). A
+malformed floor is refused outright rather than degraded to "no floor", because a silent degrade
+would restore the flood four times a day and a flooded anchor reads exactly like a working patrol.
+The sweeper still carries an objectui-only escape hatch that switches the closed reader fully off —
+that is what this install ran until the cutover; it is unset now, and while it is set the rendered
+summary says that surface is **UNREAD**, never that it is clean.
 
 ### Merge Queue Head Patrol (`merge-queue-head-patrol.yml`)
 
