@@ -1,10 +1,10 @@
 /**
  * The shrink-only pin for the network-escape ledger (objectui#6640).
  *
- * `KNOWN_ESCAPES` in `vitest.setup.network-escape-guard.ts` records the 21 test
- * files measured reaching a real socket on `67dadd6`. The guard's own docstring
- * says that list "may only shrink" — and until this file existed, nothing made
- * that true. An author who hit the guard's red could make it green by adding a
+ * `KNOWN_ESCAPES` in `vitest.setup.network-escape-guard.ts` records what remains
+ * of the 21 test files measured reaching a real socket on `67dadd6`. The guard's
+ * own docstring says that list "may only shrink" — and until this file existed,
+ * nothing made that true. An author who hit the guard's red could make it green by adding a
  * line, which is exactly how a burn-down ledger decays into the permanent
  * quarantine it is not supposed to be. THAT is the failure this pin prevents;
  * it does not re-measure escapes (that needs a real DOM run) and does not try.
@@ -51,10 +51,6 @@ const PINNED_LEDGER: readonly string[] = [
   'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
   'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
   'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
-  'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
-  'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
-  'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
 ];
 
 describe('network-escape ledger (objectui#6640) is shrink-only', () => {
