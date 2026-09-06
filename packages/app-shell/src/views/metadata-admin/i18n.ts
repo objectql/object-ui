@@ -1492,6 +1492,10 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.access.nameLabel': 'Name',
   'engine.studio.access.idLabel': 'Identifier',
   'engine.studio.pkg.manage': 'Package info & settings',
+  // objectui#7881 — the read SUCCEEDED and the package is simply not in the
+  // list; the sheet is not opened, and this says so instead of nothing.
+  'engine.studio.pkg.manageMissing':
+    'Package {id} is not in the installed list — it may have been deleted or uninstalled elsewhere.',
   'engine.studio.data.savedDraft': 'Object “{label}” saved as draft',
   'engine.studio.data.lastSaved': 'Saved {time}',
   'engine.studio.publish': 'Publish',
@@ -3385,6 +3389,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.access.nameLabel': '名称',
   'engine.studio.access.idLabel': '标识',
   'engine.studio.pkg.manage': '软件包信息与设置',
+  'engine.studio.pkg.manageMissing': '软件包 {id} 不在已安装列表中 —— 可能已在别处被删除或卸载。',
   'engine.studio.data.savedDraft': '对象「{label}」已存为草稿',
   'engine.studio.data.lastSaved': '已于 {time} 保存',
   'engine.studio.publish': '发布',

@@ -360,6 +360,49 @@ function PackageSwitcher({
       headers: { Accept: 'application/json' },
       cache: 'no-store',
     });
+    /**
+     * ⛔ `res.ok` is not optional here (objectui#7881). The platform answers a
+     * failed read in the ADR-0112 envelope — `{ success: false, error: { code,
+     * message } }` — and that envelope PARSES CLEANLY through the reader
+     * below: `root` becomes the error object, which is neither an array nor
+     * carries `packages`, so `list` fell to `[]` and `.find()` to `null`.
+     * Nothing threw, `openManage`'s catch never ran, and the management sheet
+     * was opened on a null package. An empty list is a completely legitimate
+     * SUCCESS answer, so using it for a failure is representing failure with a
+     * legitimate success value — the same family as objectui#7368 and
+     * objectui#7821 (PR #7879), one seam over.
+     *
+     * Measured on this path, not assumed. `GET /api/v1/packages` is served by
+     * the direct-mount registrar (`@objectstack/rest` `package-routes.ts`,
+     * which mounts FIRST in the production stack), and `check:route-envelope`
+     * pins that module at zero hand-written bodies: every failure leaves
+     * through the shared `sendError` / `sendThrownError`. The reachable
+     * failures are `401 UNAUTHENTICATED` (anonymous deny), `403 FORBIDDEN`
+     * (the `studio.access` / `setup.access` capability gate), `503
+     * SERVICE_UNAVAILABLE` (either half of the two-source merge refusing a
+     * read it could not perform) and `500 INTERNAL_ERROR` — one shape,
+     * `{ success: false, error: { code, message } }`, pinned wire-side by
+     * `package-envelope.conformance.test.ts`.
+     *
+     * So the envelope's own `success` is NOT a second bit to read here: `sendOk`
+     * writes `true` on every 2xx and the error writers write `false` on every
+     * non-2xx, which makes it `!res.ok` restated. `res.ok` is the DECISION; the
+     * envelope is read for the WORDS, which is the half that needs it — in the
+     * 5xx band the platform withholds the producer's prose and answers the
+     * generic `Internal server error`, leaving `error.code` as the only
+     * discriminating word, so the code travels with the message.
+     *
+     * The one other shape a browser can meet is a non-JSON error body (a
+     * proxy's HTML 502/504). `res.json()` rejects on it — which the caller
+     * already reported, as a JSON syntax error — so the tolerant read below
+     * names the status instead.
+     */
+    if (!res.ok) {
+      const failure = (await res.json().catch(() => null)) as { error?: { code?: unknown; message?: unknown } } | null;
+      const message = typeof failure?.error?.message === 'string' ? failure.error.message : '';
+      const code = typeof failure?.error?.code === 'string' ? failure.error.code : '';
+      throw new Error(message ? (code ? `${message} (${code})` : message) : `HTTP ${res.status}`);
+    }
     const data = (await res.json()) as unknown;
     const root = (data as { data?: unknown })?.data ?? data;
     const list = (Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? [])) as Array<
@@ -373,15 +416,48 @@ function PackageSwitcher({
       setOpen(false);
       setManageBusy(true);
       try {
-        setManage(await fetchFullPackage(id));
+        const full = await fetchFullPackage(id);
+        /**
+         * ⛔ The sheet never opens on a `null` package (objectui#7881). With
+         * the read above now refusing, `null` means only what it always should
+         * have meant: the list came back, and this package is not in it —
+         * deleted or uninstalled elsewhere since the switcher last loaded.
+         * `PackageDetailSheet` renders `null` for a null `pkg`, so opening it
+         * anyway produced a click that did nothing and said nothing, and left
+         * `manageOpen` stuck true with no rendered sheet to close it.
+         *
+         * Reported, not thrown: the read SUCCEEDED, so there is no caught
+         * error to format and nothing about the endpoint to report.
+         */
+        if (!full) {
+          toast.error(tFormat('engine.studio.pkg.manageMissing', locale, { id }), {
+            id: PACKAGE_LIST_TOAST_ID,
+          });
+          return;
+        }
+        setManage(full);
         setManageOpen(true);
       } catch (e) {
-        toast.error(formatMetadataError(e));
+        /*
+         * This surface's EXISTING objectui#7368 posture, now also carrying the
+         * shared sonner id: `fetchFullPackage` is the FOURTH caller of
+         * `/api/v1/packages` on this surface (the switcher list, the
+         * writability courtesy gate and the namespace lookup are the other
+         * three), so one outage that rejects all four is one toast, not four.
+         *
+         * ⛔ Deliberately NOT also recorded in `pkgsErr`. That slot is the
+         * switcher LIST's state and is written exactly where `pkgs` is — the
+         * mount effect and `onManageChanged`. This callback never writes
+         * `pkgs`, so the names in the trigger are precisely as current as they
+         * were a moment ago, and the two sibling `fetchPackages` call sites
+         * that likewise do not write the list report the same way.
+         */
+        toast.error(formatMetadataError(e), { id: PACKAGE_LIST_TOAST_ID });
       } finally {
         setManageBusy(false);
       }
     },
-    [fetchFullPackage],
+    [fetchFullPackage, locale],
   );
 
   // A lifecycle action ran in the sheet — refresh the list AND the managed
