@@ -122,15 +122,39 @@ function getTreeConfig(schema: any): TreeConfig {
 
 /**
  * Auto-detect the single-parent pointer field from the object schema:
- * the first field declared as `tree`, or a lookup/master_detail whose
- * reference points back at this same object.
+ * a field declared `tree` whose `reference` is absent or names THIS object, or
+ * a lookup/master_detail whose reference points back at this same object.
+ *
+ * ## The `tree` arm mirrors the parse door, it does not out-guess it
+ *
+ * A hierarchy is parent/child WITHIN one object, so `@objectstack/spec` refuses
+ * a `tree` field whose `reference` names any other object
+ * (`refuseForeignTreeReference` in `packages/spec/src/data/object.zod.ts`,
+ * applied at both doors that carry a field map — `ObjectSchema` with `name` as
+ * the own name and `ObjectExtensionSchema` with `extend`). `reference` stays
+ * OPTIONAL on a `tree` — under that rule it is a redundant self-annotation — so
+ * ABSENCE is accepted and only a FOREIGN value is refused. The spec's own
+ * kernel predicate reads the identical rule (`hasDetectableParentField` in
+ * `packages/spec/src/kernel/functional-completeness.ts`), and its docblock
+ * named this reader as the one place still out of step; objectui#7839 closes
+ * that gap. Mirrored here term for term, including the `objectName` guard: an
+ * object whose own name we do not know cannot be self-referenced, so a `tree`
+ * that DOES name a target is not matchable against a name that is not there.
+ *
+ * ⛔ Not `??`-style tolerance in either direction. A foreign-referencing `tree`
+ * is skipped rather than returned, so it can no longer mask a self-referencing
+ * lookup declared after it — before this it won by position, and the tree view
+ * then grouped records under a pointer into a table it does not point at.
+ * Unreachable from parsed metadata (the parse door refuses the shape) and
+ * reachable from a hand-built schema, which a third-party `DataSource` may
+ * hand straight to `useSettledSchema`. Pinned in
+ * `ObjectTree.treeArmOwnReference-7839.test.tsx`.
  */
 function detectParentField(objectSchema: any, objectName?: string): string | undefined {
   const fields = objectSchema?.fields;
   if (!fields || typeof fields !== 'object') return undefined;
   let firstSelfRef: string | undefined;
   for (const [key, def] of Object.entries<any>(fields)) {
-    if (def?.type === 'tree') return key;
     // ONE arm: `reference`, the only target spelling the protocol declares.
     // `FieldSchema` refuses `reference_to` / `referenceTo` / `target` by name.
     // `referenceTo` went in objectui#6837 slice 2, `reference_to` in half 2
@@ -139,6 +163,11 @@ function detectParentField(objectSchema: any, objectName?: string): string | und
     // canonicalised once at the ingestion choke point, never here. Pinned in
     // `ObjectTree.referenceArms-6837.test.tsx`.
     const ref = def?.reference;
+    // A `tree` still wins over a lookup found earlier — the precedence is
+    // unchanged; what changed is that it must first BE a self-reference.
+    if (def?.type === 'tree' && (ref === undefined || (!!objectName && ref === objectName))) {
+      return key;
+    }
     if (
       !firstSelfRef &&
       (def?.type === 'lookup' || def?.type === 'master_detail') &&
