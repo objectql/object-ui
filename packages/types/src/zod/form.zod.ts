@@ -223,6 +223,8 @@ export const TextareaSchema = BaseSchema.extend({
   readOnly: z.boolean().optional().describe('Whether field is read-only'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
+  wrapperClass: z.string().optional()
+    .describe('Classes on the wrapper div around the textarea and its label, read at renderers/form/textarea.tsx:37 — `cn("grid w-full gap-1.5", schema.wrapperClass)` (objectui#7722)'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
   maxLength: z.number().optional().describe('Maximum length'),
 });
@@ -241,6 +243,8 @@ export const SelectSchema = BaseSchema.extend({
   required: z.boolean().optional().describe('Whether field is required'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
+  wrapperClass: z.string().optional()
+    .describe('Classes on the wrapper div around the trigger and its label, read at renderers/form/select.tsx:45 — `cn("grid w-full items-center gap-1.5", schema.wrapperClass)` (objectui#7722)'),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 
@@ -288,6 +292,8 @@ export const SwitchSchema = BaseSchema.extend({
   defaultChecked: z.boolean().optional().describe('Default checked state'),
   checked: z.boolean().optional().describe('Controlled checked state'),
   description: z.string().optional().describe('Help text'),
+  wrapperClass: z.string().optional()
+    .describe("Classes on the wrapper div around the switch and its label, read at renderers/form/switch.tsx:26 — `flex items-center space-x-2 ${schema.wrapperClass || ''}` (objectui#7722)"),
   onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
 
@@ -356,6 +362,8 @@ export const DatePickerSchema = BaseSchema.extend({
   format: z.string().optional().describe('Date format string'),
   description: z.string().optional().describe('Help text'),
   error: z.string().optional().describe('Error message'),
+  wrapperClass: z.string().optional()
+    .describe("Classes on the wrapper div around the popover trigger and its label, read at renderers/form/date-picker.tsx:35 — `grid w-full max-w-sm items-center gap-1.5 ${schema.wrapperClass || ''}` (objectui#7722)"),
   onChange: handlerKeyRefusal('onChange', 'runtime-slot', 'Change handler'),
 });
 

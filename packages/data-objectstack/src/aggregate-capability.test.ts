@@ -37,6 +37,7 @@
  *   | 404 `ROUTE_NOT_FOUND`          | degrade LOUDLY     |
  *   | 404/501, no `code` at all      | degrade LOUDLY     |
  *   | 400 `VALIDATION_FAILED`        | THROW              |
+ *   | 400, any OTHER code (or none)  | THROW              |
  *   | 401 `UNAUTHENTICATED`          | THROW              |
  *   | 404 `CUBE_NOT_FOUND`           | THROW              |
  *   | 5xx, network, unknown code     | degrade SILENTLY   |
@@ -45,6 +46,14 @@
  * The rows that matter most are the two 404s with DIFFERENT outcomes
  * (objectui#5721): they are the same transport status, so only the ADR-0112
  * `code` can tell them apart, and a status-first classifier fails them both.
+ *
+ * The "400, any OTHER code" row (objectui#7755) is the opposite lesson on the
+ * SAME classifier: a `VALIDATION_FAILED`-only check let a coded 400 the
+ * classifier does not enumerate — `service-analytics` ships its own 400
+ * `INVALID_FILTER` on a filter shape it refuses — fall through every branch to
+ * `unknown`, which `aggregate()`'s catch has no arm for, so it silently
+ * answered the refusal with `aggregateViaFind`'s client-side numbers. Here the
+ * transport status alone is decisive once it is 400, regardless of code.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -172,6 +181,39 @@ describe('aggregate() when the server REJECTS our query body', () => {
     expect((err as { code?: string }).code).toBe('ANALYTICS_QUERY_REJECTED');
     expect(String(err.message)).toContain('measures');
     // No silent second answer from a different code path.
+    expect(calls.some((c) => c.includes('/api/v1/data'))).toBe(false);
+  });
+
+  /*
+   * objectui#7755 — the pin for the coded-400 gap. `INVALID_FILTER` is the
+   * real code `service-analytics` ships on a 400 for a filter shape it
+   * refuses (spec/src/api/errors.zod.ts standard catalog), chosen deliberately
+   * over a made-up code so this pin cannot pass by accident. Pre-fix,
+   * `classifyAnalyticsFailure` only recognised `VALIDATION_FAILED` on a 400;
+   * any OTHER code fell through every branch to `unknown`, which
+   * `aggregate()`'s catch has no arm for, so it silently re-answered the
+   * refusal through `aggregateViaFind` — a different door with a different
+   * filter contract ($filter query-string parsing accepts array shapes the
+   * analytics body does not) — producing a plausible number for a query the
+   * server had just refused.
+   */
+  it('400 INVALID_FILTER (a coded 400 the classifier does not name) also throws — it must NOT be answered by the fallback', async () => {
+    const { fetchImpl, calls } = makeFetch(400, {
+      success: false,
+      error: {
+        code: 'INVALID_FILTER',
+        httpStatus: 400,
+        message: 'Invalid filter: unsupported operator "regex" for field "stage"',
+      },
+    });
+
+    const err = await makeAdapter(fetchImpl).aggregate('opportunity', SUM_BY_STAGE).catch((e) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as { code?: string }).code).toBe('ANALYTICS_QUERY_REJECTED');
+    expect((err as { serverCode?: string }).serverCode).toBe('INVALID_FILTER');
+    expect(String(err.message)).toContain('unsupported operator');
+    // The point of this card: no silent second answer from a different door.
     expect(calls.some((c) => c.includes('/api/v1/data'))).toBe(false);
   });
 });
