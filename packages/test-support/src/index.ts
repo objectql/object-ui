@@ -60,3 +60,30 @@ export { arrayElementSchema } from './spec-array-element';
  * touching either side.
  */
 export { ZOD_WRAPPER_KEYS } from './zod-wrapper-keys';
+
+/**
+ * ⛔ `defaults-table-scan.ts` is deliberately NOT re-exported here. It is reached
+ * as `@object-ui/test-support/defaults-table-scan`, a DECLARED subpath in this
+ * package's `exports` map — the same escape hatch `./zod-wrapper-keys` uses for
+ * the case the index cannot serve.
+ *
+ * The index rule above still stands, and this is not a hole in it: it is the one
+ * shape the index physically cannot carry. That module reads the workspace from
+ * disk (`node:fs`, `node:path`, `node:module`), so it only type-checks in a
+ * program that has Node's ambient types — and a barrel re-export puts a module
+ * into the program of EVERY consumer that imports the barrel for anything at all.
+ *
+ * Measured, not predicted (objectui#7884, PR objectui#7902): with the re-export
+ * here, `tsc -p packages/data-objectstack/tsconfig.json --listFiles` pulled all
+ * nine of this package's modules into that package's program, because one of its
+ * tests imports `{ enumOptions }` from this index. `data-objectstack` has no
+ * `node` types, so the repo-wide `pnpm turbo run type-check` failed with three
+ * TS2591s in a file that package never asked for. The subpath keeps the Node-only
+ * module out of every program that does not name it, which is the property a
+ * shared test module owes its consumers: it adds no obligation to anyone.
+ *
+ * `objectui#4325`'s lesson is untouched — the hazard there was an UNDECLARED deep
+ * path that resolved only through the vitest alias and was TS2882 for `tsc`. This
+ * one is declared in `exports`, so `tsc` (moduleResolution `bundler`) resolves it
+ * exactly as it resolves `.`.
+ */
