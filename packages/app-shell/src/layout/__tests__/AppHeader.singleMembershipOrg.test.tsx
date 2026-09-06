@@ -55,13 +55,15 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 
 // Passthrough menu primitives — the switcher's trigger and the avatar menu's
 // content both have to be reachable for the presence/absence assertions.
-vi.mock('@object-ui/components', () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const stripProps = (p: any) => {
     const { asChild, variant, size, align, sideOffset, ...rest } = p ?? {};
     return rest;
   };
   const Pass = ({ children, ...p }: any) => <div {...stripProps(p)}>{children}</div>;
   return {
+    ...actual,
     Button: ({ children, asChild, variant, size, ...p }: any) => (
       <button type="button" {...p}>{children}</button>
     ),

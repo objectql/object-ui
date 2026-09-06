@@ -57,7 +57,8 @@ vi.mock('../manage/orgContext', () => ({
 }));
 
 // Passthrough primitives — these cases assert a string, not the design system.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Avatar: (p: any) => <div {...p} />,
   AvatarFallback: (p: any) => <div {...p} />,
   Badge: (p: any) => <span {...p} />,
@@ -90,7 +91,8 @@ vi.mock('@object-ui/components', () => ({
   SelectTrigger: (p: any) => <>{p.children}</>,
   SelectValue: () => null,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Loader2: () => <span />,
   Copy: () => <span />,
   Check: () => <span />,

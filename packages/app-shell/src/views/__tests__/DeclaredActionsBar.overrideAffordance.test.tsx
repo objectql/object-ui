@@ -90,11 +90,13 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   pickLocalized: (value: unknown) => (typeof value === 'string' ? value : ''),
 }));
 
-vi.mock('@object-ui/components', async () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const { hasDeclaredVisibilityGate } = await import(
     '../../../../components/src/renderers/action/visibility-gate'
   );
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button onClick={onClick} {...props}>{children}</button>
     ),

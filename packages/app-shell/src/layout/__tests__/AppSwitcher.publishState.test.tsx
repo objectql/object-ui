@@ -41,7 +41,8 @@ import { render, screen, within } from '@testing-library/react';
 // Passthrough dropdown primitives so the menu CONTENT renders without an
 // interaction — the same idiom as WorkspaceSwitcher.test.tsx. What is under
 // measurement is which apps reach the list, not radix's open/close machinery.
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   DropdownMenu: (p: any) => <div>{p.children}</div>,
   DropdownMenuTrigger: (p: any) => <div>{p.children}</div>,
   // Scoped: the trigger renders the ACTIVE app's label too, so an unscoped
@@ -51,7 +52,8 @@ vi.mock('@object-ui/components', () => ({
   DropdownMenuLabel: (p: any) => <div {...p} />,
   DropdownMenuSeparator: () => <hr />,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ChevronDown: () => <span />,
   Check: () => <span data-testid="active-check" />,
 }));

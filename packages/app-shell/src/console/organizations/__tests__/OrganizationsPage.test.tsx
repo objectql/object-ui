@@ -42,7 +42,8 @@ vi.mock('../CreateWorkspaceDialog', () => ({
 }));
 
 // Passthrough UI primitives (spread props → children render).
-vi.mock('@object-ui/components', () => ({
+vi.mock('@object-ui/components', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Avatar: (p: any) => <div {...p} />,
   AvatarImage: (p: any) => <img {...p} />,
   AvatarFallback: (p: any) => <div {...p} />,
@@ -52,7 +53,8 @@ vi.mock('@object-ui/components', () => ({
   EmptyTitle: (p: any) => <div {...p} />,
   EmptyDescription: (p: any) => <div {...p} />,
 }));
-vi.mock('lucide-react', () => ({
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Plus: () => <span />,
   Search: () => <span />,
   Loader2: () => <span />,

@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is ten, and each joined by sweep
+ * actually been SWEPT to zero. Today that is eleven, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -257,10 +257,82 @@
  * already inherited the real barrel on `main` and passed, so the real module
  * was known to load in that environment before anything was converted.
  *
- * The remaining 148 stay on objectui#6892: `@object-ui/components` (27),
- * `@object-ui/plugin-grid` (25), `@object-ui/app-shell` (23, still only after
- * objectui#6580 -- which is now CLOSED, so that reading is a git-history read
- * rather than an open card) and `@object-ui/permissions` (23).
+ * `@object-ui/components` joined as objectui#6892's SIXTH slice, re-derived on
+ * `336a9eb8a` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/components        47 judged, 20 inheriting, 27 frozen -> 0
+ *
+ * with the population moving 150 -> 123 frozen over 659 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. The 27 sites sit in three owning packages (24 under
+ * `packages/app-shell`, 2 under `packages/plugin-detail`, 1 under
+ * `packages/plugin-timeline`) and in three syntactic shapes: 16 object-literal
+ * arrows, 6 block-bodied arrows with a `return`, and 5 that were ALREADY
+ * `async` and still frozen -- they awaited something OTHER than the module
+ * under mock (React, or one deep-relative source module) and returned a
+ * hand-listed object, which is the shape a name-matching gate would wave
+ * through and this one does not.
+ *
+ * STEP 0 was taken again rather than inherited, and this barrel is the largest
+ * yet measured: 205 modules and 1173 module-scope statements reached from
+ * `packages/components/src/index.ts`. It is NOT inert, and it was not expected
+ * to be -- objectui#7837 had already counted the registrations. What decided
+ * the slice is the CLASS of the effect, measured three ways. Statically: 112
+ * module-scope `ComponentRegistry.register(...)` call sites, every one of them
+ * carrying a namespace (`ui` 85, `element` 10, `page` 7, `action` 5, plus the
+ * loop-driven `protocol-placeholder` marks), so the deprecation `console.warn`
+ * in `register()` cannot fire; `register()` itself is a `Map.set` plus that
+ * warn plus a `notify()` over a listener `Set` that is empty at import time.
+ * Beyond registration there is exactly ONE non-allocation statement in the
+ * whole graph -- `hooks/related-count-store.ts` calls `subscribeDataChanges`,
+ * which `packages/react/src/data-invalidation.ts` implements as a `Set.add`
+ * into a module-level listener set: no timer, no window listener, no request.
+ * Two column-anchored greps over all 205 modules agree: the
+ * timers/globals/storage/network/DOM grep matches nothing, and the
+ * IDENT.method grep returns the register lines and nothing else. Empirically:
+ * importing the real barrel in the happy-dom environment registers 295 keys
+ * over 159 `register()` calls and emits ZERO `console.warn` and ZERO
+ * `console.error`. The consuming side was checked for the failure class the
+ * worklist names -- of the 27 converted files NONE names `ComponentRegistry`
+ * at all, and the six `console.warn` spies among them are all installed inside
+ * `it(...)` bodies (after import) AND filter by message content, so no
+ * assertion can see a registration.
+ *
+ * ⚠️ The ONE side-effect import in the barrel is a CSS import
+ * (`./sidebar-fixes.css`, plain CSS by construction -- the barrel's own comment
+ * explains why the Tailwind entry is deliberately NOT imported there). The root
+ * Vitest config declares no `css` option, so CSS is not processed and the
+ * import is inert in jsdom. That is corroborated rather than argued: 20 sites
+ * on this specifier already inherited the real barrel on `main` and passed, 8
+ * of them in `packages/app-shell` under the LIGHT `dom` project -- the free
+ * confirmation slice 4 did not have.
+ *
+ * ⭐ This slice is the first where inheriting made converted files DIE during
+ * collection, which is the failure this whole worklist exists to describe,
+ * observed from the other side. 15 of the 27 died at once, all on one cause:
+ * the real barrel reaches `notifications/severity.ts`, which reads four icons
+ * from `lucide-react` AT MODULE SCOPE into a `const` -- and those 15 files
+ * carried their own frozen `lucide-react` factory that had never listed them.
+ * Nothing in product source was touched: the repair is the neighbouring
+ * FACTORY, converted to the same inheriting form (spread the real module
+ * first, keep every hand-written icon stub after it), which is why a frozen
+ * third-party factory can be the thing that blocks a workspace-specifier
+ * sweep even though this gate never judges it.
+ *
+ * ⚠️ Inheriting is NOT free here, and the cost is recorded rather than
+ * absorbed silently. The `dom`/`dom-heavy` project split exists precisely to
+ * keep this package's graph out of the light project's setup, so a converted
+ * file now pulls it through its own imports instead. Measured on one app-shell
+ * file, twice each: 6.17s / 5.97s frozen, 8.72s / 9.36s inheriting both the
+ * barrel and `lucide-react`. See the slice's pull request for the whole-package
+ * figure.
+ *
+ * The remaining 123 stay on objectui#6892: `@object-ui/plugin-grid` (25, ALL
+ * frozen), `@object-ui/permissions` (24), `@object-ui/app-shell` (23, ALL
+ * frozen, still only after objectui#6580 -- which is now CLOSED, so that
+ * reading is a git-history read rather than an open card) and
+ * `@object-ui/plugin-detail` (13).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -355,6 +427,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/auth',
   '@object-ui/collaboration',
   '@object-ui/plugin-form',
+  '@object-ui/components',
 ]);
 
 /** Files the walk reads at all. */

@@ -81,11 +81,13 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 // a test double, and would keep this suite green no matter what the shipped
 // predicate does (objectui#3142 is what copies of one answer cost). The module
 // is a dependency-free pure function, so importing it directly costs nothing.
-vi.mock('@object-ui/components', async () => {
+vi.mock('@object-ui/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
   const { hasDeclaredVisibilityGate } = await import(
     '../../../../components/src/renderers/action/visibility-gate'
   );
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button onClick={onClick} {...props}>{children}</button>
     ),
