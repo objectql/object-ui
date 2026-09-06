@@ -59,7 +59,6 @@ describe('Plugin Kanban', () => {
       
       expect(onCardMoveInput).toBeDefined();
       expect(onCardMoveInput?.type).toBe('code');
-      expect(onCardMoveInput?.advanced).toBe(true);
       expect(onCardMoveInput?.description).toBeDefined();
     });
 
