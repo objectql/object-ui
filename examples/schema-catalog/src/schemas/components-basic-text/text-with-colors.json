@@ -5,17 +5,17 @@
     {
       "type": "text",
       "content": "Primary Text",
-      "color": "text-primary"
+      "className": "text-primary"
     },
     {
       "type": "text",
       "content": "Destructive Text",
-      "color": "text-destructive"
+      "className": "text-destructive"
     },
     {
       "type": "text",
       "content": "Muted Text",
-      "color": "text-muted-foreground"
+      "className": "text-muted-foreground"
     }
   ]
 }
