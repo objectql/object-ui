@@ -131,7 +131,9 @@ jobs:
       # REPORT-ONLY (objectui#7864). Code a generator EMITS from a template
       # literal under `packages/*/src/**` is compiled by nothing: `tsc` sees a
       # string, `tsup` copies it through, and this gate's own scan surface stops
-      # at `content/docs`, the per-app docs trees and the package READMEs. This
+      # at the authored pages — `content/docs`, the per-app docs trees, the
+      # package READMEs, the root `README.md` (objectui#7115) and the top level
+      # of the root `docs/` tree (objectui#7856 card 1). This
       # step censuses that class through the same `compileSnippets()` the doc
       # blocks go through, against the closure the step above just built.
       #

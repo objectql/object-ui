@@ -160,8 +160,19 @@ Third-Party App
 
 ```tsx
 import { AppShell } from '@object-ui/app-shell';
+import type { AppShellProps } from '@object-ui/app-shell';
 import { ObjectView } from '@object-ui/plugin-view';
 import { DataSourceProvider, useDataSource } from '@object-ui/providers';
+import type { DataSourceProviderProps } from '@object-ui/providers';
+
+// The two things you bring. Both are typed from the surface these packages
+// ship, so this snippet compiles on its own: `myAPI` is your backend adapter
+// (the "Custom Data Source Interface" section below is the shape it needs at
+// runtime — `DataSourceProvider` declares the prop `any`, so the annotation
+// records where the value goes rather than checking it), and `MySidebar` is
+// your own component, returning whatever `AppShell` accepts for `sidebar`.
+declare const myAPI: DataSourceProviderProps['dataSource'];
+declare function MySidebar(): AppShellProps['sidebar'];
 
 function MyConsole() {
   return (
@@ -183,24 +194,29 @@ function ContactList() {
 
 ### Example 2: Next.js Integration
 
+`app/layout.tsx`:
+
 ```tsx
-// app/layout.tsx
 import { AppShell } from '@object-ui/app-shell';
+import type { AppShellProps } from '@object-ui/app-shell';
 import { ThemeProvider } from '@object-ui/providers';
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: AppShellProps['children'] }) {
   return (
     <ThemeProvider>
       <AppShell>{children}</AppShell>
     </ThemeProvider>
   );
 }
+```
 
-// app/[object]/page.tsx
+`app/[object]/page.tsx`:
+
+```tsx
 import { ObjectView } from '@object-ui/plugin-view';
 import { useDataSource } from '@object-ui/providers';
 
-export default function Page({ params }) {
+export default function Page({ params }: { params: { object: string } }) {
   const dataSource = useDataSource();
   return <ObjectView schema={{ type: 'object-view', objectName: params.object }} dataSource={dataSource} />;
 }
@@ -211,6 +227,11 @@ export default function Page({ params }) {
 ```tsx
 import { ObjectView } from '@object-ui/plugin-view';
 import { DataSourceProvider, useDataSource } from '@object-ui/providers';
+import type { DataSourceProviderProps } from '@object-ui/providers';
+
+// Your backend adapter, as in Example 1 — declared here because every block on
+// this page compiles on its own.
+declare const myAPI: DataSourceProviderProps['dataSource'];
 
 function MyExistingApp() {
   return (
@@ -252,7 +273,9 @@ Example implementation:
 
 ```tsx
 const myDataSource = {
-  async find(objectName, params) {
+  // The parameter types are the ones the interface above declares; spelling
+  // them out is what lets this block be compiled rather than read.
+  async find(objectName: string, params?: any) {
     return fetch(`/api/${objectName}`, {
       method: 'POST',
       body: JSON.stringify(params),
