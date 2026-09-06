@@ -398,8 +398,55 @@ function PackageSwitcher({
      * names the status instead.
      */
     if (!res.ok) {
-      const failure = (await res.json().catch(() => null)) as { error?: { code?: unknown; message?: unknown } } | null;
-      const message = typeof failure?.error?.message === 'string' ? failure.error.message : '';
+      const failure = (await res.json().catch(() => null)) as {
+        error?: { code?: unknown; message?: unknown; userMessage?: unknown };
+      } | null;
+      /**
+       * ⭐ `userMessage` OUTRANKS `message`, and the order is the contract's,
+       * not a preference (objectui#7938).
+       *
+       * `error.userMessage` is the producer's #9934 channel, and the envelope
+       * writer's own words are the rule this line implements: "the text a
+       * producer marked, AT THROW TIME, as addressed to the END USER.
+       * Presence IS the marking — a consumer that sees the field renders it
+       * verbatim and keeps its generic substitution for everything unmarked"
+       * (`sendError`, `@objectstack/types` `response-envelope.ts`). This
+       * reader was that consumer and did not see the field: it read
+       * `error.message` and `error.code` and stopped, so a marked sentence
+       * arrived on the wire and had nowhere to appear.
+       *
+       * The 5xx band is where the loss became visible rather than merely
+       * theoretical. That door withholds the producer's PROSE and substitutes
+       * the generic `Internal server error` into `error.message` — but the
+       * withhold rewrites a local `message` const and `looksLikeInternalErrorLeak`
+       * is only ever handed `thrown.message`, so `userMessage` is never an
+       * input to it and rides through untouched (`sendThrownError`,
+       * `@objectstack/rest` `package-routes.ts`; pinned wire-side by
+       * `package-door-user-message.test.ts`). So on a marked 500/503 this
+       * reader showed the author the generic sentence and dropped the
+       * specific one written for them — nothing invalid displayed, which is
+       * exactly what made it quiet.
+       *
+       * ⛔ NOT scoped to 5xx, deliberately. The marked channel is
+       * status-agnostic by the producing door's own ruling — "a marked text is
+       * the producer's deliberate statement to the caller at any status" — so
+       * a consumer that honoured it only in one band would re-create, on the
+       * reading end, precisely the divergence that door refused to create on
+       * the writing end. A 4xx `message` is already caller-facing by design;
+       * when a producer ALSO marked a text there, the mark is the more
+       * specific answer to "what should this person read", and the diagnostic
+       * it displaces is not lost to diagnosis — `code` still travels below.
+       *
+       * ⛔ Not a tolerant alias ladder either: these are two DECLARED fields
+       * with different meanings, not two spellings of one. An unmarked refusal
+       * carries no `userMessage` at all (the producer's `declaredUserMessage`
+       * already applied its non-empty-string rule), so the overwhelmingly
+       * common case falls straight through to `message` with byte-identical
+       * output.
+       */
+      const marked = typeof failure?.error?.userMessage === 'string' ? failure.error.userMessage : '';
+      const diagnostic = typeof failure?.error?.message === 'string' ? failure.error.message : '';
+      const message = marked || diagnostic;
       const code = typeof failure?.error?.code === 'string' ? failure.error.code : '';
       throw new Error(message ? (code ? `${message} (${code})` : message) : `HTTP ${res.status}`);
     }
