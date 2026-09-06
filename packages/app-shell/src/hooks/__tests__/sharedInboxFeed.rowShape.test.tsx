@@ -38,7 +38,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
 /** One signed-in user — the inbox feed reads nothing without one. */
-vi.mock('@object-ui/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: { id: 'u1' } }),
+}));
 
 /**
  * A `sys_inbox_message` row as the L5 materialization writes it, PLUS the

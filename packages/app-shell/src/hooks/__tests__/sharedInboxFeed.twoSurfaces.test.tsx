@@ -154,7 +154,8 @@ vi.mock('../../layout/AppSwitcher', () => ({ AppSwitcher: () => null }));
 vi.mock('../../layout/LocalizedSidebarTrigger', () => ({ LocalizedSidebarTrigger: () => null }));
 vi.mock('../../layout/PreviewBadge', () => ({ PreviewBadge: () => null }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({
     user: { id: 'u1', name: 'Zhang San', email: 'zs@example.com' },
     signOut: vi.fn(),

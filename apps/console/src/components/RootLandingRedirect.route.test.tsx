@@ -116,7 +116,8 @@ vi.mock('@object-ui/app-shell', () => ({
   }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   // The REAL AuthGuard composition is what `ProtectedRoute` builds; only the
   // session source is stubbed, so the loading/fallback/children branches under
   // test are the shipped ones.

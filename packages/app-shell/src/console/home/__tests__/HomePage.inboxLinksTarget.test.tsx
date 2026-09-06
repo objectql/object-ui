@@ -58,7 +58,8 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
 }));
 
 let isAdminFixture = false;
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', email: 'ada@example.com' } }),
   useWorkspaceAdminStatus: () => ({ isAdmin: isAdminFixture, isResolved: true }),
 }));

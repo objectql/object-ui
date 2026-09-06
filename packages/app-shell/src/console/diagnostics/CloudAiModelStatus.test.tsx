@@ -18,7 +18,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { I18nProvider, createI18n } from '@object-ui/i18n';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   createAuthenticatedFetch: () => vi.fn().mockImplementation(() => Promise.resolve(mockResponse())),
 }));
 
