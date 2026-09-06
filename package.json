@@ -25,7 +25,7 @@
     "test:integration": "vitest run --project dom --project dom-heavy",
   "test:dist": "turbo run test:dist --filter=@object-ui/components",
     "site:dev": "pnpm --filter @object-ui/site dev",
-    "site:build": "pnpm --filter @object-ui/site build",
+    "site:build": "turbo run build --filter=@object-ui/site",
     "site:start": "pnpm --filter @object-ui/site start",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
