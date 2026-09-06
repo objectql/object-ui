@@ -68,6 +68,15 @@ function renderKanban(schemaExtra: Record<string, unknown>) {
         columns: [{ id: 'todo', title: 'To Do' }],
         data: cards,
         ...schemaExtra,
+      // ⚠️ Still escaped, and NOT by oversight (objectui#7322 item ②). This
+      // board is STATIC — `columns` plus inline `data`, no fetch — so it
+      // authors no `objectName`, which `ObjectKanbanSchema` declares REQUIRED.
+      // That requiredness is objectui#7780's subject (the renderer reads inline
+      // `data` ahead of the fetch and never needs the object name for a board
+      // like this one); until it is answered, no declared type accepts this
+      // node. The other four in-package fixtures that mount an `object-kanban`
+      // board dropped their `as never` for a real `satisfies ObjectKanbanSchema`
+      // in objectui#7322 — when #7780 lands, this one follows.
       } as never}
     />,
   );
