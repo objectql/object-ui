@@ -143,7 +143,13 @@
  *     @object-ui/auth             135 judged, 33 inheriting, 102 frozen -> 0
  *
  * with the same population moving 311 -> 209 frozen and no site moving the
- * other way. ⭐ That slice paid for one measurement worth keeping here, because
+ * other way -- both figures measured on `06761b351`, the base this sweep was
+ * derived and converted on. On the merged head the population reads 211 over
+ * 643 judged, and the delta is NOT this sweep: merging `origin/main` mid-slice
+ * brought in two new frozen sites (`@object-ui/plugin-form`, `@object-ui/plugin-grid`)
+ * and one new inheriting `@object-ui/react` site, all landed by other PRs
+ * while this one was being verified. That is the growth warning above,
+ * observed a second time inside a single slice; `@object-ui/auth` stayed at 0. ⭐ That slice paid for one measurement worth keeping here, because
  * it is the question every REMAINING slice has to ask and the answer is not
  * uniform: **what does inheriting actually RUN?** Converting freezes to
  * inheritance loads the real barrel in every converted file, so a barrel with
