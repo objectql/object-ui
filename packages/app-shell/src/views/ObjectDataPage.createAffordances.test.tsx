@@ -78,7 +78,8 @@ vi.mock('@object-ui/permissions', () => ({
   useFieldPermissions: () => ({ canRead: () => true, canWrite: () => true, permissions: [] }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ user: { id: 'u1', name: 'Ada' }, activeOrganization: null }),
   useWorkspaceAdminStatus: () => ({ isAdmin: false, isResolved: true }),
   createAuthenticatedFetch: () => vi.fn(),

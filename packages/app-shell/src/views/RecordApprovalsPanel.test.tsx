@@ -27,7 +27,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import type { ApprovalRequestLite } from '../hooks/useRecordApprovals';
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   createAuthenticatedFetch: () => vi.fn(),
 }));
 

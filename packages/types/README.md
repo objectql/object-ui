@@ -31,9 +31,9 @@ Object UI follows a strict **"Protocol First"** approach with a clear inheritanc
 ```
 @objectstack/spec (v15.x)           ← The "Highest Law" - Universal protocol
     ↓
-UIComponent                         ← Base interface for all UI components
-    ↓
-BaseSchema (@object-ui/types)       ← ObjectUI extensions (visibleOn, hiddenOn, etc.)
+BaseSchema (@object-ui/types)       ← A component node: the base interface every
+                                      UI component schema extends, carrying `type`
+                                      plus the shared keys (visibleOn, hiddenOn, etc.)
     ↓
 Specific Schemas                    ← Component implementations (ChartSchema, etc.)
     ↓

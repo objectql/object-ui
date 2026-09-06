@@ -124,7 +124,10 @@ const { state, ADAPTER, FRAMEWORK_OBJECT_NAMES } = vi.hoisted(() => {
 });
 
 vi.mock('@object-ui/app-shell', () => ({ useAdapter: () => ADAPTER }));
-vi.mock('@object-ui/auth', () => ({ useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }) }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),
+}));
 
 // Imported AFTER the mocks so the page picks them up.
 import { SystemHubPage } from '../SystemHubPage';

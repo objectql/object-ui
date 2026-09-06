@@ -66,7 +66,8 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({ packageId: 'com.acme.crm' }),
 }));
 
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useWorkspaceAdminStatus: () => ({ isAdmin: viewer.isAdmin, isResolved: true }),
 }));
 

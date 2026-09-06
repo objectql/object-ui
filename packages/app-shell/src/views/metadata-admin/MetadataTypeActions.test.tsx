@@ -15,7 +15,10 @@ const mockFetch = vi.fn(async (_url: string, _init?: RequestInit) => ({
   statusText: 'OK',
   json: async () => ({ success: true, message: 'done' }),
 }));
-vi.mock('@object-ui/auth', () => ({ createAuthenticatedFetch: () => mockFetch }));
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createAuthenticatedFetch: () => mockFetch,
+}));
 
 // Toasts are the only observable output of the error path.
 const toastError = vi.fn();

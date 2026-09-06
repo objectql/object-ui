@@ -206,15 +206,18 @@ const PRODUCT: ReadonlyArray<{
   { widget: 'number', typed: '0x10', emits: 10 },
   { widget: 'number', typed: '1e', emits: null },
   { widget: 'number', typed: '', emits: NO_CALL },
-  // ⚠️ Not a transcription slip: `GeolocationField` clears a coordinate to
-  // `undefined` where the other three clear to `null`, because it builds an
-  // object (`fieldValue ? Number(fieldValue) : undefined`) instead of emitting
-  // a scalar. Reachable by any user who empties the box. Pinned as the product
-  // behaviour it is, and reported rather than "fixed" under this card.
+  // This row USED to be the odd one out, and the history is kept because the
+  // reading is what the divergence was reported from: `GeolocationField`
+  // cleared a coordinate to `undefined` where the other three cleared to
+  // `null`, because it builds an object rather than emitting a scalar. That
+  // was pinned here as product behaviour and reported rather than fixed under
+  // objectui#6793 — then fixed under objectui#6848, which is why the `1e` row
+  // now reads `null` like its three siblings. The class has ONE rule again;
+  // `GeolocationClearEmission.test.tsx` holds the fix's own pins.
   { widget: 'geolocation', typed: '12abc', emits: 12 },
   { widget: 'geolocation', typed: '1.2.3', emits: 1.23 },
   { widget: 'geolocation', typed: '0x10', emits: 10 },
-  { widget: 'geolocation', typed: '1e', emits: undefined },
+  { widget: 'geolocation', typed: '1e', emits: null },
   { widget: 'geolocation', typed: '', emits: NO_CALL },
 ];
 

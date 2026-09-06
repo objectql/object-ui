@@ -128,11 +128,12 @@ const SECOND = { id: 'org_two', name: 'Globex', slug: 'globex' };
 let organizations: Array<Record<string, unknown>> = [SOLO];
 let features: Record<string, unknown> = {};
 
-vi.mock('@object-ui/auth', () => {
+vi.mock('@object-ui/auth', async (importOriginal) => {
   // ONE stable identity — see the sibling inbox/organizations header tests: a
   // fresh closure per render re-arms every `[getAuthConfig]` effect forever.
   const getAuthConfig = () => Promise.resolve({ features });
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     useAuth: () => ({
       user: { id: 'u1', name: 'Zhang San', email: 'zs@example.com' },
       signOut: vi.fn(),

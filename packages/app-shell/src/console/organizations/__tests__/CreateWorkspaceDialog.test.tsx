@@ -33,7 +33,8 @@ vi.mock('../provisionEnvironment', () => ({
 
 const createOrganization = vi.fn();
 const getAuthConfig = vi.fn();
-vi.mock('@object-ui/auth', () => ({
+vi.mock('@object-ui/auth', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAuth: () => ({ createOrganization, getAuthConfig }),
 }));
 
