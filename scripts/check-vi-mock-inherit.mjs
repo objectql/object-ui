@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is five, and each joined by sweep
+ * actually been SWEPT to zero. Today that is seven, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -115,8 +115,28 @@
  *
  * with the all-specifier population over the 22 specifiers any `vi.mock` call
  * site in the tree names moving 318 -> 315 frozen, and no site moving the other
- * way. The remaining 315 stay on objectui#6892, `@object-ui/auth` (102) first
- * by yield and `@object-ui/app-shell` (23) only after objectui#6580.
+ * way.
+ *
+ * The next two joined as objectui#6892's SECOND slice, re-derived on
+ * `689127723` by the same method -- `scan()` imported with `covered` set to
+ * every workspace specifier the tree names, so the constant below was never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-charts      1 judged, 0 inheriting, 1 frozen -> 0
+ *     @object-ui/plugin-dashboard   3 judged, 0 inheriting, 3 frozen -> 0
+ *
+ * with the same population moving 315 -> 311 frozen and, again, no site moving
+ * the other way. `@object-ui/plugin-charts` never appeared on the worklist's
+ * table at all, and the reason is a THIRD way that table goes stale, distinct
+ * from both the recogniser fix and the sweeps: its only call site did not yet
+ * exist. `ObjectView.chartConfigForward-7891.test.tsx` was ADDED by `38158c6bb`
+ * (2026-09-06), a week AFTER the `9ce20233f` snapshot (2026-08-30) -- verified
+ * by `git cat-file -e 9ce20233f:PATH` against a control path that resolves at
+ * the same commit. So the population GROWS while the worklist is being worked,
+ * and a slice scoped from the table alone would have missed this specifier
+ * entirely. Re-derive per slice; never inherit. The remaining 311 stay on
+ * objectui#6892, `@object-ui/auth` (102) first by yield and
+ * `@object-ui/app-shell` (23) only after objectui#6580.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -203,6 +223,8 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-markdown',
   '@object-ui/data-objectstack',
   '@object-ui/plugin-report',
+  '@object-ui/plugin-charts',
+  '@object-ui/plugin-dashboard',
 ]);
 
 /** Files the walk reads at all. */

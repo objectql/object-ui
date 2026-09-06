@@ -42,7 +42,8 @@ import { MetadataCtx } from '@object-ui/react';
 // and capturing the props also proves the widgets (with their own `title`)
 // reach the renderer untouched.
 const cap = vi.hoisted(() => ({ props: null as any }));
-vi.mock('@object-ui/plugin-dashboard', () => ({
+vi.mock('@object-ui/plugin-dashboard', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   DashboardRenderer: (props: any) => {
     cap.props = props;
     return null;

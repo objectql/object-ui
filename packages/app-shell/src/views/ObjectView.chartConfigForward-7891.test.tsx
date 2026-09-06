@@ -112,7 +112,8 @@ vi.mock('sonner', () => ({
  * is what the dynamic import resolves to.
  */
 let capturedChartSchema: any = null;
-vi.mock('@object-ui/plugin-charts', () => ({
+vi.mock('@object-ui/plugin-charts', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectChart: (props: any) => {
     capturedChartSchema = props.schema;
     return null;
