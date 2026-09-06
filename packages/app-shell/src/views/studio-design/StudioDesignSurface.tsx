@@ -510,13 +510,82 @@ function PackageSwitcher({
       }
       return;
     }
+    /**
+     * The managed snapshot behind the OPEN sheet (objectui#7907). A lifecycle
+     * action has just run — disable / enable / duplicate / publish /
+     * publish-drafts / manifest edit — so the record in `manage` is ALREADY
+     * known to be out of date, and this read is what replaces it. Neither way
+     * it can fail may be silent, and neither may leave the PRE-ACTION record on
+     * screen as though it were current.
+     *
+     * The arm this replaces was `catch {}` under a comment reading "keep the
+     * current snapshot" — true of what it did, and the reason it was wrong:
+     * the author disabled the package, was told nothing, and went on reading
+     * `Status: Enabled`. ⚠️ It is a PRE-EXISTING defect that objectui#7881
+     * (PR #7906) made much easier to hit, NOT a regression from it: before that
+     * card `fetchFullPackage` never read `res.ok`, so this catch could only
+     * ever see a `res.json()` rejection; now that the helper refuses a non-2xx,
+     * the same catch also swallows every 401 / 403 / 503 / 500. Fixing one
+     * swallowing site made the next swallowing site swallow more.
+     *
+     * ⛔ Why the sheet CLOSES rather than staying open on the stale record.
+     * `PackageDetailSheet` is an ACTION surface, and it derives its verb from
+     * the record it was handed: `enabled = pkg.enabled !== false && pkg.status
+     * !== 'disabled'` picks both the button's label and the endpoint it POSTs
+     * (`.../${enabled ? 'disable' : 'enable'}`, `PackagesPage.tsx`). Left open
+     * over a snapshot we KNOW is pre-action, it does not merely display a stale
+     * badge — it re-arms the author with the verb they just fired. Closing it
+     * is still a DEGRADATION and not a throw (objectui#7368's standing ruling
+     * — one 503 must not take the Studio down): the editor, the top bar and
+     * the package list all stay, and reopening the sheet re-runs this same read
+     * one click away, which objectui#7881 taught to report its own outcome.
+     *
+     * ⛔ `manage` is deliberately NOT nulled — a null `pkg` with `manageOpen`
+     * still true is precisely the stuck state objectui#7881 fixed, and the next
+     * `openManage` overwrites the record anyway.
+     *
+     * ⛔ Not recorded in `pkgsErr` either, and this arm was MEASURED rather
+     * than inherited: that slot is the switcher LIST's state and is written
+     * exactly where `pkgs` is — the mount effect and the HEAD of this callback,
+     * the only two sites that write either. This TAIL writes neither; it writes
+     * `manage`. The head has just recorded the list's own verdict (a fresh list
+     * and `null`, or its failure), so writing `pkgsErr` from here would mark
+     * the trigger `failed` over names the head refreshed successfully a moment
+     * ago — the same lie as objectui#7368's, pointed the other way.
+     *
+     * ⛔ And no navigation: a snapshot this read could not deliver is not
+     * evidence of deletion (objectui#7821). Reporting is not inferring.
+     */
     try {
       const fresh = await fetchFullPackage(managedId);
-      if (fresh) setManage(fresh);
-    } catch {
-      /* keep the current snapshot */
+      if (fresh) {
+        setManage(fresh);
+      } else {
+        // The read SUCCEEDED and the package is not in the list — the same
+        // fact `openManage` reports when it refuses to open on it, said with
+        // the same key. Not a caught error: there is nothing about the
+        // endpoint to report.
+        toast.error(tFormat('engine.studio.pkg.manageMissing', locale, { id: managedId }), {
+          id: PACKAGE_LIST_TOAST_ID,
+        });
+        setManageOpen(false);
+      }
+    } catch (e) {
+      // This surface's EXISTING objectui#7368 posture — `formatMetadataError`
+      // on the shared sonner id, so ONE outage that rejects both halves of this
+      // callback is one toast rather than a stack. ⛔ Not a second reporting
+      // channel: the message names the consequence the author can see (their
+      // panel closed) and carries the server's own words inside it.
+      toast.error(
+        tFormat('engine.studio.pkg.manageRefreshFailed', locale, {
+          id: managedId,
+          error: formatMetadataError(e),
+        }),
+        { id: PACKAGE_LIST_TOAST_ID },
+      );
+      setManageOpen(false);
     }
-  }, [manage, packageId, tab, navigate, fetchFullPackage]);
+  }, [manage, packageId, tab, navigate, fetchFullPackage, locale]);
 
   return (
     // Radix Popover (portaled to <body>) — the top bar is `overflow-x-auto`,
