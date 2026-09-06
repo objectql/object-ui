@@ -87,12 +87,14 @@ describe('the registered-key universe is derived from the registration calls', (
         'packages/demo/src/index.tsx',
         [
           // No import of a workspace package here, not even as fixture TEXT.
-          // `scripts-type-check.test.ts` greps this project's files for the
-          // `from '<at>object-ui/…'` shape to pin the claim that
-          // `pnpm type-check:scripts` needs no build, and that grep cannot tell a
-          // string literal — or a comment quoting one — from a real import. The
-          // fixture does not need the import line: the derivation reads the
+          // The fixture does not need the import line: the derivation reads the
           // register CALL, not what the file imports.
+          //
+          // (This used to say the line was omitted because
+          // `scripts-type-check.test.ts` matched the `from '@object-ui/...'`
+          // shape in the file's TEXT. It reads import edges from the AST now —
+          // see `workspaceImportSpecifiers()` there — so the omission is a
+          // choice about this fixture, not a constraint a sibling gate imposes.)
           "ComponentRegistry.register('object-grid', Renderer, {",
           "  namespace: 'plugin-grid',",
           "  label: 'Object Grid',",

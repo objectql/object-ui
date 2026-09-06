@@ -29,12 +29,17 @@ import { propertyChainProbe, sweep, textFootprint } from '../check-i18n-dead-key
 const tempRoots: string[] = [];
 
 /**
- * Interpolated into the fixture SOURCES below rather than written out —
- * `scripts-type-check.test.ts` greps this directory for import statements
- * naming a workspace package, to pin that `scripts/` needs no workspace
- * build, and its regex cannot tell a string literal (or a template literal's
- * static text) from a real import statement. Same reason
- * `check-i18n-call-site-keys.test.ts` does this for the same specifier.
+ * The workspace specifier the fixture SOURCES below import, in a constant so
+ * this suite and `check-i18n-call-site-keys.test.ts` spell it one way.
+ *
+ * It is NOT held here to keep the specifier away from a text-level scan, which
+ * is what this comment used to say. That reason expired:
+ * `workspaceImportSpecifiers()` in `scripts-type-check.test.ts` reads import
+ * edges from the AST, so a specifier sitting in a string or a template
+ * literal's static text is not an edge to it — that function's docstring is the
+ * authoritative account, and a `describe` block beside it pins the
+ * string-literal case directly. Writing these fixtures out plainly would be
+ * green; the constant is kept for one spelling, not for concealment.
  */
 const I18N_PKG = '@object-ui/i18n';
 
