@@ -486,6 +486,40 @@ const CHART_DATA = [
 ];
 const CHART_SERIES = [{ dataKey: 'sales' }, { dataKey: 'revenue' }];
 /**
+ * The scatter target's own rows and series, because scatter is the one family
+ * here that {@link CHART_DATA} / {@link CHART_SERIES} cannot reach (objectui#7401).
+ *
+ * ⭐ Until objectui#7401 this target was NOT SWEPT AT ALL. Its registration
+ * declared its family as `defaultProps: { chartType: 'scatter' }`, nothing on
+ * the SDUI path read that, and so `plugin-charts:scatter-chart` rendered — and
+ * passed this gate — as a BAR chart. `plugin-charts:pie-chart`,
+ * `donut-chart` and `radar-chart` were blind in exactly the same way: four of
+ * this package's nine targets were one target, measured four times.
+ *
+ * That is how the defect surfaced, and this file is where the evidence was:
+ * PR #7400's `scatter-multi-series` refusal (objectui#7194) SHOULD have
+ * reddened this two-series entry the day it landed, and did not. Now that the
+ * type resolves to its own family the two meet, so the entry has to be a
+ * schema scatter can actually draw, on both counts:
+ *
+ *   - ONE series. Scatter binds one measure — `series[0].dataKey` is the
+ *     `YAxis` key — and a second series is refused by name, not projected.
+ *     ⛔ Two series here would sweep the REFUSAL's markup, leaving the scatter
+ *     renderer exactly as unswept as it has been.
+ *   - A NUMERIC x. Scatter's category axis is a measure, so `name: 'Jan'` has
+ *     no position and every row is unplaceable (`no-plottable-points`) — the
+ *     other refusal, and the same blindness one step over.
+ *
+ * ⛔ Do not "simplify" this back onto the shared constants: both of those
+ * refusals render attribute-clean markup, which is precisely the phantom-clean
+ * pass this gate's objectui#5630 section warns about.
+ */
+const SCATTER_DATA = [
+  { x: 10, y: 400, value: 400 },
+  { x: 20, y: 300, value: 300 },
+];
+const SCATTER_SERIES = [{ dataKey: 'y' }];
+/**
  * The two OBJECT-BOUND chart targets (`plugin-charts:object-chart`,
  * `view:chart`). They stay object-bound — `objectName` is what makes them a
  * different registry path from the six inline chart targets above, which reach
@@ -800,7 +834,7 @@ const TARGETS: Readonly<Record<string, readonly Target[]>> = {
     { type: 'plugin-charts:pie-chart', schemaExtras: { data: CHART_DATA, series: CHART_SERIES }, ready: '[data-slot="chart"]' },
     { type: 'plugin-charts:donut-chart', schemaExtras: { data: CHART_DATA, series: CHART_SERIES }, ready: '[data-slot="chart"]' },
     { type: 'plugin-charts:radar-chart', schemaExtras: { data: CHART_DATA, series: CHART_SERIES }, ready: '[data-slot="chart"]' },
-    { type: 'plugin-charts:scatter-chart', schemaExtras: { data: CHART_DATA, series: CHART_SERIES }, ready: '[data-slot="chart"]' },
+    { type: 'plugin-charts:scatter-chart', schemaExtras: { data: SCATTER_DATA, xAxisKey: 'x', series: SCATTER_SERIES }, ready: '[data-slot="chart"]' },
     { type: 'plugin-charts:object-chart', schemaExtras: OBJECT_CHART_EXTRAS, ready: '[data-slot="chart"]' },
     { type: 'view:chart', schemaExtras: OBJECT_CHART_EXTRAS, ready: '[data-slot="chart"]' },
   ],
