@@ -11,7 +11,6 @@ import { fileURLToPath } from 'node:url';
 import {
   COVERED_SPECIFIERS,
   FLOORS,
-  deJsxClosingTags,
   findCallSites,
   scan,
   summarise,
@@ -335,10 +334,10 @@ describe('only text the language would execute', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The JSX mask — a real mis-mask in the shared scanner, measured
+// The JSX mask — a real mis-mask in the shared scanner, since fixed
 // ---------------------------------------------------------------------------
 
-describe('deJsxClosingTags — the shared masker USED to read `</div>` as a regex literal', () => {
+describe('a JSX closing tag — the shared masker USED to read `</div>` as a regex literal', () => {
   /**
    * `js-comment-mask` opened a regex when a `/` followed something that is not
    * a value. In `</div>` that something is `<`, so a PHANTOM regex opened and
@@ -346,11 +345,22 @@ describe('deJsxClosingTags — the shared masker USED to read `</div>` as a rege
    * `)` that closes a `vi.mock` call. Measured on this tree at the time: SEVEN
    * call sites could not be delimited at all, one of them a covered site.
    *
-   * Fixed in the shared module by objectui#6891, whose own pin
-   * (`scripts/__tests__/js-comment-mask-jsx-6891.test.ts`) now holds the
-   * scanner. `deJsxClosingTags` stays: it is still correct, still length-
-   * preserving, and removing it belongs to whoever owns THIS gate's source.
-   * The first case below is what makes that a decision rather than a guess.
+   * That is history. The shared masker handles `</tag>` itself since
+   * objectui#6891, whose own pin
+   * (`scripts/__tests__/js-comment-mask-jsx-6891.test.ts`) holds the scanner,
+   * and THIS gate rewrites nothing before masking any more — objectui#7883
+   * retired the local `deJsxClosingTags` workaround and its two unit cases
+   * with it.
+   *
+   * The three cases below are what say the retirement changed nothing: the
+   * first reads the mask directly on the RAW source, and the two behavioural
+   * ones drive the gate end to end on a factory that returns JSX. They pass
+   * with no rewrite in the gate at all.
+   *
+   * ⛔ Not a claim that the masker is correct on JSX: objectui#6891 closed
+   * only the `<` `/` half, and a `/` after `}` or `>` still opens a phantom
+   * (objectui#7882, still open). The retired rewrite never covered that half
+   * either, so nothing was lost with it.
    */
 
   const jsxFactory = `({ open, children }: any) => (open ? <div>{children}</div> : null)`;
@@ -363,10 +373,11 @@ describe('deJsxClosingTags — the shared masker USED to read `</div>` as a rege
     // whose immediately preceding byte is `<` opens nothing, and this case
     // has been turned over to pin the fix instead.
     //
-    // `deJsxClosingTags` is deliberately NOT removed in that change — it is a
-    // second gate's source, outside that card's file surface. It is now a
-    // no-op-in-effect on this shape, and the assertions below are what say so:
-    // the raw source, WITHOUT the rewrite, already masks correctly.
+    // `deJsxClosingTags` was deliberately NOT removed in that change — it was
+    // a second gate's source, outside that card's file surface. objectui#7883
+    // then retired it, and these assertions are what made that a decision
+    // rather than a guess: the raw source, with no rewrite anywhere, already
+    // masks correctly.
     const src = `const C = ${jsxFactory};\n`;
     const { literal } = scanSource(src);
     const inside = src.indexOf('</div>') + 2;
@@ -377,26 +388,11 @@ describe('deJsxClosingTags — the shared masker USED to read `</div>` as a rege
     expect(literal[src.lastIndexOf(')')]).toBe(0);
   });
 
-  it('neutralises the tag while PRESERVING LENGTH, so every offset still holds', () => {
-    const src = 'a</div>b</>c</Foo.Bar>z';
-    const out = deJsxClosingTags(src);
-    expect(out).toHaveLength(src.length);
-    expect(out).toBe('a<____>b<_>c<________>z');
-    // Every offset past the rewrite still indexes the same byte, which is what
-    // lets the mask's flags be read against the ORIGINAL source.
-    expect(out.indexOf('z')).toBe(src.indexOf('z'));
-  });
-
-  it('leaves a `/` that is not a closing tag alone — a regex, a path, a division', () => {
-    for (const src of ['const re = /<x>/;', 'const p = "a/b";', 'const q = a / b;', 'x.replace(/</g, "&lt;");']) {
-      expect(deJsxClosingTags(src)).toBe(src);
-    }
-  });
-
   it('THE CONSEQUENCE: a covered factory returning JSX is READ, not skipped', () => {
-    // Without the workaround this call site is `unreadable`. `unreadable` fails
-    // the gate, so the mis-mask would not have been silent — but it would have
-    // reddened five innocent files instead of judging them.
+    // Under the mis-mask this call site was `unreadable`. `unreadable` fails
+    // the gate, so the defect would not have been silent — but it would have
+    // reddened five innocent files instead of judging them. This case is now
+    // the load-bearing half: it goes red if the shared masker ever regresses.
     const site = verdictOf(`async (importOriginal) => ({ ...(await importOriginal()), C: ${jsxFactory} })`);
     expect(site.verdict).toBe('inherits');
   });
