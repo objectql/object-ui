@@ -25,6 +25,48 @@ permissions:
 jobs:
   changelog:
     runs-on: ubuntu-latest
+
+    # ── NO job ceiling, and that is the DECISION, not its absence (objectui#7956) ──
+    # This job runs under GitHub's 360-minute default. objectui#7956 asked for a
+    # ceiling DERIVED from this job's own measured run-time distribution, in the
+    # shape objectui#7270 left beside `lint.yml::lint`. It is recorded here
+    # instead, because this job has no distribution to derive one from.
+    #
+    #   - Population: every run of this workflow, no status filter, whole
+    #     retained history — `GET /actions/workflows/changelog.yml/runs` reports
+    #     `total_count: 0`. Re-measured 2026-09-06T17:22Z.
+    #   - Control, so that zero is a reading rather than a broken query: the
+    #     identical call against `changeset-release.yml` reports a `total_count`
+    #     of 5010 completed runs. The endpoint answers; this workflow has never
+    #     produced a run for it to answer with.
+    #   - The header above already recorded this same zero once, measured before
+    #     2026-08-23 against the same endpoint while removing the dead `release`
+    #     trigger. It has not moved: this workflow is dispatch-only, and it has
+    #     never been dispatched.
+    #
+    # ⛔ Do NOT put a number here derived from another job, from the apparent
+    # cost of a checkout plus git-cliff, or from what these steps "should" take.
+    # A ceiling set under a job's honest slowest run converts a working job into
+    # a permanently red one (objectui#7048), and this job has produced no honest
+    # run to sit above; objectstack#16173 is the live counter-example, where a
+    # distribution mis-estimated by ~2.6x killed a test shard while the rollup
+    # read green. An invented ceiling is worse than the default it replaces,
+    # because it looks derived.
+    #
+    # ⚠️ The accepted cost, stated plainly: a hang in a dispatched run occupies
+    # a runner for six hours before reporting `cancelled`. That is the same
+    # exposure objectui#7956 closed on four of its six jobs. It is accepted here
+    # only because the alternative is a guess, and it is bounded in practice by
+    # the fact that nothing starts this workflow except a maintainer, who is by
+    # construction watching when they do.
+    #
+    # What would change this: one real dispatch. Measure that run the way
+    # `lint.yml::lint` documents, write the derivation here, and move this job
+    # out of the accept-360 table and into the `derived` table in
+    # `scripts/__tests__/workflow-cache-save-bound.test.ts` in the same commit —
+    # that pin holds this job's UNBOUNDED state deliberately, so adding a
+    # ceiling has to be an edit someone makes on purpose rather than a silent
+    # one.
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
