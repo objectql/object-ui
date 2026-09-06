@@ -786,7 +786,36 @@ function stripQuotePrefix(line, depth) {
   return out;
 }
 
-/** The declaration a fragment carries; see FRAGMENT_MARKER_EXAMPLES. */
+/**
+ * How many levels of blockquote `line` opens with, read with the same prefix
+ * shape the fence opener matches — so a marker's depth and its fence's depth are
+ * counted by one rule and cannot disagree.
+ */
+function quoteDepthOf(line) {
+  // Every quantifier here is `*`, so the match cannot fail and there is no
+  // no-match branch to write: an empty prefix IS depth 0.
+  return (/^[ \t]*(?:>[ \t]*)*/.exec(line)[0].match(/>/g) ?? []).length;
+}
+
+/**
+ * Whether `line` is blank AT `depth`: empty, or nothing left once the blockquote
+ * markers carrying the quote down the callout are stripped. A bare `>` is the
+ * spacer a callout puts between its prose and its fence, and `'>'.trim()` is
+ * `'>'`, not the empty string — so without this the marker attachment walk stops
+ * on that spacer and a quoted declaration can never reach the block it declares.
+ * `depth === 0` is `line.trim() === ''`, the same test the walk used before.
+ */
+function isBlankAtDepth(line, depth) {
+  return stripQuotePrefix(line, depth).trim() === '';
+}
+
+/**
+ * The declaration a fragment carries; see FRAGMENT_MARKER_EXAMPLES. Matched
+ * against the line with its blockquote markers stripped, so a marker written
+ * inside the callout its block lives in registers exactly as an unquoted one
+ * does; the depth it was written at is kept, and `scanFences` requires it to
+ * equal the depth of the fence it declares.
+ */
 const FRAGMENT_MARKER =
   /^[ \t]*(?:\{\/\*|<!--)[ \t]*doc-snippet:[ \t]*fragment[ \t]*(?:—|--|-|:)[ \t]*(.+?)[ \t]*(?:\*\/\}|-->)[ \t]*$/;
 
@@ -845,14 +874,25 @@ export const FRAGMENT_MARKER_EXAMPLES = [
  * line, so the compiler sees the snippet the reader sees and not the `>` around
  * it. Depth 0 — every unquoted fence — takes the identity path and scans exactly
  * as it did before blockquotes were recognised.
+ *
+ * A fragment marker reaches those blocks at the same depth: it is read through
+ * the quote prefix, the walk that attaches it treats a bare `>` as blank, and it
+ * declares only a fence at its own depth. Both halves of the gate's contract —
+ * compile, OR declare why you cannot — therefore apply inside a blockquote. Only
+ * ONE of them reaching there would leave a quoted block that legitimately cannot
+ * compile with no way to say so (objectui#7099), and widening the marker anchor
+ * alone would not fix it: the walk would still stop on the `>` spacer that
+ * separates a callout's prose from its fence, which is the shape real pages use.
  */
 export function scanFences(source) {
   const lines = source.split('\n');
   const blocks = [];
   const markers = [];
   for (let i = 0; i < lines.length; i++) {
-    const marker = FRAGMENT_MARKER.exec(lines[i]);
-    if (marker) markers.push({ line: i + 1, reason: marker[1].trim(), consumed: false });
+    const markerDepth = quoteDepthOf(lines[i]);
+    const marker = FRAGMENT_MARKER.exec(stripQuotePrefix(lines[i], markerDepth));
+    if (marker)
+      markers.push({ line: i + 1, depth: markerDepth, reason: marker[1].trim(), consumed: false });
     const open = /^([ \t]*(?:>[ \t]*)*)(`{3,})(.*)$/.exec(lines[i]);
     if (!open) continue;
     const ticks = open[2];
@@ -868,14 +908,20 @@ export function scanFences(source) {
     const info = open[3].trim();
     const language = (info.split(/\s+/)[0] || '').toLowerCase();
     if (TS_FENCE_LANGUAGES.has(language)) {
-      // The marker must be the nearest non-blank line above the fence.
+      // The marker must be the nearest non-blank line above the fence, and must
+      // be written at the fence's own quote depth. Blankness is judged at that
+      // depth, so the walk crosses a callout's bare `>` spacer; the depths must
+      // match, because a depth-0 marker above a quoted fence sits outside the
+      // callout the block lives in, and a quoted marker above an unquoted fence
+      // sits inside one the block is not in. Neither declares that block.
       let k = i - 1;
-      while (k >= 0 && lines[k].trim() === '') k--;
-      const above = k >= 0 ? markers.find((m) => m.line === k + 1) : undefined;
+      while (k >= 0 && isBlankAtDepth(lines[k], depth)) k--;
+      const above = k >= 0 ? markers.find((m) => m.line === k + 1 && m.depth === depth) : undefined;
       if (above) above.consumed = true;
       blocks.push({
         fenceLine: i + 1,
         language,
+        quoteDepth: depth,
         body: lines
           .slice(i + 1, close)
           .map((line) => stripQuotePrefix(line, depth))
@@ -1804,6 +1850,21 @@ function main() {
         'set, not anything a reader of the documented packages installs. Import what an imported ' +
         'package DECLARES, or declare the block a fragment with a reason naming what the reader must ' +
         `install:\n                ${FRAGMENT_MARKER_EXAMPLES[0]}`,
+    );
+  }
+
+  // A failing block inside a blockquote: name the depth its declaration must be
+  // written at. The escape hatch reaches it, but only at its own depth, and a
+  // marker written at depth 0 above it is silent about why it did not attach.
+  const quotedFailures = new Map();
+  for (const { block } of [...run.parseFailures, ...run.semanticFailures, ...run.boundFailures]) {
+    if (block.quoteDepth > 0) quotedFailures.set(`${block.doc}:${block.fenceLine}`, block.quoteDepth);
+  }
+  for (const [site, depth] of quotedFailures) {
+    console.error(
+      `  [quoted]    ${site}  this block is fenced inside a blockquote (depth ${depth}). If it cannot ` +
+        'compile, its fragment marker must be written at that SAME depth — one at depth 0 above the ' +
+        `callout does not declare it:\n                ${'> '.repeat(depth)}${FRAGMENT_MARKER_EXAMPLES[0]}`,
     );
   }
 
