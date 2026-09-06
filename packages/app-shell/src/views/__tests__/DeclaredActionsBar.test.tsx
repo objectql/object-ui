@@ -62,7 +62,8 @@ vi.mock('../../utils/getIcon', () => ({ getIcon: () => () => null }));
 // (`useActionTextLocalizer` — the shared action-text resolver the bar calls
 // since objectui#4265 — is the REAL one from `@object-ui/react`; it reads these
 // three resolvers plus `pickLocalized`, so the double has to carry all four.)
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectLabel: () => ({
     actionLabel: (_o: unknown, _n: unknown, fallback: string) => fallback,
     actionConfirm: (_o: unknown, _n: unknown, fallback?: string) => fallback,
