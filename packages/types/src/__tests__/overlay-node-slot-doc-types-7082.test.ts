@@ -71,11 +71,14 @@
  * pins those rows). `EmptySchema.action` keeps its row and its pin. The day it
  * is declared, this file goes red and the page is owed a row.
  *
- * Likewise the requiredness of `AlertDialogSchema.trigger`, `SheetSchema.trigger`
- * and `SheetSchema.content`: all three are declared OPTIONAL and published
- * REQUIRED. That is objectui#7073's defect class, not this card's, and it is
- * fenced out of the diff -- but pinned here so it cannot be lost, and so a fix
- * on either side turns this file red rather than passing unnoticed.
+ * The requiredness of `AlertDialogSchema.trigger`, `SheetSchema.trigger` and
+ * `SheetSchema.content` was the exception left after that: all three were
+ * declared OPTIONAL and published REQUIRED, objectui#7073's defect class
+ * rather than this card's, so it was fenced out of the diff and pinned
+ * instead so a fix on either side would turn this file red rather than
+ * passing unnoticed. objectui#7106 closed it: all three pages now spell `?`,
+ * joining `ContextMenuSchema.trigger` -- the row #7073 had already corrected
+ * -- as agreement rather than divergence.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -326,19 +329,15 @@ describe('rows a docs-only edit cannot honestly resolve, recorded rather than re
   });
 });
 
-describe('requiredness divergences left to the objectui#7073 class, pinned so they cannot be lost', () => {
+describe('requiredness: the objectui#7073 class, closed -- all four rows agree on both faces (objectui#7106)', () => {
   it.each([
+    ['ContextMenuSchema', 'trigger'],
     ['AlertDialogSchema', 'trigger'],
     ['SheetSchema', 'trigger'],
     ['SheetSchema', 'content'],
-  ])('%s.%s is declared optional and still published required', (owner, key) => {
+  ])('%s.%s is declared optional and published optional', (owner, key) => {
     expect(declRow(owner, key)?.optional).toBe(true);
-    expect(docRow(owner, key)?.optional).toBe(false);
-  });
-
-  it('`ContextMenuSchema.trigger` is the one already corrected, by #7073 -- the control', () => {
-    expect(declRow('ContextMenuSchema', 'trigger')?.optional).toBe(true);
-    expect(docRow('ContextMenuSchema', 'trigger')?.optional).toBe(true);
+    expect(docRow(owner, key)?.optional).toBe(true);
   });
 });
 
