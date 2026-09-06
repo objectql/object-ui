@@ -182,11 +182,18 @@ Object UI includes a powerful expression system for dynamic behavior:
 
 ```json
 {
-  "type": "badge",
-  "text": "${status === 'active' ? 'Active' : 'Inactive'}",
-  "variant": "${status === 'active' ? 'success' : 'default'}"
+  "type": "card",
+  "title": "${status === 'active' ? 'Active' : 'Inactive'}",
+  "description": "${status === 'active' ? 'This record is in use.' : 'This record is archived.'}"
 }
 ```
+
+`card` here rather than `badge`, because an expression is evaluated only on a key the
+node's own type carries. `expressionBindableTextKeysFor` — the lookup `SchemaRenderer`
+consumes out of `@objectstack/spec` — gives `card` the rows `title` and `description`,
+and gives `badge` no rows at all, so a `${…}` written on a badge reaches the DOM as the
+characters you typed. Resolve a badge's text before you hand the schema over, and author
+it on `label`: `text` is not a `BadgeSchema` key.
 
 ### Visibility Control
 
@@ -203,14 +210,25 @@ Object UI includes a powerful expression system for dynamic behavior:
 ```json
 {
   "type": "alert",
-  "message": "Welcome!",
-  "variant": "${
-    user.isNew ? 'info' :
-    user.tasks.length === 0 ? 'warning' :
-    'success'
-  }"
+  "variant": "default",
+  "title": "Welcome!",
+  "body": {
+    "type": "text",
+    "content": "${
+      user.isNew ? 'Start with the quick tour.' :
+      user.tasks.length === 0 ? 'You are all caught up.' :
+      'You have tasks waiting.'
+    }"
+  }
 }
 ```
+
+The branch sits on the nested `text` node's `content`, which `SchemaRenderer` evaluates
+on every node type — the escape hatch for a component that carries no expression rows of
+its own, and `alert` is one of those. Its severity could not be chosen by expression in
+any case: `AlertSchema.variant` is the closed set `default` | `destructive`, so `info`,
+`warning` and `success` are not values it accepts. Pick the variant in the host and
+author it as a literal.
 
 ## Event Handling
 
@@ -411,11 +429,18 @@ Always type your schemas for better IDE support and fewer runtime errors.
 ```json
 {
   "type": "alert",
-  "variant": "error",
+  "variant": "destructive",
   "visibleOn": "${error}",
-  "message": "${error.message}"
+  "title": "Something went wrong",
+  "body": { "type": "text", "content": "${error.message}" }
 }
 ```
+
+`visibleOn` is a condition key and is evaluated on every node type. The message text is a
+nested `text` node because `alert` carries no expression rows — and `message` is not an
+`AlertSchema` key at all: the alert's own text keys are `title` and `description`, and the
+renderer falls back from `description` to `body`. `destructive` is the variant this state
+wants; `error` is not in the closed set.
 
 ## Next Steps
 

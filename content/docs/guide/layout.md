@@ -508,11 +508,11 @@ Omit `sidebar` and the content fills the width under the top bar.
 ```json
 {
   "type": "page",
-  "title": "${record.name}",
+  "title": "Acme Corporation",
   "breadcrumbs": [
     { "label": "Home", "href": "/" },
     { "label": "Customers", "href": "/customers" },
-    { "label": "${record.name}" }
+    { "label": "Acme Corporation" }
   ],
   "actions": [
     {
