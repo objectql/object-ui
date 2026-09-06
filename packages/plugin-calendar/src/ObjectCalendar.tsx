@@ -114,15 +114,46 @@ export interface ObjectCalendarComponentProps {
 }
 
 /**
- * Helper to get calendar configuration from schema
+ * Helper to get calendar configuration from schema.
+ *
+ * `filter` is the query filter and nothing else (objectui#7711) — the calendar
+ * twin of the `filter.map` retirement `ObjectMap` took in objectui#4034.
+ *
+ * This function used to read the calendar's configuration out of
+ * `schema.filter.calendar`, in an arm ABOVE the canonical read below, and the
+ * comment on that canonical read called IT the "backward compatibility" one.
+ * The contract was inverted there: `@objectstack/spec`'s
+ * `ComponentPropsMap['object-calendar']` declares `calendar` as the
+ * configuration container and `filter` as the base query filter, and admits no
+ * `filter.calendar` spelling at all. Both the arm and that comment are gone —
+ * this block consumes only what the spec declares.
+ *
+ * What the retired arm did: it made ONE authored key mean two incompatible
+ * things at once. `filter: { calendar: 'team' }` — a legitimate condition on a
+ * field literally named `calendar` — was read here as a `CalendarConfig`,
+ * while the very same object still went to `$filter` on the wire below.
+ *
+ * ⚠️ Measured difference from the map twin, and the reason this retirement
+ * needs no dev-time diagnostic rider like plugin-map's
+ * `warnOnLegacyFilterMapConfig`:
+ * - There is no `Array.prototype.calendar`, so `'calendar' in schema.filter`
+ *   never fired on an array-shaped filter — where `'map' in schema.filter`
+ *   fired on every single one of them, inherited method and merged `and` node
+ *   included. Only an object-shaped filter carrying an own `calendar` key ever
+ *   reached the retired arm.
+ * - A schema whose only configuration lived under the retired spelling now
+ *   returns null from here, and the early return answers null with the
+ *   existing "Calendar configuration required. Please specify startDateField
+ *   and titleField." refusal screen. The map fell back to DEFAULT field names,
+ *   which looks like bad data and is why it had to warn; the calendar names
+ *   what is missing on screen. Nothing is dropped without a trace.
+ *
+ * ⛔ No compatibility rung and no deprecation window, per AGENTS.md #0.1: a
+ * tolerant fallback fossilizes the wrong convention into a second de-facto
+ * contract. Pinned in `__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx`.
  */
 function getCalendarConfig(schema: ObjectGridSchema | CalendarSchema): CalendarConfig | null {
-  // Check if schema has calendar configuration
-  if ('filter' in schema && schema.filter && typeof schema.filter === 'object' && 'calendar' in schema.filter) {
-    return (schema.filter as any).calendar as CalendarConfig;
-  }
-  
-  // For backward compatibility, check if schema has calendar config at root
+  // The declared configuration container.
   if ((schema as any).calendar) {
     return (schema as any).calendar as CalendarConfig;
   }
@@ -244,13 +275,30 @@ export const ObjectCalendar: React.FC<ObjectCalendarComponentProps> = ({
     (schema as any).staticData,
     schema.objectName,
   ]);
+  // Every key `getCalendarConfig` reads, and nothing it does not.
+  //
+  // `schema.filter` used to head this list, because the function used to read
+  // `schema.filter.calendar` (objectui#7711). With that arm retired, keeping
+  // `filter` here would say the calendar's CONFIGURATION depends on the query
+  // filter — the very claim this card removes — and would recompute on every
+  // filter change for nothing.
+  //
+  // Dropping it also removes an accidental co-trigger, so the three flat keys
+  // the function reads but this list never named are added in the same edit:
+  // `startDateField` and `endDateField` (the canonical half of the
+  // `dateField` / `endField` pairs below, which WERE named) and `allDayField`.
+  // Before this change a simultaneous `filter` change could recompute the memo
+  // and pick those up by luck; that luck is now gone, so the list has to be
+  // honest. Pinned in `__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx`.
   const calendarConfig = useMemo(() => getCalendarConfig(schema), [
-    schema.filter,
     (schema as any).calendar,
+    (schema as any).startDateField,
     (schema as any).dateField,
+    (schema as any).endDateField,
     (schema as any).endField,
     (schema as any).titleField,
-    (schema as any).colorField
+    (schema as any).colorField,
+    (schema as any).allDayField
   ]);
   const hasInlineData = dataConfig?.provider === 'value';
   /**
