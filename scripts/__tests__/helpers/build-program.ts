@@ -90,13 +90,17 @@ import { rel, repoRoot, type WorkspacePackage } from './turbo-inputs';
  *    plugins). Declared explicitly, and empty, so the shared walker's
  *    key-directed designation rule is visibly a decision here.
  *  - A `pnpm --filter <pkg> build` SEGMENT IS A TASK-GRAPH FACT, NOT AN INPUTS
- *    FACT. Two packages have a `prebuild` that builds another workspace package
- *    (pnpm runs `prebuild` as part of `pnpm run build`, so turbo runs it too).
- *    The right answer to "this package's build needs that package's dist" is
- *    turbo's `dependsOn: ["^build"]`, not a `$TURBO_ROOT$` glob over another
+ *    FACT. The right answer to "this package's build needs that package's dist"
+ *    is turbo's `dependsOn: ["^build"]`, not a `$TURBO_ROOT$` glob over another
  *    package's source. So delegations are collected and returned rather than
- *    walked, and `../turbo-build-inputs.test.ts` asserts each delegated package
- *    is a DECLARED dependency — which is what makes `^build` order it.
+ *    walked. NO PACKAGE DELEGATES TODAY (objectui#7292 deleted the last two:
+ *    `packages/components` hand-listed types/core/react in a `prebuild` while
+ *    its real closure was seven packages, and `apps/site` named the schema
+ *    catalog it already declares as a dependency), and
+ *    `../turbo-build-inputs.test.ts` now RATCHETS that to zero rather than
+ *    policing the survivors: a hand-written list of a package's own build
+ *    closure is a second, unchecked copy of its `dependencies`, and the
+ *    collected `delegations` are what makes re-introducing one fail loudly.
  */
 
 /** Vite's config candidates, in its own precedence order. */

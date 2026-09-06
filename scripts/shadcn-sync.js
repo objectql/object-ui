@@ -912,7 +912,7 @@ async function updateAllComponents(options = {}) {
     log('2. Fix or roll back — the type-check above failed.', 'dim');
   } else {
     log('2. Test the components: pnpm test', 'dim');
-    log('3. Build the package: pnpm --filter @object-ui/components build', 'dim');
+    log('3. Build the package: turbo run build --filter=@object-ui/components', 'dim');
   }
 }
 

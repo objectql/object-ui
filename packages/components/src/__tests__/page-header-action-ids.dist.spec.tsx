@@ -184,7 +184,8 @@ describe('page:header — BUILT artifact (objectui#7183, re-derived from PR obje
         'meant to be reached through `pnpm test:dist`, whose turbo task carries ' +
         '`dependsOn: ["build"]` for the package under test and therefore builds it first. ' +
         'Running the project directly builds nothing — build it yourself with ' +
-        '`pnpm --filter @object-ui/components build`.',
+        '`turbo run build --filter=@object-ui/components`, which orders the packages ' +
+        'this one is built from.',
     ).toBe(true);
   });
 
