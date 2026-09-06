@@ -832,15 +832,30 @@ describe('catalog corpus: no overlay-menu item authors the undeclared `value` ke
  *
  * ## What already covered this, and why it is not the PAIR
  *
- * `safe-validate-corpus-6318.test.ts:98` asserts `options.some((o) => 'type'
- * in o) === false` — but against the STATIC IMPORT of `basic-select.json`
- * alone. That is 3 of the 66 select options in the corpus: exactly the one
- * fixture #6902 repaired. A second select authoring `type`, in any of the
- * other six categories, is invisible to it. That is the objectui#7072 failure
- * mode named on this same file — a pin that covers part of a class while
- * READING as though it covers the class. This block is the pair-scoped half;
- * the #6318 pin keeps its own narrower job (that fixture's three options carry
- * `label`) and is deliberately left untouched.
+ * `safe-validate-corpus-6318.test.ts` asserts `options.some((o) => 'type' in
+ * o)` is false — in the `it` titled *basic-select: the third option carries
+ * `label`, which is the only child SelectItem renders* — but against the
+ * STATIC IMPORT of `basic-select.json` alone. That is 3 of the 66 select
+ * options in the corpus: exactly the one fixture #6902 repaired. A second
+ * select authoring `type`, in any of the other six categories, is invisible to
+ * it. That is the objectui#7072 failure mode named on this same file — a pin
+ * that covers part of a class while READING as though it covers the class.
+ * This block is the pair-scoped half; the #6318 pin keeps its own narrower job
+ * (that fixture's three options carry `label`) and is deliberately left
+ * untouched.
+ *
+ * ⚠️ That citation names the assertion's CONTENT and carries NO line number,
+ * deliberately (objectui#7853). It used to carry one, and a comment-only edit
+ * to that file — every diff line a comment, both revisions transpiling
+ * byte-identically — moved the assertion from line 98 to line 117. An edit
+ * that changed no behaviour whatsoever falsified this sentence, and not one
+ * instrument in this repository went red. A quoted assertion rots too, if
+ * someone rewrites the assertion, but it rots LOUDLY: the quote stops matching
+ * anything and a single `git grep -F` says so. ⛔ Do not put the line number
+ * back. The quote is the SHORTEST span that is unique tree-wide (1 occurrence;
+ * `'type' in o` alone matches 2, the other being this file's own sweep below),
+ * and it deliberately stops short of the `expect(...).toBe(false)` wrapper,
+ * which can be restyled without changing the claim this paragraph leans on.
  *
  * ## Why a structural sweep and ⛔ not `.success`
  *
