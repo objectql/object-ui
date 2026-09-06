@@ -122,7 +122,16 @@ export function validateTree(tree: SchemaElement | null, manifest: Manifest): Ma
           });
         } else {
           const typeDiag = checkType(node.type, input, value);
-          if (typeDiag) diagnostics.push(typeDiag);
+          if (typeDiag) {
+            diagnostics.push(typeDiag);
+          } else {
+            // Members only once the CONTAINER kind was accepted. Reporting a
+            // member of a value that is not even the declared container is two
+            // diagnostics for one mistake, and the second one names positions
+            // of a shape the author did not write (objectui#8067).
+            const memberDiag = checkMemberTypes(node.type, input, value);
+            if (memberDiag) diagnostics.push(memberDiag);
+          }
         }
       }
 
@@ -203,6 +212,62 @@ function armExpectation(arm: ManifestInputType, input: ManifestInput): string {
     default:
       return 'a string';
   }
+}
+
+/**
+ * The member positions of a container value, as `[position, member]` pairs, or
+ * `null` when the value has no member position to speak of.
+ *
+ * Arrays index by position and objects by key, which is exactly the pair
+ * `ComponentInput.of` describes: array ELEMENTS, and the VALUES of an object
+ * used as a map. A scalar returns `null` rather than an empty list, so a value
+ * that only satisfied a non-container arm of a union declaration
+ * (`type: ['string', 'array'], of: 'string'`) is not reported as an empty
+ * container that trivially conforms — it is simply not the arm `of` describes.
+ */
+function memberEntries(value: unknown): Array<[string, unknown]> | null {
+  if (Array.isArray(value)) return value.map((member, index) => [String(index), member]);
+  if (typeof value === 'object' && value !== null) return Object.entries(value);
+  return null;
+}
+
+/**
+ * Coarse MEMBER check, over the arms `of` declares (objectui#8067).
+ *
+ * The same question `checkType` asks, one level down and with the same answer
+ * shape: ANY declared arm accepting a member clears it, a member no arm accepts
+ * is reported, and an input that declares no `of` is checked exactly as it was
+ * before the key existed — this function returns immediately on an empty arm
+ * list, so nothing published today changes severity or gains a diagnostic.
+ *
+ * ONE diagnostic per prop, naming every offending position, rather than one per
+ * member: a page that passes an array of the wrong member kind is one mistake
+ * made once, and N copies of it is the noise this repo treats as the thing that
+ * trains authors to dismiss real reports.
+ *
+ * Severity mirrors `checkType`'s rule for the same reason — `error` when an
+ * `enum` arm is present, because a closed list is the one fact this layer can
+ * be certain about; `warning` otherwise, since the coarse kind is a KIND claim
+ * and `os validate` / `os build` remain the judge of values.
+ */
+function checkMemberTypes(tag: string, input: ManifestInput, value: unknown): Diagnostic | null {
+  const arms = inputTypeArms(input.of);
+  if (arms.length === 0) return null;
+  const entries = memberEntries(value);
+  if (entries === null) return null;
+  const offenders = entries.filter(
+    ([, member]) => !arms.some((arm) => armAccepts(arm, input, member)),
+  );
+  if (offenders.length === 0) return null;
+  const expectation = arms.map((arm) => armExpectation(arm, input)).join(' or ');
+  return {
+    severity: arms.includes('enum') ? 'error' : 'warning',
+    code: 'member-type-mismatch',
+    message: `<${tag}> prop "${input.name}" expected every member to be ${expectation}` +
+      ` — ${offenders.map(([position]) => `[${position}]`).join(', ')} ` +
+      `${offenders.length === 1 ? 'is' : 'are'} not`,
+    tag,
+  };
 }
 
 /**

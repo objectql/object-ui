@@ -97,24 +97,34 @@
  * DELETED rather than kept — the last test in this file turns a no-longer-needed
  * exemption red, so the list cannot rot into a permanent allowlist.
  *
- * LIMIT — worth knowing before trusting a pass. This gate compares TOP-LEVEL
- * KEY NAMES and nothing else. Two things it therefore cannot see, both real and
- * both filed:
+ * LIMIT — worth knowing before trusting a pass. Of the two things this gate
+ * used to be unable to see, ONE IS NOW GATED and one is still deliberately not:
  *
- *   - member shapes. An `inputs` entry of type `array`/`object` declares no
- *     member shape (`ComponentInput` has no slot for one), so a drifted key
- *     INSIDE an array element or nested object is invisible here — which is why
- *     `record:details.sections`, `record:highlights.fields` and
- *     `record:related_list.add` publish their members in prose and are pinned by
- *     per-block tests next to their renderers. PR #3795's open question;
+ *   - member KINDS — CLOSED, objectui#8067. This gate used to compare top-level
+ *     key names and nothing else, because an `inputs` entry of type
+ *     `array`/`object` declared no member shape at all: `ComponentInput` had no
+ *     slot for one, so a member that drifted from the contract was invisible
+ *     here. That is what `page:header.actions` cost — spec `z.array(z.string())`
+ *     ("Action IDs"), a renderer reading the members as `ActionDef` OBJECTS, and
+ *     this gate green for the whole life of the drift because both sides had the
+ *     key. `ComponentInput.of` now carries the member kind, and the MEMBER
+ *     DIRECTION section below compares every declared one against what
+ *     `ComponentPropsMap[type]` accepts at the member position. It stops at the
+ *     KIND, exactly as the arm direction does: `of: 'object'` says the members
+ *     are objects, never WHICH KEYS they have, so the nested field shapes of
+ *     `record:details.sections` and `record:related_list.add` are still per-block
+ *     pins next to their renderers. PR #3795's open question, half of it closed;
  *   - types, NARROWER than the contract. A key can be in perfect name parity
  *     while declaring fewer arms than the spec accepts, and this gate does not
  *     look. That half is deliberately left to per-block discipline, for the
  *     reason the ARM DIRECTION section below sets out: narrowing is NOISY, and
- *     noise is at least audible.
+ *     noise is at least audible. It applies to `of` unchanged — a member union
+ *     declared with one arm is not gated either, and the keys left undeclared
+ *     for that reason are pinned in `MULTI_KIND_MEMBER_CONTRACTS`.
  *
- * A pass means the top-level key names are in parity, and that no declared arm
- * is one the contract refuses outright — nothing more.
+ * A pass means the top-level key names are in parity, that no declared arm is
+ * one the contract refuses outright, and that no declared MEMBER kind is —
+ * nothing more.
  *
  * ── THE ARM DIRECTION, AND WHY ONLY ONE OF ITS TWO HALVES IS GATED ──────────
  *                                                             (objectui#4971)
@@ -1287,6 +1297,256 @@ const OFF_SPEC_ARM_EXEMPTIONS: Record<string, string> = {
     'Two spec authorities disagree about the KIND, so no declaration can satisfy both: ObjectGridSchema.data resolves to ViewDataSchema (an object discriminated on `provider`) while ComponentPropsMap[object-grid].data is `z.array(z.unknown())` ("Static inline rows"). The `object` arm is the DELIBERATE one — objectui#5090 / PR objectui#5108 changed it from `array` against ViewDataSchema, and plugin-grid/src/__tests__/gridDataInputContract.test.ts pins it there; flipping it back re-opens #5090 and fails `tsc` (TS2322, measured on that card). Convergence is upstream, filed as objectui#6207.',
 };
 
+// ── the MEMBER direction (objectui#8067) ─────────────────────────────────────
+//
+// The first of the two LIMITs in this file's header, closed. `ComponentInput`
+// now carries `of` — the coarse KIND of an input's members, array elements or
+// the values of an object used as a map — so the `inputs` side can finally say
+// what a container holds, and this section compares it to what the contract
+// holds. Same `covered` set, same derived-not-restated expectations, same
+// exemption discipline as the three directions above, and the same ONE
+// DIRECTION for the same reason: a member kind the contract REFUSES is silent
+// (the manifest, the generated `.d.ts` and `validateTree` all publish it as
+// legal), while declaring FEWER member kinds than the contract accepts is
+// merely noisy, and noise is audible.
+//
+// WHAT THIS COST BEFORE IT EXISTED. `page:header.actions` — spec
+// `z.array(z.string())`, "Action IDs"; the renderer read the members as
+// `ActionDef` OBJECTS; this gate saw `actions` on both sides and stayed green
+// for the whole life of the drift. What settled it was a maintainer ruling, not
+// a test, and even after the fix the fact "these are ids" lived only in the
+// registration's `description` PROSE. It is now `of: 'string'` at that
+// registration, and the calibration pin below asserts, by name, that this gate
+// reds on `of: 'object'` there — the exact declaration the drift would have
+// made.
+
+/**
+ * The container arms a member declaration can describe.
+ *
+ * `of` means the same thing on each: the ELEMENTS of the array, and the VALUES
+ * of an object used as a MAP. An input declaring `of` and neither of these has
+ * no member position at all, which `judgeMembers` reports rather than skips.
+ */
+const CONTAINER_ARMS = new Set(['array', 'object']);
+
+/**
+ * The key a member probe occupies when the container arm is `object`.
+ *
+ * Deliberately a name no contract declares, because the two answers it can draw
+ * are exactly the two cases that need telling apart: a MAP contract
+ * (`z.record(...)`) judges the value under whatever key it is given, while a
+ * NAMED-SHAPE contract (`z.object({ ... })`) refuses the key itself at the
+ * container node — which is not a verdict about the member kind, it is the
+ * absence of a uniform member position.
+ */
+const OBJECT_MEMBER_PROBE_KEY = '__objectui_member_probe__';
+
+/** The value that puts one member probe in the member position of a container arm. */
+function containerProbe(containerArm: string, member: unknown): { value: unknown; position: unknown } {
+  return containerArm === 'array'
+    ? { value: [member], position: 0 }
+    : { value: { [OBJECT_MEMBER_PROBE_KEY]: member }, position: OBJECT_MEMBER_PROBE_KEY };
+}
+
+type MemberVerdict = ArmVerdict | 'no-member-position';
+
+/**
+ * What the contract says about ONE member value, in ONE container arm, on ONE
+ * key.
+ *
+ * The same scoping discipline `specArmVerdict` is built on, one level deeper:
+ * only issues about this key count, and of those only the ones at the MEMBER's
+ * own position, so a sibling key's missing requirement cannot speak for a
+ * member and a complaint about the container cannot either. Once the issues are
+ * rebased onto the member node, the judgement is `refusesKind` — the same
+ * function, unchanged, because "is this a KIND refusal or a CONTENT refusal" is
+ * the same question at any depth.
+ *
+ * `no-member-position` is the verdict this level adds, and it is not a shrug:
+ * it means the contract refused the CONTAINER — either its kind outright, or,
+ * for an `object` arm, the probe key itself, which is how a named-shape
+ * `z.object({ ... })` says it is not a map. A declaration claiming uniform
+ * members of a contract that has no uniform member position is wrong in a way
+ * worth naming, so the gate below treats it as a refusal rather than skipping
+ * it.
+ */
+function specMemberVerdict(
+  type: string,
+  key: string,
+  containerArm: string,
+  member: unknown,
+): MemberVerdict {
+  const parser = specParser(type);
+  if (!parser) return 'no-schema';
+  const { value, position } = containerProbe(containerArm, member);
+  const result = parser.safeParse({ [key]: value });
+  if (result.success) return 'accepts';
+  const issues = result.error?.issues ?? [];
+  // The key refused BY NAME at the top — the forward direction's subject, and
+  // `judgeMembers` only judges keys the accepted set already carries.
+  if (issues.some((issue) => issue.code === 'unrecognized_keys' && (issue.keys ?? []).includes(key)))
+    return 'no-member-position';
+  const mine = issues.filter((issue) => (issue.path ?? [])[0] === key);
+  if (mine.length === 0) return 'accepts';
+  // Anything AT the container node is about the container, not the member: an
+  // `invalid_type` refusing the container kind, or the `unrecognized_keys` a
+  // named-shape object raises for the probe key.
+  if (mine.some((issue) => (issue.path ?? []).length === 1)) return 'no-member-position';
+  const atMember = mine
+    .filter((issue) => (issue.path ?? [])[1] === position)
+    .map((issue) => ({ ...issue, path: (issue.path ?? []).slice(2) }));
+  if (atMember.length === 0) return 'accepts';
+  return refusesKind(atMember, member) ? 'refuses-kind' : 'refuses-content';
+}
+
+interface MemberJudgement {
+  /** `BLOCK.INPUT:of=ARM` — the exemption key format. */
+  id: string;
+  type: string;
+  input: string;
+  arm: string;
+  verdict: 'witnessed' | 'refused' | 'exempt-slot' | 'exempt-empty-enum' | 'no-container-arm';
+  /** What the contract actually answered, for the failure message. */
+  evidence: string;
+}
+
+/**
+ * Judge every declared member arm of every declared input on one block.
+ *
+ * An input that declares no `of` produces no judgement — this direction asks
+ * what a DECLARATION claims, and there is nothing to compare against a key that
+ * claims nothing. (What that silence costs is the LIMIT this section closes;
+ * which keys deserve a declaration and which are left to per-block discipline
+ * is recorded on `ComponentInput.of` and pinned by
+ * `member declarations are derived from single-kind member contracts` below.)
+ *
+ * Off-spec input names are skipped for the same reason `judgeArms` skips them:
+ * asking what members a contract accepts inside a key it does not declare has
+ * no answer worth reporting.
+ */
+function judgeMembers(type: string): MemberJudgement[] {
+  const accepted = new Set(specTopLevelKeys(type));
+  const judgements: MemberJudgement[] = [];
+  for (const input of declaredInputEntries(type) ?? []) {
+    if (!accepted.has(input.name)) continue;
+    const memberArms = inputTypeArms(input.of as never);
+    if (memberArms.length === 0) continue;
+    const containerArms = inputTypeArms(input.type).filter((arm) => CONTAINER_ARMS.has(arm));
+    for (const arm of memberArms) {
+      const id = `${type}.${input.name}:of=${arm}`;
+      if (containerArms.length === 0) {
+        judgements.push({
+          id, type, input: input.name, arm,
+          verdict: 'no-container-arm',
+          evidence: `declares members but its type is ${JSON.stringify(input.type)}, which holds none`,
+        });
+        continue;
+      }
+      if (ARM_KINDS_WITHOUT_A_VALUE_CLAIM.has(arm)) {
+        judgements.push({
+          id, type, input: input.name, arm,
+          verdict: 'exempt-slot',
+          evidence: 'describes a child position, not a value',
+        });
+        continue;
+      }
+      if (arm === 'enum') {
+        // EXACT, not coarse — the same rule the `enum` ARM is judged by, since
+        // an enum's admitted set is finite and written down. Every declared
+        // member must be a value the contract accepts SOMEWHERE in the member
+        // position of some declared container arm.
+        const members = declaredEnumValues(input);
+        if (members.length === 0) {
+          judgements.push({
+            id, type, input: input.name, arm,
+            verdict: 'exempt-empty-enum',
+            evidence: 'declares no members, so it admits nothing',
+          });
+          continue;
+        }
+        const refused = members.filter((member) =>
+          !containerArms.some(
+            (containerArm) => specMemberVerdict(type, input.name, containerArm, member) === 'accepts',
+          ),
+        );
+        judgements.push({
+          id, type, input: input.name, arm,
+          verdict: refused.length === 0 ? 'witnessed' : 'refused',
+          evidence:
+            refused.length === 0
+              ? `all ${members.length} declared members accepted`
+              : `the contract refuses the declared member(s) ${JSON.stringify(refused)}`,
+        });
+        continue;
+      }
+      const probes = COARSE_ARM_PROBES[arm] ?? [];
+      const verdicts = containerArms.flatMap((containerArm) =>
+        probes.map((probe) => specMemberVerdict(type, input.name, containerArm, probe)),
+      );
+      const witnessed = verdicts.some(
+        (verdict) => verdict === 'accepts' || verdict === 'refuses-content',
+      );
+      judgements.push({
+        id, type, input: input.name, arm,
+        verdict: witnessed ? 'witnessed' : 'refused',
+        evidence: witnessed
+          ? `member probe verdicts ${JSON.stringify(verdicts)}`
+          : `the contract admits no member of this KIND — member probe verdicts ${JSON.stringify(verdicts)}`,
+      });
+    }
+  }
+  return judgements;
+}
+
+/** Every member judgement this gate makes, computed once. */
+const MEMBER_JUDGEMENTS: MemberJudgement[] = covered.flatMap(judgeMembers);
+
+/** The verdicts that mean "the contract will not have this member declaration". */
+const MEMBER_REFUSALS = new Set(['refused', 'no-container-arm']);
+
+/** Member arms of `type` the contract refuses, as `BLOCK.INPUT:of=ARM`. */
+const refusedMembers = (type: string): string[] =>
+  MEMBER_JUDGEMENTS.filter(
+    (judgement) => judgement.type === type && MEMBER_REFUSALS.has(judgement.verdict),
+  ).map((judgement) => judgement.id);
+
+/**
+ * Declared MEMBER arms the contract refuses, ACCEPTED for now, each with the
+ * reason. Key format: `BLOCK.INPUT:of=ARM`.
+ *
+ * Fourth instance of this file's one exemption discipline, and the bar is
+ * unchanged: the divergence has to be owned by a named, open piece of work,
+ * because neither `@objectstack/spec` nor a declaration is edited to make a
+ * gate green (AGENTS.md #0 / #0.1).
+ *
+ * EMPTY ON ARRIVAL, and that is a measurement rather than an accident. Every
+ * `of` this repository declares was DERIVED from the contract — each container
+ * key's member position was probed with one value of each coarse kind, and a
+ * declaration was written only where exactly ONE kind was accepted — so a
+ * refusal here would mean the derivation and the contract disagree, which is a
+ * finding, not an exemption.
+ */
+const OFF_SPEC_MEMBER_EXEMPTIONS: Record<string, string> = {};
+
+/**
+ * Container keys whose member contract accepts MORE THAN ONE coarse kind, and
+ * are therefore deliberately left without an `of`.
+ *
+ * Pinned rather than merely absent, because "no declaration" and "no
+ * declaration for a reason" are the same byte in the registration and opposite
+ * facts about this gate. Declaring one arm of a genuine member union is the
+ * NARROWING this repo leaves un-gated as noise (#4971), and declaring all of
+ * them would advertise member shapes the renderer may not resolve — the rule
+ * `ComponentInput.type` states for arms, one level down. Either way it is
+ * per-block knowledge, not a repo-wide derivation, so it stays out of this
+ * change.
+ */
+const MULTI_KIND_MEMBER_CONTRACTS: Record<string, string> = {
+  'record:highlights.fields':
+    'The member contract is a union — a field NAME or an inline field object — so no single coarse arm describes it and declaring both would advertise a member shape only the per-block pin next to the renderer can vouch for (packages/plugin-detail/src/__tests__/recordHighlightsInputs.spec-parity.test.ts). objectui#8067 leaves it undeclared on purpose.',
+};
+
+
 describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)', () => {
   it('judges every spec-carried block that declares an authoring surface', () => {
     // Non-vacuity guard. Every per-block assertion below is generated from
@@ -1825,6 +2085,177 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // entry stops describing anything and has to be deleted in the same change.
     const refused = new Set(ARM_JUDGEMENTS.filter((j) => j.verdict === 'refused').map((j) => j.id));
     expect(Object.keys(OFF_SPEC_ARM_EXEMPTIONS).filter((id) => !refused.has(id))).toEqual([]);
+  });
+
+  // ── the MEMBER direction (objectui#8067) ───────────────────────────────────
+
+  it.each(covered)('%s declares no member kind the spec refuses outright', (type) => {
+    const unregistered = refusedMembers(type).filter((id) => !(id in OFF_SPEC_MEMBER_EXEMPTIONS));
+    const evidence = MEMBER_JUDGEMENTS.filter((judgement) => unregistered.includes(judgement.id))
+      .map((judgement) => `${judgement.id} — ${judgement.evidence}`)
+      .join('; ');
+    expect(unregistered, evidence).toEqual([]);
+  });
+
+  it('judges a non-vacuous member census — real declarations, on real blocks', () => {
+    // THE NON-VACUITY GUARD for this direction, and it has to be stricter than
+    // the arm direction's. `of` is OPTIONAL: a walk that resolved nothing —
+    // `inputTypeArms(input.of)` returning `[]` because the key stopped reaching
+    // the registry, a `specTopLevelKeys` that skipped every key as off-spec, a
+    // serializer that dropped the field — produces an EMPTY judgement list, and
+    // an empty list is INDISTINGUISHABLE from "no block declares members yet".
+    // That is precisely the failure mode objectui#5905 recorded: a key written
+    // everywhere and read by nothing, with every gate green. So the counts are
+    // pinned as lower bounds rather than merely asserted non-zero.
+    const keysJudged = new Set(
+      MEMBER_JUDGEMENTS.map((judgement) => `${judgement.type}.${judgement.input}`),
+    );
+    const blocksJudged = new Set(MEMBER_JUDGEMENTS.map((judgement) => judgement.type));
+    const census =
+      `blocks with member declarations ${blocksJudged.size} · keys judged ${keysJudged.size} ` +
+      `· member arms judged ${MEMBER_JUDGEMENTS.length} · witnessed ` +
+      `${MEMBER_JUDGEMENTS.filter((j) => j.verdict === 'witnessed').length} · refused ` +
+      `${MEMBER_JUDGEMENTS.filter((j) => MEMBER_REFUSALS.has(j.verdict)).length} ` +
+      `· registered exemptions ${Object.keys(OFF_SPEC_MEMBER_EXEMPTIONS).length}`;
+
+    // The fifteen keys objectui#8067 derived from single-kind member contracts,
+    // across ten blocks. A LOWER bound, not an equality: a new declaration that
+    // this gate then judges is the direction this section exists to encourage,
+    // and it should not have to edit a number to land. A declaration
+    // DISAPPEARING is the regression, and that is what the bound catches.
+    expect(keysJudged.size, census).toBeGreaterThanOrEqual(15);
+    expect(blocksJudged.size, census).toBeGreaterThanOrEqual(10);
+    expect(MEMBER_JUDGEMENTS.length, census).toBeGreaterThanOrEqual(keysJudged.size);
+    // Every judgement must be a real verdict about the contract, not a skip.
+    expect(
+      MEMBER_JUDGEMENTS.filter((j) => j.verdict === 'witnessed').length,
+      census,
+    ).toBeGreaterThanOrEqual(15);
+  });
+
+  it('the member judge reds on the drift that started this — page:header.actions, by name', () => {
+    // CALIBRATION, and the reason this section is not just three more green
+    // assertions. Every other member assertion here is satisfied by a judge that
+    // never refutes anything; this one asserts the refutation, on the key whose
+    // drift the card was filed for.
+    //
+    // `ComponentPropsMap['page:header'].actions` is `z.array(z.string())` —
+    // "Action IDs". The declaration says `of: 'string'`, and that must be
+    // witnessed…
+    expect(specMemberVerdict('page:header', 'actions', 'array', 'Account')).toBe('accepts');
+    // …while `of: 'object'` — the members the renderer actually read for the
+    // whole life of the drift, and the exact mutation the ablation for this card
+    // applies — must read as a KIND refusal at the MEMBER position. Before this
+    // section existed there was no declaration to make and nothing to compare
+    // it with, which is why the gate stayed green.
+    expect(specMemberVerdict('page:header', 'actions', 'array', { id: 'clone' })).toBe(
+      'refuses-kind',
+    );
+    expect(specMemberVerdict('page:header', 'actions', 'array', 42)).toBe('refuses-kind');
+
+    // The container-level control, which is what tells a member refusal from the
+    // top-level refusal the ARM direction already covered: the ARRAY itself is
+    // perfectly acceptable on this key. A judge that simply refused everything
+    // would pass the two assertions above and fail this one.
+    expect(specArmVerdict('page:header', 'actions', [])).toBe('accepts');
+
+    // …and the second half of the calibration: a CONTENT refusal at the member
+    // position is NOT a kind refusal, so the coarse-kind ceiling survives one
+    // level down exactly as it does at the top. `record:activity.types` is a
+    // spec enum of strings — a string member is refused as a VALUE, and reading
+    // that as "the string member declaration is invented" would condemn a
+    // declaration derived from the contract itself.
+    expect(specMemberVerdict('record:activity', 'types', 'array', 'Account')).toBe(
+      'refuses-content',
+    );
+    expect(specMemberVerdict('record:activity', 'types', 'array', 42)).toBe('refuses-kind');
+  });
+
+  it('a contract with no uniform member position is named, not silently skipped', () => {
+    // The third verdict this level adds, calibrated by name because nothing in
+    // the repository declares it today and an unexercised branch is a branch
+    // that can be wrong for free.
+    //
+    // `record:related_list.add` is a named-shape `z.object({ ... })`, not a map:
+    // it has no position where "every value is of kind K" is even a statement,
+    // so a probe key it never declared is refused AT THE CONTAINER. That is not
+    // a verdict about the member kind — it is the absence of a member position,
+    // and `judgeMembers` reports a declaration resting on one rather than
+    // passing it.
+    expect(specMemberVerdict('record:related_list', 'add', 'object', 'Account')).toBe(
+      'no-member-position',
+    );
+    // …and the control: the same block's `columns` IS a container with a member
+    // position, so the verdict above is about the contract's shape and not about
+    // the probe machinery.
+    expect(specMemberVerdict('record:related_list', 'columns', 'array', 'name')).toBe('accepts');
+    // The other half of the same fact: a MAP contract judges the value under
+    // whatever key it is given, so the probe key is not refused there.
+    expect(specMemberVerdict('object-form', 'initialValues', 'object', 'Account')).toBe('accepts');
+  });
+
+  it('member declarations are derived from single-kind member contracts', () => {
+    // The rule `ComponentInput.of` states, asserted rather than trusted: a key
+    // is declared when the contract accepts exactly ONE coarse member kind, and
+    // left alone when it accepts several. Both halves matter — the first is what
+    // makes a declaration underivable-by-hand and therefore checkable, and the
+    // second is what keeps this change from advertising member shapes only a
+    // per-block pin can vouch for.
+    const KINDS = ['string', 'number', 'boolean', 'array', 'object'] as const;
+    const acceptedMemberKinds = (type: string, key: string): string[] =>
+      KINDS.filter((kind) =>
+        (COARSE_ARM_PROBES[kind] ?? []).some((probe) => {
+          const verdict = specMemberVerdict(type, key, 'array', probe);
+          return verdict === 'accepts' || verdict === 'refuses-content';
+        }),
+      );
+
+    // Every declared member arm is the contract's single accepted kind…
+    const declaredAgainstContract = MEMBER_JUDGEMENTS.filter(
+      (judgement) => judgement.verdict === 'witnessed',
+    ).map((judgement) => {
+      const accepted = acceptedMemberKinds(judgement.type, judgement.input);
+      return `${judgement.id} → contract accepts {${accepted.join(',')}}`;
+    });
+    expect(
+      declaredAgainstContract.filter((row) => !/→ contract accepts \{[a-z]+\}$/.test(row)),
+      declaredAgainstContract.join('; '),
+    ).toEqual([]);
+
+    // …and the keys left undeclared for a member UNION are pinned with their
+    // reason, so "no declaration" and "no declaration for a reason" stay
+    // different facts. A stale entry fails: once the contract collapses to one
+    // kind, the key becomes derivable and the entry must be deleted.
+    for (const [id, reason] of Object.entries(MULTI_KIND_MEMBER_CONTRACTS)) {
+      const [type, key] = splitExemptionKey(id);
+      expect(reason.length, id).toBeGreaterThan(40);
+      expect(reason, id).toMatch(/objectui#\d+/);
+      expect(declaredInputs(type) ?? [], id).toContain(key);
+      expect(acceptedMemberKinds(type, key).length, `${id} — ${reason}`).toBeGreaterThan(1);
+      expect(
+        MEMBER_JUDGEMENTS.some((judgement) => judgement.type === type && judgement.input === key),
+        `${id} is pinned as a member union yet declares an \`of\` — delete the entry`,
+      ).toBe(false);
+    }
+  });
+
+  it('every member exemption names a member arm a covered block really declares', () => {
+    const declaredIds = new Set(MEMBER_JUDGEMENTS.map((judgement) => judgement.id));
+    expect(Object.keys(OFF_SPEC_MEMBER_EXEMPTIONS).filter((id) => !declaredIds.has(id))).toEqual([]);
+  });
+
+  it('every member exemption states a reason and references a tracking issue', () => {
+    for (const [id, reason] of Object.entries(OFF_SPEC_MEMBER_EXEMPTIONS)) {
+      expect(reason.length, id).toBeGreaterThan(40);
+      expect(reason, id).toMatch(/objectui#\d+|objectstack#\d+/);
+    }
+  });
+
+  it('carries no stale member exemption — a member kind the contract accepts must lose its entry', () => {
+    const refused = new Set(
+      MEMBER_JUDGEMENTS.filter((j) => MEMBER_REFUSALS.has(j.verdict)).map((j) => j.id),
+    );
+    expect(Object.keys(OFF_SPEC_MEMBER_EXEMPTIONS).filter((id) => !refused.has(id))).toEqual([]);
   });
 
   it('the five A-class keys objectui#3808 / #3830 declared are discoverable, block by block', () => {
