@@ -156,22 +156,39 @@ reads (objectui#5667). Two of them — `data` and `className` — refine common
 any node.
 
 ```typescript
-{
-  type: 'calendar-view',
-  data?: any,                       // records rendered as events (array, or a binding expression)
-  titleField?: string,              // default 'title'
-  startDateField?: string,          // default 'start'
-  endDateField?: string,            // default 'end'
-  allDayField?: string,             // default 'allDay'
-  colorField?: string,              // default 'color'
-  view?: CalendarViewMode,          // 'month' | 'week' | 'day' (default 'month')
-  currentDate?: string | Date,      // ISO string authored; Date from a React host
-  allowCreate?: boolean,            // default false — shows the "New event" button
-  className?: string,               // Tailwind classes for the container
-  onEventClick?: (event: CalendarEvent) => void,   // HOST-ONLY (see below)
-  onViewChange?: (view: CalendarViewMode) => void  // HOST-ONLY (see below)
-}
+import type { CalendarViewSchema, CalendarViewMode, CalendarEvent } from '@object-ui/types';
+
+type CalendarViewNode = {
+  type: 'calendar-view';
+  data?: any;                       // records rendered as events (array, or a binding expression)
+  titleField?: string;              // default 'title'
+  startDateField?: string;          // default 'start'
+  endDateField?: string;            // default 'end'
+  allDayField?: string;             // default 'allDay'
+  colorField?: string;              // default 'color'
+  view?: CalendarViewMode;          // 'month' | 'week' | 'day' (default 'month')
+  currentDate?: string | Date;      // ISO string authored; Date from a React host
+  allowCreate?: boolean;            // default false — shows the "New event" button
+  className?: string;               // Tailwind classes for the container
+  onEventClick?: (event: CalendarEvent) => void;   // HOST-ONLY (see below)
+  onViewChange?: (view: CalendarViewMode) => void; // HOST-ONLY (see below)
+};
+
+// The listing above is held to the shipped type BY THE COMPILER, both
+// directions, rather than by this paragraph: a key whose type here disagrees
+// with what `CalendarViewSchema` declares is a compile error.
+declare const authored: CalendarViewNode;
+declare const shipped: CalendarViewSchema;
+const forwards: CalendarViewSchema = authored;
+const backwards: CalendarViewNode = shipped;
 ```
+
+> **What those two assignments do and do not buy.** They check every key's
+> **type**, in both directions. They do **not** check a key's **spelling**:
+> `CalendarViewSchema` extends `BaseSchema`, whose `[key: string]: any` accepts
+> any name, so a key invented or misspelled here is `any` rather than an error.
+> Key-level validity is the strict `@objectstack/spec` twin's question, not
+> TypeScript's.
 
 There is deliberately **no authorable `events` key**: the renderer computes its
 events from `data` plus the field-name keys, and drops an authored `events`
@@ -256,11 +273,16 @@ The handlers are host-only — a function can only come from a React host
 building the node in code, never from authored JSON:
 
 ```typescript
-const schema = {
+import type { CalendarViewSchema } from '@object-ui/types';
+
+// The annotation is what types the two handler parameters: `event` is
+// `CalendarEvent` and `view` is `CalendarViewMode`, read off the shipped
+// schema. Without it both are implicitly `any`.
+const schema: CalendarViewSchema = {
   type: 'calendar-view',
   data: [],
   onEventClick: (event) => {
-    console.log('Event clicked:', event);
+    console.log('Event clicked:', event.title);
     // Open event details modal
   },
   onViewChange: (view) => {
@@ -304,10 +326,12 @@ const schema = {
 Style the calendar with Tailwind classes:
 
 ```typescript
-const schema = {
+import type { CalendarViewSchema } from '@object-ui/types';
+
+const schema: CalendarViewSchema = {
   type: 'calendar-view',
   className: 'border rounded-lg shadow-lg',
-  data: [...]
+  data: [] // your records
 };
 ```
 
