@@ -859,11 +859,11 @@ A complete object management interface combining grid, form, search, filters, an
       "sort": [{ "field": "value", "order": "desc" }]
     },
     "my-deals": {
-      "label": "My Deals",
       "filter": [["owner", "=", "${currentUser.id}"]],
-      "default": true
+      "label": "My Deals"
     }
   },
+  "defaultListView": "my-deals",
   "table": {
     "columns": ["name", "stage", "value", "owner", "closeDate"],
     "pageSize": 25
