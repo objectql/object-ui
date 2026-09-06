@@ -778,9 +778,11 @@ the whole run to a checkout plus one `node` call. A registration whose key the d
 resolve **fails the gate** rather than being skipped: a key silently missing from the universe turns
 *correct* documentation red, which is the failure mode that gets gates deleted.
 
-**How a snippet is judged.** `type` is not one vocabulary in these pages — measured across 143 files
-and 558 literals, the corpus spells action schemas, block schemas, theme and report schemas, field
-and JSON-Schema data types, validation rules and navigation items all under the same key. A
+**How a snippet is judged.** `type` is not one vocabulary in these pages — measured across every
+`.md` and `.mdx` page under `content/docs`, a population the gate re-derives on every run and prints
+in its own verdict line beside the code-block and `type`-literal counts, the corpus spells action
+schemas, block schemas, theme and report schemas, field and JSON-Schema data types, validation rules
+and navigation items all under the same key — so that size is read off the run, never copied here. A
 structural discriminator was built and rejected on measurement (a TypeScript annotation reads exactly
 like an object key to a brace tracker, and `items` carries navigation entries on one page and
 renderable children on another, so any global rule is a silent false green somewhere). So the rule is
@@ -1079,9 +1081,10 @@ one that matches nothing. The verdict line therefore prints the **per-root popul
 fenced blocks for each of the five roots — rather than a bare `OK`, and the scan **fails when that
 population collapses**: a root that does not resolve, a root that walks to fewer documents than its
 floor, or a total fence count under the floor is a broken walk, not a clean tree. The document floors
-are **per root** and deliberately never a whole-surface total: on a day the four-file `.claude/skills`
-root reads zero, the other four still return 203 of today's 207 files, so a total floor stays green
-through the entire outage. A scan root that has
+are **per root** and deliberately never a whole-surface total: on a day the smallest root,
+`.claude/skills`, reads zero, the other four still return all but its handful of documents, so a
+total floor stays green through the entire outage — the relation is the argument, and each root's
+own population is printed on every run rather than copied here. A scan root that has
 moved or been mistyped is reported **by name**, because a mistyped root and a clean root produce
 identical output otherwise. The evidence that the gate works is the ablation in its test suite, which
 replants #5150's exact line in each root on a fixture tree.
@@ -1437,7 +1440,7 @@ remove. The validation is scoped to the surfaces the diff can move instead:
 |---|---|---|
 | `pnpm quick-reference:check` | `QUICK_REFERENCE.md` | ~1 s |
 | `pnpm check:control-bytes` | the 40 generated `CHANGELOG.md` | ~4 s |
-| `pnpm test scripts/__tests__` | 73 files / 1996 tests — every test that reads a manifest version, `QUICK_REFERENCE.md` or a `CHANGELOG.md` | ~50 s |
+| `pnpm test scripts/__tests__` | 112 test files / 3360 tests on `main@59a3a233d` — every test that reads a manifest version, `QUICK_REFERENCE.md` or a `CHANGELOG.md` | ~50 s |
 
 `check:spec-floors` and `check:published-dist` are deliberately **not** here: they read dependency
 ranges and built `dist/`, neither of which the version step moves, and `pnpm changeset:publish`
