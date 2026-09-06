@@ -28,6 +28,7 @@
  */
 
 import { deriveNamespaceFromPackageId, validateObjectNamespacePrefix } from '@objectstack/spec/kernel';
+import { readEnvelopeFailureText } from '../../utils/apiErrorEnvelope.js';
 
 export interface PkgEntry {
   id: string;
@@ -102,13 +103,42 @@ export function parsePackages(payload: unknown): PkgEntry[] {
   return out;
 }
 
+/**
+ * The package list every Studio surface reads — the switcher, the writability
+ * courtesy gate, the namespace lookup and the builder landing page.
+ *
+ * ## The failure arm used to discard the whole answer
+ *
+ * It was `if (!res.ok) throw new Error(\`HTTP ${res.status}\`)`: the body was
+ * never opened at all, so `message`, `code` and `userMessage` were dropped
+ * together and the status became the entire report. Every caller here reports
+ * through `formatMetadataError`, which renders `err.message` — so a 403 whose
+ * envelope said `Reading packages requires the \`studio.access\` or
+ * \`setup.access\` capability.` reached the author as the four characters
+ * `HTTP 403`, and the one sentence that named the capability to grant was
+ * discarded by the reader that was holding it.
+ *
+ * This is a strictly larger loss than the sibling `fetchFullPackage` lookup's
+ * (objectui#7938), which at least read `message` and `code`. Both now read the
+ * same envelope by the same rule — see {@link readEnvelopeFailureText} for the
+ * rule and for why the mark outranks the diagnostic at every status.
+ *
+ * ⛔ The fallback stays `HTTP <status>`, unchanged and deliberately so: it is
+ * what a body-less or unparseable failure (a proxy's HTML 502) still says, and
+ * `StudioDesignSurface.packageListErrorPosture` / `manageSnapshotRefresh` pin
+ * that the three-state switcher and the refresh report keep working when the
+ * wire answers with nothing readable.
+ */
 export async function fetchPackages(): Promise<PkgEntry[]> {
   const res = await fetch('/api/v1/packages', {
     credentials: 'include',
     headers: { Accept: 'application/json' },
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    throw new Error(readEnvelopeFailureText(payload) ?? `HTTP ${res.status}`);
+  }
   return parsePackages(await res.json());
 }
 
@@ -189,8 +219,15 @@ export async function duplicatePackage(sourceId: string, targetId: string, targe
   if (!res.ok) {
     // The error envelope IS top-level (`{ success: false, error }`) — no `data`
     // to unwrap on this arm.
-    const message = (payload?.error as { message?: string } | undefined)?.message;
-    throw new Error(message || `HTTP ${res.status}`);
+    //
+    // Read by the SAME rule as `fetchPackages` above, and not by a second
+    // hand-rolled ladder: this arm read `error.message` alone, so a
+    // producer-marked `error.userMessage` — which the dispatcher door serving
+    // this very route has emitted since #9934 — had nowhere to appear, and
+    // `error.code` was dropped too. One definition of the rule, in
+    // {@link readEnvelopeFailureText}; leaving a copy of it a hundred lines
+    // below the import is exactly the drift this extraction exists to stop.
+    throw new Error(readEnvelopeFailureText(payload) ?? `HTTP ${res.status}`);
   }
   // Unwrap FIRST, then read the operation's flag. The `?? payload` arm mirrors
   // the commit-revert helper: it would classify a hypothetical bare (unwrapped)
