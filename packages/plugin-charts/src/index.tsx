@@ -133,6 +133,34 @@ ComponentRegistry.register(
   }
 );
 
+/**
+ * ⭐ The chart-family registrations below (`chart:bar`, `pie-chart`,
+ * `donut-chart`, `radar-chart`, `scatter-chart`) declare their family in ONE
+ * place, and it is not here: `CHART_TYPE_KEYWORD_FAMILIES` in
+ * `normalizeChartSchema.ts`, which `ChartRenderer` resolves through on every
+ * render.
+ *
+ * Until objectui#7401 each of them carried a second declaration —
+ * `defaultProps: { chartType: … }` — that **nothing on the SDUI path has ever
+ * read**. `SchemaRenderer` does not read a registration's `defaultProps`; the
+ * tree's one consumer (`core/src/registry/WidgetRegistry.ts`) WRITES manifest
+ * defaults into the registry and never reads these back. So all four of the
+ * families below rendered as BAR charts — `AdvancedChartImpl`'s default — on
+ * valid data, with no refusal that could fire. Ruled route C: derive the
+ * family from the schema's own `type`, and the inert declaration goes with it
+ * rather than sitting beside a mechanism that works (`AGENTS.md` #0.1).
+ *
+ * ⛔ Do not re-add `defaultProps: { chartType: … }` to a registration here. It
+ * would read as the family's declaration while changing nothing, which is the
+ * exact state this card removed. A NEW chart-family keyword is added to
+ * `CHART_TYPE_KEYWORD_FAMILIES` in the same edit as its `register()` call —
+ * `__tests__/chart-family-from-type-7401.test.tsx` fails on either half alone.
+ *
+ * ⚠️ `bar-chart` above is NOT one of these: it is registered to
+ * `ChartBarRenderer`, a wrapper that sets the family itself and never reaches
+ * `normalizeChartSchema`. Its own `defaultProps` is a sample-data seed, not a
+ * family declaration, and stays.
+ */
 // Alias for CRM App compatibility
 ComponentRegistry.register(
   'chart:bar',
@@ -140,8 +168,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Bar Chart (Alias)',
-    category: 'plugin',
-    defaultProps: { chartType: 'bar' }
+    category: 'plugin'
   }
 );
 
@@ -151,8 +178,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Pie Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'pie' }
+    category: 'plugin'
   }
 );
 
@@ -162,8 +188,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Donut Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'donut' }
+    category: 'plugin'
   }
 );
 
@@ -173,8 +198,7 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Radar Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'radar' }
+    category: 'plugin'
   }
 );
 
@@ -184,7 +208,6 @@ ComponentRegistry.register(
   {
     namespace: 'plugin-charts',
     label: 'Scatter Chart',
-    category: 'plugin',
-    defaultProps: { chartType: 'scatter' }
+    category: 'plugin'
   }
 );
