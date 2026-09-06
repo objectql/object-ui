@@ -21,6 +21,7 @@
 '@object-ui/plugin-markdown': patch
 '@object-ui/plugin-report': patch
 '@object-ui/plugin-timeline': patch
+'@object-ui/plugin-tree': patch
 '@object-ui/plugin-view': patch
 ---
 
@@ -65,8 +66,8 @@ tree-scoped absence census over every `inputs:` array under `packages/**` and `a
 
 Accept-set change, stated plainly for reviewers: a document that sets any of the three keys on a
 `ComponentInput` used to parse GREEN (the value was then dropped by the serializer) and now parses
-RED. Every in-repo authoring site — 1,197 keys across 109 registration files, the three standalone
-`ComponentInput[]` arrays included — is deleted in the same change, as the ruling's split rule
+RED. Every in-repo authoring site — 1,199 keys across 110 registration files, the three standalone
+`ComponentInput[]` arrays and the two named input arrays `tsc` found included — is deleted in the same change, as the ruling's split rule
 requires; the `WidgetRegistry` seam no longer copies the widget-manifest values onto the synthesized
 `ComponentInput` (they fed nothing), and the data-source declaration `ELEMENT_DATA_SOURCE_INPUT`
 drops its `label`. The patch entries on the other packages record exactly that: their registrations
