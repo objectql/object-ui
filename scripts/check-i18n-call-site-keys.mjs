@@ -358,6 +358,54 @@
  * checker could resolve. Same treatment, same reason, for the deliberate
  * `I18N_PROBE_FLAG` misses (see below) and for the skipped binding classes.
  *
+ * ## Key-building helpers: the leg that needs no call site (objectui#7592)
+ *
+ * Everything above starts at a `t()`/`tt()` call and reads its arguments. A
+ * module that BUILDS a key and hands it to a translator it received as a plain
+ * function VALUE has no such call for the walk to start from:
+ *
+ *   export function toolTitleKey(name) { return `ns.family.${name}`; }
+ *   // …
+ *   return translate ? translate(toolTitleKey(trimmed), english) : english;
+ *
+ * `translate` is a parameter, not `t`/`tt`, so the callee never matches; and the
+ * file holds no `t(` spelling at all, so the pre-filter below drops it before
+ * anything is even parsed. Both reverse-sweep legs and both family ratchets are
+ * therefore blind at once — measured on `chatbot.tool.*`, whose 35 live,
+ * rendering keys put 33 entries into `check-i18n-dead-keys.mjs`'s CONFIRMED
+ * tier, 22% of it, one deletion away from reverting every AI tool card to
+ * English in nine locales (objectui#7592, the regression cloud#1658 filed and
+ * objectui#7254 fixed).
+ *
+ * So the head is read WHERE IT IS WRITTEN instead. A KEY BUILDER is a function
+ * whose whole body is one returned template literal whose head is a dotted key
+ * prefix that resolves against `en`; its head and tail feed `dynamicHeads` and
+ * `dynamicFamilies` exactly as a template ARGUMENT would, which means the
+ * family lands under the same two ratchets: undeclared is a red, and a builder
+ * that stops being one turns its declaration stale, also a red. That is the
+ * anti-vacuous half — a detection leg that silently degrades to a no-op is the
+ * failure mode this whole class of card is about.
+ *
+ * Three boundaries, each load-bearing and each measured on this tree:
+ *
+ *   1. ONE returned template, nothing else. A multi-statement helper composes
+ *      its head from things this parser cannot follow, and reading its first
+ *      template anyway would invent families out of unrelated strings.
+ *   2. The head must RESOLVE against `en` (`headMatches`), which is what makes
+ *      this a key probe rather than a template-literal census: 97 files hold a
+ *      dotted template, and requiring the head to prefix a real pack path is
+ *      what leaves the builder shapes that are about i18n. The consequence is
+ *      deliberate and is the one place this leg differs from the argument
+ *      position: a builder whose head matches NOTHING is not recognised at all,
+ *      so it never raises `missing-prefix`. Judging it would make every
+ *      `` `${a}.${b}` `` in the repo a candidate defect.
+ *   3. The registered local tables are skipped, same scope rule the call-site
+ *      classifier uses — a builder inside `metadata-admin/` builds `engine.*`
+ *      keys that are not in any pack by design.
+ *
+ * Blast radius on this checkout: 1 builder, 1 head, 47 extra files parsed out of
+ * 1572 walked. The leg is narrow BY MEASUREMENT, not by hope.
+ *
  * ## The probe exclusion
  *
  * `useObjectLabel` probes convention keys (`{ns}.objects.{name}.label`) that are
@@ -729,6 +777,22 @@ export const DYNAMIC_KEY_FAMILIES = [
   {
     head: 'capability.label.',
     vocabulary: { module: 'packages/fields/src/widgets/CapabilityMultiSelectField.tsx', name: 'CURATED_CAPABILITY_LABELS', kind: 'set' },
+  },
+  {
+    head: 'chatbot.tool.',
+    // Reached through the KEY-BUILDER leg, not a call site: `toolTitleKey()` in
+    // packages/plugin-chatbot/src/tool-display.ts builds the key and the module
+    // spells no `t(` at all (objectui#7592).
+    enumerable: false,
+    why: 'external-vocabulary',
+    reason:
+      'The member set is the platform tool registry — `PLATFORM_TOOLS_BY_PACKAGE` in ' +
+      '`@objectstack/spec/system` — and this reader opens repo source only (see readVocabulary). ' +
+      'No repo-local exhaustive Record mirrors it, and writing one here would be a SECOND ' +
+      'registry to keep in sync with a pinned spec that already lags the cloud runtime. The set ' +
+      'identity is pinned one layer out instead, where the registry can be imported: ' +
+      'packages/plugin-chatbot/src/__tests__/toolLabels-locale-parity-7481.test.ts requires every ' +
+      'registered tool to carry a non-empty label in all ten packs (objectui#7481).',
   },
   {
     head: 'common.',
@@ -1527,6 +1591,51 @@ function templateShape(argument) {
   return { head, tail: inner.templateSpans[0].literal.text };
 }
 
+/**
+ * The key family a KEY BUILDER declares (objectui#7592).
+ *
+ * A key builder is a function whose ENTIRE body is one returned template
+ * literal — `function toolTitleKey(n) { return `ns.family.${n}`; }`, or the
+ * concise-arrow spelling of the same thing. The head/tail it yields is the same
+ * shape `templateShape()` reads off a key ARGUMENT, so the caller can record it
+ * through the identical bookkeeping; see the header section "Key-building
+ * helpers" for why the argument position never sees this shape at all.
+ *
+ * Shape only. Whether the head is an i18n key at all is the CALLER's test
+ * (`headMatches`), because that answer needs the `en` pack and this does not.
+ *
+ * @returns {{ head: string, tail: string | null } | null}
+ */
+function keyBuilderShape(node) {
+  if (
+    !ts.isFunctionDeclaration(node) &&
+    !ts.isFunctionExpression(node) &&
+    !ts.isArrowFunction(node) &&
+    !ts.isMethodDeclaration(node)
+  ) {
+    return null;
+  }
+  const body = node.body;
+  if (!body) return null;
+  // A block body must be exactly `return <expr>` — boundary 1 in the header.
+  let returned = body;
+  if (ts.isBlock(body)) {
+    if (body.statements.length !== 1 || !ts.isReturnStatement(body.statements[0])) return null;
+    returned = body.statements[0].expression;
+  }
+  const shape = templateShape(returned);
+  if (!shape || !KEY_PREFIX_HEAD.test(shape.head)) return null;
+  return shape;
+}
+
+/**
+ * A template head that is a dotted key prefix ending at a segment boundary
+ * (`chatbot.tool.`). The trailing dot is required: it is what separates a key
+ * family from a template that merely contains a dot (a URL, a version, a CSS
+ * custom property), and it is the shape every entry in DYNAMIC_KEY_FAMILIES has.
+ */
+const KEY_PREFIX_HEAD = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.$/;
+
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
@@ -1565,6 +1674,11 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
   // key have a call site" can never drift apart from each other. Unused by
   // this gate's own findings/counters; `scripts/check-i18n-dead-keys.mjs` is
   // the consumer.
+  //
+  // objectui#7592 — a head also reaches both Sets from a KEY BUILDER, a helper
+  // whose body is one returned template literal, with no `t()` call anywhere in
+  // its module. Same bookkeeping, same ratchets; see the header section
+  // "Key-building helpers".
   const referencedKeys = new Set();
   const referencedBranches = new Set();
   const dynamicHeads = new Set();
@@ -1587,6 +1701,7 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     resolvedKeys: 0,
     dynamicKeySites: 0,
     headlessDynamicKeySites: 0,
+    keyBuilderSites: 0,
     declaredFamilies: 0,
     enumerableFamilies: 0,
     notEnumerableFamilies: 0,
@@ -1611,6 +1726,29 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     computedSiblingFallbacks: 0,
     optionalCallFallbacks: 0,
     unjudgedSiblingFallbacks: 0,
+  };
+
+  // objectui#7592 — the key-builder leg. `keyBuilderShape()` answers the SHAPE
+  // question; `headMatches` is the one that makes it a key probe rather than a
+  // census of every dotted template. Findings are deliberately never raised
+  // here: `missing-prefix` is an argument-position rule and a builder whose head
+  // resolves to nothing is simply not a key builder (header, boundary 2).
+  const recordKeyBuilders = (source, relPath) => {
+    const visit = (node) => {
+      const shape = keyBuilderShape(node);
+      if (shape && headMatches(shape.head)) {
+        const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
+        counters.keyBuilderSites += 1;
+        dynamicHeads.add(shape.head);
+        const family = dynamicFamilies.get(shape.head) ?? { tails: new Set(), sites: [], multiSubstitution: 0 };
+        if (shape.tail === null) family.multiSubstitution += 1;
+        else family.tails.add(shape.tail);
+        family.sites.push({ file: relPath, line: line + 1, column: character + 1 });
+        dynamicFamilies.set(shape.head, family);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
   };
 
   for (const file of collectSourceFiles(root)) {
@@ -1640,13 +1778,29 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     // spells EVERY call `t?.(…)` because its `t` is an optional prop, so it holds
     // no `t(` at all and this pre-filter used to drop the whole file — silently,
     // out of all five classes at once (objectui#4117).
-    if (!/\btt?\s*(?:\?\.)?\s*\(/.test(text)) continue;
+    const hasTranslatorCall = /\btt?\s*(?:\?\.)?\s*\(/.test(text);
+    // objectui#7592 — the key-builder leg's own pre-filter, because a builder's
+    // module need hold no `t(` spelling at all (the measured one does not, and
+    // the line above used to drop it unparsed). `.${` is the adjacency a dotted
+    // key template always has and that essentially nothing else in TS source
+    // does: 97 files match it, 47 of which the line above rejects — that 47 is
+    // the whole added parse cost, against 1572 files walked.
+    const hasKeyTemplate = text.includes('.${');
+    if (!hasTranslatorCall && !hasKeyTemplate) continue;
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const bindings = collectBindings(root, file, source);
 
     // A file's provenance: which table its own `t` reaches. A forwarded `t`
     // inherits it, because the parser cannot follow the value across modules.
-    let provenance = localScopes.some((dir) => relPath.startsWith(dir)) || isLocalTableFile ? 'local' : null;
+    const inLocalScope = localScopes.some((dir) => relPath.startsWith(dir)) || isLocalTableFile;
+
+    // Boundary 3: a builder inside a registered local table builds keys no pack
+    // defines by design, so it must not mark pack leaves live.
+    if (hasKeyTemplate && !inLocalScope) recordKeyBuilders(source, relPath);
+
+    if (!hasTranslatorCall) continue;
+    const bindings = collectBindings(root, file, source);
+
+    let provenance = inLocalScope ? 'local' : null;
     for (const binding of bindings) {
       if (binding.kind === 'packHook' && provenance === null) provenance = 'pack';
       if (binding.kind === 'import' && registeredModules.has(binding.detail)) provenance = 'local';
@@ -2056,7 +2210,8 @@ const HINTS = {
     ' registry — narrowing a declared vocabulary to make a red go away is how an exact' +
     ' check silently becomes a smaller one.',
   'undeclared-dynamic-family':
-    'A pack-backed template key whose static head is not in DYNAMIC_KEY_FAMILIES' +
+    'A pack-backed template key — at a call site, or built by a helper (objectui#7592) —' +
+    ' whose static head is not in DYNAMIC_KEY_FAMILIES' +
     ' (objectui#4964). Prefix-checking alone cannot see a member missing from all ten' +
     ' packs, so every family must say how its member set is known: add an entry with a' +
     ' `vocabulary` naming the declaration the call site iterates (a union, a const array,' +
@@ -2065,7 +2220,10 @@ const HINTS = {
     ' preferred over a guessed vocabulary; what is not allowed is silence.',
   'stale-dynamic-family':
     'A DYNAMIC_KEY_FAMILIES entry whose head no longer appears at any pack-backed call' +
-    ' site. Delete the entry — the registry describes the repo, and an entry nothing' +
+    ' site — nor, since objectui#7592, at any key-building helper. Delete the entry, OR' +
+    ' find out why the head stopped being seen: for a family that reaches the scan through' +
+    ' a builder, this finding is also how a detection leg that quietly stopped detecting' +
+    ' announces itself. Either way the registry describes the repo, and an entry nothing' +
     ' exercises is an exact check running against nothing.',
   'duplicate-family':
     'Two DYNAMIC_KEY_FAMILIES entries declare the same head. Only the first would be' +
@@ -2209,7 +2367,8 @@ if (invokedDirectly) {
       `static vocabulary (${counters.checkedMembers} member key(s) checked exactly), ` +
       `${counters.notEnumerableFamilies} with no enumerable member set (prefix-checked only), ` +
       `${counters.unexpandableFamilySites} multi-substitution site(s) not expandable, ` +
-      `${counters.headlessDynamicKeySites} dynamic call site(s) with no static head at all.`,
+      `${counters.headlessDynamicKeySites} dynamic call site(s) with no static head at all, ` +
+      `${counters.keyBuilderSites} head(s) read off a key-building helper rather than a call site.`,
   );
   console.log(
     `Sibling fallbacks: ${counters.siblingFallbacks} call site(s) sit left of a ||/?? — ` +
