@@ -1562,7 +1562,10 @@ jobs:
       # nothing built beyond it. Consequence worth stating: on a pull request that
       # changes no `content/` or `apps/site/` file the census does not run — a
       # spec bump that moves the carriage map is reported by the next docs PR, not
-      # by the bump itself.
+      # by the bump itself. A pull request that edits only the gate is covered
+      # elsewhere and does not need this step: `scripts/__tests__/check-doc-
+      # expression-carriage.test.ts` runs the controls AND the real-tree census in
+      # the ordinary vitest suite, which any PR touching `scripts/**` gets.
       - name: Docs expression-carriage census (report-only)
         if: steps.docs-changes.outputs.should_run == 'true'
         run: node scripts/check-doc-expression-carriage.mjs

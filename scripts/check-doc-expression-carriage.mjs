@@ -91,8 +91,9 @@
  *
  * A fence this file cannot parse is a fence it says nothing about, and a census
  * that reports only its hits hides how much it never read. So every run prints
- * `parsed` and `unparsed`, and `--list` names each unparsed fence with the
- * reason. objectui#7418's prototype reached 0 unparsed on `guide/expressions.md`
+ * `parsed` and `unparsed` and names every unparsed fence with its reason;
+ * `--list` prints the whole inventory, parsed and unparsed alike.
+ * objectui#7418's prototype reached 0 unparsed on `guide/expressions.md`
  * (39 of 39); this file reaches 0 unparsed over the whole tree, which takes
  * four tolerances beyond `JSON.parse`, all of them REMOVALS of non-data or an
  * envelope around it. None of them can invent a key:
@@ -516,8 +517,10 @@ export function analyze(root, { channels, carriage }) {
   };
   const sites = [];
   const unparsed = [];
+  const inventory = [];
 
   for (const fence of scan.fences) {
+    inventory.push({ file: fence.file, line: fence.line, lang: fence.lang, ok: fence.ok });
     if (!fence.ok) {
       counters.unparsed++;
       unparsed.push({ file: fence.file, line: fence.line, reason: fence.reason });
@@ -553,7 +556,7 @@ export function analyze(root, { channels, carriage }) {
   }
 
   sites.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.key.localeCompare(b.key));
-  return { counters, sites, unparsed };
+  return { counters, sites, unparsed, fences: inventory };
 }
 
 // ── Controls: the gate proves it can see, on every run ────────────────────────
@@ -686,12 +689,23 @@ if (isEntrypoint(import.meta.url)) {
       `${counters.expressionSites} \${…} site(s) on those nodes, ${counters.carried} of them carried.`,
   );
 
-  if (counters.unparsed > 0 || list) {
+  // The blind spot is printed on every run, in both directions. A census that
+  // reports only its hits hides how much it never looked at, and "0 unparsed" is
+  // the sentence that makes "only N sites" mean something.
+  if (counters.unparsed === 0) {
+    console.log('✅  Blind spot: none — every fence above was parsed and judged.');
+  } else {
     console.log(
       `\n⚠️  ${counters.unparsed} fence(s) this gate could NOT read — its blind spot, printed because a\n` +
         '    census that reports only its hits hides how much it never looked at:',
     );
     for (const fence of unparsed) console.log(`      ${fence.file}:${fence.line}  ${fence.reason}`);
+  }
+  if (list) {
+    console.log('\nEvery fence, in document order:');
+    for (const fence of census.fences) {
+      console.log(`      ${fence.ok ? '  parsed' : 'UNPARSED'}  ${fence.file}:${fence.line}  (${fence.lang})`);
+    }
   }
 
   if (sites.length === 0) {
