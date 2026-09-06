@@ -84,6 +84,31 @@ describe('parseVitestArgv', () => {
     expect(parsed.afterDoubleDash).toEqual(['--run', 'packages/fields/src/a.test.ts']);
   });
 
+  it('keeps EVERY value of a repeated flag, in order, next to the last-wins scalar', () => {
+    // objectui#7329. The root `test:integration` script really is
+    // `vitest run --project dom --project dom-heavy`; `flags` is last-wins, so it
+    // answers `dom-heavy` and drops `dom` with no symptom. A reader asking "which
+    // projects does this command run" reads `flagValues` instead.
+    const parsed = parseVitestArgv(argvFor('run', '--project', 'dom', '--project', 'dom-heavy'));
+
+    expect(parsed.flagValues['--project']).toEqual(['dom', 'dom-heavy']);
+    // Backward compatibility, the whole reason `flags` was not turned into arrays:
+    // the guard's own `--root` / `--changed` readers still see one scalar, the last.
+    expect(parsed.flags['--project']).toBe('dom-heavy');
+    // Neither value leaked into the file filters.
+    expect(parsed.positionals).toEqual([]);
+  });
+
+  it('lists a flag that appears once as a one-element array, so readers need no fallback', () => {
+    const parsed = parseVitestArgv(argvFor('run', '--project', 'a', '--shard=1/4', '--watch'));
+
+    expect(parsed.flagValues['--project']).toEqual(['a']);
+    // Both other spellings are recorded too: `--flag=value` and a bare boolean.
+    expect(parsed.flagValues['--shard']).toEqual(['1/4']);
+    expect(parsed.flagValues['--watch']).toEqual([true]);
+    expect(parsed.flagValues['--reporter']).toBeUndefined();
+  });
+
   it('treats a leading subcommand as the subcommand, not a filter', () => {
     expect(parseVitestArgv(argvFor('run')).positionals).toEqual([]);
     expect(parseVitestArgv(argvFor('list')).subcommand).toBe('list');
