@@ -17,6 +17,8 @@ import {
 } from '../check-pre-install-import-graph.mjs';
 import { REQUIRED_CONTEXTS } from '../dependabot-merge-gate.mjs';
 
+import { selfTestCases, stripAnsi } from './helpers/child-verdict';
+
 /**
  * objectui#6148 — the gate for the property that lets a gate run pre-install.
  *
@@ -343,7 +345,16 @@ describe('the gate is wired, not merely present', () => {
   it('passes its own self-test', () => {
     // A scan whose recogniser is broken reports a clean tree.
     const out = execFileSync('node', [SCRIPT, '--self-test'], { cwd: repoRoot, encoding: 'utf8' });
-    expect(out).toContain('self-test:');
-    expect(out).toMatch(/^✓/);
+    // objectui#7897 — the COUNT, not the shape. `\d+ cases pass` is satisfied
+    // by `0 cases pass`, so the old spelling passed for a self-test whose case
+    // table had gone empty: the outcome it exists to refuse. `selfTestCases`
+    // also strips ANSI, the second belt for a child that starts colouring —
+    // that is the CI-only direction, and no repo gate colours today.
+    expect(stripAnsi(out)).toContain('self-test:');
+    expect(stripAnsi(out)).toMatch(/^✓/);
+    expect(
+      selfTestCases(out, 'check-pre-install-import-graph'),
+      'a self-test that ran no cases is not a passing self-test',
+    ).toBeGreaterThan(0);
   });
 });

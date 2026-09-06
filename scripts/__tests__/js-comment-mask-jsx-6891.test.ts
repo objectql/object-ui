@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { findCallSites } from '../check-vi-mock-specifiers.mjs';
 import { maskComments, scanSource } from '../js-comment-mask.mjs';
 
+import { selfTestCases, stripAnsi } from './helpers/child-verdict';
+
 /**
  * objectui#6891 — a JSX closing tag is not a regex literal.
  *
@@ -140,7 +142,16 @@ describe('the negative controls — a `/` that really does open a regex', () => 
     const out = execFileSync('node', [MODULE, '--self-test'], { cwd: REPO_ROOT, encoding: 'utf8' });
     expect(out).toContain('a JSX closing tag opens no span');
     expect(out).toContain('a SPACED less-than still opens a regex');
-    expect(out).toMatch(/self-test: \d+ cases pass/);
+    // objectui#7897 — the COUNT, not the shape. `\d+ cases pass` is satisfied
+    // by `0 cases pass`, so the old spelling passed for a self-test whose case
+    // table had gone empty: the outcome it exists to refuse. `selfTestCases`
+    // also strips ANSI, the second belt for a child that starts colouring —
+    // that is the CI-only direction, and no repo gate colours today.
+    expect(stripAnsi(out)).toMatch(/self-test: \d+ cases pass/);
+    expect(
+      selfTestCases(out, 'js-comment-mask'),
+      'a self-test that ran no cases is not a passing self-test',
+    ).toBeGreaterThan(0);
   });
 });
 

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
+import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { fetchUrl, fetchRegistry, isRegistryEntry, cacheFileFor, cacheStats } from '../shadcn-sync.js';
+import { stripAnsi } from './helpers/child-verdict';
 
 /**
  * objectstack#5803 — the registry cache stored whatever came back.
@@ -361,6 +363,28 @@ describe('the CLI still runs when the file is the entry point', () => {
   // (everything above) does not execute the CLI. Get that guard wrong and
   // `pnpm shadcn:check` becomes a silent no-op that exits 0 — so it is pinned
   // by actually running the script.
+  /**
+   * objectui#7897 — this child COLOURS, and the old assertions survived it by
+   * luck.
+   *
+   * `scripts/shadcn-sync.js` writes SGR sequences unconditionally: no tty
+   * check, no `NO_COLOR`, so the escapes are there on every run, local and CI
+   * alike. `Component List` and `Custom ObjectUI Components:` happened to be
+   * wrapped whole (`ESC[1m` + title + `ESC[0m`), so a substring match on the
+   * raw stdout still hit — but every per-component line puts an escape BETWEEN
+   * the name and the description, which is the same byte layout that broke
+   * PR #7889 in CI. Anything asserted across that boundary needs the strip.
+   *
+   * There is no machine-readable channel to prefer here: `--list` has no JSON
+   * mode, and objectui#7897's surface is test files only — ⛔ no gate script
+   * changes. So ANSI stripping is the belt, and the assertion is anchored to
+   * the manifest the printer reads, which is the machine-readable half that IS
+   * available: every custom component must appear, spelled exactly as the
+   * printer formats it. That also closes the second half of the card — the old
+   * pair of substring checks passed on a run that printed the two HEADERS and
+   * no components at all, which is exactly the silent no-op the case exists to
+   * refuse.
+   */
   it('node scripts/shadcn-sync.js --list prints the component list', () => {
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
     const result = spawnSync(process.execPath, ['scripts/shadcn-sync.js', '--list'], {
@@ -368,8 +392,25 @@ describe('the CLI still runs when the file is the entry point', () => {
       encoding: 'utf-8',
       timeout: 60_000,
     });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Component List');
-    expect(result.stdout).toContain('Custom ObjectUI Components:');
+    expect(result.status, result.stderr).toBe(0);
+    const plain = stripAnsi(result.stdout);
+    expect(plain).toContain('Component List');
+    expect(plain).toContain('Custom ObjectUI Components:');
+
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(repoRoot, 'packages/components/shadcn-components.json'), 'utf-8'),
+    ) as { components: Record<string, unknown>; customComponents: Record<string, { description: string }> };
+
+    const shadcnNames = Object.keys(manifest.components);
+    const customEntries = Object.entries(manifest.customComponents);
+    expect(shadcnNames.length, 'an empty manifest would make every assertion below vacuous').toBeGreaterThan(0);
+    expect(customEntries.length, 'an empty manifest would make every assertion below vacuous').toBeGreaterThan(0);
+
+    for (const name of shadcnNames) expect(plain).toContain(`\n  • ${name}\n`);
+    // `name.padEnd(20)` then one space then the description — the printer's own
+    // format, and the escape the strip removed sat exactly at that space.
+    for (const [name, info] of customEntries) {
+      expect(plain).toContain(`  • ${name.padEnd(20)} ${info.description}`);
+    }
   });
 });

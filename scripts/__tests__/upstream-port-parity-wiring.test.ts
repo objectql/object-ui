@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
+import { selfTestCases, stripAnsi, verdictCount } from './helpers/child-verdict';
+
 const ROOT = path.resolve(fileURLToPath(import.meta.url), '../../..');
 const GATE = 'scripts/check-upstream-port-parity.mjs';
 const PIN = 'scripts/upstream-port-pin.json';
@@ -162,7 +164,15 @@ describe('check-upstream-port-parity is wired, not merely present', () => {
 
   it('its self-test passes — the half that makes a green comparison mean something', () => {
     const out = execFileSync('node', [GATE, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/check-upstream-port-parity self-test: \d+ cases pass/);
+    // objectui#7897 — the COUNT, not the shape. `\d+ cases pass` is satisfied
+    // by `0 cases pass`, so the old spelling passed for a self-test whose case
+    // table had gone empty: the outcome it exists to refuse. `selfTestCases`
+    // also strips ANSI, the second belt for a child that starts colouring.
+    expect(stripAnsi(out)).toMatch(/check-upstream-port-parity self-test: \d+ cases pass/);
+    expect(
+      selfTestCases(out, 'check-upstream-port-parity'),
+      'a self-test that ran no cases is not a passing self-test',
+    ).toBeGreaterThan(0);
   });
 
   it('and the tree itself is at parity right now', () => {
@@ -171,6 +181,13 @@ describe('check-upstream-port-parity is wired, not merely present', () => {
     // updated without its file, or the reverse, fails here at review time
     // rather than on someone else's branch.
     const out = execFileSync('node', [GATE], { cwd: ROOT, encoding: 'utf8' });
-    expect(out).toMatch(/ported file\(s\) match/);
+    // objectui#7897 — `/ported file\(s\) match/` is satisfied by `0 ported
+    // file(s) match`: an EMPTY pin, checked against nothing, reads exactly like
+    // a tree at parity. The count is read out of the verdict and reconciled
+    // with the pin shipped in this commit, so the two cannot drift apart
+    // silently. ANSI is stripped as the second belt (this gate does not colour).
+    const pinned = JSON.parse(fs.readFileSync(path.join(ROOT, PIN), 'utf8')) as { files: unknown[] };
+    expect(pinned.files.length, 'a pin with no files would make the verdict below vacuous').toBeGreaterThan(0);
+    expect(verdictCount(out, /(\d+) ported file\(s\) match/, 'ported file count')).toBe(pinned.files.length);
   });
 });
