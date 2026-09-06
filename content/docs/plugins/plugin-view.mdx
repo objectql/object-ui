@@ -573,10 +573,10 @@ under your own key" — it ships **no schema types**. The authored
 
 | Import from `@object-ui/types` | What it types |
 | --- | --- |
-| `ObjectViewSchema` | the whole `type: 'object-view'` node — `objectName` (required), `title`, `description`, `layout`, `defaultViewType`, `listViews`, `defaultListView`, `navigation`, `table`, `form`, `searchableFields`, `filterableFields`, the `show*` flags, `operations`, `onNavigate`, `viewTabBar`, `viewActions` |
+| `ObjectViewSchema` | the whole `type: 'object-view'` node — `objectName` (required), `title`, `description`, `layout`, `defaultViewType`, `listViews`, `defaultListView`, `navigation`, `table`, `form`, `searchableFields`, `filterableFields`, the `show*` flags, `operations`, `onNavigate`, `allowCreateView`, `viewActions` (`viewTabBar` is retired — objectui#7779 — and refused by name) |
 | `NamedListView` | one entry of `listViews` |
 | `ViewNavigationConfig` | `navigation` — row/item click behaviour |
-| `ViewTabBarConfig` | `viewTabBar` — tab-bar UX (inline add, overflow, indicators) |
+| `ViewTabBarConfig` | the `config` prop of `ViewTabBar` — tab-bar UX (inline add, overflow, indicators), composed by the host; not an `object-view` node key |
 
 ```typescript
 import type { ObjectViewSchema } from '@object-ui/types';
