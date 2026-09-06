@@ -253,11 +253,17 @@ ObjectUI includes a powerful expression engine for dynamic UIs:
 
 ```json
 {
-  "type": "badge",
-  "text": "${orders.length} Orders",
-  "variant": "${orders.length > 10 ? 'success' : 'warning'}"
+  "type": "statistic",
+  "label": "Orders",
+  "value": "${orders.length}",
+  "description": "${orders.length > 10 ? 'Above target' : 'On track'}"
 }
 ```
+
+`statistic` rather than `badge`: an expression is evaluated only on a key the node's own
+type carries, and `expressionBindableTextKeysFor` gives `statistic` the rows `label`,
+`value` and `description` while giving `badge` none. A badge's text is its `label`, and it
+has to arrive already resolved.
 
 See the [Expressions Guide](/docs/guide/expressions) for complete details.
 
