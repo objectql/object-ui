@@ -38,6 +38,7 @@
     "type-check:e2e": "tsc -p tsconfig.e2e.json",
     "type-check:scripts": "tsc -p tsconfig.scripts.json",
     "type-check:vitest-setup": "tsc -p tsconfig.vitest-setup.json",
+    "type-check:vitest-config": "tsc -b apps/console/tsconfig.node.json --force",
     "check:spec-symbols": "node scripts/check-spec-symbol-derivation.mjs",
     "check:action-forward-parity": "node scripts/check-action-forward-parity.mjs",
   "check:designer-field-key-parity": "node scripts/check-designer-field-key-parity.mjs",
