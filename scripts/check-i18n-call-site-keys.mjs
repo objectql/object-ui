@@ -429,17 +429,40 @@
  *    dead row belongs. 0 such rows today; the abstention is what stops the first
  *    one being read as healthy.
  *
- *    WHAT THIS CLASS DOES NOT REACH, measured rather than assumed: three tables
- *    hand-roll `fallbackT` instead of taking the factory
- *    (`GANTT_DEFAULT_TRANSLATIONS`, `IMPORT_DEFAULT_TRANSLATIONS`, and
- *    `TIMELINE_DEFAULT_TRANSLATIONS`, which also reaches the factory and IS
- *    covered) — see the `HAND_ROLLED_TABLES` registry in the objectui#3512 test
- *    named above. Reaching them needs a declared registry, because nothing in
- *    the source says which local function is a `fallbackT`, and a registry is a
- *    second thing to keep from rotting. They were measured while this class was
- *    written: 215 rows, 215 comparable, 0 drifted. So the residue is real, named,
- *    and currently clean — which is the honest way to say "this covers the
- *    factory channel", rather than letting a coverage claim quietly round up.
+ *    THE OTHER HALF OF THE POPULATION — objectui#7877, the B half of the
+ *    ruling on objectui#7567 Q2. Three tables hand-roll `fallbackT`'s literal
+ *    needle instead of taking the factory, so the walk above cannot see them:
+ *    nothing in the source says which local function is a `fallbackT`. Two of
+ *    them are reachable no other way (`GANTT_DEFAULT_TRANSLATIONS`,
+ *    `IMPORT_DEFAULT_TRANSLATIONS`); the third,
+ *    `TIMELINE_DEFAULT_TRANSLATIONS`, also reaches the factory and is already
+ *    counted above.
+ *
+ *    Covering them takes a DECLARATION — which is why objectui#7567 shipped
+ *    the registry-free half first and split this out, and why the population
+ *    here is `packages/test-support/src/hand-rolled-tables.json` and not a
+ *    heuristic. Option C on that card (gate every `Record<string, string>`
+ *    that looks like a defaults map, inferred rather than declared) was
+ *    rejected for inventing a heuristic where a declaration is available.
+ *
+ *    The two halves keep SEPARATE counters, a separate collapse floor and a
+ *    separate summary line, and that separation is the point rather than
+ *    tidiness: the factory walk compares 841 rows, so a registry that stopped
+ *    resolving anything at all would be invisible inside a combined number,
+ *    and this half's verdict — also "0 drifted" — would be read off an empty
+ *    scan set. Its floor is 150 against a measured 215 (80 + 135), chosen to
+ *    sit above the LARGER of the two tables so that losing either one fails.
+ *
+ *    What keeps the declaration from rotting is not diligence and does not
+ *    live here:
+ *    `packages/i18n/src/__tests__/fallback-placeholder-spelling-3512.test.ts`
+ *    asserts that the set of runtime files carrying the hand-rolled needle
+ *    equals a pinned list, and that every declared entry contributes rows. A
+ *    fourth hand-rolled `fallbackT` turns that case red naming its own file.
+ *    Because this gate reads the SAME bytes that test reads rather than a
+ *    copy of them, that one ratchet covers both readers — the reason the data
+ *    moved to JSON on objectui#6923's ruling instead of being duplicated here
+ *    and pinned.
  *
  * ## Dynamic keys: the explicit policy
  *
@@ -529,6 +552,7 @@ import ts from 'typescript';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -547,6 +571,47 @@ export const PACK_HOOK = /^use[A-Za-z0-9_]*(Translation|Translate|T)$/;
  * in `packages/i18n/src/__tests__/`.
  */
 export const FACTORY_NAMES = new Set(['createSafeTranslation', 'createSafeTranslationHook']);
+
+/**
+ * The DECLARED hand-rolled tables — objectui#7877, the B half of the ruling on
+ * objectui#7567 Q2.
+ *
+ * Two tables re-implement `fallbackT` instead of taking the factory above, so
+ * the factory-resolved walk cannot see them: nothing in the source says which
+ * local function is a `fallbackT`, which is why covering them takes a
+ * declaration and why objectui#7567 shipped A (registry-free) first and split
+ * this out. Option C on that card — inferring the population by pattern-matching
+ * identifier names or every `Record<string, string>` — was REJECTED for
+ * inventing a heuristic where a declaration is available; if a future edit finds
+ * itself matching on names, it is building C.
+ *
+ * ⚠️ This is not a second list. It is the SAME BYTES
+ * `packages/test-support/src/defaults-table-scan.ts` reads, reached through the
+ * `exports` subpath objectui#6923 ruled for data that has to cross the
+ * `.mjs` / TypeScript boundary (`zod-wrapper-keys` is the first instance, read
+ * the same way by two other gates in this directory). A bare
+ * `node scripts/check-*.mjs` cannot import that module: its `exports` entry
+ * resolves to TypeScript source with no build artefact. Copying the list here
+ * and pinning the copies to each other was the alternative, and the reason it
+ * was not taken is written out in that module's header — a copy CAN be stale for
+ * the window between the two edits, and a scan population that quietly loses an
+ * entry reports "0 drifted" while judging nothing.
+ *
+ * `createRequire` rather than `import … with { type: 'json' }` for the reason
+ * `check-action-forward-parity.mjs` already records: this module is loaded both
+ * by `node` (the gate run) and by Vite's SSR transform (its pin tests in
+ * `scripts/__tests__/`), and under the latter an attributed JSON import yields
+ * no default export.
+ *
+ * The registry carries `TIMELINE_DEFAULT_TRANSLATIONS` too, because it mirrors
+ * the needle-file set objectui#3512's completeness case pins — but that table
+ * ALSO reaches the factory, so this class de-duplicates against the tables the
+ * factory walk already scanned rather than counting its rows twice. That
+ * overlap is reported, not swallowed.
+ */
+export const HAND_ROLLED_TABLES = createRequire(import.meta.url)(
+  '@object-ui/test-support/hand-rolled-tables',
+);
 
 /**
  * Annotations that mark a forwarded `t` as a translator. Only used to tell a
@@ -1839,16 +1904,22 @@ function resolveFactoryTable(root, source, argument, parseModule) {
 // ── the analysis ─────────────────────────────────────────────────────────────
 
 /**
- * `families` is injectable so the synthetic-repo tests can pin the registry
- * RULES against a registry they control. The real run always uses the module
- * constant — nothing in this file reads a registry from disk, so there is no
- * configuration path a call site could quietly narrow.
+ * `families` and `handRolled` are injectable so the synthetic-repo tests can pin
+ * the registry RULES against a registry they control. The real run always uses
+ * the module constants, and every CLI path below calls `analyze(root)` with no
+ * options at all — so there is no configuration path a call site could quietly
+ * narrow, which for `handRolled` is the same property its collapse floor exists
+ * to protect (objectui#7877).
  *
  * @returns {{ findings: Array, counters: Record<string, number>, enKeyCount: number,
  *   referencedKeys: Set<string>, referencedBranches: Set<string>, dynamicHeads: Set<string>,
  *   dynamicFamilies: Map<string, { tails: Set<string>, sites: Array, multiSubstitution: number }> }}
  */
-export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ { families = DYNAMIC_KEY_FAMILIES } = {}) {
+export function analyze(
+  root,
+  /** @type {{ families?: DynamicKeyFamily[], handRolled?: { file: string, name: string }[] }} */
+  { families = DYNAMIC_KEY_FAMILIES, handRolled = HAND_ROLLED_TABLES } = {},
+) {
   const { leaves, branches, values } = collectEnKeys(root);
   const resolvesLeaf = (key) => leaves.has(key) || PLURAL_SUFFIXES.some((suffix) => leaves.has(key + suffix));
   // Materialised once, not inside the predicate: spreading a 2.6k-entry Set per
@@ -1939,6 +2010,23 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     factoryRowsNoEnKey: 0,
     factoryUnjudgedRows: 0,
     factoryUnreadableRows: 0,
+    // objectui#7877 — the widened half's own census, deliberately a SEPARATE
+    // set of counters rather than added into the factory numbers. Two reasons,
+    // both load-bearing: the collapse floor below has to be able to fail for
+    // this half alone (a factory walk of 841 rows would otherwise mask a
+    // registry that resolved nothing), and the abstention counts are what turn
+    // a blind spot into a card — objectui#7874 exists purely because the
+    // factory half printed its 5 abstaining rows instead of absorbing them.
+    handRolledDeclared: 0,
+    handRolledTables: 0,
+    handRolledAlreadyFactoryCovered: 0,
+    handRolledUnreadableTables: 0,
+    handRolledRows: 0,
+    handRolledComparedRows: 0,
+    handRolledMatchingRows: 0,
+    handRolledRowsNoEnKey: 0,
+    handRolledUnjudgedRows: 0,
+    handRolledUnreadableRows: 0,
   };
 
   // objectui#7567 — a table may be declared in a module the factory imports, so
@@ -1969,15 +2057,15 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
    * because the row is where the fix goes — and for an imported table those are
    * in two different files.
    */
-  const scanFactoryTable = (literal, owner, tableName) => {
+  const scanDefaultsTable = (literal, owner, tableName, half) => {
     const ownerRel = relative(root, owner.fileName).split('\\').join('/');
     for (const property of literal.properties) {
-      counters.factoryRows += 1;
+      counters[`${half}Rows`] += 1;
       const { line, character } = owner.getLineAndCharacterOfPosition(property.getStart(owner));
       const at = { file: ownerRel, line: line + 1, column: character + 1 };
       if (!ts.isPropertyAssignment(property)) {
         // A spread or a shorthand: this reader cannot say which keys it brings.
-        counters.factoryUnreadableRows += 1;
+        counters[`${half}UnreadableRows`] += 1;
         continue;
       }
       const key =
@@ -1985,31 +2073,39 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
           ? property.name.text
           : null;
       if (key === null) {
-        counters.factoryUnreadableRows += 1;
+        counters[`${half}UnreadableRows`] += 1;
         continue;
       }
       // NOT descended into — `fallbackT` indexes `defaults[key]` flat, so a
       // nested literal is a row nothing can ever read. See the header.
       const text = staticString(property.initializer, owner);
       if (text === null) {
-        counters.factoryUnreadableRows += 1;
+        counters[`${half}UnreadableRows`] += 1;
         continue;
       }
       if (!resolvesLeaf(key)) {
         // class 1's shape, and class 1 cannot reach it: it judges CALL SITES,
         // and a table row nothing calls has none. Counted, printed, never failed.
-        counters.factoryRowsNoEnKey += 1;
+        counters[`${half}RowsNoEnKey`] += 1;
         continue;
       }
       const enValue = values.get(key);
       if (enValue === undefined) {
         // A plural family, or an `en` leaf that is not a readable static string.
-        counters.factoryUnjudgedRows += 1;
+        counters[`${half}UnjudgedRows`] += 1;
         continue;
       }
-      counters.factoryComparedRows += 1;
-      if (enValue === text) counters.factoryMatchingRows += 1;
-      else findings.push({ reason: 'factory-default-drift', ...at, detail: key, expected: enValue, actual: text, table: tableName });
+      counters[`${half}ComparedRows`] += 1;
+      if (enValue === text) counters[`${half}MatchingRows`] += 1;
+      else
+        findings.push({
+          reason: half === 'factory' ? 'factory-default-drift' : 'hand-rolled-default-drift',
+          ...at,
+          detail: key,
+          expected: enValue,
+          actual: text,
+          table: tableName,
+        });
     }
   };
 
@@ -2028,7 +2124,7 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
           if (!scannedTables.has(id)) {
             scannedTables.add(id);
             counters.factoryTables += 1;
-            scanFactoryTable(literal, owner, name);
+            scanDefaultsTable(literal, owner, name, 'factory');
           }
         }
       }
@@ -2058,6 +2154,44 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
       ts.forEachChild(node, visit);
     };
     visit(source);
+  };
+
+  /**
+   * The widened half (objectui#7877): the DECLARED hand-rolled tables.
+   *
+   * Runs AFTER the file walk on purpose — `scannedTables` is only complete once
+   * every factory site has been resolved, and `TIMELINE_DEFAULT_TRANSLATIONS` is
+   * in the registry AND reachable from the factory. De-duplicating on the
+   * literal's own position (the same id the factory half keys on) is what keeps
+   * the row counts a census rather than a multiset; the overlap is counted and
+   * printed rather than silently dropped.
+   *
+   * A declared table that no longer resolves is an UNREADABLE TABLE, never a
+   * skip — that is the whole registry rotting in the direction nothing else
+   * would notice, and the floor below is what makes it fatal rather than quiet.
+   */
+  const scanHandRolledTables = () => {
+    for (const { file, name } of handRolled) {
+      counters.handRolledDeclared += 1;
+      const absolute = join(root, file);
+      const source = parseModule(absolute);
+      const initializer = source === null ? null : declaredConstant(source, name);
+      const literal = initializer === null ? null : unwrapExpression(initializer);
+      if (literal === null || !ts.isObjectLiteralExpression(literal)) {
+        counters.handRolledUnreadableTables += 1;
+        continue;
+      }
+      const id = `${source.fileName}#${literal.getStart(source)}`;
+      if (scannedTables.has(id)) {
+        // Declared here and reachable from the factory too. Its rows are already
+        // in the factory census; counting them again would inflate both halves.
+        counters.handRolledAlreadyFactoryCovered += 1;
+        continue;
+      }
+      scannedTables.add(id);
+      counters.handRolledTables += 1;
+      scanDefaultsTable(literal, source, `${name} (${file})`, 'handRolled');
+    }
   };
 
   for (const file of collectSourceFiles(root)) {
@@ -2381,6 +2515,8 @@ export function analyze(root, /** @type {{ families?: DynamicKeyFamily[] }} */ {
     visit(source);
   }
 
+  scanHandRolledTables();
+
   // ── the dynamic-family registry, evaluated (objectui#4964) ─────────────────
   //
   // Three rules, and the order matters: the two ratchet directions run over the
@@ -2596,6 +2732,16 @@ const HINTS = {
     ' today, and changing it makes `scripts/check-i18n-en-drift.mjs` demand the same change in' +
     ' the other nine packs. If the row is genuinely dead (no key in `en`, no caller), delete the' +
     ' row rather than inventing a pack entry for it.',
+  'hand-rolled-default-drift':
+    'Same failure as `factory-default-drift`, on the half that needs a DECLARED registry to be' +
+    ' seen at all (objectui#7877). This table hand-rolls `fallbackT` rather than taking' +
+    ' `createSafeTranslation`, so nothing in its source says it is a defaults table and the' +
+    ' factory-resolved walk cannot reach it; it is checked because' +
+    ' `packages/test-support/src/hand-rolled-tables.json` names it. The consequence is the' +
+    ' same and so is the fix: copy the `en` value into the TABLE byte-for-byte. Do NOT edit' +
+    ' `packages/i18n/src/locales/en.ts` to match the table — that changes what users read and' +
+    ' obliges the other nine packs through `scripts/check-i18n-en-drift.mjs`. If the row is' +
+    ' genuinely dead (no key in `en`, no caller), delete the row.',
   'interpolation-parity':
     'The arguments this call site passes are not the holes the `en` value has (objectui#3845).' +
     ' An INERT argument is one i18next drops on the floor — no hole to receive it, no warning,' +
@@ -2690,6 +2836,31 @@ if (invokedDirectly) {
     process.exit(1);
   }
 
+  // The widened half's OWN floor (objectui#7877). It is a separate threshold on
+  // a separate counter on purpose: `factoryComparedRows` is 841, so a registry
+  // that resolved nothing at all would sail through the guard above while this
+  // half reported "0 drifted" over 0 rows — the exact reading objectui#7567's
+  // ⛔ #2 forbids, one level down.
+  //
+  // How 150 was chosen, rather than picked: measured on this tree the two
+  // registry entries the factory walk cannot reach compare 80
+  // (`GANTT_DEFAULT_TRANSLATIONS`) and 135 (`IMPORT_DEFAULT_TRANSLATIONS`)
+  // rows, 215 together. The threshold sits ABOVE the larger of the two, so
+  // losing EITHER declared table — not just both — collapses the scan into a
+  // failure instead of a quieter green. A floor below 135 would let the bigger
+  // table carry the smaller one's disappearance.
+  if (counters.handRolledComparedRows < 150) {
+    console.error(
+      `The hand-rolled defaults scan collapsed: ${counters.handRolledComparedRows} row(s) compared over` +
+        ` ${counters.handRolledTables} table(s) from ${counters.handRolledDeclared} declared,` +
+        ` ${counters.handRolledUnreadableTables} table(s) unreadable.` +
+        ' Expected 200-odd — the registry in `packages/test-support/src/hand-rolled-tables.json`' +
+        ' names two tables the factory walk cannot reach, and a number this small means one of' +
+        ' them stopped resolving and this half is passing on an empty set.',
+    );
+    process.exit(1);
+  }
+
   const { unexpected, stale } = applyBaseline(findings, readBaseline(root));
 
   console.log(
@@ -2718,6 +2889,15 @@ if (invokedDirectly) {
       `${counters.factoryUnreadableRows} unreadable.`,
   );
   console.log(
+    `Hand-rolled defaults tables: ${counters.handRolledDeclared} declared, ` +
+      `${counters.handRolledTables} scanned here (${counters.handRolledAlreadyFactoryCovered} already ` +
+      `covered by the factory walk, ${counters.handRolledUnreadableTables} unreadable) — ` +
+      `${counters.handRolledComparedRows} row(s) compared against their en value, ` +
+      `${counters.handRolledMatchingRows} matching, ${counters.handRolledRowsNoEnKey} on a key en does not define, ` +
+      `${counters.handRolledUnjudgedRows} with no single comparable en value, ` +
+      `${counters.handRolledUnreadableRows} unreadable.`,
+  );
+  console.log(
     `Interpolation parity: ${counters.judgedInterpolation} call sites compared against their en value's holes, ` +
       `${counters.unjudgedInterpolation} with no single comparable en value, ${counters.opaqueOptions} with an ` +
       `unreadable option set, ${EXTERNALLY_INTERPOLATED_HOLES.length} key(s) whose holes are filled downstream.`,
@@ -2743,6 +2923,7 @@ if (invokedDirectly) {
   // introduce all three.
   const drift = unexpected.filter((finding) => finding.reason === 'default-value-drift');
   const factoryDrift = unexpected.filter((finding) => finding.reason === 'factory-default-drift');
+  const handRolledDrift = unexpected.filter((finding) => finding.reason === 'hand-rolled-default-drift');
   const parity = unexpected.filter((finding) => finding.reason === 'interpolation-parity');
   const siblings = unexpected.filter((finding) => finding.reason === 'dead-sibling-fallback');
   const spelling = unexpected.filter((finding) => finding.reason === 'unresolvable-default-spelling');
@@ -2761,6 +2942,7 @@ if (invokedDirectly) {
   const VALUE_CLASSES = new Set([
     'default-value-drift',
     'factory-default-drift',
+    'hand-rolled-default-drift',
     'interpolation-parity',
     'dead-sibling-fallback',
     'unresolvable-default-spelling',
@@ -2817,6 +2999,23 @@ if (invokedDirectly) {
         'console:',
     );
     for (const finding of factoryDrift) {
+      console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}  (${finding.table})`);
+      console.error(`      en renders:      ${quote(finding.expected)}`);
+      console.error(`      defaults table:  ${quote(finding.actual)}`);
+    }
+  }
+
+  if (handRolledDrift.length > 0) {
+    const distinct = new Set(handRolledDrift.map((finding) => finding.detail));
+    console.error(
+      `\n${handRolledDrift.length} hand-rolled defaults row${handRolledDrift.length === 1 ? '' : 's'} ` +
+        `contradict${handRolledDrift.length === 1 ? 's' : ''} the en value of a key that EXISTS ` +
+        `(${distinct.size} distinct key${distinct.size === 1 ? '' : 's'}) — this table hand-rolls ` +
+        '`fallbackT`, so it is reached through the declared registry in ' +
+        '`packages/test-support/src/hand-rolled-tables.json` rather than through the factory; the ' +
+        'consequence on a provider-less host is identical:',
+    );
+    for (const finding of handRolledDrift) {
       console.error(`  ${finding.file}:${finding.line}:${finding.column}  [${finding.reason}]  ${finding.detail}  (${finding.table})`);
       console.error(`      en renders:      ${quote(finding.expected)}`);
       console.error(`      defaults table:  ${quote(finding.actual)}`);

@@ -13,6 +13,7 @@
       "default": "./src/index.ts"
     },
     "./defaults-table-scan": "./src/defaults-table-scan.ts",
+    "./hand-rolled-tables": "./src/hand-rolled-tables.json",
     "./zod-wrapper-keys": "./src/zod-wrapper-keys.json"
   },
   "scripts": {
