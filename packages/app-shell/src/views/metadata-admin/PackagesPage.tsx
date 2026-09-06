@@ -63,6 +63,7 @@ import {
 import { useMetadataLocale, t, tFormat } from './i18n.js';
 import { PackageFormDialog } from './PackageFormDialog.js';
 import { errorCodeIs } from '@object-ui/types';
+import { readEnvelopeFailureText } from '../../utils/apiErrorEnvelope.js';
 
 /* -------------------------------------------------------------------------- */
 /* Types + API                                                                 */
@@ -127,8 +128,20 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const text = await res.text();
   const payload = text ? JSON.parse(text) : null;
   if (!res.ok || payload?.success === false) {
+    // The ADR-0112 envelope first, by the ONE shared rule — a producer-marked
+    // `error.userMessage` outranks the diagnostic `error.message`, and
+    // `error.code` rides along behind whichever won. This helper used to read
+    // `error.message` and stop, so a marked sentence arrived on the wire (both
+    // doors serving these package routes emit the channel) and had nowhere to
+    // appear. See {@link readEnvelopeFailureText}.
+    //
+    // The two rungs BELOW it stay, and stay here rather than moving into the
+    // shared reader: they are not the ADR-0112 envelope. A bare-string `error`
+    // and a top-level `message` are older runtimes' shapes, live for this page
+    // and not for the Studio readers, and folding them in would have handed
+    // every other consumer of the rule a tolerant dialect it never asked for.
     const msg =
-      payload?.error?.message ||
+      readEnvelopeFailureText(payload) ||
       payload?.error ||
       payload?.message ||
       `Request failed (${res.status})`;
@@ -915,7 +928,10 @@ export function PackagesPage() {
         ) : error ? (
           <div className="flex items-start gap-2 p-4 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            {/* A stable handle for the load-failure pins (objectui#7959): the
+                words in here are the server's, so a test that located this
+                banner BY those words could not assert what is absent from it. */}
+            <span data-testid="packages-load-error">{error}</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-8">
