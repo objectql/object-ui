@@ -86,7 +86,8 @@ vi.mock('@object-ui/react', async (importOriginal) => {
 
 // Grid stub exposing the two row affordances this test drives: a row click
 // (-> formMode 'view') and the row edit action (-> formMode 'edit').
-vi.mock('@object-ui/plugin-grid', () => ({
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectGrid: ({ schema, onRowClick, onEdit }: any) => (
     <div data-testid="object-grid" data-object={schema?.objectName}>
       <button data-testid="grid-row" onClick={() => onRowClick?.({ id: '1', name: 'Test' })}>

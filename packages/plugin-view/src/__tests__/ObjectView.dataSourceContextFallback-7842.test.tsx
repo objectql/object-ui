@@ -70,7 +70,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   ),
 }));
 
-vi.mock('@object-ui/plugin-grid', () => ({
+vi.mock('@object-ui/plugin-grid', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ObjectGrid: ({ schema }: { schema?: { objectName?: string } }) => (
     <div data-testid="object-grid" data-object={schema?.objectName} />
   ),

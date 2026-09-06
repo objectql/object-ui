@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is eleven, and each joined by sweep
+ * actually been SWEPT to zero. Today that is twelve, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -328,11 +328,89 @@
  * barrel and `lucide-react`. See the slice's pull request for the whole-package
  * figure.
  *
- * The remaining 123 stay on objectui#6892: `@object-ui/plugin-grid` (25, ALL
- * frozen), `@object-ui/permissions` (24), `@object-ui/app-shell` (23, ALL
- * frozen, still only after objectui#6580 -- which is now CLOSED, so that
- * reading is a git-history read rather than an open card) and
- * `@object-ui/plugin-detail` (13).
+ * `@object-ui/plugin-grid` joined as objectui#6892's SEVENTH slice, re-derived
+ * on `21d7989fb` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-grid       25 judged, 0 inheriting, 25 frozen -> 0
+ *
+ * with the population moving 123 -> 98 frozen over 659 judged and no site
+ * moving the other way -- every other one of the 21 rows byte-identical between
+ * the two runs. The 25 sites sit in two owning packages (21 under
+ * `packages/plugin-view`, 4 under `packages/plugin-designer`) and in two
+ * syntactic shapes: 21 object-literal arrows -- 15 of them the SAME single line
+ * byte-for-byte -- and the 4 designer sites delegating the whole factory to a
+ * shared manual mock module, the shape slice 5 first met.
+ *
+ * STEP 0 was taken again rather than inherited, and this graph is the largest
+ * yet measured on this worklist: 560 modules and 1421 module-scope statements
+ * reached from `packages/plugin-grid/src/index.tsx` -- larger than slice 6's
+ * barrel because this one reaches `@object-ui/components`, `@object-ui/fields`,
+ * `@object-ui/react`, `@object-ui/core`, `@object-ui/permissions`,
+ * `@object-ui/mobile` and `@object-ui/i18n`. It is NOT inert, and the slice
+ * proceeded on the CLASS of the effect. Statically: 114 module-scope
+ * `ComponentRegistry.register(...)` call sites, every one carrying a namespace
+ * (`ui` 89, `element` 10, `page` 7, `action` 5, `plugin-grid` 2, `view` 1 --
+ * the five in `renderers/layout/page.tsx` that read as bare carry `ui` through
+ * the spread `pageMeta` constant), so the deprecation `console.warn` in
+ * `register()` cannot fire. THREE effects this worklist had not met before, all
+ * in `packages/fields/src/index.tsx` and all the same benign class: five
+ * `registerFieldRenderer(...)` calls that are a `Map.set` into a module-level
+ * registry, one `setCellRendererResolver(...)` that assigns a module-level
+ * `let`, and `registerAllFields()`, which loops the widget map into
+ * `ComponentRegistry.register` under the `field` namespace. Beyond registration
+ * the graph holds only allocation -- 171 `React.forwardRef`, 94 `new Set`, 21
+ * `createContext`, 15 `Object.freeze`, 14 `new Map`, 13 `cva`, 10
+ * `createDiscardProofCache` (a `new WeakMap` plus a closure) and nine
+ * module-scope `new` singletons whose constructors were READ and assign fields
+ * only (`UndoManager`'s `localStorage` path is a method nothing calls at import).
+ * ZERO timers, globals, storage, `fetch` or connections. Empirically: importing
+ * the real barrel under happy-dom moves `ComponentRegistry.getAllTypes()` from
+ * 0 to 375 keys, exports 20 names, and emits ZERO `console.warn` and ZERO
+ * `console.error`.
+ *
+ * ⚠️ Two column-anchored greps corroborate the walk with ONE disagreement worth
+ * recording, because it is the grep that is wrong: four `self.addEventListener`
+ * lines match at column 0 in `packages/mobile/src/serviceWorkerSource.ts`, and
+ * all four sit INSIDE the template literal that module returns as generated
+ * service-worker SOURCE. They are never executed by importing anything. The AST
+ * walk does not report them; a column-anchored grep cannot see template-literal
+ * nesting. Prefer the parser, and record the disagreement rather than the
+ * quieter number.
+ *
+ * The consuming side was checked for the failure class the worklist names: of
+ * the 25 converted files exactly ONE names `ComponentRegistry` at all, and it
+ * READS one entry -- `get('object-view')`, a key `packages/plugin-view`'s own
+ * index registers, not one this barrel claims -- rather than asserting
+ * emptiness or a count. Not one of the 25 installs a `console.warn` or
+ * `console.error` spy. So no converted assertion can be broken by the 375 keys.
+ *
+ * ⚠️ Like `@object-ui/collaboration`, this specifier had ZERO already-inheriting
+ * sites, so there was no free confirmation -- the suite runs themselves are the
+ * evidence, and that is weaker than a pre-existing green site.
+ *
+ * ⭐ The collection-death failure class slice 6 met did NOT fire here, and the
+ * reason is worth carrying rather than reading as luck. Every one of the 25
+ * files carries neighbouring factories -- 25 on `@object-ui/plugin-form`, 21 on
+ * `@object-ui/react`, one on `@object-ui/permissions` -- and ALL of them were
+ * already inheriting, swept by slices 3, 5 and 6 or written that way. There is
+ * not a single frozen THIRD-PARTY factory in the 25. Slice 6's 15 deaths came
+ * from frozen `lucide-react` neighbours; a specifier whose sites have none
+ * inherits cleanly. Check the neighbours before budgeting for the repair.
+ *
+ * ⚠️ Cost, measured the same way slice 6 measured it -- one converted
+ * `plugin-view` file, twice each: 9.53s / 8.37s frozen, 10.17s / 9.91s
+ * inheriting. The ~1.1s marginal cost is far below slice 6's ~3s, and for a
+ * structural reason: these files ALREADY inherit the real `@object-ui/react`
+ * and `@object-ui/plugin-form` barrels, whose graphs already pull
+ * `@object-ui/components`. Inheriting a barrel is cheap once its own
+ * dependencies are already loaded in that file.
+ *
+ * The remaining 98 stay on objectui#6892: `@object-ui/permissions` (24),
+ * `@object-ui/app-shell` (23, ALL frozen, still only after objectui#6580 --
+ * which is now CLOSED, so that reading is a git-history read rather than an
+ * open card), `@object-ui/plugin-detail` (13) and `@object-ui/plugin-chatbot`
+ * (11).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -428,6 +506,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/collaboration',
   '@object-ui/plugin-form',
   '@object-ui/components',
+  '@object-ui/plugin-grid',
 ]);
 
 /** Files the walk reads at all. */
