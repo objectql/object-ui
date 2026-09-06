@@ -44,7 +44,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { NON_GRID_ROW_CEILING, NON_GRID_ROW_CEILING_TOP } from '@object-ui/react';
 import { ObjectTree } from './ObjectTree';
 
-vi.mock('@object-ui/plugin-detail', () => ({
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-detail')>()),
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));

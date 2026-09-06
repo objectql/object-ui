@@ -40,7 +40,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { NON_GRID_ROW_CEILING } from '@object-ui/react';
 import { ObjectCalendar } from './ObjectCalendar';
 
-vi.mock('@object-ui/plugin-detail', () => ({
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-detail')>()),
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));
