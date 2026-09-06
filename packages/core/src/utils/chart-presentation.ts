@@ -105,13 +105,19 @@ function labelText(v: unknown): string | undefined {
  * One authored `ChartSeries`, minus its `name` — i.e. everything about it that
  * is presentation rather than membership.
  *
- * `type` is narrowed to the three families that COMPOSE on one cartesian plot,
- * because this array reaches the renderer already speaking the internal shape
- * (`ChartRenderer` forwards a `dataKey`-shaped array untouched, so
- * `normalizeChartSchema`'s own identical narrowing never sees it). Without the
- * narrowing a `type: 'pie'` would not merely be inert — it would count as a
- * family disagreement in `effectiveChartFamily`, flip the whole chart into a
- * combo, and then draw that series as a bar anyway.
+ * `type` is narrowed to the three families that COMPOSE on one cartesian plot.
+ * Without the narrowing a `type: 'pie'` would not merely be inert — it would
+ * count as a family disagreement in `effectiveChartFamily`, flip the whole
+ * chart into a combo, and then draw that series as a bar anyway.
+ *
+ * `ChartRenderer` now narrows the same way for every series it receives,
+ * `dataKey`-shaped or not (objectui#7681 fixed the fast path that used to
+ * forward a `dataKey`-shaped array straight through, so `normalizeChartSchema`'s
+ * own identical narrowing never saw it) — so this module is no longer that
+ * narrowing's only line of defense. It stays anyway:
+ * `AuthoredSeriesPresentation.chartType` is a typed, narrower field
+ * (`'bar' | 'line' | 'area'`) this module's own callers read directly, and the
+ * double narrowing downstream is idempotent.
  */
 export function seriesPresentation(raw: Record<string, unknown>): AuthoredSeriesPresentation {
   const out: AuthoredSeriesPresentation = {};
