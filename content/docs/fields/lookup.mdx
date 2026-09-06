@@ -66,7 +66,7 @@ typeahead searches alongside the label. It is a declared `SelectOptionMetadata`
 member, declared for exactly that consumption
 ([objectui#6153](https://github.com/objectstack-ai/objectui/issues/6153)), but it
 is an **objectui-side read-model extension, not a spec key**. Measured on the
-installed `@objectstack/spec` 17.2.0, `SelectOptionSchema` is strict over exactly
+installed `@objectstack/spec`, `SelectOptionSchema` is strict over exactly
 `{label, value, color, default, visibleWhen}` and refuses `description` **by
 name** (`unrecognized_keys`), with the same option minus the key accepted as the
 control. `FieldSchema` routes a field's `options` through that schema, so
