@@ -74,7 +74,8 @@ vi.mock('./MetadataInspector', () => ({
 }));
 vi.mock('../providers/AdapterProvider', () => ({ useAdapter: () => ({}) }));
 vi.mock('../providers/ExpressionProvider', () => ({ useExpressionContext: () => ({ app: undefined }) }));
-vi.mock('@object-ui/i18n', () => ({
+vi.mock('@object-ui/i18n', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useObjectTranslation: () => ({ t: (k: string) => k }),
   useObjectLabel: () => ({
     dashboardLabel: ({ label, name }: any) => label ?? name,
