@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { DataSource, TimelineSchema, ListViewTimelineConfig } from '@object-ui/types';
-import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
+import { useDataScope, useNavigationOverlay, useSafeFieldLabel, useSettledSchema } from '@object-ui/react';
 import { NavigationOverlay } from '@object-ui/components';
 import { extractRecords, buildExpandFields, convertSortToQueryParams, createFieldColorResolver } from '@object-ui/core';
 import { usePullToRefresh } from '@object-ui/mobile';
@@ -173,7 +173,6 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
   });
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [objectDef, setObjectDef] = useState<any>(null);
 
   // Resolve nested TimelineConfig (spec-compliant)
   const timelineConfig = schema.timeline;
@@ -187,21 +186,50 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
 
   const boundData = useDataScope(schema.bind);
 
-  // Fetch object definition for metadata
-  useEffect(() => {
-    let isMounted = true;
-    const fetchMeta = async () => {
-      if (!dataSource || typeof dataSource.getObjectSchema !== 'function' || !schema.objectName) return;
-      try {
-        const def = await dataSource.getObjectSchema(schema.objectName);
-        if (isMounted) setObjectDef(def);
-      } catch (e) {
-        console.warn('Failed to fetch object def for ObjectTimeline', e);
-      }
-    };
-    fetchMeta();
-    return () => { isMounted = false; };
-  }, [schema.objectName, dataSource]);
+  /**
+   * The object definition, and whether the read for THIS object has SETTLED —
+   * one piece of state, through the shared hook (objectui#7895).
+   *
+   * `ObjectTimeline` was the last member of the converged set still carrying
+   * the pre-gate shape: a local `useState` fed by its own metadata effect,
+   * with `objectDef` listed in the record-fetch effect's dependency array
+   * below. That shape issues the record query TWICE per mount — once before
+   * the definition lands, with `buildExpandFields` seeing no fields and so no
+   * `$expand` at all, and once after — and whenever the metadata read is the
+   * slower of the two the user sees the three-step paint `ObjectGantt`'s own
+   * conversion names: raw foreign-key ids, back to the loading skeleton (the
+   * re-run calls `setLoading(true)` and `loading` is an early return below),
+   * then the expanded rows. Measured on this component before the change,
+   * instrumented renderer, one mount per hold: 2 `find` calls with expand
+   * sets `[null, ['owner']]`, 1 paint at the readiness predicate and 3 late
+   * writes after it, at every hold from +3ms up.
+   *
+   * ⚠️ The gate below is only safe because this resolution SETTLES ON EVERY
+   * EXIT (objectui#7232) — no source, no `getObjectSchema`, no object name,
+   * and a read that threw alike. The hand-written effect it replaces returned
+   * WITHOUT settling on all four, which cost nothing while nothing waited on
+   * it and would hold a gated query open forever.
+   *
+   * ⛔ `dataSource` is passed unconditionally, NOT `hasInlineData ? undefined
+   * : dataSource` the way `ObjectCalendar` and `ObjectGantt` pass it. Those
+   * two read metadata only to expand a record query, so an inline data set has
+   * nothing to wait for. This component also reads `objectDef.fields` in
+   * `effectiveItems` below — option colours and field labels — on the AUTHORED
+   * items path, where no query is issued at all. Their recipe would stop that
+   * read happening; the conversion is a fetch-sequencing change and must not
+   * take a metadata read away from a path that still uses it.
+   *
+   * The key is `schema.objectName`, which is the object the record query
+   * itself names (`dataSource.find(schema.objectName, …)` below) and the one
+   * the replaced effect read. ⛔ Not `resolveRecordSourceObjectName`: this
+   * component has no resolved `data` block to read a second name from, and
+   * gating on a key the query does not use is exactly the stale-key mismatch
+   * `useSettledSchema`'s render-time comparison exists to make unrepresentable.
+   */
+  const { ready: objectDefReady, def: objectDef } = useSettledSchema<any>(
+    schema.objectName ?? '',
+    dataSource,
+  );
 
   // Content keys, not identities. `filter` / `sort` are fetch inputs from here on
   // (objectstack#7137), and an inline array on a schema node is a NEW object every
@@ -245,13 +273,28 @@ export const ObjectTimeline: React.FC<ObjectTimelineProps> = ({
     };
 
     if (schema.objectName && !boundData && !schema.items && !(props as any).data) {
+        // ⭐ objectui#7895 — the object definition GATES this query; it does not
+        // refine it afterwards. `objectDef` stays in the dependency list below
+        // and the two are ONE mechanism, not two: the dependency is what makes
+        // this effect re-run when the definition lands, and this line is what
+        // stops the first run from spending a query before it has. Removing
+        // either half alone restores the double fetch — the reverse
+        // verification `ObjectGantt.fetchGate-7225.test.tsx` recorded on the
+        // sibling, re-measured here.
+        //
+        // Scoped to the branch that actually issues the query. The `else` below
+        // has authored or bound items and never queries, so gating it would
+        // hold nothing useful — and this component still reads the definition
+        // on that path (option colours in `effectiveItems`), which is why the
+        // resolution above is not disabled for it.
+        if (!objectDefReady) return;
         fetchData();
     } else {
         // Have inline / bound items — won't fetch; clear loading.
         setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `schema.filter`/`schema.sort` are tracked by CONTENT (filterKey/sortKey) on purpose; see above
-  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDef, filterKey, sortKey, schema.limit]);
+  }, [schema.objectName, dataSource, boundData, schema.items, (props as any).data, refreshKey, objectDefReady, objectDef, filterKey, sortKey, schema.limit]);
 
   const rawData = (props as any).data || boundData || fetchedData;
   const { t } = useTimelineTranslation();
