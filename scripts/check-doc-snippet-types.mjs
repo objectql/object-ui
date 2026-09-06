@@ -677,19 +677,32 @@ const UNGATED_DOCS = {
   // that bought on THIS gate's question. The file is now VISIBLE to the ledger
   // instead of invisible to the walk — the objectui#5174 distinction quoted in
   // the header — and the debt below is measured, not estimated. ⚠️ Read as debt,
-  // never as a pass: these 9 diagnostics are real and objectui#7417 carries them.
-  // The three TS2305s are the ones that matter; the other six are fragment shape.
+  // never as a pass: these 6 diagnostics are real.
+  //
+  // It read 9, and named the three TS2305s as the ones that mattered, until
+  // objectui#7417 paid exactly those down — three names the page taught that no
+  // built `dist/index.d.ts` exports. What replaced each was already in the tree,
+  // so none of the three widened a public surface: `ObjectRenderer` (no export of
+  // @object-ui/app-shell bears that name; the page now composes `ObjectView` from
+  // @object-ui/plugin-view, the spelling examples/byo-backend-console/src/App.tsx
+  // already runs), `registerDefaultRenderers` (@object-ui/components registers its
+  // renderers as an import side effect — `sideEffects: true`, and its barrel's
+  // `import './renderers'` — and exports no such function, so the page now imports
+  // the package for the side effect), and `createObjectStackAdapter`, which ships
+  // from @object-ui/data-objectstack, not @object-ui/core, exactly as
+  // packages/plugin-dashboard/README.md already writes it.
+  //
+  // ⚠️ The remaining 6 are fragment shape, and no gate protects this page's
+  // import names from a fourth phantom: check-readme-exports.mjs states its
+  // surface as `packages/NAME/README.md`, and the root README imports from
+  // several packages rather than owning one, so that gate's rule would have to be
+  // restated before its surface could move (objectui#7417 triage).
   'README.md':
     '4 undefined-name diagnostic(s) — blocks use ambient names the page never defines (`myAPI`, ' +
     '`MySidebar`) or continue an earlier block (`SchemaRenderer`, `schema`); 2 elided-body ' +
     'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
-    'methods`; plus TS2305x3 — REAL defects, measured against the built `dist/index.d.ts` of each ' +
-    'package and filed as objectui#7417: `ObjectRenderer` is on no export of @object-ui/app-shell ' +
-    '(the same phantom objectui#7095 recorded in examples/byo-backend-console/README.md), ' +
-    '`registerDefaultRenderers` is on no export of @object-ui/components (only ' +
-    '`registerPlaceholders` is) and is taught in no other authored file, and ' +
-    '`createObjectStackAdapter` is imported from @object-ui/core, which does not ship it — ' +
-    '@object-ui/data-objectstack does, as packages/plugin-dashboard/README.md already writes it.',
+    'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
+    'what is left is fragment shape, and no gate reads this page\'s import names.',
   'packages/auth/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/collaboration/README.md':
