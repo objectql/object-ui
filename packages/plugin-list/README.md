@@ -4,7 +4,8 @@ ListView plugin for ObjectUI - A unified view component with view type switching
 
 ## Features
 
-- **View Type Switching**: Switch between Grid, List, Kanban, Calendar, and Chart views
+- **View Type Switching**: Switch between Grid, Kanban, Gallery, Calendar,
+  Timeline, Gantt, Map, Chart and Tree views
 - **View Persistence**: Automatically saves user's view preference
 - **Integrated Search**: Full-text search across records
 - **Filtering**: Advanced filter UI (expandable filter panel)
@@ -66,8 +67,12 @@ function ContactsView() {
 Group rows in grid/gallery views by one or more fields. Two equivalent shapes
 are supported on the schema:
 
+Spec-compliant: a structured `GroupingConfig` (multi-level, with per-field
+options).
+
 ```tsx
-// Spec-compliant: structured GroupingConfig (multi-level + per-field options)
+import { ListView } from '@object-ui/plugin-list';
+
 <ListView
   schema={{
     type: 'list-view',
@@ -82,9 +87,15 @@ are supported on the schema:
     },
   }}
 />
+```
 
-// Shorthand: a single field name (used by the visual view-config UI).
-// Internally normalized into the GroupingConfig above.
+Shorthand: a single field name, the shape the visual view-config UI emits. It is
+normalized internally into the `GroupingConfig` above — an alternative to the
+block before it, never a second view rendered beside it.
+
+```tsx
+import { ListView } from '@object-ui/plugin-list';
+
 <ListView
   schema={{
     type: 'list-view',
@@ -102,6 +113,8 @@ grouping fields at runtime via the Group toolbar button.
 ### With Multiple View Types
 
 ```tsx
+import { ListView } from '@object-ui/plugin-list';
+
 <ListView
   schema={{
     type: 'list-view',
@@ -130,6 +143,8 @@ grouping fields at runtime via the Group toolbar button.
 ### With Callbacks
 
 ```tsx
+import { ListView } from '@object-ui/plugin-list';
+
 <ListView
   schema={{
     type: 'list-view',
@@ -145,39 +160,56 @@ grouping fields at runtime via the Group toolbar button.
 
 ## Schema
 
-The ListView component accepts a `ListViewSchema`:
+The ListView component accepts a `ListViewSchema`, exported from
+`@object-ui/types`. That type is derived from the package's zod schema — which
+itself derives from `@objectstack/spec` — so it cannot drift from the protocol.
+This page therefore annotates an example *against* the shipped type instead of
+restating it as a second hand-written interface: every key below is re-checked
+on every commit, and a shape the type stops accepting fails here rather than
+misleading a reader.
 
 ```typescript
-interface ListViewSchema {
-  type: 'list-view';
-  objectName: string;
-  viewType?: 'grid' | 'kanban' | 'calendar' | 'gantt' | 'map' | 'chart';
-  /** Spec-canonical column list. The legacy `fields` alias is still accepted
-   *  on input (stored view metadata carries it) and folded into `columns` by
-   *  `normalizeListViewSchema` — but nothing reads it, so emit `columns`. */
-  columns?: string[] | ListColumn[];
-  filters?: Array<any[] | string>;
-  sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
-  options?: {
-    grid?: Record<string, any>;
-    list?: Record<string, any>;
-    kanban?: {
-      groupField: string;
-      titleField?: string;
-      cardFields?: string[];
-    };
-    calendar?: {
-      startDateField: string;
-      endDateField?: string;
-      titleField: string;
-    };
-    chart?: {
-      chartType: 'bar' | 'line' | 'pie' | 'area';
-      xAxisField: string;
-      yAxisFields: string[];
-    };
-  };
-}
+import type { ListViewSchema } from '@object-ui/types';
+
+const view: ListViewSchema = {
+  type: 'list-view',
+  objectName: 'tasks',
+  viewType: 'grid',
+  // Spec-canonical column list. The legacy `fields` alias is still accepted on
+  // input (stored view metadata carries it) and folded into `columns` by
+  // `normalizeListViewSchema` — but nothing reads it, so emit `columns`.
+  columns: ['title', 'status', 'assignee'],
+  filters: [['status', '=', 'open']],
+  sort: [{ field: 'title', order: 'asc' }],
+  options: {
+    grid: {},
+    kanban: { groupField: 'status', titleField: 'title', cardFields: ['assignee'] },
+    calendar: { startDateField: 'due_date', titleField: 'title' },
+    chart: { chartType: 'bar', xAxisField: 'status', yAxisFields: ['amount'] },
+  },
+};
+
+// `columns` also accepts ListColumn objects in place of the field-name strings.
+const richColumns: ListViewSchema['columns'] = [
+  { field: 'title', label: 'Title', width: 200 },
+];
+
+// The view-type vocabulary, written as a record keyed by the shipped union so
+// this list cannot go stale: a value added to or removed from
+// ListViewSchema['viewType'] fails this block.
+const viewTypes: Record<NonNullable<ListViewSchema['viewType']>, string> = {
+  grid: 'Rows and columns',
+  kanban: 'Cards grouped into columns',
+  gallery: 'Card grid',
+  calendar: 'Records on a month / week calendar',
+  timeline: 'Records bucketed on a date axis',
+  gantt: 'Bars over a project timeline',
+  map: 'Records at their geographic coordinates',
+  chart: 'Aggregated bar / line / pie / area chart',
+  tree: 'Hierarchical parent-child rows',
+};
+
+export { view, richColumns, viewTypes };
 ```
 
 ## Page binding — `dataSource` (referencing a saved view by name)
