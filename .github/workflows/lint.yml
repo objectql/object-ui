@@ -276,6 +276,63 @@ jobs:
           node scripts/check-upstream-port-parity.mjs --self-test
           node scripts/check-upstream-port-parity.mjs
 
+      # ── The bash 3.2 floor on this repository's own shell (objectui#7692) ──
+      # macOS ships bash 3.2.57 and no bash 4+, for licensing reasons. CI runs
+      # bash 5, where every bash-4-only construct works — so a `mapfile`,
+      # a `declare -A` or an unguarded `$EPOCHSECONDS` in a hand-run script is
+      # invisible to a normal green run: the defect AND its repair both read as
+      # green, and the only reader who ever sees the failure is a contributor on
+      # a Mac at the moment they most need the script to work.
+      #
+      # This repository held its shell to nothing. Measured on `origin/main`
+      # `28cfff4` with a control beside the zero: 0 tracked files named
+      # `bash32`/`bash-32`, against 47 `scripts/check-*.mjs` gates that do exist.
+      # `check-control-bytes` judges bytes in every text file and
+      # `check-shell-escape-residue` judges markdown FENCES ("206 file(s) and
+      # 1309 fenced block(s)"), so neither is this.
+      #
+      # ⭐ The scan roots are `scripts/**`, `.claude/hooks/**` and `e2e/**`, and
+      # the third one is the point rather than a detail: two of the four shell
+      # files this repository wrote itself live in `e2e/live/ci/`. Upstream's
+      # roots (`.githooks/**` instead of `e2e/**`) would have walked past half
+      # the population while printing a green line.
+      #
+      # This is a RATCHET, not a repair: the gate's first full-population run on
+      # this tree is green — 12 shell files, 19 constructs, 0 findings. The card
+      # that filed it had grepped 10 of the 19 by hand; this step is what makes
+      # the other 9 a measurement instead of an assumption, and what stops the
+      # first violation being typed.
+      #
+      # Ported from objectstack `scripts/check-bash32-floor.mjs` at `6136293`
+      # and deliberately NOT registered in `scripts/upstream-port-pin.json` —
+      # that ledger carries ONE global `upstream.ref` (`bf10deb` today) which
+      # `--resync` rewrites for every entry, so registering this file would mean
+      # either shipping `bf10deb`'s older, weaker construct table or re-syncing
+      # three unrelated ported files. The gate's own header carries the full
+      # argument and names the follow-up.
+      #
+      # Runs before install, next to the three gates above and for the same
+      # reason: node builtins, `scripts/invoked-as.mjs` and `git ls-files` only,
+      # so nothing it needs is in `node_modules` and an install failure cannot
+      # make it green. Invoked as `node` rather than through the
+      # `pnpm check:bash32-floor` alias for that placement, matching the steps
+      # above; `scripts/__tests__/bash32-floor-wiring.test.ts` holds the two
+      # spellings to the same script. `--self-test` runs FIRST and is the half
+      # that stops the scanner rotting into decoration — a pattern that matches
+      # nothing reports a clean tree forever, so every row is driven against a
+      # real instance of its construct AND against the 3.2 replacement the
+      # failure text tells you to write.
+      #
+      # Cost, measured on this tree so the job ceiling question is answered
+      # rather than assumed: both invocations together run in well under two
+      # seconds. `timeout-minutes: 25` at the job header is DERIVED from this
+      # job's own distribution (objectui#7270, max 7m14s) and is untouched.
+      - name: Verify this repository's shell holds the bash 3.2 floor
+        if: steps.relevant.outputs.should_run == 'true'
+        run: |
+          node scripts/check-bash32-floor.mjs --self-test
+          node scripts/check-bash32-floor.mjs
+
       # ── Cache bookkeeping cannot void a recorded verdict (objectui#7048) ──
       # THE ORDERING, carried here from the type-check split in `ci.yml`
       # (objectui#6577, PR #7047) because it is what a future reader needs in
