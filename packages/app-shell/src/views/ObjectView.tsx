@@ -341,7 +341,14 @@ export function galleryViewOptions(viewDef: any): Record<string, unknown> {
         ...(gallery || {}),
         ...(declaredImage ? { imageField: declaredImage } : {}),
         ...(declaredCover ? { coverField: declaredCover } : {}),
-        titleField: gallery?.titleField || 'name',
+        // Spelled through `viewDef` rather than the `gallery` local above, and
+        // that is load-bearing: `ObjectView.titleFieldConvergence.test.tsx`
+        // (objectui#6557) pins all six `titleField` / `labelField` seams to ONE
+        // expression shape — a chain of VIEW-declared rungs floored at 'name',
+        // with `viewDef` as the mechanical proxy for "view-declared". Reading
+        // the local here still resolves the same value but blinds that scan to
+        // the thing it hunts, so the seam keeps the family spelling.
+        titleField: viewDef?.gallery?.titleField || 'name',
     };
 }
 
