@@ -29,7 +29,10 @@ reads a function, else `?: never`:
 - Runtime slots (callable kept): `DetailViewSchema.onBack` (now `() => void`, the prop
   `DetailView` invokes — it declared `string`), `DetailSchema.onBack`, `ActionSchema.onClick`,
   `CalendarViewSchema.onEventClick`.
-- Retired (`?: never`): `AppAction.onClick` (nothing reads `AppComponentSchema.actions[]`),
+- Retired (`?: never`): `AppAction.onClick` (no reader touches `onClick`, on the action
+  or on `items[]` — `AppComponentSchema.actions[]` itself IS read, by
+  `@object-ui/runner`'s `LayoutRenderer`, so the array being unread was never the
+  reason this key is inert; corrected at objectui#7721),
   `ReportBuilderSchema.onSave` / `.onCancel` (no `report-builder` renderer is registered),
   `CRUDDialogSchema.onClose` (no `crud-dialog` renderer is registered).
 
