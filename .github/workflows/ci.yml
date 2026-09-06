@@ -518,6 +518,35 @@ jobs:
         if: steps.relevant.outputs.should_run == 'true'
         run: pnpm type-check:scripts
 
+      # The repo-root `vitest.config.mts` had no RUNNABLE gate of its own
+      # (objectui#7328). A program did already contain it —
+      # `apps/console/tsconfig.node.json` lists `../../vitest.config.mts` and
+      # `vitest.config.ts` outright (objectui#3476) — but the only thing that
+      # ran that program was the console's own `type-check` script, which is
+      # `tsc --noEmit && tsc -b tsconfig.node.json --force` behind
+      # `turbo run type-check`, whose task dependsOn `^build`. So the cheapest
+      # compiler that reads the root Vitest config was reachable only through
+      # the most expensive job in the repo, and no local gate union short of a
+      # full workspace build could red on it.
+      #
+      # That is not hypothetical. PR #7291 pushed a conditionally spread `dist`
+      # project whose literal `extends: true` widened to `boolean`, degrading
+      # the whole `projects` array to `never[]`; every gate the author ran was
+      # green and CI reported three errors, two of them at
+      # `../../vitest.config.mts`. This step is the same compiler, invoked
+      # directly.
+      #
+      # Placed in the CHEAP half beside `pnpm type-check:scripts`, and for the
+      # same measured reason: nothing in this project's program imports an
+      # @object-ui/* package (its `@object-ui/*` occurrences are alias-map
+      # STRINGS in `vite.config.ts`), so it needs the install and nothing built
+      # — 2.0s on a worktree with no `dist/` anywhere.
+      # `scripts/__tests__/vitest-config-type-check.test.ts` pins that premise,
+      # this step's presence and its position.
+      - name: Type-check the root Vitest config
+        if: steps.relevant.outputs.should_run == 'true'
+        run: pnpm type-check:vitest-config
+
       # ── Cache bookkeeping cannot void a recorded verdict (objectui#6577) ──
       # THE ORDERING, because it is the only thing a future reader needs in
       # order to judge whether this step may be touched: this job's verdict is
