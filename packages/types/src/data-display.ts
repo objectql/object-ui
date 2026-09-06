@@ -1514,38 +1514,46 @@ export interface ChartDataSeries {
    */
   variant?: 'primary' | 'comparison';
   /**
-   * Stroke and fill opacity. Read by `num()` (`normalizeChartSchema.ts:248`
+   * Stroke and fill opacity. Read by `num()` (`normalizeChartSchema.ts:365`
    * — any finite number; the mirror refuses `NaN`, `Infinity` and strings the
-   * same way) and applied at `AdvancedChartImpl.tsx:94-95` inside
-   * `comparisonStyle`, where it overrides the comparison overlay's per-family
-   * default (objectui#7546). Declared as the read's own domain: the spec's
-   * `ChartSeries.opacity` bounds it to 0–1, a bound the renderer does not
-   * enforce (SVG clamps at paint, nothing is dropped), so the mirror does not
-   * refuse an out-of-range value either.
+   * same way) and applied by `seriesStyle` (`AdvancedChartImpl.tsx:114-115`),
+   * which hands it to EVERY mark family: `fillOpacity` on a Bar or Scatter
+   * mark, `strokeOpacity` on a Line mark, both on an Area mark (objectui#7546).
+   * Declared as the read's own domain: the spec's `ChartSeries.opacity` bounds
+   * it to 0–1, a bound the renderer does not enforce (SVG clamps at paint,
+   * nothing is dropped), so the mirror does not refuse an out-of-range value
+   * either.
    *
-   * ⚠️ Today the renderer honours it ONLY on a `variant: 'comparison'` series —
-   * `comparisonStyle` returns `null` for any other variant, so on a primary
-   * series the value is read and unused. On a comparison series it reaches
-   * EVERY mark family: `fillOpacity` on a Bar (`:1911`, `:2037`) or Scatter
-   * (`:1832`) mark, `strokeOpacity` on a Line mark (`:1898`, `:2048`), both on
-   * an Area mark (`:1905`, `:2056`). The spec declares it as an unconditional
-   * override, so the primary-series half is a renderer gap (objectui#7698),
-   * not a reason to narrow this face.
+   * UNCONDITIONAL, as the spec declares it: it applies whatever the series'
+   * `variant`. It used to be honoured only on a `variant: 'comparison'` series
+   * — `comparisonStyle` returned `null` for any other variant, so elsewhere the
+   * value was read and then discarded — and objectui#7698 closed that in the
+   * RENDERER rather than by narrowing this face to match (AGENTS.md #0.1).
+   * What is still gated on `variant: 'comparison'` is the DEFAULT this key
+   * overrides: the muted treatment a comparison overlay gets when it carries
+   * no `opacity` of its own.
    */
   opacity?: number;
   /**
    * SVG `stroke-dasharray` override, e.g. `"4 4"` for a dashed line
-   * (`normalizeChartSchema.ts:250`; read at `AdvancedChartImpl.tsx:96`)
-   * (objectui#7546).
+   * (`normalizeChartSchema.ts:367`; applied by `seriesStyle`,
+   * `AdvancedChartImpl.tsx:116`) (objectui#7546).
    *
-   * ⚠️ Narrower condition than {@link ChartDataSeries.opacity}: today it is
-   * honoured only on a `variant: 'comparison'` series AND only on a mark with
-   * a stroke to dash — a Line (`:1898`, `:2048`) or Area (`:1905`, `:2056`)
-   * mark, whether from the chart's `chartType` or a per-series `type`
-   * override. `comparisonStyle` returns the authored value for every family,
-   * but a Bar (`:1911`, `:2037`) or Scatter (`:1832`) mark passes
-   * `fillOpacity` only and drops `strokeDasharray` (and `strokeOpacity`); on
-   * a primary series of any family it is read and unused (objectui#7698).
+   * UNCONDITIONAL, as the spec declares it, and reaching every mark family —
+   * but only a STROKED mark shows a dash, and this renderer strokes Line and
+   * Area marks, so on a Bar or Scatter mark the value reaches the DOM and
+   * paints nothing. That is the mark's own geometry, not a condition on the
+   * key, and it is the one asymmetry with {@link ChartDataSeries.opacity},
+   * which paints on every family.
+   *
+   * TWO gaps used to narrow it, and objectui#7698 closed both: the
+   * `variant: 'comparison'` guard that discarded it on a primary series, and
+   * the Bar and Scatter marks, which passed `fillOpacity` only and dropped
+   * `strokeDasharray` (and `strokeOpacity`) even where a comparison series had
+   * authored one — so a fix aimed at the guard alone would have left this key
+   * broken on those two families. What is still gated on
+   * `variant: 'comparison'` is the DEFAULT it overrides: the overlay's `'4 4'`
+   * dash on a Line or Area mark.
    */
   dashArray?: string;
   /**
