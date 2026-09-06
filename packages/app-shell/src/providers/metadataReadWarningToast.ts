@@ -48,9 +48,40 @@
  */
 
 import type { MetadataReadWarningEvent } from '@object-ui/data-objectstack';
+import type { TranslateFn } from './writeWarningToast.js';
 
-/** i18next's `t`, narrowed to what this module uses. */
-export type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
+/**
+ * i18next's `t`, narrowed to what this module uses — RE-EXPORTED from
+ * `writeWarningToast`, never re-declared.
+ *
+ * The rest of this module was modelled on its two siblings, and a fourth copy
+ * of their local `export type TranslateFn = …` came along with the pattern.
+ * That name already has three declarations (`writeWarningToast`,
+ * `saveAdvisoryToast`, `fields/src/widgets/file-size-guard`), and the
+ * objectui#6172 甲/A1 ruling is that every exported name has exactly one
+ * authority — so a fourth is the one thing this file must not add.
+ * `scripts/__tests__/one-authority-per-exported-name-6273.test.ts` caught it,
+ * and its remedy is this: `export type { X } from '<the-owner>'` is a
+ * re-export, not a second declaration, and the gate does not count it. ⛔ The
+ * baseline it also carries is SHRINK-ONLY and is not an option here.
+ *
+ * Why `writeWarningToast` is the one pointed at, from evidence already in the
+ * tree rather than a judgement made here:
+ *
+ *   - `AdapterProvider` — this module's only caller — already imports
+ *     `TranslateFn` from `./writeWarningToast.js` and passes that very value
+ *     into all three emitters, including this one. Pointing here is therefore
+ *     the wiring that already exists, not a new claim about which file owns
+ *     the name.
+ *   - `file-size-guard.ts`'s own declaration names
+ *     `app-shell/src/providers/writeWarningToast` as "the established
+ *     `TranslateFn` pattern" it was copied from.
+ *
+ * ⛔ This does NOT resolve the pre-existing three-way collision, and is not an
+ * attempt to: that predates this card and repairing it belongs to its own.
+ * This file's obligation is only to stop adding to it.
+ */
+export type { TranslateFn } from './writeWarningToast.js';
 
 /**
  * Where the message goes. Structurally satisfied by sonner's `toast`, which is
