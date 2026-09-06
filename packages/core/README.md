@@ -45,14 +45,20 @@ const mySchema: PageNodeSchema = {
 
 ```typescript
 import { ComponentRegistry } from '@object-ui/core'
+import type { ComponentRenderer } from '@object-ui/core'
 
-ComponentRegistry.register('button', buttonMetadata)
-const metadata = ComponentRegistry.get('button')
+// Your component, in whatever renderer shape the host framework uses.
+declare const buttonRenderer: ComponentRenderer
+
+ComponentRegistry.register('button', buttonRenderer)
+const renderer = ComponentRegistry.get('button')
 ```
 
 `ComponentRegistry` is a process-level singleton exported by `@object-ui/core`;
 `SchemaRenderer` resolves every `type` against it, so a component registered
-here is renderable from schema anywhere in the app.
+here is renderable from schema anywhere in the app. `register()`'s second
+argument is the component itself; registration metadata is its optional third
+argument, and `getMeta()` — not `get()` — reads that metadata back.
 
 ### Data Scope
 
@@ -82,6 +88,14 @@ object scope, which are injected:
 
 ```typescript
 import { createServerActionHandler } from '@object-ui/core'
+import type { ActionRunner, ServerActionFetch } from '@object-ui/core'
+
+// Injected by the host. Each stand-in is typed from the shipped surface, so
+// this example is checked against the factory's own config rather than a copy.
+declare const myAuthenticatedFetch: ServerActionFetch
+declare const currentObject: string | undefined
+declare const refetchData: () => void
+declare const runner: ActionRunner
 
 const script = createServerActionHandler({
   fetch: myAuthenticatedFetch,          // your auth wrapper (Bearer/cookies/...)
@@ -116,6 +130,7 @@ export const userListView = defineSystemView({
   columns: [{ name: 'email' }],
 })
 
+// @ts-expect-error readonly by defineSystemView — refused at compile time, not just at run time
 userListView.columns.push({ name: 'name' }) // ❌ TypeError (strict mode)
 isSystemView(userListView)                   // ✅ true
 
