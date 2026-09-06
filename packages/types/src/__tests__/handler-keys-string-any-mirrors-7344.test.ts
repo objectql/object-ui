@@ -54,10 +54,29 @@
  *     `pickHostCallbacks` forwards it when it is a function
  *     (`calendar-view-renderer.tsx`), the sibling of `onViewChange`'s arm.
  *
- * RETIRED — nothing reads the key (`?: never` on the TypeScript face):
- *   - `app.zod.ts#AppActionSchema.onClick` — `AppComponentSchema.actions[]` has
- *     no reader in `@object-ui/layout`, `@object-ui/app-shell` or the console;
- *     zero references to `AppAction` outside `packages/types`.
+ * RETIRED — nothing reads the KEY (`?: never` on the TypeScript face). ⚠️ The
+ * subject is the KEY, never the array it sits in. This entry used to read
+ * "`AppComponentSchema.actions[]` has no reader in `@object-ui/layout`,
+ * `@object-ui/app-shell` or the console" — literally true, and true ONLY
+ * because of that hand-written three-package scope; `@object-ui/runner` was
+ * outside it and reads the array. Stripped of the scope it became the flat
+ * "nothing reads `AppComponentSchema.actions[]`" that the objectui#7344
+ * changeset was about to publish as `@object-ui/types` CHANGELOG copy
+ * (objectui#7721). Re-measured whole-tree:
+ *   - `app.zod.ts#AppActionSchema.onClick` — `AppComponentSchema.actions[]` IS
+ *     read, by exactly ONE package: `@object-ui/runner`, whose `LayoutRenderer`
+ *     renders the `'button'` arm as toolbar buttons and the `'user'` arm as an
+ *     avatar dropdown. What no reader touches is `onClick` itself — not on the
+ *     action, and no longer on `AppAction.items`, where that same renderer
+ *     reached one through an `as any` cast until objectui#6854 deleted it
+ *     (guarded from the renderer side by
+ *     `packages/runner/src/__tests__/LayoutRenderer.appActionItems-6854.test.tsx`).
+ *     The reader set is now ASSERTED rather than narrated: the census below
+ *     reads its population off the tree, so a reader appearing in a package
+ *     nobody thought to list fails loudly instead of narrowing the claim in
+ *     silence. `AppAction` is still imported nowhere outside `packages/types`
+ *     — the runner reaches the array structurally, through
+ *     `AppComponentSchema`.
  *   - `reports.zod.ts#ReportBuilderSchema.onSave` / `.onCancel` — no renderer is
  *     registered for `report-builder` (control on the same tree:
  *     `register('detail-view'` and `register('report-designer'` both resolve).
@@ -94,6 +113,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -162,7 +182,10 @@ const EVENT_NAME_KEYS: readonly Site[] = [
 ];
 const EVENT_NAME_WORDING = 'an event NAME, not a callback or a handler expression';
 
-const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ZOD_DIR = join(HERE, '..', 'zod');
+/** `packages/types/src/__tests__` -> the workspace root. */
+const REPO_ROOT = join(HERE, '..', '..', '..', '..');
 /** EVERY mirror module — objectui#6182's close condition runs over the whole
  *  directory, not the nine files #7339's census listed (that list is what let
  *  these eight through). */
@@ -254,6 +277,160 @@ describe('census: the only on*: z.(function|string|any) lines left in packages/t
     // stays green through the very deletion it exists to catch.
     expect(objectOf(mirror, key).shape[key]).toBeDefined();
     expect(describeOf(mirror, key)).toContain('objectui#6124');
+  });
+});
+
+/* ── Census: WHO reads `AppComponentSchema.actions[]` (objectui#7721) ────── */
+
+/** The whole-tree reader set, measured on `origin/main` @ `951fa8e0d`: one file,
+ *  one package. The entry above used to carry this as a sentence naming three
+ *  packages, which is why it went stale silently — a hand-written scope cannot
+ *  fail when the tree grows a fourth package. Held as DATA so the failure names
+ *  the newcomer instead of leaving the next reader to re-derive the set. */
+const ACTIONS_READER_FILES = ['packages/runner/src/LayoutRenderer.tsx'] as const;
+const ACTIONS_READER_PACKAGES = ['@object-ui/runner'] as const;
+
+/** `packages/types` DECLARES the member and cannot render it (zero deps, no
+ *  React — AGENTS.md §3), so it is outside the reader population by
+ *  construction, not by convenience. `git grep` reads TRACKED files, so a
+ *  literal anchor also matches the two files that merely DESCRIBE the census;
+ *  those two are pinned below, so a third matching file inside `packages/types`
+ *  still turns this red rather than slipping through the exclusion. */
+const DECLARING_PACKAGE_PREFIX = 'packages/types/';
+const DECLARING_PACKAGE_PROSE = [
+  'packages/types/src/__tests__/handler-keys-string-any-mirrors-7344.test.ts',
+  'packages/types/src/app.ts',
+] as const;
+
+/** Two independent anchors, because a reader can reach the array two ways.
+ *  A — it NAMES `AppComponentSchema` and reads some `.actions` (how the one
+ *      known reader does it).
+ *  B — it reads `.actions` off an app-shaped receiver whatever it imports
+ *      (`app.actions`, `appConfig.actions`, …) — how a STRUCTURAL reader that
+ *      never mentions the type would surface. B is empty of new names today;
+ *      it is here for the tree that grows one. */
+const ANCHOR_NAMES_TYPE = 'AppComponentSchema';
+const ANCHOR_ACTIONS_READ = '\\.actions\\b';
+const ANCHOR_APP_SHAPED_READ = '\\bapp[A-Za-z0-9_$]*\\??\\.actions\\b';
+/** The scanned tree. `examples/` is in it because an example app is exactly
+ *  where a fourth reader would plausibly appear. */
+const SCAN_ROOTS = ['packages', 'apps', 'examples'] as const;
+
+/** File paths, relative to the workspace root, over TRACKED files only — an
+ *  untracked scratch file or a build artefact cannot move this census. */
+const gitGrepFiles = (args: readonly string[]): string[] => {
+  let out: string;
+  try {
+    out = execFileSync('git', ['grep', ...args, '--', ...SCAN_ROOTS], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+  } catch (err) {
+    // `git grep` exits 1 on "no matches", which here would mean a dead
+    // instrument, not an empty tree. Fall through with whatever it printed and
+    // let the emptiness controls below name it.
+    out = (err as { stdout?: string }).stdout ?? '';
+  }
+  return out.split('\n').filter(Boolean).sort();
+};
+
+const scan = () => {
+  const namesType = new Set(gitGrepFiles(['-l', '-F', ANCHOR_NAMES_TYPE]));
+  const readsActions = gitGrepFiles(['-l', '-E', ANCHOR_ACTIONS_READ]);
+  const anchorA = readsActions.filter((f) => namesType.has(f));
+  const anchorB = gitGrepFiles(['-l', '-E', '-i', ANCHOR_APP_SHAPED_READ]);
+  const readers = [...new Set([...anchorA, ...anchorB])]
+    .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX))
+    .sort();
+  return { namesType, readsActions, anchorA, anchorB, readers };
+};
+
+/** The owning package, read from its own manifest — never a hand-written map
+ *  from path to package name, which is the same kind of hand-written scope this
+ *  census exists to retire. */
+const packageNameOf = (file: string): string => {
+  const [top, dir] = file.split('/');
+  const manifest = JSON.parse(
+    readFileSync(join(REPO_ROOT, top, dir, 'package.json'), 'utf8'),
+  ) as { name: string };
+  return manifest.name;
+};
+
+describe('census: `AppComponentSchema.actions[]` IS read, by exactly one package, with the scope in the assertion (objectui#7721)', () => {
+  it('the scan is ALIVE and SELECTIVE — a large population that the anchors narrow, not an empty grep', () => {
+    const { namesType, readsActions, anchorA, anchorB } = scan();
+    // A filter over an empty scan passes vacuously, and "exactly one reader"
+    // is what a dead pattern renders as. Both directions get a counter-probe.
+    expect(readsActions.length, 'nothing in the tree reads `.actions` — the anchor is dead')
+      .toBeGreaterThan(20);
+    expect(namesType.size, 'nothing names `AppComponentSchema` — the anchor is dead')
+      .toBeGreaterThan(5);
+    expect(anchorA.length, 'anchor A matched nothing').toBeGreaterThan(0);
+    expect(anchorB.length, 'anchor B matched nothing').toBeGreaterThan(0);
+    // …and they must actually narrow, or the one-reader result is an artefact.
+    expect(anchorA.length).toBeLessThan(readsActions.length);
+    expect(anchorB.length).toBeLessThan(readsActions.length);
+  });
+
+  it('the three packages the OLD scope named were in the population and were rejected by the anchors — the negative is a reading, not an unvisited absence', () => {
+    // The control for a scan has to come from the POPULATION side: "no reader
+    // in `@object-ui/layout`" says nothing unless layout reached the grep at
+    // all. That is precisely how the sentence this card fixes stayed true.
+    const { readsActions, readers } = scan();
+    const OLD_SCOPE = ['packages/layout/', 'packages/app-shell/', 'apps/console/'] as const;
+    for (const prefix of OLD_SCOPE) {
+      expect(
+        readsActions.some((f) => f.startsWith(prefix)),
+        `${prefix} contributed no file to the population — it was never scanned`,
+      ).toBe(true);
+      expect(
+        readers.filter((f) => f.startsWith(prefix)),
+        `${prefix} now reads the array — the retirement rationale needs re-measuring`,
+      ).toEqual([]);
+    }
+  });
+
+  it('exactly one file reads the array, and its package is `@object-ui/runner`', () => {
+    const { readers } = scan();
+    expect(
+      readers,
+      'the reader set moved — widen ACTIONS_READER_FILES and re-check the '
+        + '`onClick` rationale before editing this expectation',
+    ).toEqual([...ACTIONS_READER_FILES]);
+    expect([...new Set(readers.map(packageNameOf))].sort()).toEqual([...ACTIONS_READER_PACKAGES]);
+  });
+
+  it('`packages/types` matches only as PROSE — the declaration and this census, and no third file', () => {
+    const { anchorA, anchorB } = scan();
+    const inTypes = [...new Set([...anchorA, ...anchorB])]
+      .filter((f) => f.startsWith(DECLARING_PACKAGE_PREFIX))
+      .sort();
+    expect(inTypes).toEqual([...DECLARING_PACKAGE_PROSE]);
+  });
+
+  it('the one reader renders BOTH arms and reads no `onClick` off an action — the real ground for the retirement', () => {
+    const src = readFileSync(join(REPO_ROOT, ACTIONS_READER_FILES[0]), 'utf8');
+    expect(src).toContain("app.actions?.filter(a => a.type === 'button')");
+    expect(src).toContain("app.actions?.filter(a => a.type === 'user')");
+    // The array is read; the KEY is not. That distinction is the whole card:
+    // `onClick?: never` is right, the reason given for it was wrong.
+    expect(src, 'a renderer now reads `onClick` off an action — `?: never` is no longer true')
+      .not.toMatch(/\b(?:action|userAction|a)\??\.onClick\b/);
+  });
+
+  it('`AppAction` is imported nowhere outside `packages/types` — the runner reaches the array through `AppComponentSchema`', () => {
+    const importers = gitGrepFiles(['-l', '-E', '^\\s*import[^;]*\\bAppAction\\b'])
+      .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX));
+    expect(importers).toEqual([]);
+    // An empty result needs a known-hit control, or it is indistinguishable
+    // from a dead pattern: the same anchor on the sibling type must find files.
+    const control = gitGrepFiles(['-l', '-E', '^\\s*import[^;]*\\bAppComponentSchema\\b'])
+      .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX));
+    expect(control.length, 'the import anchor found nothing at all').toBeGreaterThan(0);
+    // The symbol survives only as prose, and only in the reader's own package.
+    const mentions = gitGrepFiles(['-l', '-E', '\\bAppAction\\b'])
+      .filter((f) => !f.startsWith(DECLARING_PACKAGE_PREFIX));
+    expect([...new Set(mentions.map(packageNameOf))]).toEqual([...ACTIONS_READER_PACKAGES]);
   });
 });
 
