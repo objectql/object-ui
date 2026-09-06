@@ -39,10 +39,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * and must be done in lockstep with `KNOWN_ESCAPES`.
  */
 const PINNED_LEDGER: readonly string[] = [
-  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
-  'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
-  'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
 ];
 
 describe('network-escape ledger (objectui#6640) is shrink-only', () => {
