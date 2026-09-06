@@ -64,7 +64,10 @@ vi.mock('@object-ui/plugin-report', async (importOriginal) => ({
     return null;
   },
 }));
-vi.mock('@object-ui/plugin-dashboard', () => ({ DrillDownDrawer: () => null }));
+vi.mock('@object-ui/plugin-dashboard', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  DrillDownDrawer: () => null,
+}));
 vi.mock('./ReportConfigPanel', () => ({
   ReportConfigPanel: (props: any) => {
     cap.panel = props;
