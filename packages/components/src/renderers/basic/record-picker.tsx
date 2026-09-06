@@ -417,6 +417,13 @@ ComponentRegistry.register('record_picker', elementDataSourceBlock(ElementRecord
       // does NOT, which is worth saying in the description because it is the
       // form an author is most likely to reach for.
       type: 'array',
+      // The MEMBER kind, machine-readable rather than only described
+      // (objectui#8067). `z.array(z.object({ … }))` accepts exactly one coarse
+      // kind at its member position — an object — so the fact the paragraph
+      // below spends a sentence on ("the terse string form is not accepted") is
+      // now a claim the repo-wide parity gate compares against the contract,
+      // `validateTree` reports on, and `sdui-intrinsics.d.ts` types.
+      of: 'object',
       description:
         'Row order, as an array of `{ field, order }` entries — `[{ field: "name", order: "asc" }]`. It becomes the `$orderby` of the picker\'s own query, so it decides the order records are offered in. `order` is `asc` or `desc`; the terse string form (`"name asc"`) is not accepted by the contract. PRECEDENCE: identical to `filter` above and for the same reason — the renderer reads `dataSource.sort ?? sort`, so a node-level `dataSource` binding (or the saved view its `view` names) REPLACES this key outright rather than merging with it; it applies only when the node carries no `dataSource`, or that `dataSource` and its view both leave `sort` unset.',
     },

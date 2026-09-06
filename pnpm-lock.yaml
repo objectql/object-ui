@@ -2237,6 +2237,9 @@ importers:
       '@object-ui/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/plugin-detail':
         specifier: workspace:*
         version: link:../plugin-detail
@@ -2365,6 +2368,9 @@ importers:
       '@object-ui/core':
         specifier: workspace:*
         version: link:../core
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
@@ -2566,6 +2572,9 @@ importers:
       '@object-ui/mobile':
         specifier: workspace:*
         version: link:../mobile
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
@@ -2624,6 +2633,9 @@ importers:
       '@object-ui/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
@@ -2682,6 +2694,9 @@ importers:
       '@object-ui/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@object-ui/permissions':
+        specifier: workspace:*
+        version: link:../permissions
       '@object-ui/plugin-form':
         specifier: workspace:*
         version: link:../plugin-form

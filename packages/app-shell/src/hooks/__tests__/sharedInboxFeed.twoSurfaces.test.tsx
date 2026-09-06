@@ -141,7 +141,8 @@ vi.mock('@object-ui/react', async (importOriginal) => ({
   useOffline: () => ({ isOnline: true }),
 }));
 
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   PresenceAvatars: () => <div data-testid="presence-avatars" />,
   useTenantPresence: () => [],
 }));

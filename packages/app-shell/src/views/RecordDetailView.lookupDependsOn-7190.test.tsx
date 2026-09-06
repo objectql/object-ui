@@ -72,7 +72,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
   useAuth: () => ({ user: { id: 'u1', name: 'Ada', image: null }, activeOrganization: null }),
   createAuthenticatedFetch: () => vi.fn(),
 }));
-vi.mock('@object-ui/collaboration', () => ({
+vi.mock('@object-ui/collaboration', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useRecordPresence: () => ({ viewers: [], others: [] }),
   PresenceAvatars: () => null,
 }));

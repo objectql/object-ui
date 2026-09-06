@@ -1240,8 +1240,9 @@ export interface ChatbotSchema extends BaseSchema {
  * NAMED `schema.KEY` read in each of the three `ComponentRegistry.register(...)`
  * bodies of `packages/plugin-chatbot/src/renderer.tsx`, forwarded into
  * `useObjectChat` or onto the rendered component. (Named reads are the
- * instrument; the `chatbot-floating` registration also has an unfiltered
- * props spread — see {@link ChatbotFloatingSchema}.) The instrument was lit by
+ * instrument; the `chatbot-floating` registration also HAD an unfiltered
+ * props spread on this census's base — fenced since, objectui#7708; see
+ * {@link ChatbotFloatingSchema}.) The instrument was lit by
  * keys that are NOT shared — `processVisibility` read 0 / 1 / 0 across
  * `chatbot` / `chatbot-enhanced` / `chatbot-floating` and `floatingConfig`
  * 0 / 0 / 1 — so a zero in that census is a reading, not a blind grep.
@@ -1374,17 +1375,17 @@ export interface ChatbotEnhancedSchema
  * members no registration reads by name. `disabled` / `className` are
  * inherited from {@link BaseSchema}, as on the two sibling faces.
  *
- * ⚠️ The named-read census is not the only channel. This registration ends
- * its `<FloatingChatbot>` element with a raw `{...props}` spread — every
- * authored key `SchemaRenderer` forwards, unfiltered — and the panel is a
- * `<ChatbotEnhanced>`, so an authored `processVisibility`, `surface` or
- * `showAvatars` DOES reach it today (measured through the real host: each
- * lights its marker on a `chatbot-floating` node and stays dark without the
- * key, while `chatbot-enhanced`, whose spread is `toDomProps`-filtered, keeps
- * `showAvatars` dark). That channel is accidental, not contract: declaring
- * the three here would fossilise it (AGENTS.md #0.1), and fencing it is a
- * behaviour change with its own review. Recorded on its own card,
- * objectui#7708; this face neither declares nor promises it.
+ * The named-read census used to not be the only channel: this registration
+ * ended its `<FloatingChatbot>` element with a raw `{...props}` spread —
+ * every authored key `SchemaRenderer` forwards, unfiltered — and the panel
+ * is a `<ChatbotEnhanced>`, so an authored `processVisibility`, `surface` or
+ * `showAvatars` reached it (measured through the real host, objectui#7708).
+ * That channel was accidental, not contract, and is now CLOSED: the spread
+ * is fenced through `toDomProps` and moved to the head of the element, the
+ * same shape the two sibling registrations already use, so this face's
+ * declared set is now also its delivered set. `processVisibility` and
+ * `surface` are dark on `chatbot-floating` on purpose, same as `showAvatars`
+ * above — author them on `chatbot-enhanced` instead.
  */
 export interface ChatbotFloatingSchema
   extends BaseSchema,

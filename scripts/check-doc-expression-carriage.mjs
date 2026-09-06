@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 /**
- * Every `${…}` a `content/docs/**` json fence authors on a node must sit on a
- * channel `SchemaRenderer` actually evaluates. REPORT-ONLY: it prints a census
- * and never fails the build on its findings.
+ * Every `${…}` a json fence authors on a node must sit on a channel
+ * `SchemaRenderer` actually evaluates. REPORT-ONLY: it prints a census and never
+ * fails the build on its findings.
+ *
+ * The scan surface is EXACTLY the one `check:doc-types`
+ * (`check-doc-component-types.mjs`) walks — `content/docs`, every
+ * `apps/<app>/docs` tree and the root pages it names — and it is that surface by
+ * IMPORT rather than by copy; see "The scan surface" below.
  *
  * Run:  node scripts/check-doc-expression-carriage.mjs
  *       node scripts/check-doc-expression-carriage.mjs --list       every fence, parsed or not
@@ -120,14 +125,52 @@
  *   - A `${…}` in an object with no string `type`. Without a type there is no
  *     carriage row to judge against, and guessing one is how a gate produces
  *     false findings in both directions at once.
- *   - Anything outside a `json` / `jsonc` fence under `content/docs/**`. The
+ *   - Anything outside a `json` / `jsonc` fence on the scan surface. The
  *     `ts`/`tsx` blocks are `check-doc-snippet-types`' surface and are left to
- *     it; ⛔ this file changes no other gate's population. `docs/ARCHITECTURE.md`
- *     — objectui#7838's site — is outside `content/docs` and so outside this
- *     census. The LANGUAGE SET is its own blind spot and is measured rather than
- *     asserted: every run prints the per-language counts, and every fence in a
- *     language this gate does not scan is still parsed, purely to report whether
- *     it would have been a JSON document holding a typed node.
+ *     it; ⛔ this file changes no other gate's population. The LANGUAGE SET is its
+ *     own blind spot and is measured rather than asserted: every run prints the
+ *     per-language counts, and every fence in a language this gate does not scan
+ *     is still parsed, purely to report whether it would have been a JSON
+ *     document holding a typed node.
+ *   - The repository-root `docs/` tree, and therefore `docs/ARCHITECTURE.md` —
+ *     objectui#7838's site. ⚠️ objectui#7878 was filed expecting this widening to
+ *     reach that file; it does not, and the card's premise was corrected before
+ *     dispatch rather than after. NO doc gate walks the root `docs/` tree
+ *     (objectui#7856 is the open question about it): `check-doc-component-types`
+ *     names `docs/**` in its own exclusion list, `check-readme-exports` reports
+ *     `0 outside any package`, and `lint:root` ignores it. Widening onto a tree
+ *     no sibling gate reads is a different decision from joining the surface
+ *     three of them already share, and it is #7856's to make, not this file's.
+ *
+ * ## The scan surface — imported from `check:doc-types`, never re-declared
+ *
+ * objectui#7878. This census landed (PR objectui#7868) pointed at `content/docs`
+ * alone while its two sibling doc gates had already been widened, by
+ * objectui#6600 and objectui#7115, onto the per-app docs trees and the root
+ * pages. That is the objectui#7115 geometry rebuilt one gate over: the root
+ * `README.md` fell BETWEEN two gates' surfaces and taught an unregistered type
+ * four times for as long as the example existed, for exactly one reason —
+ * nothing read the file.
+ *
+ * So the surface is not re-declared here. `APP_DOCS`, `appDocsDirs` and
+ * `ROOT_PAGES` are IMPORTED from `check-doc-component-types.mjs`, which makes the
+ * two walks the same object rather than two arrays a test hopes are equal. The
+ * three gates that carry copies of these constants do so for a stated reason that
+ * does not apply here — importing `check-doc-snippet-types.mjs` pulls in its
+ * `import ts from 'typescript'` at load, and `check-doc-fence-languages`' whole
+ * value is running with no install. `check-doc-component-types.mjs` imports
+ * node built-ins and `invoked-as.mjs`, the same four this file already imports,
+ * so the copy would buy nothing and cost a pin. (`regenerate-known-schema-types`
+ * already imports that module for the same reason.)
+ *
+ * `DOCS_ROOT` is the one leg still spelled here, because that gate declares it
+ * `const` rather than `export const`; `check-doc-expression-carriage.test.ts`
+ * pins this file's copy against that file's source text.
+ *
+ * ⚠️ Widening a scan surface is the change that can be GREEN ABOUT NOTHING, so
+ * the widening is measured rather than asserted: the test pins that every leg of
+ * the walk actually reaches a file, and the census prints the file count beside
+ * the surface it walked.
  *
  * ## ⚠️ A hit is a CANDIDATE, not a verdict — `type` is not one vocabulary
  *
@@ -154,13 +197,36 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { APP_DOCS, appDocsDirs, ROOT_PAGES } from './check-doc-component-types.mjs';
 import { isEntrypoint } from './invoked-as.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..');
 
-/** Where the teaching prose lives. The card's surface, and only it. */
+/**
+ * The guide tree, the first leg of the walk. Spelled here because
+ * `check-doc-component-types.mjs` declares its own `DOCS_ROOT` as a plain `const`
+ * — the other two legs are imported from it, and the test pins this string
+ * against that file's source so the three legs cannot drift apart.
+ */
 export const DOCS_ROOT = 'content/docs';
+
+/**
+ * The other two legs of `check:doc-types`' surface, re-exported so this file's
+ * scan surface is readable from one place and pinnable as ONE object rather than
+ * as two arrays that agree today.
+ */
+export { APP_DOCS, appDocsDirs, ROOT_PAGES };
+
+/**
+ * The surface in one phrase, so the printed summary and this file's prose cannot
+ * describe different walks. The app-docs leg is spelled with a GLOB STAR rather
+ * than with an angle-bracket placeholder: this string is quoted into pull-request
+ * bodies and issue comments, and GitHub's body sanitizer eats tag-shaped
+ * fragments (AGENTS.md, "GitHub 会改写你写进 issue/PR 正文的字节").
+ */
+export const SURFACE_LABEL = `${DOCS_ROOT}, ${APP_DOCS.dir}/*/${APP_DOCS.subdir} and ${ROOT_PAGES.join(', ')}`;
+
 /** The renderer whose evaluation legs define "carried". */
 export const RENDERER_SOURCE = 'packages/react/src/SchemaRenderer.tsx';
 /** Fence info strings whose body is a JSON document. */
@@ -252,14 +318,42 @@ export async function loadCarriage() {
 
 // ── Fence extraction ─────────────────────────────────────────────────────────
 
+/**
+ * One tree. The three skipped names are `check-doc-component-types`' own
+ * exclusions, carried over so "exactly the surface that gate walks" is true of
+ * the traversal and not only of the roots. They change nothing under
+ * `content/docs` today — that tree holds no `node_modules`, `dist` or dot-entry —
+ * and they are what keeps the answer stable if an app docs tree ever grows one.
+ */
 function walkFiles(dir, out = []) {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir).sort()) {
+    if (entry === 'node_modules' || entry === 'dist' || entry.startsWith('.')) continue;
     const abs = join(dir, entry);
     if (statSync(abs).isDirectory()) walkFiles(abs, out);
     else if (DOC_EXTENSIONS.some((ext) => entry.endsWith(ext))) out.push(abs);
   }
   return out;
+}
+
+/**
+ * Every document on the scan surface, absolute, in a stable order: the guide
+ * tree, then each `apps/<app>/docs` tree, then the root pages by name.
+ *
+ * A root page that does not resolve is DROPPED rather than fatal, which is the
+ * same bargain `check-doc-component-types.scanDocs` strikes and for the same
+ * reason — the fixture trees this file's tests build have no root README, and a
+ * throwaway tree must stay scannable. ⚠️ The consequence is that a `ROOT_PAGES`
+ * name going dangling would shrink this census SILENTLY. This gate is
+ * report-only and its exit codes are not this card's to move (objectui#7878), so
+ * the guard lives in the test instead: `check-doc-expression-carriage.test.ts`
+ * pins that every leg of this walk reaches at least one real file.
+ */
+export function listDocuments(root) {
+  const files = walkFiles(join(root, DOCS_ROOT));
+  for (const dir of appDocsDirs(root)) files.push(...walkFiles(dir));
+  files.push(...ROOT_PAGES.map((name) => join(root, name)).filter((abs) => existsSync(abs)));
+  return files;
 }
 
 /**
@@ -447,9 +541,9 @@ export function parseFence(body) {
   return wrapped.ok ? { ...wrapped, wrapped: true } : first;
 }
 
-/** Every `json` / `jsonc` fence under the docs root, parsed or not. */
+/** Every `json` / `jsonc` fence on the scan surface, parsed or not. */
 export function scanFences(root) {
-  const files = walkFiles(join(root, DOCS_ROOT));
+  const files = listDocuments(root);
   const fences = [];
   for (const abs of files) {
     const rel = relative(root, abs).split(sep).join('/');
@@ -496,7 +590,7 @@ export function scanFences(root) {
       });
     }
   }
-  return { files: files.length, fences };
+  return { files: files.length, documents: files.map((abs) => relative(root, abs).split(sep).join('/')), fences };
 }
 
 // ── The judgement ────────────────────────────────────────────────────────────
@@ -617,7 +711,7 @@ export function analyze(root, { channels, carriage }) {
 
   sites.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.key.localeCompare(b.key));
   const languages = [...byLanguage.entries()].sort((a, b) => b[1].fences - a[1].fences).map(([lang, row]) => ({ lang, ...row }));
-  return { counters, sites, unparsed, fences: inventory, languages, unscannedJsonLike };
+  return { counters, documents: scan.documents, sites, unparsed, fences: inventory, languages, unscannedJsonLike };
 }
 
 // ── Controls: the gate proves it can see, on every run ────────────────────────
@@ -741,7 +835,7 @@ if (isEntrypoint(import.meta.url)) {
 
   const { counters, sites, unparsed, languages, unscannedJsonLike } = census;
   console.log(
-    `\nScanned ${counters.files} file(s) under ${DOCS_ROOT}: ` +
+    `\nScanned ${counters.files} file(s) across ${SURFACE_LABEL}: ` +
       `${counters.fences} ${JSON_FENCE_LANGUAGES.join('/')} fence(s), ` +
       `${counters.parsed} parsed, ${counters.unparsed} UNPARSED` +
       (counters.wrapped > 0 ? ` (${counters.wrapped} parsed as an object body)` : '') +

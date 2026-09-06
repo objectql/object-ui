@@ -395,9 +395,11 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // Designer inputs mirror @objectstack/spec RecordDetailsProps (component.zod).
   //
   // `sections` publishes its ENTRY shape in prose, derived from the spec's own
-  // `.describe()` on each member key — `ComponentInput` is flat by design and
-  // has no slot for a member shape, so an array-of-objects input can only
-  // document its elements here (same as `record:highlights.fields`,
+  // `.describe()` on each member key. `ComponentInput.of` now carries the
+  // member KIND (`of: 'object'` below, objectui#8067) and the repo-wide parity
+  // gate compares it against the contract, so "these are objects" is no longer
+  // prose-only — but `of` stops at the kind and names no member KEYS, so the
+  // entry's own fields stay described here (same as `record:highlights.fields`,
   // `record:path.stages`, `record:alert.action`). It says "object, not string"
   // out loud because the string spelling is exactly what this text used to
   // teach: until 17.x the spec declared `sections: z.array(z.string())` and
@@ -446,8 +448,8 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
   // above already said `rejects`.)
   inputs: [
     { name: 'columns', type: 'enum', enum: ['1', '2', '3', '4'], description: 'Number of columns for field layout (1-4)' },
-    { name: 'sections', type: 'array', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Authoring `sections` at all makes it the only source of the detail body; omit it and the body falls back to the object\'s highlightFields. @objectstack/spec 17.3.0 declares eight more member keys on an entry, six of which this renderer already honours through DetailSection: `icon` (a Lucide name on the section header), `description` (sub-heading copy under the heading), `collapsible` and `defaultCollapsed` (a foldable section and its initial state), `showBorder` (force the Card wrapper on or off, overriding the heading-derived default) and `headerColor` (a header tint from the shared palette). Two are declared upstream and NOT read here: `group`, which objectui does not implement on a detail section, and `hideEmpty`, deliberately retired in objectui#7129 (maintainer 2026-09-01) in favour of DetailSection\'s auto-hide heuristic plus the reader\'s show-empty toggle — authoring it does nothing on this renderer. None of the eight has a designer control yet; they are authorable in source mode only, tracked as a deferred feature.' },
-    { name: 'fields', type: 'array', description: 'Explicit field list (overrides highlightFields)' },
+    { name: 'sections', type: 'array', of: 'object', description: 'Field groups rendered as the detail body, in order. Every entry is an OBJECT — `{ name?, label?, columns?, fields }` — a bare section-id string is NOT accepted (the spec retired that spelling in objectstack#5611, and the renderer reads name/label/fields off each entry, so a string entry renders no fields at all). `fields` (required) are the field names shown in this section, in order. `label` is the section heading; omit it for an untitled, borderless section. `name` is a stable snake_case identifier and the i18n anchor — the heading resolves through objects.<object>._sections.<name>.label, so a section without a name shows its authored label in every locale. `columns` (1-4) is THIS section\'s field-grid width; omit it and the renderer derives the width. Authoring `sections` at all makes it the only source of the detail body; omit it and the body falls back to the object\'s highlightFields. @objectstack/spec 17.3.0 declares eight more member keys on an entry, six of which this renderer already honours through DetailSection: `icon` (a Lucide name on the section header), `description` (sub-heading copy under the heading), `collapsible` and `defaultCollapsed` (a foldable section and its initial state), `showBorder` (force the Card wrapper on or off, overriding the heading-derived default) and `headerColor` (a header tint from the shared palette). Two are declared upstream and NOT read here: `group`, which objectui does not implement on a detail section, and `hideEmpty`, deliberately retired in objectui#7129 (maintainer 2026-09-01) in favour of DetailSection\'s auto-hide heuristic plus the reader\'s show-empty toggle — authoring it does nothing on this renderer. None of the eight has a designer control yet; they are authorable in source mode only, tracked as a deferred feature.' },
+    { name: 'fields', type: 'array', of: 'string', description: 'Explicit field list (overrides highlightFields)' },
     // `hideFields` is DECLARED, not merely honoured (objectui#3808). The spec
     // declares it (objectstack#5611) and `RecordDetailsRenderer` has read it
     // since the highlight-dedup phase (`renderers/record-details.tsx:147`), but
@@ -466,7 +468,7 @@ ComponentRegistry.register('details', RecordDetailsRenderer, {
     // The "hiding every field drops the section" sentence is read off
     // `DetailSection.tsx:439` (`visibleFields.length === 0 &&
     // emptyCount === section.fields.length` returns null), not assumed.
-    { name: 'hideFields', type: 'array', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
+    { name: 'hideFields', type: 'array', of: 'string', description: 'Field names to omit from the body — applied to the top-level `fields` list AND to every section\'s `fields`. Bare field names only. Authors rarely need it: the synth pipeline fills it with the fields already shown in `record:highlights`, and hand-authored pages get the same dedup live from HighlightFieldsContext, so its purpose is suppressing a field you do not want repeated (the page H1 title field is dropped for you too). Hiding every field of a section leaves that section out entirely.' },
     // `inlineEdit` and `showHeader` are DECLARED, not merely honoured
     // (objectui#4668) — the same reverse-direction defect `hideFields` above
     // records, on the two keys @objectstack/spec 17.0.0 GA added to this block.
@@ -516,7 +518,7 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     { name: 'objectName', type: 'string', required: true, description: 'Related object name (e.g. "task")' },
     { name: 'relationshipField', type: 'string', required: true, description: 'Field on the related object pointing back to this record' },
     { name: 'relationshipValueField', type: 'string', description: 'Which field OF THIS PARENT record `relationshipField` stores. Defaults to "id"; set it to the field a name-keyed junction points at (e.g. "name" when sys_user_position.position holds sys_position.name). The resolved value drives three things at once — the list filter, the Add-picker link value, and the pre-filled create form — so they cannot drift apart. While the parent record is still loading, a non-"id" field resolves to null and the list holds its fetch rather than querying on an empty value.' },
-    { name: 'columns', type: 'array', required: true, description: 'Fields to display in the related list' },
+    { name: 'columns', type: 'array', of: 'string', required: true, description: 'Fields to display in the related list' },
     { name: 'sort', type: 'array' },
     { name: 'limit', type: 'number', description: 'Records to display initially' },
     // `type: 'array'` matches the spec (`RecordRelatedListProps.filter` is
@@ -527,15 +529,17 @@ ComponentRegistry.register('related_list', RecordRelatedListRenderer, {
     // which is the part a wrong guess makes dangerous rather than merely broken:
     // an author who reads "filter" as "the list's whole filter" would expect it
     // to be able to widen past the parent record, and it cannot (objectstack#7118).
-    { name: 'filter', type: 'array', description: 'Additional filter criteria, as spec `ViewFilterRule` entries (`[{ field, operator, value }]`). AND-combined with the parent relationship condition, never a replacement for it: it can only narrow this record\'s children. Also the key a per-element `dataSource` binding\'s composed filter lands on.' },
+    { name: 'filter', type: 'array', of: 'object', description: 'Additional filter criteria, as spec `ViewFilterRule` entries (`[{ field, operator, value }]`). AND-combined with the parent relationship condition, never a replacement for it: it can only narrow this record\'s children. Also the key a per-element `dataSource` binding\'s composed filter lands on.' },
     { name: 'title', type: 'string' },
     { name: 'showViewAll', type: 'boolean' },
-    { name: 'actions', type: 'array', description: 'Action IDs available for related records' },
+    { name: 'actions', type: 'array', of: 'string', description: 'Action IDs available for related records' },
     // `add` publishes its MEMBER shape in prose for the reason the sibling
     // array-of-objects inputs do (`record:details.sections`,
-    // `record:highlights.fields`, `record:path.stages`): `ComponentInput` is flat
-    // by design and has no slot for a member shape, so an `object` input can
-    // only document its members here.
+    // `record:highlights.fields`, `record:path.stages`): `ComponentInput.of`
+    // carries a member KIND and nothing finer (objectui#8067), and this key has
+    // no uniform member kind to carry — its contract is a named-shape
+    // `z.object({ … })`, not a map — so its members can only be documented
+    // here.
     //
     // Documented members are exactly the spec's — `picker.object`,
     // `picker.valueField`, `picker.labelField`, `linkField`, `label` — with each
@@ -584,10 +588,14 @@ ComponentRegistry.register('highlights', RecordHighlightsRenderer, {
   // hand-editable and their page refused by the contract wherever it is
   // parsed. (This said "strips the unknown key on parse without error" until
   // objectui#7127: the pre-#4001-batch-A behaviour, the same stale claim the
-  // `record:details` block above carried.) `ComponentInput` is flat by design
-  // (`name` = "must match schema property"), so an array-of-objects input
-  // publishes its member keys in prose, the same way `record:path.stages` and
-  // `record:alert.action` do. objectui#3407 / objectstack#5176.
+  // `record:details` block above carried.) `ComponentInput.of` carries a member
+  // KIND and nothing finer (objectui#8067), so an array input publishes its
+  // member KEYS in prose, the same way `record:path.stages` and
+  // `record:alert.action` do — and this key does not declare `of` at all,
+  // because its member contract accepts a bare field NAME or an inline field
+  // object and picking one arm of that union is the narrowing this repo leaves
+  // un-gated (pinned as `MULTI_KIND_MEMBER_CONTRACTS` in the repo-wide parity
+  // gate). objectui#3407 / objectstack#5176.
   inputs: [
     { name: 'fields', type: 'array', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?,readonly?}. Set readonly: true on an entry to render that chip read-only — it suppresses the inline-edit affordance and the HeaderHighlight editability gate enforces it. Use it for hook/automation-maintained columns that must not be hand-edited from the record header; marking the OBJECT field readonly instead would also strip the hook\'s own write-back.' },
     { name: 'layout', type: 'enum', enum: ['horizontal', 'vertical'], description: 'Layout orientation for highlight fields' },
@@ -621,7 +629,7 @@ ComponentRegistry.register('activity', RecordActivityRenderer, {
   // DiscussionContext (record detail pages do); `showSubscriptionToggle` is a
   // declared-but-inert GAP and says so here rather than looking configurable.
   inputs: [
-    { name: 'types', type: 'array', description: 'Allow-list of feed item types to show (comment, field_change, task, event, email, call, note, file, record_create, record_delete, approval, sharing, system). Omit for all; unrecognised entries are ignored.' },
+    { name: 'types', type: 'array', of: 'string', description: 'Allow-list of feed item types to show (comment, field_change, task, event, email, call, note, file, record_create, record_delete, approval, sharing, system). Omit for all; unrecognised entries are ignored.' },
     {
       name: 'filterMode',
       type: 'enum',
@@ -695,7 +703,7 @@ ComponentRegistry.register('path', RecordPathRenderer, {
   // Mirrors @objectstack/spec RecordPathProps.
   inputs: [
     { name: 'statusField', type: 'string', required: true, description: 'Field representing the current status/stage' },
-    { name: 'stages', type: 'array', description: 'Explicit stage definitions [{ value, label }] (else derived from field metadata)' },
+    { name: 'stages', type: 'array', of: 'object', description: 'Explicit stage definitions [{ value, label }] (else derived from field metadata)' },
   ],
 });
 
@@ -716,8 +724,8 @@ ComponentRegistry.register('quick_actions', RecordQuickActionsRenderer, {
     // taught to authors and to tooling — objectstack#8744 quoted it verbatim.
     // Implementing the fallback would be a behaviour expansion and needs its own
     // card; pinned by `recordQuickActionsInputs.actionNamesFallback.test.tsx`.
-    { name: 'actionNames', type: 'array', description: 'Action names to expose, in order — resolved from the actions declared on the object. With no names (and no host-supplied actions) nothing is looked up and the bar renders its empty placeholder' },
-    { name: 'requiredPermissions', type: 'array', description: 'Hide the whole bar unless the user holds these permissions' },
+    { name: 'actionNames', type: 'array', of: 'string', description: 'Action names to expose, in order — resolved from the actions declared on the object. With no names (and no host-supplied actions) nothing is looked up and the bar renders its empty placeholder' },
+    { name: 'requiredPermissions', type: 'array', of: 'string', description: 'Hide the whole bar unless the user holds these permissions' },
     // Derived from the spec's own vocabulary rather than restated — #3019.
     { name: 'location', type: 'enum', enum: [...ACTION_LOCATIONS], description: 'Which declared action location this bar renders' },
     { name: 'align', type: 'enum', enum: ['start', 'center', 'end'] },

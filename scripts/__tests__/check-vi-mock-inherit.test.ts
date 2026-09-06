@@ -268,7 +268,24 @@ describe('scope — narrow, and out of scope by construction rather than by exem
   it('the header states what it does NOT cover, and the precondition for widening', () => {
     // Triage asked for both in writing, so that a later reader widening the set
     // knows what evidence is owed rather than guessing at it.
-    const header = fs.readFileSync(path.join(repoRoot, 'scripts/check-vi-mock-inherit.mjs'), 'utf8').slice(0, 12000);
+    //
+    // The window is the leading docblock ITSELF, not a byte budget. It used to
+    // be `.slice(0, 12000)`, and every sweep that appends its per-specifier
+    // record pushes the paragraphs below it further down: objectui#6892's
+    // FOURTH slice took the header past 12000 bytes and reddened this pin
+    // without touching a word either assertion reads. A byte count is not what
+    // the rule is about, and re-raising it would only defer the same failure to
+    // the next slice.
+    const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-vi-mock-inherit.mjs'), 'utf8');
+    const opened = source.indexOf('/**');
+    const closed = source.indexOf('\n */\n', opened);
+    expect(opened, 'the gate has a leading docblock').toBeGreaterThanOrEqual(0);
+    expect(closed, 'that docblock terminates').toBeGreaterThan(opened);
+    const header = source.slice(opened, closed);
+    // The window must still be a HEADER, not the whole file -- otherwise these
+    // two assertions would pass on a match anywhere in the source, including
+    // inside the code they are supposed to be documenting.
+    expect(header.length).toBeLessThan(source.length);
     expect(header).toMatch(/whole-module replacement/i);
     expect(header).toMatch(/precondition for widening is a sweep/i);
   });

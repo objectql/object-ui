@@ -77,6 +77,14 @@ export interface RegistryConfigLike {
      * `canonicalizeInputType` on the way in.
      */
     type: string | string[];
+    /**
+     * The declared member kind(s) — array elements, or an object map's values
+     * (objectui#8067). Typed as loosely as `type` above and for the same
+     * reason: this interface is the STRUCTURAL boundary that keeps the package
+     * free of a registry dependency, so an off-vocabulary value has to be
+     * representable here and is normalized on the way in.
+     */
+    of?: string | string[];
     required?: boolean;
     enum?: Array<string | { value: unknown; label?: string }>;
     binding?: 'object' | 'field';
@@ -153,6 +161,14 @@ export function manifestFromConfigs(
       inputs: (c.inputs ?? []).map((i) => ({
         name: i.name,
         type: canonicalizeInputType(i.type),
+        // Undefined stays undefined rather than going through
+        // `canonicalizeInputType`, whose no-arms fallback is `'string'`: an
+        // input that declares no member kind must publish NO `of`, or every
+        // array in every manifest would suddenly claim string members it was
+        // never told it had. `JSON.stringify` drops the undefined key, so the
+        // published artifact is byte-identical for every input that does not
+        // declare one (objectui#8067).
+        of: i.of === undefined ? undefined : canonicalizeInputType(i.of),
         required: i.required,
         enum: i.enum,
         binding: i.binding,
