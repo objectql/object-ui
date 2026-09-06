@@ -174,6 +174,16 @@ export type {
   FormFieldTab,
   FormFieldPane,
   ComboboxSchema,
+  // The element type of `ComboboxSchema.options`, listed next to its schema the
+  // way `SelectSchema`/`SelectOption` and `RadioGroupSchema`/`RadioOption`
+  // already are (objectui#7697). objectui#7691 made this package the single
+  // AUTHORITY for the name — `@object-ui/components` re-exports this
+  // declaration instead of forking its own — but left it reachable only
+  // through the `@object-ui/types/form` subpath, so the root spelling read
+  // TS2305. This line is purely ADDITIVE: the subpath keeps working, and
+  // `combobox-option-root-barrel-7697.test.ts` pins BOTH spellings so a later
+  // tidy cannot silently drop either one.
+  ComboboxOption,
   CommandSchema,
   InputOTPSchema,
   ToggleSchema,
