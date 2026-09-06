@@ -118,6 +118,80 @@ function resolveListMapConfig(schema: { map?: unknown; options?: { map?: unknown
 }
 
 /**
+ * What a list view's `chart` block binds to — resolved ONCE, for both readers.
+ *
+ * `case 'chart'` below routes on `shape` and reads the fields; the capability
+ * gate in `availableViews` reads `resolves`. One function, because the gate's
+ * question ("is this chart offerable?") is the render branch's own question
+ * ("can I bind this block?") and a second copy of it drifts (objectui#7544;
+ * the same class of drift objectui#7495 tracks elsewhere).
+ *
+ * The gate had NO chart check at all before #7544: `chart` entered `resolvable`
+ * only via the "always allow switching back to the schema viewType" leg, so a
+ * `grid` view declaring a complete block and whitelisting `['grid', 'chart']`
+ * had its own `appearance.allowedVisualizations` filtered to nothing and fell
+ * back to `['grid']` (ADR-0047, whitelist ∩ resolvable). Same shape and same
+ * fix as `map`'s (objectui#5042, `resolveListMapConfig` above).
+ *
+ * PRECEDENCE is the render branch's existing one, not a new rule: the
+ * view-level block replaces the legacy `options.chart` bag WHOLESALE (`||`) —
+ * `chart` and `tree` are the two visualizations in this file that replace
+ * rather than merge, and the gate inherits whichever the renderer uses so the
+ * two can never judge different configs.
+ *
+ * `resolves` is the "renders from names the AUTHOR wrote" question, one leg per
+ * shape:
+ *   - ADR-0021 (#1890): a `dataset` with at least one measure in `values`. The
+ *     dimensions are what it plots BY, and a block may legitimately declare
+ *     none (a single aggregate), so they are not required here.
+ *   - legacy: a declared category (`xAxisField` / `categoryField`) AND a
+ *     declared measure (`yAxisFields[0]` / `valueField`) — exactly what the
+ *     legacy leg reads BEFORE its `'name'` / `'value'` floors. A block that
+ *     declares neither reaches the renderer only through the schema-viewType
+ *     leg, where those floors invent a binding; retiring THAT is objectui#7547
+ *     (the #7029 / #7070 family) and is out of scope here. The gate simply
+ *     never offers a switch into it.
+ */
+interface ListChartBinding {
+  /** The effective chart block — view-level `chart`, else the legacy `options.chart` bag. */
+  config: Record<string, any>;
+  /** Which shape the render branch routes to for this block. */
+  shape: 'dataset' | 'legacy';
+  /** Whether the block declares everything its shape needs to plot authored names. */
+  resolves: boolean;
+  /** ADR-0021 semantic dataset, as authored. */
+  dataset?: any;
+  dimensions: string[];
+  values: string[];
+  /** Legacy category binding, floor NOT applied — `undefined` means undeclared. */
+  categoryField?: string;
+  /** Legacy measure binding, floor NOT applied — `undefined` means undeclared. */
+  valueField?: string;
+}
+
+function resolveListChartBinding(schema: { chart?: unknown; options?: { chart?: unknown } }): ListChartBinding {
+  const config: Record<string, any> = (schema.chart || schema.options?.chart || {}) as Record<string, any>;
+
+  if (config.dataset) {
+    const dimensions: string[] = Array.isArray(config.dimensions) ? config.dimensions : [];
+    const values: string[] = Array.isArray(config.values) ? config.values : [];
+    return { config, shape: 'dataset', resolves: values.length > 0, dataset: config.dataset, dimensions, values };
+  }
+
+  const valueField = ((Array.isArray(config.yAxisFields) && config.yAxisFields[0]) || config.valueField) || undefined;
+  const categoryField = (config.xAxisField || config.categoryField) || undefined;
+  return {
+    config,
+    shape: 'legacy',
+    resolves: Boolean(categoryField && valueField),
+    dimensions: [],
+    values: [],
+    categoryField,
+    valueField,
+  };
+}
+
+/**
  * The list view's props.
  *
  * ## Why there is no `[key: string]: any` here (objectui#4528)
@@ -2135,6 +2209,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       resolvable.push('tree');
     }
 
+    // Check for Chart capabilities — asked of `resolveListChartBinding`, the
+    // SAME resolver `case 'chart'` routes on, so the gate and the renderer can
+    // never disagree about what a usable chart block is (objectui#7544). There
+    // was no check here at all: a declared, whitelisted `chart:` block was
+    // filtered out of the author's own whitelist and the view fell back to
+    // `['grid']` — `map`'s objectui#5042 one visualization over.
+    if (resolveListChartBinding(schema).resolves) {
+      resolvable.push('chart');
+    }
+
     // Always allow switching back to the viewType defined in schema
     if (schema.viewType && !resolvable.includes(schema.viewType as ViewType) &&
        ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery', 'chart', 'tree'].includes(schema.viewType)) {
@@ -2152,7 +2236,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     return resolvable;
-  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.map, (schema as any).tree, schema.appearance?.allowedVisualizations]);
+  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.map, (schema as any).tree, (schema as any).chart, schema.appearance?.allowedVisualizations]);
 
   // Sync view from props
   React.useEffect(() => {
@@ -2609,16 +2693,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         // A `chart` list view renders an aggregated chart of the object's
         // records (e.g. sum of estimate_hours grouped by status), delegating
         // to the same object-chart component the dashboard uses.
-        const chartCfg = (schema as any).chart || schema.options?.chart || {};
+        // Read through `resolveListChartBinding` — the one source the capability
+        // gate in `availableViews` also asks (objectui#7544). The routing and
+        // the precedence below are its answers, not a second reading of the
+        // block.
+        const chartBinding = resolveListChartBinding(schema);
+        const chartCfg = chartBinding.config;
         // ADR-0021 (#1890): the single author-facing shape binds to a semantic
         // `dataset` and selects dimensions/measures BY NAME, so the chart runs
         // through the governed queryDataset path (numbers consistent everywhere).
-        if (chartCfg.dataset) {
-          const dims: string[] = Array.isArray(chartCfg.dimensions) ? chartCfg.dimensions : [];
-          const vals: string[] = Array.isArray(chartCfg.values) ? chartCfg.values : [];
+        if (chartBinding.shape === 'dataset') {
+          const dims: string[] = chartBinding.dimensions;
+          const vals: string[] = chartBinding.values;
           return {
             type: 'object-chart',
-            dataset: chartCfg.dataset,
+            dataset: chartBinding.dataset,
             dimensions: dims,
             values: vals,
             chartType: chartCfg.chartType || 'bar',
@@ -2629,9 +2718,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         }
         // Legacy inline aggregate (deprecated — pre-ADR-0021 metadata). Kept as a
         // fallback so existing authored chart views keep rendering.
-        const valueField = (Array.isArray(chartCfg.yAxisFields) && chartCfg.yAxisFields[0])
-          || chartCfg.valueField || 'value';
-        const categoryField = chartCfg.xAxisField || chartCfg.categoryField || 'name';
+        //
+        // The two floors below are reached only when NOTHING was declared —
+        // i.e. through the schema-viewType leg, never through the capability
+        // gate, which refuses to offer a switch into an invented binding. The
+        // floors themselves are objectui#7547 (#7029 / #7070 family) and are
+        // deliberately untouched here.
+        const valueField = chartBinding.valueField || 'value';
+        const categoryField = chartBinding.categoryField || 'name';
         return {
           type: 'object-chart',
           objectName: schema.objectName,

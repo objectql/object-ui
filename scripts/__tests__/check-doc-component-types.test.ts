@@ -874,6 +874,49 @@ describe('wiring — the gate is reachable and a docs-only PR starts it', () => 
     expect(seen.size, 'the import walk read only the gate itself — it followed nothing').toBeGreaterThan(1);
     expect(external, `the gate's import graph reaches a package, so it needs an install: ${external}`).toEqual([]);
   });
+
+  /**
+   * objectui#7448. The header of this workflow described its scan surface as
+   * "184 pages (144 `.mdx` + 40 `.md`)". Every part of that had drifted by the
+   * time the card was worked — the gate's own verdict line reported 188 doc
+   * files, and the `.md` half of the split was four short — and NO check went
+   * red over the whole distance, because nothing fails on a stale number written
+   * in a comment. That is the same lesson `UNGATED_DOCS`'s header in
+   * `check-doc-snippet-types.mjs` records after both halves of its own copied
+   * count went stale ("a pointer to the list now rather than a copy of its
+   * length").
+   *
+   * Changing 184 to 188 would only have restarted that clock. This is what makes
+   * the class fail loudly instead: the header may state the population — which
+   * trees, which extensions — but never count it. `doc-fence-languages.yml`
+   * carries the twin of this pin in its own test file; one gate, one home, so
+   * each workflow's header is asserted beside its own gate rather than in a
+   * shared sweep that would own neither.
+   *
+   * Deliberately narrow: a numeral DIRECTLY qualifying a document-population
+   * noun. Issue references, `node-version`, `timeout-minutes` and "the fifth
+   * instance of the shape" are all numbers this header legitimately carries, and
+   * none of them rots when a page is added or deleted. It also means the header
+   * must not quote another header's stale literal verbatim — this pin cannot
+   * tell a quotation from a claim, and refusing both is the safe direction for a
+   * check on prose accuracy.
+   */
+  it('its header states the population and never counts it — no count can rot here', () => {
+    const header = fs
+      .readFileSync(workflowPath, 'utf8')
+      .split('\n')
+      .filter((line) => /^\s*#/.test(line))
+      .join('\n');
+    const counts = [...header.matchAll(/\b\d+\s+`?(?:\.mdx|\.md|documents?|pages?|docs?|files?)\b/gi)].map(
+      (m) => m[0],
+    );
+    expect(
+      counts,
+      `doc-component-types.yml's header states a page count (${counts.join(', ')}). Nothing fails when ` +
+        'it drifts, so it will. State the population — or point at the gate\u2019s own verdict line, which ' +
+        'prints the live figure on every run — instead of copying a number into a comment (objectui#7448).',
+    ).toEqual([]);
+  });
 });
 
 /**

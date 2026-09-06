@@ -12,7 +12,9 @@ This document describes the refactored architecture that enables third-party sys
 
 **Exports**:
 - `AppShell` - Basic layout container
-- `ObjectRenderer` - Renders object views
+- `ObjectView` - Renders object views; it reads `objectName` from the router
+  (`useParams()`) and takes an `objects` metadata array. For a router-free embed,
+  use `ObjectView` from `@object-ui/plugin-view` instead - see the examples below.
 - `DashboardRenderer` - Renders dashboard layouts
 - `PageRenderer` - Renders custom pages
 - `FormRenderer` - Renders forms
@@ -49,7 +51,7 @@ This document describes the refactored architecture that enables third-party sys
 ┌────────────────┴────────────────────────┐
 │  @object-ui/app-shell                   │
 │  - AppShell                             │
-│  - ObjectRenderer                       │
+│  - ObjectView                           │
 │  - DashboardRenderer                    │
 │  - PageRenderer                         │
 │  - FormRenderer                         │
@@ -151,16 +153,24 @@ Third-Party App
 ### Example 1: Minimal Custom Console
 
 ```tsx
-import { AppShell, ObjectRenderer } from '@object-ui/app-shell';
-import { DataSourceProvider } from '@object-ui/providers';
+import { AppShell } from '@object-ui/app-shell';
+import { ObjectView } from '@object-ui/plugin-view';
+import { DataSourceProvider, useDataSource } from '@object-ui/providers';
 
 function MyConsole() {
   return (
     <DataSourceProvider dataSource={myAPI}>
       <AppShell sidebar={<MySidebar />}>
-        <ObjectRenderer objectName="contact" />
+        <ContactList />
       </AppShell>
     </DataSourceProvider>
+  );
+}
+
+function ContactList() {
+  const dataSource = useDataSource();
+  return (
+    <ObjectView schema={{ type: 'object-view', objectName: 'contact' }} dataSource={dataSource} />
   );
 }
 ```
@@ -181,18 +191,20 @@ export default function RootLayout({ children }) {
 }
 
 // app/[object]/page.tsx
-import { ObjectRenderer } from '@object-ui/app-shell';
+import { ObjectView } from '@object-ui/plugin-view';
+import { useDataSource } from '@object-ui/providers';
 
 export default function Page({ params }) {
-  return <ObjectRenderer objectName={params.object} />;
+  const dataSource = useDataSource();
+  return <ObjectView schema={{ type: 'object-view', objectName: params.object }} dataSource={dataSource} />;
 }
 ```
 
 ### Example 3: Embedded Widget
 
 ```tsx
-import { ObjectRenderer } from '@object-ui/app-shell';
-import { DataSourceProvider } from '@object-ui/providers';
+import { ObjectView } from '@object-ui/plugin-view';
+import { DataSourceProvider, useDataSource } from '@object-ui/providers';
 
 function MyExistingApp() {
   return (
@@ -201,12 +213,17 @@ function MyExistingApp() {
 
       {/* Embed ObjectUI widget */}
       <DataSourceProvider dataSource={myAPI}>
-        <ObjectRenderer objectName="contact" />
+        <ContactWidget />
       </DataSourceProvider>
 
       <footer>My App Footer</footer>
     </div>
   );
+}
+
+function ContactWidget() {
+  const dataSource = useDataSource();
+  return <ObjectView schema={{ type: 'object-view', objectName: 'contact' }} dataSource={dataSource} />;
 }
 ```
 

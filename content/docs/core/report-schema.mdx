@@ -401,7 +401,7 @@ const comprehensiveReport: ReportComponentSchema = {
 
 Use `ReportBuilderSchema` for interactive report creation:
 
-```plaintext
+```ts
 import type { ReportBuilderSchema } from '@object-ui/types';
 
 const builder: ReportBuilderSchema = {
@@ -417,9 +417,7 @@ const builder: ReportBuilderSchema = {
     { name: 'units', label: 'Units Sold', type: 'number' }
   ],
   
-  showPreview: true,
-  onSave: 'handleSaveReport',
-  onCancel: 'handleCancel'
+  showPreview: true
 };
 ```
 

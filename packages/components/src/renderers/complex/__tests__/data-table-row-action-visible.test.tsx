@@ -21,7 +21,7 @@
  * `DataTableRowActionItem` subcomponent that now evaluates the predicate.
  */
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { PredicateScopeProvider } from '@object-ui/react';
@@ -72,11 +72,16 @@ describe('data-table row action — visible / disabled CEL evaluation', () => {
     expect(screen.getByText('Transfer Ownership')).toBeInTheDocument();
   });
 
-  it('supports the `record.` scope for the visible predicate', () => {
-    // Same predicate, referenced via the bare-field scope should behave the
-    // same as `record.` — assert the bare-field convention also resolves.
+  it('no longer binds the bare-field spelling (objectui#5741) — hidden on BOTH rows, fail-closed', () => {
+    // `role != 'owner'` is unbound since Phase 2 of the objectui#5330 canon: it
+    // faults, and this surface's existing policy is fail-closed, so the verdict
+    // is the same whichever row it meets. The `record.` spelling above is what
+    // discriminates.
     const bareField = { name: 'transfer_ownership', label: 'Transfer Ownership', visible: "role != 'owner'" };
     renderRowActionItem(bareField, { id: '1', role: 'owner' });
+    expect(screen.queryByTestId('row-action-transfer_ownership')).toBeNull();
+    cleanup();
+    renderRowActionItem(bareField, { id: '2', role: 'member' });
     expect(screen.queryByTestId('row-action-transfer_ownership')).toBeNull();
   });
 

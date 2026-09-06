@@ -46,7 +46,12 @@
  *     this key" is exactly why the key must NOT be called dead. Deliberately
  *     recall-over-precision — a namespace nothing dynamically reaches costs
  *     nothing extra to keep live, and marking it dead when it is not would be
- *     the wrong direction to be wrong in for a deletion sweep.
+ *     the wrong direction to be wrong in for a deletion sweep. Since
+ *     objectui#7592 a head also arrives from a KEY BUILDER — a helper whose
+ *     whole body returns one template literal — so a module that builds the key
+ *     and hands it to a translator it received as a VALUE (no `t()` call in it
+ *     at all, therefore invisible to every leg here at once) now marks its
+ *     family live. See that gate's header, "Key-building helpers".
  *
  * A key not covered by any of the three is a CANDIDATE. Two things this
  * mechanism does NOT see, both false-positive sources by construction, both
@@ -84,10 +89,11 @@
  * an argument of `t()`).
  *
  *   - CONFIRMED — no call site (AST) and no textual occurrence anywhere else in
- *     the repo. The strongest tier; still sample-verify before deleting
- *     (objectui#4658's own dispatch ruling), because a key can still be built by
- *     concatenation this grep cannot fold (`'console.' + 'objectView.' + 'new'`)
- *     or documented only in a form this script does not scan.
+ *     the repo. The tier with the MOST EVIDENCE, which is not the same claim as
+ *     the safest to delete: what it does and does not guarantee is written out
+ *     under "What CONFIRMED does NOT guarantee" below rather than left to the
+ *     word "strongest". Sample-verifying before deleting (objectui#4658's own
+ *     dispatch ruling) is a standing requirement, not a transitional one.
  *   - NEEDS-REVIEW — no call site, but the literal string appears somewhere
  *     (a comment, a doc, a fixture, an indirect `i18nKey:`-style property). The
  *     candidate might still be genuinely dead; the hit just means a human has to
@@ -102,8 +108,7 @@
  * so the source says `myPack.someGroup.someLeaf` where the pack key is
  * `topNamespace.someGroup.someLeaf`. The AST pass sees nothing either — there
  * is no `t()`/`tt()` call to classify. Both legs are blind at once, and the
- * key lands in CONFIRMED, the tier documented as the safest thing to delete,
- * while a shipping screen renders it. (That example is synthetic on purpose;
+ * key lands in CONFIRMED — the top tier — while a shipping screen renders it. (That example is synthetic on purpose;
  * naming a real key here would make this file a textual hit for it — same
  * trap `textFootprint()`'s own note below records.)
  *
@@ -172,6 +177,35 @@
  * importer never establishes liveness — it only ever adds a textual footprint,
  * which the full-key probe already catches. The re-derivation returns both
  * sets; the split is the point, not the count.
+ *
+ * ## What CONFIRMED does NOT guarantee (objectui#7592)
+ *
+ * Every leg here is a syntactic probe, so CONFIRMED means "no leg saw a
+ * reference", never "no consumer exists". Three classes are KNOWN to be able to
+ * put a live key in this tier. They are enumerated so the claim this header
+ * makes about the tier can be CHECKED against them instead of trusted:
+ *
+ *   1. A pack-object reader that indexes DYNAMICALLY — the `outboundAgentText`
+ *      shape above. No dotted key, no property chain, no call site. Measured on
+ *      this checkout, and it corrects the note above: its four keys are demoted
+ *      to NEEDS-REVIEW by CHANGELOG entries and test files that spell them, NOT
+ *      by the neighbouring type union, whose members are bare property names
+ *      (`'planApproveMessage'`) and therefore match neither probe. The luck is
+ *      real, it is not where objectui#6666 recorded it, and nothing holds it in
+ *      place — a CHANGELOG is not a liveness argument.
+ *   2. A key built by CONCATENATION (`'console.' + 'objectView.' + 'new'`), or
+ *      by a builder shape the key-builder leg does not read: anything but one
+ *      returned template literal, and anything that composes the head across
+ *      modules.
+ *   3. A consumer outside the AST walk's `packages/`+`apps/` scope that also
+ *      never spells the key as text (gap 1 above).
+ *
+ * The tier is therefore the one to READ FIRST, and each entry still needs a
+ * human before deletion. The cost of reading it as bulk-deletable is measured:
+ * on the day objectui#7592 was filed, 33 of 147 CONFIRMED entries — 22% of the
+ * tier — were one live subtree (`chatbot.tool.*`, rendering in ten packs), and
+ * following the tier would have reverted every AI tool card to English in nine
+ * locales. That class is closed; these three are not.
  *
  * ## Usage
  *

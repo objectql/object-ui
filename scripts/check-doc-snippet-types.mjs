@@ -140,6 +140,50 @@
  * the harness. A shared scope hides that whole defect class — and it hides it
  * INVISIBLY, because the page still reads fine to a human going top to bottom.
  *
+ * **A fragment's reason says why it cannot compile. It never claims the block was
+ * checked** (objectui#7505). A DECLARED fragment is the one thing this gate does
+ * not compile, so a reason asserting the block agrees with some shipped artifact
+ * is an assertion the gate structurally cannot re-verify — and a reader has no
+ * way to tell the two apart, because both arrive in the same marker. Measured:
+ * `content/docs/utilities/data-objectstack.mdx` declared a signature excerpt
+ * "checked against the shipped `dist/index.d.ts` … with the same type". The
+ * claim was TRUE when written and went silently false when objectui#7503 widened
+ * the factory's return from `DataSource<T>` to `ObjectStackAdapter<T>`. Three
+ * independent readers looked for exactly that falsehood and did not find it —
+ * card objectui#7323 never listed the page, the implementer reported "no
+ * swappability note anywhere" after searching, and the seat that briefed the
+ * search accepted that. The failure was not diligence: the page reads as
+ * verified and nothing contradicts it. That makes the marked page WORSE than an
+ * unmarked one, because it converts a reader's correct instinct — go check this
+ * against the source — into a step they skip.
+ *
+ * The reusable rule, which is why this is worth a gate and not a convention:
+ *
+ *     A claim that something was verified is only as good as the check that
+ *     re-verifies it on every commit. A one-time verification written into prose
+ *     is a fact with an expiry date and no alarm.
+ *
+ * So `VERIFICATION_CLAIM` below refuses the COMBINATION, never the exemption:
+ * exempting a fragment from compilation stays a legitimate declaration, and a
+ * verification claim stays legitimate on a block this gate actually compiles.
+ * Only the two together are refused, and the author has two ways out — say why
+ * the block cannot compile without asserting it was checked, or move the block
+ * into the compiled tier where the claim becomes one this gate re-verifies. ⛔
+ * Not an option: adding an exemption list. An exemption here would be a second
+ * unverifiable assertion about an unverifiable assertion.
+ *
+ * The verb set is deliberately small and it is a closed list, because a census
+ * of this corpus showed it can be: of 158 declared fragments, exactly 2 carried
+ * a claim, and both spelled it `verified` / `hand-checked`. `type-check` is
+ * excluded on purpose — it names THIS gate's own action, so "type-checked on the
+ * complete example at the end of the page" (content/docs/guide/component-registry.md)
+ * is a claim about a check that does re-run on every commit, which is the shape
+ * this rule wants, not the shape it refuses. ⚠️ Stated limit: the check reads the
+ * marker's reason, not the page's prose, and it matches verbs rather than parsing
+ * meaning — "type-checked by hand" would pass it. It closes the spelling that has
+ * actually been written here, and it turns a silent gap into a red build on the
+ * commit that reintroduces it.
+ *
  * ## Syntax is not semantics — the false-green mechanism this gate is built around
  *
  * objectui#5047 measured it, and it nearly cost that review its result: `tsc`
@@ -633,19 +677,32 @@ const UNGATED_DOCS = {
   // that bought on THIS gate's question. The file is now VISIBLE to the ledger
   // instead of invisible to the walk — the objectui#5174 distinction quoted in
   // the header — and the debt below is measured, not estimated. ⚠️ Read as debt,
-  // never as a pass: these 9 diagnostics are real and objectui#7417 carries them.
-  // The three TS2305s are the ones that matter; the other six are fragment shape.
+  // never as a pass: these 6 diagnostics are real.
+  //
+  // It read 9, and named the three TS2305s as the ones that mattered, until
+  // objectui#7417 paid exactly those down — three names the page taught that no
+  // built `dist/index.d.ts` exports. What replaced each was already in the tree,
+  // so none of the three widened a public surface: `ObjectRenderer` (no export of
+  // @object-ui/app-shell bears that name; the page now composes `ObjectView` from
+  // @object-ui/plugin-view, the spelling examples/byo-backend-console/src/App.tsx
+  // already runs), `registerDefaultRenderers` (@object-ui/components registers its
+  // renderers as an import side effect — `sideEffects: true`, and its barrel's
+  // `import './renderers'` — and exports no such function, so the page now imports
+  // the package for the side effect), and `createObjectStackAdapter`, which ships
+  // from @object-ui/data-objectstack, not @object-ui/core, exactly as
+  // packages/plugin-dashboard/README.md already writes it.
+  //
+  // ⚠️ The remaining 6 are fragment shape, and no gate protects this page's
+  // import names from a fourth phantom: check-readme-exports.mjs states its
+  // surface as `packages/NAME/README.md`, and the root README imports from
+  // several packages rather than owning one, so that gate's rule would have to be
+  // restated before its surface could move (objectui#7417 triage).
   'README.md':
     '4 undefined-name diagnostic(s) — blocks use ambient names the page never defines (`myAPI`, ' +
     '`MySidebar`) or continue an earlier block (`SchemaRenderer`, `schema`); 2 elided-body ' +
     'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
-    'methods`; plus TS2305x3 — REAL defects, measured against the built `dist/index.d.ts` of each ' +
-    'package and filed as objectui#7417: `ObjectRenderer` is on no export of @object-ui/app-shell ' +
-    '(the same phantom objectui#7095 recorded in examples/byo-backend-console/README.md), ' +
-    '`registerDefaultRenderers` is on no export of @object-ui/components (only ' +
-    '`registerPlaceholders` is) and is taught in no other authored file, and ' +
-    '`createObjectStackAdapter` is imported from @object-ui/core, which does not ship it — ' +
-    '@object-ui/data-objectstack does, as packages/plugin-dashboard/README.md already writes it.',
+    'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
+    'what is left is fragment shape, and no gate reads this page\'s import names.',
   'packages/auth/README.md':
     '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/collaboration/README.md':
@@ -738,6 +795,37 @@ const FRAGMENT_MARKER =
   /^[ \t]*(?:\{\/\*|<!--)[ \t]*doc-snippet:[ \t]*fragment[ \t]*(?:—|--|-|:)[ \t]*(.+?)[ \t]*(?:\*\/\}|-->)[ \t]*$/;
 
 const MIN_REASON_LENGTH = 12;
+
+/**
+ * A claim, inside a fragment's written reason, that the block HAS BEEN checked
+ * against something. See the header section "A fragment's reason says why it
+ * cannot compile" for why the combination is refused and why an exemption list
+ * is not on offer.
+ *
+ * A closed list of verbs, not a phrase hunt. The authority the claim names
+ * ("against the shipped `dist/index.d.ts`") is deliberately NOT part of the
+ * match: `content/docs/plugins/plugin-calendar.mdx` says its block "cannot
+ * compile against the SHIPPED prop type", which names the same authority to
+ * state the OPPOSITE — that nothing agrees. Anchoring on the verb keeps that
+ * reason legal and costs nothing, because a claim without a verb is not a claim.
+ *
+ * `checked` carries a `(?<!-)` guard so a hyphenated compound only matches when
+ * this list names it: `hand-checked` is a claim, `type-checked` is this gate's
+ * own verb (see the header).
+ */
+const VERIFICATION_CLAIM = new RegExp(
+  [
+    '(?:hand|spot|cross|double|eye|re)-checked',
+    'manually[ \\t]+checked',
+    '(?<!-)\\bchecked\\b',
+    '\\bverified\\b',
+    '\\bconfirmed\\b',
+    '\\bvalidated\\b',
+    '\\baudited\\b',
+    '\\breconciled\\b',
+  ].join('|'),
+  'i',
+);
 
 /**
  * The marker, spelled out. Quoted as strings because a JavaScript block comment
@@ -1216,11 +1304,24 @@ export function analyze({ root = repoRoot, ungated = UNGATED_DOCS } = {}) {
     }
     if (doc in ungated) continue;
     for (const block of blocks) {
-      if (block.fragmentReason !== null && block.fragmentReason.length < MIN_REASON_LENGTH) {
+      if (block.fragmentReason === null) continue;
+      if (block.fragmentReason.length < MIN_REASON_LENGTH) {
         findings.push({
           reason: 'unexplained-fragment',
           site: `${doc}:${block.fenceLine}`,
           detail: 'a fragment declaration must say why the block cannot compile',
+        });
+      }
+      const claim = VERIFICATION_CLAIM.exec(block.fragmentReason);
+      if (claim) {
+        findings.push({
+          reason: 'verification-claim-on-fragment',
+          site: `${doc}:${block.fenceLine}`,
+          detail:
+            `a DECLARED fragment is never compiled, so this gate cannot re-verify "${claim[0]}" on any ` +
+            'later commit — the claim goes silently false the day the thing it names changes. Say why ' +
+            'the block cannot compile without asserting it was checked, or move the block into the ' +
+            'compiled tier, where the claim becomes one this gate re-verifies on every commit.',
         });
       }
     }
@@ -1774,6 +1875,7 @@ export {
   UNGATED_DOCS,
   TS_FENCE_LANGUAGES,
   FRAGMENT_MARKER,
+  VERIFICATION_CLAIM,
   UNDECLARED_CONTROL_PACKAGE,
   ROOT_DECLARED_CONTROL_PACKAGE,
   main,

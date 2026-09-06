@@ -40,6 +40,7 @@ import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectForm } from '@object-ui/plugin-form';
 import {
+  AlertTriangle,
   Ban,
   Boxes,
   FileText,
@@ -254,6 +255,18 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
  * navigation, create a new writable base via the standard CreatePackageDialog,
  * and open the standard PackageDetailSheet (info + disable / duplicate / delete
  * / publish …) for the current package. */
+/**
+ * One sonner id for EVERY `fetchPackages()` failure on this surface
+ * (objectui#7368). Three effects call that one endpoint on mount — the
+ * switcher list, the writability courtesy gate and the namespace lookup — so a
+ * single 503 rejects all three. Sonner UPDATES a toast that already carries the
+ * id instead of stacking a new one (the `outcomeToastId` pattern this repo
+ * already uses in `packages/components/src/renderers/form/form.tsx`), so one
+ * outage produces one toast, not three. Reporting the failure is the point;
+ * reporting it three times is noise that would get the report muted.
+ */
+const PACKAGE_LIST_TOAST_ID = 'studio-package-list';
+
 function PackageSwitcher({
   packageId,
   tab,
@@ -271,6 +284,22 @@ function PackageSwitcher({
   const locale = useMetadataLocale();
   const [open, setOpen] = React.useState(false);
   const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
+  /**
+   * The last package-list failure, or `null` if the last attempt did not fail
+   * (objectui#7368).
+   *
+   * `pkgs === null` alone cannot say WHY the list is absent, and the trigger's
+   * `current?.name ?? packageId` then renders the same raw reverse-domain id
+   * for THREE different situations — still loading, the fetch failed, and a
+   * package that genuinely declares no name. The author reading `app.b2r4` in
+   * the top bar had no way to tell whether to go fix the manifest or to go
+   * retry, and nothing else on screen told them either: no toast, no console
+   * line. This slot is the second bit that separates them, and the surface
+   * spells the three out the same way it already does at the Interfaces rail
+   * / Data rail / Automations rail empty states (`error ? loadFailed : loaded
+   * ? none : loading`).
+   */
+  const [pkgsErr, setPkgsErr] = React.useState<string | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [manage, setManage] = React.useState<InstalledPackageRow | null>(null);
   const [manageOpen, setManageOpen] = React.useState(false);
@@ -281,10 +310,24 @@ function PackageSwitcher({
     const load = () => {
       fetchPackages()
         .then((parsed) => {
-          if (!cancelled) setPkgs(parsed);
+          if (cancelled) return;
+          setPkgs(parsed);
+          setPkgsErr(null);
         })
-        .catch(() => {
-          /* leave null — switcher still works for navigation-free display */
+        .catch((e: unknown) => {
+          // objectui#7368 — the switcher still works for navigation-free
+          // display, so this stays a DEGRADATION and never a throw: one 503
+          // must not take the whole Studio top bar down with it. What it stops
+          // being is SILENT. The failure is reported once (toast, this file's
+          // own posture — `formatMetadataError` is used at 19 other call
+          // sites in this file; this one was the exception, not the rule)
+          // and, because a toast disappears while the top bar keeps showing
+          // the id forever, it is also RECORDED so the trigger can say which
+          // of the three states it is in.
+          if (cancelled) return;
+          const message = formatMetadataError(e);
+          setPkgsErr(message);
+          toast.error(message, { id: PACKAGE_LIST_TOAST_ID });
         });
     };
     load();
@@ -300,6 +343,13 @@ function PackageSwitcher({
   }, [packageId]);
 
   const current = pkgs?.find((p) => p.id === packageId) ?? null;
+  /**
+   * Which of the three the trigger is showing (objectui#7368). A failure wins
+   * over a list already in hand: after a failed refresh the names on screen are
+   * stale, and saying "loaded" about them would be the same lie in a new place.
+   */
+  const pkgListState: 'loading' | 'failed' | 'loaded' =
+    pkgsErr !== null ? 'failed' : pkgs === null ? 'loading' : 'loaded';
 
   // Open the standard detail/management sheet for a package — fetch its full
   // installed record (manifest + status) first, since the switcher only holds
@@ -373,10 +423,34 @@ function PackageSwitcher({
       <PopoverTrigger asChild>
         <button
           type="button"
+          /* objectui#7368 — the trigger's own read of which state it is in.
+             The text beside it is `current?.name ?? packageId`, which is the
+             SAME string in all three states for a package that declares no
+             name, so the state cannot be recovered from the text. */
+          data-pkg-list-state={pkgListState}
           className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[13px] font-medium hover:bg-muted"
           title={t('engine.studio.pkg.switchTitle', locale)}
         >
           <Boxes className="h-4 w-4" /> {current?.name ?? packageId}
+          {/* ⛔ Not a replacement for the id (objectui#7368): the id is the one
+              diagnostic handle the author has, so the states are told apart by
+              what stands NEXT to it, never by swapping it for prose. */}
+          {pkgListState === 'loading' && (
+            <Loader2
+              data-testid="pkg-switcher-loading"
+              aria-hidden
+              className="h-3 w-3 shrink-0 animate-spin text-muted-foreground"
+            />
+          )}
+          {pkgListState === 'failed' && (
+            <span
+              data-testid="pkg-switcher-failed"
+              title={pkgsErr ?? undefined}
+              className="inline-flex items-center gap-0.5 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-normal text-destructive"
+            >
+              <AlertTriangle className="h-2.5 w-2.5" /> {t('engine.studio.loadFailed', locale)}
+            </span>
+          )}
           {current && !current.writable && (
             <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-600 dark:text-amber-300">
               <Lock className="h-2.5 w-2.5" /> {t('engine.studio.pkg.readonly', locale)}
@@ -391,8 +465,23 @@ function PackageSwitcher({
               {t('engine.studio.pkg.heading', locale)}
             </p>
             <div className="max-h-64 overflow-auto">
-              {pkgs === null && <p className="px-2 py-2 text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>}
-              {pkgs?.length === 0 && <p className="px-2 py-2 text-[11px] text-muted-foreground">{t('engine.studio.pkg.none', locale)}</p>}
+              {/* Same three-way the Interfaces / Data / Automations rails
+                  already spell out in this file — a failed list stops reading
+                  "Loading…" forever, and carries WHY. */}
+              {pkgListState === 'loading' && (
+                <p className="px-2 py-2 text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>
+              )}
+              {pkgListState === 'failed' && (
+                <p
+                  data-testid="pkg-switcher-failed-detail"
+                  className="whitespace-pre-line px-2 py-2 text-[11px] text-destructive"
+                >
+                  {pkgsErr}
+                </p>
+              )}
+              {pkgListState === 'loaded' && pkgs?.length === 0 && (
+                <p className="px-2 py-2 text-[11px] text-muted-foreground">{t('engine.studio.pkg.none', locale)}</p>
+              )}
               {pkgs?.map((p) => (
                 <button
                   key={p.id}
@@ -499,8 +588,14 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
       .then((list) => {
         if (!cancelled) setPkgWritable(list.find((p) => p.id === packageId)?.writable ?? null);
       })
-      .catch(() => {
-        /* unknown — leave ungated */
+      .catch((e: unknown) => {
+        // Staying ungated is still right — the server gate is the authority
+        // and a failed probe must not lock the author out of their own
+        // package. But "I could not find out" is not the same event as "still
+        // asking", and until objectui#7368 neither one said anything at all.
+        // Same toast id as the switcher: one outage, one toast.
+        if (cancelled) return;
+        toast.error(formatMetadataError(e), { id: PACKAGE_LIST_TOAST_ID });
       });
     return () => {
       cancelled = true;
@@ -2451,8 +2546,13 @@ export function DataPillar({
       .then((list) => {
         if (!cancelled) setNamespace(list.find((p) => p.id === packageId)?.namespace ?? null);
       })
-      .catch(() => {
-        /* namespace is best-effort; publish still enforces the prefix server-side */
+      .catch((e: unknown) => {
+        // The namespace stays best-effort and publish still enforces the
+        // prefix server-side — but silently losing it means the author drafts
+        // prefix-less objects now and hears about it only at publish. Report
+        // it at the moment it breaks (objectui#7368), on the shared toast id.
+        if (cancelled) return;
+        toast.error(formatMetadataError(e), { id: PACKAGE_LIST_TOAST_ID });
       });
     return () => {
       cancelled = true;
