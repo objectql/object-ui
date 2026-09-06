@@ -413,7 +413,8 @@ import { fileURLToPath } from 'node:url';
  *     20 `corepack enable` steps across 14 files. A non-zero second reading, so this is
  *     not a grep that found nothing and was read as agreement.)
  *   - The PIN TEST. `ci-cd-pipeline-doc.test.ts` contains no `node-version` and no `22`
- *     whatsoever (control, same file, same sweep: 28 mentions of `ci.yml`). It pins the
+ *     whatsoever (control, same file, same sweep: 28 LINES matching `ci.yml`, as of
+ *     objectui#6400 - not an occurrence count, which reads one higher). It pins the
  *     PAGE; it does not pin this LINE. The second half was true of the file it named and
  *     false of the claim it excused, which is why it read as reassurance for months.
  *
@@ -1036,7 +1037,7 @@ const KNOWN_CLAIMS: KnownClaim[] = [
     claim: 'Node 22.x',
     kind: 'anchored',
     workflowVersionKey: 'node-version',
-    why: "The Node this repository's CI runs, anchored on the node-version declarations in .github/workflows and ASSERTED against them by the workflow-version assertion below (objectui#6400) rather than restated here. Both halves of the reason this replaces were false by the time anyone read them: it named a declaration count the tree had since doubled, in a spelling one lane does not use, and it credited this page's own pin test with covering the line - ci-cd-pipeline-doc.test.ts contains no node-version and no 22 at all (control, same file: 28 mentions of ci.yml). Nothing re-measured either half, which is the whole reason the count moved into a run.",
+    why: "The Node this repository's CI runs, anchored on the node-version declarations in .github/workflows and ASSERTED against them by the workflow-version assertion below (objectui#6400) rather than restated here. Both halves of the reason this replaces were false by the time anyone read them: it named a declaration count the tree had since doubled, in a spelling one lane does not use, and it credited this page's own pin test with covering the line - ci-cd-pipeline-doc.test.ts contains no node-version and no 22 at all (control, same file: 28 lines matching ci.yml, as of objectui#6400 - not an occurrence count, which reads one higher). Nothing re-measured either half, which is the whole reason the count moved into a run.",
   },
   {
     file: 'content/docs/guide/layout.md',
