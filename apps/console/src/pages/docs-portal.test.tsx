@@ -49,7 +49,8 @@ const { ADAPTER } = vi.hoisted(() => {
 
 vi.mock('@object-ui/app-shell', () => ({ useAdapter: () => ADAPTER }));
 
-vi.mock('@object-ui/plugin-markdown', () => ({
+vi.mock('@object-ui/plugin-markdown', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   MarkdownRenderer: ({ schema }: { schema: { content?: string } }) => (
     <div data-testid="doc-content">{schema.content}</div>
   ),
