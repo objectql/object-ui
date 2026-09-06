@@ -47,7 +47,8 @@
  *
  * ## The burn-down list
  *
- * `KNOWN_ESCAPES` is the 21 files measured on `67dadd6`. They are not excused:
+ * `KNOWN_ESCAPES` is what REMAINS of the 21 files measured on `67dadd6`
+ * (objectui#7307 is burning them down batch by batch). They are not excused:
  * each still emits, and now prints an ATTRIBUTED line naming itself, so a
  * reader who meets a bare stack in a truncated run can tell whose it is. The
  * list may only SHRINK — enforced mechanically by the reconcile pin in
@@ -108,12 +109,10 @@ function writeStderr(message: string): void {
 const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
 
 /**
- * Files measured escaping on 67dadd6 (objectui#6640). ONLY SHRINKS.
- * The comment on each line is the endpoint it reached.
+ * What remains of the files measured escaping on 67dadd6 (objectui#6640).
+ * ONLY SHRINKS. The comment on each line is the endpoint it reached.
  */
 export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
-  // /api/v1/security/explain
-  'examples/schema-catalog/test/catalog-gallery-render.test.tsx',
   // /api/v1/meta/_drafts
   'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
   // /api/v1/meta/_drafts
@@ -131,10 +130,6 @@ export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   // /api/v1/ai/conversations
   'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
   // /api/v1/security/explain
-  'packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx',
-  // /api/v1/meta/object/task
-  'packages/plugin-charts/src/ObjectChart.heightChain.test.tsx',
-  // /api/v1/security/explain
   'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
   // /api/task/42, /api/v1/security/explain
   'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
@@ -145,15 +140,11 @@ export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
   // /api/v1/security/explain
   'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
   // /api/v1/security/explain
-  'packages/plugin-grid/src/__tests__/bulkDeleteVisibleWhen.test.tsx',
-  // /api/v1/security/explain
   'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
   // /api/v1/security/explain
   'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
   // /api/v1/security/explain
   'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
-  // /api/v1/security/explain
-  'packages/plugin-view/src/__tests__/ObjectView.namedViewSortArity.test.tsx',
 ]);
 
 type Escape = { file: string; test: string; url: string };

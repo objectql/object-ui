@@ -31,7 +31,7 @@ import { KNOWN_ESCAPES } from '../../vitest.setup.network-escape-guard';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * The 21 files measured escaping on `67dadd6`, pinned verbatim.
+ * What remains of the 21 files measured escaping on `67dadd6`, pinned verbatim.
  *
  * Provenance: a full sweep of every Vitest project (`dom` all 8 shards,
  * `dom-heavy`, `unit`, `apps/console`) with an attribution ledger wrapping
@@ -39,7 +39,6 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * and must be done in lockstep with `KNOWN_ESCAPES`.
  */
 const PINNED_LEDGER: readonly string[] = [
-  'examples/schema-catalog/test/catalog-gallery-render.test.tsx',
   'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
   'packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx',
   'packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx',
@@ -48,18 +47,14 @@ const PINNED_LEDGER: readonly string[] = [
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
   'packages/app-shell/src/views/studio-design/StudioDesignSurface.designerRegistryMissing.test.tsx',
   'packages/app-shell/src/views/studio-design/__tests__/studioSurfaceContext.test.tsx',
-  'packages/plugin-calendar/src/ObjectCalendar.navWidthDefault.test.tsx',
-  'packages/plugin-charts/src/ObjectChart.heightChain.test.tsx',
   'packages/plugin-detail/src/__tests__/defaultFieldGroupsPage.sectionHeadings.test.tsx',
   'packages/plugin-detail/src/__tests__/guideCrudAppRenders.test.tsx',
   'packages/plugin-detail/src/__tests__/recordDetailsBodySource.test.tsx',
   'packages/plugin-detail/src/renderers/__tests__/record-details.emptySectionDefault.test.tsx',
   'packages/plugin-gantt/src/ObjectGantt.navWidthDefault.test.tsx',
-  'packages/plugin-grid/src/__tests__/bulkDeleteVisibleWhen.test.tsx',
   'packages/plugin-kanban/src/ObjectKanban.navWidthDefault.test.tsx',
   'packages/plugin-kanban/src/ObjectKanban.overlayTitleI18n.test.tsx',
   'packages/plugin-kanban/src/ObjectKanban.overlayTitleNoProviderFallback.test.tsx',
-  'packages/plugin-view/src/__tests__/ObjectView.namedViewSortArity.test.tsx',
 ];
 
 describe('network-escape ledger (objectui#6640) is shrink-only', () => {
