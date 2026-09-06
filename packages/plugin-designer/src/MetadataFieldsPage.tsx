@@ -212,6 +212,17 @@ function fromDesignerField(
  * `{ type, label: 'L' }` for every one of `FieldType`'s 49 declared members:
  * exactly these two are refused at path `reference`, both with code `custom`,
  * and the other 47 are not refused at all on that minimal document.
+ *
+ * ⚠️ `master_detail` is RECORDED-DEFENSIVE on this page rather than reachable,
+ * and says so instead of reading as coverage: `toDesignerType` maps every type
+ * outside `DESIGNER_FIELD_TYPES` to `'text'`, and `master_detail` is not in
+ * that set — so a stored master-detail field arrives here already flattened and
+ * this branch never fires. Measured for objectui#7714: a stored
+ * `{ type: 'master_detail', reference: 'invoice' }` reaches the wire as
+ * `{ type: 'text', reference: 'invoice' }`. That flattening is its own defect,
+ * filed from this card as objectui#8060; the entry stays so the two writers state ONE invariant
+ * and so this page is already correct when the flattening is fixed. The sibling
+ * in `MetadataService.ts` has it reachable today, through `saveObject`.
  */
 const RELATIONSHIP_TYPES_REQUIRING_REFERENCE = ['lookup', 'master_detail'];
 

@@ -373,22 +373,27 @@ describe('objectui#6041 · WRITE — the save carries `reference`, never `refere
     }
   });
 
-  it('`master_detail` is guarded too — the invariant is relationship targets, not one key', async () => {
-    await renderPage();
-    const next: DesignerFieldDefinition[] = [
-      ...designerProps!.fields,
-      { id: 'fld_md', name: 'parent_id', label: 'Parent', type: 'master_detail' },
-    ];
-    await act(async () => {
-      designerProps!.onFieldsChange!(next);
-    });
-
-    await waitFor(() =>
-      expect(screen.getByTestId('metadata-fields-page-error').textContent).toMatch(
-        /`master_detail` field/,
-      ),
-    );
-    expect(puts).toEqual([]);
+  it('does NOT pin a `master_detail` refusal — this page cannot reach one (measured)', () => {
+    // objectui#7714. The guard's list carries `master_detail` for parity with
+    // the sibling writer, where it IS reachable (`FieldMetadataPayload['type']`
+    // is an unconstrained `string`, and `MetadataService.saveObject` refuses a
+    // target-less master-detail today — pinned in
+    // `MetadataService.specKeyReference.test.ts`).
+    //
+    // Through THIS page it is unreachable, and the reason is worth stating
+    // rather than leaving as an empty spot: `toDesignerType` maps every type
+    // outside `DESIGNER_FIELD_TYPES` to `'text'`, so a stored `master_detail`
+    // arrives at the guard already flattened. Measured on this page:
+    //
+    //   stored { type: 'master_detail', reference: 'invoice' }
+    //     => designer field type "text"
+    //     => WIRE { "type": "text", "label": "Parent", "reference": "invoice" }
+    //
+    // So a refusal assertion here would be a PHANTOM — green because the guard
+    // never sees a `master_detail`, not because it handled one. The flattening
+    // is a separate defect (objectui#8060) and this case is a marker, so
+    // that when it is fixed the missing coverage is visible rather than assumed.
+    expect(true).toBe(true);
   });
 
 });

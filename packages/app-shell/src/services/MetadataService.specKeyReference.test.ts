@@ -228,16 +228,37 @@ describe('objectui#6041 · saveFields PUTs the relationship target as `reference
     expect(savedFields(puts)[0].type).toBe('text');
   });
 
-  it('`master_detail` is guarded too — the invariant is relationship targets, not one key', async () => {
+  it('`master_detail` is guarded too, through `saveObject` — the invariant is relationship targets, not one key', async () => {
+    // Driven through `saveObject`'s `existingFields` rather than `saveFields`,
+    // and that is the accurate reachability rather than a convenience:
+    // `DesignerFieldDefinition['type']` does NOT include `master_detail`, so
+    // the designer cannot author one, while `FieldMetadataPayload['type']` is
+    // an unconstrained `string` and this path is where a stored master-detail
+    // field actually arrives. It also exercises the second writer sharing this
+    // door — `toObjectPayload` converts through the same `toFieldsMap`, so one
+    // guard covers both, and nothing else in this file asserts that.
     const { adapter, puts } = makeCapturingAdapter();
 
     await expect(
-      new MetadataService(adapter).saveFields('account', [
-        { id: 'parent_id', name: 'parent_id', label: 'Parent', type: 'master_detail' },
+      new MetadataService(adapter).saveObject({ id: 'account', name: 'account', label: 'Account' }, [
+        { name: 'parent_id', label: 'Parent', type: 'master_detail' },
       ]),
     ).rejects.toThrow(/`master_detail` field/);
 
     expect(puts).toEqual([]);
+  });
+
+  it('`saveObject` still saves when the master-detail target IS present', async () => {
+    // Falsification for the case above: it must be the missing target that was
+    // refused, not the `saveObject` path or the type.
+    const { adapter, puts } = makeCapturingAdapter();
+
+    await new MetadataService(adapter).saveObject({ id: 'account', name: 'account', label: 'Account' }, [
+      { name: 'parent_id', label: 'Parent', type: 'master_detail', reference: 'invoice' },
+    ]);
+
+    expect(puts).toHaveLength(1);
+    expect(savedFields(puts)[0].reference).toBe('invoice');
   });
 
 });
