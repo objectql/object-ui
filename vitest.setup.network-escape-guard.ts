@@ -113,14 +113,6 @@ const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
  * ONLY SHRINKS. The comment on each line is the endpoint it reached.
  */
 export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.approvalsTarget.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.authoringCapabilityGate.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.inboxLinksTarget.test.tsx',
-  // /api/v1/meta/_drafts
-  'packages/app-shell/src/console/home/__tests__/HomePage.notificationDeepLink.test.tsx',
   // /api/v1/meta/object
   'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.inactiveRetained.test.tsx',
   // /api/v1/meta/object

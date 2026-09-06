@@ -42,9 +42,9 @@
  */
 
 import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MePermissionsProvider, type MePermissionsResponse } from '@object-ui/permissions';
 
@@ -126,6 +126,77 @@ vi.mock('../../../runtime-config', () => ({
 }));
 
 import { HomePage } from '../HomePage';
+
+/* ── The `_drafts` double (objectui#7307) ─────────────────────────────────────
+ * Every render of `HomePage` below mounts `PendingDraftsBanner`, which reads the
+ * env-wide pending-draft count through `usePendingDrafts({})`. That hook fetches
+ * `GET /api/v1/meta/_drafts` with the GLOBAL `fetch` — `usePendingDrafts.ts:48`,
+ * no `apiFetch` seam anywhere on the path — from its mount effect
+ * (`usePendingDrafts.ts:116` via `refresh` at `:94`). Under happy-dom that global
+ * is a real HTTP client and the document URL defaults to `http://localhost:3000`,
+ * so the relative path resolved to a live socket, once per case. The hook's read
+ * is best-effort (its `catch` leaves `count` at `null`), which is why these cases
+ * stayed green while the request always failed.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on, carried
+ * by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx` and by
+ * this burn-down's earlier batches. Deliberately NOT a blanket network stub: it
+ * records every URL it is handed and `afterEach` fails on any URL outside the set
+ * it serves, so an escape to somewhere else reds here instead of vanishing into
+ * that `catch`.
+ *
+ * What it answers, and why that changes no assertion here: a known-EMPTY draft
+ * ledger, in the `{ drafts: [...] }` envelope `fetchPendingDrafts` reads (the one
+ * `MetadataClient.listDrafts` pins for this endpoint; the bare-array and
+ * `{ data: { drafts } }` shapes parse to the same rows). Empty rather than seeded
+ * is load-bearing: `PendingDraftsBanner` renders `null` when `(count ?? 0) <= 0`,
+ * and the failing request produced `count === null` — so an empty ledger yields
+ * byte-identical output to what these cases have always rendered, while a seeded
+ * one would add a banner and a `pending-drafts-publish` button to every case's
+ * tree. Routes are matched on the PATHNAME because the hook appends a
+ * `?packageId=` scope for package-bound callers; the full URL is what gets
+ * recorded.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const DRAFTS_ROUTE = '/api/v1/meta/_drafts';
+
+/** Every URL this file's renders handed the global `fetch`, in request order. */
+let draftsCalls: string[] = [];
+
+/** The route key of a recorded URL: its pathname, without the scope query. */
+const routeOf = (url: string) => url.split('?')[0];
+
+/** Serve `GET /api/v1/meta/_drafts` as an empty ledger; record everything. */
+function installDraftsDouble() {
+  draftsCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      draftsCalls.push(url);
+      if (routeOf(url) !== DRAFTS_ROUTE) return { ok: false, status: 404, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ drafts: [] }) };
+    }),
+  );
+}
+
+beforeEach(installDraftsDouble);
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into the hook's best-effort `catch`.
+  expect(draftsCalls.filter((url) => routeOf(url) !== DRAFTS_ROUTE)).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch`. Vitest runs `afterEach` hooks in
+  // reverse registration order, so this file's teardown runs before the root
+  // setup's RTL cleanup: unstubbing first would leave the tree mounted with the
+  // real global back in place, and a mount effect settling in that window
+  // escapes again (objectui#7439).
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
 
 /**
  * The `/me/permissions` answer recorded on objectstack#8270 for the EE
