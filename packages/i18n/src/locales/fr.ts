@@ -1449,6 +1449,9 @@ const fr = {
   console: {
     saveAdvisoryTitle: "Enregistré — le contrôle de création a signalé {{count}} recommandation(s)",
     publishAdvisoryTitle: "Publié — le contrôle de création a signalé {{count}} recommandation(s)",
+    importMappingsUnavailable: "Impossible de charger les mappages d’import enregistrés pour {{object}}",
+    importMappingsRefused: "Le serveur a refusé cette requête : cette liste est donc vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Reconnectez-vous ou demandez un accès à un administrateur.",
+    importMappingsUnreadable: "Cette liste est vide parce qu’elle n’a pas pu être lue, et non parce que rien n’est enregistré. Réessayez, et signalez le problème s’il persiste.",
     settingsHub: {
       title: "Paramètres",
       subtitle: "Configurez votre espace de travail, vos intégrations et vos indicateurs de fonctionnalité.",
