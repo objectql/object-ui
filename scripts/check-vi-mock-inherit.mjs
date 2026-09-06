@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is thirteen, and each joined by sweep
+ * actually been SWEPT to zero. Today that is fourteen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -460,12 +460,60 @@
  * module's graph reaches it; walk the graph, then read the neighbours against
  * it.
  *
- * The remaining 74 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
- * frozen, still only after objectui#6580 -- which is now CLOSED, so that
- * reading is a git-history read rather than an open card),
- * `@object-ui/plugin-detail` (13), `@object-ui/plugin-chatbot` (11),
- * `@object-ui/plugin-designer` (10), `@object-ui/plugin-list` (9) and
- * `@object-ui/fields` (8).
+ * `@object-ui/plugin-detail` joined as objectui#6892's NINTH slice, re-derived
+ * on `310c0ab19` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-detail     17 judged, 4 inheriting, 13 frozen -> 0
+ *
+ * with the population moving 74 -> 61 frozen over 659 judged and no site moving
+ * the other way. The 13 frozen sites sit in three owning packages (8 under
+ * `packages/plugin-gantt`, 4 under `packages/plugin-calendar`, 1 under
+ * `packages/plugin-tree`) and in ONE syntactic shape -- all 13 are
+ * zero-parameter object-literal arrows, the most uniform surface this worklist
+ * has swept.
+ *
+ * ⭐ The import-cost reading this slice owed, and why an isolated probe would
+ * have answered it WRONG. Both `vitest.config.mts` and `apps/console`'s config
+ * alias this specifier to `packages/plugin-detail/src`, so `importOriginal`
+ * transforms the barrel's graph on demand -- and that graph is the LARGEST this
+ * worklist has walked: 564 modules and 6,181 module-scope statements, carrying
+ * 127 `ComponentRegistry.register` calls and 99 bare side-effect imports, the
+ * latter almost entirely the `@object-ui/components` renderer cascade. Timed
+ * COLD in an otherwise-empty test file, `importOriginal` of this barrel costs a
+ * median of 8.8s (8815ms / 8646ms / 8827ms) -- squarely in objectui#6580's
+ * ~10s `@object-ui/app-shell` range, which the dispatch defined as a STOP.
+ *
+ * ⛔ That number is an ARTEFACT of the empty file, and acting on it would have
+ * stopped a free conversion. Measured on the REAL files instead -- the only
+ * measurement that decides anything -- the marginal cost is roughly zero:
+ * gantt 9.81s frozen -> 9.73s inheriting, tree 9.65s -> 9.84s, calendar 9.32s
+ * -> 10.32s, i.e. -0.1s to +1.0s per file, the `@object-ui/plugin-grid` range
+ * and not objectui#6580's. The mechanism is a SUBSET relation, and it is
+ * measured rather than argued: every one of these 13 files already imports
+ * `@object-ui/react` and its own view component (`./ObjectGantt` and friends)
+ * at module scope, and those two together reach 572 modules -- a strict
+ * SUPERSET of the barrel's 564, with `comm -23` reporting exactly ZERO modules
+ * that inheriting adds. `importOriginal` here resolves an already-resident
+ * graph; it loads nothing new.
+ *
+ * ⇒ CARRY-FORWARD, and it generalises past this specifier: a barrel's import
+ * cost is NOT a property of the barrel. Measure it in the files that will pay
+ * it, against what they already load, and never from a probe that imports the
+ * barrel alone -- the probe answers "what does this graph cost from cold",
+ * which is the wrong question whenever the consuming file already holds it.
+ *
+ * The neighbours in these 13 files are 7 frozen `sonner` factories plus 12
+ * local whole-module replacements (`./GanttView` 8, `./CalendarView` 4), all
+ * out of scope by construction, and slice 6's collection-death class again did
+ * not fire: this barrel's graph reaches neither `sonner` nor those local
+ * modules. ZERO neighbouring repairs.
+ *
+ * The remaining 61 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
+ * frozen, PARKED under objectui#8173 -- objectui#6892 and the closed
+ * objectui#6580 point opposite ways on that one specifier and a seat does not
+ * decide it), `@object-ui/plugin-chatbot` (11), `@object-ui/plugin-designer`
+ * (10), `@object-ui/plugin-list` (9) and `@object-ui/fields` (8).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -563,6 +611,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/components',
   '@object-ui/plugin-grid',
   '@object-ui/permissions',
+  '@object-ui/plugin-detail',
 ]);
 
 /** Files the walk reads at all. */

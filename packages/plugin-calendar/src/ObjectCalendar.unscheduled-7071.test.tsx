@@ -53,7 +53,8 @@ afterEach(cleanup);
 // The overlay drawer is irrelevant here and drags in a per-record permission
 // probe that would leave the process for real (see the propsContract suite's
 // own note on that probe). Stub it out.
-vi.mock('@object-ui/plugin-detail', () => ({
+vi.mock('@object-ui/plugin-detail', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-detail')>()),
   RecordDetailDrawer: () => null,
   deriveRecordPageHref: () => null,
 }));
