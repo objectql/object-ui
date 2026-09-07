@@ -15,6 +15,7 @@ import {
   scanFile,
   scanFileForClaims,
   scanFileForMemberCitations,
+  scanProseForMemberCitations,
 } from '../check-spec-symbol-derivation.mjs';
 
 /**
@@ -1284,5 +1285,146 @@ export type X = string;
 export type X = string;
 `)
     ).toEqual([]);
+  });
+});
+
+// ── Rule 4's second transport: published prose (objectui#7995) ───────────────
+
+const proseCitations = (file: string) =>
+  scanProseForMemberCitations(file, MEMBERS_OF).map(
+    (c: { symbol: string; member: string; line: number }) => `${c.symbol}.${c.member}@${c.line}`
+  );
+
+/**
+ * ⭐ The bite leg for the widening, and it is the objectui#7537 receipt rather
+ * than an invented shape.
+ *
+ * PR #7510 corrected three JSDoc claims that the installed `@objectstack/spec`
+ * declared a key it refused by name. A FOURTH copy of one of them sat in
+ * `content/docs/fields/lookup.mdx` in prose, survived that PR untouched, and
+ * shipped — corrected later only because a human read it. Against `SPEC_MEMBERS`
+ * above (faithful to the spec of that moment, where `SelectOptionSchema` spelled
+ * five keys and `description` was not among them) that page is what these
+ * fixtures reproduce.
+ *
+ * A widening asserted only green on today's tree proves nothing about the
+ * widening — the tree is green with the prose scan deleted. These are the
+ * fixtures that can tell the difference.
+ */
+describe('a false spec attribution written as PROSE is judged (objectui#7995)', () => {
+  const page = (source: string, name = 'lookup.mdx') =>
+    withFixture({ [name]: source }, (paths) => proseCitations(paths[name]));
+
+  it('flags the documentation copy that outlived the correction of its three JSDoc twins', () => {
+    expect(
+      page(`# Lookup Field
+
+A static option may also carry a \`description\` — secondary text the picker's
+typeahead searches alongside the label. It is declared by \`@objectstack/spec\`
+as \`SelectOptionSchema.description\`, so authoring it on an option in an object
+document is spec-compliant.
+`)
+    ).toEqual(['SelectOptionSchema.description@3']);
+  });
+
+  it('…and is GREEN on the repaired wording that names the symbol and the key without joining them', () => {
+    // The other half of the pair, and the escape hatch the rule leaves open: the
+    // page still mentions the spec and still names the key, it just stops
+    // claiming the spec DECLARES it. That is the distinction the rule draws, and
+    // it is the wording `content/docs/fields/lookup.mdx` carries today.
+    expect(
+      page(`# Lookup Field
+
+Measured on the installed \`@objectstack/spec\`, \`SelectOptionSchema\` is strict
+over exactly \`{label, value, color, default, visibleWhen}\` and refuses
+\`description\` **by name** (\`unrecognized_keys\`).
+`)
+    ).toEqual([]);
+  });
+
+  it('a PARAGRAPH is the scope — a heading between the mention and the citation stops it', () => {
+    // The markdown analogue of the comment BLOCK, and load-bearing rather than
+    // tidy: a heading carries no sentence terminator, so the same-sentence test
+    // has nothing to stop it without blank lines as hard boundaries. Both
+    // fragments below would read as one sentence if the page were flattened.
+    expect(
+      page(`Authoring is governed by \`@objectstack/spec\`
+
+## Read model
+
+\`SelectOptionSchema.description\` is the widget-side key
+`)
+    ).toEqual([]);
+  });
+
+  it('reports the paragraph the citation sits in, not the top of the page', () => {
+    expect(
+      page(`# Title
+
+Intro paragraph with no citations at all.
+
+Per \`@objectstack/spec\`, \`FieldSchema.rows\` is authorable.
+`)
+    ).toEqual(['FieldSchema.rows@5']);
+  });
+
+  it('fenced code is scanned like the rest of the page', () => {
+    // The measured decision, pinned: skipping fences moved the raw count and
+    // left the judged population identical, so there is no fence rule. This is
+    // what "no fence rule" means in behaviour.
+    expect(
+      page(`Example:
+
+\`\`\`ts
+// Per \`@objectstack/spec\`, \`DashboardSchema.title\` is the header text.
+const t = dashboard.title;
+\`\`\`
+`)
+    ).toEqual(['DashboardSchema.title@3']);
+  });
+
+  it('a page that never mentions the spec is out of jurisdiction', () => {
+    expect(page(`Our own \`DashboardSchema.title\`, nothing to do with the protocol.\n`)).toEqual([]);
+  });
+
+  it('every precision rule inherited from the comment transport still applies', () => {
+    // Not a re-test of the rules — a proof that prose gets the SAME ones, which
+    // is the whole reason the grammar was factored out instead of copied.
+    expect(page(`Per \`@objectstack/spec\`, \`ui/DashboardSchema.json\` spells it.\n`)).toEqual([]);
+    expect(page(`Per \`@objectstack/spec\`, \`FieldSchema.safeParse\` rejects it.\n`)).toEqual([]);
+    expect(page(`Per \`@objectstack/spec\`, \`ChartAxis.shape\` is authorable.\n`)).toEqual([]);
+    expect(page(`Per \`@objectstack/spec\`, \`HttpRequestSchema.body\` carries it.\n`)).toEqual([]);
+    expect(page(`Renamed off \`@objectstack/spec\`. \`DashboardSchema.title\` is ours.\n`)).toEqual([]);
+  });
+});
+
+describe('one grammar, two transports (objectui#7995)', () => {
+  /**
+   * The regression this pins is the one a second copy of the rule would create:
+   * the two surfaces answering differently about the same sentence. Both sides
+   * call `memberCitationsIn`; if either grows its own copy, one of these two
+   * expectations moves and the other does not.
+   */
+  const sentence = 'Aligns `@objectstack/spec` `SelectOptionSchema.description`.';
+
+  it('the same passage is judged identically as a comment and as prose', () => {
+    const asComment = withFixture({ 'probe.ts': `\n/** ${sentence} */\nexport type X = string;\n` }, (paths) =>
+      citations(paths['probe.ts'])
+    );
+    const asProse = withFixture({ 'page.mdx': `${sentence}\n` }, (paths) => proseCitations(paths['page.mdx']));
+
+    expect(asComment).toEqual(['SelectOptionSchema.description@2']);
+    expect(asProse).toEqual(['SelectOptionSchema.description@1']);
+    expect(asComment.map((c) => c.split('@')[0])).toEqual(asProse.map((c) => c.split('@')[0]));
+  });
+
+  it('…and identically when the citation is correct', () => {
+    const ok = 'Aligns `@objectstack/spec` `DashboardSchema.label`.';
+    const asComment = withFixture({ 'probe.ts': `\n/** ${ok} */\nexport type X = string;\n` }, (paths) =>
+      citations(paths['probe.ts'])
+    );
+    const asProse = withFixture({ 'page.mdx': `${ok}\n` }, (paths) => proseCitations(paths['page.mdx']));
+    expect(asComment).toEqual([]);
+    expect(asProse).toEqual([]);
   });
 });
