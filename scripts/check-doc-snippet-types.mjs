@@ -789,8 +789,6 @@ const UNGATED_DOCS = {
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-tree/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/providers/README.md':
-    '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
 };
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
