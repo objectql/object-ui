@@ -2238,6 +2238,29 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return resolvable;
   }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.map, (schema as any).tree, (schema as any).chart, schema.appearance?.allowedVisualizations]);
 
+  /**
+   * Whether the visualization switcher is actually WORTH drawing (objectui#7547).
+   *
+   * `showViewSwitcher` is the author's intent, and both faces that stamp it —
+   * `app-shell/ObjectView` and `app-shell/InterfaceListPage` — compute it from
+   * the LENGTH of `appearance.allowedVisualizations`, which is the whitelist
+   * BEFORE this component intersects it with `availableViews` above. Those two
+   * numbers are not the same number: a view whitelisting `['grid', 'timeline']`
+   * with no timeline block whitelists two and resolves one, so the toolbar drew
+   * switcher chrome — border, dropdown affordance and separator — around a
+   * single Grid entry that cannot switch to anything.
+   *
+   * Neither face can compute this: `availableViews` is the whitelist ∩ the
+   * capability gate, and the gate lives here. So the predicate is applied at
+   * the one site that holds both halves, which also means it covers BOTH doors
+   * at once and cannot drift from the list the dropdown is handed.
+   *
+   * ⚠️ NOT a second policy layer. An author who whitelists two RESOLVABLE types
+   * still gets the switcher, and an author who whitelists none still gets none;
+   * the only views this changes are the ones whose chrome offered no choice.
+   */
+  const viewSwitcherOffered = showViewSwitcher && availableViews.length > 1;
+
   // Sync view from props
   React.useEffect(() => {
      if (schema.viewType) {
@@ -3329,7 +3352,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           {/* Visualization switcher — compact dropdown (Airtable-style
               "List ▾"), first slot of the right tool cluster so the whole
               toolbar stays a single row. */}
-          {showViewSwitcher && (
+          {viewSwitcherOffered && (
             <>
               <ViewSwitcherDropdown
                 currentView={currentView}
