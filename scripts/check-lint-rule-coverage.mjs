@@ -135,6 +135,25 @@
  *   an object with no `rules` key  -> WALKED, zero rules  <- the finding
  *   an object with `rules`         -> covered
  *
+ * ## Why the vacuous population is exactly the JS family, and cannot be `.ts`
+ *
+ * Measured, because the obvious mental model is wrong. In flat config a `.ts`
+ * file is walked ONLY because some config object's `files` names it, while
+ * `.js` / `.cjs` / `.mjs` are linted BY DEFAULT whether or not any config
+ * object mentions them. So the two extensions fail in different directions:
+ *
+ *   narrow every `**\/*.{ts,tsx}` to `**\/*.tsx`
+ *     -> `packages/core/src/index.ts` becomes `isPathIgnored: true`, config
+ *        `undefined`. 776 files leave the WALK. Zero-rule count: unchanged.
+ *   add `{ files: ['**\/*.mts'] }` with no rules
+ *     -> `vitest.config.mts` ENTERS the walk with an empty rule set, and this
+ *        gate reds naming it.
+ *
+ * Narrowing a glob therefore cannot manufacture vacuity; only the default-lint
+ * set, or a `files:` entry that carries no rules, can. That second shape is the
+ * real-world way this defect gets ADDED to a config, and it is the fourth
+ * ablation leg on this gate's PR.
+ *
  * ## Cost
  *
  * Measured on `fedfa3e4a`, this branch's base: 4438 walked files out of 6699 on disk. Directory

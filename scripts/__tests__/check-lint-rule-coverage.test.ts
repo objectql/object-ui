@@ -143,6 +143,47 @@ describe('zero rules is a reading, not a broken call', () => {
   });
 });
 
+describe('narrowing a glob removes files from the WALK, it does not make them vacuous', () => {
+  it('is the measured asymmetry between the default-lint set and `.ts`', async () => {
+    // `.js`/`.cjs`/`.mjs` are linted by default; `.ts` is walked only because
+    // some config object's `files` names it. So the two fail in opposite
+    // directions, and a gate built on the wrong one would measure nothing.
+    const root = tree('narrowed', {
+      'eslint.config.js': TS_ONLY_CONFIG.replace("files: ['**/*.ts']", "files: ['**/*.tsx']"),
+      ...FILES,
+    });
+    const eslint = new ESLint({ cwd: root });
+
+    expect(await eslint.isPathIgnored(path.join(root, 'src/covered.ts'))).toBe(true);
+    expect(await eslint.calculateConfigForFile(path.join(root, 'src/covered.ts'))).toBeUndefined();
+
+    const result = await analyze({ root, groups: [{ glob: '**/*.mjs', reason: 'fixture', card: 'objectui#7908' }, { glob: 'eslint.config.js', reason: 'the fixture config', card: 'objectui#7908' }] });
+    expect(result.walked).not.toContain('src/covered.ts');
+    expect(result.vacuous).not.toContain('src/covered.ts');
+  });
+
+  it('reds when a files: entry ENTERS the walk carrying no rules', async () => {
+    // The real-world way this defect is added to a config, and the fourth
+    // ablation leg on this gate's own PR.
+    const root = tree('widened-walk', {
+      'eslint.config.js': TS_ONLY_CONFIG.replace('export default [', "export default [\n  { files: ['**/*.mts'] },"),
+      ...FILES,
+      'build.mts': 'export const f = 6;\n',
+    });
+    const result = await analyze({
+      root,
+      groups: [
+        { glob: 'tools/**/*.mjs', reason: 'fixture', card: 'objectui#7908' },
+        { glob: 'eslint.config.js', reason: 'the fixture config', card: 'objectui#7908' },
+      ],
+    });
+
+    const unledgered = result.findings.filter((f) => f.kind === 'unledgered');
+    expect(unledgered).toHaveLength(1);
+    expect(unledgered[0].files).toEqual(['build.mts']);
+  });
+});
+
 describe('the ledger, and the three directions it goes red', () => {
   // Two rows, and the second one is not decoration: a flat config is itself a
   // `.js` file that ESLint walks and resolves no rules for, so the fixture
