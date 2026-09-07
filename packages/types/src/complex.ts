@@ -598,8 +598,12 @@ export interface FilterBuilderCondition {
    * `string`, and `addCondition` emits `crypto.randomUUID()`.
    *
    * Undeclared, it was STRIPPED by the `z.object` mirror in silence, so a
-   * correctly authored row validated and rendered and could then never be
-   * edited or removed. Declaring it is what makes `declared = enforced`.
+   * correctly authored row validated and rendered with no individual identity:
+   * every affordance is handed `undefined`, `c.id === conditionId` is TRUE for
+   * every id-less row, and so one click removes all of them at once — the
+   * clicked row included — while one edit fans out across all of them. A row
+   * cannot be edited or removed on its own. (Not "matches none"; the failure is
+   * en bloc.) Declaring it is what makes `declared = enforced`.
    */
   id: string;
   /**

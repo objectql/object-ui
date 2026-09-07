@@ -12,9 +12,17 @@
  * The mirror declared a condition as `{ field, operator, value? }`. The
  * component's identity for a row is `id`, and because the mirror is a plain
  * `z.object`, an author who wrote `id` correctly had it STRIPPED in silence.
- * The document then validated and the row rendered — and no affordance could
- * ever reach it again, because all four mutation helpers match on `c.id` and
- * every one of them was handed `undefined`.
+ * The document then validated and the row rendered — and from then on the row
+ * had no individual identity. All four mutation helpers match on `c.id`, every
+ * one of them is handed `undefined`, and `undefined === undefined` is TRUE, so
+ * each matches EVERY id-less row: `removeCondition` deletes them all in one
+ * click (the clicked row included; only uuid-bearing rows survive), and
+ * `updateCondition` / `changeOperator` / `changeField` fan one edit out across
+ * all of them. `key={condition.id}` becomes `key={undefined}`, which React
+ * reads as no key at all rather than as a duplicate one.
+ *
+ * ⛔ Not "matches none" — the failure is EN BLOC, and it is the more severe of
+ * the two readings.
  *
  * Measured on the base commit, through `FilterBuilderConditionSchema.safeParse`:
  * a condition carrying `id` parsed successfully and the parsed OUTPUT did not
@@ -34,7 +42,8 @@
  *     source rather than quoting a count.
  *
  * ⭐ The narrowing therefore refuses only what is ALREADY broken: a condition
- * with no `id` renders today but can never be edited or removed. Nothing that
+ * with no `id` renders today but cannot be edited or removed INDIVIDUALLY —
+ * every affordance on it acts on all the id-less rows at once. Nothing that
  * works stops working.
  */
 import { describe, it, expect } from 'vitest';

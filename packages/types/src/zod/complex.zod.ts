@@ -298,12 +298,23 @@ const FilterBuilderConditionObject = z.object({
   //
   // ⭐ The narrowing refuses only what is ALREADY broken. Because a plain
   // `z.object` STRIPS undeclared keys, an author who correctly wrote `id` had
-  // it discarded in silence: the document validated, the row rendered, and then
-  // no affordance could reach it — `removeCondition(undefined)` matches every
-  // OTHER row, `updateCondition(undefined)` matches none, and React keys the
-  // row `undefined`. Nothing that worked stops working; the state this refuses
-  // is accepted-and-discarded, the class objectui#6150 closed for
-  // `tree-view.title`.
+  // it discarded in silence: the document validated, the row rendered, and the
+  // row then had no individual identity. Both sides of every comparison listed
+  // above are `undefined`, and `undefined === undefined` is TRUE, so each
+  // helper matches EVERY id-less row rather than none:
+  //
+  //   - `removeCondition(undefined)` deletes them ALL in one click — the
+  //     clicked row included; only rows carrying a real id survive it;
+  //   - `updateCondition`, `changeOperator` and `changeField` fan a single
+  //     edit out across all of them;
+  //   - `key={condition.id}` becomes `key={undefined}`, which React reads as
+  //     NO key at all rather than as a duplicate one, so the rows reconcile by
+  //     index and React warns about the missing key.
+  //
+  // ⛔ Not "matches none": the failure is EN BLOC, and it is the more severe
+  // reading — a row cannot be edited or removed on its own. Nothing that worked
+  // stops working; the state this refuses is accepted-and-discarded, the class
+  // objectui#6150 closed for `tree-view.title`.
   id: z.string().describe('Row identity — matched by `removeCondition` / `updateCondition` / `changeOperator` / `changeField`, and the React key'),
   field: z.string().describe('Field name'),
   operator: FilterOperatorSchema.describe('Filter operator'),
