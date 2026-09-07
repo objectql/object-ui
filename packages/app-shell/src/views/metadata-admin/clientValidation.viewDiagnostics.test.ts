@@ -1044,3 +1044,163 @@ describe('view verdict parity — `invalid_value` bodies (objectui#3694)', () =>
     });
   }
 });
+
+/**
+ * ── Cross-field refusal: offering `'calendar'` requires a `calendar:` block
+ *    (objectui#7122, @objectstack/spec 17.3.0) ──
+ *
+ * 17.3.0 added a cross-field rule to the list-view contract: if
+ * `appearance.allowedVisualizations` contains `'calendar'`, the view must
+ * declare `calendar: { startDateField }`. There is no truthful fallback — a
+ * date the renderer guesses puts every record lacking that field on "today".
+ * The same release made `calendar.titleField` OPTIONAL (the title falls back to
+ * the ADR-0079 record display name), leaving `startDateField` as the block's
+ * one required key. Both halves are pinned below.
+ *
+ * ⚠️ WHY HERE, and not in `packages/types`' spec-parity suites, which is where
+ * objectui#7122's own text proposed it. Measured: those mirrors CANNOT carry a
+ * spec refinement, ever. `ListViewSchema` there is built from
+ * `specFieldsExcept(SpecListViewSchema.shape, …)`, and `specFieldsExcept` is
+ * `z.object(kept).partial()` over the spec shape's ENTRIES — a brand-new object
+ * schema. The spec's refinement is not omitted, it is STRUCTURALLY UNREACHABLE,
+ * and the mirror accepts the refused body below cleanly. A pin there would
+ * assert a property of the SPEC's schema while sitting in a suite whose
+ * documented remit is objectui-vs-spec KEY drift. This gate imports the refined
+ * doors themselves (`clientValidation.ts`'s `view` entry: `ViewMetadataSchema`
+ * on edit, `ViewItemSchema` / `ViewSchema` on create), so what is pinned here is
+ * a refusal a Console author actually meets. Ruled by the PM on this card.
+ *
+ * ⚠️ MESSAGE COUPLING, deliberate — as every CANARY in this file is. Only the
+ * message's FIRST clause is asserted, the part that names the rule; never the
+ * whole string, so the spec stays free to reword its guidance. The owner of the
+ * coupling is `@objectstack/spec`'s list-view refinement (objectstack#14075,
+ * `Fixes objectstack#13817`). If it is reworded, this pin is what tells
+ * objectui — re-measure the clause, ⛔ never delete the assertion.
+ *
+ * ⚠️ BOTH DOORS carry a body, and that is not redundancy: create and edit are
+ * judged by DIFFERENT schemas (`viewSchemaForDraft`'s authoring pair vs the
+ * `ViewMetadataSchema` union), so a green on one says nothing about the other.
+ * Measured, the refusal's path follows the BODY's own nesting rather than the
+ * door: a ViewItem draft answers `config.calendar` on both, a container answers
+ * `list.calendar` on both, and a flattened list-view overlay answers a bare
+ * `calendar` (edit only — the authoring gate refuses that shape outright).
+ *
+ * ⚠️ This refusal does NOT travel through the union expansion the rest of this
+ * file pins. Measured: it arrives as ONE issue already addressed to the right
+ * path, i.e. the spec addresses it itself and the mapping leaves it alone (the
+ * `leaves non-union failures exactly as they were` cell above). Stated so a
+ * later reader does not take a green here as evidence about the expansion.
+ */
+describe('view cross-field refusal — a calendar visualization needs a calendar block (objectui#7122)', () => {
+  /** What an author writes in the Console: a ViewItem carrying no platform-written keys. */
+  const AUTHORED_ITEM = (config: Record<string, unknown>) => ({
+    name: 'crm_lead.all_leads',
+    object: 'crm_lead',
+    viewKind: 'list',
+    label: 'All Leads',
+    config,
+  });
+  const LIST_CONFIG = { type: 'grid', columns: ['name'], data: { provider: 'object', object: 'crm_lead' } };
+  const OFFERS_CALENDAR = { allowedVisualizations: ['grid', 'calendar'] };
+
+  /** The clause that NAMES the rule. Everything after it is guidance prose, deliberately not asserted. */
+  const RULE_CLAUSE = "`appearance.allowedVisualizations` includes 'calendar'";
+
+  // ── CANARY ───────────────────────────────────────────────────────────────
+
+  it('CANARY: a ViewItem offering calendar with no `calendar:` block is refused AT `config.calendar` on the EDIT door', async () => {
+    const res = await validateMetadataDraft(
+      'view',
+      AUTHORED_ITEM({ ...LIST_CONFIG, appearance: OFFERS_CALENDAR }),
+      undefined,
+      EDIT,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.issues.map((i) => i.path)).toEqual(['config.calendar']);
+    expect(res.issues[0].message).toContain(RULE_CLAUSE);
+  });
+
+  it('CANARY: the same body is refused AT `config.calendar` on the CREATE door — a different schema, the same answer', async () => {
+    const res = await validateMetadataDraft('view', AUTHORED_ITEM({ ...LIST_CONFIG, appearance: OFFERS_CALENDAR }));
+    expect(res.ok).toBe(false);
+    expect(res.issues.map((i) => i.path)).toEqual(['config.calendar']);
+    expect(res.issues[0].message).toContain(RULE_CLAUSE);
+  });
+
+  it('CANARY: an aggregated container is refused AT `list.calendar` on BOTH doors', async () => {
+    const body = {
+      ...CONTAINER,
+      list: { type: 'grid', columns: ['name'], appearance: OFFERS_CALENDAR },
+    };
+    const edited = await validateMetadataDraft('view', body, undefined, EDIT);
+    const created = await validateMetadataDraft('view', body, undefined, { mode: 'create' });
+    for (const res of [edited, created]) {
+      expect(res.ok).toBe(false);
+      expect(res.issues.map((i) => i.path)).toEqual(['list.calendar']);
+      expect(res.issues[0].message).toContain(RULE_CLAUSE);
+    }
+  });
+
+  it('CANARY: a flattened list-view overlay is refused AT a bare `calendar` — the third door, edit only', async () => {
+    // The overlay is a stored/wire shape, so only the edit gate accepts it at
+    // all: the authoring gate refuses it for reasons that have nothing to do
+    // with this rule (no `config`, `columns` unrecognized). Asserting create
+    // here would pin those unrelated refusals, so it is deliberately not done.
+    const overlay = { name: 'crm_lead.all_leads', object: 'crm_lead', viewKind: 'list', columns: ['name'] };
+    const clean = await validateMetadataDraft('view', overlay, undefined, EDIT);
+    expect(clean.ok, `overlay must parse clean first: ${JSON.stringify(clean.issues)}`).toBe(true);
+
+    const res = await validateMetadataDraft('view', { ...overlay, appearance: OFFERS_CALENDAR }, undefined, EDIT);
+    expect(res.ok).toBe(false);
+    expect(res.issues.map((i) => i.path)).toEqual(['calendar']);
+    expect(res.issues[0].message).toContain(RULE_CLAUSE);
+  });
+
+  it('CANARY: an EMPTY `calendar:` block is a different refusal — `startDateField` is the block’s one required key', async () => {
+    // This is what makes the path in the canaries above mean something: the
+    // cross-field rule answers AT the block, the block's own required key
+    // answers one level deeper. It is also objectui#7122's item 1, pinned at
+    // the door objectui opens: 17.3.0 made `titleField` optional, so
+    // `startDateField` is the only key whose absence is reported here.
+    const res = await validateMetadataDraft(
+      'view',
+      AUTHORED_ITEM({ ...LIST_CONFIG, appearance: OFFERS_CALENDAR, calendar: {} }),
+      undefined,
+      EDIT,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.issues.map((i) => i.path)).toEqual(['config.calendar.startDateField']);
+    expect(res.issues[0].message).toContain('expected string');
+  });
+
+  // ── Control legs: what this rule must NOT refuse ──────────────────────────
+  // A refusal without these is not a reading — they are what shows the gate is
+  // `allowedVisualizations`, not the mere presence of `appearance` or of a
+  // `calendar:` block. All four must stay clean on BOTH doors.
+
+  const CLEAN_LEGS: Array<{ label: string; config: Record<string, unknown> }> = [
+    { label: '`appearance` present but empty', config: { ...LIST_CONFIG, appearance: {} } },
+    {
+      label: "`allowedVisualizations` offers only 'grid'",
+      config: { ...LIST_CONFIG, appearance: { allowedVisualizations: ['grid'] } },
+    },
+    {
+      label: 'a `calendar:` block with NO `allowedVisualizations` at all',
+      config: { ...LIST_CONFIG, calendar: { startDateField: 'due_on' } },
+    },
+    {
+      label: "'calendar' offered AND declared — `startDateField` only, NO `titleField` (17.3.0 made it optional)",
+      config: { ...LIST_CONFIG, appearance: OFFERS_CALENDAR, calendar: { startDateField: 'due_on' } },
+    },
+  ];
+
+  for (const leg of CLEAN_LEGS) {
+    it(`clean on both doors: ${leg.label}`, async () => {
+      const body = AUTHORED_ITEM(leg.config);
+      const edited = await validateMetadataDraft('view', body, undefined, EDIT);
+      const created = await validateMetadataDraft('view', body, undefined, { mode: 'create' });
+      expect(edited.ok, `edit: ${JSON.stringify(edited.issues)}`).toBe(true);
+      expect(created.ok, `create: ${JSON.stringify(created.issues)}`).toBe(true);
+    });
+  }
+});
