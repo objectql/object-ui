@@ -77,7 +77,6 @@ export const TextSchema = BaseSchema.extend({
   ),
   variant: z.enum(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'])
     .optional()
-    .default('body')
     .describe('Text variant/style'),
   align: z.enum(['left', 'center', 'right', 'justify']).optional().describe('Text alignment'),
 });
@@ -157,7 +156,7 @@ export const IconSchema = BaseSchema.extend({
           : undefined,
     })
     .describe('Lucide glyph name, kebab-case (objectui#5631: was `name`)'),
-  size: z.number().optional().default(24).describe('Icon size in pixels'),
+  size: z.number().optional().describe('Icon size in pixels'),
   color: z.string().optional().describe('Icon color'),
 });
 
@@ -166,7 +165,7 @@ export const IconSchema = BaseSchema.extend({
  */
 export const SeparatorSchema = BaseSchema.extend({
   type: z.literal('separator'),
-  orientation: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Separator orientation'),
+  orientation: z.enum(['horizontal', 'vertical']).optional().describe('Separator orientation'),
   decorative: z.boolean().optional().describe('Whether decorative'),
 });
 
@@ -178,8 +177,8 @@ export const ContainerSchema = BaseSchema.extend({
   maxWidth: z.union([
     z.enum(['sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', 'full', 'screen']),
     z.boolean(),
-  ]).optional().default('lg').describe('Max width constraint'),
-  centered: z.boolean().optional().default(true).describe('Center the container'),
+  ]).optional().describe('Max width constraint'),
+  centered: z.boolean().optional().describe('Center the container'),
   padding: z.number().optional().describe('Padding value'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
@@ -191,18 +190,15 @@ export const FlexSchema = BaseSchema.extend({
   type: z.literal('flex'),
   direction: z.enum(['row', 'col', 'row-reverse', 'col-reverse'])
     .optional()
-    .default('row')
     .describe('Flex direction'),
   justify: z.enum(['start', 'end', 'center', 'between', 'around', 'evenly'])
     .optional()
-    .default('start')
     .describe('Justify content alignment'),
   align: z.enum(['start', 'end', 'center', 'baseline', 'stretch'])
     .optional()
-    .default('center')
     .describe('Align items'),
-  gap: z.number().optional().default(2).describe('Gap between items (Tailwind scale 0-8)'),
-  wrap: z.boolean().optional().default(false).describe('Allow items to wrap'),
+  gap: z.number().optional().describe('Gap between items (Tailwind scale 0-8)'),
+  wrap: z.boolean().optional().describe('Allow items to wrap'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -227,8 +223,8 @@ export const GridSchema = BaseSchema.extend({
   columns: z.union([
     z.number(),
     z.record(z.string(), z.number()),
-  ]).optional().default(3).describe('Number of columns (responsive)'),
-  gap: z.number().optional().default(4).describe('Gap between items (Tailwind scale 0-8)'),
+  ]).optional().describe('Number of columns (responsive)'),
+  gap: z.number().optional().describe('Gap between items (Tailwind scale 0-8)'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -243,9 +239,9 @@ export const CardSchema = BaseSchema.extend({
   body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Card body content'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Child components'),
   footer: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Card footer content'),
-  variant: z.enum(['default', 'outline', 'ghost']).optional().default('default').describe('Card variant style'),
-  hoverable: z.boolean().optional().default(false).describe('Whether the card is hoverable'),
-  clickable: z.boolean().optional().default(false).describe('Whether the card is clickable'),
+  variant: z.enum(['default', 'outline', 'ghost']).optional().describe('Card variant style'),
+  hoverable: z.boolean().optional().describe('Whether the card is hoverable'),
+  clickable: z.boolean().optional().describe('Whether the card is clickable'),
   onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
 });
 
@@ -267,7 +263,7 @@ export const TabsSchema = BaseSchema.extend({
   type: z.literal('tabs'),
   defaultValue: z.string().optional().describe('Default active tab value'),
   value: z.string().optional().describe('Controlled active tab value'),
-  orientation: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Tabs orientation'),
+  orientation: z.enum(['horizontal', 'vertical']).optional().describe('Tabs orientation'),
   items: z.array(TabItemSchema).describe('Tab items configuration'),
   onValueChange: handlerKeyRefusal('onValueChange', 'runtime-slot', 'Change handler'),
 });
@@ -279,7 +275,7 @@ export const ScrollAreaSchema = BaseSchema.extend({
   type: z.literal('scroll-area'),
   height: z.union([z.string(), z.number()]).optional().describe('Height of scroll container'),
   width: z.union([z.string(), z.number()]).optional().describe('Width of scroll container'),
-  orientation: z.enum(['vertical', 'horizontal', 'both']).optional().default('vertical').describe('Scrollbar orientation'),
+  orientation: z.enum(['vertical', 'horizontal', 'both']).optional().describe('Scrollbar orientation'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
 
@@ -299,9 +295,9 @@ export const ResizablePanelSchema = z.object({
  */
 export const ResizableSchema = BaseSchema.extend({
   type: z.literal('resizable'),
-  direction: z.enum(['horizontal', 'vertical']).optional().default('horizontal').describe('Direction of resizable panels'),
+  direction: z.enum(['horizontal', 'vertical']).optional().describe('Direction of resizable panels'),
   minHeight: z.union([z.string(), z.number()]).optional().describe('Minimum height'),
-  withHandle: z.boolean().optional().default(true).describe('Show resize handle'),
+  withHandle: z.boolean().optional().describe('Show resize handle'),
   panels: z.array(ResizablePanelSchema).describe('Resizable panels'),
 });
 
@@ -310,7 +306,7 @@ export const ResizableSchema = BaseSchema.extend({
  */
 export const AspectRatioSchema = BaseSchema.extend({
   type: z.literal('aspect-ratio'),
-  ratio: z.number().optional().default(16 / 9).describe('Aspect ratio (width / height)'),
+  ratio: z.number().optional().describe('Aspect ratio (width / height)'),
   image: z.string().optional().describe('Image URL to display'),
   alt: z.string().optional().describe('Image alt text'),
   body: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Child components (alternative to image)'),
@@ -407,12 +403,12 @@ export const PageNodeSchema = BaseSchema.extend(SpecPageFields.shape).extend({
   description: z.string().optional().describe('Page description'),
   pageType: PageTypeSchema.optional().describe('Page type (record, home, app, utility)'),
   object: z.string().optional().describe('Bound object name (for record pages)'),
-  template: z.string().optional().default('default').describe('Layout template name'),
+  template: z.string().optional().describe('Layout template name'),
   variables: z.array(PageVariableSchema).optional().describe('Local page state variables'),
   regions: z.array(PageNodeRegionSchema).optional().describe('Page layout regions'),
   body: z.array(SchemaNodeSchema).optional().describe('Main content array'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Alternative content prop'),
-  isDefault: z.boolean().optional().default(false).describe('Whether this is the default page'),
+  isDefault: z.boolean().optional().describe('Whether this is the default page'),
   assignedProfiles: z.array(z.string()).optional().describe('Profiles that can access this page'),
 });
 

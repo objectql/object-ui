@@ -112,8 +112,15 @@ export interface TextSchema extends BaseSchema {
    */
   value?: never;
   /**
-   * Text variant/style
-   * @default 'body'
+   * Text variant/style.
+   *
+   * NO `@default`, deliberately (objectui#7735). `text.tsx` reads this as
+   * `schema.variant ? VARIANT_CLASS[schema.variant] : undefined`, so a node
+   * that omits the key gets NO typography class and no wrapping tag — absence
+   * is not `body`, which is the whole point of objectui#6942 and is spelled out
+   * at that read site. The retired `@default 'body'` described the zod mirror's
+   * `.default('body')`, which substituted the value into a PARSED document and
+   * which objectui#7735 removed; no renderer ever applied it.
    */
   variant?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'body' | 'caption' | 'overline';
   /**
@@ -367,9 +374,15 @@ export interface StackSchema extends BaseSchema, FlexLayoutProps {
 export interface GridSchema extends BaseSchema {
   type: 'grid';
   /**
-   * Number of columns (responsive)
+   * Number of columns (responsive).
    * Can be number or object: { xs: 1, sm: 2, md: 3, lg: 4 }
-   * @default 3
+   *
+   * `grid.tsx` opens with `let baseCols = 2` and only overwrites it from an
+   * authored `columns`, so a `grid` that omits the key renders `grid-cols-2`.
+   * The tag said `3` — the value the zod mirror used to substitute, which no
+   * renderer applied (objectui#7735, the same defect objectui#7361 fixed on
+   * `maxWidth`).
+   * @default 2
    */
   columns?: number | Record<string, number>;
   /**
@@ -538,8 +551,14 @@ export interface ResizableSchema extends BaseSchema {
    */
   minHeight?: string | number;
   /**
-   * Show resize handle
-   * @default true
+   * Show resize handle.
+   *
+   * NO `@default`, deliberately (objectui#7735). `resizable.tsx` forwards the
+   * key BARE — `withHandle={schema.withHandle}` — and `ui/resizable.tsx`
+   * renders the grip under `{withHandle && …}`, so an omitted key reaches the
+   * handle as `undefined` and NO grip is drawn. The tag said `true`, which is
+   * the opposite of what happens; it described the zod mirror's
+   * `.default(true)`, removed by objectui#7735.
    */
   withHandle?: boolean;
   /**
@@ -732,8 +751,16 @@ export interface PageNodeSchema extends BaseSchema {
    */
   object?: string;
   /**
-   * Layout template name (e.g. "default", "header-sidebar-main")
-   * @default 'default'
+   * Layout template name (e.g. "default", "header-sidebar-main").
+   *
+   * NO `@default`, deliberately (objectui#7735). `page.tsx`'s `resolveTemplate`
+   * opens `if (!schema.template) return null;`, and a null template falls
+   * through to the `pageType` switch — so an omitted key does NOT lay out as
+   * `'default'`; it lays out as whatever `pageType` selects. The tag said
+   * `'default'`, and because `TEMPLATE_REGISTRY` really does map that name to
+   * `FullWidthTemplate`, the zod mirror's `.default('default')` made a PARSED
+   * page take the template branch and skip the `pageType` dispatch entirely —
+   * one authored page, two layouts. objectui#7735 removed the substitution.
    */
   template?: string;
   /**

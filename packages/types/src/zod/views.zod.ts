@@ -113,7 +113,7 @@ export const DetailViewSchema = BaseSchema.extend({
   fields: z.array(DetailViewFieldSchema).optional().describe('Direct fields (without sections)'),
   actions: z.array(z.any()).optional().describe('Actions available in detail view'),
   tabs: z.array(DetailViewTabSchema).optional().describe('Tabs for additional content'),
-  showBack: z.boolean().optional().default(true).describe('Show back button'),
+  showBack: z.boolean().optional().describe('Show back button'),
   backUrl: z.string().optional().describe('Back button URL'),
   // RUNTIME SLOT (objectui#7344, the objectui#6182 ruling in the objectui#6124
   // shape): `detail-view` spreads the node's keys onto `DetailView`, whose
@@ -124,7 +124,7 @@ export const DetailViewSchema = BaseSchema.extend({
   editUrl: z.string().optional().describe('Edit button URL'),
   showDelete: z.boolean().optional().describe('Show delete button'),
   deleteConfirmation: z.string().optional().describe('Delete confirmation message'),
-  loading: z.boolean().optional().default(true).describe('Whether to show loading state'),
+  loading: z.boolean().optional().describe('Whether to show loading state'),
   header: SchemaNodeSchema.optional().describe('Custom header content'),
   footer: SchemaNodeSchema.optional().describe('Custom footer content'),
   related: z.array(z.object({

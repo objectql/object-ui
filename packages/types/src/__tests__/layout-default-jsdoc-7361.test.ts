@@ -1,8 +1,9 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * The `@default` documentation on three `layout.ts` members agrees with the value
- * the renderer actually applies (objectui#7361 rows 1-2, objectui#7734 row 3).
+ * The `@default` documentation on `layout.ts` members agrees with the value the
+ * renderer actually applies (objectui#7361 rows 1-2, objectui#7734 row 3,
+ * objectui#7735 rows 4-7).
  *
  * Three published docblocks described a default that at least one consuming
  * renderer does not apply:
@@ -14,6 +15,26 @@
  *   |                             |            | `stack.tsx`: `|| 'stretch'`        |
  *   | `FlexLayoutProps.direction` | `'row'`    | `flex.tsx`: `|| 'row'`,            |
  *   |                             |            | `stack.tsx`: `|| 'col'`            |
+ *
+ * objectui#7735 added four more rows, and they were found only because that card
+ * changed the COMPARATOR. Its ruling made the renderer the single authoritative
+ * default and stripped every `.default()` off the zod mirror; the first report
+ * of it checked each tag against the value the MIRROR used to write, which is
+ * the wrong reference — the two agreeing proves only that the docs copied the
+ * mirror. Re-measured against the renderer, four more tags misdescribed it:
+ *
+ *   | member                      | tag said     | the renderer applies                  |
+ *   |-----------------------------|--------------|---------------------------------------|
+ *   | `GridSchema.columns`        | `3`          | `grid.tsx`: `let baseCols = 2`        |
+ *   | `TextSchema.variant`        | `'body'`     | `text.tsx`: none — absence is not     |
+ *   |                             |              | `body` (objectui#6942)                |
+ *   | `ResizableSchema.withHandle`| `true`       | forwarded bare; `undefined` draws     |
+ *   |                             |              | NO grip                               |
+ *   | `PageNodeSchema.template`   | `'default'`  | `page.tsx`: null template falls       |
+ *   |                             |              | through to the `pageType` switch      |
+ *
+ * Every one of the four had matched the mirror exactly, which is why a
+ * mirror-referenced check called the whole face clean.
  *
  * The renderers are the authority — they are what runs — so the tags moved, not
  * the reads. Changing the reads to match the tags would relayout every existing
@@ -223,6 +244,157 @@ describe('layout.ts `@default` docs agree with the renderer fallbacks (objectui#
     it('FlexLayoutProps.gap still reads `@default 2`', () => {
       const doc = docblockFor(interfaceBody(types, 'FlexLayoutProps'), 'gap');
       expect(defaultTags(doc)).toEqual(['2']);
+    });
+  });
+});
+
+/**
+ * objectui#7735 rows. Same rule as above and the same two-sided derivation, but
+ * these four renderers do not express their default as `schema.x ?? 'lit'`, so
+ * each row extracts the shape that renderer actually uses. That is why they are
+ * written out one at a time instead of swept: `let baseCols = 2` is an
+ * initialiser, `withHandle` is a bare forward whose default is the absence of a
+ * grip, and `template` resolves through a registry lookup that returns `null`.
+ * A generic `schema.x || 'lit'` sweep is blind to all three — measured: it
+ * scores `grid.columns` as "read, no literal fallback" and finds nothing to
+ * compare, which is exactly how these four stayed invisible.
+ */
+const GRID_BASE_COLS = /let baseCols = (\d+);/;
+const TEXT_VARIANT_CONDITIONAL = /schema\.variant \? VARIANT_CLASS\[schema\.variant\] : undefined/;
+const RESIZABLE_FORWARDS_BARE = /withHandle=\{schema\.withHandle\}/;
+const RESIZABLE_GRIP_GATE = /\{withHandle && \(/;
+const PAGE_TEMPLATE_NULL = /if \(!schema\.template\) return null;/;
+
+const GRID = 'packages/components/src/renderers/layout/grid.tsx';
+const TEXT = 'packages/components/src/renderers/basic/text.tsx';
+const RESIZABLE = 'packages/components/src/renderers/complex/resizable.tsx';
+const RESIZABLE_UI = 'packages/components/src/ui/resizable.tsx';
+const PAGE = 'packages/components/src/renderers/layout/page.tsx';
+
+describe('layout.ts `@default` docs agree with the renderer, re-measured (objectui#7735)', () => {
+  const types = read(TYPES);
+
+  describe('positive controls — every extraction still matches', () => {
+    it('each renderer still writes the shape its row is derived from', () => {
+      expect(GRID_BASE_COLS.exec(read(GRID)), GRID).not.toBeNull();
+      expect(TEXT_VARIANT_CONDITIONAL.exec(read(TEXT)), TEXT).not.toBeNull();
+      expect(RESIZABLE_FORWARDS_BARE.exec(read(RESIZABLE)), RESIZABLE).not.toBeNull();
+      expect(RESIZABLE_GRIP_GATE.exec(read(RESIZABLE_UI)), RESIZABLE_UI).not.toBeNull();
+      expect(PAGE_TEMPLATE_NULL.exec(read(PAGE)), PAGE).not.toBeNull();
+    });
+
+    it('each member is still declared where this file looks for it', () => {
+      expect(() => docblockFor(interfaceBody(types, 'GridSchema'), 'columns')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(types, 'TextSchema'), 'variant')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(types, 'ResizableSchema'), 'withHandle')).not.toThrow();
+      expect(() => docblockFor(interfaceBody(types, 'PageNodeSchema'), 'template')).not.toThrow();
+    });
+  });
+
+  describe('row 4 — GridSchema.columns (a value tag, corrected)', () => {
+    it('carries exactly one `@default`, and it is grid.tsx\'s own initialiser', () => {
+      const applied = GRID_BASE_COLS.exec(read(GRID))![1];
+      const doc = docblockFor(interfaceBody(types, 'GridSchema'), 'columns');
+      expect(defaultTags(doc)).toEqual([applied]);
+    });
+
+    it('no longer publishes `3`, the value only the mirror ever wrote', () => {
+      const doc = docblockFor(interfaceBody(types, 'GridSchema'), 'columns');
+      expect(defaultTags(doc)).not.toContain('3');
+    });
+
+    it('names the read site so the next reader can re-derive it', () => {
+      const doc = docblockFor(interfaceBody(types, 'GridSchema'), 'columns');
+      expect(doc).toContain('grid.tsx');
+      expect(doc).toContain('baseCols');
+    });
+  });
+
+  /**
+   * The three rows below take objectui#7361's `align` shape: where the renderer
+   * applies NO value, the honest documentation is the absence of a tag plus
+   * prose naming the read site — not a second value that happens to describe
+   * the observable effect.
+   */
+  describe('row 5 — TextSchema.variant (the renderer applies none)', () => {
+    it('publishes NO `@default` block tag', () => {
+      expect(defaultTags(docblockFor(interfaceBody(types, 'TextSchema'), 'variant'))).toEqual([]);
+    });
+
+    it('names the read site and the rule it belongs to', () => {
+      const doc = docblockFor(interfaceBody(types, 'TextSchema'), 'variant');
+      expect(doc).toContain('text.tsx');
+      expect(doc).toContain('6942');
+    });
+
+    /**
+     * The discrimination control, and it is not hypothetical here: this
+     * docblock's prose QUOTES the retired tag, so the text `@default 'body'`
+     * is present in the file while the member publishes no tag. `defaultTags`
+     * matches `@default` only as a BLOCK tag — immediately after the `*` — so
+     * a backtick-quoted mention is invisible to it. Without this control, an
+     * assertion that the tag list is empty could be passing because the
+     * extractor had quietly stopped matching anything at all.
+     */
+    it('the prose mentions the retired tag, and the extractor is not fooled by it', () => {
+      const doc = docblockFor(interfaceBody(types, 'TextSchema'), 'variant');
+      expect(doc).toContain("@default 'body'");
+      expect(defaultTags(doc)).toEqual([]);
+      // …and the extractor really can see a real tag in a neighbouring member.
+      expect(defaultTags(docblockFor(interfaceBody(types, 'IconSchema'), 'size'))).toEqual(['24']);
+    });
+
+    it('the renderer really does apply nothing on absence', () => {
+      // A conditional read, not a fallback: no `||`/`??` with a literal on this
+      // key anywhere in the file. If one ever appears, this row needs re-reading.
+      expect(read(TEXT)).not.toMatch(/schema\.variant\s*(\|\||\?\?)\s*'/);
+    });
+  });
+
+  describe('row 6 — ResizableSchema.withHandle (forwarded bare; absence draws no grip)', () => {
+    it('publishes NO `@default` block tag', () => {
+      expect(defaultTags(docblockFor(interfaceBody(types, 'ResizableSchema'), 'withHandle'))).toEqual([]);
+    });
+
+    it('no longer publishes `true`, which is the opposite of what happens', () => {
+      expect(defaultTags(docblockFor(interfaceBody(types, 'ResizableSchema'), 'withHandle'))).not.toContain('true');
+    });
+
+    it('names both halves of the mechanism', () => {
+      const doc = docblockFor(interfaceBody(types, 'ResizableSchema'), 'withHandle');
+      expect(doc).toContain('resizable.tsx');
+      expect(doc).toContain('undefined');
+    });
+
+    it('the renderer really does forward it without a fallback', () => {
+      expect(read(RESIZABLE)).not.toMatch(/schema\.withHandle\s*(\|\||\?\?)/);
+    });
+  });
+
+  describe('row 7 — PageNodeSchema.template (absence dispatches on pageType)', () => {
+    it('publishes NO `@default` block tag', () => {
+      expect(defaultTags(docblockFor(interfaceBody(types, 'PageNodeSchema'), 'template'))).toEqual([]);
+    });
+
+    it("no longer publishes `'default'`", () => {
+      expect(defaultTags(docblockFor(interfaceBody(types, 'PageNodeSchema'), 'template'))).not.toContain("'default'");
+    });
+
+    it('names the resolver and what absence falls through to', () => {
+      const doc = docblockFor(interfaceBody(types, 'PageNodeSchema'), 'template');
+      expect(doc).toContain('resolveTemplate');
+      expect(doc).toContain('pageType');
+    });
+
+    /**
+     * The load-bearing half of this row. `'default'` is a REAL key in
+     * `TEMPLATE_REGISTRY`, so the mirror's `.default('default')` did not merely
+     * document the wrong thing — it made a parsed page take the template branch
+     * and skip the `pageType` dispatch. If that registry entry ever disappears
+     * the row stops being about a behaviour change and the prose needs redoing.
+     */
+    it("`'default'` really is a template the registry resolves", () => {
+      expect(read(PAGE)).toMatch(/'default':\s*FullWidthTemplate/);
     });
   });
 });

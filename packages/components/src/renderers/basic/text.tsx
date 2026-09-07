@@ -134,10 +134,13 @@ ComponentRegistry.register('text',
     const { style, ...hostProps } = props;
     const dataObjId = hostProps['data-obj-id'];
 
-    // ABSENCE IS NOT `body` (objectui#6942). The Zod mirror declares
-    // `.default('body')`, which materialises on a document that is PARSED
-    // through it; this renderer is handed the authored node as written. Reading
-    // absence as `body` would put `text-sm text-foreground` on all ~690 corpus
+    // ABSENCE IS NOT `body` (objectui#6942). Nothing writes a variant into a
+    // node that omits the key: the Zod mirror used to declare `.default('body')`
+    // and materialise it on a PARSED document, and objectui#7735 removed that —
+    // a validator validates, it does not author, and this renderer's own
+    // behaviour is the authoritative default. So the parsed and the authored
+    // node now agree here, and both are variant-less. Reading absence as `body`
+    // would put `text-sm text-foreground` on all ~690 corpus
     // text nodes that never asked for a variant — a corpus-wide restyle, and
     // the opposite of the narrow repair the ruling scoped. An unauthored node
     // therefore keeps exactly the shape it had before this change: the
@@ -176,12 +179,16 @@ ComponentRegistry.register('text',
       // prop whitelist — built from `getKnownTypes()` plus these `inputs` —
       // reported `unknown-prop` for two keys `TextSchema` publishes.
       //
-      // The PUBLISHED default lives in `layout.zod.ts` (`.default('body')`) and
-      // is NOT restated here: `ComponentInput.defaultValue` is an ADR-0049
-      // tombstone since objectui#7493 — the manifest never forwarded it and no
-      // designer read it. Nor is it a claim about the renderer's absence path:
-      // see the ABSENCE IS NOT `body` note above — a node that never carried
-      // the key is left exactly as it was authored.
+      // There is NO published default for `variant` to restate. `layout.zod.ts`
+      // carried `.default('body')` until objectui#7735 removed it (the zod
+      // mirror stopped authoring values), and `TextSchema.variant`'s docblock
+      // publishes no `@default` tag for the same reason: this renderer applies
+      // none, and under that ruling the renderer is the authority the tag
+      // describes. Restating one here would be impossible anyway —
+      // `ComponentInput.defaultValue` is an ADR-0049 tombstone since
+      // objectui#7493; the manifest never forwarded it and no designer read it.
+      // See the ABSENCE IS NOT `body` note above: a node that never carried the
+      // key is left exactly as it was authored.
       { name: 'variant', type: 'enum', enum: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'body', 'caption', 'overline'] },
       { name: 'align', type: 'enum', enum: ['left', 'center', 'right', 'justify'] }
     ],
