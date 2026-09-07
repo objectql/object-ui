@@ -9,6 +9,7 @@
 import * as React from 'react';
 import { cn, Popover, PopoverContent, PopoverTrigger } from '@object-ui/components';
 import { createSafeTranslation } from '@object-ui/i18n';
+import type { ListViewVisualization } from '@object-ui/core';
 import {
   Grid3x3,
   LayoutGrid,
@@ -23,16 +24,28 @@ import {
   ChevronDown,
 } from 'lucide-react';
 
-export type ViewType =
-  | 'grid'
-  | 'kanban'
-  | 'gallery'
-  | 'calendar'
-  | 'timeline'
-  | 'gantt'
-  | 'map'
-  | 'chart'
-  | 'tree';
+/**
+ * The visualizations this switcher offers.
+ *
+ * DERIVED from `@object-ui/core`'s {@link ListViewVisualization} (objectui#8127),
+ * which derives from `@objectstack/spec/ui` through `@object-ui/types`' `ViewType`.
+ *
+ * This nine-arm union was written out by hand here, and that is a THIRD
+ * re-declaration of one vocabulary — objectui#8127 was filed against the two in
+ * `@object-ui/types`, and the maps below were described there as total over the
+ * shared union when they were in fact total over this private copy. A map that
+ * is total over a copy is exactly as incomplete as the copy, so the two
+ * `Record<ViewType, …>` below only became honest guards once this alias
+ * replaced the copy: the next visualization the spec adds now fails the build
+ * in both of them.
+ *
+ * Exported unchanged in membership — this is the same nine names it always
+ * carried. `page` is deliberately NOT among them: the spec models it as a list
+ * view that mounts a published page rather than a visualization a user switches
+ * into, and `AppearanceConfig.allowedVisualizations` excludes it for the same
+ * reason.
+ */
+export type ViewType = ListViewVisualization;
 
 export interface ViewSwitcherProps {
   currentView: ViewType;

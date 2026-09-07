@@ -21,7 +21,7 @@ import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema, ObjectMapConfig } from '@object-ui/types';
 import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName, resolveEffectiveCrudAffordances, isObjectInlineEditable, partitionRowsByPredicate, normalizeListViewSchema, isListViewVisualization, rowHeightToDensityMode, mergeFilterNodes, columnIdentity, collectPredicateFieldRefs, collectGroupingFieldRefs, listViewPredicates, PLATFORM_RECORD_COLUMNS, EXPANDABLE_FIELD_TYPES, UNMATERIALIZED_FIELD_TYPES, readObjectSortability, isPlatformSortableField, filterPlatformSortableSort } from '@object-ui/core';
 import { useObjectLabel, useSafeFieldLabel, createSafeTranslation, useDisplayLocale, pickLocalized } from '@object-ui/i18n';
 // Two resolvers, two vocabularies — the repo spells the distinction into the
 // NAMES (objectui#4167). `resolveInlineI18nLabel` is the spec's own
@@ -2236,10 +2236,20 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       resolvable.push('chart');
     }
 
-    // Always allow switching back to the viewType defined in schema
+    // Always allow switching back to the viewType defined in schema — but only
+    // when it names a visualization this renderer actually draws.
+    //
+    // The membership test was a nine-name literal array (objectui#8127), a copy
+    // of `LIST_VIEW_KINDS` in `@object-ui/core` that nothing compared against
+    // it. `isListViewVisualization` IS that map's own predicate, so the gate and
+    // the seam answer one question — the same rule the kanban/chart rungs above
+    // were rewritten for (objectui#5042, objectui#7544). A spec-valid but
+    // undrawable kind (`page`) must NOT be pushed here: offering a switch into
+    // a branch that falls through to `grid` is the silent downgrade wearing a
+    // button.
     if (schema.viewType && !resolvable.includes(schema.viewType as ViewType) &&
-       ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery', 'chart', 'tree'].includes(schema.viewType)) {
-      resolvable.push(schema.viewType as ViewType);
+       isListViewVisualization(schema.viewType)) {
+      resolvable.push(schema.viewType);
     }
 
     // appearance.allowedVisualizations is the author whitelist (ADR-0047):

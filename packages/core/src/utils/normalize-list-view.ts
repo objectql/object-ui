@@ -129,20 +129,43 @@ const ARIA_KEY_ALIASES: Record<string, string> = {
 };
 
 /**
- * The view kinds `ListView` actually draws — one key per `case` in its
+ * A visualization `ListView` actually draws — one member per `case` in its
  * `viewComponentSchema` switch (`packages/plugin-list/src/ListView.tsx`).
  *
- * A total `Record<…, true>` over the shared {@link ViewType} union minus the
- * two members that are not a LIST visualization, for the same reason the
- * density maps above are `Record<RowHeight, …>`: a kind added to the union
- * fails the build HERE instead of silently staying unreadable authored input.
- *  - `list` is the view CATEGORY, not a kind — it already folds to `grid`.
- *  - `detail` is a different renderer (`plugin-detail`), never a ListView case.
+ * DERIVED from {@link ViewType} (objectui#8127), which is itself derived from
+ * `@objectstack/spec/ui` `ListView['type']`. Spelled as an `Exclude` of the
+ * members this renderer does not draw rather than as the spec's own
+ * `VisualizationType`, deliberately: `Exclude` leaves the SPEC's list as the
+ * thing being subtracted from, so ANY member the spec adds — visualization or
+ * not — lands here as a required key and fails the build, which is what the
+ * promise below actually says. Keying on `VisualizationType` instead would let
+ * a future non-visualization list type (another `page`) pass this site in
+ * silence, which is the exact failure being fixed.
+ *
+ * It happens to equal `@objectstack/spec/ui`'s `VisualizationType` today. That
+ * is a fact about 17.3.0, not the definition.
+ */
+export type ListViewVisualization = Exclude<ViewType, 'list' | 'detail' | 'page'>;
+
+/**
+ * The view kinds `ListView` actually draws.
+ *
+ * A total `Record<…, true>` over {@link ListViewVisualization}, for the same
+ * reason the density maps above are `Record<RowHeight, …>`: a kind added to the
+ * union fails the build HERE instead of silently staying unreadable authored
+ * input.
+ *
+ * ⚠️ That promise was FALSE between `@objectstack/spec@17.3.0` and objectui#8127.
+ * `ViewType` was a hand-written copy of the spec's list, so this map was total
+ * over the copy and compiled green while the spec's `page` had nowhere to land.
+ * Both faces are derived now, and the two totality structures below close the
+ * other half of the union, so every member of the spec's list is accounted for
+ * by a structure that fails the build rather than by a reader's memory.
  *
  * `hasOwnProperty`, not `in` — same trap as {@link rowHeightToDensityMode}:
  * `in` walks the prototype chain, so `'toString'` would read as a view kind.
  */
-const LIST_VIEW_KINDS: Record<Exclude<ViewType, 'list' | 'detail'>, true> = {
+const LIST_VIEW_KINDS: Record<ListViewVisualization, true> = {
   grid: true,
   kanban: true,
   gallery: true,
@@ -155,15 +178,84 @@ const LIST_VIEW_KINDS: Record<Exclude<ViewType, 'list' | 'detail'>, true> = {
 };
 
 /**
+ * Every member of {@link ViewType} that {@link LIST_VIEW_KINDS} does NOT carry,
+ * with the reason — and, where the answer is "the author authored something
+ * valid and will get a grid", the sentence to say out loud.
+ *
+ * Total over `Exclude<ViewType, ListViewVisualization>` so the two records
+ * together partition the derived union: a member the spec adds must be classed
+ * as drawable or explained HERE, and until it is, neither record compiles.
+ *
+ * `null` means silence is correct — these are objectui view CATEGORIES, never
+ * authored as a list-view kind:
+ *  - `list` is the view CATEGORY, not a kind — it already folds to `grid`.
+ *  - `detail` is a different renderer (`plugin-detail`), never a ListView case.
+ */
+const UNDRAWABLE_VIEW_KINDS: Record<Exclude<ViewType, ListViewVisualization>, string | null> = {
+  list: null,
+  detail: null,
+  page: 'it mounts a published page (bound through `pageName`) in place of rows, which this renderer has no branch for',
+};
+
+/** One warning per undrawable kind per process — see {@link warnUndrawableViewKind}. */
+const warnedUndrawableKinds = new Set<string>();
+
+/**
+ * Fail-open is **loud**, not silent — the convention this repo already applies
+ * to unevaluable predicates (`../evaluator/fieldRules.ts`, objectstack#5149).
+ *
+ * The bug objectui#8127 records is not only that `type: 'page'` degrades to a
+ * grid; it is that it degrades IDENTICALLY to a typo. Measured on `5505aec`,
+ * `specType: 'page'` and `specType: 'nonsense'` both left `viewType: 'grid'`
+ * with no error, no warning and no console line — and `@object-ui/types`'
+ * published validator ACCEPTS `viewType: 'page'` while refusing the typo. An
+ * author who writes a spec-valid view and is silently handed a different one
+ * has no way to tell that from a working grid, so the degrade says so once.
+ *
+ * Once per kind per process, and never for the two objectui categories: this
+ * runs inside a normalizer that a render can call on every keystroke, and the
+ * point is one line, not a scrolling wall.
+ */
+function warnUndrawableViewKind(kind: string): void {
+  const reason = Object.prototype.hasOwnProperty.call(UNDRAWABLE_VIEW_KINDS, kind)
+    ? UNDRAWABLE_VIEW_KINDS[kind as keyof typeof UNDRAWABLE_VIEW_KINDS]
+    : null;
+  if (reason === null || warnedUndrawableKinds.has(kind)) return;
+  warnedUndrawableKinds.add(kind);
+  console.warn(
+    `[object-ui] This build accepts a ${JSON.stringify(kind)} list view but cannot draw one: ` +
+      `${reason}. The view falls back to a grid. ` +
+      'Author a visualization this renderer draws, or render the page through the surface that owns it.',
+  );
+}
+
+/**
+ * Whether `value` names a visualization `ListView` draws.
+ *
+ * Exported so a read site cannot restate the membership question as its own
+ * literal array: the gate and the seam must answer one question, which is the
+ * rule this file's own `availableViews` notes already argue for (objectui#5042,
+ * objectui#7544, and now objectui#8127).
+ */
+export function isListViewVisualization(value: unknown): value is ListViewVisualization {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(LIST_VIEW_KINDS, value);
+}
+
+/**
  * The author's view kind, or `undefined` when the value names no kind ListView
  * draws. An unrecognized kind is deliberately left unresolved rather than
  * written through to `viewType`: the caller's own `'grid'` default is a more
  * honest answer than a `viewType` no branch matches (the same call
  * `normalizeChartSchema` makes for a chart family it cannot draw).
+ *
+ * A kind the SPEC allows but this renderer cannot draw takes the same fallback
+ * and additionally warns — see {@link warnUndrawableViewKind}.
  */
 function readListViewKind(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  return Object.prototype.hasOwnProperty.call(LIST_VIEW_KINDS, value) ? value : undefined;
+  if (isListViewVisualization(value)) return value;
+  warnUndrawableViewKind(value);
+  return undefined;
 }
 
 /**
