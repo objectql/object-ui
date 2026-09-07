@@ -993,23 +993,21 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //     entry goes stale in the same change.
   // `object-kanban.filter` and `object-calendar.filter` stood here until
   // objectui#8186 declared them. Deleted, not updated — see the ⚠️ note above.
-  // ⚠️ THE RIDER objectui#8223 OWES, spelled out here so it is not discovered
-  //    in a merge-queue rebuild. objectui#8171's PR declares `sort` on both
-  //    `plugin-calendar` registrations as `{ name: 'sort', type: 'array' }` and
-  //    does not touch this file. Landing it AFTER this change reddens three
-  //    assertions at once, and all three are this ledger working: (1) this
-  //    entry goes stale, so delete it; (2) `the objectui#8176 backlog has a
-  //    ceiling` is exact, so lower 16 to 15 in the same change; (3) `sort`
-  //    becomes an array-armed input on a newly judged block with no member pin,
-  //    so it needs a `MEMBER_PINS` entry — NOT an exemption, which `the ceiling
-  //    correction admits exactly the four keys objectui#8176 made visible`
-  //    refuses by name. The calendar's `filter` pin next door is the shape to
-  //    copy: `sort` is the same kind of pass-through key
-  //    (`ObjectCalendar.tsx` hands it to the query), so the member claim is the
-  //    same identity-forwarding one. Landing objectui#8223 BEFORE this change
-  //    is the other legal order and moves the same three edits here.
-  'object-calendar.sort':
-    'objectui#8171 is open on exactly this key — `ObjectCalendar` reads `schema.sort` and the spec declares it, one key over from objectui#7712. That card owns the declaration and its landing deletes this entry. Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8176.',
+  // `object-calendar.sort` stood here until objectui#8171 declared it on both
+  // `plugin-calendar` registrations (PR objectui#8223). Deleted, not updated —
+  // the same documented exit the two `filter` entries took above, observed here
+  // a second time.
+  //   ⚠️ One correction that outlives the entry, because the rider note that
+  //   stood here asserted the opposite and a future reader would inherit it:
+  //   `sort` is NOT a pass-through key, and its member claim is NOT the
+  //   identity-forwarding one the two `filter` pins make. `ObjectCalendar.tsx`
+  //   writes `$orderby: convertSortToQueryParams(schema.sort)`, and that sink
+  //   BUILDS a `field -> direction` map rather than handing the authored array
+  //   to the query — so `toBe` on `$orderby` is false about this key and could
+  //   never have passed. The pin registered below asserts what is READ inside a
+  //   member instead (`field`, `order`, an omitted `order` meaning ascending,
+  //   and a member with no usable `field` dropped rather than invented). That
+  //   is a SHARPER member claim than a pass-through, not a weaker one.
   'object-kanban.groupBy':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.data':
@@ -1998,6 +1996,10 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx',
     pins: 'The members are ObjectQL `$filter` elements, and this renderer adds nothing to that contract and subtracts nothing from it: the authored value reaches `dataSource.find` as `$filter` BY IDENTITY (`toBe`, so a normalising rewrite cannot pass), and the retired `filter.calendar` member spelling yields NO configuration — one authored key read twice with two incompatible meanings is the member-level defect objectui#7711 closed here and objectui#4034 closed on the map. Both member forms are covered (the object form and the array-of-arrays form). The spec side cannot supply this: the `object-calendar` `filter` row is `z.unknown()`, so the wire is the only member contract there is (objectui#7711, registered as a pin by objectui#8176 once objectui#8186 declared the key).',
   },
+  'object-calendar.sort': {
+    file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.sortMembersReachTheWire-8171.test.tsx',
+    pins: 'The members are `{ field, order }` and those two keys are the whole of what this renderer reads inside one: `{ field, order }` lowers to the `field -> direction` map on `$orderby`, an omitted `order` is ascending rather than a dropped member (the objectui#4022 regression), every member arrives in authored order, and a member with no usable `field` is dropped rather than given an invented one — with an unauthored `sort` reaching the wire as `undefined` as the control. Also carries objectui#7711\'s case transposed: a sort on a field named `calendar` stays a sort and the config still comes from the declared `calendar` container. ⛔ NOT an identity pin, unlike the two `filter` entries: `ObjectCalendar.tsx` writes `$orderby: convertSortToQueryParams(schema.sort)`, which builds a new map, so `toBe` is false about this key — the pin asserts what is read inside the member instead, which is the sharper claim. The spec side cannot supply any of it: the `sort` row is unconstrained (an array, a bare string and a bare number all parse), so the wire is the whole member contract (objectui#8171).',
+  },
   'object-grid.data': {
     file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
     pins: 'The `object` arm is `ViewDataSchema` discriminated on `provider`: each of the four providers parses, none of them is an array, the declaration is one shape across both registered tags so the alias cannot drift, and it is pinned at compile time too (objectui#5090).',
@@ -2853,14 +2855,14 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
         'judged — declare the input at its registration site instead; the ' +
         'backlog list is shrink-only',
-    ).toBeLessThanOrEqual(16);
+    ).toBeLessThanOrEqual(15);
     // Lower it here when the owning cards land, so the ceiling keeps ratcheting
     // rather than banking the headroom their fixes free up.
     expect(
       backlog.length,
       'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
         'the same change that declared the input',
-    ).toBe(16);
+    ).toBe(15);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {

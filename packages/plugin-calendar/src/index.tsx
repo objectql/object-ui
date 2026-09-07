@@ -298,6 +298,7 @@ ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
     { name: 'objectName', type: 'string', required: true },
     { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
     { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
+    { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
   ],
 });
 
@@ -310,5 +311,6 @@ ComponentRegistry.register('calendar', ObjectCalendarRenderer, {
     { name: 'objectName', type: 'string', required: true },
     { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
     { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
+    { name: 'sort', type: 'array', description: 'Sort order in `[{ field, order }]` form, ordering the records the calendar fetches. Lowered to `$orderby` on the query.' },
   ],
 });
