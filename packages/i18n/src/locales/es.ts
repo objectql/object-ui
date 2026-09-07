@@ -1106,6 +1106,9 @@ const es = {
     loading: "Cargando gráfico…",
     nullCategory: "(Sin especificar)",
     scatterOneMeasure: "Un gráfico de dispersión traza una sola medida. Conserve una sola serie:",
+    unconfigured: {
+      noCategoryAxis: "Se requiere el eje de categorías del gráfico — un gráfico vinculado a un objeto no lo inventa. Declare uno de:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
