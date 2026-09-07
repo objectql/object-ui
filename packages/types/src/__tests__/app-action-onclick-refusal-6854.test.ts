@@ -106,7 +106,14 @@ describe('why the cast could never have been fed by an author (objectui#6854 Zon
     });
     expect(result.success).toBe(true);
     if (!result.success) return;
-    const [first] = (result.data as { items: Record<string, unknown>[] }).items;
+    // Through `unknown`: `AppActionSchema.items` used to infer as `any[]`, because its
+    // element mirror `MenuItemSchema` was annotated `z.ZodType<any>` to break its own
+    // recursion. objectui#7760 gave that mirror its declaration as both type arguments,
+    // so the element is `AppMenuItem` now and a direct assertion to an index-signature
+    // type no longer overlaps. ⛔ The assertions below are unchanged and still read the
+    // RUNTIME object — the point of this file is that both undeclared keys are gone
+    // from the parsed value, which no static type can answer.
+    const [first] = (result.data as unknown as { items: Record<string, unknown>[] }).items;
     expect('onClick' in first).toBe(false);
     expect('shortcut' in first).toBe(false);
   });

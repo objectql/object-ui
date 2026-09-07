@@ -19,11 +19,19 @@
 import { z } from 'zod';
 import { handlerKeyRefusal } from './tombstone.zod.js';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
+import type { NavLink, NavigationMenuItem } from '../navigation.js';
 
 /**
  * Nav Link Schema
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const NavLinkSchema: z.ZodType<any> = z.lazy(() =>
+export const NavLinkSchema: z.ZodType<NavLink, NavLink> = z.lazy(() =>
   z.object({
     label: z.string().describe('Link label'),
     href: z.string().describe('Link URL'),
@@ -117,8 +125,15 @@ export const PaginationSchema = BaseSchema.extend({
 
 /**
  * Navigation Menu Item Schema
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const NavigationMenuItemSchema: z.ZodType<any> = z.lazy(() =>
+export const NavigationMenuItemSchema: z.ZodType<NavigationMenuItem, NavigationMenuItem> = z.lazy(() =>
   z.object({
     label: z.string().describe('Menu item label'),
     href: z.string().optional().describe('Link URL'),

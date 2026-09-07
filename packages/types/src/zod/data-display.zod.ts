@@ -20,7 +20,7 @@ import { z } from 'zod';
 import { ChartTypeSchema as SpecChartTypeSchema, I18nLabelSchema } from '@objectstack/spec/ui';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 import { aliasKeyRefusal, handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
-import { TABLE_COLUMN_TYPES } from '../data-display.js';
+import { TABLE_COLUMN_TYPES, type TreeNode } from '../data-display.js';
 
 /**
  * Alert Schema - Alert/notification component
@@ -319,8 +319,15 @@ export const MarkdownSchema = BaseSchema.extend({
 
 /**
  * Tree Node Schema
+ *
+ * INPUT FACE: both type arguments carry this mirror's existing TypeScript
+ * declaration (objectui#7760, maintainer ruling, decision batch #69) — the annotation
+ * still breaks the recursion in the initializer below, but it no longer publishes
+ * `unknown` as what an author may write here. ⛔ Runtime accept set unchanged; ⛔ the
+ * declaration unchanged. The reasoning lives once, on `SchemaNodeSchema` in
+ * `base.zod.ts` — read it there before changing this line.
  */
-export const TreeNodeSchema: z.ZodType<any> = z.lazy(() =>
+export const TreeNodeSchema: z.ZodType<TreeNode, TreeNode> = z.lazy(() =>
   z.object({
     id: z.string().describe('Node ID'),
     label: z.string().describe('Node label'),

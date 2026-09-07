@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { I18nLabelSchema } from '@objectstack/spec/ui';
 import { retirementTombstone } from './tombstone.zod.js';
 import { ExpressionWireSchema } from './expression.zod.js';
+import type { SchemaNode } from '../base.js';
 
 /**
  * A KEYED i18n label — the runtime mirror of `KeyedI18nLabel` in `../base.ts`.
@@ -49,8 +50,38 @@ export const KeyedI18nLabelSchema = z.object({
 
 /**
  * Schema Node - Can be a schema object or primitive value
+ *
+ * ## Both type arguments are filled, and that is the whole published input face
+ *
+ * `z.ZodType< SchemaNode, SchemaNode >` — OUTPUT and INPUT. The annotation is still
+ * here for the reason it always was: the initializer names `BaseSchemaCore`, which
+ * names this const back through its own `body` / `children` slots, so without an
+ * explicit type TypeScript cannot resolve either one. What changed (objectui#7760,
+ * maintainer ruling, decision batch #69) is the ARGUMENT. It used to be `any`, and
+ * zod 4 defaults the INPUT parameter of `z.ZodType< any >` to `unknown` — so every
+ * slot spelled through this const published `unknown` as the shape an author may
+ * write, which is wider than every declaration BY DEFINITION and says nothing about
+ * what this schema accepts at runtime.
+ *
+ * ⛔ The runtime accept set did NOT move: the union below is untouched, and so is
+ * `SchemaNode` in `../base.ts`. This is a declaration-face change only.
+ *
+ * ⭐ What it bought: `__tests__/zod-mirror-parity.test.ts` can now compare the
+ * `z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)])` single-or-list slots that
+ * objectui#7069 called this repo's systematic producer and had to EXCLUDE — its
+ * `Unconstrained` predicate was dropping every one of them. Three real widenings came
+ * out of that region on the first run and are ledgered there.
+ *
+ * ⚠️ Seven of the ten recursion-breaking mirrors took this treatment; three refused
+ * it and keep `z.ZodType<any>` (`app.zod.ts#NavigationItemSchema`,
+ * `complex.zod.ts#FilterBuilderConditionSchema` and, transitively,
+ * `complex.zod.ts#FilterGroupSchema`) — in each case because the mirror already
+ * ACCEPTS more than its declaration states, so filling the argument is the wider
+ * comparison and `tsc` refuses the assignment. ⛔ Do not "fix" those three by widening
+ * a declaration or narrowing a mirror to make the annotation fit: either is a
+ * contract change wearing a type-annotation's clothes, and both are ruled elsewhere.
  */
-export const SchemaNodeSchema: z.ZodType<any> = z.lazy(() =>
+export const SchemaNodeSchema: z.ZodType<SchemaNode, SchemaNode> = z.lazy(() =>
   z.union([
     BaseSchemaCore,
     z.string(),
