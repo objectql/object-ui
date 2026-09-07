@@ -87,7 +87,8 @@ const auth = vi.hoisted(() => ({
   value: { isAuthenticated: false, isLoading: false, user: null as any },
 }));
 
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   // Chrome, stubbed to nothing — this file measures routing, not painting.
   ConnectedShell: passthrough,
   RequireOrganization: passthrough,

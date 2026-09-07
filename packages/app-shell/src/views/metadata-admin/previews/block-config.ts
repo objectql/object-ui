@@ -410,7 +410,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
       kind: 'array',
       addLabel: 'engine.inspector.pageBlock.add.page:tabs.items',
       itemFields: [
-        { name: 'key', label: 'engine.inspector.pageBlock.field.page:tabs.items.key', kind: 'text' },
+        { name: 'value', label: 'engine.inspector.pageBlock.field.page:tabs.items.value', kind: 'text' },
         { name: 'label', label: 'engine.inspector.pageBlock.field.page:tabs.items.label', kind: 'text' },
       ],
     },
@@ -427,8 +427,11 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   //     `itemsWithValue = items.map((it, idx) => ({ ...it, value:
   //     \`panel-${idx}\` }))` — so an authored value never reaches the Radix
   //     item. This is NOT the `page:tabs` case one component over: there, an
-  //     authored `items[].value` (designer field name `key`) really is read,
-  //     with a `tab-${idx}` fallback only when absent. The accordion's panel id
+  //     authored `items[].value` really is read, with a `tab-${idx}` fallback
+  //     only when absent — and the designer control is NAMED `value` since
+  //     objectui#8278, which is what makes the two cases comparable at all.
+  //     Until then it was named `key`, so the tabs panel wrote a key the spec
+  //     refuses by name and the renderer never reads. The accordion's panel id
   //     is unconditionally derived; the tabs one is genuinely live. The spec
   //     mirrors the asymmetry — `PageAccordionProps.items[]` deliberately does
   //     not declare `value` and carries a `guidance` prescription pointing an

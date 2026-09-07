@@ -75,7 +75,8 @@ vi.mock('../../../../packages/app-shell/src/providers/MetadataProvider', async (
 // reads from the barrel and cost ~2.0s together: `chrome/` has
 // `RedirectWithSplash`, `console/ConsoleShell` has `SetupRedirect`,
 // `SETUP_APP_PACKAGE_ID` and `SETUP_APP_NAME`.
-vi.mock('@object-ui/app-shell', async () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ...(await vi.importActual<Record<string, unknown>>(
     '../../../../packages/app-shell/src/chrome/index'
   )),

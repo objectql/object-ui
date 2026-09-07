@@ -71,7 +71,11 @@ export function useReconcileOnError(opts: {
         const conv = await fetchConversation(aiBase, conversationId);
         const ui = toUIMessages(conv?.messages);
         if (isReconcilableCompletedTurn(ui) && setMessagesRef.current) {
-          setMessagesRef.current(ui as unknown[]);
+          // No assertion here: `toUIMessages` returns `HydratedUIMessage[]`, which
+          // widens to the sink's `unknown[]` on its own. Asserting would erase the
+          // diagnostic on this exact seam if either side is ever tightened
+          // (objectui#8379; the class of objectui#4424 / #8342).
+          setMessagesRef.current(ui);
           setErrorSuppressed(true);
           return;
         }

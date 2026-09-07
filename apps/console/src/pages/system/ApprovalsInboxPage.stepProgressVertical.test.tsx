@@ -156,7 +156,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => {
   };
 });
 
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => ADAPTER,
   DeclaredActionsBar: () => null,
   isViaOverrideRow: () => false,

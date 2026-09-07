@@ -15,7 +15,13 @@ import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@ob
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
-import { columnIdentity, deriveTitleField, isObjectInlineEditable, resolveNameField } from '@object-ui/core';
+import {
+  columnIdentity,
+  deriveTitleField,
+  isObjectInlineEditable,
+  recordDisplayValueAt,
+  resolveNameField,
+} from '@object-ui/core';
 import { DetailView } from '../DetailView';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
@@ -226,8 +232,28 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     'display_name',
     'label',
   ].filter((n): n is string => typeof n === 'string' && n.length > 0);
+  //
+  // ⚠️ EMPTINESS IS THE HEADER'S DEFINITION, NOT A LOCAL ONE (objectui#8350).
+  // `recordDisplayValueAt` is the very function every value-keyed rung of
+  // `getRecordDisplayName` uses to decide whether a rung resolved — imported,
+  // not re-spelled, because the two halves must agree about WHAT COUNTS AS A
+  // VALUE exactly as objectui#8175 made them agree about WHICH FIELD.
+  //
+  // This line used to be a raw `undefined` / `null` / `''` test. A
+  // whitespace-only value passes that and does NOT pass the header's, so on a
+  // record whose title field held only spaces the ladder concluded that field
+  // was what the H1 showed and hid its row, while the H1 had already walked on
+  // to the next rung and was showing something else. A field disappeared from
+  // the grid to deduplicate against a heading that never displayed it — silent,
+  // nothing errored, a row was simply absent.
+  //
+  // ⛔ Never "just add a `.trim()`" here. That is a SECOND implementation of the
+  // same test, which is the shape of the defect this line closes, one level
+  // down: it would still disagree with the header about an expanded lookup
+  // object whose display chain yields nothing (`{ id: 'u1' }` is not a title),
+  // which the raw test — and a trim of it — both read as a value.
   for (const candidate of titleCandidates) {
-    if (data[candidate] !== undefined && data[candidate] !== null && data[candidate] !== '') {
+    if (recordDisplayValueAt(data, candidate) !== undefined) {
       hideFieldNames.add(candidate);
       break;
     }

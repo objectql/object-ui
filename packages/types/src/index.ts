@@ -1118,7 +1118,9 @@ export type * as UI from './spec-ui-namespace.js';
 export type * as System from '@objectstack/spec/system';
 export type * as AI from '@objectstack/spec/ai';
 export type * as API from '@objectstack/spec/api';
-export type * as Cloud from '@objectstack/spec/cloud';
+// `Cloud` is deliberately absent from this family since objectui#8225: the
+// cloud control-plane contracts leave the spec's public surface (objectstack#16325,
+// option B), so nothing here re-exports that subpath and no consumer reads it.
 export type * as Automation from '@objectstack/spec/automation';
 export type * as Shared from '@objectstack/spec/shared';
 export type * as QA from '@objectstack/spec/qa';

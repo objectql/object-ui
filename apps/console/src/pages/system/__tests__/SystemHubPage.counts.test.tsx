@@ -123,7 +123,10 @@ const { state, ADAPTER, FRAMEWORK_OBJECT_NAMES } = vi.hoisted(() => {
   return { state, ADAPTER, FRAMEWORK_OBJECT_NAMES };
 });
 
-vi.mock('@object-ui/app-shell', () => ({ useAdapter: () => ADAPTER }));
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAdapter: () => ADAPTER,
+}));
 vi.mock('@object-ui/auth', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useWorkspaceAdminStatus: () => ({ isAdmin: true, isResolved: true }),

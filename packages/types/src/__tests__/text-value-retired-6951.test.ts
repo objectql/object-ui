@@ -173,7 +173,7 @@ describe('the retirement narrows exactly `value` and nothing else (objectui#6951
     expect(result.error.issues.find((i) => i.path[0] === 'content')).toBeTruthy();
   });
 
-  it('control: `TextSpanSchema.value` — the sibling member at `layout.ts:66` — is still ACCEPTED and survives', () => {
+  it('control: `TextSpanSchema.value` — the sibling member — is still ACCEPTED and survives', () => {
     // `value?: string` appears on three interfaces in `layout.ts`; only
     // `TextSchema`'s is retired. The `span` renderer still reads its own
     // `value` (`basic/span.tsx`), so this member must keep parsing — the pin
@@ -339,7 +339,7 @@ describe('TextSchema.value is RETIRED — the TS half of the tombstone (objectui
     expect(document.type).toBe('text');
   });
 
-  it('control: `TextSpanSchema.value` (`layout.ts:66`) still type-checks — retired by symbol, not by grep', () => {
+  it('control: `TextSpanSchema.value` still type-checks — retired by symbol, not by grep', () => {
     const span: TextSpanSchemaTS = { type: 'span', value: 'inline' };
     expect(span.value).toBe('inline');
   });

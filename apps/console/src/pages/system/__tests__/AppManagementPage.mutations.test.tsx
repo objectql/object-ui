@@ -86,7 +86,8 @@ vi.mock('@object-ui/i18n', async (importOriginal) => ({
   }),
 }));
 
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useMetadata: () => ({ apps: apps.value, refresh }),
   useAdapter: () => ({ getClient: () => ({ meta: { saveItem, deleteItem } }) }),
 }));
@@ -277,7 +278,8 @@ describe('Bulk toggle — issues one real mutation per selected app', () => {
 describe('no adapter — the control refuses instead of pretending', () => {
   it('⛔ never reports success when there is no metadata client to write through', async () => {
     vi.resetModules();
-    vi.doMock('@object-ui/app-shell', () => ({
+    vi.doMock('@object-ui/app-shell', async (importOriginal) => ({
+      ...(await importOriginal<Record<string, unknown>>()),
       useMetadata: () => ({ apps: apps.value, refresh }),
       useAdapter: () => null,
     }));

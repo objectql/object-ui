@@ -188,14 +188,6 @@ const LEDGER: ReadonlyArray<{ block: string; path: string; face: OracleFace; car
       'The renderer honours it — ObjectKanban.tsx sends `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT` — and both @object-ui/types faces declare it, but ComponentPropsMap[object-kanban] does not. The producer side is upstream, so removing the control would delete a working affordance to satisfy a schema that is behind it.',
   },
   {
-    block: 'page:tabs',
-    path: 'items[].key',
-    face: 'spec',
-    card: 'objectui#8278',
-    why:
-      'PageTabsProps items declare `value`, which the tabs renderer reads (containers.tsx `itemsWithValue`, falling back to an index-derived value); `key` is read nowhere and refused by name. The resolution is a control rename, which also moves the field i18n key in both locale tables and needs a read-door decision for stored documents.',
-  },
-  {
     block: 'object-form',
     path: 'formType',
     face: 'node',
@@ -386,11 +378,21 @@ describe('BLOCK_CONFIG ↔ node-schema parity — the ratchet (objectui#8216)', 
     }
   });
 
-  it('the two SPEC-face ledger rows are real parser refusals, named', () => {
+  it('every SPEC-face ledger row is a real parser refusal, named', () => {
     // The ledger's own non-vacuity. A row recorded from a key-set comparison
     // would look identical to a row recorded from nothing, so each spec-face
     // entry is re-measured through `safeParse` — the verdict the platform's
     // component-props lint actually reaches.
+    //
+    // SELF-DELETING, like the EXEMPT rows above: the probes below are written
+    // out one per row, so this guard is what stops a future spec-face row from
+    // being ledgered with no probe behind it. `page:tabs::items[].key` was the
+    // second row until objectui#8278 renamed that control to `value`; its
+    // measurement moved WITH it, to `page-tabs-item-value-8278.test.tsx`.
+    expect(LEDGER.filter((r) => r.face === 'spec').map(ledgerId)).toEqual([
+      'object-kanban::limit@spec',
+    ]);
+
     const kanban = SPEC_ORACLES['object-kanban'] as { safeParse: (v: unknown) => any };
     const withLimit = kanban.safeParse({ objectName: 'opportunity', groupBy: 'stage', limit: 50 });
     expect(withLimit.success).toBe(false);
@@ -398,15 +400,6 @@ describe('BLOCK_CONFIG ↔ node-schema parity — the ratchet (objectui#8216)', 
     expect(
       kanban.safeParse({ objectName: 'opportunity', groupBy: 'stage' }).success,
       'the base kanban must parse clean, or the refusal above proves nothing',
-    ).toBe(true);
-
-    const tabs = SPEC_ORACLES['page:tabs'] as { safeParse: (v: unknown) => any };
-    const withKey = tabs.safeParse({ items: [{ key: 'a', label: 'A', children: [] }] });
-    expect(withKey.success).toBe(false);
-    expect(withKey.error.issues.flatMap((i: any) => i.keys ?? [])).toContain('key');
-    expect(
-      tabs.safeParse({ items: [{ value: 'a', label: 'A', children: [] }] }).success,
-      'the same item with the DECLARED spelling must parse clean',
     ).toBe(true);
   });
 });

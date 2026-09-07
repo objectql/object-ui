@@ -79,11 +79,15 @@
  *     fixed. Relative specifiers are counted here and never judged.
  *   - **Third-party packages.** `sonner`, `react-router-dom`, `lucide-react`
  *     and friends grow only on a deliberate version bump. Counted, never judged.
- *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
+ *   - **Workspace specifiers that are neither a `COVERED_SPECIFIERS` member
+ *     nor a SUBPATH of one.** See below, and "A member covers its subpaths".
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is eighteen, and each joined by sweep
- * rather than by judgement. Running this file's classifier over all 1,499
+ * actually been SWEPT to zero. Today that is twenty-one: nineteen joined by
+ * sweep, and the last two -- `@object-ui/plugin-view` and `@object-ui/core` --
+ * by a MEASUREMENT that found nothing to sweep, which is the degenerate case of
+ * the same precondition and not a second door (see "Slices 15 + 16" below).
+ * Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
  *     covered set = @object-ui/react (swept by PR #6847)  ->    1 frozen
@@ -816,20 +820,249 @@
  * under `packages/app-shell`. No file among the ten mocks `@object-ui/app-shell`,
  * so the parked specifier stays parked.
  *
- * The remaining 23 stay on objectui#6892, and they are now ONE specifier:
- * `@object-ui/app-shell` (23, ALL frozen, PARKED under objectui#8173 --
- * objectui#6892 and the closed objectui#6580 point opposite ways on that one
- * specifier and a seat does not decide it). Every other workspace specifier any
- * `vi.mock` call site in this tree names is covered and reads zero frozen.
+ * ### Slice 14 -- `@object-ui/app-shell`, the last specifier carrying frozen sites
+ *
+ * The nineteenth member, and the one slice 13 left PARKED. Re-derived on
+ * `fff250ff1` by running this file's own `scan()` with a local `covered`
+ * override -- ⛔ never from the worklist's table:
+ *
+ *     @object-ui/app-shell   23 judged, 0 inheriting, 23 frozen -> 0
+ *
+ * with the tree-wide census moving `625 judged / 625 inherit / 35 other
+ * workspace` to `648 / 648 / 12`: the covered count rose by exactly the
+ * converted sites and `other workspace` fell by the same number, so no site
+ * moved the other way and nothing joined the judged population except these.
+ *
+ * ⭐ THREE different counts were in circulation for this slice, and the way
+ * they reconcile is a property of THIS gate, so it is recorded here rather
+ * than left to be rediscovered:
+ *
+ *   - **22** -- objectui#6892's own Verification recipe greps `vi.mock` and
+ *     counts FILES. It can never reach 23:
+ *     `AppManagementPage.mutations.test.tsx` carries TWO call sites.
+ *   - **23** -- what `scan()` reports, and what this slice converted.
+ *   - **24** -- an unmasked regex over the same tree, matching `vi.mock` and
+ *     `vi.doMock` OCCURRENCES. The extra one is at
+ *     `FormPage.predicateScope.test.tsx:76` and it is **inside a block
+ *     comment** -- a doc comment that quotes the very call it documents.
+ *
+ * ⚠️ The 24th is NOT the `embedded` bucket, and guessing that it was would
+ * have been wrong in a way that reads plausible: `scanSource()` blanks
+ * comments BEFORE `CALL_RE` runs, so a commented occurrence never becomes a
+ * call site at all and is counted in NO bucket. `embedded` reads 3 tree-wide
+ * and every one of them names something else (two `@object-ui/react` samples
+ * in this file's own header, one `./dep` in an eslint-rule test). Measured:
+ * `comment[offset] = 1, literal[offset] = 0`.
+ *
+ * ⭐ **The odd site: a `vi.doMock` INSIDE a test.** Twenty-two of the 23 are
+ * module-scope `vi.mock` calls whose factory runs during the import phase.
+ * The twenty-third, `AppManagementPage.mutations.test.tsx:280`, is a
+ * `vi.doMock` inside a test body after `vi.resetModules()`, so its obtain sits
+ * in a BOUNDED window -- exactly the shape AGENTS.md's 测试纪律 section warns
+ * about. It was measured before conversion rather than argued about
+ * (objectui#8173): that test went 459ms -> 660ms against a 5000ms
+ * `testTimeout`, while `hop1SessionPrincipal` -- the 15000ms window
+ * objectui#6580 was fighting -- went 9ms -> 8ms. Harmless, but shaped
+ * differently from the other 22, and the next reader should not have to
+ * discover that.
+ *
+ * ⭐ **The cost question was settled by objectui#8173 in 11 vitest arms, and
+ * ⛔ no maintainer ruling is owed.** The blocker that parked this specifier
+ * was a `10s x 22 = 220s` extrapolation from objectui#6580. The per-file
+ * figure reproduces in isolation (~8.3s), but the cost is a ONE-TIME
+ * transform of the app-shell graph PER VITEST PROCESS, and ~67 of the console
+ * project's 89 test files already load the real barrel -- so a realistic
+ * shard has already paid it before the first converted file is transformed.
+ * The bound is **at most +4% of one shard**, and only in the pathological case
+ * where all 22 files land in one shard with no non-mocking console file beside
+ * them. Confirmed green over three replicates at 22/22 files, 150/150 tests,
+ * and the whole console project at 1069/1069.
+ *
+ * The neighbour reading found ZERO repairs owed. Across the 22 files the 28
+ * workspace neighbours are ALL already inheriting (16 `@object-ui/auth`, 11
+ * `@object-ui/i18n`, one `@object-ui/plugin-markdown`), and the only
+ * third-party factory is `sonner` (7) -- so the frozen `lucide-react`
+ * neighbour that killed 15 files in slice 6 cannot exist here. The remaining
+ * 61 neighbours are local whole-module replacements, out of scope by
+ * construction.
+ *
+ * ### Slices 15 + 16 -- `@object-ui/plugin-view` and `@object-ui/core`, folded
+ *
+ * The twentieth and twenty-first members, and the first two to join WITHOUT a
+ * sweep: both already read all-inheriting when judged, so this slice edits no
+ * test file at all. Re-derived on `d9788c141` by running this file's own
+ * `scan()` with a local `covered` override -- ⛔ never from the worklist's
+ * table, and never from slice 14's paragraph above, which recorded these same
+ * two figures a day earlier and is exactly the reading the ruling says to
+ * retake rather than inherit:
+ *
+ *     @object-ui/plugin-view   10 judged, 10 inheriting, 0 frozen
+ *     @object-ui/core           2 judged,  2 inheriting, 0 frozen
+ *
+ * with the tree-wide census moving `648 judged / 648 inherit / 12 other
+ * workspace` to `660 / 660 / 0`. Diffed PER SITE -- verdict AND reason string,
+ * across all 1,785 call sites the walk reports: exactly 12 rows changed, every
+ * one of them `workspace/unjudged -> covered/inherits`, and the other 1,773
+ * byte-identical. So this landed as a RATCHET, the shape objectui#8141 and
+ * objectui#8183 landed in, and the precondition below is met by MEASUREMENT
+ * because there was nothing to convert.
+ *
+ * ⭐ **A membership flip owes no STEP 0 barrel walk, and that is a property of
+ * the flip rather than an exemption.** Every previous slice measured its
+ * barrel's module-scope effects because converting a frozen factory makes the
+ * real barrel LOAD in each converted file. Nothing converts here: all twelve
+ * factories already spread the real module, so both barrels already load in
+ * exactly the files that load them today, and this diff cannot change what a
+ * single test executes. What moves is the gate's judgement, nothing else.
+ * ⛔ Do not read that as "flips are free" -- for a specifier that still carries
+ * a frozen factory the sweep, and its STEP 0, are owed in the same PR.
+ *
+ * ⚠️ `@object-ui/components/ui/sonner` is the one named specifier this slice
+ * deliberately did NOT add, and it is named here so the next reader refuses it
+ * on purpose rather than rediscovering it. It is a SUBPATH of the member slice
+ * 6 swept and has been judged by REACH since objectui#8141, so its 2 sites are
+ * already inside the 648. The constant names package ROOTS only and the gate's
+ * test pins that mechanically (`spec.split('/')` has length 2), so adding it
+ * would turn a green pin red while changing no verdict at all.
+ *
+ * ### What is left -- nothing, and what that does NOT mean
+ *
+ * ⭐ **The worklist is CLOSED.** With these two members added, every
+ * `@object-ui/*` specifier that any `vi.mock` or `vi.doMock` call site in this
+ * tree names is judged -- 22 distinct specifiers: 21 package roots, all
+ * members, plus one subpath covered by reach. The gate reads **660 judged, 660
+ * inherit, 0 frozen**, and `other workspace` reads **0**. That last figure is
+ * the one to watch, because it is the count of workspace call sites the gate
+ * declines to judge: the verdict line's claim and the population it was
+ * computed over are now the same set.
+ *
+ * ⛔ **That is a statement about today's tree, not a guarantee about
+ * tomorrow's.** Three things it does NOT promise, each of them measured
+ * somewhere on this worklist rather than argued:
+ *
+ *   - **`other workspace` does not stay 0 by itself.** A new package, or the
+ *     first `vi.mock` naming an existing one no test named before, lands as an
+ *     UNJUDGED site -- counted, never judged, verdict line still green. Slice 2
+ *     met exactly that: `@object-ui/plugin-charts` had no call site at all when
+ *     the worklist's table was taken, and the population GREW three consecutive
+ *     slices in a row while the worklist was being worked.
+ *   - **A member reading zero today can carry a frozen factory tomorrow.**
+ *     Membership is what makes the gate RED when that happens -- that is the
+ *     whole value of the flip. It buys nothing retroactively.
+ *   - **Zero frozen is not zero risk.** This gate judges the FACTORY's shape on
+ *     a covered specifier. A converted file can still die at COLLECTION for the
+ *     neighbouring reason slice 6 measured 15 times: a frozen THIRD-PARTY
+ *     factory (`lucide-react`), which this gate never judges by construction.
+ *
+ * ⇒ So the standing job after closure has exactly one shape: **a non-zero
+ * `other workspace` in the verdict line means a specifier is being mocked that
+ * nobody has swept.** Re-derive it with `scan()`, sweep it if it carries a
+ * frozen factory, and add it -- never floor it, never exempt it.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
  * zero for it, then add it to `COVERED_SPECIFIERS` in the same PR. The list only
- * ever grows. objectui#6892 carries the per-specifier worklist.
+ * ever grows. objectui#6892 carries the per-specifier worklist, and slices 15 +
+ * 16 close it. A specifier that ALREADY reads zero has an empty conversion set,
+ * so the confirmation -- a fresh `scan()` over the tree that ships, taken with a
+ * local `covered` override rather than by widening the constant first -- is then
+ * the whole of the evidence; it is not a lighter bar, it is the same bar with
+ * nothing to convert underneath it.
+ *
+ * ## A member covers its SUBPATHS (objectui#8141)
+ *
+ * The resolver decided scope by EXACT string equality against
+ * `COVERED_SPECIFIERS` until objectui#8141, so `@object-ui/components/ui/sonner`
+ * -- a subpath of the member slice 6 swept -- fell into the "other workspace"
+ * bucket: counted, never judged, while the verdict line above it named the
+ * package as covered. A gate that reports a verdict broader than what it
+ * checked hides the absence behind a green, and the defect it hides is the one
+ * this whole file exists to catch: the failure mechanism does not care whether
+ * the frozen stand-in stood in for a package root or for one of its subpaths.
+ * A subpath's export surface GROWS exactly the way the root's does.
+ *
+ * ⭐ That was not an exemption and not a recogniser bug -- the resolver did
+ * exactly what it said. It was a scope boundary drawn when the covered set had
+ * ONE member and no call site named a subpath.
+ *
+ * A member therefore covers `member` and `member/...`, and the separator is
+ * part of the prefix, so a sibling package whose NAME merely starts with a
+ * member's (`@object-ui/react-native`) is a different package and stays out.
+ * The constant keeps naming package ROOTS only, so "a member joins only by
+ * sweep" is unchanged: what widened is the reach of one membership, not the
+ * test for membership.
+ *
+ * ⚠️ Widening the resolver newly JUDGES sites nobody swept, so it carries the
+ * same precondition a new member does. Re-measured on `b38014e82` against
+ * today's EIGHTEEN members by running this file's own `scan()` -- ⛔ never from
+ * objectui#8141's own table, which was taken on `214d5d5a6` when the constant
+ * held eleven:
+ *
+ *     subpath call sites on a covered member  ->  2, both
+ *       `@object-ui/components/ui/sonner`, both in `packages/plugin-form`
+ *     the same 2, once the prefix match lands  ->  2 inherit, 0 frozen
+ *
+ * with the census moving 623 -> 625 judged and 37 -> 35 other-workspace, no
+ * site moving the other way and every other row byte-identical between the two
+ * runs. Zero frozen before and after, so this landed as a RATCHET -- the same
+ * "the tree is at zero" argument that scoped objectui#6849 -- and no sweep was
+ * owed. ⛔ A later re-measure that DOES turn up a frozen subpath factory sweeps
+ * it in the same PR: never a floor, never a per-site allowance.
  *
  * ⛔ There is deliberately NO per-file exception list, and adding one is the
  * wrong repair. An exemption means the recogniser called correct code broken;
  * fix the recogniser, or the specifier does not belong in the covered set yet.
+ *
+ * ## The operand must BE the module, not merely MENTION it (objectui#8183)
+ *
+ * The spread recogniser asked whether the obtained token appeared ANYWHERE in
+ * the spread's text until objectui#8183, so a spread of an object literal that
+ * merely NESTS the obtained module satisfied it -- and the gate quoted the
+ * evasion back in its own reason line:
+ *
+ *     ...({ _: await importOriginal() })      read as `inherits`
+ *
+ * That object has exactly ONE key -- `_`, holding the module -- so the returned
+ * mock carries one inherited name, and the next export any module in the file's
+ * import graph reads AT MODULE SCOPE still resolves to `undefined`. It is the
+ * failure this whole file exists to stop, wearing the accepted spelling's
+ * clothes.
+ *
+ * The property is therefore the OPERAND, never a mention: the spread's operand
+ * has to DENOTE the obtained module. `operandDenotes` reads it as ONE whole
+ * expression through a deliberately small grammar, and the invariant every
+ * production preserves is that the operand's KEY SET is the real module's, so
+ * it still GROWS when the real module grows:
+ *
+ *   - `await`, parentheses, `as`/`satisfies` and `!` are transparent;
+ *   - calling the obtainer produces the module (`importOriginal()`,
+ *     `importOriginal<T>()`, `(orig as any)()`); the bare name does not;
+ *   - a property read keeps a key set the module owns
+ *     (`(await importOriginal()).default`, the CJS interop shape);
+ *   - `OBTAIN_TOKEN` already STANDS FOR a completed `vi.importActual(...)`.
+ *
+ * ⚠️ An object literal is refused even when its own contents would inherit
+ * (`...{ ...actual }`). Deliberate rather than an oversight: the nesting IS the
+ * evasion shape, the one nesting that would be correct spells the same thing as
+ * `...actual`, and no call site in this tree writes either. Pinned as such.
+ *
+ * ⛔ Tightening this recogniser carries the same precondition widening the
+ * covered set does, for the mirrored reason: a FALSE REFUSAL reds correct code,
+ * and that is how a gate gets deleted rather than fixed (see "The recogniser is
+ * SEMANTIC" above -- this one has been wrong in BOTH directions). Re-measured
+ * on `47053c9f6` by running this file's own `scan()` before and after and
+ * diffing PER SITE, verdict AND reason string:
+ *
+ *     625 judged, 625 inherit, 0 frozen   before
+ *     625 judged, 625 inherit, 0 frozen   after -- all 625 rows byte-identical
+ *
+ * so this landed as a RATCHET and no sweep was owed. The nine distinct operand
+ * shapes the tree actually writes -- `(await importOriginal<T>())` (367),
+ * `actual` (169), `(await importOriginal<typeof import(...)>())` (55), `mod`
+ * (22), `(await importActual<typeof import(...)>())` (6), `real` (2),
+ * `(await importOriginal())` (2), `(await importActual<any>())` (1) and
+ * `((await importOriginal<any>()) as Record<string, unknown>)` (1) -- are each
+ * pinned in this gate's test as its own case.
  *
  * ## Green at rest, and what follows from that
  *
@@ -923,6 +1156,9 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-designer',
   '@object-ui/plugin-list',
   '@object-ui/fields',
+  '@object-ui/app-shell',
+  '@object-ui/plugin-view',
+  '@object-ui/core',
 ]);
 
 /** Files the walk reads at all. */
@@ -1001,26 +1237,148 @@ function referencesName(text, name) {
   return new RegExp(`(?<![\\w$])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(text);
 }
 
+/** The index of the bracket closing the one at `open`, or -1. Plain text only. */
+function closingIndex(text, open) {
+  const pairs = { '(': ')', '[': ']', '{': '}', '<': '>' };
+  const close = pairs[text[open]];
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i];
+    if (c === text[open]) depth++;
+    else if (c === close && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** The index of the bracket opening the one at `close`, or -1. Plain text only. */
+function openingIndex(text, close) {
+  const pairs = { ')': '(', ']': '[', '}': '{', '>': '<' };
+  const open = pairs[text[close]];
+  let depth = 0;
+  for (let i = close; i >= 0; i--) {
+    const c = text[i];
+    if (c === text[close]) depth++;
+    else if (c === open && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** `f<Record<string, unknown>>` -> `f`. The list NESTS, so balance it. */
+function stripTypeArguments(text) {
+  const s = text.trimEnd();
+  if (!s.endsWith('>')) return text;
+  const open = openingIndex(s, s.length - 1);
+  return open < 0 ? text : s.slice(0, open);
+}
+
+/** `X as T` / `X satisfies T` at bracket depth 0 -> `X`, else `null`. */
+function beforeTypeAssertion(text) {
+  const re = /(?<![\w$])(?:as|satisfies)(?![\w$])/g;
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[' || c === '{' || c === '<') depth++;
+    else if (c === ')' || c === ']' || c === '}' || c === '>') depth--;
+    else if (depth === 0) {
+      re.lastIndex = i;
+      const m = re.exec(text);
+      if (m && m.index === i) return text.slice(0, i);
+    }
+  }
+  return null;
+}
+
+/** `X.name` / `X?.name` at bracket depth 0 -> `X`, else `null`. */
+function beforeMemberAccess(text) {
+  const tail = /(\??\.)\s*[A-Za-z_$][\w$]*\s*$/.exec(text);
+  if (!tail) return null;
+  const at = tail.index;
+  let depth = 0;
+  for (let i = 0; i < at; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+  }
+  return depth === 0 && at > 0 ? text.slice(0, at) : null;
+}
+
 /**
- * Does `text` hold the VALUE of the real module obtained through `token`?
+ * What does `expr` -- the WHOLE operand of a spread, or the WHOLE initialiser
+ * of a binding -- denote?
  *
- * For a callback parameter the reference is not enough -- the parameter is a
- * FUNCTION, and `...importOriginal` spreads the function rather than the module
- * it would have returned. That is a frozen factory wearing an inheriting one's
- * clothes, and it is the shape a green-at-rest gate is most likely to wave
- * through, so the call is required: the token has to be followed by a `(`
- * somewhere in the expression (`importOriginal()`, `importOriginal<T>()`,
- * `(orig as any)()` all qualify).
+ *   `'module'`   the real module obtained through `token`
+ *   `'obtainer'` the callback that would RETURN it, not the module itself
+ *   `null`       anything else
  *
- * `OBTAIN_TOKEN` is exempt because it already STANDS FOR a completed call --
- * the whole `vi.importActual(<specifier>)` expression, parentheses included,
- * was replaced by it.
+ * The grammar is deliberately small, and every production preserves the one
+ * property that makes a spread inherit: the operand's KEY SET is the real
+ * module's, so it grows when the real module grows. `await`, parentheses, a
+ * type assertion and a non-null assertion are all transparent; a call of the
+ * obtainer produces the module; a property read off the module keeps a key set
+ * the module still owns (`(await importOriginal()).default` -- the interop
+ * shape). Nothing else qualifies, and the exclusion that matters is the object
+ * literal: `{ _: await importOriginal() }` has the key set the AUTHOR typed
+ * (`_`), so spreading it inherits exactly one key and freezes the surface at
+ * that -- see "The operand must BE the module" in the header.
+ */
+function operandDenotes(expr, token, tokenIsValue) {
+  const s = expr.trim();
+  if (s === '') return null;
+
+  const awaited = /^await(?![\w$])/.exec(s);
+  if (awaited) return operandDenotes(s.slice(awaited[0].length), token, tokenIsValue);
+
+  if (s[0] === '(' && closingIndex(s, 0) === s.length - 1) {
+    return operandDenotes(s.slice(1, -1), token, tokenIsValue);
+  }
+
+  if (s.endsWith('!')) return operandDenotes(s.slice(0, -1), token, tokenIsValue);
+
+  if (s.endsWith(')')) {
+    const open = openingIndex(s, s.length - 1);
+    if (open > 0) {
+      const callee = stripTypeArguments(s.slice(0, open));
+      // Only calling the OBTAINER yields the module; calling the module does not.
+      return operandDenotes(callee, token, tokenIsValue) === 'obtainer' ? 'module' : null;
+    }
+    return null;
+  }
+
+  const asserted = beforeTypeAssertion(s);
+  if (asserted !== null) return operandDenotes(asserted, token, tokenIsValue);
+
+  const receiver = beforeMemberAccess(s);
+  if (receiver !== null) {
+    return operandDenotes(receiver, token, tokenIsValue) === 'module' ? 'module' : null;
+  }
+
+  if (!new RegExp(`^${token.replace(/\$/g, '\\$')}$`).test(s)) return null;
+  // A callback parameter is a FUNCTION until it is called; `OBTAIN_TOKEN`
+  // already STANDS FOR a completed `vi.importActual(<specifier>)` call, and a
+  // binding was resolved to the module before it entered `inherited`.
+  return tokenIsValue || token === OBTAIN_TOKEN ? 'module' : 'obtainer';
+}
+
+/**
+ * Is `text` -- read as ONE whole expression -- the real module obtained
+ * through `token`?
+ *
+ * ⛔ NOT "does `text` mention `token`". That was the recogniser until
+ * objectui#8183, and it judged the wrong thing: a spread of an object literal
+ * that merely NESTS the obtained module (`...({ _: await importOriginal() })`)
+ * satisfied it, so the gate read `inherits` and quoted the evasion back in its
+ * own reason line. See "The operand must BE the module" in the header.
+ *
+ * For a callback parameter the reference is not enough either -- the parameter
+ * is a FUNCTION, and `...importOriginal` spreads the function rather than the
+ * module it would have returned. That is a frozen factory wearing an
+ * inheriting one's clothes, so the call is required: `importOriginal()`,
+ * `importOriginal<T>()` and `(orig as any)()` all qualify, the bare name does
+ * not.
  */
 function holdsObtainedModule(text, token, tokenIsValue = false) {
   if (!referencesName(text, token)) return false;
-  if (tokenIsValue || token === OBTAIN_TOKEN) return true;
-  const at = text.search(new RegExp(`(?<![\\w$])${token.replace(/\$/g, '\\$')}(?![\\w$])`));
-  return text.indexOf('(', at + token.length) !== -1;
+  return operandDenotes(text, token, tokenIsValue) === 'module';
 }
 
 /**
@@ -1233,8 +1591,9 @@ export function classifyFactory(masked, literal, start, end, specifier) {
 /**
  * Every mock call site in one file, classified.
  *
- * `scope` is `covered` (judged), `workspace` (a workspace package outside
- * `COVERED_SPECIFIERS`), `external` (a third-party package), `local` (a
+ * `scope` is `covered` (judged -- a `COVERED_SPECIFIERS` member OR a subpath of
+ * one), `workspace` (a workspace package that is neither), `external` (a
+ * third-party package), `local` (a
  * relative specifier -- whole-module replacement, out of scope by the ruling),
  * `dynamic` (an interpolated specifier) or `embedded` (the call token sits
  * inside a string, so it is a code SAMPLE -- see `check-vi-mock-specifiers.mjs`
@@ -1244,6 +1603,12 @@ export function findCallSites(source, { covered = COVERED_SPECIFIERS } = {}) {
   const { comment, literal } = scanSource(source);
   const masked = blank(source, comment);
   const coveredSet = new Set(covered);
+  // A member covers its own SUBPATHS too -- see "A member covers its subpaths"
+  // in the header. The separator is part of the prefix, so a sibling package
+  // whose NAME merely starts with a member's (`@object-ui/react-native`) is not
+  // swallowed; only a subpath of the member itself (`@object-ui/react/x`) is.
+  const coveredPrefixes = [...coveredSet].map((member) => `${member}/`);
+  const isCovered = (spec) => coveredSet.has(spec) || coveredPrefixes.some((prefix) => spec.startsWith(prefix));
 
   const sites = [];
   CALL_RE.lastIndex = 0;
@@ -1260,7 +1625,7 @@ export function findCallSites(source, { covered = COVERED_SPECIFIERS } = {}) {
       ? 'dynamic'
       : specifier === '.' || specifier === '..' || specifier.startsWith('./') || specifier.startsWith('../')
         ? 'local'
-        : coveredSet.has(specifier)
+        : isCovered(specifier)
           ? 'covered'
           : specifier.startsWith('@object-ui/')
             ? 'workspace'
@@ -1375,7 +1740,7 @@ export function summarise({ census, covered }) {
   return (
     `${census.sources} tracked source file(s), ${census.testFiles} test-named; ` +
     `${census.filesWithMocks} carry a mock; ` +
-    `${census.covered} call site(s) on ${covered.join(', ')} judged ` +
+    `${census.covered} call site(s) on ${covered.join(', ')} and their subpaths judged ` +
     `(${census.inherits} inherit, ${census.automock} auto-mocked); ` +
     `${census.workspace} other workspace, ${census.external} external, ` +
     `${census.local} local, ${census.dynamic} non-static, ` +

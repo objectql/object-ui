@@ -37,6 +37,32 @@ exclude = [
     "https://github.com/.*/compare/*",
     "https://github.com/.*/commit/*",
 
+    # npmjs.com PACKAGE PAGES — the website answers a CI runner with 403, and it
+    # does so for every package page, live or dead (objectui#8128). Measured on
+    # scheduled runs 31295178818 (2026-08-09) and 34011606950 (2026-09-06): all
+    # seven `www.npmjs.com/package/@object-ui/*` links in the swept trees came
+    # back `403 Forbidden`, the same seven in both runs a month apart. That is
+    # anti-scraping, not link rot — `registry.npmjs.org` answered `200` for all
+    # seven on 2026-09-07, `dist-tags.latest = 17.6.0`, so every one of those
+    # package pages exists and renders in a browser. npm returns 404, not 403,
+    # for a package that is not there.
+    #
+    # ⚠️ Scoped to the whole `/package/` path on purpose, NOT to `@object-ui/*`.
+    # The 403 is the host's answer to the client, so it does not depend on which
+    # package is named: a third-party npm link would be rejected identically, and
+    # a per-URL list would grow a line every time a doc page names a package —
+    # the unbounded-maintenance shape this file exists to avoid.
+    #
+    # ⛔ This hides NO detection the sweep ever had. A blanket 403 carries zero
+    # information about the target, so there is no true verdict being suppressed
+    # here — only noise that made 7 of this workflow's 10 rejections unreadable.
+    # What genuinely is NOT covered by anything is filed as objectui#8382
+    # rather than left implied: whether the packages these pages describe are
+    # still PUBLISHED. That question has a working instrument —
+    # `registry.npmjs.org`, used for the measurement above — and it is not this
+    # workflow's job.
+    "^https://www\\.npmjs\\.com/package/",
+
     # Site-absolute routes, resolved into the sentinel namespace by `root_dir`
     # below and skipped wholesale here. Rationale: see `root_dir`.
     "^file:///__site-routes-not-on-disk__/",
