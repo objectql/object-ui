@@ -31,23 +31,35 @@ vi.mock('@object-ui/react', async (importOriginal) => {
   };
 });
 
-// Every member of `ViewType`. Declared as `ViewType[]` rather than inferred, so
-// adding a member to the union without extending this list is a compile error
-// here too — the same guard `DEFAULT_VIEW_LABELS` / `DEFAULT_VIEW_ICONS` get
-// from being `Record<ViewType, ...>` (#2916).
-const ALL_VIEW_TYPES: ViewType[] = [
-  'list',
-  'detail',
-  'grid',
-  'kanban',
-  'calendar',
-  'timeline',
-  'map',
-  'gallery',
-  'gantt',
-  'chart',
-  'tree',
-];
+// Every member of `ViewType`, derived from a TOTAL record rather than listed.
+//
+// ⚠️ The previous spelling — `const ALL_VIEW_TYPES: ViewType[] = [...]` — carried
+// the comment "adding a member to the union without extending this list is a
+// compile error here too". That claim was FALSE, and objectui#8127 is what
+// proved it: an annotation of `ViewType[]` rejects an INVALID member and says
+// nothing whatsoever about a MISSING one, because a short array is assignable to
+// an array type. When `ViewType` gained the spec's `page`, this list stayed
+// eleven long and compiled green; only the runtime `toEqual` below went red.
+//
+// That is the same failure the card records at six other sites, one level down:
+// a structure promising exhaustiveness while providing none. `satisfies
+// Record<ViewType, true>` is the spelling that actually delivers it — a member
+// added to the union now fails to compile HERE, which is what the old comment
+// said and could not do.
+const ALL_VIEW_TYPES = Object.keys({
+  list: true,
+  detail: true,
+  grid: true,
+  kanban: true,
+  calendar: true,
+  timeline: true,
+  map: true,
+  gallery: true,
+  gantt: true,
+  chart: true,
+  tree: true,
+  page: true,
+} satisfies Record<ViewType, true>) as ViewType[];
 
 function schemaFor(types: ViewType[]): ViewSwitcherSchema {
   return {
