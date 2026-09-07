@@ -89,6 +89,14 @@ import { FormPage } from './FormPage';
  * (10s), narrower than the 15s it replaces. The specifier is unchanged, so this
  * is the same module and the same binding as the `await import()` was — only
  * loaded before the timed window instead of inside it.
+ *
+ * objectui#6892 slice 14 puts the barrel BACK into the factory — as an
+ * `importOriginal()` spread, so the mock inherits the real export surface
+ * instead of freezing it at the four names below. That is safe here for the
+ * reason this comment already gives: the module-scope import above is the
+ * first VALUE request for the specifier, so the factory — and the barrel load
+ * inside it — runs during the IMPORT phase, which no timeout bounds. Measured
+ * under objectui#8173: `hop1SessionPrincipal` 9ms -> 8ms.
  */
 import { InternalFormRoute } from './InternalFormRoute';
 
@@ -350,8 +358,9 @@ describe('#6110 controls — green before AND after the fix, by construction', (
 // below carry every name this file's graph reads from the barrel and cost a few
 // ms together: `ExpressionProvider`, `buildExpressionUser` (`expressionUser`)
 // and `resolveHostAppSegment` (`utils/`).
-vi.mock('@object-ui/app-shell', async () => {
+vi.mock('@object-ui/app-shell', async (importOriginal) => {
   return {
+    ...(await importOriginal<Record<string, unknown>>()),
     ...(await vi.importActual<Record<string, unknown>>(
       '../../../../packages/app-shell/src/providers/ExpressionProvider'
     )),

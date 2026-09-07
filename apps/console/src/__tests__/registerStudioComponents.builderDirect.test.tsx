@@ -57,7 +57,8 @@ const { registrations } = vi.hoisted(() => ({ registrations: [] as Registration[
 // exercised below is the production registration itself, not a re-creation.
 // `BuilderLanding` stands in for the real page: what this file measures is
 // WHEN it renders, which its internals cannot change.
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   registerAppComponent: (entry: Registration) => {
     registrations.push(entry);
   },
