@@ -142,7 +142,7 @@ ComponentRegistry.register('flex',
       // `flex` and `stack` diverge (objectui#7361). So `'start'` here is not a
       // fourth opinion; it is this face agreeing with the one authority.
       //
-      // Derived pin: `__tests__/registration-defaults-match-renderer-8229.test.tsx`
+      // Derived pin: `__tests__/registration-defaults-match-renderer-8229.test.ts`
       // re-derives every `defaultProps`/fallback pair in this file and
       // `stack.tsx` off disk and fails if any of them diverges again.
       align: 'start',
