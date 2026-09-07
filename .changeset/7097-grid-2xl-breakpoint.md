@@ -26,8 +26,8 @@ produced a class name Tailwind never compiles — Tailwind v4 finds utilities by
 source text, so a `2xl:grid-cols-${n}` assembled at runtime is not a utility that
 exists, and the node would have rendered unstyled while a unit test went green. The
 twelve literal class strings are what make the class real; measured against the
-package's own Tailwind build, `.2xl\:grid-cols-6` is absent from `dist/index.css` before
-this change and present after it.
+package's own Tailwind build, the `2xl:grid-cols-*` rules go from **0 to 12** in the
+compiled stylesheet, with the twelve `xl:grid-cols-*` rules unchanged as the control.
 
 Nothing that rendered before renders differently: the other five tiers, the bare-number
 mobile-first ramp, and the designer's flat `smColumns`…`xlColumns` channel are
