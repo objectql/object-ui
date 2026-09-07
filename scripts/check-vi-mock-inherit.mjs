@@ -83,7 +83,7 @@
  *     nor a SUBPATH of one.** See below, and "A member covers its subpaths".
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is eighteen, and each joined by sweep
+ * actually been SWEPT to zero. Today that is nineteen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -817,11 +817,83 @@
  * under `packages/app-shell`. No file among the ten mocks `@object-ui/app-shell`,
  * so the parked specifier stays parked.
  *
- * The remaining 23 stay on objectui#6892, and they are now ONE specifier:
- * `@object-ui/app-shell` (23, ALL frozen, PARKED under objectui#8173 --
- * objectui#6892 and the closed objectui#6580 point opposite ways on that one
- * specifier and a seat does not decide it). Every other workspace specifier any
- * `vi.mock` call site in this tree names is covered and reads zero frozen.
+ * ### Slice 14 -- `@object-ui/app-shell`, the last specifier carrying frozen sites
+ *
+ * The nineteenth member, and the one slice 13 left PARKED. Re-derived on
+ * `fff250ff1` by running this file's own `scan()` with a local `covered`
+ * override -- ⛔ never from the worklist's table:
+ *
+ *     @object-ui/app-shell   23 judged, 0 inheriting, 23 frozen -> 0
+ *
+ * with the tree-wide census moving `625 judged / 625 inherit / 35 other
+ * workspace` to `648 / 648 / 12`: the covered count rose by exactly the
+ * converted sites and `other workspace` fell by the same number, so no site
+ * moved the other way and nothing joined the judged population except these.
+ *
+ * ⭐ THREE different counts were in circulation for this slice, and the way
+ * they reconcile is a property of THIS gate, so it is recorded here rather
+ * than left to be rediscovered:
+ *
+ *   - **22** -- objectui#6892's own Verification recipe greps `vi.mock` and
+ *     counts FILES. It can never reach 23:
+ *     `AppManagementPage.mutations.test.tsx` carries TWO call sites.
+ *   - **23** -- what `scan()` reports, and what this slice converted.
+ *   - **24** -- an unmasked regex over the same tree, matching `vi.mock` and
+ *     `vi.doMock` OCCURRENCES. The extra one is at
+ *     `FormPage.predicateScope.test.tsx:76` and it is **inside a block
+ *     comment** -- a doc comment that quotes the very call it documents.
+ *
+ * ⚠️ The 24th is NOT the `embedded` bucket, and guessing that it was would
+ * have been wrong in a way that reads plausible: `scanSource()` blanks
+ * comments BEFORE `CALL_RE` runs, so a commented occurrence never becomes a
+ * call site at all and is counted in NO bucket. `embedded` reads 3 tree-wide
+ * and every one of them names something else (two `@object-ui/react` samples
+ * in this file's own header, one `./dep` in an eslint-rule test). Measured:
+ * `comment[offset] = 1, literal[offset] = 0`.
+ *
+ * ⭐ **The odd site: a `vi.doMock` INSIDE a test.** Twenty-two of the 23 are
+ * module-scope `vi.mock` calls whose factory runs during the import phase.
+ * The twenty-third, `AppManagementPage.mutations.test.tsx:280`, is a
+ * `vi.doMock` inside a test body after `vi.resetModules()`, so its obtain sits
+ * in a BOUNDED window -- exactly the shape AGENTS.md's 测试纪律 section warns
+ * about. It was measured before conversion rather than argued about
+ * (objectui#8173): that test went 459ms -> 660ms against a 5000ms
+ * `testTimeout`, while `hop1SessionPrincipal` -- the 15000ms window
+ * objectui#6580 was fighting -- went 9ms -> 8ms. Harmless, but shaped
+ * differently from the other 22, and the next reader should not have to
+ * discover that.
+ *
+ * ⭐ **The cost question was settled by objectui#8173 in 11 vitest arms, and
+ * ⛔ no maintainer ruling is owed.** The blocker that parked this specifier
+ * was a `10s x 22 = 220s` extrapolation from objectui#6580. The per-file
+ * figure reproduces in isolation (~8.3s), but the cost is a ONE-TIME
+ * transform of the app-shell graph PER VITEST PROCESS, and ~67 of the console
+ * project's 89 test files already load the real barrel -- so a realistic
+ * shard has already paid it before the first converted file is transformed.
+ * The bound is **at most +4% of one shard**, and only in the pathological case
+ * where all 22 files land in one shard with no non-mocking console file beside
+ * them. Confirmed green over three replicates at 22/22 files, 150/150 tests,
+ * and the whole console project at 1069/1069.
+ *
+ * The neighbour reading found ZERO repairs owed. Across the 22 files the 28
+ * workspace neighbours are ALL already inheriting (16 `@object-ui/auth`, 11
+ * `@object-ui/i18n`, one `@object-ui/plugin-markdown`), and the only
+ * third-party factory is `sonner` (7) -- so the frozen `lucide-react`
+ * neighbour that killed 15 files in slice 6 cannot exist here. The remaining
+ * 61 neighbours are local whole-module replacements, out of scope by
+ * construction.
+ *
+ * ### What is left
+ *
+ * ⭐ **Nothing frozen is.** With this member added, running the classifier over
+ * every workspace specifier ANY `vi.mock` call site in this tree names -- 21 of
+ * them -- reads **660 judged, 660 inherit, 0 frozen**. Two specifiers are still
+ * outside `COVERED_SPECIFIERS` (`@object-ui/plugin-view` at 10 sites,
+ * `@object-ui/core` at 2), and objectui#6892 carries them as its remaining
+ * slices, but both already read 10/10 and 2/2 INHERITING when judged. They are
+ * membership flips, not sweeps -- which is why they are still owed a slice
+ * each: the precondition below is a MEASUREMENT, and a specifier that reads
+ * zero frozen today can carry a frozen factory tomorrow.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -1015,6 +1087,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-designer',
   '@object-ui/plugin-list',
   '@object-ui/fields',
+  '@object-ui/app-shell',
 ]);
 
 /** Files the walk reads at all. */
