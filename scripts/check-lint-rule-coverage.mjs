@@ -164,13 +164,22 @@
  * amortised, so there is no need to resolve per file-GROUP instead of per file,
  * and this gate does not.
  *
- * ## Wiring
+ * ## Wiring, and what actually enforces this
  *
- * `package.json` only, as `check:lint-rule-coverage`. No workflow step: whether
- * this shift's new gates get one is open on objectui#8301, and 15 `check:*`
- * scripts already run in no workflow. That is a real limitation of this gate --
- * a gate nobody runs is indistinguishable from a gate that passes -- and it is
- * recorded here rather than quietly worked around.
+ * `package.json` only, as `check:lint-rule-coverage`. There is no dedicated
+ * `ci.yml` step, and that is the same position objectui#8301 left
+ * `check:unused-deps` in: it asked for one and was closed `not planned` on
+ * 2026-09-07. 15 of this repository's `check:*` scripts run in no workflow.
+ *
+ * What enforces this gate today is its pin test. The `this repository is green`
+ * case in `scripts/__tests__/check-lint-rule-coverage.test.ts` runs the whole
+ * analysis inside `pnpm test`, so a new unledgered zero-rule file fails CI in
+ * the PR that adds it. The costs of that route are the ones objectui#8301
+ * named and are real here too: the failure surfaces as one assertion inside a
+ * 120-file scripts suite rather than as a step named after the gate, and it
+ * lands in the heavy half of CI when this check is a two-second, install-only
+ * run. Recorded rather than worked around -- `.github/workflows/**` was outside
+ * this session's declared file surface, exactly as in objectui#8301.
  */
 
 import { readdirSync } from 'node:fs';

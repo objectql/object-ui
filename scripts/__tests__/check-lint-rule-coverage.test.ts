@@ -39,9 +39,10 @@ import {
  *  4. **A green is never "the walk found nothing."** The fixture greens assert
  *     their own counters, and the repository run asserts the census floors.
  *  5. **This repository is green today**, with every ledger row still live.
- *  6. **The gate is wired** in `package.json`. It has no workflow step on
- *     purpose (objectui#8301 owns that question for this shift's gates), and
- *     that absence is asserted as a KNOWN state rather than left ambiguous.
+ *  6. **The gate is wired** in `package.json`, and its only enforcement path is
+ *     the `this repository is green` case above, running inside `pnpm test`.
+ *     The absence of a `ci.yml` step is asserted rather than assumed, so the
+ *     header's claim about it stays checkable.
  */
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -313,10 +314,12 @@ describe('this repository', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
     expect(manifest.scripts['check:lint-rule-coverage']).toBe('node scripts/check-lint-rule-coverage.mjs');
 
-    // objectui#8301 owns whether this shift's gates get a workflow step. Pinned
-    // as a KNOWN state so the gap is visible here rather than inferred from a
-    // missing assertion -- when #8301 lands, this line is what fails and points
-    // at the decision.
+    // The inverse pin. The gate's header states that nothing in
+    // `.github/workflows/**` runs this command and that the test above is what
+    // enforces it -- the same position objectui#8301 left `check:unused-deps`
+    // in when it was closed `not planned`. If someone adds the step, this line
+    // is what fails, and it points at the header paragraph that has to be
+    // rewritten. A missing assertion would have left the claim uncheckable.
     const workflows = fs
       .readdirSync(path.join(repoRoot, '.github/workflows'))
       .map((f) => fs.readFileSync(path.join(repoRoot, '.github/workflows', f), 'utf8'))
