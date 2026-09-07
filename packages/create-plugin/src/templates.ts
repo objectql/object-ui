@@ -187,6 +187,41 @@ export function buildTsconfig(): Record<string, unknown> {
  * - `setupFiles` — where the jest-dom matchers get registered; see
  *   {@link buildVitestSetup}.
  *
+ * The `/// <reference types="vitest/config" />` above the imports is what makes
+ * that block TYPE-check, and it is load-bearing too (objectui#8139). `vite`'s
+ * own `UserConfig` declares no `test` key, so `defineConfig` imported from
+ * `vite` refuses the block with TS2769 ("Object literal may only specify known
+ * properties, and 'test' does not exist in type 'UserConfigExport'") — measured
+ * by the emitted-code census (objectui#7864 / PR #8138) on this very template.
+ * Nothing in the scaffolded repo RUNS that check today (`buildPackageJson`
+ * scaffolds `build`/`test`/`lint` and no `tsc`, and `vite build` loads the
+ * config through esbuild, which does not type-check), so the symptom is an
+ * editor-only red squiggle — but it is red on day one, in every plugin this
+ * generator writes. The reference pulls in `vitest/dist/config.d.ts`, whose
+ * `declare module "vite" { interface UserConfig { test?: … } }` augmentation is
+ * exactly the missing declaration; it is a type-only comment, so it changes
+ * nothing at run time and `vite build` never sees it.
+ *
+ * ⚠️ Do NOT "simplify" this to `import { defineConfig } from 'vitest/config'`,
+ * the other shape vitest documents. It type-checks identically in the scaffolded
+ * repo — `vitest ^4.1.10` is a declared devDependency there, see
+ * {@link DEV_DEPENDENCIES} — but it makes THIS repo stop measuring the template:
+ * `vitest` is declared by this repository's root manifest and by no package the
+ * census maps, so an emitted `import … from 'vitest/config'` trips the census's
+ * root bound and the whole block is REFUSED instead of judged. Measured both
+ * ways on b38014e82: with the reference, `Judged 12 … 7 refused by the root
+ * bound` and the TS2769 is gone; with the import, `Judged 11 … 8 refused` and
+ * the census reports zero diagnostics here because it no longer compiles this
+ * template at all — including the TS2307 below, which it would also stop
+ * seeing. A clean number bought by not looking is the one outcome that census
+ * was built to avoid.
+ *
+ * The `import dts from 'vite-plugin-dts'` line still draws a TS2307 from that
+ * census. It is an artefact of the instrument, NOT a defect: the scaffolded
+ * `package.json` declares `vite-plugin-dts` (see {@link DEV_DEPENDENCIES}), and
+ * the census resolves against this monorepo's root manifest, where it is not
+ * declared. ⛔ Do not "fix" it here.
+ *
  * The entry path is resolved from `import.meta.dirname`, not `__dirname`. Vite
  * still defines `__dirname` under its default `configLoader: 'bundle'`, but
  * vite 8 warns on it ("Your Vite config uses features that are unsupported by
@@ -229,7 +264,8 @@ export function buildTsconfig(): Record<string, unknown> {
  * questions differ, and the in-repo answer is already enforced above.
  */
 export function buildViteConfig(vars: PluginTemplateVars): string {
-  return `import { defineConfig } from 'vite';
+  return `/// <reference types="vitest/config" />
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import * as path from 'path';
