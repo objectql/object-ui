@@ -1566,7 +1566,7 @@ const pt = {
       empty: {
         build: {
           title: "Criar com IA",
-          description: "Descreva um aplicativo ou fluxo de trabalho em linguagem simples — eu rascunho os objetos, telas e automações, e então você revisa e publica.",
+          description: "Descreva um aplicativo em linguagem simples — eu rascunho os objetos, telas e dados de exemplo, e então você revisa e publica.",
         },
         ask: {
           title: "Pergunte aos seus dados",
@@ -1575,7 +1575,7 @@ const pt = {
         editApp: {
           title: "Editando “{{app}}”",
           titleGeneric: "Editar este aplicativo",
-          description: "O que você quer mudar? Eu altero este aplicativo no lugar — adicionar um campo, objeto, visão ou automação, ou ajustar o que já existe.",
+          description: "O que você quer mudar? Eu altero este aplicativo no lugar — adicionar um campo, objeto, visão ou painel, ou ajustar o que já existe.",
         },
       },
       clearConversation: "Limpar",

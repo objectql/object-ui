@@ -1897,11 +1897,34 @@ const en = {
       emptyDescription: 'Ask anything — the assistant has access to your current app context.',
       switchAssistant: 'Switch assistant',
       chooseAgent: 'Choose assistant…',
+      // objectui#8329 — the maker's empty-state prose, and the FIRST sentence a
+      // new user reads on the build surface (it sits above the start chips).
+      // Same ADR-0112 v1 boundary the chips answer to (cloud#1984 /
+      // objectui#7709 for the starters, cloud#2022 for the model's own closing
+      // suggestions): these two descriptions are the product PROMISING, so they
+      // may only name what v1 BUILDS — objects, fields, views, pages,
+      // dashboards, sample data, apps and navigation. `build.description` used
+      // to offer "an app or workflow … objects, screens and automations" and
+      // `editApp.description` "… view or automation"; v1 has no flows, actions
+      // or schedules, so a user who took either at its word was refused
+      // outright — the worst possible answer to the first line on the page.
+      //
+      // NOT the same thing as the platform's manual automation surfaces, which
+      // are real and stay as they are: `home.build.subtitle` (that card opens
+      // Studio, which does author flows), `engine.studio.landing.description`,
+      // `dataImport.optRunAutomations`, `packagedAutomation.*` and the
+      // marketplace `automation` category. The boundary is v1 AI AUTHORING, not
+      // the word "automation".
+      //
+      // REVERT both sentences when ADR-0112 v2 re-adds flows and actions — same
+      // line of the version roadmap as the chips. Every pack's wording is
+      // guarded, in its own script, by
+      // `packages/i18n/src/__tests__/makerEmptyState-v1-scope-8329.test.ts`.
       empty: {
         build: {
           title: 'Build with AI',
           description:
-            'Describe an app or workflow in plain language — I draft the objects, screens and automations, then you review and publish.',
+            'Describe an app in plain language — I draft the objects, screens and sample data, then you review and publish.',
         },
         ask: {
           title: 'Ask your data',
@@ -1912,7 +1935,7 @@ const en = {
           title: 'Editing “{{app}}”',
           titleGeneric: 'Edit this app',
           description:
-            'What would you like to change? I’ll modify this app in place — add a field, object, view or automation, or adjust what’s already there.',
+            'What would you like to change? I’ll modify this app in place — add a field, object, view or dashboard, or adjust what’s already there.',
         },
       },
       clearConversation: 'Clear',

@@ -1567,7 +1567,7 @@ const de = {
       empty: {
         build: {
           title: "Mit KI erstellen",
-          description: "Beschreiben Sie eine App oder einen Workflow in einfachen Worten — ich entwerfe die Objekte, Bildschirme und Automatisierungen, dann prüfen und veröffentlichen Sie.",
+          description: "Beschreiben Sie eine App in einfachen Worten — ich entwerfe die Objekte, Bildschirme und Beispieldaten, dann prüfen und veröffentlichen Sie.",
         },
         ask: {
           title: "Ihre Daten fragen",
@@ -1576,7 +1576,7 @@ const de = {
         editApp: {
           title: "„{{app}}“ wird bearbeitet",
           titleGeneric: "Diese App bearbeiten",
-          description: "Was möchten Sie ändern? Ich passe diese App direkt an — ein Feld, Objekt, eine Ansicht oder Automatisierung hinzufügen oder Vorhandenes anpassen.",
+          description: "Was möchten Sie ändern? Ich passe diese App direkt an — ein Feld, Objekt, eine Ansicht oder ein Dashboard hinzufügen oder Vorhandenes anpassen.",
         },
       },
       clearConversation: "Leeren",

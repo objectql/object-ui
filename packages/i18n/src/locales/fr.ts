@@ -1569,7 +1569,7 @@ const fr = {
       empty: {
         build: {
           title: "Créer avec l'IA",
-          description: "Décrivez une application ou un flux de travail en langage courant — je rédige les objets, les écrans et les automatisations, puis vous vérifiez et publiez.",
+          description: "Décrivez une application en langage courant — je rédige les objets, les écrans et les données d'exemple, puis vous vérifiez et publiez.",
         },
         ask: {
           title: "Interroger vos données",
@@ -1578,7 +1578,7 @@ const fr = {
         editApp: {
           title: "Modification de « {{app}} »",
           titleGeneric: "Modifier cette application",
-          description: "Que souhaitez-vous changer ? Je modifie cette application sur place — ajouter un champ, un objet, une vue ou une automatisation, ou ajuster l'existant.",
+          description: "Que souhaitez-vous changer ? Je modifie cette application sur place — ajouter un champ, un objet, une vue ou un tableau de bord, ou ajuster l'existant.",
         },
       },
       clearConversation: "Effacer",
