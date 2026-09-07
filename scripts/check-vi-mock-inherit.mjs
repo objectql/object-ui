@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is sixteen, and each joined by sweep
+ * actually been SWEPT to zero. Today that is seventeen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -657,11 +657,86 @@
  * ⚠️ Like slices 4 and 7, this specifier had ZERO already-inheriting sites, so
  * there was no free confirmation -- the suite runs themselves are the evidence.
  *
- * The remaining 40 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
+ * `@object-ui/plugin-list` joined as objectui#6892's TWELFTH slice, re-derived
+ * on `190cd07b3` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-list       10 judged, 1 inheriting, 9 frozen -> 0
+ *
+ * with the population moving 40 -> 31 frozen over 660 judged and no site moving
+ * the other way -- a diff of the two per-specifier tables with the
+ * `@object-ui/plugin-list` row removed is EMPTY. All 10 sites are an
+ * `ObjectView` / `InterfaceListPage` / `ObjectDataPage` SIBLING FAMILY in one
+ * directory (`packages/app-shell/src/views`), and the 9 frozen ones come in
+ * THREE shapes rather than the single one the previous slice met: four
+ * one-line object-literal arrows returning a null-rendering `ListView`, three
+ * multi-line ones whose double captures `props.schema` and returns null, and
+ * two whose double renders a JSX probe element. Each hand-listed exactly ONE
+ * of the barrel's twelve exports.
+ *
+ * STEP 0 was taken again rather than inherited: 539 modules and 5,777
+ * module-scope statements reached from `packages/plugin-list/src/index.tsx`
+ * over twelve workspace packages (`components` 206, `core` 95, `fields` 77,
+ * `react` 64, `i18n` 27, `types` 17, `mobile` 16, `permissions` 10,
+ * `plugin-list` 8, `sdui-parser` 8, `data-objectstack` 6, `providers` 5). NOT
+ * inert, and the slice proceeded on the CLASS of the effect: 115 module-scope
+ * `ComponentRegistry.register(...)` calls, ZERO of them bare -- `ui` 85,
+ * `element` 10, `page` 7, `action` 5, `plugin-list` 2, `view` 1, plus the five
+ * rows in the `page.tsx` renderer that READ as bare and carry `ui` through the
+ * spread `pageMeta` constant. Beyond registration the graph holds only
+ * allocation: 173 `React.forwardRef`, 84 `new Set`, 21 `createContext`, 16
+ * `Object.freeze`, 13 `new Map`, 13 `cva`, 13 `createSafeTranslation`, 10
+ * `createDiscardProofCache`, five `registerFieldRenderer` map writes, one
+ * `setCellRendererResolver` assignment and `registerAllFields()` -- the benign
+ * `packages/fields` class slice 7 measured. An AST walk that STOPS at every
+ * function-like boundary reports ZERO timers, globals, storage, `fetch` and
+ * connections at import time; 98 bare side-effect imports (the
+ * `@object-ui/components` renderer cascade) and one CSS import, inert because
+ * the root config declares no `css` option. Empirically, importing the real
+ * barrel under the light `dom` project exports 12 names, moves
+ * `ComponentRegistry.getAllTypes()` from 0 to 375 keys and emits ZERO
+ * `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ The cost was decided on the AGGREGATE, per slice 10's carry-forward, and
+ * the per-file number could not have decided it either way. The isolated cold
+ * import under the light `dom` project costs a median 6.2s, but every one of
+ * the ten files already holds 515 to 539 of the barrel's 539 modules at module
+ * scope -- the three view components under test each import `ListView` from
+ * this specifier, and their own graphs pull the rest -- so inheriting adds only
+ * 8 modules in seven files and 24 in the other two. Measured: an
+ * `InterfaceListPage` file 9.58s frozen -> 9.98s inheriting, an `ObjectView`
+ * one 10.26s -> 10.86s, an `ObjectDataPage` one 9.02s -> 8.85s, and the ten
+ * files as ONE invocation, taken as an interleaved A/B against the committed
+ * tree because the box drifts by ten seconds across an hour: -1.0s and +2.3s
+ * on the two pairs, i.e. inside the noise band and nowhere near objectui#6580's
+ * STOP band, with 113/113 green in both states.
+ *
+ * ⚠️ This barrel's graph DOES reach `sonner`, and seven of the ten files carry
+ * a frozen `sonner` factory -- the exact pairing that killed 15 files in slice
+ * 6. It is benign here for a reason worth writing down, because the neighbour
+ * rule as stated ("dangerous only when the newly-real graph reaches it") would
+ * have predicted a repair: the two renderer modules that import `sonner` read
+ * `toast.success` and friends only INSIDE their click handlers, and
+ * `components/src/ui/sonner.tsx` re-exports `toast` at module scope but
+ * dereferences `Toaster` only inside a component body. The frozen factories all
+ * provide `toast`. So the sharper rule is: a frozen neighbour is dangerous when
+ * the newly-real graph reads a MISSING BINDING from it AT MODULE SCOPE -- reach
+ * alone is necessary, not sufficient. The two `react-router-dom` factories are
+ * safe by reach (no module in the graph imports it). ZERO neighbouring repairs,
+ * predicted in advance from the walk and then confirmed by the runs.
+ *
+ * ⭐ The free confirmation is present, and it is the strongest kind for this
+ * pairing: one of the ten sites already inherited the real barrel on `main`,
+ * passed, and carries a frozen `sonner` neighbour of its own -- so the real
+ * barrel was known to load in the light `dom` project alongside that neighbour
+ * before anything was converted. No `React.lazy` or dynamic `import()` of this
+ * specifier exists anywhere in the tree, so slice 11's deferred-cost class
+ * could not fire and no module-scope import was owed in any file.
+ *
+ * The remaining 31 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
  * frozen, PARKED under objectui#8173 -- objectui#6892 and the closed
  * objectui#6580 point opposite ways on that one specifier and a seat does not
- * decide it), `@object-ui/plugin-list` (9 of 10) and `@object-ui/fields`
- * (8 of 10).
+ * decide it) and `@object-ui/fields` (8 of 10).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -762,6 +837,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-detail',
   '@object-ui/plugin-chatbot',
   '@object-ui/plugin-designer',
+  '@object-ui/plugin-list',
 ]);
 
 /** Files the walk reads at all. */
