@@ -18,7 +18,7 @@ import type {
   AggregateParams,
   AggregateResult,
 } from '@object-ui/types';
-import { canonicalAstOperator } from '@objectstack/spec/data';
+import { asciiCaseInsensitiveContains, canonicalAstOperator } from '@objectstack/spec/data';
 import { emulateBatchTransaction } from './batchTransaction.js';
 
 // ---------------------------------------------------------------------------
@@ -122,23 +122,41 @@ function matchesComparisonNode(
       return Array.isArray(target) && target.includes(value);
     case 'nin':
       return Array.isArray(target) && !target.includes(value);
+    // -- Text operators. THE DIRECTION, so the next reader does not take it for
+    // a typo and fold it back (objectui#7379): the `$contains` FAMILY is
+    // case-SENSITIVE and `icontains` is its one case-insensitive member. That
+    // is the platform's ruling (objectstack#4706 Q2 = A), not this file's
+    // preference, and it is what every backend executes — `driver-sql`,
+    // `driver-sqlite-wasm`, `driver-turso`, `driver-mongodb` and
+    // `driver-memory` all import `FILTER_TEXT_CASES` (`@objectstack/spec/data`)
+    // and answer its `$contains is case-SENSITIVE` rows. These four arms used
+    // to lower-case BOTH sides, so `contains` executed `icontains`, the two
+    // were one predicate, and a `provider: 'value'` list answered a filter with
+    // strictly more rows than the same filter run against the wire.
+    //
+    // There is no `i` twin for the other three: `VALID_AST_OPERATORS` has
+    // `icontains` and NOTHING else with an `i` prefix — no `istartswith`, no
+    // `iendswith`, no `not_icontains` (the `$` dialect has no `$notIcontains`,
+    // and the AST table mirrors the executed set rather than widening it). So
+    // case-sensitive is the ONLY reading available to them, and it is the one
+    // `$notContains` needs for complementarity: a folding `not_contains` beside
+    // a case-exact `contains` lets one row fail an operator AND its negation.
     case 'contains':
-    case 'icontains': {
-      const lv = typeof value === 'string' ? value.toLowerCase() : '';
-      return typeof value === 'string' && lv.includes(String(target).toLowerCase());
-    }
-    case 'not_contains': {
-      const lv = typeof value === 'string' ? value.toLowerCase() : '';
-      return typeof value === 'string' && !lv.includes(String(target).toLowerCase());
-    }
-    case 'starts_with': {
-      const lv = typeof value === 'string' ? value.toLowerCase() : '';
-      return typeof value === 'string' && lv.startsWith(String(target).toLowerCase());
-    }
-    case 'ends_with': {
-      const lv = typeof value === 'string' ? value.toLowerCase() : '';
-      return typeof value === 'string' && lv.endsWith(String(target).toLowerCase());
-    }
+      return typeof value === 'string' && value.includes(String(target));
+    // The fold is ASCII-ONLY (objectstack#4706 Q1 = A) and it runs on BOTH
+    // sides, which is why this borrows the spec's own predicate instead of
+    // spelling one here. `String.prototype.toLowerCase()` — what this arm used
+    // to reach for — is the FULL Unicode fold, so it matched `CAFÉ` against
+    // `café`; three of the five backends are SQLite underneath, whose `lower()`
+    // folds ASCII only, so a Unicode promise here is one the wire cannot keep.
+    case 'icontains':
+      return typeof value === 'string' && asciiCaseInsensitiveContains(value, String(target));
+    case 'not_contains':
+      return typeof value === 'string' && !value.includes(String(target));
+    case 'starts_with':
+      return typeof value === 'string' && value.startsWith(String(target));
+    case 'ends_with':
+      return typeof value === 'string' && value.endsWith(String(target));
     case 'between':
       return Array.isArray(target) && target.length === 2 && value >= target[0] && value <= target[1];
 
@@ -247,8 +265,21 @@ function matchesFilter(record: any, filter: Record<string, any>): boolean {
           case '$in':
             if (!Array.isArray(target) || !target.includes(value)) return false;
             break;
+          // The `$` dialect of the same ruling the AST arms carry
+          // (objectui#7379): `$contains` is case-SENSITIVE, `$icontains` is the
+          // case-insensitive one, and the fold is ASCII-only on both sides.
+          // This arm lower-cased both sides, so the two spellings named one
+          // predicate here too — and `$icontains` had no arm at all, which in
+          // this switch means the `default` below and therefore NO constraint:
+          // a case-insensitive filter selected every row. Making `$contains`
+          // exact without adding its twin would have left the dialect with no
+          // working case-insensitive door.
           case '$contains':
-            if (typeof value !== 'string' || !value.toLowerCase().includes(String(target).toLowerCase())) return false;
+            if (typeof value !== 'string' || !value.includes(String(target))) return false;
+            break;
+          case '$icontains':
+            if (typeof value !== 'string'
+              || !asciiCaseInsensitiveContains(value, String(target))) return false;
             break;
           default:
             break;

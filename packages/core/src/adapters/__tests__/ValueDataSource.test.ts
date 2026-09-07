@@ -78,9 +78,14 @@ describe('ValueDataSource — find', () => {
   it('should filter with $contains operator', async () => {
     const ds = createDS();
     const result = await ds.find('users', {
-      $filter: { name: { $contains: 'ali' } },
+      // `Ali`, not `ali`: this case used the lower-case spelling and passed only
+      // because `$contains` folded both sides, which objectui#7379 ended. The
+      // row it means to select is still the same one, and the case rule itself
+      // is pinned in `ValueDataSource.textOperatorCase.test.ts` rather than
+      // riding along here.
+      $filter: { name: { $contains: 'Ali' } },
     });
-    expect(result.data).toHaveLength(1); // Alice only ('ali' is not in 'Charlie')
+    expect(result.data).toHaveLength(1); // Alice only ('Ali' is not in 'Charlie')
   });
 
   it('should sort ascending by Record format', async () => {
