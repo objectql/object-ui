@@ -19,8 +19,9 @@ deliberate and is marked in place.
 
 Measured in this repository at `289d14687`: zero consumers of the `Cloud`
 namespace across `packages/**` and `apps/**` (a `Cloud.` member-access census
-plus a named-import census, both 0 against a control of 15 namespace re-export
-lines in the same file), and zero imports of the spec's cloud subpath outside
+plus a named-import census over 4106 tracked ts/tsx files, both 0, with a
+firing control: the same PCRE pattern hits the consumed sibling namespaces
+`UI.` and `Data.`), and zero imports of the spec's cloud subpath outside
 that one line — the three cloud-shaped types objectui does use
 (`PackageTranslation`, `resolvePackageL10n`'s result, `PackageManifest`) were
 already declared inline in `app-shell` rather than imported. No runtime

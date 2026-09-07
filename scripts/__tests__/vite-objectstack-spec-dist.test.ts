@@ -210,9 +210,14 @@ describe('objectui#4854: OBJECTSTACK_SPEC_DIST is subpath-aware', () => {
     const injection = inject(installedSpecDir)!;
     const specifiers = collectSpecSpecifiers();
 
-    // Anti-vacuity: the sweep found the measured surface (17 distinct
-    // specifiers, `/ui` and `/data` the heaviest), not an empty scan.
-    expect(specifiers.size).toBeGreaterThanOrEqual(17);
+    // Anti-vacuity: the sweep found the measured surface, not an empty scan.
+    // 16 distinct specifiers since objectui#8225 removed the repository's only
+    // `@objectstack/spec/cloud` literal (the `Cloud` namespace re-export in
+    // `packages/types/src/index.ts`; step 2 of the objectstack#16325 chain that
+    // deletes the `/cloud` subpath upstream) — 17 before that, `/ui` and `/data`
+    // the heaviest. A floor, so a specifier gained does not move it; one lost
+    // does, and the commit that loses it re-pins it here and says why.
+    expect(specifiers.size).toBeGreaterThanOrEqual(16);
     expect([...specifiers]).toContain(`${SPEC_PACKAGE_NAME}/ui`);
     expect([...specifiers]).toContain(SPEC_PACKAGE_NAME);
 
