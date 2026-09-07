@@ -15,8 +15,11 @@
  * 2026-08-25, Option A, aligning the `TextareaFieldMetadata` precedent), so
  * the field literals below carry it under the excess-property check rather
  * than through a cast. The `richtext` registry key resolves to the same
- * widget (objectui#5498) with no union member of its own, so its case is the
- * one deliberate `as` in this file.
+ * widget (objectui#5498) and now has a union member of its own too
+ * (`RichtextFieldMetadata`, objectui#7083), so all three literals here are
+ * annotated and this file holds no `as` at all — the deliberate cast that used
+ * to sit on the richtext case WAS the only evidence that the third key had no
+ * declarable face, and it went with the gap it recorded.
  *
  * Direction of the DOM assertion: `rows` lands on the HTML `rows` attribute of
  * the inline `<Textarea>`; the fullscreen dialog deliberately ignores it
@@ -26,7 +29,12 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { HtmlFieldMetadata, MarkdownFieldMetadata, TextareaFieldMetadata } from '@object-ui/types';
+import type {
+  HtmlFieldMetadata,
+  MarkdownFieldMetadata,
+  RichtextFieldMetadata,
+  TextareaFieldMetadata,
+} from '@object-ui/types';
 
 import { RichTextField } from '../RichTextField';
 import { TextAreaField } from '../TextAreaField';
@@ -45,9 +53,7 @@ describe('RichTextField — declared `rows` sizes the inline editor (#6140)', ()
   });
 
   it('richtext: the third registry key of the same widget honours rows too', () => {
-    // No `RichtextFieldMetadata` exists in the union — the runtime shape is
-    // structural. Cast, deliberately, at the one seam that has no declared type.
-    const field = { type: 'richtext', name: 'doc', rows: 10 } as unknown as MarkdownFieldMetadata;
+    const field: RichtextFieldMetadata = { type: 'richtext', name: 'doc', rows: 10 };
     render(<RichTextField value="<p>hi</p>" onChange={() => {}} field={field} />);
     expect(screen.getByRole('textbox')).toHaveAttribute('rows', '10');
   });

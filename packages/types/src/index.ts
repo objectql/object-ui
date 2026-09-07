@@ -473,6 +473,7 @@ export type {
   TextareaFieldMetadata,
   MarkdownFieldMetadata,
   HtmlFieldMetadata,
+  RichtextFieldMetadata,
   NumberFieldMetadata,
   CurrencyFieldMetadata,
   PercentFieldMetadata,
