@@ -26,6 +26,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, Pencil } from 'lucide-react';
 import { SchemaRenderer, toRenderableSchema, useInlineEdit } from '@object-ui/react';
+import { recordDisplayValueAt } from '@object-ui/core';
 import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
@@ -40,6 +41,69 @@ import {
   isComputedFieldType,
   isInlineExcludedDetailFieldType,
 } from './fieldEnrichment';
+
+/**
+ * Does this cell have anything to render? **THE** definition of emptiness on
+ * this surface (objectui#8376) — read by every one of the three places that
+ * used to spell it out for itself:
+ *
+ *  - `isEmptyValue`, the row filter behind `emptyCount`, the reader's
+ *    "Show N empty fields" toggle and the auto-hide heuristic;
+ *  - the `isEmpty` branch of `displayValue`, which draws the muted em-dash +
+ *    `No value` affordance;
+ *  - `canCopy`, which offers the copy affordance on the row.
+ *
+ * The three MUST agree. "Show N empty fields" means "N rows show the em-dash",
+ * the skeleton rule ("a section that is entirely empty keeps its labels") means
+ * "every row shows the em-dash", and a row that says `No value` must not also
+ * offer to copy that value. Three raw `null | undefined | ''` tests happened to
+ * agree; one definition cannot stop agreeing.
+ *
+ * ## Why the scalar half DELEGATES (objectui#8350's authority)
+ *
+ * All three tests were raw and none TRIMMED, so `'   '` counted as FILLED
+ * while `@object-ui/core`'s `recordDisplayValueAt` — the definition the page H1
+ * and the `record:details` dedupe ladder both read — calls it EMPTY. The
+ * consequences were not cosmetic: the row painted a visually blank cell (the
+ * exact UI the em-dash exists to prevent), it escaped `emptyCount` so the
+ * toggle read one too low, and because `shouldAutoHideEmpty` only needs
+ * `filledCount > 0` ONE such value suppressed the all-empty skeleton and hid
+ * every genuinely empty row in its section. So the scalar answer is not
+ * re-spelled here: it is the authority's, and a `.trim()` written at this call
+ * site would be the second implementation that drifts next.
+ *
+ * ## Why the OBJECT half does NOT delegate — measured, not assumed
+ *
+ * `recordDisplayValueAt` answers "does this resolve to a NAME", so an object
+ * value goes through `displayNameOfEmbeddedObject` and is EMPTY whenever that
+ * Salesforce-style chain yields nothing. That is right for a title and WRONG
+ * for a cell: here an object value is handed to a TYPE-AWARE cell renderer that
+ * knows how to draw it. `{ latitude, longitude }` renders as coordinates
+ * (`LocationCellRenderer`), `{ street, city, … }` as a formatted postal address
+ * (`AddressCellRenderer`, objectui#4037), `['alpha','beta']` as select badges,
+ * any other object as JSON — none of which carries a name-ish key, so
+ * delegating this half would replace populated cells with `No value`, drop them
+ * out of `filledCount`, and let auto-hide bury them. An object is therefore a
+ * VALUE here, exactly as it was before this change: this function moves
+ * whitespace-only strings and nothing else.
+ *
+ * Pinned end-to-end (DOM, not predicate) in
+ * `__tests__/DetailSection.emptinessAuthority-8376.test.tsx`, whose
+ * NON-REGRESSION cases are red for a wholesale delegation.
+ */
+function hasCellValue(value: unknown): boolean {
+  // Object/array values belong to the cell renderers, not to the display-name
+  // chain — see the docblock above. `typeof null === 'object'`, so null is
+  // excluded here and answered by the authority below.
+  if (value !== null && typeof value === 'object') return true;
+  // A one-key synthetic record is how a VALUE asks the authority its question:
+  // `recordDisplayValueAt` is keyed `(record, field)` because its callers read
+  // a field off a record, while this site's value has two sources (the record,
+  // then the authored `field.value` fallback) and is already resolved by the
+  // time emptiness is asked. Re-typing the test to take a value is precisely
+  // the extra implementation this function exists to remove.
+  return recordDisplayValueAt({ value }, 'value') !== undefined;
+}
 
 /**
  * Section-header icon. `fieldGroups[].icon` declares a Lucide name (spec),
@@ -160,10 +224,11 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     });
   }, []);
 
-  // Identify empty fields once for both filtering and the toggle counter.
+  // Identify empty fields once for both filtering and the toggle counter —
+  // through `hasCellValue`, the ONE definition this file now shares with the
+  // em-dash affordance and the copy affordance (objectui#8376).
   const isEmptyValue = React.useCallback((field: DetailViewField) => {
-    const value = data?.[field.name] ?? field.value;
-    return value === null || value === undefined || value === '';
+    return !hasCellValue(data?.[field.name] ?? field.value);
   }, [data]);
 
   const emptyCount = React.useMemo(
@@ -277,7 +342,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       if (displayWidget === 'permission-facet-link') {
         return <PermissionFacetLink value={value} field={enrichedField as any} />;
       }
-      const isEmpty = value === null || value === undefined || value === '';
+      const isEmpty = !hasCellValue(value);
       if (isEmpty) {
         return (
           <span
@@ -300,7 +365,11 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       }
       return String(value);
     })();
-    const canCopy = value !== null && value !== undefined && value !== '';
+    // Same definition as the affordance above, deliberately: a row that says
+    // `No value` must not also offer to copy it. Before objectui#8376 both
+    // tests were raw and agreed by coincidence; fixing only the affordance
+    // would have put a copy button next to an em-dash that copies spaces.
+    const canCopy = hasCellValue(value);
     // An editable field surfaces the pencil (edit) affordance instead of the
     // copy affordance, and reserves single-click for text selection — so
     // click-to-copy only applies to non-editable fields.
