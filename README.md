@@ -97,9 +97,16 @@ npm install @object-ui/app-shell @object-ui/plugin-view @object-ui/providers
 
 Then build your own console in ~100 lines:
 ```tsx
+import type { FC } from 'react';
 import { AppShell } from '@object-ui/app-shell';
 import { ObjectView } from '@object-ui/plugin-view';
 import { ThemeProvider, DataSourceProvider, useDataSource } from '@object-ui/providers';
+import type { DataSource } from '@object-ui/types';
+
+// The two pieces you bring: the backend adapter you implement (see "Custom
+// Data Sources" below) and your own sidebar component.
+declare const myAPI: DataSource;
+declare const MySidebar: FC;
 
 function MyConsole() {
   return (
@@ -135,13 +142,15 @@ See [examples/byo-backend-console](examples/byo-backend-console) for a complete 
 
 **Stop Writing Repetitive UI Code**
 ```tsx
+import type { ObjectFormSchema } from '@object-ui/types';
+
 // Traditional React: 200+ lines
 function UserForm() {
   // ... useState, validation, handlers, JSX
 }
 
 // Object UI: 20 lines
-const schema = {
+const schema: ObjectFormSchema = {
   type: "object-form",
   objectName: "user",
   mode: "create",
@@ -381,6 +390,11 @@ npm install @object-ui/data-objectstack
 
 ```typescript
 import { createObjectStackAdapter } from '@object-ui/data-objectstack';
+import { SchemaRenderer } from '@object-ui/react';
+import type { BaseSchema } from '@object-ui/types';
+
+// Your page schema — "Basic Usage" above writes one out in full.
+declare const schema: BaseSchema;
 
 const dataSource = createObjectStackAdapter({
   baseUrl: 'https://api.example.com',
@@ -398,11 +412,16 @@ You can create adapters for any backend (REST, GraphQL, Firebase, etc.) by imple
 ```typescript
 import type { DataSource, QueryParams, QueryResult } from '@object-ui/types';
 
-class MyCustomDataSource implements DataSource {
-  async find(resource: string, params?: QueryParams): Promise<QueryResult> {
-    // Your implementation
-  }
-  // ... other methods
+// The members `DataSource` REQUIRES — declared here without bodies, so the
+// contract is complete instead of elided. Every other member of the interface
+// is optional: implement the ones your backend supports.
+declare class MyCustomDataSource<T = unknown> implements DataSource<T> {
+  find(resource: string, params?: QueryParams): Promise<QueryResult<T>>;
+  findOne(resource: string, id: string | number, params?: QueryParams): Promise<T | null>;
+  create(resource: string, data: Partial<T>): Promise<T>;
+  update(resource: string, id: string | number, data: Partial<T>, opts?: { ifMatch?: string }): Promise<T>;
+  delete(resource: string, id: string | number, opts?: { ifMatch?: string }): Promise<boolean>;
+  getObjectSchema(objectName: string): Promise<unknown>;
 }
 ```
 

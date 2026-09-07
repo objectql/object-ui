@@ -615,18 +615,22 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  * Documents whose snippets are NOT compiled, each with the reason. The default
  * is covered; this list is the debt, by name, and it can only shrink.
  *
- * ⚠️ ZERO of these entries are now `.md` pages under `content/docs`. There were 19
- * when objectui#5174 made them visible — the collector reads `.md`, and an entry
- * with a measured reason is what a page that cannot pass yet is owed — and that
- * card then walked every one of them back OFF this list rather than re-wording its
- * reason. The direction on that card was entries LEAVING, and it finished: what
- * remains here is `.mdx` pages under `content/docs` plus package READMEs, and the
- * ENTRIES BELOW are that list — re-derived every run and shrink-only, so the names
- * in it are the count. This sentence carried the literal `12 .mdx pages and 32
- * package READMEs` until objectui#5174's batch 7, by which point BOTH halves had
- * drifted: the README count has been 31 since objectui#5259, and the `.mdx` count
- * moves with every batch. Nothing fails on a stale number written here, which is
- * why it is a pointer to the list now rather than a copy of its length.
+ * ⚠️ The ledger is EMPTY, and that is objectui#5174's finished state rather than a
+ * gap: every document the collector reaches is in the covered tier, so the default
+ * is now the only tier. There were 19 `.md` entries under `content/docs` when that
+ * card made them visible — the collector reads `.md`, and an entry with a measured
+ * reason is what a page that cannot pass yet is owed — and the card then walked
+ * every one of them, then the `.mdx` pages, then the package READMEs, and last the
+ * root `README.md`, back OFF this list rather than re-wording their reasons. Each
+ * page left by compiling, never by softening this gate.
+ *
+ * ⛔ An empty object is NOT an invitation to park the next page that fails. A new
+ * entry is new debt and owes the same thing every entry above owed: a reason that
+ * says WHAT would have to change, measured on the page rather than estimated. The
+ * sentence this replaces carried the literal `12 .mdx pages and 32 package
+ * READMEs` until objectui#5174's batch 7, by which point BOTH halves had drifted;
+ * nothing fails on a stale number written here, which is why no count is written
+ * here at all.
  *
  * Batch 1 took ten: `api/schema-reference`, `plugins/index`, and the `guide/` pages
  * `architecture-overview`, `deployment`, `expressions`, `notifications`,
@@ -744,38 +748,7 @@ const TS_FENCE_LANGUAGES = new Set(['ts', 'tsx', 'typescript']);
  *
  * @type {Record<string, string>}
  */
-const UNGATED_DOCS = {
-  // objectui#7115 put the root README into the scan surface; this entry is what
-  // that bought on THIS gate's question. The file is now VISIBLE to the ledger
-  // instead of invisible to the walk — the objectui#5174 distinction quoted in
-  // the header — and the debt below is measured, not estimated. ⚠️ Read as debt,
-  // never as a pass: these 6 diagnostics are real.
-  //
-  // It read 9, and named the three TS2305s as the ones that mattered, until
-  // objectui#7417 paid exactly those down — three names the page taught that no
-  // built `dist/index.d.ts` exports. What replaced each was already in the tree,
-  // so none of the three widened a public surface: `ObjectRenderer` (no export of
-  // @object-ui/app-shell bears that name; the page now composes `ObjectView` from
-  // @object-ui/plugin-view, the spelling examples/byo-backend-console/src/App.tsx
-  // already runs), `registerDefaultRenderers` (@object-ui/components registers its
-  // renderers as an import side effect — `sideEffects: true`, and its barrel's
-  // `import './renderers'` — and exports no such function, so the page now imports
-  // the package for the side effect), and `createObjectStackAdapter`, which ships
-  // from @object-ui/data-objectstack, not @object-ui/core, exactly as
-  // packages/plugin-dashboard/README.md already writes it.
-  //
-  // ⚠️ The remaining 6 are fragment shape, and no gate protects this page's
-  // import names from a fourth phantom: check-readme-exports.mjs states its
-  // surface as `packages/NAME/README.md`, and the root README imports from
-  // several packages rather than owning one, so that gate's rule would have to be
-  // restated before its surface could move (objectui#7417 triage).
-  'README.md':
-    '4 undefined-name diagnostic(s) — blocks use ambient names the page never defines (`myAPI`, ' +
-    '`MySidebar`) or continue an earlier block (`SchemaRenderer`, `schema`); 2 elided-body ' +
-    'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
-    'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
-    'what is left is fragment shape, and no gate reads this page\'s import names.',
-};
+const UNGATED_DOCS = {};
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
 
