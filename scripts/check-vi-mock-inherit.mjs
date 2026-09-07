@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is fourteen, and each joined by sweep
+ * actually been SWEPT to zero. Today that is fifteen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -509,11 +509,81 @@
  * not fire: this barrel's graph reaches neither `sonner` nor those local
  * modules. ZERO neighbouring repairs.
  *
- * The remaining 61 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
+ * `@object-ui/plugin-chatbot` joined as objectui#6892's TENTH slice, re-derived
+ * on `97b0177e1` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/plugin-chatbot    16 judged, 5 inheriting, 11 frozen -> 0
+ *
+ * with the population moving 61 -> 50 frozen over 659 judged and no site moving
+ * the other way -- a diff of the two per-specifier tables with the
+ * `@object-ui/plugin-chatbot` row removed is EMPTY. All 16 sites sit under
+ * `packages/app-shell` and all 11 frozen ones are ONE syntactic shape (the
+ * zero-parameter object-literal arrow), each hand-listing one to three names
+ * from a 48-export barrel.
+ *
+ * STEP 0 was taken again rather than inherited: 454 modules and 5,238
+ * module-scope statements reached from `packages/plugin-chatbot/src/index.tsx`,
+ * over eight workspace packages (`components` 206, `core` 95, `react` 64,
+ * `plugin-chatbot` 33, `i18n` 27, `types` 17, `sdui-parser` 8,
+ * `data-objectstack` 5). NOT inert, and the slice proceeded on the CLASS of the
+ * effect: 114 module-scope `ComponentRegistry.register(...)` calls, and ZERO of
+ * them are bare. Every one carries a namespace (`ui` 89, `element` 10, `page` 7,
+ * `action` 5, `plugin-chatbot` 3); the five rows in `renderers/layout/page.tsx`
+ * that READ as bare carry `ui` through the spread `pageMeta` constant, so the
+ * deprecation `console.warn` in `register()` cannot fire. ⚠️ Slice 9's REPORT
+ * called those five bare, and slice 10's dispatch inherited the claim; slice 7's
+ * record above had them right. Read the third argument, not the key -- the
+ * namespace never appears in the registered string. Empirically: importing
+ * the real barrel under happy-dom exports 48 names, moves
+ * `ComponentRegistry.getAllTypes()` from 0 to 301 keys, and emits ZERO
+ * `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ This is the first slice whose files span TWO vitest projects, and checking
+ * that mattered. Fifteen of the sixteen sites run in the light `dom` project;
+ * `packages/app-shell/src/layout/__tests__/ChatDock.test.tsx` is in
+ * `heavyDomTests` and runs in `dom-heavy`, and
+ * `packages/app-shell/src/hooks/__tests__/useAiSurface.test.ts` is a `.test.ts`
+ * that reaches `dom` only through `domTsTests`. The isolated cold import differs
+ * by an order of magnitude between the two projects -- a median 5.82s under
+ * `dom` against 0.66s under `dom-heavy`, because that project's heavy setup has
+ * already loaded 391 of the registry's keys before the barrel is asked for.
+ *
+ * ⚠️ The per-file marginal cost here is BIMODAL, and it is the first counter-
+ * example to slice 9's carry-forward reading as uniform. Ten of the eleven files
+ * already reach 422 of the barrel's 454 modules at module scope, so inheriting
+ * adds 32 modules and costs +0.4s to +0.8s -- slice 9's range. The eleventh
+ * (the `useAiSurface` hook spec) reaches ZERO of the 454: it is a four-test file
+ * whose only route to the barrel is the mock itself, so inheriting adds all 454
+ * modules plus 58 external leaves and the file goes 0.68s -> 7.77s, an 11.4x
+ * marginal cost squarely inside objectui#6580's STOP band. What settled the
+ * slice is the number CI actually pays, measured over the eleven files as ONE
+ * invocation: 25.6s frozen -> 28.6s inheriting, +2.7s for the whole slice with
+ * 64/64 tests green in both states. ⇒ CARRY-FORWARD, sharpening slice 9's: take
+ * the marginal per FILE, but decide on the AGGREGATE -- a lone cold file can sit
+ * in the STOP band while the population it belongs to costs a tenth of it, and
+ * stopping on the per-file number alone would have forfeited ten free
+ * conversions and left the specifier permanently outside this list, since there
+ * is deliberately no per-file exception ledger.
+ *
+ * The neighbour reading found ZERO repairs owed and said so in advance: the
+ * eleven files carry 11 already-inheriting `@object-ui/auth` factories, 8
+ * already-inheriting `@object-ui/i18n` ones, 6 frozen `react-router-dom` ones
+ * (third-party, out of scope by construction) and 24 local whole-module
+ * replacements. Slice 6's collection-death class needed a frozen neighbour the
+ * newly-real graph REACHES: this barrel's graph reaches `i18n` (already
+ * inheriting) and NOT `react-router-dom`, and not one of the sixteen files
+ * carries a frozen `lucide-react` factory even though the graph reads
+ * `lucide-react` 71 times.
+ *
+ * ⭐ The free confirmation is present: 5 of the 16 sites already inherited the
+ * real barrel on `main` and passed, all of them in the light `dom` project.
+ *
+ * The remaining 50 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
  * frozen, PARKED under objectui#8173 -- objectui#6892 and the closed
  * objectui#6580 point opposite ways on that one specifier and a seat does not
- * decide it), `@object-ui/plugin-chatbot` (11), `@object-ui/plugin-designer`
- * (10), `@object-ui/plugin-list` (9) and `@object-ui/fields` (8).
+ * decide it), `@object-ui/plugin-designer` (10, ALL frozen),
+ * `@object-ui/plugin-list` (9 of 10) and `@object-ui/fields` (8 of 10).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -612,6 +682,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-grid',
   '@object-ui/permissions',
   '@object-ui/plugin-detail',
+  '@object-ui/plugin-chatbot',
 ]);
 
 /** Files the walk reads at all. */
