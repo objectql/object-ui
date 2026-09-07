@@ -281,6 +281,29 @@ function declaredDependencies(vars: PluginTemplateVars): Record<string, string> 
   return { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
 }
 
+/**
+ * Whether an emitted vite config that carries a `test:` block also carries the
+ * DECLARATION that types that key (objectui#8139).
+ *
+ * `vite`'s own `UserConfig` has no `test` key, so a config that passes the
+ * block to a `defineConfig` imported from `vite` and says nothing else is
+ * TS2769 in every editor the scaffolded plugin is opened in. Two shapes supply
+ * the missing declaration and both are accepted HERE, because the invariant this
+ * predicate states is "the block is typed", not "typed one particular way" —
+ * which of the two the template should use is a separate question, pinned
+ * separately below with the measurement that decided it.
+ *
+ * A config with no `test:` block has nothing to type and passes vacuously; the
+ * self-test below is what stops that branch from swallowing a real regression.
+ */
+function typesTheTestBlock(config: string): boolean {
+  if (!/test:\s*\{/.test(config)) return true;
+  return (
+    /\/\/\/\s*<reference\s+types="vitest\/config"\s*\/>/.test(config) ||
+    /from\s+'vitest\/config'/.test(config)
+  );
+}
+
 describe('generated package.json', () => {
   it('declares the whole test stack the template ships', () => {
     const pkg = buildPackageJson(VARS) as {
@@ -467,6 +490,41 @@ describe('generated vite.config.ts', () => {
     // `node` environment, where React has no `document` to mount into.
     expect(viteConfig).toMatch(/test:\s*\{/);
     expect(viteConfig).toContain(`environment: 'jsdom'`);
+  });
+
+  it('types the `test:` block it carries, so the emitted config is not red on day one', () => {
+    // objectui#8139. `vite`'s `UserConfig` declares no `test` key, so passing
+    // the block to a `defineConfig` imported from `vite` is TS2769 — measured
+    // on this exact template by the emitted-code census (objectui#7864 /
+    // PR #8138). The triple-slash reference pulls in `vitest/dist/config.d.ts`,
+    // whose `declare module "vite" { interface UserConfig { test?: … } }`
+    // supplies the missing declaration, at zero run-time cost.
+    expect(viteConfig).toMatch(/test:\s*\{/);
+    expect(typesTheTestBlock(viteConfig)).toBe(true);
+    expect(viteConfig).toContain('/// <reference types="vitest/config" />');
+
+    // ⛔ NOT the other shape vitest documents. `import { defineConfig } from
+    // 'vitest/config'` type-checks identically in the scaffolded repo, but in
+    // THIS repo it trips the census's root bound (`vitest` is declared by the
+    // root manifest and mapped by no package), so the census REFUSES this
+    // template instead of judging it: measured on b38014e82, `Judged 12 … 7
+    // refused` with the reference versus `Judged 11 … 8 refused` with the
+    // import, the latter reporting zero diagnostics here only because it
+    // stopped compiling the file. Changing this line means re-reading
+    // buildViteConfig's docblock first.
+    expect(viteConfig).toContain(`import { defineConfig } from 'vite';`);
+    expect(viteConfig).not.toContain(`from 'vitest/config'`);
+  });
+
+  it('reports an untyped `test:` block once the reference line is stripped', () => {
+    // Reverse verification of the pin above, in this file's own idiom: the
+    // predicate passes over a config with no `test:` block, so restore the
+    // pre-fix shape — block present, declaration absent — and it must say NO,
+    // rather than staying green because it stopped looking.
+    const preFix = viteConfig.replace('/// <reference types="vitest/config" />\n', '');
+    expect(preFix).not.toContain('vitest/config');
+    expect(preFix).toMatch(/test:\s*\{/);
+    expect(typesTheTestBlock(preFix)).toBe(false);
   });
 
   it('enables globals so @testing-library/react registers its auto cleanup', () => {
