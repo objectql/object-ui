@@ -75,7 +75,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => ({
 // An authoring-capable AI agent IS deployed in every case, so "Build with AI"
 // is held back only by the capability gate under test and never by the
 // unrelated cloud#816 agent-availability gate.
-vi.mock('@object-ui/plugin-chatbot', () => ({
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
   useAgents: () => ({ agents: [{ name: 'builder' }] }),
   isAskAgent: () => false,
   agentHasCapability: () => true,

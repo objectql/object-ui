@@ -141,13 +141,20 @@ describe('no invented gantt date name survives in the source (objectui#7070)', (
 
   it('CONTROL: the scan can still see a literal that IS there', () => {
     // Without this the case above is green on any tree where the filter simply
-    // matches nothing. `'image'` is the gallery branch's `imageField … ||
-    // 'image'` floor — the same one-rung class, still present, out of scope for
-    // this card. ⚠️ If you retire it, RE-ANCHOR this control onto whatever
-    // fabrication legitimately remains; do not delete it. (The twin of this
-    // control in `ObjectView.calendarBinding-7029.test.tsx` carries the same
-    // instruction, and explains why in full.)
-    expect(CODE.filter((l) => l.includes("'image'")).length).toBeGreaterThan(0);
+    // matches nothing.
+    //
+    // RE-ANCHORED by objectui#7547, following this control's own instruction:
+    // it sat on the gallery branch's `imageField … || 'image'` floor until #7547
+    // retired that literal. The anchor is now the CHART branch's measure floor
+    // (`chartConfig.yAxisFields[0] || 'value'`) — the same one-rung class, still
+    // present, and left standing by #7547 because deleting it needs a refusal
+    // path `ObjectChart` does not have yet.
+    //
+    // ⚠️ If you retire it, RE-ANCHOR this control onto whatever fabrication
+    // legitimately remains; do not delete it. (The twin of this control in
+    // `ObjectView.calendarBinding-7029.test.tsx` carries the same instruction,
+    // and explains why in full.)
+    expect(CODE.filter((l) => /\|\| 'value'/.test(l)).length).toBeGreaterThan(0);
   });
 
   it('CONTROL: the scan reads CODE, not the prose that records the deletion', () => {

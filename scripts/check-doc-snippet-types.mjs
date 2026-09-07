@@ -775,8 +775,6 @@ const UNGATED_DOCS = {
     'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
     'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
     'what is left is fragment shape, and no gate reads this page\'s import names.',
-  'packages/auth/README.md':
-    '1 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies; 15 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
   'packages/fields/README.md':
     '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
   'packages/plugin-charts/README.md':
@@ -791,8 +789,6 @@ const UNGATED_DOCS = {
     '2 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
   'packages/plugin-tree/README.md':
     '3 parse diagnostic(s) — blocks fenced `ts` that are bare object literals or elided bodies',
-  'packages/providers/README.md':
-    '7 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; plus TS2741x1 — candidate real defects, un-triaged',
 };
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
