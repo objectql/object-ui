@@ -1048,6 +1048,29 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   //   the `ObjectKanban` path supplies that runtime slot; whether that is a
   //   permanent carve-out or a feature gap is a product ruling, so the entry
   //   stays as-is until the maintainer rules).
+  //   ⚠️ THREE MORE LEFT BY THE SAME EXIT — objectui#8314, slice 2b, and this
+  //   one empties `object-calendar` entirely: `data`, `staticData` and
+  //   `loading` are all declared on both `plugin-calendar` registrations, with
+  //   a `MEMBER_PINS` entry apiece for the two array keys (registered below,
+  //   never an exemption — objectui#8212's three-part obligation). Every
+  //   `object-calendar` key the spec declares is now discoverable, so the
+  //   remaining backlog is `object-kanban`'s alone.
+  //   ⚠️ The `loading` clause above was slice 1's REASONING and objectui#8314
+  //   measured it: authored `loading: true` replaces a `data`-fed calendar with
+  //   its loading placeholder and does nothing at all to a `staticData`-fed
+  //   one. The prediction held, so the key was declared on exactly those terms
+  //   — its published description names the coupling rather than hiding it.
+  //   ⚠️ One correction that outlives the entries, recorded because a future
+  //   reader would otherwise inherit the cheap reading of `data`. "An authored
+  //   `data` skips the calendar's own fetch" is TRUE ON BOTH CARRIERS and
+  //   therefore cannot fail as a pin: `SchemaRenderer` spreads non-metadata
+  //   node keys as React props, so the same array is `rest.data` at the
+  //   renderer boundary AND `schema.data` inside the component, where the
+  //   record-source ladder returns it verbatim as a config that carries no
+  //   `provider` and so matches no fetch branch either. Measured by ablation on
+  //   objectui#8314: with the boundary's forward removed, "no query was issued"
+  //   stayed green while every row asserting the authored ROWS ARE DRAWN went
+  //   red. The pin registered below rests on the rows.
   //   ⚠️ One correction that outlives the entry, because the rider note that
   //   stood here asserted the opposite and a future reader would inherit it:
   //   `sort` is NOT a pass-through key, and its member claim is NOT the
@@ -1068,12 +1091,6 @@ const UNPUBLISHED_EXEMPTIONS: Record<string, string> = {
   'object-kanban.quickAdd':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
   'object-kanban.conditionalFormatting':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-calendar.data':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-calendar.staticData':
-    'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
-  'object-calendar.loading':
     'Newly JUDGED rather than newly missing: the console registers this block with `registerLazy`, so it sat outside the population of this gate entirely until objectui#8176 loaded it. A DECLARATION SOMEONE OWES, not a ruled carve-out — nobody has yet asked, per key, against the read sites in the renderer, whether it should be published or carved out. objectui#8201 owns that question and its answer deletes this entry. objectui#8176.',
 
   // ── record:reference_rail.entries — a nested collection, newly JUDGED ──────
@@ -2052,6 +2069,10 @@ const MEMBER_PINS: Record<string, MemberPin> = {
     file: 'packages/components/src/__tests__/text-input-inputs-spec-parity.test.ts',
     pins: 'The I18nLabel trio — see `element:text_input.description` (objectui#5717).',
   },
+  'object-calendar.data': {
+    file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.recordSourceMembers-8314.test.tsx',
+    pins: 'The members are RECORDS, and the keys read inside one are the fields the declared `calendar` config names plus `id`: every member arrives in authored order, `allDay` is derived PER MEMBER from the declared end field, a member with no value in the start field is counted in the unscheduled area rather than dropped or given a fabricated date (objectui#7071 at the member level), and a member with no `id` gets a synthesised one rather than being discarded. Asserted through the REAL `SchemaRenderer`, because this key\'s sink is the props channel `index.tsx` resolves (`resolveExternalData`), not the schema. ⛔ NOT pinned on "the internal query is skipped": an authored array reaches this renderer on BOTH carriers, and the schema-channel one returns it as a config with no `provider`, so no query is issued on a tree where the boundary drops `data` either — measured by ablation, that row stays green while the ROWS-ARE-DRAWN rows go red, so it is kept as a labelled companion and the rows carry the claim. The spec side cannot supply any of it: the row is `z.array(z.unknown())`, so every coarse member kind parses and the read site is the whole member contract (objectui#8314).',
+  },
   'object-calendar.filter': {
     file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.filterIsNotAConfigSlot-7711.test.tsx',
     pins: 'The members are ObjectQL `$filter` elements, and this renderer adds nothing to that contract and subtracts nothing from it: the authored value reaches `dataSource.find` as `$filter` BY IDENTITY (`toBe`, so a normalising rewrite cannot pass), and the retired `filter.calendar` member spelling yields NO configuration — one authored key read twice with two incompatible meanings is the member-level defect objectui#7711 closed here and objectui#4034 closed on the map. Both member forms are covered (the object form and the array-of-arrays form). The spec side cannot supply this: the `object-calendar` `filter` row is `z.unknown()`, so the wire is the only member contract there is (objectui#7711, registered as a pin by objectui#8176 once objectui#8186 declared the key).',
@@ -2059,6 +2080,10 @@ const MEMBER_PINS: Record<string, MemberPin> = {
   'object-calendar.sort': {
     file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.sortMembersReachTheWire-8171.test.tsx',
     pins: 'The members are `{ field, order }` and those two keys are the whole of what this renderer reads inside one: `{ field, order }` lowers to the `field -> direction` map on `$orderby`, an omitted `order` is ascending rather than a dropped member (the objectui#4022 regression), every member arrives in authored order, and a member with no usable `field` is dropped rather than given an invented one — with an unauthored `sort` reaching the wire as `undefined` as the control. Also carries objectui#7711\'s case transposed: a sort on a field named `calendar` stays a sort and the config still comes from the declared `calendar` container. ⛔ NOT an identity pin, unlike the two `filter` entries: `ObjectCalendar.tsx` writes `$orderby: convertSortToQueryParams(schema.sort)`, which builds a new map, so `toBe` is false about this key — the pin asserts what is read inside the member instead, which is the sharper claim. The spec side cannot supply any of it: the `sort` row is unconstrained (an array, a bare string and a bare number all parse), so the wire is the whole member contract (objectui#8171).',
+  },
+  'object-calendar.staticData': {
+    file: 'packages/plugin-calendar/src/__tests__/ObjectCalendar.recordSourceMembers-8314.test.tsx',
+    pins: 'The members are read EXACTLY as `data`\'s are (same record keys, same per-member unscheduled treatment), plus the two POSITION claims its description makes and no other direction of this gate can see: it is rung 2 of the shared record-source ladder, so an authored `data` wins and this key contributes nothing, and it is read ABOVE `objectName`, so a calendar carrying both draws the inline rows and never queries the object. Both negatives are proven through the same wait a CONTROL row shows a real query completing in, so "no query" can never read as a race. The spec row is `z.array(z.unknown())` — unconstrained members, read site is the whole contract (objectui#8314).',
   },
   'object-grid.data': {
     file: 'packages/plugin-grid/src/__tests__/gridDataInputContract.test.ts',
@@ -2900,26 +2925,33 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
     // direction — greening a fresh divergence on these two blocks by writing a
     // nineteenth entry instead of declaring the input.
     //
-    // EIGHT is the MEASURED backlog today, not a budget: five undiscoverable
-    // keys on `object-kanban`, three on `object-calendar`. The number has come
-    // down three times and every step was this ceiling's paired EXIT — a
-    // declaration retiring its own cover — rather than a re-derivation:
+    // FIVE is the MEASURED backlog today, not a budget: five undiscoverable
+    // keys on `object-kanban`, and NONE on `object-calendar` — objectui#8314
+    // emptied that block. The number has come down four times and every step
+    // was this ceiling's paired EXIT — a declaration retiring its own cover —
+    // rather than a re-derivation:
     //
     //   18  these blocks enter the population (objectui#8176)
     //   16  objectui#8186 lands objectui#7712's two `filter` declarations
     //   15  objectui#8223 lands objectui#8171's `object-calendar.sort`
     //    8  objectui#8201 lands its first slice — seven scalar-armed keys
+    //    5  objectui#8314 lands slice 2b — `object-calendar`'s `data`,
+    //       `staticData` and `loading`, the first exit to take ARRAY-armed keys
+    //       and therefore the first to pay objectui#8212's three-part
+    //       obligation: two `MEMBER_PINS` entries landed with the declaration
+    //       and `MEMBER_PIN_EXEMPTION_CEILING` did not move
     //
     // ⚠️ The prose that stood here read "Sixteen … ten on `object-kanban`, six
     // on `object-calendar`" while both assertions already read 15: objectui#8223
     // moved the numbers and not the sentence describing them. Corrected in
     // passing, and worth a line because a stale count here is exactly the kind
     // of drift that makes a reader distrust the assertions instead of the prose.
+    // Both numbers and both sentences moved together on objectui#8314.
     //
     // A new divergence on these blocks is a plain defect and gets declared,
     // exactly as it would on any other covered block.
     //
-    // ⚠️ ONE OF THE REMAINING EIGHT MAY NOT LEAVE BY A DECLARATION AT ALL.
+    // ⚠️ ONE OF THE REMAINING FIVE MAY NOT LEAVE BY A DECLARATION AT ALL.
     // `object-kanban.quickAdd` is measured NOT honoured by this renderer
     // (objectui#8201): `KanbanImpl` gates the control on `quickAdd &&
     // onQuickAdd`, and no producer on the `ObjectKanban` path supplies that
@@ -2941,14 +2973,14 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       'a new unpublished-key exemption was added on a block objectui#8176 newly ' +
         'judged — declare the input at its registration site instead; the ' +
         'backlog list is shrink-only',
-    ).toBeLessThanOrEqual(8);
+    ).toBeLessThanOrEqual(5);
     // Lower it here when the owning cards land, so the ceiling keeps ratcheting
     // rather than banking the headroom their fixes free up.
     expect(
       backlog.length,
       'the objectui#8176 backlog shrank — lower the ceiling above to match, in ' +
         'the same change that declared the input',
-    ).toBe(8);
+    ).toBe(5);
   });
 
   it('the eight tombstoned keys are recognised, not exempted — and not published either', () => {
