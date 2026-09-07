@@ -123,21 +123,32 @@ export const DATA_DOCUMENT: TsObjectCalendarSchema = {
 };
 
 /**
- * CLASS BOUNDARY, recorded without touching it (triage boundary 3 on
- * objectui#7313): `ObjectKanbanSchema` still REQUIRES `objectName`. Its
- * renderer reads `schema.data` ahead of the fetch and guards every
- * `objectName` read, so it carries the same defect class — but that block is
- * objectui#7322's, and this control only says where the class currently ends.
- * When a card moves the kanban's `objectName` to optional, this directive is
- * the line that card deletes.
+ * CLASS BOUNDARY — and it MOVED. This literal used to carry a
+ * `@ts-expect-error` reading "objectName is still required on
+ * ObjectKanbanSchema", recorded here by objectui#7313 as the one deliberate
+ * error in this file, with the note "when a card moves the kanban's
+ * `objectName` to optional, this directive is the line that card deletes".
+ * objectui#7780 is that card, and this is that deletion: the directive is gone
+ * and the literal now compiles, which is the assertion — an unused
+ * `@ts-expect-error` is `TS2578`, so leaving it would have reddened
+ * `tsconfig.test.json` rather than quietly meaning nothing.
  *
- * `groupBy` is supplied because objectui#7322 made it the required lane key
- * (and retired `groupField`), so `objectName` is the ONE member this literal
- * is missing — the directive would otherwise be satisfied by an unrelated
- * omission and stop saying anything about `objectName`.
+ * ⚠️ It is NOT the same fix as this file's own subject. `object-calendar`
+ * joined the `object-map` / `object-gantt` ladder — `data` (a `ViewData`
+ * provider block) → `staticData` → `objectName`, `requireRecordSource`. The
+ * kanban board walks its own: pre-fetched `data` prop → `bind` → an inline ROW
+ * ARRAY on `data` → `objectName`, with no `staticData` rung, and objectui#7651
+ * (ruled B, closed `not_planned`) refuses giving it the shared one. Its
+ * refinement is `requireKanbanRecordSource`, written for that ladder, and the
+ * verdict table lives in `object-kanban-record-source-7780.test.ts`.
+ *
+ * `groupBy` is still supplied, and now for a second reason as well as the
+ * first: objectui#7322 made it the required lane key, so it was the only way
+ * `objectName` could be the ONE member this literal was missing — and
+ * objectui#7780 deliberately did NOT touch it, so this literal also witnesses
+ * that a record source and a lane key stayed different questions.
  */
-// @ts-expect-error — objectName is still required on ObjectKanbanSchema (the one deliberate error here)
-export const KANBAN_STILL_REQUIRES_OBJECT_NAME: TsObjectKanbanSchema = {
+export const KANBAN_NO_LONGER_REQUIRES_OBJECT_NAME: TsObjectKanbanSchema = {
   type: 'object-kanban',
   groupBy: 'status',
 };

@@ -987,6 +987,78 @@ export const KanbanConditionalFormattingRuleSchema = z.union([
   }),
 ]);
 
+/**
+ * The `object-kanban` board has a record source — at least one of `bind`,
+ * `data`, `objectName` is present (objectui#7780).
+ *
+ * ⚠️ NOT `requireRecordSource` above, and deliberately not built on it. That
+ * one serves the `object-map` / `object-gantt` / `object-calendar` ladder,
+ * whose rungs are `data` (a `ViewData` PROVIDER BLOCK) → `staticData` →
+ * `objectName`, resolved by the shared `resolveRecordSourceConfig` in
+ * `@object-ui/core`. This board walks a DIFFERENT ladder in
+ * `plugin-kanban/src/ObjectKanban.tsx`: the pre-fetched `data` PROP →
+ * `useDataScope(schema.bind)` → the inline ROW ARRAY on `schema.data` → a
+ * fetch keyed by `schema.objectName`
+ * (`rawData = external || boundData || schema.data || fetchedData`, the fetch
+ * gated on `schema.objectName && !boundData && !schema.data`). It has NO
+ * `staticData` rung and it HAS a `bind` rung, so the two key sets are neither
+ * equal nor nested and one predicate cannot serve both. objectui#7651 (ruled
+ * B, closed `not_planned`) refuses giving this board the shared ladder; this
+ * refinement describes the ladder that is already there rather than adding
+ * one.
+ *
+ * The pre-fetched `data` PROP is NOT a key here: it is a React prop
+ * (`ObjectKanbanComponentProps.data`, passed by a parent such as `ListView`),
+ * not something an author writes on the node, so it can neither be declared
+ * nor required.
+ *
+ * `bind` and `data` are `BaseSchema` members on BOTH faces — declared once, on
+ * the base, as optional members (`base.zod.ts` here, `../base.ts` there) and
+ * INHERITED by this member rather than restated on it. So this refinement names
+ * no key its own mirror has never heard of, the property objectui#7313 had to
+ * buy by declaring `data` / `staticData` first, and it names no key this
+ * member re-declares — `base-bind-declared.test.ts` (objectui#6357) keeps the
+ * `bind` declaration single, and the identity assertion in
+ * `__tests__/object-kanban-record-source-7780.test.ts` keeps both inherited.
+ *
+ * Presence is `!== undefined`, matching the sibling predicate's wording rather
+ * than the renderer's truthiness: `objectName: ''` validated before this card
+ * and still does, so the accept set only WIDENS. The one shape refused here
+ * (none of the three present) was refused before too, when `objectName` was
+ * required — see the before/after table in
+ * `__tests__/object-kanban-record-source-7780.test.ts`.
+ *
+ * ⛔ `groupBy` is NOT a rung and is untouched: it stays REQUIRED (objectui#7322,
+ * PR #7774). A record source and a lane key are different questions, and the
+ * two readings PR #7774 excluded from counting as a lane-less mode — the
+ * `dataSource` json fragment in `content/docs/utilities/data-objectstack.mdx`
+ * and `ListView.tsx`'s runtime-generated node — are still refused here, on
+ * `groupBy`, exactly as they were.
+ *
+ * Carries `params.code` so a consumer keys off the finding rather than
+ * string-matching the message, and reports at the ROOT path (`[]`): no single
+ * key is at fault when all three are absent, and blaming `objectName` would
+ * re-teach the requiredness this card removes.
+ *
+ * Deliberately a `function`, not an `export const`, for the same reason
+ * `requireRecordSource` is: the parity census in
+ * `__tests__/zod-mirror-parity.test.ts` reads `^export const` out of this
+ * directory and would demand a registered TS counterpart for it.
+ */
+const KANBAN_RECORD_SOURCE_KEYS = ['bind', 'data', 'objectName'] as const;
+function requireKanbanRecordSource(
+  schema: Partial<Record<(typeof KANBAN_RECORD_SOURCE_KEYS)[number], unknown>>,
+  ctx: z.core.$RefinementCtx,
+): void {
+  if (KANBAN_RECORD_SOURCE_KEYS.some((key) => schema[key] !== undefined)) return;
+  ctx.addIssue({
+    code: 'custom',
+    path: [],
+    params: { code: 'RECORD_SOURCE_REQUIRED' },
+    message: '`object-kanban` has no record source: declare one of `bind`, `data` or `objectName`',
+  });
+}
+
 // objectui#7322 — `groupBy` and `limit` are the keys `ObjectKanban.tsx` reads
 // (thirteen `schema.groupBy` sites; `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`
 // at `:264`); until this card neither was declared and both rode `BaseSchema`'s
@@ -997,7 +1069,7 @@ export const KanbanConditionalFormattingRuleSchema = z.union([
 // `KanbanConfig.groupField` above is live and untouched.
 export const ObjectKanbanSchema = BaseSchema.extend({
   type: z.literal('object-kanban'),
-  objectName: z.string().describe('ObjectQL object name'),
+  objectName: z.string().optional().describe('ObjectQL object name — the LAST rung of the board ladder, after the pre-fetched data prop, bind and the inline row array on data; one of bind, data, objectName must be present (objectui#7780)'),
   groupBy: z.string().describe('Field whose value places a record in a lane — the lane key the object-kanban renderer reads (ObjectKanban.tsx, thirteen sites); required, as the retired groupField was'),
   groupField: retirementTombstone('RETIRED (objectui#7322) — `groupField` is not read by the object-kanban renderer; author `groupBy`. (The view-level `kanban.groupField` alias is unaffected.)'),
   limit: z.number().int().positive().optional().describe('Row cap — the most records the board fetches, sent as a real $top on the query (ObjectKanban.tsx:264); default 100 (DEFAULT_KANBAN_LIMIT)'),
@@ -1007,7 +1079,7 @@ export const ObjectKanbanSchema = BaseSchema.extend({
   coverImageField: z.string().optional().describe('Field name for cover image on cards'),
   allowCollapse: z.boolean().optional().describe('Allow columns to collapse/expand'),
   conditionalFormatting: z.array(KanbanConditionalFormattingRuleSchema).optional().describe('Card conditional formatting rules'),
-});
+}).superRefine(requireKanbanRecordSource);
 
 /**
  * ObjectChart Schema
