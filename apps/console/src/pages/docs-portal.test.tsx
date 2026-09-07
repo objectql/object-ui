@@ -47,7 +47,10 @@ const { ADAPTER } = vi.hoisted(() => {
   return { ADAPTER };
 });
 
-vi.mock('@object-ui/app-shell', () => ({ useAdapter: () => ADAPTER }));
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAdapter: () => ADAPTER,
+}));
 
 vi.mock('@object-ui/plugin-markdown', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),

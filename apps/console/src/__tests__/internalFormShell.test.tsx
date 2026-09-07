@@ -53,7 +53,8 @@ const { passthrough, stub } = vi.hoisted(() => ({
 // `DefaultHomeLayout` is the console's layout for app-INDEPENDENT authed pages
 // (`/home`, `/organizations` — and now the internal form). Its presence IS the
 // "nested inside the console shell" assertion.
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ConsoleShell: passthrough,
   ConsoleToaster: () => null,
   // Suspense fallback for App.tsx's lazy /docs routes (objectui#5467).

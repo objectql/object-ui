@@ -98,7 +98,8 @@ const designSurface = vi.fn();
 // `chrome/`, so the factory pulls that ONE submodule (**549ms**) instead.
 // `RedirectWithSplash` is the only real export left standing: `ProtectedRoute`
 // renders it for the unauthenticated case, which this file asserts.
-vi.mock('@object-ui/app-shell', async () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ...(await vi.importActual<Record<string, unknown>>(
     '../../../../packages/app-shell/src/chrome/index'
   )),

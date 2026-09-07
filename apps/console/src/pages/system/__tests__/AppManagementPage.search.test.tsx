@@ -65,7 +65,8 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useMetadata: () => ({ apps: apps.value, refresh }),
   useAdapter: () => ({ getClient: () => ({ meta: { saveItem: vi.fn(), deleteItem: vi.fn() } }) }),
 }));

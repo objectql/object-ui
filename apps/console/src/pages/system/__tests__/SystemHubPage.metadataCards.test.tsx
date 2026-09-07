@@ -58,7 +58,8 @@ import { MemoryRouter, Routes, Route, useLocation, useParams } from 'react-route
 // The hub's only two data dependencies. `@object-ui/components` stays REAL so
 // the cards, their click handlers and their test ids are the ones the hub
 // actually renders.
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useAdapter: () => ({ find: async () => ({ data: [] }) }),
 }));
 vi.mock('@object-ui/auth', async (importOriginal) => ({

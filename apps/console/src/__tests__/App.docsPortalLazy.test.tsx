@@ -84,7 +84,8 @@ vi.mock('../pages/DocPage', tracked('DocPage', 'doc-page'));
 vi.mock('../pages/SharedRecordPage', tracked('SharedRecordPage', 'shared-record-page'));
 
 // ── Everything else App.tsx imports but this card does not touch ──────────
-vi.mock('@object-ui/app-shell', () => ({
+vi.mock('@object-ui/app-shell', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ConsoleShell: passthrough,
   ConsoleToaster: () => null,
   LoadingScreen: stub('loading-screen'),
