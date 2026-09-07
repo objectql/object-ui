@@ -37,3 +37,21 @@ carries `limit`, which the spec refuses by name.
 key the SPEC declares and the manifest omits is structurally outside what that
 ratchet measures, so declaring this key does **not** make the next omission
 loud. Making that ratchet bidirectional is objectui#8176.
+
+Rider carried by the same change, because objectui#8212 landed first: the
+console's `registry-inputs-spec-parity` ledger is updated in step with the
+declaration — the `object-calendar.sort` unpublished-key exemption is deleted
+(its cover expires the moment the key is declared), the shrink-only objectui#8176
+backlog ceiling drops 16 to 15, and `sort` gets a `MEMBER_PINS` entry rather than
+a member-pin exemption. `MEMBER_PIN_EXEMPTION_CEILING` is untouched at 62.
+
+⚠️ That member pin is deliberately NOT the identity-forwarding shape the two
+`filter` pins use. `ObjectCalendar.tsx` writes
+`$orderby: convertSortToQueryParams(schema.sort)`, which builds a new
+`field -> direction` map, so this key is lowered rather than passed through and
+`toBe` on `$orderby` is false about it. The pin asserts what is READ inside a
+member instead — `field`, `order`, an omitted `order` meaning ascending, and a
+member with no usable `field` dropped rather than invented.
+
+No version bump is declared for `@object-ui/console`: its only edit here is that
+test file's ledger data, which publishes nothing.
