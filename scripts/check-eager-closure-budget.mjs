@@ -322,13 +322,29 @@ import { isEntrypoint } from './invoked-as.mjs';
  * accounted for. No chunk entered or left the closure; the eager chunk count is
  * unchanged.
  *
- * ⇒ ⭐ THE HONEST LONG-TERM FIX IS UPSTREAM, and this ceiling is the marker for
- * it, not the answer to it: a `describe()`-stripped browser build returns
- * ~292 KB to EVERY consumer of the spec, not just this console. Filed as
- * objectstack#16063. RESTORE CONDITION: when that lands, re-measure and bring
- * this ceiling and {@link BASELINE} back down together. ⛔ No other exemption
- * was added, no import was made lazy, and no other ceiling was moved — the
- * three per-chunk lines that still pass were left exactly as they are.
+ * ⇒ ⭐ THE UPSTREAM FIX WAS REFUSED, so these numbers are the STANDING
+ * BASELINE and not an exception awaiting reversal. Stripping the `describe()`
+ * prose out of the browser build would return ~292 KB to EVERY consumer of the
+ * spec, not just this console; that was filed as objectstack#16063, and it was
+ * ruled against. Maintainer verbatim 「16063 c」 — director-seat decision batch
+ * #59, recorded on objectui#7122 on 2026-09-06: the growth is accepted
+ * upstream, and neither a prose-stripped build nor a short-`describe`
+ * convention will land.
+ *
+ * ⛔ The objectstack#16063 citation therefore STAYS, and its sense is the one
+ * thing about it that changed — it is now the RECORDED CAUSE this ceiling
+ * rests on, where it used to be a condition to wait out. ⛔ Nothing is coming
+ * that would bring this ceiling and {@link BASELINE} back down together, so do
+ * not reinstate anything on its account and do not write a fresh condition in
+ * its place: a re-baseline that reads as temporary is one nobody ever
+ * re-measures. The next bump is measured against THIS number, knowing why it
+ * moved — the authorisation above (objectui#7122, decision batch 1 item 1 =
+ * "B + A") and the figures it bought landed together in objectui#7685,
+ * `639114c4d`.
+ *
+ * ⛔ No other exemption was added, no import was made lazy, and no other
+ * ceiling was moved — the three per-chunk lines that still pass were left
+ * exactly as they are.
  */
 export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_597_000;
 
