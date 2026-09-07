@@ -46,7 +46,7 @@ These top-level schema fields are passed as raw strings:
 Every UI component node MUST follow this shape:
 
 ```typescript
-interface UIComponent {
+interface BaseSchema {       // abridged — full member list: packages/types/src/base.ts
   type: string;              // Required: component type identifier
   id?: string;               // Optional: unique identifier
   properties?: Record<string, any>; // Optional: spec config bag, hoisted onto
@@ -55,10 +55,10 @@ interface UIComponent {
                                // general bag. See "Rule: Keys Live on the Node".
   bind?: string;             // Optional: data binding path
   className?: string;        // Optional: Tailwind CSS classes
-  hidden?: string;           // Optional: visibility expression
-  disabled?: string;         // Optional: disabled expression
-  events?: Record<string, ActionDef[]>; // Optional: event handlers
-  children?: UIComponent[];  // Optional: nested components
+  hidden?: boolean | ExpressionWire;   // Optional: visibility predicate
+  disabled?: boolean | ExpressionWire; // Optional: disabled predicate
+  events?: Record<string, ActionSchema[]>; // Optional: event handlers
+  children?: BaseSchema[];   // Optional: object nodes; real slot is wider
 }
 ```
 
