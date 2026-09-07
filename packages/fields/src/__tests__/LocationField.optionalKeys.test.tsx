@@ -38,12 +38,24 @@
  * spread would carry a deprecated `latitude` / `longitude` key straight back
  * into the emitted object and undo #6272's rename.
  *
- * ⚠️ And the spec schema cannot be that guard. `valueSchemaFor({ type:
- * 'location' })` is a plain, NON-STRICT `z.object` — measured, and pinned in
- * the last test below: it ACCEPTS `{ lat, lng, latitude, longitude }` and
- * merely strips the two unknown keys from its parsed output, while the object
- * handed to `onChange` still carries them. So every anti-dialect assertion here
- * reads the EMITTED object's own keys rather than `safeParse`.
+ * ⚠️ And the spec schema is still not that guard — for a NARROWER reason since
+ * `@objectstack/spec` 17.3.0 closed the shape. It used to be a plain,
+ * NON-STRICT `z.object`: it ACCEPTED `{ lat, lng, latitude, longitude }` and
+ * merely stripped the two unknown keys from its parsed output, so a polluted
+ * emission validated GREEN and the dialect survived silently. 17.3.0 makes the
+ * same value `unrecognized_keys`, naming the retired pair and prescribing the
+ * rename.
+ *
+ * That is a strictly better contract, and it does NOT let this fence be
+ * delegated to it. The fence is about the object the widget hands to
+ * `onChange`, and nothing on that path parses — a spread regression would
+ * still physically carry `latitude` / `longitude` into the emitted object. What
+ * changed is the CONSEQUENCE, not the exposure: the leak used to end in a
+ * silent survival, and now ends in a loud refusal at whatever boundary next
+ * parses the value. So every anti-dialect assertion here still reads the
+ * EMITTED object's own keys rather than `safeParse`, and the last test below
+ * pins the strictness itself, because that is now the fact a future reader
+ * would otherwise have to re-measure.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -214,18 +226,35 @@ describe('NEGATIVE CONTROL — the carry is a key-by-key pick, never a spread (o
     expect(emitted).toEqual(TYPED_PAIR);
   });
 
-  it('pins WHY those assertions read keys and not safeParse: the schema is not strict', () => {
-    // Measured, and the reason the fence needs a guard of its own: the spec's
-    // `LocationValue` is a plain `z.object`, so an emission polluted by a
-    // spread still PASSES validation — zod merely strips the unknown keys from
-    // its parsed OUTPUT, while the object handed to `onChange` keeps them.
+  it('pins WHY those assertions read keys and not safeParse: the value never reaches a parse', () => {
+    // This test used to pin the opposite fact — that `LOCATION_SCHEMA` was
+    // NON-strict, so a polluted emission parsed green and the dialect survived
+    // silently. `@objectstack/spec` 17.3.0 closed the shape, and the note this
+    // test carried for that event ("if the spec ever turns strict, the guard
+    // could then be delegated to it") is now due. Re-derived rather than
+    // inverted, because the answer turns out to be NO.
     const polluted = { lat: 31.2304, lng: 121.4737, latitude: 30.2741, longitude: 120.1551 };
     const parsed = LOCATION_SCHEMA.safeParse(polluted);
-    expect(parsed.success).toBe(true);
-    expect(Object.keys(parsed.data as object).sort()).toEqual(['lat', 'lng']);
-    // The object itself is where the dialect survives — hence the key-level
-    // assertions above. If the spec ever turns strict, this test is the note
-    // saying the guard could then be delegated to it.
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+
+    // The shape of the refusal, so "strict" is pinned as the specific fact it
+    // is: the retired pair is refused BY NAME at the object root, which is also
+    // what makes the message able to prescribe the rename.
+    const [issue] = parsed.error.issues;
+    expect(issue.code).toBe('unrecognized_keys');
+    expect([...((issue as { keys?: string[] }).keys ?? [])].sort()).toEqual([
+      'latitude',
+      'longitude',
+    ]);
+
+    // …and the delegation the old note asked about does NOT follow. The fence
+    // guards the object handed to `onChange`, and no parse stands on that path:
+    // the polluted object still carries the dialect whatever the schema thinks
+    // of it. Strictness changed the CONSEQUENCE of a spread regression (a loud
+    // refusal at the next parsing boundary instead of a silent survival), not
+    // the widget's exposure to it — so the key-level assertions above stay.
     expect(polluted).toHaveProperty('latitude');
+    expect(Object.keys(polluted)).toContain('longitude');
   });
 });

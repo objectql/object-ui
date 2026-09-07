@@ -457,7 +457,11 @@ describe('DashboardWidgetSchema derives from the spec', () => {
       expect(issue, '`responsive` must be reported by name').toBeDefined();
       // The tombstone names its own retirement, not #5010's — if this ever reads
       // `#5010` the key was folded into the wrong retirement upstream.
-      expect(issue?.message).toContain('#4876, ADR-0049 D2');
+      // Was `'#4876, ADR-0049 D2'`. 17.3.0 stripped the `#NNNN` half of that
+      // citation and kept the ADR reference and the prescription, so the
+      // assertion keeps the durable half plus the repair the author acts on.
+      expect(issue?.message).toContain('ADR-0049 D2');
+      expect(issue?.message).toContain('Delete the key.');
       // And it must point at the surviving home for breakpoint behaviour rather
       // than just saying "removed".
       expect(issue?.message).toContain('page.components[].responsive');

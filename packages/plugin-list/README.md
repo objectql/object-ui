@@ -207,6 +207,7 @@ const viewTypes: Record<NonNullable<ListViewSchema['viewType']>, string> = {
   map: 'Records at their geographic coordinates',
   chart: 'Aggregated bar / line / pie / area chart',
   tree: 'Hierarchical parent-child rows',
+  page: 'A published page mounted in place of rows',
 };
 
 export { view, richColumns, viewTypes };

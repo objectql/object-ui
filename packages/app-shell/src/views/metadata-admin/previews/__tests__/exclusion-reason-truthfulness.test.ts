@@ -82,7 +82,12 @@
  * vocabulary against `PlaceholderRenderer` under `namespace:
  * 'protocol-placeholder'`, which would make this file answer "has a renderer"
  * for types that have only the dashed "Component Placeholder" scaffold —
- * `user:profile` is one (measured). This repo's own language is clear that the
+ * `user:profile` was the measured example, until `@objectstack/spec` 17.3.0
+ * retired the type from `PageComponentType` and objectui#7122 dropped its
+ * placeholder registration with it. The MECHANISM is unchanged and so is the
+ * refusal to opt in; only the illustration went, and it is left named here
+ * because it is the reading the argument was built on. This repo's own
+ * language is clear that the
  * scaffold is not a renderer: `views/app-launcher-renderer.tsx` describes the
  * state before it existed as "nothing rendered it, so a page that authored it
  * drew a dashed box", with placeholders registered the whole time. Opting in
