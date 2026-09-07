@@ -21,11 +21,17 @@ npm install @object-ui/plugin-chatbot
 
 ### Basic (Local/Demo Mode)
 
+`ChatMessage` is this package's runtime message contract, and `role` on it is
+the closed union `'user' | 'assistant' | 'system'`. Annotate the state with it:
+an unannotated array literal widens `role` to `string`, which `<Chatbot>` then
+refuses.
+
 ```tsx
-import { Chatbot } from '@object-ui/plugin-chatbot';
+import { useState } from 'react';
+import { Chatbot, type ChatMessage } from '@object-ui/plugin-chatbot';
 
 function App() {
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       role: 'assistant',
@@ -34,7 +40,7 @@ function App() {
   ]);
 
   const handleSend = (content: string) => {
-    const newMessage = {
+    const newMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content
@@ -344,20 +350,36 @@ of writing your own — they handle `parts: [{ type: 'text' | 'reasoning'
 | 'tool-*' | 'source-*' }]`, the streaming-cursor flag, and the legacy
 `msg.toolInvocations` fallback:
 
+> ⚠️ Today this call needs a cast on the reader's side. `uiMessagesToChatMessages`
+> declares its parameter as the package's own permissive `AnyUIMessage[]`, whose
+> `AnyPart.state` is typed as the tool-invocation state union — so a `TextUIPart`
+> carrying `state: 'streaming' | 'done'` is refused, and with it the whole
+> `UIMessage[]` that `useChat()` returns. The block below is what you should
+> write; it compiles once objectui#8214 widens that member. Nothing about the
+> mapper's runtime behaviour is affected.
+
+<!-- doc-snippet: fragment — `uiMessagesToChatMessages` declares its parameter as the package's own `AnyUIMessage[]`, whose `AnyPart.state` is the tool-invocation state union, so `@ai-sdk/react`'s `UIMessage` — whose text parts carry `state: 'streaming' | 'done'` — is refused at the very call this section is about (measured: TS2345 x1). objectui#8214 holds that parameter type; this block is what a reader should write and compiles the day it lands -->
+
 ```tsx
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import {
   ChatbotEnhanced,
   uiMessagesToChatMessages,
+  type ChatbotEnhancedProps,
 } from '@object-ui/plugin-chatbot';
 
+declare const handleSend: ChatbotEnhancedProps['onSendMessage'];
+
 function MyChat() {
-  const { messages, status } = useChat({ api: '/api/chat' });
+  const { messages, status } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/chat' }),
+  });
   const isStreaming = status === 'streaming' || status === 'submitted';
   return (
     <ChatbotEnhanced
       messages={uiMessagesToChatMessages(messages, { isStreaming })}
-      onSend={/* … */}
+      onSendMessage={handleSend}
     />
   );
 }
@@ -375,11 +397,15 @@ chat routes can use `surface="plain"` to remove the outer panel border and let
 messages, controls, and the prompt input sit in a continuous workspace:
 
 ```tsx
+import { ChatbotEnhanced, type ChatMessage } from '@object-ui/plugin-chatbot';
+
+declare const messages: ChatMessage[];
+
 <ChatbotEnhanced
   messages={messages}
   surface="plain"
   hideClearBar
-/>
+/>;
 ```
 
 ### Agent process visibility
@@ -394,10 +420,14 @@ Use `processVisibility="debug"` for developer or admin trace surfaces that need
 the full reasoning panel, raw tool names, tool parameters, and tool results:
 
 ```tsx
+import { ChatbotEnhanced, type ChatMessage } from '@object-ui/plugin-chatbot';
+
+declare const messages: ChatMessage[];
+
 <ChatbotEnhanced
   messages={messages}
   processVisibility="debug"
-/>
+/>;
 ```
 
 Use `processVisibility="hidden"` when a host wants to suppress non-interactive

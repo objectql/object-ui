@@ -45,7 +45,8 @@ vi.mock('@object-ui/auth', async (importOriginal) => {
 });
 
 // Only the map-config half of the schema this page builds is under test.
-vi.mock('@object-ui/plugin-list', () => ({
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
   ListView: (props: any) => (
     <div
       data-testid="list-view-map-config"

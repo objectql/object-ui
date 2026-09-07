@@ -92,9 +92,21 @@ export interface AccordionSchema extends BaseSchema {
 export interface CollapsibleSchema extends BaseSchema {
   type: 'collapsible';
   /**
-   * Trigger content/label
+   * Trigger content/label -- a node OR a node array.
+   *
+   * READ SITE: `packages/components/src/renderers/disclosure/collapsible.tsx:25`
+   * -- `renderChildren(schema.trigger)` inside `CollapsibleTrigger`, whose
+   * `Array.isArray` branch (`packages/components/src/lib/utils.tsx:23`) serves
+   * the array form, and the registration's own `defaultProps.trigger` in that
+   * same file SHIPS that array. The same spelling the overlay family's
+   * `trigger` declares since objectui#7081, carried onto this eighth member by
+   * objectui#7767.
+   *
+   * The `string |` this used to carry was redundant, not an extra: `SchemaNode`
+   * (`./base`) is `BaseSchema | string | number | boolean | null | undefined`,
+   * so `string | SchemaNode` collapses to `SchemaNode`.
    */
-  trigger: string | SchemaNode;
+  trigger: SchemaNode | SchemaNode[];
   /**
    * Collapsible content
    */
