@@ -2801,7 +2801,15 @@ describe('ListView — kanban config speaks the spec vocabulary', () => {
 
     const last = kanbanCalls.at(-1);
     expect(last?.schema?.groupBy).toBe('stage');
-    expect(last?.schema?.groupField).toBe('stage');
+    // TURNED, not deleted (objectui#7773). This line read
+    // `expect(last?.schema?.groupField).toBe('stage')` and pinned a duplicate
+    // write the `object-kanban` renderer never read — the key objectui#7322
+    // retired on that node (`groupField?: never` / `retirementTombstone()`).
+    // Kept in place and inverted so the history stays legible and so re-adding
+    // the write reddens here, rather than being silently re-blessed by a
+    // missing assertion. ⚠️ Node-local: the VIEW-LEVEL `kanban.groupField`
+    // alias is still live and still read — the two `it` blocks below pin it.
+    expect(last?.schema?.groupField).toBeUndefined();
   });
 
   it('still honors the deprecated `groupField` alias', async () => {
