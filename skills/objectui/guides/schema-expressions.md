@@ -43,7 +43,7 @@ this rule. The four cases that decide most schemas:
 
 <!-- os:check -->
 ```jsonc
-// `text` does not declare `value` -- renders the literal "${data.customer.name}"
+// `value` is RETIRED from `text` -- refused by name; write `content`
 { "type": "text", "value": "${data.customer.name}" }
 ```
 
@@ -274,12 +274,12 @@ Three renderer-side facts that live nowhere else:
   transparently. A string carrying legacy-only syntax (`${…}`, `===`, `?.`,
   `.includes()`) is routed to the old engine with a **one-time deprecation
   warning** -- rewrite it as CEL (`==`, `record.x`, `.contains()`).
-- **`data.*` is the trap in a row predicate.** The row binds three ways --
-  `record.status` (canonical), bare `status` and `data.status`, the last two
-  deprecated and warned once in dev
-  (`packages/core/src/evaluator/rowPredicateCanon.ts`). The authoring oracle
-  accepts `data.*` silently and then binds nothing at runtime: a constant
-  `false`, not an error.
+- **`data.*` is the trap in a row predicate.** A row predicate binds ONE root,
+  `record.*`; a bare `status` or `data.status` is retired there and faults on
+  the runtime engine (`Unknown variable`), under each surface's existing error
+  policy (`packages/core/src/evaluator/rowPredicateCanon.ts`); `data` stays
+  canonical only on the metadata-editing layer. The authoring oracle still
+  accepts `data.*` silently -- the fault shows at runtime, not at authoring.
 - **`field.dependsOn` gates the control, not just the list.** While any declared
   parent is empty the select is gated ("Select country first"); a parent change
   re-evaluates the option list and **auto-clears** a value that is no longer
@@ -475,14 +475,14 @@ Expressions are compiled once per unique `(expression, variableNames)` pair and 
 
 <!-- os:check -->
 ```jsonc
-// ❌ Won't evaluate — `value` is read but never templated
+// ❌ Refused by name — `value` is RETIRED from `text`; write `content`
 { "type": "text", "value": "${data.total}" }
 ```
 
 <!-- os:check -->
 ```jsonc
 // ❌ Worse — evaluated inside the envelope, then discarded: renders nothing
-{ "type": "text", "props": { "value": "${data.total}" } }
+{ "type": "text", "props": { "content": "${data.total}" } }
 ```
 
 <!-- os:check -->
