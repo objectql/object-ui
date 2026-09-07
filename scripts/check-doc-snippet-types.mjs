@@ -775,8 +775,6 @@ const UNGATED_DOCS = {
     'diagnostic(s) (TS2420, TS2355) — a `DataSource` implementation written as `// ... other ' +
     'methods`. This entry read 9 until objectui#7417 paid down the three TS2305s it carried; ' +
     'what is left is fragment shape, and no gate reads this page\'s import names.',
-  'packages/fields/README.md':
-    '2 undefined-name diagnostic(s) — blocks continue an earlier block, or use ambient names the page never defines; 1 unresolved-module diagnostic(s)',
 };
 
 // ── Fence scanning ───────────────────────────────────────────────────────────
