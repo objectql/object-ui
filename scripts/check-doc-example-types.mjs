@@ -104,6 +104,14 @@
  *     never assumed. Measured: 111 of 114 documented symbols are on their
  *     package's public entry; the 3 that are not are reported by name.
  *
+ * ⚠️ The probe asks the package's ROOT specifier and only that one, so a symbol
+ * published under a SUBPATH reads as "not on a public entry" here. That is a
+ * deliberately conservative answer — it withholds the injection rather than
+ * guessing a subpath — but it means the printed list is "symbols this gate did
+ * not inject", NOT a list of defects. On this corpus 2 of the 3 are subpath
+ * exports (`@object-ui/types/zod`) and both blocks compile anyway; the third,
+ * `MetadataCache`, is genuinely absent from its package's only export.
+ *
  * Prepended, not appended, because an `import` must precede the code that uses
  * it; the printed line numbers therefore carry an offset, which `formatDiagnostic`
  * is given as the block's fence line. Without this transformation the run is
