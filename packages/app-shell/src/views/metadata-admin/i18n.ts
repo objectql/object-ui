@@ -608,9 +608,15 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.object-metric.prefix': 'Prefix',
   'engine.inspector.pageBlock.field.object-metric.suffix': 'Suffix',
   'engine.inspector.pageBlock.field.object-kanban.objectName': 'Object',
-  'engine.inspector.pageBlock.field.object-kanban.groupField': 'Group by field',
+  // `…object-kanban.groupField` was renamed to `…groupBy` with the control it
+  // labels (objectui#7772): the lane picker wrote a key `ObjectKanban.tsx`
+  // never reads and objectui#7322 retired by name, while the REQUIRED `groupBy`
+  // had no control. The English text is deliberately unchanged — the box means
+  // exactly what it always meant; only the key its position implies moved.
+  'engine.inspector.pageBlock.field.object-kanban.groupBy': 'Group by field',
   'engine.inspector.pageBlock.field.object-kanban.titleField': 'Title field',
   'engine.inspector.pageBlock.field.object-kanban.cardFields': 'Card fields',
+  'engine.inspector.pageBlock.field.object-kanban.limit': 'Limit',
   'engine.inspector.pageBlock.field.grid.columns': 'Columns',
   'engine.inspector.pageBlock.field.grid.gap': 'Gap',
   'engine.inspector.pageBlock.field.element:text.content': 'Content',
@@ -2462,9 +2468,10 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.object-metric.prefix': '前缀',
   'engine.inspector.pageBlock.field.object-metric.suffix': '后缀',
   'engine.inspector.pageBlock.field.object-kanban.objectName': '对象',
-  'engine.inspector.pageBlock.field.object-kanban.groupField': '分组字段',
+  'engine.inspector.pageBlock.field.object-kanban.groupBy': '分组字段',
   'engine.inspector.pageBlock.field.object-kanban.titleField': '标题字段',
   'engine.inspector.pageBlock.field.object-kanban.cardFields': '卡片字段',
+  'engine.inspector.pageBlock.field.object-kanban.limit': '条数上限',
   'engine.inspector.pageBlock.field.grid.columns': '列数',
   'engine.inspector.pageBlock.field.grid.gap': '间距',
   'engine.inspector.pageBlock.field.element:text.content': '内容',
