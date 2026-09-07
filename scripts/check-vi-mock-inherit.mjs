@@ -872,6 +872,57 @@
  * wrong repair. An exemption means the recogniser called correct code broken;
  * fix the recogniser, or the specifier does not belong in the covered set yet.
  *
+ * ## The operand must BE the module, not merely MENTION it (objectui#8183)
+ *
+ * The spread recogniser asked whether the obtained token appeared ANYWHERE in
+ * the spread's text until objectui#8183, so a spread of an object literal that
+ * merely NESTS the obtained module satisfied it -- and the gate quoted the
+ * evasion back in its own reason line:
+ *
+ *     ...({ _: await importOriginal() })      read as `inherits`
+ *
+ * That object has exactly ONE key -- `_`, holding the module -- so the returned
+ * mock carries one inherited name, and the next export any module in the file's
+ * import graph reads AT MODULE SCOPE still resolves to `undefined`. It is the
+ * failure this whole file exists to stop, wearing the accepted spelling's
+ * clothes.
+ *
+ * The property is therefore the OPERAND, never a mention: the spread's operand
+ * has to DENOTE the obtained module. `operandDenotes` reads it as ONE whole
+ * expression through a deliberately small grammar, and the invariant every
+ * production preserves is that the operand's KEY SET is the real module's, so
+ * it still GROWS when the real module grows:
+ *
+ *   - `await`, parentheses, `as`/`satisfies` and `!` are transparent;
+ *   - calling the obtainer produces the module (`importOriginal()`,
+ *     `importOriginal<T>()`, `(orig as any)()`); the bare name does not;
+ *   - a property read keeps a key set the module owns
+ *     (`(await importOriginal()).default`, the CJS interop shape);
+ *   - `OBTAIN_TOKEN` already STANDS FOR a completed `vi.importActual(...)`.
+ *
+ * ⚠️ An object literal is refused even when its own contents would inherit
+ * (`...{ ...actual }`). Deliberate rather than an oversight: the nesting IS the
+ * evasion shape, the one nesting that would be correct spells the same thing as
+ * `...actual`, and no call site in this tree writes either. Pinned as such.
+ *
+ * ⛔ Tightening this recogniser carries the same precondition widening the
+ * covered set does, for the mirrored reason: a FALSE REFUSAL reds correct code,
+ * and that is how a gate gets deleted rather than fixed (see "The recogniser is
+ * SEMANTIC" above -- this one has been wrong in BOTH directions). Re-measured
+ * on `47053c9f6` by running this file's own `scan()` before and after and
+ * diffing PER SITE, verdict AND reason string:
+ *
+ *     625 judged, 625 inherit, 0 frozen   before
+ *     625 judged, 625 inherit, 0 frozen   after -- all 625 rows byte-identical
+ *
+ * so this landed as a RATCHET and no sweep was owed. The nine distinct operand
+ * shapes the tree actually writes -- `(await importOriginal<T>())` (367),
+ * `actual` (169), `(await importOriginal<typeof import(...)>())` (55), `mod`
+ * (22), `(await importActual<typeof import(...)>())` (6), `real` (2),
+ * `(await importOriginal())` (2), `(await importActual<any>())` (1) and
+ * `((await importOriginal<any>()) as Record<string, unknown>)` (1) -- are each
+ * pinned in this gate's test as its own case.
+ *
  * ## Green at rest, and what follows from that
  *
  * Once the one site above is converted this gate reads zero, and on any
@@ -1042,26 +1093,148 @@ function referencesName(text, name) {
   return new RegExp(`(?<![\\w$])${name.replace(/\$/g, '\\$')}(?![\\w$])`).test(text);
 }
 
+/** The index of the bracket closing the one at `open`, or -1. Plain text only. */
+function closingIndex(text, open) {
+  const pairs = { '(': ')', '[': ']', '{': '}', '<': '>' };
+  const close = pairs[text[open]];
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i];
+    if (c === text[open]) depth++;
+    else if (c === close && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** The index of the bracket opening the one at `close`, or -1. Plain text only. */
+function openingIndex(text, close) {
+  const pairs = { ')': '(', ']': '[', '}': '{', '>': '<' };
+  const open = pairs[text[close]];
+  let depth = 0;
+  for (let i = close; i >= 0; i--) {
+    const c = text[i];
+    if (c === text[close]) depth++;
+    else if (c === open && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** `f<Record<string, unknown>>` -> `f`. The list NESTS, so balance it. */
+function stripTypeArguments(text) {
+  const s = text.trimEnd();
+  if (!s.endsWith('>')) return text;
+  const open = openingIndex(s, s.length - 1);
+  return open < 0 ? text : s.slice(0, open);
+}
+
+/** `X as T` / `X satisfies T` at bracket depth 0 -> `X`, else `null`. */
+function beforeTypeAssertion(text) {
+  const re = /(?<![\w$])(?:as|satisfies)(?![\w$])/g;
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[' || c === '{' || c === '<') depth++;
+    else if (c === ')' || c === ']' || c === '}' || c === '>') depth--;
+    else if (depth === 0) {
+      re.lastIndex = i;
+      const m = re.exec(text);
+      if (m && m.index === i) return text.slice(0, i);
+    }
+  }
+  return null;
+}
+
+/** `X.name` / `X?.name` at bracket depth 0 -> `X`, else `null`. */
+function beforeMemberAccess(text) {
+  const tail = /(\??\.)\s*[A-Za-z_$][\w$]*\s*$/.exec(text);
+  if (!tail) return null;
+  const at = tail.index;
+  let depth = 0;
+  for (let i = 0; i < at; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+  }
+  return depth === 0 && at > 0 ? text.slice(0, at) : null;
+}
+
 /**
- * Does `text` hold the VALUE of the real module obtained through `token`?
+ * What does `expr` -- the WHOLE operand of a spread, or the WHOLE initialiser
+ * of a binding -- denote?
  *
- * For a callback parameter the reference is not enough -- the parameter is a
- * FUNCTION, and `...importOriginal` spreads the function rather than the module
- * it would have returned. That is a frozen factory wearing an inheriting one's
- * clothes, and it is the shape a green-at-rest gate is most likely to wave
- * through, so the call is required: the token has to be followed by a `(`
- * somewhere in the expression (`importOriginal()`, `importOriginal<T>()`,
- * `(orig as any)()` all qualify).
+ *   `'module'`   the real module obtained through `token`
+ *   `'obtainer'` the callback that would RETURN it, not the module itself
+ *   `null`       anything else
  *
- * `OBTAIN_TOKEN` is exempt because it already STANDS FOR a completed call --
- * the whole `vi.importActual(<specifier>)` expression, parentheses included,
- * was replaced by it.
+ * The grammar is deliberately small, and every production preserves the one
+ * property that makes a spread inherit: the operand's KEY SET is the real
+ * module's, so it grows when the real module grows. `await`, parentheses, a
+ * type assertion and a non-null assertion are all transparent; a call of the
+ * obtainer produces the module; a property read off the module keeps a key set
+ * the module still owns (`(await importOriginal()).default` -- the interop
+ * shape). Nothing else qualifies, and the exclusion that matters is the object
+ * literal: `{ _: await importOriginal() }` has the key set the AUTHOR typed
+ * (`_`), so spreading it inherits exactly one key and freezes the surface at
+ * that -- see "The operand must BE the module" in the header.
+ */
+function operandDenotes(expr, token, tokenIsValue) {
+  const s = expr.trim();
+  if (s === '') return null;
+
+  const awaited = /^await(?![\w$])/.exec(s);
+  if (awaited) return operandDenotes(s.slice(awaited[0].length), token, tokenIsValue);
+
+  if (s[0] === '(' && closingIndex(s, 0) === s.length - 1) {
+    return operandDenotes(s.slice(1, -1), token, tokenIsValue);
+  }
+
+  if (s.endsWith('!')) return operandDenotes(s.slice(0, -1), token, tokenIsValue);
+
+  if (s.endsWith(')')) {
+    const open = openingIndex(s, s.length - 1);
+    if (open > 0) {
+      const callee = stripTypeArguments(s.slice(0, open));
+      // Only calling the OBTAINER yields the module; calling the module does not.
+      return operandDenotes(callee, token, tokenIsValue) === 'obtainer' ? 'module' : null;
+    }
+    return null;
+  }
+
+  const asserted = beforeTypeAssertion(s);
+  if (asserted !== null) return operandDenotes(asserted, token, tokenIsValue);
+
+  const receiver = beforeMemberAccess(s);
+  if (receiver !== null) {
+    return operandDenotes(receiver, token, tokenIsValue) === 'module' ? 'module' : null;
+  }
+
+  if (!new RegExp(`^${token.replace(/\$/g, '\\$')}$`).test(s)) return null;
+  // A callback parameter is a FUNCTION until it is called; `OBTAIN_TOKEN`
+  // already STANDS FOR a completed `vi.importActual(<specifier>)` call, and a
+  // binding was resolved to the module before it entered `inherited`.
+  return tokenIsValue || token === OBTAIN_TOKEN ? 'module' : 'obtainer';
+}
+
+/**
+ * Is `text` -- read as ONE whole expression -- the real module obtained
+ * through `token`?
+ *
+ * ⛔ NOT "does `text` mention `token`". That was the recogniser until
+ * objectui#8183, and it judged the wrong thing: a spread of an object literal
+ * that merely NESTS the obtained module (`...({ _: await importOriginal() })`)
+ * satisfied it, so the gate read `inherits` and quoted the evasion back in its
+ * own reason line. See "The operand must BE the module" in the header.
+ *
+ * For a callback parameter the reference is not enough either -- the parameter
+ * is a FUNCTION, and `...importOriginal` spreads the function rather than the
+ * module it would have returned. That is a frozen factory wearing an
+ * inheriting one's clothes, so the call is required: `importOriginal()`,
+ * `importOriginal<T>()` and `(orig as any)()` all qualify, the bare name does
+ * not.
  */
 function holdsObtainedModule(text, token, tokenIsValue = false) {
   if (!referencesName(text, token)) return false;
-  if (tokenIsValue || token === OBTAIN_TOKEN) return true;
-  const at = text.search(new RegExp(`(?<![\\w$])${token.replace(/\$/g, '\\$')}(?![\\w$])`));
-  return text.indexOf('(', at + token.length) !== -1;
+  return operandDenotes(text, token, tokenIsValue) === 'module';
 }
 
 /**
