@@ -426,12 +426,14 @@ The authored shape is typed by `@object-ui/types`:
 | --- | --- |
 | `DashboardComponentSchema` | the whole `type: 'dashboard'` node — `columns`, `gap`, `widgets`, `header`, `globalFilters`, `dateRange`, `refreshInterval`, … |
 | `DashboardWidgetSchema` | one entry of `widgets[]` — the spec's `DashboardWidget` keys, plus objectui's own (`component`, `layout`, `options`, …) |
+| `DashboardWidgetSlotComponentSchema` | the other kind of `widgets[]` entry — a component node placed directly in the slot, `type` one of the closed component set (`metric-card`); every other key is that component's own prop |
 | `DashboardWidgetLayout` | a widget's `{ x, y, w, h }` grid box |
 
 ```typescript
 import type {
   DashboardComponentSchema,
   DashboardWidgetSchema,
+  DashboardWidgetSlotComponentSchema,
 } from '@object-ui/types';
 
 // Dataset-bound KPI — the widget vocabulary (see "Dashboard-level filters").
@@ -466,11 +468,22 @@ const custom: DashboardWidgetSchema = {
   layout: { x: 0, y: 0, w: 3, h: 2 },
 };
 
+// Component node directly in the slot — the shape every `metric-card` example
+// above uses. `type` is one of the closed component set; the other keys are
+// the component's own props, carried by `BaseSchema`'s index signature.
+const kpi: DashboardWidgetSlotComponentSchema = {
+  type: 'metric-card',
+  title: 'Revenue',
+  value: '$123,456',
+  trend: 'up',
+  trendValue: '+12%',
+};
+
 const dashboard: DashboardComponentSchema = {
   type: 'dashboard',
   columns: 3,
   gap: 4,
-  widgets: [revenue, users, custom],
+  widgets: [revenue, users, custom, kpi],
 };
 ```
 
@@ -479,8 +492,12 @@ covers every `type` (`metric`, `bar`, `table`, …) and the family-specific
 settings live under `options`. `MetricCard`'s own props — `value`, `trend`,
 `trendValue` — are the component's, not the widget's: `DashboardWidgetSchema`
 declares none of them, and the component's props interface is not on this
-package's export surface either. So a `metric-card` node is typed only where it
-appears as a component (the `component` slot above), not as a widget family.
+package's export surface either. A `metric-card` node is typed as a COMPONENT
+node in both places it can appear: in a widget's `component` slot (`custom`
+above) and directly in `widgets[]` (`kpi` above, `DashboardWidgetSlotComponentSchema`
+— the second arm of `DashboardComponentSchema['widgets']`, matching the zod
+schema's two-arm slot). Its keys are checked as `BaseSchema` keys either way,
+never as widget keys.
 
 ## Customization
 

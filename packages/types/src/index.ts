@@ -321,6 +321,7 @@ export type {
   CarouselSchema,
   DashboardWidgetLayout,
   DashboardWidgetSchema,
+  DashboardWidgetSlotComponentSchema,
   DashboardComponentSchema,
   DashboardComponentWidgetType,
   DashboardWidgetTypeExtension,
