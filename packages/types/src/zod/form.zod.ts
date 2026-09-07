@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { handlerKeyRefusal } from './tombstone.zod.js';
+import { handlerKeyRefusal, retirementTombstone } from './tombstone.zod.js';
 import { SelectOptionSchema as SpecSelectOptionSchema } from '@objectstack/spec/data';
 import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 // The predicate wire shape (`string | { dialect?, source }`, #2212) was a
@@ -405,9 +405,23 @@ export const ComboboxSchema = BaseSchema.extend({
   label: z.string().optional().describe('Combobox label'),
   placeholder: z.string().optional().describe('Placeholder text'),
   options: z.array(ComboboxOptionSchema).describe('Combobox options'),
-  defaultValue: z.string().optional().describe('Default value'),
+  defaultValue: retirementTombstone(
+    'Default value — RETIRED (objectui#8140, ADR-0049). Write `value` instead. `combobox` is a ' +
+      'standalone node type only: it is not a built-in form field type and no `field:combobox` ' +
+      'widget exists, so a form field authored `type: "combobox"` never reaches this renderer, ' +
+      'and on the node path the selection is frozen — the renderer passes no change handler and ' +
+      'the DOM pass-through forwards none, so an option cannot be selected. On a control whose ' +
+      'selection cannot change, a default value and a value are the same thing, and this key ' +
+      'could only ever have been a second spelling of `value`.',
+  ),
   value: z.string().optional().describe('Controlled value'),
-  description: z.string().optional().describe('Help text'),
+  description: z
+    .string()
+    .optional()
+    .describe(
+      'Help text — rendered as a paragraph below the control and tied to the trigger with ' +
+        '`aria-describedby`, so assistive tech announces it with the field (objectui#8140).',
+    ),
   error: z.string().optional().describe('Error message'),
   onChange: handlerKeyRefusal('onChange', 'retired', 'Change handler'),
 });
