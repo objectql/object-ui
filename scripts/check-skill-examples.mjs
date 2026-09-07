@@ -592,13 +592,8 @@ const REMEDY_FLOOR =
  * would keep covering a site nobody has looked at since.
  *
  * The corpus at objectui#7463's branch point was FOUR rows, measured under
- * `--measure` before the assertion was armed. One is left, and it is not a
- * mechanical unmark:
- *
- *   - `plugin-development.md:92` `defaultValue` — the guide is FAITHFUL prose,
- *     not rot. `ComponentInput.defaultValue` really is `any` in
- *     `packages/types/src/base.ts`, so the honest fix is to the platform type,
- *     not to the guide restating it. Fixing the guide alone would make it lie.
+ * `--measure` before the assertion was armed. All four are retired, and none of
+ * them by a mechanical unmark.
  *
  * The three `testing.md` rows were retired by objectui#7494, which answered the
  * skills judgement each of them was waiting on and taught the honest idiom in
@@ -608,11 +603,19 @@ const REMEDY_FLOOR =
  * field through a cast. Both fences stay MARKED; the rows went in the same
  * commit as the guide edit, because a row whose red is gone fails as STALE.
  *
+ * The fourth — `plugin-development.md:92` `defaultValue` — was retired the same
+ * way by the fence repair. Its reason had gone out of date under it: the row
+ * said the guide was FAITHFUL prose because `ComponentInput.defaultValue`
+ * "really is `any`", and it is not — the platform type has carried it as an
+ * ADR-0049 retirement tombstone (`defaultValue?: never`) for some time, so the
+ * guide's `any` was rot after all, and the honest fix WAS to the guide. That
+ * fence now imports `ComponentInput` instead of re-declaring it, which removes
+ * the `any` along with the copy. The list is empty; an empty shrink-only list is
+ * the terminal state it is shaped for, not a disabled one.
+ *
  * @type {ReadonlySet<string>}
  */
-export const KNOWN_BARE_ANY_EXAMPLES = new Set([
-  'skills/objectui/guides/plugin-development.md:92 property `defaultValue`',
-]);
+export const KNOWN_BARE_ANY_EXAMPLES = new Set([]);
 
 /** The baseline key for one bare-`any` finding at one site. */
 export function bareAnyRowKey(block, finding) {
@@ -959,30 +962,25 @@ export function shadowCandidates(blocks) {
  *      because the name is IN the key: the old row goes stale and the new name
  *      arrives undeclared, so one edit reds twice and says both halves.
  *
- * The three rows below were measured under `--measure` on this card's branch
+ * Four rows were seeded here, measured under `--measure` on this gate's branch
  * point (`fedfa3e4a`), where the census found 3 of the 13 marked fences
- * shadowing a published name — 23% of everything this gate judges.
+ * shadowing a published name — 23% of everything this gate judges. ALL FOUR ARE
+ * RETIRED: objectui#8335 gave each of those three fences one of the per-fence
+ * judgements objectui#7646's triage laid down, and all three came out as
+ * IMPORT, in the same commit as this list shrank to nothing. What the rows
+ * bought was measurable at the moment they went: each of the three copies had
+ * drifted, and two of them held claims that were flatly false against the
+ * published surface — `AuthUser` still taught a `roles` member ADR-0090 D3 had
+ * renamed away, and `ComponentInput` declared `label`, `defaultValue` and
+ * `advanced` as writable where all three are `never` tombstones.
+ *
+ * An EMPTY list is the terminal state this shape is for, not a disabled one:
+ * the assertion is unchanged and a new offender still reds on sight. The next
+ * marked fence that re-declares a published name has no row to hide behind.
  *
  * @type {ReadonlyMap<string, string>}
  */
-export const KNOWN_SHADOWED_PUBLISHED_TYPES = new Map([
-  [
-    'skills/objectui/guides/auth-permissions.md:59 AuthUser',
-    "the section is titled '### AuthUser type' and then re-declares it instead of importing it from @object-ui/auth; repair owned by objectui#8335 (governed surface, human merge)",
-  ],
-  [
-    'skills/objectui/guides/data-integration.md:81 QueryResult',
-    "the section is titled '### QueryResult' and then re-declares it instead of importing it from @object-ui/types; repair owned by objectui#8335 (governed surface, human merge)",
-  ],
-  [
-    'skills/objectui/guides/plugin-development.md:92 ComponentInput',
-    'the fence documents ComponentInput including its five ADR-0049 retirement tombstones and is the specimen objectui#7636 paid for — a private copy that was WRONG and green for its whole life; repair owned by objectui#8335 (governed surface, human merge)',
-  ],
-  [
-    'skills/objectui/guides/plugin-development.md:92 ComponentInputControlType',
-    'the same fence re-declares the control-type union ComponentInput.type is annotated with; repair owned by objectui#8335 (governed surface, human merge)',
-  ],
-]);
+export const KNOWN_SHADOWED_PUBLISHED_TYPES = new Map([]);
 
 /** The ledger key for one shadowed published name in one fence. */
 export function shadowedTypeRowKey(block, name) {
