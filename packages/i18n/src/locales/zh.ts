@@ -1727,7 +1727,7 @@ const zh = {
       empty: {
         build: {
           title: '用 AI 搭建',
-          description: '用自然语言描述一个应用或流程 —— 我会起草对象、界面和自动化，随后你审阅并发布。',
+          description: '用自然语言描述一个应用 —— 我会起草对象、界面和示例数据，随后你审阅并发布。',
         },
         ask: {
           title: '向你的数据提问',
@@ -1736,7 +1736,7 @@ const zh = {
         editApp: {
           title: '正在编辑「{{app}}」',
           titleGeneric: '编辑此应用',
-          description: '想改点什么？我会就地修改这个应用 —— 加字段、对象、视图或自动化，或调整已有内容。',
+          description: '想改点什么？我会就地修改这个应用 —— 加字段、对象、视图或仪表盘，或调整已有内容。',
         },
       },
       clearConversation: '清空',

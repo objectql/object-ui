@@ -1571,7 +1571,7 @@ const es = {
       empty: {
         build: {
           title: "Crear con IA",
-          description: "Describa una aplicación o un flujo de trabajo en lenguaje natural — yo redacto los objetos, las pantallas y las automatizaciones, y luego usted revisa y publica.",
+          description: "Describa una aplicación en lenguaje natural — yo redacto los objetos, las pantallas y los datos de ejemplo, y luego usted revisa y publica.",
         },
         ask: {
           title: "Pregunte a sus datos",
@@ -1580,7 +1580,7 @@ const es = {
         editApp: {
           title: "Editando «{{app}}»",
           titleGeneric: "Editar esta aplicación",
-          description: "¿Qué desea cambiar? Modifico esta aplicación sobre la marcha — añadir un campo, un objeto, una vista o una automatización, o ajustar lo que ya existe.",
+          description: "¿Qué desea cambiar? Modifico esta aplicación sobre la marcha — añadir un campo, un objeto, una vista o un panel, o ajustar lo que ya existe.",
         },
       },
       clearConversation: "Borrar",
