@@ -697,14 +697,22 @@ describe('a retired key leaves BOTH locale tables (objectui#8368)', () => {
     // If a NEW reader shape appears (a dynamically built key), this reddens by
     // name and the fix is to teach the reader set about it, not to delete the
     // key. Loud is the correct direction to be wrong in.
-    expect(unreachable(EN_TABLE)).toEqual([]);
+    expect(
+      unreachable(EN_TABLE),
+      'ENGINE_STRINGS_EN keys under this prefix that BLOCK_CONFIG no longer implies and no ' +
+        'shipped source asks for — delete them, or teach the reader set about the new reader',
+    ).toEqual([]);
   });
 
   it('zh-CN carries no pageBlock key nothing can reach', () => {
     // The half a rename actually forgets: `en` edited, `zh` left behind. The
     // sibling `every key resolves in zh-CN` cannot see it — a LEFTOVER key
     // resolves perfectly well.
-    expect(unreachable(ZH_TABLE)).toEqual([]);
+    expect(
+      unreachable(ZH_TABLE),
+      'ENGINE_STRINGS_ZH keys under this prefix that BLOCK_CONFIG no longer implies and no ' +
+        'shipped source asks for — the half a rename forgets',
+    ).toEqual([]);
   });
 
   it('both tables hold the same pageBlock key set', () => {
@@ -712,8 +720,8 @@ describe('a retired key leaves BOTH locale tables (objectui#8368)', () => {
     // half-applied retirement, and the message names which side kept the key.
     const en = new Set(pageBlockKeys(EN_TABLE));
     const zh = new Set(pageBlockKeys(ZH_TABLE));
-    expect([...en].filter((k) => !zh.has(k))).toEqual([]);
-    expect([...zh].filter((k) => !en.has(k))).toEqual([]);
+    expect([...en].filter((k) => !zh.has(k)), 'in ENGINE_STRINGS_EN but not ZH').toEqual([]);
+    expect([...zh].filter((k) => !en.has(k)), 'in ENGINE_STRINGS_ZH but not EN').toEqual([]);
     expect(en.size).toBeGreaterThan(150);
   });
 });
