@@ -102,6 +102,9 @@ export type {
   SchemaNode,
   ComponentRendererProps,
   ComponentInput,
+  // The input the FRAMEWORK injects (`binding: 'object'`, objectui#6950) —
+  // `ComponentInput` plus the marker no registration may author.
+  InjectedComponentInput,
   // The arm vocabulary of `ComponentInput.type`, exported because that field
   // takes one arm OR an array of them (objectui#3832) and every declaration
   // site and reader needs the set by name rather than re-spelling it.
