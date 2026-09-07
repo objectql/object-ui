@@ -1,5 +1,910 @@
 # @object-ui/data-objectstack
 
+## 17.7.0
+
+### Minor Changes
+
+- 993f312: Parse a write-strip's `reason` against the spec enum at the boundary
+  (objectui#4934).
+  
+  `notifyDroppedFields` filtered a create/update response's `droppedFields` on
+  SHAPE alone — a hand-written `e is DroppedFieldsEvent` guard that checked
+  `Array.isArray(fields)` and nothing else — so a `reason` outside
+  `'readonly' | 'readonly_when' | 'primary_key'` reached every subscriber typed as
+  though it were inside the union. A deployed client normally runs BEHIND the
+  server it talks to, so a reason from the future is the expected skew direction,
+  not a corrupt payload; the interior was typed to trust a union no one had
+  checked, and nothing in the repo could say so. `notifyBatchDroppedFields` did
+  the same through its `entry as DroppedFieldsEvent & { index?: number }` cast.
+  
+  Both paths now read `reason` against `DroppedFieldsEventSchema.shape.reason` —
+  the enum the installed pin declares, derived rather than restated, so a pin bump
+  that adds an arm widens the accept set on its own:
+  
+  - **Every entry is kept.** Dropping the unparsable ones would tell the user
+    nothing about fields the server really did strip, which is exactly the silence
+    objectui#3484 removed.
+  - An unrecognized `reason` arrives on a named skew arm,
+    `UnrecognizedDropReasonEvent`, carrying `UNRECOGNIZED_DROP_REASON` plus the
+    wire value **verbatim** in `unrecognizedReason` — never coerced onto a known
+    arm, because claiming `readonly` for a reason we cannot name is a false
+    statement about the user's data.
+  - `WriteWarningEvent['droppedFields']` is therefore the two-arm
+    `DroppedFieldsNotice`. The spec type stays the canonical arm and is not
+    widened to `string` (objectui#3160): the skew arm is not assignable to
+    `DroppedFieldsEvent`, so a consumer branching on `reason` now hears about
+    server skew from `tsc` instead of from a per-consumer discipline.
+  
+  Runtime wording is unchanged: the one reader, the app shell's write-warning
+  toast, already answered an unrecognized reason with its cause-free line.
+  
+  **Blast radius — the compile error IS the intended signal, not a regression.** A
+  consumer that branches exhaustively on `reason` — a parameter, a `Map` key or a
+  `Record` annotated `DroppedFieldsEvent['reason']` — stops compiling against this
+  release, with a `TS2345` at each such site. That error is the notification, and
+  the only one: the skew arm is deliberately NOT assignable to the spec union, so
+  `tsc` reports server skew at the one place the wire is read rather than leaving
+  it to a per-consumer discipline. Do not cast it away. Widen the annotation to
+  `DroppedFieldsNotice['reason']`, and where the two arms have to be told apart,
+  narrow with `entry.reason === UNRECOGNIZED_DROP_REASON` and read the wire value
+  verbatim from `unrecognizedReason`.
+  
+  Widen the LOOKUPS, not the table. A `Record` that must stay exhaustive over the
+  SPEC arms keeps its `DroppedFieldsEvent['reason']` key: widening that one would
+  trade away the guarantee that a newly pinned spec reason fails `type-check`
+  unworded (objectui#3935).
+  
+  In this repo the entire blast radius is the app shell's write-warning toast —
+  two type annotations, no runtime change. Its executable JavaScript is byte-identical
+  and its wording tests pass unchanged, because the file was already written for
+  this value: its own docstring says the runtime `reason` may sit outside the spec
+  union and that the cause-free fallback is reachable, not dead. Only the parameter
+  and the `Map` key had been left narrower than that documented contract.
+- 41b7ce3: **View configuration is explicitly org-wide, and its write path is now gated (objectstack#7494's
+  ruling, maintainer 2026-08-12).** The `sort` / `hiddenFields` / `columnState` / `rowHeight` that a
+  list toolbar persists were never per-user: they are one shared row on the view, so an ordinary user
+  dragging a column or cycling density was re-styling that view for the entire organization. Nothing
+  in the console said so, and nothing stopped it. A per-user scope stays parked (objectstack#7611,
+  v18) and is deliberately not built here — which is precisely why the write has to be gated rather
+  than narrowed: there is no second, private store for it to fall back to.
+  
+  `ObjectStackAdapter.updateViewConfig` now refuses when the session's **reported** ADR-0066 capability
+  set does not contain `manage_metadata`, throwing the new `ViewConfigPermissionDeniedError`
+  (`VIEW_CONFIG_PERMISSION_DENIED`, with `isViewConfigPermissionDeniedError` and the
+  `VIEW_CONFIG_CAPABILITY` constant alongside it). The gate is the **first** statement in the method —
+  before `connect()`, before the payload is assembled — so a refused call puts nothing on the wire.
+  It is on the write rather than on the toolbar button on purpose: withholding the affordance would
+  leave the method still accepting the call from anything else holding the adapter, whereas a gate on
+  the write is inherited by every caller, present and future.
+  
+  `manage_metadata` is not a newly minted name. It is the capability this repo already treats as
+  metadata-authoring authority — `HomePage`'s `AUTHORING_CAPABILITY`, the one the server itself
+  refuses metadata writes without — and the gated write goes through `client.meta.saveItem`, the very
+  same ADR-0005 metadata door, so this applies the authority the server is already applying instead of
+  inventing a parallel one.
+  
+  **Unknown fails open, by doctrine.** A capability set that was never reported (a backend predating
+  ADR-0066, or no permission provider mounted) is not a denial: the server enforces regardless, so a
+  client-side refusal on missing data cannot protect anything and can only break a permitted user. A
+  *reported* empty grant gates strictly. Hosts push the session's capabilities in with the new
+  `setSystemCapabilities`; `ObjectView` wires it from `usePermissions()`.
+  
+  The refusal is also **said out loud**. `ObjectView`'s persist path previously swallowed every failure
+  into `console.error`, which for a debounced toggle whose UI has already moved would have left the
+  operator looking at a density they did not get; a denied write now raises a toast. And the "View
+  settings" popover — where density and field visibility are actually changed — now states the scope
+  before the operator acts: *"Grouping, color, density, and visible fields. Applies to everyone who
+  uses this view."*, translated in all ten packs.
+- 94e2fa7: `MetadataClient.layered()` validates the ADR-0010 protection envelope against the
+  producer's own schema at the boundary, instead of casting ten wire fields through
+  unchecked (objectui#5676, triage adjudication 2026-08-22).
+  
+  The envelope arrived by ten `as` assertions over a raw `res.json()` body — no parse, no
+  allowlist, no default. The consumer that reads it opens the metadata lock banner on
+  `layered?.lock && layered.lock !== 'none'`, true for **any** non-`none` value, so a server
+  sending a lock state this console had never heard of opened the amber box, drew the padlock
+  and the border, and rendered an empty title. No fifth state ever had to be added to this
+  repo for that to happen: a union types what this repo writes and constrains nothing about
+  what a server sends.
+  
+  The boundary now runs `GetMetaItemLayeredResponseSchema.safeParse`. On the conforming path
+  every value is the producer's schema output and the ten assertions are gone. `safeParse`
+  and never `parse`: a metadata console that rejected every dialect it had not been compiled
+  against would answer a newer server with a blank page, which is strictly worse than the
+  wrong render being fixed. Values the schema rejects are still **forwarded** — dropping them
+  would be that same refused rejection wearing different clothes — and are named in a new
+  optional `MetadataLayered._unrecognized`, absent whenever everything parsed. This extends
+  to the whole envelope the "pass through and label" treatment objectui#5672 chose for `lock`
+  alone; the banner's existing unrecognised-token title is unchanged and needed no edit.
+  
+  The labelling is per field, which is the part that makes it a degrade rather than a subtler
+  version of the same bug. Measured on the installed spec (17.2.0):
+  `GetMetaItemLayeredResponseSchema.safeParse(body)` is all-or-nothing — one unknown `lock`
+  returns `success: false` with `data` undefined — so the failure branch re-checks each key
+  against that schema's own `shape[key]`, where only the offending field fails and the other
+  six still arrive typed. Absence is never "unrecognised": the four resolved verdicts are
+  required upstream on this path, so a pre-ADR-0010 backend takes the failure branch with
+  nothing flagged and behaves exactly as before.
+  
+  One consequence of the same ruling, fixed alongside because it defeats it: a 200 answer
+  whose body was a bare JSON string or number **rejected** the promise with a
+  `TypeError: Cannot use 'in' operator`, from the envelope-detection guard's bare truthiness
+  check. A malformed body must degrade, never throw.
+- f07b976: `aggregate()`'s spec-shape branch now REFUSES an unlowered `where` instead of
+  posting it (objectui#6825, maintainer ruling 2026-08-30 — option A).
+  
+  **Breaking for callers that were already broken, so read this if you call
+  `aggregate()` with a `where`.** `aggregate()` has two branches. The analytics
+  branch takes `filter` and lowers a rule-shaped array before the wire (#6302).
+  The spec-shape branch — entered when `params` carries an array `groupBy`, an
+  array `aggregations`, or ANY `where` key — takes `where` and posts it to
+  `POST /data/:object/query` verbatim. It never lowered, and it still does not:
+  it now says so.
+  
+  **What now throws that previously went through.** A `where` that is an ARRAY
+  the spec's own `isFilterAST` gate rejects — an unlowered
+  `[{ field, operator, value }, ...]` above all, plus the infix join dialect
+  (`[condA, 'or', condB]`), a tuple whose operator is outside the AST vocabulary,
+  `['and']` with nothing to join, and an element that is not a condition. The
+  throw is an `UnloweredAggregateWhereError` (exported), carrying the same
+  `code: 'INVALID_FILTER'` / `httpStatus: 400` pair as `MalformedFilterError`, so
+  `isMalformedFilterError()` recognises it and a failed widget renders "this
+  filter is malformed" rather than "check your connection".
+  
+  **This adds no new failure — it relocates one.** Every shape now refused is one
+  the receiving engine already refused (`is not a filter`, 400 `INVALID_FILTER`,
+  before the store is touched). What changed is WHERE you find out and whether you
+  can act on it: previously the predicate was lost on the wire — or dropped
+  outright, leaving a chart rendering confident, wrong numbers with no signal to
+  its author. The refusal is now raised at the producer, names the value it
+  received, names the shape expected and where the spec declares it, and says
+  nothing was sent.
+  
+  **What an affected caller should send instead.** Lower the rules to a filter AST
+  BEFORE calling `aggregate()`:
+  
+  ```diff
+  - adapter.aggregate('opportunity', {
+  -   groupBy: ['stage'], aggregations: [...],
+  -   where: [{ field: 'stage', operator: 'equals', value: 'won' }],
+  - })
+  + adapter.aggregate('opportunity', {
+  +   groupBy: ['stage'], aggregations: [...],
+  +   where: ['stage', '=', 'won'],
+  + })
+  ```
+  
+  Or keep using the analytics branch, which lowers for you: pass the rules under
+  `filter` with the legacy `field` / `function` / `groupBy` params.
+  
+  **Unchanged, deliberately.** The analytics branch still lowers `filter` exactly
+  as #6302 left it. On the spec-shape branch a `FilterCondition` object
+  (`{ stage: 'won' }` — what `QuerySchema.where` actually declares), an empty
+  array (`[]` is "no filter", and the engine agrees), and every already-valid
+  filter AST all reach `client.data.query` byte-unchanged.
+- 6a99bb2: `createObjectStackAdapter` declares the adapter it returns, not the shared `DataSource`
+  interface (objectui#7323).
+  
+  The factory returned `new ObjectStackAdapter(config)` while declaring `DataSource<T>`.
+  A wider value is assignable to a narrower annotation, so nothing ever failed to compile
+  — the loss was entirely on the reading side. Measured against the shipped
+  `dist/index.d.ts` with the doc-snippet gate's own compiler options, nine reads through
+  `ReturnType<typeof createObjectStackAdapter>` failed with TS2339: `getClient`,
+  `getCacheStats`, `invalidateCache`, `clearCache`, `getConnectionState`, `isConnected`,
+  `onConnectionStateChange`, `onBatchProgress` and `setSystemCapabilities`. Eight of those
+  nine reads are on this package's README API Reference list, and four whole README
+  sections are built on them; the ninth measured read is the one the factory's own JSDoc
+  links to (`[ADR-0066] See {@link ObjectStackAdapter.setSystemCapabilities}`). The README
+  list is itself **nine** adapter-only members, not eight — `connect()` is adapter-only
+  too and was documented all along; it simply was not one of the reads the card's
+  reproduction measured. So the file's own doc comment pointed the reader at a method its
+  declared return hid, and the two documented ways to obtain the same object — the factory
+  and `new ObjectStackAdapter(…)` — handed back different type surfaces.
+  
+  **What the declared return now is: the whole class, not those nine reads.** The nine
+  above are what the reproduction measured, not the size of this change. The factory's
+  declared return is now `ObjectStackAdapter<T>` itself, so **every public member of the
+  class** is part of what the factory promises. Against `DataSource` that is **20**
+  members, not nine — `tsc`-computed as
+  `Exclude<keyof ObjectStackAdapter<unknown>, keyof DataSource<unknown>>`: `clearCache`,
+  `connect`, `getCacheStats`, `getCached`, `getClient`, `getConnectionState`,
+  `getDiscovery`, `getItems`, `invalidateCache`, `invalidateViewKeys`, `isConnected`,
+  `listImportMappings`, `onBatchProgress`, `onConnectionStateChange`, `onSaveAdvisory`,
+  `onWriteWarning`, `probeAppAccess`, `queryDataset`, `setSystemCapabilities`,
+  `updateDashboard`. The eleven past the documented nine were already in the shipped class
+  type — none is `@internal` or `@deprecated`, `stripInternal` is not set, and all were
+  already reachable through `new ObjectStackAdapter(…)` and through every
+  `ObjectStackAdapter`-typed seam in `@object-ui/react` and `app-shell` — so what widens
+  here is what the **factory declares**, not what the package ships. Two are escape-hatch
+  shaped and worth knowing before building on them: `getCached(key)` is a raw cache read,
+  and `getDiscovery()` reaches an internal property of the underlying `ObjectStackClient`.
+  
+  **Branch taken: A (widen the factory's declared return), and why.** The card offered
+  three. B — moving caching, connection state and batch progress onto `DataSource` — was
+  rejected because those are this adapter's concerns, not every data source's; every other
+  `DataSource` implementation would then declare members it does not have. C — documenting
+  a cast — teaches a cast around a declaration that is merely narrower than the value,
+  which is the opposite of `declared = enforced`. A is one line and makes declared match
+  shipped for every documented member at once.
+  
+  Two questions decided the shape and both were answered from the code before the diff.
+  `ObjectStackAdapter` was **already** exported from the package's only entry
+  (`src/index.ts`, tsup's single entry; the class is in the shipped `dist/index.d.ts`
+  export list, two pin tests assert the exported spelling, and `apps/console` re-exports it
+  by name) — so widening the return exports nothing by implication. And the narrow return
+  was **not** a deliberate swappability guarantee: no comment, ADR or test pinned it, and
+  the commit that added `autoReconnect` / `maxReconnectAttempts` / `reconnectDelay` to the
+  factory's own config bag left the members that observe those features off the factory's
+  declared return in the same change.
+  
+  **One caller shape breaks: a structural stand-in for the factory's return.** A
+  hand-written object literal annotated `ReturnType<typeof createObjectStackAdapter>` no
+  longer satisfies that type, because it is now a class with private members (TS2740) —
+  annotate such a fake as `DataSource` instead, which is what it was standing in for.
+  Nothing else moves: a wider return is assignable to the narrower annotation, so
+  `const ds: DataSource = createObjectStackAdapter(…)` keeps compiling and keeps giving
+  the narrow surface to anyone who wants it.
+  
+  The README's note saying the page could not yet teach the factory's shape is removed, and
+  the four sections built on the adapter-only members (Metadata Caching, Connection State
+  Monitoring, Batch Operation Progress, Troubleshooting → Cache Issues) now continue from
+  Basic Setup's `createObjectStackAdapter(…)` call instead of declaring the class by hand.
+  The docs-site page `content/docs/utilities/data-objectstack.mdx` is corrected the same
+  way: its prose, its factory signature fragment and its "hold the class type to reach
+  these" section described the old narrow return, and its Mutations and Troubleshooting
+  examples told the reader to construct the class by hand to reach members the factory now
+  declares. `src/adapterFactoryReturn.types.test.ts` pins the card's TS2339 reproduction
+  inverted,
+  with two controls: the adapter-only members stay absent from `DataSource` (fires on
+  option B), and the widened return stays assignable to `DataSource` (swappability kept).
+- a915064: `listImportMappings` no longer renders a refused door as "no mapping is registered"
+  (objectui#7741).
+  
+  `ObjectStackAdapter.listImportMappings` degrades every failure to an empty list, and the
+  import wizard hides its saved-mapping selector on an empty list. So "the server served
+  zero mappings" and "the server refused, or broke" produced the identical UI on every
+  deployment — the feature simply absent — with a `console.warn` as the only
+  discriminator, in the browser console, with nothing pointing at it. That silence did not
+  merely hide a fault: it produced a confident WRONG diagnosis in a careful reporter
+  (objectstack#14026 was filed, routed and worked by two seats against a wizard that had
+  been correct since `@object-ui/data-objectstack@17.1.0`).
+  
+  **The empty-list return is unchanged.** `listImportMappings` still answers
+  `Promise<any[]>` and still never throws, on every arm including the loud ones — this is
+  a channel added ALONGSIDE that contract, not a change to it.
+  
+  - **New: `ObjectStackAdapter.onMetadataReadWarning(cb)`** — a subscribe/unsubscribe
+    channel, sibling in shape to `onWriteWarning` and `onSaveAdvisory`. It fires when a
+    metadata read failed in a way that is NOT the supported "this deployment does not
+    serve that kind" shape, carrying `MetadataReadWarningEvent`: which read it was, the
+    object, whether the server `refused` this caller or the answer was `unreadable`, and
+    the server's own ADR-0112 code, HTTP status and message.
+  - **New: `classifyImportMappingsFailure(err)`** and `ImportMappingsFailureKind`, exported
+    so a consumer can apply the same verdict. It reads the ERROR — the ADR-0112 `code`
+    first, the status only where no code was declared — and never "is the result an empty
+    array", which is what both conditions produce and so can never tell them apart.
+  - **The older-server case stays quiet.** A deployment that does not serve the `mapping`
+    kind (404/501 with no route, `ROUTE_NOT_FOUND`, `NOT_IMPLEMENTED`, or the metadata list
+    door's 400 `INVALID_REQUEST`) still degrades to an empty list with no selector and no
+    event. That is a real, supported deployment shape and it must not become a visible
+    fault.
+  - **The console now says so.** `AdapterProvider` subscribes to the new channel and
+    renders a warning toast naming the object, the remedy and the server's own words, so a
+    user without devtools open can tell "there are none" from "we could not find out".
+    Three new `console.importMappings*` keys ship in all ten locale packs.
+  
+  This applies framework #13906 decision 1 option A — *a thing that could not be READ is
+  not a thing that is ABSENT* — at this seam. It is an already-adopted discrimination, not
+  a new principle.
+- 53ded82: Array filters on analytics aggregates were posted un-lowered and refused by the runtime with 400; they are now lowered to the canonical `FilterCondition` before the wire.
+  
+  An `element:number` or an `object-metric` whose filter is authored as an array (`[{ field, operator, value }, ...]`, a comparison tuple, or an `and`/`or` group) reached `POST /analytics/query` as an array. That route parses the body with `AnalyticsQueryRequestSchema` first, and its `where` is a `FilterCondition`, so the widget answered `400 Invalid AnalyticsQuery body: where: ...` instead of its number — leaving the MongoDB-style record as the only authoring form that still worked.
+  
+  `aggregate()` now lowers the array through `parseFilterAST`, the single sink `@objectstack/spec` names for turning a `FilterArray` into a `FilterCondition`, so the posted `where` is the shape the wire declares. An empty array posts no `where` at all, a record-shaped filter is unchanged, and an array the sink cannot lower — an infix join such as `[condA, 'or', condB]` — is refused with this adapter's `INVALID_FILTER` / 400 error rather than posted or silently dropped into an unfiltered aggregate.
+- d5c1f52: `classifyAnalyticsFailure` now reads a 400 as a refusal of the query body we
+  sent regardless of which ADR-0112 `code` it carries, so `aggregate()` no
+  longer answers a rejected filter with client-side numbers from a different
+  door (objectui#7755).
+  
+  Before this fix, only 400 `VALIDATION_FAILED` (and a code-less 400) threw
+  `AnalyticsQueryRejectedError`. Any OTHER coded 400 — `service-analytics` ships
+  its own 400 `INVALID_FILTER` on a filter shape it refuses — matched none of
+  `classifyAnalyticsFailure`'s branches and fell through to `unknown`, which
+  `aggregate()`'s catch has no arm for, so it silently degraded to
+  `aggregateViaFind`: a re-read through `find()`'s `$filter` query-string
+  contract, which accepts array shapes the analytics request body does not. A
+  filter the analytics route refused could still be answered — with a
+  plausible, wrong number, and no sign the request had a defect.
+  
+  The fix is a floor UNDER the existing code branches, not a replacement for
+  them: `NOT_IMPLEMENTED` / `ROUTE_NOT_FOUND` still win `not-installed`,
+  `VALIDATION_FAILED` / `UNAUTHENTICATED` / `CUBE_NOT_FOUND` still win their own
+  outcomes first (objectui#5721). Only a 400 that none of those four already
+  claimed now falls to the new floor instead of past it. An unmatched NON-400
+  coded error (e.g. a coded 5xx) is unaffected and keeps degrading exactly as
+  before — this fix is scoped to the 400 case only.
+- b2065e7: Classify `/analytics/query` failures by their ADR-0112 `code` rather than their HTTP status, so a chart is no longer answered from a different code path behind the wrong explanation.
+  
+  `classifyAnalyticsFailure` tested `status === 404 || status === 501` before the code operands on the same line, so the status short-circuited every one of them: any 404 on this face was classified "the analytics capability is not installed" whatever code it carried, and `NOT_IMPLEMENTED` / `ROUTE_NOT_FOUND` were unreachable for the conditions they name. Three unrelated conditions answer 404 on this url, so the status cannot tell them apart — the `code` is the contract.
+  
+  Two conditions change behaviour:
+  
+  - **404 `CUBE_NOT_FOUND`** (a misspelled or unregistered cube — an authoring mistake) now **throws** the server's own error verbatim, keeping `code` and the producer's repair instructions. It previously warned "install `@objectstack/service-analytics`" and silently degraded to `find()` + client-side aggregation — which cannot answer it anyway, because the fallback re-reads the same name through `/data`, where an unregistered object is a 404 `OBJECT_NOT_FOUND`.
+  - **401 `UNAUTHENTICATED`** (an anonymous or lapsed session) now **throws** `AnalyticsUnauthenticatedError` instead of degrading silently behind a `find()` that is about to be refused the same way.
+  
+  Unchanged: `NOT_IMPLEMENTED` / `ROUTE_NOT_FOUND` and code-less 404/501 answers still degrade loudly to the client-side fallback, 400 `VALIDATION_FAILED` still throws, and 5xx / network failures still degrade silently.
+- b470e91: The metadata designer states its package on the publish step, not only on the save (#5420)
+  
+  Studio's designer save→publish loop bound the draft to a software package on the
+  save (`PUT ?mode=draft&package=<id>`) and then sealed it with a publish that named
+  no package at all. `objectstack#10354` (shipped in `@objectstack/rest` 17.2.0) taught
+  `POST /meta/:type/:name/publish` to accept `?package=<id>`, so the second call can now
+  state the same binding the first one already states.
+  
+  - `MetadataClient.publish()` accepts `packageId` and sends `?package=<id>`, the same
+    wire spelling and the same `encodeURIComponent` treatment `save()` gives it.
+  - `MetadataResourceEditPage` reads the binding for BOTH steps from one derivation
+    (`readActivePackageBinding`), so the two calls of one loop cannot drift apart. The
+    `?package=all` "show everything" scope keeps folding to "no package".
+  
+  The parameter is **omitted**, never sent empty, when the designer holds no binding.
+  Empty and absent are the same to the framework's normaliser today, but absent is the
+  shape the save door already followed, and the framework's promotion path branches on
+  the key being present downstream.
+  
+  What this buys is **reachability**, not speed: it lets `#9612`'s package-closure
+  narrowing at the runtime publish gate fire on an HTTP-driven promotion at all. That
+  narrowing has a second, independent gate this does not touch — objects carrying no
+  `_packageId` provenance are kept unconditionally — so on a tenant-authored overlay
+  corpus stating the package still narrows nothing.
+- 8e00bfd: **Breaking (published surface):** remove `options.actor` from `MetadataClient`'s
+  `save`, `reset`, `publish` and `rollback`, and stop emitting the `X-Actor`
+  request header.
+  
+  The server stopped honouring that header. objectstack#7941 ruled that the
+  recorded actor is the identity the request was authorized as, and removed the
+  header limb from the `/meta` write resolver — attribution cannot drift from
+  authorization. The option therefore typed cleanly, sent a header, and could not
+  influence the audit or history row it appeared to address: a false affordance
+  that promised attribution and silently failed to deliver it.
+  
+  Three declarations go: `MetadataClientSaveOptions.actor` (inherited by
+  `MetadataDeleteOptions` via `extends`, so it served both `save` and `reset`),
+  and the inline `{ actor?: string }` on each of `publish` and `rollback`.
+  `MetadataAuditEntry.actor` is unaffected — that is the server's read-back of
+  who acted, and it remains the way to see attribution.
+  
+  Marked `minor` rather than `major` per this repo's version-alignment policy
+  (the fixed group's major tracks `@objectstack`, and `major` in a changeset
+  would drag all 39 packages off that cadence).
+  
+  No caller in this repo passed `actor`; the census found the only in-repo
+  occurrence was the client's own unit test. Callers outside this repo that still
+  pass it are unaffected at runtime beyond losing a header the server already
+  ignored — the property is dropped rather than forwarded, pinned by
+  `metadata-actor-retired-4834.pin.test.ts`.
+- fd8dace: Studio surfaces the runtime authoring gate's advisory findings after a **publish**, not only after a save
+  
+  objectui#4133 / PR #4236 wired the gate's advisories to the save door and recorded, honestly, what that left unsurfaced: Studio's designer stages every edit as a `mode: 'draft'` save, drafts are never gated (the framework returns at its D1 early-return before a single rule runs), and the publish step that *is* gated returned no `advisories` field at all. So on the flow most tenants actually use, the author was told nothing at either door — for two different reasons, only one of which was objectui's.
+  
+  The second reason has expired. `PublishMetaItemResponseSchema` now declares the same optional, omitted-when-empty `advisories` key that `SaveMetaItemResponseSchema` has carried since #4717, and `publishMetaItem` populates it. Measured against the installed `@objectstack/spec` (17.2.0) rather than inferred from the version number: the key survives a `safeParse`, a half-shaped finding is rejected, and a clean publish omits the key entirely. That reading is now a test rather than a note, so a spec drift fails CI instead of silently re-muting the door.
+  
+  `MetadataClient.publish` and `MetadataClient.publishDraft` — the two methods over the single-item publish route `POST /meta/:type/:name/publish` — now report through the **same** sink, the same event and the same renderer the save door already used. No new UI shape: same warning tier, same 10s duration, same per-finding `rule` + `message` + `hint` formatting, findings still rendered verbatim as server prose. The wiring lands in the data layer rather than at the call sites, so `ResourceEditPage`'s Publish button and the runtime `RuntimeDraftBar` promotion (ObjectView / ReportView / DashboardView) are covered by one change, as are future ones.
+  
+  One thing had to differ, and it is the frame's verb. Save and Publish are two different buttons in this product, so a toast that says "Saved" after a Publish tells the author their change is still a draft — the opposite of what happened. `MetadataSaveAdvisoryEvent` therefore gains a required `door: 'save' | 'publish'` and the renderer picks `console.publishAdvisoryTitle` (added to all ten locale packs) accordingly. `door` exists because `mode` cannot answer this: a direct active save and a draft promotion both report `mode: 'publish'`, since both land the body in the active overlay. It is required rather than optional so a future third door cannot be wired without saying which one it is, and the renderer branches on it through an exhaustive switch with a `never` check, so adding a third member is a compile error rather than a silently wrong verb.
+  
+  **BREAKING for event constructors — `MetadataSaveAdvisoryEvent.door` is required.** Reading the event is unaffected: a listener that ignores `door` behaves exactly as before, and every other member is unchanged. Constructing one is a compile break — a door-less event literal that type-checked before now fails with TS2741, `Property 'door' is missing`. Measured on the emitted `dist/index.d.ts` of `@object-ui/data-objectstack` on both sides: that single required member is the entire non-comment delta of the package's published surface. **Migration:** add `door: 'save'` or `door: 'publish'` to the literal, whichever write it models — `'save'` for `PUT /meta/:type/:name`, `'publish'` for `POST /meta/:type/:name/publish`. Scored `minor` rather than `major` per the repo's version policy: objectui's major is pinned to `@objectstack`'s so that "same major means compatible" holds across the two repos, so objectui's own breaking changes ship as `minor` with the break named here (`scripts/check-changeset-no-major.mjs`). Every publishable package sits in one `fixed` group, so this entry carries the group.
+  
+  Unchanged, deliberately: the **batch** door. "Publish whole app" (`POST /packages/:id/publish-drafts`) still discards per-draft advisories server-side — objectstack#9343, open and unruled — and nothing here compensates for that from the client side. A test pins the absence, so a later traversal of a batch-shaped `published[]` cannot be added without turning it red.
+- 2d36552: Pins `@objectstack/spec`, `@objectstack/client`, `@objectstack/formula` and `@objectstack/lint` to `17.1.0`, and adapts the two consumer surfaces the new build moves.
+  
+  The pin itself is a lockfile refresh — every manifest already declared `^17.0.0`, which admits `17.1.0`, so no dependency range changed. All four move together: a split resolution is what produced the dual-version spec graph that reddened `check:spec-symbols` in this repo's history.
+  
+  **A `icontains` filter now reaches the driver as a filter.** `icontains` is a canonical `VIEW_FILTER_OPERATORS` member as of `17.1.0`, so an author can declare it on a `ViewFilterRule` and the spec validates it — but `@object-ui/data-objectstack`'s alias table had no row for it, and an unmapped operator is how this adapter shipped an unfiltered query before (objectstack#3948). It is an identity row like `contains`: `icontains` is itself a member of `VALID_AST_OPERATORS`, so the spelling the author writes is the spelling the AST takes, and no case-sensitivity is translated away. Declared rather than left to the table's `?? op` fall-through, on the rule its own parity test states — the AST gate accepting a spelling is not the driver compiling it into a `WHERE` clause.
+  
+  The same operator reaches the list view's own bridge: `@object-ui/plugin-list`'s `mapOperator` gains an explicit `icontains` arm. The emitted spelling is identical to the input, but the arm is written out rather than left to the `default` passthrough — `icontains` is its own member of `VALID_AST_OPERATORS`, so a raw passthrough is accepted *today*, and depending on that coincidence is what the bridge's own parity test records as how it once stopped discriminating.
+  
+  `@object-ui/core` adds `onSuccess` to its spec key inventory, so an author writing the key `17.1.0` now declares is no longer warned that it is unknown. That is a diagnostic statement only — the four declared action surfaces still drop the key before it reaches the runner, which is tracked separately.
+  
+  **A stored view filtering case-insensitively still shows that operator when it is reopened.** `@object-ui/plugin-view`'s canonical-to-builder table is keyed by `ViewFilterOperator`, so `17.1.0` adding `icontains` failed to compile rather than letting the operator reach the FilterBuilder as a raw spelling its dropdown cannot select. It maps to the builder's `containsCaseInsensitive` — the id that authors the spec's `$icontains` — and deliberately not to `contains`, which would quietly rewrite a case-insensitive filter into a case-sensitive one the next time the view was saved.
+  
+  **The page-editor palette keeps one entry per renderer.** `17.1.0` retires `element:filter` from `PageComponentType` and adds `record:discussion`, leaving the member count at 34 either side — so the swap is invisible to any count-based reading. The stale `element:filter` exclusion is dropped, and `record:discussion` is excluded because it is the *same renderer* as the already-offered `record:chatter`, not because it is unauthorable. Nothing the palette offers changes.
+  
+  **The console eager-closure ceiling is re-baselined, by maintainer ruling.** The release is roughly 930 KB larger uncompressed and nearly all of it lands in `vendor-objectstack-*.js`, which put the closure past a ceiling that was deliberately sized to catch a 89 KiB regression — the gate refused the bump, correctly. Raising it was escalated rather than taken locally, because gate-strength policy had been ruled the maintainer's; the ruling on objectui#5531 authorised the raise. `MAX_EAGER_CLOSURE_GZIP_BYTES` and the `BASELINE` it is derived from move together in one commit, keeping headroom at 2.00% and below the 91,136-byte regression size the gate must still catch. The gate's *sensitivity* is untouched: a repeat of that regression from the new baseline still fails. No behaviour ships from this file — it is CI policy, recorded here because the version it governs is the one this changeset publishes.
+
+### Patch Changes
+
+- 490d9a9: Grid headers offer a sort click only on columns the PLATFORM says it will order by
+  (objectui#5729 — the consumer leg of objectstack#10235, maintainer ruling A, 2026-08-23:
+  the platform serves an explicit per-column sortability signal and the grid reads it,
+  rather than re-deriving "virtual ⇒ unsortable" from field type).
+  
+  `GET /api/v1/meta/object/:name` now answers with a `sortability` projection on its
+  ENVELOPE — `{ fields: { [name]: { sortable, reason?, caveat? } } }`, computed at serve
+  time from the platform's own storage predicates, deliberately beside `item` rather than
+  inside it so the key stays un-authorable. The signal was reaching the browser and being
+  discarded one line before its only consumer: `ObjectStackAdapter.getObjectSchema` unwraps
+  the envelope to `item`, so every UI reader saw a document with no signal on it. It now
+  survives that unwrap, carried on the schema under a symbol key — invisible to
+  `JSON.stringify`, to `Object.keys` and to a spread, so a schema handed back at a metadata
+  write endpoint can never take it into a body the server parses strictly.
+  
+  `@object-ui/core` gains the one spelling of the consumer contract:
+  `isPlatformSortableField(projection, name)` is `true` iff an entry EXISTS for the name and
+  says `sortable: true`. Absence is a refusal — it is how the platform encodes an unknown
+  name, a dotted path and an unprovisioned audit column, all three of which the runtime
+  doors reject — so the `!== false` spelling every other optional flag in this repo uses
+  would get exactly that family backwards. A projection that is absent ALTOGETHER is a
+  different question with a different answer (`undefined`: no signal was served) and is
+  typed apart from an empty one, so a deployment older than the upstream change keeps the
+  behaviour it had rather than being told, falsely, that nothing on the object is sortable.
+  
+  Three things follow in the grid. The header click on a refused column ceases to exist, so
+  neither the old silent-unordered result nor the `400 INVALID_SORT` that replaced it is
+  reachable from it. A sort PERSISTED before the signal existed is filtered out of both what
+  the grid renders and what it emits, so a restored personalization cannot ride back into
+  the next `persistViewPatch({ sort })` — the half-fix where the affordance is gone and the
+  PUT still fires. And the relational carve-out is untouched and deliberately not delegated
+  to this signal: the platform answers `sortable: true` for a `lookup` (it has a stored
+  foreign key and both runtime doors accept ordering by it), while the grid withholds that
+  header for a different reason — a column of names ordered by an invisible id.
+  
+  Columns carrying `caveat: 'unprovisioned-anchor'` keep their click. The runtime accepts
+  those sorts; refusing what the platform does not refuse would recreate declared-≠-enforced
+  drift in mirror image.
+- a26b9e4: `packages/core/src/adapters/README.md` now documents the adapters that are actually in that
+  directory, and the ObjectStack material it carried moved to the package that owns the behaviour
+  (objectui#6213). Both files ship to consumers — `@object-ui/core` publishes its `src/`, and a
+  README rides every tarball — so this was published documentation describing the wrong package.
+  
+  The page had been left behind when the ObjectStack adapter moved out to
+  `@object-ui/data-objectstack`: its headings, feature list, filter-operator table and
+  query-parameter table were all about that adapter, and its one-entry "Available Adapters" list
+  told a reader Object UI has exactly one adapter and that it comes from `@object-ui/core`.
+  `ApiDataSource`, `ValueDataSource`, `resolveDataSource`, `runBatchTransaction` and
+  `emulateBatchTransaction` — the five exports that directory really ships — were named nowhere.
+  
+  - **`@object-ui/core`**: the page now opens with what the directory holds, gives each export a
+    usage snippet and a `provider` mapping, and points at `@object-ui/data-objectstack` for the
+    ObjectStack adapter. `## Creating Custom Adapters` is unchanged — it is the one section that was
+    always about this directory.
+  - **`@object-ui/data-objectstack`**: gains a `## Query Translation` section carrying the
+    filter-operator and query-parameter mapping tables, the AST conversion example and the sorting
+    example. That material existed **only** in the `core` copy — this package's README documented
+    query translation as a single feature bullet — so it is ported, not dropped.
+  
+  No runtime behaviour changes; the duplicate copy of one package's documentation living under
+  another package is what goes away.
+- 5127378: `ObjectStackAdapter.aggregate()` lowers rule-shaped filter arrays before the
+  analytics wire, reusing the lowering `find()` already runs (objectui#6302).
+  
+  `find()` has translated `[{ field, operator, value }, ...]` into the server's
+  filter AST for as long as `convertQueryParams` has existed. The analytics path
+  did not: `aggregate()` assigned `payload.where = params.filter` verbatim and
+  posted it to `/analytics/query`.
+  
+  The two doors are not equally forgiving, so the gap had a user-visible end.
+  `lowerAnalyticsWhere` in `@objectstack/service-analytics` — shared by both
+  aggregation strategies — accepts AST tuples and throws on an array of rule
+  objects. A stored `ViewFilterRule[]` that a LIST renders correctly therefore
+  rendered `element:number` into its error state on every analytics-capable
+  deployment, which is the default one because the CLI always loads analytics.
+  
+  An array filter now goes through the same `translateFilterArray` the `find()`
+  path uses — one lowering, so the two paths cannot disagree about one stored
+  filter. Rules spread into a logical node (`['and', ...rules, ...tuples]`, the
+  commonest composite there is) are lowered at depth, as they already were on
+  `find()`. Non-array filters are untouched: the MongoDB-style object this branch
+  was written for is what `/analytics/query` already accepts, and translating it
+  would be a semantic change this fix does not make. Already-AST arrays,
+  record-shaped filters, and the no-filter case are byte-unchanged.
+- 5961030: `@object-ui/core` and `@object-ui/data-objectstack` now declare
+  `"@objectstack/spec": "^17.2.0"` rather than `^17.0.0`, which is the lowest published
+  spec that carries every symbol each package's own build output references
+  (objectui#6361).
+  
+  `packages/core/dist/utils/column-sortability.d.ts` references
+  `FIELD_SORTABLE_UNPROVISIONED_ANCHOR`, `FIELD_UNSORTABLE_VIRTUAL_TYPE`,
+  `FieldSortability` and `ObjectSortability` from `@objectstack/spec/api`, and
+  `packages/data-objectstack/dist/index.js` references the first two — none of which
+  `@objectstack/spec@17.0.0` exports. Measured against the published tarballs rather than
+  the installed tree, by `scripts/check-spec-range-floors.mjs`: six `floor-too-low`
+  findings across the two packages, and `^17.2.0` is that gate's own computed answer for
+  both. So the old range was a claim neither package could honour: any consumer
+  resolution that lands 17.0.0 — a sibling pinning it exactly, an `overrides` entry, a
+  mirror two minors behind — satisfied `^17.0.0` and got a dangling reference.
+  
+  Nothing a consumer installs today changes: normal resolution already picks the newest
+  17.x, and `pnpm-lock.yaml` still resolves `17.2.0` on both edges after the bump — only
+  the recorded `specifier:` moves. No source and no behaviour changes, which is why this
+  is scored `patch`, on the reasoning objectui#5793 used for the same remediation on
+  `@object-ui/plugin-detail`.
+  
+  The bump is release-blocking rather than cosmetic. `check:spec-floors` is deliberately
+  not a `pull_request` job, so every PR stayed green while its blocking copy on the
+  publish path — `pnpm changeset:publish` runs it before a single tarball reaches npm —
+  would have cancelled the next release.
+- 639114c: Reconcile `@object-ui/data-objectstack` with the `@objectstack/*` family at
+  17.3.0 (objectui#7122).
+  
+  `@objectstack/client`, `core`, `formula` and `lint` each pin `@objectstack/spec`
+  EXACTLY, so resolving the spec alone to 17.3.0 left the console bundling TWO
+  copies of it. Moving the family with it in `pnpm-lock.yaml` collapses the
+  duplicate; every declared range already admitted 17.3.0, so no manifest moved.
+  
+  The one source change the family bump forces is a type reconciliation, not a
+  behaviour change. `client.analytics.query` resolved to `Promise<any>` at 17.2.0
+  and resolves to `Promise<AnalyticsResult>` at 17.3.0, so the pre-envelope
+  branches of `aggregate`'s row-shape fallback stopped type-checking. Those
+  branches are read through a widened alias rather than deleted: the client's own
+  docblock records the runtime change behind the narrower type ("BREAKING since
+  objectstack#13079 — read `result.rows`, not `result.data.rows`"), and deleting
+  them is a runtime compatibility decision about servers older than that, not a
+  type repair. The alias restores exactly the compile-time latitude 17.2.0 gave
+  the same expression and changes no runtime byte of it.
+- f57ca75: fix(studio): one draft-envelope reader, and it strips the framework's read decorations
+  
+  `client.getDraft()` serves a DECORATED body — the draft branch stamps
+  `_draft: true` and then `decorateMetadataItem` attaches `_diagnostics` for any
+  type with a registered Zod schema. The spec names both READ-TIME decorations
+  precisely because a served body "is NOT a valid input to the schema that
+  produced it until these are removed" (`METADATA_READ_DECORATIONS`).
+  
+  objectui#7603 taught `ResourceEditPage` to strip them. It could only teach one
+  site, because `extractDraftBody` existed **four times** — three verbatim copies
+  plus a hand-rolled one in `ObjectHooksPanel` — and six more consumers unwrapped
+  the envelope inline. Ten readers, one of which knew the rule.
+  
+  **The user-visible half.** The pending-changes sheet's per-entry diff compares
+  the published body against the draft body key by key. Those two reads are
+  decorated ASYMMETRICALLY — only the draft branch stamps `_draft` — so the sheet
+  listed `_draft` under "Also changed:" on every entry that has a published
+  counterpart, and `_diagnostics` alongside it whenever the two read-time verdicts
+  differed. Framework-internal keys were being presented to the author as their
+  own edits, on the screen where they decide whether to publish.
+  
+  **The rest.** Six sites merged a decorated body into a document they then wrote
+  back through `save(..., { mode: 'draft' })` — the Studio app / page / object /
+  flow surfaces, the package OWD panel, the object hooks panel, and the
+  adapter's `updateView`. Today's server absorbs that (it strips read decorations
+  on ingress, before its own schema gate), so nothing 400s; this is still a client
+  emitting a body its own spec calls invalid, and the fix belongs at the producer.
+  
+  The cure is one function rather than ten strips: `extractDraftBody` is now
+  exported from `@object-ui/data-objectstack`, beside the `getDraft` whose
+  envelope it decodes. The key list is the spec's exported
+  `stripReadDecorations` — never a second hand-maintained copy in this repo. The
+  presence verdict still runs BEFORE the strip, so removing our own annotations
+  can never turn a served draft into "nothing pending", and the ADR-0010
+  protection envelope (`_lock`, `_provenance`, `_packageId`, `_packageVersion`)
+  is deliberately untouched: those keys are declared by the closed schemas.
+  
+  No schema was loosened, and no gate was taught to tolerate `_diagnostics`.
+- b2e85a9: `ObjectStackAdapter.getApp` and `getPage` now address the `app` / `page` metadata
+  types in the singular, matching the other twelve `client.meta.*` call sites in this
+  file (objectui#4940).
+  
+  `getApp` (`getItem('apps', …)`) and `probeAppAccess` (`getItem('app', …)`) addressed
+  the same metadata type sixty lines apart, and only `probeAppAccess`'s comment argued
+  its singular spelling was deliberate — the plural site was silent. Both plural sites
+  resolved today only because the server folds plural → singular
+  (`RestServer.metaTypeSingular` via `PLURAL_TO_SINGULAR` from `@objectstack/spec/shared`,
+  confirmed by reading both the mapping and the by-name route handler that calls it), so
+  this is consistency restoration rather than a behavior change — nothing a user hits was
+  broken, and nothing a user hits changes.
+  
+  `appAccessProbe.test.ts` (objectui#4252's local pin for this same spelling) is extended
+  with two new cases asserting `getApp`/`getPage` pass the singular type to
+  `client.meta.getItem`, so a future revert to the plural spelling fails a test instead of
+  depending on the server-side fold staying in place.
+- c7cd2b6: `ObjectStackAdapter.queryDataset` now maps a failed dataset query by the server's
+  ADR-0112 error `code`, not by the HTTP status, so an unknown dataset and an
+  unauthenticated session stop being reported as a missing analytics capability
+  (objectui#5663).
+  
+  Two unrelated conditions answer **404** on `POST /api/v1/analytics/dataset/query`:
+  the runtime dispatcher's `ROUTE_NOT_FOUND` when the route was never mounted, and
+  the route's own `NOT_FOUND` when `body.datasetName` matches no saved dataset. The
+  mapping tested `res.status === 501 || res.status === 404` and called all of it
+  "the analytics capability is not installed", so every unknown dataset produced a
+  banner telling the operator to install `@objectstack/service-analytics` and mount
+  `AnalyticsServicePlugin`. Measured live on a prod tenant, that banner was shown on
+  four HotCRM Executive Overview widgets while the analytics service was installed
+  and answering — the real condition was an installed `app.objectstack.hotcrm` at
+  1.3.0 whose datasets ship in 2.2.2, i.e. a package upgrade, the opposite corner of
+  the system from the remedy the banner named.
+  
+  Three conditions now get three answers, each keyed on the code the framework
+  declares for it:
+  
+  - `NOT_IMPLEMENTED` (501, route mounted with no analytics service) and
+    `ROUTE_NOT_FOUND` (404, route not mounted) keep the existing
+    `AnalyticsNotInstalledError` and its copy — one remedy, one message.
+  - `NOT_FOUND` (404, unknown `datasetName`) throws the new
+    `AnalyticsDatasetNotFoundError` (`ANALYTICS_DATASET_NOT_FOUND`), naming the
+    dataset and pointing at the installed app's version rather than at the server.
+  - `UNAUTHENTICATED` (401, `enforceAuth`) throws the new
+    `AnalyticsUnauthenticatedError` (`ANALYTICS_UNAUTHENTICATED`), which says the
+    request was refused before it ran and therefore says nothing about the
+    capability.
+  
+  The banner also used to print the server's own message in a parenthetical while
+  contradicting it in the headline — it quoted `Dataset "opportunity_metrics" not
+  found.` under a headline claiming a missing capability. That is now structurally
+  impossible rather than merely fixed: the headline is a pure function of `code` and
+  the parenthetical is a verbatim quote of `message`, both read off the same
+  response, and a test walks every branch asserting each message carries its own
+  headline and none of the others'.
+  
+  Additive only. `AnalyticsNotInstalledError` keeps its `code`, its copy and its
+  constructor signature (it gains an optional third `serverCode` argument and a
+  `serverCode` field), so consumers matching `ANALYTICS_NOT_INSTALLED` — including
+  the metadata-admin dataset preview — are unaffected. A 404 carrying a code this
+  client does not recognise, such as the analytics cube gate's `CUBE_NOT_FOUND`, now
+  keeps its server detail instead of being relabelled as a missing capability; a 404
+  or 501 carrying no code at all is still read as the capability being absent, since
+  the route's own `NOT_FOUND` always ships a code.
+- 8d37efb: The metadata lock banner can no longer render an amber, padlocked box with no
+  title, and the ADR-0010 §3.6 lock vocabulary is declared once instead of three
+  times (objectui#5024).
+  
+  `MetadataLayered.lock` and `MetadataAuditEntry.lockState` each spelled the four
+  states out by hand, 42 lines apart in one file, compared by no gate. They are now
+  one exported `MetadataLockState` — derived from `GetMetaItemLayeredResponseSchema`'s
+  `z.enum` in `@objectstack/spec`, which already owns this vocabulary, so the copies
+  were restating a schema rather than filling a gap.
+  
+  The user-visible half is the banner. Its title was three independent `&&` branches
+  with no fallback, while the switch that opens the banner is true for any non-`none`
+  value — so a lock state outside the four opened the box and left the headline
+  empty. That is reachable without a fifth state ever being added here:
+  `MetadataClient.layered()` casts the wire value through unchecked, so a newer
+  server reaches this banner as-is. Measured, not assumed — feeding `no-publish`
+  through the page rendered the padlock, the border and an empty title. The title is
+  now a keyed lookup with a loud fallback that names the unrecognised token, so a
+  fifth state fails `type-check` here and, if one arrives from a server anyway, the
+  operator reads a sentence instead of a blank box.
+- 9118a31: Preserve the producer's `userMessage` marking when `normaliseClientError` re-wraps a refusal.
+  
+  `ApiErrorSchema.userMessage` (objectstack#9934) is the opt-in channel an application author
+  sets at throw time to say "this text is for the end user", and the contract states it
+  status-agnostic — any refusal status may carry it. Both of the shapes this adapter re-wraps
+  into typed errors dropped the marking: a hook that refused a write with `VALIDATION_FAILED`
+  or `CONCURRENT_UPDATE` and marked its own sentence had that sentence discarded at the
+  adapter boundary, before any surface could render it. Nothing threw and the typed error was
+  otherwise correct, so the only symptom was the user reading a generic string instead of the
+  sentence their administrator wrote.
+  
+  The marking now rides both re-wraps, in the form the shared reader (`declaredUserMessage`)
+  already looks for: on the details bag for `DataApiValidationError`, exactly the way `fields`
+  already survives, and on a new readonly `userMessage` member for `ConcurrentUpdateError`,
+  which has no details bag. Unmarked refusals are untouched — they carry no key and still read
+  as `null`, so nothing a producer did not opt into can reach a user.
+- f75810e: Parse a `droppedFields` wire entry's `fields` elements and its `object` at the
+  write-warning boundary instead of asserting them.
+  
+  The structural gate checked `Array.isArray(fields) && fields.length > 0` and then
+  asserted the entry into a type declaring `fields: string[]` and a required
+  `object: string` — reading neither. A response carrying `fields: [42]` reached
+  `onWriteWarning` subscribers typed as a field name (the shell rendered it as the
+  label `42`), and an entry that omitted `object` arrived claiming a string that was
+  not there.
+  
+  Now the wire type declares only what the gate establishes, and the notice is
+  parsed: non-string `fields` elements are refused, an entry naming no field at all
+  is dropped as `fields: []` already was, and a missing or non-string `object` is
+  healed from the object the write targeted. Warnings are never silenced for a
+  field the server really did name. No published type changes — `WriteWarningEvent`
+  and `DroppedFieldsNotice` keep their shapes, and a subscriber's `fields: string[]`
+  is now true rather than asserted.
+- Updated dependencies [64dae8e]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [490d9a9]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [90665e0]
+- Updated dependencies [7e19d03]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [6f81384]
+- Updated dependencies [8f1d995]
+- Updated dependencies [dddb942]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [5961030]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [2c1c967]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [045d20b]
+- Updated dependencies [adb2a86]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [351eb31]
+- Updated dependencies [20c04b2]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [47547d0]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [5d0876c]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [52cac38]
+- Updated dependencies [64a252d]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [100547e]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [0e05aac]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [199d31b]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [a691c0b]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [258d264]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [91783c4]
+- Updated dependencies [2d36552]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [3c73d99]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes

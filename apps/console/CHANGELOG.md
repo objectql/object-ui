@@ -1,5 +1,1248 @@
 # @object-ui/console
 
+## 17.7.0
+
+### Minor Changes
+
+- 64dae8e: Six user-visible fixes across the maker surface, the assistant rail and the
+  dataset captions.
+  
+  **The maker's start chips now promise only what ADR-0112 v1 builds
+  (cloud#1984).** Two of the five asked for automation the first version has no
+  flows or actions for — the ticket chip said 「状态流转」, the inventory chip said
+  「低库存预警」 — and the measured behaviour was not a refusal but a silent
+  degrade: a status kanban and a low-stock view. The chip promised an alert and
+  delivered a page. All five are reworded in all ten packs (and in the call-site
+  `defaultValue` fallbacks, which are a second copy of the same strings) to ask
+  for objects, fields, views, pages, dashboards and sample data, keeping each a
+  real business scenario — the ticket chip now asks for a status field and a board
+  grouped by it, the inventory chip for a view that filters below the reorder
+  point. A note beside the keys says to revert when v2 re-adds flows.
+  
+  **Five newer AI tools get their step labels (objectui#7481).** A zh conversation
+  read `✓ Get authoring rules 已完成` between 「读取元数据结构」 and 「列出对象」:
+  `get_authoring_rules` (cloud#1837), plus `load_tools`, `open_record`,
+  `test_flow` and `toggle_flow`, are registered by the cloud AI runtime but are
+  newer than the pinned spec's tool registry, so they had no `chatbot.tool.*`
+  entry in any pack and fell through to the English title-caser.
+  
+  **The assistant rail follows the thread when you send (objectui#7480).** The
+  rail and the full-page maker are the same component; what differs is width. A
+  reply that still ends on screen in the wide column runs two or three times
+  taller in a ~360px rail, so `StickToBottom`'s lock is escaped by the time the
+  user types and the new bubble, the tool steps and the streaming answer all land
+  below the fold. Every send path now re-arms the lock — including the plan-card
+  "Build it" and 确认修改 approvals, whose own code comments already named this
+  miss. Message APPENDS deliberately do not, so a user reading back through the
+  thread mid-answer is never yanked to the bottom.
+  
+  **Console toasts move off the assistant composer (objectui#7482).** 「客户更新
+  成功」 sat on the ChatDock composer's send button and stayed there. One defect,
+  two symptoms: `apps/console` pinned the toaster to `bottom-right` — an override
+  that predates ADR-0057 P3a — so a toast both covered the button and, because
+  sonner pauses a toast's dismiss timer while the pointer is inside the toaster
+  region, never got to run its 4s timer with a pointer resting on the composer
+  underneath. The override is gone; the console takes `ConsoleToaster`'s own
+  documented top-right anchor, and the 4s success duration is now pinned.
+  
+  **Built-in aggregate captions follow the locale everywhere (objectui#7534).**
+  objectui#7258 taught `buildChartSeries()` to resolve a server-minted default
+  measure through the locale map, so a chart legend read `计数` while the table
+  beneath it, the KPI caption, the pivot header and the dataset preview still
+  printed the server's hard-coded English `Count`. `buildDatasetFieldHelpers()`
+  takes the same optional `builtinAggregateLabels`, resolving through the one
+  `resolveMeasureLabel` order, and the five call sites pass it. Omitting the
+  argument reproduces the previous output byte for byte, and an author-declared
+  measure still keeps its own label verbatim (objectui#4106).
+  
+  **The activity feed stops asking for an object the environment does not have
+  (objectui#7476).** A tenant environment has no `sys_activity`, so every page
+  load issued a request that 404'd. Everything downstream was already correct —
+  the adapter memoizes the missing collection, its logger demotes the failure, the
+  feed retires as an ANSWER and the panel renders its earned empty state — so what
+  is left is the request itself, and `data-objectstack` states the rule for it:
+  the cure for a doomed request is not issuing it. New `useObjectPresence` reads
+  the object registry the shell loads for the nav anyway; only a registry that has
+  ANSWERED and lists other objects without this one skips the read. Every
+  uncertainty — no provider, empty registry, still loading, errored — reads as
+  before, because a wrong skip would cost a real deployment its feed.
+- 26fbe09: Console telemetry can now be hard-disabled on an already-built artifact
+  
+  `/api/v1/runtime/config` gained `telemetry.allowClientErrorReporting`
+  (objectstack#11382), and the Console now reads it. The Sentry decision becomes a
+  conjunction of two independent grants — a DSN injected at **build** time AND a
+  positive permission from the **runtime** — so the single pre-built SPA that both
+  the hosted SaaS console and the on-premises / air-gapped EE images embed can be
+  silenced by the deployment it lands in, with no rebuild and without editing files
+  inside a published bundle. That was the half objectui#5522 could not close before:
+  every other input to the gate is a Vite build-time variable frozen into the bundle
+  as a literal, which is how an air-gapped EE Console came to send 14 Sentry
+  envelopes per session to `sentry.io` carrying IP + User-Agent PII with no way for
+  the customer to turn it off (objectstack-ai/cloud#1508).
+  
+  The permission fails **closed** in every direction: absent key, `telemetry` block
+  absent, malformed payload, failed fetch, or a runtime predating the key all read as
+  *do not send* — which is precisely the set of runtimes leaking today. It is a
+  permission and never a source: the server supplies no DSN and cannot turn telemetry
+  on for a build that carries none. Only a real boolean `true` grants; `'true'`, `1`
+  and other truthy lookalikes do not.
+  
+  Behaviour change for deployments that already inject a DSN: reporting now also
+  requires the runtime to grant permission, via
+  `OS_TELEMETRY_CLIENT_ERROR_REPORTING_ENABLED` (or `RuntimeConfigPlugin`'s
+  `allowClientErrorReporting`). A build that opted in but whose runtime says nothing
+  will go quiet — deliberately, since that is the same artifact an air-gapped
+  customer runs.
+  
+  `@object-ui/app-shell` additionally exports `isClientErrorReportingAllowed()` and
+  the `RuntimeTelemetry` type, so consumers read the permission through the one
+  fail-closed accessor instead of writing their own optional-chain against the
+  payload.
+- 5173a5e: ⚠️ **Behaviour change: `current_user` predicates that have been doing nothing on
+  the console form routes and in the wizard's submit gate now TAKE EFFECT.** Read
+  this before upgrading if any of your form metadata gates on the session user.
+  
+  objectui#6010 bound the host predicate scope on the five authored-predicate call
+  sites in the components form renderer, so `current_user` (plus the ADR-0068
+  `user` / `ctx.user` / `os.user` aliases) resolves on `visibleWhen` / `visibleOn`
+  there. Two other authored-predicate evaluators were still passing `undefined`
+  for that argument, so the same authored text meant two different things
+  depending on which surface opened the form (objectui#6110):
+  
+  - **`apps/console`'s form renderer**, on the authed internal route
+    `/forms/:name`. The internal route is a runtime record surface by ADR-0089
+    D1's own words (*"runtime record surfaces bind `record` + `current_user`"*),
+    and its `visibleWhen` metadata is the same `*.view.ts` FormView the
+    object-view chain renders — so a role gate authored once behaved differently
+    depending on which route opened the form.
+  - **`WizardForm`'s submit-time required re-check** (`missingRequiredByStep`),
+    the gate that re-checks the whole declared field set at final submit because
+    `allowSkip` can jump past a step. Its docstring promises *"the same verdict
+    from all three rather than a second, divergent dialect"*, and since #6010 it
+    was the divergent one.
+  
+  **Why nobody noticed, and why the fix is felt as a change.** `visibleWhen` fails
+  OPEN: a field on screen is what you get when the predicate resolves TRUE, when
+  the scope was never bound so the predicate faulted, *and* when the predicate is
+  broken. Those worlds were indistinguishable, so an app that authored a
+  `current_user` gate saw the field render and had no way to tell the rule was
+  inert. After this change the predicate is evaluated for real, and fields and
+  sections that have always been visible will disappear for the users the rule
+  excludes. `requiredWhen` fails the other way (CLOSED), so a `current_user`
+  requiredWhen that has been silently not applying will now start holding submits.
+  
+  In the wizard the change is a fix in the user's favour as well: a required field
+  the wizard HID from this user was still counted as visible by the submit gate,
+  so the submit was refused on a control the submitter could neither see nor fill
+  in.
+  
+  **Before upgrading**, audit any `visibleWhen` / `visibleOn` / `requiredWhen` in
+  your form-view and object metadata that names `current_user`, and confirm each
+  predicate says what you actually want evaluated against `record` +
+  `current_user`.
+  
+  **The public anonymous form `/f/:slug` is deliberately unchanged.** It is
+  mounted outside `ProtectedRoute` so an anonymous visitor can submit it, there is
+  no authenticated principal, and no provider is mounted above it — so its scope
+  is empty and a `current_user` predicate authored on a public form still faults
+  and still fails open, exactly as before. Nothing new is declared to say so: the
+  two routes are told apart by which component mounts them.
+  
+  `@object-ui/app-shell` exports `buildExpressionUser`, the `ExpressionProvider`
+  user normalisation, so every console surface that mounts the provider publishes
+  the same `current_user` shape rather than re-deriving it.
+- 0ea7054: Remove 37 runtime dependencies that no file in the declaring package consumes, and gate
+  the direction so the next one cannot land (objectui#8198).
+  
+  `check:phantom-deps` judges imports that are not declared; nothing judged the reverse,
+  so a declaration could outlive its last consumer indefinitely. That is what happened to
+  `recharts` in `@object-ui/components` after objectui#7397 deleted its only importer — it
+  was removed by hand on objectui#7625, and nothing would have reported the next one. The
+  new `pnpm check:unused-deps` asks the reverse question over `dependencies` and
+  `optionalDependencies` of every released package.
+  
+  **Potentially breaking, for consumers relying on hoisting.** Nothing these packages ship
+  changes: their Vite `external` predicates are path-based and never read `dependencies`,
+  so no built artifact moves. What changes is the install graph — a project that imports
+  one of the removed packages while depending only on the ObjectUI package that used to
+  drag it in will no longer resolve it. Declare it directly; that is the correct
+  dependency edge in either case. The removals, by package:
+  
+  - `@object-ui/plugin-designer`: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@object-ui/fields`
+  - `@object-ui/plugin-chatbot`: `react-markdown`, `react-syntax-highlighter`, `remark-gfm` (and the orphaned `@types/react-syntax-highlighter`)
+  - `@object-ui/plugin-report`: `@object-ui/plugin-grid`, `clsx`, `react-i18next`, `tailwind-merge`
+  - `@object-ui/plugin-map`: `@objectstack/spec`, `lucide-react`, `zod`
+  - `@object-ui/runner`: `class-variance-authority`, `clsx`, `tailwind-merge`
+  - `@object-ui/core`: `lodash`, `zod`
+  - `@object-ui/layout`: `clsx`, `tailwind-merge`, and `react-dom` — which it pinned at an exact version in `dependencies` while also declaring it as a peer range, i.e. a library hard-depending on the renderer it asks its host to supply
+  - `@object-ui/plugin-dashboard`: `clsx`, `tailwind-merge`, and the same `react-dom` defect
+  - `@object-ui/plugin-ai`: `@object-ui/react`, `clsx`, `tailwind-merge`
+  - `@object-ui/fields`: `clsx`, `tailwind-merge`
+  - `@object-ui/console`: `@object-ui/react-runtime`, `sucrase`
+  - `@object-ui/auth`: `@object-ui/types`
+  - `@object-ui/plugin-calendar`: `@object-ui/fields`
+  - `@object-ui/plugin-editor`, `@object-ui/plugin-markdown`: `@object-ui/react`
+  - `@object-ui/react`: `react-hook-form`
+  
+  Every one was verified by a whole-package grep before removal — the name appeared nowhere
+  under the package but its own manifest and CHANGELOG — and the whole workspace builds,
+  type-checks and tests green afterwards.
+- c8da8b3: Stop showing an access-denied screen to a real administrator while their
+  adminship is still resolving.
+  
+  `useIsWorkspaceAdmin()` returned a bare `boolean`, so "the inputs have not
+  arrived yet" and "resolved: not an admin" were the same answer. One of its three
+  sources — the active organization member row — is fetched some round trips after
+  the session (`listOrganizations` → `getActiveOrganization` → `getActiveMember`),
+  so an administrator whose adminship lives only in that row rendered at least
+  once as a non-admin, and every gate downstream acted on it: the two marketplace
+  surfaces painted `MarketplaceAccessDenied`, the console chrome dropped and
+  re-added its admin nav entry, and `AppContent` fired a `<Navigate to="/home"
+  replace>` that the later flip could not undo.
+  
+  **Breaking (published API, hence `minor` per this repo's version policy):**
+  `useIsWorkspaceAdmin(): boolean` is replaced by
+  `useWorkspaceAdminStatus(): { isAdmin: boolean; isResolved: boolean }`. The old
+  name is removed rather than kept alongside, so a call site that ignores the
+  third state fails to compile instead of silently refusing an administrator.
+  
+      -const isAdmin = useIsWorkspaceAdmin();
+      +const { isAdmin, isResolved } = useWorkspaceAdminStatus();
+  
+  `AuthProvider` gains `isMembershipResolved` on its context — the organization /
+  member pipeline has reached a terminal state — because `organizations`,
+  `activeOrganization` and `activeMember` read `[]` / `null` / `null` both before
+  the pipeline starts and after it finds nothing.
+  
+  No extra wait for administrators: `isResolved` is true the instant `isAdmin` is,
+  so an admin the session already identifies through `positions[]` never waits on
+  the member row.
+- 14ef9f5: Console error reporting is now configured entirely by the **server**: the DSN and every
+  knob that travels with it arrive on `GET /api/v1/runtime/config`, and the build-time
+  `VITE_SENTRY_DSN` path is retired (objectui#5522, consumer half of objectstack#12681).
+  
+  ObjectStack's users consume a **prebuilt** Console. Under the previous two-key gate —
+  a build-time DSN **and** a runtime permission — a build-time key was unreachable for
+  them, so a self-hosting operator could not enable client error reporting at all: the
+  permission was reachable and the source was not. The maintainer named it on 2026-08-27:
+  
+  > 「我是一个开发平台呀，我的用户并不会去构建我的前端，我理解这种应该在服务端传进去。」
+  
+  ```
+  send  ⇔  the runtime served a DSN
+  ```
+  
+  **The DSN's presence IS the grant.** There is no companion permission flag, and the one
+  that briefly existed is removed rather than paralleled. Two knobs in two places produced
+  two silent dead states — "permission on, no DSN" and "DSN in, permission off" — that look
+  identical from the browser; one knob cannot disagree with itself. Turning reporting off is
+  unsetting the server DSN, and there is deliberately no build-time force-off left, because
+  nobody consuming a prebuilt console could reach one.
+  
+  The fail-closed posture is unchanged and structurally stronger. Absence of a *source* is
+  not a value that can be misread, so a runtime predating the key, a third-party host, a
+  404, a network failure, a malformed body and a config that has not arrived yet all read as
+  off — where the boolean needed a strict `=== true` plus a written argument about why a
+  negative `disabled` flag would have been vacuous on exactly the runtimes that were leaking.
+  
+  ### What moved, and the one thing that did not
+  
+  `sendDefaultPii`, `environment`, `tracesSampleRate` and the error-session replay rate move
+  into the runtime payload. They were build-time variables, so a prebuilt-console consumer
+  could set none of them — including the one deciding whether IP and User-Agent leave their
+  network. This is not new surface; it is the same surface moved to the side that can
+  operate it.
+  
+  `VITE_SENTRY_RELEASE` **stays build-time**, and is now the only `VITE_SENTRY_*` variable
+  that exists. A release identifies which bundle produced a stack trace and must match the
+  source maps that bundle's pipeline uploaded — a property of the build, which no server can
+  know. `VITE_SENTRY_ENABLED`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_TRACES_SAMPLE_RATE`
+  and `VITE_SENTRY_REPLAY` are retired along with `VITE_SENTRY_DSN`.
+  
+  ### Breaking
+  
+  | FROM | TO |
+  |:--|:--|
+  | `VITE_SENTRY_DSN=…` in the Console build environment | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_DSN=…` on the ObjectStack runtime |
+  | `VITE_SENTRY_SEND_DEFAULT_PII=true` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_SEND_DEFAULT_PII=true` |
+  | `VITE_SENTRY_ENVIRONMENT=…` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_ENVIRONMENT=…` |
+  | `VITE_SENTRY_TRACES_SAMPLE_RATE=…` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_TRACES_SAMPLE_RATE=…` |
+  | `VITE_SENTRY_REPLAY=true` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_REPLAY_SAMPLE_RATE=0.1` |
+  | `VITE_SENTRY_ENABLED=false` | unset the runtime DSN |
+  | `isClientErrorReportingAllowed(): boolean` | `getClientErrorReporting(): RuntimeClientErrorReporting \| null` |
+  | `resolveSentryGate(env, runtimeAllows)` | `resolveSentryGate(runtimeErrorReporting)` |
+  | `RuntimeTelemetry.allowClientErrorReporting: boolean` | `RuntimeTelemetry.errorReporting?: RuntimeClientErrorReporting` |
+  
+  One-line fix for a deployment: move your `VITE_SENTRY_*` values onto the ObjectStack
+  server as the `OS_TELEMETRY_CLIENT_ERROR_REPORTING_*` variables above, and drop them from
+  the Console build environment. One-line fix for a consumer of `@object-ui/app-shell`:
+  `const sink = getClientErrorReporting(); if (sink) …` in place of
+  `if (buildTimeDsn && isClientErrorReportingAllowed())` — the build-time conjunct is gone,
+  because the server now supplies the source.
+  
+  **Landing order is safe in both directions.** A Console built before this change meets a
+  new server, reads an absent `allowClientErrorReporting` and stays off; a Console built
+  after it meets an old server, reads an absent DSN and stays off. Neither half can turn
+  reporting on by itself, so the two repos' PRs can land in any order.
+  
+  The `committed-telemetry-endpoint.test.ts` ratchet is unchanged in rules and unchanged in
+  job: nothing endpoint-shaped may be committed to this repo. Its rules key on the
+  variable's suffix and on the value rather than on the `VITE_` prefix, so they already
+  cover the runtime-side spelling — now pinned, so a later tidy-up cannot narrow them to the
+  retired names and reopen the hole under a new one.
+
+### Patch Changes
+
+- ff8587f: Setup's settings selects now follow the specifier's `valueDomain` declaration instead of
+  treating the curated `options` table as the domain (objectui#3719).
+  
+  Since objectstack#5712 / PR objectstack#6581 a settings specifier may declare
+  `valueDomain` (`iana_time_zone` | `iso_4217_currency` | `iso_3166_alpha2`), and when it
+  does the **standard's membership is the enforcement boundary** — the server accepts
+  `timezone: 'Europe/Zurich'` and `currency: 'CHF'`, neither of which is in the manifest's
+  list. The console kept drawing those keys as closed dropdowns, so an admin could author
+  only the 17 curated zones and 9 curated currencies while the contract took the whole
+  domain; every other legal value was reachable by API or `OS_LOCALIZATION_*` env only. The
+  keys' own descriptions had promised "IANA zone" / "ISO 4217 code" all along.
+  
+  `case 'select'` in `SettingsField` now keys the control off the declaration. Declared →
+  an editable combobox: the curated options stay on as suggestions (native `<datalist>`, the
+  same suggest-but-allow-anything affordance `FlowReferenceField` uses — no new dependency),
+  free text is committed verbatim, and an out-of-domain value is refused by the server with
+  `invalid_value` + `constraint: { valueDomain }` into the field-error slot that already
+  exists.
+  
+  **Undeclared → the closed dropdown is untouched**, which is half the change rather than a
+  caveat. Those `options` are still exhaustive under objectstack#5131 (the sms/mail provider
+  selects), and `localization.locale` had its domain declaration deliberately **rejected** in
+  objectstack#6515 because its options *are* the shipped catalogs. Widening those to free
+  input would be a regression wearing this fix's clothes, so the two branches are pinned
+  against each other from the specifier data rather than from a list of key names — a key
+  that gains a domain server-side joins the right side of the pin with no edit here.
+  
+  Root cause, because it will recur: `Specifier` in `pages/settings/types.ts` is a
+  hand-written **local mirror** of the server's shape, not an import, so nothing tells it when
+  the schema grows — and TypeScript reports nothing, because a narrower mirror is a
+  structurally valid reading of a wider object. `valueDomain` is added there and the file
+  header now says to check the mirror first when a settings feature "doesn't render".
+- baac3f4: Fix four `find()` calls that passed a query option without its `$`, and gate the shape.
+  
+  `QueryParams` declares every query option `$`-prefixed and `convertQueryParams` copies
+  exactly those keys, so an unprefixed spelling reaches no branch and is dropped — no throw,
+  no warning, and it type-checks because the type carries `[key: string]: any` for
+  adapter-specific params. For a dropped cap the result is an **unbounded** read rather than
+  a truncated one: the platform's GET list route has no default page size, so the query
+  returns the whole match set and stays invisible until the object is large.
+  
+  - `app-shell` `ObjectView` fetched the footer's record count with `{ limit: 0 }`. This one
+    **inverted** rather than widened — `$top: 0` is honoured end to end as "no records", so
+    the dropped key turned "count only, fetch nothing" into "fetch every row in the object",
+    on every mount and every refresh of every list view. It now sends `$top: 0` and reads
+    the count off `total` only; the row-counting fallbacks are gone rather than repointed,
+    because once zero rows are requested an empty `data` means "you asked for none", not
+    "the object is empty", and counting it would assert a confident `0`. With no total the
+    footer line is omitted instead.
+  - `app-shell` `AssignedUsersSection` looked a permission set up with `{ …, limit: 1 }`,
+    one line from three correct `$top` calls.
+  - `plugin-dashboard` `DashboardFilterBar` passed `fields` **and** `top` in one literal, so
+    a filter's option list read every row and every column of its source object while its
+    own comment described it as capped at 200. The same call read `records.items`, which is
+    not a `QueryResult` member, so against a real adapter the fallback produced no options
+    at all.
+  - `console` `sdui-workbench-preview` passed `{ top: 200 }` and read `.records` off the
+    result in its page-source metadata.
+  
+  A new `object-ui/no-unprefixed-query-params` ESLint rule rejects the shape at write time:
+  a known query-option name missing its `$` in the second argument of a `find`/`findOne`
+  call. It is narrow on purpose — a closed list of spellings, anchored to the call — because
+  the index signature exists so adapters can take adapter-specific params, and a rule that
+  flagged any unprefixed key would report the shape the type was written to allow. Its
+  sibling `no-query-params-under-options` (the `{ options: { $top } }` half) is unchanged.
+- 7a72422: Publish the create-payload rule from `@object-ui/plugin-form`'s entry, so a
+  second form renderer can call it instead of composing it by hand
+  (objectui#6059).
+  
+  Newly importable from `@object-ui/plugin-form` — two functions, nothing else:
+  
+  ```typescript
+  import { omitServerResolvedDefaults, isRequiredInForm } from '@object-ui/plugin-form';
+  ```
+  
+  - `omitServerResolvedDefaults(values, objectSchema)` — drop the keys a CREATE
+    payload must leave to the producer: a field whose declared `defaultValue` is a
+    runtime instruction (`NOW()` / `current_user`, or a CEL envelope) and whose
+    submitted value is empty. `ObjectQL.applyFieldDefaults` resolves a declaration
+    only for a field that arrives absent or null, so submitting a blank stores
+    `''` and silently defeats it. **Create-only** — the caller keeps the mode gate.
+  - `isRequiredInForm(field, isCreateForm)` — the `required` a form should
+    enforce, given the mode. Published as the pair's other half on purpose:
+    excusing a server-owned field from `required` and then submitting the key
+    anyway is not half a fix, it is no fix.
+  
+  Both are pure functions over plain data (no React, no registry). The rest of
+  `schemaDefaults.ts` — `seedCreateValues`, `schemaDefaultValues`,
+  `isSeedableDefault`, `isCreateFormMode`, `SeedContext` — stays module-private,
+  and `isRuntimeDefault` stays `@object-ui/core`'s to publish.
+  
+  No behaviour change. The console's `FormPage` now calls the published helper
+  instead of composing `isRuntimeDefault` + `isMissingForRequired` locally; its
+  create payload is decided identically before and after, pinned against the
+  deleted implementation over the full matrix of default shapes, value spellings
+  and both modes.
+- 6630b37: The console boot no longer flashes a fully-white frame after the splash has painted
+  (objectui#6378).
+  
+  Cause, established by measurement before any fix was written — the card named
+  `LoadingScreen`'s unmount timing and `RouteFader` as suspects and both are exonerated.
+  A CDP `Page.startScreencast` frame ledger (every frame classified with the card's own
+  rule: white when no colour channel falls below 242) was correlated against a DOM-state
+  ledger on the same clock (`performance.timeOrigin`), against the production
+  `apps/console` bundle with the boot endpoints mocked. `RouteFader` never mounts on the
+  boot path at all, and `LoadingScreen` unmounts exactly when its own gate says to. What
+  is wrong is what REPLACES it: every readiness gate renders the splash while it waits and
+  a bare `<Navigate>` the moment it decides. `<Navigate>` renders `null` and react-router
+  runs the navigation as a transition, so the destination tree renders while the commit
+  that already dropped the splash is what the compositor is showing — 41–147 ms during
+  which `#root` holds no view and the viewport is the bare page background. The flash is
+  intermittent only because it depends on a frame being swapped inside that window; the
+  window itself was present on every measured boot.
+  
+  `RedirectWithSplash` (new, `@object-ui/app-shell`) pairs the same `<Navigate>` with the
+  same `LoadingScreen` the gate one line above was already rendering, so the handoff
+  changes no pixels and the transition runs underneath an unchanged screen. The console's
+  three boot redirects use it: the auth gate's `/login` bounce, the `/` landing resolver,
+  and the catch-all route. The nested organization `index` redirect deliberately does not —
+  it fires under an already-painted layout, where covering the screen would be the
+  regression.
+  
+  Acceptance campaign — same instrument on both sides, the two arms INTERLEAVED inside one
+  process and one browser so drift in this shared container's load lands on both equally.
+  102 paired boots per arm across five cells (signed-out `/`, signed-in `/`, an unmatched
+  entry, and the card's two throttled network profiles). The empty-viewport window: 102/102
+  pre-fix, 0/102 post-fix. The white frame itself, pooled over the three cells where the
+  pre-fix build actually flashed: 67/87 (77%) pre-fix, 0/87 post-fix — 95% upper bound on
+  the residual rate 3.4%, against a card-reported defect rate of ~1/3. The two throttled
+  cells are reported but NOT pooled: the pre-fix build flashed 0 times there, so before and
+  after agree and those cells prove nothing about the pixels (they still separate 15/15 vs
+  0/15 on the DOM window).
+  
+  `e2e/console-boot-indicator.spec.ts` gains the deterministic half as a gate — after
+  React's first commit the viewport centre must never stop being covered. That reading is
+  what makes an intermittent defect gateable: the flash needs a frame to be swapped inside
+  the window, but the window itself was present on every measured boot. Verified red-first,
+  6/6 red on the pre-fix bundle and 6/6 green on this one.
+- 1db5b76: Console: free the marketplace routes `AppContent` declares lazy, and pin the metadata-admin surface that cannot be freed
+  
+  `AppContent` declares four surfaces with `lazy()` that the emitted bundle loaded on
+  every console page load anyway. Measured on `b98352a15` from
+  `apps/console/dist/eager-closure.json` and the emitted chunks' own module lists —
+  not from a source-level search, which cannot see the mechanism at all:
+  
+  | chunk | gz, eager before | after |
+  |---|---|---|
+  | `metadata-admin` | 172,651 B | unchanged — pinned, with the module list that proves it |
+  | `MarketplacePackagePage` | 7,647 B | lazy |
+  | `MarketplaceInstalledPage` | 1,836 B | lazy |
+  | `MarketplacePage` | already lazy | lazy |
+  
+  Both marketplace chunks were held by CHUNK CO-TENANCY, not by any import of the page:
+  rolldown had parked `components/SuggestedBindingsPanel.tsx` (statically imported by the
+  eager `views/studio-design/StudioDesignSurface.tsx`) in the first, and
+  `console/marketplace/InstalledListWidget.tsx` (bare-imported by the package barrel for
+  its SDUI registration) in the second. An `app-shell-eager-leaves` group in
+  `apps/console/vite.config.ts` isolates those co-tenants so the three declared-lazy pages
+  chunk by their own dynamic-only reachability. The console eager closure moves
+  3180.2 KB → 3171.5 KB gzipped (−8,888 bytes, 48 → 45 eager chunks) with the three
+  per-chunk ceilings unmoved.
+  
+  `metadata-admin` is NOT freed and is now pinned in
+  `DECLARED_LAZY_VIEWS_STILL_EAGER` with the reason: it is statically imported by the
+  package barrel and by `services/builtinComponents.tsx`, which registers
+  `MetadataDirectoryPage` and `MetadataResourceRouter` by value, and it performs five
+  load-bearing top-level registrations. Freeing it would change what
+  `registerAppComponent` accepts and what the barrel re-exports — a published-contract
+  decision, not a bundling one.
+- 4704aa4: A form no longer ends on a screen asserting both a failure and a success (objectui#7252).
+  
+  A refused submit raised an error toast that nothing ever retired, so when the user
+  fixed the input and submitted again the confirmation of that second attempt appeared
+  *beside* the refusal of the first — a wizard's last step showing "Invalid project
+  status transition." and "Your new project is ready…" at the same time.
+  
+  Every outcome toast a form raises now travels under one stable per-form id, so the
+  later outcome supersedes the earlier one instead of stacking beside it:
+  
+  - `@object-ui/components`' form renderer publishes its three outcome toasts (the
+    field-level rejection, an `onAction` error, and a rejected write) under that id, and
+    retires the previous attempt's toast in the same place it already cleared the
+    previous attempt's in-form banner. This is what fixes the reported wizard flow: the
+    refusal comes from this renderer while the success toast is raised by the host
+    (`WizardForm` / `ObjectForm`), so no single raiser could supersede the other before.
+  - the console's own `FormPage` publishes its confirmation and its submit failure under
+    one id, for the same reason.
+  
+  Toast durations are unchanged — this is about supersession, not lifetime. The
+  objectui#4190 arm is deliberately excluded: a refused redirect *destination* still gets
+  its own toast, because the write succeeded and that refusal has to stay readable beside
+  the confirmation it qualifies.
+- d4c6a86: The console chrome's Home affordances follow the product's declared landing (objectui#7256).
+  
+  `/` has honored `app.isDefault` since the hardcoded `PREFERRED_APPS = ['cloud_control']`
+  redirect was retired; the chrome had not. The top-bar logo, the sidebar's Home row, the
+  mobile sheet's Home row and the app-switcher's Home entry each named `/home` literally —
+  the ENVIRONMENT layer's launcher (ADR-0075). So a deployment that declares a landing
+  offered the customer two homes in two voices, and one click on the logo left the declared
+  one.
+  
+  On cloud's control plane that second home is actively wrong: its "Build an app" / "Start
+  from a template" cards are environment-side actions that cannot work from the control
+  plane, and its "Your apps" tiles are the control plane's own internal management apps.
+  
+  - `@object-ui/app-shell` adds `resolveDeclaredHomePath()` — the one reader of the
+    declaration — plus `useHomePath()`, which the four chrome sites now consume. The signal
+    is the App metadata the server already sends: no hostname sniff, and no product name
+    baked into the shared bundle.
+  - `@object-ui/console`'s `/` resolver is unchanged, and a behavioural matrix now pins its
+    answer equal to the chrome's for every declared app list, so the post-login landing and
+    the logo cannot drift apart.
+  
+  Deployments that declare no landing are unaffected: every Home affordance still resolves
+  to `/home`. The "this app is gone" recovery redirects in `AppContent` / `ConsoleShell` are
+  deliberately untouched — they are error paths, not Home affordances.
+- ef1ffc2: `MetadataHmrReloader` stops flooding a production-posture deployment with
+  `GET /api/v1/dev/metadata-events` 404s (objectui#7257).
+  
+  The dev-only HMR component subscribes via `EventSource`, gated on
+  `import.meta.env.DEV`. That gate is not airtight against every rig: a
+  "prod-like" build/serve setup that forces `NODE_ENV=development` for the
+  *build tooling* while running the server itself in production posture can
+  bake `DEV === true` into the shipped bundle even though the server never
+  mounts the dev route there — and the old reconnect loop treated every closed
+  connection as transient, retrying on a fixed `reconnectDelayMs` (2s)
+  forever. On an env host that is ~30 requests/minute of 404s per open
+  record/list page, drowning out the legitimate `sys_inbox_message` /
+  `sys_notification_receipt` polling in the same console.
+  
+  The first `connect()` attempt now doubles as the real capability probe: if
+  the stream closes before it ever reaches `open`, the component gives up for
+  good instead of retrying (and specifically not a longer interval either —
+  that would still spam 404s, just slower). A stream that DID open at least
+  once and later drops — a real dev-server restart or network blip — keeps
+  reconnecting exactly as before.
+  
+  No production-side replacement is introduced here: this component's only
+  job is turning "a metadata file changed on disk" into a full reload, and
+  production deployments have no such file-system event to watch. The
+  separate Studio-left-nav-doesn't-refresh caching issue does not go through
+  this SSE stream and needs its own fix.
+- 9b9af8d: The Approvals Inbox stops remounting every row on every render.
+  
+  `ApprovalsInboxPage` declared `RequestCell`, `RecordCell` and `InlineActions`
+  inside its own component body. React identifies a component by the identity of
+  its function, so each render produced three brand-new component *types* and React
+  unmounted and remounted every row's subtree instead of updating it — and the page
+  holds its clock in state and ticks it every 60s, so this fired on a timer whether
+  or not anyone was touching the page (objectui#5348).
+  
+  Two consequences were reproduced against `origin/main` before the fix, in
+  `apps/console/src/pages/system/ApprovalsInboxPage.cellIdentity.test.tsx`:
+  
+  - **Transient subtree state is discarded.** Focus placed on a row's Approve
+    button moved to `<body>` on the next clock tick.
+  - **Input is silently swallowed.** A pointer sequence that spans a re-render —
+    press, tick, release — left the confirmation dialog unopened: the captured node
+    had been replaced, so React's delegated listener never saw the click. This is
+    the failure objectui#5211 hit and worked around at its call site
+    (`Unable to find role="alertdialog"`).
+  
+  The three cells are now at module scope beside `StatusBadge`, which was moved
+  there for the same reason and already carries the explanation. Everything they
+  closed over is passed in: `RequestCell` and `InlineActions` take the page's
+  scoped translator, and `RecordCell` takes `href: string | null` — one prop rather
+  than two, so the objectui#5211 readable/unreadable decision and the URL cannot be
+  handed in disagreeing with each other.
+  
+  The verification asserts the consequence, not the placement. A test that checks
+  the three functions now sit at module scope stays green for a refactor that moves
+  them and introduces a fourth inline component beside them; these cases compare
+  DOM-node identity for all three cells across a clock tick, which no remount can
+  pass, and re-drive the swallowed click.
+  
+  That guard is load-bearing because lint cannot supply one here.
+  `react-hooks/static-components` exists for exactly this class and is `error` in
+  this repo via the plugin's recommended set, yet it reports nothing on this page:
+  measured on `origin/main`, an arrow-form inner component injected into
+  `ApprovalsInboxPage` and used in JSX produced **zero** reports, while the same
+  shape in a ten-line file produced two. The rule's analysis bails out on this
+  component, which is how three of them shipped.
+- 9180fd1: Approvals inbox: the queue rows and the amount sort now honour each request
+  object's own `hidden: true` field declaration (objectui#6020).
+  
+  The `hidden: true` trim added for the drawer summary card reached only the
+  drawer — the desktop queue row, the mobile card and the amount comparator
+  still read the field, so an amount an app author declared hidden rendered
+  inline in the queue and ordered the list, which leaked its relative magnitude
+  even to a viewer who never saw the figure.
+  
+  The queue spans many objects, so the trim is a per-object lookup and every row
+  is answered about its own object; a row left with no renderable amount now
+  sorts with the other amount-less rows. `hidden` stays a UI contract
+  (objectstack#10749) and the filter still fails open: an unanswered or failed
+  metadata read renders today's figure.
+- 7c0e417: The Approvals Inbox no longer shows a business approver the submitted record's raw
+  row JSON.
+  
+  The detail drawer's "Raw data (JSON)" panel rendered on `payload != null` alone — no
+  principal check of any kind — so every approver could expand (and one-click copy) the
+  complete raw snapshot: `id`, `created_by`, `updated_by`, `owner_id`,
+  `organization_id`, bare lookup ids, and **the fields the object's metadata declares
+  `hidden: true`**. Reported from a live EHR deployment on 17.1.0
+  (objectstack-ai/objectstack#10734), where that declaration is a patient-data control.
+  The app author had no legitimate lever to remove the panel — field `hidden`, view
+  columns, app navigation, permission sets and env vars are all ineffective against it —
+  so the remedies available in the field were patching the shipped bundle or injecting
+  CSS.
+  
+  The panel is now gated on `holdsStudioAccess`, reused verbatim from the console's
+  `studioEntry` module: `studio.access` is a declared platform-scope capability that a
+  tenant org owner does not hold by design, and it already reaches the browser in
+  `systemPermissions[]` from `/api/v1/auth/me/permissions`. Nothing new is served,
+  computed or made authorable — no new config key, no new i18n copy, and the panel is
+  byte-for-byte unchanged for the platform operator it was written for. A business
+  approver keeps the structured record summary, the approval chain, the activity feed
+  and the decision actions; only the raw snapshot is gone.
+  
+  The gate reads the RAW `systemPermissions` signal and fails **CLOSED**, inverted from
+  `usePermissions().hasCapabilities`. That hook fails open on purpose — hiding a
+  holder's button while the server still refuses the write is the worse outcome for an
+  action. This panel has the opposite stake, since the measured defect is a non-holder
+  seeing it, so every not-a-reported-grant answer denies: no provider mounted, a backend
+  predating ADR-0066 that omits the field, the resolver's `catch` path that answers `200`
+  with no `systemPermissions` at all, and a reported empty array. A deployment whose
+  permission layer just failed must not be the one that leaks the snapshot.
+  
+  `ApprovalsInboxPage.rawPayloadGate.test.tsx` pins all four verdicts. Because the
+  acceptance condition is that something does *not* render — which an empty render
+  reproduces perfectly — every denial case also asserts the drawer it denies inside, and
+  the `studio.access` case drives the same fixture through the same helper and finds the
+  panel. `created_by` and `organization_id` are the witnesses: both are in the page's
+  `PAYLOAD_SYSTEM_KEYS`, so the summary card already drops them and their values can
+  reach the DOM only through the raw panel. Ablating the gate (restoring the bare
+  `payload != null` condition) turns the three denial cases red on exactly that
+  assertion and leaves the holder case green.
+  
+  Out of scope, tracked separately: trimming the summary by object metadata, and the
+  server-side residual that sends the unfiltered snapshot to the client at all.
+- ac73c24: The approval step progress bar is a vertical stepper, so long flows stop
+  clipping their tail steps.
+  
+  Both occurrences were a single non-wrapping flex row whose steps were each
+  `shrink-0`. A flex row's min-content width is the sum of its non-shrinkable
+  items, so the bar's intrinsic width grew without bound with step count and
+  label length. On a live 17.1.0 project a real 6-step flow with ordinary CJK
+  step names measured **1070px inside a 527px container** (objectui#5554).
+  
+  The two hosts failed differently, and neither failure was recoverable by the
+  reader:
+  
+  - **`ApprovalsInboxPage`** (the inbox detail drawer) — the bar itself was not
+    scrollable, so the nearest scroller was the drawer *panel*. Reaching steps
+    4-6 meant dragging the drawer's own horizontal scrollbar, which pushed the
+    record card, the activity timeline and the action buttons off-screen and left
+    a near-blank panel.
+  - **`RecordApprovalsPanel`** (the record page's approvals panel) — this one
+    carried `overflow-x-auto`, so it scrolled itself rather than its container.
+    Better, but the tail steps still sat behind a scroll gesture with no visible
+    affordance.
+  
+  In both, readers took the clipped bar for the end of the data; the reporting
+  customer acceptance tester said so verbatim. Widening the window does not help:
+  the drawer is fixed-width, and clipping was identical at 1440x900 and 1920x1000.
+  
+  Both now render as a column: one row per step, a badge-and-rail gutter, and a
+  label that may wrap. Width is capped by the container at every step count and
+  every label length, which also suits both hosts' tall-and-narrow aspect. The
+  rail segment below each step keeps the tint rule the horizontal connector used
+  — it is coloured by the step it leads *into*.
+  
+  **Always vertical, with no step-count or measured-width threshold**, because
+  the overflow is driven by intrinsic content width (labels x count), not by
+  count alone: three 16-character CJK labels already crowd a 527px drawer, so any
+  count threshold picks a cutoff that is wrong for some real flow, and a measured
+  one reintroduces a viewport-dependent branch. The card's requirement is a fix
+  that cannot break at an untested viewport or flow length, and a layout with no
+  breakpoint and no measurement is the form that satisfies it. Horizontal-with-
+  scroll was ruled out for both occurrences: it leaves steps behind a gesture.
+  
+  Pinned in `ApprovalsInboxPage.stepProgressVertical.test.tsx` and
+  `RecordApprovalsPanel.stepProgressVertical.test.tsx`. "The stepper renders" is
+  green against the broken code too — every step was always in the DOM, and the
+  clipping was layout — so the suites assert the property the defect names
+  instead: no row is `shrink-0`, every label is `min-w-0` and none is
+  `whitespace-nowrap`, nothing in the subtree is an `overflow-x` scroller, and no
+  axis, overflow or width-pinning class carries a breakpoint prefix (so there is
+  no viewport with untested behaviour). The reported failing regime is exercised
+  directly with the reporter's own six CJK labels, and a 2/5/6/12-step sweep pins
+  that the layout classes are byte-identical across all four, so no count
+  threshold can put some other flow length back on the old path.
+  
+  The two steppers are kept identical by hand rather than extracted to a shared
+  component: they live in different packages, and deduplicating them is a
+  refactor with its own surface. Filed separately.
+- 7e89836: fix(approvals): derive approver identities from `positions`, not the retired `user.roles` (objectui#5424)
+  
+  Framework ADR-0090 D3 renamed the session's `roles` key to `positions` with no
+  deprecation window, and the protocol-17 session face emits no `roles` key at
+  all. Three client sites still read it:
+  
+  - **`sharedUserFeeds.approverIdentities`** — the bell badge, the bell's
+    Approvals tab and Home's To-do card. It read nothing else, so it sent **no
+    `role:` identity at all**: an approval addressed to a position rather than to
+    a person matched nothing and vanished from all three surfaces, silently.
+  - **`approvalsApi.buildApproverIdentities`** — "My Pending" and the
+    Approve/Reject enablement. It also splits the scalar `user.role`, so it
+    degraded rather than dying: it still yielded `role:user` while dropping every
+    business position name (`manager`, `finance_approver`, …).
+  - **`AppContent`'s expression user** — forwarded a `roles` key that was always
+    `undefined` into every CEL predicate context. Removed; `positions` and
+    `isPlatformAdmin` were already forwarded correctly beside it.
+  
+  The retired spelling is **not** kept as a fallback — pairing the two is what
+  ADR-0090 D3 forbids, and `packages/auth/src/types.ts` says so on the
+  declaration.
+  
+  `AuthGuard`'s `requiredRoles` gate (the fourth surviving reader) is deliberately
+  untouched: it is a semantics decision, not a rename, and is deferred to a
+  maintainer ruling.
+- 0e05aac: The console's cold load no longer asks `/api/v1/runtime/config` or
+  `/auth/me/localization` twice (objectui#5544).
+  
+  Two pairs of boot callers were racing each other for the same URL, with no shared
+  provider between them, so no guard inside either component could see the other:
+  
+  - `GET /api/v1/runtime/config` — the pre-React branding script inlined in
+    `apps/console/index.html` (it runs during HTML parse so the tab title and
+    favicon are the operator's before the bundle is fetched) and
+    `initRuntimeConfig()`. Measured ×2 on prod and on staging. This is the
+    expensive one: the console `await`s `initRuntimeConfig()` before
+    `createRoot().render()`, so the duplicate sat on the critical path to first
+    paint, and at the control plane's ~0.5–1.4 s for this endpoint it also pushed
+    boot concurrency further past the server's pool knee.
+  - `GET /api/v1/auth/me/localization` — `seedTenantLanguage()` on a device's true
+    first visit and `LocalizationFetchProvider` on every boot. The seed keeps
+    running past its 500 ms race by design and the provider mounts the moment that
+    race resolves, so on a first visit the two overlap. Measured ×2 on staging.
+  
+  `@object-ui/types` gains `sharedGetJson()`: callers that ask for the same GET
+  while one is already in flight join that request instead of starting another. It
+  shares the in-flight promise and nothing else — the entry is deleted the instant
+  the request settles, so there is no cache, no TTL and no stale window, and a
+  caller arriving after settle fetches fresh exactly as before. Rejections fan out
+  to every sharer with the status intact (`LocalizationFetchProvider`'s retry
+  policy still sees its own 503), each caller receives its own copy of the parsed
+  body, and only GETs are eligible — a non-GET is refused rather than quietly
+  rewritten.
+  
+  Requests that differ in credentials mode or headers keep separate identities, so
+  the console's two deliberate `auth/get-session` calls — one Bearer-only with the
+  cookie omitted to detect a stale token, then one through the cookie — stay two
+  requests. Collapsing those would have destroyed the signal the first one exists
+  to read.
+  
+  No component receives anything different: same payloads, same errors, one fewer
+  round trip.
+- 631d81d: fix(console): paint a boot indicator during the pre-React white frame
+  
+  The console's `index.html` shipped an empty `<div id="root">`, so a hard
+  navigation showed a pure-white page until the module graph had downloaded,
+  evaluated and resolved the two round trips `main.tsx` awaits before
+  `createRoot().render()`. Measured on this repository's production build with
+  Playwright + CDP screencast (frames classified pixel-by-pixel, corroborated by
+  the Paint Timing API): 1224-2016 ms of pure white on an unthrottled localhost,
+  2289-2297 ms at 20 Mbps/80 ms RTT, and 5808-6167 ms on a Fast-4G profile.
+  
+  The document now carries the indicator itself — an inline style block and the
+  same gradient tile `LoadingScreen` opens with — so it paints from the HTML
+  parser, before the first chunk is requested. It is removed on React's first
+  commit into `#root`, so it never doubles up with `LoadingScreen`, which
+  continues to own the init screen and its ten-language copy.
+- 71ee495: The two form CONTAINER contracts now have ONE declaration each, derived from
+  `@objectstack/spec`, and the console reads them instead of its own copies.
+  
+  objectui#5542 converged the LEAF of this contract — the field spec — and left the
+  two containers above it untouched, because converging them was a bigger call than a
+  mechanical import. `FormSectionSpec` and `FormViewSpec` were each hand-declared
+  twice under the same names, once in `packages/app-shell`'s `SchemaForm.tsx` and once
+  in `apps/console`'s `FormPage.tsx`. Unlike the leaf — whose console copy was a clean
+  subset — these two had **already drifted, in both directions**, so neither copy was a
+  subset of the other and there were two live answers to "what may an author write":
+  
+  - `FormSectionSpec` — app-shell declared `description` / `visibleWhen` / `visibleOn`;
+    the console declared none of them. The console's `columns` admitted the string arm
+    (`'1' | '2' | '3' | '4'`); app-shell's took numbers only.
+  - `FormViewSpec` — the console declared `label` / `groups` / `sharing` /
+    `submitBehavior`; app-shell stopped at `type` plus `sections`.
+  
+  The drift is decided by asking the **contract**, not by picking a side. `columns`
+  does admit the string arm (`FormSectionSchema.columns` unions `z.enum(['1','2','3','4'])`
+  with the four numeric literals, folded to a number by its own transform), so
+  app-shell's numbers-only declaration was rejecting metadata the platform accepts —
+  objectui#5040's own symptom, not a deliberate narrowing. `label` on the form view is
+  the opposite answer: `FormViewSchema` **rejects** it (`unrecognized_keys`, measured
+  against the installed `@objectstack/spec` 17.0.0), because a form config is titled,
+  not labelled. The value that read actually finds is the VIEW's identity label, which
+  arrives on the `ExpandedViewItem` envelope or beside the config on a flattened
+  runtime overlay — so it is declared on `FormPage.tsx`'s own `FormViewBody`, next to
+  the body it unwraps, rather than smuggled onto the form contract.
+  
+  Both types are therefore **derived from the spec's own `FormSection` / `FormView`
+  with named narrowings** — the repo's sanctioned form for a spec-shaped local type
+  (`scripts/check-spec-symbol-derivation.mjs`) — rather than restated. Every key the
+  two layers agree on comes from the spec and cannot fall behind it; the four positions
+  where this layer is deliberately narrower are each named in an `Omit` list and
+  restated once next to its reason: `fields` keeps the converged 26-key leaf (deriving
+  it would silently re-open #5542), and `label` / `description` / `visibleWhen` /
+  `visibleOn` keep the shapes this repo's renderers and evaluators actually consume
+  rather than the spec's `I18nLabel` and `ExpressionInput`. `apps/console`'s
+  `submitBehavior` union — previously hand-written under the comment "Mirrors the spec
+  FormView.submitBehavior union" — is now read back off the shared type, making the
+  mirror structural. `@object-ui/app-shell` re-exports both names from its package root
+  (type-only, erased at build — nothing is added to the bundle), because a type that
+  cannot be imported is a type that gets retyped.
+  
+  The pins are what make future drift loud, and each half is pinned on both sides.
+  `form-spec.containers.test.tsx` and `FormPage.viewSpec.test.ts` compare the
+  non-narrowed half of each type against the spec's own symbol, so re-hand-writing
+  either declaration fails `type-check` the day the spec moves rather than years later
+  when someone reads two files side by side — and the console's pins read both types
+  back out of the **exported** `buildSections` signature rather than naming them, so a
+  re-inlined local copy fails even if it agrees on every key on the day it is written.
+  Their liveness controls are what stop them being phantom checks: the removed copies
+  are pinned NOT equal to the shared types (proving the `Equal` helper still
+  discriminates), the renderer's honoured `RenderableSection` is pinned not equal
+  either (so the authored-document and honoured-row types cannot be collapsed again),
+  and an undeclared key is still rejected (so the derivation smuggled in no index
+  signature or `any`). Every narrowing carries a matching negative pin, so "derived"
+  cannot quietly become "widened to whatever the spec says".
+  
+  Behaviour is unchanged — the runtime always accepted these keys. The vitest halves
+  prove it: a section spelling its column count as the string `'3'` lays out identically
+  to the numeric `3` on both sides, and a section carrying the keys only one side used
+  to declare builds the same rows.
+- cebdfe7: The form-field authoring contract now has ONE declaration, and the console reads it
+  instead of its own copy.
+  
+  objectui#5040 was not a missing key. It was that **two hand-written descriptions of
+  one contract drifted**, and nothing could notice, because each was only ever checked
+  against itself. PR #5537 converged the two app-shell descriptions into
+  `views/metadata-admin/form-spec.ts`. A **third** survived in `apps/console`:
+  `FormPage.tsx` declared its own nine-key `interface FormFieldSpec`, under the same
+  name, in a different package — so the same failure mode stayed fully available.
+  
+  Measured key by key before choosing a route, because the two honest outcomes are
+  "same contract, import it" and "genuinely narrower layer, rename it and pin the
+  subset". The console's copy was a strict subset — 9 of the shared type's 26 keys,
+  every one identical in type, none console-only — and it sat in a position that
+  describes an **authored document**: `FormSectionSpec.fields`, read straight off the
+  `/meta/view/:name` payload, the same spec `FormView` metadata-admin renders (both
+  files even spell the same six-member `type` union and call the element type
+  `FormFieldSpec`). The narrow, renderer-honoured shape is a different type that
+  already exists in that file, `RenderableField`. So this was one contract described
+  twice, and the console's description was wrong about the document: legal metadata —
+  `visibleWhen`, `dependsOn`, `type`, `options`, `immutable`, the recursive `fields`,
+  and ten more keys — was undeclared there. That is #5040's own symptom, "the type
+  rejects the configuration the runtime accepts", which no runtime test can see.
+  
+  `@object-ui/app-shell` therefore re-exports `FormFieldSpec` from its package root
+  (type-only, erased at build — nothing is added to the bundle), and `FormPage.tsx`
+  imports it and deletes the local declaration. Reachability is the load-bearing half:
+  a type that cannot be imported is a type that gets retyped, and retyped copies drift.
+  `form-spec.ts` itself is untouched.
+  
+  `FormPage.fieldSpec.test.ts` is the pin that makes future drift loud. It reads the
+  field-spec type back out of the **exported** `buildSections` signature rather than
+  naming it, so re-inlining a local `interface FormFieldSpec` fails `type-check` even
+  if the copy agrees on every key on the day it is written — which is exactly what did
+  not happen to the copy this change removes. Its liveness controls are what stop it
+  being a phantom check: the removed nine-key shape is pinned NOT equal to the shared
+  type (so the `Equal` helper is proven to still discriminate), `RenderableField` is
+  pinned not equal to it either (so the honoured-row and authored-document types cannot
+  be collapsed again), and an undeclared key is still rejected (so the import did not
+  smuggle in an index signature). Behaviour is unchanged: the runtime always accepted
+  these keys, and the vitest half proves the same rows are built.
+- 07cd685: The console's form routes no longer seed a RUNTIME `defaultValue` into the
+  control, so the server-side resolution the declaration asks for actually happens
+  (objectui#5727).
+  
+  `readPrefill` in `apps/console/src/components/FormPage.tsx` seeded every declared
+  default unconditionally. A `defaultValue` may be a literal, or an *instruction*
+  the server resolves per insert — a `DEFAULT_VALUE_TOKENS` token (`NOW()`,
+  `current_user`) or a CEL Expression envelope. Seeding one of those literally put
+  the text `NOW()` into a datetime input on both `/forms/:name` and the public
+  `/f/:slug` route, and submitting it sent that string as the field's value —
+  which is neither absent nor null, so `ObjectQL.applyFieldDefaults` never resolved
+  the declared default and the column stored the token text instead of a timestamp.
+  
+  The seed is now guarded by `isRuntimeDefault` from `@object-ui/core` — the same
+  published classifier `@object-ui/plugin-form`'s `schemaDefaults.ts` guards its
+  seeding with, and the one this renderer already reads once removed (through
+  `isServerOwnedValue`) for the create-mode `required` carve-out. A runtime default
+  leaves the key ABSENT rather than empty, because absent is precisely the case the
+  engine resolves.
+  
+  Nothing else about the prefill precedence moves: a literal default still seeds, a
+  stored record value still wins over a default, and an explicit `prefill_<field>=`
+  param still wins over both — including for a field whose default is a runtime
+  token, since a value a producer supplies is not a declaration awaiting
+  resolution.
+- b63a9a3: The console's standalone form renderer now evaluates conditional field visibility.
+  
+  `apps/console/src/components/FormPage.tsx` is a **second, independent form renderer**
+  — its own `buildSections`, its own JSX — and it serves both the public
+  `/f/:slug` route and the internal `/forms/:name` route. It read neither spelling of
+  the FormView field visibility predicate: a repo-wide grep for a `visibleWhen` /
+  `visibleOn` *read* inside that file returned zero. So a field an author conditioned on
+  `record.priority == 'urgent'` — legal, spec-strict metadata that `@objectstack/spec`
+  normalises to `visibleWhen` (ADR-0089), and that the metadata-admin designer both
+  authors and honours — rendered unconditionally on both routes. Fail-open and silent:
+  the author saw the field always, with no diagnostic.
+  
+  objectui#2212 recorded this exact symptom and PR #2214 fixed it — in a **different
+  chain**: `ModalForm` → `resolveFormViewLayout` → `@object-ui/plugin-form`
+  `sectionFields.ts` → `@object-ui/components` `renderers/form/form.tsx`. `FormPage.tsx`
+  is on that chain at no point, and #2212's regression pin lives with the chain it fixed,
+  so nothing in the suite could see this copy. One contract, two implementations, each
+  only ever checked against itself.
+  
+  The wiring is **#2212's ruling applied verbatim** rather than a second predicate
+  semantics invented for this renderer, because two form renderers disagreeing about what
+  `visibleWhen` *means* would be a worse defect than one renderer ignoring it. The
+  predicate goes through the canonical engine — `evalFieldPredicate` (`@object-ui/core`,
+  `evaluator/fieldRules.ts`) — so the accepted wire shapes (bare CEL string and
+  `{ dialect, source }`), the bound scope (`record.*` = the live input values, `previous.*`
+  = the stored record an edit form started from), and the fail-open-but-loud behaviour on
+  an unevaluable predicate are the shared ones by construction. Resolution is
+  canonical-first, `visibleWhen ?? visibleOn`, matching both sibling readers:
+  `sectionFields.ts` and app-shell's `readVisibility`.
+  
+  Two things deliberately did **not** change. A field hidden by its predicate still
+  submits its value — conditional visibility is a rendering rule in both renderers, and
+  making it a submit-payload rule would be a new contract decided once for both, not
+  invented in the second one. And `FormPage` is **not** folded onto the plugin-form chain:
+  the second-renderer question is real, but it belongs with the #5596 convergence track,
+  not with a predicate that is dead today.
+  
+  `FormPage.visibleWhen.test.tsx` is the regression pin, and it lives next to *this*
+  renderer on purpose — a pin that cannot see the second copy is how the first gap
+  survived. With the fix reverted and the pin in place the suite reports
+  `11 failed | 1 passed (12)`; the one green is the control that has to be green (a field
+  with no predicate still renders), without which every "the field is absent" assertion
+  would be equally satisfied by a renderer that draws nothing at all.
+- fb934fb: The console's `/docs` portal is code-split for real: its four pages leave the eager closure instead of only pretending to.
+  
+  `AppContent.tsx` lazy-imports `DocsLayout` / `DocsSlug` / `DocPage` for the
+  app-scoped `/apps/:packageId/docs` tree (ADR-0048). `App.tsx` imported the same
+  three statically for the platform portal at `/docs` (ADR-0046 section 6), so all
+  of them sat in the eager graph regardless and the `import()` moved nothing —
+  three `INEFFECTIVE_DYNAMIC_IMPORT` warnings on every `vite build`
+  (objectui#5467). A static import on either side silently defeats the split for
+  both, and the only signal is a build warning that fails nothing.
+  
+  `App.tsx` now reaches all four docs pages through `lazy()` behind `Suspense`,
+  matching the pattern `AppContent.tsx` already uses. `DocsIndex` joins them even
+  though it carried no warning: `AppContent` renders `AppDocsIndex` at that slot,
+  so nothing imported `DocsIndex` dynamically, but left static it alone would keep
+  `DocShell`, `use-book-data` and `book-nav` eager and the portal would only
+  half-leave the closure.
+  
+  Measured on this branch with the `dist/eager-closure.json` gauge added by
+  objectui#5324, both builds exiting 0:
+  
+  | | before | after |
+  |---|---|---|
+  | `INEFFECTIVE_DYNAMIC_IMPORT` warnings | 46 | 44 |
+  | eager closure, gzipped | 3,881,609 B | 3,870,058 B |
+  | eager chunks | 58 | 52 |
+  
+  Six chunks leave the eager closure: `plugin-markdown` (4,212 B gz),
+  `CreateViewDialog` (3,617 B), `use-book-data` (1,966 B), `DocShell` (476 B),
+  `componentRegistry` (99 B), and `src` (129,555 B), the last of which rolldown
+  folds into the entry chunk rather than dropping — which is why the entry chunk
+  grows from 25,910 to 154,378 B gzipped while the closure as a whole shrinks by
+  11,551 B. The entry stays far under that budget's 350 KB line, and the eager
+  closure is the number a page load actually pays.
+  
+  What does NOT move is `vendor-markdown`, 164,708 B gzipped and the reason this
+  looked like a bigger win than it is. Three eager chunks import it statically,
+  and only one of them was this portal: `plugin-chatbot` reaches it directly, and
+  `packages/fields`' `MarkdownContent` — lazy in source — is folded into the
+  eagerly imported `ui-components` chunk by the `advancedChunks` group that claims
+  every `packages/fields` module. That is objectui#5325's mechanism, not this
+  card's, and it is why the saving here is 0.30% rather than 4%.
+- 8549453: The console's pre-boot branding script now resolves its server origin from
+  `VITE_SERVER_URL` — the same variable every module-side consumer reads — instead of
+  `window.__CONSOLE_SERVER_URL`, a global nothing in this repository ever set
+  (objectui#5660).
+  
+  The two callers of `GET /api/v1/runtime/config` share one in-flight request, and
+  that sharing keys on the FULL URL. So the origin was half of the contract: the
+  inline script in `index.html` read one spelling and `src/main.tsx` read another, and
+  whenever they disagreed the two never found each other. A same-origin production
+  build hid it completely — both spellings collapse to `''` — so the split surfaced
+  only in a dev pointing the console at a separate server, where it cost two requests
+  to two different servers and let pre-boot branding paint from the wrong one.
+  
+  The pre-boot fetch is kept, not deleted: it is the request the module side JOINS.
+  `sharedGetJson()` can only hand an earlier request to a later caller, and this
+  script is the earlier one by construction — it runs during HTML parse, before the
+  bundle is fetched, while `initRuntimeConfig()` is awaited before
+  `createRoot().render()`. Deleting it would not remove a request; it would move the
+  single remaining one later, onto the critical path to first paint, and leave the
+  page's empty `<title>` and favicon unbranded until React mounts.
+  
+  Vite substitutes its HTML env token only when the variable is set and leaves it
+  verbatim otherwise, so the unset case is read as same-origin `''` rather than
+  allowed to reach the URL as a path segment.
+- 7493bff: `registerStudioComponents.tsx` no longer claims a code split it never had: `studio:builder` imports `BuilderLanding` directly instead of through a `lazy()` that deferred nothing.
+  
+  The registration wrapped `import('@object-ui/app-shell')` in `lazy()` behind a
+  `Suspense` fallback — naming the same barrel the line above it imports
+  statically for `registerAppComponent`, and the same barrel `App.tsx` pulls
+  `BuilderLanding` from to render the standalone `/studio` landing full-screen.
+  Either reason alone makes the `import()` unable to move a module into another
+  chunk (objectui#5486).
+  
+  **This moves no modules and is not a bundle improvement.** `BuilderLanding` was
+  already in the eager graph via `App.tsx` and still is. Measured on
+  `dist/eager-closure.json`, both builds exiting 0: the eager closure holds the
+  same 52 chunks with the same names, and the only difference is 130 B gzipped
+  (413 B raw) off the entry chunk — the deleted `lazy()`, `Suspense` and fallback
+  text themselves, 0.003% of a 3,875 KB closure. Nothing leaves the closure,
+  because nothing could.
+  
+  What it does fix is honesty. The old code told every reader the builder was
+  deferred, and it emitted an `INEFFECTIVE_DYNAMIC_IMPORT` warning on every
+  console build — the console's count of those drops from 44 to 43, with the 43
+  remaining ones all belonging to the `packages/fields` barrel (objectui#5325).
+  A permanent warning that fails nothing is how a team learns to skim past build
+  warnings, and a decorative `lazy()` is how the next reader learns something
+  false about the chunk graph.
+  
+  The `lazy()` shape is not the mistake. The sibling `registerAccountComponents.tsx`
+  lazy-imports `./pages/system/ProfilePage`, a specifier nothing else pulls in
+  statically, and is genuinely deferred; it is untouched. Making the *builder*
+  genuinely lazy would mean taking `App.tsx` off the static import too, changing
+  how `/studio` mounts, and it only pays if app-shell's own graph cleaves behind
+  the barrel — a separate measured card, not folded in here.
+- d8afbe5: `FormPage` — the console's own form renderer, serving both the public `/f/:slug`
+  route and the internal `/forms/:name` one — now honours the three conditional-rule
+  surfaces it still dropped after objectui#5594: section-level `visibleWhen` /
+  `visibleOn`, and the object-level field rules `visibleWhen` / `readonlyWhen` /
+  `requiredWhen` (objectui#5627).
+  
+  This is the second form renderer in the repo, and it honoured exactly one of the
+  four surfaces the sibling chain does. A section an author conditioned away rendered
+  in full — heading and every control — on both routes including the anonymous one.
+  The object-level half was worse than fail-open hiding: `readonly` was whatever the
+  static flag said, so a field a `readonlyWhen` should have locked stayed editable and
+  paired with the server's fail-closed unbound-scope behaviour into "the user edits,
+  the save reports success, and the value never lands".
+  
+  Both halves evaluate through the SHARED machinery rather than a fourth consumer-side
+  copy of the rule semantics: `@object-ui/core`'s `resolveFieldRuleState` for the three
+  field rules — which brings the settled rulings with it, including the `serverOwnedValue`
+  carve-out that keeps a create form from requiring a producer-owned control (#4069 /
+  #4085) — and its `evalFieldPredicate` for the section predicate, with the canonical-first
+  `visibleWhen ?? visibleOn` read every sibling reader spells.
+  
+  Visibility stays a RENDERING rule at both granularities: a hidden section's fields
+  still submit their values, exactly as a hidden field's have since #5594.
+- cdda37a: `buildSections` now honours a FormView field's `maxLength` override instead of always
+  taking the object's ceiling (objectui#5595).
+  
+  The function merges a form's field overrides with the target object's field definitions,
+  and its own docstring states the rule: *"Field-level FormField overrides take precedence
+  over object defaults."* Every key in the loop is built that way — `override.label ??
+  def.label`, `override.required ?? def.required`, `override.placeholder ?? def.placeholder`
+  — except one, which read `def.maxLength` unconditionally. So an author who set a tighter
+  per-form limit (a short public intake form over a column whose object-level ceiling is
+  generous) got the generous one.
+  
+  The failure was silent in the worst direction: no diagnostic, no warning, and the form
+  still submits, so the symptom is a value the author believed the input refused being
+  accepted. It is load-bearing rather than cosmetic — the merged row reaches the DOM at two
+  `maxLength={field.maxLength}` sites, the `textarea` arm and the default `input type="text"`
+  arm.
+  
+  `override.maxLength ?? def.maxLength` — `??` rather than `||`, matching the sibling keys,
+  so an explicitly declared `0` stays a value the author wrote rather than falling through
+  to the column's ceiling. This narrows only what the input allows; the object's storage
+  ceiling still decides at submit time, so nothing that was accepted before is now rejected
+  anywhere but at the keyboard.
+  
+  Why it survived: the console's local `FormFieldSpec` did not declare `maxLength` at all
+  until objectui#5542, so no one typing a spec in this app could write the override in the
+  first place, and the inert merge branch was never exercised. #5542 converged that type
+  onto the shared app-shell declaration, which does declare the key — making the gap
+  expressible, and therefore findable.
+  
+  The pin `#5542` left behind — `expect(row.maxLength).toBeUndefined()` in
+  `FormPage.fieldSpec.test.ts`, which recorded the old answer explicitly rather than
+  assuming it — is **inverted** to `toBe(40)` rather than deleted. It was the pre-registered
+  evidence for this fix, and it is what made the gap findable in the first place, so it
+  keeps its place and names the honoured answer.
+- 60b2211: Console form pages no longer submit a cleared server-owned field as a blank.
+  
+  A field whose declared `defaultValue` is an instruction the server resolves per
+  insert (a `NOW()` / `current_user` token, or a CEL expression envelope) opens
+  with an empty control on a create form, and its key stays out of the payload
+  while nothing touches it. But a submitter who typed into that control and then
+  cleared it put the key back holding `''` — and `ObjectQL.applyFieldDefaults`
+  resolves a declared default only for a field arriving absent or null, so the
+  blank was stored and the declaration silently defeated.
+  
+  Such a key is now dropped from a CREATE submit on both the internal
+  `/forms/:name` and the anonymous `/f/:slug` route. A blank cleared from a field
+  with no runtime default — or with a static one — is still submitted, because
+  that is the user removing a value; and an edit submit is untouched, where a
+  cleared column is a deliberate removal.
+- 343c598: The active organization id is now stored per user, and a change of session user drops the
+  previous user's client state wholesale (objectui#5664).
+  
+  `auth-active-organization-id` was a single un-namespaced `localStorage` key while its
+  siblings were already user-scoped (`objectui-recent-items:u:`, `objectui-favorites:u:`,
+  `flow-palette-recents:u:`). On a browser handed from one account to another — a shared
+  machine, a kiosk, a handover, a support session — the arriving user's console read the
+  PREVIOUS user's organization id. The header workspace chip rendered the previous user's
+  workspace for a user whose `organization/list` was empty, and the consequence past the
+  cosmetics is the one worth stating: the polluted org context suppressed
+  `RequireOrganization`'s routing into the guided "Create your workspace" first-run flow, so
+  a brand-new user on that browser silently never got the new-user flow at all.
+  
+  Nothing about row visibility rode on this. With the stale id the server answers
+  `403 USER_IS_NOT_A_MEMBER` on `get-full-organization` and `set-active`, and lists zero
+  environments; the damage was entirely in what the client believed about itself.
+  
+  Three changes, and the third is the one that closes the class rather than the instance:
+  
+  - The key is per-user (`auth-active-organization-id:u:$userId`), matching the convention
+    its siblings already use.
+  - It can no longer be written un-namespaced at all. Where no session user is known yet the
+    value lives in memory for that page-load only — a namespacing that kept a bare-key
+    fallback would re-open the defect the first time a write happened before the user id
+    resolved.
+  - **A change of session user drops the previous user's client state wholesale.** This is an
+    allowlist sweep of both `localStorage` and `sessionStorage`, not a list of known keys, so
+    the NEXT storage key someone adds without a `:u:` scope is covered before it is written.
+    Only device-scoped entries survive: the arriving session's own bearer token, the pointer
+    recording whose state the browser holds, and the UI theme.
+  
+  Both properties objectui#5703 established are preserved and still pinned: `get()` prefers a
+  non-null `localStorage` read and falls back to the in-memory value, and the memory value is
+  nulled BEFORE storage is touched — by `clear()` as before, and now by the user-change purge
+  too, so the outgoing user's org id cannot outlive their persisted key on the sign-out-then-
+  sign-in path that never reloads the page.
+  
+  Existing browsers are not migrated. A value sitting under the retired bare key is
+  unattributable — nothing recorded whose org id it is — so migrating it is precisely the
+  defect it would be migrating away from, and it is deleted instead. A signed-in user loses
+  nothing durable: the active organization is a server-owned fact that
+  `AuthProvider.refreshOrganizations` re-asks for whenever the list is non-empty and no
+  active org is held, including the ADR-0081 single-membership repair. One boot re-supplies
+  it; users with no organization land on the guided first-run flow, which is the outcome this
+  card is about.
+  
+  `apps/console`'s pre-render auth preflight purges every spelling of the active-org key —
+  the retired bare one and each `:u:` scope — when it finds a dead bearer token, and
+  deliberately leaves the session-user pointer in place so the next sign-in can still tell
+  that the browser changed hands.
+- 9093de8: Approvals drawer: the business summary card no longer renders a field the object
+  declares `hidden: true`.
+  
+  `payloadSummary` built the card from the request's `payload_json` snapshot behind
+  five filters (system keys, the lead amount key, null/object/empty values,
+  unresolved opaque ids, a six-field cut) and no field-visibility filter, so a
+  hidden field that survived to the first six survivors rendered in the card,
+  labelled. The drawer now reads the open request's object metadata and drops the
+  declared-hidden keys before the six-field cut, so the next business field is
+  promoted into the freed slot rather than the card silently shrinking. The lead
+  amount figure at the top of the same card takes the same trim.
+  
+  Per the platform ruling, `hidden: true` is a UI-only contract and `internal: true`
+  is the serialization primitive, so this is the UI enforcing the only contract
+  `hidden` has — not a client-side compensation. Field-level security is unchanged
+  and remains the server's answer. The metadata read is the same cached
+  `GET /meta/object/:name` the record form already performs, once per object per
+  page visit, and an unanswered read leaves the card exactly as it renders today.
+- 0935a43: Console builds no longer carry a live Sentry DSN, and `sendDefaultPii` is now opt-in
+  (objectui#5522).
+  
+  `@object-ui/console` publishes a pre-built SPA, so ONE artifact — built once from
+  `apps/console/.env.production` — is what the hosted SaaS console and the on-premises /
+  air-gapped EE images all embed. Vite inlines every `VITE_*` from that file into the
+  bundle as a frozen object literal, so the DSN committed there was a live third-party
+  telemetry endpoint compiled into artifacts that land inside customer networks. It could
+  not be switched off afterwards either: the `VITE_SENTRY_ENABLED` kill switch is read off
+  that same frozen literal, so on a shipped bundle it is `undefined` forever and editing
+  env vars on the deployed host does nothing. An air-gapped deployment was measured
+  sending 14 envelopes per session to sentry.io with IP + User-Agent PII, unstoppable by
+  the customer.
+  
+  - `apps/console/.env.production` no longer defines `VITE_SENTRY_DSN`,
+    `VITE_SENTRY_ENVIRONMENT` or `VITE_SENTRY_SEND_DEFAULT_PII`. A build with no DSN never
+    imports `@sentry/react`, so the `vendor-sentry` chunk is not even fetched.
+  - `sendDefaultPii` changed from opt-out (`!== 'false'`) to **opt-in** (`=== 'true'`), so
+    IP address and User-Agent are never the inherited default of a build that did not ask
+    for them.
+  - The gate now fails **closed**: an absent, empty or whitespace-only DSN means do not
+    send. The direction is deliberately inverted from the usual — an unreported error is
+    recoverable, PII leaving an air-gapped deployment is not.
+  
+  **Action required for deployments that want error reporting** (the hosted SaaS/demo
+  console): inject `VITE_SENTRY_DSN` from your build environment, the same way
+  `VITE_SERVER_URL` is already injected, plus `VITE_SENTRY_SEND_DEFAULT_PII=true` if you
+  still want IP/User-Agent on events. Nothing else changes for builds that opt in.
+- e067173: Refreshes the lockfile so every `@objectstack/*` package resolves at `17.2.0` — `spec`, `client`, `core`, `formula`, `lint` and `sdui-parser` move in lockstep (a split resolution is what produced the dual-version spec graph that reddened `check:spec-symbols` in this repo's history), and no `17.1.0` resolution remains.
+  
+  **The docs-site and console builds stop pulling a Postgres connection-string parser toward the browser bundle.** `@objectstack/spec@17.1.0` imported `pg-connection-string` at the top level of `dist/index.mjs` with no `browser` export condition, so `apps/site`'s production build failed with `Module not found: Can't resolve 'fs'` on every route that reaches `@object-ui/components` from a client component — red on `main` since 2026-08-22 (objectui#5668). `17.2.0` ships the objectstack#11072 fix: `.`, `./data`, `./system`, `./kernel` and `./cloud` now carry `browser` conditions pointing at schema-free `dist/browser/**` bundles, and the site build is back to `Tasks: 29 successful, 29 total`.
+  
+  The refresh is lockfile-only — every manifest already declared `^17.0.0`, which admits `17.2.0`, so no dependency range changed. No shipped source moves: the two in-repo adaptations are a drift-guard test and a CI gate, both forced by `17.2.0` retiring the spec's theme module (objectstack#10485) exactly as the objectui#5716 localization predicted — its `Theme`/`ThemeMode`/`ColorPalette` ALLOW entries in `check:spec-symbols` went stale and were deleted, and the parity test now pins the vacancy (the spec re-publishing a theme name is a loud collision) instead of a spec leg that no longer exists.
+- 7d0143c: The Console now gates the `/studio/*` routes on the `studio.access` ENTRY
+  capability, not just on the backend's refusal of the writes behind them
+  (objectui#5519).
+  
+  `/_console/studio/` rendered the full Studio pillar builder — Data /
+  Automations / Interfaces / Access, with Publish and Save draft — to any
+  authenticated principal who typed the URL, on deployments where the Studio nav
+  tile is deliberately absent and every metadata write is refused. A plain tenant
+  user was walked through the entire "new package" form and only refused at
+  submit (403). The lockdown criterion for that deployment shape is two-part — UI
+  entry hidden AND API refused — and only the API half was met; what stood on
+  this side was a write-level gate where an entry-level one belongs.
+  
+  The whole `/studio` subtree now hangs off one route element that reads
+  `systemPermissions[]` from `GET /api/v1/auth/me/permissions` (the endpoint this
+  app already consumes) and admits only a principal whose LOADED set carries
+  `studio.access` — the capability declared as "Enter the Studio metadata-design
+  surfaces", which a tenant org owner does not hold by design. Everyone else is
+  sent to `/home` without the builder ever mounting.
+  
+  The fail direction is deliberately inverted from this app's other capability
+  gates: those fail OPEN on an unknown answer because their bad outcome is a
+  holder losing a button, whereas a route gate's bad outcome is a non-holder
+  seeing the builder. So the loading window renders the console splash (never the
+  builder), an outright fetch failure renders the retryable error splash, and a
+  `200` that carries no `systemPermissions` at all is refused rather than waved
+  through. The server-side refusals are untouched.
+- Updated dependencies [0db4fb3]
+- Updated dependencies [4703651]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [8d58f46]
+- Updated dependencies [0b1326d]
+- Updated dependencies [305205a]
+  - @object-ui/sdui-parser@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes

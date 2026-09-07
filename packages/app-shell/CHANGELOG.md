@@ -1,5 +1,6113 @@
 # @object-ui/app-shell — Changelog
 
+## 17.7.0
+
+### Minor Changes
+
+- 2a23000: One composer for makers — the built-in `ask` folds into `build` for authoring
+  principals (cloud#1674 maker convergence, Phase B).
+  
+  Ruling: `build` is the higher-privilege admin agent and, since cloud#1673, a
+  strict data superset of `ask` — it answers records/aggregation/chart questions
+  with the same tools. So Ask/Build stop being peer modes for a maker:
+  
+  - `surfaceAgent.ts` (the ONE ADR-0063 resolver) gains rule (3b): an `ask` want
+    upgrades to `build` for a principal with `manage_metadata` when the catalog
+    serves it — including over an app's explicit `defaultAgent: 'ask'` pin (the
+    pin serves the app's business users; the maker always gets the superset).
+    New `makerConvergedOnBuild` / `makerVisibleAgents` carry the same predicate
+    to the picker sites.
+  - ChatPane's agent launcher lists `makerVisibleAgents`: the built-in ask leaves
+    the list for makers (custom agents stay), computed inside ChatPane so every
+    host — full `/ai` page, Studio copilot, console dock — converges identically.
+  - A maker's bare `/ai/ask` redirects to `/ai/build`; `/ai/ask/:conversationId`
+    keeps rendering, so ask history stays readable.
+  - `ConversationsSidebar` gains `includeAskConversations`: the converged surface
+    lists BOTH built-in groups' threads whichever one is open (merging only ask
+    made the build history vanish the moment an ask thread was opened — measured
+    in-browser on the first pass).
+  - Console home shows the single Build entry for makers; non-authoring sessions
+    (the objectstack#8270 hosted posture) keep Ask AI, and every layer is a no-op
+    for them and for deployments without a build agent.
+  - `useCanAuthorMetadata` extracted from HomePage to `hooks/` so the CTAs and
+    the chat surfaces answer the same per-principal question.
+- 64dae8e: Six user-visible fixes across the maker surface, the assistant rail and the
+  dataset captions.
+  
+  **The maker's start chips now promise only what ADR-0112 v1 builds
+  (cloud#1984).** Two of the five asked for automation the first version has no
+  flows or actions for — the ticket chip said 「状态流转」, the inventory chip said
+  「低库存预警」 — and the measured behaviour was not a refusal but a silent
+  degrade: a status kanban and a low-stock view. The chip promised an alert and
+  delivered a page. All five are reworded in all ten packs (and in the call-site
+  `defaultValue` fallbacks, which are a second copy of the same strings) to ask
+  for objects, fields, views, pages, dashboards and sample data, keeping each a
+  real business scenario — the ticket chip now asks for a status field and a board
+  grouped by it, the inventory chip for a view that filters below the reorder
+  point. A note beside the keys says to revert when v2 re-adds flows.
+  
+  **Five newer AI tools get their step labels (objectui#7481).** A zh conversation
+  read `✓ Get authoring rules 已完成` between 「读取元数据结构」 and 「列出对象」:
+  `get_authoring_rules` (cloud#1837), plus `load_tools`, `open_record`,
+  `test_flow` and `toggle_flow`, are registered by the cloud AI runtime but are
+  newer than the pinned spec's tool registry, so they had no `chatbot.tool.*`
+  entry in any pack and fell through to the English title-caser.
+  
+  **The assistant rail follows the thread when you send (objectui#7480).** The
+  rail and the full-page maker are the same component; what differs is width. A
+  reply that still ends on screen in the wide column runs two or three times
+  taller in a ~360px rail, so `StickToBottom`'s lock is escaped by the time the
+  user types and the new bubble, the tool steps and the streaming answer all land
+  below the fold. Every send path now re-arms the lock — including the plan-card
+  "Build it" and 确认修改 approvals, whose own code comments already named this
+  miss. Message APPENDS deliberately do not, so a user reading back through the
+  thread mid-answer is never yanked to the bottom.
+  
+  **Console toasts move off the assistant composer (objectui#7482).** 「客户更新
+  成功」 sat on the ChatDock composer's send button and stayed there. One defect,
+  two symptoms: `apps/console` pinned the toaster to `bottom-right` — an override
+  that predates ADR-0057 P3a — so a toast both covered the button and, because
+  sonner pauses a toast's dismiss timer while the pointer is inside the toaster
+  region, never got to run its 4s timer with a pointer resting on the composer
+  underneath. The override is gone; the console takes `ConsoleToaster`'s own
+  documented top-right anchor, and the 4s success duration is now pinned.
+  
+  **Built-in aggregate captions follow the locale everywhere (objectui#7534).**
+  objectui#7258 taught `buildChartSeries()` to resolve a server-minted default
+  measure through the locale map, so a chart legend read `计数` while the table
+  beneath it, the KPI caption, the pivot header and the dataset preview still
+  printed the server's hard-coded English `Count`. `buildDatasetFieldHelpers()`
+  takes the same optional `builtinAggregateLabels`, resolving through the one
+  `resolveMeasureLabel` order, and the five call sites pass it. Omitting the
+  argument reproduces the previous output byte for byte, and an author-declared
+  measure still keeps its own label verbatim (objectui#4106).
+  
+  **The activity feed stops asking for an object the environment does not have
+  (objectui#7476).** A tenant environment has no `sys_activity`, so every page
+  load issued a request that 404'd. Everything downstream was already correct —
+  the adapter memoizes the missing collection, its logger demotes the failure, the
+  feed retires as an ANSWER and the panel renders its earned empty state — so what
+  is left is the request itself, and `data-objectstack` states the rule for it:
+  the cure for a doomed request is not issuing it. New `useObjectPresence` reads
+  the object registry the shell loads for the nav anyway; only a registry that has
+  ANSWERED and lists other objects without this one skips the read. Every
+  uncertainty — no provider, empty registry, still loading, errored — reads as
+  before, because a wrong skip would cost a real deployment its feed.
+- d796c8d: Auto-derived related lists consume the field-level `relatedListFilter`
+  declaration — the list query AND-composed, the tab badge counting the same set
+  (objectui#4664).
+  
+  A `lookup` / `master_detail` field may now declare `relatedListFilter`, a
+  canonical Query-DSL `FilterCondition` such as `{ status: { $ne: 'deleted' } }`
+  (`@objectstack/spec` 17.1.0 — objectstack#8704 / PR #8955). Until now this repo
+  accepted that key at every gate and consumed it nowhere: a record page's derived
+  related lists answered wider than the metadata asked, and the driving scenario —
+  soft-deleted child rows on auto-derived record pages — had no way to be
+  expressed at all.
+  
+  What ships:
+  
+  - `deriveRelatedLists` reads the key off the FK and carries it on the derived
+    descriptor; `RecordDetailView` forwards it into the page synthesizer, which
+    emits it onto the `record:related_list` node's **existing** `filter` key. That
+    key already had a read site (objectstack#7118): `RelatedList` ANDs it with
+    `{ [referenceField]: parentId }`. The declared filter is therefore an authored
+    constraint that may only NARROW this parent's children — never a replacement,
+    which would leak other parents' rows — and no second filter dialect appears
+    for derived pages.
+  - The **tab badge honours the same composed filter**. `page:tabs` reads the
+    `filter` off the `record:related_list` node it is badging and the count store
+    composes it with the parent scope through the same `mergeFilterNodes` sink the
+    row query uses, so the badge and the rows send one `$filter`. Badge-count
+    parity is normative in the spec key's own contract text; without this half the
+    feature would ship the defect it exists to prevent — a badge saying 7 above a
+    list showing 3.
+  - Counts cache per (object, relationship, parent, **scope**), so a filtered and
+    an unfiltered probe over the same relationship are separate entries rather
+    than one wrong number.
+  
+  With no `relatedListFilter` declared, the synthesized node, the row query and
+  the badge probe are byte-identical to before. Consumption only — this change
+  adds no authoring UI for the filter.
+- 053fdc8: Console half of `ActionSchema.onSuccess` post-success navigation.
+  
+  `@objectstack/spec` declares `onSuccess` as a closed strict object
+  `{ navigate: string, openIn: 'self' | 'newTab' }`, refine-scoped to `type: 'api'` and
+  `type: 'script'` — the two action types whose success event carries a server response.
+  Nothing in this renderer read it, so an action declaring the hop navigated nowhere: the
+  block fell into `ActionRunner`'s older `ActionDef.onSuccess` chained-callback channel,
+  was dispatched as an action, and failed inside `executeNavigation` with "No URL provided
+  for navigation action" — a red toast and no jump. The motivating report is a clone action
+  that leaves the user sitting on the record they cloned from.
+  
+  `ActionRunner.handlePostExecution` now performs the declared hop through
+  `navigationHandler` — the same SPA seam every other navigator in that file uses, which
+  the console wires to react-router's `navigate`, so `openIn: 'self'` is a real in-place
+  route hop rather than a full-page load. `interpolateTarget` gains a `${result.*}` scope
+  alongside `${param.*}` and `${ctx.*}`, resolved against the handler's own return value
+  (the level `readActionPayload` reads, one below the action envelope) and supplied only by
+  this call site, so a target interpolated before its request still has no `result` to
+  name. `openIn` is read as the one member that changes the branch and no default is
+  written here — the spec materialises `.default('self')`, so parse output always carries a
+  resolved member — and the two `openIn` spellings stay apart: this reads
+  `onSuccess.openIn` (`'self' | 'newTab'`), never the top-level `type: 'url'` switch
+  (`'self' | 'new-tab'`), each of which spec refuses in the other's position.
+  
+  The console's server-action wrapper gains the matching handler-return half: a handler may
+  now return `openIn: 'self'` next to its `redirectUrl` to ask for the same-tab jump, while
+  a `redirectUrl` **without** `openIn` keeps its shipped new-tab behaviour unchanged. When
+  an action declares an `onSuccess` block, the wrapper defers to the runner and only tidies
+  its pre-opened tab, so one navigation happens rather than two.
+  
+  The pre-existing `ActionDef.onSuccess` chained-callback channel is unchanged. It is told
+  apart by the spec's own declaration — a non-array object whose `navigate` is a string —
+  and keeps running for every other shape.
+- 41b7ce3: **View configuration is explicitly org-wide, and its write path is now gated (objectstack#7494's
+  ruling, maintainer 2026-08-12).** The `sort` / `hiddenFields` / `columnState` / `rowHeight` that a
+  list toolbar persists were never per-user: they are one shared row on the view, so an ordinary user
+  dragging a column or cycling density was re-styling that view for the entire organization. Nothing
+  in the console said so, and nothing stopped it. A per-user scope stays parked (objectstack#7611,
+  v18) and is deliberately not built here — which is precisely why the write has to be gated rather
+  than narrowed: there is no second, private store for it to fall back to.
+  
+  `ObjectStackAdapter.updateViewConfig` now refuses when the session's **reported** ADR-0066 capability
+  set does not contain `manage_metadata`, throwing the new `ViewConfigPermissionDeniedError`
+  (`VIEW_CONFIG_PERMISSION_DENIED`, with `isViewConfigPermissionDeniedError` and the
+  `VIEW_CONFIG_CAPABILITY` constant alongside it). The gate is the **first** statement in the method —
+  before `connect()`, before the payload is assembled — so a refused call puts nothing on the wire.
+  It is on the write rather than on the toolbar button on purpose: withholding the affordance would
+  leave the method still accepting the call from anything else holding the adapter, whereas a gate on
+  the write is inherited by every caller, present and future.
+  
+  `manage_metadata` is not a newly minted name. It is the capability this repo already treats as
+  metadata-authoring authority — `HomePage`'s `AUTHORING_CAPABILITY`, the one the server itself
+  refuses metadata writes without — and the gated write goes through `client.meta.saveItem`, the very
+  same ADR-0005 metadata door, so this applies the authority the server is already applying instead of
+  inventing a parallel one.
+  
+  **Unknown fails open, by doctrine.** A capability set that was never reported (a backend predating
+  ADR-0066, or no permission provider mounted) is not a denial: the server enforces regardless, so a
+  client-side refusal on missing data cannot protect anything and can only break a permitted user. A
+  *reported* empty grant gates strictly. Hosts push the session's capabilities in with the new
+  `setSystemCapabilities`; `ObjectView` wires it from `usePermissions()`.
+  
+  The refusal is also **said out loud**. `ObjectView`'s persist path previously swallowed every failure
+  into `console.error`, which for a debounced toggle whose UI has already moved would have left the
+  operator looking at a density they did not get; a denied write now raises a toast. And the "View
+  settings" popover — where density and field visibility are actually changed — now states the scope
+  before the operator acts: *"Grouping, color, density, and visible fields. Applies to everyone who
+  uses this view."*, translated in all ten packs.
+- 26fbe09: Console telemetry can now be hard-disabled on an already-built artifact
+  
+  `/api/v1/runtime/config` gained `telemetry.allowClientErrorReporting`
+  (objectstack#11382), and the Console now reads it. The Sentry decision becomes a
+  conjunction of two independent grants — a DSN injected at **build** time AND a
+  positive permission from the **runtime** — so the single pre-built SPA that both
+  the hosted SaaS console and the on-premises / air-gapped EE images embed can be
+  silenced by the deployment it lands in, with no rebuild and without editing files
+  inside a published bundle. That was the half objectui#5522 could not close before:
+  every other input to the gate is a Vite build-time variable frozen into the bundle
+  as a literal, which is how an air-gapped EE Console came to send 14 Sentry
+  envelopes per session to `sentry.io` carrying IP + User-Agent PII with no way for
+  the customer to turn it off (objectstack-ai/cloud#1508).
+  
+  The permission fails **closed** in every direction: absent key, `telemetry` block
+  absent, malformed payload, failed fetch, or a runtime predating the key all read as
+  *do not send* — which is precisely the set of runtimes leaking today. It is a
+  permission and never a source: the server supplies no DSN and cannot turn telemetry
+  on for a build that carries none. Only a real boolean `true` grants; `'true'`, `1`
+  and other truthy lookalikes do not.
+  
+  Behaviour change for deployments that already inject a DSN: reporting now also
+  requires the runtime to grant permission, via
+  `OS_TELEMETRY_CLIENT_ERROR_REPORTING_ENABLED` (or `RuntimeConfigPlugin`'s
+  `allowClientErrorReporting`). A build that opted in but whose runtime says nothing
+  will go quiet — deliberately, since that is the same artifact an air-gapped
+  customer runs.
+  
+  `@object-ui/app-shell` additionally exports `isClientErrorReportingAllowed()` and
+  the `RuntimeTelemetry` type, so consumers read the permission through the one
+  fail-closed accessor instead of writing their own optional-chain against the
+  payload.
+- 6d63cd0: An auto-derived related list now orders its rows by the CHILD object's default list view
+  `sort`, instead of falling to the server's primary-key order (objectui#5795). A task
+  version's "check items" tab whose child object declares `sort: [{ field: 'seq_no' }]`
+  renders 10/20/30/40; before this it rendered whatever order the ids happened to give —
+  20/30/10/40 in the reported case — while the child object's own list page obeyed the
+  declaration.
+  
+  **Declared as user-visible, deliberately, even though no key was added.** The contract
+  question ("where does a derived related list's sort declaration live?") was ruled on
+  objectstack#11345 (maintainer, 2026-08-23) as **direction 1**: inherit the child's list
+  view sort, and add **no** new spec key — the field-level `relatedListSort` the issue also
+  proposed was explicitly not approved. So there is nothing new to author, and
+  `record:related_list.sort` was already declared, parsed and consumed; this fills it. What a
+  host observes is nonetheless new: a derived related-list descriptor gains a populated
+  `sort` where it had none, and the query it issues gains an `$orderby`. An app whose child
+  objects declare a default list order will see those tabs re-order on upgrade — which is the
+  point of the change, and is why this is not a patch.
+  
+  Nothing is inherited where nothing was declared: a child object with no default list-view
+  sort produces the same descriptor, the same node and the same `$orderby`-free query as
+  before.
+  
+  The two `sort` surfaces declare the same union and mean different things by its string arm
+  — a `ListView` string is the legacy space-separated `'seq_no desc'`, while the related
+  list's own reader takes `'field'` / `'-field'` — so the inherited value is normalized to
+  the array arm once, at the derivation, through `@object-ui/core`'s
+  `convertSortToQueryParams` (the repo's single definition of both authored dialects). An
+  un-normalized inherit would have ordered by a field literally named `seq_no desc`.
+  
+  Known and unchanged: `$orderby` is only assembled while the related list is in windowed
+  (server-paged) mode, so a declared *or* inherited sort still disappears while the built-in
+  client text filter is active. That hole pre-dates this change and affects the authored prop
+  identically; it is now pinned as a recorded fact in
+  `plugin-detail/src/__tests__/RelatedList.sortDroppedOutsideWindowed.test.tsx` rather than
+  fixed here.
+- 4da5109: One `sys_activity` row → `FeedItem` constructor, and the console record page
+  stops dropping author-extended activity types in silence (objectui#5896).
+  
+  **The defect.** `RecordDetailView`'s `sys_activity` merge read the shared type
+  table (objectui#5878) and then built the `FeedItem` itself, ending in
+  `if (!feedType) continue;`. That one `continue` collapsed two different
+  situations: a type the table maps to `undefined` **on purpose** (`commented` /
+  `mentioned` / `login` / `logout`), and a type the table has never heard of. The
+  second is an **author-extended** value — `sys_activity.type` is
+  author-extensible (objectstack#11507 direction 4, ruled 2026-08-24), every
+  column on that table is `readonly` so objectql never validates a write, and
+  ADR-0052 §5b.2 forwards an author's `activityMilestones[].type` into it
+  verbatim. So an activity that happened, was written and is queryable had no row
+  on the console record page: no placeholder, no empty state, no console message.
+  Stored, queryable, invisible — objectui#5840's failure mode reached by another
+  route, and one objectui#5969 (PR #6112) had already removed from the block
+  side, leaving the two surfaces disagreeing about the same row of the same table.
+  
+  **The fix is convergence, not a second decision.** `@object-ui/plugin-detail`
+  now exports the whole reading — `activityRowToFeedItem`,
+  `UNMAPPED_ACTIVITY_FEED_TYPE` and the `resetUnknownActivityTypeWarnings` test
+  seam alongside `ACTIVITY_TYPE_TO_FEED_TYPE` — and `RecordDetailView` calls the
+  constructor instead of paraphrasing it. Publishing the table alone had left the
+  mirror one level up, and it had already drifted three ways: the silent drop, a
+  timestamp fallback that could leave `createdAt` `undefined` where the helper
+  yields `''`, and a second hand-written system-actor lookup.
+  
+  **Behaviour change on the console record page** (breaking in the objectui sense,
+  shipped `minor` — objectui's `major` tracks `@objectstack`):
+  
+  - an unmapped `sys_activity.type` now **renders** through the generic
+    `UNMAPPED_ACTIVITY_FEED_TYPE` (`'system'`) presentation instead of vanishing,
+    and is announced once per distinct value on `console.warn` — a **missing
+    decision**, not lost data: the row is visible, what it lacks is its own icon
+    and colour. `FeedItemType` is a closed spec enum, so minting a kind for "we
+    don't know" would be a platform change, not this surface's.
+  - `createdAt` is always a string for a row with neither a usable `timestamp`
+    nor a `created_at`.
+  
+  **Unchanged, deliberately:** the four exclusions still produce no row and no
+  warning. They are decisions — comment content lives in `sys_comment`, and
+  login/logout are account events rather than record activity — and a warning
+  about a decision teaches authors to ignore the channel.
+- e176053: Consolidate the seven lucide icon-name resolvers into one seam (objectui#5935).
+  
+  Seven modules resolved authored icon names into lucide's runtime `icons` record, each
+  with its own copy of the logic: **three different tokenisers** (`split('-')` on five of
+  them, `split(/[-_\s]/)` on one, `split(/[-_\s]+/)` on one) and the `Home` -> `House`
+  rename on only **four** of the seven. The same authored name therefore rendered on one
+  surface and not another — the sidebar-vs-action-bar disagreement objectui#5633 opened
+  with. There is now one resolver, `resolveIcon`, exported from `@object-ui/components`,
+  and the other six call it.
+  
+  **The tokeniser is `split(/[-_\s]+/)` with `Home` -> `House` applied universally, and it
+  was measured rather than chosen.** Its regression set is empty three independent ways:
+  against the authored population, against a maximally-pessimistic every-authored-name x
+  every-surface cross-product, and against a bound-free differential over 8,298 spellings
+  derived from all 1,767 live record keys — each with a discrimination control that fired
+  in the same run. `split('-')` was **not** adoptable: it regresses 4,748 name-surface
+  pairs in that last reading, stripping two surfaces of every snake_case and
+  space-separated spelling they resolve today.
+  
+  **What changes for you — all of it widening, none of it removal.** No name that resolved
+  before stops resolving: no key of lucide's record contains `_`, whitespace or `-`
+  (measured: 0 of 1,767), so whenever the old narrow tokeniser produced a live key the
+  wider one produces the same key. Sixteen name-surface pairs start resolving where they
+  rendered a fallback or nothing before:
+  
+  - `layout_dashboard` and `building_2` (and every other snake_case or space-separated
+    spelling) now resolve on the shared resolver, `ui:icon`, `ListView`'s empty state,
+    `TabBar` and `ViewSwitcher` — they previously resolved only on the action preview and
+    the related list.
+  - `home` / `Home` now resolves on `RelatedList`, `ListView` and `TabBar`, which carried
+    no rename map. `Home` is not a live record key, so this could only ever be a widening.
+  
+  **What does NOT change: what each surface draws when a name does not resolve.** The seam
+  answers `name -> component`, returning `null`, and decides nothing else (maintainer
+  ruling 2026-09-03 on objectui#5935). Every call site keeps its own fallback, visibly, at
+  the call site: `ui:icon` keeps its `SquareDashed` placeholder and its warning
+  (objectui#5631, untouched), `RelatedList` and `ListView` keep their `Inbox` glyph,
+  `ActionPreview` keeps its three-character name chip, and the shared resolver, `TabBar`
+  and `ViewSwitcher` keep `null`. A two-valued `onUnresolvable` parameter was ruled on and
+  then dropped once the tree was measured to have four such behaviours rather than two: a
+  lookup function is the wrong place to publish a presentation decision.
+  
+  `resolveIcon` is newly exported from `@object-ui/components`, which is the only surface
+  this adds. `scripts/check-lucide-icon-record-names.mjs` is simplified in the same change:
+  its census goes from seven sites to one, and its normalisation stops being a
+  widest-common approximation of three disagreeing resolvers — so the under-reporting that
+  gate disclosed at objectui#5932 is closed rather than merely bounded.
+- d3d0ad3: `asArray` in the two app-shell `find()` readers now reads exactly what
+  `QueryResult` declares — the `records` and `items` arms are removed
+  (objectui#5945).
+  
+  `useApproverDirectory.ts` and `views/metadata-admin/AssignedUsersSection.tsx`
+  both normalised a `find()` answer with
+  
+  ```ts
+  Array.isArray(res) ? res : res?.records ?? res?.items ?? res?.data ?? [];
+  ```
+  
+  `QueryResult` (`@object-ui/types`) declares exactly one rows member — `data` —
+  alongside `total`, `page`, `pageSize`, `hasMore`, `cursor` and `metadata`.
+  `records` and `items` are not members of it, and both were tried *before* the
+  one that is. That is AGENTS.md #0.1 in miniature: a tolerant reader that lets a
+  non-conforming producer keep working, so the wrong shape is never rejected
+  anywhere and hardens into a second de-facto contract. The same
+  `records`/`items` confusion was live in three other places that objectui#5458
+  had to fix, each reading a key no adapter returns — a helper that quietly
+  accepted all three spellings is why nobody found out two of them were wrong.
+  
+  **What stops being accepted.** A `find()` answer shaped `{ records: [...] }` or
+  `{ items: [...] }` now reads as **no rows** at these two seams instead of
+  silently resolving. Both call sites degrade rather than throw: the approver
+  directory reports the reference unresolved (falling back to the prettified
+  machine name, and staffing as probed-empty), and the assigned-users section
+  renders its empty state.
+  
+  **Nothing produces those shapes today**, which is why this is a removal rather
+  than a migration. Measured across the repo, per arm:
+  
+  - **`records`** — no producer at the `DataSource.find()` seam.
+    `ObjectStackAdapter.normalizeQueryResult` maps the server's `records`/`value`
+    envelope to `data` before returning, so the spelling exists only *below* the
+    adapter, on the wire and in the client SDK. The two remaining `records`
+    producers in the repo are on different seams: `ViewDataProvider` returns its
+    own `ResolvedData` interface, which declares `records` legitimately, and is
+    not a `QueryResult`.
+  - **`items`** — no producer at any seam. Every `items` in the repo is the
+    unrelated UI-schema key (dropdown menus, timeline, accordion).
+  
+  **The bare-array arm is kept**, because it is live: fakes at these seams answer
+  with a plain array (`AssignedUsersSection.test.tsx` is one). It is pinned in the
+  same tests as the deletions, so the live and the dead shapes cannot drift into
+  each other.
+- 864154e: The Field Designer no longer offers a formula-expression textarea, and no designer write
+  path emits a `formula` key (objectui#6043).
+  
+  **This is a behaviour change on an authoring surface: a control is removed.** A field's
+  `type` may still be set to `formula` — that is a valid spec `FieldType` and stays in the
+  palette — but the expression itself is no longer authored here. Authors write formula
+  expressions in metadata-admin's field inspector, where they are checked.
+  
+  The control wrote `formula`, which is not in `FieldSchema`'s accept set. Measured against
+  the installed `@objectstack/spec` 17.2.0:
+  
+  ```
+  FieldSchema.safeParse({ type:'formula', label:'Tax', formula:'price * quantity' })
+    => success = false
+    => unrecognized_keys ['formula']   "Did you mean `formula` -> `expression`?"
+  ```
+  
+  so `PUT /api/v1/meta/object/:name` returned a hard 422 `INVALID_METADATA` — and because
+  the key was then stored, it blocked **every later save of that object**, not just the one
+  that introduced it.
+  
+  **The key was deliberately NOT renamed to the spec's `expression`.** `FieldSchema` judges
+  the key name and never the expression LANGUAGE — measured, it accepts
+  `expression: 'price * quantity'` and even `expression: '!!!not cel at all!!!'`; only the
+  empty string is refused. Spec `expression` is CEL rooted at `record`
+  (`record.amount * 0.1`), whereas this control's own placeholder taught `price * quantity`
+  — bare field refs, which under the scope formulas bind evaluate to null silently. A rename
+  would therefore have converted a loud, immediate 422 into a formula that saves clean and
+  then quietly computes nothing, which is strictly worse than the bug it appears to fix.
+  
+  Making refusals loud *in the control* would need CEL lint, autocomplete and `returnType`
+  inference — that is `CelPredicateField`, which lives in `@object-ui/app-shell`, and
+  app-shell depends on `@object-ui/plugin-designer`, so it cannot be imported back without a
+  dependency cycle. Growing a second formula-authoring surface inside plugin-designer is a
+  feature, not this fix. `returnType` is likewise not authored here: it is only derivable by
+  inferring the CEL result type, and with no expression control there is nothing to infer
+  from.
+  
+  `formula` joins the retired-key tombstone in `MetadataFieldsPage`, so an object already
+  carrying the key is stripped clean on its next save instead of staying blocked forever —
+  which matters more than usual here, because with the control gone an author would
+  otherwise have no way left to clear it. It is dropped rather than migrated to `expression`,
+  for the same reason the rename was refused. A `expression` authored in metadata-admin is
+  **not** touched: it is a real `FieldSchema` key and rides through the designer's
+  round-trip untouched.
+  
+  Also removes the now-unreachable `formula` read/write from
+  `views/metadata-admin/previews/object-fields-bridge.ts`, which was a third emit site for
+  the key that neither the card nor the parity gate named.
+  
+  The `formula` entry is removed from `check-designer-field-key-parity.mjs`'s
+  `KNOWN_UNPARSEABLE_KEYS` ledger, which ratchets in both directions — a resolved key that
+  left a stale entry behind would be as red as a new offender.
+- b023625: The field metadata payload no longer emits `sortOrder`, the key `FieldSchema` refuses by
+  name (objectui#6045). Field-level sibling of objectui#6223, same objectui#5761 family.
+  
+  Measured against the installed `@objectstack/spec` 17.2.0, whose `FieldSchema` accept set
+  is 71 keys:
+  
+  ```
+  FieldSchema.safeParse({ type:'text', label:'L' })                  => success = true   (control)
+  FieldSchema.safeParse({ type:'text', label:'L', sortOrder: 3 })    => unrecognized_keys ["sortOrder"]
+  
+  FieldSchema.safeParse({ type:'text', label:'L', sortable: true })  => success = true   (control)
+  FieldSchema.safeParse({ type:'text', label:'L', sortable: 3 })     => success = false
+  ```
+  
+  The control is what makes that a key-by-key result rather than a schema refusing
+  everything, and the `sortable` pair is what shows the near-spelling is a *different
+  concept* — a boolean ("whether field is sortable in list views"), not this key's spec
+  name.
+  
+  **The resolution was deletion, not a rename**, which is objectui#4687's shape rather than
+  objectui#6041's. The spec has no field-level ordering key at all: it models field order by
+  **declaration order** in the object's `fields` record, so a designer that wants explicit
+  ordering reorders that record rather than carrying an index. There was nothing to map onto,
+  and nothing was invented to map onto.
+  
+  **It was latent, and that is confirmed on today's tree.** Neither of the two sites that
+  construct a `DesignerFieldDefinition` — `FieldDesigner`'s create/update handlers and
+  `MetadataFieldsPage.toDesignerField` — ever named the key, so `toFieldPayload` emitted
+  `sortOrder: undefined` and `JSON.stringify` dropped it. The key never reached the wire. It
+  was one reorder feature away from doing so, which is the objectui#4644 shape: a hard 422
+  `INVALID_METADATA` that blocks every subsequent save of the object, with nothing in the UI
+  to say which key caused it.
+  
+  Removed in one go from the wire shape (`FieldMetadataPayload`), its writer
+  (`toFieldPayload`) and the UI model (`DesignerFieldDefinition`), so no declaration is left
+  behind that no writer fills and no schema accepts.
+  
+  **Breaking for TypeScript consumers**: `sortOrder` is gone from `DesignerFieldDefinition`
+  (`@object-ui/types`) and from `FieldMetadataPayload` (app-shell), so code that set either
+  stops compiling.
+  
+  Two keys share this spelling and are untouched, which is why the census was on the *shape*
+  — a field-metadata payload key `FieldSchema` refuses — rather than on the identifier: the
+  **object-level** `sortOrder` (`ObjectSchema`'s, removed from the object wire shape by
+  objectui#6223 and deliberately kept on the `ObjectDefinition` UI model) and the
+  **saved-view** `sortOrder` in `ObjectView`, which is per-view display order on a different
+  document entirely.
+  
+  The `KNOWN_UNPARSEABLE_KEYS` entry in `scripts/check-designer-field-key-parity.mjs` goes
+  with the fix — that ledger ratchets in both directions, so an entry left behind for a
+  resolved key is as red as a missing one.
+- 5173a5e: ⚠️ **Behaviour change: `current_user` predicates that have been doing nothing on
+  the console form routes and in the wizard's submit gate now TAKE EFFECT.** Read
+  this before upgrading if any of your form metadata gates on the session user.
+  
+  objectui#6010 bound the host predicate scope on the five authored-predicate call
+  sites in the components form renderer, so `current_user` (plus the ADR-0068
+  `user` / `ctx.user` / `os.user` aliases) resolves on `visibleWhen` / `visibleOn`
+  there. Two other authored-predicate evaluators were still passing `undefined`
+  for that argument, so the same authored text meant two different things
+  depending on which surface opened the form (objectui#6110):
+  
+  - **`apps/console`'s form renderer**, on the authed internal route
+    `/forms/:name`. The internal route is a runtime record surface by ADR-0089
+    D1's own words (*"runtime record surfaces bind `record` + `current_user`"*),
+    and its `visibleWhen` metadata is the same `*.view.ts` FormView the
+    object-view chain renders — so a role gate authored once behaved differently
+    depending on which route opened the form.
+  - **`WizardForm`'s submit-time required re-check** (`missingRequiredByStep`),
+    the gate that re-checks the whole declared field set at final submit because
+    `allowSkip` can jump past a step. Its docstring promises *"the same verdict
+    from all three rather than a second, divergent dialect"*, and since #6010 it
+    was the divergent one.
+  
+  **Why nobody noticed, and why the fix is felt as a change.** `visibleWhen` fails
+  OPEN: a field on screen is what you get when the predicate resolves TRUE, when
+  the scope was never bound so the predicate faulted, *and* when the predicate is
+  broken. Those worlds were indistinguishable, so an app that authored a
+  `current_user` gate saw the field render and had no way to tell the rule was
+  inert. After this change the predicate is evaluated for real, and fields and
+  sections that have always been visible will disappear for the users the rule
+  excludes. `requiredWhen` fails the other way (CLOSED), so a `current_user`
+  requiredWhen that has been silently not applying will now start holding submits.
+  
+  In the wizard the change is a fix in the user's favour as well: a required field
+  the wizard HID from this user was still counted as visible by the submit gate,
+  so the submit was refused on a control the submitter could neither see nor fill
+  in.
+  
+  **Before upgrading**, audit any `visibleWhen` / `visibleOn` / `requiredWhen` in
+  your form-view and object metadata that names `current_user`, and confirm each
+  predicate says what you actually want evaluated against `record` +
+  `current_user`.
+  
+  **The public anonymous form `/f/:slug` is deliberately unchanged.** It is
+  mounted outside `ProtectedRoute` so an anonymous visitor can submit it, there is
+  no authenticated principal, and no provider is mounted above it — so its scope
+  is empty and a `current_user` predicate authored on a public form still faults
+  and still fails open, exactly as before. Nothing new is declared to say so: the
+  two routes are told apart by which component mounts them.
+  
+  `@object-ui/app-shell` exports `buildExpressionUser`, the `ExpressionProvider`
+  user normalisation, so every console surface that mounts the provider publishes
+  the same `current_user` shape rather than re-deriving it.
+- 1e7fe0a: `record:details` section headings converge on the declared `label` slot; the
+  `title` alias limb is gone (objectui#6190, maintainer ruling 2026-08-31 —
+  option A, three producers plus the consumer in one change).
+  
+  **Breaking for anyone reading `deriveFieldGroupDetailSections`' output — the
+  emitted key moves from `title` to `label`.** That function is public API
+  (exported from `@object-ui/plugin-detail`), so this is an output-shape change,
+  not an internal refactor. A caller that reads `section.title` off its return
+  value reads `undefined` after this release and must read `section.label`.
+  `BuildPageOptions.sections` and `ObjectDefLike.sections` declare the same move,
+  so a caller passing `sections` into `buildDefaultPageSchema` supplies the
+  heading as `label` too.
+  
+  **The retired authoring spelling is `title` on a `record:details` section.**
+  `RecordDetailsRenderer` read `s.title ?? s.label` — a strict-priority second
+  spelling of one slot, with byte-identical localization on both limbs, so a
+  producer emitting both silently disagreed with itself and `title` won. It now
+  reads `label` only. Nothing an author could publish is affected: `@objectstack/spec`
+  REFUSES `title` inside a `sections[]` entry (`unrecognized_keys`, pinned by
+  objectstack#11902), and `@object-ui/types` plus the authoring inspector have only
+  ever declared `name` / `label` / `columns` / `fields`. The declared and authoring
+  faces were already converged; only three runtime producers lagged, and all three
+  move here:
+  
+  - `buildDefaultPageSchema`'s `deriveFieldGroupDetailSections` section literal;
+  - `RecordDetailView`'s re-map of that output through the per-object i18n
+    convention;
+  - `RecordDetailView`'s auto-grouped "More details" section, authored in
+    app-shell and unreachable from the synthesizer.
+  
+  **No rendered heading changes.** Every existing producer yields byte-identical
+  headings, asserted by rendering rather than by inspection — including the
+  "More details" bucket, which the earlier two-step scope would have degraded to
+  the literal `details` in every shipped locale while every existing guard stayed
+  green. A new pin (`RecordDetailView.sectionHeadingsRenderPath-6190.test.tsx`)
+  walks the tree app-shell actually renders and closes that blind spot.
+- d18a0d3: Object-level metadata payloads no longer emit the three keys `ObjectSchema` refuses by
+  name — **group**, **sortOrder** and **relationships** (objectui#6223).
+  
+  Measured against the installed `@objectstack/spec` 17.2.0, whose `ObjectSchema` accept set
+  is 42 keys:
+  
+  ```
+  const base = { name: 'account', label: 'Account', fields: { n: { type: 'text', label: 'N' } } };
+  
+  ObjectSchema.safeParse(base)                              => success = true    (control)
+  ObjectSchema.safeParse({ ...base, isSystem: true })       => success = true    (control)
+  ObjectSchema.safeParse({ ...base, pluralLabel: 'A' })     => success = true    (control)
+  
+  ObjectSchema.safeParse({ ...base, group: 'Sales' })       => unrecognized_keys ["group"]
+  ObjectSchema.safeParse({ ...base, sortOrder: 3 })         => unrecognized_keys ["sortOrder"]
+  ObjectSchema.safeParse({ ...base, relationships: [ … ] }) => unrecognized_keys ["relationships"]
+  ```
+  
+  The two controls are what make that a key-by-key result rather than a schema refusing
+  everything. Each key was resolved on its own, as the objectui#5761 family ruling requires:
+  
+  - **group** — the Object Manager's grouping is a UI-only display category. The spec has no
+    object-level grouping key (`fieldGroups` groups the fields *inside* one object), so the
+    grouping control and its column stay, and the value is now DERIVED from the spec key that
+    is accepted (`isSystem`) instead of round-tripped. `MetadataObjectsPage` also strips a
+    `group` already stored by an earlier build, because its save-back spreads the server
+    document verbatim and would otherwise keep re-sending it forever.
+  - **sortOrder** — what populated it was the array index the converter happened to be at,
+    i.e. the order the list was already in. The declaration is removed from the object
+    payload. The field-level `sortOrder` is a different key with a different card
+    (objectui#6045) and is untouched.
+  - **relationships** — the spec models relationships on the FIELD (`reference` /
+    `master_detail`, plus object-level `indexes`). The object payload stops declaring and
+    sending an object-level relationship array; what the designer should author for a
+    relationship is a data-model question this change does not settle.
+  
+  **Breaking for TypeScript consumers of `ObjectMetadataPayload`** (exported from app-shell):
+  the three properties are gone from the published type, so code that set them stops
+  compiling. That is the point — setting any of them produced a payload the metadata route
+  refuses. `ObjectDefinition` (the designer's UI model) is unchanged and still carries all
+  three.
+  
+  The parity gate built for objectui#5761 now has a **second oracle**: every shape in
+  `PAYLOAD_SHAPES` names the schema that judges it, `ObjectSchema` alongside `FieldSchema`,
+  and reach is resolved within an oracle rather than across one — `group` is a legal
+  `FieldSchema` key and a refused `ObjectSchema` key at the same time. That extension found a
+  fourth object-level key (`enabled`, objectui#6238) and a value-level rejection the key-name
+  check cannot see (`fields` sent as an array where the spec wants a map, objectui#6240);
+  both are filed and ledgered rather than fixed here.
+- 622f33c: `MetadataService`'s two delete methods no longer PUT a hand-written tombstone. They call
+  the metadata API's own delete door instead, and the latent `enabled?: boolean` on
+  `ObjectMetadataPayload` is gone with it (objectui#6238). Object-level member of the
+  objectui#5761 family, surfaced by the `ObjectSchema` oracle objectui#6223 added to
+  `scripts/check-designer-field-key-parity.mjs`.
+  
+  **What the tombstone actually did.** `deleteObject` and `deleteMetadataItem` wrote
+  `{ name, enabled: false, _deleted: true }` through `client.meta.saveItem`, i.e.
+  `PUT /api/v1/meta/:type/:name`. Measured against the installed `@objectstack/spec` 17.2.0
+  using `getMetadataTypeSchema` — the registry the framework's own `saveMetaItem` resolves a
+  PUT's validator from — across all 26 registered overlay schemas:
+  
+  ```
+  ObjectSchema.safeParse({ name, label, fields })                        => success = true   (control)
+  ObjectSchema.safeParse({ name, label, fields, isSystem: true })        => success = true   (control)
+  ObjectSchema.safeParse({ name, enabled: false, _deleted: true })       => unrecognized_keys ["enabled","_deleted"]
+  
+  25 of 26 registered overlay schemas refuse `enabled` and/or `_deleted` BY NAME
+   1 of 26 (`view`) tolerates them; 4 kinds have no registered schema at all
+   0 of 26 strip them
+  ```
+  
+  So there were two failure modes, not one. Where the type has a strict schema — `object`
+  among them — the delete was a hard `422 INVALID_METADATA`, so nothing was ever recorded.
+  Where the schema is tolerant or absent, the framework stores the request item **verbatim**
+  (it deliberately persists the body rather than `parsed.data`), and `_deleted` has no reader
+  anywhere on the platform — so the "soft delete" was a silent no-op that left the item live
+  carrying two junk keys. Neither outcome deleted or disabled anything.
+  
+  **The resolution is a mechanism change, not a rename**, and there was nothing to rename to.
+  `ObjectSchema`'s 42-key accept set has no on/off flag; the near-spelling `enable` is
+  `ObjectCapabilities`, a system-features *module object*, so `enabled: false` → `enable:
+  false` fails on the value where it passes on the name. No wire key was invented: a metadata
+  soft-delete convention would be a `@objectstack/spec` contract addition, and the platform
+  does not have one.
+  
+  **Both sites now call `client.meta.deleteItem(type, name)`** — `DELETE
+  /api/v1/meta/:type/:name`, the same request `MetadataClient.reset` issues, which is the
+  mechanism `MetadataObjectsPage.handleObjectsChange` and `ResourceEditPage` already used for
+  deletes. Two mechanisms for one operation had disagreed; now there is one. The delete route
+  is generic over `:type` on the same route family and capability gate as the PUT, so this
+  holds for every category the generic `deleteMetadataItem` serves, not just `object`. The
+  doc comment claiming the API "exposes `saveItem` but no dedicated `deleteItem`" was stale:
+  `@objectstack/client` 17.2.0 declares `meta.deleteItem` on the very client this service
+  already holds.
+  
+  `reset` semantics are the overlay's, and that is the governed answer rather than a
+  shortfall: it removes the customization row — which *is* deletion for an object the
+  designer authored — and restores the artifact for one a package declares, an object you are
+  not allowed to delete. Which of the two an item is, is what the API's own `deletable` /
+  `resettable` verdicts report, not something a client-side flag should decide.
+  
+  **No published type changed.** `ObjectMetadataPayload` is exported from its module but that
+  module is not re-exported by `packages/app-shell/src/index.ts`, the package's only entry, so
+  the removed `enabled?: boolean` was never on the published surface and no `**/src/index.ts`
+  is touched. What consumers *can* observe is behaviour: `MetadataService` is reachable
+  through the published `useMetadataService()` hook, both method signatures are unchanged
+  (`Promise<void>`), and the HTTP request they issue changes from a `PUT` with a body to a
+  `DELETE`.
+  
+  The `KNOWN_UNPARSEABLE_KEYS` entry in `scripts/check-designer-field-key-parity.mjs` goes
+  with the fix — that ledger ratchets in both directions, so an entry left behind for a
+  resolved key is as red as a missing one. It is now empty for the first time, which is the
+  ratchet arriving where it was pointed; the self-test's non-vacuity guard moved onto a
+  fixture accordingly, so an empty ledger reads as success rather than as a demand that some
+  key stay unresolved.
+- 88b15fd: `ConditionBuilder` now takes a caller-supplied **subject vocabulary** instead of hardcoding a
+  record-scoped one (objectui#6296).
+  
+  The builder built every row subject as `record.` + field name, plus a fixed `record.id` /
+  `user.*` / `org.*` context list. That is correct for all five files that mount it today — six
+  mount sites, since `ActionDefaultInspector` mounts it twice — because every one of them is a
+  record-scoped site. It is wrong for a **flattened**-scoped site such as the flow designer's
+  entry condition, where the trigger record's fields *are* the top-level evaluation context
+  (bare `status`) and the prior values arrive as `previous.FIELD`. This repo's own
+  `flow-scope.ts` already computes that distinction (`fieldPrefix: onStart ? '' : 'record.'`,
+  `includePrevious`), and objectstack's `packages/formula/src/validate.ts` defines the two
+  scopes.
+  
+  A new optional `subjects` prop declares what a site actually binds:
+  
+  - `fieldPrefix` — defaults to `'record.'`; `''` declares a flattened scope.
+  - `includePrevious` — also offer `previous.FIELD` per field, plus the whole-record `previous`
+    token, which is what makes the create-path idiom `previous == null` **selectable** rather
+    than something the author has to recall from help text.
+  - `context` — replace the context subjects, so a flattened site does not inherit `record.id`,
+    a root it does not bind. Offering it there would make this editor emit the one spelling its
+    own sibling ref-check flags as out of scope.
+  
+  Declared, never inferred: the component does not guess a site's scope from the value it is
+  handed. **A caller that declares nothing gets exactly the previous behaviour** — the option
+  list, the `record.` prefix on a compiled row, and the single-quoted value spelling are all
+  pinned positively against that default, so changing it fails rather than re-baselines.
+  
+  **Double-quoted string literals now round-trip into row mode.** `unfmtValue` stripped only
+  single quotes while `fmtValue` re-emitted only single quotes, so `status == "done"` could
+  never survive the builder's byte-for-byte adoption check and was handed to the raw CEL editor
+  — even though double quotes are what the entry-condition placeholder teaches and what every
+  shipped example flow uses. Each row now remembers the quote character it was parsed with and
+  re-emits that one, so the author's own spelling is preserved rather than normalised, and the
+  byte-for-byte safety rule is kept exactly as it was rather than loosened. Rows built in the
+  builder still emit single quotes, unchanged.
+  
+  Measured against the shipped corpus — every start-node entry condition in objectstack's
+  example apps plus the HotCRM example from objectui#6226 — row-mode adoption goes from 3/17 to
+  15/17. The two that remain on raw mode are `&&` mixed with a parenthesised `||` group: a
+  grammar limit of the row model, unrelated to subjects, and out of this card's scope.
+  
+  The component is not re-exported from the package index, so no external caller can pass the
+  new prop yet; the wiring that will (objectui#6226) is a separate card. Scored `minor` for the
+  added capability rather than `patch`, since the widening is real even while its only future
+  caller is in-repo.
+- b362c1b: Setup gains a **Packaged automation** page — the operational surface for the flows an
+  installed package ships (ADR-0126 §7.4, objectui#6301). Reached the way every other
+  framework-contributed Setup surface is: the page registers the component-registry ref
+  `automation:packaged`, so app navigation names the ref and `ComponentNavView` resolves it
+  at `/apps/<app>/component/automation/packaged`. No bespoke route is added — a second way
+  in would be a URL the app metadata does not know about.
+  
+  Per packaged flow the page does exactly two things:
+  
+  - **on/off for this scope** — reads the activation state the engine reports
+    (`GET /api/v1/automation/_status`, backed by the ADR-0126 §7.2 `sys_metadata_activation`
+    ledger) and flips it through `POST /api/v1/automation/<name>/toggle`;
+  - **clone** — `POST /api/v1/automation/<name>/clone` with a mandatory new machine name and
+    label (§7.1). The carried-over definition is never offered as editable form fields; the
+    copy is edited in Studio like any other flow.
+  
+  Authoring stays in Studio. The list is scoped to packaged flows by the server's own
+  three-clause provenance test (`isCodeArtifactBody`, ADR-0029 D9.6) rather than the
+  `_packageId`-only shortcut, which classifies a tenant overlay bound to a package as
+  packaged — the cloud#970 misread, and here it would put a tenant's own flow behind an
+  install-wide switch.
+  
+  **Server refusals reach the operator verbatim** — no client-side softening or rewording.
+  Three shapes are relayed as sent: the §5 posture gate (403 `PERMISSION_DENIED`, whose
+  message names the tenancy posture *and* the sanctioned clone path), the §7.3 subflow guard
+  (409 `DELETE_RESTRICTED`, which names the packaged callers that would break mid-run — a
+  list nothing on the client could reconstruct), and the §7.1 clone name conflict (409).
+  
+  ⛔ **No drift or ancestry surface** (§9): no diff-vs-base, no "customized" badge, no
+  base-moved notice, no link from a clone back to its source. Cloned-without-disabled and
+  disabled-without-clone are ordinary states, shown plainly. Tests pin the absence, including
+  the case where a response carries a `clonedFrom` key anyway — the platform does not track
+  that lineage, so a page that displayed it would be displaying something it invented.
+  
+  `@object-ui/i18n` gains the `packagedAutomation` key group — 24 keys in `en` and real
+  translations in all nine other packs, matching each pack's existing vocabulary for "flow"
+  and "package" (zh 流程/软件包, ja フロー/パッケージ, ko 플로우/패키지, de Flow/Paket,
+  fr Flux/Package, es Flujo/Paquete, pt Fluxo/Pacote, ru Поток/Пакет, ar التدفق/الحزمة) and
+  each one's quotation convention. The group deliberately carries no drift or ancestry
+  wording, and no server refusal text: those arrive as server-authored prose and are
+  rendered verbatim.
+- 9602dc8: Setup › **Packaged automation** gains a packaged **actions** section beside its flows one —
+  the surface half of ADR-0126 §8 item 2 (objectui#6412; the engine, ledger and both dispatch
+  doors landed in objectstack#12348). The maintainer's pull, verbatim and untranslated:
+  「动作 可能是需要开关的，因为有的 action 我不想启用。」
+  
+  Per packaged action the section does exactly **one** thing: **on/off for this scope**. That
+  is all the `sys_metadata_activation` ledger knows about an action, and the section claims
+  nothing more.
+  
+  - **State** comes from the ledger's `metadata_type: 'action'` rows, read through the generic
+    data API list the object itself sanctions for exactly this
+    (`apiMethods: ['get', 'list']` — *"Reads stay open so operability surfaces can answer
+    'what is disabled here?'"*). **Absence of a row means active**, so a stock boot shows
+    everything armed.
+  - **Discovery** mirrors the runtime's own `collectActionDeclarations`: object-embedded
+    `actions[]` from `GET /meta/object` **plus** standalone items from `GET /meta/action`, with
+    the object-embedded declaration winning a `<object>:<action>` key clash. Listing only the
+    first source would leave an administrator with no off-switch for a packaged standalone
+    action.
+  - **Flips** invoke the L6 write door `POST /actions/_activation/:object/:action` with exactly
+    the one key its body declares (`{ enabled }`); `global` is the object segment for an
+    object-less action, the same spelling both dispatch doors take.
+  
+  **⛔ No clone for actions.** The flows section keeps its own (§7.1); amendment ruling 3
+  charters the *switch* for actions and nothing else, and §8 keeps the clone half pre-chartered
+  until real pull appears. A clone control here would advertise machinery that does not exist —
+  which is also why the server's §5 refusal for actions recommends the platform operator and an
+  ordinary sibling action where the flow refusal recommends a clone.
+  
+  **⛔ No drift or ancestry surface** (§9): no "customized" badge, no diff-vs-base, no
+  base-moved notice. The platform tracks no such lineage, so a surface showing it would be
+  showing something it had to invent. The absence is pinned against a response that smuggles
+  `clonedFrom` / `baseVersion` in, so it is enforced at the renderer and not merely by the wire.
+  
+  Server refusals reach the operator **verbatim** — no client-side softening, no retry loop.
+  Three shapes are reachable in tests, each transcribed character-for-character from the
+  runtime's own message builders: the §5 posture gate (403 `PERMISSION_DENIED`, naming the
+  posture *and* the sanctioned path), the ambiguous-name refusal (409 `RESOURCE_CONFLICT`,
+  naming the objects a machine name collides across — a list nothing on the client could
+  reconstruct) and the no-ledger outage (503 `SERVICE_UNAVAILABLE`).
+  
+  One further refusal is the section's own and it points the same way: a `hasMore` on the
+  ledger read is treated as a **load failure** rather than rendered. A dropped row reads as
+  "active", so a partial ledger would show a switched-off action as armed — the one direction
+  this section must not fail in.
+  
+  The flows section is unchanged in behaviour. It gains a heading beside the new one, and the
+  page subtitle now says "Flows and actions" — that string moved in all ten packs together.
+  Nine new `packagedAutomation.*` keys land in `en` **and in all nine other packs** as real
+  translations; the two toggle-failure keys are artifact-neutral by wording and are reused
+  rather than duplicated.
+- c71e14d: **The unresolvable-visibility-predicate report now names the roots of the tier the
+  predicate was actually evaluated against** (objectui#6487). An app-shell author
+  whose nav, area or field `visible` faulted was told to check `record` and
+  `page.<var>` — two roots that tier does not bind at all.
+  
+  `formatUnresolvableVisibilityMessage` and `reportUnresolvableVisibilityPredicate`
+  (both exported from `@object-ui/react`) take a new **optional sixth argument**, a
+  `PredicateScopeTier` — also exported — selecting the closing advice paragraph.
+  Everything above that paragraph is unchanged on every surface, and so is every
+  verdict: this is diagnostics copy only.
+  
+  **The published signature grew; nothing existing breaks.** The argument defaults
+  to `'page-component'`, so a five-argument call keeps printing the bytes it
+  printed before. All three in-repo call sites pass their tier explicitly rather
+  than lean on that default.
+  
+  Each tier's root set was derived from the code that builds the bag, not from the
+  prose that described it:
+  
+  - **`'page-component'`** — `SchemaRenderer`'s node gate and `page:tabs` item
+    predicates. Both bind `record`, `current_user` and `page.<var>` (the roots
+    `@objectstack/spec`'s `ui/page.zod.ts` declares for the tier). Its paragraph is
+    byte-for-byte what it was.
+  - **`'app-shell'`** — the chrome gate `ExpressionProvider.evaluateVisibility`
+    runs, wired onto this reporter by objectui#6443. Its evaluator is built from
+    `{ current_user, user, ctx: { user }, os: { user }, app, data, features }`, so
+    the line now names `current_user` with its three ADR-0068 alias spellings,
+    `app`, and `features` — the deployment-flag root that provider documents for
+    exactly this kind of predicate — and states outright that `record` and
+    `page.<var>` do not exist there.
+  
+  **Why not generalise the copy instead.** Dropping the concrete root names would
+  have made one paragraph true everywhere at the cost of making it useful nowhere:
+  an author who mistyped a root needs to know which roots exist *at their tier*,
+  which is the whole reason the paragraph is read.
+  
+  `data` is bound at the app-shell tier but is deliberately not advertised there —
+  every mount of `ExpressionProvider` in this repo passes `data={{}}` or omits it,
+  so naming it would point an author at a root that answers nothing.
+- 2c26335: **BREAKING (in name only):** `MetadataService.saveObject(obj, existingFields)` now requires
+  its second argument (objectui#6490). Calls that omitted it no longer compile.
+  
+  **Runtime behaviour is unchanged, and that is the whole justification.** A call that omitted
+  the field list was already a guaranteed `422` — every time it ran, against every backend.
+  `ObjectSchema.fields` is not merely typed, it is REQUIRED: measured against the installed
+  `@objectstack/spec` 17.2.0, `ObjectSchema.safeParse({ name: 'account', label: 'Account' })`
+  fails with `invalid_type @ fields`, and `metadata-protocol`'s `saveMetaItem` parses the whole
+  item against that same schema and throws `422 INVALID_METADATA` **before** it persists. The
+  method cannot build a valid document without the argument, so the only calls this break
+  breaks are calls that already failed. The signature is now honest about it, and the diagnosis
+  moves from a round trip at runtime to the compiler.
+  
+  Nothing new is exported and nothing new is accepted — this narrows the published surface
+  rather than widening it. In-repo production call sites were measured at **zero** (only tests
+  called it), so the migration for an external consumer is to pass the field list it was
+  already required to send: `saveObject(obj, fields)`.
+  
+  ⛔ Two readings were considered and declined, recorded so neither is taken later as a
+  shortcut. **Not a `{}` default** — `{}` parses GREEN and `PUT /api/v1/meta/object/:name` is
+  an upsert, so defaulting would delete every field of the object on a save that only meant to
+  rename it, trading a loud, harmless 422 for silent data loss; the anti-wipe control from
+  objectui#6240 (`omits fields entirely when the caller supplied none — it does NOT write {}`)
+  moves with the signature and still guards the path a JavaScript consumer can reach. **Not
+  fetch-and-merge** — an object save could GET the current document and preserve its stored
+  `fields` the way `saveFields` does, but that builds capability for a path with zero measured
+  pull and makes the parameter redundant.
+  
+  An EMPTY list stays a different statement from a missing one: `[]` means "this object has no
+  fields", writes `{}`, and under the upsert performs the wipe the caller asked for — the same
+  authoritative reading `saveFields` gives its own empty list. Unchanged, and now pinned,
+  because the required parameter is what routes a caller with nothing to hand toward it.
+  
+  Scored `minor` and not `major` per AGENTS.md §版本号策略 — objectui's major is pinned to the
+  `@objectstack` major so that "same major ⇒ compatible" holds across the two repos, and every
+  publishable package sits in one `fixed` group, so objectui's own breaking changes ship as
+  `minor` with the break spelled out in the body. That is the convention, which is why the
+  break is stated in words above.
+- 08c3da9: ⚠️ **Behaviour change: `current_user` and `features` gates on an object field's
+  `visible` that have been doing nothing on the record form page and in the
+  console's record modal now TAKE EFFECT.** Read this before upgrading if any of
+  your object metadata gates a field on the session user or on a deployment flag.
+  
+  objectui#6010 and objectui#6110 bound the host predicate scope on the form
+  renderer and on the console form routes. `evaluateVisibility` was still being
+  reached with a THIRD and FOURTH evaluator that neither of those touched:
+  `RecordFormPage` and `AppContent` each built a private
+  `new ExpressionEvaluator({ user, app, data })` for the field-visibility filter,
+  beside — not from — the `ExpressionProvider` each of them mounts. Those bags
+  bound `user`, but not the canonical `current_user` nor the ADR-0068 `ctx.user` /
+  `os.user` spellings of that same object, and not `features` at all. So one
+  authored predicate meant two different things depending on which evaluator
+  reached it: `current_user` resolved on a nav item and was unbound on a field.
+  Both sites now build their scope with the same `buildExpressionScope` the
+  provider uses, which is the only declaration of what an app-shell predicate may
+  name.
+  
+  **Why nobody noticed, and why the fix is felt as a change.** A field `visible`
+  predicate fails OPEN: a field on screen is what you get when the predicate says
+  TRUE, when the root was never bound so the predicate faulted, *and* when the
+  predicate has a typo. Those worlds are indistinguishable, so an app that
+  authored a `current_user` gate saw the field render and had no way to tell the
+  rule was inert. After this change the predicate is evaluated for real, and
+  **fields that have always been visible will disappear for the users the rule
+  excludes** — and a `features` gate whose flag is off will hide its field once
+  `/api/v1/auth/config` resolves.
+  
+  `AppContent`'s bag also hand-rolled its user as `{ name, email, role }`, without
+  `positions`. It now uses the same `buildExpressionUser` normaliser every other
+  console surface publishes, so `'sales' in current_user.positions` — the gate the
+  server enforces on write — reaches the same verdict client-side instead of
+  faulting open.
+  
+  **Before upgrading**, audit any `visible` predicate in your object metadata that
+  names `current_user` (or `user` / `ctx.user` / `os.user`) or `features`, and
+  confirm each says what you actually want evaluated. Measured on the metadata
+  shipped in this repo and in the framework at the time of the change: **nothing
+  in it authors such a gate**, so no shipped surface changes behaviour today —
+  the audit is for your own object metadata, which this cannot see.
+  
+  **The error path is deliberately unchanged.** A predicate that throws still
+  fails open, exactly as objectui#6443 / objectui#6487 left it. This change is
+  about which roots are BOUND, not about what happens when evaluation fails.
+- 6d68491: metadata-admin inspectors: name the "inactive values retained" state instead of
+  rendering it as live configuration (objectui#6499).
+  
+  `showWhen` gates rendering only, and `isFieldVisible` additionally re-shows any
+  field that already holds a stored value — deliberately, "so existing config is
+  never hidden". The consequence on screen: an author who enabled a controller,
+  filled its dependent fields, then switched the controller back off keeps seeing
+  those fields as ordinary, live-looking controls. The stored config and the
+  switch beside it disagree, and nothing said which one was in effect.
+  
+  Per the maintainer ruling of 2026-08-27 (Option C), the values are KEPT and the
+  state is made explicit. Pruning on save was rejected: it silently discards
+  config an author entered, and inverts the very rule that stops config from
+  vanishing unseen.
+  
+  - New `inactiveRetainedKind(field, node, fields)` in `flow-node-config.ts` — a
+    pure read that reports a field rendered ONLY because the stored-value re-show
+    rule fired. It distinguishes `'controller-off'` (a real toggle the author can
+    switch back on) from `'no-controller'` (the `__legacy__` render-only keys,
+    where no such toggle exists and saying otherwise would be a fresh lie).
+  - `FlowNodeConfigField` renders the notice beside the affected control, with a
+    "Clear value" action so the author can discard the residue **deliberately**.
+    Read-only inspectors show the notice without the action.
+  - Coverage is every `showWhen` group in the inspectors, pinned mechanically:
+    all 33 gated fields across the descriptor tables, plus the two runtime
+    producers (an engine-published `configSchema` and a connector input schema)
+    that mint groups no source file contains.
+  
+  Render-layer only: no save-path change, no data deletion, and `isFieldVisible`'s
+  stored-value re-show rule is unchanged — clearing is an ordinary author-initiated
+  field commit, the same write as emptying the control by hand.
+- 5af67c2: Object-field visibility on the record form page and the console's global
+  record-form modal now reads the keys `@objectstack/spec` DECLARES — the static
+  `hidden` and the `visibleWhen` predicate — instead of `visible`, a key the
+  contract refuses (objectui#6514; maintainer ruling 2026-08-27, Option A).
+  
+  `FieldSchema` is a `strictObject` and `visible` is not one of its keys: it
+  appears in `FIELD_KEY_GUIDANCE` as prose that REFUSES the spelling, deliberately
+  not as an alias, because — quoting the guidance — "this surface declares BOTH
+  forms and the two answers have opposite polarity". So both call sites were
+  gating on something no author could legally write: metadata carrying a
+  field-level `visible` never survives validation, and a census re-run for this
+  card over the framework's 113 `*.object.*` files (`aef1b7e64`) found zero of
+  them, against 113 `label` / 107 `required` / 76 `readonly` field-level hits from
+  the same query shape.
+  
+  What changes for an author: `hidden: true` on a field now actually withholds it
+  from these two forms, and a `visibleWhen` predicate now decides there — both
+  previously inert. The dead `visible` read is deleted rather than kept beside the
+  declared keys, so the refused spelling cannot survive as a second, renderer-side
+  contract.
+  
+  `hidden` is INVERTED relative to the key it replaces (`visible: false` is
+  `hidden: true`), and an inversion read backwards raises no error — a field
+  either vanishes with no diagnostic or leaks to a principal it was hidden from.
+  Both directions are therefore pinned per call site (hidden/shown, predicate
+  false/true), and the suites were measured red against the pre-fix code AND
+  against a deliberately inverted implementation.
+  
+  The two keys compose as AND: `visibleWhen` is documented as "shown only when
+  TRUE (else hidden)", a necessary condition and never a licence to un-hide a
+  statically hidden field — the same shape `resolveFieldRuleState` already uses
+  for `readonly`/`readonlyWhen` and `required`/`requiredWhen`.
+  
+  Field-level visibility keeps the contract's current scope: no `current_user`
+  binding is added, and the tier's documented fault-open is unchanged. Per-user
+  field hiding still goes through the option/form layers that bind the user.
+- a4d39a8: **Breaking (compile-time only):** `buildExpressionUser`'s PARAMETER is now the session
+  contract — `ExpressionUserSession | null | undefined` instead of `unknown` — so every call
+  site is checked against it (objectui#6559).
+  
+  objectui#6551 narrowed the CAST the normaliser read its input through, so the module began
+  DECLARING what a signed-in session is: `id`, `name` and `email` required, mirroring
+  `@object-ui/auth`'s `AuthUser`. The parameter behind that cast stayed `unknown`, so the
+  declaration bound nothing — every call site satisfied it vacuously and
+  `buildExpressionUser({ name: 'B', email: 'b@c.d' })` still compiled. A declaration nothing
+  checks is indistinguishable from no declaration at all (AGENTS.md #0.1). The cast is gone
+  and the shape is stated once, on the parameter, so the declaration and the check are the
+  same statement rather than two that merely agree.
+  
+  WHAT BREAKS, AND FOR WHOM. This tightens a signature published from the package entry
+  (`packages/app-shell/src/index.ts`), so an external caller that passes an unchecked or
+  under-declared value stops compiling on upgrade. That is accepted (maintainer ruling
+  2026-08-27, option A): the only calls it refuses are calls that were never conformant with
+  the contract the module already declared. It ships as `minor`, not `major` — objectui's
+  major tracks `@objectstack`'s, so its own breaking changes ship as a minor with the break
+  written down (`scripts/check-changeset-no-major.mjs`). ⛔ Keeping `unknown` and ⛔ adding a
+  second, wider entry point were both declined.
+  
+  NO RUNTIME BEHAVIOUR MOVES. All four in-repo production call sites pass `useAuth().user`,
+  typed `AuthUser | null`, and type cleanly unchanged — two in `console/AppContent.tsx`, one
+  in `views/RecordFormPage.tsx`, one in `apps/console`'s `InternalFormRoute.tsx`. The body is
+  byte-equivalent: the same keys, the same `??` defaults, the same anonymous branch. ⛔ No
+  consumer-side fallback was added; `id: u.id ?? null` remains the rejected shape (triage
+  ruling 2026-08-26), because a lenient default in the consumer is what AGENTS.md #0.1
+  forbids and it silently equates "signed in, no id" with "signed out".
+  
+  Note for callers holding the SPEC's `AuthUser` rather than `@object-ui/auth`'s: the spec
+  type is an `interface` with no index signature, and TypeScript infers an implicit index
+  signature for type aliases only, so it is not assignable to a contract declaring
+  `[key: string]: unknown`. `@object-ui/auth`'s `AuthUser` extends it and adds that index
+  signature, which is what every call site here passes.
+  
+  Pinned by the new `expressionUser.parameterContract.types.test.ts`, compiled by the
+  package's `tsconfig.test.json` (chained off `type-check`, which CI runs). Its refusals are
+  `@ts-expect-error` directives, so a re-widened parameter makes them UNUSED and TS2578 turns
+  the type-check red; a type equation on `Parameters<typeof buildExpressionUser>[0]` reds
+  alongside them. Every refusal is routed through a non-fresh value, so what is measured is
+  the parameter and not excess-property freshness.
+- dc4365c: Retire the discovery-wire preview mode — the console no longer turns
+  authentication off because a server said `mode: 'preview'` (objectui#6654).
+  
+  `@objectstack/spec` retired the `RuntimeMode` value `'preview'` and the whole
+  `PreviewModeConfig` block (objectstack#11846). This console still read that
+  surface back off the runtime discovery payload, which is a different layer from
+  the retired compile-time type — so the consumption could not simply be assumed
+  dead, and its removal was ruled deliberately (2026-08-29).
+  
+  - `ConditionalAuthWrapper` (`@object-ui/app-shell`) drops the branch gated on
+    `discovery.mode === 'preview'`. That branch called `setAuthEnabled(false)` and
+    simulated an identity out of `discovery.previewMode`, every field behind a
+    default. Auth availability is now decided **only** by the ADR-0076 D12 service
+    reading (`isServiceUsable(discovery.services.auth)`), exactly as for any other
+    mode.
+  - `DiscoveryInfo` (`@object-ui/react`) drops the `previewMode` block and stops
+    documenting `'preview'` as a runtime mode; the package README's discovery
+    section is updated to match.
+  
+  **Accepted failure direction:** a deployment that still emits `mode: 'preview'`
+  or a `previewMode` block now falls back to the ordinary auth reading — it
+  requires login. That is loud, diagnosable and more secure than keeping a dormant
+  auth-off path keyed on a spelling the platform no longer produces.
+  
+  **Not affected:** `AuthProvider`'s `previewMode` prop, `useAuth().previewMode`
+  and `PreviewBanner` in `@object-ui/auth` are a separate published capability
+  with a different producer (a host passing the prop). Only the discovery-wire
+  producer of that prop is retired; hosts that pass it explicitly are unchanged.
+- 969ba84: Renderers for the `app:launcher` and `nav:menu` page blocks (objectui#6661).
+  Phase 1 of the 2026-08-26 maintainer ruling on objectstack#12183 — the two
+  `PageComponentType` members that are purely metadata-driven, so nothing had to
+  ship before their renderers could. Phase 2 (`global:search` /
+  `global:notifications`) landed in objectui#6757 and set the pattern this
+  follows.
+  
+  A page that declared either member drew a dashed box. The two symptoms were not
+  the same, which is worth recording because it decides what "fixed" looks like
+  for each:
+  
+  - `nav:menu` is in `PALETTE_PLACEHOLDER_BLOCKS`, registered eagerly, so it drew
+    the literal "Component Placeholder" scaffold in every host.
+  - `app:launcher` is only in `PROTOCOL_COMPONENTS`, registered when a host opts
+    in via `registerPlaceholders()` — which just `apps/console` does. So it drew
+    the scaffold in the console and `SchemaRenderer`'s red OBJUI-001 "Unknown
+    component type" panel everywhere else.
+  
+  Neither block adds a data layer — each mounts plumbing that was already live,
+  and neither issues a request or touches an adapter:
+  
+  - `app:launcher` reads the metadata app registry (`useMetadata().apps`, which
+    `MetadataProvider` fetches eagerly) through the shared `filterActiveApps`
+    predicate, and draws it with `HomeAppsStrip` — the console's own launcher
+    grid — so an authored launcher and the Home launcher cannot drift into two
+    looks for one thing.
+  - `nav:menu` reads the active app's navigation tree from that same registry and
+    renders it as page content, taking every derived fact from `@object-ui/layout`:
+    hrefs from `resolveHref`, labels from `resolveNavItemLabel`, the active row
+    from `resolveActiveNavItem`, and the item-level guards (`visible`,
+    `requiredPermissions`, `requiresObject` / `requiresService`) in the order
+    `NavigationItemRenderer` applies them, wired to the same console providers
+    `AppSidebar` wires them to. `action` items dispatch through
+    `useNavActionDispatch`, so framework#4509's "renders but dead-clicks" shape is
+    not reintroduced.
+  
+  `nav:menu` does not mount `NavigationRenderer` itself: that renders through
+  `SidebarMenuButton`, whose `useSidebar()` throws outside the shell's
+  `SidebarProvider`, and a page block has to render standalone. `@object-ui/layout`
+  therefore exports `resolveNavItemLabel`, which was module-private — an additive
+  export with no behaviour change, so the sidebar and an authored menu cannot show
+  one nav entry under two names.
+  
+  Both registrations publish **no** `inputs`: `ComponentPropsMap` declares an empty
+  shape for each, and both use `skipFallback: true` so neither claims the bare
+  `launcher` / `menu` keys. This does not change the Studio page palette —
+  `app:launcher` remains recorded there as a shell singleton, which is a palette
+  decision independent of whether a declared type renders.
+  
+  Three new strings — the launcher's and the menu's accessible names, and the
+  menu's empty state — are declared under `console.nav` in `en.ts` and its nine
+  sibling packs. An inline `defaultValue` alone is not a fix: it renders English
+  at one call site and leaves the string untranslatable everywhere
+  (objectui#3517).
+- faac0d9: `@object-ui/app-shell` now publishes a precise `sideEffects` ARRAY.
+  
+  **What this means for a consumer.** Until now the package declared no
+  `sideEffects` field at all, which every bundler reads as "assume every module in
+  this package does something when it is imported" — so nothing in the package
+  could be tree-shaken, and importing one named export from the barrel pulled in
+  the barrel's whole reachable graph. The package now names exactly the modules
+  that DO something on import: its entry forms (including `./styles.css`, which a
+  bundler must never drop) and the ten modules that register SDUI widgets, admin
+  components and metadata resources at load time. Everything else is now
+  shakeable, so a consumer's bundler may drop the parts of `@object-ui/app-shell`
+  their app does not use.
+  
+  ⚠️ **If your build depends on a module of this package being evaluated for its
+  side effects without importing anything from it, and that module is not one of
+  the ten named**, it may now be dropped from your bundle. Import the value you
+  need by name, or call the registration explicitly. Measured on this repo's own
+  console: 56,668 gzipped bytes left the eager closure and every SDUI registration
+  stayed present.
+  
+  `"sideEffects": false` was NOT adopted and remains disproven by measurement: it
+  drops three live SDUI widget registrations (`mcp:connect-agent`,
+  `cloud:onboarding-next`, `cloud:ai-model-status`) to zero chunks on a green
+  build with no warning anywhere.
+  
+  Two gates ship with the array, because an INCOMPLETE array fails silently inside
+  a consumer's bundle and would otherwise have no witness:
+  `scripts/check-side-effects-array.mjs` re-derives the enumeration from the module
+  bodies and fails when the array and the derivation disagree in either direction,
+  and `scripts/check-sdui-registration-pins.mjs` weighs the built console for every
+  registration the array promises to keep.
+- dbd5194: The shell's `sys_activity.type` reading stops calling every unrecognised type an
+  update (objectui#6730).
+  
+  `mapActivityRows` in `hooks/sharedUserFeeds.ts` — the feed behind the AppHeader
+  bell's Activity tab, Home's activity card and the exported `ActivityFeed` panel
+  — carried the third hand-written reading of that column in this repo, and it
+  bucketed every value outside `created` / `deleted` / `commented` / `mentioned`
+  as `update`. That is not a missing decision; it is a wrong one stated out loud:
+  a `scheduled` meeting, a `login`, a nightly `system` rollup and an author's
+  `contract_countersigned` all rendered as "somebody updated this record".
+  
+  - New `layout/activityItemType.ts` holds the whole reading — the table, the
+    generic bucket, the `"NOW()"` timestamp fallback and the row constructor that
+    applies all three — DOM-free, so what a row becomes is assertable directly.
+  - `ActivityItem['type']` gains a fifth kind, `system`: the generic bucket, with
+    its own icon, label and notification toggle. Following
+    `UNMAPPED_ACTIVITY_FEED_TYPE`'s precedent, an unrecognised value renders
+    through it and is named once on `console.warn` rather than being dropped —
+    `sys_activity.type` is author-extensible (objectstack#11507 direction 4), so
+    an unmapped value is real activity nobody has ruled on, not a mistake.
+  - The built-ins that had no honest presentation among the four existing kinds —
+    `system`, `completed`, `scheduled`, `login`, `logout` — now land in that
+    bucket instead of claiming `update`. `assigned` and `shared` stay `update`:
+    both write to the record.
+  
+  ⛔ The two readings of this column are deliberately NOT converged.
+  `activityRowToFeedItem` builds a `FeedItem`, and the vocabularies cross:
+  `FeedItem` collapses create/update/delete into one `field_change` and drops
+  `commented` / `mentioned` outright, so routing this surface through it would
+  cost the bell every comment row and every create/delete distinction. What is
+  shared is a pin, not an import — the new suite reads plugin-detail's real table
+  (a devDependency; no runtime edge) and fails when the declared vocabulary grows
+  an entry this side has not read, or when the two readings stop disagreeing in
+  the three measured ways.
+- f99932a: Renderers for the `global:search` and `global:notifications` page blocks
+  (objectui#6757). A page that declared either member drew the literal "Component
+  Placeholder" scaffold: both are first-class `PageComponentType` members that the
+  2026-08-26 maintainer ruling on objectstack#12183 kept declared once the
+  readiness read in objectstack#13117 evidenced both data sources shipped, and
+  the renderer was the remaining half.
+  
+  Neither block adds a data layer — each is a new mount point on plumbing that was
+  already live:
+  
+  - `global:search` mounts `useRecordSearch` (`@object-ui/react`), the same hook
+    the ⌘K command palette and the full-page search results already use. It
+    prefers the adapter's `searchAll` (`GET /api/v1/search` — cross-object hits
+    with title/snippet/record) and inherits that hook's fanout fallback for
+    adapters without it. Scope is the metadata provider's searchable object set,
+    which is the hook's documented default when no `objectNames` whitelist is
+    given.
+  - `global:notifications` mounts `InboxPopover` — the bell ADR-0012/ADR-0030
+    defines ("the bell reads `sys_inbox_message`") — over the shared inbox feed.
+  
+  To keep that second one honest, the header bell's inbox wiring (rows, badge
+  addends, and the three mark-read paths) moves out of `AppHeader` into a new
+  `useInboxBell` hook that both surfaces mount. Copying it would have re-opened
+  the two defects `sharedUserFeeds` closed — #4225 (two owners of one read issuing
+  it twice per page) and #4316 (two derivations of read-state disagreeing) — so a
+  bell in the header and a bell an author declared on a page now have no
+  representable state in which they disagree about a row.
+  
+  Both registrations publish **no** `inputs`: `ComponentPropsMap` declares an
+  empty shape for each ("declares no props at all" is the recorded intent), and
+  both use `skipFallback: true` so neither claims the bare `search` /
+  `notifications` keys. This does not change the Studio page palette —
+  `global:notifications` remains recorded there as a shell singleton, which is a
+  palette decision independent of whether a declared type renders.
+- 045d20b: Relationship-target readers resolve a lookup's target from `reference` alone,
+  dropping the `reference_to` fallback arm (objectui#6837, half 2).
+  
+  Maintainer ruling, 2026-08-31, 原文照录: 「objectui不是前端的项目吗?后端的元数据只要
+  对,前端按协议执行就行了呀」. Protocol normalization belongs on the SERVER; the front
+  end just executes the protocol. objectstack#13847 landed the server half — a
+  `field-reference-to-alias` conversion rewrites stored `reference_to` to
+  `reference` on the serve path and in `os migrate meta`.
+  
+  `reference` is the only target spelling `@objectstack/spec`'s `FieldSchema`
+  declares. Measured on the installed 17.2.0: it refuses `reference_to`,
+  `referenceTo` and `target` with `unrecognized_keys`, each carrying its own
+  "Did you mean -> `reference`?" rename, while a nonsense key gets the same
+  refusal with NO rename hint and `reference` parses clean.
+  
+  ## ⚠️ BREAKING for a hand-written schema that spells `reference_to` — read this
+  
+  **This is a behaviour change for BYO consumers, and it is being stated rather
+  than shipped silently.** ObjectUI is usable without an ObjectStack backend
+  (`examples/byo-backend-console`), and a hand-written TypeScript schema passes
+  through no zod door, so nothing rejects the legacy spelling at authoring time.
+  
+  **The break surface is narrower than "all BYO consumers", and this is the
+  measurement rather than a blanket claim.** Two ingestion choke points stamp both
+  snake_case keys from whichever spelling arrived — `MetadataProvider`'s type
+  cache for metadata type `object`, and `ObjectStackAdapter.getObjectSchema`. Any
+  def that passed either one already carries `reference` and is **completely
+  unaffected**. What is affected is exactly:
+  
+  - **A `DataSource` implementation other than `ObjectStackAdapter`.**
+    `getObjectSchema` is a required member of the published `DataSource`
+    interface, and the readers call it on the generic `dataSource` (through
+    `useSettledSchema` and directly), so a host adapter's object schema reaches
+    them raw. Every in-repo example of one is on this path:
+    `ApiDataSource`, `ValueDataSource`, `packages/types/examples/rest-data-source.ts`,
+    `examples/byo-backend-console/src/mockDataSource.ts`,
+    `packages/runner/src/lib/mockDataSource.ts`,
+    `apps/site/app/components/galleryDataSource.ts`,
+    `apps/console/src/sdui-workbench-preview.tsx`,
+    `packages/plugin-grid/demo/bulk-actions.tsx`.
+  
+  **Measured on this tree, none of those eight emits a relationship target at all** —
+  `reference_to` and `reference` are both zero in each, and
+  `examples/byo-backend-console` carries no lookup or master_detail field
+  anywhere (its only `reference` hits are a vite triple-slash directive and a
+  tsconfig `references` array). The single in-repo producer that WAS on this
+  surface, `packages/plugin-gantt/demo/main.tsx`, is fixed here at the producer.
+  
+  ⇒ **If you author object metadata by hand and spell a lookup's target
+  `reference_to`, rename that key to `reference`.** Symptom if you do not: the
+  target silently fails to resolve, and the affected surface degrades rather than
+  erroring — a related list is not derived, a gantt quick filter falls back to the
+  distinct values in the loaded rows instead of the referenced object's full
+  domain, a tree stops auto-detecting its parent pointer, a lookup cell shows a
+  raw id, a chart's group-by labels stay unresolved.
+  
+  The ingestion choke point now emits a **dev-mode warning** when a def arrives
+  carrying only `reference_to` or `referenceTo` and no `reference`. It names the
+  object, the field and the offending key, and points at this ruling. Stamping is
+  deliberately unchanged, so nothing that worked stops working. It is memoised
+  once per **(object name, field name, spelling, target value)** — every segment
+  of that key is pinned, in both directions, in
+  `reference-keys.legacyWarning-6837.test.ts`.
+  
+  ⛔ **This warning does NOT cover the break described above, and it is worth being
+  exact about that rather than letting it read as mitigation.** It lives in
+  `normalizeFieldReferenceKeys`, reachable only through
+  `normalizeSchemaReferenceKeys`, which has exactly two production call sites —
+  `MetadataProvider` (metadata type `object`) and
+  `ObjectStackAdapter.getObjectSchema`. Both of those also STAMP the def, so the
+  warning fires precisely where the def still resolves and nothing is broken. A
+  hand-written schema served through any OTHER `DataSource` — the break surface —
+  reaches a reader raw: it never passes through this code and produces **no
+  warning at all**. On that path the failure is exactly as silent as before.
+  A reader-side or shared-resolver diagnostic, which would cover it, remains open
+  on objectui#6837.
+  
+  ## What did NOT change
+  
+  **Every key these readers EMIT is byte-identical**, and that was verified
+  mechanically over the whole diff rather than asserted. Eleven of the sixteen
+  sites write a target onto a bag whose own contract spells it `reference_to` (or
+  camelCase `referenceTo`): the six whose read and write share a line —
+  `RecordDetailDrawer`, `RelatedList`, `buildDefaultPageSchema`, `ListView`,
+  `FilterConditionField`, `resolveActionParams` — plus five more that read on one
+  line and emit on another, and so are just as much emitters: `RecordDetailView`,
+  `RecordMetaFooter`, `ObjectGallery`, `fieldEnrichment` (all `reference_to`) and
+  `UserFilters` (`referenceTo`). Only the right-hand read narrowed anywhere; the
+  emitted key is what its target contract declares, and renaming it would be a
+  separate change.
+  
+  **Three readers were deliberately left alone.** `LookupCellRenderer`
+  (`fields/src/index.tsx`), `LookupField` and `UserField` read `FieldMetadata` —
+  ObjectUI's OWN contract, whose `LookupFieldMetadata` declares `reference_to` and
+  never declares `reference`. They are fed by the emitters above and by published
+  example schemas (`examples/schema-catalog/src/schemas/fields-lookup/*.json`), so
+  narrowing them would break in-repo producers, and `plugin-grid`'s
+  `relationalMetaCopySet.derivation.test.ts` re-derives its read set from exactly
+  those three sources — where `reference_to` is recorded with verdict
+  `adapter-stamped`. `DetailViewFieldSchema` is likewise untouched.
+- 2a7ac32: Calendar views no longer render on invented field names (objectui#7029; ruled on
+  objectstack#13748, director batch #19, option A).
+  
+  A view that carried no `calendar:` block used to have a complete-looking calendar
+  configuration synthesized for it. `ObjectCalendar` has always decided whether it
+  has a usable configuration by asking whether a start-date binding is PRESENT, so
+  the fabrication short-circuited its own refusal screen — "Calendar configuration
+  required. Please specify startDateField and titleField." — which existed all
+  along and was simply unreachable. Measured on a leave-request object whose real
+  fields are `start_date` / `end_date`: every record piled onto today's cell under
+  titles resolved through the display-name chain. A plausible, fully wrong screen,
+  with zero signal to the author.
+  
+  Three faces were fabricating, on two independent routes to the same renderer:
+  
+  - `app-shell/ObjectView` emitted `startDateField: 'due_date'` and
+    `titleField: 'name'` into `options.calendar` for every object view;
+  - `plugin-list/ListView`'s calendar branch floored the same two bindings at
+    `'start_date'` / `'end_date'` one layer down;
+  - `plugin-view/ObjectView.generateViewSchema` — the authored `object-view`
+    element route, which bypasses `ListView` entirely — carried its own copy.
+  
+  All three now forward only what the author declared. This converges the calendar
+  on the shape its siblings already had: `timelineViewOptions` (objectui#3129
+  retired this very literal from the timeline axis), the kanban lane detector
+  (ADR-0085, "never invents a field the object doesn't have"), and
+  `defaultCalendarFromObject` (a binding, or nothing).
+  
+  **Behaviour change, loud over silent.** With no binding to forward, ADR-0047's
+  capability gate stops offering the Calendar toggle to views that configured
+  none, and a view forced onto the calendar renderer reaches the refusal screen
+  instead of a wrong one. A view that happened to sit on an object carrying a real
+  `due_date` field was rendering by luck; it now refuses until its `calendar:`
+  block is written. Correctly configured calendars are unaffected — same fields,
+  same render. The same deletion also stops the fabricated name from answering for
+  the Timeline switcher, which accepts a calendar binding as a legitimate axis.
+  
+  The spec half — cross-field validation rejecting a half-written declaration at
+  authoring time — is objectstack#13817. This half makes the runtime honest
+  independent of which spec version the host pins.
+- 5f4514f: Gantt views no longer render on invented date field names (objectui#7070).
+  
+  The half PR #7062 fenced out and reported separately. A view that carried no
+  `gantt:` block used to have a complete-looking date axis synthesized for it:
+  all three faces floored `startDateField` at `'start_date'` and `endDateField`
+  at `'end_date'` — field names no view had written and most objects do not
+  carry.
+  
+  `ObjectGantt.getGanttConfig` takes its flat branch as soon as BOTH date props
+  are present, so the fabricated pair short-circuited the renderer's own refusal
+  screen — "Gantt configuration required. Please specify startDateField,
+  endDateField, and titleField." — which existed all along and was simply
+  unreachable from every route. The same fabrication answered ADR-0047's
+  capability gate in `ListView.availableViews`, so the Gantt toggle was live on
+  every object view in the product.
+  
+  ⚠️ The premise was MEASURED before anything was deleted, because #7029's
+  mechanic is only correct where a refusal path exists and that had never been
+  established for this renderer: on the unmodified tree, `ObjectGantt` REFUSES an
+  absent binding — it does not render empty, and it does not throw.
+  
+  Three faces were fabricating, on two independent routes to the same renderer:
+  
+  - `app-shell/src/views/ObjectView.tsx` — the console object page. The inline
+    branch becomes `ganttViewOptions`, the sibling of `calendarViewOptions` and
+    `timelineViewOptions`: the declared block spread whole, title floored at
+    `'name'`, no date field invented.
+  - `plugin-list/src/ListView.tsx` — the render branch AND the capability gate.
+  - `plugin-view/src/ObjectView.tsx` — `generateViewSchema`, the authored
+    `object-view` element route, which bypasses `ListView` entirely.
+  
+  **What changes for an author.** A view that declared no gantt configuration is
+  no longer offered the Gantt toggle, and one forced onto the renderer reaches
+  the refusal screen instead of a plausible, fully wrong chart. A view that
+  declared a binding is unaffected — the declared block is forwarded exactly as
+  before, every spec key included.
+  
+  Also corrected: the objectui#3129 note at the top of `app-shell/ObjectView.tsx`
+  certified the gantt branch below it as already using the safe two-rung shape.
+  It did not. The note now states each sibling branch as measured, and says
+  explicitly which fabrication REMAINS — the timeline `'created_at'` floor at the
+  two plugin faces, which objectui#7070 routes to a ruling rather than settling
+  per-face.
+  
+  Deliberately out of scope, and left in place: `progressField` / `dependenciesField`
+  (not date axes, different absent-value semantics) and the timeline `'created_at'`
+  posture conflict.
+- 351eb31: Converge the lookup/user widget metadata on the spec's camelCase — one concept, one
+  spelling (objectui#7155, maintainer ruling A′ of 2026-09-03, director decision batch #19).
+  
+  **BREAKING, deliberately, with no deprecation window.**
+  
+  Two published contracts declared OPPOSITE dialects for the same four lookup keys, and
+  `@object-ui/fields`' read chains served both — snake FIRST, so the dialect the object
+  contract *refuses* outranked the one it *declares*:
+  
+  | | `@objectstack/spec` `FieldSchema` (object metadata) | `@object-ui/types` `LookupFieldMetadata` (widget metadata) |
+  |---|---|---|
+  | camelCase | **declared** | compile error (`TS2561`) |
+  | snake_case | refused (`unrecognized_keys`) | **declared** |
+  
+  `LookupFieldMetadata` and `UserFieldMetadata` now declare the spec spellings, and the
+  snake members are **removed**:
+  
+  | before (removed) | after |
+  |---|---|
+  | `display_field` | `displayField` |
+  | `description_field` | `descriptionField` |
+  | `lookup_filters` | `lookupFilters` |
+  | `id_field` | `idField` |
+  
+  **Migration.** Rename those four keys wherever you author lookup or user field metadata
+  — `LookupFieldMetadata` / `UserFieldMetadata` objects, and any `DataSource.getObjectSchema`
+  that returns them. The old spellings are no longer read: a def still carrying
+  `display_field` falls back to the referenced record's generic name heuristic rather than
+  the field you named.
+  
+  `idField` is kept as a **widget-contract** key. It carries objectstack#3508's machine-name
+  hydration — committing a record field other than the id as the lookup's stored value —
+  which is picker behaviour with no `FieldSchema` twin, and none owed.
+  
+  **Not renamed** (outside this ruling's four keys, still snake on the widget bag):
+  `reference_to`, `title_format`, `lookup_columns`, `lookup_page_size`, `depends_on`,
+  `allow_create`, `avatar_field`. `reference_to` in particular **stays** — the adapter's
+  `normalizeSchemaReferenceKeys` choke point genuinely stamps it onto every def.
+  
+  Also moved with the rename: `content/docs/fields/lookup.mdx` and `user.mdx` (whose
+  snippets CI compiles against the built `d.ts`), all seven in-repo producers, and the
+  inline-edit enrichment allow-list in `@object-ui/plugin-detail`. `plugin-grid`'s
+  `relationalMetaKeys.ts` drops the four `legacy-alias` verdicts and retires that verdict
+  class; its gate is restated to assert the class no longer exists rather than passing
+  vacuously.
+- 1cca678: Retire the dashboard-**root** `title` read across all five surfaces (objectui#7509,
+  maintainer ruling 2026-09-04, decision batch #29, option C, under ADR-0049).
+  
+  **What changes for an operator.** A stored dashboard whose header came from a legacy
+  root `title` now shows its `label`. `label` is the only header source, then the raw
+  `name`.
+  
+  Per surface:
+  
+  - Console dashboard page (`DashboardView`) — header falls to `label`, then `name`.
+  - Standalone dashboard embed (`DashboardRenderer`) — `header` shows `label`; a document
+    with no `label` now shows no header title at all.
+  - The `dashboard-grid` SDUI component (`DashboardGridLayout`) — heading falls to
+    `label`, then the generic `Dashboard`.
+  - Studio dashboard designer (`DashboardEditor` preview panel, `DashboardDesignPage`
+    heading) — both fall to `label`, then `name` / the generic heading.
+  
+  **Why now.** `@objectstack/spec`'s `DashboardSchema` refuses a root `title` **by name**
+  (`unrecognized_keys(title)`), and the save route answers `422 INVALID_METADATA` — so no
+  authored dashboard can acquire the key, and what retires is compatibility with documents
+  stored before that refusal existed. Until now five surfaces read the legacy spelling
+  independently, which meant a legacy document could show one header in the console and a
+  different one in the designer. One spelling now answers everywhere.
+  
+  **Migration.** `label` is REQUIRED on `DashboardSchema`, so a spec-valid stored dashboard
+  already carries it and needs no change — it simply starts showing that `label` instead of
+  the legacy `title`. A document carrying `title` and no `label` was already invalid; give
+  it a `label`. No in-repo document needed migrating: a sweep of all 627 tracked JSON found
+  9 dashboard-shaped nodes, and the 6 carrying a root `title` are `type: 'dashboard'`
+  component examples that declare no `header`, so none of them rendered a header title
+  either before or after.
+  
+  **Not affected: widget titles.** `DashboardWidget.title` is a different, spec-**declared**
+  key (the spec's `I18nLabel`) on a different receiver, and is untouched — widget headings,
+  the designer's widget-title input and its per-locale write path all behave exactly as
+  before. Root and widget arms were separated by receiver, and the retirement's pins carry
+  widget-level controls on every surface for that reason.
+- d80447d: Stop inventing a gallery cover binding, and offer the view switcher only when it
+  can switch (objectui#7547).
+  
+  **The object page no longer floors `gallery.imageField` at `'image'`.** It used
+  to supply that key for every object view, declared or not. The screen damage was
+  small — `ObjectGallery` collapses the cover area when no record yields a cover —
+  but the key fed `ListView`'s ADR-0047 capability gate, which reads
+  `options.gallery.imageField`, so **Gallery was offered on every object view that
+  whitelisted it**, with nothing behind the toggle. `galleryViewOptions` now
+  forwards the view's own declared block (both legacy cover spellings still
+  cross-fill each other, and `titleField` keeps its `'name'` display floor) and
+  emits no cover key when the view declared none. Same class and same route as
+  objectui#7029 (calendar) and objectui#7070 (gantt dates).
+  
+  ⚠️ A view that whitelisted `gallery` without a `gallery:` block loses the Gallery
+  toggle. That is the ADR-0047 rule working: it was only ever offered because this
+  relay answered the gate on the author's behalf.
+  
+  **The visualization switcher is drawn for the resolved list, not the whitelist.**
+  `showViewSwitcher` was computed from the LENGTH of
+  `appearance.allowedVisualizations` — the whitelist BEFORE `ListView` intersects
+  it with the capability gate — so a view whitelisting `['grid', 'timeline']` with
+  no timeline block drew switcher chrome around a single Grid entry. The predicate
+  now lives at the one site that holds both halves. Views whose whitelisted types
+  all resolve are unaffected.
+- 91f9276: **The maker's edit-mode starter offers sample data, not an automation v1 cannot
+  build (objectui#7709).** Bound to an existing app (`?package=`), the maker's
+  empty state offered four starters: add a field, add an object, add a dashboard,
+  and 「加一个自动化 —— 审批、状态流转或通知」. Approval, status flow and
+  notification are all refused by ADR-0112 v1 (cloud#1956 / PR #1970), and the
+  measured behaviour on the sibling chips was not a refusal but a silent degrade
+  into a view — so the product recommended an automation and would have handed
+  back a page.
+  
+  Rewording it was not available: asking for a field, a view or a dashboard
+  duplicates one of the three chips beside it. The fourth chip is now
+  `addSampleData` —「给现有对象补一批贴近真实的示例数据，好拿去演示。」 — in all
+  ten packs and in the call-site `defaultValue` fallback, which is a second copy
+  of the same string. The three surviving chips all add STRUCTURE; what an app
+  that already has objects most often lacks is DATA, and `seed` is on v1's
+  authoring whitelist. A note beside the keys in every pack and at the call site
+  says this chip's automation wording comes back when ADR-0112 v2 re-adds flows
+  and actions, and the retired sentence for each pack is kept in the guard suite
+  so v2 has it verbatim.
+- bdb4dbd: A half-filled relationship field stays in the client and is never PUT (objectui#7714,
+  maintainer ruling on objectui#7122 item 4, 2026-09-05).
+  
+  **Breaking, deliberately, and stated rather than implied.** Both metadata writers —
+  `MetadataService.saveFields` / `saveObject` in `@object-ui/app-shell`, and
+  `MetadataFieldsPage` in `@object-ui/plugin-designer` — now REFUSE a `lookup` or
+  `master_detail` field whose `reference` is missing, empty, blank or not a string. A
+  caller that previously got a PUT now gets a thrown error and **no request at all**. The
+  refusal is raised while the wire `fields` map is being built, so nothing is sent and
+  nothing is partially applied.
+  
+  **Why the draft may not leave the client.** `@objectstack/spec` 17.3.0 turned
+  `reference` from prose into a hard requirement on relationship types (a `custom`
+  refinement at path `reference`). Driven against a real 17.3.0 backend in a running
+  designer: creating a `lookup` and leaving its target empty PUT the whole object,
+  came back `422 INVALID_METADATA` at `fields.<name>.reference` — and then the NEXT
+  edit, to a different and already-saved field, was refused identically, because the
+  half-filled draft rides along inside the same document. The author sees that later
+  edit rendered as applied while the server has none of it, and the only escape that
+  does not require noticing the lookup is a reload, which discards the work. An editing
+  session's half-finished state belongs to the client, not to the metadata store.
+  
+  ⛔ **Not** "strip the incomplete field from the body and report a successful save".
+  That shows the author a field the server never received — the silent-drop shape
+  objectstack#4001 closed.
+  
+  ⚠️ **A declared divergence: objectui is stricter than the contract here.** The
+  predicate is `typeof reference === 'string' && reference.trim() !== ''`. Measured on
+  the 17.3.0 artifact, at field level and again through `ObjectSchema`, the spec
+  ACCEPTS a whitespace-only `reference` while refusing an absent or empty one — so
+  `reference: '   '` is refused by these writers on their own authority, not the
+  platform's. Kept deliberately: whitespace names no object (the spec's own
+  `ObjectSchema.fields` key grammar `/^[a-z_][a-z0-9_]*$/` admits no whitespace-bearing
+  name), so admitting it only moves the identical failure past the PUT and into a stored
+  document, where it surfaces with no field named. Filed upstream as objectstack#16126;
+  if the spec trims, behaviour here is unchanged and only the declaration retires.
+  
+  The refusal message diagnoses which of the four states it found — absent, empty,
+  non-string (`invalid_type`, a value of the wrong kind rather than a missing target),
+  or blank — because the repair and the consequence differ per state.
+  
+  `minor` rather than `major` per `AGENTS.md`: objectui's major tracks `@objectstack`'s,
+  so objectui's own breaking changes ship as `minor` with the breaking semantics stated.
+- a915064: `listImportMappings` no longer renders a refused door as "no mapping is registered"
+  (objectui#7741).
+  
+  `ObjectStackAdapter.listImportMappings` degrades every failure to an empty list, and the
+  import wizard hides its saved-mapping selector on an empty list. So "the server served
+  zero mappings" and "the server refused, or broke" produced the identical UI on every
+  deployment — the feature simply absent — with a `console.warn` as the only
+  discriminator, in the browser console, with nothing pointing at it. That silence did not
+  merely hide a fault: it produced a confident WRONG diagnosis in a careful reporter
+  (objectstack#14026 was filed, routed and worked by two seats against a wizard that had
+  been correct since `@object-ui/data-objectstack@17.1.0`).
+  
+  **The empty-list return is unchanged.** `listImportMappings` still answers
+  `Promise<any[]>` and still never throws, on every arm including the loud ones — this is
+  a channel added ALONGSIDE that contract, not a change to it.
+  
+  - **New: `ObjectStackAdapter.onMetadataReadWarning(cb)`** — a subscribe/unsubscribe
+    channel, sibling in shape to `onWriteWarning` and `onSaveAdvisory`. It fires when a
+    metadata read failed in a way that is NOT the supported "this deployment does not
+    serve that kind" shape, carrying `MetadataReadWarningEvent`: which read it was, the
+    object, whether the server `refused` this caller or the answer was `unreadable`, and
+    the server's own ADR-0112 code, HTTP status and message.
+  - **New: `classifyImportMappingsFailure(err)`** and `ImportMappingsFailureKind`, exported
+    so a consumer can apply the same verdict. It reads the ERROR — the ADR-0112 `code`
+    first, the status only where no code was declared — and never "is the result an empty
+    array", which is what both conditions produce and so can never tell them apart.
+  - **The older-server case stays quiet.** A deployment that does not serve the `mapping`
+    kind (404/501 with no route, `ROUTE_NOT_FOUND`, `NOT_IMPLEMENTED`, or the metadata list
+    door's 400 `INVALID_REQUEST`) still degrades to an empty list with no selector and no
+    event. That is a real, supported deployment shape and it must not become a visible
+    fault.
+  - **The console now says so.** `AdapterProvider` subscribes to the new channel and
+    renders a warning toast naming the object, the remedy and the server's own words, so a
+    user without devtools open can tell "there are none" from "we could not find out".
+    Three new `console.importMappings*` keys ship in all ten locale packs.
+  
+  This applies framework #13906 decision 1 option A — *a thing that could not be READ is
+  not a thing that is ABSENT* — at this seam. It is an already-adopted discrimination, not
+  a new principle.
+- 151facf: **Breaking for the page designer's output:** the page-block inspector's `object-kanban`
+  panel now authors `groupBy` (the key the board reads) instead of `groupField` (the key it
+  never read), and offers the `limit` control the schema has declared since objectui#7322.
+  
+  **What was measured, on this branch's base (`0c8dbc49`).** `BLOCK_CONFIG['object-kanban']`
+  offered exactly four controls — `objectName` / `groupField` / `titleField` / `cardFields`.
+  `ObjectKanbanSchema.groupBy` is REQUIRED on both published faces (`objectql.ts:2765
+  groupBy: string`, no `?`; `objectql.zod.ts:1001 groupBy: z.string()`, no `.optional()`) and
+  had **no control at all**, while `groupField` — the only control able to set grouping — has
+  been a `retirementTombstone()` on the Zod face and `?: never` on the TS face since
+  objectui#7322. `ObjectKanban.tsx` reads `schema.groupBy` at thirteen sites and `groupField`
+  at zero (control: those same thirteen hits in the one query, so the zero is a reading).
+  
+  Run against the node those four controls produced, `ObjectKanbanSchema.safeParse` reported
+  **two** issues, not one: `groupBy` "expected string, received undefined", and `groupField`
+  carrying the retirement guidance verbatim. So this panel could not author a valid
+  `object-kanban` node however it was filled in, and the board it produced grouped nothing
+  with no diagnostic on any face. Both halves are now pinned against the schema itself rather
+  than against a spelling, in `previews/__tests__/block-config.test.ts` —
+  `scripts/check-designer-field-key-parity.mjs` judges `PAYLOAD_SHAPES` and does not read
+  `BLOCK_CONFIG`, so nothing mechanical was watching this table.
+  
+  `limit` is not polish: `ObjectKanban.tsx` sends it as a real `$top`
+  (`$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`) and renders every fetched record into a lane
+  with no pagination, so a board over 100 records was silently truncated with no way to widen
+  it. The new number box states `100` — `DEFAULT_KANBAN_LIMIT`, read from the renderer's own
+  source by its pin — as the value that applies while it is empty.
+  
+  **Stored pages.** Documents saved by every released build since
+  `@object-ui/app-shell@17.5.0` can carry `properties.groupField` on an `object-kanban` block.
+  The inspector's read door now strips it (`stripRetiredBlockProps`, keyed to
+  `RETIRED_BLOCK_PROP_KEYS`), so an edit-and-save round-trip comes out without the retired
+  key — no migration pass, and no blanket unknown-key purge: every other key the designer
+  does not render still survives. It is a strip and **not** a migration into `groupBy` on
+  purpose: reading the old spelling into the new box would be a second de-facto alias
+  (AGENTS.md #0.1) for a value no board ever acted on.
+  
+  The **view-level** `kanban.groupField` alias (`core/src/utils/normalize-list-view.ts`) is
+  live and untouched — node-level retirement and the view-level alias are different things.
+  
+  The two locale entries move with the control (`engine.inspector.pageBlock.field.object-kanban.groupBy`,
+  plus a new `.limit`); the English wording is unchanged, so the panel reads the same as it
+  always did.
+- 31a0d05: Emit the spec-canonical kanban lane key from the object page, and teach the
+  capability gate to recognize it (objectui#8193).
+  
+  `ObjectView` built the view-level kanban config it hands to `list-view` and wrote
+  the deprecated alias `groupField` — never `groupByField`, the key
+  `@objectstack/spec`'s `KanbanConfigSchema` actually declares — even though it
+  already READ the canonical key first. Its sibling producer in the same package,
+  `defaultKanbanFromObject` in `InterfaceListPage`, had migrated long before and
+  left the reasoning next to itself ("that read-site now prefers the spec key, so
+  one key is enough"); the twin was not carried along, so one producer surface
+  spoke two vocabularies for one concept depending on which entry point you
+  arrived through. `ObjectView` writes into `options.kanban`, which
+  `normalizeListViewSchema`'s alias fold deliberately does not reach, so nothing
+  corrected it downstream and the legacy spelling was what drove the lanes.
+  
+  The expression is now the exported `kanbanViewOptions`, the fifth member of the
+  `timelineViewOptions` / `calendarViewOptions` / `ganttViewOptions` /
+  `galleryViewOptions` family it had been the odd one out of.
+  
+  **`ListView`'s kanban capability gate changed with it, and had to.** The gate
+  consulted the `options.kanban` bag for the LEGACY spelling only, so a producer
+  writing the spec key into the bag was invisible to it while still rendering
+  correctly — the render branch merges the bag and resolves
+  `groupByField || groupField`, so the gate recognized strictly less than what
+  renders. Measured before and after: a bag of `{groupBy, groupField}` offered
+  Kanban and `{groupBy, groupByField}` did not, so shipping the producer change
+  alone would have removed the Kanban toggle from every object view. The gate now
+  reads both spellings out of the bag — the same one-question-two-sites repair
+  objectui#5042 made for `map` and objectui#7544 for `chart`.
+  
+  **No alias READ was removed, and the alias is not retired.** Stored metadata
+  still authors `groupField`, and every read site still resolves it; `ListView`
+  already preferring the canonical key is precisely why the sibling producer could
+  drop the alias write. What changed is only what this one face WRITES, plus one
+  added rung on the gate.
+  
+  **Migration.** Nothing authored has to change. If you read
+  `options.kanban.groupField` off the schema `ObjectView` produces, read
+  `groupByField` (or both) instead — that bag now carries the spec spelling.
+  
+  The view-level `groupBy` in the same bag is untouched. It is not a spec key
+  either — measured against the strict `KanbanConfigSchema`, which refuses it by
+  name — but `ListView`'s projection collectors read it, so retiring it needs its
+  own producer census and is filed as objectui#8213.
+- d06fba8: The console record page and the `record:activity` block read ONE `sys_activity`
+  type table, so a scheduled meeting no longer appears on one and vanishes on the
+  other.
+  
+  `RecordDetailView`'s `sys_activity` merge carried a hand-written copy of the
+  table that `record:activity` exports as `ACTIVITY_TYPE_TO_FEED_TYPE`. Neither
+  file imported the other and nothing compared them, so the two could drift
+  silently — and they had. objectui#5840 added `scheduled` -> `event` to the
+  exported table, because a shipped producer (HotCRM's `schedule_meeting`) writes
+  that value and the row was being dropped before any filter ran. The copy here
+  was left untouched, so the same row rendered on a hand-authored record page and
+  was dropped on the console record page: same record, same row, two answers.
+  
+  `RecordDetailView` now imports the exported table, and the copy is gone. The
+  table is re-exported from `@object-ui/plugin-detail`'s entry point, which is
+  what makes a single reading possible at all — it was previously reachable only
+  from inside the plugin. No module enters the eager closure: the module holding
+  it was already pulled in by the renderer beside it.
+  
+  Adding an activity type is now one edit, in one place, that both surfaces see.
+  A re-fork is caught rather than merely discouraged: the new pins spy on the
+  shared object and inject a member into it at runtime, so a private copy holding
+  today's members exactly — the failure this change removes — fails, where a
+  value comparison would pass on the defect.
+  
+  Only the table converges. The row-to-`FeedItem` construction around it is still
+  written twice, so an unmapped activity type is still dropped silently on the
+  console surface where the block warns once; that mirror is filed separately.
+- 12295b6: `provisionProductionEnvironment` now REFUSES a success payload whose `data`
+  carries no `environment` row, instead of resolving best-effort (objectui#6707).
+  
+  objectui#6629 fixed this consumer to read the created environment from the
+  nested `environment` key, but deliberately left the envelope check alone: it
+  catches a **missing** `data` and says nothing about `data`'s **shape**. So a
+  producer that regressed to a flat payload would once again resolve successfully
+  with `id` and `hostname` both `undefined` — the same silent outcome #6629 had
+  just fixed, reachable again by a producer change alone.
+  
+  A flat payload is a producer contract violation, not a second dialect to be
+  tolerated, and tolerating it is how the original defect stayed invisible. The
+  call refuses it now, which routes a producer regression to this call's already
+  documented failure path rather than a successful-looking no-op: the sole caller
+  (`CreateWorkspaceDialog`) already wraps the call in `try`/`catch`, logs a
+  warning, and lets the onboarding gate re-provision lazily on first navigation.
+  Workspace creation itself is unaffected — the caller does not re-throw, and it
+  never read this call's return value.
+  
+  The refusal carries its own diagnostic, distinct from the missing-envelope one,
+  so a logged warning still distinguishes "the control plane did not wrap the
+  payload" from "it did not put the row where it says it does".
+  
+  The wire shape this is written against is confirmed producer-side rather than
+  inferred from this consumer — the distinction is load-bearing, because before
+  #6629 the only in-repo artifact pinning this payload was a hand-written mock
+  pinning the bug shape. Both sources are recorded on the function's docblock.
+- 77f846a: The approval panel identifies the pending approver by name, not by a truncated raw id.
+  
+  A record waiting on a position rendered its approver as `positi…ager` — the
+  engine reference `position:sales_manager`, 22 characters, past the identity
+  formatter's 14-character truncation arm and middle-truncated to fit its chip. The
+  step names beside it were human prose; the one line answering *who is holding
+  this record* was an internal identifier, and not even a complete one. The same
+  reference reached the admin-override confirm dialog un-truncated, so a paragraph
+  of plain governance prose ended `— position:sales_manager` (objectui#5414).
+  
+  Both surfaces now resolve the reference before rendering, in three tiers, most
+  authoritative first. The server's own `pending_approver_names` wins whenever it
+  answers, and a backend that resolves its own slate costs the record page no extra
+  request. Otherwise the console reads the directory row the spec's approver
+  binding names — `sys_position.label` gives `Sales Manager` / `销售经理` — and,
+  for a position, who fills the seat (`Sales Manager · Zhang Wei, Li Na`). With no
+  adapter and no row, the machine name still prettifies into prose rather than
+  truncating. The raw reference stays on hover, which is where an internal
+  identifier belongs.
+  
+  An unstaffed position is surfaced rather than hidden: `销售经理（暂无在岗人员）`
+  is actionable where `positi…ager` is not, and it is the motivating rescue case
+  for the admin-override path. Staffing is deliberately tri-state — a
+  `sys_user_position` read the viewer is not permitted to make leaves the seat's
+  staffing UNKNOWN and says nothing, because "I could not look" is a different
+  claim from "nobody holds it" and only one of them is safe to print on a
+  governance surface.
+  
+  Two locale keys are added across all ten packs: `approvalsInbox.approverUnstaffed`
+  and `approvalsInbox.approverNameSeparator`. The separator is a translated
+  punctuation key rather than `Intl.ListFormat`, which was measured on this tree
+  joining `['张伟','李娜']` into `张伟李娜` for `zh` — two names run together with
+  no separator, reading as one person's name.
+  
+  The directory-backed kinds and their value columns are read from
+  `@objectstack/spec`'s `APPROVER_VALUE_SOURCES` rather than restated, so a new
+  approver type is covered the day the spec publishes it. Id-valued kinds
+  (`user` / `team` / `department`) keep the existing middle-truncation: a row id
+  has no prose to recover, and that arm is objectui#3461's answer, not this card's
+  defect.
+- 6bd343d: The built-moment transition (#5799): a build conversation that has produced a WHOLE-APP build auto-routes to `/studio/<pkg>/interfaces` — on live completion and on reopening the conversation — after idempotently re-keying the thread under the `app:<pkg>:build` cache key the Studio dock resolves, so the workbench's right rail continues the SAME conversation. Cold start keeps the full-page surface; the dock's 以完整页面打开 door carries a sticky per-conversation opt-out so the one sanctioned way back is never bounced straight to Studio.
+- 1939c96: 设计⇄运行 on the Interfaces canvas (#5800): a two-state switch in the canvas header flips the SAME renderer between design (selection + inspector + design overlays) and an interactive runtime (click 新建, enter records) — ADR-0080's design=run pivot made visible; selection context survives the round trip. The topbar's 打开应用 teleport is retired (run mode is the in-workbench way to try the app), and the topbar's app detection now matches the pillar's (draft-app fallback, re-resolved on draft saves and the metadata-refresh pulse) so a deep-link to /access can no longer claim the package has no app while /data shows one.
+- b470e91: The metadata designer states its package on the publish step, not only on the save (#5420)
+  
+  Studio's designer save→publish loop bound the draft to a software package on the
+  save (`PUT ?mode=draft&package=<id>`) and then sealed it with a publish that named
+  no package at all. `objectstack#10354` (shipped in `@objectstack/rest` 17.2.0) taught
+  `POST /meta/:type/:name/publish` to accept `?package=<id>`, so the second call can now
+  state the same binding the first one already states.
+  
+  - `MetadataClient.publish()` accepts `packageId` and sends `?package=<id>`, the same
+    wire spelling and the same `encodeURIComponent` treatment `save()` gives it.
+  - `MetadataResourceEditPage` reads the binding for BOTH steps from one derivation
+    (`readActivePackageBinding`), so the two calls of one loop cannot drift apart. The
+    `?package=all` "show everything" scope keeps folding to "no package".
+  
+  The parameter is **omitted**, never sent empty, when the designer holds no binding.
+  Empty and absent are the same to the framework's normaliser today, but absent is the
+  shape the save door already followed, and the framework's promotion path branches on
+  the key being present downstream.
+  
+  What this buys is **reachability**, not speed: it lets `#9612`'s package-closure
+  narrowing at the runtime publish gate fire on an HTTP-driven promotion at all. That
+  narrowing has a second, independent gate this does not touch — objects carrying no
+  `_packageId` provenance are kept unconditionally — so on a tenant-authored overlay
+  corpus stating the package still narrows nothing.
+- f352a69: flow designer: the Start node's **Entry condition** now opens in the row-based
+  condition builder, with raw CEL one click away as the escape hatch (objectui#6226).
+  
+  The builder is given the trigger record's own vocabulary — bare field names and
+  `previous.<field>`, resolved by `flow-scope.ts` — rather than the record-scoped
+  default its five other consumers use, so the subjects it offers are the spelling
+  this surface evaluates and teaches. 15 of the 17 entry conditions shipped in the
+  example apps now open as structured rows; the remaining two mix `&&` with a
+  parenthesised `||` group, which is a grammar limit of the row model and keeps
+  them on raw mode by design.
+  
+  Compiled output is unchanged: the same CEL the runtime already evaluates, in the
+  author's own quoting. The legacy `criteria` key, a schedule/manual/webhook
+  trigger (which binds no record), and every other `expression`-kind flow field
+  keep the single-line input they render today — the builder is opt-in per field
+  descriptor and requires a declared vocabulary, never inferred.
+- c40f3b8: A screen flow's resume result reaches the user — on both outcomes (objectui#5417).
+  
+  A dogfood walkthrough reported that a refused `resume` and a successful one
+  "render identically: the dialog closes and the page is unchanged", leaving no
+  gesture that distinguishes "created" from "rejected". Re-measured against `main`
+  before any change, one half of that was already fixed — `interpretFlowResponse`
+  reads the ADR-0112 envelope, and `FlowRunner`'s `toast.error` has carried its
+  prose since the `400 FLOW_FAILED` classification landed in `17.6.0`, five minors
+  after the version the report was measured on. There was no interpreter bug and
+  no un-consolidated fourth call site. Three gaps in the RUNNER's disposition were
+  real, and they are what changed:
+  
+  - **A terminal failure no longer closes the dialog.** The reason it closed is
+    unchanged and is not reversed: on a `FLOW_FAILED` the engine has already
+    consumed the suspension, so a resubmit can only reach "No suspended run" and
+    must not be offered. Closing was one way to withhold that dead retry and the
+    expensive one — the user had just typed a form they could no longer see, and
+    the engine's sentence names a value that left the screen with it. The dialog
+    now stays open with the submit affordance withdrawn: the flat footer swaps
+    Submit for Close, and an `object-form` step drops its Save (which also stops a
+    second click from duplicating the record it had already persisted).
+  - **The refusal has a second, non-expiring carrier.** The toast stays — it is
+    viewport-fixed, so it still reaches a user scrolled past a tall step's header
+    — and an inline destructive `Alert` (`role="alert"`) now holds the same
+    sentence inside the dialog, beside the values that produced it. A retryable
+    refusal (`INVALID_SCREEN_INPUT`, transport, 5xx) keeps Submit live as before,
+    and its banner clears as soon as the user starts editing.
+  - **A successful run invalidates what the flow WROTE, not just what the user is
+    looking at.** Both hosts answered `onComplete` with
+    `notifyDataChanged({ objectName: <this page's object> })`, so a flow that
+    created a quote from an Opportunity page never told the related list that
+    would now contain it — the record did not appear until a manual reload. The
+    runner cannot know which objects a flow touched, so it emits
+    `{ objectName: '*' }`: the same scope, for the same stated reason, that the
+    record page's manual ⟳ already uses. Everything mounted refetches in place
+    over the invalidation bus, with no remount.
+  
+  The runner's copy now goes through `@object-ui/i18n` instead of being hardcoded
+  English: a new `flowRunner` namespace (`title`, `submitting`, `saveAndContinue`,
+  `nextStep`, `completed`) in all ten packs, plus reuse of
+  `common.{loading,cancel,close,submit}` and `wizard.missingRequired`. The
+  server's own refusal sentence is still passed through untranslated — it is prose
+  the automation engine composed for a human, not copy with a key.
+- f4becce: Console Home stops offering the metadata-authoring front door on a deployment
+  whose own runtime config says authoring is not offered there (objectui#5521).
+  
+  The "Build an app" cover card is now withheld when
+  `GET /api/v1/runtime/config` reports `features.aiStudio: false`. On the composed
+  hosted-SaaS shape that card led a plain tenant into the full authoring flow
+  behind a runtime whose `/api/v1/meta/*` answers `403` and whose ToolRegistry
+  holds zero authoring handlers — the entry was offered and the refusal arrived at
+  submit. The lockdown criterion for that shape is two-part, UI entry hidden AND
+  API refused; only the backend half was green.
+  
+  - The card is **hidden, not dimmed**, because that is the flag's own declared
+    meaning on both sides of the wire: `RuntimeFeatures.aiStudio` documents "when
+    false, the SPA hides the AI authoring affordances", and the serving plugin
+    documents "set false to force-hide the authoring UI".
+  - `features.marketplace` keeps the different presentation objectui#5504 gave it
+    — a dimmed card plus a visible localized reason. That flag means a route is
+    reachable; this one means force-hide. "Start with a template" is untouched:
+    installing a marketplace package is not AI metadata authoring and answers to
+    its own flags.
+  - No reason line is rendered in its place. `home.build.noCapability` says the
+    *account* lacks "Manage Metadata"; on a runtime with no authoring at all the
+    surface is absent for everyone, and pointing a viewer at a permission that
+    would not help them is the misdirection objectui#5557 is about.
+  - Unknown fails **OPEN** (`!== false`), the doctrine `isMarketplaceEnabled()`
+    already encodes: a runtime predating the flag, or one whose config fetch
+    failed, keeps the card exactly as visible as before.
+  
+  No new authorable config key, no new server surface, and no new copy — the flag
+  was already being served and already reaches the browser.
+- c8da8b3: Stop showing an access-denied screen to a real administrator while their
+  adminship is still resolving.
+  
+  `useIsWorkspaceAdmin()` returned a bare `boolean`, so "the inputs have not
+  arrived yet" and "resolved: not an admin" were the same answer. One of its three
+  sources — the active organization member row — is fetched some round trips after
+  the session (`listOrganizations` → `getActiveOrganization` → `getActiveMember`),
+  so an administrator whose adminship lives only in that row rendered at least
+  once as a non-admin, and every gate downstream acted on it: the two marketplace
+  surfaces painted `MarketplaceAccessDenied`, the console chrome dropped and
+  re-added its admin nav entry, and `AppContent` fired a `<Navigate to="/home"
+  replace>` that the later flip could not undo.
+  
+  **Breaking (published API, hence `minor` per this repo's version policy):**
+  `useIsWorkspaceAdmin(): boolean` is replaced by
+  `useWorkspaceAdminStatus(): { isAdmin: boolean; isResolved: boolean }`. The old
+  name is removed rather than kept alongside, so a call site that ignores the
+  third state fails to compile instead of silently refusing an administrator.
+  
+      -const isAdmin = useIsWorkspaceAdmin();
+      +const { isAdmin, isResolved } = useWorkspaceAdminStatus();
+  
+  `AuthProvider` gains `isMembershipResolved` on its context — the organization /
+  member pipeline has reached a terminal state — because `organizations`,
+  `activeOrganization` and `activeMember` read `[]` / `null` / `null` both before
+  the pipeline starts and after it finds nothing.
+  
+  No extra wait for administrators: `isResolved` is true the instant `isAdmin` is,
+  so an admin the session already identifies through `positions[]` never waits on
+  the member row.
+- e2e8e68: **Behaviour change:** the spec's view-level `map` block on a list view is now read at
+  runtime. `ListMapConfigSchema` (objectstack#9340) has been authorable and validated since
+  the `@objectstack/spec` 17.1.0 pin — it flows into this repo's own `ListViewSchema` by
+  reference — but nothing consumed it: `ListView`'s `case 'map'` forwarded only the legacy
+  `schema.options.map` bag, so declaring `map: { titleField: 'title', locationField:
+  'location' }` on a view changed nothing and marker titles fell back to the renderer's
+  placeholder.
+  
+  The block now reaches `plugin-map` and drives every one of its seven reads — coordinate
+  extraction, marker title and description, and the initial camera. Precedence follows the
+  convention the sibling visualization blocks in the same file already set: the view-level
+  block wins over `options.map`, per key, exactly as `kanban` / `calendar` / `gallery` /
+  `timeline` / `gantt` each merge their spec config over the legacy bag. Both sources go
+  through the existing objectui#5177 key whitelist, and the branch still emits the flat
+  form, so `getMapConfig`'s objectui#5018 precedence rule ("neither flattener emits a `map`
+  key at all") stays true.
+  
+  The visualization switcher had the same gap with a sharper consequence: the capability
+  gate that decides which visualizations are offered also read `options.map` alone, so a
+  view binding its coordinates in the spec block was filtered out of its own
+  `appearance.allowedVisualizations` and fell back to `['grid']`. The gate now asks the same
+  merged config the render seam forwards, so the two cannot disagree — including for a
+  binding split across the two sources.
+  
+  `InterfaceListPage` (ADR-0047 interface pages) forwards the referenced view's `map` block
+  for the same reason. It is passed alongside the auto-derived `options.map` rather than
+  replacing it, so a partial authored block — `map: { titleField: 'title' }` — keeps the
+  derived coordinate binding instead of dropping it.
+  
+  No defaults are introduced for `zoom` / `center`: an undeclared camera stays undeclared,
+  so the fit-to-queried-records behaviour ruled in objectui#5000 is unchanged.
+- 20e317c: Marketplace-less runtimes now say so instead of erroring: `OS_CLOUD_URL=off` is a
+  first-class disabled state, and the load-failure hint describes the control plane
+  the runtime was actually pointed at (objectui#5504).
+  
+  `apps/objectos-ee/deploy/.env.example` ships `OS_CLOUD_URL=off` as its factory
+  default, so a stock self-hosted stack has no marketplace at all. The Console still
+  recommended one: Home led with "Start with a template" and "Browse App
+  Marketplace", and the click landed on a red **Failed to load marketplace / Not
+  found** card whose hint claimed this runtime "points at the public ObjectStack
+  cloud by default" and advised setting `OS_CLOUD_URL`. Both claims were false for
+  exactly the deployment reading them — the operator had not left the default, and
+  the advice pointed back at the template that told them to set `off`. "Marketplace
+  disabled by configuration" is a configuration conclusion, not a load failure.
+  
+  - `isMarketplaceEnabled()` (`runtime-config`) reads the server's own
+    `features.marketplace`, which `RuntimeConfigPlugin` derives per request from the
+    serving app's route table (objectstack#8356). It is never inferred from the shape
+    of a failed request: a control plane that is merely DOWN leaves the flag `true`,
+    so an outage still renders as an outage. Unknown fails OPEN.
+  - The marketplace page renders an informational "App Marketplace is turned off"
+    state — muted, not `destructive` — and issues no request it knows will 404.
+  - Home's "Start with a template" cover greys out with a visible localized reason,
+    and the "Browse App Marketplace" shortcut is withheld, exactly as they already
+    are for the `manage_metadata` capability gate.
+  - `marketplace.load.failedHint` is replaced by `failedHintConfigured` (naming the
+    configured control plane) and `failedHintSameOrigin`. The "points at the public
+    cloud by default" sentence is gone: it was rendered unconditionally, including on
+    every runtime whose operator had overridden `OS_CLOUD_URL`.
+  
+  All ten locale packs carry the new keys.
+- 1688986: Studio workbench rails converge on an AI copilot apply without a page reload (objectui#7255)
+  
+  The copilot is the right dock of the Studio document and already announces
+  every authoring turn on the assistant bus (`emitMetadataRefresh`), but the
+  four pillar rails never subscribed: a just-applied object or nav item stayed
+  invisible until the author reloaded the page. The Interfaces / Data /
+  Automations / Access rails now list that pulse as a load dependency and refetch
+  their package-scoped reads in place. The Interfaces rail holds the pulse while
+  the nav editor has unsaved edits (its load rehydrates the nav edit buffer) and
+  releases it once they settle, and re-reading the same package no longer flaps
+  the app status back through `loading`.
+- 8b1a8f3: **The page-editor palette now offers the canonical `record:discussion` instead of the `record:chatter` alias.**
+  
+  The two spellings are one renderer under two names — `@object-ui/plugin-detail` registers both against `RecordChatterRenderer` — and the palette deliberately carries one entry per renderer. It carried the wrong one. `record:discussion` is the canonical spelling: `@object-ui/core`'s `public-blocks.ts` records `record:chatter` as that same block "under a Salesforce-familiar name, kept for schemas", app-shell's own page synthesiser (`buildDefaultPageSchema`) has emitted the canonical name all along, and the console's AI block vocabulary already leaves the alias uncurated for exactly this reason. The palette was the last surface still pointing at the alias, and it did so only because the `@objectstack/spec` build pinned when the entry was written had no canonical member to offer; the currently pinned build declares both. The author-facing label moves **"Chatter feed" → "Discussion"**. Maintainer ruling 2026-08-22 on objectui#5495.
+  
+  **The alias keeps rendering — this changes what Studio advertises, not what works.** `record:chatter` moves from `BLOCK_TYPE_META` into `PALETTE_EXCLUSIONS`, which is the palette's ledger of "renders, but is not offered". Every page schema in the wild that spells the block the Salesforce way renders exactly as before, and both halves are now pinned by a test (`palette-discussion-alias.test.tsx`) that asserts the registry resolves the alias to the *same renderer function* as the canonical name and that an alias schema still produces the discussion panel — so "no longer offered" cannot quietly drift into "no longer rendered".
+  
+  One knock-on worth knowing when you open an existing page: the block-editor canvas draws a node's icon and colour tone from the palette entry, so an existing `record:chatter` node now shows the generic unknown-block icon in the outline instead of the message icon. This is the pre-existing behaviour for any renderable-but-unoffered type — until this change it was the *canonical* `record:discussion` that read this way, including in every page the platform generates itself, so the affected spelling is now the rarer one.
+- 63b4e0e: Fix the three breaks at the AI paywall moment (#7253), measured on a free plan's
+  second build iteration when the cloud guardrail refuses "Confirm changes" with a
+  429 `AI_DESIGN_QUOTA_EXHAUSTED`.
+  
+  - **The upgrade CTA no longer opens a 404.** It used to open a client-composed
+    `${cloudBase}/apps/cloud-control/sys_environment`, which guessed the control
+    plane's console mount, app slug and route — all three wrong — and landed on
+    the API's `ENDPOINT_NOT_FOUND` JSON. `cloudInstallDeepLink` /
+    `cloudPricingDeepLink` are replaced by `cloudConsoleUrl()`, the
+    runtime-supplied cloud origin with no path appended; the control plane's own
+    root redirect decides the landing page. The former
+    `|| 'https://cloud.objectos.app'` default is gone: a runtime with no upstream
+    cloud now renders no upgrade link at all rather than pointing a self-hosted
+    user at the vendor's SaaS.
+  - **The confirm card gets an explicit failure state.** A quota refusal parks the
+    card on "not applied" with the server's own next step (reset tomorrow /
+    upgrade) plus the upgrade action, instead of silently rolling back to
+    "Confirm / Adjust" as though the click had never happened. Transient failures
+    (offline, per-minute rate limit) still roll back, because retrying is the
+    right next step there.
+  - **The composer is no longer refilled with an already-delivered message.**
+    Only text typed into the composer is restorable now; card-driven sends
+    (confirm, approve, suggestion chips) send canned text the user never typed and
+    no longer leave the previous prompt staged as if it needed resending.
+- 60d452e: `ReportView` reads a report's data binding through the one key the contract declares — `dataSource.object`.
+  
+  The view accepted `resource` as a second spelling of `object`, in two places, and
+  named that spelling in a warning the user could read:
+  
+  ```
+  :171  liveReport?.objectName || liveReport?.dataSource?.object
+                               || liveReport?.dataSource?.resource
+  :273  dataFetchSource.dataSource.object || dataFetchSource.dataSource.resource
+  :275  console.warn('ReportView: dataSource missing object/resource property')
+  ```
+  
+  `resource` is not on this binding. `ElementDataSourceConfig` declares `object`,
+  `view?`, `filter?`, `sort?` and `limit?`; its `@objectstack/spec` twin
+  `ElementDataSourceSchema` is a strict object, so an extra `resource` key is
+  *rejected* there rather than ignored; and the binding's own predicate
+  `isElementDataSourceConfig` decides on `object`. A `resource`-only binding
+  therefore was never a binding on any other renderer in the system — it rendered
+  here and silently produced nothing anywhere else, with neither end reporting a
+  problem. That divergence is what a consumer-side alias buys: one renderer
+  answering a question the contract says has no answer.
+  
+  `resource` is a real key on other surfaces — `CRUDSchema.resource`, the
+  `DataSource` adapter's first parameter, `LiveExportOptions.resource` — and all
+  three are untouched. None of them is this one.
+  
+  Behaviour, measured by rendering each input shape before and after. Only the
+  `resource`-only shape moves:
+  
+  | binding | before | after |
+  | --- | --- | --- |
+  | `object` only | queries that object | unchanged |
+  | `resource` only | queries it as if declared | not queried; named warning, no rows, fallback field list |
+  | both | queries `object` | unchanged |
+  | neither | not queried; warning | unchanged |
+  
+  So off-spec report metadata that used to render now fails loudly instead of
+  appearing to work. A producer census found nothing that would notice: no site in
+  this repository, and none in the `objectstack` framework repository, writes
+  `resource` onto a report `dataSource`. The limb was speculative in the commit
+  that introduced it, and per AGENTS.md #0.1 an off-spec spelling is corrected at
+  the producer, never taught a second dialect by the renderer.
+  
+  The `:275` wording now names only `object`. A diagnostic that lists a key the
+  contract does not declare is not a small thing: it is the system telling an
+  author — increasingly, an author's code generator — that the wrong spelling is
+  supported.
+- 14ef9f5: Console error reporting is now configured entirely by the **server**: the DSN and every
+  knob that travels with it arrive on `GET /api/v1/runtime/config`, and the build-time
+  `VITE_SENTRY_DSN` path is retired (objectui#5522, consumer half of objectstack#12681).
+  
+  ObjectStack's users consume a **prebuilt** Console. Under the previous two-key gate —
+  a build-time DSN **and** a runtime permission — a build-time key was unreachable for
+  them, so a self-hosting operator could not enable client error reporting at all: the
+  permission was reachable and the source was not. The maintainer named it on 2026-08-27:
+  
+  > 「我是一个开发平台呀，我的用户并不会去构建我的前端，我理解这种应该在服务端传进去。」
+  
+  ```
+  send  ⇔  the runtime served a DSN
+  ```
+  
+  **The DSN's presence IS the grant.** There is no companion permission flag, and the one
+  that briefly existed is removed rather than paralleled. Two knobs in two places produced
+  two silent dead states — "permission on, no DSN" and "DSN in, permission off" — that look
+  identical from the browser; one knob cannot disagree with itself. Turning reporting off is
+  unsetting the server DSN, and there is deliberately no build-time force-off left, because
+  nobody consuming a prebuilt console could reach one.
+  
+  The fail-closed posture is unchanged and structurally stronger. Absence of a *source* is
+  not a value that can be misread, so a runtime predating the key, a third-party host, a
+  404, a network failure, a malformed body and a config that has not arrived yet all read as
+  off — where the boolean needed a strict `=== true` plus a written argument about why a
+  negative `disabled` flag would have been vacuous on exactly the runtimes that were leaking.
+  
+  ### What moved, and the one thing that did not
+  
+  `sendDefaultPii`, `environment`, `tracesSampleRate` and the error-session replay rate move
+  into the runtime payload. They were build-time variables, so a prebuilt-console consumer
+  could set none of them — including the one deciding whether IP and User-Agent leave their
+  network. This is not new surface; it is the same surface moved to the side that can
+  operate it.
+  
+  `VITE_SENTRY_RELEASE` **stays build-time**, and is now the only `VITE_SENTRY_*` variable
+  that exists. A release identifies which bundle produced a stack trace and must match the
+  source maps that bundle's pipeline uploaded — a property of the build, which no server can
+  know. `VITE_SENTRY_ENABLED`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_TRACES_SAMPLE_RATE`
+  and `VITE_SENTRY_REPLAY` are retired along with `VITE_SENTRY_DSN`.
+  
+  ### Breaking
+  
+  | FROM | TO |
+  |:--|:--|
+  | `VITE_SENTRY_DSN=…` in the Console build environment | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_DSN=…` on the ObjectStack runtime |
+  | `VITE_SENTRY_SEND_DEFAULT_PII=true` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_SEND_DEFAULT_PII=true` |
+  | `VITE_SENTRY_ENVIRONMENT=…` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_ENVIRONMENT=…` |
+  | `VITE_SENTRY_TRACES_SAMPLE_RATE=…` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_TRACES_SAMPLE_RATE=…` |
+  | `VITE_SENTRY_REPLAY=true` | `OS_TELEMETRY_CLIENT_ERROR_REPORTING_REPLAY_SAMPLE_RATE=0.1` |
+  | `VITE_SENTRY_ENABLED=false` | unset the runtime DSN |
+  | `isClientErrorReportingAllowed(): boolean` | `getClientErrorReporting(): RuntimeClientErrorReporting \| null` |
+  | `resolveSentryGate(env, runtimeAllows)` | `resolveSentryGate(runtimeErrorReporting)` |
+  | `RuntimeTelemetry.allowClientErrorReporting: boolean` | `RuntimeTelemetry.errorReporting?: RuntimeClientErrorReporting` |
+  
+  One-line fix for a deployment: move your `VITE_SENTRY_*` values onto the ObjectStack
+  server as the `OS_TELEMETRY_CLIENT_ERROR_REPORTING_*` variables above, and drop them from
+  the Console build environment. One-line fix for a consumer of `@object-ui/app-shell`:
+  `const sink = getClientErrorReporting(); if (sink) …` in place of
+  `if (buildTimeDsn && isClientErrorReportingAllowed())` — the build-time conjunct is gone,
+  because the server now supplies the source.
+  
+  **Landing order is safe in both directions.** A Console built before this change meets a
+  new server, reads an absent `allowClientErrorReporting` and stays off; a Console built
+  after it meets an old server, reads an absent DSN and stays off. Neither half can turn
+  reporting on by itself, so the two repos' PRs can land in any order.
+  
+  The `committed-telemetry-endpoint.test.ts` ratchet is unchanged in rules and unchanged in
+  job: nothing endpoint-shaped may be committed to this repo. Its rules key on the
+  variable's suffix and on the value rather than on the `VITE_` prefix, so they already
+  cover the runtime-side spelling — now pinned, so a later tidy-up cannot narrow them to the
+  retired names and reopen the hole under a new one.
+- 2d36552: Pins `@objectstack/spec`, `@objectstack/client`, `@objectstack/formula` and `@objectstack/lint` to `17.1.0`, and adapts the two consumer surfaces the new build moves.
+  
+  The pin itself is a lockfile refresh — every manifest already declared `^17.0.0`, which admits `17.1.0`, so no dependency range changed. All four move together: a split resolution is what produced the dual-version spec graph that reddened `check:spec-symbols` in this repo's history.
+  
+  **A `icontains` filter now reaches the driver as a filter.** `icontains` is a canonical `VIEW_FILTER_OPERATORS` member as of `17.1.0`, so an author can declare it on a `ViewFilterRule` and the spec validates it — but `@object-ui/data-objectstack`'s alias table had no row for it, and an unmapped operator is how this adapter shipped an unfiltered query before (objectstack#3948). It is an identity row like `contains`: `icontains` is itself a member of `VALID_AST_OPERATORS`, so the spelling the author writes is the spelling the AST takes, and no case-sensitivity is translated away. Declared rather than left to the table's `?? op` fall-through, on the rule its own parity test states — the AST gate accepting a spelling is not the driver compiling it into a `WHERE` clause.
+  
+  The same operator reaches the list view's own bridge: `@object-ui/plugin-list`'s `mapOperator` gains an explicit `icontains` arm. The emitted spelling is identical to the input, but the arm is written out rather than left to the `default` passthrough — `icontains` is its own member of `VALID_AST_OPERATORS`, so a raw passthrough is accepted *today*, and depending on that coincidence is what the bridge's own parity test records as how it once stopped discriminating.
+  
+  `@object-ui/core` adds `onSuccess` to its spec key inventory, so an author writing the key `17.1.0` now declares is no longer warned that it is unknown. That is a diagnostic statement only — the four declared action surfaces still drop the key before it reaches the runner, which is tracked separately.
+  
+  **A stored view filtering case-insensitively still shows that operator when it is reopened.** `@object-ui/plugin-view`'s canonical-to-builder table is keyed by `ViewFilterOperator`, so `17.1.0` adding `icontains` failed to compile rather than letting the operator reach the FilterBuilder as a raw spelling its dropdown cannot select. It maps to the builder's `containsCaseInsensitive` — the id that authors the spec's `$icontains` — and deliberately not to `contains`, which would quietly rewrite a case-insensitive filter into a case-sensitive one the next time the view was saved.
+  
+  **The page-editor palette keeps one entry per renderer.** `17.1.0` retires `element:filter` from `PageComponentType` and adds `record:discussion`, leaving the member count at 34 either side — so the swap is invisible to any count-based reading. The stale `element:filter` exclusion is dropped, and `record:discussion` is excluded because it is the *same renderer* as the already-offered `record:chatter`, not because it is unauthorable. Nothing the palette offers changes.
+  
+  **The console eager-closure ceiling is re-baselined, by maintainer ruling.** The release is roughly 930 KB larger uncompressed and nearly all of it lands in `vendor-objectstack-*.js`, which put the closure past a ceiling that was deliberately sized to catch a 89 KiB regression — the gate refused the bump, correctly. Raising it was escalated rather than taken locally, because gate-strength policy had been ruled the maintainer's; the ruling on objectui#5531 authorised the raise. `MAX_EAGER_CLOSURE_GZIP_BYTES` and the `BASELINE` it is derived from move together in one commit, keeping headroom at 2.00% and below the 91,136-byte regression size the gate must still catch. The gate's *sensitivity* is untouched: a repeat of that regression from the new baseline still fails. No behaviour ships from this file — it is CI policy, recorded here because the version it governs is the one this changeset publishes.
+- 8e32da7: AI build surface gains a standing 「未发布改动」 bar (#5694): while the conversation's bound package has pending drafts, a bar floats above the composer — surviving scrolling — counting the unpublished changes and publishing them through the same governed `publish-drafts` route as the inline card button, with probe findings surfaced instead of a blind success toast. Renders nothing when the count is zero or the conversation is unbound.
+- f157423: Studio workbench and AI tool cards speak the author's language (objectui#7254)
+  
+  - The Interfaces breadcrumb, canvas caption and navigation rail show the
+    metadata label plus a translated kind; the internal `type · name` pair moves
+    to the tooltip. An unlabelled nav leaf now falls back to its object name
+    instead of rendering an empty row.
+  - The Studio top-bar package switcher reads the package's human name from
+    either position the packages endpoint serves it in, instead of degrading a
+    registry-shaped entry to its reverse-domain id.
+  - The dashboard property panel is localized: the spec's authoring form is
+    overlaid through the platform's own `metadataForms.<type>` convention, so
+    section headings, field labels, hints and the `header` composite's sub-fields
+    render in Chinese (developer vocabulary such as "Tailwind units" is replaced
+    with something an author can act on, not transliterated).
+  - AI tool cards: tool titles resolve through `chatbot.tool.<name>` (all thirty
+    platform-provided tools, ten locale packs), the header status badge is
+    localized, and the plan count strip is a real plural family instead of an
+    English `+ "s"` concatenation.
+  - The tool card's header badge and its body badge now come from one producer:
+    a proposal that has been confirmed, built or published no longer keeps a
+    header reading "Awaiting Approval".
+- 7a90afd: Studio's `新建对象` asks for the record-sharing baseline, and an unauthored one is reported before Publish rather than by it.
+  
+  Creating an object through Studio collected exactly two things — display name and
+  identifier — and saved a draft that declared no `sharingModel`. The draft saved
+  happily, the form designer worked, and the object was then refused at 发布 →
+  全部发布 by `security-owd-unset`: a required decision the surface never asked
+  for, delivered by failing, as English ADR prose in a toast that then vanished on
+  a timer. The one actionable word in it named a control three clicks away that
+  nothing routed to.
+  
+  The publish gate is correct and is unchanged — an org-wide default has to be an
+  authored decision, not an accident. What changes is when the console asks and
+  when it answers:
+  
+  - **The create dialog asks.** A third field collects the baseline, pre-selected
+    to `private` and glossed with the Settings tab's own strings, so a new object
+    is publishable by construction. `buildObjectSkeleton` now takes the value as a
+    required parameter — a future create path cannot omit the baseline without
+    failing to type-check. `controlled_by_parent` is deliberately not offered at
+    creation: it derives access from a master relation a brand-new object does not
+    have yet, so offering it would trade one publish refusal for another.
+  - **The review sheet reports it.** The pending-changes panel now runs the
+    framework's own `validateSecurityPosture` over the pending object drafts and
+    names any blocking finding, with its fix-it hint, next to the Publish button.
+    It mirrors the producer's rule rather than re-deriving it, and it reports
+    without blocking — the server door stays the authority.
+  - **The Settings tab stops calling an unset baseline safe.** It described unset
+    as "defaults to Private", which answers what the runtime does and not whether
+    the object can ship. It now reads as the publish-blocking problem it is,
+    styled like the external-wider warning beside it.
+- 19479a3: Studio simplification, first cut (#5813): the Data pillar's object sub-tabs collapse to 记录/表单 with the five power panels (验证/钩子/操作/API/设置) behind one 「高级」 menu (the open panel's name wears the active pill, so the collapsed default never hides where you are); drafts now AUTO-save (debounced 1.5s, CEL-blocking gates the timer per the objectui#4306 rule, a failed save waits for the next edit) and the four 保存草稿 buttons are retired in favor of a quiet saving/last-saved hint; the 权限 pillar moves from the top-level row into a 「更多」 overflow whose items carry the same dirty-guard as the primary pillars — the /studio/:pkg/access route and every page behind it are untouched.
+- eddc1dd: The Studio copilot tells the agent WHAT the user is discussing (cloud#1610 send half): `ChatPane` accepts a `surfaceContext` and sends it as `context.surface` on every turn (the transport reads the body per send, so it stays fresh); the Studio copilot derives it from the URL alone — the `:tab` pillar segment plus the `?surface=type:name` deep-link the pillars already mirror, so the artifact carries its type discriminator (page/object/dashboard/report). A display chip above the composer (「正在讨论：…」, new `console.ai.discussing` key in all ten packs) makes the sent context visible instead of invisible grounding.
+- 4697234: One pending-drafts source of truth (#5801): `usePendingDrafts` / `fetchPendingDrafts` replace the five hand-rolled `GET /api/v1/meta/_drafts` copies behind the home banner, Studio topbar 变更/待发布 buttons, chat pending-drafts bar, chat draft-card resolver, and the preview watermark bar. Every successful publish path (`usePublishAllDrafts`, Studio `doPublish`, the chat bar) now emits the assistant bus's metadata-refresh pulse, and a chat turn that staged or replayed drafts emits it on completion — so a publish or an agent-staged draft anywhere converges every surface at once, and the home banner no longer needs its post-publish `window.location.reload()`. An errored drafts read now uniformly reports UNKNOWN (null), never a fake zero.
+- f471b4f: The metadata designer's View **column list** now reads a column's identity —
+  row label and bound field name — in the ObjectStack canonical spelling only:
+  `field` and `label`. The legacy TanStack aliases `accessorKey` / `header` are no
+  longer consulted (objectui#5725). This is the editor-side half of the read
+  objectui#5344 retired in the column inspector one file over; the two surfaces
+  render inside the **same panel** and until now gave the author two different
+  answers about what a column is called.
+  
+  Why this is a behaviour change and not a tidy-up: `ListColumn` refuses both
+  legacy keys by name (`unrecognized_keys`), so a column carrying them has no
+  field key and no label the spec recognises. Two consequences the list surface
+  had that the inspector did not:
+  
+  - **The label chain was inverted, not merely tolerant.** It read
+    `label ?? header ?? field ?? accessorKey`, preferring the undeclared `header`
+    **over** the declared `field`. A perfectly canonical column that also carried
+    a stray `header` key displayed the alias' value *instead of* its own declared
+    identity.
+  - **The field-name read backs more than a label.** It feeds `usedFieldNames()`,
+    which the Add-field picker consults, so a spec-refused column reserved a field
+    name and the picker tagged that field "Added" — for a column no accepted
+    document actually binds.
+  
+  **What an author sees:** a stored column shaped `{ accessorKey, header }` is now
+  named positionally in the list (`col 1`) rather than by its refused spelling,
+  and the row stays selectable exactly as before — the positional fallback already
+  existed at the end of that chain. The Add-field picker no longer reports such a
+  column's field name as taken. Canonical `{ field, label }` columns and
+  bare-string columns are untouched, and a declared `label` / `field` now outranks
+  any stray alias beside it.
+  
+  **What is deliberately NOT changed:** the write path. These helpers still
+  reorder and splice the raw `columns` array without normalising it, so no stored
+  document is rewritten by the act of viewing or editing it — the same fence
+  objectui#5344 held.
+- 0e00da3: The metadata designer's View column inspector now reads a column's identity —
+  field key and label — in the ObjectStack canonical spelling only: `field` and
+  `label`. The legacy TanStack aliases `accessorKey` / `header` are no longer
+  consulted (objectui#5344).
+  
+  Why this is a behaviour change and not a tidy-up: `ListColumn` refuses both
+  legacy keys by name (`unrecognized_keys`), so a column carrying them has no
+  field key the spec recognises. The inspector nevertheless read them and
+  displayed `accessorKey`'s value in the field-key box, presenting a spec-refused
+  key as though it were a valid column identity — the same consumer-side
+  tolerance alias `ObjectGrid` retired in objectui#5068, surviving one layer up in
+  the authoring tool, which is the surface that is supposed to teach the correct
+  shape.
+  
+  **What an author sees:** a stored column shaped `{ accessorKey, header }` now
+  shows an EMPTY field key and an empty header, and is re-authored rather than
+  silently carried. Canonical `{ field, label }` columns and bare-string columns
+  are untouched.
+  
+  **What is deliberately NOT changed:** the writeback. `patchIdentity` still
+  re-emits whichever spelling it was handed, so no stored document is rewritten
+  by the act of editing it. Normalising on write was ruled out once the
+  maintainer confirmed there is no population of legacy stored documents to
+  migrate; such a column stays unsaveable against the spec both before and after
+  an edit, exactly as it did before this change. What this removes is the
+  invisibility of that state, not the state itself.
+
+### Patch Changes
+
+- f66072d: Inline `t(key, { defaultValue })` strings are now held to the one placeholder spelling a
+  provider-less host can resolve, and five of them are pinned to the pack value for the first
+  time (objectui#4905).
+  
+  `check:i18n-keys`' `default-value-drift` class pins an inline default byte-identical to its
+  `en` row, and objectui#3512 holds `en` to the one spelling `createSafeTranslation`'s
+  `fallbackT` interpolates — so most inline defaults were covered transitively. Re-measured
+  on this tree, 66 of 1003 were not: three literal defaults on dynamic keys, and 63 written
+  as a computed expression. A new `unresolvable-default-spelling` class in
+  `scripts/check-i18n-call-site-keys.mjs` now judges the text every inline default carries —
+  the folded sentence, or a template literal's static segments — so `{{ name }}`,
+  `{{count, number}}`, `{{- name}}` and `$t(key)` are refused wherever they are written,
+  rather than only inside a copy table.
+  
+  Four call sites gain a real pin because their default carries no placeholder at all: the
+  record-form submit button now falls back to `Update`/`Create` (the pack's wording) instead
+  of `Save`/`Create` via a nested `t('common.save')`, the context selector's package label
+  and the approvals separator now state their literal. One more (`detail.showEmptyFields`)
+  is behind a `createSafeTranslation` hook, whose fallback does interpolate, so it can safely
+  say what the pack says.
+  
+  The other 61 are deliberately left computed, and the measurement behind that is the useful
+  part: react-i18next's not-ready `t` returns `options.defaultValue` **verbatim, without
+  interpolating it**. At a call site bound to a bare `useObjectTranslation()`, a default
+  written as `` `Signed in as ${user.email}` `` is therefore the only form that renders
+  correctly with no provider — rewriting it to `'Signed in as {{email}}'` would put literal
+  braces in front of the user, which is the exact defect this family of cards exists to
+  prevent. Those sites keep their template literals and are covered by the spelling class
+  instead.
+- baac3f4: Fix four `find()` calls that passed a query option without its `$`, and gate the shape.
+  
+  `QueryParams` declares every query option `$`-prefixed and `convertQueryParams` copies
+  exactly those keys, so an unprefixed spelling reaches no branch and is dropped — no throw,
+  no warning, and it type-checks because the type carries `[key: string]: any` for
+  adapter-specific params. For a dropped cap the result is an **unbounded** read rather than
+  a truncated one: the platform's GET list route has no default page size, so the query
+  returns the whole match set and stays invisible until the object is large.
+  
+  - `app-shell` `ObjectView` fetched the footer's record count with `{ limit: 0 }`. This one
+    **inverted** rather than widened — `$top: 0` is honoured end to end as "no records", so
+    the dropped key turned "count only, fetch nothing" into "fetch every row in the object",
+    on every mount and every refresh of every list view. It now sends `$top: 0` and reads
+    the count off `total` only; the row-counting fallbacks are gone rather than repointed,
+    because once zero rows are requested an empty `data` means "you asked for none", not
+    "the object is empty", and counting it would assert a confident `0`. With no total the
+    footer line is omitted instead.
+  - `app-shell` `AssignedUsersSection` looked a permission set up with `{ …, limit: 1 }`,
+    one line from three correct `$top` calls.
+  - `plugin-dashboard` `DashboardFilterBar` passed `fields` **and** `top` in one literal, so
+    a filter's option list read every row and every column of its source object while its
+    own comment described it as capped at 200. The same call read `records.items`, which is
+    not a `QueryResult` member, so against a real adapter the fallback produced no options
+    at all.
+  - `console` `sdui-workbench-preview` passed `{ top: 200 }` and read `.records` off the
+    result in its page-source metadata.
+  
+  A new `object-ui/no-unprefixed-query-params` ESLint rule rejects the shape at write time:
+  a known query-option name missing its `$` in the second argument of a `find`/`findOne`
+  call. It is narrow on purpose — a closed list of spellings, anchored to the call — because
+  the index signature exists so adapters can take adapter-specific params, and a rule that
+  flagged any unprefixed key would report the shape the type was written to allow. Its
+  sibling `no-query-params-under-options` (the `{ options: { $top } }` half) is unchanged.
+- 5f97781: Declare `scim?: boolean` on `RuntimeFeatures` and map it through
+  `initRuntimeConfig` (objectui#5869), mirroring its two commercial siblings
+  `customDomain?` / `sso?` end to end: same doc-comment style
+  (server-derived, absent-on-vanilla), same `false` default, same
+  `body.features.scim === true` derivation.
+  
+  This documents and now honestly carries the wire a shipped cloud producer
+  already emits in the same `resolveFeatures` object literal as
+  `customDomain` / `sso`; the key already arrives at the SPA today, untyped.
+  Declaration plus plumbing only — this patch adds no read point, no gate,
+  and no SCIM UI affordance. Any actual SCIM-gated UI is future work.
+- 7c96c94: Four more private copies of the reference-bearing field family converge onto
+  `@object-ui/core`'s `EXPANDABLE_FIELD_TYPES`, and the "fourth and last private copy" claim
+  that `paramToField` still stated is corrected (objectui#5874, objectui#5875).
+  
+  Each copy diverged from the published family in BOTH directions, so this is a behaviour
+  change on every face and not a refactor:
+  
+  - **`user` and `tree` are now treated as relations.** Both carry the same foreign-key
+    storage as `lookup` and resolve through the same expand path (objectui#2032), and each
+    face's own stated reason for special-casing `lookup` applied to them verbatim — so
+    gaining them restores the rule each face already meant. A `user` / `tree` field is now
+    read-only in the quick-look drawer (`RecordDetailDrawer`), where the drawer wires no
+    relation picker and a plain text input let a user overwrite the relation with a
+    free-form string; it gets the wide layout basis in the record header's highlights strip
+    (`HeaderHighlight`), whose inline editor is a record picker; and a field-backed action
+    param over one now inherits the picker config it needs (`resolveActionParams`).
+  - **`master_detail` is now treated as a relation by `resolveActionParams` too** — it was
+    the only face missing that member as well, so a field-backed `master_detail` action param
+    inherited no `referenceTo` at all and degraded to the unexplained "paste a record id"
+    text input that objectui#3405 exists to prevent.
+  - **The undeclarable `reference` spelling is gone from the three field-type faces.**
+    Measured against `@objectstack/spec`'s closed `FieldType` vocabulary with live controls
+    (`lookup` / `master_detail` / `user` / `tree`) and dead ones (the retired `owner`, plus a
+    nonsense spelling): `reference` is absent, so no spec-compliant object schema could
+    declare a field that reached those branches. It sat exactly where `owner` sat before
+    objectui#4814 retired it — dead weight that read as live capability.
+  
+  `resolveActionParams` keeps answering for `reference`, deliberately and by a different
+  route: it is refused by the spec's `ActionParamSchema` too, but the dialog still accepts it
+  from params already authored with it, and that acceptance belongs to the one alias table in
+  `paramToField` rather than to a hand-copied membership test. This face now asks the shared
+  family over the widget key that table produces — the same expression `paramToField`
+  evaluates one step later, so the half that populates a param's picker config and the half
+  that forwards it can no longer disagree.
+  
+  No face copies the set: each calls `.has()` on the object `@object-ui/core` exports, and
+  each carries an identity pin (a spy on that `has`) so a member-identical private copy fails
+  instead of quietly re-forking the table.
+- 2cf69e4: The field designer now reads and writes a lookup field's relationship target under the
+  spec's spelling `reference` (objectui#6041), in both directions.
+  
+  `referenceTo` is not in `FieldSchema`'s accept set. Measured against the installed
+  `@objectstack/spec` 17.2.0, through the whole object document that
+  `PUT /api/v1/meta/object/:name` validates:
+  
+  ```
+  ObjectSchema.safeParse({ …, fields: { rel: { type: 'lookup', label: 'Owner',
+                                              referenceTo: 'user' } } })
+    => success = false
+    => unrecognized_keys at ["fields","rel"] keys=["referenceTo"]
+       "Did you mean `referenceTo` -> `reference`?"
+  ```
+  
+  so authoring a lookup field through the designer returned a hard 422 `INVALID_METADATA`,
+  and — because the key is then stored — blocked **every subsequent save** of that object,
+  with nothing in the UI to say which key did it.
+  
+  The read direction was broken symmetrically and is the half that would have survived a
+  write-only fix: `toDesignerField` read `raw.referenceTo` while a spec-parsed server sends
+  `reference`, so every already-saved lookup field loaded into the designer with an **empty
+  reference box**. Both wire-bound payload shapes move — `FieldMetadataPayload`
+  (`MetadataService.toFieldPayload`) and `ServerFieldSchema`
+  (`MetadataFieldsPage.fromDesignerField`).
+  
+  `referenceTo` also joins `RETIRED_FIELD_KEYS`. Renaming the emit sites alone does not
+  unblock an object whose stored fields already carry the misspelling: `carryOver` spreads
+  the previous server def verbatim, so the key would ride straight back out to the same 422.
+  The designer's in-memory `DesignerFieldDefinition` keeps `referenceTo` — that is the
+  internal prop name every other UI surface in this repo already uses (`LookupField`,
+  `filter-builder`, `ObjectChart`, `ListView`, `UserFilters`), it reaches no wire-bound
+  shape, and the parity gate classifies it as `uiOnly` rather than a violation.
+  
+  No behavioural change for a half-filled draft: the spec's prose calls `reference`
+  "required for relationship types", but that is not enforced by the zod parse at 17.2.0 —
+  `{ type: 'lookup', label: 'L' }` parses green at field level and through `ObjectSchema`,
+  and `undefined` is dropped by `JSON.stringify` under either spelling, so the wire bytes
+  are identical before and after.
+- 79ebf30: Home renders one agreed label for an item kind that has no translation key.
+  
+  The rail (`HomeContinue`), `RecentApps` and `StarredApps` all resolve the same
+  `home.recentApps.itemType.*` label, and each spelled the lookup itself. They had
+  drifted: the rail fell back to the bare kind (`report`) where both card surfaces
+  fell back to the capitalised one (`Report`) — two spellings of the same word on
+  one screen. All three now resolve through a single `recentItemTypeLabel` helper,
+  so the fallback cannot drift apart again.
+  
+  User-visible: the rail's label for an unkeyed kind changes from `report` to
+  `Report`. Every kind shipping today carries a key, so no label changes for them;
+  this is about the next kind added, and any host passing a kind the locales do
+  not carry.
+- 9ea4cde: `MetadataService`'s object writers PUT `fields` as the name-keyed MAP `ObjectSchema`
+  requires, not an array (objectui#6240). Both of the designer's write paths were affected,
+  and `saveFields` ran the conversion in the wrong direction outright: the server's own
+  document arrives with `fields` as a map, and `fields.map(toFieldPayload)` turned it into an
+  array on every field save.
+  
+  Measured against the installed `@objectstack/spec` 17.2.0 and against the framework's own
+  write door. `ObjectSchema.fields` is a required record: an array — empty or not — is
+  refused `invalid_type @ fields`, a map parses. `metadata-protocol`'s `saveMetaItem`
+  resolves metadata type `object` to that same `ObjectSchema`, `safeParse`s the whole item
+  and throws `422 INVALID_METADATA` **before** persisting, so the array was refused rather
+  than stripped or stored: every designer object save and every designer field save that went
+  through this service was a 422 that wrote nothing.
+  
+  This is the value-level half of the objectui#5761 parity family and is invisible to that
+  family's key-name gate — `fields` sits in the accept set under either shape, which is the
+  gate's own coverage note 4. The pins are runtime assertions on the captured request bytes.
+  
+  The conversion refuses, loudly, what it cannot key: a field with a missing or blank `name`
+  throws instead of writing a `{ undefined: … }` entry (measured: the spec ACCEPTS that
+  document, so nothing downstream would have caught it), and a duplicate name throws instead
+  of letting the later field silently replace the earlier — a loss an array does not have.
+  `saveFields` keeps preserving unknown keys of the fetched server document, which now
+  actually reaches storage. `saveObject` with no `existingFields` still omits the key rather
+  than writing `{}`: a PUT is an upsert, so `{}` would delete every field of an object on a
+  save that only meant to rename it.
+  
+  `saveObject(obj, existingFields)` keeps its `FieldMetadataPayload[]` parameter type — the
+  array is converted inside — so no caller's call site changes.
+- 0ea559e: A per-option `visibleWhen` written into a metadata form now actually withdraws that option
+  in the metadata-admin renderer (objectui#6247).
+  
+  `SelectOptionSchema` declares `visibleWhen` (ADR-0068 / objectui#2284) and the schema is
+  `z.core.$strict` — an undeclared sibling key is refused with `unrecognized_keys` — so the
+  key is a real declaration, and a `*.form.ts` carrying a per-option predicate parses clean.
+  The metadata-admin renderer never read it: all three controls that consume
+  `fieldSpec.options` mapped the authored list straight to items. Accepted, stored, shipped,
+  ignored — ADR-0049's declared-but-unenforced shape.
+  
+  **This is a behaviour change, and it is the point of the fix.** Metadata that was inert
+  starts hiding options. An author who wrote a narrowing and got no narrowing now gets one.
+  Both of the old failure modes pointed the same way — the option stayed offered — so
+  nothing that relied on the old behaviour was relying on a narrowing being honoured; it was
+  relying on one being ignored. Zero `*.form.ts` in the tree uses the key today, so no
+  shipped form changes shape on this release.
+  
+  Three consuming controls now filter, and each has a pin asserting an option **absent** on a
+  false predicate: the builtin Select in `SchemaForm.tsx`, `MultiSelectWidget`, and
+  `colorPaletteOptions` → `ColorSwatchGroupWidget`. Asserting absence is the whole of the
+  test design — this evaluator fails OPEN, so "the option is shown" is equally the outcome of
+  predicate-true, predicate-never-arrived and predicate-faulted, and a positive-only pin
+  passes against the unfixed renderer.
+  
+  Per the maintainer ruling on the card (affirmed three times: 2026-08-25 batch 4;
+  2026-08-25 upholding A2 over the A1 counter-proposal; 2026-08-27 declining the A0
+  reject-the-key alternative):
+  
+  - **Scope (A2).** `SchemaForm`'s `evaluatePredicate` ctx now binds the four ADR-0068 D1
+    identity spellings — `current_user`, `user`, `ctx.user`, `os.user` — **alongside** `data`,
+    selected out of the host `ExpressionProvider`'s bag rather than copied, so the alias set
+    cannot drift from the one builder. `data` stays the **draft**: the provider's bag also
+    carries a `data` key meaning its own data scope, and adopting that would be
+    objectui#5926 gap 2's "same key, opposite meanings" one nesting level apart. `record`,
+    `app` and `features` are deliberately left **unbound** so they keep raising the loud
+    warn-once diagnostic instead of resolving to a silent `undefined`. That diagnostic now
+    reads the bound names off the actual scope instead of asserting "the only name is
+    `data`", which stopped being true the moment identity was bound — a diagnostic that lies
+    sends the author to un-write a spelling that was correct. No new evaluator: the option
+    filter routes through the same `evaluatePredicate` the section, field and repeater-row
+    gates already use.
+  - **Emptied sets (B1).** The control's **face** keeps reading the **raw** option list —
+    `resolveFieldFace`'s `hasOptions`, `resolveColorWidgetKey`, and each `options.length > 0`
+    branch condition — and only the rendered list is filtered. Withdrawing every option
+    renders an **empty picker**. Filtering the branch condition instead would have degraded
+    the builtin Select to a free-text `Input` and `MultiSelectWidget` to its comma-tag
+    editor — "withdraw every option" displayed as "type whatever you like" — and would have
+    flipped a fully-withdrawn palette from the `color-picker` registration to `color-input`,
+    making the labelling channel objectui#4871 point 4 fixes in the host predicate-dependent.
+  - **Stored values (C1).** No pruning. A selected value whose option is now hidden survives
+    in the stored metadata and the picker shows the placeholder. This includes the quiet path:
+    `MultiSelectWidget`'s toggle re-orders the selection against the **raw** list, because
+    ordering against the filtered one would have dropped a hidden-but-selected value on the
+    next unrelated click. This renderer edits **source metadata**, and objectui#4247's own
+    reasoning — "missing information is not a reason to destroy stored data" — applies harder
+    here than it did on the runtime record surface.
+  
+  `FormFieldSpec.options` is also no longer hand-written. It derives from the spec's
+  `SelectOption` with its narrowings named in an `Omit`, per this file's own convention:
+  `visibleWhen` is re-pointed to the local `VisibilityPredicate` (`dialect` optional, `source`
+  required — the shape an evaluator here actually takes), and `default` stays dropped **and
+  now says so**, because nothing on this surface reads it. Two of the spec's five option keys
+  had been dropped by silence, which is precisely how a legally-authored per-option
+  `visibleWhen` came to parse clean and render inert.
+  
+  **Not fixed here, and it bounds what this change delivers:** this interim evaluator's `in`
+  operator requires an array **literal** on the right (`role in ['admin','owner']`), so the
+  ADR's headline spelling `'admin' in current_user.positions` — membership against a *path* —
+  still falls through to the bare-truthy branch and evaluates TRUE regardless of the user,
+  silently. That is a pre-existing grammar gap of the whole subset, identical for `data.*`
+  (`'x' in data.tags` is equally inert) and unchanged by this card; it is filed separately.
+  The spellings this fix makes genuinely discriminate are the documented subset —
+  `path == literal`, `path != literal`, `path in [literals]`, `!path`, `path`, `&&`, `||`.
+- 944a929: The flow designer's node inspector no longer offers a **Description** field, and strips a
+  stored `description` off a node the first time an author edits it (objectui#6287).
+  
+  `FlowNodeSchema` is `.strict()` (objectstack#4001) and refuses that key by name — measured
+  on the installed `@objectstack/spec@17.2.0`:
+  
+  ```
+  FlowNodeSchema.safeParse({ id, type, label, description, config })
+    -> unrecognized_keys: ["description"]
+  ```
+  
+  By this package's own reading of that mechanism, the cost is not untidiness but an
+  unsavable draft: the key "surfaces as `unrecognized_keys` in the live client validation and
+  as a 422 on save" (`flow-canvas-layout.withCanonicalGeometry`, on the identical retired `ui`
+  case). So the field was not merely describing a shape the contract refuses — it was
+  producing one, on every keystroke, and nothing anywhere read the value back. The spec's flow
+  node has eleven keys and no note key of any spelling, so there was no reader to grow into.
+  
+  Stored flows heal on the author's first edit, the same migrate-on-write boundary the retired
+  `ui` geometry gets, and for the same reason: with the field gone there would otherwise be no
+  way left to clear a `description` an author had already saved.
+  
+  The three hand-written copies of the node and edge shapes that let this drift go unseen are
+  now one declaration each — `FlowNodeInspector`'s node and edge types alias the canonical
+  `FlowNodeLike` / `FlowDesignerEdge`, and `flow-decision-edges`' fourth edge copy aliases the
+  same canvas edge instead of restating it with a `condition?: unknown` that had already
+  outlived objectui#3202's narrowing by months.
+- 780efc0: `ConditionBuilder`'s row mode now compiles a value that is plainly a **reference** as one,
+  instead of quoting it into a string literal (objectui#6293).
+  
+  `fmtValue` quoted anything that was not a number / `true` / `false` / `null`, and the value
+  box is free text — so an author building "this field differs from its prior value", the idiom
+  that *defines* a change-detection predicate, got `previous == 'previous.status'`. That is
+  syntactically valid CEL, `previous` is a declared root, and a string literal's contents are
+  deliberately not scanned for references by `flow-ref-check` or by the server-side validator.
+  The predicate parsed, registered, evaluated — and was always false, with no author-time signal
+  at any layer, at all five surfaces that mount this builder.
+  
+  A value matching a **declared root prefix** now emits as the reference: `record`, `previous`,
+  `parent`, `user`, `current_user`, `org`. That set is this builder's own vocabulary — `record`
+  / `user` / `org` are exactly what its subject dropdown offers one control to the left,
+  `previous` and `parent` are bound by `evalFieldPredicate` and by the server-side hook /
+  validation evaluators, and `current_user` is the ADR-0068 spelling of the same identity object
+  `user` names. Roots this builder never offers (`data`, `os`, `app`, `features`, `input`,
+  `vars`, `page`) are deliberately excluded: `data.csv` is a plausible literal and `data` *is*
+  bound, so capturing it would trade one silently-false predicate for another rather than for a
+  loud one. Declaring which roots a mounting surface actually binds is caller-supplied
+  vocabulary and belongs to objectui#6296.
+  
+  The test is "a dotted path under a declared root", not "contains a dot" — a version string
+  (`1.2.3`), a filename, and a path under an unbound root all stay literal text. The literal and
+  number controls are unchanged: `done` still compiles to `'done'`, `42` still to `42`.
+  
+  **Nothing already stored is rewritten.** A persisted `previous == 'previous.status'` no longer
+  round-trips byte-for-byte, so the builder's existing safety rule hands it to the raw CEL editor
+  rather than reinterpreting it — the author sees both readings and decides. In the other
+  direction a hand-authored `record.status != previous.status` now round-trips *into* the row
+  builder, which it could not before.
+  
+  The repair is at the authoring surface, where the ambiguity is: no consumer-side tolerance is
+  added, and the emitted reference is now an identifier the existing reference checkers can see,
+  where a string literal's contents were invisible to them.
+- dddb942: Delete the dead `metadata-admin/previews/object-fields-bridge.ts` module, and the three
+  prose references that still described it as wired.
+  
+  The module exported `bridgeFromDraft`, `commitToDraft` and `FieldsBridgeResult` and had
+  **zero importers** — re-measured on the merged base, not inherited from the filing. Nothing
+  in the repository could reach it either: `@object-ui/app-shell`'s `exports` map declares
+  only `.` and `./styles.css`, so the file was not addressable as a deep import even from
+  outside the workspace.
+  
+  Removing it is not the whole change. Three comments — in `types/src/designer.ts`, `types`'
+  `designer-field-types.test.ts` (twice) and `fields`' `richtext-cell-renderer-5452.test.tsx`
+  — cited the bridge as a live corroborating source. Left behind, they would have swapped
+  dead code for false documentation: three in-repo pointers telling a future reader that this
+  bridge mediates between the framework field record and `FieldDesigner`, and nothing telling
+  them it is unreachable. The two that named it as the consumer deriving an editable-subset
+  check from `DESIGNER_FIELD_TYPES` now name `MetadataFieldsPage`, which does exactly that
+  with the same idiom and the same `objectui#3017` anchor. The third cited the bridge's
+  `richtext` → `html` mapping as one of three corroborations that `richtext` stores HTML; the
+  other two (the showcase seed and the field-type decision tree) are live and carry the point
+  on their own, so that clause is dropped rather than repointed.
+  
+  No behaviour changes: nothing imported the module, so there is nothing to migrate.
+- 11f23e9: `ActionParam` has one authority again (objectui#6329). The name was declared three times,
+  not twice as the card counted: `@object-ui/types` publishes it — derived from the spec's
+  `ActionParamSchema` input, with its own parity suite — and `ActionDefaultInspector.tsx` and
+  `ActionPreview.tsx` each carried a module-local `interface` of the same name. app-shell
+  already read the published one elsewhere (`utils/resolveActionParams.test.ts`), so both
+  locals were shadows. They are deleted, not reconciled against each other, under the
+  2026-08-25 family ruling 甲A1.
+  
+  Neither shadow needed a member the published type lacks, so nothing was added to the
+  published surface. What the shadows got wrong was the DECLARATION, in the direction that
+  lets wrong metadata compile:
+  
+  - The inspector's copy carried `[k: string]: unknown`. An index signature admits every key
+    at type `unknown`, so a commit of a key `ActionParamSchema` rejects by name — `.strict()`,
+    and `referenceTo` is listed in its alias map — type-checked here and failed on save. It
+    also made the two copies look compatible when they were describing different authoring
+    surfaces: `options` / `helpText` / `defaultValue` were declared outright on one side and
+    swallowed as `unknown` on the other.
+  - The preview's copy declared `label?: string | { en?: string }`, admitting the `en` tag and
+    no other, while its own `localize` helper has always read `Object.values(o)[0]`. An inline
+    locale map keyed `fr-FR` rendered correctly and failed `tsc`. The published `I18nLabel`
+    admits both authorized forms, so the type now matches what the code already did — this
+    widens the declaration, not the runtime's acceptance.
+  
+  Two behaviour-visible consequences, both of them the local `type?: string` being withdrawn
+  in favour of the published `ResolvableParamFieldType` (the spec's 49-member `FieldType` plus
+  objectui's three declared param aliases):
+  
+  - `ActionPreview.renderFieldMock` no longer branches on `long_text` or `integer`. Neither is
+    in that vocabulary — `long_text` belongs to the console form-builder dialect and `integer`
+    to JSON Schema — so a param spelled either way is a parse rejection on the server and
+    could never have reached the preview. The two comparisons compiled only because the local
+    copy typed `type` as `string`.
+  - The inspector's param-type dropdown narrows its commit through the runtime witnesses
+    `@object-ui/types` exports (`ACTION_PARAM_FIELD_TYPES` + `OBJECTUI_LOCAL_PARAM_FIELD_TYPES`)
+    rather than writing the raw DOM string. An unrecognised spelling clears the key instead of
+    being written into metadata the server would refuse; the eight offered spellings are
+    unaffected, and are now checked against the vocabulary at compile time.
+- 2eb8cae: `StarredApps` now filters out `nav`-type favorites before rendering (objectui#6335).
+  
+  `FavoritesProvider` has always documented `nav` favorites (sidebar entries pinned via
+  the in-tree pin toggle) as "Excluded from Home/Starred and from the generic sidebar
+  Favorites list so it doesn't render twice" — but `StarredApps` filtered nothing by type,
+  so a `nav` favorite handed to it rendered anyway. `FavoriteItem['type']` also has no
+  `nav` key under `home.recentApps.itemType.*` (only five of its six members do), so a
+  `nav` card that reached `StarredApps` fell through to the raw `"nav"` label instead of a
+  translated one.
+  
+  `StarredApps` now filters `items` to `type !== 'nav'` before rendering — the same
+  exclusion already applied to the sidebar Favorites list in `AppSidebar.tsx` and
+  `UnifiedSidebar.tsx` — restoring declared-equals-enforced behaviour and making the
+  missing locale key correct by construction. No locale packs were touched, and the
+  `FavoriteItem` / `RecentItem` union types are unchanged.
+- 6e88630: One authority per exported type name, batch 3 of objectui#6349: `ComboboxOption`,
+  `NamedActionDef`, `OrgTranslate`.
+  
+  **`@object-ui/components` — `ComboboxOption` now IS `@object-ui/types`' declaration.**
+  The component declared its own `{ value, label }`, a strict subset of the
+  `ComboboxOption` that `@object-ui/types` declares for `ComboboxSchema.options` and
+  mirrors in `form.zod.ts` (`{ value, label, disabled? }`). The component now re-exports
+  the types declaration (through the `@object-ui/types/form` subpath — the root barrel
+  does not publish the name), so the name `ComboboxOption` exported from
+  `@object-ui/components` gains the optional `disabled?: boolean` member. Every value
+  that type-checked before still does — nothing narrows and no key changes type; the
+  one thing that moves is `keyof ComboboxOption`, so a consumer that EXHAUSTS the type
+  (a `Record` over its keys) will need the new key. Note that the `Combobox` component
+  itself does not read `option.disabled` — that member was already declared on the
+  `@object-ui/types` face and is now visible on this one too; it is recorded as a
+  separate finding, not changed here.
+  
+  **`@object-ui/plugin-grid` / `@object-ui/app-shell` — internal, surface unchanged.**
+  `NamedActionDef` was declared identically in `resolveBulkActions.ts` and
+  `resolveLegacyRowActions.ts`; the latter is now the one authority and the former
+  re-exports it. `OrgTranslate` was declared identically in `orgErrorMessage.ts` and
+  `orgRoleLabel.ts`; the former is now the one authority and the latter re-exports it.
+  Neither name is on its package's public entry, and every deep-`dist` module still
+  exports the same name with the same shape.
+  
+  `FilterBuilderCondition` / `FilterGroup` (the other two names this batch was sized
+  with) are deliberately NOT converged: their shapes disagree on `id`, `value` and on
+  `operator`, and the only dependency-legal re-point would retype `operator` — the
+  vocabulary objectui#7561 is asking a maintainer to rule on.
+- 6630b37: The console boot no longer flashes a fully-white frame after the splash has painted
+  (objectui#6378).
+  
+  Cause, established by measurement before any fix was written — the card named
+  `LoadingScreen`'s unmount timing and `RouteFader` as suspects and both are exonerated.
+  A CDP `Page.startScreencast` frame ledger (every frame classified with the card's own
+  rule: white when no colour channel falls below 242) was correlated against a DOM-state
+  ledger on the same clock (`performance.timeOrigin`), against the production
+  `apps/console` bundle with the boot endpoints mocked. `RouteFader` never mounts on the
+  boot path at all, and `LoadingScreen` unmounts exactly when its own gate says to. What
+  is wrong is what REPLACES it: every readiness gate renders the splash while it waits and
+  a bare `<Navigate>` the moment it decides. `<Navigate>` renders `null` and react-router
+  runs the navigation as a transition, so the destination tree renders while the commit
+  that already dropped the splash is what the compositor is showing — 41–147 ms during
+  which `#root` holds no view and the viewport is the bare page background. The flash is
+  intermittent only because it depends on a frame being swapped inside that window; the
+  window itself was present on every measured boot.
+  
+  `RedirectWithSplash` (new, `@object-ui/app-shell`) pairs the same `<Navigate>` with the
+  same `LoadingScreen` the gate one line above was already rendering, so the handoff
+  changes no pixels and the transition runs underneath an unchanged screen. The console's
+  three boot redirects use it: the auth gate's `/login` bounce, the `/` landing resolver,
+  and the catch-all route. The nested organization `index` redirect deliberately does not —
+  it fires under an already-painted layout, where covering the screen would be the
+  regression.
+  
+  Acceptance campaign — same instrument on both sides, the two arms INTERLEAVED inside one
+  process and one browser so drift in this shared container's load lands on both equally.
+  102 paired boots per arm across five cells (signed-out `/`, signed-in `/`, an unmatched
+  entry, and the card's two throttled network profiles). The empty-viewport window: 102/102
+  pre-fix, 0/102 post-fix. The white frame itself, pooled over the three cells where the
+  pre-fix build actually flashed: 67/87 (77%) pre-fix, 0/87 post-fix — 95% upper bound on
+  the residual rate 3.4%, against a card-reported defect rate of ~1/3. The two throttled
+  cells are reported but NOT pooled: the pre-fix build flashed 0 times there, so before and
+  after agree and those cells prove nothing about the pixels (they still separate 15/15 vs
+  0/15 on the DOM window).
+  
+  `e2e/console-boot-indicator.spec.ts` gains the deterministic half as a gate — after
+  React's first commit the viewport centre must never stop being covered. That reading is
+  what makes an intermittent defect gateable: the flash needs a frame to be swapped inside
+  the window, but the window itself was present on every measured boot. Verified red-first,
+  6/6 red on the pre-fix bundle and 6/6 green on this one.
+- a672ae9: `app-shell`'s two action runtimes now reset `ActionParamDialog` the same way when it closes
+  (objectui#6431). `useConsoleActionRuntime` closed with `setParamState({ open: false, params: [] })` —
+  replacing the whole state object, emptying `params` and dropping `title`, `description` and
+  `resolve` — while `RecordDetailView`, which mounts a second runtime into the same dialog,
+  closed with `setParamState(s => ({ ...s, open: false }))`. The console runtime moves onto the
+  field-preserving shape.
+  
+  The user-visible effect is in the fade-out. `DialogContent` carries
+  `duration-200 data-[state=closed]:animate-out`, so Radix keeps the content mounted through
+  its exit animation and the dialog goes on rendering off `state` for the whole ~200ms. Under
+  the blanking shape a params form the user had just filled in re-titled itself from the
+  action's own label to the generic "Action parameters", swapped the action's description for
+  the generic one, and dropped every param row — an empty, generically-labelled box fading out
+  where a form had been. The confirm pair converged on the same shape for the same reason in
+  objectui#6034; this is that ruling re-measured on this dialog rather than inherited, because
+  `ParamDialogState` carries a form rather than display text and "blank it on close" could have
+  been deliberate here.
+  
+  It was not, and nothing else changes for the user. The values a user types are not in
+  `paramState` at all — they live in `ActionParamDialog`'s own `values` state, which its
+  `useEffect` reseeds from the param defaults on every `state.open` false→true edge, so a
+  reopened dialog starts blank under either reset shape. The retained `resolve` is inert: the
+  dialog settles the promise before it asks for the close, and the open path replaces the whole
+  state object.
+- 7fdf74e: A nav / area / field `visible` predicate that FAULTS now says so, in both builds, once per
+  distinct predicate source (objectui#6443). Observability only — no verdict moves.
+  
+  `ExpressionProvider.evaluateVisibility` is the gate behind a navigation item's `visible`,
+  an area's derived visibility, and the field list `RecordFormPage` renders. It is fail-open:
+  a predicate that cannot be evaluated returns `true`, so a menu entry whose role gate has
+  stopped working renders **for everyone — including the role it was written to exclude** and
+  looks exactly like an entry the author meant to show.
+  
+  That fault was swallowed one layer down. `evaluateCondition` is fail-soft: it answers an
+  unevaluable predicate with `true` from its own `catch` and does not throw, so this site's
+  `try/catch` never saw a predicate fault at all. Measured per dialect at this site before the
+  fix — the bare-string dialect, the one a live gate was measured breaking on, printed
+  **nothing at all**:
+  
+  | dialect | console at this site, before | after |
+  |---|---|---|
+  | bare string | nothing | one named line |
+  | `{ dialect: 'cel' }` envelope | one generic line | one named line (the generic one is *replaced*, not added to) |
+  | `${…}` template | one generic line **per evaluation** | one named line, deduped |
+  
+  The fix wires `EvaluationOptions.onFault` (the seam objectui#6038 landed) to
+  `reportUnresolvableVisibilityPredicate`, exported from `@object-ui/react` — the same
+  reporter, message, severity, dedupe `Set` and rate limit the node gate and `page:tabs`
+  already use, so one authored predicate is entitled to one line rather than one line per
+  package. It costs no extra engine call: the evaluator hands back the reason at the point it
+  already knows the predicate faulted, with no `throwOnError` double evaluation.
+  
+  A nav item is not a schema node, so the reporter's `type` slot — which, with the gate key
+  and the predicate source, is the dedupe key — is the constant `app-shell:visible`. The rate
+  limit is therefore **one line per distinct authored predicate source**, not one per menu
+  entry: a broken role gate copy-pasted across eight entries is one authoring mistake, in one
+  string, fixed in one edit.
+  
+  **Fail-open is unchanged.** The item still renders for everyone on a fault. Flipping that to
+  fail-closed is a permission-boundary change, not a diagnostic, and is not this change's to
+  make; the change makes the silence stop and nothing else.
+- 830ed58: The record page's approval band offers its **Recall** button to the approval's submitter
+  only (objectui#6464).
+  
+  Field report on `@objectstack/*@17.2.0`: user A submits a record into a 4-level approval;
+  user B — not the submitter, read access, not an admin — opens the record and the band still
+  lights a clickable recall button. The click cannot succeed. The recall endpoint authorizes
+  on submitter identity and refuses everyone else, so the only outcome available to that
+  button was a failure toast. Record state was never at risk; this was purely a
+  writability-feedback mismatch, the same family as objectui#3794.
+  
+  The button's only gate was `dataSource.cancelPendingApproval` — "can this adapter recall at
+  all" — which is a question about the DataSource, not about the viewer. Identity now joins
+  it, threaded the way every other signal on that band already travels: the HOST resolves it
+  and passes it through `InlineEditProvider`, so the renderer stays DataSource-agnostic and
+  never re-derives who submitted what.
+  
+  - `@object-ui/react` — `InlineEditProvider` accepts `approvalIsSubmitter`, surfaced on
+    `InlineEditContextValue`. Additive and optional; no existing prop changes.
+  - `@object-ui/plugin-detail` — the band's recall button is withdrawn when that signal is a
+    resolved `false`.
+  - `@object-ui/app-shell` — `RecordDetailView` resolves the verdict from its existing
+    approvals read and threads it.
+  
+  **The signal is tri-state, and the third state is the load-bearing one.** `true` offers
+  recall, `false` withdraws it, and **`undefined` — a host that resolves no approval identity
+  — renders exactly as it did before this release.** Omission preserving prior behaviour
+  mirrors how `approvalPending` falls back to `locked`. Defaulting the unknown case to "hide"
+  would have traded a cosmetic defect for a functional loss: every host whose band runs off
+  the record's `approval_status` mirror alone would silently lose its submitter's only way to
+  unlock their own record.
+  
+  **Withdrawn rather than disabled-with-reason.** The card offered either. For a
+  non-submitter this control is never actionable on any pending record, so a permanently
+  disabled button is standing clutter rather than a lesson; and the two sibling submitter
+  levers already hide — the approvals panel's Remind button, and the declared
+  `approval_recall` action's `visible` predicate. The band, its quorum tally and the
+  approvals timeline still tell a non-submitter exactly what state the record is in. Only the
+  lever they can never pull is gone.
+  
+  **This changes no permission.** Nothing about what the server allows moves, `canEdit` and
+  the approval lock are untouched, and nothing downstream reads `approvalIsSubmitter` as an
+  authorization verdict — the recall endpoint remains the sole authority, and it refused
+  these callers before this change and refuses them after. There is deliberately **no admin
+  carve-out** (the reporter ruled that case out, cf. objectstack#9464).
+  
+  The derivation itself is now one function, `isSubmitterOf` — server-resolved
+  `viewer.is_submitter` first (framework#3310), an id comparison as the fallback for backends
+  that predate it, joined with `??` so a server that resolved `false` is believed rather than
+  re-litigated client-side. The approvals panel's Remind gate, which already carried that
+  expression inline and whose behaviour is unchanged, now reads the same answer: two copies
+  would have been two definitions of who submitted.
+  
+  The **untranslated refusal text** the reporter also saw ("No pending approval request found
+  for this record", concatenated after a localized prefix) is a separate defect and is not
+  addressed here; it is tracked on objectstack#11993.
+- 586cfc2: The metadata-admin type-action param dialog no longer blanks itself while it closes
+  (objectui#6473).
+  
+  `MetadataTypeActions` is the **third** consumer of `ActionParamDialog` in this package,
+  after `useConsoleActionRuntime` and `RecordDetailView` — and it was the last one still
+  writing `setParamState({ open: false, params: [] })` on close, replacing the whole state
+  object. `DialogContent` carries `duration-200 data-[state=closed]:animate-out`, so Radix
+  holds the content mounted through its exit animation and the dialog goes on rendering off
+  `state` for the whole fade-out: a user who cancelled "Test connection" or a datasource
+  sync watched the heading revert from the action's own label to the generic
+  `actionDialog.title` and every param row disappear, for 200ms, on the way out. Close now
+  flips `open` and keeps every other field, which is the shape objectui#6431 converged the
+  other two consumers on.
+  
+  Not a user-data change: the values typed into the dialog never lived in `paramState` —
+  they live in `ActionParamDialog`'s own `values`, reseeded from the param defaults on every
+  open — so a reopen still starts from the defaults, pinned as a control.
+  
+  The pre-reset `paramState.resolve?.(null)` is dropped as well, on an enumeration rather
+  than on "resolving twice is a no-op": `onOpenChange` is reachable from exactly three places,
+  all inside `ActionParamDialog`, and every one settles the promise before asking for the
+  close — `handleSubmit`, `handleCancel`, and the Radix root handler that delegates to
+  `handleCancel` (the single route Escape, an overlay click and the header close button all
+  take). All four routes are driven in the new test, with a census over
+  `ActionParamDialog.tsx` so a later call site that skipped the settle is red there instead
+  of leaving a promise pending forever.
+- 16aa044: `MetadataService.saveFields` no longer PUTs the framework's own read decorations back (objectui#6480).
+  
+  `saveFields` fetches the current object and spreads it verbatim (`...existingObject`) so that every key the service does not model survives a field save. That spread does not distinguish keys the **author** owns from keys the **framework** adds on the way out: `@objectstack/spec` declares `_diagnostics` and `_draft` as `METADATA_READ_DECORATIONS` — stamped onto served metadata documents by the read path — and `ObjectSchema` refuses both **by name**. A served document carrying either one was therefore spread straight back into the body of `PUT /api/v1/meta/object/:name`.
+  
+  The body now passes through the spec's own exported `stripReadDecorations` before it is sent, so the list of decorations stays the spec's rather than a local copy that goes stale the next time the framework adds one. This is the strip-on-write shape `MetadataObjectsPage.handleObjectsChange` already uses for `group`, applied where the spread is — simply not writing the key is not enough when the spread is verbatim.
+  
+  The strip is deliberately bounded to those two keys and is not a general "remove whatever the schema refuses" pass: an off-spec key the author owns still goes out and is still refused loudly, where someone can see it. Nothing is lost by dropping the decorations even though a PUT is an upsert — `_diagnostics` is the read-path validation verdict, recomputed on every read, and `_draft` reflects the row's `state` column and the `mode` parameter, never the body. The ADR-0010 protection envelope (`_lock`, `_provenance`, …) *is* write-path state the server merges back, and the spec deliberately keeps it out of the decoration list, so it is untouched.
+- 28ed9ce: `MetadataService.saveFields` carries the server's per-FIELD keys through a field save
+  instead of rebuilding every entry from the designer model (objectui#6488).
+  
+  The method preserved unknown keys of the OBJECT document by spreading it, but that spread
+  is object-level and said nothing about keys INSIDE a field. Every entry was rebuilt by
+  `toFieldPayload`, so every key the server sent inside a field that the designer does not
+  model was dropped on every field save: `expression` (a formula authored in metadata-admin),
+  `precision`, `scale`, `system`, `sortable`, and anything a plugin registered. Measured
+  against the installed `@objectstack/spec` 17.2.0, `FieldSchema` accepts all five — the
+  designer's model is a subset of what a field may hold, and the difference was being
+  deleted.
+  
+  The loss is not new but was UNREACHABLE. While `fields` went out as an array the whole
+  body was refused `422 INVALID_METADATA` before persistence, so nothing `saveFields`
+  dropped ever reached storage; objectui#6240 made the body parse, and a PUT is an upsert,
+  so from that fix onward the drop lands.
+  
+  `toFieldPayload` now merges onto the previous SERVER entry, read from the document
+  `saveFields` already fetches for the object-level spread — the form
+  `MetadataFieldsPage.fromDesignerField` has used one writer over all along, and no extra
+  request.
+  
+  Two properties keep the fix from becoming its own mirror image, both pinned in
+  `MetadataService.fieldKeyCarryOver.test.ts`:
+  
+  - **A property the author CLEARED stays cleared.** Every modelled key is still written
+    unconditionally, so a cleared property arrives as an explicit `undefined` that overrides
+    the carried value and is dropped by `JSON.stringify` — absent from the body, which on an
+    upsert is the deletion. A conditional merge would leave the server's old value standing
+    and fail the author's deletion silently.
+  - **Retired designer keys do not ride back out.** `indexed`, `referenceTo`, `formula`,
+    `isSystem` and `sortOrder` are refused BY NAME by `FieldSchema`; a stored document can
+    still carry them, and echoing one back is a hard 422 that blocks every later save of the
+    object with no UI path to clear it. Everything else the server sent still survives — the
+    strip is keyed to those tombstones, not a blanket unknown-key purge.
+- b1a732b: Keep the boot splash painted across seven more console redirects (objectui#6507)
+  
+  Every readiness gate on the console boot path renders `LoadingScreen` while it
+  waits and a bare `Navigate` the moment it decides. `Navigate` renders null and
+  react-router runs the navigation as a transition, so the destination tree
+  renders while the commit that already dropped the splash is what the compositor
+  shows — measured at 41-147 ms of empty `#root` on the three sibling gates
+  objectui#6506 fixed.
+  
+  Converted to `RedirectWithSplash`, which pairs the same navigation with the same
+  `LoadingScreen` so the handoff changes no pixels:
+  
+  - `RequireOrganization` — both decisions (orgs exist but none active; no org at
+    all with multi-org enabled)
+  - `RequireAiSurface` — a runtime that serves no agent
+  - `AuthenticatedRoute` — the signed-out fallback (published for consumers;
+    `apps/console` converted its own `ProtectedRoute` copy under objectui#6506)
+  - `RootRedirect` — byte-for-byte the shape that measured the widest window
+  - `SetupRedirect` — the `/setup` deep link
+  - `AppContent` — the no-accessible-app bounce, which returns above the single
+    `ConsoleLayout` mount
+  
+  `SystemRedirect` is deliberately left as a bare `Navigate`. It carries the same
+  shape on a first navigation, but it is the only site in this set that also fires
+  with the console already painted (`SettingsView` navigates to `/system/settings`
+  from a button; `AppSidebar` links to `/system`), and a redirect firing under an
+  already-painted layout must keep that layout rather than gain a splash. The five
+  URL-rewrite redirects in `AppContent` are excluded for the same reason.
+- d4a9a55: Field- and action-visibility gates on the full-screen record form page now see the same
+  `current_user` every other console surface sees (objectui#6515). `RecordFormPage` built its
+  own descriptor — `{ name, email, role, positions }` — instead of calling the shared
+  `buildExpressionUser` normaliser, so `id` and `isPlatformAdmin` were simply absent from the
+  predicate scope that page publishes.
+  
+  An absent key is not `false`. A predicate naming one of them FAULTS, and a faulting
+  visibility predicate fails OPEN, so the gate silently did not bite: a field gated on
+  `ctx.user.isPlatformAdmin == true` (the shape `sys_environment`'s "Change Plan (admin)"
+  action uses) rendered for every user on this page, and an id comparison against
+  `ctx.user.id` (the shape `sys_user`'s own gates use throughout `platform-objects`) did the
+  same. Nothing on screen distinguished that from a gate that had said yes. The signed-out
+  branch diverged on its own account too — it carried no `isPlatformAdmin` key at all, where
+  `buildExpressionUser(null)` carries `false`.
+  
+  Fail-open on a genuine evaluation error is deliberately unchanged (objectui#6443 / #6487 /
+  #6445); what changed is that these predicates no longer fault in the first place.
+  
+  The normaliser moved from `console/AppContent.tsx` to `providers/expressionUser.ts`, beside
+  the `ExpressionProvider` it feeds. That move is what made the fix available: `RecordFormPage`
+  is `lazy()`-loaded BY `AppContent`, so importing the normaliser from its old home would have
+  put a static edge from the split chunk back into the module it was split out of. Both
+  `console/AppContent.js` and the package entry re-export the name, so `buildExpressionUser`
+  is published exactly as before.
+- c18acb0: The object designer's field-IO read door now strips `referenceTo` and `isSystem` alongside
+  `indexed`, so a draft authored before those controls were retired can be edited and saved
+  again (objectui#6519).
+  
+  `previews/object-fields-io.ts` is the single read door for `draft.fields` across the whole
+  object designer — inspector, form designer, design surface, settings / validations / API
+  panels — and `writeFields` writes each def back verbatim. Its strip set named one key while
+  `FieldSchema` refuses five by name, so a stored field carrying any of the others
+  round-tripped straight back out to `PUT /api/v1/meta/object/:name`. Measured on the
+  installed `@objectstack/spec` 17.2.0, through the whole document that endpoint validates:
+  
+  ```
+  ObjectSchema.safeParse({ name:'account', label:'Account',
+                           fields: { amount: { type:'number', label:'A', referenceTo: 1 } } })
+    => unrecognized_keys at ["fields","amount"]
+  ```
+  
+  which is the hard `422 INVALID_METADATA` that blocks EVERY later save of that object, with
+  the control that wrote the key retired and no UI path left to clear it. This is the shape
+  objectui#4644 closed in this same file for `indexed`, applied to the siblings that were
+  left open.
+  
+  Both added keys were verified to be reachable rather than assumed: `referenceTo` was
+  emitted by both designer writers until objectui#6041 (`MetadataService.toFieldPayload` and
+  `MetadataFieldsPage.fromDesignerField`), and `isSystem` was a declared server-field key the
+  designer read back until objectui#6044. Neither loses anything — the spec spellings
+  `reference` and `system` are separate, accepted keys and ride through untouched.
+  
+  Two keys `FieldSchema` also refuses are deliberately NOT stripped, each for its own
+  measured reason, and the tombstone on `RETIRED_FIELD_KEYS` carries both in full:
+  
+  - `formula` (objectui#6043) — `ObjectFieldInspector` seeds its linting CEL editor from
+    `def.expression ?? def.formula` and the first edit commits `expression` and clears the
+    alias. Stripping at the read door empties that editor and the authored source is gone on
+    the next save; objectui#6043 refused a blind rename precisely because that migration
+    surface exists. Dropping the text anyway is a maintainer call, raised on objectui#6519.
+  - `sortOrder` (objectui#6045) — no writer on this tree ever populated a FIELD-level one, so
+    no draft this door reads can carry one; a strip would be dead code that reads like a
+    measurement.
+  
+  Unifying the three retired-key lists on this seam is deliberately not part of this change:
+  it spans `plugin-designer/src/MetadataFieldsPage.tsx`, which objectui#6489 owns in flight.
+- fa1348f: The object designer's client-side 422 on a draft carrying the retired `formula`
+  field key is now actionable (objectui#6526, adjudicated option B). The spec's
+  rejection at `fields.<name>` gains an appended pointer that names the field and
+  names the destination: select the field and make one edit in its Formula (CEL)
+  editor, which commits the value to `expression` and clears the retired alias.
+  
+  Presentation only — the verdict, issue set and paths are unchanged, and nothing
+  about what the gate accepts changes. The migration path itself is untouched:
+  `RETIRED_FIELD_KEYS` still does not strip `formula` (objectui#6043's ruling),
+  and the object stays unsaveable until the author makes that one edit — the
+  ruling's accepted cost, now with a signposted way out. The pointer fires only
+  for `formula`-type fields, where the inspector actually renders that editor
+  (objectui#4306); any other field type keeps the bare spec message.
+- 3e028c8: One tombstone registry for the designer seam's retired field keys
+  (objectui#6527). Three independently maintained `RETIRED_FIELD_KEYS` literals
+  — the metadata-admin read door (`object-fields-io.ts`), `MetadataService`'s
+  carry-over and `MetadataFieldsPage`'s carry-over — become derivations from a
+  single registry in `@object-ui/types` (`RETIRED_FIELD_KEY_TOMBSTONES` +
+  `retiredFieldKeysFor(site)`), naming each retired key, the card that retired
+  it, and its PER-SITE applicability.
+  
+  Per-site behaviour is unchanged — this is a consolidation, and each site's
+  effective strip set is pinned equal to its pre-consolidation literal. The two
+  deliberate asymmetries a naive union would have destroyed are now recorded as
+  data and pinned:
+  
+  - `formula` stays stripped by the two write-side carry-overs and is NOT
+    stripped by the read door — ruled on objectui#6526 (option B): the
+    `ObjectFieldInspector` migration path (objectui#6043) stands, and the
+    registry test makes that ruling mechanical.
+  - `sortOrder` stays a single-site strip at `MetadataService`'s carry-over,
+    now explicitly recorded as the registry's one DEFENSIVE entry (objectui#6045
+    measured that no shipped writer ever populated a field-level one).
+- d0889e2: Resolve a relationship target from `reference` only — the spec spelling
+  (objectui#6528).
+  
+  `resolveReferenceTo` (dataset designer) and its sibling
+  `resolveRelationshipTarget` (`chart-series.ts`) each read a relationship field's
+  target through a four-spelling tolerant chain — `reference ?? reference_to ??
+  referenceTo ?? reference_to_object`. Measured against every producer that can
+  reach them, three of the four are unfounded, so the chain is narrowed to
+  `reference` in BOTH places in one pass (they must not diverge — a fix leaving
+  them disagreeing recreates the defect one file over).
+  
+  The census, with `reference` itself as the positive control every zero is
+  measured against:
+  
+  | spelling | `ObjectSchema.safeParse` (spec 17.2.0) | producers on the object-metadata surface |
+  |---|---|---|
+  | `reference` | ACCEPTED | live — both designer writers emit it; 445 of 565 lookup/master_detail defs in the framework tree |
+  | `reference_to` | REFUSED BY NAME | 0 (live only on ObjectUI's own view/field schema — a different contract) |
+  | `referenceTo` | REFUSED BY NAME | 0 (producers retired by objectui#6041; stripped by the read door since objectui#6519) |
+  | `reference_to_object` | REFUSED (not even an alias) | 0 anywhere in either tree, outside the chain and its own test |
+  
+  Behaviour change, and it is deliberate: `chart-series.ts` reads
+  `GET /meta/object/:name` directly, with no read door stripping retired keys, so
+  a stored pre-objectui#6041 row spelling the target `referenceTo` no longer
+  resolves there. The walk is best-effort by construction — no entry is yielded
+  and the caller keeps the raw value — so such a row degrades visibly instead of
+  being silently absorbed. Per AGENTS.md #0.1 that row is a producer-side defect,
+  and a lenient consumer is where it would have stayed hidden. `reference` was
+  already head of the old chain, so any document carrying both is unaffected.
+  
+  The string / array / `{ object }` carriers are untouched: the carrier is a
+  separate axis from the spelling and narrowing it needs its own census.
+- c5037fd: `buildExpressionUser`'s signed-in cast declares `id`, `name` and `email` REQUIRED, so it is
+  no longer wider than the contract it mirrors (objectui#6551).
+  
+  The normaliser reads its input through a cast, and that cast wrote all three keys optional
+  (`{ id?: string; name?: string; email?: string; … }`) while the signed-in branch forwards
+  exactly those three RAW. So the declaration said `buildExpressionUser({ name: 'B', email:
+  'b@c.d' })` was a legitimate input, and the code answered `{ id: undefined, … }` for it —
+  present-and-always-`undefined`, which is the shape objectui#5424 removed `roles` from this
+  same object for ("the shape that teaches the wrong thing") and the one objectui#6534
+  refused for the anonymous branch, one key over. The three keys BELOW them already defended
+  with `??`; the asymmetry sat inside one object literal.
+  
+  The contract disagreed with the cast. Every production input is `useAuth().user`, typed as
+  `@object-ui/auth`'s `AuthUser`, which extends the spec's `AuthUser`
+  (`@objectstack/spec/contracts`): `id: string; email: string; name: string`, with only
+  `positions` and `tenantId` optional. `name` and `email` are narrowed alongside `id` because
+  that same interface declares them required too — the same answer from the same authority,
+  not a widened scope. `role` stays optional (it is `@object-ui/auth`'s display-only
+  addition, not a spec key), and the index signature stays (better-auth projects an app's
+  custom user columns onto this object, and it is how `isPlatformAdmin` / `positions` are
+  read).
+  
+  NOTHING REACHABLE CHANGES, and deliberately so. The only production producer is a
+  better-auth principal that always carries `id`, which is why this was graded a latent shape
+  hazard rather than a bug, and why the fix moved a declaration and no runtime behaviour: the
+  defect was that the cast LIED about the contract. `id: u.id ?? null` was the rejected shape
+  (triage, 2026-08-26) — a lenient default in the consumer is what AGENTS.md #0.1 forbids and
+  what objectui#6534 shipped a scope fence against, and it silently equates "signed in, no
+  id" with "signed out". A producer without an `id` is wrong at the producer.
+  
+  Because `id?: string` and `id: string` produce byte-identical output for every input a
+  producer can supply, no runtime assertion can pin this; the new
+  `expressionUser.sessionContract.types.test.ts` drives `tsc` itself over the real
+  declarations and carries its own discrimination leg — the same cases compiled a second time
+  against the pre-fix optionality, with the five that flip named by index.
+  
+  No fault-handling path moved. Fail-open on a predicate that DOES fault stays deliberate
+  policy (objectui#6443 / #6487 / #6445).
+- 12402a9: Drop the undeclared object-level `titleField` from the object page's five
+  remaining view-config seams, and from the record-search memo key
+  
+  `ObjectView` resolves a title field for seven view kinds. Two of them —
+  calendar and gantt — already read `viewDef.<kind>?.titleField || 'name'`. The
+  other five (timeline, kanban, map, gallery, tree) carried a three-rung chain
+  with `objectDef.titleField` in the middle, so one file answered the same
+  question two different ways. This converges the five on the shape the two
+  siblings already had; it is a convergence, not a removal.
+  
+  The middle rung could never fire for legal metadata. `@objectstack/spec`'s
+  object schema is a `strictObject`, so
+  `ObjectSchema.safeParse({ …, titleField: 'x' })` is rejected with
+  `unrecognized_keys` — the same issue code a nonsense key gets — while
+  `nameField`, `displayNameField` and `titleFormat` all parse (measured against
+  `@objectstack/spec@17.2.0`, the dist this repo installs). objectui#6531
+  established that measurement and dropped the twin read inside
+  `getRecordDisplayName`. Reading a key no producer can ship is the
+  consumer-side alias AGENTS.md Commandment #0.1 bans.
+  
+  Behaviour for every legal config is unchanged, and both directions are pinned:
+  a view that declares its own `titleField` still wins on every kind, a view that
+  declares none still floors at `'name'`, and an object carrying the
+  contract-rejected key is now honoured by no kind. Re-pointing the middle rung
+  at the declared `nameField` was considered and rejected: it would have added a
+  rung calendar and gantt do not have — increasing the divergence — and, unlike
+  this change, it would have altered behaviour for legal configs.
+  
+  `useRecordSearch`'s candidate signature — the memo key that decides when the
+  cross-object fanout re-runs — appended `o?.titleField ?? ''` to every entry.
+  Because no legal object definition can carry the key, that half was permanently
+  `''`: a constant suffix in a cache signature, and the last thing in the repo
+  that read as evidence some producer supplies it. The signature is now the object
+  name alone, which is the only field of an object definition the effect actually
+  consumes. Change detection is unaffected — a changed candidate name still
+  re-runs the fanout, and a new array with identical content still does not.
+- 5534009: Studio's "duplicate base" now reports a partial or empty duplicate as a failure instead of
+  a complete success (objectui#6593).
+  
+  `duplicatePackage()` read `success` at the **top level** of the response body. That is the
+  runtime dispatcher's envelope — `deps.success(result)` answers
+  `{ success: true, data }` — so on every HTTP 200 the flag it read was `true` by
+  construction. The operation's own verdict lives one level down in `data` and is a real
+  three-state: the server computes it as `failed.length === 0 && copied.length > 0`.
+  
+  Two outcomes therefore answered 200 with `envelope.success: true` while the duplicate had
+  not succeeded, and both were shown to the author as "created", followed by a navigation
+  into the new base:
+  
+  - **partial** — some items failed to copy. `failed[]` carries a per-item `error` string
+    that is the only place the reason is ever stated, and none of it was read.
+  - **empty** — nothing was copied at all, e.g. an all-env-wide source package under a
+    session that resolves no active organization (`copiedCount: 0`, `failedCount: 0`).
+  
+  `duplicatePackage()` now unwraps `data` before reading the operation flag, and rejects with
+  a message built from what actually happened: the copied/failed counts, plus each
+  `failed[].error` (the first five by name, then a `+N more` tail). A generic `HTTP nnn`
+  message is deliberately not sufficient for the partial arm — it is the half an author needs
+  to act on. The non-2xx arm is unchanged and still surfaces the error envelope's message.
+  
+  The unwrap-then-read order is the one `revertCommit` already uses for the sibling
+  commit-revert route in `preview/commitHistory.ts`; this is one consumer converging on that,
+  not a new convention. The route's underlying contract absence (it publishes no response
+  schema, so reading the wrong `success` typechecks perfectly) stays upstream in
+  objectstack#12038.
+- bac7ba4: The metadata-admin permission matrix no longer authors the retired object-permission
+  bits `allowRestore` / `allowPurge` (objectui#6595).
+  
+  The `Re` and `Pu` columns, their two typed fields, the two preview rows, and the
+  "Purge (hard delete) granted without Delete" sanity check are gone, together with the
+  two column tooltips in both locale tables. `allowTransfer` is enforced upstream
+  (objectstack#3004) and is untouched — it stays a column.
+  
+  Both removed keys gated `restore` / `purge` ObjectQL operations that **have never
+  existed**: a dispatched restore/purge is denied unconditionally by the evaluator's
+  fail-closed destructive-operation backstop. So every tick of those checkboxes wrote a
+  grant no runtime has ever read, and the preview lint warned about a combination whose
+  danger was entirely notional. `@objectstack/spec` retired both keys as `retiredKey()`
+  tombstones (objectstack#12497; maintainer ruling 2026-08-26 accepting objectstack#1883
+  recommendation B, ADR-0049 enforce-or-remove), which turns the same checkbox into a save
+  that hard-fails at publish once the bump carrying that retirement reaches this repo.
+  
+  **The return path is named in the code, not just here**: both keys come back with the M2
+  lifecycle initiative, whose restart is recorded upstream on objectstack#1883. The
+  tombstone on `ObjectPerm` in `permission-slice.ts` states it, and the two `retiredLifecycleKeys`
+  pins name it again — a future reader who wonders where the columns went finds the answer
+  at each of the three sites the removal touched.
+  
+  **A stored legacy value is carried through, not stripped.** It is no longer modelled and
+  no longer authorable, so it rides through save untouched exactly as any key this editor
+  does not model does — the record-level index signature on `PermissionSetDraft` states
+  that rule, and `updateObjectPerm`'s spread applies it per row. Stripping was deliberately
+  left out: the installed `@objectstack/spec` (17.2.0, measured 2026-08-27) still **accepts**
+  both keys at permission parse, so a strip today would delete stored data the schema still
+  honours. Once the bump lands and a carried value becomes a body the schema refuses,
+  strip-on-load becomes correct — that is objectui#4644's resolution for `indexed`, and it
+  belongs to the bump PR. The pin that records today's posture says so in its own header,
+  so the bump replaces it deliberately rather than deleting a red.
+- 38268ab: Permission matrix bulk buttons (R / CRUD / All) now merge into the object's
+  permission row instead of replacing it, so spec-declared keys the matrix does
+  not author — `allowExport` and the ADR-0057 access-depth axis `readScope` /
+  `writeScope` — survive a bulk click the same way they already survived the
+  per-checkbox path. Previously one click on any bulk button silently dropped
+  them from the saved row, and the **All** button could widen effective read
+  access by deleting a `readScope: 'own'` narrowing with no diff and no error.
+  **None** deliberately keeps clearing the whole row, narrowings included:
+  merging there would leave `allowExport: true` alive after a click on the
+  button labelled None (objectui#6605).
+- 813bf83: **metadata-admin predicates: `in` with a path on the right is now diagnosed in
+  dev mode instead of failing silently.** No verdict changes — this is a
+  diagnostic only.
+  
+  The Setup/Studio predicate evaluator matches membership as `path in ['a','b']`:
+  the right-hand side must be a bracketed literal set. A membership test whose
+  right side is a **path** therefore never matched that branch at all. Carrying no
+  `==` / `!=` either, it fell through to the bare-truthy tail and the *whole* text
+  was evaluated as one operand:
+  
+  - `'admin' in current_user.positions` — ADR-0068's own headline example, and the
+    spelling `SelectOptionSchema`'s docblock names as the canonical use of the key
+    — leads with a quote, so it came back verbatim as a non-empty string. A
+    non-empty string is truthy, so the predicate read **TRUE for every user**,
+    whatever `positions` held. The failure direction is **permissive**: an option,
+    field or section gated to admins rendered for everyone.
+  - `data.roles in current_user.positions` — path-shaped, so the resolver walked
+    off the draft mid-path and the predicate read **FALSE for every row** instead.
+  
+  Either way the verdict had nothing to do with the membership that was written,
+  and nothing appeared in the console: objectstack#6936's unresolved-path warning
+  hangs on the path resolver, which quote-leading text never enters, and
+  objectui#4049's path-shaped-literal warning only matches text starting with an
+  identifier character.
+  
+  Such a predicate now emits a warn-once dev-mode diagnostic naming the offending
+  text, the predicate that carried it, and the supported subset — and stating
+  plainly that **a path on the right of `in` cannot be written on this surface
+  today**, rather than implying that some other punctuation would work. The
+  detection reuses the evaluator's existing quote-aware scan, so a predicate that
+  is itself a quoted literal containing the word (`'plug in adapter'` — correct
+  code) is *not* accused.
+  
+  Nothing is resolved that was not resolved before and no operand handling is
+  added; every predicate that evaluates today reaches exactly the same answer,
+  pinned before and after. The semantic fix belongs to publish-time validation of
+  predicate expressions (objectstack#7010) and to the real CEL runtime — this
+  evaluator is an interim stand-in for `@objectstack/formula` and this diagnostic
+  retires with it at ROADMAP M9, the same as objectui#4049's and objectui#4266's.
+  
+  objectui#6617.
+- 05db23b: `provisionProductionEnvironment` reads the created env from the nested `environment` row
+  
+  `POST /api/v1/cloud/environments` answers `{ success, data: { environment, warnings,
+  durationMs, hostnameAssignment? } }` — the created row sits one level down, under
+  `environment`. The consumer read `data` FLAT and returned it as a
+  `ProvisionedEnvironment`, so `id` and `hostname` were always `undefined` and the
+  envelope's siblings rode along in their place.
+  
+  The bug was silent by construction: both fields are optional on the type, the whole call
+  is best-effort by contract (a 403/409 resolves to `alreadyProvisioned: true`) and the
+  caller swallows genuine failures — so the function reported a successful provision
+  carrying no environment at all, which is the exact outcome the strict envelope check in
+  that file was written to prevent. That check verifies `data` is an object and nothing
+  about its shape.
+  
+  The fix reads ONE dialect: no `data.environment ?? data` alias, and the row is projected
+  to `{ id, hostname }` rather than returned whole. A wrong-shaped `data` still RESOLVES
+  rather than throws — tightening the envelope check to reject it would change behaviour on
+  the best-effort path the caller relies on swallowing, and is deliberately not folded in
+  here.
+  
+  Scored `patch`, not an empty "no release" declaration: this is shipped runtime code in a
+  published package whose return value is different, not a comment or a test-only change,
+  so an empty frontmatter would assert something false. Not `minor` — no new capability and
+  no API surface change; `ProvisionedEnvironment` is unchanged. The blast radius is small
+  today (the sole in-repo caller, `CreateWorkspaceDialog`, discards the return value, and
+  the symbol is not on the package barrel), but "small" is not "unreleased".
+- 4d5f9b4: Resolve a relationship target from a `reference` STRING only — the carrier axis
+  (objectui#6648).
+  
+  objectui#6528 narrowed both relationship-target resolvers to the single spec
+  SPELLING `reference` and left the CARRIER — the shape the value may take —
+  explicitly for its own census. That census is done, and it says the same thing:
+  `resolveReferenceTo` (dataset designer) and its sibling
+  `resolveRelationshipTarget` (`chart-series.ts`) each accepted three carriers on
+  the canonical key, two of which `FieldSchema` never declared. Both are removed
+  in BOTH files in one pass (they must not diverge — a fix leaving them
+  disagreeing recreates the defect one file over).
+  
+  The measurement, with the bare string as the positive control every zero is
+  measured against:
+  
+  | carrier | `ObjectSchema.safeParse` (spec 17.2.0) | producers at the field-def key position |
+  |---|---|---|
+  | `reference: 'crm_account'` | ACCEPTED | live — 587 across both trees |
+  | `reference: ['crm_account']` | REFUSED — `expected string, received array` | 0 |
+  | `reference: { object: 'crm_account' }` | REFUSED — `expected string, received object` | 0 |
+  
+  The census walked STRUCTURE, not text: JSON/YAML parsed and walked, TS/TSX read
+  through the TypeScript compiler API, each hit recorded with its ancestor
+  property chain and its enclosing object's sibling keys so a FIELD DEF is
+  separated from the other tiers that also spell `reference` (a form field
+  literally named `reference`, its translation entries, a JSON-Schema property
+  descriptor, a liveness-ledger row). Every dynamic initializer at the field-def
+  position resolved to a string-typed source, and every `reference` TYPE
+  declaration in either tree declares `string`. The detector is not blind to the
+  shape it hunted — it DID report array and `{ object }` carriers, and every one
+  was a test asserting this very tolerance plus one framework lint fixture whose
+  own rule already reads string-only.
+  
+  The array branch was also a silent PRODUCT decision: handed a multi-target
+  value it returned element zero and DISCARDED the rest. Nothing declares such a
+  value. Polymorphic lookup is an open, unbuilt gap in the spec's own audit report
+  ("Current `reference` only supports a single target", Tier 3), and the
+  platform's one polymorphic reference (ADR-0018 `xRef`) is a STRING with a
+  sibling discriminator, never a list. A multi-target lookup, if it lands, lands
+  as a declared spec shape — not as a carrier a consumer guesses at.
+  
+  Behaviour change, and it is deliberate: a field def whose `reference` is not a
+  non-empty string now resolves to `undefined` in both helpers. Such a document is
+  already refused by `ObjectSchema`, so per AGENTS.md #0.1 it is a producer-side
+  defect, and a lenient consumer is exactly where it would have stayed hidden. The
+  two unit assertions that pinned the tolerant reads are converted to refusal
+  pins, so re-widening the carrier turns red.
+- 350509b: Take the metadata-admin engine out of the console's eager closure (objectui#6776).
+  
+  `AppContent` has declared six `lazy()` imports of `views/metadata-admin/index.ts`
+  for a long time, and none of them deferred anything: the module ran five
+  registrations at load, so the package's published `sideEffects` array named it,
+  an array entry is unshakeable, and the package barrel re-exported 25 runtime
+  values from it — an ordinary static edge from an entry every consumer imports.
+  Every page, preview and inspector under `views/metadata-admin/` was therefore
+  fetched and parsed before first render. Measured from
+  `apps/console/dist/eager-closure.json`: **3,254,230 → 3,222,314 gzipped bytes,
+  −31,916 B**, and the 172,945-byte `metadata-admin` chunk leaves the eager set
+  entirely.
+  
+  **Published surface — two contract-bearing changes, no signature change:**
+  
+  - `packages/app-shell/package.json`'s `sideEffects` array now names
+    `views/metadata-admin/register-builtins` (the new leaf that performs the five
+    registrations) instead of `views/metadata-admin/index`. The five
+    registrations still run at package load, bare-imported by the package entry,
+    so nothing a consumer could observe changes — but the array is a contract
+    every consumer's bundler reads, so the swap is stated here rather than left
+    to a diff.
+  - The package barrel's 25 metadata-admin runtime re-exports (and 11 type-only
+    ones) now point at their leaf modules. **Same names, same types.** They are
+    unreachable from outside the package by any other path — `exports` is
+    root-only — so no import an out-of-package consumer can write is affected.
+  
+  `registerAppComponent`'s signature is unchanged. `metadata:directory` and
+  `metadata:resource` are now registered as `lazy()` values, each wrapping itself
+  in its own `Suspense` boundary, which is the shape the already-lazy
+  registrations in `apps/console` use; no render site changes.
+  
+  Also re-baselined `MAX_EAGER_CLOSURE_GZIP_BYTES` in the same change, from
+  3,300,000 to 3,268,000. Taking 31,916 bytes out without moving the ceiling would
+  leave 0.85x of the 89 KiB regression the gate exists to catch as headroom —
+  near-blind — so the ratchet advances with the win rather than after it.
+- 21993e4: The flow-node inspector now declares the spec's default for
+  `escalation.notifySubmitter` (objectui#6794).
+  
+  `FLOW_NODE_CONFIG`'s approval group declared **no `defaultValue`** for
+  `escalation.notifySubmitter`, while the installed `@objectstack/spec` (17.2.0)
+  defaults the key to `true` — `ApprovalEscalationSchema.safeParse({ timeoutHours: 24 })`
+  returns `notifySubmitter: true`. So the hand-written table stated the opposite of
+  what an omitted key does at runtime, and it disagreed with the **online half of
+  the same form**: a backend that publishes the approval `configSchema` sends
+  `default: true`, which `json-schema-to-fields` turns into `defaultValue: 'true'`.
+  Offline and online rendered the same key from two different claims about the
+  spec.
+  
+  `defaultValue` is what `isFieldVisible` resolves an unset controller against, so
+  the missing declaration is what a future field gating on `notifySubmitter` would
+  have read — and it is what the table asserts about the contract to anyone reading
+  it.
+  
+  A reconciliation assertion in `flow-node-config.spec-reconciliation.test.ts`
+  keeps the two sides pinned. It reads the expected value **out of the installed
+  spec** rather than pinning the literal `'true'`: objectui is the consumer of that
+  contract and must not become a second source of truth for it. A vacuity guard
+  alongside it fails if the spec ever stops materialising the key at all, so the
+  comparison can never quietly become a comparison against `undefined`.
+  
+  Deliberately scoped to `notifySubmitter`. The sibling controller
+  `escalation.enabled` is a separate, on-hold card (objectui#6620) whose default
+  flips on a *future* spec bump; installed spec and table agree on it today, and
+  generalising this assertion across the block would arm that card's tripwire here.
+- 994b736: Studio design: say what is true when the metadata designer registries are
+  unpopulated (objectui#6795 part C).
+  
+  The three registries (`preview-registry`, `inspector-registry`,
+  `default-inspector-registry`) are plain `Map`s filled by a module-scope side
+  effect, and every studio-design consumer reads them **during render with no
+  subscription**. A consumer that reads an empty registry therefore gets
+  `undefined` and never recovers — measured: registering afterwards leaves the
+  consumer in its fallback forever. Four consumer states lied about that, and
+  one was silent:
+  
+  - **Data pillar field rail** — the guard was
+    `fieldSel && (fieldSel.kind === 'group' || inspector)`, so selecting a
+    **field** with no inspector registered dropped the whole rail: clicking a
+    field did literally nothing while the designer above it went on saying
+    "click a field to edit its properties". A selection now always opens its
+    rail, and the rail names the missing inspector.
+  - **Interfaces canvas** — "{type} shows a read-only preview for now; design
+    support is in progress" was false twice: the branch renders no preview at
+    all, and page design support exists. It is split by
+    `listMetadataPreviewTypes()` into the two causes that are actually
+    distinguishable — this type has no designer, or none are registered at all.
+  - **Interfaces rail** — no longer tells the author to click a canvas that is
+    not rendered.
+  - **Automations pillar** — the canvas chip and the rail both said "click a
+    node" while the canvas was a raw JSON dump.
+  - **`ObjectActionsPanel`** — rendered only the action's own label, which read
+    as "this action has no properties"; the label now carries the reason there
+    is no editor under it.
+  
+  ⛔ None of these messages promises recovery ("loading…", "try again", a
+  spinner): that would replace one false statement with another. Making the
+  registries observable so recovery is real is part A of #6795, which the ruling
+  deferred. `ObjectSettingsPanel` and `ObjectHooksPanel` are deliberately
+  untouched — the measurement found both already correct.
+- 0049c52: `ActivityFeed` no longer drops a row whose activity kind it does not recognise
+  (objectui#6816).
+  
+  The notification filter was `activities.filter(a => notificationPreferences[a.type])`
+  — a truthiness test over a `Record<ActivityItemType, boolean>`, which answers the
+  same falsy value to two unrelated questions: "the user toggled this kind off"
+  (hide, which is the feature) and "this kind is not in the record at all". The
+  second made the row **vanish** from the panel.
+  
+  In-repo `tsc` keeps that case out of reach — three exhaustive
+  `Record<ActivityItemType, …>` tables force every member to be handled — but
+  `ActivityFeed` is published API, and a host that mounts it passes rows whose
+  `type` came from its own data. `sys_activity.type` is author-extensible and is
+  not validated on write, so those kinds are real, and a missing row is the least
+  detectable failure a feed can have.
+  
+  An unrecognised kind now fails **open**: the row renders, through the generic
+  `system` presentation `activityItemType.ts` already declares for a value outside
+  its mapping table (neutral on purpose, and in particular not `update`). A kind
+  that is present and toggled off is still filtered out — presence, not
+  truthiness, is now the question the filter asks.
+- ecd9cb2: Wizard view v1, the objectui half (Card R, objectui#6985) — alignment + pins for the
+  ruled `type: 'wizard'` tightening (objectstack#13622 D1–D8, maintainer ruling
+  2026-08-31; spec half objectstack PR #13733).
+  
+  The renderer was already aligned: `WizardStepConfig` carries no predicate/collapse
+  keys (objectui#6237's ruled split), the wizard route drops-and-reports an authored
+  step `visibleWhen`, and `allowSkip` has been navigation-freedom-not-validation-
+  exemption since #2959. This card lands the residue:
+  
+  - **metadata-admin view create seeds one starter step for a wizard** (app-shell
+    `anchors.ts`): the create body used to emit `sections: []` for every form type,
+    which for `type: 'wizard'` is exactly the shape the tightened spec refuses at
+    parse (D7 — a stepless wizard silently rendered as a plain simple form). Same
+    seed-the-required-shape move the flow anchor makes for its `type` enum
+    (objectui#2326). Other form types keep the bare `[]` — only the wizard variant
+    refuses emptiness.
+  - **`@object-ui/types` TSDoc states the ruled wizard boundary** where the shared
+    section/form types restate the form-view family: `ObjectFormSection.visibleWhen`
+    / `collapsible` / `collapsed` name the wizard drop + spec-door refusal;
+    `ObjectFormSchema.sections` states sections-ARE-steps and array-order-is-step-
+    order; `allowSkip` states the D4 semantics. Type SHAPES are unchanged — the
+    spec's own ruled mechanism is a parse-time refinement over the single shared
+    section schema (D2 option A), which these types mirror at the type level.
+  - **Consumer-side behaviour pins** (`wizardRuledSemantics-6985.test.tsx`): the
+    wizard-inert step keys are dropped, never honoured (a denying `visibleWhen`
+    does not remove a step; `collapsible`/`collapsed: true` produce no collapse
+    affordance, with a positive control on the affordance probe); the empty-steps
+    wizard's measured degradation to a simple form is pinned as the shape the spec
+    door now refuses (one-step wizards stay legal — no arity floor); array order
+    is step order (with a reversed-array control).
+  - **Installed-spec door pins** (`wizardSpecDoor-6985.test.ts`), gated on a
+    capability probe of the installed `FormViewSchema` rather than a version
+    string: the post-Card-S half (refusal messages, prescriptions, the authored-
+    `false` collapse boundary, the wizard-scoped control) activates by itself on
+    the lockfile bump that brings the tightening in; until then the pre-tightening
+    half records the 17.2.x accept-set it measured. `steps:` is pinned refused on
+    every spec line.
+  
+  No teaching material — the #13337/#13086 fence lifts only after both halves land;
+  docs changes here are TSDoc/comments only.
+- f0f774b: Field designer: clearing a picklist option's **Label** no longer produces metadata the
+  API refuses (objectui#7014 Q2).
+  
+  `ObjectFieldInspector`'s option writer guarded the key on truthiness —
+  `if (o.label) out.label = o.label;` — so an empty Label box was serialised as an option
+  with **no `label` key at all**. Measured on `@objectstack/spec` 17.2.0,
+  `SelectOptionSchema` accepts `{ value: 'alpha', label: '' }` and rejects
+  `{ value: 'alpha' }` with `invalid_type` at `[label]`: the guard was taking a document
+  the platform accepts and rewriting it into one it refuses, and the save came back 422
+  with nothing on screen to explain it.
+  
+  The writer now emits `label: o.label ?? ''` — the value the author actually holds,
+  empty string included. Nothing is invented: an emptied label stays empty rather than
+  falling back to the option's `value`, and the author-facing surface is now exactly as
+  wide as the contract instead of narrower. The `??` arm also covers an option that
+  arrived without a usable label (a missing or non-string stored `label`, which
+  `readOptions` maps to `undefined`) — there is no legal document that omits the key, and
+  `''` is what the Label input has been displaying for that option all along.
+  
+  Pinned in `ObjectFieldInspector.optionLabel.test.tsx`, which ends each case at
+  `SelectOptionSchema` / `FieldSchema` rather than merely asserting the key is present —
+  the point of the fix is that the contract accepts what the designer emits.
+- 0d4c789: Studio Interfaces: no Design mode and no "click a block" rail on leaves that have
+  no block canvas (objectui#7121).
+  
+  `registerStudioCanvasPreview(type, …)` opts a type into a surface-specific canvas
+  that renders the running app rather than an editable draft — a contract, not a
+  habit: `StudioCanvasPreviewProps` carries no `selection`, `onSelectionChange`,
+  `onPatch` or `editing`. Two affordances beside such a leaf ignored that.
+  
+  - The Design/Run switch (objectui#5800) was still offered, though `editing` is
+    handed to exactly one canvas branch (`Preview`). On a studio-canvas leaf the
+    switch moved `canvasMode` and reached no renderer — a live-looking control
+    wired to nothing. It is now gated.
+  - The right rail fell through to "Click a block on the canvas, and edit its
+    properties right here." beside a canvas that has no blocks, so the instruction
+    could not be followed. It now states what the canvas is, and — because this
+    canvas has no blocks by contract — promises no recovery.
+  - The rail's new branch is ordered ahead of the selection branch, so a block
+    selected on a *different* leaf no longer opens a scoped inspector for a block
+    this canvas does not contain; the header's "clear selection" button is gated
+    with it.
+  
+  The discriminator is `StudioCanvas`, not `isEditable`. `isEditable` is
+  `!!Preview && !StudioCanvas` — a conjunction of two independent causes — so
+  gating on it would also strip these affordances from leaves whose only fault is
+  that their own type has no designer, the state objectui#6795 part C pinned as
+  still deserving the ordinary rail. Behaviour on every leaf with a block canvas
+  is unchanged.
+- 639114c: Reconcile `@object-ui/app-shell` with `@objectstack/spec` 17.3.0 (objectui#7122).
+  
+  `SchemaDiffEntryKind` gained an `unreachable` member in 17.3.0, and the external
+  datasource validation panel labels those kinds through a map that is TOTAL over
+  the union on purpose — so an upstream addition fails the build rather than
+  rendering a blank cell. That mechanism fired: the package did not compile against
+  17.3.0 until the kind was labelled. It now reads "Not checked — remote
+  unreachable", following the spec's own ruling that this kind asserts nothing
+  about the remote schema and must never be surfaced as "schema changed": it means
+  introspection could not complete, which is often transient, and labelling it like
+  a mismatch would tell an operator to repair a schema nobody has read.
+  
+  Two internal flow-inspector types were renamed (`FlowNodeLike` →
+  `InspectorFlowNode` / `ScopeFlowNode`) because 17.3.0 began exporting its own
+  `FlowNodeLike`; neither name is in this package's published entry, so no consumer
+  import changes.
+  
+  `@object-ui/auth`: a README sentence claiming the preview-mode prop aligns with
+  the spec's `PreviewModeConfig` is corrected — 17.3.0 removed that symbol. The
+  `previewMode` prop itself is host-supplied, unchanged, and unaffected.
+- 0101fab: Studio Interfaces pillar: a canvas block selection no longer outlives the leaf
+  it was made on (objectui#7137).
+  
+  `InterfacesPillar`'s only clear of `selection` sat inside the draft-load effect,
+  *after* its `if (!current || !isEditable) … return` guard, so it never ran on the
+  early-return path. Since `isEditable = !!Preview && !StudioCanvas` is a
+  conjunction, that is two populations of leaf: a studio-canvas leaf (`object`),
+  and a leaf whose own type has no registered designer. Walking to either from a
+  leaf with a block selected carried the selection across, still describing a block
+  on the previous leaf's canvas.
+  
+  Two symptoms, both measured before and after:
+  
+  - the scoped inspector opened for a foreign block — recorded three renders as
+    `page:home_page:block:blk_1`, with `blk_1` a dashboard block — and the header
+    offered to clear a selection belonging to another leaf;
+  - in the folded (chat-dock) layout, `hasInspectorTarget` stayed true across the
+    leaf change, so `nextCenterTab` saw no edge and stranded the author on the
+    Properties tab of a leaf with no properties to show.
+  
+  The selection is now stamped with its leaf and read back through that key — the
+  same "expires by construction" shape `blockingReport` already uses against
+  `inspectorKey` in this component. It goes null in the *same* render as the leaf
+  change rather than one committed render later, and there is no imperative clear
+  left for a future guard to strand. Within a leaf nothing changes: the Design/Run
+  round trip still keeps its selection, and a same-leaf reload (`publishNonce`)
+  still clears it.
+  
+  objectui#7121's gating of the rail and the Design/Run switch is untouched, and
+  its discriminator remains `StudioCanvas` — not `isEditable`.
+- ebc05b4: Studio's package switcher reads the server's `writable` verdict instead of guessing
+  from `manifest.scope` (objectui#7177, ADR-0130 Consequences row 6, server half in
+  objectstack#14375).
+  
+  `GET /api/v1/packages` now stamps every row with `writable: boolean`, computed by
+  `isWritablePackage` (ADR-0070 D2) — the same predicate the server's authoring and
+  lifecycle gates enforce. `parsePackages` uses it when the row carries one, so the
+  lock badge and the gate cannot disagree.
+  
+  The old `scope !== 'project'` expression stays as the fallback for servers that
+  predate the field, and its output is pinned byte-identical. It is wrong for exactly
+  one row, which is why the verdict had to move server-side: a `type: module`
+  sub-package of a multi-package artifact (ADR-0130 D4) is served with no `scope` key
+  at all — the schema default is applied at parse time, while the artifact load path
+  hands the raw manifest body to `registerApp`. The heuristic reads that as a writable
+  database base, while the server refuses every write to it. Nothing in the raw row
+  separates it from a scope-less Studio-created base, which really is writable — only
+  the server's `engine.manifests` does, so a client-side "missing scope means
+  read-only" rule would have flipped every Studio base read-only instead.
+  
+  Kernel packages (`scope: system` / `cloud`) stay hidden whatever verdict they carry:
+  that filter is about visibility, not writability.
+- f626808: fix(app-shell,plugin-list): a list view's own `description` now reaches the screen
+  
+  A `description` authored on a per-list-view entry (`listViews.<viewName>.description`)
+  was validated, built and served correctly, then silently never rendered. Two
+  independent cuts, both fixed here:
+  
+  - **app-shell** — `ObjectView`'s `renderListView` relay copied ~46 keys off the
+    active view onto the schema it hands `ListView` (`label`, `sort`, `filter`,
+    `hiddenFields`, `inlineEdit`, `color`, `allowExport`, …) but had no rung for
+    `description`, so the renderer could only ever see the object-level list's
+    description and a per-view one was unreachable. It is relayed now, with the
+    same two-rung shape as `label`. This is *not* the object's own
+    `objectDef.description`, which stays the page header's subtitle.
+  - **plugin-list** — `ListView` rendered `typeof description === 'string' ? … : ''`,
+    a type test rather than a resolution. `ListViewSchema.description` is
+    `I18nLabel`, so an inline locale map (`{ en, 'zh-CN' }`) — metadata the spec
+    entitles an author to write — rendered a blank strip in every locale. It now
+    resolves through the same shared helper the sibling `label` uses, and the
+    visibility guard reads the resolved text, so a map with no usable entry drops
+    the strip instead of reserving empty space for it.
+  
+  `appearance.showDescription: false` still suppresses the description in both arms.
+- 34ea56d: Relay a per-view `rowColor` through the two object-view hosts (objectui#7218).
+  
+  `rowColor` is a declared member of `ListViewSchema` — imported by reference from
+  `@objectstack/spec`, shape `{ field, colors? }` — and `ListView` reads it to
+  seed its `rowColorConfig` state, which colours whole rows from the named field's
+  value. Neither object-view host relayed it: `app-shell`'s
+  `ObjectView.renderListView` builds its list schema by spreading the host's and
+  then relaying 47 named keys off the active view, and `plugin-view`'s
+  `ObjectView` assembles 46 inside its `object-view HOST-COMPOSITION SURFACE`
+  fence. `rowColor` had a rung in neither.
+  
+  So an authored per-view row colour was unreachable on the object route:
+  authored, validated, built and served correctly, then dropped at the relay.
+  Nothing errored and every authoring gate passed — the only symptom was that the
+  rows were not coloured, which an author cannot notice short of diffing the DOM.
+  Same "declared and inert" shape objectui#7199 fixed for `description`.
+  
+  **This is a relay, not a new surface.** The interface route
+  (`InterfaceListPage.tsx`) has shipped `rowColor: view.rowColor` next to
+  `grouping` and `pagination` since ADR-0047, into a schema typed
+  `ListViewSchema`, with no fence of any kind — so the key was already
+  author-reachable and already had a delivery path; two of three hosts simply did
+  not use it. The legacy shorthand for the same feature (bare `color`) already had
+  a rung in both literals; only the spec-canonical spelling was missing.
+  
+  **No published surface moves.** Both rungs are view-sourced only, and neither
+  adds a cast read off the object-view node — that would have added a 28th name to
+  the objectui#5097 HOST-COMPOSITION exemption whose count the 2026-08-18 ruling
+  fixed at 27, which is a ruling and not a refactor. `grouping` is the in-fence
+  precedent for a view-only rung.
+  
+  ⚠️ Not `userActions.rowColor`, a boolean permission toggle sharing this name at
+  a different nesting level ("may the user open the colour panel" versus "what the
+  colours are"). That key is untouched, and the new pins hold the two apart.
+- 6411def: FLS-gate the `$expand` projection at the five remaining build sites (objectui#7230).
+  
+  objectui#7215 / PR #7229 gated `$expand` at the two projection sites in its scope
+  (`ObjectGrid`, `ListView`). The helper is reached from more places than that. This
+  closes the five that were left: `ObjectCalendar`, `ObjectGantt`, `RecordDetailView`,
+  `DetailView`, and `ObjectDataTable` (which builds its own whitelist in
+  `computeLookupExpand` rather than calling `buildExpandFields`).
+  
+  **Three of them pass no column list at all**, which makes them the sharp ones:
+  `buildExpandFields` reads an absent column list as "no column restriction" and falls
+  back to **every declared relation on the object**, denied ones included. So a standalone
+  calendar, a gantt, and every record page in the console asked the server to resolve the
+  object's full relation set by default rather than by configuration.
+  
+  **`DetailView` was input-gated, and that is the defect rather than the fix.** Its column
+  list is already FLS-filtered field by field, which is exactly the route PR #7229 measured
+  as unsound: an emptied column list reads as "no column restriction", so a detail view
+  whose authored fields are all denied had its `$expand` **widened** from the relations it
+  asked for to every relation the object declares. The principal who may read least was
+  asking for the most.
+  
+  **Reproduced before it was fixed**, as a failing test per site.
+  
+  **Grading, measured rather than assumed.** Against ObjectStack's own server this is
+  defence-in-depth, exactly as objectui#6898 and #7215 are: `plugin-security`'s
+  `FieldMasker.maskRecord` deletes every unreadable key from each returned row and
+  objectql's expand path writes the resolved record back under that same key, so one
+  statement removes the expanded object and the bare id alike; the expansion sub-read is
+  itself gated (`__expandRead` takes the referenced object's full CRUD + RLS + FLS
+  treatment). It is load-bearing for any backend that does not strip, and the
+  client-request side is real regardless.
+  
+  **Nothing a permitted view did stops working.** The gate judges each helper's OUTPUT,
+  which contains only the object's declared reference-bearing fields, so the "`checkField`
+  answers false for an undeclared key" trap cannot be reached and derived / host-joined
+  columns are untouched. An unanswered permission policy filters nothing. Neither
+  `buildExpandFields` nor `computeLookupExpand` is changed.
+- 19f1639: A synthesized default list view now always leads with the object's name field
+  (objectui#7245).
+  
+  **The defect.** An object that declares no list view gets its default grid columns
+  synthesized from `highlightFields`, taken verbatim. But `highlightFields` is ADR-0085's
+  *"most important fields"* role, not a column list — and its first consumer, the
+  detail-page highlight strip, **deliberately removes the title field**, because the page
+  H1 directly above it already shows one. So metadata that is entirely correct routinely
+  omits the record's name from `highlightFields`. The showcase `showcase_account` declares
+  `nameField: "name"` and `highlightFields: ["status", "industry", "annual_revenue"]`, and
+  its default `所有记录` grid rendered 14 rows whose columns were `#` / Lifecycle / Industry
+  / Annual Revenue / actions — no name column, and no way to tell one account from another.
+  
+  A list has no H1 to lean on, so the same declaration needs the opposite treatment here.
+  This is not a new convention: `deriveLookupColumns` in `@object-ui/fields` already leads
+  its record-picker columns with the display field and filters it out of the declared list.
+  The list faces now agree with it.
+  
+  **What changed.** `@object-ui/core` gains two exports on the ADR-0079 title ladder:
+  
+  - `resolveNameField(objectDef)` — *which field* titles an object: the declared
+    `nameField` (then its deprecated `displayNameField` / `NAME_FIELD_KEY` aliases), else
+    the type-aware derivation. The name-space twin of `getRecordDisplayName`, which answers
+    what that field *says* on one record. Both now read one spelling of the declared
+    pointer, so they cannot drift into naming different fields.
+  - `leadWithNameField(objectDef, columns)` — moves that field to the front of a
+    **synthesized** column list.
+  
+  All three faces that synthesize default list columns call it: `ObjectView`
+  (`defaultListColumnsFromObject`), `InterfaceListPage` (`defaultColumnsFromObject`) and
+  `ObjectGrid`'s own derivation. The name field is **moved**, not merely appended, so an
+  author who lists it third still gets it first — "the column that identifies the row"
+  means first. On the two capped faces the lead is applied *before* the 5 / 6-column slice,
+  so an object declaring its name field late no longer loses it off the end.
+  
+  **Scope, deliberately narrow.** Author-declared column lists are untouched — a view or
+  grid that declares `columns` / `fields` said what it wants, and reordering it would be
+  renderer-side second-guessing of metadata. Three cases also decline to lead: a name field
+  the object carries no field def for (never fabricate a column), one marked
+  `hidden: true` (the author said don't show it), and a *derived* pick that lands on a
+  system-managed column — `deriveTitleField` filters by type only, and leading a default
+  list with a raw id is the regression objectui#2702 / #2777 fixed. A *declared*
+  `nameField` pointing at a system field still leads: `sys_migration` really does point at
+  `id`, and an explicit designation is not a heuristic misfire.
+- d4c6a86: The console chrome's Home affordances follow the product's declared landing (objectui#7256).
+  
+  `/` has honored `app.isDefault` since the hardcoded `PREFERRED_APPS = ['cloud_control']`
+  redirect was retired; the chrome had not. The top-bar logo, the sidebar's Home row, the
+  mobile sheet's Home row and the app-switcher's Home entry each named `/home` literally —
+  the ENVIRONMENT layer's launcher (ADR-0075). So a deployment that declares a landing
+  offered the customer two homes in two voices, and one click on the logo left the declared
+  one.
+  
+  On cloud's control plane that second home is actively wrong: its "Build an app" / "Start
+  from a template" cards are environment-side actions that cannot work from the control
+  plane, and its "Your apps" tiles are the control plane's own internal management apps.
+  
+  - `@object-ui/app-shell` adds `resolveDeclaredHomePath()` — the one reader of the
+    declaration — plus `useHomePath()`, which the four chrome sites now consume. The signal
+    is the App metadata the server already sends: no hostname sniff, and no product name
+    baked into the shared bundle.
+  - `@object-ui/console`'s `/` resolver is unchanged, and a behavioural matrix now pins its
+    answer equal to the chrome's for every declared app list, so the post-login landing and
+    the logo cannot drift apart.
+  
+  Deployments that declare no landing are unaffected: every Home affordance still resolves
+  to `/home`. The "this app is gone" recovery redirects in `AppContent` / `ConsoleShell` are
+  deliberately untouched — they are error paths, not Home affordances.
+- 3f93fe4: Studio top bar: a failed package-list fetch is reported and told apart from the
+  other two states it used to look exactly like (objectui#7368).
+  
+  `PackageSwitcher` held the list as `PkgEntry[] | null` and caught the
+  `fetchPackages()` rejection into an empty block, so `null` meant both "still
+  loading" and "the fetch failed". The trigger rendered `current?.name ?? packageId`,
+  which collapses a third situation into the same pixels: a package whose producer
+  declared no name at all (`parsePackages` falls `name` back to the id). Any failure
+  of `GET /api/v1/packages` therefore left the Studio top bar printing the raw
+  reverse-domain package id — `app.b2r4` — with no toast, no console line and no
+  retry, forever, and the author had no way to tell whether to go fix the manifest or
+  to go retry.
+  
+  The switcher now records the failure beside the list and renders the three states
+  apart: `loading` keeps a spinner next to the id, `failed` adds a "Failed to load"
+  marker carrying the error on its tooltip and replaces the popover's forever-"Loading…"
+  line with the reason, and `loaded` leaves the id standing alone — where a bare id now
+  really does mean "this package declares no name". The two sibling `fetchPackages()`
+  callers on the same surface (the writability courtesy gate and the object-namespace
+  lookup) stop swallowing their rejections too; all three report on one shared sonner
+  id, so a single outage produces one toast rather than three.
+  
+  The degradation itself is deliberately kept — the switcher still navigates and one
+  503 does not take the top bar down — and no retry was added: retry policy (how many,
+  what backoff, what to show after giving up) is undecided, and retrying would delay
+  the moment the failure becomes visible, which is the opposite of what this fixes.
+- 3399704: Fix `AiUsageIndicator` to recognize the free plan's new `resetKind: 'weekly'` and its
+  `resetsAt` (objectui#7371, consumer of cloud PR #1852's rolling 7-day AI quota window).
+  
+  Before this change a `weekly` meter fell through to the component's unrecognized-kind
+  path and rendered no reset line at all — not a crash, but silently wrong information
+  next to a live progress ring. The indicator now shows "Resets in N days" (or "Resets in
+  N hours" once inside the final day, e.g. `console.ai.usage.resetsWeeklyHours`), computed
+  from the endpoint's `resetsAt`, in both languages via `@object-ui/i18n`
+  (`console.ai.usage.resetsWeeklyDays` / `resetsWeeklyHours`, real i18next plural families
+  with a base key so every locale pack resolves correctly, all ten packs translated). D5 is
+  preserved — no token count is ever rendered, only the days/hours until reset.
+  
+  Contract-first: `resetsAt` is read verbatim from the endpoint, never re-derived or
+  guessed client-side. A `weekly` meter with `resetsAt: null` (nothing counted yet in the
+  window) and any `resetKind` this build does not recognize both render no reset line —
+  fail-soft, not a crash or stale copy.
+  
+  `AiUsageResetKind` (`packages/app-shell/src/hooks/useAiUsage.ts`) gains the `'weekly'`
+  member; `resetsAt` was already `string | null` and needed no shape change.
+- d327b9c: FLS-gate the `$expand` projection at the seven remaining `buildExpandFields`
+  call sites (objectui#7429).
+  
+  objectui#7215 / PR #7229 gated the two projection sites in its scope
+  (`ObjectGrid`, `ListView`). objectui#7230 / PR #7428 gated four more
+  (`ObjectCalendar`, `ObjectGantt`, `RecordDetailView`, `DetailView`). This
+  closes the seven that were left: `ObjectKanban`, `ObjectTree`, `ObjectView`
+  (the non-grid record-fetch effect), `ObjectMap`, `ObjectGallery`,
+  `ObjectTimeline`, and the metadata-admin `PagePreview`'s record-binding fetch.
+  
+  **All seven pass no column list at all**, which makes every one of them the
+  sharp shape: `buildExpandFields` reads an absent column list as "no column
+  restriction" and falls back to **every declared relation on the object**,
+  denied ones included. So each of these components asked the server to resolve
+  the object's full relation set by default, not by configuration — the
+  ordinary shape of each surface, not a corner of it.
+  
+  **`PagePreview` is the one site where the judged principal is not the page's
+  eventual audience.** It calls the browser's own `fetch` with
+  `credentials: 'include'` rather than `DataSource.find`, so it runs under
+  whichever session is loading the Studio preview. Gating on that same session's
+  `usePermissions()` is still the correct principal: it is exactly the request
+  the browser is about to make, on its own credentials, regardless of who later
+  opens the published page.
+  
+  **Reproduced before it was fixed**, as a failing test per site (and, for the
+  two sites — `ObjectView`, `PagePreview` — where the gate was implemented
+  before its test was run red, a reverse-verification: the gate was reverted,
+  all four denial-and-set pins on each went red, and the two deferral/positive
+  control pins stayed green, before the gate was restored).
+  
+  **Grading, measured rather than assumed** — the same reading objectui#6898,
+  #7215 and #7230 recorded: against ObjectStack's own server this is
+  defence-in-depth, not a live disclosure. `plugin-security`'s
+  `FieldMasker.maskRecord` deletes every unreadable key from each returned row
+  and objectql's expand path writes the resolved record back under that same
+  key, so one statement removes the expanded object and the bare id alike; the
+  expansion sub-read is itself gated (the referenced object's full CRUD + RLS +
+  FLS treatment, objectstack#7626). It is load-bearing for any backend that does
+  not strip, and the client-request side is real regardless.
+  
+  **Nothing a permitted view did stops working.** The gate judges each site's
+  `buildExpandFields` OUTPUT, which contains only the object's declared
+  reference-bearing fields, so the "`checkField` answers false for an
+  undeclared key" trap cannot be reached. An unanswered permission policy
+  filters nothing. `buildExpandFields` itself is unchanged.
+  
+  `@object-ui/permissions` is added to `dependencies` for `plugin-kanban`,
+  `plugin-tree`, `plugin-map`, `plugin-timeline`, and `plugin-view` — the fifth
+  one objectui#7429's own dependency count missed (it named four); `plugin-list`
+  and `app-shell` already had it.
+- c6198c2: **Breaking for authored metadata:** `ComponentInput.label`, `ComponentInput.defaultValue` and
+  `ComponentInput.advanced` are RETIRED on both faces (objectui#7493 item ① and objectui#7781;
+  maintainer ruling A of 2026-09-06, immediate, no deprecation window; ADR-0049 enforce-or-remove).
+  They are the three keys the manifest serializer does not forward, and nothing read them on any
+  publication or consumption path.
+  
+  No manifest ever published them, so no consumer could ever have read them. `sdui-parser`'s
+  serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys per input — `name`,
+  `type`, `required`, `enum`, `binding`, `description` — so a value authored under any of the three
+  never reached `sdui.manifest.json`, the generated JSX `.d.ts`, or a diagnostic; its boundary type
+  has no slot for them; the registry's data-source seam reads `name` only; and neither the designer
+  nor the app-shell inspectors consult registry `inputs` at all. A structural census over every
+  `inputs:` array in the repository (re-measured on this change's merge-base, `name` 951 and `type`
+  951 as the controls) counted the writes: `label` 908, `defaultValue` 245, `advanced` 9 — written on
+  nearly every registration, read by nothing.
+  
+  FROM → TO, per key — all three **TOMBSTONED, not removed**, because the route was measured on
+  the built face before it was chosen: `ComponentInputSchema` is a non-strict `z.object`, and an
+  undeclared key parses GREEN and is silently STRIPPED, so a deletion would have swallowed 1,162
+  authored values in silence. The tombstone is what makes the refusal loud and by name.
+  
+  - `label?: string` → `label?: never` on the interface, `retirementTombstone()` on the Zod mirror.
+    Migration: delete the key. An input is identified by its `name` on every path that reaches it;
+    nothing ever rendered a label for it.
+  - `defaultValue?: any` → `defaultValue?: never` / `retirementTombstone()`. Migration: delete the
+    key. The renderer's own fallback read IS the default; tell the author about it in `description`,
+    which IS published. (Tightening the type to `unknown` was ruled out: it closes no error class,
+    since nothing reads the value.)
+  - `advanced?: boolean` → `advanced?: never` / `retirementTombstone()`. Migration: delete the key.
+    No designer surface ever hid an "advanced" input; there is nothing to write instead.
+  
+  The retirement kit: `?: never` on `ComponentInput` (`packages/types/src/base.ts`), so authoring one
+  is a `tsc` error at the registration site; `retirementTombstone()` on `ComponentInputSchema`
+  (`packages/types/src/zod/base.zod.ts`), so an authored value is REFUSED at parse time with
+  `code: 'invalid_type'`, the key named in the issue `path`, and the migration note as the message
+  (one string, both channels). Pinned in
+  `packages/types/src/__tests__/component-input-retired-keys-7493.test.ts`, which also holds a
+  tree-scoped absence census over every `inputs:` array under `packages/**` and `apps/**`.
+  
+  Accept-set change, stated plainly for reviewers: a document that sets any of the three keys on a
+  `ComponentInput` used to parse GREEN (the value was then dropped by the serializer) and now parses
+  RED. Every in-repo authoring site — 1,199 keys across 110 registration files, the three standalone
+  `ComponentInput[]` arrays and the two named input arrays `tsc` found included — is deleted in the same change, as the ruling's split rule
+  requires; the `WidgetRegistry` seam no longer copies the widget-manifest values onto the synthesized
+  `ComponentInput` (they fed nothing), and the data-source declaration `ELEMENT_DATA_SOURCE_INPUT`
+  drops its `label`. The patch entries on the other packages record exactly that: their registrations
+  stop authoring inert keys, with no runtime or published-manifest change.
+  
+  The nine test files that read `defaultValue` off a registration were re-pinned against the
+  renderer's ACTUAL default (its own fallback read, or the `defaultProps` it ships) instead of the
+  declaration that went away; two assertions that only restated the shadow default were dropped with
+  the reason on the line.
+  
+  The in-repo zero is what was measured. Whether anything OUTSIDE this repository writes these keys
+  is not measurable from here (the objectui#5674 limit); converting such a write from a silent drop
+  into a named refusal is exactly what the tombstones buy. `WidgetInput`'s own `label` /
+  `defaultValue` / `advanced` (the widget-manifest face) stay declared and writable — nothing has
+  ruled on that face; that it now has no reader either is recorded as objectui#7911.
+- 97c3e19: fix(app-shell): the object-field options editor no longer drops `default` and `visibleWhen` on save
+  
+  Opening a picklist field in the metadata-admin designer, editing any option and
+  saving used to write the option back without its `default` or `visibleWhen`
+  key. It was not a validation failure — the payload stayed perfectly valid, just
+  smaller than what the author wrote — so the loss was silent, and it took a
+  picklist default with it: `default` is `enforce` on the object-field face, and
+  the engine seeds the insert path from the option holding it.
+  
+  The loss started in the reader, not the writer. `readOptions` projected each
+  authored option down to `value` / `label` / `color`, so both keys were already
+  gone before `patchOptions` ran. `readOptions` now carries the keys the editor
+  has no control for and `patchOptions` writes them back, which also protects any
+  option key the spec accepts later. No authoring UI changed.
+- 0c8dbc4: Strip the framework's read-time decorations off a served draft before the metadata
+  editor's client Zod gate judges it (objectui#7603).
+  
+  **The symptom.** Opening an item that has a **pending draft** in the metadata admin
+  raised a false "this item is invalid" banner plus inline field errors — on a body the
+  server accepts, and on exactly the workflow where an author is mid-edit. Every wired
+  metadata type whose schema is `.strict()` was affected (14 of the 15); `sharing_rule`
+  was shielded only by accident, because `AUTHOR_SHAPE_ONLY_TYPES` switches its edit gate
+  off for an unrelated reason.
+  
+  **The cause.** `client.getDraft()` serves a **decorated** body: the strict draft branch
+  returns `item: decorateMetadataItem(type, …)`, which attaches `_diagnostics` whenever
+  the type has a registered Zod schema, and `_draft` on the preview-draft branch.
+  `ResourceEditPage` merged that body over the layered baseline and handed the result
+  straight to `validateMetadataDraft`. The layered half is clean — `getMetaItemLayered`
+  serves RAW layers — so the misfire required a pending draft to exist, which is why it
+  stayed invisible: an item with no draft passes today.
+  
+  `@objectstack/spec` names both keys a read-time decoration and states that a served body
+  "is therefore NOT a valid input to the schema that produced it until these are removed".
+  The server was right and the client was wrong.
+  
+  **The fix.** `extractDraftBody` — the one function that turns a served draft envelope
+  into a body, and the chokepoint all three merge sites go through (the load effect, the
+  post-save refresh, the post-publish refresh) — now passes the body through the spec's
+  own exported `stripReadDecorations`, the same helper `MetadataService.saveFields`
+  already uses on the write side. The strip runs after the presence verdict, so removing
+  our own decorations can never turn a served draft into "no draft".
+  
+  No schema was loosened and no key list is restated in this repo. The list is the spec's,
+  reached through its helper, because a local copy goes stale the next time the framework
+  adds a decoration — and a decoration this code does not know to remove is precisely the
+  defect. The ADR-0010 protection envelope (`_lock`, `_provenance`, …) is deliberately
+  **not** on that list: those keys are allowlisted by the closed schemas so provenance
+  survives a re-parse, and this strip leaves them alone. A genuinely undeclared key on the
+  same draft is still refused, by name.
+- c01cf9a: Studio object designer: a new field's API name now follows the Label on **every**
+  keystroke, not just the first one (objectui#7615).
+  
+  Typing a label one character at a time — what a person at a keyboard actually does —
+  used to leave the field permanently named after its first letter: `Health Score`
+  produced the API name `h`, and no later keystroke moved it. Pasting or autofilling the
+  same label produced `health_score`, so the two ways of entering the same label
+  disagreed. The one-letter name then leaked into the REST API, formulas and exports,
+  with nothing on screen saying the API name had stopped following the Label.
+  
+  Cause: the derivation asked "is this name still auto-generated?" by pattern-matching
+  the name itself (`field_<N>` / `<type>` / `<type>_<N>`), and its own first rename
+  destroyed that shape. The inspector now records who owns the API name instead of
+  re-reading it off a string the feature rewrites.
+  
+  Three boundaries, unchanged in intent from objectui#2260:
+  
+  - a new field whose API name the author has not touched re-derives on every label
+    change;
+  - a field that arrived already named (i.e. saved) is never renamed by a label edit;
+  - once the author types in the API name box the Label stops moving it — including
+    when what they typed looks like an auto-generated placeholder, which no
+    pattern-match on the string alone can tell apart from a real one.
+- 655afab: A failed package-list refresh no longer reads as "the package was deleted" and no
+  longer evicts the author from the Studio (objectui#7821).
+  
+  `onManageChanged` — the callback the Studio's `PackageDetailSheet` fires after every
+  package lifecycle action (disable / duplicate / delete / publish / manifest edit) —
+  refreshed the list into a local `list` initialised to `[]` and swallowed the rejection
+  under a comment reading "keep the stale list". That is true of the `pkgs` state, which
+  is simply not written, and false of the local, which stayed `[]`. So after a failed
+  `GET /api/v1/packages` the `!list.some(...)` check three lines down was
+  unconditionally true, the code took the branch labelled `// Deleted`, and — when the
+  managed package was the one under the editor — navigated away with `list[0]`
+  undefined, i.e. to `/home`. One transient 503, network blip or auth expiry threw the
+  author out of the editor with no toast and no confirmation, while the package was
+  still there.
+  
+  The local now starts as `null` — "the refresh told us nothing" — and only a list that
+  actually came back, without the managed package in it, is read as a deletion. A
+  failure draws no inference at all: no navigation. It is reported instead, through the
+  posture this surface already has (objectui#7368): `formatMetadataError` on the shared
+  `studio-package-list` sonner id, and recorded so the switcher reads `failed` rather
+  than presenting a now-stale list as current. A real deletion navigates exactly as
+  before — to the first surviving package, or `/home` when none is left.
+  
+  Still a `.catch` and still no retry: one 503 must not take the Studio down, and no
+  retry policy has been ruled on.
+- cff3d97: Forward the authored `chart:` block WHOLE from the object-view relay to `ListView`
+  (objectui#7823).
+  
+  `ObjectView`'s `renderListView` builds the list schema by spreading the object's list
+  schema and then relaying the active view's visualization blocks under `options`. Every
+  sibling block is forwarded whole; `chart` was a hand-listed projection of exactly six
+  keys — `chartType`, `xAxisField`, `yAxisFields`, `aggregation`, `series`, `config` — the
+  pre-ADR-0021 key set, frozen. The whole ADR-0021 (objectui#1890) authoring shape
+  (`dataset` / `dimensions` / `values`) and the legacy `categoryField` / `valueField`
+  spelling had no rung, so a view that declared them reached `ListView` with its binding
+  stripped, and `ListView` could not tell that from a view that had declared nothing.
+  
+  **What changes for authors.** On the object-view route, a list view that declares an
+  ADR-0021 chart block and whitelists `chart` in `appearance.allowedVisualizations` is now
+  offered the Chart toggle and renders from the dataset it named. Before this fix the
+  capability gate added by objectui#7544 was handed six `undefined` keys, correctly
+  answered "nothing declared" about a view whose author had declared everything, and
+  ADR-0047 filtered the author's own whitelist down to `['grid']` — no toggle, no
+  diagnostic. The legacy `xAxisField` / `yAxisFields` spelling did survive the projection
+  and did resolve, so the two authoring shapes behaved differently on this route for
+  reasons that lived entirely in that one object literal.
+  
+  **Not a wider whitelist.** The projection is replaced by a pointer, not extended from
+  six keys to nine: a hand-listed key set is a copy, and copies rot silently — three more
+  keys would buy ADR-0021's correctness while re-arming the identical trap for the next
+  block key, and nothing would fire then either, because the relay's view definition is
+  `Record<string, any>` and a missing rung is invisible to `tsc` (objectui#7559 owns that
+  mechanism). Forwarding whole is safe because `ListView` reads this block by name at both
+  of its readers — the capability gate's `resolveListChartBinding` and the `chart` render
+  branch — and never spreads it.
+  
+  A view that declares no chart block, an empty block, or a block with no binding at all
+  is still offered no Chart toggle: the relay now forwards `undefined` instead of the old
+  permanently-truthy husk of six `undefined` keys.
+- f5d2acc: Studio: a failed package lookup no longer opens the management sheet on nothing
+  
+  `fetchFullPackage` — the helper behind the switcher's "Package info & settings" —
+  fetched `/api/v1/packages` and went straight to `res.json()`, never reading
+  `res.ok`. The platform answers a failed read in the ADR-0112 envelope
+  (`{ success: false, error: { code, message } }`), which parses cleanly through
+  that reader: the error object is neither an array nor carries `packages`, so the
+  list fell to `[]` and the lookup returned `null` without throwing. `openManage`'s
+  `catch` therefore never ran and the two lines after it still fired, opening the
+  management sheet over a null package — which renders nothing. During an outage
+  the author clicked the menu item and got silence: no sheet, no toast, no
+  explanation.
+  
+  The read now refuses a non-2xx, carrying the server's own `error.message` and
+  `error.code` (in the 5xx band the platform withholds the producer's prose, so the
+  code is the discriminating word) and naming the status when the body is not JSON
+  at all. The failure is reported through this surface's existing posture —
+  `formatMetadataError` on the shared `studio-package-list` sonner id, so one outage
+  across this surface's four callers of that endpoint is one toast, not four.
+  
+  And the sheet no longer opens on a `null` package at all: a successful list that
+  simply does not contain the package — deleted or uninstalled elsewhere — now says
+  so instead of opening over nothing.
+- 3b30920: Studio: a failed managed-snapshot refresh no longer leaves the package sheet showing
+  the pre-action record as current (objectui#7907).
+  
+  `onManageChanged` runs after every package lifecycle action fired from the detail sheet
+  (disable / enable / duplicate / publish / publish-drafts / manifest edit). Its tail
+  re-read the managed record so the change would show immediately, and swallowed any
+  failure under a bare `catch {}` commented "keep the current snapshot" — a snapshot the
+  action itself had just made stale. The author disabled a package, was told nothing, and
+  went on reading `Status: Enabled`.
+  
+  The sheet derives its lifecycle verb from that record (`enabled` picks both the button's
+  label and the endpoint it POSTs), so a stale snapshot did not merely display a stale
+  badge — it re-armed the author with the verb they had just fired. The failure is now
+  reported through this surface's existing posture (`formatMetadataError` on the shared
+  `studio-package-list` sonner id, so one outage across the surface is still one toast)
+  and the sheet closes rather than stay open on a record known to be pre-action. The
+  Studio, the top bar and the package list are untouched: still a degradation, never a
+  throw, and no navigation is inferred from a refresh that could not happen.
+  
+  The same tail dropped `fresh === null` — a successful read whose list no longer contains
+  the package — just as quietly; it now reports that with the same sentence `openManage`
+  already uses for it.
+  
+  Pre-existing, and objectui#7881 made it much easier to hit rather than causing it:
+  before that fix `fetchFullPackage` never read `res.ok`, so this `catch` could only ever
+  see a non-JSON body; now that the helper refuses a non-2xx, the same `catch` was also
+  swallowing every 401 / 403 / 503 / 500.
+- bfa4fe7: `PackageFormDialog` reads the producer-marked `error.userMessage` (objectui#7979).
+  
+  The create / edit / view package dialog POSTs and PATCHes `/api/v1/packages` through its
+  own `apiJson`, which held a fourth copy of the ADR-0112 failure-envelope ladder —
+  character for character the one `PackagesPage` had before objectui#7959. It read the
+  diagnostic `error.message` and stopped, so two things a refusal carries never reached the
+  author: the producer's marked `error.userMessage` (present since objectstack#9934, emitted
+  by both doors that serve these routes) and `error.code`.
+  
+  The read now comes from the one shared rule, `readEnvelopeFailureText`
+  (`utils/apiErrorEnvelope.ts`), which prefers the mark over the diagnostic and appends the
+  declared code behind whichever prose won. Create and edit are exactly where an author meets
+  a refusal that names what to fix — a namespace rule, a version already published — and in
+  the 5xx band the door substitutes the generic `Internal server error` into `message` while
+  the mark rides through untouched, so on a marked 500/503 the dialog used to show the generic
+  sentence and discard the specific one.
+  
+  The two rungs below the shared read stay: a bare-string `error` and a top-level `message`
+  are older runtimes' shapes, not this envelope, and they are live for this call site alone.
+  The dialog's two status-driven arms (409 → "already exists", 403 → the localized capability
+  copy, objectstack#8270) are unchanged.
+- f57ca75: fix(studio): one draft-envelope reader, and it strips the framework's read decorations
+  
+  `client.getDraft()` serves a DECORATED body — the draft branch stamps
+  `_draft: true` and then `decorateMetadataItem` attaches `_diagnostics` for any
+  type with a registered Zod schema. The spec names both READ-TIME decorations
+  precisely because a served body "is NOT a valid input to the schema that
+  produced it until these are removed" (`METADATA_READ_DECORATIONS`).
+  
+  objectui#7603 taught `ResourceEditPage` to strip them. It could only teach one
+  site, because `extractDraftBody` existed **four times** — three verbatim copies
+  plus a hand-rolled one in `ObjectHooksPanel` — and six more consumers unwrapped
+  the envelope inline. Ten readers, one of which knew the rule.
+  
+  **The user-visible half.** The pending-changes sheet's per-entry diff compares
+  the published body against the draft body key by key. Those two reads are
+  decorated ASYMMETRICALLY — only the draft branch stamps `_draft` — so the sheet
+  listed `_draft` under "Also changed:" on every entry that has a published
+  counterpart, and `_diagnostics` alongside it whenever the two read-time verdicts
+  differed. Framework-internal keys were being presented to the author as their
+  own edits, on the screen where they decide whether to publish.
+  
+  **The rest.** Six sites merged a decorated body into a document they then wrote
+  back through `save(..., { mode: 'draft' })` — the Studio app / page / object /
+  flow surfaces, the package OWD panel, the object hooks panel, and the
+  adapter's `updateView`. Today's server absorbs that (it strips read decorations
+  on ingress, before its own schema gate), so nothing 400s; this is still a client
+  emitting a body its own spec calls invalid, and the fix belongs at the producer.
+  
+  The cure is one function rather than ten strips: `extractDraftBody` is now
+  exported from `@object-ui/data-objectstack`, beside the `getDraft` whose
+  envelope it decodes. The key list is the spec's exported
+  `stripReadDecorations` — never a second hand-maintained copy in this repo. The
+  presence verdict still runs BEFORE the strip, so removing our own annotations
+  can never turn a served draft into "nothing pending", and the ADR-0010
+  protection envelope (`_lock`, `_provenance`, `_packageId`, `_packageVersion`)
+  is deliberately untouched: those keys are declared by the closed schemas.
+  
+  No schema was loosened, and no gate was taught to tolerate `_diagnostics`.
+- 7258eaf: De-developerize the metadata-admin property form now that Studio's 「界面」 panel
+  grafts it in front of an AI-build maker (objectui#8218).
+  
+  `SchemaForm` + `widgets.tsx` were written for an administrator editing metadata.
+  Studio's interface panel renders the very same form for someone who has never
+  seen a JSON Schema, so four developer habits landed inside an otherwise fully
+  Chinese surface. Same cause, one pass:
+  
+  - **Machine-name tooltip.** The `title="Machine name"` on the identifier chip
+    went through the engine string table. Note the chip's own predicate degrades
+    under localization: it shows when the visible label does not spell the machine
+    name, which a translated label never does — so in a Chinese panel it renders
+    for *every* field. Reported, not changed here; whether a maker should see the
+    identifier at all is a product call, not a rendering one.
+  
+  - **Master-detail column headers.** A column whose item schema carries no
+    `title` printed the raw JSON Schema key (`actionUrl`, `actionType`) as if it
+    were a column name — in *every* locale, English included. It now humanises the
+    key, the same convention this tree already applies wherever a title is absent
+    (`json-schema-to-fields.ts`'s `prop.title || humanizeKey`, and `SchemaForm`'s
+    own grid repeater: `s.label || prettify(s.field)`). `title` is an OPTIONAL
+    annotation, so its absence is not off-spec metadata and the renderer has to
+    render something; this is not a lenient contract fallback. The LOCALIZED
+    column name needs an upstream channel that does not exist yet — filed there.
+  
+  - **Numeric fields.** Both numeric renderers (`SchemaForm`'s field control and
+    the master-detail cell) now gray the schema's `default` in as a placeholder,
+    so an empty box reads "using the default" instead of "unknown", and forward
+    `minimum` / `maximum` / `multipleOf` onto the control. Previously only
+    `fieldSpec.min` / `.max` were read — which a spec-derived authoring form never
+    declares — so a panel accepted a negative column count its own contract had
+    already ruled out. The default stays a placeholder, never a written value, so
+    "left on the default" remains distinguishable from "pinned to today's default"
+    in the saved metadata.
+  
+  - **Untranslated strings.** A full sweep of both files: 45 user-visible literals
+    (aria-labels, placeholders, empty-state prose, segmented-control labels,
+    secret-field copy, the code editor's chrome) now resolve through the engine
+    table in `en` and `zh`.
+- 450f110: fix(app-shell): the Action designer's preview draws what the runtime dialog will draw
+  
+  `ActionDefaultInspector` offers eight param `type` spellings; `ActionPreview`'s
+  dialog mock switched on five of them over a private table, so three of the eight
+  previewed as a control `ActionParamDialog` does not render — `datetime` and a
+  targeted `lookup` as plain text boxes, and a `select` whose options were not
+  authored yet as a text box as well. A `text` param that happened to carry
+  `options` previewed as a select the runtime never draws, for the same reason in
+  the other direction.
+  
+  The mock now resolves each param through `paramToField`'s
+  `resolveParamWidgetType` / `paramDegradesWithoutTarget` — the same adapter the
+  dialog itself renders through — so the two panes cannot disagree about a
+  spelling again. `datetime` draws a date/time control, a `lookup` with a declared
+  `reference` draws a record picker, a targetless one draws the record-id text box
+  the dialog degrades to and says why, and a `select` always draws a picker.
+  
+  The per-param editor also gains an `options` control for `select` params. It had
+  none, and `params` is hidden from the collapsed "More fields" form, so the panel
+  that offered the type had nowhere to author the choices the type needs.
+- 1edbc2f: **Behaviour change:** a `master_detail` action param with no reference target now
+  receives the same "paste a record id" placeholder and help text a targetless
+  `lookup` param has had since objectui#3405. Previously it degraded to a plain
+  text input exactly like `lookup` did, but silently — the user was shown an
+  unexplained empty box that wanted a bare record id.
+  
+  The cause was two hand-maintained answers to one question. `paramToField()`
+  performs the degradation over RESOLVED widget keys (`lookup`, `master_detail`),
+  while `ActionParamDialog` decided who gets the hints with its own literal over
+  RAW param spellings (`'lookup' || 'reference'`). Neither set contained the
+  other: `master_detail` degraded with no hints, and `reference` was a copy of an
+  alias-table row the adapter folds to `lookup` before it tests membership.
+  
+  `paramToField` now exports `paramDegradesWithoutTarget(param)` and both the
+  adapter's own fallback branch and the dialog's two hint readers ask it, so "who
+  degrades" and "who gets hints after degrading" are one member set answered once
+  (objectui#5654; same convergence shape as objectui#4770 / #4790 / #4815).
+  
+  Params that already had the hints keep them, including the `reference` spelling;
+  a param that renders as text without having degraded (an unknown type) still
+  gets no picker hints.
+- 649f4a5: **Behaviour change:** the console action runtime (`useConsoleActionRuntime`) now
+  builds its authenticated fetch with `sameOriginOnly: true`, matching the
+  `provider: 'api'` data-source lane (`ConsoleShell`). A metadata `type: 'api'`
+  action whose resolved target is a different origin than the page is fetched
+  through the bare global fetch: the platform Bearer token, `X-Tenant-ID`, and
+  `Accept-Language` are no longer attached (objectui#5702, maintainer ruling
+  2026-08-22). Previously the Bearer rode to any off-origin target whose URL
+  contained `/api/`, and `X-Tenant-ID` rode to every off-origin target
+  unconditionally.
+  
+  Same-origin actions — including every relative target in a same-origin
+  deployment — are unchanged, and off-origin requests still execute (pass-through,
+  not a refusal). An off-origin integration that legitimately needs the platform
+  bearer declares itself explicitly or proxies same-origin.
+  
+  Note for split-host setups: `apiHandler` prefixes relative action targets with
+  `VITE_SERVER_URL`. When that is set to an origin different from the page's,
+  those action requests are off-origin and no longer carry credentials. The
+  committed dev and starter configurations are unaffected: since objectui#5745
+  they ship `VITE_SERVER_URL` empty and reach a split-host backend through the
+  Vite `/api` dev proxy, so their action requests are same-origin.
+- 169f6d2: `AiChatPage`'s public share-link base now resolves through the one console-mount
+  resolver instead of a private copy of it (objectui#4482).
+  
+  The page built `publicShareBase` itself — read the injected `<base href>`, take its
+  pathname, trim trailing slashes, concatenate `${origin}${base}/s` — which was the third
+  independent implementation of the mount resolution `resolveConsoleUrl` centralizes.
+  objectui#4472 had just deleted the other two on that rule; this was the surviving
+  sibling. Its output was correct, so nothing a user hits was broken and nothing a user
+  hits changes: measured over the base-href matrix, the deleted builder and
+  `resolveConsoleUrl('s')` return identical URLs for every shape the console is served in
+  — `/_console/` (the only href the framework CLI injects), `/` root mounts, `./` portable
+  builds, nested mounts, and no `<base>` at all.
+  
+  The `/s` resolution now lives beside its three siblings as `resolvePublicShareBase()`,
+  which keeps the one thing a bare `resolveConsoleUrl('s')` call would drop: with no DOM
+  it returns `undefined` rather than a URL built from an origin that does not exist, so
+  `ShareDialog` applies its own fallback. It deliberately takes no `baseURI` argument —
+  the mount is only ever carried by the injected `<base href>`, and a resolver with no
+  other input cannot be pinned by a test that steers something production never reads.
+  
+  `resolvePublicShareBase.browser.test.tsx` pins the resolved base against a real injected
+  `<base>` element for each deployment shape, plus a structural case asserting no other
+  app-shell file reads the `<base>` tag — so a fourth copy fails a test rather than
+  waiting for mount semantics to change under it.
+- aa3b810: `features.aiStudio` is now read through one `isAiStudioEnabled()` accessor instead
+  of being spelled inline at two call sites (objectui#5577).
+  
+  `features.marketplace` already had a documented accessor whose docblock is where the
+  fail-open doctrine is written down — *"Fails OPEN (`!== false`): a runtime predating
+  `/api/v1/runtime/config`, or one whose config fetch failed, keeps the default `true`"*,
+  plus the "never infer this from the shape of a failure" warning. `features.aiStudio`
+  had no such sibling: `ChatDock` read `getRuntimeConfig().features.aiStudio !== false`
+  and `HomePage` read `getRuntimeConfig().features?.aiStudio !== false`, so one doctrine
+  had two spellings and neither reader could cite it.
+  
+  The two spellings were not equivalent. `ChatDock`'s omitted the optional chain, and
+  against a runtime-config snapshot whose `features` is absent that read is a TypeError
+  rather than a fail-open — the exact shape that crashed 29 tests across four suites in
+  PR #5575 before it was corrected. Measured here: no live path can currently deliver
+  such a snapshot to `ChatDock` (the module's singleton constructs `features` on every
+  write and exports no setter, and no suite mounts the dock's default body under a
+  partial stand-in), so this closes a reachable-by-construction crash rather than a live
+  one — and it closes it at the source by leaving no inline read to get wrong.
+  
+  `isAiStudioEnabled()` is an internal module export, matching `isMarketplaceEnabled()`:
+  neither is re-exported from `src/index.ts`, so the package's published `exports` surface
+  is unchanged.
+- 0235ce7: The predicate identity bound for a signed-out visitor now carries `id: null`, so a
+  `ctx.user.id` visibility gate BITES instead of failing open (objectui#6534).
+  
+  `buildExpressionUser` has two branches, and only the signed-in one carried `id`.
+  So `'id' in buildExpressionUser(null)` was `false`, and an absent key is not
+  `false`: a CEL predicate naming `ctx.user.id` / `current_user.id` / `os.user.id`
+  hit an unbound key for a signed-out visitor and FAULTED. A faulting visibility
+  predicate fails OPEN (`evaluateVisibility`), so the gated field or action rendered
+  for exactly the principal it was written to exclude, with nothing on screen to say
+  the gate had not bitten — silently, for every signed-out visitor.
+  
+  Because the defect was in the shared normaliser rather than at a mount site, it
+  reached EVERY mount site, including `AppContent` and the console's
+  `InternalFormRoute`, both of which have always called the normaliser correctly.
+  This is the same fault-open mechanism objectui#6515 fixed one level up, where
+  `RecordFormPage` hand-rolled a descriptor missing `id` and `isPlatformAdmin`.
+  
+  `null` rather than `undefined`, and rather than leaving the key absent, is settled
+  by precedent on this exact object rather than chosen here. objectui#5424 removed
+  `roles` from it because a present-and-always-`undefined` key "is the shape that
+  teaches the wrong thing" — the context answers rather than being plainly absent,
+  and the answer is silently wrong; `undefined` here would reproduce that defect one
+  key over. Leaving it absent IS the defect. `null` is a VALUE a CEL author can
+  compare against, so `ctx.user.id == '…'` resolves to a clean FALSE. Measured, not
+  assumed: at a real mount site with `authState.user = null` and a field gated on
+  `ctx.user.id == 'u_admin'`, the field is now filtered OUT of the schema handed to
+  `ObjectForm`, where before it was present.
+  
+  This also closes the last asymmetry between the two branches. Both now advertise
+  the same six keys, which is the symmetry objectui#5424 was closing when it removed
+  `roles` — and the shape pin now asserts the key sets are equal, so a future edit
+  that adds a key to one branch and forgets the other fails whichever branch it
+  forgets.
+  
+  NOT CHANGED, deliberately: fail-open on a predicate that DOES fault. That is
+  shipped permission-boundary policy (objectui#6443 / #6487 / #6445) and remains
+  exactly as it was — an unevaluable `visible` still renders. This change removes a
+  REASON to fault; it does not touch what happens once a predicate has. No accept set
+  is widened, no gate is relaxed and no fallback is added: the only behavioural
+  movement is that an id-gated surface which used to render for anonymous visitors
+  now hides from them.
+- 9022bd5: Pin `module` / `moduleResolution` to `nodenext` in `@object-ui/app-shell`'s build config, matching the pins `@object-ui/react`, `@object-ui/fields` and five other packages already carry. This package builds with a bare `tsc`, which never rewrites import specifiers, so what the source writes is exactly what `dist` ships; under `nodenext` a missing relative extension is a compile error, so the extensionless-specifier defect that made published entries unloadable under plain Node cannot come back silently here.
+  
+  The lazy `@monaco-editor/react` imports in the metadata designer's source editors now read the package's named `Editor` export instead of its default. `@monaco-editor/react@4.7.0` is CommonJS and ships no `exports` map, so under `nodenext` the default resolves to the module namespace rather than to the component. The two names are one declaration in that package's own typings and the same object at runtime in both its CommonJS and ESM builds, so the editor that renders is unchanged.
+- 029e2fb: The console's `<PageHeader>` spells its secondary line `subtitle`, the same key the other `PageHeader` in this repo uses (objectui#4761).
+  
+  This repository has two components named `PageHeader`. `@object-ui/layout`'s is
+  the renderer for the authored `page:header` / `page-header` node and converged
+  on `subtitle` in objectui#3789, because `subtitle` is the key
+  `@objectstack/spec/ui`'s `PageHeaderProps` declares. `@object-ui/app-shell`'s —
+  the console's own title row, drawn by `ObjectView` and `ObjectDataPage` —
+  spelled the very same concept `description` and had no `subtitle` at all. Both
+  rendered correctly; the defect was one concept carrying two key names one
+  package apart, the objectstack#4115 shape moved up a layer. An author reading
+  one component to learn the other was being taught a key the contract does not
+  have.
+  
+  **Not a breaking change, measured rather than assumed.** The convergence is a
+  plain rename with no alias, because this component is not on the published
+  surface:
+  
+  | gauge | result |
+  |---|---|
+  | exports of `dist/index.d.ts`, through the TypeScript checker | 226 symbols; `PageHeader` and `PageHeaderComponentProps` are not among them (controls: `AppShell` reachable, a nonsense name not) |
+  | `exports` map | declares exactly `.` and `./styles.css` |
+  | Node resolving `@object-ui/app-shell/layout`, `…/dist/layout/PageHeader.js`, `…/src/layout/PageHeader.js` | `ERR_PACKAGE_PATH_NOT_EXPORTED` for all three, while the declared entry resolves |
+  | in-repo call sites | 2, both inside this package (`ObjectView.tsx`, `ObjectDataPage.tsx`) |
+  | emitted declarations that change | `dist/layout/PageHeader.d.ts` only — `dist/index.d.ts` and `dist/layout/index.d.ts` are byte-identical across the change (`8c886251…`, `f9f4862b…`, both legs) |
+  
+  No supported specifier reaches the prop, so there was nothing to keep
+  compatible, and a renderer-side `description` alias would have been exactly the
+  second dialect AGENTS.md #0.1 forbids — the layout side had just finished
+  retiring one. Out-of-repo consumers cannot be enumerated from this repository;
+  what can be, and is, is the set of import paths through which one could have
+  reached this component, which is empty.
+  
+  Rendered output is unchanged: same element, same classes, same position. The
+  patch tier is a declaration that the tarball moved, not a claim that a consumer
+  must act.
+  
+  `packages/app-shell/src/layout/__tests__/PageHeader.subtitle.test.tsx` is the
+  pin the card asked for. It asserts the subtitle on the DOM a reader gets (a
+  `<p>`, in the title block, after the `<h1>`), that `description` now draws
+  nothing and is rejected by the compiler, and — the assertion that actually goes
+  red if either side drifts again — that both packages' `PageHeaderComponentProps`
+  declare `subtitle`.
+- ac73c24: The approval step progress bar is a vertical stepper, so long flows stop
+  clipping their tail steps.
+  
+  Both occurrences were a single non-wrapping flex row whose steps were each
+  `shrink-0`. A flex row's min-content width is the sum of its non-shrinkable
+  items, so the bar's intrinsic width grew without bound with step count and
+  label length. On a live 17.1.0 project a real 6-step flow with ordinary CJK
+  step names measured **1070px inside a 527px container** (objectui#5554).
+  
+  The two hosts failed differently, and neither failure was recoverable by the
+  reader:
+  
+  - **`ApprovalsInboxPage`** (the inbox detail drawer) — the bar itself was not
+    scrollable, so the nearest scroller was the drawer *panel*. Reaching steps
+    4-6 meant dragging the drawer's own horizontal scrollbar, which pushed the
+    record card, the activity timeline and the action buttons off-screen and left
+    a near-blank panel.
+  - **`RecordApprovalsPanel`** (the record page's approvals panel) — this one
+    carried `overflow-x-auto`, so it scrolled itself rather than its container.
+    Better, but the tail steps still sat behind a scroll gesture with no visible
+    affordance.
+  
+  In both, readers took the clipped bar for the end of the data; the reporting
+  customer acceptance tester said so verbatim. Widening the window does not help:
+  the drawer is fixed-width, and clipping was identical at 1440x900 and 1920x1000.
+  
+  Both now render as a column: one row per step, a badge-and-rail gutter, and a
+  label that may wrap. Width is capped by the container at every step count and
+  every label length, which also suits both hosts' tall-and-narrow aspect. The
+  rail segment below each step keeps the tint rule the horizontal connector used
+  — it is coloured by the step it leads *into*.
+  
+  **Always vertical, with no step-count or measured-width threshold**, because
+  the overflow is driven by intrinsic content width (labels x count), not by
+  count alone: three 16-character CJK labels already crowd a 527px drawer, so any
+  count threshold picks a cutoff that is wrong for some real flow, and a measured
+  one reintroduces a viewport-dependent branch. The card's requirement is a fix
+  that cannot break at an untested viewport or flow length, and a layout with no
+  breakpoint and no measurement is the form that satisfies it. Horizontal-with-
+  scroll was ruled out for both occurrences: it leaves steps behind a gesture.
+  
+  Pinned in `ApprovalsInboxPage.stepProgressVertical.test.tsx` and
+  `RecordApprovalsPanel.stepProgressVertical.test.tsx`. "The stepper renders" is
+  green against the broken code too — every step was always in the DOM, and the
+  clipping was layout — so the suites assert the property the defect names
+  instead: no row is `shrink-0`, every label is `min-w-0` and none is
+  `whitespace-nowrap`, nothing in the subtree is an `overflow-x` scroller, and no
+  axis, overflow or width-pinning class carries a breakpoint prefix (so there is
+  no viewport with untested behaviour). The reported failing regime is exercised
+  directly with the reporter's own six CJK labels, and a 2/5/6/12-step sweep pins
+  that the layout classes are byte-identical across all four, so no count
+  threshold can put some other flow length back on the old path.
+  
+  The two steppers are kept identical by hand rather than extracted to a shared
+  component: they live in different packages, and deduplicating them is a
+  refactor with its own surface. Filed separately.
+- 7e89836: fix(approvals): derive approver identities from `positions`, not the retired `user.roles` (objectui#5424)
+  
+  Framework ADR-0090 D3 renamed the session's `roles` key to `positions` with no
+  deprecation window, and the protocol-17 session face emits no `roles` key at
+  all. Three client sites still read it:
+  
+  - **`sharedUserFeeds.approverIdentities`** — the bell badge, the bell's
+    Approvals tab and Home's To-do card. It read nothing else, so it sent **no
+    `role:` identity at all**: an approval addressed to a position rather than to
+    a person matched nothing and vanished from all three surfaces, silently.
+  - **`approvalsApi.buildApproverIdentities`** — "My Pending" and the
+    Approve/Reject enablement. It also splits the scalar `user.role`, so it
+    degraded rather than dying: it still yielded `role:user` while dropping every
+    business position name (`manager`, `finance_approver`, …).
+  - **`AppContent`'s expression user** — forwarded a `roles` key that was always
+    `undefined` into every CEL predicate context. Removed; `positions` and
+    `isPlatformAdmin` were already forwarded correctly beside it.
+  
+  The retired spelling is **not** kept as a fallback — pairing the two is what
+  ADR-0090 D3 forbids, and `packages/auth/src/types.ts` says so on the
+  declaration.
+  
+  `AuthGuard`'s `requiredRoles` gate (the fourth surviving reader) is deliberately
+  untouched: it is a semantics decision, not a rename, and is deferred to a
+  maintainer ruling.
+- 77c4ed3: `AppSidebar` is now `@deprecated` — use `UnifiedSidebar` instead.
+  
+  A census (objectui#5720) found `AppSidebar` has no in-repo mount point
+  (`ConsoleLayout` renders `UnifiedSidebar`, not this component) and no
+  downstream consumer visible anywhere across this org's GitHub-visible
+  repositories. It stays exported — from the package barrel and the published
+  `dist/index.d.ts` — because `@object-ui/app-shell` is a public npm package
+  (`publishConfig.access: "public"`) and an external consumer outside this org
+  is structurally invisible to that census; that is why it is deprecated
+  rather than deleted outright. No behavior change in this release — the
+  component still renders exactly as before. Its admin nav cluster is a
+  near-duplicate of `UnifiedSidebar`'s and has already drifted from it (it
+  gates only `sys-marketplace` on the workspace-admin flag, where
+  `UnifiedSidebar` gates the whole cluster); that divergence is not being
+  reconciled, since the component is scheduled for removal rather than kept
+  in parity — see objectui#5817 for the removal plan.
+  
+  Migration: replace any `AppSidebar` usage with `UnifiedSidebar` from the same
+  package.
+- cc3366b: The built-moment transition (#5799) now fires on auto-publish environments too: `detectBuiltAppPackage` reads the raw build envelope (`status:'drafted'` OR `'published'`, packageId + an `app` item), because an auto-publish posture rewrites apply_blueprint's envelope to `published` and the drafted-only `draftReview` lift never fired there — measured live on staging, where reopening a built conversation stayed on the full page.
+- 3a58149: A cloud-connection bind failure now reads in the user's language whichever clock
+  noticed it (objectui#5054).
+  
+  One abandoned device approval could be noticed by either of two clocks, and the
+  Cloud Connection panel had a different answer for each. When the panel's own
+  `expires_in` deadline fired first it rendered `cloudConnection.errors.expired` —
+  translated in all ten packs. When the SERVER noticed first, `/bind/poll` answered
+  HTTP 400 with `message: 'Device authorization failed: expired_token'`; `getJson`
+  threw a bare `Error` carrying only that sentence, and the catch rendered it
+  verbatim. Same user, same failure, two languages, decided by which clock got
+  there first — visible on a zh console as the same abandoned approval reading
+  Chinese or English depending on whether the tab sat open past `expires_in`.
+  
+  `getJson` now carries the envelope's `declaredCode` and `code` across its throw,
+  and a single closed map turns the two RFC 8628 outcomes a user can actually cause
+  into console copy: `expired_token` → the existing `cloudConnection.errors.expired`,
+  `access_denied` → a new `cloudConnection.errors.accessDenied` added to all ten
+  locale packs. `declaredCode` is read first, because ADR-0112 keeps the upstream
+  spelling there — `code` is `DEVICE_CODE_FAILED` for both.
+  
+  Every other code is unchanged: `invalid_grant`, and anything upstream invents
+  next, still render the wire `message`, which stays the single source of truth for
+  failures this console has no copy for. No API, export or resolver was widened.
+- 6ce89da: The 确认修改 (confirm changes) card now carries a UI-owned terminal state after approval (#5695): `detectReplayOutcome` lifts the confirm-replay envelope (`replay_*` tool results) into 应用中 / 已生效 / 已暂存为草稿（含内联发布）/ 未生效（含 publishError 首行）, rendered on the original card across the live, hydration/share, and localStorage-cache converters. A failed in-turn publish no longer rehydrates as an ordinary draft card with a live Publish button — the UI-rendered refusal is the layer a model cannot narrate over. New `console.ai.changesApplying/Applied/Drafted/Failed` keys in all ten locale packs.
+- fdefd4b: Console action runtime: closing an action confirm dialog now keeps the dialog's
+  text instead of blanking it mid-fade.
+  
+  `useConsoleActionRuntime` reset its confirm state by replacing the whole object
+  (`{ open: false, message: '' }`), which cleared `message` and dropped `options`.
+  Radix keeps `AlertDialogContent` mounted through its exit animation, so the
+  dialog's description went blank and its title and button labels reverted to
+  their defaults while it was still fading out. It now flips only `open` and keeps
+  every field, matching `RecordDetailView`'s second confirm runtime, which already
+  closed this way. Both runtimes feed one `ActionConfirmDialog`; the parity pin now
+  covers the close path as well as the open path.
+- 0e05aac: The console's cold load no longer asks `/api/v1/runtime/config` or
+  `/auth/me/localization` twice (objectui#5544).
+  
+  Two pairs of boot callers were racing each other for the same URL, with no shared
+  provider between them, so no guard inside either component could see the other:
+  
+  - `GET /api/v1/runtime/config` — the pre-React branding script inlined in
+    `apps/console/index.html` (it runs during HTML parse so the tab title and
+    favicon are the operator's before the bundle is fetched) and
+    `initRuntimeConfig()`. Measured ×2 on prod and on staging. This is the
+    expensive one: the console `await`s `initRuntimeConfig()` before
+    `createRoot().render()`, so the duplicate sat on the critical path to first
+    paint, and at the control plane's ~0.5–1.4 s for this endpoint it also pushed
+    boot concurrency further past the server's pool knee.
+  - `GET /api/v1/auth/me/localization` — `seedTenantLanguage()` on a device's true
+    first visit and `LocalizationFetchProvider` on every boot. The seed keeps
+    running past its 500 ms race by design and the provider mounts the moment that
+    race resolves, so on a first visit the two overlap. Measured ×2 on staging.
+  
+  `@object-ui/types` gains `sharedGetJson()`: callers that ask for the same GET
+  while one is already in flight join that request instead of starting another. It
+  shares the in-flight promise and nothing else — the entry is deleted the instant
+  the request settles, so there is no cache, no TTL and no stale window, and a
+  caller arriving after settle fetches fresh exactly as before. Rejections fan out
+  to every sharer with the status intact (`LocalizationFetchProvider`'s retry
+  policy still sees its own 503), each caller receives its own copy of the parsed
+  body, and only GETs are eligible — a non-GET is refused rather than quietly
+  rewritten.
+  
+  Requests that differ in credentials mode or headers keep separate identities, so
+  the console's two deliberate `auth/get-session` calls — one Bearer-only with the
+  cookie omitted to detect a stale token, then one through the cookie — stay two
+  requests. Collapsing those would have destroyed the signal the first one exists
+  to read.
+  
+  No component receives anything different: same payloads, same errors, one fewer
+  round trip.
+- 71ee495: The two form CONTAINER contracts now have ONE declaration each, derived from
+  `@objectstack/spec`, and the console reads them instead of its own copies.
+  
+  objectui#5542 converged the LEAF of this contract — the field spec — and left the
+  two containers above it untouched, because converging them was a bigger call than a
+  mechanical import. `FormSectionSpec` and `FormViewSpec` were each hand-declared
+  twice under the same names, once in `packages/app-shell`'s `SchemaForm.tsx` and once
+  in `apps/console`'s `FormPage.tsx`. Unlike the leaf — whose console copy was a clean
+  subset — these two had **already drifted, in both directions**, so neither copy was a
+  subset of the other and there were two live answers to "what may an author write":
+  
+  - `FormSectionSpec` — app-shell declared `description` / `visibleWhen` / `visibleOn`;
+    the console declared none of them. The console's `columns` admitted the string arm
+    (`'1' | '2' | '3' | '4'`); app-shell's took numbers only.
+  - `FormViewSpec` — the console declared `label` / `groups` / `sharing` /
+    `submitBehavior`; app-shell stopped at `type` plus `sections`.
+  
+  The drift is decided by asking the **contract**, not by picking a side. `columns`
+  does admit the string arm (`FormSectionSchema.columns` unions `z.enum(['1','2','3','4'])`
+  with the four numeric literals, folded to a number by its own transform), so
+  app-shell's numbers-only declaration was rejecting metadata the platform accepts —
+  objectui#5040's own symptom, not a deliberate narrowing. `label` on the form view is
+  the opposite answer: `FormViewSchema` **rejects** it (`unrecognized_keys`, measured
+  against the installed `@objectstack/spec` 17.0.0), because a form config is titled,
+  not labelled. The value that read actually finds is the VIEW's identity label, which
+  arrives on the `ExpandedViewItem` envelope or beside the config on a flattened
+  runtime overlay — so it is declared on `FormPage.tsx`'s own `FormViewBody`, next to
+  the body it unwraps, rather than smuggled onto the form contract.
+  
+  Both types are therefore **derived from the spec's own `FormSection` / `FormView`
+  with named narrowings** — the repo's sanctioned form for a spec-shaped local type
+  (`scripts/check-spec-symbol-derivation.mjs`) — rather than restated. Every key the
+  two layers agree on comes from the spec and cannot fall behind it; the four positions
+  where this layer is deliberately narrower are each named in an `Omit` list and
+  restated once next to its reason: `fields` keeps the converged 26-key leaf (deriving
+  it would silently re-open #5542), and `label` / `description` / `visibleWhen` /
+  `visibleOn` keep the shapes this repo's renderers and evaluators actually consume
+  rather than the spec's `I18nLabel` and `ExpressionInput`. `apps/console`'s
+  `submitBehavior` union — previously hand-written under the comment "Mirrors the spec
+  FormView.submitBehavior union" — is now read back off the shared type, making the
+  mirror structural. `@object-ui/app-shell` re-exports both names from its package root
+  (type-only, erased at build — nothing is added to the bundle), because a type that
+  cannot be imported is a type that gets retyped.
+  
+  The pins are what make future drift loud, and each half is pinned on both sides.
+  `form-spec.containers.test.tsx` and `FormPage.viewSpec.test.ts` compare the
+  non-narrowed half of each type against the spec's own symbol, so re-hand-writing
+  either declaration fails `type-check` the day the spec moves rather than years later
+  when someone reads two files side by side — and the console's pins read both types
+  back out of the **exported** `buildSections` signature rather than naming them, so a
+  re-inlined local copy fails even if it agrees on every key on the day it is written.
+  Their liveness controls are what stop them being phantom checks: the removed copies
+  are pinned NOT equal to the shared types (proving the `Equal` helper still
+  discriminates), the renderer's honoured `RenderableSection` is pinned not equal
+  either (so the authored-document and honoured-row types cannot be collapsed again),
+  and an undeclared key is still rejected (so the derivation smuggled in no index
+  signature or `any`). Every narrowing carries a matching negative pin, so "derived"
+  cannot quietly become "widened to whatever the spec says".
+  
+  Behaviour is unchanged — the runtime always accepted these keys. The vitest halves
+  prove it: a section spelling its column count as the string `'3'` lays out identically
+  to the numeric `3` on both sides, and a section carrying the keys only one side used
+  to declare builds the same rows.
+- cebdfe7: The form-field authoring contract now has ONE declaration, and the console reads it
+  instead of its own copy.
+  
+  objectui#5040 was not a missing key. It was that **two hand-written descriptions of
+  one contract drifted**, and nothing could notice, because each was only ever checked
+  against itself. PR #5537 converged the two app-shell descriptions into
+  `views/metadata-admin/form-spec.ts`. A **third** survived in `apps/console`:
+  `FormPage.tsx` declared its own nine-key `interface FormFieldSpec`, under the same
+  name, in a different package — so the same failure mode stayed fully available.
+  
+  Measured key by key before choosing a route, because the two honest outcomes are
+  "same contract, import it" and "genuinely narrower layer, rename it and pin the
+  subset". The console's copy was a strict subset — 9 of the shared type's 26 keys,
+  every one identical in type, none console-only — and it sat in a position that
+  describes an **authored document**: `FormSectionSpec.fields`, read straight off the
+  `/meta/view/:name` payload, the same spec `FormView` metadata-admin renders (both
+  files even spell the same six-member `type` union and call the element type
+  `FormFieldSpec`). The narrow, renderer-honoured shape is a different type that
+  already exists in that file, `RenderableField`. So this was one contract described
+  twice, and the console's description was wrong about the document: legal metadata —
+  `visibleWhen`, `dependsOn`, `type`, `options`, `immutable`, the recursive `fields`,
+  and ten more keys — was undeclared there. That is #5040's own symptom, "the type
+  rejects the configuration the runtime accepts", which no runtime test can see.
+  
+  `@object-ui/app-shell` therefore re-exports `FormFieldSpec` from its package root
+  (type-only, erased at build — nothing is added to the bundle), and `FormPage.tsx`
+  imports it and deletes the local declaration. Reachability is the load-bearing half:
+  a type that cannot be imported is a type that gets retyped, and retyped copies drift.
+  `form-spec.ts` itself is untouched.
+  
+  `FormPage.fieldSpec.test.ts` is the pin that makes future drift loud. It reads the
+  field-spec type back out of the **exported** `buildSections` signature rather than
+  naming it, so re-inlining a local `interface FormFieldSpec` fails `type-check` even
+  if the copy agrees on every key on the day it is written — which is exactly what did
+  not happen to the copy this change removes. Its liveness controls are what stop it
+  being a phantom check: the removed nine-key shape is pinned NOT equal to the shared
+  type (so the `Equal` helper is proven to still discriminate), `RenderableField` is
+  pinned not equal to it either (so the honoured-row and authored-document types cannot
+  be collapsed again), and an undeclared key is still rejected (so the import did not
+  smuggle in an index signature). Behaviour is unchanged: the runtime always accepted
+  these keys, and the vitest half proves the same rows are built.
+- 4db5989: A widget title stored as an inline per-locale map is editable again in both dashboard
+  authoring surfaces, and a save writes back only the active locale's entry
+  (objectui#5428).
+  
+  `@objectstack/spec` widened `I18nLabel` from `string` to `string | Record` at
+  17.0.0-rc.6, so a stored widget title may be an inline per-locale map while both
+  authoring panels edit a title in ONE single-line input. Writing the input's value back
+  as the whole value would collapse every other locale on the first keystroke, so both
+  surfaces took the same conservative branch: show a map-valued title resolved, and make
+  it READ-ONLY.
+  
+  That branch could not lose data, but it rested on a premise the spec had already
+  invalidated — "nothing can reach this path from stored metadata yet, `I18nLabel` was
+  plain `string` through rc.5" — stated sixty lines below a comment in the same file
+  documenting the rc.6 widening that makes a stored map reachable. Both could not hold.
+  The pinned spec is 17.0.0. What the read-only branch did in practice from rc.6 onward
+  was not protect an unreachable path: it denied an author the ability to edit a widget
+  title in their own locale.
+  
+  objectui#5301's maintainer ruling settled the write rule for the sibling surface — a
+  save replaces only the active locale's entry and preserves the others — and
+  `@object-ui/i18n` ships it as `setLocalized`, co-located with `pickLocalized` because
+  the read and the write have to agree. Both panels now adopt it:
+  
+  - `@object-ui/plugin-designer`'s `DashboardEditor` widget property panel;
+  - `@object-ui/app-shell`'s `DashboardWidgetInspector` in metadata-admin.
+  
+  A plain-string title keeps saving as a plain string, so the common path is unchanged.
+  An edit made in a locale the stored map does not carry ADDS an entry under that locale
+  rather than overwriting the entry the display fell back to.
+  
+  The pins are preservation pins, not "the input is editable" pins: at both surfaces a
+  keystroke on a map-valued title must leave every other locale's entry byte-identical.
+  Reverse-verified by mutating each write back to the flattening form and confirming those
+  assertions go red at both surfaces.
+  
+  Not a multi-locale editor: an author still reaches only the entry for the locale they
+  are in. Authoring every locale from one panel remains an open product question. The
+  stale deferrals both comments carried pointed at objectui#4163, which closed as
+  completed on 2026-08-15 while the placeholders were still in the tree; they are replaced
+  with the rule that is actually in force rather than re-pointed at another tracker.
+- f7e34ca: Close the dashboard widget `type` vocabulary, and admit `metric-card` as objectui's own component extension.
+  
+  `DashboardWidgetSchema.type` was `string` on the TypeScript interface and `z.string()` in the Zod twin — an unbounded hatch. A typo'd family, a chart type the spec retired, and a component type nothing registers all type-checked and validated, surfacing only as the renderer's red `OBJUI-001` panel at runtime.
+  
+  It is now the CLOSED `DashboardWidgetTypeName` / `DashboardWidgetTypeSchema`: the spec's own `ChartTypeSchema` families **by reference**, plus two named, closed objectui extension sets — `DASHBOARD_WIDGET_TYPE_EXTENSIONS` (`list`, `custom`: objectui-only widget families) and `DASHBOARD_COMPONENT_WIDGET_TYPES` (`metric-card`: an objectui SDUI **component** type the widget slot holds directly, per the maintainer ruling of 2026-08-14 — objectui's own component enum, explicitly not the spec widget enum).
+  
+  Three drifts the closure surfaced and this change fixes: the dashboard designer's palette offered `grid`, which is not a widget family in either contract and was refused at publish; the metadata-admin widget inspector and the designer both wrote an unvalidated `string` from their select boxes; and a `@object-ui/types` fixture pinned `bar-chart`, a `plugin-charts` component type, on a dataset-bound widget that could never render as one.
+- dc14bcb: Delete the dead `src/utils/metadataConverters.ts` module. It had zero importers, was not
+  re-exported from the package barrel, and no `exports` subpath reached it — `toObjectDefinition`,
+  `toFieldDefinition`, `MetadataObject` and `MetadataField` were never part of the published
+  surface, so nothing external can break. The module was removed rather than left alone because it
+  carried two patterns the live code no longer uses: a name-heuristic `isSystem` (the server's real
+  `system` flag is the source of truth) and a three-way `referenceTo` tolerance for a target the
+  spec spells `reference`. A dead copy that disagrees with the live one is what a future author
+  copies from.
+- ca2b409: Studio's form designer canvas now emits the namespaced `FormField.type` spelling
+  instead of passing `objectDef.fields[x].type` through raw (objectui#4838).
+  
+  Per the maintainer ruling on that card, a bare spec-type name (`markdown`,
+  `html`, `richtext`, …) is **not** a legal `FormField.type` — one widget, one
+  legal spelling, the namespaced widget id. `ObjectFormDesigner` was the measured
+  producer of the bare spelling: it handed a raw object-metadata type straight to
+  `isWideFieldType`, a helper whose vocabulary is `FormField.type`. It now
+  normalizes through `mapFieldTypeToFormType`, the one place that widget decision
+  is made.
+  
+  User-visible effect: a `repeater` field is finally laid out full-row on the
+  canvas, matching the runtime form. `repeater` is a spec `FieldType` that
+  resolves to the wide `field:grid` widget, but bare `repeater` is not one of
+  `WIDE_FIELD_TYPES`' bare members, so the raw pass matched nothing — the canvas
+  showed it at normal width while the real form spanned it. Fields whose spec name
+  doubles as a widget id (`textarea`, `markdown`, `html`, `richtext`, `grid`) are
+  unaffected; they matched under both spellings.
+  
+  The two tolerant consumers this makes look redundant are deliberately left
+  alone, each scheduled under its own follow-up with deprecation care: the
+  `field:`-prefix fallback in `renderFieldComponent`, and `WIDE_FIELD_TYPES`' dual
+  spellings. Removing a tolerance is the consumer-tightening half, and other
+  producers have not been normalized yet.
+- eba3a6e: metadata-admin: `FormFieldSpec` declares `dependsOn`, and the widget half reads
+  the same declaration instead of its own copy of it (objectui#5040)
+  
+  `FormFieldSpec` — the authoring type for a metadata-admin form layout, the
+  element type of `FormSectionSpec.fields[]` — did not declare `dependsOn`.
+  `widgets.tsx` held a second, inline description of the same object as
+  `WidgetProps.fieldSpec`, and that one did, because two registered widgets read
+  it as their primary configuration: `field-selector` resolves
+  `dependsOn || reference || 'objectName'` to decide whose field catalog to
+  offer, and `dynamic-config` uses it to pick a sub-schema out of
+  `WidgetContext.dynamicSchemas`. One value travelling down one channel,
+  described twice, disagreeing on the one key that decides what those widgets
+  show — so
+  
+  ```ts
+  { field: 'fields', widget: 'field-selector', dependsOn: 'objectName' }
+  ```
+  
+  the only configuration that makes `field-selector` work, was a `TS2353` for
+  anyone who typed their spec. It survived because in-repo specs reach the form
+  through `as any` / loose types, so the authoring type was never asked.
+  
+  No runtime behaviour changes: `MetadataField` already handed `dependsOn`
+  through and both widgets already read it. What changes is the type face — it
+  now admits what the runtime has always accepted. The two descriptions are one
+  declaration, extracted to a leaf module
+  (`views/metadata-admin/form-spec.ts`) that both halves import, because
+  `SchemaForm.tsx` imports `./widgets.js` and a back-edge would close a cycle.
+  `SchemaForm.tsx` re-exports `FormFieldSpec` and `VisibilityPredicate`, so every
+  existing importer is unaffected.
+  
+  `dependsOn` is `string | string[]` here, deliberately **not**
+  `@object-ui/types`' wider canonical `DependsOnInput`, which also admits
+  `{ field, param }` objects: both readers index `[0]` and use the result as a
+  field name, so the wider shape would be a type that lies. Converging the two is
+  its own decision, pinned as a refusal rather than taken silently.
+- 4334341: `MarketplacePackagePage`'s third fetch effect — `listLocalInstalls` — is now gated on
+  `marketplaceEnabled` and `isAdmin`, the same two predicates the page's other two fetch
+  effects already check, in addition to (not instead of) its existing
+  `features.installLocal` check (objectui#5620).
+  
+  `listLocalInstalls`'s only consumer is `localInstalls.find(...)` in the content branch,
+  which is unreachable whenever the page has already returned `MarketplaceDisabled` (no
+  marketplace on this runtime) or `MarketplaceAccessDenied` (a refused viewer) — both
+  decided ahead of the content branch since objectui#5533 and objectui#5583. Before this
+  fix, a runtime with `features.installLocal: true` still fired the request — and
+  discarded its answer — on a marketplace-off runtime and for a non-admin, the same
+  wasted-round-trip class objectui#5533 established the fix for on this page, on the flag
+  that card was not about.
+  
+  `features.installLocal` remains its own axis: a runtime can mount a local kernel install
+  path with no marketplace proxy at all, so the fix adds the two predicates as a
+  conjunction rather than replacing the existing check. The request still fires exactly
+  when it did before AND the viewer would actually see its answer.
+- 8140418: Studio 的记录网格只请求服务端真有的列——「添加字段」不再把整个网格打成「该视图的查询被拒绝」
+  
+  在 Data 支柱点一下「添加字段」，整片网格立刻变成错误态，并建议「清除筛选条件」——而现场根本没有筛选条件。
+  
+  根因是投影的来源错了。`gridColumns` 取的是**草稿**对象的字段名，而这个数组是下游取数的输入；`addField` 只往本地草稿推一个 `field_<N>`。于是列一变就重新取数，`select` 里带着服务端不存在的列，data API 按设计拒绝——它的错误信息还专门解释了为什么不能静默丢弃未知列：那会把窄投影悄悄答成宽投影。
+  
+  修法的边界是**实测**出来的，不是猜的：把字段存成草稿返回 200 且 `state=draft`，紧接着的 `select` 指名它**仍然** 400。物化发生在**发布**时，所以「有没有保存」是错的问题，「服务端有没有」才是——答案在 `layered().effective` 这条基线里。
+  
+  因此新增 `publishedFieldNames`（加载时取自基线），并让 `gridColumns` 只保留其中存在的列。新字段照常在右侧检查器里被选中和配置（那本来就是配置它的地方），发布之后它可查询了，才作为列出现在网格里。
+  
+  过滤放在列数组这一处、而不是取数那一侧，是为了让「网格要什么」只有一个真相源。
+  
+  回归测试 `DataPillar.gridProjection.test.tsx` 断言在**交给对象视图的列数组**上——那个数组就是投影本身；如果只监视取数调用，日后把数组在下游改一手也能过，缺陷就悄悄搬回来了。撤掉这一行过滤，第二条精确转红、第一条仍绿。
+- 3d8cab5: Interface-page maps: drop the derived marker-title binding, restoring the
+  object's own declaration as the authority
+  
+  `defaultMapFromObject` bound a `titleField` alongside `locationField`, derived
+  from the object's display field. That binding was added to route around a forge
+  in `ObjectMap` — `getMapConfig` filled an absent `titleField` with the literal
+  `'name'`, and the marker title was a plain `record[titleField]` read, so an
+  object whose display field was not `name` titled every popup `undefined`. The
+  forge is gone: `ObjectMap` now resolves marker titles through
+  `@object-ui/core#getRecordDisplayName`, the same ADR-0079 resolver the kanban,
+  calendar and gantt renderers already used — which is why none of them binds a
+  derived title either.
+  
+  What the binding did once the forge was gone was invert precedence. It reaches
+  the resolver as `options.titleField`, i.e. step 0 — ahead of `titleField` on the
+  object, ahead of the declared `nameField` pointer, and ahead of the legacy
+  `titleFormat` template. A field name derived by the page could therefore only
+  ever change the answer by out-ranking something the object itself declared; in
+  every other case it reproduced, at step 0, the string the resolver already
+  computes further down its ladder. The deriver now binds `locationField` and
+  nothing else, exactly like its kanban / calendar / gallery / gantt siblings.
+  
+  No authoring surface changes. An author's own `map.titleField` is untouched — it
+  travels as the view-level `map` block, `ListView` merges it per key, and the
+  resolver honours it at step 0 by design. Objects that declare nothing resolve to
+  the same field as before, now via the resolver's own type-aware derivation
+  rather than a binding forced ahead of it; objects that declare a `titleFormat`
+  template (or a `titleField`) now have that declaration honoured on the map, as
+  it already was on every other visualization.
+- f09c7bc: Interface-page maps: derive a marker-title binding from the object's display field
+  
+  An ADR-0047 interface page that whitelists `map` derives its map binding with
+  `defaultMapFromObject`, which bound only `locationField`. With no `titleField`
+  reaching `ObjectMap`, `getMapConfig` filled the gap with the literal `'name'`
+  and the marker title is a plain `record[titleField]` read — so on any object
+  whose display field is not `name` (for example one keyed by `title`), every
+  marker popup titled itself `undefined`.
+  
+  The derivation now also binds the object's display field, resolved with the
+  field-name half of ADR-0079's precedence: the declared `nameField` (and its
+  `displayNameField` / `NAME_FIELD_KEY` aliases), otherwise the shared
+  `deriveTitleField` scan from `@object-ui/core` — the same ranking the kanban,
+  calendar and gantt renderers resolve titles through, so a map and a board over
+  one object agree on what a record is called. When nothing resolves the key is
+  omitted rather than defaulted. A hand-declared `map` block still wins per key.
+- d524bde: The marketplace **catalog** page now tells a non-admin that the runtime has no
+  marketplace, instead of telling them they lack permission (objectui#5557).
+  
+  `MarketplacePage` ordered its two early returns admin-first, so on a runtime that
+  mounts no marketplace at all (`features.marketplace: false` — an `OS_CLOUD_URL=off`
+  deployment, the EE deploy template's factory default) an unprivileged member got
+  "access denied" for a surface that exists for nobody. That answer sends them to
+  ask an administrator for a grant that would not help them, and it left the
+  informational disabled state built in objectui#5504 unreachable for every
+  non-admin. The runtime check now answers first, because "this deployment has no
+  marketplace" is true regardless of who is asking.
+  
+  This restores the sibling-page invariant for the one class of viewer it still
+  failed for: `MarketplacePackagePage` was reordered the same way in objectui#5533,
+  so on a marketplace-off runtime the catalog page and the package detail page now
+  give a non-admin the same kind of answer.
+  
+  Scope, deliberately narrow:
+  
+  - **Admin-first ordering stays correct where a marketplace exists.** On a runtime
+    with `features.marketplace: true`, a non-admin still gets `MarketplaceAccessDenied`
+    — the catalog is an install surface, and a member who cannot install has nothing
+    to do with it. That boundary is pinned by an explicit test, not left to prose:
+    without it, a change that simply dropped the admin check would look correct.
+  - Nothing an admin sees changes, on either kind of runtime.
+  - No new i18n keys, and no change to `MarketplaceAccessDenied` or
+    `MarketplaceDisabled` themselves — only which of the two the page reaches for,
+    and in which order it decides.
+  - The disabled state is still the server's own answer (`features.marketplace`),
+    never inferred from a failed request, and it still fails open.
+- 13413f3: The marketplace package detail page decides "you are not an admin" before it fetches,
+  instead of after the load has already failed.
+  
+  `MarketplacePackagePage` ordered its early returns with the `!isAdmin` guard *after*
+  both the loading branch and the `error || !data` branch, and gated its two fetch
+  effects on `features.marketplace` alone. On a runtime that mounts a marketplace, a
+  non-admin who opened a package URL was therefore walked through the fetch and the
+  skeleton, and — when the load failed — was handed the destructive "Failed to load
+  package" card carrying the server's own error message. Whether that viewer was
+  refused or handed a diagnosis about a surface they are not allowed to use came down
+  to whether an unrelated request happened to succeed.
+  
+  The guard now sits ahead of both branches, and `getMarketplacePackage` and
+  `getCloudInstallationInfo` are gated on `isAdmin` as well, so the page stops issuing
+  requests on behalf of a viewer it has already decided to turn away. That is the
+  discipline objectui#5533 established on this same page for `features.marketplace`,
+  applied to the other predicate that decides the same thing. It is also the ordering
+  `MarketplacePage` carries after objectui#5557, so the two sibling pages now answer one
+  runtime the same way for every viewer. The server remains the authority on what a
+  non-admin may fetch; this only stops the client doing work it would discard.
+  
+  Unchanged for an admin, deliberately and under test: a failing load still produces the
+  destructive card with the server's message intact, and a successful one still renders
+  the package. A "fix" that hoisted the refusal unconditionally, or that deleted the
+  failure branch, would satisfy every non-admin assertion and fail those two.
+  
+  `loading` stays seeded from `marketplaceEnabled` alone rather than from
+  `marketplaceEnabled && isAdmin`. `isAdmin` reads `activeMember`, which `AuthProvider`
+  resolves asynchronously *after* the session settles, so an admin whose role comes from
+  the org member row renders once as a non-admin before the flag flips. Seeding `false`
+  there would leave that first admin render with `loading: false` and no data — the
+  destructive card, painted for a frame before the effect could raise the flag again.
+  `MarketplacePackagePage.guardOrder.test.tsx` pins the flip case for that reason, along
+  with the ordering, the skipped requests, and the marketplace-off boundary the guard
+  must not jump above.
+- 2573ff4: The marketplace **package detail** page now states that the marketplace is turned
+  off, instead of red-erroring, on a runtime that has none (objectui#5533).
+  
+  `MarketplacePackagePage` takes the same `isMarketplaceEnabled()` early return its
+  sibling catalog page took in objectui#5504, rendering the informational
+  `MarketplaceDisabled` state when the server reports `features.marketplace: false`
+  (an `OS_CLOUD_URL=off` deployment — the EE template's factory default). Until now
+  the same runtime answered a bookmarked or pasted package URL with a destructive
+  "Failed to load package / Not found." card, so the two sibling pages reached
+  opposite conclusions about one runtime: the catalog called it configuration, the
+  detail page called it a failure.
+  
+  Both requests the page fires for its own view are skipped in that state — the
+  package fetch and the cloud-installation probe — rather than fired and discarded:
+  a discarded request still reaches the server and can race the destructive card
+  onto the screen before the disabled state settles.
+  
+  Scope, deliberately narrow:
+  
+  - **Not** a "swallow all errors" change. With `features.marketplace: true` the page
+    behaves exactly as before, and a package that genuinely is not there still
+    renders the destructive card carrying the server's own message. The flag is the
+    runtime's own answer, never inferred from the shape of a failure, and it fails
+    open — a runtime that answers nothing keeps its detail page.
+  - The `installLocal` surfaces are untouched. That is a different capability flag,
+    and an air-gapped `OS_CLOUD_URL=off` runtime still has a working install-local
+    path.
+  - No new i18n keys: `marketplace.disabled.*` and `marketplace.action.backHome`
+    already ship in all ten locale packs.
+- 8d37efb: The metadata lock banner can no longer render an amber, padlocked box with no
+  title, and the ADR-0010 §3.6 lock vocabulary is declared once instead of three
+  times (objectui#5024).
+  
+  `MetadataLayered.lock` and `MetadataAuditEntry.lockState` each spelled the four
+  states out by hand, 42 lines apart in one file, compared by no gate. They are now
+  one exported `MetadataLockState` — derived from `GetMetaItemLayeredResponseSchema`'s
+  `z.enum` in `@objectstack/spec`, which already owns this vocabulary, so the copies
+  were restating a schema rather than filling a gap.
+  
+  The user-visible half is the banner. Its title was three independent `&&` branches
+  with no fallback, while the switch that opens the banner is true for any non-`none`
+  value — so a lock state outside the four opened the box and left the headline
+  empty. That is reachable without a fifth state ever being added here:
+  `MetadataClient.layered()` casts the wire value through unchecked, so a newer
+  server reaches this banner as-is. Measured, not assumed — feeding `no-publish`
+  through the page rendered the padlock, the border and an empty title. The title is
+  now a keyed lookup with a loud fallback that names the unrecognised token, so a
+  fifth state fails `type-check` here and, if one arrives from a server anyway, the
+  operator reads a sentence instead of a blank box.
+- b2ea297: `ObjectSchemaMetadata` is now derived from `@objectstack/spec`'s `ServiceObject`
+  instead of being a hand-written copy (objectui#5362; maintainer ruling
+  2026-08-20: the object document type belongs to the spec).
+  
+  What changes on the published type surface:
+  
+  - **Gained:** the full spec object-document surface, including the three keys
+    the runtime already reads but the old interface rejected as excess
+    properties: `icon`, `titleFormat`, `listViews` (plus `pluralLabel`,
+    `nameField`, `displayNameField`, `managedBy` as a spec key, and the rest of
+    the spec document).
+  - **Removed:** nine members the old interface declared that no objectui
+    runtime code reads and the spec document does not know: `extends`,
+    `triggers`, `primary_key`, `relationships`, `name_field` (the spec spelling
+    is `nameField`), `soft_delete`, `audit_trail`, `version`, `cache`.
+    `ObjectTrigger` and `ObjectRelationship` remain exported unchanged.
+  - **Kept:** `editMode` — the one measured client-side member the runtime reads
+    (`recordFormNavigation` / `AppContent`) — now declared on the new
+    `ObjectSchemaClientExtensions` interface, which the derivation intersects.
+    Note the spec's strict parse rejects `editMode` on published documents
+    (`unrecognized_keys`); it is a client-type member only.
+  
+  Spelling settlement: `listViews` (camelCase) is canonical — `list_views`
+  appears nowhere in `@objectstack/spec` 17.2.0. Runtime read sites in
+  `@object-ui/app-shell` and `@object-ui/react` keep a documented snake-spelling
+  READ fallback for stored pre-settlement documents (that stock has never been
+  censused — objectstack#7917); the CRUD guide and its pinned transcription now
+  author the canonical spelling.
+- 26ff2d6: `sanitizeViewOverride` now strips a half-filled `between` from a stored view
+  overlay, instead of handing it back to the merge (objectui#5025,
+  objectstack#8815).
+  
+  The overlay recovery pass asked "is this filter row filled in?" with the
+  shape-blind predicate objectstack#8815 retired — `value == null || value === ''
+  || (Array.isArray(value) && value.length === 0)`. That is correct for `scalar`
+  and `list` and blind to `pair`: a `between` carrying one bound is
+  `['2024-01-01', '']`, an array of length 2, so the pass read it as a real
+  condition and kept it. The two write paths (`plugin-list`'s `ListView` and
+  app-shell's `viewFilterFold`) were converted to the builder's arity-aware
+  `isFilterValueComplete`; this read path was the third verbatim copy, and the one
+  whose job was to clean up exactly the rows the other two used to write. Until
+  now a stored half-range survived the pass, reached the query, and the server
+  refused the whole view (`400 INVALID_FILTER`) for every user on every later
+  read.
+  
+  The pass now delegates to the same `isFilterValueComplete` the write paths use,
+  on both of the at-rest shapes it handles (the spec `ViewFilterRule` object and
+  the legacy runtime triple). A complete range — bounds of `0` and `false`
+  included — is untouched, and the `scalar` and `list` families read exactly as
+  before, since the retired predicate was already right for them. One shape is
+  newly stripped beyond the half-filled array: a `between` whose value is a bare
+  scalar, which `ViewFilterRuleSchema` itself refuses.
+  
+  Which operators want no value at all is unchanged and still answered by
+  app-shell's `VALUELESS_FILTER_OPERATORS` — that set is already derived from the
+  builder's `VALUELESS_FILTER_BUILDER_OPERATORS` rather than being a private copy,
+  and its parity is pinned.
+- 36fc746: Every envelope reader on the package surfaces now renders a producer-marked
+  `error.userMessage`, and the Studio package list opens the failure body at all.
+  
+  `fetchPackages` — the `/api/v1/packages` read behind the Studio switcher, the writability
+  courtesy gate, the namespace lookup and the builder landing page — answered a refusal with
+  `HTTP <status>` and never opened the body, so `message`, `code` and `userMessage` were
+  discarded together: a 403 whose envelope said `Reading packages requires the studio.access
+  or setup.access capability.` reached the author as four characters. `apiJson` on the
+  package admin page read `error.message` and never the mark, and rendered no code.
+  `duplicatePackage` read `error.message` alone.
+  
+  All three now ask one shared rule (`readEnvelopeFailureText`): a producer-marked
+  `userMessage` outranks the diagnostic `message` at any status — presence of the field is
+  the producer's marking, and a consumer that sees it renders it verbatim — with `error.code`
+  appended to whichever prose won. An unmarked refusal is unchanged and still renders its
+  diagnostic; a body carrying no prose still falls back to each reader's own status text.
+- 38158c6: ObjectView no longer forwards `chart.config` onto the `object-chart` node it builds.
+  
+  `@objectstack/spec`'s `ListChartConfigSchema` is a `strictObject` declaring exactly
+  `chartType` / `dataset` / `dimensions` / `values`, and objectui binds it by reference, so
+  `config` is refused by name (`unrecognized_keys ["config"]`) — by the client schema and by
+  the same schema the platform's metadata write door parses every save through. The rung was
+  therefore a channel no conforming author could feed, on both the dataset and the legacy
+  branch, and it landed on a node that does not declare `config` either.
+  
+  For every spec-conforming view this is a no-op. A non-conforming row that somehow carried
+  the key degrades rather than breaks: `ChartRenderer` generates a container config from
+  `series` plus a positional palette when none is present, so the chart still renders, with
+  series-derived labels and default colours.
+- 3211397: `ObjectSettingsPanel` now calls `isExternalWider` from `owd-sharing.ts` instead of
+  re-declaring `OWD_WIDTH` and the ADR-0090 D11 width comparison inline (objectui#5477).
+  
+  `owd-sharing.ts` states its own purpose — it is "the single home" for the pieces the
+  per-object Settings tab and the package-level OWD overview must agree on, the D11
+  "external ≤ internal" comparison among them — and the Settings tab was the one surface
+  not calling it. The two implementations were verified equivalent before the swap, over
+  the full domain of both dials plus `undefined`, the rejected legacy aliases and
+  prototype-chain keys: 144 input pairs, zero disagreements. The module's extra `!!`
+  truthiness guards are redundant at this call site, which already normalizes both dials
+  to `''`, and `'' in OWD_WIDTH` is false regardless. So no author-visible verdict
+  changes — the same three pairs warn, and the same twenty-two stay calm.
+  
+  The substantive half is the pin that keeps it that way. `ObjectSettingsPanel.owdAgreement.test.tsx`
+  drives BOTH surfaces over the full 5×5 cross-product of the values their dials offer and
+  requires all three legs — the Settings tab's rendered warning, the overview's per-row
+  error, and `isExternalWider` itself — to agree on every pair, with the violating pairs
+  pinned by name so the sweep cannot pass vacuously. Re-inlining a drifted copy into either
+  surface, swapping the `(internal, external)` argument order, or refining D11 in only one
+  place now fails a test instead of silently leaving the authoring surface enforcing the
+  old rule.
+- 76ceb1e: The console's param-collection dialog now titles itself from `action.label` alone —
+  the unreachable `|| action?.title` fallback beside it is removed (objectui#4282).
+  
+  `title` is declared on no action surface in the ecosystem: it is absent from
+  `@objectstack/spec`'s `ActionSchema` (44 keys walked at spec 17.0.0), from
+  `@object-ui/core`'s `ActionDef` and its pinned `ACTION_DEF_KEYS` / `SPEC_ACTION_KEYS`
+  inventories, and from `@object-ui/types`' renderer view (`ui-action.ts`) and `crud.ts`
+  `ActionSchema` / `BaseSchema`. None of the four action renderers — `action:button`,
+  `action:icon`, `action:group`, `action:menu` — forwards it either. So the right-hand
+  side of that `||` could not be reached by authored metadata: a fallback that cannot
+  fire, which is the "declared is not enforced" shape objectstack#4075 exists to reduce.
+  Nothing a user hits changes; the line now reads exactly one key, matching the
+  `description` line directly below it.
+  
+  `useConsoleActionRuntime.paramDialogTitle.test.tsx` pins the reader so the alias cannot
+  be reinstated silently: an action carrying `title` and no `label` must open an untitled
+  dialog rather than a dialog named by a key no producer sets.
+- 7e81168: `ActionParamDialog`'s "this param carries a reference target" rule now derives from the shared reference-field family instead of the last private copy of it.
+  
+  `packages/app-shell/src/utils/paramToField.ts` restated the rule inline as
+  `LOOKUP_WIDGET_TYPES.has(type) || type === 'user'` — the fourth and last
+  hand-maintained answer to one question ("does this widget resolve a foreign key,
+  so hand it `reference_to` / `display_field` / the rest of the picker config").
+  The other three converged on `@object-ui/core`'s `EXPANDABLE_FIELD_TYPES` in
+  objectui#4770 / #4790 / #4815; this face is now the fourth.
+  
+  No reachable behaviour change. The shared set is one member wider (`tree`), and
+  that member can never be a widget key on this surface: it is absent from
+  `fields`' widget map and `mapFieldTypeToFormType` sends it to `field:lookup`, so
+  every key the rule tests arrives as `lookup`. Both halves are pinned, so
+  registering a real `tree` widget surfaces the change instead of shipping it
+  silently.
+  
+  The module's second rule — which widget keys degrade to a text input for want of
+  a declared `referenceTo` — is a different set over overlapping types (`user`
+  defaults its target to `sys_user` and must never degrade) and was deliberately
+  left un-merged, matching the same split the plugin-grid twin keeps.
+  
+  Also retires a comment that claimed the disjunction "moves in lockstep with
+  plugin-grid's `bulkParamToField` twin — the two param faces are never split".
+  Measured on the tip before this change, that was false in both senses: the twin
+  had read core's Set since objectui#4815 while this line read a private literal,
+  so the two shared nothing and no gate could report a split; and the two member
+  sets already differed, by `tree`. Lockstep now holds mechanically — the pin is
+  on object identity (a spy on core's `has`), so a member-identical private copy
+  fails where a value check would pass.
+- c5200f0: Follow-up to #5696: the pending-drafts bar's strings live at `console.ai.pendingDrafts.*` with en+zh locale entries — the i18n call-site key gate and ratchet flagged the original root-level keys that existed nowhere.
+- 76ceb1e: `RecordDetailView`'s param-collection dialog now titles itself from `action.label`
+  alone — the unreachable `|| action?.title` fallback beside it is removed
+  (objectui#5610).
+  
+  This was the second copy of the limb objectui#4282 removed from
+  `useConsoleActionRuntime`. `RecordDetailView` builds its own action runtime rather
+  than routing through that hook, so the two near-identical `paramCollectionHandler`s
+  have drifted as a pair and the first fix could not reach this one.
+  
+  `title` is declared on no action surface in the ecosystem: it is absent from
+  `@objectstack/spec`'s `ActionSchema` (44 keys walked at spec 17.0.0), from
+  `@object-ui/core`'s `ActionDef` and its pinned `ACTION_DEF_KEYS` / `SPEC_ACTION_KEYS`
+  inventories, and from `@object-ui/types`' renderer view (`ui-action.ts`) and `crud.ts`
+  `ActionSchema` / `BaseSchema`. None of the four action renderers — `action:button`,
+  `action:icon`, `action:group`, `action:menu` — forwards it either. So the right-hand
+  side of that `||` could not be reached by authored metadata: a fallback that cannot
+  fire, which is the "declared is not enforced" shape objectstack#4075 exists to reduce.
+  Nothing a user hits changes; the line now reads exactly one key, matching the
+  `description` line directly below it.
+  
+  `RecordDetailView.paramDialogTitle.test.tsx` pins the reader so the alias cannot be
+  reinstated silently: an action carrying `title` and no `label` must open an untitled
+  dialog rather than a dialog named by a key no producer sets. A pin per reader is the
+  only shape that covers both handlers, since the hook's own pin cannot see this site.
+- a392e1c: 「打开这条记录 →」卡片——ask 的记录交接终于有了客户端的另一半
+  
+  服务端半边（cloud#1659 的 `open_record`）先落了地，实测发现它是**半活的**：agent 发出
+  `status:'record_handoff'`、回答说「点击上方链接打开」，而上方根本没有链接——控制台
+  有 `build_handoff` 的探测器，这个状态一处都不认识，信号被原样丢弃。
+  
+  按五步补齐：`detectRecordHandoff`（含持久化 `{type:'text',value}` 包裹形状——replay
+  信封那课的规矩）→ live 映射提升 → 水合提升 → 卡片渲染 → 宿主回调。
+  
+  两个设计点：
+  
+  - **app 段点击时现场解析**。记录路由要 `/apps/:app/:object/record/:id`，交接载荷只有
+    对象和记录 id；宿主回调用一次同源元数据读取 `_packageId` 再导航，不给 agent 增加
+    它未必知道的参数。
+  - **刻意不做「被取代」置灰**。builder 卡的旧 prompt 会过时，旧的记录链接不会——记录
+    不因为有新交接而失效。
+  
+  真机闭环验证：问「把《沉默的大多数》标记成已读」→ 卡片渲染
+  （`沉默的大多数 — 把阅读状态改为已读`）→ 点击 → 落在
+  `/apps/app.hdke/hdke_book/record/<id>` 详情页，「编辑」在手边。
+  
+  缺任一 id 的交接在探测器就被丢弃，与服务端的拒绝对称——指向空处的卡片比散文更糟。
+- 4ef29f0: Remove the inert `showRefresh` designer input from the `object-view` registration (objectui#5567).
+  
+  The `object-view` designer no longer offers a "Show Refresh Button" toggle, and the registration no longer defaults `showRefresh: true`. The key was declared, documented, and defaulted, but `ObjectView` never read it — an author who wrote `showRefresh: false` on an `object-view` node always got a no-op. **Behaviour is unchanged for every existing app**, because nothing ever consumed the key.
+  
+  Migration: nothing to do. If you wrote `showRefresh` on an `object-view` node, the key simply disappears from the designer's property panel; it never controlled anything. The live refresh channel is `userActions.refresh` (rendered by the list toolbar in `@object-ui/plugin-list`), which is unaffected. `showRefresh` on other surfaces (e.g. `CRUDToolbar`) is also unaffected.
+  
+  `@object-ui/app-shell` only drops its two producer writes of the dead key (the app `ObjectView` wrapper and the metadata-admin `ViewPreview`) — no user-visible change.
+- fd8dace: Studio surfaces the runtime authoring gate's advisory findings after a **publish**, not only after a save
+  
+  objectui#4133 / PR #4236 wired the gate's advisories to the save door and recorded, honestly, what that left unsurfaced: Studio's designer stages every edit as a `mode: 'draft'` save, drafts are never gated (the framework returns at its D1 early-return before a single rule runs), and the publish step that *is* gated returned no `advisories` field at all. So on the flow most tenants actually use, the author was told nothing at either door — for two different reasons, only one of which was objectui's.
+  
+  The second reason has expired. `PublishMetaItemResponseSchema` now declares the same optional, omitted-when-empty `advisories` key that `SaveMetaItemResponseSchema` has carried since #4717, and `publishMetaItem` populates it. Measured against the installed `@objectstack/spec` (17.2.0) rather than inferred from the version number: the key survives a `safeParse`, a half-shaped finding is rejected, and a clean publish omits the key entirely. That reading is now a test rather than a note, so a spec drift fails CI instead of silently re-muting the door.
+  
+  `MetadataClient.publish` and `MetadataClient.publishDraft` — the two methods over the single-item publish route `POST /meta/:type/:name/publish` — now report through the **same** sink, the same event and the same renderer the save door already used. No new UI shape: same warning tier, same 10s duration, same per-finding `rule` + `message` + `hint` formatting, findings still rendered verbatim as server prose. The wiring lands in the data layer rather than at the call sites, so `ResourceEditPage`'s Publish button and the runtime `RuntimeDraftBar` promotion (ObjectView / ReportView / DashboardView) are covered by one change, as are future ones.
+  
+  One thing had to differ, and it is the frame's verb. Save and Publish are two different buttons in this product, so a toast that says "Saved" after a Publish tells the author their change is still a draft — the opposite of what happened. `MetadataSaveAdvisoryEvent` therefore gains a required `door: 'save' | 'publish'` and the renderer picks `console.publishAdvisoryTitle` (added to all ten locale packs) accordingly. `door` exists because `mode` cannot answer this: a direct active save and a draft promotion both report `mode: 'publish'`, since both land the body in the active overlay. It is required rather than optional so a future third door cannot be wired without saying which one it is, and the renderer branches on it through an exhaustive switch with a `never` check, so adding a third member is a compile error rather than a silently wrong verb.
+  
+  **BREAKING for event constructors — `MetadataSaveAdvisoryEvent.door` is required.** Reading the event is unaffected: a listener that ignores `door` behaves exactly as before, and every other member is unchanged. Constructing one is a compile break — a door-less event literal that type-checked before now fails with TS2741, `Property 'door' is missing`. Measured on the emitted `dist/index.d.ts` of `@object-ui/data-objectstack` on both sides: that single required member is the entire non-comment delta of the package's published surface. **Migration:** add `door: 'save'` or `door: 'publish'` to the literal, whichever write it models — `'save'` for `PUT /meta/:type/:name`, `'publish'` for `POST /meta/:type/:name/publish`. Scored `minor` rather than `major` per the repo's version policy: objectui's major is pinned to `@objectstack`'s so that "same major means compatible" holds across the two repos, so objectui's own breaking changes ship as `minor` with the break named here (`scripts/check-changeset-no-major.mjs`). Every publishable package sits in one `fixed` group, so this entry carries the group.
+  
+  Unchanged, deliberately: the **batch** door. "Publish whole app" (`POST /packages/:id/publish-drafts`) still discards per-draft advisories server-side — objectstack#9343, open and unruled — and nothing here compensates for that from the client side. A test pins the absence, so a later traversal of a batch-shaped `published[]` cannot be added without turning it red.
+- ad404e0: Confirm-replay dispatch errors (bare `{error: …}` envelopes) now resolve the 确认修改 card instead of leaving it on 应用中 forever: `detectReplayOutcome` classifies them as a provisional failure, and a later successful authoring result in the same turn (the model self-repairing, e.g. after an `object not found` on a blueprint-local name) supersedes it via `detectAuthoringVerdict` — so the card never says 未生效 over a change that actually landed. Real publish failures (`publishFailed` envelopes) are never superseded. Measured live on the local rig, 2026-08-24.
+- 1eb15c7: Page-block canvas: draw the real icon and colour tone for block types that render fine but are not offered in the palette.
+  
+  The canvas read its per-node icon and tone from `BLOCK_TYPE_META`, which is the palette's *offer* list ("what may an author drag in") — while the canvas is answering a different question ("what may an author already have in this page"). The two diverge for an alias pair: `record:discussion` and `record:chatter` are one renderer under two names, so exactly one spelling is always unoffered, and a page carrying it showed a plain unknown-block box and neutral grey instead of the message icon and the blue record tone its twin gets.
+  
+  `block-types.ts` now declares `BLOCK_RENDERER_ALIAS_GROUPS` — spellings that resolve to the same registered renderer — and the canvas resolves display chrome through `resolveBlockDisplayMeta()`, which falls back to an alias sibling's entry. Keyed on renderer identity, not on "is excluded": palette exclusions that genuinely are not page blocks (`element:text_input`, `element:record_picker`, `element:form`, `ai:chat_window`) keep the generic box, and nothing became draggable — the palette offer list is unchanged.
+- 0935a43: Console builds no longer carry a live Sentry DSN, and `sendDefaultPii` is now opt-in
+  (objectui#5522).
+  
+  `@object-ui/console` publishes a pre-built SPA, so ONE artifact — built once from
+  `apps/console/.env.production` — is what the hosted SaaS console and the on-premises /
+  air-gapped EE images all embed. Vite inlines every `VITE_*` from that file into the
+  bundle as a frozen object literal, so the DSN committed there was a live third-party
+  telemetry endpoint compiled into artifacts that land inside customer networks. It could
+  not be switched off afterwards either: the `VITE_SENTRY_ENABLED` kill switch is read off
+  that same frozen literal, so on a shipped bundle it is `undefined` forever and editing
+  env vars on the deployed host does nothing. An air-gapped deployment was measured
+  sending 14 envelopes per session to sentry.io with IP + User-Agent PII, unstoppable by
+  the customer.
+  
+  - `apps/console/.env.production` no longer defines `VITE_SENTRY_DSN`,
+    `VITE_SENTRY_ENVIRONMENT` or `VITE_SENTRY_SEND_DEFAULT_PII`. A build with no DSN never
+    imports `@sentry/react`, so the `vendor-sentry` chunk is not even fetched.
+  - `sendDefaultPii` changed from opt-out (`!== 'false'`) to **opt-in** (`=== 'true'`), so
+    IP address and User-Agent are never the inherited default of a build that did not ask
+    for them.
+  - The gate now fails **closed**: an absent, empty or whitespace-only DSN means do not
+    send. The direction is deliberately inverted from the usual — an unreported error is
+    recoverable, PII leaving an air-gapped deployment is not.
+  
+  **Action required for deployments that want error reporting** (the hosted SaaS/demo
+  console): inject `VITE_SENTRY_DSN` from your build environment, the same way
+  `VITE_SERVER_URL` is already injected, plus `VITE_SENTRY_SEND_DEFAULT_PII=true` if you
+  still want IP/User-Agent on events. Nothing else changes for builds that opt in.
+- add10d8: Studio's metadata authoring path stops greeting the author with errors they did not cause, English help text in a Chinese console, and a toast on top of the publish button.
+  
+  Three defects measured on a 17.1.0 dogfood walkthrough (objectui#5416), all on
+  the first surfaces a new author sees.
+  
+  **Validation no longer runs on mount.** `新建软件包` opened with both required
+  fields already red: the create draft is `{ version, type }`, so
+  `ManifestSchema.safeParse` reported `name` and `id` missing on the very first
+  render, and the dialog then jumped a line height per field as each error
+  cleared. `SchemaForm` now defers the error *line* until the row has been
+  touched — first focusout anywhere in it, or the field's own first edit — for
+  create forms only. The rule itself did not move: `issues` still reaches the host
+  unchanged, so the submit button is gated on exactly the same validation, and
+  edit/view forms still report from mount, where the issues describe stored values
+  rather than something half-typed.
+  
+  **The package form's help text is translated.** The labels came from the
+  metadata-admin i18n bundle and the help line under each one came straight from
+  `ManifestSchema`'s English `.describe()`, so a zh console rendered 显示名称 over
+  "Human-readable package name". `getPackageForm` now reads each field's help
+  through the same bundle as its label, via a new `tOptional` that returns
+  `undefined` rather than echoing the key back. Only zh entries exist: an en-US
+  console finds nothing and keeps falling through to the spec's own sentence, so
+  the English keeps exactly one producer — `@objectstack/spec` in the framework
+  repo — and this repo never holds a copy of it to drift.
+  
+  **The publish panel's primary button opens clear of the toast stack.** The
+  console mounts its toaster bottom-right and `DraftChangesPanel` is a
+  `side="right"` sheet with an `mt-auto` footer, so a save toast raised on the way
+  there (`对象「…」已存为草稿`, 4s default) sat directly on 全部发布 until it timed
+  out. Opening the panel now clears the stack the surface the author just left had
+  raised. Repositioning the toaster was measured and rejected: the draft preview
+  bar is `sticky top-0` and carries its own publish actions, `NotificationSnackbar`
+  anchors bottom-centre and the nav rail owns the left edge, so a move only
+  relocates the same collision onto a different primary control.
+  
+  Not fixed here, and not fixable here: the other strings the card names are
+  produced outside this repo. `Owning Business Unit` (`packages/spec`),
+  `Search Index` (`packages/objectql`) and the `Revise Window` flow node's name
+  and description (`packages/plugins/plugin-approvals`) all come from the
+  framework, which owns their translation catalogue; patching them in the console
+  would create a second source of truth that diverges at the next framework
+  release.
+- 6cc62e2: Studio Interfaces: the nav-leaf binding reads the canonical target key only
+  
+  `resolveSurface` fell back to the bare spellings `page` / `object` /
+  `dashboard` / `report`, and carried a `case 'view'`. Every
+  `NavigationItemSchema` member is a `strictObject`, none of those bare
+  spellings is in any variant's shape or in `NAV_ITEM_ALIASES`, and `view` is
+  not one of the union's nine members — so all of them are keys `AppSchema`
+  answers with `unrecognized_keys`, and every one of those branches could only
+  fire on an app that cannot be saved. The Studio nav item inspector's object
+  picker likewise read `node.object ?? node.objectName`, preferring the rejected
+  spelling over the canonical one; it now reads the canonical key first.
+  
+  No shape that parses today stops parsing: this narrows the designer back to
+  what the contract already declares.
+- d15a92d: Studio's pre-publish security block can now take you to the object it names.
+  
+  The pending-changes sheet reports what the publish door would refuse — as
+  `object/crmext_visit`, with the rule's fix-it hint and "Fix it on the object under
+  Settings → Record sharing". Naming it was the half that shipped; reaching it was not.
+  The `?surface=<type>:<name>` deep-link that would have carried the author there
+  captures the URL exactly ONCE, at mount, and the sheet is opened over an
+  already-mounted pillar — so writing the param changed the URL and moved nothing.
+  
+  That mount-time capture is deliberate and stays exactly as it was: the mirror half
+  rewrites the param on every in-pillar selection, so a capture that followed the URL
+  would re-trigger its restore on each one. What was missing is a third half — a live
+  target delivered BESIDE the URL, which is what a producer already inside the pillar
+  needs. `surfaceDeepLinkChannel` adds it: producers ask for a surface by identity
+  (`{type, name}`), the host routes cross-pillar requests back through the URL (that
+  pillar is unmounted, so its capture is the right mechanism) and vetoes the ones the
+  author declines over unsaved edits, and the mounted pillar applies the rest.
+  
+  Applied AT MOST ONCE, by a monotonic id. A standing request re-resolved on the next
+  rail reload would drag the author back off whatever they had since selected — the
+  regression the mount-time ref exists to prevent — so `DataPillar.surfaceRequest.test`
+  pins a hand-picked object surviving a package switch, and
+  `surfaceDeepLinkChannel.test` pins the capture itself as an unchanged control: it
+  still ignores every URL change after mount, and a live request never moves it.
+  
+  The sheet's other home is the Home / draft-preview bar, where the Studio object editor
+  is not a reachable destination at all. Reachability is answered structurally — the
+  producer hook returns `null` when no host published the channel — so off-Studio the
+  item name stays the prose #5418 shipped rather than becoming a link to nowhere. Both
+  directions are assertions in `DraftChangesPanel.securityLink.test`, not a comment.
+  
+  Nothing the other three pillars observe changed: `useSurfaceDeepLink` keeps its
+  signature, its return and its behaviour, and only the Data pillar subscribes to the
+  new channel. The channel is its own React-only module on purpose — importing the hook
+  into the sheet would have pulled `nav-selection` and the App-nav inspector into the
+  console's eager graph.
+- 3ece13e: Removed the dead `theme:` entry from `clientValidation.ts`'s `LOADERS` table, which
+  read `ThemeSchema` off `@objectstack/spec/ui` — a symbol the spec retired upstream
+  (objectstack#10485 / PR objectstack#10695, which deleted the whole `ui/theme.zod.ts`
+  module). `theme` was never a registered metadata type, so metadata-admin never asked
+  for it (objectui#5715).
+  
+  This is dead-code hygiene, not a bug fix, and it changes nothing an author can
+  observe. Two measurements say why, and both cut against the more dramatic reading:
+  
+  - The entry is not broken *today*. objectui's own `@objectstack/spec` pin (17.1.0)
+    still publishes `ThemeSchema` as a working strict Zod schema — measured by
+    importing the `ui` subpath and by ablation, where restoring the entry made
+    `validateMetadataDraft('theme', ...)` actively reject a draft. The skew is with
+    objectstack's `main`, not with what objectui installs, which is exactly why no
+    gate here ever went red.
+  - It could never have crashed. `getSchemaForType` duck-checks the loader's result
+    (`typeof schema.safeParse === 'function'`) and wraps the call in `try/catch`, so an
+    `undefined` export degrades to a silent no-op validator, never a throw. After a
+    future spec bump past the retirement that is the branch it would have taken.
+  
+  The one thing that was genuinely off: `hasClientValidator` answers from key presence
+  alone, so it returned `true` for `theme` while the validator behind it would have
+  judged nothing. Per its own docblock that combination makes `ResourceEditPage` treat
+  live client issues as the error source and suppress the server's `_diagnostics` — a
+  stored item rendering as clean. Unreachable in practice, but it is the reason the
+  entry is worth removing rather than leaving inert.
+  
+  The line is replaced by an absence note in the shape the file already uses for
+  `workflow` and `approval`, because re-adding this entry from the spec would
+  type-check and go green against the current pin. A metadata-admin theme editing
+  surface remains a separate capability decision.
+- 4c2c389: Studio package lookup now renders a producer-marked `error.userMessage` from the failure
+  envelope, preferring it over the diagnostic `error.message`.
+  
+  `fetchFullPackage` — the `/api/v1/packages` read behind "Package info & settings" and the
+  managed-snapshot refresh — read only `error.message` and `error.code`. In the 5xx band the
+  platform withholds the producer's prose and substitutes the generic `Internal server error`
+  into `message`, while the marked `userMessage` rides through untouched, so an author met a
+  500/503 that carried a sentence written for them and was shown the generic one instead.
+  Per the envelope contract, presence of `userMessage` IS the producer's marking and a
+  consumer that sees it renders it verbatim; `error.code` still travels alongside, and an
+  unmarked refusal is unchanged.
+- cfcff30: Each package's README now states, up front, that it needs a bundler: importing it from plain Node ESM fails, and that is a supported-configuration boundary rather than a defect.
+  
+  `@object-ui/plugin-dashboard` imports `react-grid-layout/css/styles.css` at module
+  scope and `@object-ui/plugin-map` imports `maplibre-gl/dist/maplibre-gl.css`;
+  `@object-ui/app-shell` reaches the first of those through the static
+  `@object-ui/plugin-dashboard` imports in `DashboardView` and `ReportView`. Node has
+  no loader for `.css` at all, so all three resolve and then die during evaluation:
+  
+  ```
+  TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+    for .../react-grid-layout/css/styles.css
+  ```
+  
+  Nothing about how these packages load has changed — every supported host bundles
+  them (Vite, webpack, or Next with the package in `transpilePackages`), and that is
+  still the only supported way to consume them. What changed is that the boundary is
+  now written where a consumer meets it, instead of being learned from a red import.
+  
+  objectui#5384 ruled unbundled Node consumption **unsupported** for style-carrying
+  plugin packages — permanently, over the three packages as a group — rather than
+  moving the stylesheet imports out of module scope. No unbundled-Node consumer
+  exists, and buying permanent machinery to close a capability gap nobody is pulling
+  on was the trade the ruling declined. A real consumer request reopens it as a
+  design question, not as a defect: the READMEs say so and name the issue.
+- 286dd8d: A view personalization overlay now stores **only the patch** — a column drag no
+  longer freezes the source view's filter into it (objectui#5233).
+  
+  `ObjectView`'s `persistViewPatch` wrote `{ ...baseViewDef, ...patch }`, so an
+  overlay written by a mere sort/density/column change copied the view's *current
+  effective* `filter` — along with its `columns`, `label`, `type`, `isDefault` —
+  into the stored row. The display merge is `{ ...source, ...override }`, so that
+  copy then outranked the source view forever: an admin edited the view's filter
+  and every user who had once resized a column silently kept the old filter, with
+  nothing anywhere reporting it.
+  
+  The write now goes through the exported seam `buildPersistedViewBody`. For a
+  **system view's overlay** the body is the patch plus `viewKind` when the active
+  tab carries one — identity, not content, and the same line the read side already
+  draws (`VIEW_OVERLAY_IDENTITY_KEYS`); `object`, `name` and the overlay marker are
+  stamped by the adapter. A **saved view's own row** is deliberately still written
+  whole: for it the body *is* the view, there is no source underneath it for a
+  copied key to shadow, and the write is a whole-document PUT — narrowing it would
+  delete the user's view rather than narrow it.
+  
+  This is the write half of the maintainer's 2026-08-12 ruling (objectstack#7494).
+  It was blocked until `columnState` was admitted to the view-metadata surface as
+  an explicitly runtime-only overlay key (objectstack#9933, released in
+  `@objectstack/spec` 17.1.0) — before that a `columnState`-only patch was refused
+  `422 INVALID_METADATA`, and the fat copy was the only thing supplying a
+  recognized key. The read half (`narrowPersonalizationOverlay`) shipped earlier
+  and stays: rows written before this land are still tolerated on read, and because
+  the write replaces the whole document, the next toolbar toggle also strips such a
+  row at rest. No migration.
+- Updated dependencies [9c74902]
+- Updated dependencies [64dae8e]
+- Updated dependencies [b06e374]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [594704f]
+- Updated dependencies [d3995fe]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [f66072d]
+- Updated dependencies [2d7304d]
+- Updated dependencies [062943f]
+- Updated dependencies [993f312]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [41b7ce3]
+- Updated dependencies [53dc89d]
+- Updated dependencies [67a87d9]
+- Updated dependencies [baac3f4]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [94e2fa7]
+- Updated dependencies [490d9a9]
+- Updated dependencies [a1c41c5]
+- Updated dependencies [1117414]
+- Updated dependencies [6d63cd0]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [7c96c94]
+- Updated dependencies [a100f77]
+- Updated dependencies [4da5109]
+- Updated dependencies [3e853c9]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [95f8704]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [17ccec9]
+- Updated dependencies [90665e0]
+- Updated dependencies [8d3a529]
+- Updated dependencies [5ac2e2c]
+- Updated dependencies [194fae1]
+- Updated dependencies [63d54dd]
+- Updated dependencies [7e19d03]
+- Updated dependencies [beccf1c]
+- Updated dependencies [c5fbe0b]
+- Updated dependencies [b08b7eb]
+- Updated dependencies [546ddf7]
+- Updated dependencies [2cf69e4]
+- Updated dependencies [864154e]
+- Updated dependencies [2cf69e4]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [7a72422]
+- Updated dependencies [a76b18c]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [b4393e5]
+- Updated dependencies [5173a5e]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [5fa06c4]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [b3d562c]
+- Updated dependencies [129bcc5]
+- Updated dependencies [d3005f7]
+- Updated dependencies [c9a7252]
+- Updated dependencies [1e7fe0a]
+- Updated dependencies [5f19b92]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [d18a0d3]
+- Updated dependencies [9caa7d4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [e0b289d]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [2da6441]
+- Updated dependencies [3b9c774]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [7d2a689]
+- Updated dependencies [8631c32]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [5d3a2d1]
+- Updated dependencies [c38162d]
+- Updated dependencies [8f1d995]
+- Updated dependencies [b362c1b]
+- Updated dependencies [5127378]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [00c665e]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [1c19722]
+- Updated dependencies [5961030]
+- Updated dependencies [faa863d]
+- Updated dependencies [129c7a9]
+- Updated dependencies [fd814d6]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [9602dc8]
+- Updated dependencies [854222c]
+- Updated dependencies [e929c56]
+- Updated dependencies [3777538]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [30c73cd]
+- Updated dependencies [7975f2d]
+- Updated dependencies [bd2f56a]
+- Updated dependencies [c4987fb]
+- Updated dependencies [f55d666]
+- Updated dependencies [f241a4d]
+- Updated dependencies [6a7893d]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [73e8c33]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [831be72]
+- Updated dependencies [b49f9a1]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [f9653ae]
+- Updated dependencies [7a5da14]
+- Updated dependencies [8a6ecac]
+- Updated dependencies [babe956]
+- Updated dependencies [fff9645]
+- Updated dependencies [9c3b7ce]
+- Updated dependencies [891a188]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [969ba84]
+- Updated dependencies [98188c2]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [4ac3769]
+- Updated dependencies [3beef6d]
+- Updated dependencies [7d8e546]
+- Updated dependencies [d636743]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [19f3637]
+- Updated dependencies [f46bd39]
+- Updated dependencies [b98352a]
+- Updated dependencies [b76ca67]
+- Updated dependencies [9bd08fe]
+- Updated dependencies [45ac2cb]
+- Updated dependencies [b97790a]
+- Updated dependencies [dbd5194]
+- Updated dependencies [7c9b044]
+- Updated dependencies [e552c31]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [b392674]
+- Updated dependencies [4f3a1e2]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [7b90231]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [fab4802]
+- Updated dependencies [8579e34]
+- Updated dependencies [d57db5d]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [f07b976]
+- Updated dependencies [9409eb9]
+- Updated dependencies [045d20b]
+- Updated dependencies [c18d099]
+- Updated dependencies [0caacca]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [f9984c0]
+- Updated dependencies [9700dd9]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [320374d]
+- Updated dependencies [b0d308d]
+- Updated dependencies [1349400]
+- Updated dependencies [b458300]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [39d69ad]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [f08bcd9]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [2a7ac32]
+- Updated dependencies [220c18d]
+- Updated dependencies [eeb6c2f]
+- Updated dependencies [5f4514f]
+- Updated dependencies [04a67b9]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [1490691]
+- Updated dependencies [e8e4c4d]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [0349555]
+- Updated dependencies [854cba3]
+- Updated dependencies [78ca238]
+- Updated dependencies [40c4711]
+- Updated dependencies [d8ec8d6]
+- Updated dependencies [351eb31]
+- Updated dependencies [866cd1d]
+- Updated dependencies [20c04b2]
+- Updated dependencies [84ffdbc]
+- Updated dependencies [a276480]
+- Updated dependencies [01c9023]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [8952395]
+- Updated dependencies [e8c553b]
+- Updated dependencies [f626808]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [5015fcf]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [67dadd6]
+- Updated dependencies [ac257b3]
+- Updated dependencies [e21308e]
+- Updated dependencies [34ea56d]
+- Updated dependencies [a4514e8]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [6411def]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [bb459ea]
+- Updated dependencies [4704aa4]
+- Updated dependencies [47547d0]
+- Updated dependencies [b61d7d8]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [6ca6e12]
+- Updated dependencies [669d71b]
+- Updated dependencies [6a99bb2]
+- Updated dependencies [2d3fe73]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [7dedec6]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [3399704]
+- Updated dependencies [7bf244b]
+- Updated dependencies [ed4a2f1]
+- Updated dependencies [0dc2c93]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [d327b9c]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [b8fc1e2]
+- Updated dependencies [20cb8db]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [1cca678]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [245c7b7]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [d80447d]
+- Updated dependencies [2a5bf45]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [fe8f451]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [01c27c4]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [91f9276]
+- Updated dependencies [7ef3867]
+- Updated dependencies [0ead1f6]
+- Updated dependencies [bdb4dbd]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [a915064]
+- Updated dependencies [52cac38]
+- Updated dependencies [53ded82]
+- Updated dependencies [64a252d]
+- Updated dependencies [6712930]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [5a211b2]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0758bd8]
+- Updated dependencies [35e6366]
+- Updated dependencies [f57ca75]
+- Updated dependencies [31a0d05]
+- Updated dependencies [7ed9808]
+- Updated dependencies [0ea7054]
+- Updated dependencies [2d80456]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [3c76801]
+- Updated dependencies [ebfc3c2]
+- Updated dependencies [9a5d669]
+- Updated dependencies [d06fba8]
+- Updated dependencies [b2e85a9]
+- Updated dependencies [79a4b8f]
+- Updated dependencies [d5c1f52]
+- Updated dependencies [c7cd2b6]
+- Updated dependencies [b2065e7]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [77f846a]
+- Updated dependencies [686d5d9]
+- Updated dependencies [cc3366b]
+- Updated dependencies [76ae729]
+- Updated dependencies [bc5870c]
+- Updated dependencies [f47d94c]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [894d103]
+- Updated dependencies [a31adc6]
+- Updated dependencies [100547e]
+- Updated dependencies [3a58149]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [2c8474c]
+- Updated dependencies [6ce89da]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [3c9fca3]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [2e471a6]
+- Updated dependencies [3d79455]
+- Updated dependencies [cc5de5c]
+- Updated dependencies [84d2e98]
+- Updated dependencies [f24195a]
+- Updated dependencies [56f4e34]
+- Updated dependencies [1d9100e]
+- Updated dependencies [62c0fa1]
+- Updated dependencies [4db5989]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [5eddeeb]
+- Updated dependencies [b470e91]
+- Updated dependencies [fe76ece]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [9a1fb41]
+- Updated dependencies [c40f3b8]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [9e22085]
+- Updated dependencies [b655a9d]
+- Updated dependencies [c574dfb]
+- Updated dependencies [02f48b6]
+- Updated dependencies [a865c73]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cad512f]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [0b12a33]
+- Updated dependencies [105f3c5]
+- Updated dependencies [32ef595]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [c8da8b3]
+- Updated dependencies [689b979]
+- Updated dependencies [d6fe1e1]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [15236e0]
+- Updated dependencies [ec9fdaa]
+- Updated dependencies [d6613a2]
+- Updated dependencies [e2e8e68]
+- Updated dependencies [e4e9557]
+- Updated dependencies [7a28e1e]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [6c1b105]
+- Updated dependencies [9d9040d]
+- Updated dependencies [20e317c]
+- Updated dependencies [425762e]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [8e00bfd]
+- Updated dependencies [8d37efb]
+- Updated dependencies [9850c6e]
+- Updated dependencies [9118a31]
+- Updated dependencies [de570cc]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [6c5ee71]
+- Updated dependencies [84d70bb]
+- Updated dependencies [cfc2c7a]
+- Updated dependencies [9e725e0]
+- Updated dependencies [6f017e9]
+- Updated dependencies [b6e83be]
+- Updated dependencies [ab92940]
+- Updated dependencies [f1c27f0]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [63b4e0e]
+- Updated dependencies [1e66879]
+- Updated dependencies [c5200f0]
+- Updated dependencies [343c598]
+- Updated dependencies [af3861f]
+- Updated dependencies [0ccbdc1]
+- Updated dependencies [515f171]
+- Updated dependencies [83ec618]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [4bb940b]
+- Updated dependencies [17fbbaf]
+- Updated dependencies [d8cf1cb]
+- Updated dependencies [0d1e702]
+- Updated dependencies [b03ba3a]
+- Updated dependencies [0068348]
+- Updated dependencies [641543f]
+- Updated dependencies [8a44390]
+- Updated dependencies [a392e1c]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [c00bf28]
+- Updated dependencies [23705b7]
+- Updated dependencies [f2158ec]
+- Updated dependencies [4ef29f0]
+- Updated dependencies [fd8dace]
+- Updated dependencies [ad404e0]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [f1690d4]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [591bf27]
+- Updated dependencies [38a9568]
+- Updated dependencies [93bbc20]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [2dd9443]
+- Updated dependencies [43ca9d5]
+- Updated dependencies [5a07e67]
+- Updated dependencies [2d36552]
+- Updated dependencies [45d8288]
+- Updated dependencies [b2437a7]
+- Updated dependencies [f157423]
+- Updated dependencies [7a90afd]
+- Updated dependencies [ba306e3]
+- Updated dependencies [eddc1dd]
+- Updated dependencies [ff2d547]
+- Updated dependencies [36918bf]
+- Updated dependencies [490f482]
+- Updated dependencies [934a532]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [26a2238]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [5d79faf]
+- Updated dependencies [30266cf]
+- Updated dependencies [9a9977c]
+- Updated dependencies [57f9b07]
+- Updated dependencies [cfcff30]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [6b348d2]
+- Updated dependencies [c86185e]
+- Updated dependencies [fb96ecb]
+- Updated dependencies [1170ed1]
+- Updated dependencies [dd35800]
+- Updated dependencies [f75810e]
+- Updated dependencies [4d73b07]
+  - @object-ui/plugin-form@17.7.0
+  - @object-ui/i18n@17.7.0
+  - @object-ui/core@17.7.0
+  - @object-ui/plugin-chatbot@17.7.0
+  - @object-ui/plugin-dashboard@17.7.0
+  - @object-ui/plugin-report@17.7.0
+  - @object-ui/types@17.7.0
+  - @object-ui/fields@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/plugin-grid@17.7.0
+  - @object-ui/plugin-list@17.7.0
+  - @object-ui/plugin-detail@17.7.0
+  - @object-ui/react@17.7.0
+  - @object-ui/plugin-kanban@17.7.0
+  - @object-ui/data-objectstack@17.7.0
+  - @object-ui/plugin-view@17.7.0
+  - @object-ui/plugin-calendar@17.7.0
+  - @object-ui/plugin-charts@17.7.0
+  - @object-ui/plugin-designer@17.7.0
+  - @object-ui/plugin-editor@17.7.0
+  - @object-ui/providers@17.7.0
+  - @object-ui/layout@17.7.0
+  - @object-ui/permissions@17.7.0
+  - @object-ui/auth@17.7.0
+  - @object-ui/collaboration@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes

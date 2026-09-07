@@ -1,5 +1,371 @@
 # @object-ui/auth
 
+## 17.7.0
+
+### Minor Changes
+
+- 0ea7054: Remove 37 runtime dependencies that no file in the declaring package consumes, and gate
+  the direction so the next one cannot land (objectui#8198).
+  
+  `check:phantom-deps` judges imports that are not declared; nothing judged the reverse,
+  so a declaration could outlive its last consumer indefinitely. That is what happened to
+  `recharts` in `@object-ui/components` after objectui#7397 deleted its only importer — it
+  was removed by hand on objectui#7625, and nothing would have reported the next one. The
+  new `pnpm check:unused-deps` asks the reverse question over `dependencies` and
+  `optionalDependencies` of every released package.
+  
+  **Potentially breaking, for consumers relying on hoisting.** Nothing these packages ship
+  changes: their Vite `external` predicates are path-based and never read `dependencies`,
+  so no built artifact moves. What changes is the install graph — a project that imports
+  one of the removed packages while depending only on the ObjectUI package that used to
+  drag it in will no longer resolve it. Declare it directly; that is the correct
+  dependency edge in either case. The removals, by package:
+  
+  - `@object-ui/plugin-designer`: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@object-ui/fields`
+  - `@object-ui/plugin-chatbot`: `react-markdown`, `react-syntax-highlighter`, `remark-gfm` (and the orphaned `@types/react-syntax-highlighter`)
+  - `@object-ui/plugin-report`: `@object-ui/plugin-grid`, `clsx`, `react-i18next`, `tailwind-merge`
+  - `@object-ui/plugin-map`: `@objectstack/spec`, `lucide-react`, `zod`
+  - `@object-ui/runner`: `class-variance-authority`, `clsx`, `tailwind-merge`
+  - `@object-ui/core`: `lodash`, `zod`
+  - `@object-ui/layout`: `clsx`, `tailwind-merge`, and `react-dom` — which it pinned at an exact version in `dependencies` while also declaring it as a peer range, i.e. a library hard-depending on the renderer it asks its host to supply
+  - `@object-ui/plugin-dashboard`: `clsx`, `tailwind-merge`, and the same `react-dom` defect
+  - `@object-ui/plugin-ai`: `@object-ui/react`, `clsx`, `tailwind-merge`
+  - `@object-ui/fields`: `clsx`, `tailwind-merge`
+  - `@object-ui/console`: `@object-ui/react-runtime`, `sucrase`
+  - `@object-ui/auth`: `@object-ui/types`
+  - `@object-ui/plugin-calendar`: `@object-ui/fields`
+  - `@object-ui/plugin-editor`, `@object-ui/plugin-markdown`: `@object-ui/react`
+  - `@object-ui/react`: `react-hook-form`
+  
+  Every one was verified by a whole-package grep before removal — the name appeared nowhere
+  under the package but its own manifest and CHANGELOG — and the whole workspace builds,
+  type-checks and tests green afterwards.
+- 686d5d9: `AuthGuard`'s `requiredRoles` now matches against `user.positions` — the one published spelling (framework ADR-0090 D3) — keeping the `user.role` scalar fallback only for sessions that carry no `positions` key at all (guest / legacy identities). This restores position-holder admission on protocol-17 deployments (where the retired `roles` key is never emitted) and closes the matching over-admission: a coarse scalar `role` no longer passes a gate whose position the server says the user lacks. Preview mode now emits `positions: [role]` instead of the retired `roles` key — it was the last producer — so preview identities are shaped like protocol-17 sessions for every `positions` consumer. The hand-copied `roles?: string[]` mirror key is removed from the client `AuthUser` type; breaking only for TypeScript consumers that compiled against `AuthUser['roles']` (read `positions` instead — no runtime payload ever carried `roles` at protocol 17). Maintainer ruling 2026-08-22 on objectui#5424.
+- c8da8b3: Stop showing an access-denied screen to a real administrator while their
+  adminship is still resolving.
+  
+  `useIsWorkspaceAdmin()` returned a bare `boolean`, so "the inputs have not
+  arrived yet" and "resolved: not an admin" were the same answer. One of its three
+  sources — the active organization member row — is fetched some round trips after
+  the session (`listOrganizations` → `getActiveOrganization` → `getActiveMember`),
+  so an administrator whose adminship lives only in that row rendered at least
+  once as a non-admin, and every gate downstream acted on it: the two marketplace
+  surfaces painted `MarketplaceAccessDenied`, the console chrome dropped and
+  re-added its admin nav entry, and `AppContent` fired a `<Navigate to="/home"
+  replace>` that the later flip could not undo.
+  
+  **Breaking (published API, hence `minor` per this repo's version policy):**
+  `useIsWorkspaceAdmin(): boolean` is replaced by
+  `useWorkspaceAdminStatus(): { isAdmin: boolean; isResolved: boolean }`. The old
+  name is removed rather than kept alongside, so a call site that ignores the
+  third state fails to compile instead of silently refusing an administrator.
+  
+      -const isAdmin = useIsWorkspaceAdmin();
+      +const { isAdmin, isResolved } = useWorkspaceAdminStatus();
+  
+  `AuthProvider` gains `isMembershipResolved` on its context — the organization /
+  member pipeline has reached a terminal state — because `organizations`,
+  `activeOrganization` and `activeMember` read `[]` / `null` / `null` both before
+  the pipeline starts and after it finds nothing.
+  
+  No extra wait for administrators: `isResolved` is true the instant `isAdmin` is,
+  so an admin the session already identifies through `positions[]` never waits on
+  the member row.
+
+### Patch Changes
+
+- 639114c: Reconcile `@object-ui/app-shell` with `@objectstack/spec` 17.3.0 (objectui#7122).
+  
+  `SchemaDiffEntryKind` gained an `unreachable` member in 17.3.0, and the external
+  datasource validation panel labels those kinds through a map that is TOTAL over
+  the union on purpose — so an upstream addition fails the build rather than
+  rendering a blank cell. That mechanism fired: the package did not compile against
+  17.3.0 until the kind was labelled. It now reads "Not checked — remote
+  unreachable", following the spec's own ruling that this kind asserts nothing
+  about the remote schema and must never be surfaced as "schema changed": it means
+  introspection could not complete, which is often transient, and labelling it like
+  a mismatch would tell an operator to repair a schema nobody has read.
+  
+  Two internal flow-inspector types were renamed (`FlowNodeLike` →
+  `InspectorFlowNode` / `ScopeFlowNode`) because 17.3.0 began exporting its own
+  `FlowNodeLike`; neither name is in this package's published entry, so no consumer
+  import changes.
+  
+  `@object-ui/auth`: a README sentence claiming the preview-mode prop aligns with
+  the spec's `PreviewModeConfig` is corrected — 17.3.0 removed that symbol. The
+  `previewMode` prop itself is host-supplied, unchanged, and unaffected.
+- ebfc3c2: `ActiveOrganizationStorage.clear()` now verifies that the persisted key is actually
+  gone and, when it is not, both reports the failure and stops `get()` answering from
+  the surviving value — instead of swallowing the failed removal (objectui#5731).
+  
+  `clear()` nulled `_memoryValue` and then removed the persisted key inside a
+  `try`/`catch` that discarded any failure. Since objectui#5703 `get()` prefers a
+  NON-NULL `localStorage` read and only falls through to `_memoryValue`, so the two
+  halves of `clear()` were not equally strong: nulling memory always sticks, while a
+  removal that did not stick left the key readable and the read order preferred it.
+  Sign-out is one of `clear()`'s five callers, so the failure mode was "sign-out does
+  not stick", and it was silent — the cleared organization went back on the wire as
+  `X-Tenant-ID` on every subsequent request.
+  
+  The removal is now judged by a READ-BACK rather than by catching the throw, which is
+  both narrower and wider in the right directions. Wider: a wrapped or proxied
+  `localStorage` whose `removeItem` is a silent no-op never throws and leaves identical
+  residue, and is now covered. Narrower: SSR and the partitioned-iframe browser where
+  every operation throws have nothing readable to resurrect, were already safe, and are
+  not reported as failures.
+  
+  A key whose removal could not be verified is quarantined in memory for the rest of the
+  page-load: `get()` skips the persisted branch for it and answers from `_memoryValue`,
+  which `clear()` has just nulled and which a later `set()` refills with the value that
+  write was meant to persist. The quarantine is released as soon as a removal on that key
+  sticks. An unstamped `X-Tenant-ID` is a documented state of the edge contract
+  (objectui#5279); a re-stamped signed-out organization is not.
+  
+  The failure is not thrown and not returned. All five call sites — sign-out's
+  `purgeSignedOutClientCaches`, `switchOrganization`, `deleteOrganization`,
+  `leaveOrganization`, and the session-user purge that runs on the SIGN-IN path — arrive
+  after the transition they follow up on has already happened, and none can act on a
+  storage failure; a `boolean` every caller ignores would read as handled when it is not.
+  So the invariant is restored inside `clear()` and the failure is reported to the
+  console.
+  
+  A working `localStorage` behaves exactly as before: the removal sticks, nothing is
+  quarantined, nothing is reported, and a non-null persisted read is still authoritative.
+  `set()`'s swallowed write failure is deliberately untouched — that swallow is
+  objectui#5703's memory fallback, and it is the correct kind, because the memory copy
+  upholds `set()`'s postcondition where nulling memory could not uphold `clear()`'s.
+- 9a5d669: `ActiveOrganizationStorage.get()` now prefers a non-null `localStorage` read and falls
+  back to the in-memory value otherwise, instead of returning the `localStorage` read
+  unconditionally — so the fallback is reachable in the browser state it was written for
+  (objectui#5703).
+  
+  `set()` already swallowed a failed `localStorage.setItem` into `_memoryValue`, but
+  `get()` only consulted `_memoryValue` when the READ itself threw. There is a real
+  browser state where the read does not throw and the fallback is nonetheless the only
+  copy: `localStorage` present and readable but rejecting writes — Safari private
+  browsing, and any quota-exhausted origin, where `setItem` throws `QuotaExceededError`.
+  In that state the active org was stored and could not be read back, measured as
+  `_memoryValue = org-42` alongside `get() = null`.
+  
+  The cost was silent and lasted the whole session rather than the documented first-boot
+  window: `createAuthenticatedFetch` reads `get()`, so `X-Tenant-ID` was never stamped on
+  any request. Per the edge contract documented on objectui#5279 that header is a routing
+  hint a reader falls through on — the framework scopes from the session — so no row
+  visibility rode on this; what was missing is the tenant-routing input, on every request.
+  `switchOrganization` also appeared to succeed while the client-side stamp never
+  followed.
+  
+  Sign-out is unaffected, and that is the half worth stating: the new fallback fires
+  exactly when the `localStorage` read is null, which is the state `clear()` leaves
+  behind. It answers `null` there because `clear()` nulls `_memoryValue` too. That
+  property is now pinned by test rather than relied upon, so a future `clear()` that only
+  removed the persisted key fails a test instead of quietly re-stamping a cleared org.
+  
+  A non-null persisted read still wins over the memory value, so a working `localStorage`
+  behaves exactly as before.
+- 32ef595: Restore platform-admin detection for permission-set-derived administrators.
+  
+  `useIsWorkspaceAdmin` decides Setup app + Studio visibility, App Marketplace
+  gating and the "Build an app" CTAs. Its third source read `user.roles`, a key
+  the protocol-17 session face no longer emits (framework ADR-0090 D3 renamed it
+  to `positions`). An administrator whose adminship comes from the
+  `admin_full_access` permission set — the single-tenant deployment shape, where
+  there is no organization member row and the server deliberately no longer
+  overwrites `user.role` — matched none of the three sources and read as **not an
+  administrator**: Setup and Studio simply disappeared for them.
+  
+  The hook now reads `user.positions[]`, the one spelling the session publishes.
+  Detection is restored for that path and unchanged everywhere else: an active
+  member row with an admin role, a stored `user.role` admin scalar, and
+  preview/no-auth mode all behave exactly as before, and nobody who was not an
+  administrator becomes one — pinned by four negative cases alongside the
+  positive one.
+  
+  Also corrects the now-stale documentation that described the removed spelling:
+  the hook's own docblock, the `roles?: string[]` declaration on the client
+  `AuthUser` (kept for one remaining compile-time reader; see objectui#5424), and
+  two comments in `@object-ui/app-shell`'s Home page. No behaviour change from the
+  comment corrections.
+- 343c598: The active organization id is now stored per user, and a change of session user drops the
+  previous user's client state wholesale (objectui#5664).
+  
+  `auth-active-organization-id` was a single un-namespaced `localStorage` key while its
+  siblings were already user-scoped (`objectui-recent-items:u:`, `objectui-favorites:u:`,
+  `flow-palette-recents:u:`). On a browser handed from one account to another — a shared
+  machine, a kiosk, a handover, a support session — the arriving user's console read the
+  PREVIOUS user's organization id. The header workspace chip rendered the previous user's
+  workspace for a user whose `organization/list` was empty, and the consequence past the
+  cosmetics is the one worth stating: the polluted org context suppressed
+  `RequireOrganization`'s routing into the guided "Create your workspace" first-run flow, so
+  a brand-new user on that browser silently never got the new-user flow at all.
+  
+  Nothing about row visibility rode on this. With the stale id the server answers
+  `403 USER_IS_NOT_A_MEMBER` on `get-full-organization` and `set-active`, and lists zero
+  environments; the damage was entirely in what the client believed about itself.
+  
+  Three changes, and the third is the one that closes the class rather than the instance:
+  
+  - The key is per-user (`auth-active-organization-id:u:$userId`), matching the convention
+    its siblings already use.
+  - It can no longer be written un-namespaced at all. Where no session user is known yet the
+    value lives in memory for that page-load only — a namespacing that kept a bare-key
+    fallback would re-open the defect the first time a write happened before the user id
+    resolved.
+  - **A change of session user drops the previous user's client state wholesale.** This is an
+    allowlist sweep of both `localStorage` and `sessionStorage`, not a list of known keys, so
+    the NEXT storage key someone adds without a `:u:` scope is covered before it is written.
+    Only device-scoped entries survive: the arriving session's own bearer token, the pointer
+    recording whose state the browser holds, and the UI theme.
+  
+  Both properties objectui#5703 established are preserved and still pinned: `get()` prefers a
+  non-null `localStorage` read and falls back to the in-memory value, and the memory value is
+  nulled BEFORE storage is touched — by `clear()` as before, and now by the user-change purge
+  too, so the outgoing user's org id cannot outlive their persisted key on the sign-out-then-
+  sign-in path that never reloads the page.
+  
+  Existing browsers are not migrated. A value sitting under the retired bare key is
+  unattributable — nothing recorded whose org id it is — so migrating it is precisely the
+  defect it would be migrating away from, and it is deleted instead. A signed-in user loses
+  nothing durable: the active organization is a server-owned fact that
+  `AuthProvider.refreshOrganizations` re-asks for whenever the list is non-empty and no
+  active org is held, including the ADR-0081 single-membership repair. One boot re-supplies
+  it; users with no organization land on the guided first-run flow, which is the outcome this
+  card is about.
+  
+  `apps/console`'s pre-render auth preflight purges every spelling of the active-org key —
+  the retired bare one and each `:u:` scope — when it finds a dead bearer token, and
+  deliberately leaves the session-user pointer in place so the next sign-in can still tell
+  that the browser changed hands.
+- 2dd9443: `purgeSignedOutClientCaches()` — the sweep that drops the signed-out user's
+  `objectui:metadata:*` seed cache on sign-out (objectui#5198) — now costs one key when a
+  single `removeItem` throws, instead of aborting the rest of the sweep (objectui#5777).
+  
+  The `try` wrapped the WHOLE loop, not each removal. A `removeItem` that threw on key `n`
+  aborted the walk, so keys `n+1..end` were never swept, and the failure was swallowed —
+  `AuthProvider`'s `signOut` believed the purge had completed. The entries this sweeps are
+  the previous principal's org-scoped, PERMISSION-FILTERED app list — objectui#5198
+  classifies a surviving entry as a cross-principal disclosure on a shared browser, not
+  mere staleness — so a partial sweep here is the sharper half of the same defect class
+  objectui#5763 fixed on the sign-in path (`sweepStore` in `ActiveOrganizationStorage.ts`).
+  
+  `Object.keys(sessionStorage)` — the reason a guard exists here at all — stays guarded on
+  its own; only the per-key guard is new. Same as `sweepStore`, a failed removal here is
+  not verified by read-back and not quarantined the way `ActiveOrganizationStorage.clear()`
+  (objectui#5731) quarantines a key: this function does not own reads for the metadata
+  seed cache (`MetadataProvider` in `@object-ui/app-shell` does), so there is no `get()` to
+  guard and nothing to quarantine — adding read-back verification would be a general
+  storage-error-handling refactor of the module, out of this card's scope. What is
+  mirrored is the reporting channel: a key whose `removeItem` throws is named in a
+  `console.warn`, the same channel `sweepStore` and `clear()` use, so a partial sweep is
+  discoverable instead of silent.
+  
+  Adds a partial-failure test: a `sessionStorage` whose `removeItem` throws on one metadata
+  key, asserting every other metadata key on both sides of it is still swept and unrelated
+  non-matching keys are untouched, plus a control that the warning fires only on an actual
+  failure.
+- ff2d547: `sweepStore()` — the walk that drops the previous user's `localStorage`/`sessionStorage`
+  state on a change of session user (objectui#5664 part 3) — now costs one key when a
+  single `removeItem` throws, instead of aborting the rest of the sweep (objectui#5763).
+  
+  The `try` wrapped the WHOLE loop, not each removal. A `removeItem` that threw on key
+  `n` aborted the walk, so keys `n+1..end` were never swept, and the failure was
+  swallowed — `purgePreviousUserClientState()` returned normally and `SessionUserScope.adopt`
+  believed the sign-in purge had completed. This is an ALLOWLIST sweep precisely so the
+  next un-namespaced key — one nobody has written yet — cannot re-open the cross-user
+  pollution class #5664 fixed; a partial sweep is a partial allowlist, and which keys
+  survived depended on `Object.keys` iteration order rather than on anything bounded. The
+  previous user's org id, recents, favourites, or a `sessionStorage` metadata seed (their
+  permission-filtered app list, a cross-principal disclosure per objectui#5198) could all
+  land on the wrong side of the abort.
+  
+  `Object.keys(store)` — the reason a guard exists here at all — stays guarded on its
+  own; only the per-key guard is new, so one uncooperative key now costs exactly that key.
+  
+  Unlike `ActiveOrganizationStorage.clear()` (objectui#5731), a failed removal here is
+  NOT verified by read-back and NOT quarantined: `clear()` owns every future read of its
+  one key through `ActiveOrganizationStorage.get()`, so a "still readable" verdict and a
+  quarantine are what keep a failed `clear()` from handing the value straight back.
+  `sweepStore` walks keys it does not own reads for — another package's recents cache, a
+  metadata seed — so there is no `get()` here to guard and nothing to quarantine; adding
+  read-back verification for keys this function does not otherwise touch would be a
+  general storage-error-handling refactor of the module, which this card is scoped away
+  from. What IS mirrored is the reporting channel: a key whose `removeItem` throws is
+  named in a `console.warn`, the same channel `clear()` uses, so a partial sweep is
+  discoverable instead of silent. The caller (`SessionUserScope.adopt`, on the sign-in
+  path, inside an `AuthProvider` effect) still cannot act on the failure and must not
+  throw either.
+  
+  A working `localStorage`/`sessionStorage` behaves exactly as before: every
+  non-device-scoped key is removed, nothing is reported, and the device-scoped allowlist
+  (`auth-session-token`, `auth-session-user-id`, `vite-ui-theme`) is unaffected.
+- 36918bf: `switchOrganization` now re-resolves identity for the organization it just switched
+  to by its own explicit decision, instead of depending on an accidental
+  `TokenStorage` side effect to notice the switch (objectui#5750).
+  
+  `AuthProvider.switchOrganization` has never called `loadSession()` itself. Identity
+  re-resolved across a switch only because `POST /organization/set-active` happens to
+  return the SIGNED `token.signature` spelling in `set-auth-token`, which differs from
+  the UNSIGNED `session.token` spelling `getSession()` normally stores — so
+  `TokenStorage.set` reads the flip as a rotation and the objectui#4467 subscription
+  calls `loadSession()` for it (measured and pinned in objectui#5749/#5719). That
+  signed spelling is deterministic on the raw session token, not on the organization:
+  two switches with no `get-session` landing in between produce the identical signed
+  value, so the SECOND `TokenStorage.set` sees no change, never notifies, and identity
+  is left answering for whichever organization the FIRST switch targeted even though
+  `activeOrganization` already reads as the new one.
+  
+  Reachable in the console via `OrganizationLayout`'s slug-driven effect (the "Manage"
+  link on an org card, plus its own "Back to organizations" button) — ordinary
+  client-side navigation with no full-page reload and nothing debouncing repeat
+  switches. `WorkspaceSwitcher` and `OrganizationsPage`'s own card click were not
+  reachable paths for this: both force `window.location.href` immediately after a
+  successful switch, and the resulting fresh `AuthProvider` mount always performs an
+  authoritative `loadSession()` regardless of how the race above resolved.
+  
+  `switchOrganization` now tracks the organization it last resolved to itself and
+  re-resolves explicitly whenever a switch's target differs from that, while
+  suppressing the (now redundant) rotation notification for its own `set-active`
+  call — so the common single-switch path still spends exactly one `get-session`, not
+  two. A generation guard discards a still-in-flight, now-superseded switch's answer
+  rather than let it clobber a later switch's fresher one.
+- 934a532: Document the `X-Tenant-ID` edge contract that `createAuthenticatedFetch` stamps, and the
+  unstamped-first-request window in which it is not sent (objectui#5279). Documentation
+  only — no behaviour changes.
+  
+  The header had no written contract anywhere, and the shape of the missing information was
+  actively misleading: its only non-CORS consumer lives in the **cloud** repository, so a
+  search confined to this repo and the framework (`objectstack`) returns zero readers and
+  reads as "nothing consumes this stamp". #5279 was filed on exactly that reading, and was
+  held until a cloud-side reading came back non-empty. Without the contract written down,
+  the next person to grep reaches the same false conclusion and deletes a live routing
+  input.
+  
+  `packages/auth/README.md` gains "The `X-Tenant-ID` edge contract": what the header means
+  (a routing hint carrying the better-auth `activeOrganizationId` — not an identity claim,
+  not an authorization input, not what scopes rows), who stamps it and under exactly which
+  condition, who reads it, and what a reader may and may not assume. The framework half is
+  stated as a negative with its pin — `resolveAuthzContext` takes `tenantId` from the
+  API-key principal or `session.activeOrganizationId` and from no header — alongside
+  `plugin-sharing`'s record that trusting `x-tenant-id` as identity *was* a vulnerability.
+  The configuration half is quoted from the contract this package can actually resolve,
+  `TenantRoutingConfigSchema` in `@objectstack/spec/cloud`, where `X-Tenant-ID` is the
+  default of a configurable `tenantHeaderName` and `header` ranks second of six
+  identification sources behind `subdomain`.
+  
+  The unstamped-first-request gap gets its own section: `ActiveOrganizationStorage` is
+  filled only after `AuthProvider`'s async `getSession` -> `listOrganizations` ->
+  `getActiveOrganization` chain resolves, so early-boot requests carry no tenant header at
+  all. What a reader observes is documented as **absent, never present-and-empty**, with the
+  five situations that open the window and the instruction to fall through to the next
+  identification source rather than fail closed. The gap is recorded, deliberately not
+  closed: the cloud readers observe today's behaviour, so changing when the header first
+  appears is its own decision.
+  
+  Three cases in `createAuthenticatedFetch.test.tsx` pin the statements the prose makes
+  about the wire — no active organization means no header at all, the stamp is not gated on
+  `/api/` the way `Authorization` is, and the active organization overwrites a caller-set
+  `X-Tenant-ID` — so the documentation cannot drift away from the behaviour unnoticed.
+
 ## 17.6.0
 
 ### Minor Changes

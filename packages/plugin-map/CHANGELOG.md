@@ -1,5 +1,861 @@
 # @object-ui/plugin-map
 
+## 17.7.0
+
+### Minor Changes
+
+- 7c3df8f: A non-grid view's fetch now carries a platform row ceiling, and crossing it is
+  never silent (objectui#7210, maintainer ruling a′, 2026-09-02).
+  
+  Before this, `ObjectGantt`, `ObjectCalendar`, `ObjectMap` and `ObjectTree` each
+  issued a `find` with **no `$top` at all**, so the request returned the entire
+  filtered result set. At the 186 rows the card was filed from that is invisible;
+  on an object with 100k scheduled rows it is the whole table into the browser,
+  and nothing an author could write — `pagination.pageSize` included — could
+  bound a request that never carried a cap to begin with.
+  
+  **What changed.** Those four fetches now ask for `NON_GRID_ROW_CEILING_TOP`
+  rows, draw at most `NON_GRID_ROW_CEILING` of them, and when the result set was
+  larger they render a footnote naming both numbers, verbatim as it renders:
+  *"Showing the first 2000 of 41234 records. Narrow the filter."* Below the
+  ceiling nothing changes: the full set draws and no footnote appears.
+  
+  The four view packages take a **minor**, not a patch: a result set above the
+  ceiling is no longer drawn in full, which is a behaviour break whatever the
+  fixed group does to the released version number.
+  
+  **The ceiling is a platform constant, not an authorable key** — `2000`, exported
+  from `@object-ui/react` as `NON_GRID_ROW_CEILING`. An authored `limit` or
+  `dataSource: { limit }` still does not reach these queries, by the same ruling;
+  three alternatives were rejected with it (a documentation note only — still the
+  whole table; truncating at `pageSize` — silent, and a complete schedule capped
+  at one page; an authorable `maxRows` — a new permanent key every author sets).
+  
+  **Why 2,000.** One constant for all four, so the binding view sets it. Measured
+  in this repo's jsdom lane: gantt, calendar and map hold their DOM flat as rows
+  grow (virtualised task list; four events per day cell; auto-clustering above
+  100 markers), while `ObjectTree` flattens every expanded node into the document
+  at a linear **5.2 DOM elements per record** with no virtualisation. 2,000 rows
+  is where the worst of the four lands at ~10,400 elements — an order of
+  magnitude above Lighthouse's "excessive DOM size" warning, and still ~10x the
+  real application result set this card came from.
+  
+  New exports on `@object-ui/react`: `NON_GRID_ROW_CEILING`,
+  `NON_GRID_ROW_CEILING_TOP`, `applyNonGridRowCeiling`, `NonGridRowCeilingNote`
+  and the type `NonGridCeilingResult`. Two new `common.*` i18n keys carry the
+  footnote copy in all ten packs.
+- b041b9c: `@object-ui/core` publishes `resolveRecordSourceObjectName`, the ONE reader for "which
+  object is this block bound to" (objectui#7627).
+  
+  Six view plugins each spelled that resolution locally — `ObjectCalendar` twice,
+  `ObjectGantt`, `ObjectTree` twice, `ObjectMap`, `ObjectGrid` — and had drifted: three
+  wrote `?? schema.objectName`, one `|| ''`, one `: undefined`, one an `'object' in
+  dataConfig` test. They now delegate to one function that states the published
+  objectui#6939 record-source ladder (`data`, then `staticData`, then `objectName`) once.
+  
+  **No behaviour changes.** Each site's pre-collapse expression is transcribed verbatim
+  into `record-source.behaviourNeutrality-7627.test.ts` and asserted equal to its
+  post-collapse spelling across the whole contract-valid input matrix — both bindings
+  present, data only, `objectName` only, empty `objectName`, empty `data.object`, the
+  `api` / `value` / `staticData` / array-shorthand providers, and nothing bound.
+  
+  **Two questions stay two questions.** `normalizeListViewSchema`'s gap-fill (#7477,
+  ruling B of PR #7628) is untouched and is NOT re-pointed at the new reader: it answers
+  how `objectName` gets POPULATED when absent, where an already-present `objectName` wins.
+  The new reader answers which object a block RESOLVES, where the `data` block wins — the
+  order declared on both published faces in `@object-ui/types` and pinned by
+  `objectql-record-source-refinement-6939.test.ts`. Merging them would silently override
+  one standing ruling or the other.
+  
+  **`ObjectGantt`'s `persistLayoutKey` is deliberately excluded** and keeps its inverted
+  order, with an in-place comment saying why: its receiver is a localStorage key
+  (`gantt-layout:KEY:filters`), not a record source, so re-pointing it would orphan every
+  saved layout and filter-chip set of a view carrying both bindings. Two more sites the
+  finding listed are not object-name readers at all and were struck: `ObjectGantt`'s
+  refresh-handler predicate (`object` OR `api`) and `plugin-dashboard`'s `isObjectProvider`
+  type-guard over a widget's `data`.
+  
+  `useSettledSchema`'s doc comment stops prescribing the hand-written ladder at all four
+  lines that taught it, so the copies cannot re-seed from the hook that replaced them.
+- 0ea7054: Remove 37 runtime dependencies that no file in the declaring package consumes, and gate
+  the direction so the next one cannot land (objectui#8198).
+  
+  `check:phantom-deps` judges imports that are not declared; nothing judged the reverse,
+  so a declaration could outlive its last consumer indefinitely. That is what happened to
+  `recharts` in `@object-ui/components` after objectui#7397 deleted its only importer — it
+  was removed by hand on objectui#7625, and nothing would have reported the next one. The
+  new `pnpm check:unused-deps` asks the reverse question over `dependencies` and
+  `optionalDependencies` of every released package.
+  
+  **Potentially breaking, for consumers relying on hoisting.** Nothing these packages ship
+  changes: their Vite `external` predicates are path-based and never read `dependencies`,
+  so no built artifact moves. What changes is the install graph — a project that imports
+  one of the removed packages while depending only on the ObjectUI package that used to
+  drag it in will no longer resolve it. Declare it directly; that is the correct
+  dependency edge in either case. The removals, by package:
+  
+  - `@object-ui/plugin-designer`: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@object-ui/fields`
+  - `@object-ui/plugin-chatbot`: `react-markdown`, `react-syntax-highlighter`, `remark-gfm` (and the orphaned `@types/react-syntax-highlighter`)
+  - `@object-ui/plugin-report`: `@object-ui/plugin-grid`, `clsx`, `react-i18next`, `tailwind-merge`
+  - `@object-ui/plugin-map`: `@objectstack/spec`, `lucide-react`, `zod`
+  - `@object-ui/runner`: `class-variance-authority`, `clsx`, `tailwind-merge`
+  - `@object-ui/core`: `lodash`, `zod`
+  - `@object-ui/layout`: `clsx`, `tailwind-merge`, and `react-dom` — which it pinned at an exact version in `dependencies` while also declaring it as a peer range, i.e. a library hard-depending on the renderer it asks its host to supply
+  - `@object-ui/plugin-dashboard`: `clsx`, `tailwind-merge`, and the same `react-dom` defect
+  - `@object-ui/plugin-ai`: `@object-ui/react`, `clsx`, `tailwind-merge`
+  - `@object-ui/fields`: `clsx`, `tailwind-merge`
+  - `@object-ui/console`: `@object-ui/react-runtime`, `sucrase`
+  - `@object-ui/auth`: `@object-ui/types`
+  - `@object-ui/plugin-calendar`: `@object-ui/fields`
+  - `@object-ui/plugin-editor`, `@object-ui/plugin-markdown`: `@object-ui/react`
+  - `@object-ui/react`: `react-hook-form`
+  
+  Every one was verified by a whole-package grep before removal — the name appeared nowhere
+  under the package but its own manifest and CHANGELOG — and the whole workspace builds,
+  type-checks and tests green afterwards.
+
+### Patch Changes
+
+- 39f4309: Published typings from every `vite-plugin-dts` package now carry an explicit extension on
+  every relative specifier, and a type error in the declaration build now fails the build
+  instead of being printed and ignored (objectui#5439, objectui#5483).
+  
+  **Consumers on `moduleResolution: nodenext` or `node16` may see NEW type errors, and that
+  is the fix working.** These packages re-export mostly through NAMED re-exports —
+  `export { useObjectChat } from './useObjectChat'`. TypeScript could not follow the
+  extensionless hop, but it still DECLARED the name, so the symbol resolved to a silent
+  `any`. Nothing errored; consumers simply got no types. With the extension emitted, the
+  symbol carries its real type, and any call site that was relying on the `any` now type
+  checks for the first time. This is the mode that produced the 21 residual `TS7006` on
+  `@object-ui/app-shell` reported against objectui#5365 — a type hole that opened quietly,
+  unlike objectui#5365's own `export * from './ui'` packages where the same defect surfaced
+  immediately as `TS2305: has no exported member`.
+  
+  410 extensionless relative specifiers across 19 packages were emitted before this change;
+  the count is now 0 in all 22 packages that build typings through `vite-plugin-dts`.
+  `@object-ui/fields` was already clean — its sources write explicit `.js` specifiers — and
+  is wired so it stays that way.
+  
+  The second half changes no emitted output today: 22/22 packages built green unmodified, so
+  making the declaration step's exit code honest turns nothing red. It changes what a FUTURE
+  regression does — print and exit 0, versus fail the build.
+- 0a2918f: The package README stops documenting a marker-title fallback that objectui#5953 replaced.
+  
+  `README.md`'s `map` block table described `titleField` as: "Omitted, markers are
+  titled `Marker`." That was true of the pre-#5953 read site, which bound the
+  marker title to a field name directly. objectui#5953 moved the marker title onto
+  `@object-ui/core`'s `getRecordDisplayName`, and `'Marker'` is now passed only as
+  that resolver's `fallback` option — a position the resolver reaches **only for a
+  record carrying no id at all**. A record with an id and no resolvable name reads
+  `Record #<id>`; a record whose object declares a `nameField` or a `titleFormat`,
+  or which simply carries a name-ish key, reads that. So "omitted ⇒ `Marker`" was
+  true in one narrow corner and false in the common case, and an author reading the
+  row would either under-specify `titleField` for a reason that stopped being true
+  or over-specify it to avoid a `Marker` that would never have appeared.
+  
+  The row now names the precedence an omitted `titleField` hands the decision to:
+  the declared `nameField`, its deprecated `displayNameField` alias, the legacy
+  `titleFormat` template, a type-aware pick from the object's fields, then
+  name-ish keys read straight off the record — with `Record #<id>` as the floor and
+  `Marker` reached only by an id-less record.
+  
+  Two details the row states deliberately:
+  
+  - It does **not** describe an object-level `objectDef.titleField` rung. The
+    resolver consulted one at step 0 as a second `??` leg, but objectui#6531 (PR
+    #6560) removes it — `@objectstack/spec`'s object schema is a `strictObject`
+    that rejects the key with `unrecognized_keys`, so no producer can ship it.
+    What survives is `options.titleField`, which is exactly what `map.titleField`
+    becomes at `ObjectMap`'s call site, so "a declared `titleField` wins" stays
+    true either way and the row does not go stale when that lands.
+  - It names the record-key probe (the resolver's step 4b) as its own rung. That
+    is not a footnote for this component: `ObjectMap` fetches an object schema
+    only when `!hasInlineData && dataSource`, so for `staticData` or an inline
+    `data` array no object definition ever reaches the resolver and the record-key
+    probe is the only rung that can produce a title —
+    `ObjectMap.markerTitle.test.tsx` pins exactly that case.
+  
+  A second row falsified by the same commit goes with it. Two lines below the table,
+  the field-name defaults paragraph listed what an unconfigured map falls back to as
+  "`latitude` / `longitude` / `location` / `name` / `description`". objectui#5953 removed
+  the title default: `getMapConfig`'s default branch returns coordinate keys and
+  `descriptionField` only, under a comment that spells out why — "Deliberately NO
+  `titleField` (objectui#5953)… `getRecordDisplayName` resolves it from the object
+  definition, and it does so better than any literal here could". The paragraph now
+  lists the four defaults that exist and says where an unconfigured marker's title
+  actually comes from. Left alone in the same sentence: `map: { titleField: 'name' }`
+  still names no coordinate field and still renders an empty map, which is accurate.
+  
+  Prose only: no behaviour changes, and the placeholders were already pinned in
+  order by `ObjectMap.markerTitle.test.tsx`.
+- f9653ae: Re-key the load-bearing fetch effects in `ObjectMap`, `ObjectCalendar` and
+  `ObjectGantt` onto the primitive fields they actually read off `dataConfig`
+  (`provider` / `object` / `items`) instead of the whole memoised `dataConfig`
+  object (objectui#6592, the deferred half of objectui#6270/PR #6591).
+  `ObjectTree` is a census member too but is deferred out of this change — see
+  the PR body — because its own fetch effects are the surface of PR #6696
+  (objectui#6481), open at the same time.
+  
+  `useMemo` carries no semantic guarantee — React is permitted to discard a
+  memo cache and recompute even when its dependency array compares equal to
+  the previous render, and the local `getDataConfig(schema)` helper each of
+  these renderers carries builds a fresh `{ provider, object }` /
+  `{ provider, items }` wrapper object on every call. So a fetch effect keyed
+  on `dataConfig` itself was correct only for as long as that identity
+  happened to survive a discard: a recompute alone (no author or caller
+  action) was enough to re-run the effect and issue an extra
+  `dataSource.find` / `dataSource.getObjectSchema` call. Keying the effects
+  on the primitives instead makes a cache discard a no-op, restoring
+  `useMemo` to a pure optimisation.
+  
+  `ObjectGantt`'s `effectiveDataSource` memo deliberately keeps `dataConfig`
+  as a dependency (`resolveDataSource` needs the whole provider-shaped
+  value — the `api` provider's `read`/`write` request config cannot be
+  flattened to a fixed primitive list the way `object`/`value` can), so its
+  `reload()` fetch is decoupled from the redundant direct `dataConfig`
+  dependency but not from `effectiveDataSource`'s own; for the `object`/`value`
+  providers `resolveDataSource` returns its `fallback`/a fresh
+  `ValueDataSource` respectively rather than reading further into the config,
+  which is enough for the two fetch effects to observe no extra call under a
+  recomputed-but-equivalent `dataConfig` in the common case.
+  
+  No behaviour change for a schema whose `useMemo` caches survive normally;
+  the effects are unaffected by React discarding one.
+- 3beef6d: The spec's `dataSource` element binding is now DECLARED by the blocks that read
+  it, so the html tier stops reporting the one working saved-view spelling as
+  `unknown-prop` (objectui#6678).
+  
+  `PageComponentSchema.dataSource` — `{ object, view, filter, sort, limit }` — is
+  the one spelling that resolves a saved view for an object-bound block. It works,
+  and it drew the identical `unknown-prop` warning as the two spellings that do
+  nothing (`viewName`, `view`), because `validateTree` looks a prop up in the
+  block's declared `inputs` and no registration declared this key. On the tier
+  built to accept AI-authored pages, where the diagnostic IS the contract, the
+  only signal pointed away from the key that works.
+  
+  Adopting the maintainer ruling of 2026-08-29 — option B **in the injection
+  form**:
+  
+  - `ELEMENT_DATA_SOURCE_INPUT` is the single declaration, in `@object-ui/core`
+    beside the binding's own semantics; `Registry.register` emits it for any
+    registration whose renderer passed through the new `elementDataSourceBlock()`
+    seam. One mechanism, one copy — not a hand-kept declaration per block, which is
+    the shape that drifts and that a new block forgets. The seam lives in
+    `@object-ui/core` and is re-exported by `@object-ui/react` beside
+    `ElementDataSourceGate` for discoverability; call sites take the core import,
+    because a registration runs at module scope and this repo's suites partially
+    mock `@object-ui/react`.
+  - Seventeen renderers, in thirteen files across twelve packages, reach the seam
+    and now publish the key to the save gate, the parser whitelist, the generated
+    JSX authoring types and the block list. The card named nine blocks; the tree
+    also has `plugin-grid`, `plugin-timeline`, two further `plugin-form` blocks and
+    `element:record_picker` — nothing was hand-listed, so the mechanism covered
+    them. `element:record_picker` consumes the gate's HOOK and status panels rather
+    than the wrapper tag (its object lives under `properties`), and was found by a
+    render probe rather than by reading sources.
+  - `dataSource` on a block that does NOT read it (`flex`, `card`) still reports
+    `unknown-prop`. Adding the key to `sdui-parser`'s `BASE_PROPS` was refused for
+    exactly this reason — that set mirrors `BaseSchema`, and silencing the key
+    everywhere would make the diagnostic lie in the other direction.
+  - New `check:element-data-source-declaration` fails any source that consumes the
+    gate without reaching the seam, so a block added tomorrow cannot forget.
+  
+  Behaviour of the binding itself is unchanged — this is a declaration, not a
+  resolution change. The saved view still resolves its columns, and an
+  unresolvable `view` still fails loudly rather than widening to the object's full
+  scope.
+  
+  The spec/registry parity gates (repo-wide and the `record:related_list` per-block
+  pin) now derive their accepted set from the WHOLE node contract rather than from
+  `ComponentPropsMap[type]` alone. `PageComponentSchema` accepts and keeps
+  `dataSource` on a page-component node — it is a node-level key, a sibling of
+  `type` and `className`, not a per-block prop — so the gates' previous complaint
+  was measurably wrong. Derived from the spec, not exempted, and both still
+  discriminate against an invented key.
+- d327b9c: FLS-gate the `$expand` projection at the seven remaining `buildExpandFields`
+  call sites (objectui#7429).
+  
+  objectui#7215 / PR #7229 gated the two projection sites in its scope
+  (`ObjectGrid`, `ListView`). objectui#7230 / PR #7428 gated four more
+  (`ObjectCalendar`, `ObjectGantt`, `RecordDetailView`, `DetailView`). This
+  closes the seven that were left: `ObjectKanban`, `ObjectTree`, `ObjectView`
+  (the non-grid record-fetch effect), `ObjectMap`, `ObjectGallery`,
+  `ObjectTimeline`, and the metadata-admin `PagePreview`'s record-binding fetch.
+  
+  **All seven pass no column list at all**, which makes every one of them the
+  sharp shape: `buildExpandFields` reads an absent column list as "no column
+  restriction" and falls back to **every declared relation on the object**,
+  denied ones included. So each of these components asked the server to resolve
+  the object's full relation set by default, not by configuration — the
+  ordinary shape of each surface, not a corner of it.
+  
+  **`PagePreview` is the one site where the judged principal is not the page's
+  eventual audience.** It calls the browser's own `fetch` with
+  `credentials: 'include'` rather than `DataSource.find`, so it runs under
+  whichever session is loading the Studio preview. Gating on that same session's
+  `usePermissions()` is still the correct principal: it is exactly the request
+  the browser is about to make, on its own credentials, regardless of who later
+  opens the published page.
+  
+  **Reproduced before it was fixed**, as a failing test per site (and, for the
+  two sites — `ObjectView`, `PagePreview` — where the gate was implemented
+  before its test was run red, a reverse-verification: the gate was reverted,
+  all four denial-and-set pins on each went red, and the two deferral/positive
+  control pins stayed green, before the gate was restored).
+  
+  **Grading, measured rather than assumed** — the same reading objectui#6898,
+  #7215 and #7230 recorded: against ObjectStack's own server this is
+  defence-in-depth, not a live disclosure. `plugin-security`'s
+  `FieldMasker.maskRecord` deletes every unreadable key from each returned row
+  and objectql's expand path writes the resolved record back under that same
+  key, so one statement removes the expanded object and the bare id alike; the
+  expansion sub-read is itself gated (the referenced object's full CRUD + RLS +
+  FLS treatment, objectstack#7626). It is load-bearing for any backend that does
+  not strip, and the client-request side is real regardless.
+  
+  **Nothing a permitted view did stops working.** The gate judges each site's
+  `buildExpandFields` OUTPUT, which contains only the object's declared
+  reference-bearing fields, so the "`checkField` answers false for an
+  undeclared key" trap cannot be reached. An unanswered permission policy
+  filters nothing. `buildExpandFields` itself is unchanged.
+  
+  `@object-ui/permissions` is added to `dependencies` for `plugin-kanban`,
+  `plugin-tree`, `plugin-map`, `plugin-timeline`, and `plugin-view` — the fifth
+  one objectui#7429's own dependency count missed (it named four); `plugin-list`
+  and `app-shell` already had it.
+- c6198c2: **Breaking for authored metadata:** `ComponentInput.label`, `ComponentInput.defaultValue` and
+  `ComponentInput.advanced` are RETIRED on both faces (objectui#7493 item ① and objectui#7781;
+  maintainer ruling A of 2026-09-06, immediate, no deprecation window; ADR-0049 enforce-or-remove).
+  They are the three keys the manifest serializer does not forward, and nothing read them on any
+  publication or consumption path.
+  
+  No manifest ever published them, so no consumer could ever have read them. `sdui-parser`'s
+  serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys per input — `name`,
+  `type`, `required`, `enum`, `binding`, `description` — so a value authored under any of the three
+  never reached `sdui.manifest.json`, the generated JSX `.d.ts`, or a diagnostic; its boundary type
+  has no slot for them; the registry's data-source seam reads `name` only; and neither the designer
+  nor the app-shell inspectors consult registry `inputs` at all. A structural census over every
+  `inputs:` array in the repository (re-measured on this change's merge-base, `name` 951 and `type`
+  951 as the controls) counted the writes: `label` 908, `defaultValue` 245, `advanced` 9 — written on
+  nearly every registration, read by nothing.
+  
+  FROM → TO, per key — all three **TOMBSTONED, not removed**, because the route was measured on
+  the built face before it was chosen: `ComponentInputSchema` is a non-strict `z.object`, and an
+  undeclared key parses GREEN and is silently STRIPPED, so a deletion would have swallowed 1,162
+  authored values in silence. The tombstone is what makes the refusal loud and by name.
+  
+  - `label?: string` → `label?: never` on the interface, `retirementTombstone()` on the Zod mirror.
+    Migration: delete the key. An input is identified by its `name` on every path that reaches it;
+    nothing ever rendered a label for it.
+  - `defaultValue?: any` → `defaultValue?: never` / `retirementTombstone()`. Migration: delete the
+    key. The renderer's own fallback read IS the default; tell the author about it in `description`,
+    which IS published. (Tightening the type to `unknown` was ruled out: it closes no error class,
+    since nothing reads the value.)
+  - `advanced?: boolean` → `advanced?: never` / `retirementTombstone()`. Migration: delete the key.
+    No designer surface ever hid an "advanced" input; there is nothing to write instead.
+  
+  The retirement kit: `?: never` on `ComponentInput` (`packages/types/src/base.ts`), so authoring one
+  is a `tsc` error at the registration site; `retirementTombstone()` on `ComponentInputSchema`
+  (`packages/types/src/zod/base.zod.ts`), so an authored value is REFUSED at parse time with
+  `code: 'invalid_type'`, the key named in the issue `path`, and the migration note as the message
+  (one string, both channels). Pinned in
+  `packages/types/src/__tests__/component-input-retired-keys-7493.test.ts`, which also holds a
+  tree-scoped absence census over every `inputs:` array under `packages/**` and `apps/**`.
+  
+  Accept-set change, stated plainly for reviewers: a document that sets any of the three keys on a
+  `ComponentInput` used to parse GREEN (the value was then dropped by the serializer) and now parses
+  RED. Every in-repo authoring site — 1,199 keys across 110 registration files, the three standalone
+  `ComponentInput[]` arrays and the two named input arrays `tsc` found included — is deleted in the same change, as the ruling's split rule
+  requires; the `WidgetRegistry` seam no longer copies the widget-manifest values onto the synthesized
+  `ComponentInput` (they fed nothing), and the data-source declaration `ELEMENT_DATA_SOURCE_INPUT`
+  drops its `label`. The patch entries on the other packages record exactly that: their registrations
+  stop authoring inert keys, with no runtime or published-manifest change.
+  
+  The nine test files that read `defaultValue` off a registration were re-pinned against the
+  renderer's ACTUAL default (its own fallback read, or the `defaultProps` it ships) instead of the
+  declaration that went away; two assertions that only restated the shadow default were dropped with
+  the reason on the line.
+  
+  The in-repo zero is what was measured. Whether anything OUTSIDE this repository writes these keys
+  is not measurable from here (the objectui#5674 limit); converting such a write from a silent drop
+  into a named refusal is exactly what the tombstones buy. `WidgetInput`'s own `label` /
+  `defaultValue` / `advanced` (the widget-manifest face) stay declared and writable — nothing has
+  ruled on that face; that it now has no reader either is recorded as objectui#7911.
+- ce2aaef: One shared record-source ladder, five plugins delegate (objectui#7632).
+  
+  `@object-ui/core` publishes `resolveRecordSourceConfig(schema)` — the ONE implementation
+  of the ruled three-rung record source ladder: `data` first, then `staticData` wrapped as
+  `{ provider: 'value', items }`, then `objectName` folded to `{ provider: 'object' }`, and
+  `null` when nothing is bound. It is the PRODUCER whose output the objectui#7627 reader
+  `resolveRecordSourceObjectName` consumes, and it now sits beside it in the same module.
+  
+  That ladder is published contract on both faces — `packages/types/src/objectql.ts` and its
+  zod mirror both ship `.describe()` strings naming `getDataConfig`'s order (objectui#6939,
+  maintainer ruling 2026-09-02), pinned by `objectql-record-source-refinement-6939.test.ts` —
+  and it was hand-copied into five plugin components with no gate holding them together. A
+  change to the ruled order had five edit sites and nothing that noticed a missed one; that
+  is the AGENTS.md #0.1 drift class.
+  
+  **No behaviour changes.** `ObjectCalendar`, `ObjectGantt` and `ObjectTree` now call the
+  shared reader directly. `ObjectGrid` and `ObjectMap` keep their own bare-array `data`
+  shorthand as a documented head above the shared call and are otherwise unchanged.
+  `record-source-config.behaviourNeutrality-7632.test.ts` transcribes all five pre-collapse
+  bodies verbatim and asserts the post-collapse spelling agrees with each across the whole
+  input matrix, so a later edit to the shared reader that moves any site turns red.
+  
+  **Two divergences were measured rather than assumed, and both are preserved.**
+  
+  `ObjectCalendar`'s `'data' in schema && schema.data` guards exist because its parameter is
+  the union `ObjectGridSchema | CalendarSchema` and `CalendarSchema` declares neither key.
+  That is a TypeScript narrowing device with no runtime effect — an absent property reads
+  `undefined`, falsy either way — so the guard could never change which rung is taken. The
+  shared reader's optional-property parameter accepts the union directly, and the
+  equivalence is pinned on a fixture that really lacks both keys rather than argued.
+  
+  `ObjectGrid` and `ObjectMap` normalize a bare-array `data` to `{ provider: 'value', items }`;
+  `ObjectCalendar`, `ObjectGantt` and `ObjectTree` do not, and return the array verbatim. That
+  is a real divergence on off-contract input — `ViewData` is a discriminated union over object
+  variants, so an array under `data` cannot be published. It is NOT unified here: the shared
+  rung stays contract-strict and the two sites keep the head locally, the same way objectui#7627
+  left the off-contract `{ provider: 'object' }` tails at their sites. Both sides of the fork are
+  pinned, so neither folding the head in nor deleting it as redundant can happen silently.
+  
+  `ObjectTree`'s copy took `schema: any`; it now goes through the shared reader's typed
+  parameter. Types are erased at runtime, so nothing it resolves moves.
+- ff7543c: `ObjectMapProps.clusterRadius`'s JSDoc said "in pixels"; `clusterMarkers` has
+  always used it as a coordinate-degree grid cell edge (`radius / 2 ** zoom`,
+  divided into the marker's `[lng, lat]` degrees), not a screen-space radius —
+  a host tuning clustering granularity by the documented unit would get a
+  completely different result than intended (objectui#5020).
+  
+  No behavior, default, or name changes: clustering, the >100-visible-marker
+  auto-threshold, and tap-through zoom are unaffected, and `clusterRadius` has
+  no call sites outside `plugin-map/src` today (re-confirmed repo-wide,
+  including `apps/`, `examples/`, and the `objectstack` spec/server repo — the
+  default of `50` is what runs everywhere). This is a doc-comment correction
+  only, bringing the JSDoc in line with the README's already-correct wording
+  (post objectui#5002).
+  
+  The latitude-anisotropy trade-off (a degree grid distorts east-west as
+  latitude rises) is a known design trade-off, not part of this fix.
+- 2aac61f: `ObjectMap` now resolves marker titles through `@object-ui/core`'s
+  `getRecordDisplayName` (ADR-0079), instead of reading a hard-coded `'name'` key.
+  
+  `getMapConfig` used to fill an absent title binding with the string literal
+  `'name'`, and the marker transform then did a bare `record[titleField]` read. For
+  every object whose display field is not literally `name`, that read was
+  `undefined`, so each marker popup titled itself `undefined`. The literal is gone
+  from both branches that carried it, and the read site hands the decision to the
+  same resolver `ObjectKanban`, `ObjectCalendar` and `ObjectGantt` already title
+  their items through — `ObjectMap` was the fourth renderer and the only one still
+  outside it.
+  
+  An authored `map.titleField` keeps winning outright: it is passed through as the
+  resolver's explicit `titleField` option, which it checks first. What is new
+  underneath is everything a static field-name binding cannot express — the
+  object's declared `nameField`, its deprecated `displayNameField` alias, a legacy
+  `titleFormat` template, type-aware field derivation, and a name-ish probe over
+  the record's own keys for the inline-data case where no object definition is
+  fetched at all.
+  
+  Records with no resolvable name now read `Record #<id>` rather than `undefined`
+  or a uniform `Marker`; the `Marker` placeholder is kept only for a record that
+  carries no id either. No authoring surface changes and no new map config keys.
+- b180a64: `ObjectMap` reads `schema.data` in one place again, so an array-shorthand map stops
+  making a metadata request it never uses.
+  
+  The fetch effect carried a second short-circuit beside the `props.data` one
+  objectui#5003 fixed: it read `schema.data` directly and tested whether that value was
+  itself an array. eslint reported it as `missing dependency: schema.data` — the last
+  `react-hooks/exhaustive-deps` warning on that effect.
+  
+  The dependency was never actually missing. `getDataConfig(schema)` already returns
+  `schema.data` verbatim, and the result is memoized on `JSON.stringify(rawDataConfig)`
+  into `dataConfig`, which **is** one of the effect's declared dependencies. The authored
+  rows therefore reached the effect before this change; the direct read was a duplicate of
+  an already-threaded value, which is why neither adding a dependency nor deleting the
+  branch was right.
+  
+  The array handling moved into `getDataConfig`, where `ObjectGrid`'s own `getDataConfig`
+  already pins the same normalization (`"Check if data is an array (shorthand format)"`).
+  Same rows render, and the effect now reads only `dataConfig`.
+  
+  One behavioural consequence, and it is the point: an array under `data` now yields
+  `provider: 'value'`, so `hasInlineData` is true and the sibling effect no longer calls
+  `dataSource.getObjectSchema()` for it. That request's only read site is
+  `buildExpandFields()` inside the object-provider fetch branch, which an inline schema
+  never reaches — so the call was pure waste, and the shorthand now behaves exactly like
+  the declared `{ provider: 'value', items }` form it is shorthand for.
+  
+  Deleting the branch instead was measured, not assumed: with no producer-side handling,
+  an array-shorthand map renders `Error: DataSource required for object/api providers`
+  rather than its markers. The shorthand is a live convention in six sibling blocks
+  (`ObjectGrid`, `ListView`, `ObjectTree`, `ObjectChart`, `ObjectDataTable`,
+  `calendar-view-renderer`), so `object-map` would have become the one block in the family
+  that answers it with an error box.
+- 538ed92: `ObjectMap`: make the marker `useMemo` actually memoize.
+  
+  `getMapConfig(schema)` ran unmemoized in the render body, so `mapConfig` carried
+  a fresh object identity on every render. The marker transform names `mapConfig`
+  in its dependency array, so it recomputed on every single render — walking every
+  record through `extractCoordinates` and the display-name resolver, and re-running
+  `ObjectMapConfigSchema.safeParse` on each pass — while declaring that it does not.
+  The invalidation cascaded on into `filteredMarkers`, `clusteredData`,
+  `markerBounds` and `initialViewState`.
+  
+  `mapConfig` is now memoized on `schema`, the one value `getMapConfig` reads.
+  Behaviour is unchanged; the config is still rebuilt whenever the schema
+  genuinely changes.
+- cfcff30: Each package's README now states, up front, that it needs a bundler: importing it from plain Node ESM fails, and that is a supported-configuration boundary rather than a defect.
+  
+  `@object-ui/plugin-dashboard` imports `react-grid-layout/css/styles.css` at module
+  scope and `@object-ui/plugin-map` imports `maplibre-gl/dist/maplibre-gl.css`;
+  `@object-ui/app-shell` reaches the first of those through the static
+  `@object-ui/plugin-dashboard` imports in `DashboardView` and `ReportView`. Node has
+  no loader for `.css` at all, so all three resolve and then die during evaluation:
+  
+  ```
+  TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css"
+    for .../react-grid-layout/css/styles.css
+  ```
+  
+  Nothing about how these packages load has changed — every supported host bundles
+  them (Vite, webpack, or Next with the package in `transpilePackages`), and that is
+  still the only supported way to consume them. What changed is that the boundary is
+  now written where a consumer meets it, instead of being learned from a red import.
+  
+  objectui#5384 ruled unbundled Node consumption **unsupported** for style-carrying
+  plugin packages — permanently, over the three packages as a group — rather than
+  moving the stylesheet imports out of module scope. No unbundled-Node consumer
+  exists, and buying permanent machinery to close a capability gap nobody is pulling
+  on was the trade the ruling declined. A real consumer request reopens it as a
+  design question, not as a defect: the READMEs say so and name the issue.
+- 2aa2c22: `ObjectMap` no longer serializes its data config on every render.
+  
+  `getDataConfig(schema)` was called bare in the render body and its result
+  re-serialized with `JSON.stringify` on every render, purely to give `dataConfig`
+  the stable identity its fetch effect depends on. `getDataConfig` is a pure
+  function of `schema`, so `useMemo(() => getDataConfig(schema), [schema])` gives
+  the same identity with no serialize and no per-render rebuild.
+  
+  This also fixes a crash. `JSON.stringify` throws on a value it cannot serialize,
+  and the config's passthrough branch returns the author's own `schema.data`
+  object verbatim — inline rows included. A map handed inline records carrying a
+  back-reference (an `$expand`-ed lookup) or a `BigInt` id threw from the render
+  body and took the whole map subtree down with it. Comparing identities never
+  serializes, so the config no longer has to be serializable at all.
+- Updated dependencies [64dae8e]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [490d9a9]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [90665e0]
+- Updated dependencies [194fae1]
+- Updated dependencies [7e19d03]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [129bcc5]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [8f1d995]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [5961030]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [30c73cd]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [45ac2cb]
+- Updated dependencies [b97790a]
+- Updated dependencies [7c9b044]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [045d20b]
+- Updated dependencies [c18d099]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [78ca238]
+- Updated dependencies [351eb31]
+- Updated dependencies [20c04b2]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [4704aa4]
+- Updated dependencies [47547d0]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [7bf244b]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [52cac38]
+- Updated dependencies [64a252d]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [3c76801]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [100547e]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [2c8474c]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [3c9fca3]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [fe76ece]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [b655a9d]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [9d9040d]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [9850c6e]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [ab92940]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [5a07e67]
+- Updated dependencies [2d36552]
+- Updated dependencies [45d8288]
+- Updated dependencies [490f482]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [30266cf]
+- Updated dependencies [57f9b07]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [c86185e]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/react@17.7.0
+  - @object-ui/permissions@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes

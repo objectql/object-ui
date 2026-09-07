@@ -1,5 +1,397 @@
 # @object-ui/mobile
 
+## 17.7.0
+
+### Minor Changes
+
+- 2d7304d: Retire the `MobileOverrides` type and its `mobileOverrides` mount point (objectui#4919,
+  maintainer ruling 2026-08-19, ADR-0049 enforce-or-remove).
+  
+  `MobileOverrides` published a six-key mobile override surface — `layout`, `columns`,
+  `useBottomSheet`, `fullScreen`, `touchTarget` and a three-value `navigation` vocabulary
+  (`'bottom-tabs' | 'hamburger' | 'drawer'`) — from `@object-ui/types` and, re-exported,
+  from `@object-ui/mobile`. Nothing read any of it. Measured on current `main`: the type had
+  exactly four mentions repo-wide — its own declaration, the single
+  `MobileComponentConfig.mobileOverrides` mount point, and the two barrel re-exports — and
+  the lower-case property name (the spelling a renderer would actually read) appeared only
+  in that declaration. No renderer, hook or adapter resolved it, and a sweep of the example
+  apps and the `objectstack` sibling checkout found zero authors. The three `navigation`
+  values were three spellings of the same no-op.
+  
+  The declared surface is removed rather than narrowed. The #3985 lineage's rule is "narrow
+  to the implemented values"; here the implemented set is empty, so that rule terminates in
+  deletion — a config that type-checks, builds and silently does nothing is the
+  declare-without-enforce shape the platform doctrine forbids.
+  
+  Removal rather than a `?: never` tombstone follows this package's own discriminator. A
+  tombstone exists to steer authors to a named live replacement — `crud.ts` `confirm` →
+  `confirmText` (objectui#4314), `data-display.ts` `hoverable` / `striped` → `data-table`
+  (objectui#5474) — or to keep a key loud that the docs had actively taught as working.
+  Neither applies: there is no replacement key to steer to, no documentation ever described
+  the surface, and there is no successor spelling. That is the same zero-pull, no-successor
+  shape as the retired `AccordionItem.icon` (objectui#4652) and `ToggleGroupItem.icon`
+  (objectui#4632), both of which were removed outright rather than tombstoned.
+  
+  **Breaking for TypeScript authors of `MobileOverrides` / `mobileOverrides` only** (marked
+  `minor` per this repo's version-alignment rule, which reserves `major` for following
+  `@objectstack` across a major — see AGENTS.md's 版本号策略, and the identical
+  classification used for `AccordionItem.icon`). Runtime behaviour is unchanged: an authored
+  `mobileOverrides` did nothing before and does nothing now. What changes is that the
+  contract no longer claims otherwise, so the mistake surfaces at authoring time — importing
+  the type is now a "has no exported member" error, and authoring the key on a
+  `MobileComponentConfig` object literal is an excess-property error, instead of a silent
+  no-op that type-checks and builds.
+  
+  If real mobile-override renderer work is ever wanted it re-enters deliberately, as designed
+  product surface on its own card, with the renderer landing in the same change as the
+  declaration — not by resurrecting this declaration.
+- 90665e0: **Removes a published export.** Retire the `MobileComponentConfig` type
+  (objectui#5942, ADR-0049 enforce-or-remove). The name is deleted from
+  `@object-ui/types` and from `@object-ui/mobile`, which re-exported it — after
+  this release `import type { MobileComponentConfig }` from either package is a
+  compile error, not a deprecation warning.
+  
+  `MobileComponentConfig` published a four-key "mobile component schema
+  extension" — `responsive`, `gestures`, `pullToRefresh` and `infiniteScroll` —
+  and nothing read it. Re-measured on current `main` before anything was deleted:
+  the type had exactly four code mentions repo-wide — its own declaration, one
+  doc-comment cross-reference, and the two barrel re-exports. It had **no mount
+  point at all**: no type mounted it as a property, nothing extended it, and no
+  renderer, hook or adapter annotated, cast to or imported it. A sweep of the
+  example apps and the `objectstack` sibling checkout found zero authors. Every
+  read-shape probe returned zero against a control lit in the same run.
+  
+  That makes it stricter than the usual case: not merely a surface whose values
+  were unimplemented, but a container with no path by which any authored value
+  could reach a renderer. objectui#4919 removed its last member
+  (`mobileOverrides`), which is what left the container itself inert.
+  
+  Removed outright rather than kept as a `?: never` tombstone, on this package's
+  own discriminator: a tombstone steers authors to a named live replacement key
+  (`crud.ts` `confirm` to `confirmText`; `data-display.ts` `hoverable`/`striped`
+  to `data-table`), or keeps loud a key the docs taught as working. Neither
+  applies — the whole interface goes, so there is no surviving object to hang a
+  `never` key on, and no documentation ever described it
+  (`skills/objectui/guides/mobile.md` teaches the hooks, never this type). Same
+  zero-pull, no-successor shape as `MobileOverrides` (objectui#4919) and
+  `AccordionItem.icon` / `ToggleGroupItem.icon`.
+  
+  ## Upgrading
+  
+  **No behaviour changes and there is nothing to migrate at runtime.** An object
+  authored against this type did nothing before and does nothing now; what
+  changes is that the contract no longer claims otherwise, so the mistake
+  surfaces at authoring time instead of silently type-checking.
+  
+  - **You imported the type only** (the only thing that was possible — nothing
+    accepted it as a value): delete the import. If you kept a local config object
+    annotated with it, drop the annotation; the object was never passed anywhere
+    that read it.
+  - **You actually wanted the behaviour:** it exists, and it is not being
+    retired. It lives in `@object-ui/mobile` as React hooks, which is where the
+    working code always was — `useResponsive` / `ResponsiveContainer` for
+    `responsive`, `useGesture` for `gestures`, `usePullToRefresh` for
+    `pullToRefresh`. `infiniteScroll` has no hook; it was never implemented in
+    any form. See `skills/objectui/guides/mobile.md`.
+  - **You want a declarative mobile config surface:** that re-enters deliberately
+    as designed product surface on its own card, with the renderer that reads it
+    landing in the same change as the declaration — not by restoring this
+    declaration.
+  
+  **Do not follow the compiler's suggestion.** TypeScript reports the removal from
+  `@object-ui/types` as TS2724 and appends `Did you mean 'ComponentConfig'?`. That
+  is a lexical near-match, not a migration target: `ComponentConfig` is the
+  renderer **registration** record (`{ type: string; component: T }`, extending
+  `ComponentMeta`) and has nothing to do with mobile configuration. The import
+  from `@object-ui/mobile` gets a plain TS2305 with no suggestion at all.
+  
+  Marked `minor`, not `major`, per this repo's version-alignment rule, which
+  reserves `major` for following `@objectstack` across a major (AGENTS.md
+  版本号策略) — the same classification objectui#4919's identically breaking type
+  removal used. **Breaking for TypeScript consumers of the name only.**
+  
+  Follow-up, deliberately not widened into this change: `MobileResponsiveConfig`
+  and `GestureConfig` were consumed only by this container and are now
+  zero-consumer published types themselves. Filed as objectui#7519 for triage.
+- 51eb515: **Removes two published exports.** Retire the `MobileResponsiveConfig` and
+  `GestureConfig` types (objectui#7519, ADR-0049 enforce-or-remove). Both names
+  are deleted from `@object-ui/types` and from `@object-ui/mobile`, which
+  re-exported them — after this release `import type { MobileResponsiveConfig }`
+  or `import type { GestureConfig }` from either package is a compile error, not a
+  deprecation warning.
+  
+  Each had exactly one consumer: the `responsive` and `gestures` members of
+  `MobileComponentConfig`, which objectui#5942 retired. Re-measured on current
+  `main` before anything was deleted, each was a declaration plus the two barrel
+  re-exports and nothing else — no type mounted either, nothing extended,
+  annotated, cast to or imported them outside the barrels, and the example apps
+  and the `objectstack` sibling checkout had zero authors. A value written against
+  either could not reach a renderer or a handler by any path. That is the same
+  declared-surface-with-no-consumption-path shape as `MobileComponentConfig`
+  itself and `MobileOverrides` (objectui#4919) before it, one level down.
+  
+  Removed outright rather than kept as `?: never` tombstones, measured against
+  this package's two-prong discriminator (a tombstone steers authors to a named
+  live replacement key, or keeps loud a key the docs taught as working). Prong 1:
+  neither has a replacement key — the behaviour they named lives in hooks, and
+  `SpecGestureConfig` is a different contract, not a successor. Prong 2: the only
+  release-note lines naming either are the objectstack#4115 rename-ledger rows
+  and, for `GestureConfig`, the objectui#3363 reclaim note; none taught a
+  renderer or dispatcher reading them, and no member carried a published
+  `@default` (contrast `triggerIcon`, tombstoned by objectui#7654 on exactly that
+  evidence). Structurally there is also no silent-strip hazard for a tombstone to
+  guard: whole interfaces go, nothing ever parsed them, and the mobile module has
+  never had a `zod/` twin to host a `retirementTombstone()`. The compiler was the
+  only channel these names ever had, and the refusal now lives there.
+  
+  ## Upgrading
+  
+  **No behaviour changes and there is nothing to migrate at runtime.** An object
+  authored against either type did nothing before and does nothing now; what
+  changes is that the contract no longer claims otherwise, so the mistake surfaces
+  at authoring time instead of silently type-checking.
+  
+  - **You imported a type only** (the only thing that was possible — nothing
+    accepted either as a value): delete the import. If you kept a local object
+    annotated with it, drop the annotation; it was never passed anywhere that read
+    it.
+  - **You wanted per-breakpoint layout:** it exists and is not being retired —
+    `useResponsive` / `ResponsiveContainer` / `useBreakpoint` in
+    `@object-ui/mobile`. `ResponsiveValue` and `BreakpointName` stay exported from
+    both packages.
+  - **You wanted to bind a gesture to a handler:** `useGesture` in
+    `@object-ui/mobile` takes `{ type: GestureType, onGesture, threshold?,
+    longPressDuration?, enabled? }`. `GestureType` and `GestureContext` stay
+    exported from both packages.
+  - **You want a declarative mobile config surface:** that re-enters deliberately
+    as designed product surface on its own card, with the renderer that reads it
+    landing in the same change as the declaration — not by restoring these
+    declarations.
+  
+  **Do not follow the compiler's suggestion for `GestureConfig`.** Measured against
+  the built declarations: `import type { GestureConfig }` from either package now
+  fails as TS2724 with `Did you mean 'SpecGestureConfig'?`. That is a lexical
+  near-match, not a migration target. `SpecGestureConfig` is the retired
+  `@objectstack/spec` `ui/touch` **tuning** record (`{ type, label, enabled,
+  swipe, pinch, longPress }`) that `useSpecGesture` reads; it has no `action`
+  member and does not bind a gesture to anything. `MobileResponsiveConfig` fails
+  as a plain TS2305 with no suggestion from either package.
+  
+  Marked `minor`, not `major`, per this repo's version-alignment rule (AGENTS.md
+  版本号策略), which reserves `major` for following `@objectstack` across a major —
+  the same classification objectui#5942 and objectui#4919 used for identically
+  breaking type removals. **Breaking for TypeScript consumers of the two names
+  only.** The in-repo consumer count is zero; consumers outside this repository
+  that import either name from either package are not visible from here, which is
+  why this entry is graded on the published-surface change and not on that count.
+- e62c44e: Re-home the breakpoint layout vocabulary and delete the two dead responsive
+  implementations (objectui#7580, maintainer ruling 2026-09-04, option A).
+  
+  **Breaking, deliberately, in one direction only.** `@objectstack/spec` retired its whole
+  `ui/responsive` vocabulary in objectstack#11027 — `ResponsiveConfigSchema`,
+  `BreakpointName`, `BreakpointColumnMapSchema` and `BreakpointOrderMapSchema` — on the
+  stated ground that the four types "had no other authorable carrier". That ground is
+  measurably false on the renderer side: `responsive-grid` is a REGISTERED SDUI component
+  whose authorable `columns` input is typed by `BreakpointColumnMap` and applied by
+  `resolveColumnClasses` on the render path, and `BreakpointName` types four live readers in
+  `@object-ui/mobile`. The tombstone's own return condition — the vocabulary "returns if and
+  when a renderer implements it" — is already met here, so the two types a renderer reads
+  are re-homed rather than retired.
+  
+  What survives, under the same names and the same members:
+  
+  - `BreakpointName` (`xs`…`2xl`) is now declared in `@object-ui/types` (`mobile.ts`) instead
+    of re-exported from the spec. **No consumer change**: same name, same six members, same
+    export sites on `@object-ui/types` and `@object-ui/mobile`. Only its provenance moved.
+  - `BreakpointColumnMap` is now declared in `@object-ui/layout` (`ResponsiveGrid.tsx`),
+    verbatim from the retired `$strict` schema: six optional column counts, no index
+    signature. `responsive-grid`'s `columns` input and its resolver are unchanged.
+  
+  What is removed:
+  
+  - `BreakpointOrderMap` (`@object-ui/layout`) — retired with the key, not re-homed. It had
+    no read point in the package; it was published only because the retired
+    `ResponsiveConfigSchema` paired it with the column map, so an author configuring `order`
+    needed the type. With the schema gone there is no order vocabulary for it to be the type
+    of, and re-declaring it would be the declare-without-enforce shape ADR-0049 removes.
+  - `useResponsiveConfig` (`@object-ui/mobile`), with its `SpecResponsiveConfig` and
+    `ResolvedResponsiveState` exports, and `ResponsiveProtocol` (`@object-ui/core`), with
+    `resolveResponsiveConfig` / `getVisibilityClasses` / `getColumnClasses` /
+    `getOrderClasses` / `shouldHideAtBreakpoint`. Both read the retired
+    `ResponsiveConfigSchema` and both were measured at zero callers (objectui#4773).
+  - `SpecResponsiveConfig` / `SpecBreakpointName` (`@object-ui/types`) — dead re-exports once
+    the two implementations above went, dropped rather than re-declared locally, the same
+    disposition the retired i18n names in that file already carry.
+  
+  No behaviour is retired. The live per-breakpoint readers — `useBreakpoint`,
+  `ResponsiveContainer`, `BREAKPOINTS` / `BREAKPOINT_ORDER` / `getCurrentBreakpoint`, and
+  `responsive-grid` itself — are untouched.
+  
+  **Sequencing.** objectui's next `@objectstack/spec` pin bump must carry `Blocked-by:`
+  objectui#7580: the retirement is merged upstream and unreleased, so this must land first.
+
+### Patch Changes
+
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [460575f]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [64d624d]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [90665e0]
+- Updated dependencies [7e19d03]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [6f81384]
+- Updated dependencies [8f1d995]
+- Updated dependencies [dddb942]
+- Updated dependencies [29754cf]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [2c1c967]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [adb2a86]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [351eb31]
+- Updated dependencies [20c04b2]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [c6198c2]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [5d0876c]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [64a252d]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [100547e]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [0e05aac]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [199d31b]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [a691c0b]
+- Updated dependencies [515f171]
+- Updated dependencies [258d264]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [3c73d99]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/types@17.7.0
+
 ## 17.6.0
 
 ### Patch Changes

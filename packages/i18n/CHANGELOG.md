@@ -1,5 +1,1794 @@
 # @object-ui/i18n
 
+## 17.7.0
+
+### Minor Changes
+
+- 64dae8e: Six user-visible fixes across the maker surface, the assistant rail and the
+  dataset captions.
+  
+  **The maker's start chips now promise only what ADR-0112 v1 builds
+  (cloud#1984).** Two of the five asked for automation the first version has no
+  flows or actions for — the ticket chip said 「状态流转」, the inventory chip said
+  「低库存预警」 — and the measured behaviour was not a refusal but a silent
+  degrade: a status kanban and a low-stock view. The chip promised an alert and
+  delivered a page. All five are reworded in all ten packs (and in the call-site
+  `defaultValue` fallbacks, which are a second copy of the same strings) to ask
+  for objects, fields, views, pages, dashboards and sample data, keeping each a
+  real business scenario — the ticket chip now asks for a status field and a board
+  grouped by it, the inventory chip for a view that filters below the reorder
+  point. A note beside the keys says to revert when v2 re-adds flows.
+  
+  **Five newer AI tools get their step labels (objectui#7481).** A zh conversation
+  read `✓ Get authoring rules 已完成` between 「读取元数据结构」 and 「列出对象」:
+  `get_authoring_rules` (cloud#1837), plus `load_tools`, `open_record`,
+  `test_flow` and `toggle_flow`, are registered by the cloud AI runtime but are
+  newer than the pinned spec's tool registry, so they had no `chatbot.tool.*`
+  entry in any pack and fell through to the English title-caser.
+  
+  **The assistant rail follows the thread when you send (objectui#7480).** The
+  rail and the full-page maker are the same component; what differs is width. A
+  reply that still ends on screen in the wide column runs two or three times
+  taller in a ~360px rail, so `StickToBottom`'s lock is escaped by the time the
+  user types and the new bubble, the tool steps and the streaming answer all land
+  below the fold. Every send path now re-arms the lock — including the plan-card
+  "Build it" and 确认修改 approvals, whose own code comments already named this
+  miss. Message APPENDS deliberately do not, so a user reading back through the
+  thread mid-answer is never yanked to the bottom.
+  
+  **Console toasts move off the assistant composer (objectui#7482).** 「客户更新
+  成功」 sat on the ChatDock composer's send button and stayed there. One defect,
+  two symptoms: `apps/console` pinned the toaster to `bottom-right` — an override
+  that predates ADR-0057 P3a — so a toast both covered the button and, because
+  sonner pauses a toast's dismiss timer while the pointer is inside the toaster
+  region, never got to run its 4s timer with a pointer resting on the composer
+  underneath. The override is gone; the console takes `ConsoleToaster`'s own
+  documented top-right anchor, and the 4s success duration is now pinned.
+  
+  **Built-in aggregate captions follow the locale everywhere (objectui#7534).**
+  objectui#7258 taught `buildChartSeries()` to resolve a server-minted default
+  measure through the locale map, so a chart legend read `计数` while the table
+  beneath it, the KPI caption, the pivot header and the dataset preview still
+  printed the server's hard-coded English `Count`. `buildDatasetFieldHelpers()`
+  takes the same optional `builtinAggregateLabels`, resolving through the one
+  `resolveMeasureLabel` order, and the five call sites pass it. Omitting the
+  argument reproduces the previous output byte for byte, and an author-declared
+  measure still keeps its own label verbatim (objectui#4106).
+  
+  **The activity feed stops asking for an object the environment does not have
+  (objectui#7476).** A tenant environment has no `sys_activity`, so every page
+  load issued a request that 404'd. Everything downstream was already correct —
+  the adapter memoizes the missing collection, its logger demotes the failure, the
+  feed retires as an ANSWER and the panel renders its earned empty state — so what
+  is left is the request itself, and `data-objectstack` states the rule for it:
+  the cure for a doomed request is not issuing it. New `useObjectPresence` reads
+  the object registry the shell loads for the nav anyway; only a registry that has
+  ANSWERED and lists other objects without this one skips the read. Every
+  uncertainty — no provider, empty registry, still loading, errored — reads as
+  before, because a wrong skip would cost a real deployment its feed.
+- d3995fe: Retire 25 confirmed-dead locale keys from all ten packs — 250 translated strings
+  with no reader anywhere in the repo (objectui#4730's key-level trim round;
+  `calendar.agenda` closes objectui#5783).
+  
+  Every key was confirmed individually, not swept from a tool's output. The
+  inventory comes from `scripts/check-i18n-dead-keys.mjs`, which stays report-only
+  by design, and each candidate then had to clear the objectui#4658 evidence
+  standard on its own: zero `t()` call sites, zero textual footprint anywhere
+  outside the packs, and a read of its plausible consumer confirming no i18n
+  wiring reaches it. Five namespaces held nothing but retired leaves and went with
+  them — `map`, `cellRender`, `rowAction`, `recordDetail`, and `home.stats`.
+  
+  The retirements fall into three shapes:
+  
+  - **Superseded twin vocabularies.** `cellRender.*` and `rowAction.*` duplicated
+    a `grid.*` vocabulary that won. `RowActionMenu.tsx` is fully i18n-wired and
+    reads `grid.openMenu` / `grid.edit` / `grid.delete`; `ObjectGrid.tsx` reads
+    `grid.empty` / `grid.yes` / `grid.no` / `grid.systemFields`. The twins had no
+    reader on either side.
+  - **Labels that outlived their control.** `calendar.agenda` labelled a view mode
+    objectui#5740 retired from `CalendarViewMode` (now `'month' | 'week' | 'day'`).
+    `home.quickActions.createApp*`, `layout.systemNav.createApp`,
+    `actionDialog.defaultActionTitle` / `.ok` and `grid.bulk.selectPlaceholder`
+    sit in namespaces whose consumers are live and wired but demonstrably read
+    other siblings.
+  - **Surfaces that left the product.** `map.*` is the strongest form:
+    `@object-ui/plugin-map` declares no `@object-ui/i18n` dependency and contains
+    no `t()` call at all, so it cannot consume a locale string. `home.stats.*` and
+    `recordDetail.viewersTooltip` name surfaces nothing renders.
+  
+  `packages/i18n/src/__tests__/dead-key-batch-retired-4730.test.ts` pins the
+  retirement, following the convention of the five retirement pins already in that
+  directory. It is load-bearing rather than decorative: every i18n gate in this
+  repo runs call site to key, so a dead key coming **back** into the packs is
+  invisible to all of them, and this pin is the only thing watching that direction.
+  
+  **Deliberately NOT deleted, and pinned as live.** Seven `console.*` bootstrap
+  strings that this same sweep reported CONFIRMED-dead are in fact **live**, and
+  were pulled back out of the batch. `LoadingScreen.tsx` is bootstrap-critical UI
+  that must render before i18n loads — precisely when the server is unreachable —
+  so it deliberately does not call `t()`. It imports the packs directly and reads
+  them as plain object properties (`strings.loadingSteps.connecting`). That
+  consumer is invisible to both legs of the sweep: there is no call for the AST
+  pass to classify, and the full dotted key is never spelled in source because the
+  namespace segment is bound to a local variable. The new pin asserts those keys
+  stay, so the next sweep round cannot repeat the mistake.
+- b362c1b: Setup gains a **Packaged automation** page — the operational surface for the flows an
+  installed package ships (ADR-0126 §7.4, objectui#6301). Reached the way every other
+  framework-contributed Setup surface is: the page registers the component-registry ref
+  `automation:packaged`, so app navigation names the ref and `ComponentNavView` resolves it
+  at `/apps/<app>/component/automation/packaged`. No bespoke route is added — a second way
+  in would be a URL the app metadata does not know about.
+  
+  Per packaged flow the page does exactly two things:
+  
+  - **on/off for this scope** — reads the activation state the engine reports
+    (`GET /api/v1/automation/_status`, backed by the ADR-0126 §7.2 `sys_metadata_activation`
+    ledger) and flips it through `POST /api/v1/automation/<name>/toggle`;
+  - **clone** — `POST /api/v1/automation/<name>/clone` with a mandatory new machine name and
+    label (§7.1). The carried-over definition is never offered as editable form fields; the
+    copy is edited in Studio like any other flow.
+  
+  Authoring stays in Studio. The list is scoped to packaged flows by the server's own
+  three-clause provenance test (`isCodeArtifactBody`, ADR-0029 D9.6) rather than the
+  `_packageId`-only shortcut, which classifies a tenant overlay bound to a package as
+  packaged — the cloud#970 misread, and here it would put a tenant's own flow behind an
+  install-wide switch.
+  
+  **Server refusals reach the operator verbatim** — no client-side softening or rewording.
+  Three shapes are relayed as sent: the §5 posture gate (403 `PERMISSION_DENIED`, whose
+  message names the tenancy posture *and* the sanctioned clone path), the §7.3 subflow guard
+  (409 `DELETE_RESTRICTED`, which names the packaged callers that would break mid-run — a
+  list nothing on the client could reconstruct), and the §7.1 clone name conflict (409).
+  
+  ⛔ **No drift or ancestry surface** (§9): no diff-vs-base, no "customized" badge, no
+  base-moved notice, no link from a clone back to its source. Cloned-without-disabled and
+  disabled-without-clone are ordinary states, shown plainly. Tests pin the absence, including
+  the case where a response carries a `clonedFrom` key anyway — the platform does not track
+  that lineage, so a page that displayed it would be displaying something it invented.
+  
+  `@object-ui/i18n` gains the `packagedAutomation` key group — 24 keys in `en` and real
+  translations in all nine other packs, matching each pack's existing vocabulary for "flow"
+  and "package" (zh 流程/软件包, ja フロー/パッケージ, ko 플로우/패키지, de Flow/Paket,
+  fr Flux/Package, es Flujo/Paquete, pt Fluxo/Pacote, ru Поток/Пакет, ar التدفق/الحزمة) and
+  each one's quotation convention. The group deliberately carries no drift or ancestry
+  wording, and no server refusal text: those arrive as server-authored prose and are
+  rendered verbatim.
+- 9602dc8: Setup › **Packaged automation** gains a packaged **actions** section beside its flows one —
+  the surface half of ADR-0126 §8 item 2 (objectui#6412; the engine, ledger and both dispatch
+  doors landed in objectstack#12348). The maintainer's pull, verbatim and untranslated:
+  「动作 可能是需要开关的，因为有的 action 我不想启用。」
+  
+  Per packaged action the section does exactly **one** thing: **on/off for this scope**. That
+  is all the `sys_metadata_activation` ledger knows about an action, and the section claims
+  nothing more.
+  
+  - **State** comes from the ledger's `metadata_type: 'action'` rows, read through the generic
+    data API list the object itself sanctions for exactly this
+    (`apiMethods: ['get', 'list']` — *"Reads stay open so operability surfaces can answer
+    'what is disabled here?'"*). **Absence of a row means active**, so a stock boot shows
+    everything armed.
+  - **Discovery** mirrors the runtime's own `collectActionDeclarations`: object-embedded
+    `actions[]` from `GET /meta/object` **plus** standalone items from `GET /meta/action`, with
+    the object-embedded declaration winning a `<object>:<action>` key clash. Listing only the
+    first source would leave an administrator with no off-switch for a packaged standalone
+    action.
+  - **Flips** invoke the L6 write door `POST /actions/_activation/:object/:action` with exactly
+    the one key its body declares (`{ enabled }`); `global` is the object segment for an
+    object-less action, the same spelling both dispatch doors take.
+  
+  **⛔ No clone for actions.** The flows section keeps its own (§7.1); amendment ruling 3
+  charters the *switch* for actions and nothing else, and §8 keeps the clone half pre-chartered
+  until real pull appears. A clone control here would advertise machinery that does not exist —
+  which is also why the server's §5 refusal for actions recommends the platform operator and an
+  ordinary sibling action where the flow refusal recommends a clone.
+  
+  **⛔ No drift or ancestry surface** (§9): no "customized" badge, no diff-vs-base, no
+  base-moved notice. The platform tracks no such lineage, so a surface showing it would be
+  showing something it had to invent. The absence is pinned against a response that smuggles
+  `clonedFrom` / `baseVersion` in, so it is enforced at the renderer and not merely by the wire.
+  
+  Server refusals reach the operator **verbatim** — no client-side softening, no retry loop.
+  Three shapes are reachable in tests, each transcribed character-for-character from the
+  runtime's own message builders: the §5 posture gate (403 `PERMISSION_DENIED`, naming the
+  posture *and* the sanctioned path), the ambiguous-name refusal (409 `RESOURCE_CONFLICT`,
+  naming the objects a machine name collides across — a list nothing on the client could
+  reconstruct) and the no-ledger outage (503 `SERVICE_UNAVAILABLE`).
+  
+  One further refusal is the section's own and it points the same way: a `hasMore` on the
+  ledger read is treated as a **load failure** rather than rendered. A dropped row reads as
+  "active", so a partial ledger would show a switched-off action as armed — the one direction
+  this section must not fail in.
+  
+  The flows section is unchanged in behaviour. It gains a heading beside the new one, and the
+  page subtitle now says "Flows and actions" — that string moved in all ten packs together.
+  Nine new `packagedAutomation.*` keys land in `en` **and in all nine other packs** as real
+  translations; the two toggle-failure keys are artifact-neutral by wording and are reused
+  rather than duplicated.
+- 969ba84: Renderers for the `app:launcher` and `nav:menu` page blocks (objectui#6661).
+  Phase 1 of the 2026-08-26 maintainer ruling on objectstack#12183 — the two
+  `PageComponentType` members that are purely metadata-driven, so nothing had to
+  ship before their renderers could. Phase 2 (`global:search` /
+  `global:notifications`) landed in objectui#6757 and set the pattern this
+  follows.
+  
+  A page that declared either member drew a dashed box. The two symptoms were not
+  the same, which is worth recording because it decides what "fixed" looks like
+  for each:
+  
+  - `nav:menu` is in `PALETTE_PLACEHOLDER_BLOCKS`, registered eagerly, so it drew
+    the literal "Component Placeholder" scaffold in every host.
+  - `app:launcher` is only in `PROTOCOL_COMPONENTS`, registered when a host opts
+    in via `registerPlaceholders()` — which just `apps/console` does. So it drew
+    the scaffold in the console and `SchemaRenderer`'s red OBJUI-001 "Unknown
+    component type" panel everywhere else.
+  
+  Neither block adds a data layer — each mounts plumbing that was already live,
+  and neither issues a request or touches an adapter:
+  
+  - `app:launcher` reads the metadata app registry (`useMetadata().apps`, which
+    `MetadataProvider` fetches eagerly) through the shared `filterActiveApps`
+    predicate, and draws it with `HomeAppsStrip` — the console's own launcher
+    grid — so an authored launcher and the Home launcher cannot drift into two
+    looks for one thing.
+  - `nav:menu` reads the active app's navigation tree from that same registry and
+    renders it as page content, taking every derived fact from `@object-ui/layout`:
+    hrefs from `resolveHref`, labels from `resolveNavItemLabel`, the active row
+    from `resolveActiveNavItem`, and the item-level guards (`visible`,
+    `requiredPermissions`, `requiresObject` / `requiresService`) in the order
+    `NavigationItemRenderer` applies them, wired to the same console providers
+    `AppSidebar` wires them to. `action` items dispatch through
+    `useNavActionDispatch`, so framework#4509's "renders but dead-clicks" shape is
+    not reintroduced.
+  
+  `nav:menu` does not mount `NavigationRenderer` itself: that renders through
+  `SidebarMenuButton`, whose `useSidebar()` throws outside the shell's
+  `SidebarProvider`, and a page block has to render standalone. `@object-ui/layout`
+  therefore exports `resolveNavItemLabel`, which was module-private — an additive
+  export with no behaviour change, so the sidebar and an authored menu cannot show
+  one nav entry under two names.
+  
+  Both registrations publish **no** `inputs`: `ComponentPropsMap` declares an empty
+  shape for each, and both use `skipFallback: true` so neither claims the bare
+  `launcher` / `menu` keys. This does not change the Studio page palette —
+  `app:launcher` remains recorded there as a shell singleton, which is a palette
+  decision independent of whether a declared type renders.
+  
+  Three new strings — the launcher's and the menu's accessible names, and the
+  menu's empty state — are declared under `console.nav` in `en.ts` and its nine
+  sibling packs. An inline `defaultValue` alone is not a fix: it renders English
+  at one call site and leaves the string untranslatable everywhere
+  (objectui#3517).
+- 220c18d: Dashboard/analytics widgets get a self-explaining DEFAULT empty state, stated
+  once for the surface (objectui#7063).
+  
+  Maintainer ruling 2026-08-31 (hotcrm#1212, following hotcrm#1203): a widget that
+  renders a bare row-placeholder on an empty result is the PLATFORM's defect and
+  must be fixed uniformly — apps must not compensate widget by widget
+  (objectstack#13848). The measured scenario is a fresh flagship-demo install:
+  eleven populated tiles and one reading exactly `暂无数据行` mid-page, which reads
+  as "the dashboard failed to load" even though the widget, its declaration and
+  its (not yet produced) data are all legitimate.
+  
+  - New `WidgetEmptyState` is the seam the three dashboard surfaces now share.
+    There was no shared placeholder to fix: `DatasetWidget` wrote
+    `dashboard.noRows`, while `ObjectDataTable` and `PivotTable` wrote
+    `dashboard.noDataAvailable` — three renders, two strings, no common code.
+  - The default now reads as a STATE, not a failure: `role="status"` (the empty
+    branches previously carried no role at all, while the failure branches beside
+    them are `role="alert"`), muted treatment with an inbox glyph rather than a
+    warning triangle, and a title plus an explanation where the placeholder was a
+    single terse fragment.
+  - It names WHAT is empty with zero authored copy — the widget's data source,
+    which is the half the reader cannot already see (the tile's title is rendered
+    by the card header directly above). That is `widget.dataset` on the dataset
+    path and `schema.objectName` on the object-bound table/pivot; `PivotTable`
+    takes it as a new optional `sourceLabel` prop, which `ObjectPivotTable`
+    forwards.
+  - Copy is platform i18n: `dashboard.empty.title` / `.message` / `.sourceLabel`
+    added to `en` and all nine sibling packs. No inline `defaultValue` and no
+    interpolation — the source renders as a labelled value, so no separator is
+    concatenated in code and every pack spells its own punctuation.
+  
+  No new authoring obligation and no new spec key. Note that the `emptyState`
+  override the card assumes for this surface does not exist: `emptyState` is a
+  LIST-view contract, and `@objectstack/spec`'s `DashboardWidgetSchema` declares no
+  such key — so there is nothing here for an author to override, and adding one
+  would be a contract question rather than a rider.
+- 8952395: A grouped grid now says, where the group counts are, that it grouped a **page**
+  (objectui#7189).
+  
+  `useGroupedData` buckets the rows the browser already holds and computes every
+  per-group aggregate from that same array, so both the set of groups and every
+  number in a group header are properties of the fetched page, not of the query.
+  That is a correct implementation of client-side grouping and is **unchanged**
+  here — what was missing is any statement that client-side grouping is what you
+  are looking at. Measured on a 186-record store distributed 86 / 61 / 31 / 7 / 1
+  across five business units with a 100-row page: with contiguous rows the grid
+  rendered **two** group headers (`86`, `14`) and three units were absent from
+  the screen entirely; with interleaved rows all five resolved but every count
+  was a page slice (31 / 31 / 30 / 1 / 7). Nothing on screen said either.
+  
+  The paging footer is not a statement about what was grouped, and it
+  demonstrably did not prevent the wrong reading — a wrong number invites a
+  second look, an absent row invites none. So the disclosure goes where the
+  authoritative-looking number is:
+  
+  - a short `Partial` marker beside **every** group count, at every nesting
+    depth, carrying the full sentence as its `title` and its accessible name;
+  - one line directly above the group list, inside the grouped region rather
+    than in the footer: *"Grouped over the first 100 of 186 records. Group counts
+    are page-scoped, and a group whose records all fall beyond the loaded rows is
+    missing here."*
+  
+  The trigger is the strongest thing the component can actually know, and the
+  wording never outruns it. With a real match total to compare against
+  (`resolvedTotalMatching` — the one derived value the pager and both bulk-bar
+  sites already read, reached either from the grid's own fetch or from a host's
+  `rowCount`) it states the fact with both numbers. With no total but a window
+  that came back full it may only say *"more may match"* — the same inference
+  `plugin-list`'s own footer draws when no total is known. Rows handed in inline
+  are not a page and are never marked, and **a grouped grid whose result set fits
+  in one page shows nothing at all**: the marker is conditional, which is what
+  makes it worth reading.
+  
+  Server-side grouping — the durable fix — is deliberately NOT part of this. It
+  is an API-surface decision still open on objectui#5560, and nothing here builds
+  toward it or changes the fetch.
+  
+  `@object-ui/i18n` carries the three new `grid.grouping.*` strings across all
+  ten locale packs; `GroupRow` gains two optional props (`partialLabel`,
+  `partialTitle`) and is otherwise unchanged. No metadata schema key was added:
+  the condition is derived from data the grid already has.
+- a4514e8: Retire `useObjectLabel().viewDescription()` and the `_views.<view>.description`
+  catalog convention it resolved (objectui#7219, maintainer ruling 2026-09-02,
+  option B — enforce-or-remove).
+  
+  **Breaking for translation bundles, deliberately — and this text is the notice.**
+  Out-of-repo translation bundles that authored
+  `<ns>.objects.<objectName>._views.<viewName>.description` cannot be seen from
+  this repo, so there is no census to point at and no migration script to run:
+  that key now resolves nowhere, and an entry left under it is simply ignored.
+  Nothing throws, and nothing else on that node changes.
+  
+  **What replaces it.** A list view's description has exactly ONE channel: the
+  `I18nLabel` value authored on the view entry itself — a string, or an inline
+  locale map:
+  
+  ```ts
+  listViews: {
+    by_unit: {
+      label: 'By business unit',
+      description: { en: 'Open work only.', 'zh-CN': '仅未完成的工作。' },
+    },
+  }
+  ```
+  
+  `ObjectView` relays that value to the renderer and `plugin-list`'s `ListView`
+  resolves it against the display locale (objectui#7199, shipped before this
+  change), so the authored channel already works end to end. **Migration:** move
+  the sentence out of the translation bundle and onto the view entry as a locale
+  map.
+  
+  **Why removed rather than wired in.** The member was declared and resolved but
+  had zero callers and zero in-repo bundle usage — an entry authored under the
+  catalog key reached no screen. Wiring it in would have put two vocabularies on
+  one concept (`I18nLabel` on the entry, and the catalog key) and required a
+  precedence rule between them, which is the ambiguity rather than the fix.
+  
+  The two sibling members on the same node are **unaffected**: `viewLabel` and
+  `viewEmptyState` still resolve `_views.<view>.label` and
+  `_views.<view>.emptyState.{title,message}`, and the shared `viewSuffixes` key
+  builder they use is unchanged — only the `'description'` tail is gone. Pin tests
+  in `@object-ui/i18n` and `@object-ui/app-shell` were retargeted onto those two
+  survivors plus a case that authors the catalog `description` and asserts the
+  authored value is what a consumer resolves.
+- 47547d0: Localize the server's built-in aggregate measure titles on dataset charts
+  (objectui#7258 — consumer half of the objectstack#14492 contract; maintainer
+  ruling B, 2026-09-02).
+  
+  A dataset-bound chart's aggregate axis / legend title read the analytics
+  service's hard-coded English `Count` on a zh console whose category labels were
+  already Chinese. The renderer was passing `fields[].label` through verbatim —
+  correctly, for an author-declared measure (objectui#4106) — and had no way to
+  tell the server's built-in default apart from an author's label.
+  
+  The wire now can: `AnalyticsResult.fields[]` gains an OPTIONAL structural
+  discriminator, `builtinAggregate?: 'count' | 'sum' | 'avg' | 'min' | 'max' |
+  'count_distinct'`, populated only on the server-side built-in defaults
+  (objectstack#14492). This change is the consumer side of that contract:
+  
+  - `@object-ui/core`: `buildChartSeries` now accepts `ChartMeasureField[]` —
+    `ChartResultField` plus the optional `builtinAggregate` carrier
+    (`BuiltinAggregateCarrier`), declared beside the renderer shape rather than
+    on it because the spec this release is built against does not carry the key
+    yet; new `BUILTIN_AGGREGATES` / `BuiltinAggregate` / `isBuiltinAggregate` /
+    `resolveMeasureLabel`; `ChartSeriesOptions.builtinAggregateLabels` carries
+    the locale strings in (core stays React-free and i18n-free — the same
+    division as `nullCategoryLabel`). A field carrying a recognised
+    discriminator resolves through that map; every other field keeps its wire
+    `label` verbatim — never by matching the label's text or the field's name
+    (the rejected option A).
+  - `@object-ui/i18n`: `builtinAggregateLabels(tt)` resolves the six strings
+    through the existing `report.aggregate.*` keys (zh already carried 计数 /
+    求和 / 平均 / …; all ten packs are pinned to cover the vocabulary).
+  - `plugin-charts` (`ObjectChart`), `plugin-dashboard` (`DatasetWidget`),
+    `plugin-report` (`DatasetReportRenderer`): pass the resolved map to
+    `buildChartSeries`.
+  
+  Before: 合作中 / 已流失 / 潜在 under an axis titled `Count`. After: the same
+  chart titled `计数`; an `en` session still reads `Count`; an author-labelled
+  measure (`Tasks`) and a measure literally named `count` without the
+  discriminator are byte-for-byte unchanged. Until the upstream field is
+  populated the wire carries no discriminator and every chart renders exactly as
+  before.
+- 20cb8db: `ObjectTimeline` refuses an undeclared date axis instead of inventing one
+  (objectui#7459).
+  
+  Steps ① and ② of the three-step sequence the maintainer ruled on objectui#7070
+  (2026-09-01, 总监批 #28). House posture, on record with that ruling:
+  日期轴永不虚构 — a date axis is never fabricated.
+  
+  `ObjectTimeline` resolved its date axis through five declared bindings and then
+  closed the chain with a sixth rung that was a bare literal field name nobody
+  has ever declared. A name therefore ALWAYS resolved: for a view that declared
+  no axis, every record read a key its object does not carry, every event landed
+  in the "No date" bucket, and the screen read as a timeline that had been built
+  and simply had nothing in it.
+  
+  Two changes, shipped together because neither is observable alone:
+  
+  - **The renderer now refuses.** An object-bound timeline with no declared date
+    axis renders a diagnostic naming every binding it accepts —
+    `timeline.startDateField`, `timeline.dateField`, `mapping.date`, and the two
+    deprecated flat spellings — instead of a chart. The twin of `ObjectGantt`'s
+    "Gantt configuration required" screen, in the shape objectui#7070 settled.
+  - **The invented sixth rung is gone**, which is the only thing that makes the
+    refusal reachable. Added while the floor stood, it would have been dead code;
+    retired without the refusal, it would have produced exactly the silent
+    "No date" outcome the ruling rejects.
+  
+  **What changes for an author.** A view that declares a date axis is completely
+  unaffected — all five declared spellings resolve exactly as before, and a
+  timeline authored from literal `items` is never refused, since its items carry
+  their own dates and no field name is read for them. A view that declared no
+  axis anywhere, and was rendering an empty-looking timeline, now says so.
+  
+  ⚠️ Both premises were RE-MEASURED on the current tree before anything was
+  edited, rather than taken from the card: the renderer had no absent-axis
+  refusal (against a live control term that fires in the same file), and the
+  floor was still present and still spelled as reported. The pairing itself is
+  pinned — the refusal cases go red the moment the floor returns, including one
+  whose records carry a column that happens to be named `date`, where a returned
+  floor renders a convincing timeline rather than an empty one.
+  
+  Refusal is distinguished from "renders an empty timeline" by asserting the
+  canvas is ABSENT, not merely event-free. The component's success surface is now
+  named (`data-testid="timeline-canvas"`) so that distinction can be measured;
+  every other terminal state of the component already named itself.
+  
+  Step ③ of the ruling — the `'created_at'` floors on the two plugin faces —
+  stays on objectui#7070 and is deliberately NOT in this change.
+- 91f9276: **The maker's edit-mode starter offers sample data, not an automation v1 cannot
+  build (objectui#7709).** Bound to an existing app (`?package=`), the maker's
+  empty state offered four starters: add a field, add an object, add a dashboard,
+  and 「加一个自动化 —— 审批、状态流转或通知」. Approval, status flow and
+  notification are all refused by ADR-0112 v1 (cloud#1956 / PR #1970), and the
+  measured behaviour on the sibling chips was not a refusal but a silent degrade
+  into a view — so the product recommended an automation and would have handed
+  back a page.
+  
+  Rewording it was not available: asking for a field, a view or a dashboard
+  duplicates one of the three chips beside it. The fourth chip is now
+  `addSampleData` —「给现有对象补一批贴近真实的示例数据，好拿去演示。」 — in all
+  ten packs and in the call-site `defaultValue` fallback, which is a second copy
+  of the same string. The three surviving chips all add STRUCTURE; what an app
+  that already has objects most often lacks is DATA, and `seed` is on v1's
+  authoring whitelist. A note beside the keys in every pack and at the call site
+  says this chip's automation wording comes back when ADR-0112 v2 re-adds flows
+  and actions, and the retired sentence for each pack is kept in the guard suite
+  so v2 has it verbatim.
+- a915064: `listImportMappings` no longer renders a refused door as "no mapping is registered"
+  (objectui#7741).
+  
+  `ObjectStackAdapter.listImportMappings` degrades every failure to an empty list, and the
+  import wizard hides its saved-mapping selector on an empty list. So "the server served
+  zero mappings" and "the server refused, or broke" produced the identical UI on every
+  deployment — the feature simply absent — with a `console.warn` as the only
+  discriminator, in the browser console, with nothing pointing at it. That silence did not
+  merely hide a fault: it produced a confident WRONG diagnosis in a careful reporter
+  (objectstack#14026 was filed, routed and worked by two seats against a wizard that had
+  been correct since `@object-ui/data-objectstack@17.1.0`).
+  
+  **The empty-list return is unchanged.** `listImportMappings` still answers
+  `Promise<any[]>` and still never throws, on every arm including the loud ones — this is
+  a channel added ALONGSIDE that contract, not a change to it.
+  
+  - **New: `ObjectStackAdapter.onMetadataReadWarning(cb)`** — a subscribe/unsubscribe
+    channel, sibling in shape to `onWriteWarning` and `onSaveAdvisory`. It fires when a
+    metadata read failed in a way that is NOT the supported "this deployment does not
+    serve that kind" shape, carrying `MetadataReadWarningEvent`: which read it was, the
+    object, whether the server `refused` this caller or the answer was `unreadable`, and
+    the server's own ADR-0112 code, HTTP status and message.
+  - **New: `classifyImportMappingsFailure(err)`** and `ImportMappingsFailureKind`, exported
+    so a consumer can apply the same verdict. It reads the ERROR — the ADR-0112 `code`
+    first, the status only where no code was declared — and never "is the result an empty
+    array", which is what both conditions produce and so can never tell them apart.
+  - **The older-server case stays quiet.** A deployment that does not serve the `mapping`
+    kind (404/501 with no route, `ROUTE_NOT_FOUND`, `NOT_IMPLEMENTED`, or the metadata list
+    door's 400 `INVALID_REQUEST`) still degrades to an empty list with no selector and no
+    event. That is a real, supported deployment shape and it must not become a visible
+    fault.
+  - **The console now says so.** `AdapterProvider` subscribes to the new channel and
+    renders a warning toast naming the object, the remedy and the server's own words, so a
+    user without devtools open can tell "there are none" from "we could not find out".
+    Three new `console.importMappings*` keys ship in all ten locale packs.
+  
+  This applies framework #13906 decision 1 option A — *a thing that could not be READ is
+  not a thing that is ABSENT* — at this seam. It is an already-adopted discrimination, not
+  a new principle.
+- 0758bd8: `ObjectChart` refuses an object-bound chart that declares no category axis (objectui#8168).
+  
+  An object-bound chart that named no field to group by used to be composed anyway.
+  `runAggregate` passed `schema.aggregate` to `ds.aggregate(objectName, { field,
+  function, groupBy, filter })` with no guard on `groupBy`, and the `ds.find` leg
+  handed the same bag to `aggregateRecords`, which buckets every record on
+  `record[groupBy] ?? 'Unknown'`. So one path asked a driver to group by `undefined`
+  and the other collapsed the whole object into a single `'Unknown'` bar — and which
+  of those a reader saw was decided by the data source, not by the renderer. The only
+  loud states this component had were a fetch `error` (`chart-error`) and a generic
+  "No data yet"; neither is a statement about an absent binding.
+  
+  `ObjectCalendar`, `ObjectGantt` and `ObjectTimeline` each already refuse a view that
+  declares no axis. This is the fourth, following `ObjectTimeline`'s shape
+  (objectui#7459): a `role="alert"` box, `data-testid="chart-missing-category-axis"`,
+  naming the bindings the author can declare — `aggregate.groupBy`, `xAxisKey`,
+  `xAxis.field` — rendered from the resolver's own vocabulary so the message cannot
+  drift from what the resolver reads.
+  
+  **Breaking, deliberately — and this repo ships breaking as `minor`.** A chart that
+  previously rendered an `'Unknown'`-bucketed bar (or whatever the driver did with
+  `groupBy: undefined`) now renders the refusal instead. That is the intent: the
+  picture it drew was not a picture of the data.
+  
+  It keys on the CATEGORY alone. A measure may legitimately be absent — `count` takes
+  no field — so refusing on an absent measure would refuse `count` grouped by a
+  declared category, a chart that renders correctly. Four shapes are deliberately
+  untouched: an ADR-0021 `dataset` chart (which may declare no dimension), a chart
+  carrying authored `data` or a `bind` scope (no field name is read to fetch those
+  rows), a spec-shape `xAxis: { field }` with no `xAxisKey` (resolved through
+  `normalizeChartSchema`, this package's one translation of the author-facing shape),
+  and every schema the five in-repo producers compose today — all five floor their own
+  category, so none of them can reach the refusal.
+  
+  This does **not** retire the six `'name'` / `'value'` floors at the three relay faces;
+  that is the remainder of objectui#7547 and is mechanical only once this screen exists.
+  
+  New key `chart.unconfigured.noCategoryAxis` in all ten locale packs.
+- 77f846a: The approval panel identifies the pending approver by name, not by a truncated raw id.
+  
+  A record waiting on a position rendered its approver as `positi…ager` — the
+  engine reference `position:sales_manager`, 22 characters, past the identity
+  formatter's 14-character truncation arm and middle-truncated to fit its chip. The
+  step names beside it were human prose; the one line answering *who is holding
+  this record* was an internal identifier, and not even a complete one. The same
+  reference reached the admin-override confirm dialog un-truncated, so a paragraph
+  of plain governance prose ended `— position:sales_manager` (objectui#5414).
+  
+  Both surfaces now resolve the reference before rendering, in three tiers, most
+  authoritative first. The server's own `pending_approver_names` wins whenever it
+  answers, and a backend that resolves its own slate costs the record page no extra
+  request. Otherwise the console reads the directory row the spec's approver
+  binding names — `sys_position.label` gives `Sales Manager` / `销售经理` — and,
+  for a position, who fills the seat (`Sales Manager · Zhang Wei, Li Na`). With no
+  adapter and no row, the machine name still prettifies into prose rather than
+  truncating. The raw reference stays on hover, which is where an internal
+  identifier belongs.
+  
+  An unstaffed position is surfaced rather than hidden: `销售经理（暂无在岗人员）`
+  is actionable where `positi…ager` is not, and it is the motivating rescue case
+  for the admin-override path. Staffing is deliberately tri-state — a
+  `sys_user_position` read the viewer is not permitted to make leaves the seat's
+  staffing UNKNOWN and says nothing, because "I could not look" is a different
+  claim from "nobody holds it" and only one of them is safe to print on a
+  governance surface.
+  
+  Two locale keys are added across all ten packs: `approvalsInbox.approverUnstaffed`
+  and `approvalsInbox.approverNameSeparator`. The separator is a translated
+  punctuation key rather than `Intl.ListFormat`, which was measured on this tree
+  joining `['张伟','李娜']` into `张伟李娜` for `zh` — two names run together with
+  no separator, reading as one person's name.
+  
+  The directory-backed kinds and their value columns are read from
+  `@objectstack/spec`'s `APPROVER_VALUE_SOURCES` rather than restated, so a new
+  approver type is covered the day the spec publishes it. Id-valued kinds
+  (`user` / `team` / `department`) keep the existing middle-truncation: a row id
+  has no prose to recover, and that arm is objectui#3461's answer, not this card's
+  defect.
+- c40f3b8: A screen flow's resume result reaches the user — on both outcomes (objectui#5417).
+  
+  A dogfood walkthrough reported that a refused `resume` and a successful one
+  "render identically: the dialog closes and the page is unchanged", leaving no
+  gesture that distinguishes "created" from "rejected". Re-measured against `main`
+  before any change, one half of that was already fixed — `interpretFlowResponse`
+  reads the ADR-0112 envelope, and `FlowRunner`'s `toast.error` has carried its
+  prose since the `400 FLOW_FAILED` classification landed in `17.6.0`, five minors
+  after the version the report was measured on. There was no interpreter bug and
+  no un-consolidated fourth call site. Three gaps in the RUNNER's disposition were
+  real, and they are what changed:
+  
+  - **A terminal failure no longer closes the dialog.** The reason it closed is
+    unchanged and is not reversed: on a `FLOW_FAILED` the engine has already
+    consumed the suspension, so a resubmit can only reach "No suspended run" and
+    must not be offered. Closing was one way to withhold that dead retry and the
+    expensive one — the user had just typed a form they could no longer see, and
+    the engine's sentence names a value that left the screen with it. The dialog
+    now stays open with the submit affordance withdrawn: the flat footer swaps
+    Submit for Close, and an `object-form` step drops its Save (which also stops a
+    second click from duplicating the record it had already persisted).
+  - **The refusal has a second, non-expiring carrier.** The toast stays — it is
+    viewport-fixed, so it still reaches a user scrolled past a tall step's header
+    — and an inline destructive `Alert` (`role="alert"`) now holds the same
+    sentence inside the dialog, beside the values that produced it. A retryable
+    refusal (`INVALID_SCREEN_INPUT`, transport, 5xx) keeps Submit live as before,
+    and its banner clears as soon as the user starts editing.
+  - **A successful run invalidates what the flow WROTE, not just what the user is
+    looking at.** Both hosts answered `onComplete` with
+    `notifyDataChanged({ objectName: <this page's object> })`, so a flow that
+    created a quote from an Opportunity page never told the related list that
+    would now contain it — the record did not appear until a manual reload. The
+    runner cannot know which objects a flow touched, so it emits
+    `{ objectName: '*' }`: the same scope, for the same stated reason, that the
+    record page's manual ⟳ already uses. Everything mounted refetches in place
+    over the invalidation bus, with no remount.
+  
+  The runner's copy now goes through `@object-ui/i18n` instead of being hardcoded
+  English: a new `flowRunner` namespace (`title`, `submitting`, `saveAndContinue`,
+  `nextStep`, `completed`) in all ten packs, plus reuse of
+  `common.{loading,cancel,close,submit}` and `wizard.missingRequired`. The
+  server's own refusal sentence is still passed through untranslated — it is prose
+  the automation engine composed for a human, not copy with a key.
+- 20e317c: Marketplace-less runtimes now say so instead of erroring: `OS_CLOUD_URL=off` is a
+  first-class disabled state, and the load-failure hint describes the control plane
+  the runtime was actually pointed at (objectui#5504).
+  
+  `apps/objectos-ee/deploy/.env.example` ships `OS_CLOUD_URL=off` as its factory
+  default, so a stock self-hosted stack has no marketplace at all. The Console still
+  recommended one: Home led with "Start with a template" and "Browse App
+  Marketplace", and the click landed on a red **Failed to load marketplace / Not
+  found** card whose hint claimed this runtime "points at the public ObjectStack
+  cloud by default" and advised setting `OS_CLOUD_URL`. Both claims were false for
+  exactly the deployment reading them — the operator had not left the default, and
+  the advice pointed back at the template that told them to set `off`. "Marketplace
+  disabled by configuration" is a configuration conclusion, not a load failure.
+  
+  - `isMarketplaceEnabled()` (`runtime-config`) reads the server's own
+    `features.marketplace`, which `RuntimeConfigPlugin` derives per request from the
+    serving app's route table (objectstack#8356). It is never inferred from the shape
+    of a failed request: a control plane that is merely DOWN leaves the flag `true`,
+    so an outage still renders as an outage. Unknown fails OPEN.
+  - The marketplace page renders an informational "App Marketplace is turned off"
+    state — muted, not `destructive` — and issues no request it knows will 404.
+  - Home's "Start with a template" cover greys out with a visible localized reason,
+    and the "Browse App Marketplace" shortcut is withheld, exactly as they already
+    are for the `manage_metadata` capability gate.
+  - `marketplace.load.failedHint` is replaced by `failedHintConfigured` (naming the
+    configured control plane) and `failedHintSameOrigin`. The "points at the public
+    cloud by default" sentence is gone: it was rendered unconditionally, including on
+    every runtime whose operator had overridden `OS_CLOUD_URL`.
+  
+  All ten locale packs carry the new keys.
+- f157423: Studio workbench and AI tool cards speak the author's language (objectui#7254)
+  
+  - The Interfaces breadcrumb, canvas caption and navigation rail show the
+    metadata label plus a translated kind; the internal `type · name` pair moves
+    to the tooltip. An unlabelled nav leaf now falls back to its object name
+    instead of rendering an empty row.
+  - The Studio top-bar package switcher reads the package's human name from
+    either position the packages endpoint serves it in, instead of degrading a
+    registry-shaped entry to its reverse-domain id.
+  - The dashboard property panel is localized: the spec's authoring form is
+    overlaid through the platform's own `metadataForms.<type>` convention, so
+    section headings, field labels, hints and the `header` composite's sub-fields
+    render in Chinese (developer vocabulary such as "Tailwind units" is replaced
+    with something an author can act on, not transliterated).
+  - AI tool cards: tool titles resolve through `chatbot.tool.<name>` (all thirty
+    platform-provided tools, ten locale packs), the header status badge is
+    localized, and the plan count strip is a real plural family instead of an
+    English `+ "s"` concatenation.
+  - The tool card's header badge and its body badge now come from one producer:
+    a proposal that has been confirmed, built or published no longer keeps a
+    header reading "Awaiting Approval".
+- 7a90afd: Studio's `新建对象` asks for the record-sharing baseline, and an unauthored one is reported before Publish rather than by it.
+  
+  Creating an object through Studio collected exactly two things — display name and
+  identifier — and saved a draft that declared no `sharingModel`. The draft saved
+  happily, the form designer worked, and the object was then refused at 发布 →
+  全部发布 by `security-owd-unset`: a required decision the surface never asked
+  for, delivered by failing, as English ADR prose in a toast that then vanished on
+  a timer. The one actionable word in it named a control three clicks away that
+  nothing routed to.
+  
+  The publish gate is correct and is unchanged — an org-wide default has to be an
+  authored decision, not an accident. What changes is when the console asks and
+  when it answers:
+  
+  - **The create dialog asks.** A third field collects the baseline, pre-selected
+    to `private` and glossed with the Settings tab's own strings, so a new object
+    is publishable by construction. `buildObjectSkeleton` now takes the value as a
+    required parameter — a future create path cannot omit the baseline without
+    failing to type-check. `controlled_by_parent` is deliberately not offered at
+    creation: it derives access from a master relation a brand-new object does not
+    have yet, so offering it would trade one publish refusal for another.
+  - **The review sheet reports it.** The pending-changes panel now runs the
+    framework's own `validateSecurityPosture` over the pending object drafts and
+    names any blocking finding, with its fix-it hint, next to the Publish button.
+    It mirrors the producer's rule rather than re-deriving it, and it reports
+    without blocking — the server door stays the authority.
+  - **The Settings tab stops calling an unset baseline safe.** It described unset
+    as "defaults to Private", which answers what the runtime does and not whether
+    the object can ship. It now reads as the publish-blocking problem it is,
+    styled like the external-wider warning beside it.
+- fb96ecb: `WidgetConfigPanel` reads an inline-locale-map title, and a save no longer destroys the other locales.
+  
+  The dashboard widget config panel carried a private `resolveLabel` documented as
+  resolving an `I18nLabel` while reading `defaultValue || key` — the key-reference
+  form `@objectstack/spec` retired at 17.0.0-rc.6 (objectstack#5055). The inline
+  per-locale map `I18nLabelSchema` actually admits has neither limb, so
+  `{ en: 'Revenue', zh: '收入' }` resolved to `''`. It was the fourth private copy
+  of that resolver; objectui#4032 swept the other three out of `DashboardRenderer`,
+  `MetricWidget` and `MetricCard`.
+  
+  This was not a display bug. The resolved value seeds the panel's editable draft,
+  so a widget whose stored title was a map opened with an **empty** Title field and
+  the next save wrote `''` over the author's map — on the ordinary path, not an
+  exotic one: open the widget, change anything, save.
+  
+  Both halves are fixed, per the maintainer's 2026-08-20 ruling on objectui#5301:
+  
+  - **Reading** goes through `pickLocalized(value, language)`, so the panel shows
+    the active locale like every sibling surface post-objectui#4032.
+  - **Writing** replaces only the active locale's entry and carries every other
+    locale across. A title the author never touched round-trips the stored object
+    itself through an unrelated config edit; an edited one merges into the entry
+    that was displayed. The live-update callback (`onFieldChange`) forwards the
+    merged map for the same reason — hosts feed it back into the widget the panel
+    re-opens from, so a bare string there dropped the map before a save ever ran.
+  
+  `@object-ui/i18n` gains `setLocalized(value, language, next)`, the write-side
+  inverse of `pickLocalized`, so the rule is stated once instead of re-derived per
+  panel. It follows `pickLocalized`'s first three limbs — exact tag, base language,
+  region-qualified sibling — and deliberately stops there: the `default` / `en` /
+  first-value limbs are display fallbacks that hand back *another* locale's string,
+  and writing to one would let an author editing in `fr` overwrite English. With no
+  entry for the active locale the edit adds one. The pairing
+  `pickLocalized(setLocalized(map, lang, s), lang) === s` is pinned, because a
+  write that lands where the read does not look is how a "saved" string disappears.
+  
+  A full multi-locale editing UI remains out of scope (objectui#4163).
+
+### Patch Changes
+
+- b06e374: The Spanish pack renders `Done` as `Listo` at every one of the four sites that say it
+  (objectui#3880, triage adjudication 2026-08-09). `grid.bulk.done` — the footer button that
+  dismisses the bulk-action result dialog — read `Hecho` while `common.done`, `view.done` and
+  `form.fullscreen.done` all read `Listo`, so the same English word rendered two ways in
+  Spanish across dialogs a user meets in one session.
+  
+  Adjudicated a typo rather than a deliberate contextual split, on three checks. All four
+  keys hold the byte-identical `en` value `Done`, and all four call sites are the same
+  control: a dialog-footer button whose click finishes or dismisses the surface
+  (`BulkActionDialog` `onClose(result)`, `ManageViewsDialog` `onOpenChange(false)`,
+  `fullscreen-editor` `commitFullscreen`, `InviteMemberDialog`'s invitation-created footer).
+  The nine other packs each render all four identically (de `Fertig`, fr `Terminé`, pt
+  `Concluído`, ru `Готово`, ja `完了`, ko `완료`, zh `完成`, ar `تم`), so no other translation
+  pass had found a context worth splitting on. And the neighbouring `Hecho`/`Deshecho`
+  pairing that could have justified it does not hold: `grid.bulk.undo` is the verb `Deshacer`,
+  and `Deshecho: ` is `undonePrefix`, a result-line status rather than a button.
+  
+  `Hecho` moved to the 3:1 majority `Listo`, which is the value objectui#3546 slice seven had
+  already chosen for `common.done`. `packages/i18n/src/__tests__/residue-namespaces-3546.test.tsx`
+  pinned the old outlier as a recorded example of deliberate divergence; that pin now asserts
+  the four as one value instead, and its note keeps the history plus the `Pending`/zh row,
+  which remains a genuine deliberate split.
+  
+  No `en` value changes, so no other pack is asked to follow. This is the value half of
+  objectui#3880 only — the card's 281/164 shared-string census stays on the card as
+  documentation, and is explicitly not a gate: 164 of those groups diverge legitimately.
+- 594704f: The `console.objectView.*` config-panel vocabulary is retired — 116 keys removed from each
+  of the ten packs, 1160 translated strings that nothing read (objectui#4730, maintainer
+  ruling 2026-08-19).
+  
+  The namespace held 209 keys per pack. 116 of them labelled a view-configuration settings
+  panel that does not exist: appearance and density toggles, accessibility attributes,
+  conditional-formatting rules, row-action and inline-edit switches, quick-filter builders,
+  an advanced-settings tier. `packages/app-shell/src/views/ViewConfigPanel.tsx` — the panel
+  they were written for — was migrated off the legacy `buildViewConfigSchema` engine onto
+  `ViewVariantInspector`, a spec-driven inspector whose field labels come from
+  `@objectstack/spec` metadata rather than from this namespace. The panel was replaced; the
+  keys were not cleaned up with it.
+  
+  Removed under objectui#4658's three-legged evidence standard, re-measured on this branch's
+  merge base rather than inherited from the card: zero `t()`/`tt()` call sites, zero textual
+  occurrence of the dotted key anywhere in the repo outside the packs that define it, and a
+  consumer spot-check confirming no i18n wiring. The 93 live keys stay — the create-view
+  dialog fields, the view-type catalogue, `new`/`save`/`cancel`, the object-not-found copy,
+  plus the 38 keys whose spelling still appears somewhere the AST pass cannot see, which are
+  out of scope here.
+  
+  Four of the retired keys name `ListViewSchema` properties that are still active —
+  `rowActions`, `inlineEdit`, `hiddenFields`, `filterableFields`. They are retired anyway, by
+  the ruling's own words: a live schema property is not a consumer of a locale string; only a
+  labelled UI control is. If such a panel is ever specified, its keys are re-authored
+  alongside it.
+  
+  `packages/i18n/src/__tests__/objectView-config-keys-retired-4730.test.ts` pins the removal
+  by name. Every i18n gate in this repo runs call site → key, so none of them can see a dead
+  key come back: the parity gate is fully satisfied by 116 dead keys present in all ten packs,
+  and the reverse sweep that found them (`scripts/check-i18n-dead-keys.mjs`) is report-only by
+  design. The pin is the only thing that would notice.
+- 41b7ce3: **View configuration is explicitly org-wide, and its write path is now gated (objectstack#7494's
+  ruling, maintainer 2026-08-12).** The `sort` / `hiddenFields` / `columnState` / `rowHeight` that a
+  list toolbar persists were never per-user: they are one shared row on the view, so an ordinary user
+  dragging a column or cycling density was re-styling that view for the entire organization. Nothing
+  in the console said so, and nothing stopped it. A per-user scope stays parked (objectstack#7611,
+  v18) and is deliberately not built here — which is precisely why the write has to be gated rather
+  than narrowed: there is no second, private store for it to fall back to.
+  
+  `ObjectStackAdapter.updateViewConfig` now refuses when the session's **reported** ADR-0066 capability
+  set does not contain `manage_metadata`, throwing the new `ViewConfigPermissionDeniedError`
+  (`VIEW_CONFIG_PERMISSION_DENIED`, with `isViewConfigPermissionDeniedError` and the
+  `VIEW_CONFIG_CAPABILITY` constant alongside it). The gate is the **first** statement in the method —
+  before `connect()`, before the payload is assembled — so a refused call puts nothing on the wire.
+  It is on the write rather than on the toolbar button on purpose: withholding the affordance would
+  leave the method still accepting the call from anything else holding the adapter, whereas a gate on
+  the write is inherited by every caller, present and future.
+  
+  `manage_metadata` is not a newly minted name. It is the capability this repo already treats as
+  metadata-authoring authority — `HomePage`'s `AUTHORING_CAPABILITY`, the one the server itself
+  refuses metadata writes without — and the gated write goes through `client.meta.saveItem`, the very
+  same ADR-0005 metadata door, so this applies the authority the server is already applying instead of
+  inventing a parallel one.
+  
+  **Unknown fails open, by doctrine.** A capability set that was never reported (a backend predating
+  ADR-0066, or no permission provider mounted) is not a denial: the server enforces regardless, so a
+  client-side refusal on missing data cannot protect anything and can only break a permitted user. A
+  *reported* empty grant gates strictly. Hosts push the session's capabilities in with the new
+  `setSystemCapabilities`; `ObjectView` wires it from `usePermissions()`.
+  
+  The refusal is also **said out loud**. `ObjectView`'s persist path previously swallowed every failure
+  into `console.error`, which for a debounced toggle whose UI has already moved would have left the
+  operator looking at a density they did not get; a denied write now raises a toast. And the "View
+  settings" popover — where density and field visibility are actually changed — now states the scope
+  before the operator acts: *"Grouping, color, density, and visible fields. Applies to everyone who
+  uses this view."*, translated in all ten packs.
+- 95f8704: `record:path` now announces each stage's state, not just its label (WCAG 2.2 SC 1.4.1)
+  
+  The lifecycle path distinguished travelled, upcoming and lost-terminal stages with
+  colour plus a `✓`/`✗` glyph, and both glyphs are `aria-hidden` decoration.
+  `aria-current="step"` marked the current stage and nothing else, so a screen-reader
+  user heard a run of identically-announced items — and a rejected stage announced
+  exactly like an ordinary stage the record had not reached yet.
+  
+  Each stage now carries an accessible name composing its (already picklist-localized)
+  label with its state, from five new `detail.pathStage*` keys translated in all ten
+  locale packs. The glyphs stay decorative and the readout's `role="listitem"` /
+  `aria-current` semantics are unchanged.
+  
+  The name is composed into `aria-label` rather than visually-hidden text because
+  `listitem` takes its name from the author only: text placed inside a stage computes
+  to an empty accessible name, so the visually-hidden shape would have looked right in
+  the markup and delivered nothing to the accessibility tree.
+- 8d3a529: `record:path` finishes localizing and de-colouring its accessible names — the two residues
+  objectui#5916 named and deliberately left behind (objectui#5956, objectui#5957).
+  
+  **The list's own label was English on a localized surface, and the other one named nothing.**
+  Both the desktop and the mobile `role="list"` row did
+  `aria-label={schema.aria?.label || 'Record path'}`, so a zh/ja/ar session heard `Record path`
+  for the list while every stage inside it announced in the session locale — one control
+  speaking two languages at once. The fallback is now `detail.pathLabel`, translated in all ten
+  packs; the `schema.aria.label` author override still wins ahead of it.
+  
+  The lost-terminal alt group was a different defect wearing the same clothes: its
+  `aria-label="Alternative terminal stages"` sat on a bare `div`, which has the `generic` role,
+  and browsers expose no accessible name on a generic element. That string reached nobody —
+  inert, not merely untranslated — so translating it would have shipped copy to ten packs that
+  no user can hear. It is removed rather than given a role that takes a name, on three
+  measurements: nothing is lost (it was never announced), it would be redundant (every stage
+  inside already announces `closed lost` in the session locale after objectui#5916, in the one
+  place `role="list"` can carry it), and it would fork the two rows (the mobile row renders one
+  flat list with no alt group, so a named group would make one control expose two structures by
+  viewport).
+  
+  **An unreached goal terminus was distinguished by hue alone.** `railClass` paints it
+  `bg-emerald-500/30` where a plain upcoming stage gets `bg-muted` — the renderer's own note
+  calls this "a faint emerald so the goal is legible" — while both announced the identical
+  `{{stage}}, upcoming`. Two stages ahead of the record painted differently and read the same:
+  the WCAG 2.2 SC 1.4.1 class objectui#5916 closed, on the one distinction it left behind, and
+  reachable without authors opting in because `classify()` finds `won` through the `WON_TOKENS`
+  heuristic as well as an explicit `terminal: 'won'`. New key `detail.pathStageWonUpcoming`
+  (`{{stage}}, goal stage, not reached`), translated in all ten packs.
+  
+  Scoped to the UNREACHED goal, which is a measurement of the stylesheet rather than a
+  preference: a reached goal terminus paints `bg-primary` when current and `bg-emerald-500` when
+  completed, byte-identical to any other current or completed stage. Naming it apart would hand
+  a screen reader a distinction the screen does not make — the mirror image of the defect — so
+  it is one new key, not a pair, and a test pins that decision so it cannot drift into a fourth
+  state unnoticed.
+  
+  Both new keys also land in `DETAIL_DEFAULT_TRANSLATIONS`, which
+  `defaults-maps-mirror-en-pack` compares against the `en` pack key by key, so neither can fork
+  between a provider-mounted console and a provider-less embed. No existing `en` value changes,
+  so no pack is asked to follow an edit.
+- 5ac2e2c: The merged `Loading…` group now reads one way per language (objectui#5972).
+  
+  objectui#3878 converged every pack on the typographic ellipsis, and in doing so **merged**
+  the ASCII `Loading...` group into the U+2026 `Loading…` group. Nobody re-measured the
+  wording afterwards. Re-derived on today's tree by flattening all ten packs and comparing
+  exact values, the group is 10 keys — `lookup.loading`, `common.loading`,
+  `fields.recipient.loading`, `grid.import.historyLoading`, `grid.bulk.loading`,
+  `detail.loading`, `report.loading`, `dashboard.loading`, `auth.device.loading`,
+  `approvalsInbox.loadingMore` — and `de` rendered them four ways, `ko` two and `ar` two,
+  while en/zh/ja/fr/es/pt/ru were already unanimous.
+  
+  Three packs move, translation copy only — no key is added or removed, no `en` value
+  changes, and every value keeps its U+2026:
+  
+  - **de** → `Wird geladen…` on `detail.loading`, `report.loading` (were `Laden…`) and
+    `approvalsInbox.loadingMore` (was `Lädt…`). The passive is both the group majority and
+    the pack's dominant register for in-flight states generally.
+  - **ko** → `로딩 중…` on `fields.recipient.loading`, `grid.bulk.loading`,
+    `grid.import.historyLoading` and `approvalsInbox.loadingMore` (were `불러오는 중…`).
+    Majority, and it matches the pack's own pattern: `불러오는 중` is what `ko` uses when the
+    string names the thing being loaded, the bare form is `로딩 중`.
+  - **ar** → `جارٍ التحميل…` on `common.loading` and `detail.loading` (were `جاري التحميل…`).
+    This one is an orthography normalization rather than a wording choice: `جارٍ` is the
+    indefinite منقوص participle with tanwīn on the rāʾ, `جاري` the yāʾ-retaining form.
+  
+  `de` `auth.device.loading` deliberately stays `Lade…`. It is the one member whose outlier
+  spelling is coherent with its own screen: `DeviceAuthPage` renders that namespace's three
+  in-flight states together and `de` writes all three in the same first-person voice
+  (`Genehmige…`, `Ablehne…`, `Lade…`), the other two being outside this group. Converging it
+  alone would manufacture a fresh same-screen inconsistency, so it is reported as a fork and
+  pinned as a named exemption instead.
+  
+  `packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts` gains the per-language
+  uniformity pin beside the glyph rule that created the group. The pin derives the group
+  from `en` and asserts its membership and per-language value counts **before** asserting
+  uniformity, so it cannot pass by matching nothing.
+- b08b7eb: All ten locale packs now define `home.recentApps.itemType.report` and
+  `home.recentApps.itemType.metadata` (objectui#6023). `RecentItem['type']` is a six-member
+  union and `useTrackRouteAsRecent` writes both of these at runtime — `metadata` on any
+  `/metadata/<type>/<name>` route visit, `report` on any `/report/<name>` visit — but the
+  packs defined only four of the six, so the Recently Accessed and Starred cards labelled
+  those two items from the call sites' inline `defaultValue` instead of from the pack.
+  
+  Ten packs missing the same member is full parity, so no pack-vs-pack gate could see it,
+  and the prefix rule only ever asked whether `home.recentApps.itemType` resolved, which it
+  did. What made it quiet rather than loud is the `defaultValue`: English readers saw a
+  plausible `Report` / `Metadata` (lowercase in the rail) rather than a raw key, and the
+  other nine locales saw those English words — objectui#3517's mechanism for hiding a
+  missing key for months.
+  
+  The nine translations were taken from each pack's own existing rendering of the same word
+  rather than composed: the singular `Report` that `appDesigner.navReport`,
+  `appDesigner.navTypeReport` and `search.badgeReport` already carry (ar `تقرير`, de
+  `Bericht`, es `Informe`, fr `Rapport`, ja `レポート`, ko `보고서`, pt `Relatório`, ru
+  `Отчёт`, zh `报表`), and the `Metadata` that `layout.metadata.label` already carries (ar
+  `البيانات الوصفية`, de `Metadaten`, es `Metadatos`, fr `Métadonnées`, ja `メタデータ`, ko
+  `메타데이터`, pt `Metadados`, ru `Метаданные`, zh `元数据`). No new vocabulary was invented
+  for any locale.
+  
+  The two matching entries in `scripts/i18n-call-site-key-baseline.json`'s `missingMembers`
+  are cleared, since that list is a ratchet: a baselined entry whose defect is gone fails the
+  build too. The union itself is untouched — narrowing `RecentItem['type']` is the other
+  resolution the gate accepts, and it would have been a lie about data both call sites
+  demonstrably write.
+- 5fa06c4: The zh pack's `console.breadcrumb.reports` renders 报表, the noun the rest of the pack
+  already uses for the report feature (objectui#6166).
+  
+  **The authority for this edit is the maintainer ruling of 2026-08-25, not an occurrence
+  count.** The card was filed explicitly as a native-speaker call and explicitly forbade
+  resolving it by normalising to the majority: 报表 (a tabular/data report) and 报告 (a
+  written/narrative report) are not interchangeable, so a pack that spells one key
+  differently from its siblings is evidence of a majority and never, on its own, evidence of
+  a mistake. The maintainer ruled that no deliberate narrative-report distinction was
+  intended here and that the breadcrumb names the same report feature the rest of the pack
+  calls 报表.
+  
+  The render context corroborates the ruling and closes the confidence gap triage recorded
+  when it declined to decide this itself. `console.breadcrumb.reports` labels the
+  `routeType === 'report'` **list** route in app-shell's `AppHeader` — a structural sibling
+  of the `dashboards`, `pages` and `system` segments beside it — and drilling through it
+  appends a metadata report definition, the same feature named by
+  `console.commandPalette.reports`, `console.nav.navReport`, `search.typeReports`,
+  `search.badgeReport` and `search.reportNotFound`. Nothing narrative renders beneath it.
+  
+  A comment at the key records that this was **ruled** rather than counted, and states the
+  报表/报告 distinction it was ruled against, so the next reader measuring pack consistency
+  neither re-files it nor quietly restores 报告 after reading the render context and
+  disagreeing. That comment is half of the deliverable; the value change alone would leave
+  the decision unrecorded, which is the failure mode the card was most concerned about.
+  
+  **Scope: one key, one pack.** This is not a licence to normalise vocabulary across the ten
+  packs — the card names that hazard explicitly and says it would need its own ruling, and
+  this ruling grants nothing beyond the single key it names. No `en` value changes, so no
+  other pack is asked to follow, and no other pack was touched.
+- 5d3a2d1: The capability picker localizes `manage_sharing` (objectui#6285). Before this, "Manage
+  Sharing" was the one platform capability in `sys_permission_set`'s picker that rendered in
+  English in every locale, beside seven siblings that translated — a user-visible missing
+  translation, in all ten packs at once.
+  
+  The cause was an unchecked copy. `CURATED_CAPABILITY_LABELS` in
+  `CapabilityMultiSelectField.tsx` listed seven capability names under a doc comment claiming
+  it mirrored `@objectstack/spec/security`'s `PLATFORM_CAPABILITIES`; the spec grew an eighth
+  member and the list did not follow, so `manage_sharing` fell through to the English label
+  the `sys_capability` registry serves. Nothing could catch it: the i18n gate reads that list
+  as this key family's vocabulary and checks the members it names — all seven had keys — and
+  no instrument compared the vocabulary to the array it was named after.
+  
+  `capability.label.manage_sharing` is now authored in all ten packs and in the field widgets'
+  provider-less defaults map, the list carries the member, and the prose claim is replaced by
+  a check: `CapabilityMultiSelectField.specParity-6285.test.tsx` imports `PLATFORM_CAPABILITIES`
+  and fails on any difference in either direction, reading the declaration through the i18n
+  gate's own source reader so what it pins is exactly what that gate consumes. `labelFor` also
+  gains a `defaultValue`, so a capability that arrives in a future spec bump before its
+  translation is authored degrades to the registry's English label rather than rendering a raw
+  i18n key at the user.
+- 00c665e: `appDesigner.fieldDesigner.formula` is retired — one row removed from each of the ten
+  locale packs plus the designer defaults map, 11 lines, zero readers (objectui#6310).
+  
+  objectui#6043 retired the Field Designer's formula-expression textarea, which was the
+  key's only call site (`FieldDesigner.tsx`, the `{ name: 'formula', label:
+  t('appDesigner.fieldDesigner.formula') }` field descriptor). The value outlived it in
+  eleven places: `DESIGNER_DEFAULT_TRANSLATIONS` in
+  `packages/plugin-designer/src/hooks/useDesignerTranslation.ts`, and the `appDesigner >
+  fieldDesigner > formula` leaf of `packages/i18n/src/locales/{en,de,es,fr,pt,ru,ja,ko,zh,ar}.ts`.
+  
+  Removed under objectui#4658's evidence standard, re-measured on this branch rather than
+  inherited from the card: zero `t()`/`tt()` call sites, no dynamic template head that could
+  reach it (`appDesigner.fieldDesigner.typeCategory.` is the namespace's only one), and its
+  sole textual occurrence anywhere in the repo was the defaults-map row this change removes
+  with it — so the key goes from NEEDS-REVIEW to no footprint at all.
+  
+  The map and all ten packs move in one commit, which is what keeps
+  `defaults-maps-mirror-en-pack` green: that gate fails a map row whose key the `en` pack
+  lacks, and `all-locales-key-parity` fails a pack left behind.
+  
+  Not touched: `designer.field.formula` (`'Formula (CEL)'`) in
+  `packages/app-shell/src/views/metadata-admin/i18n.ts`, a different and live key belonging
+  to metadata-admin's `ObjectFieldInspector` — the surface that still authors formula
+  expressions.
+  
+  `packages/i18n/src/__tests__/appDesigner-fieldDesigner-formula-retired-6310.test.ts` pins the
+  removal by name, following the four prior retirements (objectui#4145, objectui#4392,
+  objectui#4730, objectui#5504). Every i18n gate here runs call site → key, so none of them can
+  see a dead key come BACK into the packs: the reverse sweep that found this one is report-only
+  by design, `all-locales-key-parity` is fully satisfied by ten packs agreeing on a dead key, and
+  `check:i18n-drift` only fires when a value changes. Reverse-verified rather than asserted —
+  reviving the row in all ten packs turns exactly that one case red, naming each pack, while the
+  parity gate and the defaults-map mirror stay green.
+- fff9645: `ar` spells the منقوص participle one way — `جارٍ`, pack-wide (objectui#6610).
+  
+  The pack wrote the active participle of جرى two ways at once: `جارٍ` on 92
+  values and `جاري` on 8. One word, two spellings, differing by a single code
+  point — U+064D (tanwīn kasr, the yāʾ dropped) against U+064A (the yāʾ kept) —
+  and same-screen visible: `LoadingScreen` renders `console.initializing` as the
+  heading over the three `console.loadingSteps.*` and `console.actions.retrying`
+  on the retry button, four values that all said `جاري`, inside a console that had
+  already said `جارٍ` on `dashboard.loading`, `list.loading`,
+  `detail.loadingAttachments` and `console.ai.*`.
+  
+  The 92:8 majority is not why the 8 moved. An اسم منقوص declines three ways, so
+  "the 8 are right in their own context" was a live reading and was falsified
+  rather than out-voted: all eight opened their string as a fronted indefinite
+  predicate over a delayed subject — nominative, indefinite, not annexed — and
+  five had a word-for-word twin already spelled `جارٍ`, `grid.refreshing`
+  (`جاري التحديث…`) against `list.refreshing` (`جارٍ التحديث…`) being the exact
+  minimal pair. Meanwhile the three values where the yāʾ is grammatically required
+  (accusative `جاريًا` after لا يزال / ما زال, definite `الجارية`) are correct and
+  are left alone.
+  
+  Eight values converged; no key added or removed and no `en` value touched.
+  `ar-participle-orthography-6610.test.ts` makes it a pack-wide invariant rather
+  than an eight-key edit — a ninth value arriving with the yāʾ now fails by key
+  name — and pins the three legitimate yāʾ occurrences so a later sweep cannot
+  flatten a correct distinction into a real grammatical error.
+- 9c3b7ce: The German pack's `auth.device.*` in-flight states move to the passive register
+  (objectui#6611, triage ruling 2026-08-27, option 2): `approving` `Genehmige…` →
+  `Wird genehmigt…`, `denying` `Ablehne…` → `Wird abgelehnt…`, `loading` `Lade…` →
+  `Wird geladen…`.
+  
+  Graded a bug, not a taste call: `Ablehne…` was not a grammatical German form.
+  `ablehnen` is a separable-prefix verb, so the first-person singular is *ich lehne
+  ab* — the pack shipped broken German on `DeviceAuthPage.tsx` to users today.
+  Re-derived the ruling's premise against the tree before touching anything: the
+  `de` pack's dominant in-flight register is measurably the passive — 40 of 61
+  `en`-bare-gerund keys render `Wird …`, against 21 that don't (a Unicode-aware,
+  position-aware scan, positive-controlled on `common.loading` → `Wird geladen…`),
+  close to triage's "roughly 37" and the same conclusion either way. `loading` was
+  the sole member of objectui#5972's merged `Loading…` group carved out by name in
+  `LOADING_GROUP_FORKS` (`packages/i18n/src/__tests__/ellipsis-glyph-3878.test.ts`),
+  because converging it alone while `approving`/`denying` stayed first-person would
+  have manufactured a new same-screen inconsistency. Moving the whole namespace to
+  the passive removes that fork rather than maintaining it, so the exemption row is
+  deleted and the pin now asserts zero forks.
+  
+  No key added or removed, no `en` value moves, no other locale touched.
+- dbd5194: The shell's `sys_activity.type` reading stops calling every unrecognised type an
+  update (objectui#6730).
+  
+  `mapActivityRows` in `hooks/sharedUserFeeds.ts` — the feed behind the AppHeader
+  bell's Activity tab, Home's activity card and the exported `ActivityFeed` panel
+  — carried the third hand-written reading of that column in this repo, and it
+  bucketed every value outside `created` / `deleted` / `commented` / `mentioned`
+  as `update`. That is not a missing decision; it is a wrong one stated out loud:
+  a `scheduled` meeting, a `login`, a nightly `system` rollup and an author's
+  `contract_countersigned` all rendered as "somebody updated this record".
+  
+  - New `layout/activityItemType.ts` holds the whole reading — the table, the
+    generic bucket, the `"NOW()"` timestamp fallback and the row constructor that
+    applies all three — DOM-free, so what a row becomes is assertable directly.
+  - `ActivityItem['type']` gains a fifth kind, `system`: the generic bucket, with
+    its own icon, label and notification toggle. Following
+    `UNMAPPED_ACTIVITY_FEED_TYPE`'s precedent, an unrecognised value renders
+    through it and is named once on `console.warn` rather than being dropped —
+    `sys_activity.type` is author-extensible (objectstack#11507 direction 4), so
+    an unmapped value is real activity nobody has ruled on, not a mistake.
+  - The built-ins that had no honest presentation among the four existing kinds —
+    `system`, `completed`, `scheduled`, `login`, `logout` — now land in that
+    bucket instead of claiming `update`. `assigned` and `shared` stay `update`:
+    both write to the record.
+  
+  ⛔ The two readings of this column are deliberately NOT converged.
+  `activityRowToFeedItem` builds a `FeedItem`, and the vocabularies cross:
+  `FeedItem` collapses create/update/delete into one `field_change` and drops
+  `commented` / `mentioned` outright, so routing this surface through it would
+  cost the bell every comment row and every create/delete distinction. What is
+  shared is a pin, not an import — the new suite reads plugin-detail's real table
+  (a devDependency; no runtime edge) and fails when the declared vocabulary grows
+  an entry this side has not read, or when the two readings stop disagreeing in
+  the three measured ways.
+- b392674: Field widgets say WHY they refused an edit in the reader's language
+  (objectui#6755, maintainer ruling 2026-08-29).
+  
+  Three sentences a person has to read to recover from a refusal were string
+  literals in the widgets, inside a package whose locale channel 11 of its 55
+  widgets already use: `ObjectField`'s `Invalid JSON`, and `LocationField`'s
+  format and range refusals (objectui#6716 / #6714). So a zh / ja / ar user who
+  mistyped a coordinate or a JSON blob was told why in English, in a form whose
+  labels, gate hints and validation copy were all translated.
+  
+  - All three now read from `useFieldTranslation` / `FIELD_DEFAULTS` under
+    `fields.object.invalidJson`, `fields.location.refusedFormat` and
+    `fields.location.refusedRange`, with entries in all ten locale packs — bound
+    from now on by `check:i18n-drift`.
+  - The `en` values are byte-identical to the literals they replace, so English
+    and provider-less rendering are unchanged, and the refusal pins of
+    objectui#6716 / #6715 and `plugin-form`'s two refusal suites are untouched.
+  - `fields.location.refusedRange` keys the FRAME only: the interpolated
+    `{{detail}}` is `LocationValueSchema`'s own complaint, because the widget must
+    not restate the spec's bounds (a hand-copied range is a second contract).
+  - Not in scope, and recorded rather than folded in: `LocationField`'s third
+    refusal sentence — the residue arm objectui#6715 added after the ruling was
+    written — is still a literal. objectui#6888 carries it.
+- 4f3a1e2: fix(plugin-timeline): refuse an unusable gantt date range with a diagnostic that names the offending value
+  
+  A gantt whose date range cannot be used now renders a `role="alert"` diagnostic
+  naming the value that made it unusable, instead of crashing or drawing a chart
+  that is confidently wrong. Two input classes, which failed in opposite
+  directions:
+  
+  - A date that does not parse threw `RangeError: Invalid time value` mid-render —
+    the same crash site objectui#6750 guarded for the empty list, on a different
+    input. This covers a malformed value (`startDate: 'not-a-date'`), an absent
+    one, and an unparseable `minDate` / `maxDate` pinned on the schema.
+  - An inverted pinned range (`minDate` after `maxDate`) drew a bar at
+    `left: 157.9%; width: -4.3%` under a header row with zero cells, with no
+    error and no diagnostic.
+  
+  Valid gantts, the empty-list sentinel from objectui#6750 and the degenerate
+  `minDate === maxDate` axis are unchanged.
+- 320374d: Key `LocationField`'s THIRD refusal sentence — the residue arm — into the locale
+  packs (objectui#6888).
+  
+  Typing a half that is only PARTLY a number (`12abc, 34`) is refused by
+  `LocationField` with its own sentence, added by objectui#6715. objectui#6755 had
+  ruled two weeks earlier that a widget's own refusal sentence goes through
+  `useFieldTranslation` + `FIELD_DEFAULTS`, and named three sentences — but it was
+  written on 2026-08-29 14:53 and this arm landed after, so it stayed a hard-coded
+  English literal while its two siblings were keyed.
+  
+  **The consequence was worse than one more English string.** All three refusal arms
+  render through the SAME `<p>` and the same `refusalError` state, so after #6755
+  landed that one line spoke the reader's language when the format or range arm fired
+  and English when the residue arm did — objectui#4028's shape ("four Chinese labels
+  around one English one") compressed into a single sentence position, which reads to
+  a user as a bug rather than as a missing translation.
+  
+  **Arity is answered explicitly, not defaulted.** Unlike the other two sentences, this
+  one had grammatical number: `verb` was `is not a number` / `are not numbers`, chosen
+  in TypeScript. Handing a pack an English verb form through a `{{hole}}` gives it a
+  fragment it cannot inflect around — Arabic has a DUAL, and two halves is exactly that
+  case. So the verb is not a hole. It lives inside two SIBLING keys picked at the call
+  site, `fields.location.refusedResidue` and `fields.location.refusedResidueOne`,
+  following this repo's own plural convention rather than i18next's `_one`/`_other`
+  suffixes — the same shape `RecordPickerDialog` already uses in this very defaults map
+  (`lookup.recordCount` / `lookup.recordCountOne`), and for the reason `ReactionPicker`
+  states in source: zh/ja/ko have no separate singular form, would legitimately omit a
+  `_one` half, and `all-locales-key-parity` reads that as a missing key. The `ar` pack
+  now uses its dual (`ليسا رقمين`), which the old implementation could not have produced.
+  
+  The English conjunction `' and '` and the coordinate NOUNS go the same way: each pack
+  writes its own conjunction inside the two-half value, and `latitude` / `longitude`
+  become `fields.location.latitude` / `fields.location.longitude`, keyed once each and
+  interpolated into both arities so no locale holds two spellings of the same word. The
+  only holes carrying untranslated data are `{{text}}` / `{{otherText}}` — the
+  characters the person actually typed.
+  
+  **No behaviour moves.** The English values are byte-identical to the literal they
+  replace in both arities, verified by `check:i18n-drift` (0 en values changed, 4 added)
+  and by objectui#6715's own `LocationField.strictNumeric.test.tsx` and `plugin-form`'s
+  `ObjectForm.locationResidue.test.tsx` passing untouched. Provider-less rendering is
+  unchanged, the refusal itself is unchanged, and the four new keys are bound from here
+  on by `check:i18n-keys` and `all-locales-key-parity` like their three siblings.
+- 639114c: Carry `manage_org_presentation`, the ninth platform capability (objectui#7122).
+  
+  `@objectstack/spec` 17.3.0 declares a ninth member of `PLATFORM_CAPABILITIES`
+  and the capability picker's curated set carried eight, so
+  `CapabilityMultiSelectField` fell back to the `sys_capability` registry's
+  English label for it in every locale — the exact defect objectui#6285 filed
+  when `manage_sharing` did the same thing.
+  
+  The label is the spec artifact's own (`Manage Organization Presentation`), read
+  off the installed build rather than invented, and it is authored everywhere the
+  widget's docblock requires of any edit to that list: `useFieldTranslation.ts`
+  and all ten locale packs. Each non-English string is composed from that pack's
+  own established sibling vocabulary (`manage_org_users`,
+  `manage_platform_settings`) rather than machine-translated; a native review pass
+  is welcome on the nine, and nothing about the capability's behaviour depends on
+  the wording.
+  
+  The parity pin is unchanged and still fails on ANY difference in either
+  direction, which is what made this visible before it reached a screen.
+- 1490691: `dashboard.noRows` and `dashboard.noDataAvailable` are retired — two rows removed from
+  each of the ten locale packs, 20 entries, zero readers (objectui#7125).
+  
+  objectui#7063 routed the three dashboard empty-state renders (`DatasetWidget`,
+  `ObjectDataTable`, `PivotTable`) through one shared `WidgetEmptyState`, which resolves its
+  own copy from the `dashboard.empty.*` family. The two keys the old per-widget placeholders
+  used outlived their call sites in `packages/i18n/src/locales/{en,de,es,fr,pt,ru,ja,ko,zh,ar}.ts`.
+  
+  Removed under objectui#4658's evidence standard, re-measured on this branch rather than
+  inherited from the card: zero `t()`/`tt()` call sites for either fully qualified key, no
+  dynamic `dashboard.` head a substitution could resolve onto them, and every surviving
+  textual occurrence in `packages/` is a comment recording the consolidation. `pnpm
+  check:i18n-keys` stays green across the deletion with the `en` pack at 2,962 keys (2,964
+  before) and every in-scope call-site key still resolving.
+  
+  Not touched: `table.noRows` (`'No rows to display'`) and `engine.form.noRows`
+  (`packages/app-shell/src/views/metadata-admin/i18n.ts`, read at `widgets.tsx`) — two
+  different, same-named keys in different namespaces. Nor the comments in
+  `WidgetEmptyState.tsx`, `DatasetWidget.tsx`, `ObjectDataTable.tsx` and `PivotTable.tsx`
+  that record WHY three widgets with three strings became one shared empty state; the packs'
+  own comment keeps that rationale and now names the retirement instead of a row that is
+  gone.
+  
+  `packages/i18n/src/__tests__/dashboard-emptyState-keys-retired-7125.test.ts` pins the removal
+  by name, following the five prior retirements (objectui#4145, objectui#4392, objectui#4730,
+  objectui#5504, objectui#6310). Every i18n gate here runs call site → key, so none of them can
+  see a dead key come BACK into the packs: the reverse sweep that found these is report-only by
+  design, `all-locales-key-parity` is fully satisfied by ten packs agreeing on a dead key, and
+  `check:i18n-drift` reported the deletion as `2 removed — those are all-locales-key-parity's`.
+- d8ec8d6: `ActivityTimeline` speaks the session locale — the other 18 literals
+  (objectui#7149).
+  
+  objectui#7142 gave this component its first `t()` call (the empty-state title)
+  and filed the sweep that found the rest. Until now a zh activity tab read
+  `"Activity(0)暂无活动记录"`: one translated string in a component that was
+  otherwise entirely English.
+  
+  All 18 now resolve from the ten packs, in three groups:
+  
+  - **Relative timestamps and the card title** (`just now`, `{{count}}m/h/d ago`,
+    `Activity`) — these render on *every* activity tab. All five were a pure
+    lookup swap: the `en` pack value was already byte-identical to the literal,
+    and the sibling `RecordActivityTimeline` already used the same keys.
+  - **The `formatFieldChange` sentences** — assembled in code, so they needed new
+    keys *with* interpolation holes rather than a lookup. Same reachability as the
+    timestamps: they render for any entry whose optional `description` is absent.
+    The quotes live inside each pack's value, so every locale punctuates its own
+    way (de `„…“`, zh `“…”`, ja `「…」`, fr/ru `«…»`).
+  - **The six filter chips and the chip group's accessible name** — reachable only
+    through the published export, since no host in this repo passes `filterable`.
+  
+  Ten new `detail.*` keys across all ten packs (no inline `defaultValue` —
+  objectui#3517), mirrored byte-for-byte into `DETAIL_DEFAULT_TRANSLATIONS` so a
+  provider-less host still reads English rather than a raw key.
+  
+  One deliberate English copy change: the chip group's `aria-label` was
+  `"Activity type filter"` and now resolves `detail.filterActivity`
+  (`"Filter activity"`) — the key `RecordActivityTimeline` already uses for the
+  accessible name of its own activity filter, so one control does not carry two
+  names across two components.
+  
+  Also drops the unused `Filter` import (a pre-existing eslint warning).
+- 866cd1d: `RecordComments` and `PointInTimeRestore` resolve their copy from the locale
+  packs instead of hardcoded English (objectui#7163).
+  
+  Both files carried their own `formatTimestamp` whose relative-time branches
+  returned English literals, so a zh/ja/ar session read `5m ago` next to
+  otherwise translated chrome — the defect objectui#7142/#7149 fixed one file
+  over in `ActivityTimeline`.
+  
+  - **`RecordComments`** was already wired to the packs (11 `t('detail.…')`
+    references), so this is a pure lookup swap onto `detail.justNow` /
+    `minutesAgo` / `hoursAgo` / `daysAgo` — keys already present in all ten packs,
+    each `en` value byte-identical to the literal it replaces. **No new key, no
+    copy change.**
+  - **`PointInTimeRestore`** used no translation hook at all, so it is swept
+    WHOLE rather than having only its timestamps converted: card title, empty
+    state, field-count line, preview panel, snapshot heading, restore
+    confirmation and all three buttons. Wiring one string into an otherwise
+    untranslated component is what shipped objectui#7142's visibly half-done zh
+    card; that is not repeated here.
+  
+  Ten new `detail.*` keys land in all ten packs and in
+  `DETAIL_DEFAULT_TRANSLATIONS`: `revisionHistory`, `noRevisions`,
+  `revisionFieldsChanged`, `revisionFieldsChangedOne`, `revisionPreview`,
+  `revisionSnapshot`, `restoreConfirm`, `restoring`, `confirmRestore`,
+  `restoreToPoint`. `detail.cancel`, `detail.activityEmptyValue` and
+  `detail.emptyValue` are **reused**, not forked.
+  
+  The restore confirmation becomes one key with a `{{when}}` hole rather than a
+  sentence assembled around a JSX expression, and the field-count line uses the
+  repo's two-key plural convention selected by a static ternary over two literal
+  keys — never `t(KEYS[n])`, which objectui#7149 measured as invisible to the
+  i18n scanners.
+  
+  One deliberate copy change: the snapshot panel's null placeholder was an EN
+  DASH (`–`, U+2013) written inline and now resolves `detail.emptyValue`, which
+  is an EM DASH (`—`, U+2014) in all ten packs — the glyph the rest of the detail
+  package already uses for an empty value.
+- 20c04b2: A gantt timeline whose rows are malformed now refuses to draw, naming the row,
+  instead of crashing the render (objectui#7164, maintainer ruling A+).
+  
+  `TimelineRenderer`'s gantt branch used to read the authored rows twice — once
+  defensively in `findUnusableGanttDate`, once bare in `calculateDateRange` — and
+  every input in the gap threw a `TypeError` mid-render from ordinary JSON:
+  `items: [null]`, a row whose `items` is `5` / `true` / `{}` / an array-like
+  object, or `items` itself not an array. The three readers (the date scan, the
+  range computation and the render loop) now consume ONE verdict from
+  `classifyGanttRows`, and a malformed shape renders the existing `role="alert"`
+  refusal through a new diagnostic key,
+  `timeline.gantt.unusableRange.malformedRow` — "items[0] is null, which is not
+  a row shape" — never the `malformedDate` copy, which named the wrong fault.
+  The key lands in `en` and the nine sibling locale packs.
+  
+  `@object-ui/types` (minor — the accept set narrows): `TimelineSchema.items` no
+  longer declares `z.array(z.any())`. Every element must be an object, and a
+  gantt row's own `items`, when present, must be an array, so `validate` refuses
+  `items: [null]` and `items: [{ items: 5 }]` at authoring time — before they
+  reach a renderer. Feed items (`vertical` / `horizontal`) carry no `items` key
+  and parse exactly as before; every in-repo `type: 'timeline'` fixture parses
+  green on both sides of the change. Rows with no bars (`items: []`, a row
+  without `items`) stay the ordinary empty state and still draw.
+- 01c9023: `AiPendingActionsInbox` speaks the session locale — every string in it, not only its timestamps (objectui#7173).
+  
+  The AI HITL approval inbox held its own relative-time helper returning hardcoded
+  English (`'just now'`, `` `${min}m ago` ``), so a zh / ja / ar session read English
+  relative times on every row. It is the fifth spelling of that helper in the repo,
+  and the file had **no translation wiring at all** — the unwired-component shape,
+  not the lookup-swap shape.
+  
+  It is therefore swept whole. objectui#7142 wired one string into an otherwise
+  untranslated component and shipped something visibly half-done, and objectui#7149
+  is what finishing that afterwards cost; the triage ruling on this card (2026-09-01)
+  carried that forward as *sweep the file whole or leave it*. Everything the user can
+  read now resolves from the locale packs: the card heading and description, the three
+  tabs, the refresh button, all five status badges, the six column headings, the empty
+  state, the row and drawer buttons, all nine drawer field labels, the outcome banner
+  and the whole reject-reason dialog.
+  
+  **No new rows for the four relative-time branches.** `detail.justNow`,
+  `detail.minutesAgo`, `detail.hoursAgo` and `detail.daysAgo` already existed,
+  translated, in all ten packs, and cross-package key borrowing is this repo's settled
+  convention rather than an open question — `ObjectGrid`, `ObjectKanban`, `ObjectTree`,
+  `ListView`, `ObjectView`, `NavigationOverlay`, `RecordAttachmentsPanel`,
+  `RecordDetailView` and `apps/console` all resolve `detail.*` from outside
+  `plugin-detail`. One phrase on one kind of control should not get a second
+  translation that can drift from the first.
+  
+  The rest of the sweep needed copy no pack had, so `@object-ui/i18n` gains an
+  `aiApprovals` namespace: 38 keys, translated in all ten packs. It is deliberately
+  separate from `approvalsInbox`, which is the human approval-**process** inbox — a
+  different surface and a different feature, so no rows are shared with it. Four
+  generic verbs are reused rather than forked (`common.refresh`, `common.cancel`,
+  `common.loading`, `common.ok`).
+  
+  **⛔ The five relative-time helpers are not unified.** They differ in real behaviour
+  — `Math.round` here against `Math.floor` in `plugin-detail`, thresholds 45s/30d
+  against 60s/7d, different tails — so normalising them is a behaviour change wearing
+  a refactor's clothes and needs its own card. This inbox's arithmetic is untouched,
+  and three rows in the new suite exist only to pin it: 50s renders `1m ago` (a 60s
+  threshold would still say "just now"), 90s renders `2m ago` (`Math.floor` gives
+  `1m ago`), and 20d renders `20d ago` (a 7d threshold would already show a date).
+  
+  Two assembled English sentences became single interpolated keys — the outcome banner
+  (`Approve for {{id}}: {{message}}`) and the drawer subtitle
+  (`Tool {{tool}} on {{object}}`). Their word order differs per locale, which fragments
+  around a `<code>` element cannot express, so the two identifiers lose their monospace
+  styling. That is the deliberate cost of making those sentences translatable.
+  
+  Evidence: an `en`-only assertion cannot discriminate here, because each key's `en`
+  value is byte-identical to the literal it replaced. The suite asserts in **zh and
+  ar**, and the provider-less path separately, in its own file (`createI18n` installs
+  itself as react-i18next's module-level global, so a provider-less render in a file
+  that has already mounted a provider silently reads that pack instead of the defaults
+  map). No inline `defaultValue` anywhere (objectui#3517).
+  
+  Two consequences of the sweep, both landed here rather than left for CI to find:
+  
+  `packages/app-shell/src/console/ai/__tests__/ConversationsSidebar.test.tsx` froze its
+  `vi.mock('@object-ui/i18n', ...)` factory to a hand-written object. Its import graph
+  reaches `plugin-chatbot`, which now resolves `createSafeTranslation` at module scope, so
+  the frozen surface made that read `undefined` and the file died during COLLECTION — the
+  objectui#6849 shape, which does not look like a test failure. It now spreads
+  `importOriginal()` and overrides only `useObjectTranslation`. Measured, not guessed: of
+  the 41 frozen `@object-ui/i18n` factories in the repo, running every one of them showed
+  this to be the only file whose graph reaches the package.
+  
+  The ten pack blocks are locale DATA, and locale data lands in the console's eager
+  `framework` chunk, so `scripts/check-eager-closure-budget.mjs` raises that chunk's
+  ceiling from 512,000 to 524,000 gzipped bytes and re-pins its baseline onto a fresh
+  measurement (502,405 to 514,863). Attributed by three console builds: the merge parent
+  reads 510,192, this branch with the ten `aiApprovals` blocks cut reads 510,192 again, and
+  this branch reads 514,863 — so the whole 4,671-byte delta is the pack data and nothing
+  else. Headroom is kept at the line's own convention (9,137 bytes, 0.10x the regression
+  the gate must catch) rather than widened; most of the overage was pre-existing drift, with
+  the merge parent already at 510,192 of the 512,000 allowed.
+- e8c553b: A scatter handed more than one series now refuses instead of drawing a false picture.
+  
+  Scatter binds one measure: `series[0].dataKey` is the y axis, and every series was
+  handed the same rows through that one axis. A second series therefore added a
+  colour and a legend entry and nothing else — measured, two series over two rows
+  painted four symbols at two positions, each drawn twice, and the second measure's
+  values appeared nowhere on the plot. The data was valid and the picture was
+  confidently wrong, which no existing refusal could see.
+  
+  A `chartType: 'scatter'` with two or more `series` now renders the renderer's
+  refusal shell under `data-chart-error="scatter-multi-series"`, stating that a
+  scatter plots one measure, naming the fix (keep exactly one series) and listing
+  the series keys it was handed. A single-series scatter is unchanged.
+  
+  This refusal counts authored `series` only. `compareTo` on scatter is out of
+  its scope: objectui#7402 ruled (b) that scatter joins pie / donut / funnel in
+  excluding `compareTo` — `supportsCompareTo` and the dashboard widget path stop
+  synthesising a comparison series for it, so no `…__comparison` overlay is ever
+  built for a scatter and this guard is never reached by a compare-to document.
+  That exclusion ships as a separate change; until it lands, a `compareTo`
+  document still reaches the renderer as two series and refuses here today.
+  
+  No multi-measure projection is built (maintainer ruling, 2026-09-02): nothing
+  in-repo authors a two-series scatter, so that capability waits for a real caller.
+  The refusal copy is `chart.scatterOneMeasure` in all ten locale packs.
+- 7c3df8f: A non-grid view's fetch now carries a platform row ceiling, and crossing it is
+  never silent (objectui#7210, maintainer ruling a′, 2026-09-02).
+  
+  Before this, `ObjectGantt`, `ObjectCalendar`, `ObjectMap` and `ObjectTree` each
+  issued a `find` with **no `$top` at all**, so the request returned the entire
+  filtered result set. At the 186 rows the card was filed from that is invisible;
+  on an object with 100k scheduled rows it is the whole table into the browser,
+  and nothing an author could write — `pagination.pageSize` included — could
+  bound a request that never carried a cap to begin with.
+  
+  **What changed.** Those four fetches now ask for `NON_GRID_ROW_CEILING_TOP`
+  rows, draw at most `NON_GRID_ROW_CEILING` of them, and when the result set was
+  larger they render a footnote naming both numbers, verbatim as it renders:
+  *"Showing the first 2000 of 41234 records. Narrow the filter."* Below the
+  ceiling nothing changes: the full set draws and no footnote appears.
+  
+  The four view packages take a **minor**, not a patch: a result set above the
+  ceiling is no longer drawn in full, which is a behaviour break whatever the
+  fixed group does to the released version number.
+  
+  **The ceiling is a platform constant, not an authorable key** — `2000`, exported
+  from `@object-ui/react` as `NON_GRID_ROW_CEILING`. An authored `limit` or
+  `dataSource: { limit }` still does not reach these queries, by the same ruling;
+  three alternatives were rejected with it (a documentation note only — still the
+  whole table; truncating at `pageSize` — silent, and a complete schedule capped
+  at one page; an authorable `maxRows` — a new permanent key every author sets).
+  
+  **Why 2,000.** One constant for all four, so the binding view sets it. Measured
+  in this repo's jsdom lane: gantt, calendar and map hold their DOM flat as rows
+  grow (virtualised task list; four events per day cell; auto-clustering above
+  100 markers), while `ObjectTree` flattens every expanded node into the document
+  at a linear **5.2 DOM elements per record** with no virtualisation. 2,000 rows
+  is where the worst of the four lands at ~10,400 elements — an order of
+  magnitude above Lighthouse's "excessive DOM size" warning, and still ~10x the
+  real application result set this card came from.
+  
+  New exports on `@object-ui/react`: `NON_GRID_ROW_CEILING`,
+  `NON_GRID_ROW_CEILING_TOP`, `applyNonGridRowCeiling`, `NonGridRowCeilingNote`
+  and the type `NonGridCeilingResult`. Two new `common.*` i18n keys carry the
+  footnote copy in all ten packs.
+- 3399704: Fix `AiUsageIndicator` to recognize the free plan's new `resetKind: 'weekly'` and its
+  `resetsAt` (objectui#7371, consumer of cloud PR #1852's rolling 7-day AI quota window).
+  
+  Before this change a `weekly` meter fell through to the component's unrecognized-kind
+  path and rendered no reset line at all — not a crash, but silently wrong information
+  next to a live progress ring. The indicator now shows "Resets in N days" (or "Resets in
+  N hours" once inside the final day, e.g. `console.ai.usage.resetsWeeklyHours`), computed
+  from the endpoint's `resetsAt`, in both languages via `@object-ui/i18n`
+  (`console.ai.usage.resetsWeeklyDays` / `resetsWeeklyHours`, real i18next plural families
+  with a base key so every locale pack resolves correctly, all ten packs translated). D5 is
+  preserved — no token count is ever rendered, only the days/hours until reset.
+  
+  Contract-first: `resetsAt` is read verbatim from the endpoint, never re-derived or
+  guessed client-side. A `weekly` meter with `resetsAt: null` (nothing counted yet in the
+  window) and any `resetKind` this build does not recognize both render no reset line —
+  fail-soft, not a crash or stale copy.
+  
+  `AiUsageResetKind` (`packages/app-shell/src/hooks/useAiUsage.ts`) gains the `'weekly'`
+  member; `resetsAt` was already `string | null` and needed no shape change.
+- 2a5bf45: fix(i18n): `createI18n`'s `resources` deep-merges, so overriding one key of a namespace keeps the rest
+  
+  A language pack's top-level keys ARE the namespace groups (`common`, `calendar`,
+  `list`, ...), each a nested object, but `createI18n` merged `resources` over the
+  built-in packs one level deep. Supplying a partial group therefore **replaced**
+  it rather than merging into it:
+  
+  ```ts
+  createI18n({ defaultLanguage: 'en', resources: { en: { calendar: { today: 'Heute' } } } });
+  ```
+  
+  left `calendar.today` set and dropped `month`, `week`, `day`, `allDay`,
+  `newEvent`, `moreEvents` and `unscheduled` from the instance. `t('calendar.allDay')`
+  then returned the bare key, and `calendar.allDay` reached the DOM as literal
+  text — silently, with no error and no warning.
+  
+  The merge now recurses, so a partial group override touches only the keys it
+  names. Packs nest up to four levels below the group
+  (`console.ai.empty.build.title`), so it recurses rather than adding one fixed
+  extra level. Two in-repo call sites were affected by this and are repaired by
+  the change: `packages/plugin-gantt/demo` supplied 53 of the 80 `zh.gantt.*` keys
+  and silently lost the other 27 (its own comment says the demo "is never
+  half-translated" — it was), and the `skills/objectui/guides/i18n.md` setup
+  example, the documented way to use this API, dropped 46 of the 48 `common.*`
+  keys in both `en` and `zh`.
+  
+  **Arrays are replaced, not concatenated** — stated because it is a decision, not
+  a library default. No built-in pack carries an array value today (every leaf in
+  all ten packs is a string), so nothing observable rides on it; the rule decides
+  what a future array means. An author who writes an array is naming the whole
+  list, so replacement is the only rule that lets them shorten or reorder one and
+  the only one that stays idempotent when the merge runs again. This is
+  deliberately narrower than i18next's own `deepExtend`, which the provider's
+  async `addResourceBundle` path uses: that recurses into arrays index-wise and
+  would leave a longer base array's tail behind, which is the same silent-hybrid
+  shape this fix removes.
+  
+  No caller depended on the old replacement semantics: a census of every
+  `resources` literal in the repo (47 parsed sites, plus the dynamic ones resolved
+  by hand) found no site that supplied a partial group in order to clear the rest.
+- bc5870c: fix(plugin-calendar): a record with no date is no longer placed on today
+  
+  `ObjectCalendar` mapped a record whose declared `startDateField` carried no
+  value to `new Date()` — the current moment — so it rendered on today's cell as
+  an ordinary event, indistinguishable from a real one. The `isNaN` guard six
+  lines below could not catch it by construction: a no-argument `new Date()` is
+  always valid, so the absent-value case became a well-formed lie *before* the
+  check that would have caught it.
+  
+  The fabricating arm is deleted. Such records now leave the grid entirely and
+  appear in a collapsed "Unscheduled (N)" area below the calendar — a visible
+  count and an expandable list, with no invented date and no scheduling UI. The
+  `isNaN` filter keeps its original job for values that are present but
+  unparseable: absent and malformed stay two distinguishable outcomes.
+  `allDay: !endDate` now applies only to records that have a start, so a record
+  with no dates at all is unscheduled rather than silently all-day; a record with
+  a start and no end still renders all-day exactly as before.
+  
+  Adds `calendar.unscheduled` to all ten locale packs.
+- 3a58149: A cloud-connection bind failure now reads in the user's language whichever clock
+  noticed it (objectui#5054).
+  
+  One abandoned device approval could be noticed by either of two clocks, and the
+  Cloud Connection panel had a different answer for each. When the panel's own
+  `expires_in` deadline fired first it rendered `cloudConnection.errors.expired` —
+  translated in all ten packs. When the SERVER noticed first, `/bind/poll` answered
+  HTTP 400 with `message: 'Device authorization failed: expired_token'`; `getJson`
+  threw a bare `Error` carrying only that sentence, and the catch rendered it
+  verbatim. Same user, same failure, two languages, decided by which clock got
+  there first — visible on a zh console as the same abandoned approval reading
+  Chinese or English depending on whether the tab sat open past `expires_in`.
+  
+  `getJson` now carries the envelope's `declaredCode` and `code` across its throw,
+  and a single closed map turns the two RFC 8628 outcomes a user can actually cause
+  into console copy: `expired_token` → the existing `cloudConnection.errors.expired`,
+  `access_denied` → a new `cloudConnection.errors.accessDenied` added to all ten
+  locale packs. `declaredCode` is read first, because ADR-0112 keeps the upstream
+  spelling there — `code` is `DEVICE_CODE_FAILED` for both.
+  
+  Every other code is unchanged: `invalid_grant`, and anything upstream invents
+  next, still render the wire `message`, which stays the single source of truth for
+  failures this console has no copy for. No API, export or resolver was widened.
+- 6ce89da: The 确认修改 (confirm changes) card now carries a UI-owned terminal state after approval (#5695): `detectReplayOutcome` lifts the confirm-replay envelope (`replay_*` tool results) into 应用中 / 已生效 / 已暂存为草稿（含内联发布）/ 未生效（含 publishError 首行）, rendered on the original card across the live, hydration/share, and localStorage-cache converters. A failed in-turn publish no longer rehydrates as an ordinary draft card with a live Publish button — the UI-rendered refusal is the layer a model cannot narrate over. New `console.ai.changesApplying/Applied/Drafted/Failed` keys in all ten locale packs.
+- de570cc: fix(i18n): `useObjectTranslation`'s provider-less `t` now interpolates its inline `defaultValue`
+  
+  With no `I18nProvider` mounted, react-i18next hands back its not-ready `t`, which
+  returns `options.defaultValue` **verbatim** — so an inline default written
+  `'Deleted {{count}} rows'` reached the user with the braces intact. 68 inline
+  defaults across 24 files rendered through that path on any host that embeds an
+  ObjectUI component without a provider, which is the configuration
+  `createSafeTranslation` exists for.
+  
+  `useObjectTranslation` now runs its not-ready result through the same one
+  interpolator `createSafeTranslation`'s `fallbackT` uses, so both provider-less
+  renderers fill exactly the `{{name}}` spelling the copy is already gated to. The
+  ready path is untouched: with a provider, i18next's own `t` is returned by
+  reference and nothing is interpolated twice. Pre-interpolated template-literal
+  defaults (`` `Deleted ${n} rows` ``) stay correct — they have no holes left to
+  fill — so no call site changes.
+- 1e66879: `console.ai.pendingDrafts` — the standing unpublished-changes bar's five strings —
+  now exists in all ten locale packs. It previously existed only in `en` and `zh`, so
+  `ar`, `ru`, `pt`, `es`, `fr`, `de`, `ko` and `ja` rendered the English defaults and
+  `all-locales-key-parity` failed on `main` (objectui#5705).
+  
+  The feature landed `en`-only in objectui#5696; the follow-up in objectui#5697 was
+  titled for the locale packs but reached only `zh`, so eight packs × five keys stayed
+  missing and the parity assertion — which carries no allowlist — was red on `main` and
+  on every PR whose diff touched source. Source-free diffs skip the shard that runs it,
+  which is why the breakage survived several merges.
+  
+  Each pack keeps its own conventions rather than `en`'s: the eight all quote with `"`,
+  `ru` puts the number last (`…: {{count}}`) as it already does for the sibling
+  `home.pendingDrafts` counts, and `ja` uses the full-width `：` before `{{detail}}`
+  because that value is a runtime message rather than a single token — both choices
+  carry an in-pack note. Terminology is taken from each pack's existing publish-bar
+  vocabulary (`home.pendingDrafts`, `console.ai.seedWarn`) so the two banners read
+  alike.
+  
+  Both interpolations survive verbatim in every pack — `{{count}}` in `count` and
+  `{{detail}}` in `publishedWithFindings` — asserted mechanically against the evaluated
+  packs, not by eye. The unrelated `home.pendingDrafts` block (`message` / `cta`) is a
+  different node and is untouched.
+- c5200f0: Follow-up to #5696: the pending-drafts bar's strings live at `console.ai.pendingDrafts.*` with en+zh locale entries — the i18n call-site key gate and ratchet flagged the original root-level keys that existed nowhere.
+- fd8dace: Studio surfaces the runtime authoring gate's advisory findings after a **publish**, not only after a save
+  
+  objectui#4133 / PR #4236 wired the gate's advisories to the save door and recorded, honestly, what that left unsurfaced: Studio's designer stages every edit as a `mode: 'draft'` save, drafts are never gated (the framework returns at its D1 early-return before a single rule runs), and the publish step that *is* gated returned no `advisories` field at all. So on the flow most tenants actually use, the author was told nothing at either door — for two different reasons, only one of which was objectui's.
+  
+  The second reason has expired. `PublishMetaItemResponseSchema` now declares the same optional, omitted-when-empty `advisories` key that `SaveMetaItemResponseSchema` has carried since #4717, and `publishMetaItem` populates it. Measured against the installed `@objectstack/spec` (17.2.0) rather than inferred from the version number: the key survives a `safeParse`, a half-shaped finding is rejected, and a clean publish omits the key entirely. That reading is now a test rather than a note, so a spec drift fails CI instead of silently re-muting the door.
+  
+  `MetadataClient.publish` and `MetadataClient.publishDraft` — the two methods over the single-item publish route `POST /meta/:type/:name/publish` — now report through the **same** sink, the same event and the same renderer the save door already used. No new UI shape: same warning tier, same 10s duration, same per-finding `rule` + `message` + `hint` formatting, findings still rendered verbatim as server prose. The wiring lands in the data layer rather than at the call sites, so `ResourceEditPage`'s Publish button and the runtime `RuntimeDraftBar` promotion (ObjectView / ReportView / DashboardView) are covered by one change, as are future ones.
+  
+  One thing had to differ, and it is the frame's verb. Save and Publish are two different buttons in this product, so a toast that says "Saved" after a Publish tells the author their change is still a draft — the opposite of what happened. `MetadataSaveAdvisoryEvent` therefore gains a required `door: 'save' | 'publish'` and the renderer picks `console.publishAdvisoryTitle` (added to all ten locale packs) accordingly. `door` exists because `mode` cannot answer this: a direct active save and a draft promotion both report `mode: 'publish'`, since both land the body in the active overlay. It is required rather than optional so a future third door cannot be wired without saying which one it is, and the renderer branches on it through an exhaustive switch with a `never` check, so adding a third member is a compile error rather than a silently wrong verb.
+  
+  **BREAKING for event constructors — `MetadataSaveAdvisoryEvent.door` is required.** Reading the event is unaffected: a listener that ignores `door` behaves exactly as before, and every other member is unchanged. Constructing one is a compile break — a door-less event literal that type-checked before now fails with TS2741, `Property 'door' is missing`. Measured on the emitted `dist/index.d.ts` of `@object-ui/data-objectstack` on both sides: that single required member is the entire non-comment delta of the package's published surface. **Migration:** add `door: 'save'` or `door: 'publish'` to the literal, whichever write it models — `'save'` for `PUT /meta/:type/:name`, `'publish'` for `POST /meta/:type/:name/publish`. Scored `minor` rather than `major` per the repo's version policy: objectui's major is pinned to `@objectstack`'s so that "same major means compatible" holds across the two repos, so objectui's own breaking changes ship as `minor` with the break named here (`scripts/check-changeset-no-major.mjs`). Every publishable package sits in one `fixed` group, so this entry carries the group.
+  
+  Unchanged, deliberately: the **batch** door. "Publish whole app" (`POST /packages/:id/publish-drafts`) still discards per-draft advisories server-side — objectstack#9343, open and unruled — and nothing here compensates for that from the client side. A test pins the absence, so a later traversal of a batch-shaped `published[]` cannot be added without turning it red.
+- 38a9568: `useObjectLabel` now keeps a stable identity when no i18next instance is bound,
+  so the memoization it advertises holds on the no-provider path too
+  (objectui#5564).
+  
+  react-i18next's `useTranslation` builds its return value out of a fresh `{}` on
+  every render when it has nothing to bind to (`const finalI18n = i18n || {}`,
+  which then feeds that hook's own `useMemo` deps), so the `i18n` object arrived
+  with a new identity each render. `useObjectLabel` keyed its memo on `[t, i18n]`,
+  so the memo never held: measured 4 distinct returned objects across 4 renders
+  with no instance, against 1 with one. That is the wrong way round — the memo
+  exists to stop downstream `useMemo`/`useCallback` deps from being re-keyed in
+  heavy consumers, and `useSafeFieldLabel`'s docstring names the no-provider case
+  as the one it exists to serve.
+  
+  Both memo dependencies are now pinned to module-level constants while no
+  instance is bound. The substitution is unobservable rather than merely
+  convenient: every `t()` call in the module sits inside a
+  `for (… of getAppNamespaces())` loop, and `getAppNamespaces()` returns `[]`
+  under exactly the same "is there a usable instance" predicate — so while the
+  substitution is in effect, the closures cannot read either value. When an
+  instance appears the dependencies become the live values again, so a provider
+  mounting after first render recomputes the object exactly once and resolves
+  real translations from then on.
+  
+  No API change: no new exports, no signature changes, and the returned surface is
+  identical on both paths. Direct `useObjectLabel()` consumers are fixed alongside
+  `useSafeFieldLabel()` ones, including `ListView.filterFields` — the consumer the
+  memo's own docstring names.
+- b2437a7: `setLocalized`'s published docblock states the single-locale write rule that is
+  actually in force, instead of deferring the multi-locale-authoring question to a
+  closed card (objectui#5591).
+  
+  The docblock read "is not a multi-locale authoring UI (objectui#4163)". objectui#4163
+  closed as completed on 2026-08-15 with that product question still unanswered, so the
+  parenthetical pointed at nothing — and it read as though the question had been settled
+  somewhere a reader could go and check. This is the failure mode objectui#5428
+  demonstrated is not harmless: there, a dangling deferral of exactly this shape let an
+  expired justification sit unread for a release cycle at two surfaces.
+  
+  The remedy is objectui#5428's, not a re-pointing at a successor card: state the rule in
+  force (`setLocalized` reaches only the entry for the locale the author is in), keep the
+  open product question open **in place**, and record why there is deliberately no tracker
+  reference — so the next reader cannot restore one. Re-pointing is how the class
+  regenerates, because the next card closes too. The same wording form already landed in
+  `plugin-designer`'s `writeWidgetTitle` and `DashboardWidgetInspector`.
+  
+  Prose only. No behaviour, no signature, no test changes — `setLocalized`'s pairing with
+  `pickLocalized` is unchanged and still pinned by `src/__tests__/setLocalized.test.ts`.
+  
+  Declared as a `patch` for `@object-ui/i18n` alone because the emit was measured per
+  package rather than assumed, and the two packages this change touches differ:
+  
+  - `@object-ui/i18n` — the docblock sits on the **exported** `setLocalized`, so it reaches
+    the published artifacts. Rebuilt with `tsconfig.tsbuildinfo` cleared first (the build is
+    `composite`, which otherwise skips emit), and compared by SHA-256 rather than byte count:
+    `dist/pickLocalized.d.ts` `1e2170ad…` -> `124a1c07…` and `dist/pickLocalized.js`
+    `06eb88bd…` -> `568cb703…`. A consumer reads this text on hover and in the API docs, so
+    it publishes something.
+  - `@object-ui/plugin-dashboard` — the two comments changed there are a `//` banner between
+    declarations and a test docblock, neither attached to an exported declaration.
+    `dist/WidgetConfigPanel.d.ts` is **byte-identical** across the rebuild
+    (`93252e8cdf5a6faa…` both sides). The only artifact that moved is
+    `dist/WidgetConfigPanel.d.ts.map`, whose mappings shift because lines were added above
+    the declarations; no declaration text changed. Nothing user-visible publishes from that
+    package, so it is not named here.
+- eddc1dd: The Studio copilot tells the agent WHAT the user is discussing (cloud#1610 send half): `ChatPane` accepts a `surfaceContext` and sends it as `context.surface` on every turn (the transport reads the body per send, so it stays fresh); the Studio copilot derives it from the URL alone — the `:tab` pillar segment plus the `?surface=type:name` deep-link the pillars already mirror, so the artifact carries its type discriminator (page/object/dashboard/report). A display chip above the composer (「正在讨论：…」, new `console.ai.discussing` key in all ten packs) makes the sent context visible instead of invisible grounding.
+- Updated dependencies [64dae8e]
+- Updated dependencies [9801765]
+- Updated dependencies [053fdc8]
+- Updated dependencies [490d9a9]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [546ddf7]
+- Updated dependencies [44d075b]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [8f1d995]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [5961030]
+- Updated dependencies [299102e]
+- Updated dependencies [831be72]
+- Updated dependencies [d0889e2]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [045d20b]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [47547d0]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [e62c44e]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [52cac38]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [e719ebd]
+- Updated dependencies [fa429cf]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [105f3c5]
+- Updated dependencies [af3861f]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [91783c4]
+- Updated dependencies [2d36552]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+  - @object-ui/core@17.7.0
+
 ## 17.6.0
 
 ### Minor Changes

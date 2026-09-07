@@ -1,5 +1,1133 @@
 # @object-ui/plugin-chatbot
 
+## 17.7.0
+
+### Minor Changes
+
+- 64dae8e: Six user-visible fixes across the maker surface, the assistant rail and the
+  dataset captions.
+  
+  **The maker's start chips now promise only what ADR-0112 v1 builds
+  (cloud#1984).** Two of the five asked for automation the first version has no
+  flows or actions for — the ticket chip said 「状态流转」, the inventory chip said
+  「低库存预警」 — and the measured behaviour was not a refusal but a silent
+  degrade: a status kanban and a low-stock view. The chip promised an alert and
+  delivered a page. All five are reworded in all ten packs (and in the call-site
+  `defaultValue` fallbacks, which are a second copy of the same strings) to ask
+  for objects, fields, views, pages, dashboards and sample data, keeping each a
+  real business scenario — the ticket chip now asks for a status field and a board
+  grouped by it, the inventory chip for a view that filters below the reorder
+  point. A note beside the keys says to revert when v2 re-adds flows.
+  
+  **Five newer AI tools get their step labels (objectui#7481).** A zh conversation
+  read `✓ Get authoring rules 已完成` between 「读取元数据结构」 and 「列出对象」:
+  `get_authoring_rules` (cloud#1837), plus `load_tools`, `open_record`,
+  `test_flow` and `toggle_flow`, are registered by the cloud AI runtime but are
+  newer than the pinned spec's tool registry, so they had no `chatbot.tool.*`
+  entry in any pack and fell through to the English title-caser.
+  
+  **The assistant rail follows the thread when you send (objectui#7480).** The
+  rail and the full-page maker are the same component; what differs is width. A
+  reply that still ends on screen in the wide column runs two or three times
+  taller in a ~360px rail, so `StickToBottom`'s lock is escaped by the time the
+  user types and the new bubble, the tool steps and the streaming answer all land
+  below the fold. Every send path now re-arms the lock — including the plan-card
+  "Build it" and 确认修改 approvals, whose own code comments already named this
+  miss. Message APPENDS deliberately do not, so a user reading back through the
+  thread mid-answer is never yanked to the bottom.
+  
+  **Console toasts move off the assistant composer (objectui#7482).** 「客户更新
+  成功」 sat on the ChatDock composer's send button and stayed there. One defect,
+  two symptoms: `apps/console` pinned the toaster to `bottom-right` — an override
+  that predates ADR-0057 P3a — so a toast both covered the button and, because
+  sonner pauses a toast's dismiss timer while the pointer is inside the toaster
+  region, never got to run its 4s timer with a pointer resting on the composer
+  underneath. The override is gone; the console takes `ConsoleToaster`'s own
+  documented top-right anchor, and the 4s success duration is now pinned.
+  
+  **Built-in aggregate captions follow the locale everywhere (objectui#7534).**
+  objectui#7258 taught `buildChartSeries()` to resolve a server-minted default
+  measure through the locale map, so a chart legend read `计数` while the table
+  beneath it, the KPI caption, the pivot header and the dataset preview still
+  printed the server's hard-coded English `Count`. `buildDatasetFieldHelpers()`
+  takes the same optional `builtinAggregateLabels`, resolving through the one
+  `resolveMeasureLabel` order, and the five call sites pass it. Omitting the
+  argument reproduces the previous output byte for byte, and an author-declared
+  measure still keeps its own label verbatim (objectui#4106).
+  
+  **The activity feed stops asking for an object the environment does not have
+  (objectui#7476).** A tenant environment has no `sys_activity`, so every page
+  load issued a request that 404'd. Everything downstream was already correct —
+  the adapter memoizes the missing collection, its logger demotes the failure, the
+  feed retires as an ANSWER and the panel renders its earned empty state — so what
+  is left is the request itself, and `data-objectstack` states the rule for it:
+  the cure for a doomed request is not issuing it. New `useObjectPresence` reads
+  the object registry the shell loads for the nav anyway; only a registry that has
+  ANSWERED and lists other objects without this one skips the read. Every
+  uncertainty — no provider, empty registry, still loading, errored — reads as
+  before, because a wrong skip would cost a real deployment its feed.
+- 52a43de: `ChatbotSchema` names the `chatbot` node's local-display and legacy
+  auto-response keys — a new, additive published surface (objectui#6169, the
+  #6172 family ruling: every component node has exactly one named, importable
+  authoring-face type).
+  
+  `ChatbotSchema` (`@object-ui/types`) now declares ten keys that previously
+  existed ONLY inside an anonymous inline intersection local to
+  `packages/plugin-chatbot/src/renderer.tsx`'s `chatbot` registration, invisible
+  to anything outside that one file:
+  
+  - `showTimestamp`, `userAvatarUrl`, `userAvatarFallback`, `assistantAvatarUrl`,
+    `assistantAvatarFallback`, `maxHeight` — display fields.
+  - `autoResponse`, `autoResponseText`, `autoResponseDelay` — the local
+    auto-response (demo/playground) fields, already live via a real consumer
+    (`packages/app-shell/src/console/ai/AiChatPage.tsx`).
+  - `onSend?: (content: string, messages: ChatMessage[]) => void` — the
+    send-callback, now typed against the published `ChatMessage` shape rather
+    than the plugin's internal runtime message type.
+  
+  Each was read-site-censused before being declared (renderer.tsx and/or
+  `useObjectChat.ts` reads every one); none were dead, so none took the
+  ADR-0049 retirement route. `disabled` — also present in the original
+  intersection — is NOT redeclared: it is already `BaseSchema.disabled`
+  (`boolean | string`), read generically for every node type, and redeclaring
+  it here would have narrowed away the inherited expression-string case.
+  
+  **What an external consumer can now do that they could not before:** import
+  `ChatbotSchema` from `@object-ui/types` and get these ten keys with real,
+  checked types — previously any reference to them required either duplicating
+  the anonymous type by hand or falling back to `any`. The Zod mirror
+  (`@object-ui/types/zod`) gained the same ten keys in lockstep, so a `chatbot`
+  node parsed through it is now validated on these keys rather than silently
+  passed through unchecked (`BaseSchema`'s Zod mirror is `.passthrough()`).
+  
+  `packages/plugin-chatbot`'s `chatbot` registration (`renderer.tsx`) now types
+  its `schema` prop as `ChatbotSchema` directly, dropping the anonymous
+  intersection. No behavior change: `renderer.tsx:87`'s
+  `body: schema.requestBody` forwarding — the subject of the already-merged
+  #6193 — is untouched, and the render function reads the exact same keys it
+  already read.
+  
+  This is additive (new optional keys on an interface that already carried a
+  `[key: string]: any` index signature, and a new Zod-validated subset of
+  previously-passthrough keys), so it ships as `minor` even though it changes
+  published type surface: objectui's major is pinned to `@objectstack`'s
+  (`scripts/check-changeset-no-major.mjs`), and objectui's own breaking changes
+  ship as `minor` with the break spelled out — there is no break here to spell
+  out, only a widening from anonymous-and-unchecked to named-and-validated.
+  
+  Out of scope, deliberately: the `chatbot-enhanced` and `chatbot-floating`
+  registrations' own anonymous intersections (different key sets, a decision
+  for a separate card in the same family), and the `surface` row on
+  `content/docs/plugins/plugin-chatbot.mdx`'s Properties table, which names a
+  key no registration in this package currently reads (filed separately).
+- 7d8e546: `surface` becomes authorable on the `chatbot-enhanced` node, so the capability the docs
+  have been documenting is one an author can actually reach (objectui#6687, maintainer
+  ruling 2026-08-29).
+  
+  `content/docs/plugins/plugin-chatbot.mdx`'s `Properties` table listed `surface`
+  (`'card' | 'plain'`, "bordered panel or a frameless full-page workspace"), but the key had
+  **zero read points**: none of the three `ComponentRegistry.register('chatbot*', ...)` sites
+  in `renderer.tsx` forwarded it, and `ChatbotSchema` did not declare it. `surface` was real
+  only as a prop of the React component — `ChatbotEnhanced.tsx` defines `ChatbotSurface`,
+  defaults it to `'card'`, and branches six layout decisions off `isPlainSurface` — so it was
+  reachable by a hand-written React host and by nobody writing metadata. An author who wrote
+  `surface: 'plain'` got the `'card'` default, with no error and no signal.
+  
+  Measured on both declaration faces before the fix, each with a control that had to hit:
+  `schema.surface` appeared 0 times in `renderer.tsx` against `schema.placeholder` at 3 (one
+  per registration) and `schema.processVisibility` at 1; and `ChatbotSchema`
+  (`packages/types/src/complex.ts`) declared 34 keys, not this one. Two faces agreeing is
+  what made the zero a reading rather than a bad query.
+  
+  The ruling adopted **wiring it** over deleting the row — the row names a real, shipped
+  capability, and hiding it back inside the component would withdraw it from authors. It also
+  matches this page's two existing resolutions of the same defect class, neither of which
+  deleted a row: `requestBody` (objectui#6193) kept its row and documented the seam, and
+  `maxToolRoundtrips` (objectui#5605) kept its row, marked it inert, and warns once at runtime.
+  
+  - `chatbot-enhanced` declares `surface?: ChatbotSurface` on its inline schema-extension
+    type and forwards `schema.surface` to `<ChatbotEnhanced>`. The union is **imported** from
+    `ChatbotEnhanced.tsx` rather than re-spelled, so there is one contract rather than two
+    dialects that can drift (AGENTS.md #0.1).
+  - The key joins the registration's `inputs` (designer + autocomplete surface) with
+    `defaultValue: 'card'`, and deliberately **not** its `defaultProps` — mirroring
+    `processVisibility`, so nothing materializes the key onto new nodes.
+  - **The absent case is unchanged**: an unauthored `surface` is forwarded as `undefined`, so
+    `<ChatbotEnhanced>`'s own `surface = 'card'` default still applies. This is pinned as
+    hard as the authored direction, because it is what a careless
+    `schema.surface ?? 'plain'` or a `defaultProps` entry would silently regress for every
+    existing document.
+  - `chatbot` and `chatbot-floating` do **not** gain the key: they render `<Chatbot>` and
+    `<FloatingChatbot>`, which have no such chrome to switch. The docs row is therefore
+    scoped to say the key applies to the enhanced registration — the table never again claims
+    more than the registrations deliver.
+  
+  `renderer.surface.test.tsx` pins all of it through the real SDUI host rather than a bare
+  component render, and asserts the rendered chrome rather than the forwarded prop, so a
+  regression where the key is forwarded but no longer acted on is still red.
+- d3499b3: `chatbot-floating` now fences its `<FloatingChatbot>` spread the same way its
+  two sibling registrations (`chatbot`, `chatbot-enhanced`) already do —
+  `{...toDomProps(props)}`, at the head of the element, instead of a raw
+  `{...props}` spread at the end (objectui#7708). This is a deliberate,
+  user-visible behavior change, not a refactor:
+  
+  - **A message sent through a floating chatbot now actually renders.**
+    Previously the authored `messages` seed (whatever array was on the node
+    when it was authored) silently overrode the live runtime messages on every
+    render, because the raw spread landed AFTER `messages={runtimeMessages}`.
+    Neither the user's own message nor an `autoResponse` reply ever appeared —
+    the identical send on `chatbot-enhanced` worked correctly. Fixed.
+  - **`displayMode`, `systemPrompt` and `model` stop leaking as DOM attributes**
+    on the panel's root element (`systemPrompt` / `model` are still read
+    normally, by name, for the request they configure — only the second,
+    unfiltered forward is gone). Closes objectui#4425's leak class on the one
+    `plugin-chatbot` registration that had not closed it yet.
+  - **Three undeclared keys go dark on `chatbot-floating` nodes:**
+    `processVisibility`, `surface` and `showAvatars` reached the panel's
+    `ChatbotEnhanced` through the raw spread even though `ChatbotFloatingSchema`
+    never declared them. `ChatbotFloatingSchema` documents this explicitly and
+    always has — the face never promised these keys — so this closes an
+    accidental channel rather than removing declared behavior. A document that
+    relied on any of the three to affect a floating node loses that effect;
+    author them on a `chatbot-enhanced` node instead, where they are part of
+    the declared, tested contract.
+  
+  `@object-ui/types`: `ChatbotFloatingSchema`'s doc comment is updated to match
+  — no type-shape change, so nothing that imports the type needs to change.
+- 0ea7054: Remove 37 runtime dependencies that no file in the declaring package consumes, and gate
+  the direction so the next one cannot land (objectui#8198).
+  
+  `check:phantom-deps` judges imports that are not declared; nothing judged the reverse,
+  so a declaration could outlive its last consumer indefinitely. That is what happened to
+  `recharts` in `@object-ui/components` after objectui#7397 deleted its only importer — it
+  was removed by hand on objectui#7625, and nothing would have reported the next one. The
+  new `pnpm check:unused-deps` asks the reverse question over `dependencies` and
+  `optionalDependencies` of every released package.
+  
+  **Potentially breaking, for consumers relying on hoisting.** Nothing these packages ship
+  changes: their Vite `external` predicates are path-based and never read `dependencies`,
+  so no built artifact moves. What changes is the install graph — a project that imports
+  one of the removed packages while depending only on the ObjectUI package that used to
+  drag it in will no longer resolve it. Declare it directly; that is the correct
+  dependency edge in either case. The removals, by package:
+  
+  - `@object-ui/plugin-designer`: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@object-ui/fields`
+  - `@object-ui/plugin-chatbot`: `react-markdown`, `react-syntax-highlighter`, `remark-gfm` (and the orphaned `@types/react-syntax-highlighter`)
+  - `@object-ui/plugin-report`: `@object-ui/plugin-grid`, `clsx`, `react-i18next`, `tailwind-merge`
+  - `@object-ui/plugin-map`: `@objectstack/spec`, `lucide-react`, `zod`
+  - `@object-ui/runner`: `class-variance-authority`, `clsx`, `tailwind-merge`
+  - `@object-ui/core`: `lodash`, `zod`
+  - `@object-ui/layout`: `clsx`, `tailwind-merge`, and `react-dom` — which it pinned at an exact version in `dependencies` while also declaring it as a peer range, i.e. a library hard-depending on the renderer it asks its host to supply
+  - `@object-ui/plugin-dashboard`: `clsx`, `tailwind-merge`, and the same `react-dom` defect
+  - `@object-ui/plugin-ai`: `@object-ui/react`, `clsx`, `tailwind-merge`
+  - `@object-ui/fields`: `clsx`, `tailwind-merge`
+  - `@object-ui/console`: `@object-ui/react-runtime`, `sucrase`
+  - `@object-ui/auth`: `@object-ui/types`
+  - `@object-ui/plugin-calendar`: `@object-ui/fields`
+  - `@object-ui/plugin-editor`, `@object-ui/plugin-markdown`: `@object-ui/react`
+  - `@object-ui/react`: `react-hook-form`
+  
+  Every one was verified by a whole-package grep before removal — the name appeared nowhere
+  under the package but its own manifest and CHANGELOG — and the whole workspace builds,
+  type-checks and tests green afterwards.
+- 6ce89da: The 确认修改 (confirm changes) card now carries a UI-owned terminal state after approval (#5695): `detectReplayOutcome` lifts the confirm-replay envelope (`replay_*` tool results) into 应用中 / 已生效 / 已暂存为草稿（含内联发布）/ 未生效（含 publishError 首行）, rendered on the original card across the live, hydration/share, and localStorage-cache converters. A failed in-turn publish no longer rehydrates as an ordinary draft card with a live Publish button — the UI-rendered refusal is the layer a model cannot narrate over. New `console.ai.changesApplying/Applied/Drafted/Failed` keys in all ten locale packs.
+- 63b4e0e: Fix the three breaks at the AI paywall moment (#7253), measured on a free plan's
+  second build iteration when the cloud guardrail refuses "Confirm changes" with a
+  429 `AI_DESIGN_QUOTA_EXHAUSTED`.
+  
+  - **The upgrade CTA no longer opens a 404.** It used to open a client-composed
+    `${cloudBase}/apps/cloud-control/sys_environment`, which guessed the control
+    plane's console mount, app slug and route — all three wrong — and landed on
+    the API's `ENDPOINT_NOT_FOUND` JSON. `cloudInstallDeepLink` /
+    `cloudPricingDeepLink` are replaced by `cloudConsoleUrl()`, the
+    runtime-supplied cloud origin with no path appended; the control plane's own
+    root redirect decides the landing page. The former
+    `|| 'https://cloud.objectos.app'` default is gone: a runtime with no upstream
+    cloud now renders no upgrade link at all rather than pointing a self-hosted
+    user at the vendor's SaaS.
+  - **The confirm card gets an explicit failure state.** A quota refusal parks the
+    card on "not applied" with the server's own next step (reset tomorrow /
+    upgrade) plus the upgrade action, instead of silently rolling back to
+    "Confirm / Adjust" as though the click had never happened. Transient failures
+    (offline, per-minute rate limit) still roll back, because retrying is the
+    right next step there.
+  - **The composer is no longer refilled with an already-delivered message.**
+    Only text typed into the composer is restorable now; card-driven sends
+    (confirm, approve, suggestion chips) send canned text the user never typed and
+    no longer leave the previous prompt staged as if it needed resending.
+- f157423: Studio workbench and AI tool cards speak the author's language (objectui#7254)
+  
+  - The Interfaces breadcrumb, canvas caption and navigation rail show the
+    metadata label plus a translated kind; the internal `type · name` pair moves
+    to the tooltip. An unlabelled nav leaf now falls back to its object name
+    instead of rendering an empty row.
+  - The Studio top-bar package switcher reads the package's human name from
+    either position the packages endpoint serves it in, instead of degrading a
+    registry-shaped entry to its reverse-domain id.
+  - The dashboard property panel is localized: the spec's authoring form is
+    overlaid through the platform's own `metadataForms.<type>` convention, so
+    section headings, field labels, hints and the `header` composite's sub-fields
+    render in Chinese (developer vocabulary such as "Tailwind units" is replaced
+    with something an author can act on, not transliterated).
+  - AI tool cards: tool titles resolve through `chatbot.tool.<name>` (all thirty
+    platform-provided tools, ten locale packs), the header status badge is
+    localized, and the plan count strip is a real plural family instead of an
+    English `+ "s"` concatenation.
+  - The tool card's header badge and its body badge now come from one producer:
+    a proposal that has been confirmed, built or published no longer keeps a
+    header reading "Awaiting Approval".
+
+### Patch Changes
+
+- 39f4309: Published typings from every `vite-plugin-dts` package now carry an explicit extension on
+  every relative specifier, and a type error in the declaration build now fails the build
+  instead of being printed and ignored (objectui#5439, objectui#5483).
+  
+  **Consumers on `moduleResolution: nodenext` or `node16` may see NEW type errors, and that
+  is the fix working.** These packages re-export mostly through NAMED re-exports —
+  `export { useObjectChat } from './useObjectChat'`. TypeScript could not follow the
+  extensionless hop, but it still DECLARED the name, so the symbol resolved to a silent
+  `any`. Nothing errored; consumers simply got no types. With the extension emitted, the
+  symbol carries its real type, and any call site that was relying on the `any` now type
+  checks for the first time. This is the mode that produced the 21 residual `TS7006` on
+  `@object-ui/app-shell` reported against objectui#5365 — a type hole that opened quietly,
+  unlike objectui#5365's own `export * from './ui'` packages where the same defect surfaced
+  immediately as `TS2305: has no exported member`.
+  
+  410 extensionless relative specifiers across 19 packages were emitted before this change;
+  the count is now 0 in all 22 packages that build typings through `vite-plugin-dts`.
+  `@object-ui/fields` was already clean — its sources write explicit `.js` specifiers — and
+  is wired so it stays that way.
+  
+  The second half changes no emitted output today: 22/22 packages built green unmodified, so
+  making the declaration step's exit code honest turns nothing red. It changes what a FUTURE
+  regression does — print and exit 0, versus fail the build.
+- 01c9023: `AiPendingActionsInbox` speaks the session locale — every string in it, not only its timestamps (objectui#7173).
+  
+  The AI HITL approval inbox held its own relative-time helper returning hardcoded
+  English (`'just now'`, `` `${min}m ago` ``), so a zh / ja / ar session read English
+  relative times on every row. It is the fifth spelling of that helper in the repo,
+  and the file had **no translation wiring at all** — the unwired-component shape,
+  not the lookup-swap shape.
+  
+  It is therefore swept whole. objectui#7142 wired one string into an otherwise
+  untranslated component and shipped something visibly half-done, and objectui#7149
+  is what finishing that afterwards cost; the triage ruling on this card (2026-09-01)
+  carried that forward as *sweep the file whole or leave it*. Everything the user can
+  read now resolves from the locale packs: the card heading and description, the three
+  tabs, the refresh button, all five status badges, the six column headings, the empty
+  state, the row and drawer buttons, all nine drawer field labels, the outcome banner
+  and the whole reject-reason dialog.
+  
+  **No new rows for the four relative-time branches.** `detail.justNow`,
+  `detail.minutesAgo`, `detail.hoursAgo` and `detail.daysAgo` already existed,
+  translated, in all ten packs, and cross-package key borrowing is this repo's settled
+  convention rather than an open question — `ObjectGrid`, `ObjectKanban`, `ObjectTree`,
+  `ListView`, `ObjectView`, `NavigationOverlay`, `RecordAttachmentsPanel`,
+  `RecordDetailView` and `apps/console` all resolve `detail.*` from outside
+  `plugin-detail`. One phrase on one kind of control should not get a second
+  translation that can drift from the first.
+  
+  The rest of the sweep needed copy no pack had, so `@object-ui/i18n` gains an
+  `aiApprovals` namespace: 38 keys, translated in all ten packs. It is deliberately
+  separate from `approvalsInbox`, which is the human approval-**process** inbox — a
+  different surface and a different feature, so no rows are shared with it. Four
+  generic verbs are reused rather than forked (`common.refresh`, `common.cancel`,
+  `common.loading`, `common.ok`).
+  
+  **⛔ The five relative-time helpers are not unified.** They differ in real behaviour
+  — `Math.round` here against `Math.floor` in `plugin-detail`, thresholds 45s/30d
+  against 60s/7d, different tails — so normalising them is a behaviour change wearing
+  a refactor's clothes and needs its own card. This inbox's arithmetic is untouched,
+  and three rows in the new suite exist only to pin it: 50s renders `1m ago` (a 60s
+  threshold would still say "just now"), 90s renders `2m ago` (`Math.floor` gives
+  `1m ago`), and 20d renders `20d ago` (a 7d threshold would already show a date).
+  
+  Two assembled English sentences became single interpolated keys — the outcome banner
+  (`Approve for {{id}}: {{message}}`) and the drawer subtitle
+  (`Tool {{tool}} on {{object}}`). Their word order differs per locale, which fragments
+  around a `<code>` element cannot express, so the two identifiers lose their monospace
+  styling. That is the deliberate cost of making those sentences translatable.
+  
+  Evidence: an `en`-only assertion cannot discriminate here, because each key's `en`
+  value is byte-identical to the literal it replaced. The suite asserts in **zh and
+  ar**, and the provider-less path separately, in its own file (`createI18n` installs
+  itself as react-i18next's module-level global, so a provider-less render in a file
+  that has already mounted a provider silently reads that pack instead of the defaults
+  map). No inline `defaultValue` anywhere (objectui#3517).
+  
+  Two consequences of the sweep, both landed here rather than left for CI to find:
+  
+  `packages/app-shell/src/console/ai/__tests__/ConversationsSidebar.test.tsx` froze its
+  `vi.mock('@object-ui/i18n', ...)` factory to a hand-written object. Its import graph
+  reaches `plugin-chatbot`, which now resolves `createSafeTranslation` at module scope, so
+  the frozen surface made that read `undefined` and the file died during COLLECTION — the
+  objectui#6849 shape, which does not look like a test failure. It now spreads
+  `importOriginal()` and overrides only `useObjectTranslation`. Measured, not guessed: of
+  the 41 frozen `@object-ui/i18n` factories in the repo, running every one of them showed
+  this to be the only file whose graph reaches the package.
+  
+  The ten pack blocks are locale DATA, and locale data lands in the console's eager
+  `framework` chunk, so `scripts/check-eager-closure-budget.mjs` raises that chunk's
+  ceiling from 512,000 to 524,000 gzipped bytes and re-pins its baseline onto a fresh
+  measurement (502,405 to 514,863). Attributed by three console builds: the merge parent
+  reads 510,192, this branch with the ten `aiApprovals` blocks cut reads 510,192 again, and
+  this branch reads 514,863 — so the whole 4,671-byte delta is the pack data and nothing
+  else. Headroom is kept at the line's own convention (9,137 bytes, 0.10x the regression
+  the gate must catch) rather than widened; most of the overage was pre-existing drift, with
+  the merge parent already at 510,192 of the 512,000 allowed.
+- c6198c2: **Breaking for authored metadata:** `ComponentInput.label`, `ComponentInput.defaultValue` and
+  `ComponentInput.advanced` are RETIRED on both faces (objectui#7493 item ① and objectui#7781;
+  maintainer ruling A of 2026-09-06, immediate, no deprecation window; ADR-0049 enforce-or-remove).
+  They are the three keys the manifest serializer does not forward, and nothing read them on any
+  publication or consumption path.
+  
+  No manifest ever published them, so no consumer could ever have read them. `sdui-parser`'s
+  serializer (`packages/sdui-parser/src/index.ts`) forwards exactly six keys per input — `name`,
+  `type`, `required`, `enum`, `binding`, `description` — so a value authored under any of the three
+  never reached `sdui.manifest.json`, the generated JSX `.d.ts`, or a diagnostic; its boundary type
+  has no slot for them; the registry's data-source seam reads `name` only; and neither the designer
+  nor the app-shell inspectors consult registry `inputs` at all. A structural census over every
+  `inputs:` array in the repository (re-measured on this change's merge-base, `name` 951 and `type`
+  951 as the controls) counted the writes: `label` 908, `defaultValue` 245, `advanced` 9 — written on
+  nearly every registration, read by nothing.
+  
+  FROM → TO, per key — all three **TOMBSTONED, not removed**, because the route was measured on
+  the built face before it was chosen: `ComponentInputSchema` is a non-strict `z.object`, and an
+  undeclared key parses GREEN and is silently STRIPPED, so a deletion would have swallowed 1,162
+  authored values in silence. The tombstone is what makes the refusal loud and by name.
+  
+  - `label?: string` → `label?: never` on the interface, `retirementTombstone()` on the Zod mirror.
+    Migration: delete the key. An input is identified by its `name` on every path that reaches it;
+    nothing ever rendered a label for it.
+  - `defaultValue?: any` → `defaultValue?: never` / `retirementTombstone()`. Migration: delete the
+    key. The renderer's own fallback read IS the default; tell the author about it in `description`,
+    which IS published. (Tightening the type to `unknown` was ruled out: it closes no error class,
+    since nothing reads the value.)
+  - `advanced?: boolean` → `advanced?: never` / `retirementTombstone()`. Migration: delete the key.
+    No designer surface ever hid an "advanced" input; there is nothing to write instead.
+  
+  The retirement kit: `?: never` on `ComponentInput` (`packages/types/src/base.ts`), so authoring one
+  is a `tsc` error at the registration site; `retirementTombstone()` on `ComponentInputSchema`
+  (`packages/types/src/zod/base.zod.ts`), so an authored value is REFUSED at parse time with
+  `code: 'invalid_type'`, the key named in the issue `path`, and the migration note as the message
+  (one string, both channels). Pinned in
+  `packages/types/src/__tests__/component-input-retired-keys-7493.test.ts`, which also holds a
+  tree-scoped absence census over every `inputs:` array under `packages/**` and `apps/**`.
+  
+  Accept-set change, stated plainly for reviewers: a document that sets any of the three keys on a
+  `ComponentInput` used to parse GREEN (the value was then dropped by the serializer) and now parses
+  RED. Every in-repo authoring site — 1,199 keys across 110 registration files, the three standalone
+  `ComponentInput[]` arrays and the two named input arrays `tsc` found included — is deleted in the same change, as the ruling's split rule
+  requires; the `WidgetRegistry` seam no longer copies the widget-manifest values onto the synthesized
+  `ComponentInput` (they fed nothing), and the data-source declaration `ELEMENT_DATA_SOURCE_INPUT`
+  drops its `label`. The patch entries on the other packages record exactly that: their registrations
+  stop authoring inert keys, with no runtime or published-manifest change.
+  
+  The nine test files that read `defaultValue` off a registration were re-pinned against the
+  renderer's ACTUAL default (its own fallback read, or the `defaultProps` it ships) instead of the
+  declaration that went away; two assertions that only restated the shadow default were dropped with
+  the reason on the line.
+  
+  The in-repo zero is what was measured. Whether anything OUTSIDE this repository writes these keys
+  is not measurable from here (the objectui#5674 limit); converting such a write from a silent drop
+  into a named refusal is exactly what the tombstones buy. `WidgetInput`'s own `label` /
+  `defaultValue` / `advanced` (the widget-manifest face) stay declared and writable — nothing has
+  ruled on that face; that it now has no reader either is recorded as objectui#7911.
+- 3e377c9: Retire `ChatbotSchema.displayMode` — and its copy on `ChatbotFloatingSchema` — as an
+  ADR-0049 retirement tombstone, and remove the `chatbot-floating` registration's
+  "Display Mode" designer control and its `defaultProps.displayMode: 'floating'` seed
+  (objectui#7654, maintainer ruling B of 2026-09-05, director decision batch #44).
+  
+  ⚠️ **BREAKING for anyone authoring `displayMode` against a chatbot face in TypeScript.**
+  Ships as `minor` per the launch-window convention: objectui's `major` is a cross-repo pin
+  to `@objectstack`'s so that "same major means compatible" holds across the two repos
+  (`scripts/check-changeset-no-major.mjs`), and objectui's own breaking changes ship as
+  `minor` with the break named where it lands — this entry is the channel that carries it.
+  
+  ## What was retired, and why
+  
+  The node `type` — `chatbot-floating` versus `chatbot` / `chatbot-enhanced` — is the one
+  selector of presentation. `displayMode` (`'inline' | 'floating'`) was a second spelling
+  of that same choice, and no renderer has ever read it: `chatbot-floating` renders the
+  trigger and panel unconditionally, and `chatbot` never looked at the key, so
+  `displayMode: 'floating'` on a `chatbot` node produced no trigger and `'inline'` on a
+  `chatbot-floating` node changed nothing. It was nevertheless declared on both faces,
+  painted as a **Display Mode** control in the designer's property panel, and written as
+  `'floating'` into every node the designer created — two surfaces teaching a switch that
+  did not exist.
+  
+  Re-measured on this branch's base rather than inherited from the card: a whole-repo
+  `git grep` census over tracked files, build output excluded, returned the declarations,
+  the doc comments and parity-ledger entries beside them, one historical CHANGELOG line and
+  two unrelated `displayMode` props on `GridField` / `MasterDetailForm` — no read. The same
+  pass over `floatingConfig`, a key that IS read, returned 79 lines, so the instrument was
+  not blind.
+  
+  FROM → TO:
+  
+  - `ChatbotSchema.displayMode?: 'inline' | 'floating'` → **`displayMode?: never`**, an
+    ADR-0049 retirement tombstone whose comment points at `type` as the replacement.
+  - `ChatbotFloatingSchema.displayMode?: 'inline' | 'floating'` → **`displayMode?: never`**,
+    the same tombstone. objectui#7655 declared the key on the floating face with
+    `ChatbotSchema`'s own lines precisely so this retirement would find it on both faces;
+    leaving the copy typed would have kept the published face teaching the switch.
+  - `chatbot-floating` `inputs`: the **Display Mode** control is removed.
+  - `chatbot-floating` `defaultProps`: `displayMode: 'floating'` is no longer written into
+    designer-created nodes.
+  
+  A control is restated, never deleted into a vacuum (objectui#7070): the restatement of
+  the removed control is the tombstone's guidance plus this note.
+  
+  **Migration.** Delete `displayMode` from any TypeScript literal typed as `ChatbotSchema`
+  or `ChatbotFloatingSchema`; the presentation you wanted is already chosen by `type` —
+  `'chatbot-floating'` for the trigger-and-panel, `'chatbot'` / `'chatbot-enhanced'` for
+  inline. **No JSON document needs editing** — see the next section.
+  
+  ## Stored documents: runtime validation of this key is unchanged — zero before, zero after
+  
+  `displayMode` has never had a Zod arm — it sits in the `UnmirroredDeclared` ledger for
+  both `complex.zod.ts#ChatbotSchema` and `#ChatbotFloatingSchema`, and `BaseSchema` is
+  `.passthrough()` — so a stored document carrying `displayMode: 'floating'` (every node
+  the designer ever created) parses green before this change and parses green after it,
+  and the value is dropped at render time exactly as it always was.
+  
+  That is deliberate, and it is why this tombstone has **no `retirementTombstone()`
+  half**: minting a mirror arm to refuse the key would be the declared-but-unmirrored axis
+  (objectui#6152), a different defect, and a parse outcome the ruling did not ask for.
+  `packages/types/src/__tests__/chatbot-display-mode-retired.test.ts` pins both twins'
+  shapes as a **tripwire** — the same shape objectui#7669 gave `triggerIcon` — so that if
+  objectui#6152 ever mints an arm for `displayMode`, the pin goes red and whoever lands the
+  mirror adds the `retirementTombstone()` half at that time, flipping the control rather
+  than deleting it.
+  
+  ## Why a tombstone and not a deletion — measured on this carrier
+  
+  `ChatbotSchema` extends `BaseSchema`, which carries a `[key: string]: any` index
+  signature, and on such a carrier deleting an optional member is **silent in every value
+  shape**: the index signature defeats both excess-property checking and the weak-type
+  check. Measured on this member with `tsc -p tsconfig.test.json`, a no-index-signature
+  control carrier (`FloatingChatbotConfig`) lit in the same run:
+  
+  | route | fresh `'floating'` | fresh `'bogus'` | widened `'floating'` |
+  |---|---|---|---|
+  | declared (before) | clean | `TS2322` | clean |
+  | deleted | clean | **clean** | clean |
+  | tombstoned (after) | `TS2322` | `TS2322` | `TS2322` |
+  
+  Deleted, the member reads as `any` and even a wrong-typed value goes quiet. Tombstoned,
+  **presence with any value** is a compile error — a channel deletion cannot produce on
+  this carrier at all. On a `BaseSchema` carrier the two routes are loud-vs-silent, not
+  louder-vs-quieter (the discriminator's carrier branch as corrected on objectui#7678).
+  Prong 2 of that discriminator licenses the tombstone: the key was advertised in the
+  3.3.0 release record (`CHANGELOG.md:578`) and its published comment taught it as the
+  presentation switch. The deleted row is pinned in the test file as a live control — an
+  undeclared key that rides both shapes with no directive — so the contrast cannot rot.
+  
+  ## Accept-set change, one line per face
+  
+  - **TypeScript.** A write of `displayMode` against either chatbot face used to compile
+    and now does not.
+  - **Runtime (Zod / `safeValidateSchema`).** Nothing changes at all — a stored document
+    carrying the key parses green before and after, and keeps the value.
+  - **Designer.** The **Display Mode** control disappears from the `chatbot-floating`
+    property panel, and newly created nodes no longer carry the key.
+  - **Manifest, author-time validator, and generated JSX props.** The `chatbot-floating`
+    registration's `inputs` go from 20 entries to 19 and its `defaultProps` from 9 keys to
+    8, so the manifest projected from them no longer lists the prop. Measured on both sides
+    of this change: `validateTree` on a stored `chatbot-floating` node carrying
+    `displayMode` goes from **0 diagnostics to exactly 1** — code `unknown-prop`, severity
+    **`warning`**, message `` `<chatbot-floating> has no prop "displayMode"` `` — which is
+    what the JSX/HTML authoring tier reports through `compile()`. In the same pair of runs
+    the props interface `generateDts` derives from those same `inputs` drops from 20 members
+    to 19, losing its `displayMode?: string` line, so a `.tsx` page written against those
+    generated intrinsics no longer type-checks the attribute.
+  
+    **This is author-time only: no stored document stops parsing and nothing at render
+    moves.** The value survives compilation — `compile()` returns a tree still carrying
+    `displayMode: 'floating'`, byte-for-byte the same keys before and after — and a
+    `warning` never blocks a page, because the page renderer filters the diagnostics to
+    `severity === 'error'` before deciding whether to fail. Two neighbouring instruments are
+    untouched and worth naming so the scope is not read wider than it is: `os validate` runs
+    `safeValidateSchema`, the Zod path, and is silent on this key before and after; and the
+    build-time `sdui-intrinsics.d.ts` artifact is generated from the PUBLIC tier, which does
+    not contain `chatbot-floating` on either side of this change.
+- 4ce14f1: One named, importable authoring-face type per `plugin-chatbot` registration:
+  `ChatbotEnhancedSchema` and `ChatbotFloatingSchema` join `ChatbotSchema`
+  (objectui#7655, under the objectui#6169 / #6172 family ruling — every component
+  node has exactly one named, importable authoring-face type).
+  
+  `packages/plugin-chatbot` registers three components — `chatbot`,
+  `chatbot-enhanced`, `chatbot-floating` — and `@object-ui/types` published ONE
+  face for the family with `type` pinned to `'chatbot'`. An author annotating a
+  `chatbot-enhanced` or `chatbot-floating` node either dropped to untyped JSON or
+  annotated with `ChatbotSchema` and lied about `type`; the docs' floating example
+  had to be a `json` fence because no `tsx` fence could compile. The two
+  registrations' real key sets lived in anonymous `ChatbotSchema & { ... }`
+  intersections local to the renderer, referenceable by nothing outside that file.
+  
+  ## The shape, and why not the smaller diff
+  
+  One interface per registration, not `ChatbotSchema['type']` widened to the union
+  of the three keys. The union would give three nodes ONE type and re-open what
+  #6169 closed — a single interface declaring keys only some of its own `type`
+  values read — and this card exists because the family's declarations had already
+  drifted from its reads. Each face declares what ITS registration reads, censused
+  per key on the PR's base (one `schema.KEY` read per registration body in
+  `renderer.tsx`, lit by keys that are NOT shared: `processVisibility` 0 / 1 / 0,
+  `floatingConfig` 0 / 0 / 1), and the twenty keys all three read are picked off
+  `ChatbotSchema` by name (`ChatbotSharedKey`) so they stay one declaration:
+  
+  - **`ChatbotEnhancedSchema`** (`type: 'chatbot-enhanced'`): the shared twenty,
+    plus `maxHeight` and `processVisibility` (read here, not by the floating
+    panel), plus `enableMarkdown`, `enableFileUpload`, `surface` (`'card' |
+    'plain'`, objectui#6687) and the `onClear` runtime slot — four keys
+    `ChatbotSchema` never declared.
+  - **`ChatbotFloatingSchema`** (`type: 'chatbot-floating'`): the shared twenty,
+    plus `enableMarkdown`, `enableFileUpload`, `onClear`, and the two keys it
+    declares alongside `ChatbotSchema` — `floatingConfig` (`FloatingChatbotConfig`)
+    and `displayMode`. No `maxHeight`, `processVisibility` or `surface`: the
+    floating registration has no named read for any of them. (Its trailing raw
+    props spread does carry authored keys into the panel today — `processVisibility`,
+    `surface` and `showAvatars` are live there, measured through the real host;
+    that accidental channel is tracked as objectui#7708, and this face neither
+    declares nor promises it.)
+  - Neither face declares `ChatbotSchema`'s six legacy members (`loading`,
+    `showAvatars`, `userAvatar`, `assistantAvatar`, `markdown`, `height`) — no
+    registration reads them by name — and neither redeclares `disabled`, which
+    stays `BaseSchema`'s `boolean | string` (objectui#7087).
+  
+  **`ChatbotSchema` is unchanged.** It keeps `displayMode` and `floatingConfig`
+  (declarations verbatim), and the floating face declares the same two, so
+  `ChatbotSchema['displayMode']` and `ChatbotSchema['floatingConfig']` stay the
+  typed members they were — the objectui#7669 `triggerIcon` tombstone keeps its
+  reach on `chatbot` nodes, now pinned on the node. `floatingConfig`'s doc comment
+  is rewritten on both faces: the old text said it was "only used when
+  `displayMode` is `'floating'`", which was false — it is read by `chatbot-floating`
+  alone and forwarded to the panel. `displayMode` is RULED RETIRED — objectui#7654,
+  maintainer ruling B (2026-09-05): `?: never` tombstone, designer control and
+  `defaultProps` seed removed, in that card's own change. This change carries the
+  key untouched on both faces (still unmirrored, still read by nothing) so that PR
+  finds the member exactly as ruled, and a tripwire test pins that any value still
+  parses green until that PR flips it.
+  
+  **New published symbol:** `ChatbotSharedKey`, the string-literal union of the
+  twenty keys all three registrations read. It is exported from `complex.ts`
+  because an exported interface may not extend a `Pick` over a private name
+  (TS4022), so it is emitted into `dist/complex.d.ts` and is reachable through the
+  published `@object-ui/types/complex` subpath (it is not re-exported from the
+  package entry). It is a census, not an authoring face.
+  
+  ## Zod twins, in lockstep
+  
+  `@object-ui/types/zod` gains `ChatbotEnhancedSchema` and `ChatbotFloatingSchema`
+  (and `ComplexSchema` routes the two new discriminants). Every declared key is an
+  arm except: the three runtime slots (`onError`, `onSend`, `onClear`), refused by
+  name per objectui#6124; and, on the floating twin only, `floatingConfig` (no
+  `FloatingChatbotConfig` mirror exists — minting one is objectui#6152's axis) and
+  `displayMode` (unmirrored on `ChatbotSchema`'s twin too; retired by ruling on
+  objectui#7654 and executed there). The twins mirror the API body params under the
+  key the renderer reads, `requestBody`, and inherit `body` as the children slot —
+  they do not copy `ChatbotSchema`'s `body` naming collision.
+  
+  **Accept-set change, stated plainly:** a `chatbot-enhanced` or `chatbot-floating`
+  document parsed through the family's only twin used to fail on `type`; through
+  its own twin it now parses, and the keys the twin declares are VALIDATED where
+  they rode through `.passthrough()` unexamined before (`surface: 'frameless'`,
+  `enableMarkdown: 'yes'` and `requestBody: 'x'` are refused). A `chatbot` node's
+  parse outcome is unchanged: `ChatbotSchema`'s twin did not move.
+  
+  ## `@object-ui/plugin-chatbot`
+  
+  The `chatbot-enhanced` and `chatbot-floating` registrations type `schema` as the
+  published faces and drop the anonymous intersections. One consequence:
+  `chatbot-floating` used to write `disabled={schema.disabled}` and then spread
+  `{...props}` AFTER it — and `SchemaRenderer` always includes `disabled: verdict
+  || undefined` in those props, so the raw read was overridden on every render.
+  With `disabled` honestly typed as `boolean | string` the raw union cannot be
+  forwarded into the panel's `boolean` prop, so the registration now names the
+  host verdict (`disabled: hostDisabled`) the way its two siblings have since
+  objectui#4431. No render outcome moves; the pin renders through the real host
+  both ways.
+  
+  This ships as `minor` for `@object-ui/types` because it widens the published
+  surface with two new node types, two new Zod twins and one new type alias;
+  `ChatbotSchema`'s own accept set does not move: objectui's major is pinned to `@objectstack`'s
+  (`scripts/check-changeset-no-major.mjs`), and objectui's own contract changes
+  ship as `minor` with the semantics spelled out — as above.
+- 79a4b8f: Recognize the landed AI quota ledger vocabulary in the chat error path
+  
+  `parseAiQuotaError` now accepts the three SCREAMING_SNAKE ledger codes the cloud
+  token guardrail emits (`AI_ALLOWANCE_EXHAUSTED`, `AI_DESIGN_QUOTA_EXHAUSTED`,
+  `AI_DATA_CHAT_TRIAL_EXHAUSTED`) alongside the legacy lowercase trio, which stays
+  readable for producers that have not converged yet. The companion fields
+  (`messageEn` / `upgrade` / `topUp` / `resetsTonight`) are now read from the
+  declared envelope's `error.details` as well as their legacy top-level position,
+  with the declared position winning.
+  
+  A quota-exhausted user gets the upgrade / top-up CTA again instead of the
+  generic "Response failed" banner. The per-turn message cap's generic
+  `QUOTA_EXCEEDED` deliberately keeps its existing rate-limit path — it has no
+  upgrade or top-up next step.
+- cc3366b: The built-moment transition (#5799) now fires on auto-publish environments too: `detectBuiltAppPackage` reads the raw build envelope (`status:'drafted'` OR `'published'`, packageId + an `app` item), because an auto-publish posture rewrites apply_blueprint's envelope to `published` and the drafted-only `draftReview` lift never fired there — measured live on staging, where reopening a built conversation stayed on the full page.
+- a31adc6: `useObjectChat` no longer rebuilds its `DefaultChatTransport` on every render
+  (objectui#4187).
+  
+  The transport `useMemo` listed the caller's `body` and `headers` in its dep list.
+  Both are object props and every caller passes a fresh literal each render — the AI
+  page's chat pane builds its `body.context` inline — so the memo never hit and a
+  transport was constructed on every render of every chat surface, which during a
+  streaming turn is once per token batch.
+  
+  `body` and `headers` are now read through refs inside
+  `prepareSendMessagesRequest`, the idiom this hook already uses for the live model
+  (`modelRef`) and the handoff conversation id (`parentConvRef`), and they are gone
+  from the dep list. Unlike memoizing at each call site, a future caller cannot
+  undo it.
+  
+  No user-visible behaviour changes: `@ai-sdk/react` keeps the transport in a ref
+  and re-keys its `Chat` only on `chat`/`id` (verified against the installed
+  4.0.68), which `useObjectChat` passes neither of, so the message thread was never
+  at risk — the rebuild was pure waste. The one real difference is *when* the two
+  values are sampled: a send now reads them at send time, so it observes the values
+  of the most recent render instead of those of the last render that happened to
+  rebuild the transport. That is never staler than before, and it is pinned by
+  `useObjectChat.transportIdentity.test.tsx`.
+- 0fce2ef: `maxToolRoundtrips` on `ChatbotSchema` is deprecated: it is inert, and an author
+  who sets it is now told so instead of being left believing the documented cap
+  applies (objectui#5605).
+  
+  The key was declared authorable in `@object-ui/types` (interface and zod, with a
+  description), threaded from the authored document through the chatbot renderer at
+  three call sites, accepted by `useObjectChat`, given a default — and then dropped.
+  Measuring the installed chat runtime says it cannot be honoured from here rather
+  than that someone forgot to wire it: `@ai-sdk/react`'s `useChat` takes `ChatInit`
+  plus throttle/resume, and `ChatInit` declares exactly one loop control — the
+  boolean predicate `sendAutomaticallyWhen` — and no numeric cap under any
+  spelling. The numeric knob was removed from `useChat` in a major, and its
+  successor was renamed through `continueUntil` to `stopWhen` / `stepCountIs`,
+  which the installed `ai` package declares only on `generateText`, `streamText`
+  and the tool-loop agent settings — all server-side. ObjectUI is backend-agnostic,
+  so it owns no server loop to cap either, and putting the number in the request
+  body would only move the same dead key one hop onto a wire contract no backend
+  reads.
+  
+  This is stage one of a two-stage retirement, so nothing an author already wrote
+  breaks: the key still parses, still carries its declared shape, and the renderer
+  still threads it. What changes is that it is now marked `@deprecated` in the
+  interface, the zod description and the docs, and that authoring it logs a
+  one-time notice naming the knob that does work — `planning.maxIterations` on the
+  agent. A follow-up removes the declaration once this deprecation has shipped in a
+  release.
+- a392e1c: 「打开这条记录 →」卡片——ask 的记录交接终于有了客户端的另一半
+  
+  服务端半边（cloud#1659 的 `open_record`）先落了地，实测发现它是**半活的**：agent 发出
+  `status:'record_handoff'`、回答说「点击上方链接打开」，而上方根本没有链接——控制台
+  有 `build_handoff` 的探测器，这个状态一处都不认识，信号被原样丢弃。
+  
+  按五步补齐：`detectRecordHandoff`（含持久化 `{type:'text',value}` 包裹形状——replay
+  信封那课的规矩）→ live 映射提升 → 水合提升 → 卡片渲染 → 宿主回调。
+  
+  两个设计点：
+  
+  - **app 段点击时现场解析**。记录路由要 `/apps/:app/:object/record/:id`，交接载荷只有
+    对象和记录 id；宿主回调用一次同源元数据读取 `_packageId` 再导航，不给 agent 增加
+    它未必知道的参数。
+  - **刻意不做「被取代」置灰**。builder 卡的旧 prompt 会过时，旧的记录链接不会——记录
+    不因为有新交接而失效。
+  
+  真机闭环验证：问「把《沉默的大多数》标记成已读」→ 卡片渲染
+  （`沉默的大多数 — 把阅读状态改为已读`）→ 点击 → 落在
+  `/apps/app.hdke/hdke_book/record/<id>` 详情页，「编辑」在手边。
+  
+  缺任一 id 的交接在探测器就被丢弃，与服务端的拒绝对称——指向空处的卡片比散文更糟。
+- ad404e0: Confirm-replay dispatch errors (bare `{error: …}` envelopes) now resolve the 确认修改 card instead of leaving it on 应用中 forever: `detectReplayOutcome` classifies them as a provisional failure, and a later successful authoring result in the same turn (the model self-repairing, e.g. after an `object not found` on a blueprint-local name) supersedes it via `detectAuthoringVerdict` — so the card never says 未生效 over a change that actually landed. Real publish failures (`publishFailed` envelopes) are never superseded. Measured live on the local rig, 2026-08-24.
+- eddc1dd: The Studio copilot tells the agent WHAT the user is discussing (cloud#1610 send half): `ChatPane` accepts a `surfaceContext` and sends it as `context.surface` on every turn (the transport reads the body per send, so it stays fresh); the Studio copilot derives it from the URL alone — the `:tab` pillar segment plus the `?surface=type:name` deep-link the pillars already mirror, so the artifact carries its type discriminator (page/object/dashboard/report). A display chip above the composer (「正在讨论：…」, new `console.ai.discussing` key in all ten packs) makes the sent context visible instead of invisible grounding.
+- 9a9977c: 工具卡片的名字终于有了 i18n 通道（此前中文界面里必然是英文）
+  
+  实测（cloud#1658，全中文环境）：
+  
+  ```
+  统计一下每个阅读状态各有多少本书
+    Describe object    已完成   执行过程     ← 工具名英文
+    Visualize data     已完成   执行过程     ← 工具名英文
+    已统计完成，各阅读状态的书本数量如下：…    ← 其余全中文
+  ```
+  
+  卡片上每一处都本地化了——状态、动作、回答——**唯独工具名不能**，因为
+  `humanizeToolName` 是个纯英文构词器（`describe_object` → `Describe object`），
+  名字从未经过翻译，任何语言包都够不着它。而"它现在在做什么"恰恰是用户最需要读懂的一步。
+  
+  现在它接受一个可选的 `translate`（形状即 `useSafeTranslate()`），按
+  `chatbot.tool.<tool_name>` 查；查不到就回落到与今天完全一致的英文标题。
+  
+  **这一步只打通通道，不改变任何现有显示**：不传 translate 时行为逐字不变（测试的第一组
+  就在钉这一点），语言包也还没有条目。后续两件事各自独立、可分别推进：
+  把两个调用点接上 `useSafeTranslate()`；以及按需往语言包里补 `chatbot.tool.*`。
+  先落通道是因为——在通道存在之前，翻译工作根本无处可放。
+  
+  回落刻意交给英文标题而非原始名：语言包缺条目时显示 `Describe object`（与今天相同），
+  而不是 `describe_object`（比今天更差）。
+- Updated dependencies [64dae8e]
+- Updated dependencies [b06e374]
+- Updated dependencies [06a8af5]
+- Updated dependencies [6a91586]
+- Updated dependencies [a04d7c6]
+- Updated dependencies [9801765]
+- Updated dependencies [460575f]
+- Updated dependencies [d796c8d]
+- Updated dependencies [594704f]
+- Updated dependencies [d3995fe]
+- Updated dependencies [1b1d772]
+- Updated dependencies [d88e20f]
+- Updated dependencies [2d7304d]
+- Updated dependencies [636b236]
+- Updated dependencies [4172589]
+- Updated dependencies [64d624d]
+- Updated dependencies [053fdc8]
+- Updated dependencies [41b7ce3]
+- Updated dependencies [39f4309]
+- Updated dependencies [d2fb6ef]
+- Updated dependencies [7cd3987]
+- Updated dependencies [e304a4e]
+- Updated dependencies [490d9a9]
+- Updated dependencies [fc62bb4]
+- Updated dependencies [41df893]
+- Updated dependencies [00f3eb5]
+- Updated dependencies [1ec291c]
+- Updated dependencies [453dbaa]
+- Updated dependencies [95f8704]
+- Updated dependencies [f8cdbf2]
+- Updated dependencies [69a2163]
+- Updated dependencies [24e027e]
+- Updated dependencies [2c3cd1b]
+- Updated dependencies [e176053]
+- Updated dependencies [e30ed15]
+- Updated dependencies [90665e0]
+- Updated dependencies [8d3a529]
+- Updated dependencies [5ac2e2c]
+- Updated dependencies [194fae1]
+- Updated dependencies [7e19d03]
+- Updated dependencies [b08b7eb]
+- Updated dependencies [546ddf7]
+- Updated dependencies [864154e]
+- Updated dependencies [b023625]
+- Updated dependencies [75bd83d]
+- Updated dependencies [44d075b]
+- Updated dependencies [40c479a]
+- Updated dependencies [971d387]
+- Updated dependencies [ee851c3]
+- Updated dependencies [6414dfd]
+- Updated dependencies [a8d5c71]
+- Updated dependencies [905b21f]
+- Updated dependencies [88e9109]
+- Updated dependencies [2c45966]
+- Updated dependencies [db3a600]
+- Updated dependencies [6fd2cf7]
+- Updated dependencies [5fa06c4]
+- Updated dependencies [52a43de]
+- Updated dependencies [e4559d1]
+- Updated dependencies [2c71482]
+- Updated dependencies [129bcc5]
+- Updated dependencies [a26b9e4]
+- Updated dependencies [5ef9c4f]
+- Updated dependencies [46f0bb4]
+- Updated dependencies [8ec11e1]
+- Updated dependencies [6f81384]
+- Updated dependencies [22ba927]
+- Updated dependencies [f8c70f4]
+- Updated dependencies [5d3a2d1]
+- Updated dependencies [8f1d995]
+- Updated dependencies [b362c1b]
+- Updated dependencies [f9c34df]
+- Updated dependencies [dddb942]
+- Updated dependencies [00c665e]
+- Updated dependencies [29754cf]
+- Updated dependencies [3c2b6f7]
+- Updated dependencies [6e88630]
+- Updated dependencies [b84dc18]
+- Updated dependencies [ac8abb0]
+- Updated dependencies [9d86e1d]
+- Updated dependencies [99a3c2d]
+- Updated dependencies [5961030]
+- Updated dependencies [f24de8b]
+- Updated dependencies [c8ea8af]
+- Updated dependencies [9602dc8]
+- Updated dependencies [3190414]
+- Updated dependencies [4e480f5]
+- Updated dependencies [38a123c]
+- Updated dependencies [299102e]
+- Updated dependencies [30c73cd]
+- Updated dependencies [830ed58]
+- Updated dependencies [d7acad6]
+- Updated dependencies [45a9aeb]
+- Updated dependencies [713db46]
+- Updated dependencies [c71e14d]
+- Updated dependencies [bf3a03c]
+- Updated dependencies [748494b]
+- Updated dependencies [5967be0]
+- Updated dependencies [831be72]
+- Updated dependencies [29cb85b]
+- Updated dependencies [3e028c8]
+- Updated dependencies [d0889e2]
+- Updated dependencies [ce503e5]
+- Updated dependencies [f20dcf0]
+- Updated dependencies [12402a9]
+- Updated dependencies [aff3d7a]
+- Updated dependencies [4ca30d0]
+- Updated dependencies [7a5da14]
+- Updated dependencies [fff9645]
+- Updated dependencies [9c3b7ce]
+- Updated dependencies [2c1c967]
+- Updated dependencies [9486ac6]
+- Updated dependencies [9486ac6]
+- Updated dependencies [4d5f9b4]
+- Updated dependencies [d6ceb8d]
+- Updated dependencies [dc4365c]
+- Updated dependencies [e321d52]
+- Updated dependencies [969ba84]
+- Updated dependencies [4c68077]
+- Updated dependencies [7977ff9]
+- Updated dependencies [3beef6d]
+- Updated dependencies [06b8c42]
+- Updated dependencies [46b9bc9]
+- Updated dependencies [b97790a]
+- Updated dependencies [dbd5194]
+- Updated dependencies [7c9b044]
+- Updated dependencies [d47de51]
+- Updated dependencies [3fe6463]
+- Updated dependencies [b392674]
+- Updated dependencies [4f3a1e2]
+- Updated dependencies [31ab372]
+- Updated dependencies [846889b]
+- Updated dependencies [26896c6]
+- Updated dependencies [67fc3b0]
+- Updated dependencies [33a3b3c]
+- Updated dependencies [b87f15b]
+- Updated dependencies [045d20b]
+- Updated dependencies [c18d099]
+- Updated dependencies [adb2a86]
+- Updated dependencies [03380aa]
+- Updated dependencies [3561bd2]
+- Updated dependencies [bf97b98]
+- Updated dependencies [320374d]
+- Updated dependencies [b0d308d]
+- Updated dependencies [8063bcb]
+- Updated dependencies [b74a859]
+- Updated dependencies [d4493fd]
+- Updated dependencies [240b80f]
+- Updated dependencies [77cb489]
+- Updated dependencies [bfaa158]
+- Updated dependencies [777e5c6]
+- Updated dependencies [0c386dd]
+- Updated dependencies [9e37d9b]
+- Updated dependencies [5ad86dd]
+- Updated dependencies [16a725f]
+- Updated dependencies [4dfdcc3]
+- Updated dependencies [6a449fc]
+- Updated dependencies [446d93d]
+- Updated dependencies [ecd9cb2]
+- Updated dependencies [98d4108]
+- Updated dependencies [0e3b3be]
+- Updated dependencies [220c18d]
+- Updated dependencies [00d3f09]
+- Updated dependencies [4388f71]
+- Updated dependencies [c93b4d5]
+- Updated dependencies [c1fe272]
+- Updated dependencies [8ad218d]
+- Updated dependencies [5f78953]
+- Updated dependencies [639114c]
+- Updated dependencies [639114c]
+- Updated dependencies [1490691]
+- Updated dependencies [1f31d3a]
+- Updated dependencies [d1842ab]
+- Updated dependencies [78ca238]
+- Updated dependencies [d8ec8d6]
+- Updated dependencies [351eb31]
+- Updated dependencies [866cd1d]
+- Updated dependencies [20c04b2]
+- Updated dependencies [01c9023]
+- Updated dependencies [48c19bd]
+- Updated dependencies [a6d8b8d]
+- Updated dependencies [b652514]
+- Updated dependencies [adbda1b]
+- Updated dependencies [adbda1b]
+- Updated dependencies [8952395]
+- Updated dependencies [e8c553b]
+- Updated dependencies [2e32ed4]
+- Updated dependencies [7c3df8f]
+- Updated dependencies [a4514e8]
+- Updated dependencies [b9f5ff1]
+- Updated dependencies [e75f4c9]
+- Updated dependencies [19f1639]
+- Updated dependencies [4704aa4]
+- Updated dependencies [47547d0]
+- Updated dependencies [858cd72]
+- Updated dependencies [554f2b6]
+- Updated dependencies [26e06d7]
+- Updated dependencies [669d71b]
+- Updated dependencies [ed27d7c]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [52c8cf7]
+- Updated dependencies [3399704]
+- Updated dependencies [7bf244b]
+- Updated dependencies [f0bb9fa]
+- Updated dependencies [81a2eb1]
+- Updated dependencies [20cb8db]
+- Updated dependencies [00d2fa6]
+- Updated dependencies [c6198c2]
+- Updated dependencies [2f61238]
+- Updated dependencies [51eb515]
+- Updated dependencies [c354ce5]
+- Updated dependencies [8fe8e5c]
+- Updated dependencies [2a5bf45]
+- Updated dependencies [9587fc9]
+- Updated dependencies [e62c44e]
+- Updated dependencies [daf9d57]
+- Updated dependencies [c15d7ec]
+- Updated dependencies [5d0876c]
+- Updated dependencies [f7ace0a]
+- Updated dependencies [b041b9c]
+- Updated dependencies [ce2aaef]
+- Updated dependencies [2ce2612]
+- Updated dependencies [bc640ec]
+- Updated dependencies [3e377c9]
+- Updated dependencies [a3eb5d0]
+- Updated dependencies [4ce14f1]
+- Updated dependencies [2af1fa7]
+- Updated dependencies [c14d3a0]
+- Updated dependencies [caf477f]
+- Updated dependencies [f6375da]
+- Updated dependencies [967e5d8]
+- Updated dependencies [a4611b3]
+- Updated dependencies [20316ba]
+- Updated dependencies [d3499b3]
+- Updated dependencies [91f9276]
+- Updated dependencies [18897a4]
+- Updated dependencies [8b7ea39]
+- Updated dependencies [a915064]
+- Updated dependencies [52cac38]
+- Updated dependencies [64a252d]
+- Updated dependencies [d1bebb0]
+- Updated dependencies [4f9f1ee]
+- Updated dependencies [c842594]
+- Updated dependencies [cf1d29e]
+- Updated dependencies [0758bd8]
+- Updated dependencies [0ea7054]
+- Updated dependencies [fc32921]
+- Updated dependencies [8f9d87a]
+- Updated dependencies [6bca0e4]
+- Updated dependencies [81c0bc4]
+- Updated dependencies [3c76801]
+- Updated dependencies [2fcefb9]
+- Updated dependencies [77f846a]
+- Updated dependencies [bc5870c]
+- Updated dependencies [b55a346]
+- Updated dependencies [065bba7]
+- Updated dependencies [dd19463]
+- Updated dependencies [100547e]
+- Updated dependencies [3a58149]
+- Updated dependencies [6d1c155]
+- Updated dependencies [d7573b3]
+- Updated dependencies [bf3edfe]
+- Updated dependencies [2c8474c]
+- Updated dependencies [6ce89da]
+- Updated dependencies [0e05aac]
+- Updated dependencies [ae61ad4]
+- Updated dependencies [5aed9e4]
+- Updated dependencies [83c77dc]
+- Updated dependencies [18a8e7d]
+- Updated dependencies [e7957ab]
+- Updated dependencies [f7e34ca]
+- Updated dependencies [e719ebd]
+- Updated dependencies [f9e4f91]
+- Updated dependencies [fa429cf]
+- Updated dependencies [ed8df3e]
+- Updated dependencies [fe76ece]
+- Updated dependencies [8ebd57f]
+- Updated dependencies [c40f3b8]
+- Updated dependencies [58770f3]
+- Updated dependencies [aefe428]
+- Updated dependencies [485f096]
+- Updated dependencies [199d31b]
+- Updated dependencies [b655a9d]
+- Updated dependencies [3e01cb5]
+- Updated dependencies [7138bc1]
+- Updated dependencies [cef27e2]
+- Updated dependencies [4e8622b]
+- Updated dependencies [dffd752]
+- Updated dependencies [105f3c5]
+- Updated dependencies [3ccd9e8]
+- Updated dependencies [689b979]
+- Updated dependencies [e546222]
+- Updated dependencies [fd13f52]
+- Updated dependencies [d7bd274]
+- Updated dependencies [98c3a74]
+- Updated dependencies [ebce5a3]
+- Updated dependencies [9d9040d]
+- Updated dependencies [20e317c]
+- Updated dependencies [0fce2ef]
+- Updated dependencies [9850c6e]
+- Updated dependencies [de570cc]
+- Updated dependencies [b2ea297]
+- Updated dependencies [5b5a5c3]
+- Updated dependencies [ab92940]
+- Updated dependencies [a691c0b]
+- Updated dependencies [0b1326d]
+- Updated dependencies [1e66879]
+- Updated dependencies [c5200f0]
+- Updated dependencies [af3861f]
+- Updated dependencies [515f171]
+- Updated dependencies [4f14ad7]
+- Updated dependencies [258d264]
+- Updated dependencies [cac64b3]
+- Updated dependencies [fa140b8]
+- Updated dependencies [71cba28]
+- Updated dependencies [190fbd0]
+- Updated dependencies [c00bf28]
+- Updated dependencies [f2158ec]
+- Updated dependencies [fd8dace]
+- Updated dependencies [72ffc34]
+- Updated dependencies [bf28341]
+- Updated dependencies [78cbdb5]
+- Updated dependencies [b7543a9]
+- Updated dependencies [6c6cee7]
+- Updated dependencies [42887e0]
+- Updated dependencies [83fe6e7]
+- Updated dependencies [d1ab06f]
+- Updated dependencies [38a9568]
+- Updated dependencies [f90b8fb]
+- Updated dependencies [91783c4]
+- Updated dependencies [dba7d84]
+- Updated dependencies [5a07e67]
+- Updated dependencies [2d36552]
+- Updated dependencies [45d8288]
+- Updated dependencies [b2437a7]
+- Updated dependencies [f157423]
+- Updated dependencies [7a90afd]
+- Updated dependencies [eddc1dd]
+- Updated dependencies [490f482]
+- Updated dependencies [27308c5]
+- Updated dependencies [8689166]
+- Updated dependencies [c9327c9]
+- Updated dependencies [920165d]
+- Updated dependencies [9101be5]
+- Updated dependencies [f53a8d0]
+- Updated dependencies [57f9b07]
+- Updated dependencies [3c73d99]
+- Updated dependencies [d91aed9]
+- Updated dependencies [ed71d9e]
+- Updated dependencies [7776fc2]
+- Updated dependencies [c86185e]
+- Updated dependencies [fb96ecb]
+- Updated dependencies [1170ed1]
+- Updated dependencies [4d73b07]
+  - @object-ui/i18n@17.7.0
+  - @object-ui/core@17.7.0
+  - @object-ui/types@17.7.0
+  - @object-ui/components@17.7.0
+  - @object-ui/react@17.7.0
+
 ## 17.6.0
 
 ### Patch Changes
