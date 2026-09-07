@@ -300,9 +300,11 @@ describe('non-regression — a change that deletes the control must not pass thi
     expect(box, 'the control is rendered at all').not.toBeNull();
     expect(box!.type, 'and it is a real checkbox input').toBe('checkbox');
     box!.click();
-    const patched = onPatch.mock.calls.at(-1)?.[0] as { nodes: Array<{ config: Record<string, any> }> };
+    const patched = onPatch.mock.calls.at(-1)?.[0] as
+      | { nodes: Array<{ config: { escalation?: Record<string, unknown> } }> }
+      | undefined;
     expect(
-      patched?.nodes[0].config.escalation.notifySubmitter,
+      patched?.nodes[0].config.escalation?.notifySubmitter,
       'ticking the box writes the key — the control is live, not decorative',
     ).toBe(true);
   });
