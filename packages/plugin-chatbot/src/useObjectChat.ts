@@ -356,7 +356,41 @@ export interface UseObjectChatReturn {
   reload: () => void;
   /** Clear all messages */
   clear: () => void;
-  /** ADR-0013 D2: re-hydrate the thread (API mode only); undefined in local mode. */
+  /**
+   * ADR-0013 D2: re-hydrate the thread (API mode only); undefined in local mode.
+   *
+   * Deliberately loose, and — since objectui#8342 — honest about it. The
+   * parameter stays `unknown[]` because this package will not republish
+   * `@ai-sdk/react`'s pinned `UIMessage` on its own surface; that is the same
+   * call objectui#8214 made one file over for `AnyPart.state`. Parameters are
+   * CONTRAVARIANT, so this declaration used to be a lie: the value handed out
+   * was the SDK's own `setMessages`, which accepts only its `UIMessage[]`, and
+   * the only thing stopping `tsc` from saying so was a `chatResult as any`
+   * inside the hook.
+   *
+   * What the implementation now guarantees, which is what makes the
+   * declaration a promise it keeps: the hook wraps the SDK function and CHECKS
+   * every element before handing the array on. A value that is not a chat
+   * message — not an object, or missing a string `id`, a
+   * `'user' | 'assistant' | 'system'` role, or a `parts` array — is REFUSED
+   * LOUDLY: the call throws a `TypeError` naming the offending index, and the
+   * SDK's store is left untouched, because the whole array is checked before
+   * anything is written.
+   *
+   * Refusing rather than FILTERING is the contract, on purpose. This is a
+   * re-hydration path: the caller's statement is "the thread is now exactly
+   * these messages". Dropping the elements that failed would install a SHORTER
+   * thread with no way for the caller to notice — the return type is `void` —
+   * which is the same silent-deletion failure objectui#4424 was graded on. The
+   * one in-repo consumer, `@object-ui/app-shell`'s `useReconcileOnError`,
+   * already calls this inside a `try`/`catch` that falls through to the
+   * ordinary error banner, so a refusal degrades to "show the error" instead of
+   * to a quietly-truncated transcript.
+   *
+   * Note the surface accepts an ARRAY only. The SDK's own `setMessages` also
+   * takes an updater callback; this member never advertised one and still
+   * does not.
+   */
   setMessages?: (messages: unknown[]) => void;
   /** Whether the hook is operating in API (streaming) mode */
   isApiMode: boolean;
@@ -395,6 +429,70 @@ function normalizeMessages(msgs?: OuiChatMessage[]): ObjectChatMessage[] {
     streaming: msg.streaming,
     toolInvocations: msg.toolInvocations,
   }));
+}
+
+/**
+ * The message element the PINNED `@ai-sdk/react` `setMessages` accepts,
+ * DERIVED from that function rather than restated. No SDK type is named here,
+ * so a version bump that moves `UIMessage` moves this alias with it and the
+ * published `UseObjectChatReturn['setMessages']` never has to move at all —
+ * which is precisely why objectui#8342 was ruled option B and not option A.
+ */
+type SdkChatMessage = Extract<
+  Parameters<ReturnType<typeof useChat>['setMessages']>[0],
+  readonly unknown[]
+>[number];
+
+/**
+ * Is `value` a chat message the SDK's store can hold?
+ *
+ * Checks exactly the three members `UIMessage` REQUIRES and every SDK read
+ * path dereferences: a string `id`, one of the three roles, and a `parts`
+ * array. `parts` is checked for array-ness only, NOT element by element — the
+ * part union is open (a custom `data-...` part carries an author-defined
+ * payload, `UIDataTypes = Record<string, unknown>`), so there is no closed set
+ * to check against and restating the union would be exactly the SDK-coupling
+ * objectui#8342's ruling declined. `mapMessages.ts`'s `AnyPart` is the same
+ * decision on the inbound side; this is its outbound mirror.
+ */
+function isSdkChatMessage(value: unknown): value is SdkChatMessage {
+  if (typeof value !== 'object' || value === null) return false;
+  const msg = value as { id?: unknown; role?: unknown; parts?: unknown };
+  return (
+    typeof msg.id === 'string' &&
+    (msg.role === 'user' || msg.role === 'assistant' || msg.role === 'system') &&
+    Array.isArray(msg.parts)
+  );
+}
+
+/**
+ * Narrow an arbitrary `unknown[]` to what the SDK's `setMessages` takes, or
+ * refuse loudly — see {@link UseObjectChatReturn.setMessages} for why refusing
+ * beats filtering on this path. The array is fully checked BEFORE the caller's
+ * value can reach the store, so a refusal leaves the thread exactly as it was.
+ *
+ * The result is built by pushing values the type predicate has already
+ * narrowed; there is deliberately no assertion here, because an `as` would
+ * just move objectui#8342's defect one line over.
+ */
+function narrowToSdkChatMessages(messages: unknown[]): SdkChatMessage[] {
+  if (!Array.isArray(messages)) {
+    throw new TypeError(
+      `useObjectChat: setMessages expects an array of chat messages, received ${typeof messages}.`,
+    );
+  }
+  const narrowed: SdkChatMessage[] = [];
+  messages.forEach((message, index) => {
+    if (!isSdkChatMessage(message)) {
+      throw new TypeError(
+        `useObjectChat: setMessages received a value at index ${index} that is not a chat ` +
+          `message (it needs a string \`id\`, a 'user' | 'assistant' | 'system' \`role\` and ` +
+          `a \`parts\` array). Nothing was written; the thread is unchanged.`,
+      );
+    }
+    narrowed.push(message);
+  });
+  return narrowed;
 }
 
 /**
@@ -619,6 +717,11 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
               cur.length > 0 &&
               cur[cur.length - 1]?.role === 'user'
             ) {
+              // The SDK's own `setMessages`, reached through `chatRef` — NOT
+              // the narrowed wrapper the hook returns (objectui#8342). The
+              // value is the SDK's own live `messages` minus its last element,
+              // so it is already `UIMessage[]`; re-checking it here would only
+              // pay for a guarantee the source already carries.
               chat.setMessages(cur.slice(0, -1));
             }
             // A rejected send (esp. a 429 quota block) means the usage picture
@@ -680,8 +783,8 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     sendMessage: aiSendMessage,
     regenerate,
     stop,
-    setMessages,
-  } = chatResult as any;
+    setMessages: aiSetMessages,
+  } = chatResult;
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -718,6 +821,19 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       onSend?.(trimmed, nextMessages);
     },
     [aiSendMessage, onSend, apiMessages],
+  );
+
+  // objectui#8342 — the honest half of the deliberately-loose surface. The
+  // published member takes `unknown[]`; the SDK's own `setMessages` takes only
+  // its `UIMessage[]`, and parameters are contravariant, so passing the SDK
+  // function straight out advertised a capability it does not have. The
+  // narrowing happens HERE, which is what turns the declaration into a promise
+  // the implementation keeps.
+  const setMessages = useCallback(
+    (messages: unknown[]) => {
+      aiSetMessages(narrowToSdkChatMessages(messages));
+    },
+    [aiSetMessages],
   );
 
   const clear = useCallback(() => {
@@ -797,9 +913,11 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       stop,
       reload: regenerate,
       clear,
-      // ADR-0013 D2: expose the underlying useChat setMessages so the host can
-      // re-hydrate the thread from the server after a stream-transport failure
-      // (the reply may already be persisted server-side — reconcile, don't re-run).
+      // ADR-0013 D2: let the host re-hydrate the thread from the server after
+      // a stream-transport failure (the reply may already be persisted
+      // server-side — reconcile, don't re-run). This is the NARROWING wrapper
+      // above, not the SDK function itself: the declared parameter is
+      // `unknown[]` and the wrapper is what makes that true (objectui#8342).
       setMessages,
       isApiMode: true,
       input: apiInput,
