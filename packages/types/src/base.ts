@@ -524,6 +524,13 @@ export type ComponentInputControlType =
 /**
  * Input field configuration for component metadata.
  * Describes what properties a component accepts in the designer/editor.
+ *
+ * `binding` is deliberately NOT a member. The manifest serializer forwards it
+ * and `validateTree` reads it, but no registration authors it: the key is set
+ * by the framework's injected input, {@link InjectedComponentInput}, at the
+ * one seam that splices it in (objectui#6950, maintainer ruling of
+ * 2026-09-07). Writing it here is therefore an excess-property `tsc` error,
+ * on purpose — see that declaration for the ruling and the measurement.
  */
 export interface ComponentInput {
   /**
@@ -685,7 +692,9 @@ export interface ComponentInput {
    * `ComponentMeta.inputs` was enumerated and none reads any of the three —
    * the serializer (`packages/sdui-parser/src/index.ts`) forwards a fixed key
    * list per input, `of` included since objectui#8067 (`name`, `type`, `of`,
-   * `required`, `enum`, `binding`, `description`), its boundary type has no slot for these, the registry's
+   * `required`, `enum`, `binding`, `description` — `binding` among them is
+   * not an authored key but the framework's, forwarded from
+   * {@link InjectedComponentInput}, objectui#6950), its boundary type has no slot for these, the registry's
    * data-source seam reads `name` only, and neither the designer nor the
    * app-shell inspectors consult registry `inputs` at all. The one
    * non-test touch was a WRITE (`WidgetRegistry` copying the widget-manifest
@@ -795,7 +804,9 @@ export interface ComponentInput {
    * retiring PR): no consumer reads any of the four, and the manifest
    * serializer (`packages/sdui-parser/src/index.ts`) forwards a fixed key list
    * per input — `name`, `type`, `of`, `required`, `enum`, `binding`,
-   * `description`, the last of them added by objectui#8067 —
+   * `description`, the last of them added by objectui#8067; `binding` is the
+   * framework's key, forwarded from {@link InjectedComponentInput} rather
+   * than authored (objectui#6950) —
    * so a value authored here could not reach the published
    * `sdui.manifest.json` even in principle. A structural census over every
    * `inputs:` array in the repository found ZERO authoring sites for the four
@@ -844,6 +855,63 @@ export interface ComponentInput {
    * @deprecated Not part of `ComponentInput`'s contract — the value was inert.
    */
   placeholder?: never;
+}
+
+/**
+ * The input the FRAMEWORK injects into a registration: a {@link ComponentInput}
+ * plus the `binding` marker — which is why `binding` is not a member of
+ * `ComponentInput` itself (objectui#6950; maintainer ruling of 2026-09-07,
+ * director decision batch #69: `binding` is framework-set, not
+ * author-declared).
+ *
+ * ## What the marker is, and who writes it
+ *
+ * `binding: 'object'` tells a consumer that the input names an OBJECT: the
+ * manifest serializer (`packages/sdui-parser/src/index.ts`) forwards it into
+ * `sdui.manifest.json`, `validateTree` records the prop as a binding site the
+ * server must resolve, and the designer offers an object picker. It is
+ * unrelated to `type: 'object'`, the coarse control KIND that sits one line
+ * above it in the same declaration — a record-shaped value and an
+ * object-naming input are two different facts, and the one writer states both.
+ *
+ * That writer is the framework: `ELEMENT_DATA_SOURCE_INPUT` in
+ * `@object-ui/core` (`data-scope/element-data-source.ts`), spliced into a
+ * registration's `inputs` by `Registry.register` for every renderer that
+ * passed through `elementDataSourceBlock()`. No registration authors the key.
+ * Measured before the ruling and re-measured at the retiring PR's merge-base:
+ * every `binding:` literal in `packages/`, `apps/` and `examples/` is
+ * `'object'` (7 of 7), and every one of them is either that constant or a
+ * fixture in `sdui-parser`'s own tests. The ruling answered the product
+ * question the card asked — may an ordinary registration declare a binding
+ * input? — with **no**, so `ComponentInput` refuses the key the ordinary way
+ * (an excess-property `tsc` error at the registration site) and the ONE place
+ * that may write it is typed by this declaration. Until objectui#6950 it was
+ * typed by a hand-written inline literal and reached the `inputs` array
+ * through an `as ComponentMeta` cast — a cast at the only write site is
+ * exactly what would have hidden any later drift between the constant and
+ * the type.
+ *
+ * ## Why `extends` and not the ruling's `&` sketch
+ *
+ * The ruling's example was `ComponentInput & { binding: 'object' }`. An
+ * `interface … extends` says the same thing and is checked at ITS declaration:
+ * if `ComponentInput` ever gains a `binding` member this one cannot extend
+ * (a `?: never` tombstone, say), that is a TS2430 on this line, where the
+ * relationship is stated — not a `never` quietly folded into a type expression
+ * that only surfaces at whichever use site first trips over it. Diagnostics
+ * also name `InjectedComponentInput` instead of an anonymous intersection.
+ * The reopen route the ruling names — a measured need for author-declared
+ * bindings, filed as a WIDENING of `ComponentInput` with the vocabulary
+ * decided then — lands on the parent, and this declaration follows it.
+ *
+ * The vocabulary is exactly `'object'`. The serializer's boundary type once
+ * also admitted `'field'`; that arm had zero writers and was retired with
+ * this declaration (ADR-0049 enforce-or-remove, objectui#6950) — see
+ * `RegistryConfigLike` in `packages/sdui-parser/src/index.ts`.
+ */
+export interface InjectedComponentInput extends ComponentInput {
+  /** The framework-set binding marker: this input names an object. */
+  binding: 'object';
 }
 
 /**
