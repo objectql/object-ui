@@ -584,21 +584,35 @@ describe('this repository', () => {
  * `check-doc-component-types.mjs` walked `content/docs`, and the repository's
  * landing page fell between them.
  *
- * ⚠️ Read the second assertion carefully. Being ON the ungated ledger is NOT a
- * claim that this file compiles — it does not; objectui#7417 carries its nine
- * measured diagnostics. It is the objectui#5174 distinction, which this script's
- * own header states: a document outside the walk is "neither covered NOR
- * declared ungated", invisible to the gate's own accounting, while a ledgered
- * one is named, counted, re-derived every run and shrink-only.
+ * ⚠️ Read the second assertion carefully — and read what it USED to say, because
+ * the flip is the point. It pinned this page as DECLARED debt: on the ungated
+ * ledger, with a reason naming objectui#7417. That was never a claim the page
+ * compiled; it was the objectui#5174 distinction this script's own header states
+ * — a document outside the walk is "neither covered NOR declared ungated",
+ * invisible to the gate's own accounting, while a ledgered one is named,
+ * counted, re-derived every run and shrink-only.
+ *
+ * objectui#5174's last batch paid the debt down: the page's five ts/tsx blocks
+ * compile against the built `dist/*.d.ts`, so the row came off and the ledger
+ * reached ZERO. The assertion therefore pins the far end of that walk — NOT on
+ * the ledger, and actually contributing blocks to the compiled tier. Both halves
+ * are load-bearing: a page can leave the ledger by having no ts/tsx block left
+ * at all, which is coverage of nothing, and only the second half tells the two
+ * apart.
  */
 describe('objectui#7115 — the root README is in the scan set', () => {
   it('listDocuments reaches it', () => {
     expect(listDocuments(repoRoot)).toContain('README.md');
   });
 
-  it('is DECLARED debt rather than absent, and its reason names the card that carries it', () => {
-    expect(Object.keys(UNGATED_DOCS as Record<string, string>)).toContain('README.md');
-    expect((UNGATED_DOCS as Record<string, string>)['README.md']).toContain('objectui#7417');
+  it('is COVERED and actually judged — off the ledger, with blocks in the compiled tier', () => {
+    expect(Object.keys(UNGATED_DOCS as Record<string, string>)).not.toContain('README.md');
+    const state = analyze({});
+    expect(state.covered as string[]).toContain('README.md');
+    expect(
+      (state.compiled as Array<{ doc: string }>).filter((b) => b.doc === 'README.md').length,
+      'off the ledger with no block left would be coverage of nothing',
+    ).toBeGreaterThan(0);
   });
 
   it('root pages are collected BY NAME, not by the packages walk', () => {
