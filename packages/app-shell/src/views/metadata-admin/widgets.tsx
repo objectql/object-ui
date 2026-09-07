@@ -54,6 +54,7 @@ import { foldFilterGroupToSpecRules, FILTER_FOLD_REFUSAL_KEYS } from '../viewFil
 import { ColorVariantPicker } from './color-variant-field.js';
 import { ConditionBuilder } from './inspectors/ConditionBuilder.js';
 import { expressionSource, writeExpressionSource } from './inspectors/expression-envelope.js';
+import { humanizeKey } from './inspectors/json-schema-to-fields.js';
 import {
   type LoadState,
   isLoading,
@@ -869,7 +870,21 @@ function MasterDetailWidget({
                   key={c}
                   className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground"
                 >
-                  {(itemProps[c]?.title as string) ?? c}
+                  {/* objectui#8218 — a bare `?? c` printed the raw JSON Schema
+                      key ("actionUrl", "actionType") as if it were a column
+                      name, in every locale: the item property schemas the spec
+                      derives carry `description` but no `title`, so this arm is
+                      the one that always runs for `dashboard.header.actions[]`.
+                      Humanising it is the same convention this tree already
+                      applies everywhere else a title is absent
+                      (`json-schema-to-fields.ts`: `prop.title || humanizeKey`;
+                      `SchemaForm`'s `prettify` for section labels), NOT a
+                      lenient contract fallback — `title` is an OPTIONAL
+                      annotation, so its absence is not off-spec metadata and
+                      the renderer has to choose something. The real fix for the
+                      LOCALIZED column name is upstream and tracked there; see
+                      the PR body. */}
+                  {(itemProps[c]?.title as string) ?? humanizeKey(c)}
                   {required.has(c) && (
                     <span className="text-destructive ml-0.5">*</span>
                   )}
@@ -1004,12 +1019,27 @@ function RowCell({
       />
     );
   }
-  // number
+  // number — same treatment as `SchemaForm`'s own numeric face (objectui#8218):
+  // the schema's `default` greys in as a placeholder so an empty box reads
+  // "using the default" rather than "unknown", and `minimum`/`maximum`/
+  // `multipleOf` reach the control instead of being dropped on the floor. Kept
+  // in step with that branch deliberately — these are the two numeric inputs
+  // the property panel renders, and a bound honoured in one and ignored in the
+  // other is worse than neither.
   if (schema?.type === 'number' || schema?.type === 'integer') {
+    const num = (key: string): number | undefined => {
+      const raw = (schema as Record<string, unknown> | undefined)?.[key];
+      return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+    };
+    const defaultValue = num('default');
     return (
       <Input
         type="number"
         value={value == null ? '' : String(value)}
+        placeholder={defaultValue == null ? undefined : String(defaultValue)}
+        min={num('minimum')}
+        max={num('maximum')}
+        step={num('multipleOf')}
         disabled={readOnly}
         onChange={(e) => {
           const n = e.target.valueAsNumber;
@@ -1073,7 +1103,7 @@ function StringTagsWidget({
             {!readOnly && (
               <button
                 type="button"
-                aria-label={`Remove ${t}`}
+                aria-label={tFormat('engine.form.removeNamed', locale, { name: t })}
                 onClick={() => remove(i)}
                 className="text-muted-foreground hover:text-destructive"
               >
@@ -1447,7 +1477,7 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
                 <>
                   <button
                     type="button"
-                    aria-label="Move up"
+                    aria-label={t('engine.form.moveUp', locale)}
                     disabled={i === 0}
                     onClick={() => move(i, -1)}
                     className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
@@ -1456,7 +1486,7 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
                   </button>
                   <button
                     type="button"
-                    aria-label="Move down"
+                    aria-label={t('engine.form.moveDown', locale)}
                     disabled={i === selected.length - 1}
                     onClick={() => move(i, 1)}
                     className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
@@ -1465,7 +1495,7 @@ function FieldRefMultiWidget({ value, onChange, readOnly, context, ariaLabelledB
                   </button>
                   <button
                     type="button"
-                    aria-label={`Remove ${name}`}
+                    aria-label={tFormat('engine.form.removeNamed', locale, { name })}
                     onClick={() => removeAt(i)}
                     className="px-1 text-muted-foreground hover:text-destructive"
                   >
@@ -1624,7 +1654,7 @@ export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps)
                 className="flex aspect-square flex-col items-center justify-center gap-1 rounded border border-dashed border-border p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               >
                 <Trash2 className="h-4 w-4" />
-                <span className="w-full truncate text-center text-[9px] leading-tight">none</span>
+                <span className="w-full truncate text-center text-[9px] leading-tight">{t('engine.form.noneShort', locale)}</span>
               </button>
             )}
             {!inCatalog && current && (
@@ -1713,16 +1743,20 @@ interface UFRule { field: string; operator: string; value?: unknown }
 interface UFTab { name: string; label: string; icon?: string; filter?: UFRule[]; isDefault?: boolean; [k: string]: unknown }
 interface UFValue { element?: UFElement; fields?: UFField[]; tabs?: unknown[]; showAllRecords?: boolean; [k: string]: unknown }
 
-const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
-  { key: 'none', label: 'None' },
-  { key: 'tabs', label: 'Tabs' },
-  { key: 'dropdown', label: 'Dropdown' },
+// objectui#8218 — a module-level table cannot resolve a locale, so it carries
+// the translation KEY and the render site resolves it. Hard-coding the English
+// here is what put "None / Tabs / Dropdown" inside an otherwise-Chinese panel.
+const FILTER_MODES: Array<{ key: 'none' | UFMode; labelKey: string }> = [
+  { key: 'none', labelKey: 'engine.form.filterModeNone' },
+  { key: 'tabs', labelKey: 'engine.form.filterModeTabs' },
+  { key: 'dropdown', labelKey: 'engine.form.filterModeDropdown' },
 ];
 
 const slugifyTabName = (s: string): string =>
   (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tab';
 
 function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }: WidgetProps) {
+  const locale = useMetadataLocale();
   const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
   const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
   const fieldsState = context?.objectFields ?? NOT_ASKED;
@@ -1813,7 +1847,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
     // the field, and the two names are about different things.
     <div className="space-y-3" role="group" aria-labelledby={ariaLabelledBy}>
       {/* Segmented mode selector */}
-      <div className="inline-flex rounded-md border border-input bg-background p-0.5" role="radiogroup" aria-label="Filter element">
+      <div className="inline-flex rounded-md border border-input bg-background p-0.5" role="radiogroup" aria-label={t('engine.form.filterElement', locale)}>
         {FILTER_MODES.map((m) => {
           const active = mode === m.key;
           return (
@@ -1832,7 +1866,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted')
               }
             >
-              {m.label}
+              {t(m.labelKey, locale)}
             </button>
           );
         })}
@@ -1860,7 +1894,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
                   {!readOnly && (
                     <button
                       type="button"
-                      aria-label="Remove field"
+                      aria-label={t('engine.form.removeField', locale)}
                       onClick={() => patchFields(fields.filter((_, j) => j !== i))}
                       className="px-1 text-muted-foreground hover:text-destructive"
                     >
@@ -1874,7 +1908,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
           {!readOnly && remaining.length > 0 && (
             <Select onValueChange={(name) => patchFields([...fields, { field: name }])}>
               <SelectTrigger className="h-8 text-xs" data-testid="filter-mode-add-field">
-                <SelectValue placeholder="+ Add filter field…" />
+                <SelectValue placeholder={t('engine.form.addFilterField', locale)} />
               </SelectTrigger>
               <SelectContent>
                 {remaining.map((f) => (
@@ -1888,7 +1922,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
           {loadError ? (
             <PickerLoadFailure message={loadError} testId="filter-mode-fields-load-failed" />
           ) : objectFields.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Bind a source object to pick filter fields.</p>
+            <p className="text-xs text-muted-foreground">{t('engine.form.bindObjectForFilterFields', locale)}</p>
           ) : null}
         </div>
       )}
@@ -1903,7 +1937,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
               <div className="flex items-center gap-1.5">
                 <Input
                   value={tab.label}
-                  placeholder="Tab label"
+                  placeholder={t('engine.form.tabLabel', locale)}
                   disabled={readOnly}
                   className="h-8 text-sm flex-1"
                   data-testid={`tab-label-${ti}`}
@@ -1912,17 +1946,17 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
                 <code className="text-[10px] text-muted-foreground shrink-0 max-w-[6rem] truncate" title={tab.name}>{tab.name}</code>
                 {!readOnly && (
                   <>
-                    <button type="button" aria-label="Move tab up" disabled={ti === 0}
+                    <button type="button" aria-label={t('engine.form.moveTabUp', locale)} disabled={ti === 0}
                       onClick={() => moveTab(ti, -1)}
                       className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
                       <ChevronUp className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" aria-label="Move tab down" disabled={ti === tabs.length - 1}
+                    <button type="button" aria-label={t('engine.form.moveTabDown', locale)} disabled={ti === tabs.length - 1}
                       onClick={() => moveTab(ti, 1)}
                       className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
-                    <button type="button" aria-label="Remove tab"
+                    <button type="button" aria-label={t('engine.form.removeTab', locale)}
                       onClick={() => removeTab(ti)}
                       className="px-1 text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1964,7 +1998,7 @@ function FilterModeWidget({ value, onChange, readOnly, context, ariaLabelledBy }
           {loadError ? (
             <PickerLoadFailure message={loadError} testId="filter-mode-tabs-load-failed" />
           ) : objectFields.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Bind a source object to build tab filter rules.</p>
+            <p className="text-xs text-muted-foreground">{t('engine.form.bindObjectForTabRules', locale)}</p>
           ) : null}
         </div>
       )}
@@ -2027,9 +2061,9 @@ function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy 
               </span>
               {!readOnly && (
                 <>
-                  <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)} className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">↑</button>
-                  <button type="button" aria-label="Move down" disabled={i === selected.length - 1} onClick={() => move(i, 1)} className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">↓</button>
-                  <button type="button" aria-label={`Remove ${name}`} onClick={() => removeAt(i)} className="px-1 text-muted-foreground hover:text-destructive">×</button>
+                  <button type="button" aria-label={t('engine.form.moveUp', locale)} disabled={i === 0} onClick={() => move(i, -1)} className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">↑</button>
+                  <button type="button" aria-label={t('engine.form.moveDown', locale)} disabled={i === selected.length - 1} onClick={() => move(i, 1)} className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">↓</button>
+                  <button type="button" aria-label={tFormat('engine.form.removeNamed', locale, { name })} onClick={() => removeAt(i)} className="px-1 text-muted-foreground hover:text-destructive">×</button>
                 </>
               )}
             </div>
@@ -2039,8 +2073,8 @@ function ActionMultiWidget({ value, onChange, readOnly, context, ariaLabelledBy 
       {!readOnly && (
         <Select value="" onValueChange={add} disabled={remaining.length === 0}>
           {/* No host id — see {@link FieldRefMultiWidget}'s add trigger. */}
-          <SelectTrigger data-testid="action-multi-add" aria-label="Add action button">
-            <SelectValue placeholder={loadError ? t('engine.form.optionsLoadFailedTitle', locale) : actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
+          <SelectTrigger data-testid="action-multi-add" aria-label={t('engine.form.addActionButtonPlain', locale)}>
+            <SelectValue placeholder={loadError ? t('engine.form.optionsLoadFailedTitle', locale) : actions.length ? (remaining.length ? t('engine.form.addActionButton', locale) : t('engine.form.allActionsAdded', locale)) : t('engine.form.bindObjectForActions', locale)} />
           </SelectTrigger>
           <SelectContent>
             {remaining.map((a) => (
@@ -2111,6 +2145,7 @@ function FilterBuilderField({ value, onChange, fields, readOnly, id, loadError }
    */
   id?: string;
 }) {
+  const locale = useMetadataLocale();
   // The metadata-admin `t` above is a static engine-string table; refusal
   // copy lives in the shared console locale packs, so it resolves through the
   // platform translator (same one ObjectView's toolbar toasts use).
@@ -2157,7 +2192,7 @@ function FilterBuilderField({ value, onChange, fields, readOnly, id, loadError }
         {loadError ? (
           <PickerLoadFailure message={loadError} testId="filter-builder-load-failed" />
         ) : fields.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Bind a source object to add filter conditions.</p>
+          <p className="text-xs text-muted-foreground">{t('engine.form.bindObjectForConditions', locale)}</p>
         ) : (
           <FilterBuilder fields={fbFields} value={group as any} onChange={handle} />
         )}
@@ -2276,6 +2311,7 @@ export function visibleColorPaletteOptions(
  * group; objectui#4871 is what finally removed the host's dangling `for`).
  */
 function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, formData, ariaLabelledBy }: WidgetProps) {
+  const locale = useMetadataLocale();
   const hostScope = usePredicateScope();
   // Exactly one naming channel, chosen by which one the caller can supply
   // (`ColorVariantPickerNaming` makes that a type-level XOR, objectui#4010):
@@ -2287,7 +2323,9 @@ function ColorSwatchGroupWidget({ value, onChange, readOnly, schema, fieldSpec, 
     ? ({ ariaLabelledBy } as const)
     : ({
         ariaLabel:
-          fieldSpec?.label ?? (typeof schema?.title === 'string' ? schema.title : undefined) ?? 'Color',
+          fieldSpec?.label ??
+          (typeof schema?.title === 'string' ? schema.title : undefined) ??
+          t('engine.form.color', locale),
       } as const);
   return (
     <ColorVariantPicker
@@ -2323,11 +2361,11 @@ function ColorInputWidget({ id, value, onChange, readOnly }: WidgetProps) {
         // the accessible-name computation, so keeping the old constant here
         // would have overridden the field's visible label with "Color" — one
         // label, two channels, the broken one louder (objectui#3978).
-        aria-label={id ? undefined : 'Color'}
+        aria-label={id ? undefined : t('engine.form.color', locale)}
       />
       <Input
         value={v}
-        placeholder="#RRGGBB"
+        placeholder={t('engine.form.colorHexPlaceholder', locale)}
         disabled={readOnly}
         aria-label={t('engine.form.colorHex', locale)}
         onChange={(e) => onChange(e.target.value || undefined)}
@@ -2416,6 +2454,7 @@ export const OBJECTUI_SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\
  * `null` (Clear), or `undefined` (blank + none).
  */
 function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
+  const locale = useMetadataLocale();
   const stored = value === OBJECTUI_SECRET_MASK;
   const [reveal, setReveal] = React.useState(false);
   const [draft, setDraft] = React.useState<string>(stored || value == null ? '' : String(value));
@@ -2432,7 +2471,7 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
         value={draft}
         disabled={readOnly}
         autoComplete="off"
-        placeholder={stored ? (schema?.description ? '•••••••• set — type to replace' : '•••••••• set — leave blank to keep') : (typeof schema?.description === 'string' ? '' : 'Enter a value')}
+        placeholder={stored ? (schema?.description ? t('engine.form.secretSetTypeToReplace', locale) : t('engine.form.secretSetLeaveBlank', locale)) : (typeof schema?.description === 'string' ? '' : t('engine.form.enterAValue', locale))}
         onChange={(e) => update(e.target.value)}
         className="h-8 text-sm font-mono"
         // Same single-channel rule as `color-input`'s picker (objectui#4871):
@@ -2442,14 +2481,14 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
         // visible field label ("API Key", "Client Secret") replaced by the
         // constant "Secret value" on every SchemaForm render. Kept only for a
         // caller that renders this widget with no host label at all.
-        aria-label={id ? undefined : 'Secret value'}
+        aria-label={id ? undefined : t('engine.form.secretValue', locale)}
       />
-      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={readOnly} aria-label={reveal ? 'Hide value' : 'Reveal value'} onClick={() => setReveal((r) => !r)}>
+      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={readOnly} aria-label={reveal ? t('engine.form.hideValue', locale) : t('engine.form.revealValue', locale)} onClick={() => setReveal((r) => !r)}>
         {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </Button>
       {stored && (
         <Button type="button" variant="ghost" size="sm" className="h-8 shrink-0 text-destructive hover:text-destructive" disabled={readOnly} onClick={() => { setDraft(''); onChange(null); }}>
-          Clear
+          {t('engine.form.clear', locale)}
         </Button>
       )}
     </div>
@@ -2469,6 +2508,8 @@ function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
  * settings" pattern can reuse it by populating `dynamicSchemas`.
  */
 function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, context, ariaLabelledBy }: WidgetProps) {
+  // Hoisted above this component's early returns so the hook order is stable.
+  const locale = useMetadataLocale();
   const dep = Array.isArray(fieldSpec?.dependsOn) ? fieldSpec!.dependsOn![0] : fieldSpec?.dependsOn;
   const depVal = dep ? (formData?.[dep] as string | undefined) : undefined;
   const sub = depVal != null ? context?.dynamicSchemas?.[String(depVal)] : undefined;
@@ -2488,14 +2529,16 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
     // ruling removed.
     return (
       <div role="group" aria-labelledby={ariaLabelledBy} className="text-xs text-muted-foreground">
-        Select {dep ?? 'an option'} to configure.
+        {tFormat('engine.form.selectDepToConfigure', locale, {
+          dep: dep ?? t('engine.form.anOption', locale),
+        })}
       </div>
     );
   }
   if (!sub || Object.keys(props).length === 0) {
     return (
       <div role="group" aria-labelledby={ariaLabelledBy} className="text-xs text-muted-foreground">
-        No configuration needed for "{String(depVal)}".
+        {tFormat('engine.form.noConfigNeeded', locale, { value: String(depVal) })}
       </div>
     );
   }
@@ -2522,7 +2565,7 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
             <div key={key} className="space-y-1">
               <Label className="text-xs">{label}{isReq ? ' *' : ''}</Label>
               <Select value={cur != null ? String(cur) : ''} onValueChange={(v) => setKey(key, v)} disabled={readOnly}>
-                <SelectTrigger className="h-8" aria-label={label}><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectTrigger className="h-8" aria-label={label}><SelectValue placeholder={t('engine.form.selectEllipsis', locale)} /></SelectTrigger>
                 <SelectContent>
                   {((p as any).enum as unknown[]).map((o) => <SelectItem key={String(o)} value={String(o)}>{String(o)}</SelectItem>)}
                 </SelectContent>
@@ -2715,6 +2758,7 @@ export function CodeWidget({
   fieldSpec,
   ariaLabelledBy,
 }: WidgetProps) {
+  const locale = useMetadataLocale();
   const language = inferCodeLanguage(fieldSpec, schema);
   const stringValue = typeof value === 'string' ? value : (value == null ? '' : String(value));
   return (
@@ -2724,12 +2768,12 @@ export function CodeWidget({
     <div className="rounded-md border border-border/50 overflow-hidden" role="group" aria-labelledby={ariaLabelledBy}>
       <div className="flex items-center justify-between px-2 py-1 bg-muted/40 border-b border-border/30 text-[10px] font-mono text-muted-foreground">
         <span>{language}</span>
-        {readOnly && <span>read-only</span>}
+        {readOnly && <span>{t('engine.form.readOnly', locale)}</span>}
       </div>
       <React.Suspense
         fallback={
           <div className="h-[280px] flex items-center justify-center text-xs text-muted-foreground">
-            Loading editor…
+            {t('engine.form.loadingEditor', locale)}
           </div>
         }
       >
