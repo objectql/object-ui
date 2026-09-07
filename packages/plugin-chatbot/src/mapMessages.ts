@@ -27,7 +27,18 @@ interface AnyPart {
   args?: unknown;
   result?: unknown;
   errorText?: string;
-  state?: ChatToolInvocation['state'];
+  /**
+   * Free-form on purpose. `AnyPart` absorbs whatever a producer hands the
+   * mapper, and `state` is NOT one namespace: a tool part carries the
+   * tool-invocation lifecycle, while `@ai-sdk/react`'s text and reasoning
+   * parts carry `'streaming' | 'done'`. Typing this member against the
+   * OUTPUT contract made the deliberately-permissive input interface
+   * stricter than the union it exists to absorb, so the SDK's own
+   * `UIMessage[]` — the documented input of the exported mappers — was
+   * refused outright (objectui#8214). `isToolState` below is what keeps the
+   * output checked; this stays open.
+   */
+  state?: string;
   url?: string;
   href?: string;
   title?: string;
@@ -42,6 +53,35 @@ interface AnyUIMessage {
   content?: unknown;
   toolInvocations?: ChatToolInvocation[];
   metadata?: unknown;
+}
+
+/**
+ * The tool-invocation lifecycle states as a runtime value. Declared as a
+ * `Record` over the union so the compiler rejects a typo here AND requires a
+ * row when `ChatToolInvocation['state']` grows: the table cannot drift from
+ * the type it guards.
+ */
+const TOOL_STATES: Record<NonNullable<ChatToolInvocation['state']>, true> = {
+  'input-streaming': true,
+  'input-available': true,
+  'approval-requested': true,
+  'approval-responded': true,
+  'output-available': true,
+  'output-error': true,
+  'output-denied': true,
+};
+
+/**
+ * Narrows a part's free-form `state` to the tool-invocation lifecycle. Any
+ * other spelling (a text/reasoning part's `'streaming' | 'done'`, an AI SDK v4
+ * snapshot's `'result'`) is not a tool state and maps to `undefined` — which is
+ * the documented "infer from `errorText` / `result`" case in
+ * `ChatbotEnhanced.getToolState`, not a loss: an unrecognized string used to
+ * pass through verbatim and fall past every branch there, rendering a finished
+ * call as "Running" forever.
+ */
+function isToolState(state: string | undefined): state is NonNullable<ChatToolInvocation['state']> {
+  return state !== undefined && state in TOOL_STATES;
 }
 
 function extractText(msg: AnyUIMessage, parts: AnyPart[]): string {
@@ -631,7 +671,7 @@ function extractToolInvocations(
       //      ENDED, so it cannot still be running, output-snapshot or not.
       // Only the actively-streaming trailing assistant message (`liveTail`)
       // may legitimately keep a tool spinning; everything else is history.
-      const persistedState = p.state;
+      const persistedState = isToolState(p.state) ? p.state : undefined;
       const isDanglingInput =
         persistedState === 'input-available' || persistedState === 'input-streaming';
       const baseState: ChatToolInvocation['state'] =
