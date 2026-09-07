@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { isFilterAST } from '@objectstack/spec/data';
+import { isFilterAST, parseFilterAST } from '@objectstack/spec/data';
 import { ObjectStackAdapter, clearSharedDiscoveryCache, isMalformedFilterError } from './index';
 
 function makeAdapter() {
@@ -309,12 +309,37 @@ describe('an OBJECT filter reaches the same predicate on both routes', () => {
   );
 
   bothRoutes(
-    'leaves a top-level Mongo logical node alone',
-    // `mergeFilters` (dashboard scope filters) produces this. It survives as a
-    // `['$and', '=', [...]]` comparison that `parseFilterAST` reads back as a
-    // real `$and` — verified, and the reason this is NOT rewritten here.
+    'lowers a top-level Mongo logical node to an AST group',
+    // `mergeFilters` (dashboard scope filters) produces this, and it used to go
+    // out as a `['$and', '=', [...]]` comparison — a leaf naming a field
+    // literally called `$and`. The note this case carried was accurate about the
+    // WIRE and that half still holds: `parseFilterAST` reads that leaf back as a
+    // real `$and`, so nothing was ever refused there, and the assertion below
+    // pins that the lowered form reaches the same FilterCondition.
+    //
+    // What the note did not cover is the consumer one door in. The leaf is a
+    // well-formed COMPARISON node, so every AST evaluator in this repo — the
+    // matcher in `@object-ui/core`'s `ValueDataSource` above all — reads `$and`
+    // as a FIELD NAME, finds no such key on any record, and returns an EMPTY
+    // list with no error. objectui#6948 taught `convertFiltersToAST` the group
+    // spelling the spec's own `FILTER_ARRAY_LOGIC_KEYWORDS` declares, so the
+    // node is now executable as well as parseable.
     { $and: [{ a: 1 }, { b: 2 }] },
-    (wire) => expect(wire).toEqual(['$and', '=', [{ a: 1 }, { b: 2 }]]),
+    (wire) => expect(wire).toEqual(['and', ['a', '=', 1], ['b', '=', 2]]),
+  );
+
+  bothRoutes(
+    'and the wire CONDITION is unchanged by that lowering',
+    // The half of the old note that still holds, kept as an assertion rather
+    // than a sentence: both spellings lower to the same `FilterCondition`, so
+    // the server's answer to this filter did not move.
+    { $and: [{ a: 1 }, { b: 2 }] },
+    (wire) => {
+      expect(parseFilterAST(wire as any)).toEqual({ $and: [{ a: 1 }, { b: 2 }] });
+      expect(parseFilterAST(wire as any)).toEqual(
+        parseFilterAST(['$and', '=', [{ a: 1 }, { b: 2 }]] as any),
+      );
+    },
   );
 
   for (const route of ['plain', 'expand'] as const) {
