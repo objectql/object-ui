@@ -2093,7 +2093,7 @@ type WiderArmClass = 'SCHEMA-NODE' | 'CONCRETE';
 
 /**
  * `WiderThanDeclared` at ARM granularity — one verdict per union arm of the
- * mirror's slot, keyed `<pair>.<key>` (objectui#8252).
+ * mirror's slot, keyed `<pair>::<key>` (objectui#8252).
  *
  * ## The per-KEY verdict was a verdict over a per-ARM fact
  *
@@ -2145,59 +2145,78 @@ type WiderArmClass = 'SCHEMA-NODE' | 'CONCRETE';
  * cause underneath the artifact: that is a different mechanism from hiding behind a
  * sibling, and it needs a two-face comparison per key rather than an arm count.
  */
+/**
+ * The separator between a row's pair and its key.
+ *
+ * ⚠️ `::` and ⛔ not the `.` that `UNNAMED_LAZY_SLOTS` below uses for the same
+ * pair-and-key shape. Measured while objectui#8252 landed: a dotted row for
+ * `app.zod.ts#AppComponentSchema`'s handler-array key spells a PROPERTY READ of
+ * that key, in a file that already names `AppComponentSchema` — which is anchor A
+ * of the reader census in `handler-keys-string-any-mirrors-7344.test.ts`. That
+ * census then reads this file as a THIRD reader of a key whose reader set it pins
+ * at one file, and fails, correctly and on its own terms. The two repairs are not
+ * equal: adding this file to that census's prose allow-list would blunt it here
+ * permanently, so the separator moved instead. ⛔ Do not "unify" it with the dotted
+ * spelling — `UNNAMED_LAZY_SLOTS` happens to name no key that any census anchors
+ * on, which is the only reason the collision is one-sided rather than absent.
+ * ⛔ And do not spell the colliding key literally in this docblock: doing so
+ * reproduces the very match this separator exists to avoid (it did, once).
+ */
+const WIDER_ARM_ROW_SEPARATOR = '::';
+
 const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
-  'app.zod.ts#AppComponentSchema.label': ['CONCRETE', 'CONCRETE'],
-  'app.zod.ts#AppComponentSchema.areas': ['SCHEMA-NODE'],
-  'app.zod.ts#AppComponentSchema.actions': ['SCHEMA-NODE'],
-  'complex.zod.ts#CarouselSchema.items': ['SCHEMA-NODE'],
-  'complex.zod.ts#ChatbotSchema.body': ['CONCRETE'],
-  'complex.zod.ts#DashboardComponentSchema.header': ['CONCRETE'],
-  'complex.zod.ts#DashboardComponentSchema.widgets': ['CONCRETE', 'SCHEMA-NODE'],
-  'complex.zod.ts#DashboardComponentSchema.globalFilters': ['CONCRETE'],
-  'complex.zod.ts#DashboardComponentSchema.dateRange': ['CONCRETE'],
-  'complex.zod.ts#FilterBuilderSchema.fields': ['CONCRETE'],
-  'complex.zod.ts#FilterFieldSchema.operators': ['CONCRETE'],
-  'crud.zod.ts#DetailSchema.groups': ['SCHEMA-NODE'],
-  'crud.zod.ts#DetailSchema.tabs': ['SCHEMA-NODE'],
-  'data-display.zod.ts#DataTableSchema.columns': ['CONCRETE'],
-  'data-display.zod.ts#DataTableSchema.renderCellEditor': ['CONCRETE'],
-  'data-display.zod.ts#ListSchema.items': ['SCHEMA-NODE'],
-  'data-display.zod.ts#TableColumnSchema.cell': ['CONCRETE'],
-  'data-display.zod.ts#TimelineSchema.events': ['SCHEMA-NODE'],
-  'disclosure.zod.ts#AccordionSchema.items': ['SCHEMA-NODE'],
-  'form.zod.ts#CalendarSchema.defaultValue': ['CONCRETE', 'CONCRETE'],
-  'form.zod.ts#CalendarSchema.value': ['CONCRETE', 'CONCRETE'],
-  'form.zod.ts#FieldConditionSchema.custom': ['CONCRETE'],
-  'form.zod.ts#FieldConstraintsSchema.validate': ['CONCRETE'],
-  'form.zod.ts#FormFieldSchema.validation': ['CONCRETE'],
-  'form.zod.ts#FormFieldSchema.condition': ['CONCRETE'],
-  'form.zod.ts#FormSchema.layout': ['CONCRETE'],
-  'form.zod.ts#FormSchema.fields': ['CONCRETE'],
-  'form.zod.ts#FormSchema.mode': ['CONCRETE'],
-  'form.zod.ts#SliderSchema.defaultValue': ['CONCRETE', 'CONCRETE'],
-  'form.zod.ts#SliderSchema.value': ['CONCRETE', 'CONCRETE'],
-  'layout.zod.ts#ContainerSchema.maxWidth': ['CONCRETE', 'CONCRETE'],
-  'layout.zod.ts#PageNodeSchema.aria': ['CONCRETE'],
-  'layout.zod.ts#PageNodeSchema.regions': ['SCHEMA-NODE'],
-  'layout.zod.ts#PageNodeSchema.slots': ['SCHEMA-NODE'],
-  'layout.zod.ts#ResizableSchema.panels': ['SCHEMA-NODE'],
-  'layout.zod.ts#TabsSchema.items': ['SCHEMA-NODE'],
-  'navigation.zod.ts#HeaderBarSchema.variant': ['CONCRETE'],
-  'objectql.zod.ts#ObjectGridSchema.label': ['CONCRETE', 'CONCRETE'],
-  'objectql.zod.ts#ObjectGridSchema.description': ['CONCRETE', 'CONCRETE'],
-  'objectql.zod.ts#ObjectViewSchema.form': ['SCHEMA-NODE'],
-  'objectql.zod.ts#ObjectViewSchema.table': ['SCHEMA-NODE'],
-  'overlay.zod.ts#MenubarSchema.menus': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportBuilderSchema.report': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportComponentSchema.sections': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportSectionSchema.chart': ['SCHEMA-NODE'],
-  'reports.zod.ts#ReportViewerSchema.report': ['SCHEMA-NODE'],
-  'views.zod.ts#DetailViewFieldSchema.options': ['CONCRETE'],
-  'views.zod.ts#DetailViewSchema.fields': ['SCHEMA-NODE'],
-  'views.zod.ts#DetailViewSchema.tabs': ['SCHEMA-NODE'],
-  'views.zod.ts#DetailViewSchema.sections': ['SCHEMA-NODE'],
-  'views.zod.ts#DetailViewSectionSchema.fields': ['SCHEMA-NODE'],
-  'views.zod.ts#ViewSwitcherSchema.views': ['SCHEMA-NODE'],
+  'app.zod.ts#AppComponentSchema::label': ['CONCRETE', 'CONCRETE'],
+  'app.zod.ts#AppComponentSchema::areas': ['SCHEMA-NODE'],
+  'app.zod.ts#AppComponentSchema::actions': ['SCHEMA-NODE'],
+  'complex.zod.ts#CarouselSchema::items': ['SCHEMA-NODE'],
+  'complex.zod.ts#ChatbotSchema::body': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema::header': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema::widgets': ['CONCRETE', 'SCHEMA-NODE'],
+  'complex.zod.ts#DashboardComponentSchema::globalFilters': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema::dateRange': ['CONCRETE'],
+  'complex.zod.ts#FilterBuilderSchema::fields': ['CONCRETE'],
+  'complex.zod.ts#FilterFieldSchema::operators': ['CONCRETE'],
+  'crud.zod.ts#DetailSchema::groups': ['SCHEMA-NODE'],
+  'crud.zod.ts#DetailSchema::tabs': ['SCHEMA-NODE'],
+  'data-display.zod.ts#DataTableSchema::columns': ['CONCRETE'],
+  'data-display.zod.ts#DataTableSchema::renderCellEditor': ['CONCRETE'],
+  'data-display.zod.ts#ListSchema::items': ['SCHEMA-NODE'],
+  'data-display.zod.ts#TableColumnSchema::cell': ['CONCRETE'],
+  'data-display.zod.ts#TimelineSchema::events': ['SCHEMA-NODE'],
+  'disclosure.zod.ts#AccordionSchema::items': ['SCHEMA-NODE'],
+  'form.zod.ts#CalendarSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#CalendarSchema::value': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#FieldConditionSchema::custom': ['CONCRETE'],
+  'form.zod.ts#FieldConstraintsSchema::validate': ['CONCRETE'],
+  'form.zod.ts#FormFieldSchema::validation': ['CONCRETE'],
+  'form.zod.ts#FormFieldSchema::condition': ['CONCRETE'],
+  'form.zod.ts#FormSchema::layout': ['CONCRETE'],
+  'form.zod.ts#FormSchema::fields': ['CONCRETE'],
+  'form.zod.ts#FormSchema::mode': ['CONCRETE'],
+  'form.zod.ts#SliderSchema::defaultValue': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#SliderSchema::value': ['CONCRETE', 'CONCRETE'],
+  'layout.zod.ts#ContainerSchema::maxWidth': ['CONCRETE', 'CONCRETE'],
+  'layout.zod.ts#PageNodeSchema::aria': ['CONCRETE'],
+  'layout.zod.ts#PageNodeSchema::regions': ['SCHEMA-NODE'],
+  'layout.zod.ts#PageNodeSchema::slots': ['SCHEMA-NODE'],
+  'layout.zod.ts#ResizableSchema::panels': ['SCHEMA-NODE'],
+  'layout.zod.ts#TabsSchema::items': ['SCHEMA-NODE'],
+  'navigation.zod.ts#HeaderBarSchema::variant': ['CONCRETE'],
+  'objectql.zod.ts#ObjectGridSchema::label': ['CONCRETE', 'CONCRETE'],
+  'objectql.zod.ts#ObjectGridSchema::description': ['CONCRETE', 'CONCRETE'],
+  'objectql.zod.ts#ObjectViewSchema::form': ['SCHEMA-NODE'],
+  'objectql.zod.ts#ObjectViewSchema::table': ['SCHEMA-NODE'],
+  'overlay.zod.ts#MenubarSchema::menus': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportBuilderSchema::report': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportComponentSchema::sections': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportSectionSchema::chart': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportViewerSchema::report': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewFieldSchema::options': ['CONCRETE'],
+  'views.zod.ts#DetailViewSchema::fields': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSchema::tabs': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSchema::sections': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSectionSchema::fields': ['SCHEMA-NODE'],
+  'views.zod.ts#ViewSwitcherSchema::views': ['SCHEMA-NODE'],
 };
 
 /* ── The invariant ──────────────────────────────────────────────────────────── */
@@ -3629,8 +3648,13 @@ function measureMirrorArms(pair: MirrorKey, key: string): unknown[] | undefined 
 /** The arm ledger's rows, split back into the pair and key they judge. */
 function widerArmRows(): { row: string; pair: MirrorKey; key: string; arms: readonly WiderArmClass[] }[] {
   return Object.entries(WIDER_ARMS).map(([row, arms]) => {
-    const cut = row.lastIndexOf('.');
-    return { row, pair: row.slice(0, cut) as MirrorKey, key: row.slice(cut + 1), arms };
+    const cut = row.lastIndexOf(WIDER_ARM_ROW_SEPARATOR);
+    return {
+      row,
+      pair: row.slice(0, cut) as MirrorKey,
+      key: row.slice(cut + WIDER_ARM_ROW_SEPARATOR.length),
+      arms,
+    };
   });
 }
 
@@ -3657,7 +3681,7 @@ describe('the WIDER ledger is judged per ARM, not per key (objectui#8252)', () =
     // row, not an absence — so it lands in the new granularity instead of falling
     // through the per-arm framing the way it fell through the per-entry prose.
     const ledgered = [...ledgerEntryMembers('WiderThanDeclared')]
-      .flatMap(([pair, keys]) => keys.map((key) => `${pair}.${key}`));
+      .flatMap(([pair, keys]) => keys.map((key) => `${pair}${WIDER_ARM_ROW_SEPARATOR}${key}`));
     expect(Object.keys(WIDER_ARMS).sort(), `
 WIDER_ARMS and WiderThanDeclared disagree about which keys exist.
 
@@ -3697,7 +3721,7 @@ An arm row does not name one verdict per arm of its mirror slot.
     // concrete arm hidden behind a schema-node sibling. The arity pin above does not
     // catch that collapse — ['SCHEMA-NODE', 'SCHEMA-NODE'] has the right length —
     // so the shape is asserted here by name.
-    const arms = WIDER_ARMS['complex.zod.ts#DashboardComponentSchema.widgets'];
+    const arms = WIDER_ARMS['complex.zod.ts#DashboardComponentSchema::widgets'];
     expect(arms).toHaveLength(2);
     expect([...new Set(arms)].sort()).toEqual(['CONCRETE', 'SCHEMA-NODE']);
     expect(widerKeyClass(arms)).toBe('MIXED');
