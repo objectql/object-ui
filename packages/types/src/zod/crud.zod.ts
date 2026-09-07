@@ -64,12 +64,12 @@ const ActionConditionPredicateSchema = z.union([
 export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
   type: z.literal('action'),
   label: z.string().describe('Action label'),
-  level: z.enum(['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'default']).optional().default('default').describe('Action type/level'),
+  level: z.enum(['primary', 'secondary', 'success', 'warning', 'danger', 'info', 'default']).optional().describe('Action type/level'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
   variant: z.enum(['default', 'outline', 'ghost', 'link']).optional().describe('Action variant'),
   actionType: z.enum(['button', 'link', 'dropdown', 'ajax', 'confirm', 'dialog']).optional().describe('Action type'),
   api: z.string().optional().describe('API endpoint to call (for ajax actions)'),
-  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().default('POST').describe('HTTP method'),
+  method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).optional().describe('HTTP method'),
   data: z.any().optional().describe('Request body/data'),
   headers: z.record(z.string(), z.string()).optional().describe('Request headers'),
   // RETIRED (objectui#4314): the structured confirm object is a tombstone.
@@ -116,10 +116,10 @@ export const ActionSchema: z.ZodType<any> = z.lazy(() => BaseSchema.extend({
     + 'enforce-or-remove with no deprecation window (maintainer ruling option 1, 2026-09-05).',
   ),
   chain: z.array(ActionSchema).optional().describe('Action chaining - actions to execute after this one'),
-  chainMode: ActionExecutionModeSchema.optional().default('sequential').describe('Chain execution mode'),
+  chainMode: ActionExecutionModeSchema.optional().describe('Chain execution mode'),
   condition: ActionConditionPredicateSchema.optional().describe('Execution gate — the action runs only while this predicate holds'),
-  reload: z.boolean().optional().default(true).describe('Whether to reload data after action'),
-  close: z.boolean().optional().default(true).describe('Whether to close dialog/modal after action'),
+  reload: z.boolean().optional().describe('Whether to reload data after action'),
+  close: z.boolean().optional().describe('Whether to close dialog/modal after action'),
   // RUNTIME SLOT (objectui#7344): `ActionRunner` awaits `action.onClick()` and
   // the action renderers guard `typeof action.onClick === 'function'`. The
   // `z.any()` this replaces accepted an authored string or object that then
@@ -163,11 +163,11 @@ export const DetailSchema = BaseSchema.extend({
     label: z.string(),
     content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]),
   })).optional().describe('Tabs for additional content'),
-  showBack: z.boolean().optional().default(true).describe('Show back button'),
+  showBack: z.boolean().optional().describe('Show back button'),
   // RUNTIME SLOT (objectui#7344): `register('detail', DetailView)` — the same
   // `handleBack` that calls `onBack()` for `detail-view`. Was `z.any()`.
   onBack: handlerKeyRefusal('onBack', 'runtime-slot', 'Custom back action'),
-  loading: z.boolean().optional().default(true).describe('Whether to show loading state'),
+  loading: z.boolean().optional().describe('Whether to show loading state'),
 });
 
 /**
@@ -178,15 +178,15 @@ export const CRUDDialogSchema = BaseSchema.extend({
   title: z.string().optional().describe('Dialog title'),
   description: z.string().optional().describe('Dialog description'),
   content: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional().describe('Dialog content'),
-  size: z.enum(['sm', 'default', 'lg', 'xl', 'full']).optional().default('default').describe('Dialog size'),
+  size: z.enum(['sm', 'default', 'lg', 'xl', 'full']).optional().describe('Dialog size'),
   actions: z.array(ActionSchema).optional().describe('Dialog actions/buttons'),
   open: z.boolean().optional().describe('Whether dialog is open'),
   // RETIRED (objectui#7344): no renderer is registered for `crud-dialog`;
   // nothing reads the key. Was `z.any()`.
   onClose: handlerKeyRefusal('onClose', 'retired', 'Close handler'),
-  closeOnOutsideClick: z.boolean().optional().default(true).describe('Whether clicking outside closes dialog'),
-  closeOnEscape: z.boolean().optional().default(true).describe('Whether pressing Escape closes dialog'),
-  showClose: z.boolean().optional().default(true).describe('Show close button'),
+  closeOnOutsideClick: z.boolean().optional().describe('Whether clicking outside closes dialog'),
+  closeOnEscape: z.boolean().optional().describe('Whether pressing Escape closes dialog'),
+  showClose: z.boolean().optional().describe('Show close button'),
 });
 
 /**
