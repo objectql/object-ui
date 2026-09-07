@@ -19,6 +19,7 @@ const es = {
       manage_users: "Gestionar usuarios",
       manage_org_users: "Gestionar usuarios de la organización",
       manage_metadata: "Gestionar metadatos",
+      manage_org_presentation: "Gestionar la presentación de la organización",
       manage_platform_settings: "Gestionar la configuración de la plataforma",
       setup_access: "Acceso a la configuración",
       setup_write: "Escritura de la configuración",

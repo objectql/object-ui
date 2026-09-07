@@ -19,6 +19,7 @@ const ar = {
       manage_users: "إدارة المستخدمين",
       manage_org_users: "إدارة مستخدمي المؤسسة",
       manage_metadata: "إدارة البيانات الوصفية",
+      manage_org_presentation: "إدارة عرض المؤسسة",
       manage_platform_settings: "إدارة إعدادات المنصة",
       setup_access: "الوصول إلى الإعداد",
       setup_write: "كتابة الإعدادات",

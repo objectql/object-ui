@@ -29,15 +29,14 @@ interface ScrollAreaSchema {
   type: 'scroll-area';
   
   // Dimensions
-  height?: string;                      // Container height (e.g., '200px', '50vh')
-  width?: string;                       // Container width (default: '100%')
+  height?: string | number;             // Container height ('200px', '50vh', or 200 = px)
+  width?: string | number;              // Container width ('100%', '50vw', or 300 = px)
   
   // Configuration
   orientation?: 'vertical' | 'horizontal' | 'both';  // Scroll direction (default: 'vertical')
   
   // Content
-  content?: SchemaNode | SchemaNode[];  // Scrollable content
-  children?: SchemaNode | SchemaNode[]; // Alternative content prop
+  children?: SchemaNode | SchemaNode[]; // Scrollable content (the only content channel)
   
   // Styling
   className?: string;                   // Tailwind CSS classes
@@ -48,6 +47,18 @@ interface ScrollAreaSchema {
   testId?: string;
 }
 ```
+
+The scrollable body is authored under `children`, and only under `children`:
+the renderer reads `renderChildren(schema.children)` and nothing else, and the
+registration's `defaultProps` ships `children` too. A scroll area that puts its
+body under `content` is not refused anywhere — `content` is not a member of
+`ScrollAreaSchema`, but the zod twin extends a `.passthrough()` base, so it
+validates, survives parsing, and reaches the DOM as a stray attribute on an
+otherwise empty scroll box.
+
+`height` and `width` take a number as well as a CSS length; a bare number is
+applied as pixels (`height: 200` renders `height: 200px`). Neither has a
+render-time default — omitting one leaves the container unsized in that axis.
 
 ## Examples
 

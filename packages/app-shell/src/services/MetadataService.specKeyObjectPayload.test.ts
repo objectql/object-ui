@@ -19,8 +19,9 @@
  * shapes: `toObjectPayload` builds it and `saveObject` PUTs it whole to
  * `PUT /api/v1/meta/object/:name`.
  *
- * Measured against the installed `@objectstack/spec` 17.2.0 (ESM build), whose
- * `ObjectSchema` accept set is 42 keys:
+ * Measured against the installed `@objectstack/spec` (ESM build), whose
+ * `ObjectSchema` accept set is 43 keys at 17.3.0 (42 at 17.2.0, when this file
+ * was written; the one gained key is `editMode`, unrelated to the three below):
  *
  *   ObjectSchema.safeParse({ ...base, group: 'Sales' })  => unrecognized_keys ["group"]
  *   ObjectSchema.safeParse({ ...base, sortOrder: 3 })    => unrecognized_keys ["sortOrder"]
@@ -140,8 +141,12 @@ describe('the instrument', () => {
   });
 
   it('has no near-spelling for any of them — unlike objectui#6041, nothing here is a rename', () => {
+    // 43 at `@objectstack/spec` 17.3.0, which adopted `editMode` (measured —
+    // gained set exactly `['editMode']`, lost set empty). The count is this
+    // file's corpus guard, not its subject; every claim it guards is below and
+    // unchanged.
     const accept = new Set(Object.keys(ObjectSchema.shape as Record<string, unknown>));
-    expect(accept.size).toBe(42);
+    expect(accept.size).toBe(43);
     // `fieldGroups` is the only grouping key on the object, and it groups the
     // FIELDS INSIDE one object — it is not a category for objects themselves,
     // so `group` has no mapping target here.

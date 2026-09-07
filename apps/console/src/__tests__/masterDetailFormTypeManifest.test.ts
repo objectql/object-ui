@@ -80,15 +80,52 @@ describe('object-master-detail-form.formType — the manifest carries the closed
     },
   );
 
-  it('⚠️ does NOT make the value rejected at the publish boundary (objectui#5155)', async () => {
-    // The other half of the honest reading. objectstack owns this schema; the
-    // objectui enum cannot narrow it, and a reader who stopped at the test above
-    // would conclude the value is now impossible to publish. It is not.
+  it('AND the publish boundary rejects it too, since spec 17.3.0 (objectui#5155)', async () => {
+    // The other half of the honest reading — and it REVERSED at
+    // `@objectstack/spec` 17.3.0, which is why this test now says the opposite
+    // of what it used to.
+    //
+    // It was written as a negative pin: objectstack owns this schema, the
+    // objectui enum cannot narrow it, and a reader who stopped at the manifest
+    // assertions above would wrongly conclude the value was impossible to
+    // publish. That was true and worth pinning while the boundary accepted
+    // `formType: 'wizzard'`. 17.3.0 closed the gap deliberately — not a
+    // silent narrowing: the schema answers `invalid_value` naming the two
+    // honoured options, and for the near-miss `'wizard'` it carries a bespoke
+    // prescription citing ADR-0001 and the renderer measurement behind it
+    // ("only the current wizard step's fields mount … so parent + details never
+    // save through the atomic batch").
+    //
+    // ⛔ The premise did not merely evaporate, so this is not an inverted
+    // assertion standing where a negative control used to. What the test owes
+    // its reader is the RELATIONSHIP between the two authorities, and that is
+    // what is pinned: the manifest diagnostic above and the publish boundary
+    // here now agree, and each is checked on its own so a future divergence
+    // fails HERE rather than reaching an author as a value that lints clean and
+    // then cannot be published.
     const spec: any = await import('@objectstack/spec/ui');
     const schema = spec.ObjectMasterDetailFormPropsSchema;
     expect(schema, 'ObjectMasterDetailFormPropsSchema is not exported').toBeDefined();
-    expect(schema.safeParse({ objectName: 'po', details: [], formType: 'wizzard' }).success).toBe(
-      true,
-    );
+
+    // Positive control first: the boundary still admits the honoured pair, so a
+    // wholesale schema breakage cannot read as "the refusal works".
+    for (const honoured of ['simple', 'tabbed']) {
+      expect(
+        schema.safeParse({ objectName: 'po', details: [], formType: honoured }).success,
+        `the boundary stopped accepting the honoured value ${honoured}`,
+      ).toBe(true);
+    }
+
+    const refused = schema.safeParse({ objectName: 'po', details: [], formType: 'wizzard' });
+    expect(refused.success).toBe(false);
+    if (refused.success) return;
+
+    // The SHAPE of the refusal, not just its existence: a value refusal at the
+    // key. `unrecognized_keys` would mean the key stopped being declared, and a
+    // `custom` refinement would mean it is refused by a cross-field rule rather
+    // than by its own vocabulary — three different facts, and only one of them
+    // is "the enum closed".
+    const own = refused.error.issues.filter((i: any) => i.path.join('.') === 'formType');
+    expect(own.map((i: any) => i.code)).toEqual(['invalid_value']);
   });
 });

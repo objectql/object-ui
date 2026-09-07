@@ -439,7 +439,7 @@ describe('ObjectFieldGroup derives from the spec schema INPUT side', () => {
     // Still the real spec vocabulary, not a hand copy that merely agrees.
     type _HasSpecKeys = Assert<
       Extends<
-        'key' | 'label' | 'icon' | 'description' | 'collapse' | 'collapsible' | 'collapsed' | 'defaultExpanded',
+        'key' | 'label' | 'icon' | 'description' | 'visibleWhen' | 'collapse' | 'collapsible' | 'collapsed' | 'defaultExpanded',
         keyof ObjectFieldGroup
       >
     >;
@@ -447,7 +447,7 @@ describe('ObjectFieldGroup derives from the spec schema INPUT side', () => {
       Equal<
         Exclude<
           keyof ObjectFieldGroup,
-          'key' | 'label' | 'icon' | 'description' | 'collapse' | 'collapsible' | 'collapsed' | 'defaultExpanded'
+          'key' | 'label' | 'icon' | 'description' | 'visibleWhen' | 'collapse' | 'collapsible' | 'collapsed' | 'defaultExpanded'
         >,
         never
       >

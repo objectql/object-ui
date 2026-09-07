@@ -37,6 +37,29 @@ describe('aggregateValueKey', () => {
   it('prefers an explicit field even for count', () => {
     expect(aggregateValueKey({ field: 'total', function: 'count' })).toBe('total');
   });
+
+  /**
+   * objectui#8266 routed this function through `chartMeasureKey`
+   * (`@object-ui/core`), which delegates to the contract's own
+   * `chartAggregateValueKey`, so the SERIES binding the dashboard relays
+   * compose cannot drift from the column this projects. The delegation is
+   * behaviour-preserving, and these two arms are the only shapes where that
+   * claim is not already covered above: the contract answers `undefined` for
+   * them (`ChartAggregateSchema` refuses a fieldless non-count outright), so
+   * everything after the delegation is this renderer's own floor.
+   *
+   * They are unreachable from validated metadata and reachable from
+   * unvalidated. The floor exists so such a row keys a COLUMN rather than the
+   * literal string "undefined", which is the regression the file below pins.
+   */
+  it('floors a fieldless non-count on the function name, as before the delegation', () => {
+    expect(aggregateValueKey({ function: 'sum' })).toBe('sum');
+    expect(aggregateValueKey({ function: 'avg' })).toBe('avg');
+  });
+
+  it('floors an empty aggregate on "count", as before the delegation', () => {
+    expect(aggregateValueKey({})).toBe('count');
+  });
 });
 
 describe('aggregateRecords — result columns', () => {

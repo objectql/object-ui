@@ -266,7 +266,7 @@ import { isEntrypoint } from './invoked-as.mjs';
 
 /**
  * Ceiling for the console eager closure, in gzipped bytes. See the header for
- * how this number was chosen; measured 3,222,314 on `3d257c85a`.
+ * how this number was chosen; measured 3,551,191 on `34a1578ef`.
  *
  * Re-baselined DOWNWARD three times, each time toward a measurement the payload
  * had already fallen to:
@@ -288,14 +288,49 @@ import { isEntrypoint } from './invoked-as.mjs';
  *     0.85x the regression this gate must catch, the blind band reopening — and
  *     the 2026-08-30 ruling made moving it part of the same change.
  *
- * Headroom above {@link BASELINE} is 45,686 bytes — 0.50x
+ * Headroom above {@link BASELINE} is 45,809 bytes — 0.50x
  * {@link REGRESSION_THIS_GATE_MUST_CATCH_BYTES}. ⚠️ That is arithmetic on two
  * constants in this file, so it stays true while they do — it is NOT what the
  * closure has left today, which is smaller by every byte the payload has
  * drifted up since the baseline below was taken. `pnpm check:eager-closure`
  * prints the figure in force, and that is the one governing your build.
+ *
+ * ## ⚠️ RAISED ONCE, ON EXPLICIT MAINTAINER AUTHORISATION (objectui#7122)
+ *
+ * Raising this ceiling is a gate weakening and sits on the manual floor, so it
+ * is a human's act, not an agent's. The authorisation, verbatim:
+ *
+ *     维护者 sam@objectstack.ai 于本轮明确授权：「抬上限，把 7685 弄绿」
+ *
+ * recorded on objectui#7122 as decision batch 1 item 1 = "B + A" (a one-time,
+ * cause-recorded adjustment of exactly the measured delta, with the upstream
+ * card filed alongside).
+ *
+ * ⛔ WHAT THE BYTES BUY, stated plainly because this is NOT routine growth and
+ * must not read as one. The residue is `@objectstack/spec` 17.3.0's own
+ * browser-dist growth: +292.2 KB gzip on the spec package alone, whose measured
+ * mechanism is that 17.3.0 LENGTHENED the Zod `.describe()` doc strings that
+ * ship in the browser build ("Output schema" became "Output schema (JSON
+ * Schema)", and so on across the schema surface). It is authoring documentation
+ * prose, shipped to every page load.
+ *
+ * ⛔ It is NOT duplication — that was a separate, larger problem and it is
+ * already fixed. Resolving the spec alone to 17.3.0 shipped TWO copies of it
+ * (four sibling packages pin it exactly), which this branch collapsed by moving
+ * the family together in the lockfile: −671 KB, and the probe for markers
+ * unique to 17.2.0 fell from 92.3% to 1.0% of 104, with the single survivor
+ * accounted for. No chunk entered or left the closure; the eager chunk count is
+ * unchanged.
+ *
+ * ⇒ ⭐ THE HONEST LONG-TERM FIX IS UPSTREAM, and this ceiling is the marker for
+ * it, not the answer to it: a `describe()`-stripped browser build returns
+ * ~292 KB to EVERY consumer of the spec, not just this console. Filed as
+ * objectstack#16063. RESTORE CONDITION: when that lands, re-measure and bring
+ * this ceiling and {@link BASELINE} back down together. ⛔ No other exemption
+ * was added, no import was made lazy, and no other ceiling was moved — the
+ * three per-chunk lines that still pass were left exactly as they are.
  */
-export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_268_000;
+export const MAX_EAGER_CLOSURE_GZIP_BYTES = 3_597_000;
 
 /**
  * The measurement the ceiling above was derived from. Exported so the two
@@ -308,17 +343,26 @@ export const BASELINE = Object.freeze({
   /**
    * `emitEagerClosureReport`'s `eagerGzipBytes` on this commit.
    *
-   * `3d257c85a` is the commit that carries the metadata-admin split
-   * (objectui#6776); this constant was written one commit later, and the two
-   * trees differ ONLY by this file. That is safe to state rather than hope, and
-   * it is the same argument the previous baseline (`bd2a7ec50`) made: the
-   * console build's turbo `inputs` cover `scripts/vite-*.ts`, not
-   * `scripts/check-*.mjs`, so nothing in this file reaches the bundler.
+   * `34a1578ef` is this branch's last commit before the one that edits this
+   * file, so the two trees differ only by this file, its unit test and this
+   * change's changeset — none of them a console build input. That is the argument
+   * the previous baseline (`3d257c85a`, and `bd2a7ec50` before it) made, and
+   * it holds for the same reason: the console build's turbo `inputs` cover
+   * `scripts/vite-*.ts`, not `scripts/check-*.mjs` or `scripts/__tests__/`, so
+   * nothing in either file reaches the bundler. Checked rather than hoped on this bump — the
+   * `pnpm build` that produced the report these numbers were read from
+   * reported 43/43 tasks CACHED on `34a1578ef`, which is that invariant
+   * observed rather than argued.
+   *
+   * Measured by `pnpm build` (exit 0, 43/43) reading
+   * `apps/console/dist/eager-closure.json`. ⛔ Not taken from CI's report and
+   * not extrapolated: CI weighs the pull-request MERGE ref and this is the
+   * branch tree, so the two differ by whatever has landed on `main` since.
    */
-  gzipBytes: 3_222_314,
-  chunks: 48,
-  totalChunks: 517,
-  commit: '3d257c85a',
+  gzipBytes: 3_551_191,
+  chunks: 50,
+  totalChunks: 518,
+  commit: '34a1578ef',
 });
 
 /**
@@ -515,7 +559,11 @@ export const REGRESSION_THIS_GATE_MUST_CATCH_BYTES = 89 * 1024;
  * re-measure and lower both numbers together.
  */
 export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
-  'vendor-objectstack': 967_000,
+  // Raised once with the aggregate above, same authorisation, same cause —
+  // `@objectstack/spec` 17.3.0's browser-dist prose growth lands in THIS chunk.
+  // Headroom 18,971 bytes = 0.21x REGRESSION_THIS_GATE_MUST_CATCH_BYTES, the
+  // proportion the retiring pair carried (18,539 = 0.20x).
+  'vendor-objectstack': 1_254_000,
   'i18n-locales': 455_000,
   framework: 71_000,
   'ui-components': 399_000,
@@ -527,7 +575,11 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * per file, and saying so is the point — a comment that names one commit for
  * three numbers taken on two is the drift objectui#6631 is open about:
  *
- *   - `vendor-objectstack`, `ui-components` — `2c8474c04` (objectui#5490).
+ *   - `vendor-objectstack` — `34a1578ef` (objectui#7122), re-measured when the
+ *     `@objectstack/spec` 17.3.0 family bump moved this chunk and its ceiling
+ *     was raised with the aggregate. Same build as {@link BASELINE}, so the
+ *     two are directly comparable; it superseded `2c8474c04` (objectui#5490).
+ *   - `ui-components` — `2c8474c04` (objectui#5490).
  *   - `framework`, `i18n-locales` — `e307c9896` plus objectui#7399's own
  *     re-attribution diff; see "Why `framework` moved DOWN" above. Both were
  *     read from ONE console build, so they are directly comparable to each
@@ -548,12 +600,14 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * Exported so the ceilings are CHECKED against it instead of merely asserted
  * in this comment.
  *
- * ⚠️ These readings are on DIFFERENT commits from {@link BASELINE} above, and
- * WHICH ONE IS LATER flips every time either side is re-baselined — so read the
- * commit names, never a direction asserted here. As of objectui#6776 the
- * AGGREGATE is the later reading: BASELINE's `3d257c85a` is dated 2026-08-30
- * against `2c8474c04` on 2026-08-25 here, and `a64e96ca8` was recorded by
- * objectui#6759, which landed 2026-08-29. This paragraph asserted the reverse,
+ * ⚠️ These readings are on DIFFERENT commits from {@link BASELINE} above —
+ * except `vendor-objectstack`, which as of objectui#7122 shares BASELINE's
+ * commit exactly — and WHICH ONE IS LATER flips every time either side is
+ * re-baselined, so read the commit names, never a direction asserted here. As
+ * of objectui#7122 the AGGREGATE is the later reading: BASELINE's `34a1578ef`
+ * is dated 2026-09-06 against `2c8474c04` on 2026-08-25 for `ui-components`
+ * here, and `a64e96ca8` was recorded by objectui#6759, which landed
+ * 2026-08-29. This paragraph asserted the reverse,
  * in the present tense, from objectui#5490 until objectui#6778 — true when it
  * was written, then left standing while three aggregate re-baselines moved
  * {@link BASELINE} out from under it.
@@ -609,7 +663,8 @@ export const PER_CHUNK_GZIP_CEILINGS = Object.freeze({
  * measurement with no ceiling weighs nothing.
  */
 export const PER_CHUNK_BASELINE = Object.freeze({
-  'vendor-objectstack': 948_461,
+  // `34a1578ef`, the same build as BASELINE above (objectui#7122).
+  'vendor-objectstack': 1_235_029,
   'i18n-locales': 446_076,
   framework: 61_465,
   'ui-components': 391_095,

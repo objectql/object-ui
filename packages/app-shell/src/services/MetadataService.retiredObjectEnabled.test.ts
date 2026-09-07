@@ -137,8 +137,14 @@ describe('objectui#6238 · the schema oracle — both tombstone keys are refused
     // key-name gate could never have stated it. `enable` passes on the name and
     // fails on the value, which is why this is objectui#4687's resolution
     // (delete the declaration) rather than objectui#6041's (rename it).
+    // 43, not the 42 this pin carried against 17.2.0: `@objectstack/spec` 17.3.0
+    // ADOPTED `editMode` (measured — gained set exactly `['editMode']`, lost set
+    // empty). That adoption is unrelated to this file's subject and is pinned in
+    // `packages/types/src/__tests__/object-schema-metadata-spec-derivation.test.ts`;
+    // the count rides here only as the corpus guard for the membership claims
+    // below, so it is re-pointed, not weakened.
     const accept = new Set(Object.keys(ObjectSchema.shape as Record<string, unknown>));
-    expect(accept.size).toBe(42);
+    expect(accept.size).toBe(43);
     expect(accept.has('enable')).toBe(true);
     expect(accept.has('enabled')).toBe(false);
     expect(accept.has('_deleted')).toBe(false);
