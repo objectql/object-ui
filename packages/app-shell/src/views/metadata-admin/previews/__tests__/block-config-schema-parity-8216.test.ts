@@ -1,0 +1,412 @@
+// Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
+
+/**
+ * `BLOCK_CONFIG` field names ↔ the schema each block is judged by (objectui#8216).
+ *
+ * `previews/block-config.ts`'s own header states the rule this file mechanises:
+ *
+ *   > Keep each field `name` aligned with the property name the corresponding
+ *   > renderer reads.
+ *
+ * Nothing checked it. `scripts/check-designer-field-key-parity.mjs` judges
+ * `PAYLOAD_SHAPES` — the field / object / permission payloads — and never reads
+ * this table; `apps/console/src/__tests__/registry-inputs-spec-parity.test.ts`
+ * judges the registry `inputs` declarations, a different table on a different
+ * face. What existed here instead was a per-block prose pin in the sibling
+ * `block-config.test.ts`, each written AFTER a defect was found by hand:
+ * `page:header.icon` (objectui#3829), `page:accordion.title` and its items
+ * `value` (objectui#5212), the `global_nav` option (objectstack#6888), and
+ * `object-kanban` (objectui#7772). That is the voluntary shape objectui#8068
+ * ruled insufficient one table over — three keys did it right and nothing
+ * noticed the fourth.
+ *
+ * The measured cost of the absence is objectui#7772: for three months the
+ * kanban panel's only grouping control wrote `groupField`, which
+ * `ObjectKanbanSchema` refuses BY NAME, while the REQUIRED `groupBy` had no
+ * control at all — so that panel could not author a valid board however it was
+ * filled in, and every derived check stayed green.
+ *
+ * ## Two oracles, because `BLOCK_CONFIG` is keyed by DESIGNER block type
+ *
+ * That key is not one vocabulary, and the split is measured rather than
+ * assumed. Both oracle tables are read whole and DERIVED — neither is listed
+ * here, so a block that gains or loses a schema changes this file's verdict
+ * without anyone editing it.
+ *
+ *   SPEC   `ComponentPropsMap[type]` from `@objectstack/spec/ui`. STRICT
+ *          objects: an undeclared key draws `unrecognized_keys` naming it. This
+ *          is the face that can REFUSE, and the one the platform's
+ *          component-props lint dispatches on — `PageComponent.properties` is
+ *          `z.record(z.string(), z.unknown())`, so the page parse itself never
+ *          descends into a block's props and `ComponentPropsMap[type]` is
+ *          reachable only by dispatching on the sibling `type`
+ *          (the spec's own note on `lintUnknownKeysAgainstSchema`).
+ *
+ *   NODE   the `@object-ui/types/zod` component arms, indexed by the `type`
+ *          literal each one declares. These extend `BaseSchema`, which is
+ *          `.passthrough()`, so an undeclared key here is not refused — it
+ *          stops being JUDGED and the value is kept (objectui#7664's measured
+ *          mechanism). A violation on this face is therefore a DECLARATION
+ *          gap, not a refusal, and the two are reported under distinct ids for
+ *          that reason. It is also the only face carrying
+ *          `retirementTombstone()`, which is why the retired direction below
+ *          cannot be measured without it.
+ *
+ * A block may resolve on both (`object-grid`, `object-form`, `object-kanban`),
+ * on one (`grid` — node only; every `page:*` / `record:*` / `element:*` spec
+ * type — spec only), or on neither. Neither is an EXPLICIT exemption with a
+ * reason and a card, never a silent skip — the idiom is
+ * `check-designer-field-key-parity.mjs`'s, copied rather than reinvented.
+ *
+ * ## Both directions, because "is it declared?" is not the question
+ *
+ * MISSING   a control writes a name the oracle does not accept.
+ * RETIRED   a control writes a name the oracle still LISTS but tombstones. ADR-0087
+ *           D2 retirement replaces the member with `z.never()` rather than deleting
+ *           it, so every declared-key check reads green while the parser refuses
+ *           every value by name. `@object-ui/test-support`'s `isShapeKeyTombstoned`
+ *           is the shared judge (objectui#3809 / objectui#4947).
+ *
+ * The REQUIRED direction — a schema-required key with no control — is measured
+ * and reported on objectui#8216, and deliberately NOT gated here: objectui#7772's
+ * triage records "an inspector need not expose every declared key" as a product
+ * decision, and a gate over a product decision is a gate that gets waived.
+ *
+ * ## Ratchet, not bug report
+ *
+ * The first run over `main` surfaced three live offenders. Fixing them is not
+ * this file's job and was out of scope on the card that built it — the same
+ * position `check-designer-field-key-parity.mjs`'s header takes, and for the
+ * same reason: the three take three DIFFERENT correct resolutions (one is
+ * upstream in `@objectstack/spec`, one is a control rename plus two locale
+ * tables, one is a `packages/types` mirror). Each is filed as its own card and
+ * recorded in {@link LEDGER} with that card's number, and the ledger ratchets
+ * BOTH ways — an unledgered violation is red, and a ledger row that no longer
+ * applies is equally red, so a resolved key cannot leave an entry behind that
+ * would silently re-admit the spelling later.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { ComponentPropsMap } from '@objectstack/spec/ui';
+import * as objectUiZod from '@object-ui/types/zod';
+import {
+  arrayElementSchema,
+  isShapeKeyTombstoned,
+  listedShapeKeys,
+  resolvePropsShape,
+  shapeMemberTypeName,
+} from '@object-ui/test-support';
+import { BLOCK_CONFIG, type BlockPropField } from '../block-config';
+
+/* ── oracles ──────────────────────────────────────────────────────────────── */
+
+type OracleFace = 'spec' | 'node';
+
+/**
+ * The NODE oracle table, derived: every exported Zod object whose `type` member
+ * is a literal, indexed by that literal. Written this way rather than as a
+ * hand-listed `{ 'object-kanban': ObjectKanbanSchema }` because a hand list is
+ * the thing that goes stale — a new arm would simply never be judged, which is
+ * the silent-skip failure the exemption table exists to prevent.
+ */
+function nodeOracles(): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const exported of Object.values(objectUiZod as Record<string, unknown>)) {
+    const shape = resolvePropsShape(exported);
+    if (!shape) continue;
+    const typeMember = shape.type as { _def?: { values?: unknown[]; value?: unknown }; value?: unknown } | undefined;
+    const literal =
+      (typeMember?._def?.values as unknown[] | undefined)?.[0] ??
+      typeMember?._def?.value ??
+      typeMember?.value;
+    if (typeof literal === 'string' && !(literal in out)) out[literal] = exported;
+  }
+  return out;
+}
+
+const NODE_ORACLES = nodeOracles();
+const SPEC_ORACLES = ComponentPropsMap as unknown as Record<string, unknown>;
+
+function oraclesFor(blockType: string): Array<{ face: OracleFace; schema: unknown }> {
+  const found: Array<{ face: OracleFace; schema: unknown }> = [];
+  if (SPEC_ORACLES[blockType]) found.push({ face: 'spec', schema: SPEC_ORACLES[blockType] });
+  if (NODE_ORACLES[blockType]) found.push({ face: 'node', schema: NODE_ORACLES[blockType] });
+  return found;
+}
+
+/* ── exemptions ───────────────────────────────────────────────────────────── */
+
+/**
+ * Blocks that resolve to NO runtime-judgeable schema on either face.
+ *
+ * SELF-DELETING: each row asserts its block resolves to neither oracle, so an
+ * exemption cannot outlive its reason — the moment one of these gains a spec
+ * props shape or a node arm, this file goes red and the row must go.
+ *
+ * `card` owns the decision about the absence itself, not about any particular
+ * key. objectui#8281 censuses all three together and lays out the four routes;
+ * the two blocks with their own separate defects carry those card numbers in
+ * the reason so a reader lands on the right one.
+ */
+const EXEMPT: Readonly<Record<string, { reason: string; card: string }>> = {
+  'element:definition-list': {
+    reason:
+      'objectui-native element block: absent from PageComponentType and ComponentPropsMap, and no @object-ui/types/zod arm declares it. Its declared face is the registry `inputs` list in components/renderers/basic/data-list.tsx, judged by a different gate (objectui#8067/objectui#8068) that reads top-level inputs only. A live item-key mismatch this gate structurally cannot see is objectui#8279.',
+    card: 'objectui#8281',
+  },
+  'element:repeater': {
+    reason:
+      'objectui-native element block: absent from PageComponentType and ComponentPropsMap, and no @object-ui/types/zod arm declares it. Same registry-`inputs`-only face as element:definition-list.',
+    card: 'objectui#8281',
+  },
+  'ai:input': {
+    reason:
+      'Not a spec PageComponentType, no ComponentPropsMap row, no @object-ui/types/zod arm, and no renderer beyond the opt-in PROTOCOL_COMPONENTS placeholder. That the block has a curated panel at all is objectui#8280.',
+    card: 'objectui#8281',
+  },
+};
+
+/* ── ledger ───────────────────────────────────────────────────────────────── */
+
+/**
+ * The violations live on `main` today, each with the card that owns its
+ * resolution. NOT a suppression list — see the header's ratchet note: a row
+ * that stops applying is as red as a violation that is missing one.
+ *
+ * `face` scopes the row to the oracle that reports it, and it is load-bearing
+ * rather than decoration: `object-form.formType` is a NODE-face declaration gap
+ * while the SPEC face declares the key perfectly well, and an unscoped row
+ * would absorb a future spec-face violation on the same name.
+ */
+const LEDGER: ReadonlyArray<{ block: string; path: string; face: OracleFace; card: string; why: string }> = [
+  {
+    block: 'object-kanban',
+    path: 'limit',
+    face: 'spec',
+    card: 'objectui#8172',
+    why:
+      'The renderer honours it — ObjectKanban.tsx sends `$top: schema.limit ?? DEFAULT_KANBAN_LIMIT` — and both @object-ui/types faces declare it, but ComponentPropsMap[object-kanban] does not. The producer side is upstream, so removing the control would delete a working affordance to satisfy a schema that is behind it.',
+  },
+  {
+    block: 'page:tabs',
+    path: 'items[].key',
+    face: 'spec',
+    card: 'objectui#8278',
+    why:
+      'PageTabsProps items declare `value`, which the tabs renderer reads (containers.tsx `itemsWithValue`, falling back to an index-derived value); `key` is read nowhere and refused by name. The resolution is a control rename, which also moves the field i18n key in both locale tables and needs a read-door decision for stored documents.',
+  },
+  {
+    block: 'object-form',
+    path: 'formType',
+    face: 'node',
+    card: 'objectui#6152',
+    why:
+      'A declaration gap on the passthrough face only: the TS `ObjectFormSchema` declares `formType`, the spec declares it, PageBlockCanvas reads it, and the zod mirror omits it. objectui#6152 already carries this exact row in its UnmirroredDeclared table (objectql.zod.ts#ObjectFormSchema), so this ledger points there rather than opening a second card over the same debt.',
+  },
+];
+
+const ledgerId = (r: { block: string; path: string; face: OracleFace }) => `${r.block}::${r.path}@${r.face}`;
+
+/* ── the join ─────────────────────────────────────────────────────────────── */
+
+type Violation = { id: string; kind: 'MISSING' | 'RETIRED' | 'UNREADABLE'; detail: string };
+
+/** Judge one name against one oracle shape; `undefined` when it is accepted. */
+function judge(schema: unknown, name: string): Omit<Violation, 'id'> | undefined {
+  const keys = listedShapeKeys(schema);
+  if (!keys.includes(name)) {
+    return { kind: 'MISSING', detail: `not a declared key (schema declares ${keys.length} keys)` };
+  }
+  if (isShapeKeyTombstoned(schema, name)) {
+    return { kind: 'RETIRED', detail: 'declared but tombstoned — the parser refuses every value by name' };
+  }
+  return undefined;
+}
+
+/** Every violation on the tree, both directions, both faces, nested included. */
+function census(): Violation[] {
+  const found: Violation[] = [];
+  for (const [blockType, fields] of Object.entries(BLOCK_CONFIG)) {
+    for (const { face, schema } of oraclesFor(blockType)) {
+      for (const field of fields) {
+        const top = judge(schema, field.name);
+        if (top) found.push({ id: `${blockType}::${field.name}@${face}`, ...top });
+
+        if (field.kind !== 'array') continue;
+        // The item editors write into the array's ELEMENT shape, verbatim
+        // (`PageBlockInspector.renderField`: `next[i] = { ...itemObj, [n]: v }`).
+        const parentShape = resolvePropsShape(schema);
+        const element = arrayElementSchema(parentShape?.[field.name]);
+        if (!element) {
+          // Never a skip: an unreadable element shape would silently exempt
+          // every item control under it, which is the vacuity this gate exists
+          // to avoid. Reported unless the parent key is itself already refused.
+          if (!top) {
+            found.push({
+              id: `${blockType}::${field.name}[]@${face}`,
+              kind: 'UNREADABLE',
+              detail: 'the array element shape could not be read, so its item controls are unjudged',
+            });
+          }
+          continue;
+        }
+        for (const item of field.itemFields) {
+          const nested = judge(element, item.name);
+          if (nested) found.push({ id: `${blockType}::${field.name}[].${item.name}@${face}`, ...nested });
+        }
+      }
+    }
+  }
+  return found;
+}
+
+/* ── non-vacuity: the instruments, before the verdict ─────────────────────── */
+
+describe('BLOCK_CONFIG ↔ node-schema parity — the instruments (objectui#8216)', () => {
+  it('reads a non-empty SPEC oracle table with the rows this gate depends on', () => {
+    expect(Object.keys(SPEC_ORACLES).length, 'ComponentPropsMap read empty').toBeGreaterThan(20);
+    for (const t of ['page:header', 'page:tabs', 'object-kanban', 'record:details']) {
+      expect(SPEC_ORACLES[t], `ComponentPropsMap lost '${t}'`).toBeTruthy();
+    }
+  });
+
+  it('derives a non-empty NODE oracle table from the type literals', () => {
+    // The derivation is a walk over exports; a Zod-internals change that stopped
+    // yielding literals would empty it and turn every node-face assertion below
+    // into a no-op that passes.
+    expect(Object.keys(NODE_ORACLES).length, 'no node arms resolved').toBeGreaterThan(20);
+    for (const t of ['object-kanban', 'object-form', 'object-grid', 'grid']) {
+      expect(NODE_ORACLES[t], `no node arm resolved for '${t}'`).toBeTruthy();
+    }
+  });
+
+  it('the MISSING probe can say no — and yes', () => {
+    expect(judge(SPEC_ORACLES['page:header'], 'zzzNotAKey')?.kind).toBe('MISSING');
+    expect(judge(SPEC_ORACLES['page:header'], 'title')).toBeUndefined();
+  });
+
+  it('the RETIRED probe separates a tombstone from an ordinary member', () => {
+    // `PageHeaderProps.icon` is the canonical tombstone (objectui#3829): still a
+    // listed key, refused by name. Without this pair the retired direction could
+    // be reporting nothing at all and read identically.
+    expect(listedShapeKeys(SPEC_ORACLES['page:header'])).toContain('icon');
+    expect(judge(SPEC_ORACLES['page:header'], 'icon')?.kind).toBe('RETIRED');
+    expect(shapeMemberTypeName(SPEC_ORACLES['page:header'], 'title')).toBeTruthy();
+    // …and on the node face, where `retirementTombstone()` lives.
+    expect(judge(NODE_ORACLES['object-kanban'], 'groupField')?.kind).toBe('RETIRED');
+    expect(judge(NODE_ORACLES['object-kanban'], 'groupBy')).toBeUndefined();
+  });
+
+  it('the SPEC face really refuses an undeclared key by name, not silently', () => {
+    // The MISSING verdict above is a key-set read. This is the refusal it stands
+    // for, measured through the parser — so a schema that quietly became
+    // passthrough could not keep this gate green on a spelling comparison.
+    const bogus = SPEC_ORACLES['page:header'] as { safeParse: (v: unknown) => any };
+    const refused = bogus.safeParse({ title: 'T', zzzNotAKey: 1 });
+    expect(refused.success).toBe(false);
+    expect(refused.error.issues.flatMap((i: any) => i.keys ?? [])).toContain('zzzNotAKey');
+    expect(bogus.safeParse({ title: 'T' }).success, 'the base node must parse clean').toBe(true);
+  });
+});
+
+/* ── coverage: every block is judged or explicitly exempt ─────────────────── */
+
+describe('BLOCK_CONFIG ↔ node-schema parity — coverage (objectui#8216)', () => {
+  it('every block either resolves to an oracle or carries an exemption', () => {
+    const undecided = Object.keys(BLOCK_CONFIG).filter(
+      (t) => oraclesFor(t).length === 0 && !(t in EXEMPT),
+    );
+    // If this fails: a BLOCK_CONFIG block is judged by nothing and says nothing
+    // about why. Give it a schema, or an EXEMPT row with a reason and a card.
+    expect(undecided, 'blocks judged by nothing, with no exemption').toEqual([]);
+  });
+
+  it('every exemption is SELF-DELETING — its block must still resolve to neither oracle', () => {
+    const resolvable = Object.keys(EXEMPT).filter((t) => oraclesFor(t).length > 0);
+    // If this fails: the exemption's reason has expired. Delete the row and let
+    // the block be judged — that is the whole point of writing them this way.
+    expect(resolvable, 'exempt blocks that now HAVE a schema').toEqual([]);
+  });
+
+  it('every exemption names a real block and carries a reason and a card', () => {
+    for (const [type, entry] of Object.entries(EXEMPT)) {
+      expect(BLOCK_CONFIG[type], `'${type}' is not a BLOCK_CONFIG block — stale exemption`).toBeDefined();
+      expect(entry.reason.length, `'${type}' needs a reason`).toBeGreaterThan(40);
+      expect(entry.card, `'${type}' needs a card`).toMatch(/^objectui#\d+$/);
+    }
+  });
+
+  it('the judged population is non-trivial — the gate is not vacuously green', () => {
+    const judged = Object.keys(BLOCK_CONFIG).filter((t) => oraclesFor(t).length > 0);
+    expect(judged.length).toBeGreaterThan(Object.keys(EXEMPT).length * 3);
+    const controls = judged.reduce((n, t) => n + BLOCK_CONFIG[t].length, 0);
+    expect(controls, 'no controls under judgement').toBeGreaterThan(40);
+  });
+});
+
+/* ── the ratchet ──────────────────────────────────────────────────────────── */
+
+describe('BLOCK_CONFIG ↔ node-schema parity — the ratchet (objectui#8216)', () => {
+  const violations = census();
+  const byId = new Map(violations.map((v) => [v.id, v]));
+  const ledgered = new Set(LEDGER.map(ledgerId));
+
+  it('no control writes a name its oracle refuses or tombstones', () => {
+    const unledgered = violations
+      .filter((v) => !ledgered.has(v.id))
+      .map((v) => `${v.id} [${v.kind}] ${v.detail}`);
+    // If this fails: a designer control writes a property key the schema that
+    // judges that block does not accept — the objectui#7772 class. Resolutions
+    // differ per key (retire the control, rename it, declare the key upstream),
+    // so file a card and add a LEDGER row rather than picking one here.
+    expect(unledgered, 'unledgered BLOCK_CONFIG field names refused by their schema').toEqual([]);
+  });
+
+  it('every ledger row still applies — a resolved key may not leave one behind', () => {
+    const stale = LEDGER.filter((r) => !byId.has(ledgerId(r))).map(
+      (r) => `${ledgerId(r)} (${r.card}) — no longer a violation; delete this row`,
+    );
+    expect(stale, 'stale LEDGER rows').toEqual([]);
+  });
+
+  it('every ledger row names a control that still exists, and carries a card', () => {
+    for (const row of LEDGER) {
+      const fields = BLOCK_CONFIG[row.block];
+      expect(fields, `LEDGER names '${row.block}', which is not a BLOCK_CONFIG block`).toBeDefined();
+      const [head, nested] = row.path.split('[].');
+      const top = fields.find((f) => f.name === head);
+      expect(top, `LEDGER names '${row.block}.${head}', which is not a control`).toBeDefined();
+      if (nested !== undefined) {
+        expect(top!.kind).toBe('array');
+        const items = (top as Extract<BlockPropField, { kind: 'array' }>).itemFields;
+        expect(items.map((f) => f.name), `LEDGER names '${row.path}'`).toContain(nested);
+      }
+      expect(row.card).toMatch(/^objectui#\d+$/);
+      expect(row.why.length, `${ledgerId(row)} needs a reason`).toBeGreaterThan(60);
+    }
+  });
+
+  it('the two SPEC-face ledger rows are real parser refusals, named', () => {
+    // The ledger's own non-vacuity. A row recorded from a key-set comparison
+    // would look identical to a row recorded from nothing, so each spec-face
+    // entry is re-measured through `safeParse` — the verdict the platform's
+    // component-props lint actually reaches.
+    const kanban = SPEC_ORACLES['object-kanban'] as { safeParse: (v: unknown) => any };
+    const withLimit = kanban.safeParse({ objectName: 'opportunity', groupBy: 'stage', limit: 50 });
+    expect(withLimit.success).toBe(false);
+    expect(withLimit.error.issues.flatMap((i: any) => i.keys ?? [])).toContain('limit');
+    expect(
+      kanban.safeParse({ objectName: 'opportunity', groupBy: 'stage' }).success,
+      'the base kanban must parse clean, or the refusal above proves nothing',
+    ).toBe(true);
+
+    const tabs = SPEC_ORACLES['page:tabs'] as { safeParse: (v: unknown) => any };
+    const withKey = tabs.safeParse({ items: [{ key: 'a', label: 'A', children: [] }] });
+    expect(withKey.success).toBe(false);
+    expect(withKey.error.issues.flatMap((i: any) => i.keys ?? [])).toContain('key');
+    expect(
+      tabs.safeParse({ items: [{ value: 'a', label: 'A', children: [] }] }).success,
+      'the same item with the DECLARED spelling must parse clean',
+    ).toBe(true);
+  });
+});
