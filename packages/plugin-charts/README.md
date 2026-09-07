@@ -20,11 +20,14 @@ pnpm add @object-ui/plugin-charts
 ### Automatic Registration (Side-Effect Import)
 
 ```typescript
-// In your app entry point (e.g., App.tsx or main.tsx)
+// In your app entry point (e.g., App.tsx or main.tsx). This side-effect import
+// is the one that registers the components; the type import below is erased at
+// build time and registers nothing.
 import '@object-ui/plugin-charts';
+import type { BarChartSchema } from '@object-ui/plugin-charts';
 
-// Now you can use chart-bar type in your schemas
-const schema = {
+// Now you can use the bar-chart type in your schemas
+const schema: BarChartSchema = {
   type: 'bar-chart',
   data: [
     { name: 'Jan', value: 400 },
@@ -43,9 +46,11 @@ const schema = {
 import { chartComponents } from '@object-ui/plugin-charts';
 import { ComponentRegistry } from '@object-ui/core';
 
-// Manually register if needed
+// Manually register if needed. The third argument is not optional in practice:
+// `register()` without a namespace is the deprecated form and warns at runtime.
+// `plugin-charts` is the namespace this package registers under itself.
 Object.entries(chartComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+  ComponentRegistry.register(type, component, { namespace: 'plugin-charts' });
 });
 ```
 
@@ -70,17 +75,27 @@ const schema: BarChartSchema = {
 
 ## Schema API
 
-```typescript
-{
-  type: 'bar-chart',
-  data?: Array<Record<string, any>>,  // Chart data
-  dataKey?: string,                    // Y-axis data key (default: 'value')
-  xAxisKey?: string,                   // X-axis label key (default: 'name')
-  height?: number,                     // Chart height in pixels (default: 400)
-  color?: string,                      // Bar color (default: '#8884d8')
-  className?: string                   // Tailwind classes
-}
-```
+`BarChartSchema` is the published contract — import it (see **TypeScript Support**
+above) rather than re-declaring this shape in your own code. It is re-exported
+from `@object-ui/types`, so the type you annotate with and the schema that
+validates your document are the same declaration.
+
+| Member | Type | Required | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `type` | `'bar-chart'` | yes | — | The registry keyword this schema renders under. |
+| `data` | `Array<Record<string, any>>` | no | `[]` | Rows to plot — one bar per row. |
+| `dataKey` | `string` | no | `'value'` | Row key holding the bar's value (the y axis). |
+| `xAxisKey` | `string` | no | `'name'` | Row key holding the bar's category label (the x axis). |
+| `height` | `number` | no | `400` | Chart height in pixels — a number, not a CSS length. |
+| `color` | `string` | no | `hsl(var(--primary))` | Bar fill colour, forwarded to Recharts verbatim. |
+| `className` | `string` | no | `''` | Tailwind classes. Inherited from `BaseSchema`. |
+
+Every default above is the renderer's own — the parameter defaults of
+`ChartBarRenderer`'s implementation in `src/ChartImpl.tsx`, which is what an
+omitted member actually resolves to at render time. Note `color`: the type's
+JSDoc and the registration's `defaultProps` both still record `'#8884d8'`, but
+neither is read on the render path, so an omitted `color` renders as the theme
+token above.
 
 ## Lazy Loading Architecture
 
@@ -93,7 +108,7 @@ When bundled, Vite automatically creates separate chunks:
 - `index.js` (~200 bytes) - The entry point
 - `ChartImpl-xxx.js` (~541 KB minified, ~136 KB gzipped) - The lazy-loaded implementation
 
-The Recharts library is only downloaded when a `chart-bar` component is actually rendered, not on initial page load.
+The Recharts library is only downloaded when a `bar-chart` component is actually rendered, not on initial page load.
 
 ## Build Output Example
 
