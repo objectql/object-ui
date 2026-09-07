@@ -51,6 +51,7 @@ import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useRecordEditable } from './useRecordEditable';
+import { hasCellValue } from './emptiness';
 
 /** Default page size for related lists in the detail view */
 const DEFAULT_RELATED_PAGE_SIZE = 5;
@@ -435,7 +436,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
         fieldDefMap[name] = { ...(fieldDefMap[name] || {}), ...def, name };
       }
     }
-    const has = (n: string) => data?.[n] !== undefined && data?.[n] !== null && data?.[n] !== '';
+    // The picker and the chip renderer below MUST ask the same question. This
+    // spelling is the same defect one rung earlier (objectui#8394): a
+    // whitespace-only `status` satisfied a raw test, so it won the single
+    // status slot — and then the render dropped it for being empty, leaving no
+    // status chip at all where a genuinely filled `stage` would have shown one.
+    const has = (n: string) => hasCellValue(data?.[n]);
     const picks: string[] = [];
     // 1) status / stage / state / select with options
     const statusKeys = ['status', 'stage', 'state', 'phase'];
@@ -976,7 +982,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 </h1>
                 {effectiveSummaryFields.map((fieldName) => {
                   const val = data?.[fieldName];
-                  if (val === null || val === undefined || val === '') return null;
+                  // Same definition as `has` above and as every other band of
+                  // the page (`./emptiness`, objectui#8376/#8394). A raw test
+                  // here rendered a whitespace-only value as a visually blank
+                  // Badge beside the H1 — while the H1's own authority called
+                  // that field empty.
+                  if (!hasCellValue(val)) return null;
                   // Format value based on field type from schema or objectSchema.
                   // Best-effort: currency → localized currency, date/datetime →
                   // localized date string, others → String(val).

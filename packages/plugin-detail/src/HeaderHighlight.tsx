@@ -28,6 +28,7 @@ import {
 } from './fieldEnrichment';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { useDetailTranslation } from './useDetailTranslation';
+import { hasCellValue } from './emptiness';
 
 export interface HeaderHighlightProps {
   fields: HighlightField[];
@@ -168,7 +169,15 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               resolvedType === 'textarea' ||
               (!!resolvedType && EXPANDABLE_FIELD_TYPES.has(resolvedType));
             const isBoolean = resolvedType === 'boolean';
-            const isEmpty = value === null || value === undefined || value === '';
+            // The SAME definition the body grid draws its em-dash from
+            // (`./emptiness`, objectui#8376/#8394). This strip sits between the
+            // page H1 and the body grid, and the H1's own authority
+            // (`recordDisplayValueAt`) trims — so a raw test here made this the
+            // one band on the page still calling a whitespace-only value FILLED
+            // and painting a blank chip where the em-dash belongs. Objects stay
+            // values: they go to `CellRenderer` below, which knows how to draw
+            // them.
+            const isEmpty = !hasCellValue(value);
 
             // Compact-layout UX: an editor (select / date / lookup) needs more
             // room than a KPI number, so an actively-edited column widens to the
