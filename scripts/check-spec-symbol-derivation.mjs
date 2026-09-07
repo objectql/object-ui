@@ -2046,8 +2046,8 @@ for (const key of Object.keys(CLAIM_ALLOW)) {
 //    always fresh and always fails on the PR that writes it.
 if (memberCitations.length > 0) {
   claimErrors.push(
-    `${memberCitations.length} passage${memberCitations.length === 1 ? "" : "s"} cite a spec member the spec` +
-      ` does not declare:\n` +
+    `${memberCitations.length} passage${memberCitations.length === 1 ? " cites" : "s cite"} a spec member the` +
+      ` spec does not declare:\n` +
       memberCitations
         .map((c) => `        \`${c.cited}\`  ${relative(root, c.file)}:${c.line}`)
         .join("\n") +
