@@ -3162,6 +3162,13 @@ stale copy survives beside a corrected one, which is the shape objectui#8243 rec
     // the statement. So that site could not simply delete it too: the provenance
     // narrative would have left the repo.
     //
+    // ⚠️ objectui#8222's own exclusion note calls that deferred-to statement a LIVE
+    // figure, which it was when the note was written. It is not one any more — read it
+    // as the historical reading described below. That note is left exactly as it
+    // stands: it is an assertion message objectui#8243 has no business editing, and
+    // what it says about the FILE HEADER (no copy there, and none to be added back)
+    // is unchanged.
+    //
     // ⭐ objectui#8243 took neither route. The statement was rewritten as a reading at
     // NAMED REVISIONS — 98 keys at `beccf1c6b`, of which 85 survive and 13 have left at
     // `ed7178bf3` — which cannot rot, because nothing landing later can make a claim
