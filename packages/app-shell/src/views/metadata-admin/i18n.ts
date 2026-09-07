@@ -685,7 +685,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.field.page:card.bordered': 'Bordered',
   'engine.inspector.pageBlock.field.page:tabs.items': 'Tabs',
   'engine.inspector.pageBlock.add.page:tabs.items': 'Add tab',
-  'engine.inspector.pageBlock.field.page:tabs.items.key': 'Key',
+  'engine.inspector.pageBlock.field.page:tabs.items.value': 'Value',
   'engine.inspector.pageBlock.field.page:tabs.items.label': 'Label',
   // `…field.page:accordion.title` and `…field.page:accordion.items.value`
   // retired with their designer fields (objectui#5212): neither is read by
@@ -2584,7 +2584,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.field.page:card.bordered': '显示边框',
   'engine.inspector.pageBlock.field.page:tabs.items': '标签页',
   'engine.inspector.pageBlock.add.page:tabs.items': '添加标签页',
-  'engine.inspector.pageBlock.field.page:tabs.items.key': '键',
+  'engine.inspector.pageBlock.field.page:tabs.items.value': '值',
   'engine.inspector.pageBlock.field.page:tabs.items.label': '标签',
   // `…field.page:accordion.title` / `…items.value` retired with their designer
   // fields — see the matching note in the `en` table above. Removed from BOTH
