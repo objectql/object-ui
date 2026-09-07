@@ -244,6 +244,7 @@ const schema: ObjectCalendarSchema = {
   staticData?: Array<any>,          // Static data array
   data?: ViewData,                  // Advanced data configuration
   calendar?: CalendarConfig,        // Calendar-specific configuration
+  filter?: ViewFilterRule[],        // Query filter, lowered to $filter
   onEventClick?: (record: any) => void,
   onDateClick?: (date: Date) => void,
   className?: string
