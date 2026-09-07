@@ -495,8 +495,9 @@ declares none of them, and the component's props interface is not on this
 package's export surface either. A `metric-card` node is typed as a COMPONENT
 node in both places it can appear: in a widget's `component` slot (`custom`
 above) and directly in `widgets[]` (`kpi` above, `DashboardWidgetSlotComponentSchema`
-— the second arm of `DashboardComponentSchema['widgets']`, matching the zod
-schema's two-arm slot). Its keys are checked as `BaseSchema` keys either way,
+— the component arm of `DashboardComponentSchema['widgets']`, first in the
+declaration as in the zod schema's two-arm slot). Its keys are checked as
+`BaseSchema` keys either way,
 never as widget keys.
 
 ## Customization

@@ -1720,8 +1720,8 @@ export interface FloatingChatbotConfig {
  * not be added to {@link DashboardWidgetSchema}; a member of this list is
  * validated as a component node against objectui's own passthrough
  * `BaseSchema`, which is what keeps them. On the TypeScript face that node is
- * {@link DashboardWidgetSlotComponentSchema}, the second arm of
- * `DashboardComponentSchema.widgets` (objectui#7952).
+ * {@link DashboardWidgetSlotComponentSchema}, the component arm — first, as
+ * in the Zod twin — of `DashboardComponentSchema.widgets` (objectui#7952).
  *
  * ⛔ CLOSED on purpose. The ruling's triage block named an open
  * "extension allowed" hatch as the thing to avoid: an open hatch re-creates
@@ -1892,13 +1892,20 @@ export interface DashboardWidgetSchema
  * under `safeParse` and `tsc --strict` refused every one of them (6 × TS2561
  * on `value`, measured at `fc32921`). Ruled option (a) by the director seat
  * (decision batch #68, 2026-09-07, maintainer 「同意」): the TypeScript face
- * gains the second arm; the Zod face is untouched.
+ * gains the component arm; the Zod face is untouched.
  *
- * Exported where the Zod twin is not: an exported member cannot name a
- * private interface in the emitted `.d.ts` (TS4033), and a name is what lets
- * an author annotate the node the platform accepts. Same interface shape as
- * {@link DashboardComponentSchema} itself (`extends BaseSchema` + a literal
- * `type`), which is why it is an interface rather than an intersection.
+ * Exported on purpose, where the Zod twin is not. The compiler does not force
+ * it — measured in this package's own build (`declaration` + `composite`,
+ * TypeScript 6.0.3): a non-exported arm referenced from the exported
+ * `DashboardComponentSchema` emits into `dist/complex.d.ts` as a local
+ * interface, exit 0, and a barrel consumer still writes the node with no
+ * name. The export is an authoring-surface decision — a name an author can
+ * annotate the node with, which `plugin-dashboard/README.md` teaches — taken
+ * deliberately in the opposite direction to the Zod arm, whose own docblock
+ * keeps that const private because its routing is an internal property of
+ * the slot. Same interface shape as {@link DashboardComponentSchema} itself
+ * (`extends BaseSchema` + a literal `type`), which is why it is an interface
+ * rather than an intersection.
  *
  * Pinned by `__tests__/dashboard-widget-slot-component-arm-7952.test.ts`.
  */
