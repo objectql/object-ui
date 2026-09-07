@@ -3144,11 +3144,21 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
 
     // …and the second half of the calibration: a CONTENT refusal at the member
     // position is NOT a kind refusal, so the coarse-kind ceiling survives one
-    // level down exactly as it does at the top. `record:activity.types` is a
-    // spec enum of strings — a string member is refused as a VALUE, and reading
-    // that as "the string member declaration is invented" would condemn a
-    // declaration derived from the contract itself.
-    expect(specMemberVerdict('record:activity', 'types', 'array', 'Account')).toBe(
+    // level down exactly as it does at the top.
+    //
+    // `record:activity.types` was a CLOSED `z.enum([...])` of strings when this
+    // row was written, and it probed that enum with an unlisted word.
+    // `@objectstack/spec` 17.3.0 made the vocabulary OPEN —
+    // `z.array(z.union([FeedItemType, z.string().min(1)]))`, objectstack#11658
+    // executing the maintainer's 2026-08-24 ruling on objectstack#11507 — so no
+    // ordinary string is refused there any more and the unlisted word ACCEPTS.
+    // The widening kept exactly ONE content refusal, and it is the one this
+    // control needs: `''` IS a string, so the only check it fails is `.min(1)`
+    // and it raises no `invalid_type` anywhere — right KIND, wrong CONTENT.
+    // That is exactly the distinction from the `42` line below, which is
+    // refused for its KIND, and it is why the pair still discriminates.
+    // Re-pointed under the maintainer 2026-09-07 authorisation on objectui#8137.
+    expect(specMemberVerdict('record:activity', 'types', 'array', '')).toBe(
       'refuses-content',
     );
     expect(specMemberVerdict('record:activity', 'types', 'array', 42)).toBe('refuses-kind');
