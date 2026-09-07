@@ -23,11 +23,19 @@
  * from `origin/main`, and the rendered cell is asserted equal to it, so the
  * two can never silently diverge again either.
  *
- * ── The date-only half is deliberately NOT converged ─────────────────────
- * `formatDateTime` always carries a time and `formatDate`'s default drops the
- * year inside the current year, so routing the date-only branch through either
- * WOULD change what renders. #7443's subject is the datetime convention; the
- * date-only bag keeps its own spelling here and is pinned unchanged.
+ * ── The date-only half converged later, in objectui#7620 ─────────────────
+ * It was left alone HERE on purpose: routing it through `formatDate` moves a
+ * pixel (the default face drops the year inside the current year) and #7443's
+ * ruling forbade that, so the question went to its own card. The maintainer
+ * ruled A on #7620 and the branch now calls `formatDate` too.
+ *
+ * That does not retire the pin below, it narrows what it says: `DATE_ONLY` is
+ * a PAST-year value, and past years are exactly where the two faces already
+ * agreed, so this row is byte-identical before #7620, after #7620, and after
+ * any future move of the date-only branch that keeps the shared function's
+ * past-year face. The CURRENT-year row — the one that did move — is pinned in
+ * `data-table-date-convention-7620.test.tsx`, which is also where the
+ * fixture-validity assertions live.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import React from 'react';
@@ -112,8 +120,11 @@ describe('the datetime cell is byte-identical before and after the convergence',
   });
 });
 
-describe('the date-only cell is untouched', () => {
-  it.each(['en', 'de'])('%s — still the date-only bag, with no time appended', (language) => {
+// A PAST-year value, so this describes the half of the date-only branch that
+// objectui#7620 did NOT move; the current-year half it did move is pinned in
+// `data-table-date-convention-7620.test.tsx`.
+describe('the date-only cell is untouched for a past-year date', () => {
+  it.each(['en', 'de'])('%s — still the former date-only bag, with no time appended', (language) => {
     const { container, language: resolved } = renderTable(language, DATE_ONLY);
     expect(cellText(container)).toBe(former(DATE_ONLY, resolved(), FORMER_DATE_BAG));
     expect(cellText(container)).not.toMatch(/\d\d:\d\d/);
