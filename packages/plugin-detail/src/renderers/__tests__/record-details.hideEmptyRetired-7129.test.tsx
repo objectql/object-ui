@@ -116,9 +116,9 @@ beforeEach(() => {
   // to everything below — this file observes an EMPTY section's skeleton, and
   // the inline-edit affordance is not part of that.
   //
-  // ⛔ Not `KNOWN_ESCAPES`: that list only shrinks, and its
-  // `record-details.emptySectionDefault.test.tsx` entry is the older sibling
-  // this file deliberately does not join.
+  // ⛔ There is no list to join instead: the guard's `KNOWN_ESCAPES` burn-down
+  // reached zero and was retired on objectui#7307, so serving the probe from a
+  // double is the ONLY way a file that reaches a socket goes green.
   vi.stubGlobal('fetch', vi.fn(async () => ({
     ok: true,
     status: 200,

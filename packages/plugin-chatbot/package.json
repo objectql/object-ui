@@ -45,9 +45,6 @@
     "lucide-react": "^1.31.0",
     "motion": "^12.43.0",
     "nanoid": "^6.0.1",
-    "react-markdown": "^10.1.0",
-    "react-syntax-highlighter": "^16.1.1",
-    "remark-gfm": "^4.0.1",
     "shiki": "^4.4.2",
     "streamdown": "^2.5.0",
     "use-stick-to-bottom": "^1.1.6"
@@ -59,7 +56,6 @@
   "devDependencies": {
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
-    "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^6.0.5",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",

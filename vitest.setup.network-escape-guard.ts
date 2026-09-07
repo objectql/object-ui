@@ -45,28 +45,38 @@
  * It skips and quarantines nothing — every test still runs and asserts exactly
  * what it asserted before.
  *
- * ## The burn-down list
+ * ## The burn-down list is GONE — it reached zero (objectui#7307)
  *
- * `KNOWN_ESCAPES` is what REMAINS of the 21 files measured on `67dadd6`
- * (objectui#7307 is burning them down batch by batch). They are not excused:
- * each still emits, and now prints an ATTRIBUTED line naming itself, so a
- * reader who meets a bare stack in a truncated run can tell whose it is. The
- * list may only SHRINK — enforced mechanically by the reconcile pin in
- * `scripts/__tests__/network-escape-ledger.test.ts`, which is the only reason
- * the word "only" here is a fact rather than a hope. A file removed from it can
- * never come back green, and a NEW escape in any other file is red on its first
- * run. Fix one by serving the probe from a double (see
- * `DatasetReportRenderer.test.tsx` for the shape), then delete its line here AND
- * from `PINNED_LEDGER` in the pin — the two must move together.
+ * There is no `KNOWN_ESCAPES` set here any more, and adding one back is the one
+ * change this file exists to make hard. It used to hold what REMAINED of the 21
+ * files measured escaping on `67dadd6`; objectui#7307 burned them down batch by
+ * batch (PRs #7999, #8013, #8019, #8032, #8053) and the sixth and last batch
+ * emptied it — `FlowNodeInspector.specKeys.test.tsx` now serves its
+ * `/api/v1/meta/object` probe from a double like the rest. A ledger that reaches
+ * zero has to be RETIRED, not left as an empty list a future red can be made
+ * green by joining: an empty allowlist is one line away from a populated one,
+ * and its own pin said so ("delete the guard's KNOWN_ESCAPES machinery and this
+ * pin together, rather than leaving a pin that asserts nothing"). So the set,
+ * the attributed-stderr branch that kept listed files green, and the
+ * known/unknown split all went with it, together with the reconcile pin in
+ * `scripts/__tests__/network-escape-ledger.test.ts` — which now pins the
+ * ABSENCE of that machinery, so re-introducing a list is red rather than
+ * routine.
+ *
+ * What that leaves is the STANDING guard, which is the whole of objectui#6640
+ * and is not part of the burn-down: the recording `fetch` wrapper below, and the
+ * `afterEach` that fails ANY escape in ANY file. Every escape is now unknown,
+ * every escape is red on its first run, and the remedy is the `Fix:` text at the
+ * bottom of this file — serve the probe from a double.
  */
 import { afterEach, expect } from 'vitest';
 
 // No `node:*` imports, no `process` typings and no `import.meta.dirname` here,
 // deliberately: `tsconfig.vitest-setup.json` — the gate that compiles this file
 // — ships NO `@types/node` on purpose (it documents the measurement: adding it
-// costs 12 errors inside third-party declarations). Every Node touch below goes
-// through a locally-declared structural type instead, so the gate stays green
-// without weakening it for the other root setup files.
+// costs 12 errors inside third-party declarations). Anything below that needs a
+// Node value must declare its own structural type rather than import one, so the
+// gate stays green without weakening it for the other root setup files.
 
 /**
  * This file sits at the repo root, so its own directory IS the repo root.
@@ -87,35 +97,8 @@ const REPO_ROOT = (() => {
   }
 })();
 
-/** The sliver of `process` this file uses, declared rather than imported. */
-type StderrHost = { process?: { stderr?: { write(chunk: string): void } } };
-
-/**
- * The attribution line goes to process stderr, NOT through `console`: under
- * happy-dom `globalThis.console` is the window's virtual console and never
- * reaches the terminal (measured — the line vanished entirely). Node writes the
- * real ECONNREFUSED stack to process stderr, so this is also the only way to put
- * the attribution in the SAME stream, beside the stack it explains.
- */
-function writeStderr(message: string): void {
-  try {
-    (globalThis as StderrHost).process?.stderr?.write(message);
-  } catch {
-    /* the instrument must never break a run */
-  }
-}
-
 /** The origin happy-dom hands every relative URL when no test owns port 3000. */
 const ESCAPE_ORIGIN = /^https?:\/\/(?:127\.0\.0\.1|localhost):3000(?:\/|$)/;
-
-/**
- * What remains of the files measured escaping on 67dadd6 (objectui#6640).
- * ONLY SHRINKS. The comment on each line is the endpoint it reached.
- */
-export const KNOWN_ESCAPES: ReadonlySet<string> = new Set([
-  // /api/v1/meta/object
-  'packages/app-shell/src/views/metadata-admin/inspectors/FlowNodeInspector.specKeys.test.tsx',
-]);
 
 type Escape = { file: string; test: string; url: string };
 
@@ -157,18 +140,6 @@ globalThis.fetch = function guardedFetch(input: any, init?: any) {
       url: absolute,
     };
     pending.push(escape);
-
-    // Known escapes get an ATTRIBUTED line next to the anonymous stack the real
-    // request is about to print. This is the half that cures the reported harm:
-    // a bare ECONNREFUSED in a truncated log no longer reads as an unowned red.
-    if (KNOWN_ESCAPES.has(escape.file)) {
-      writeStderr(
-        `[network-escape - known - objectui#6640] ${escape.file} -> ${escape.url}\n` +
-          `  The ECONNREFUSED stack near this line belongs to that file. Serve the\n` +
-          `  probe from a double, then delete its line from KNOWN_ESCAPES in\n` +
-          `  vitest.setup.network-escape-guard.ts.\n`,
-      );
-    }
   }
 
   // Always pass through. The real connection attempt IS the evidence that a
@@ -180,15 +151,16 @@ globalThis.fetch = function guardedFetch(input: any, init?: any) {
 afterEach(() => {
   const seen = pending;
   pending = [];
-  const unknown = seen.filter((e) => !KNOWN_ESCAPES.has(e.file));
-  if (unknown.length === 0) return;
+  // No known/unknown split: the burn-down list reached zero on objectui#7307,
+  // so every escape is a defect on its first run.
+  if (seen.length === 0) return;
 
-  const byUrl = [...new Set(unknown.map((e) => e.url))];
-  const file = unknown[0].file;
+  const byUrl = [...new Set(seen.map((e) => e.url))];
+  const file = seen[0].file;
   throw new Error(
     `Network escape: this test reached a REAL socket at ${byUrl.join(', ')}.\n` +
       `  file: ${file}\n` +
-      `  test: ${unknown[0].test}\n` +
+      `  test: ${seen[0].test}\n` +
       `\n` +
       `happy-dom's default document URL is http://localhost:3000, so a relative\n` +
       `fetch from a component under test resolves to a live TCP connection. The\n` +
@@ -212,8 +184,6 @@ afterEach(() => {
       `    refresh no barrier awaits — do not tear the double down at all.\n` +
       `    Install ONE at module scope and leave it up for the whole file, so no\n` +
       `    test can ever end with the real fetch back in place. Worked example:\n` +
-      `    packages/app-shell/src/views/RecordDetailView.approvalDeclaredActions.test.tsx\n` +
-      `\n` +
-      `Do NOT add this file to KNOWN_ESCAPES — that list only shrinks.`,
+      `    packages/app-shell/src/views/RecordDetailView.approvalDeclaredActions.test.tsx`,
   );
 });

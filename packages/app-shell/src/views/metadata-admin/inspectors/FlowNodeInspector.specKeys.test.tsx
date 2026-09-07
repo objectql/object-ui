@@ -51,7 +51,7 @@
  * queries used to prove a control ABSENT can find controls that are present.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import * as Automation from '@objectstack/spec/automation';
 import type { FlowNode as SpecFlowNode } from '@objectstack/spec/automation';
@@ -71,7 +71,84 @@ vi.mock('../previews/useObjectFields', () => ({
 import { FlowNodeInspector } from './FlowNodeInspector';
 import type { MetadataSelection } from '../preview-registry';
 
-afterEach(cleanup);
+/* ── The `meta/object` double (objectui#7307) ───────────────────
+ * `FlowNodeInspector` renders `FlowReferenceField` for every reference-kind key
+ * on the selected node, and that field resolves its combobox options through
+ * `useMetadataListOptions` (`FlowReferenceField.tsx:638`) -> `MetadataClient.list(type)`,
+ * i.e. `GET /api/v1/meta/object` over the authenticated wrapper, which resolves
+ * the GLOBAL `fetch` at call time (`packages/auth/src/createAuthenticatedFetch.ts`,
+ * the bare `await fetch(input, ...)`). Under happy-dom that global is a real HTTP
+ * client and the document URL defaults to `http://localhost:3000`, so the relative
+ * path resolved to a live socket: measured on `fc32921aa`, three escapes to
+ * `http://localhost:3000/api/v1/meta/object`, one per render, while this file
+ * stayed green — which is objectui#6640 exactly.
+ *
+ * Answered from a RECORDING double — the shape objectui#5225 settled on, carried
+ * by `packages/plugin-report/src/__tests__/DatasetReportRenderer.test.tsx` and by
+ * this burn-down's earlier batches, most recently the sibling
+ * `FlowNodeInspector.inactiveRetained.test.tsx`. Deliberately NOT a blanket
+ * network stub: it records every URL it is handed and `afterEach` fails on any URL
+ * outside the route it serves, so an escape to somewhere else reds here instead of
+ * vanishing into the hook's `.catch`.
+ *
+ * What it answers, and why that changes no assertion here: an EMPTY registry, in
+ * the `{ type, items: [] }` envelope the server sends and `MetadataClient.list`
+ * parses (it also accepts a bare array; both parse to the same rows). Empty is
+ * load-bearing — the failing request landed in the hook's `.catch`, which sets
+ * `{ options: [], loading: false }`, so an empty registry yields byte-identical
+ * output to what these cases have always rendered, while a seeded one would put
+ * options into every reference combobox in the tree. This file asserts on the
+ * ABSENCE of a `Description` control and on what `onPatch` emits, so seeding
+ * options would be a silent change of subject. The route is matched on the
+ * PATHNAME because `MetadataClient.list` appends `?package=` / `?preview=draft`
+ * for scoped callers; the full URL is what gets recorded.
+ *
+ * `headers` is part of the answer, not decoration: the authenticated wrapper
+ * reads `response.headers.get('set-auth-token')` on every API call before the
+ * caller ever sees the body.
+ * ─────────────────────────────────────────────────────────── */
+
+const META_OBJECT_ROUTE = '/api/v1/meta/object';
+
+/** Every URL this file's renders handed the global `fetch`, in request order. */
+let metaCalls: string[] = [];
+
+/** The route key of a recorded URL: its pathname, without the scope query. */
+const routeOf = (url: string) => url.split('?')[0];
+
+/** Serve `GET /api/v1/meta/object` as an empty registry; record everything. */
+function installMetaObjectDouble() {
+  metaCalls = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) => {
+      const url = String(
+        input && typeof input === 'object' && 'url' in input ? (input as { url: unknown }).url : input,
+      );
+      metaCalls.push(url);
+      if (routeOf(url) !== META_OBJECT_ROUTE) {
+        return { ok: false, status: 404, headers: new Headers(), json: async () => ({}) };
+      }
+      return { ok: true, status: 200, headers: new Headers(), json: async () => ({ type: 'object', items: [] }) };
+    }),
+  );
+}
+
+beforeEach(installMetaObjectDouble);
+
+afterEach(() => {
+  // The double is a router, not a sink: an escape to any OTHER endpoint fails
+  // here instead of vanishing into `useMetadataListOptions`'s `.catch`.
+  expect(metaCalls.filter((url) => routeOf(url) !== META_OBJECT_ROUTE)).toEqual([]);
+  // Unmount BEFORE restoring the real `fetch` — this replaces the bare
+  // `afterEach(cleanup)` that used to stand here, it does not drop it. Vitest
+  // runs `afterEach` hooks in reverse registration order, so this file's
+  // teardown runs before the root setup's RTL cleanup: unstubbing first would
+  // leave the tree mounted with the real global back in place, and a mount
+  // effect settling in that window escapes again (objectui#7439).
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 interface ZodIssue {
   code?: string;

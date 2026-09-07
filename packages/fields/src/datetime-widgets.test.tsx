@@ -36,8 +36,19 @@ describe('Date/Time Widgets', () => {
 
         it('renders formatted date in readonly mode', () => {
             render(<DateField {...baseProps} readonly value="2023-01-01" />);
+            // Since objectui#8194 the readonly face is `formatDate`'s default
+            // style, not `Intl`'s bare numeric default: `Jan 1, 2023`, not
+            // `1/1/2023`. `2023-01-01` is a PAST year, so the year is still
+            // carried — the year only drops inside the CURRENT year, which is
+            // what `fields-date-widget-convention-8194.test.tsx` pins.
+            // No provider is mounted here, so the widget resolves the `'en'`
+            // last-resort tag; the expectation is built from that same tag.
             const date = new Date('2023-01-01');
-            expect(screen.getByText(date.toLocaleDateString())).toBeInTheDocument();
+            expect(
+                screen.getByText(
+                    date.toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' }),
+                ),
+            ).toBeInTheDocument();
             expect(document.querySelector('input')).not.toBeInTheDocument();
         });
 

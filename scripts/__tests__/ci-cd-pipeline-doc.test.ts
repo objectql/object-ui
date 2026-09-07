@@ -1292,13 +1292,25 @@ describe('ci-cd-pipeline.md — contexts that can never be required (#4170)', ()
  * `@objectstack/spec` versions has no single number for the pin to match, and naming that
  * is more useful than picking one of them and comparing to it.
  *
- * NOT asserted: the file's other pin, `OBJECTSTACK_REF`, whose stated rule is that it is
- * the commit the `@objectstack/cli@${OBJECTSTACK_VERSION}` release tag points at. Reading
- * that tag needs the objectstack repository over the network, which this lane has not got,
- * so the pairing moves by hand and this file says so rather than implying coverage it has
- * not got. What IS checked is the shape a hand move can still get wrong in a way the lane
- * only discovers 300 seconds later: `start-backend.sh` fetches the ref with
- * `git fetch --depth 1 origin "$OBJECTSTACK_REF"`, which needs a full object name.
+ * ALSO ASSERTED, since objectui#7964: that the file's other pin is GONE. `OBJECTSTACK_REF`
+ * used to be a second, hand-moved sha here, carrying a MUST — "always the commit the
+ * `@objectstack/cli@${OBJECTSTACK_VERSION}` release tag points at" — that nothing could
+ * check, because reading that tag needs the objectstack repository over the network and
+ * this unit lane has not got it. That was a true statement about what a reader should do
+ * and, again, an unenforceable one: the same shape #7689 is about, one file down.
+ *
+ * The fix was not another check. It was to delete the second value: `start-backend.sh`
+ * now RESOLVES the commit at boot from the release tag named by `OBJECTSTACK_VERSION`
+ * (`git ls-remote --tags`, peeled `^{}` sha preferred) and refuses to start when the tag
+ * does not resolve to a 40-character sha. The lane that consumes the commit is the lane
+ * that can reach the repository, and it always could. So the pair the header describes
+ * cannot disagree by construction, and there is nothing left here to hand-move.
+ *
+ * What this file pins about that half is therefore the ABSENCE and the DERIVATION, by
+ * content: no `OBJECTSTACK_REF=` key in backend.env, and the resolution + refusal still in
+ * start-backend.sh. Either one alone would be vacuous — an absent key is fine only while
+ * something derives the value, and a derivation is only load-bearing while no pin
+ * overrides it.
  *
  * ## Anti-vacuity
  *
@@ -1310,8 +1322,10 @@ describe('ci-cd-pipeline.md — contexts that can never be required (#4170)', ()
  * teaching this page.
  */
 const backendEnvPath = path.join(repoRoot, 'e2e/live/ci/backend.env');
+const startBackendPath = path.join(repoRoot, 'e2e/live/ci/start-backend.sh');
 const lockfilePath = path.join(repoRoot, 'pnpm-lock.yaml');
 const backendEnv = fs.readFileSync(backendEnvPath, 'utf8');
+const startBackend = fs.readFileSync(startBackendPath, 'utf8');
 
 /** The page's statement of the rule, whitespace-normalised because the source wraps it. */
 const PIN_RULE_SENTENCE =
@@ -1404,34 +1418,85 @@ describe('ci-cd-pipeline.md — live-e2e backend pin (#7689)', () => {
         '(informational)` against this pair therefore carries no information, green or red — ' +
         'it exercises one published backend against a console built for another.\n\n' +
         'Fix it in whichever direction the change came from: a lockfile bump must move ' +
-        'OBJECTSTACK_VERSION (and, by hand, OBJECTSTACK_REF to the commit the matching ' +
-        '`@objectstack/cli` release tag points at), and a pin bump must be a lockfile bump. ' +
+        'OBJECTSTACK_VERSION, and a pin bump must be a lockfile bump. That is the only ' +
+        'value to move — the showcase-app commit follows it on its own, because ' +
+        'start-backend.sh resolves the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag ' +
+        'at boot (objectui#7964). ' +
         '⛔ Do not resolve this by reverting the pin to whatever was green last: a failing ' +
         'matched pair carries strictly more information than a green mismatched one ' +
         '(objectui#7689).',
     ).toBe(versions[0]);
   });
 
-  it('keeps OBJECTSTACK_REF in the one shape start-backend.sh can fetch', () => {
-    const ref = readEnvKey('OBJECTSTACK_REF');
-    expect(
-      ref,
-      `${path.relative(repoRoot, backendEnvPath)} declares no OBJECTSTACK_REF, which ` +
-        '`start-backend.sh` needs to sparse-checkout the showcase app.',
-    ).not.toBeNull();
+  // Retired here, deliberately, with objectui#7964: `keeps OBJECTSTACK_REF in the one shape
+  // start-backend.sh can fetch`. It asserted that a hand-moved sha was 40 hex characters —
+  // the only half of that pin a lane with no network could read. There is no hand-moved sha
+  // any more, so the shape pin has nothing to hold; the three below hold what replaced it.
+  // ⛔ Do not restore it by re-adding the key: a pin that overrides the derivation brings
+  // back the exact pair that could silently disagree.
 
-    // Which COMMIT it should be is the half this file cannot read (see the header): that
-    // needs the objectstack release tag. The shape it must have is readable here, and it
-    // is the one a hand move gets wrong — `git fetch --depth 1 origin <ref>` wants a full
-    // object name, and an abbreviated one fails 300 seconds into the lane, in a log nobody
-    // reads until the job goes red.
+  it('declares no OBJECTSTACK_REF — the commit is derived, not pinned', () => {
     expect(
-      ref,
-      `OBJECTSTACK_REF is ${JSON.stringify(ref)}. start-backend.sh fetches it with ` +
-        '`git fetch --depth 1 origin "$OBJECTSTACK_REF"`, which needs a full 40-character ' +
-        'commit sha — an abbreviated one, a branch name or a tag is refused by the remote and ' +
-        'the lane only says so once the backend fails to boot.',
-    ).toMatch(/^[0-9a-f]{40}$/);
+      readEnvKey('OBJECTSTACK_REF'),
+      `${path.relative(repoRoot, backendEnvPath)} declares an OBJECTSTACK_REF again. That ` +
+        'key was retired by objectui#7964: it was a second, hand-moved sha whose stated MUST ' +
+        '— always the commit the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag points ' +
+        'at — nothing could check, and a pair that CAN disagree eventually does (it is the ' +
+        'same failure #7689 found in the version half). start-backend.sh resolves the commit ' +
+        'from the tag at boot instead, so the app source and the published packages come ' +
+        'from one release by construction.\n\n' +
+        'If the derivation genuinely cannot serve some case, that is a decision to take on ' +
+        'the record — reintroducing the pin here restores the drift, and this lane is ' +
+        '`informational`, so nothing else would notice.',
+    ).toBeNull();
+  });
+
+  it('derives the commit from the @objectstack/cli release tag in start-backend.sh', () => {
+    const rel = path.relative(repoRoot, startBackendPath);
+
+    // Pinned by CONTENT, not by behaviour: this lane cannot run the script (it needs the
+    // network the whole #7964 argument turns on). What it can read is that the resolution
+    // is still there and still keyed off OBJECTSTACK_VERSION — the two things whose loss
+    // would leave the absent key above vacuous.
+    expect(
+      /git ls-remote --tags/.test(startBackend),
+      `${rel} no longer resolves the release tag with \`git ls-remote --tags\`. The test ` +
+        'above requires backend.env to carry NO OBJECTSTACK_REF, on the understanding that ' +
+        'this script derives it. Without a resolution here, that absence is not a design — ' +
+        'it is a missing value, and the lane fetches nothing.',
+    ).toBe(true);
+
+    expect(
+      /refs\/tags\/\$OBJECTSTACK_TAG/.test(startBackend) &&
+        /OBJECTSTACK_TAG="@objectstack\/cli@\$OBJECTSTACK_VERSION"/.test(startBackend),
+      `${rel} no longer builds the tag it resolves from OBJECTSTACK_VERSION as ` +
+        '`@objectstack/cli@$OBJECTSTACK_VERSION`. That coupling is the entire guarantee: it ' +
+        'is what makes the checked-out app source and the installed published packages the ' +
+        'same release. A tag derived from anything else — a branch, a literal, another ' +
+        "package's tag — reopens the gap objectui#7964 closed.",
+    ).toBe(true);
+
+    // The refusal is half the ruling: `git ls-remote` prints nothing and exits 0 for a tag
+    // that does not exist, so without a shape check the script would carry an empty ref into
+    // `git fetch --depth 1 origin ""` and fail 300 seconds later, in a log nobody reads.
+    expect(
+      /\[\[ ! "\$OBJECTSTACK_REF" =~ \^\[0-9a-f\]\{40\}\$ \]\]/.test(startBackend),
+      `${rel} no longer refuses to start when the release tag fails to resolve to a ` +
+        '40-character sha. `git ls-remote` reports a missing tag as empty output and exit 0, ' +
+        'so this check is the only thing standing between a typo in OBJECTSTACK_VERSION and ' +
+        'a 300-second timeout with no explanation. Keep a refusal that names the tag.',
+    ).toBe(true);
+  });
+
+  it('documents the derivation in backend.env, where the pin used to be', () => {
+    expect(
+      /no OBJECTSTACK_REF key here/.test(backendEnv) && /DERIVED at\s*\n#\s*boot/.test(backendEnv),
+      `${path.relative(repoRoot, backendEnvPath)} no longer explains that the showcase-app ` +
+        'commit is derived at boot rather than pinned. The key is absent from this file; a ' +
+        'reader who finds no OBJECTSTACK_REF and no note saying why will conclude the pin was ' +
+        'dropped by accident and restore it — which is exactly the regression the test above ' +
+        'forbids. The absence has to be legible as a decision.',
+    ).toBe(true);
   });
 });
 

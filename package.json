@@ -44,6 +44,7 @@
   "check:designer-field-key-parity": "node scripts/check-designer-field-key-parity.mjs",
     "check:icon-record-names": "node scripts/check-lucide-icon-record-names.mjs",
     "check:phantom-deps": "node scripts/check-phantom-dependencies.mjs",
+    "check:unused-deps": "node scripts/check-unused-dependencies.mjs",
     "check:self-import": "node scripts/check-package-self-import.mjs",
     "check:dist-completeness": "node scripts/check-dist-completeness.mjs --all",
   "check:esm-specifiers": "node scripts/check-node-esm-load.mjs --specifiers-only",

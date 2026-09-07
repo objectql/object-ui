@@ -33,6 +33,7 @@
  */
 
 import React from 'react';
+import { formatDate } from '@object-ui/core';
 import type { LookupColumnDef } from '@object-ui/types';
 
 /**
@@ -223,7 +224,19 @@ export function renderLookupColumnValue(
     // Handle MongoDB types / expanded references
     if (val.$numberDecimal) return String(Number(val.$numberDecimal));
     if (val.$oid) return String(val.$oid);
-    if (val.$date) return new Date(val.$date).toLocaleDateString(displayLocale);
+    // `formatDate`'s DEFAULT style — the one home for the `date` display
+    // convention (objectui#8194, following the maintainer's ruling A on
+    // objectui#7620). This fallback used to call `toLocaleDateString` with NO
+    // options bag, i.e. `Intl`'s numeric default (`7/4/2026`), which made the
+    // split visible INSIDE this one function: a column that HAS a descriptor
+    // goes through `cellRenderer` above -> `DateCellRenderer` -> `formatDate`
+    // and renders `Jul 4`, while a column that has none landed here and
+    // rendered `7/4/2026`. Two faces for one value in one picker table,
+    // chosen by which path the cell happened to take.
+    // The value is handed over unchanged: `formatDate` parses it with the same
+    // `value instanceof Date ? value : new Date(value)` step this line used to
+    // do inline, so nothing about WHICH instant is read changes here.
+    if (val.$date) return formatDate(val.$date, undefined, { locale: displayLocale });
     if (val.name || val.label) return String(val.name || val.label);
     return JSON.stringify(val);
   }

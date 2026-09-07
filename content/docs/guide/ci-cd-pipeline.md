@@ -420,7 +420,15 @@ comment), so every promotion would stale a hand-copied enumeration here; it alre
 Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/spec` version in
 `pnpm-lock.yaml` — bump both in the same PR, or the run proves nothing.
 
-That file carries a **third** pin, `BETTER_AUTH_VERSION`, and it is a different kind of thing:
+`OBJECTSTACK_VERSION` is the only `@objectstack` value that file declares, and moving it is the
+only move. The showcase-app commit the lane sparse-checks-out is **derived**, not pinned:
+`start-backend.sh` resolves the `@objectstack/cli@$OBJECTSTACK_VERSION` release tag at boot
+(`git ls-remote --tags`, peeled sha) and refuses to start when it does not resolve. It used to be
+a second key, `OBJECTSTACK_REF`, moved by hand under a MUST that nothing could check — the same
+shape as the version drift above, and retired for the same reason (objectui#7964). Deriving it
+means the app source and the published packages it runs on come from one release by construction.
+
+That file carries a **second** pin, `BETTER_AUTH_VERSION`, and it is a different kind of thing:
 not a matched-pair pin but a workaround for a break inside the published packages themselves.
 `@objectstack/plugin-auth` imports `createLocalAccountIssuer` from `@better-auth/core/db` and
 declares `@better-auth/core` with a caret; `@better-auth/core@1.7.3` removed that export in a
@@ -431,7 +439,7 @@ its 300-second readiness timeout having run zero specs (objectstack#16186, objec
 pinning a dependency to turn a lane green is a gate weakening — `e2e/live/ci/better-auth-pin.mjs`
 runs on **every** start, cache hits included, and fails by name if the override was not declared,
 did not resolve, or resolved and still lacks the export. ⛔ It is not, and must not become, a
-repair of the two pins above: objectui#7689's triage forbids repairing this lane by moving those.
+repair of the version pin above: objectui#7689's triage forbids repairing this lane by moving it.
 Retire the pin and its guard together in the PR that bumps `OBJECTSTACK_VERSION` past the
 upstream fix.
 

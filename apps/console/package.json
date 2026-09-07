@@ -117,8 +117,6 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@object-ui/react-runtime": "workspace:*",
-    "@object-ui/sdui-parser": "workspace:*",
-    "sucrase": "^3.35.0"
+    "@object-ui/sdui-parser": "workspace:*"
   }
 }

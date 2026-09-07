@@ -32,9 +32,11 @@
  * binds the port, loads 42 plugins and prints `Server is ready` while auth is
  * absent (objectui#8084).
  *
- * ⛔ The pin is NOT a repair of `OBJECTSTACK_VERSION` / `OBJECTSTACK_REF`.
- * objectui#7689's triage forbids repairing this lane by moving those, and this
- * does not move them. It pins a TRANSITIVE dependency of the published artifact
+ * ⛔ The pin is NOT a repair of `OBJECTSTACK_VERSION` (nor of the showcase-app
+ * commit start-backend.sh derives from it — objectui#7964 retired the second,
+ * hand-moved `OBJECTSTACK_REF` key that used to sit beside it).
+ * objectui#7689's triage forbids repairing this lane by moving that, and this
+ * does not move it. It pins a TRANSITIVE dependency of the published artifact
  * to the version that artifact's own manifest was authored against, restoring
  * the resolution the publisher intended. When objectstack#16186 lands upstream
  * — plugin-auth pinning `@better-auth/core` itself, or moving off the removed
