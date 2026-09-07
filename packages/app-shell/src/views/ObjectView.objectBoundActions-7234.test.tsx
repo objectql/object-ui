@@ -123,7 +123,10 @@ vi.mock('sonner', () => ({
 
 // Heavy children: orthogonal to the toolbar under test, and each drags in a
 // plugin bundle. Same posture as the sibling predicate suites in this dir.
-vi.mock('@object-ui/plugin-list', () => ({ ListView: () => null }));
+vi.mock('@object-ui/plugin-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-list')>()),
+  ListView: () => null,
+}));
 vi.mock('@object-ui/plugin-view', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   ObjectView: () => null,
