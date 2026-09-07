@@ -742,9 +742,9 @@
  * with the population moving 31 -> 23 frozen over 660 judged and no site moving
  * the other way -- a diff of the two per-specifier tables with the
  * `@object-ui/fields` row removed is EMPTY. All 8 frozen sites sit under
- * `packages/app-shell/src/views` (one in `metadata-admin`'s panel suite, three
- * across its `AssignedUsersSection` and `AccessExplainPanel` specs, three in
- * its `PermissionMatrixEditor` family and two under `inspectors`) and all 8 are
+ * `packages/app-shell/src/views/metadata-admin` -- three across the
+ * `AccessExplainPanel` and `AssignedUsersSection` specs, three in the
+ * `PermissionMatrixEditor` family and two under `inspectors` -- and all 8 are
  * ONE syntactic shape -- the zero-parameter object-literal arrow -- carrying
  * THREE double families: a null-rendering `RecordPickerDialog` in three files,
  * a `CapabilityMultiSelectField` JSX probe paired with a `parseCapabilityNames`
