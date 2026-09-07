@@ -50,8 +50,20 @@
  *       falsifiable — neither mutation can turn both red.
  *   Dropping the `absoluteFallbackOptions` strip in `formatRelativeDate`
  *       RED: "`formatRelativeDate` still does not read `style`" (its
- *       out-of-window fallback would start honouring it) and the
- *       non-recursion case (`{ style: 'relative' }` blows the stack).
+ *       out-of-window fallback would start honouring it), the
+ *       non-recursion case (`{ style: 'relative' }` blows the stack), and —
+ *       since objectui#8262 — the OUT-of-window precedence case below.
+ *
+ * ── objectui#8262 — the out-of-window half of the sharpest pair ─────────────
+ * The pair at "beats it on the sharpest pair" was measured only INSIDE the
+ * ±7-day window, where `formatDate(v, 'relative', …)` produces the relative
+ * phrase locally and never reaches the absolute fallback. Outside the window
+ * the same call round-trips through `formatRelativeDate` and back into
+ * `formatDate`, carrying the shared bag — a second place the losing spelling
+ * could take effect, and the one `formatDate`'s own precedence pin could not
+ * see. "beats it OUT of window too" is that half; it is what keeps the #7745
+ * ruling two-sided if the strip is ever flipped (objectui#7816, ruled A —
+ * `formatRelativeDate` stays style-less — so nothing lands there today).
  */
 import { describe, it, expect } from 'vitest';
 
@@ -115,6 +127,36 @@ describe('the precedence between the two spellings is pinned: positional wins (#
     // options-wins would render the compact-year short face here.
     expect(formatDate(soon, 'relative', { style: 'short', locale: L })).toBe(
       formatRelativeDate(soon, { locale: L }),
+    );
+  });
+
+  it('beats it OUT of window too — on the delegated absolute face (#8262)', () => {
+    // The out-of-window sibling of the case above, and the reason it is a
+    // separate case: `V` is years old, so `formatDate(V, 'relative', …)` does
+    // NOT render its face here — it calls `formatRelativeDate`, which is past
+    // its ±7-day window and delegates BACK into `formatDate` for the absolute
+    // face, carrying the shared bag the whole way. That round trip is a second
+    // site at which the losing spelling could take effect, and the in-window
+    // case cannot reach it.
+    //
+    // Positional `'relative'` was the only face selector consulted, so what
+    // comes out is the default absolute face — stated as the equivalence
+    // first, because that half holds in any time zone.
+    expect(formatDate(V, 'relative', { style: 'short', locale: L })).toBe(
+      formatDate(V, undefined, { locale: L }),
+    );
+    // ⚠️ TZ is an INPUT here, not ambience: `V` is 07:00Z and every face in
+    // this module is built from LOCAL date parts, so the literal below reads
+    // `Jul 4` in UTC and in every zone from UTC-07:00 eastward, and `Jul 3`
+    // west of it. The repo pins no `TZ` (none in `vitest.config.mts`, none in
+    // any workflow); CI and this container both resolve `UTC`. The two
+    // equivalences around it are TZ-free and carry the property on their own.
+    expect(formatDate(V, 'relative', { style: 'short', locale: L })).toBe('Jul 4, 2024');
+    // The named loser, with its own lit control immediately before it — a
+    // `not.toBe` against a face that renders nothing would pass for free.
+    expect(formatDate(V, 'short', { locale: L })).toBe("Jul 4, '24");
+    expect(formatDate(V, 'relative', { style: 'short', locale: L })).not.toBe(
+      formatDate(V, 'short', { locale: L }),
     );
   });
 
