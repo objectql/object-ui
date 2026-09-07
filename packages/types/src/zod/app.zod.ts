@@ -316,7 +316,7 @@ export const AppComponentSchema = BaseSchema.extend(SpecAppFields.shape).extend(
   description: z.string().optional().describe('Application description'),
   logo: z.string().optional().describe('Logo URL or icon name'),
   favicon: z.string().optional().describe('Favicon URL'),
-  layout: z.enum(['sidebar', 'header', 'empty']).optional().default('sidebar').describe('Global layout strategy'),
+  layout: z.enum(['sidebar', 'header', 'empty']).optional().describe('Global layout strategy'),
   menu: z.array(MenuItemSchema).optional().describe('Legacy navigation menu (deprecated, use navigation)'),
   navigation: z.array(NavigationItemSchema).optional().describe('Unified navigation tree'),
   areas: z.array(NavigationAreaSchema).optional().describe('Navigation areas (business-domain partitions)'),
