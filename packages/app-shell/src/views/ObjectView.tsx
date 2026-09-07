@@ -383,11 +383,52 @@ export function galleryViewOptions(viewDef: any): Record<string, unknown> {
  * and objectui#7544 for `chart`. Pinned in `ObjectView.kanbanLane-8193` here
  * and in `ListView.kanbanOptionsBagCanonical-8193` in `plugin-list`.
  *
- * ⚠️ `groupBy` is kept VERBATIM and is deliberately not folded. It is not the
- * spec's key either — measured against `KanbanConfigSchema`, which declares
- * `groupByField` / `summarizeField` / `columns` and refuses `groupBy` by name —
- * but it is read by `ListView`'s projection collectors, so retiring it is a
- * separate change with its own census: objectui#8213.
+ * ⭐ `groupBy` IS RETIRED HERE (objectui#8213) — the THIRD spelling of the one
+ * concept this expression already writes canonically. Measured against
+ * `@objectstack/spec` 17.3.0's strict `KanbanConfigSchema`, which declares
+ * `groupByField` / `summarizeField` / `columns` and refuses `groupBy` BY NAME,
+ * on a call where one control fires (`zzzBogusKey` is refused by name) and
+ * another accepts (`groupByField` alone draws no `unrecognized_keys`). Upstream
+ * knows the OTHER alias by name — probing `groupField` answers "Did you mean
+ * `groupField` → `groupByField`?" — and knows nothing at all about `groupBy`.
+ *
+ * ⚠️ THE PRODUCER CENSUS THE CARD MADE A PRECONDITION, run before the deletion.
+ * A structural scan of every tracked file for a bare `groupBy` inside a
+ * view-level `kanban`/`calendar`/`gallery`/`timeline`/`gantt` object literal
+ * found NO runtime producer but this one; the lit control on the same
+ * instrument (`groupByField` in the same position) returned 58 sites, so the
+ * empty reading is a reading. The only other authors are FIXTURES: the two arms
+ * of `ListView.kanbanOptionsBagCanonical-8193` that pin this very bag, and one
+ * stale metadata payload in `data-objectstack`'s `updateView.draft.test.ts`.
+ * The sibling producer `defaultKanbanFromObject` emits `{ groupByField }` alone
+ * and always has.
+ *
+ * ⚠️ WHY THE ONE READER IS UNHARMED. `ListView`'s two projection/expand
+ * collectors list `v.groupByField, v.groupField, v.groupBy` as candidates for
+ * the same lane value, so `groupBy` did contribute a field NAME to the query
+ * projection — and this same expression writes that identical value under
+ * `groupByField`, which those collectors read first. The capability gate never
+ * read `groupBy` at all (it resolves `groupByField || groupField` on both
+ * nestings), and neither does the render branch (`groupByField || groupField ||
+ * detectStatusField(...)`).
+ *
+ * ⚠️ WHAT THIS CLOSES AND WHAT IT DOES NOT. `ListView`'s kanban branch
+ * destructures `columns`/`groupByField`/`groupField`/`cardFields`/`titleField`
+ * out of the merged config and spreads the REST *after* its own
+ * `groupBy: laneField`, so a surviving `groupBy` overrides the lane it just
+ * resolved. This deletion removes the only producer in this repo that fed that
+ * override — it does NOT remove the override, which stays reachable from
+ * author-written `kanban.groupBy` riding this repo's `.passthrough()` mirror
+ * and is a `plugin-list` change on its own card.
+ *
+ * ⚠️ `titleField` AND `cardFields` BELOW ARE ALSO OUTSIDE `KanbanConfigSchema`,
+ * and are deliberately NOT swept up here. `cardFields` is a DECLARED deprecated
+ * alias of the spec's `columns` in this repo's own `KanbanConfig` mirror
+ * (`@object-ui/types`), and `titleField` is live — `ListView` forwards it onto
+ * the generated node. Neither is a second spelling of a key this expression
+ * already writes correctly, which is the whole of objectui#8213. They are
+ * pinned as the KNOWN residual in `ObjectView.kanbanGroupByRetired-8213`, so a
+ * fourth undeclared key reddens instead of joining them quietly.
  *
  * ADR-0085: when the view doesn't pick a lane field, the object's declared
  * lifecycle (`stageField`) decides — including the strict `stageField: false`
@@ -404,7 +445,7 @@ export function kanbanViewOptions(viewDef: any, objectDef: any): Record<string, 
         detectStatusField(objectDef as any) ||
         undefined;
     return {
-        ...(lane ? { groupBy: lane, groupByField: lane } : {}),
+        ...(lane ? { groupByField: lane } : {}),
         titleField: viewDef?.kanban?.titleField || 'name',
         cardFields: viewDef?.kanban?.columns,
     };
