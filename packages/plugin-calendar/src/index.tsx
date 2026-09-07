@@ -297,6 +297,7 @@ ComponentRegistry.register('object-calendar', ObjectCalendarRenderer, {
   inputs: [
     { name: 'objectName', type: 'string', required: true },
     { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
   ],
 });
 
@@ -304,8 +305,10 @@ ComponentRegistry.register('calendar', ObjectCalendarRenderer, {
   namespace: 'view',
   label: 'Calendar View',
   category: 'view',
+  // Same renderer as `object-calendar`, therefore the same declared surface.
   inputs: [
     { name: 'objectName', type: 'string', required: true },
     { name: 'calendar', type: 'object', description: 'startDateField, endDateField, titleField, colorField' },
+    { name: 'filter', type: 'array', description: 'Filter criteria in JSON-rules form, narrowing the records the calendar fetches. Lowered to `$filter` on the query.' },
   ],
 });
