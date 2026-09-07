@@ -64,22 +64,71 @@
  * is therefore asserted by its LABEL, which for a bare-string entry is the
  * field name itself; a row that must drop is asserted by its VALUE.
  *
- * ## Why the whitespace rows are still on screen at all
+ * ## Why the whitespace rows are still on screen — and why this file now pins
+ * the viewport (objectui#8399)
  *
- * `DetailSection`'s auto-hide heuristic needs a section of at least 4 fields,
- * and its own emptiness test is raw — a whitespace-only value counts as FILLED
- * there. Both facts are measured, not assumed: every fixture below renders 3
- * rows after the dedupe, so auto-hide cannot fire and cannot be the reason a
- * row is missing. (That `DetailSection` has a THIRD, un-trimmed spelling of
- * emptiness is a real and separate divergence; it is not this card.)
+ * A row may only be missing below because the dedupe dropped it. `DetailSection`
+ * can also remove a row, through its auto-hide heuristic, and that heuristic is
+ * decided by TWO viewport-dependent constants (`DetailSection.tsx`, read through
+ * `useIsMobile`, breakpoint 768):
+ *
+ *   desktop — `AUTO_HIDE_MIN_FIELDS` 4, `AUTO_HIDE_RATIO` 0.25
+ *   mobile  — `AUTO_HIDE_MIN_FIELDS` 3, `AUTO_HIDE_RATIO` 0.2
+ *
+ * Measured on this base, after the dedupe, per fixture (rendered rows / of which
+ * empty): CONTRACT 2/1 · ACTIVITY 3/2 · PLAIN 2/1 · NON-REGRESSION 2/0. So on
+ * the DESKTOP branch nothing here can reach the 4-row minimum and auto-hide
+ * cannot fire — which is the condition every case below needs.
+ *
+ * ⚠️ This file used to state a second reason that is no longer true, and that
+ * is why the pin exists. `DetailSection`'s own emptiness test WAS raw, so a
+ * whitespace-only value counted as FILLED there and the ACTIVITY fixture read
+ * 0 empty rows. objectui#8376 made that definition TRIM — the same definition
+ * the dedupe ladder reads — so those two rows are EMPTY here now. The ACTIVITY
+ * fixture consequently sits EXACTLY at the mobile minimum (3 rows) with 2 of
+ * them empty (0.67 ≥ 0.2): on the mobile branch auto-hide fires and
+ * `WHITESPACE AT THE DERIVATION RUNG — HALF 2` reddens, reporting only that
+ * `contract_no` could not be found.
+ *
+ * The green was therefore resting on an ambient value this file never stated:
+ * happy-dom reports `innerWidth` 1024 (measured), which is the desktop branch.
+ * It is pinned below — and the branch is chosen, not inherited. DESKTOP is the
+ * branch these cases mean to exercise, because they assert WHICH ROW THE DEDUPE
+ * DROPS and that reading is only clean while no second mechanism can remove a
+ * row. The mobile branch is not swept under the rug by that choice: it is
+ * covered as a SECOND describe at the bottom of this file, never as a
+ * substitute, and what it pins is the distinction the choice above depends on —
+ * an auto-hidden row comes back, a deduped row does not.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import * as React from 'react';
 import { getRecordDisplayName } from '@object-ui/core';
 import { RecordContextProvider } from '@object-ui/react';
 import { RecordDetailsRenderer } from '../record-details';
+
+/**
+ * Viewport, pinned rather than inherited (objectui#8399) — see the docblock.
+ *
+ * `Object.defineProperty` rather than assignment: happy-dom's `innerWidth` is a
+ * getter, so `window.innerWidth = n` is silently a no-op. `configurable: true`
+ * is what lets the second describe re-pin it.
+ */
+const DESKTOP_WIDTH = 1280;
+const MOBILE_WIDTH = 375;
+const pinViewport = (width: number) => () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+};
+
+/**
+ * Presence read as a VALUE, so the `expect` message survives into the CI
+ * summary. `getByText` throws before `expect` runs, and its one-line summary
+ * ("Unable to find an element with the text: contract_no") is exactly the
+ * message that sent this card's reader to the dedupe ladder instead of to the
+ * auto-hide heuristic.
+ */
+const shown = (text: string) => screen.queryByText(text) !== null;
 
 /**
  * Declared pointer `contract_no`, held blank-but-not-empty on the record.
@@ -179,6 +228,11 @@ afterEach(() => {
 });
 
 describe('record:details dedupe — emptiness is the header\'s definition (#8350)', () => {
+  // DESKTOP on purpose: at these fixture sizes it is the only branch on which
+  // `DetailSection` auto-hide cannot fire, so a missing row can only be the
+  // dedupe's doing. See the docblock; the mobile branch is covered below.
+  beforeEach(pinViewport(DESKTOP_WIDTH));
+
   /**
    * The two halves are separate cases ON PURPOSE. Inside one `it` the first
    * failing expectation short-circuits the rest, so an ablation of the read
@@ -289,5 +343,93 @@ describe('record:details dedupe — emptiness is the header\'s definition (#8350
     // CONTROLS — the grid rendered, and the ordinary row is untouched.
     expect(screen.getByText('internal-name')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
+  });
+});
+
+/**
+ * The MOBILE branch — an ADDITION, never a substitute (objectui#8399).
+ *
+ * The describe above pins DESKTOP because that is the branch its cases need.
+ * That choice is only honest if the other branch is stated rather than avoided,
+ * and here the other branch is not a null case: the ACTIVITY fixture's 3
+ * rendered rows sit EXACTLY at the mobile `AUTO_HIDE_MIN_FIELDS` (3) with 2 of
+ * them empty (0.67 ≥ `AUTO_HIDE_RATIO` 0.2), so `DetailSection` auto-hide
+ * fires. Measured, not argued: with the viewport at `MOBILE_WIDTH` and no other
+ * change, `WHITESPACE AT THE DERIVATION RUNG — HALF 2` above goes red.
+ *
+ * ## What these two cases pin, and why it is not just "the same rows again"
+ *
+ * A row the dedupe dropped and a row auto-hide hid are BOTH "not on screen".
+ * The describe above reads every absence as the dedupe's doing, and only the
+ * desktop thresholds make that reading sound. These cases pin the difference
+ * the reading rests on, on the branch where both mechanisms are live:
+ *
+ *   - auto-hide HIDES — `DetailSection` says so with `Show 2 empty fields`, and
+ *     the toggle brings both rows back;
+ *   - the dedupe REMOVES — `Acme Corporation`'s row is gone from the section
+ *     and no toggle resurrects it.
+ *
+ * ⇒ if auto-hide ever reaches the desktop branch too (a threshold change, a
+ * fixture change, another shift in what counts as empty), the describe above
+ * reddens with a bare "Unable to find … contract_no" while MOBILE HALF 2 stays
+ * green — and that pair of readings names auto-hide instead of the ladder.
+ */
+describe('record:details dedupe — on mobile the blank rows are HIDDEN, not deduped (#8399)', () => {
+  beforeEach(pinViewport(MOBILE_WIDTH));
+
+  it('MOBILE HALF 1 — auto-hide removes both blank rows, and DetailSection reports them as empty', () => {
+    renderBody(WHITESPACE_BOTH_RUNGS_RECORD, activitySchema, ACTIVITY_FIELDS);
+
+    expect(
+      shown('contract_no'),
+      'mobile auto-hide must fire on this fixture (3 rendered rows meets AUTO_HIDE_MIN_FIELDS 3, 2/3 empty clears AUTO_HIDE_RATIO 0.2) — this row is absent because it was HIDDEN, not because the dedupe took it',
+    ).toBe(false);
+    expect(
+      shown('activity_name'),
+      'the second blank row is hidden by the same heuristic, for the same reason',
+    ).toBe(false);
+
+    // CONTROL — the grid rendered at all. Every negative above is trivially
+    // true of a document that rendered nothing.
+    expect(shown('4'), 'the one filled row must still render').toBe(true);
+
+    // The count is the other half of the reading: a RAW emptiness test would
+    // see 0 empty rows here and offer no toggle at all, so this line also pins
+    // that `DetailSection` reads whitespace as empty (objectui#8376).
+    const toggle = screen.queryByRole('button', { name: /empty fields/i });
+    expect(
+      toggle === null ? 'NO TOGGLE RENDERED' : toggle.textContent,
+      'auto-hide must offer the reveal toggle, counting BOTH whitespace-only rows as empty',
+    ).toContain('Show 2 empty fields');
+  });
+
+  it('MOBILE HALF 2 — the toggle brings the hidden rows back; the DEDUPED row never comes back', () => {
+    renderBody(WHITESPACE_BOTH_RUNGS_RECORD, activitySchema, ACTIVITY_FIELDS);
+
+    const toggle = screen.queryByRole('button', { name: /empty fields/i });
+    expect(
+      toggle,
+      'without the reveal toggle there is nothing to reveal and this case measures nothing',
+    ).not.toBeNull();
+    fireEvent.click(toggle as HTMLElement);
+
+    expect(
+      shown('contract_no'),
+      'revealing empty fields must bring back a row that auto-hide hid',
+    ).toBe(true);
+    expect(
+      shown('activity_name'),
+      'revealing empty fields must bring back a row that auto-hide hid',
+    ).toBe(true);
+
+    // ⭐ The line between the two mechanisms. `label` carries `Acme Corporation`,
+    // the value this record's H1 shows; the dedupe removed that field from the
+    // section entirely, so no toggle can resurrect it. If this ever goes green,
+    // the rows above were auto-hidden rather than deduped and every absence
+    // asserted in the describe above is measuring the wrong mechanism.
+    expect(
+      shown('Acme Corporation'),
+      'the dedupe REMOVES the duplicate row — revealing empty fields must not resurrect it',
+    ).toBe(false);
   });
 });
