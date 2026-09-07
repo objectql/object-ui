@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is seventeen, and each joined by sweep
+ * actually been SWEPT to zero. Today that is eighteen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -733,10 +733,94 @@
  * specifier exists anywhere in the tree, so slice 11's deferred-cost class
  * could not fire and no module-scope import was owed in any file.
  *
- * The remaining 31 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
- * frozen, PARKED under objectui#8173 -- objectui#6892 and the closed
- * objectui#6580 point opposite ways on that one specifier and a seat does not
- * decide it) and `@object-ui/fields` (8 of 10).
+ * `@object-ui/fields` joined as objectui#6892's THIRTEENTH slice, re-derived on
+ * `340489334` by the same `scan()` method, the constant below again never
+ * widened-and-reverted:
+ *
+ *     @object-ui/fields            10 judged, 2 inheriting, 8 frozen -> 0
+ *
+ * with the population moving 31 -> 23 frozen over 660 judged and no site moving
+ * the other way -- a diff of the two per-specifier tables with the
+ * `@object-ui/fields` row removed is EMPTY. All 8 frozen sites sit under
+ * `packages/app-shell/src/views` (one in `metadata-admin`'s panel suite, three
+ * across its `AssignedUsersSection` and `AccessExplainPanel` specs, three in
+ * its `PermissionMatrixEditor` family and two under `inspectors`) and all 8 are
+ * ONE syntactic shape -- the zero-parameter object-literal arrow -- carrying
+ * THREE double families: a null-rendering `RecordPickerDialog` in three files,
+ * a `CapabilityMultiSelectField` JSX probe paired with a `parseCapabilityNames`
+ * function double in three, and a `LookupField` JSX probe in two. Each
+ * hand-listed one or two of the barrel's 140 exports.
+ *
+ * STEP 0 was taken again rather than inherited: 504 modules and 5,455
+ * module-scope statements reached from `packages/fields/src/index.tsx` over
+ * nine workspace packages (`components` 205, `core` 95, `fields` 77, `react`
+ * 64, `i18n` 27, `types` 17, `sdui-parser` 8, `data-objectstack` 6,
+ * `providers` 5). NOT inert, and the slice proceeded on the CLASS of the
+ * effect: 112 module-scope `ComponentRegistry.register(...)` calls, ZERO of
+ * them bare -- `ui` 90, `element` 10, `page` 7, `action` 5, with the
+ * `page.tsx` renderer's five rows carrying `ui` through the spread `pageMeta`
+ * constant, so the deprecation `console.warn` in `register()` cannot fire. The
+ * barrel's OWN module-scope effects are the benign `packages/fields` class
+ * slice 7 measured, confirmed rather than inherited: five `registerFieldRenderer`
+ * map writes, one `setCellRendererResolver` assignment and `registerAllFields()`,
+ * which loops the widget map into `ComponentRegistry.register` under the `field`
+ * namespace wrapping a `React.lazy` loader -- so registering a widget does not
+ * LOAD it. Beyond registration the graph holds only allocation: 171
+ * `React.forwardRef`, 81 `new Set`, 30 `createContext`, 14 `Object.freeze`, 13
+ * `new Map`, 13 `cva`, 11 `createSafeTranslation`, four `Symbol.for` and one
+ * `subscribeDataChanges` (a `Set.add` into a module-level listener set). An AST
+ * walk that STOPS at every function-like boundary reports ZERO timers, globals,
+ * storage, `fetch` and connections at import time; 98 bare side-effect imports
+ * (the `@object-ui/components` renderer cascade) and one CSS import, inert
+ * because the root config declares no `css` option. Empirically, importing the
+ * real barrel under the light `dom` project exports 140 names, moves
+ * `ComponentRegistry.getAllTypes()` from 0 to 370 keys and emits ZERO
+ * `console.warn` and ZERO `console.error`.
+ *
+ * ⭐ This slice's sites span TWO projects and the two answer the cost question
+ * in OPPOSITE ways, so taking only one would have been useless. Eight run in
+ * the light `dom` project, where the isolated cold import costs a median 5.8s;
+ * the other two are in `heavyDomTests` and run in `dom-heavy`, whose setup
+ * ALREADY imports this very barrel at module scope -- there the isolated
+ * "cold" import measures 0 ms and leaves the registry unmoved at 391 keys,
+ * because the module is resident before any test file is transformed. That is
+ * the strongest form of the free confirmation this worklist has had for a
+ * specifier: for two of the eight, inheriting cannot cost anything at all.
+ * Statically the eight already hold 352 to 422 of the barrel's 504 modules, so
+ * inheriting adds 82 to 152; measured in the files that pay it the marginal is
+ * -0.29s (the `dom-heavy` one), +0.05s and +0.94s, and the ten files as ONE
+ * invocation, taken as an interleaved A/B against the committed tree, read
+ * +0.50s and +0.65s on a ~25.4s aggregate -- about 2%, inside the noise band
+ * and nowhere near objectui#6580's STOP band, with 58/58 green in every state.
+ *
+ * ⚠️ Slice 11's deferred-cost class was checked and is ABSENT for this
+ * specifier: the only `import('@object-ui/fields')` anywhere in the tree is a
+ * TYPE position (`typeof import(...)`) inside an already-inheriting factory, so
+ * no consuming module reaches this barrel through `React.lazy`. The two
+ * module-scope `React.lazy` calls the graph does contain are INSIDE the package
+ * and load package-local widget modules, which the real barrel resolves itself;
+ * neither defers anything across a converted file's assertion window. No
+ * module-scope import repair was owed, and none was made.
+ *
+ * The neighbour reading found ZERO repairs owed and said so in advance from the
+ * walk. Across the ten files there is not ONE third-party factory -- so the
+ * frozen `lucide-react` neighbour that killed 15 files in slice 6 cannot exist
+ * here, even though this barrel's graph reads `lucide-react` 76 times and
+ * reaches `sonner`. Every workspace neighbour already inherits (four
+ * `@object-ui/react` sites, one `@object-ui/auth`), and two of the four
+ * `@object-ui/react` ones already provide `subscribeDataChanges` explicitly --
+ * the one binding this graph reads from that specifier at module scope, which
+ * is slice 12's sharpened rule satisfied before the fact rather than by luck.
+ * The remaining nine neighbours are local whole-module replacements, out of
+ * scope by construction and safe by REACH: this barrel's graph reaches nothing
+ * under `packages/app-shell`. No file among the ten mocks `@object-ui/app-shell`,
+ * so the parked specifier stays parked.
+ *
+ * The remaining 23 stay on objectui#6892, and they are now ONE specifier:
+ * `@object-ui/app-shell` (23, ALL frozen, PARKED under objectui#8173 --
+ * objectui#6892 and the closed objectui#6580 point opposite ways on that one
+ * specifier and a seat does not decide it). Every other workspace specifier any
+ * `vi.mock` call site in this tree names is covered and reads zero frozen.
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -838,6 +922,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/plugin-chatbot',
   '@object-ui/plugin-designer',
   '@object-ui/plugin-list',
+  '@object-ui/fields',
 ]);
 
 /** Files the walk reads at all. */
