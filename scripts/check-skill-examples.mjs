@@ -12,7 +12,8 @@
  * Exit: 0 = every MARKED fence holds up, the marked population is non-empty, and
  *           no category of it sits below its declared floor.
  *       1 = THE GATE RAN AND FOUND ERRORS. A marked fence failed to parse, failed
- *           to type-check, a marker is not adjacent to a fence it can opt in, or
+ *           to type-check, a marker is not adjacent to a fence it can opt in, a
+ *           marked fence re-declares a PUBLISHED type without a declared row, or
  *           the marked population SHRANK below `MARKED_FLOOR` (see below).
  *           Everything printed above the summary is a verdict about a guide.
  *       2 = THE GATE COULD NOT RUN, so nothing printed above is a verdict about
@@ -276,6 +277,61 @@
  * guides to suit itself. Each row is a declared debt with a named site, so the
  * per-row skills judgement it needs is a visible piece of work rather than a
  * silent exemption. See the list's own docblock for what each row is.
+ *
+ * ## The fourth assertion: a marked fence must not SHADOW a published type
+ *
+ * objectui#7646, and it is the assertion the other three imply. A fence is
+ * compiled as a SELF-CONTAINED program, so `tsc` answers "is this snippet
+ * internally consistent" and never "does it agree with the type it claims to
+ * document". A fence that declares its OWN `type ComponentInput` therefore
+ * carries a private copy that can drift arbitrarily far from the published one
+ * while this gate stays green — and did: objectui#7636 documented five ADR-0049
+ * retirement tombstones as ordinary writable optionals and was green on that
+ * fence for the whole time it was wrong.
+ *
+ * ⭐ The falsification, reproduced on this card's branch point with the mutation
+ * confirmed on disk by anchored counts and the restore proven by a blob hash
+ * equal to the HEAD blob plus an empty `git diff HEAD`. A fence rewritten as an
+ * internally CONSISTENT lie — `name: number` where the published required
+ * member is `string`, all five tombstones restored as writable, plus an
+ * invented `frobnicate` that exists on no type at all — exits 0, printing
+ * `Semantic phase: 13 of 13 ts fence(s) judged, 0 failed`. The fence is INSIDE
+ * the judged count. The gate read it and passed it.
+ *
+ * ⚠️ ONE RECORDED MISS, kept because it is the trap in re-measuring this. An
+ * earlier arm left `inputType?: never` in place AND added `inputType?: string`,
+ * and went RED with `TS2300` twice and `TS2717`. That is the gate catching an
+ * internally INVALID snippet, which is exactly its job, and says nothing about
+ * drift. ⛔ A re-measurement that plants an inconsistent lie will conclude the
+ * gate works.
+ *
+ * SCOPE, and it is deliberately the smallest one that closes the class here:
+ * the MARKED population only — 3 of the 13 marked fences today, 23% of
+ * everything this gate judges. The census behind objectui#7646 found 28
+ * shadowing fences over 602 candidates in `skills/`, `.claude/skills/` and
+ * `content/docs/`; the 18 under `content/docs/` are `check:doc-snippets`'
+ * corpus, where the same blind spot is live because that gate is opt-OUT and
+ * compiles them all. ⛔ Widening this assertion into that gate is NOT done here
+ * — it is a much larger population and a separate gate-design decision.
+ * objectui#7646's triage also ruled out the other direction (converting the
+ * fences to imports wholesale): a guide's fence is often a deliberately
+ * SIMPLIFIED view of a large published type, so a sweep would make several
+ * guides less readable, and that needs per-fence judgement.
+ *
+ * Which leaves the shape this gate can carry: an offending marked fence must
+ * either IMPORT the name (or derive its short shape from it under an alias) or
+ * DECLARE, in `KNOWN_SHADOWED_PUBLISHED_TYPES` below, that its copy is a
+ * deliberately simplified teaching copy. ⛔ SHRINK-ONLY, and a row is uncovered
+ * debt rather than a pass — the summary and the closing line both say so.
+ *
+ * ⚠️ The rows and NOT the fences, because `skills/**` and `.claude/skills/**`
+ * are GOVERNED surfaces (agent drafts, human merges). Editing a fence here
+ * would have parked this gate behind a human merge; the repairs are
+ * objectui#8335.
+ *
+ * The oracle is the BUILT surface, not the packages' sources —
+ * `derivePublishedTypeNames` states why, and why an inventory that loses its
+ * re-export aliases is a CONTROL FAILURE rather than a quiet green.
  *
  * ## Deliberately NOT answered here
  *
@@ -650,6 +706,309 @@ export function classifyRootDevDep(boundFailures, declared = KNOWN_ROOT_DEVDEP_E
   const live = new Set(rows.map((r) => r.key));
   const stale = [...declared].filter((key) => !live.has(key)).sort();
   return { rows, stale, undeclared: rows.filter((r) => !r.declared) };
+}
+
+// ── The published-type SHADOWING assertion (objectui#7646) ───────────────────
+
+/**
+ * Every type and interface name the BUILT `@object-ui/*` surface publishes,
+ * keyed to the entry specifiers that publish it.
+ *
+ * ## Why the published surface and not each package's own `src` tree
+ *
+ * objectui#7646's census matched fences against the type names exported by the
+ * packages' SOURCES, and that is the right instrument for a census: it needs no
+ * build and it cannot miss anything. It is the wrong oracle for a GATE here,
+ * for the reason this file's header already gives for compiling against `dist`
+ * — the reader of a skill guide is a consumer who installs `@object-ui/react`
+ * from npm, so that is the surface, and an assertion that judged the guides
+ * against code no reader resolves would be the exact thing the header rejects.
+ *
+ * It is also the difference between a remedy that exists and one that does not.
+ * The finding's remedy is "import it", and a name a package declares internally
+ * but never re-exports cannot be imported by anyone. Measured at this card's
+ * branch point: of the 26 distinct shadowed names the census found, 25 are on
+ * the published surface and one — `NavigationContextType`, internal to
+ * `packages/app-shell/src/context/NavigationContext.tsx` — is not. Against a
+ * source-derived oracle that row would be red with no legal fix.
+ *
+ * ## Not a second harness
+ *
+ * This builds its own tiny program, and that is not the "second answer to the
+ * same question" this file's header warns about, because it is a different
+ * question. `compileSnippets` asks "does this snippet type-check"; this asks
+ * "what does the published surface NAME". It reads only `.d.ts` entry points,
+ * emits nothing, judges no snippet, and resolves through each package's own
+ * `exports`/`types` — the same artifacts the shared harness resolves to.
+ *
+ * ⚠️ An `export type { X } from './y.js'` re-export is an ALIAS symbol, whose
+ * own flags carry neither `Interface` nor `TypeAlias`. A first cut of this
+ * function filtered on those flags without following the alias and silently
+ * lost 1167 of 1458 names — every barrel re-export in the workspace, including
+ * `AuthUser`, which is one of the three offenders this assertion exists to
+ * catch. That is why `viaAlias` is counted and why a run in which it is ZERO is
+ * a CONTROL FAILURE rather than a green: it is the one way this inventory can
+ * collapse while still looking like it worked.
+ *
+ * ## The coverage this cannot have, stated rather than hidden
+ *
+ * A package whose `dist` is not on disk contributes nothing, and this gate
+ * deliberately builds only the closure its fences import (`--build-filter`,
+ * objectui#7811) rather than the whole workspace. So the returned `absent` list
+ * is printed on every run: a name only an UNBUILT package publishes is
+ * invisible to this assertion. Making it a precondition instead would force
+ * every run to build every package and undo that scoping; naming it is this
+ * repository's convention for a bound a gate cannot close.
+ *
+ * Memoised on the entry set, because `judge()` is called more than once in the
+ * self-test and this program costs seconds, not milliseconds.
+ */
+const publishedTypeNameCache = new Map();
+
+export function derivePublishedTypeNames(root, paths) {
+  const entries = Object.entries(paths)
+    .filter(([specifier]) => !specifier.includes('*'))
+    .map(([specifier, files]) => [specifier, files[0]])
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const present = entries.filter(([, file]) => existsSync(file));
+  const absent = entries.filter(([, file]) => !existsSync(file)).map(([specifier]) => specifier);
+
+  const cacheKey = [root, ...present.map(([specifier, file]) => `${specifier}=${file}`)].join('\n');
+  const cached = publishedTypeNameCache.get(cacheKey);
+  if (cached) return cached;
+
+  const options = {
+    target: ts.ScriptTarget.ES2020,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    skipLibCheck: true,
+    noEmit: true,
+    types: [],
+  };
+  const host = ts.createCompilerHost(options, true);
+  const program = ts.createProgram(
+    present.map(([, file]) => file),
+    options,
+    host,
+  );
+  const checker = program.getTypeChecker();
+
+  const names = new Map();
+  let viaAlias = 0;
+  for (const [specifier, file] of present) {
+    const sourceFile = program.getSourceFile(file);
+    if (!sourceFile) continue;
+    const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
+    if (!moduleSymbol) continue;
+    for (const exported of checker.getExportsOfModule(moduleSymbol)) {
+      let symbol = exported;
+      let alias = false;
+      if (exported.flags & ts.SymbolFlags.Alias) {
+        try {
+          symbol = checker.getAliasedSymbol(exported);
+          alias = true;
+        } catch {
+          continue;
+        }
+      }
+      if (!(symbol.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.TypeAlias))) continue;
+      if (alias) viaAlias++;
+      if (!names.has(exported.name)) names.set(exported.name, new Set());
+      names.get(exported.name).add(specifier);
+    }
+  }
+
+  // The same control the shared harness reads for its own program: a package's
+  // `src/` entering this graph means the inventory describes SOURCE, not what a
+  // reader installs.
+  const srcLeaks = program
+    .getSourceFiles()
+    .map((f) => f.fileName)
+    .filter((f) => /\/packages\/[^/]+\/src\//.test(f));
+
+  const answer = {
+    names,
+    entryPoints: present.length,
+    totalEntryPoints: entries.length,
+    absent,
+    viaAlias,
+    srcLeaks,
+  };
+  publishedTypeNameCache.set(cacheKey, answer);
+  return answer;
+}
+
+/**
+ * Every type/interface a block DECLARES locally, and every name its own imports
+ * bind.
+ *
+ * ⚠️ Parsed as TSX for `findBareAny`'s reason: the harness compiles every block
+ * as TSX regardless of the fence label, and a guard that walked a different
+ * tree from the one `tsc` judged would be reporting about a program that was
+ * never checked.
+ *
+ * The `imported` set carries BOTH halves of a named import — the local binding
+ * and, when the import is aliased, the original name. That is what makes the
+ * good pattern legal: a fence may write
+ * `import type { QueryResult as PublishedQueryResult } from '@object-ui/types'`
+ * and then define its own short `QueryResult` FROM it, which is anchored to the
+ * published type and is exactly what this assertion wants to encourage. Keying
+ * only on the local binding would red on it.
+ *
+ * Deliberately scope-agnostic: a name bound by ANY import is excluded, not only
+ * one from an `@object-ui/*` specifier. On any fence that compiles the two
+ * rules coincide — a name both imported and re-declared in one module is a
+ * `tsc` error the semantic phase already reds — and a rule with no hard-coded
+ * package scope in it cannot rot when the scope changes.
+ */
+export function findLocalTypeDeclarations(code) {
+  const sf = ts.createSourceFile(
+    'block.tsx',
+    code,
+    ts.ScriptTarget.ES2020,
+    /* setParentNodes */ true,
+    ts.ScriptKind.TSX,
+  );
+  const declarations = [];
+  const imported = new Set();
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) && node.importClause) {
+      const clause = node.importClause;
+      if (clause.name) imported.add(clause.name.text);
+      const bindings = clause.namedBindings;
+      if (bindings) {
+        if (ts.isNamespaceImport(bindings)) imported.add(bindings.name.text);
+        else
+          for (const element of bindings.elements) {
+            imported.add(element.name.text);
+            if (element.propertyName) imported.add(element.propertyName.text);
+          }
+      }
+    }
+    if (ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node)) {
+      const { line } = sf.getLineAndCharacterOfPosition(node.name.getStart(sf));
+      declarations.push({
+        name: node.name.text,
+        line: line + 1,
+        kind: ts.isInterfaceDeclaration(node) ? 'interface' : 'type',
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sf, visit);
+  return { declarations, imported };
+}
+
+/**
+ * The local type declarations of `blocks` that are NOT bound by one of the same
+ * fence's imports — the candidates the published inventory is then asked about.
+ * Purely syntactic, so it runs on an unbuilt tree and a fixture alike.
+ */
+export function shadowCandidates(blocks) {
+  const out = [];
+  for (const block of blocks) {
+    const { declarations, imported } = findLocalTypeDeclarations(block.body);
+    for (const declaration of declarations) {
+      if (imported.has(declaration.name)) continue;
+      out.push({ block, ...declaration });
+    }
+  }
+  return out;
+}
+
+/**
+ * ⛔ SHRINK-ONLY. Rows spelled exactly as `shadowedTypeRowKey()` builds them:
+ *
+ *     GUIDE:FENCELINE NAME
+ *
+ * mapped to the REASON this fence keeps its private copy, and the card that
+ * owns the repair. One row names ONE shadowed name in ONE fence, so a fence
+ * shadowing two published types is two rows and a per-row fix removes exactly
+ * one declaration.
+ *
+ * ## What a row declares, and what it does NOT buy
+ *
+ * A row is the explicit half of objectui#7646's graded remedy: a marked fence
+ * that re-declares a published name must either IMPORT that name or SAY, here,
+ * that its copy is a deliberately simplified teaching copy. What the row buys
+ * is that a pre-existing offender is not new red on the day this assertion
+ * landed. What it costs is exactly what the finding measured — the fence is
+ * still compiled as a self-contained program, so `tsc` still judges only
+ * whether it is internally consistent and never whether it agrees with the type
+ * it is titled after. ⛔ A row is uncovered debt, never a green, and the run's
+ * summary says so out loud.
+ *
+ * ## Why every row is one, and why none of them is a fence edit
+ *
+ * `skills/**` and `.claude/skills/**` are GOVERNED surfaces — agent drafts,
+ * human merges (`scripts/check-governed-queue-guard.mjs`'s `GOVERNED_SURFACES`).
+ * The pull request that landed this assertion touches `scripts/` only; a fence
+ * edit in it would have parked the gate behind a human merge. The repairs are
+ * objectui#8335, which parks for a maintainer by design.
+ *
+ * ## It reds in four directions, and the fourth is the one keys are shaped for
+ *
+ *   1. an offender with NO row — the assertion itself;
+ *   2. a row whose fence now IMPORTS the name — STALE, because the debt is paid
+ *      and a row that outlives its defect is an exemption nobody re-reads;
+ *   3. a row whose fence is GONE (deleted, unmarked, or moved down the file) —
+ *      STALE for the same reason, and the fence LINE in the key is what makes a
+ *      moved fence force a re-declaration, exactly as `KNOWN_BARE_ANY_EXAMPLES`
+ *      does;
+ *   4. a row whose SHADOWED NAME changed — which needs no extra machinery,
+ *      because the name is IN the key: the old row goes stale and the new name
+ *      arrives undeclared, so one edit reds twice and says both halves.
+ *
+ * The three rows below were measured under `--measure` on this card's branch
+ * point (`fedfa3e4a`), where the census found 3 of the 13 marked fences
+ * shadowing a published name — 23% of everything this gate judges.
+ *
+ * @type {ReadonlyMap<string, string>}
+ */
+export const KNOWN_SHADOWED_PUBLISHED_TYPES = new Map([
+  [
+    'skills/objectui/guides/auth-permissions.md:59 AuthUser',
+    "the section is titled '### AuthUser type' and then re-declares it instead of importing it from @object-ui/auth; repair owned by objectui#8335 (governed surface, human merge)",
+  ],
+  [
+    'skills/objectui/guides/data-integration.md:81 QueryResult',
+    "the section is titled '### QueryResult' and then re-declares it instead of importing it from @object-ui/types; repair owned by objectui#8335 (governed surface, human merge)",
+  ],
+  [
+    'skills/objectui/guides/plugin-development.md:92 ComponentInput',
+    'the fence documents ComponentInput including its five ADR-0049 retirement tombstones and is the specimen objectui#7636 paid for — a private copy that was WRONG and green for its whole life; repair owned by objectui#8335 (governed surface, human merge)',
+  ],
+  [
+    'skills/objectui/guides/plugin-development.md:92 ComponentInputControlType',
+    'the same fence re-declares the control-type union ComponentInput.type is annotated with; repair owned by objectui#8335 (governed surface, human merge)',
+  ],
+]);
+
+/** The ledger key for one shadowed published name in one fence. */
+export function shadowedTypeRowKey(block, name) {
+  return `${block.doc}:${block.fenceLine} ${name}`;
+}
+
+/**
+ * Split the shadowing hits into DECLARED debt and new red, and name the
+ * declared rows that no longer describe anything.
+ *
+ * `markedHits` is always the MARKED population, whatever mode the run is in:
+ * a row is a claim about a GATED fence, so a row must not appear to be covered
+ * by a fence that is merely being measured. Same rule, same reason, as
+ * `analyze()`'s bare-`any` stale half.
+ *
+ * Kept a pure function of its inputs so the test suite can drive all four red
+ * directions over fixtures rather than over the real guides.
+ */
+export function classifyShadowedTypes(hits, markedHits, declared = KNOWN_SHADOWED_PUBLISHED_TYPES) {
+  const rows = hits.map((hit) => {
+    const key = shadowedTypeRowKey(hit.block, hit.name);
+    return { ...hit, key, declared: declared.has(key), reason: declared.get(key) ?? null };
+  });
+  const live = new Set(markedHits.map((hit) => shadowedTypeRowKey(hit.block, hit.name)));
+  const stale = [...declared.keys()].filter((key) => !live.has(key)).sort();
+  return { rows, stale, undeclared: rows.filter((row) => !row.declared) };
 }
 
 // ── Bare-`any` guard (objectui#7463, ported from objectstack #5943) ──────────
@@ -1059,10 +1418,25 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
   }
   const bareAnyStale = [...baseline].filter((key) => !markedRedKeys.has(key)).sort();
 
+  // ── the shadowed-published-type assertion, SYNTACTIC half (objectui#7646) ─
+  // Split the same way the bare-`any` assertion is: what a fence DECLARES is a
+  // fact about the prose and needs no build, while whether that name is
+  // PUBLISHED needs the built `.d.ts` and therefore belongs to `judge()`. The
+  // suite can then drive this half on an unbuilt tree, which is the tree
+  // `ci.yml`'s test shards actually have.
+  const localTypes = shadowCandidates(tsBlocks);
+  // Always the MARKED population, whatever the mode: a ledger row is a claim
+  // about a GATED fence (see `classifyShadowedTypes`).
+  const markedLocalTypes = shadowCandidates(
+    candidates.filter((c) => c.kind === 'ts' && c.marked),
+  );
+
   return {
     unmappedSpecifiers,
     bareAny,
     bareAnyStale,
+    localTypes,
+    markedLocalTypes,
     guides,
     scans,
     candidates,
@@ -1070,6 +1444,13 @@ export function analyze({ root = repoRoot, measure = false, baseline = KNOWN_BAR
     jsonBlocks,
     findings,
     paths: mergedPaths,
+    // The WORKSPACE half of the map, kept apart from `paths` because the
+    // shadowing assertion must ask only about what THIS repository publishes.
+    // `mergedPaths` also carries the imported packages' declared third-party
+    // dependencies, and a fence declaring its own `Options` or `ButtonProps` is
+    // not shadowing anything when some npm package happens to export that name
+    // — "import it from lucide-react" is not a remedy for this defect class.
+    workspacePaths: paths,
     dependencyPaths,
     untypedDependencies,
     declaredSpecifiers,
@@ -1174,7 +1555,7 @@ function formatDiagnostic(diagnostic, block) {
  * about the harness and never about a guide — so it leaves through
  * `couldNotRun`.
  */
-export function evaluateControls(run) {
+export function evaluateControls(run, publishedSurface = null) {
   const lines = [];
   const failures = [];
 
@@ -1247,6 +1628,34 @@ export function evaluateControls(run) {
     );
   }
 
+  // ── the published-type inventory's own controls (objectui#7646) ──────────
+  // Read here rather than beside the assertion so that EVERY control this run
+  // rests on is printed in one block: a control that is not printed cannot be
+  // audited, and an inventory that collapsed silently would turn the shadowing
+  // assertion green over every offender at once.
+  if (publishedSurface) {
+    lines.push(
+      `  published    ${publishedSurface.names.size} type/interface name(s) from ${publishedSurface.entryPoints} of ${publishedSurface.totalEntryPoints} package entry point(s), ${publishedSurface.viaAlias} reached through a re-export` +
+        (publishedSurface.absent.length === 0
+          ? ''
+          : ` — NOT BUILT, so nothing they alone publish is visible: ${publishedSurface.absent.join(', ')}`),
+    );
+    if (publishedSurface.names.size === 0) {
+      failures.push(
+        'the published-type inventory is EMPTY, so the shadowing assertion would find nothing however wrong the guides are — the packages are not built, or their entry points moved',
+      );
+    } else if (publishedSurface.viaAlias === 0) {
+      failures.push(
+        'not one published name was reached through a RE-EXPORT, and every package in this workspace publishes through a barrel — the inventory is losing alias symbols and would be blind to most of the surface (this is the exact way a first cut of it lost 1167 of 1458 names)',
+      );
+    }
+    if (publishedSurface.srcLeaks.length > 0) {
+      failures.push(
+        `${publishedSurface.srcLeaks.length} source file(s) under a package's src/ entered the published-type inventory, e.g. ${publishedSurface.srcLeaks[0]} — it would describe SOURCE, not what a reader installs`,
+      );
+    }
+  }
+
   return { lines, failures };
 }
 
@@ -1254,7 +1663,11 @@ export function evaluateControls(run) {
  * Judge the selected fences. Returns everything the caller needs to print a
  * verdict, with the type-check and JSON halves kept apart.
  */
-export function judge(state, declaredRootDevDep = KNOWN_ROOT_DEVDEP_EXAMPLES) {
+export function judge(
+  state,
+  declaredRootDevDep = KNOWN_ROOT_DEVDEP_EXAMPLES,
+  declaredShadowed = KNOWN_SHADOWED_PUBLISHED_TYPES,
+) {
   const run = compileSnippets({
     root: repoRoot,
     compiled: state.tsBlocks,
@@ -1263,6 +1676,19 @@ export function judge(state, declaredRootDevDep = KNOWN_ROOT_DEVDEP_EXAMPLES) {
   });
 
   const rootDevDep = classifyRootDevDep(run.boundFailures, declaredRootDevDep);
+
+  // ── the shadowed-published-type assertion, BUILT half (objectui#7646) ─────
+  const publishedSurface = derivePublishedTypeNames(repoRoot, state.workspacePaths);
+  const published = (candidate) => publishedSurface.names.has(candidate.name);
+  const withSpecifiers = (candidate) => ({
+    ...candidate,
+    specifiers: [...publishedSurface.names.get(candidate.name)].sort(),
+  });
+  const shadowed = classifyShadowedTypes(
+    state.localTypes.filter(published).map(withSpecifiers),
+    state.markedLocalTypes.filter(published),
+    declaredShadowed,
+  );
 
   const failedTs = new Set();
   for (const { block } of run.parseFailures) failedTs.add(block);
@@ -1278,7 +1704,7 @@ export function judge(state, declaredRootDevDep = KNOWN_ROOT_DEVDEP_EXAMPLES) {
     if (message !== null) jsonFailures.push({ block, message });
   }
 
-  return { run, failedTs, jsonFailures, rootDevDep };
+  return { run, failedTs, jsonFailures, rootDevDep, publishedSurface, shadowed };
 }
 
 // ── The run ──────────────────────────────────────────────────────────────────
@@ -1341,9 +1767,9 @@ function main() {
     return EXIT_CODES.couldNotRun;
   }
 
-  const { run, failedTs, jsonFailures, rootDevDep } = judge(state);
+  const { run, failedTs, jsonFailures, rootDevDep, publishedSurface, shadowed } = judge(state);
 
-  const { lines: controlLines, failures: controlFailures } = evaluateControls(run);
+  const { lines: controlLines, failures: controlFailures } = evaluateControls(run, publishedSurface);
   console.log(
     `Third-party resolution: ${Object.keys(state.dependencyPaths).length} specifier(s) mapped from the declared dependencies of ${state.neededPackages.size} imported package(s); ${state.untypedDependencies.length} declared specifier(s) ship no types here and stay unresolvable.`,
   );
@@ -1367,13 +1793,21 @@ function main() {
       const boundNote = boundRows.length
         ? ` + root-bound refused (${boundRows.map((r) => r.specifier).join(', ')})${boundRows.every((r) => r.declared) ? ', declared' : ''}`
         : '';
+      const shadowRows = shadowed.rows.filter((r) => r.block === block);
+      const shadowNote = shadowRows.length
+        ? ` + shadows ${shadowRows.map((r) => r.name).join(', ')}${shadowRows.every((r) => r.declared) ? ' (all declared)' : ''}`
+        : '';
       if (!block.selected) verdict = 'unmarked — ignored';
       else if (block.kind === 'json')
         verdict = jsonFailures.some((f) => f.block === block) ? 'FAIL' : 'pass';
-      else if (failedTs.has(block)) verdict = `FAIL${anyNote}${boundNote}`;
+      else if (failedTs.has(block)) verdict = `FAIL${anyNote}${boundNote}${shadowNote}`;
       // A refused fence is never "pass": it was not type-checked at all.
-      else if (boundRows.length) verdict = `NOT CHECKED${anyNote}${boundNote}`;
-      else verdict = anyHits.some((h) => !h.baselined) ? `FAIL${anyNote}` : `pass${anyNote}`;
+      else if (boundRows.length) verdict = `NOT CHECKED${anyNote}${boundNote}${shadowNote}`;
+      else
+        verdict =
+          anyHits.some((h) => !h.baselined) || shadowRows.some((r) => !r.declared)
+            ? `FAIL${anyNote}${shadowNote}`
+            : `pass${anyNote}${shadowNote}`;
       console.log(
         `  ${block.doc}:${block.fenceLine}  [${block.language}]  ${block.marked ? 'marked' : '      '}  ${verdict}`,
       );
@@ -1422,6 +1856,23 @@ function main() {
       `  ${key}  [stale-baseline]  this row is no longer refused — delete its line, KNOWN_ROOT_DEVDEP_EXAMPLES only shrinks`,
     );
   }
+  for (const row of shadowed.rows) {
+    if (row.declared) continue;
+    console.error(
+      `  [shadowed]  ${row.block.doc}:${row.block.fenceLine + row.line}  this fence declares its own \`${row.name}\`, ` +
+        `a name the BUILT surface already publishes (${row.specifiers.join(', ')}). The fence is compiled as a ` +
+        'self-contained program, so this gate judges whether it is internally CONSISTENT and never whether it ' +
+        'agrees with the type it is named after — a copy that is wrong about every member it names passes green ' +
+        '(objectui#7646, arm B). Import the published name, or derive the guide\'s short shape from it under an ' +
+        'alias, or declare the row VERBATIM in KNOWN_SHADOWED_PUBLISHED_TYPES with the reason it is a deliberately ' +
+        `simplified teaching copy (⛔ SHRINK-ONLY):\n                ${row.key}`,
+    );
+  }
+  for (const key of shadowed.stale) {
+    console.error(
+      `  ${key}  [stale-baseline]  this row no longer describes a marked fence that shadows that name — the fence imports it now, moved, lost its marker, or is gone. Delete its line, KNOWN_SHADOWED_PUBLISHED_TYPES only shrinks`,
+    );
+  }
 
   // ── the summary always states COVERAGE, never just a verdict ──────────────
   const tsCandidates = state.candidates.filter((c) => c.kind === 'ts');
@@ -1461,6 +1912,14 @@ function main() {
       `${state.bareAny.length - bareAnyNew.length} declared in KNOWN_BARE_ANY_EXAMPLES (⛔ SHRINK-ONLY, ${KNOWN_BARE_ANY_EXAMPLES.size} row(s)), ` +
       `${bareAnyNew.length} NOT declared, ${state.bareAnyStale.length} declared row(s) no longer red.`,
   );
+  console.log(
+    `Shadowed types: ${shadowed.rows.length} local re-declaration(s) of a PUBLISHED name across ` +
+      `${new Set(shadowed.rows.map((r) => r.block)).size} selected fence(s); ` +
+      `${shadowed.rows.length - shadowed.undeclared.length} declared in KNOWN_SHADOWED_PUBLISHED_TYPES ` +
+      `(⛔ SHRINK-ONLY, ${KNOWN_SHADOWED_PUBLISHED_TYPES.size} row(s)), ${shadowed.undeclared.length} NOT declared, ` +
+      `${shadowed.stale.length} declared row(s) no longer describe a marked shadowing fence. ` +
+      'A declared row is uncovered debt, never a green: that fence is still judged against its own private copy.',
+  );
   if (parseFailedBlocks > 0 || run.boundFailures.length > 0) {
     console.log(
       `NOTE: this run's semantic result covers ${run.semanticallyJudged} fence(s) only. A syntax failure, and a fence the root bound refused, are neither of them a semantic pass — a DECLARED root-bound row is uncovered debt, not a green.`,
@@ -1486,6 +1945,16 @@ function main() {
     for (const hit of state.bareAny) {
       console.log(
         `  ${hit.block.marked ? 'marked  ' : 'unmarked'}  ${hit.block.doc}:${hit.block.fenceLine + hit.finding.line}  ${hit.finding.where}${hit.baselined ? '  [declared]' : ''}`,
+      );
+    }
+    const markedShadow = shadowed.rows.filter((r) => r.block.marked);
+    console.log(
+      `Shadowed-type would-be population — ${shadowed.rows.length} re-declaration(s) over every candidate, ` +
+        `of which ${markedShadow.length} sit in a MARKED fence (the population this assertion actually gates).`,
+    );
+    for (const row of shadowed.rows) {
+      console.log(
+        `  ${row.block.marked ? 'marked  ' : 'unmarked'}  ${row.key}  published by ${row.specifiers.join(', ')}${row.declared ? '  [declared]' : ''}`,
       );
     }
     const markedBound = rootDevDep.rows.filter((r) => r.block.marked);
@@ -1546,7 +2015,9 @@ function main() {
     bareAnyNew.length > 0 ||
     state.bareAnyStale.length > 0 ||
     rootDevDep.undeclared.length > 0 ||
-    rootDevDep.stale.length > 0;
+    rootDevDep.stale.length > 0 ||
+    shadowed.undeclared.length > 0 ||
+    shadowed.stale.length > 0;
 
   if (failed) {
     console.error(
@@ -1555,11 +2026,19 @@ function main() {
     );
     return EXIT_CODES.examplesFailed;
   }
+  const declaredShadowRows = shadowed.rows.filter((r) => r.declared);
   console.log(
     declaredRootDevDep.length === 0
       ? '\nEvery marked skill example holds up against the built types.'
       : `\nEvery marked skill example the root bound could reach holds up against the built types — ${declaredRootDevDep.length} declared row(s) in KNOWN_ROOT_DEVDEP_EXAMPLES were NOT reached, and this line does not speak for them.`,
   );
+  if (declaredShadowRows.length > 0) {
+    console.log(
+      `⚠️  ${declaredShadowRows.length} of them hold up against their OWN private copy of a published type ` +
+        `(${declaredShadowRows.map((r) => r.key).join('; ')}) — declared in KNOWN_SHADOWED_PUBLISHED_TYPES, so ` +
+        'the line above does not say they agree with the type they are named after. objectui#8335 owns the repair.',
+    );
+  }
   return EXIT_CODES.verified;
 }
 
@@ -1853,6 +2332,52 @@ export function selfTest() {
     JSON.stringify(judge(state).rootDevDep.stale),
   );
 
+  // ── the published-type inventory, and the shadowing assertion over the real
+  //    corpus (objectui#7646). Here rather than in the vitest suite because it
+  //    needs the BUILT `.d.ts`, which the test shards do not have.
+  const shadowRun = judge(state);
+  const surface = shadowRun.publishedSurface;
+  t(
+    'the published-type inventory is not empty',
+    surface.names.size > 0,
+    `names=${surface.names.size} entryPoints=${surface.entryPoints}/${surface.totalEntryPoints}`,
+  );
+  t(
+    'and it reaches names through RE-EXPORTS, which is how this workspace publishes',
+    surface.viaAlias > 0,
+    `viaAlias=${surface.viaAlias}`,
+  );
+  t(
+    'no package src/ leaked into it — it describes what a reader installs',
+    surface.srcLeaks.length === 0,
+    JSON.stringify(surface.srcLeaks.slice(0, 1)),
+  );
+  // POSITIVE, derived rather than hard-coded: every ledger row names a type the
+  // published surface really carries, so a collapsed inventory shows up here
+  // before it shows up as a false green.
+  const ledgerNames = [...KNOWN_SHADOWED_PUBLISHED_TYPES.keys()].map((key) => key.split(' ')[1]);
+  t(
+    'every declared ledger row names a type the published surface really carries',
+    ledgerNames.every((name) => surface.names.has(name)),
+    JSON.stringify(ledgerNames.filter((name) => !surface.names.has(name))),
+  );
+  // NEGATIVE: a name nothing publishes must be absent, or membership is
+  // answering yes to everything and the assertion would red on every fence.
+  t(
+    'a name nothing publishes is absent from the inventory',
+    !surface.names.has('ObjectUiNameThatIsNotPublishedByAnything'),
+  );
+  t(
+    'the real run has NO undeclared shadowing — every offender is in KNOWN_SHADOWED_PUBLISHED_TYPES',
+    shadowRun.shadowed.undeclared.length === 0,
+    JSON.stringify(shadowRun.shadowed.undeclared.map((r) => r.key)),
+  );
+  t(
+    'and NO declared shadowing row has gone stale — that ledger only shrinks too',
+    shadowRun.shadowed.stale.length === 0,
+    JSON.stringify(shadowRun.shadowed.stale),
+  );
+
   const semanticallyFailed = new Set(run.semanticFailures.map((f) => f.block));
   const parseFailed = new Set(run.parseFailures.map((f) => f.block));
   t('a marked fence that holds up is CLEAN', !semanticallyFailed.has(holds) && !parseFailed.has(holds));
@@ -1871,7 +2396,7 @@ export function selfTest() {
     return EXIT_CODES.examplesFailed;
   }
   console.log(
-    `✓ check-skill-examples self-test: ${cases.length} cases pass (marker adjacency both directions, orphans, nested illustration, json/jsonc, the bare-\`any\` guard in both directions with its shrink-only baseline, the ROOT BOUND in both directions with its own shrink-only baseline and control, and the compiler legs through the real harness).`,
+    `✓ check-skill-examples self-test: ${cases.length} cases pass (marker adjacency both directions, orphans, nested illustration, json/jsonc, the bare-\`any\` guard in both directions with its shrink-only baseline, the ROOT BOUND in both directions with its own shrink-only baseline and control, the PUBLISHED-TYPE inventory with its positive and negative controls plus the shadowing ledger in both directions, and the compiler legs through the real harness).`,
   );
   return EXIT_CODES.verified;
 }

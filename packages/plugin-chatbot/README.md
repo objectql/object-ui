@@ -350,16 +350,6 @@ of writing your own — they handle `parts: [{ type: 'text' | 'reasoning'
 | 'tool-*' | 'source-*' }]`, the streaming-cursor flag, and the legacy
 `msg.toolInvocations` fallback:
 
-> ⚠️ Today this call needs a cast on the reader's side. `uiMessagesToChatMessages`
-> declares its parameter as the package's own permissive `AnyUIMessage[]`, whose
-> `AnyPart.state` is typed as the tool-invocation state union — so a `TextUIPart`
-> carrying `state: 'streaming' | 'done'` is refused, and with it the whole
-> `UIMessage[]` that `useChat()` returns. The block below is what you should
-> write; it compiles once objectui#8214 widens that member. Nothing about the
-> mapper's runtime behaviour is affected.
-
-<!-- doc-snippet: fragment — `uiMessagesToChatMessages` declares its parameter as the package's own `AnyUIMessage[]`, whose `AnyPart.state` is the tool-invocation state union, so `@ai-sdk/react`'s `UIMessage` — whose text parts carry `state: 'streaming' | 'done'` — is refused at the very call this section is about (measured: TS2345 x1). objectui#8214 holds that parameter type; this block is what a reader should write and compiles the day it lands -->
-
 ```tsx
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';

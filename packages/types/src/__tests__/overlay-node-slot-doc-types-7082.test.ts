@@ -68,8 +68,23 @@
  * REMOVED the `actions` row from the alert-dialog page: the key was a phantom in
  * every direction (declared nowhere, read by nothing), and the page now
  * publishes the keys the renderer reads (`alert-dialog-read-dialect-7104.test.ts`
- * pins those rows). `EmptySchema.action` keeps its row and its pin. The day it
- * is declared, this file goes red and the page is owed a row.
+ * pins those rows).
+ *
+ * ⭐ `EmptySchema.action` kept its row and its pin, with this file promising:
+ * *the day it is declared, this file goes red and the page is owed a row.* That
+ * day is objectui#7105, and this file DID go red -- the tripwire worked. The two
+ * pins are not deleted, they are INVERTED in place: the same reads, asserted
+ * with the opposite verdict, so what replaced the recorded state is itself
+ * pinned. A deleted pin proves nothing about the state it left behind.
+ *
+ * What #7105 changed, and why the rename is honest now: the key is declared
+ * `action?: SchemaNode` on the TS face and mirrored as `SchemaNodeSchema`, and
+ * the RENDERER moved to match -- the `(schema as any).action` cast and the
+ * `typeof actionSchema === 'object'` guard are both gone, so a bare string node
+ * renders instead of being silently dropped. The guard was the whole reason
+ * `SchemaNode` would have been a new false claim; it is not a false claim once
+ * the renderer admits what the name admits (maintainer, decision batch #69,
+ * 2026-09-07). The page was owed its row and now carries it.
  *
  * The requiredness of `AlertDialogSchema.trigger`, `SheetSchema.trigger` and
  * `SheetSchema.content` was the exception left after that: all three were
@@ -294,30 +309,34 @@ describe('objectui#7081 landed: the rows that stayed singular for it now say the
   });
 });
 
-describe('rows a docs-only edit cannot honestly resolve, recorded rather than renamed (objectui#7082)', () => {
-  it.each([
-    ['EmptySchema', 'action', 'content/docs/components/feedback/empty.mdx'],
-  ])('%s.%s is documented but declared nowhere', (owner, key) => {
-    expect(docRow(owner, key)).toBeDefined();
-    expect(declRow(owner, key)).toBeUndefined();
-    // Nor in the mirror, which is where a "declared elsewhere" reading would hide.
-    const mirrorPath =
-      owner === 'EmptySchema' ? 'packages/types/src/zod/feedback.zod.ts' : 'packages/types/src/zod/overlay.zod.ts';
-    const mirrorBody = interfaceBody(read(mirrorPath), `export const ${owner} = BaseSchema.extend({`, mirrorPath);
-    expect(mirrorBody).not.toMatch(new RegExp(`^\\s*${key}:`, 'm'));
+describe('the row a docs-only edit could not honestly resolve, resolved (objectui#7082 -> objectui#7105)', () => {
+  it('`EmptySchema.action` is declared on BOTH faces, and the page names the declared type', () => {
+    // The inverse of the pin this replaces, read for read: that one asserted
+    // `declRow(...)` was undefined and that the mirror body carried no `action:`
+    // row. objectui#7105 declared both.
+    expect(docRow('EmptySchema', 'action')?.typeText).toBe('SchemaNode');
+    expect(declRow('EmptySchema', 'action')).toEqual({ optional: true, typeText: 'SchemaNode' });
+    // The mirror, which is where a "declared elsewhere" reading used to hide.
+    const mirrorPath = 'packages/types/src/zod/feedback.zod.ts';
+    const mirrorBody = interfaceBody(read(mirrorPath), 'export const EmptySchema = BaseSchema.extend({', mirrorPath);
+    expect(mirrorBody).toMatch(/^\s*action:\s*SchemaNodeSchema/m);
   });
 
-  it('`EmptySchema.action` is nevertheless READ by the shipped renderer, through a cast', () => {
-    // Undeclared-but-consumed, the objectui#6150 class. It is also why the row
-    // was not renamed to `SchemaNode`: the renderer requires an OBJECT, so
-    // `SchemaNode` -- which admits `string | number | boolean` -- would have
-    // been a new false claim rather than a correction. The cast named
-    // `ComponentSchema` until objectui#4895 retired it; it now names
-    // `BaseSchema`, which IS that object half, so the reasoning above is
-    // preserved rather than worked around.
+  it('`EmptySchema.action` is READ without a cast, and the object-only guard is gone', () => {
+    // The behaviour half, and the reason the rename is honest now. The old pin
+    // recorded the cast (`(schema as any).action as BaseSchema | undefined`) and
+    // the guard (`typeof actionSchema === 'object'`) as the evidence that
+    // `SchemaNode` would be a new false claim: the renderer required an OBJECT
+    // while the name admits `string | number | boolean`. objectui#7105 removed
+    // both, so the two are asserted ABSENT here -- undeclared-but-consumed, the
+    // objectui#6150 class, closed for this key on the read side too.
     const renderer = read('packages/components/src/renderers/feedback/empty.tsx');
-    expect(renderer).toContain("(schema as any).action as BaseSchema | undefined");
-    expect(renderer).toContain("typeof actionSchema === 'object'");
+    expect(renderer).not.toContain('(schema as any).action');
+    expect(renderer).not.toContain("typeof actionSchema === 'object'");
+    // Control: this IS the renderer and the scan can find things in it, so the
+    // two absences above are readings about its content and not a failed read.
+    expect(renderer).toContain("ComponentRegistry.register('empty'");
+    expect(renderer).toContain('toRenderableSchema(schema.action)');
   });
 
   it('`AlertDialogSchema.actions` is read by nothing at all -- the row objectui#7104 removed from the page was a phantom on the read side too', () => {

@@ -8,8 +8,8 @@
 
 import { ComponentRegistry } from '@object-ui/core';
 import type { CSSProperties } from 'react';
-import type { EmptySchema, BaseSchema } from '@object-ui/types';
-import { SchemaRenderer } from '@object-ui/react';
+import type { EmptySchema } from '@object-ui/types';
+import { SchemaRenderer, toRenderableSchema } from '@object-ui/react';
 import { DataEmptyState } from '../../custom/view-states';
 
 ComponentRegistry.register('empty', 
@@ -27,16 +27,35 @@ ComponentRegistry.register('empty',
         ...emptyProps
     } = props as Record<string, unknown>;
 
-    // `BaseSchema`, not the retired block-family `ComponentSchema` (objectui#4895):
-    // `action` is any renderable node handed to `SchemaRenderer`, never the
-    // `type: 'component'` kind the old annotation named. NOT `SchemaNode` —
-    // objectui#7082 recorded that this cast needs the OBJECT half, since the
-    // guard below rejects the `string | number | boolean` members `SchemaNode`
-    // also admits.
-    const actionSchema = (schema as any).action as BaseSchema | undefined;
-    const actionNode = actionSchema && typeof actionSchema === 'object'
-      ? <SchemaRenderer schema={actionSchema as any} />
-      : undefined;
+    // No cast: `action` is a declared `SchemaNode` member of `EmptySchema`
+    // since objectui#7105. What stood here was an `as any` on `schema` to reach
+    // the key, and that was the tell that the key was not on the type — it is
+    // also why objectui#6150's census, which scanned for un-cast reads, could
+    // not see this reader at all.
+    //
+    // No object-only guard either, ruled with the declaration (maintainer,
+    // decision batch #69, 2026-09-07). The `typeof` test that stood here made
+    // this slot NARROWER than the `SchemaNode` its siblings declare: a bare
+    // string was silently DROPPED rather than rendered. Nothing had to be
+    // invented to widen it — `SchemaRenderer` already renders a bare string as
+    // its own text and renders nothing for nullish, pinned in
+    // `packages/react/src/__tests__/SchemaRenderer.primitiveSchema.test.tsx`.
+    //
+    // ⚠️ Both retired spellings are asserted ABSENT from this file by
+    // `packages/types/src/__tests__/overlay-node-slot-doc-types-7082.test.ts`,
+    // and that pin reads the whole file — so ⛔ do not quote either of them
+    // literally in a comment here, in prose or in a code span. This paragraph
+    // describes them in words for exactly that reason.
+    //
+    // `toRenderableSchema` is the repo's permanent bridge from the `SchemaNode`
+    // union onto `SchemaRendererProps['schema']`, which deliberately declares no
+    // `number` / `boolean` (objectui#4548 ruling Q2). It is a total function
+    // mapping those two members onto the text form the renderer's own defensive
+    // branch already produces, so it changes no behaviour — ⛔ do not "tidy" it
+    // into a direct forward, and ⛔ do not reach for a cast instead.
+    const actionNode = schema.action == null
+      ? undefined
+      : <SchemaRenderer schema={toRenderableSchema(schema.action)} />;
 
     return (
       <DataEmptyState
@@ -55,6 +74,13 @@ ComponentRegistry.register('empty',
     inputs: [
       { name: 'title', type: 'string' },
       { name: 'description', type: 'string' },
+      // The third advertised face of `action` (objectui#7105). Without this
+      // entry the designer could not offer the key at all, so the capability was
+      // unreachable from every authoring surface the platform provides.
+      // `'slot'` is the arm for a child position rather than a prop value, which
+      // is what a `SchemaNode` is; it is the arm the sibling overlay slots
+      // (`trigger`, `content`) and `page:card`'s `footer` already use.
+      { name: 'action', type: 'slot', description: 'Call-to-action node rendered below the description, e.g. a button' },
       { name: 'className', type: 'string' }
     ],
     defaultProps: {
