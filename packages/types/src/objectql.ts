@@ -2743,8 +2743,40 @@ export interface ObjectCalendarSchema extends BaseSchema {
  */
 export interface ObjectKanbanSchema extends BaseSchema {
   type: 'object-kanban';
-  /** ObjectQL object name */
-  objectName: string;
+  /**
+   * ObjectQL object name — the LAST rung of this board's record-source ladder,
+   * and the only one that names an object.
+   *
+   * `packages/plugin-kanban/src/ObjectKanban.tsx` resolves its rows in four
+   * steps: the `data` PROP a parent pre-fetched (`hasExternalData`), then
+   * {@link BaseSchema.bind} through `useDataScope(schema.bind)`, then the
+   * inline rows on {@link BaseSchema.data}, and only then a fetch keyed by this
+   * member — `rawData = external || boundData || schema.data || fetchedData`,
+   * with the fetch itself gated on `schema.objectName && !boundData &&
+   * !schema.data`. So a board authored on `bind` or on inline rows never reads
+   * this key, and every read of it is guarded (`schema.objectName ?? ''`,
+   * `if (!schema.objectName) return`, `schema.objectName || ''`).
+   *
+   * Optional since objectui#7780. It was REQUIRED, so a `bind`-only or
+   * `data`-only board — which renders correctly today — was refused by both
+   * published faces and could not be annotated with its own type. The
+   * requirement the renderer really has, at least one of `bind`, `data`,
+   * `objectName` present, lives on the mirror as a refinement
+   * (`requireKanbanRecordSource` in `zod/objectql.zod.ts`), so the published
+   * declaration and the published validator say the same thing.
+   *
+   * ⚠️ This is NOT the `object-map` / `object-gantt` / `object-calendar` ladder
+   * and shares no code with it. Those three resolve through
+   * `resolveRecordSourceConfig` over `data` (a {@link ViewData} PROVIDER BLOCK)
+   * → `staticData` → `objectName`, and their mirror members end in
+   * `requireRecordSource`. This board has NO `staticData` rung, its `data` is a
+   * RAW ROW ARRAY read directly, and it has a `bind` rung the other three do
+   * not walk. objectui#7651 (ruled B, closed `not_planned`) refuses building
+   * the shared ladder here — see `KanbanSchema.data` in `./complex.ts`, whose
+   * epitaph records it. Nothing below adds a rung; this member's requiredness
+   * is the only thing objectui#7780 moved.
+   */
+  objectName?: string;
   /**
    * Field whose value places a record in a lane (e.g. `status`).
    *

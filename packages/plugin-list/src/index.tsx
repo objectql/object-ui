@@ -7,6 +7,7 @@
  */
 
 import { ComponentRegistry } from '@object-ui/core';
+import type { ListViewVisualization } from '@object-ui/core';
 import { ListView } from './ListView';
 import { ListViewBlock } from './ListViewBlock';
 import { ViewSwitcher } from './ViewSwitcher';
@@ -32,6 +33,37 @@ export type { ViewSwitcherProps, ViewType } from './ViewSwitcher';
  * `PageComponentSchema.dataSource` BINDING onto the props `ListView` reads
  * (objectstack#5576) — are documented on {@link ListViewBlock}.
  */
+/**
+ * Designer label per visualization, and the `viewType` enum options both
+ * registrations below are built from.
+ *
+ * A total `Record<ListViewVisualization, string>` (objectui#8127). The two
+ * registrations each carried their own seven-entry `{ label, value }` literal,
+ * compared against nothing — so both had drifted, missing `chart` and `tree`,
+ * which `ListView` has drawn for releases. Deriving the options from one total
+ * record means the designer offers exactly what the renderer draws, and the
+ * next visualization the spec adds fails the build HERE instead of quietly
+ * going unofferable.
+ *
+ * ⚠️ `page` is absent by construction, not by omission: {@link ListViewVisualization}
+ * excludes it because the spec models `type: 'page'` as a published page mounted
+ * through `pageName` rather than a visualization. A designer picker cannot offer
+ * it without also binding that page.
+ */
+const VIEW_TYPE_LABELS: Record<ListViewVisualization, string> = {
+  grid: 'Grid',
+  kanban: 'Kanban',
+  gallery: 'Gallery',
+  calendar: 'Calendar',
+  timeline: 'Timeline',
+  gantt: 'Gantt',
+  map: 'Map',
+  chart: 'Chart',
+  tree: 'Tree',
+};
+
+const VIEW_TYPE_OPTIONS = Object.entries(VIEW_TYPE_LABELS).map(([value, label]) => ({ label, value }));
+
 const ListViewRenderer = ListViewBlock;
 
 // Register ListView component
@@ -42,15 +74,7 @@ ComponentRegistry.register('list-view', ListViewRenderer, {
   icon: 'LayoutList',
   inputs: [
     { name: 'objectName', type: 'string', required: true },
-    { name: 'viewType', type: 'enum', enum: [
-      { label: 'Grid', value: 'grid' },
-      { label: 'Kanban', value: 'kanban' },
-      { label: 'Gallery', value: 'gallery' },
-      { label: 'Calendar', value: 'calendar' },
-      { label: 'Timeline', value: 'timeline' },
-      { label: 'Gantt', value: 'gantt' },
-      { label: 'Map', value: 'map' },
-    ] },
+    { name: 'viewType', type: 'enum', enum: VIEW_TYPE_OPTIONS },
     { name: 'columns', type: 'array' },
     { name: 'filter', type: 'array' },
     { name: 'sort', type: 'array' },
@@ -83,15 +107,7 @@ ComponentRegistry.register('list', ListViewRenderer, {
   icon: 'LayoutList',
   inputs: [
     { name: 'objectName', type: 'string', required: true },
-    { name: 'viewType', type: 'enum', enum: [
-      { label: 'Grid', value: 'grid' },
-      { label: 'Kanban', value: 'kanban' },
-      { label: 'Gallery', value: 'gallery' },
-      { label: 'Calendar', value: 'calendar' },
-      { label: 'Timeline', value: 'timeline' },
-      { label: 'Gantt', value: 'gantt' },
-      { label: 'Map', value: 'map' },
-    ] },
+    { name: 'viewType', type: 'enum', enum: VIEW_TYPE_OPTIONS },
     { name: 'columns', type: 'array' },
     { name: 'filter', type: 'array' },
     { name: 'sort', type: 'array' },

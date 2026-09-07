@@ -258,10 +258,51 @@ ignored paths changed.
 This is a **real PR gate**, and it is easy to miss because it is not part of CI — it is its own
 **Lint** entry in the checks list.
 
+The bullets below are this job's gate list, in the order it runs them. Everything above
+`pnpm lint` runs **before the install**: each of those reads sources with nothing beyond node
+builtins and a local module, so none of what they need lives in `node_modules` — and placed there,
+a failed install cannot make them green. Where a gate ships a `--self-test`, the job runs that
+first, which is what stops a scanner that recognises nothing from reporting a clean tree forever.
+
 - `scripts/check-lint-coverage.mjs` runs first: every package must run ESLint or be declared a
   known gap. turbo skips scriptless packages silently, so without this guard a package reads as
   clean because nothing ever linted it.
+- `scripts/check-entry-guard.mjs` — every `scripts/**` CLI must answer "did node run me, or did
+  something import me?" through one shared predicate. node resolves symlinks for the module graph
+  but leaves `process.argv[1]` as the caller typed it, so a hand-typed guard reached through a
+  symlink compares two different paths, answers no, and the script does **nothing** — exit 0, no
+  output, and the wrapper that spawned it reads a green gate. Measured on a real blocking gate
+  here: `check-skills-paths.mjs` run directly on a deliberately broken tree exits 1 naming the dead
+  path; through a symlink, on the same tree, it exits 0 in silence
+  ([#6092](https://github.com/objectstack-ai/objectui/issues/6092)). (Named without its `scripts/`
+  path on purpose: this section reads as the `lint` job's gate list, and that script runs in
+  `skills-paths.yml`, so spelling the path here would credit this job with a gate it does not run.)
+- `scripts/check-upstream-port-parity.mjs` — the objectstack tooling ported into this tree is a
+  **pinned** copy, and drift from the pin is red in either direction. It reverses the declared
+  divergences back out of each ported file and requires the reconstruction to hash to the pinned
+  upstream digest; it fetches nothing, because a gate that reached `api.github.com` would be red on
+  a network hiccup and green on a cached 200. The direction of harm is this repository's least
+  visible one — a drifted copy does not fail, it *reports*: before this gate, the ported half-state
+  patrol stood 4,637 `diff` lines behind upstream and went on rendering a confident report with the
+  corresponding rows simply missing
+  ([#6642](https://github.com/objectstack-ai/objectui/issues/6642)).
+- `scripts/check-bash32-floor.mjs` — this repository's own shell must run on bash 3.2, which is what
+  macOS ships and what CI never exercises. Under bash 5 a `mapfile`, a `declare -A` or an unguarded
+  `$EPOCHSECONDS` in a hand-run script is invisible: the defect *and* its repair both read green,
+  and the only reader who ever meets the failure is a contributor on a Mac at the moment they most
+  need the script to work. Its scan roots are `scripts/**`, `.claude/hooks/**` and `e2e/**` — the
+  third is the point rather than a detail, since two of the four shell files this repository wrote
+  itself live under `e2e/live/ci/`
+  ([#7692](https://github.com/objectstack-ai/objectui/issues/7692)).
 - Then `pnpm lint`.
+- Then `scripts/check-cross-repo-closer-outcome.mjs` — it extracts the ~250 lines of inline
+  `github-script` out of `cross-repo-issue-closer.yml` with a real parser, never a retyped copy,
+  runs it under doubles the way `actions/github-script` does, and pins each exit's outcome: which
+  of `setFailed` / `warning` / job summary fires, and which API calls were made. That workflow runs
+  only on a merge, its conclusion is required by nothing, and every run of it so far has been
+  green — which is the problem rather than the reassurance, since its close loop has had a live
+  target roughly one and a half times a day and taken the same `already closed -- skipping` exit
+  every time ([#5261](https://github.com/objectstack-ai/objectui/issues/5261)).
 - Then `pnpm check` — this repository's own tree run through `objectui check`, the command the CLI
   ships. The step builds the CLI and its workspace dependency closure first, through pnpm rather
   than turbo: the root script executes `packages/cli/dist/`, this job installs without building, and

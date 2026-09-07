@@ -20,11 +20,37 @@ import type { BaseSchema, SchemaNode } from './base.js';
 import type { ActionSchema } from './crud.js';
 import type { TableColumn } from './data-display.js';
 import type { SelectOptionMetadata } from './field-types.js';
+import type { ListView as SpecListView } from '@objectstack/spec/ui';
 
 /**
- * View Type
+ * View Type — the list-view types `@objectstack/spec` publishes, plus the two
+ * objectui view CATEGORIES that are not list-view types at all.
+ *
+ * DERIVED from `@objectstack/spec/ui` `ListView['type']`, never re-declared
+ * (objectui#8127). The eleven-arm hand-written union this replaces was total
+ * over a copy of the spec's list of 17.2.0, and `@objectstack/spec@17.3.0`
+ * added `page` to that list. Nothing went red, because every structure keyed
+ * on this union was total over the COPY — a total map is only as honest as the
+ * union it is total over, and a locally re-declared union silently converts an
+ * exhaustiveness guarantee into a no-op. Deriving is what makes the next
+ * addition to the spec's list fail the build in every one of those structures.
+ *
+ * ⚠️ Not every member here is a VISUALIZATION. `@objectstack/spec/ui` models
+ * those separately as `VisualizationType`, and that is the union
+ * `AppearanceConfig.allowedVisualizations` is typed on — it does NOT contain
+ * `page`, because a `type: 'page'` list view mounts a published page (bound
+ * through `pageName`) in place of rows rather than drawing records. Structures
+ * that enumerate what a renderer DRAWS must therefore derive from the
+ * visualization union, not from this one; `@object-ui/core`'s
+ * `ListViewVisualization` is that derivation.
+ *
+ *  - `list` is the view CATEGORY, not a list-view type.
+ *  - `detail` is a different renderer (`plugin-detail`) entirely.
+ *
+ * Both are objectui vocabulary with no spec counterpart, so they are unioned
+ * on here rather than pushed upstream.
  */
-export type ViewType = 'list' | 'detail' | 'grid' | 'kanban' | 'calendar' | 'timeline' | 'map' | 'gallery' | 'gantt' | 'chart' | 'tree';
+export type ViewType = NonNullable<SpecListView['type']> | 'list' | 'detail';
 
 /**
  * Detail View Field Configuration

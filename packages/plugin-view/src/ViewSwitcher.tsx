@@ -35,6 +35,7 @@ import {
   List,
   Map,
   ListTree,
+  LayoutTemplate,
   Plus,
   Share2,
   Settings,
@@ -55,6 +56,11 @@ export type ViewSwitcherProps = {
   [key: string]: any;
 };
 
+// `page` (objectui#8127): this switcher is keyed on the FULL `ViewType`, not on
+// the visualization subset, because `schema.views` may name any view type the
+// spec allows — and `@objectstack/spec@17.3.0` added `page`. Unlike the
+// visualization switcher in `plugin-list`, a missing entry here is a label
+// gap on a view that legitimately exists, so the map carries it.
 const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
   list: 'List',
   detail: 'Detail',
@@ -67,6 +73,7 @@ const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
   gantt: 'Gantt',
   chart: 'Chart',
   tree: 'Tree',
+  page: 'Page',
 };
 
 // objectui#5586 — every value here is a name lucide still carries in its
@@ -94,6 +101,7 @@ const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
   gantt: ChartGantt,
   chart: ChartColumn,
   tree: ListTree,
+  page: LayoutTemplate,
 };
 
 const viewSwitcherLayout = cva('flex gap-4', {

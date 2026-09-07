@@ -1406,8 +1406,13 @@ export const useBTranslation = createSafeTranslation(SHARED, 'common.save');
   it('leaves a key en does not define to class 1, and class 1 cannot see it either', () => {
     // The two classes stay disjoint exactly as 1 and 3 do — but here the row is
     // reachable by NEITHER, because class 1 judges call sites and this row has
-    // none. That is why the count is printed on every run:
-    // `timeline.relative.*` is five such rows on `main` today.
+    // none. That is why the count is printed on every run, and the worked
+    // example is objectui#7874's five `timeline.relative.*` rows: nothing but
+    // `factoryRowsNoEnKey` could see them, and once it did they were retired in
+    // objectui#7887. This case pins the RULE on a synthetic repo, so it says
+    // nothing about how many such rows `main` carries — that number is on the
+    // run's `Factory defaults tables:` line, and objectui#8102 is the card that
+    // measured this comment still asserting the retired five.
     const root = repoWith({
       'packages/i18n/src/locales/en.ts': EN_7567,
       'packages/x/src/useX.ts': factoryModule(`{ 'calendar.today': 'Today', 'nowhere.key': 'Orphan' }`),
@@ -1672,10 +1677,10 @@ export const useXTranslation = createSafeTranslation(LOCAL_DEFAULTS, 'calendar.t
 
   it('and main is measured, not merely green — the floor is above the LARGER table', () => {
     // The objectui#7567 ⛔ #2 property, one level down: "0 drifted" and "0 rows
-    // compared" read identically, and the factory half's 841 rows would hide a
-    // registry that resolved nothing. The CLI exits non-zero below 150; this
-    // pins the same floor where the counter is readable, and pins that 150 was
-    // chosen to fail on losing EITHER table rather than only both.
+    // compared" read identically, and the factory half's hundreds of rows would
+    // hide a registry that resolved nothing. The CLI exits non-zero below 150;
+    // this pins the same floor where the counter is readable, and pins that 150
+    // was chosen to fail on losing EITHER table rather than only both.
     const { counters } = REPO_ANALYSIS;
     expect(counters.handRolledComparedRows).toBeGreaterThanOrEqual(150);
     expect(counters.handRolledTables).toBe(2);
