@@ -50,8 +50,17 @@
  * ⚠️ Every count in this header is READ, not inherited. The three that used to
  * stand here — "163 pairs" twice and "13 entries" once — were stale, and they were
  * the numbers other cards quoted as the size of the drift problem (objectui#5927's
- * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
- * entire subject is measurement that is worth stating explicitly:
+ * framing, and objectui#6058's own dispatch, both inherited "163").
+ *
+ * ⚠️ READ is not the same as CHECKED, and the gap between them is where this header
+ * rots: a figure read once becomes prose the moment it is written down. The three
+ * LEDGER ENTRY counts below — and the ratchet section's restatement of the first of
+ * them — are compared to the ledgers they describe by 'the ledger entry counts the
+ * header states are derived, not prose' at the bottom of this file (objectui#7733),
+ * so an entry added or removed fails this file instead of leaving a stale digit
+ * standing. ⛔ Their KEY totals are not under that pin.
+ *
+ * On a file whose entire subject is measurement that is worth stating explicitly:
  *
  *   - **the pair population** — `Object.keys(MIRRORS).length`, pinned to the single
  *     written-down constant `EXPECTED_MIRROR_PAIRS` by the runtime census at the
@@ -205,7 +214,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 41 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -2747,6 +2756,74 @@ pinned elsewhere in this file against the mirrors themselves.`)
     for (const [entry, keys] of members) {
       expect(keys.length, `${entry} read as having no keys`).toBeGreaterThan(0);
     }
+  });
+});
+
+
+/* ── The header's LEDGER ENTRY COUNTS are pinned to the ledgers (objectui#7733) ─ */
+
+describe('the ledger entry counts the header states are derived, not prose (objectui#7733)', () => {
+  it('every entry count the header writes down equals the ledger it describes', () => {
+    // objectui#6141 named TWO stale figures in its own title — a pair population and a
+    // ledger entry count — and route 1 (hand-correct the prose) was taken for both.
+    // objectui#7433 built the pin for the population half; this is the other half.
+    // `ReconcileAgainstLedger` and its siblings do NOT reach these figures: they pin
+    // each entry's EXACT key set, so an entry added or removed moves no number they
+    // compare, and until this test the file stayed green either way.
+    //
+    // Both instruments already exist. `ledgerEntryKeys` sizes a ledger from this
+    // file's own AST, and `headerFigures` reads one figure off the header's OWN
+    // spelling — so a rewording that drops the digit is red rather than quietly
+    // unpinned, and a second copy of a spelling (a stale figure left standing beside
+    // a corrected one) fails there rather than passing on whichever copy it met first.
+    //
+    // The last row is the RESTATEMENT, and it is why this pin is measured rather than
+    // predicted: the ratchet section states the KnownDrift entry count a SECOND time,
+    // ~120 lines below the first. objectui#7542 shrank that ledger by one entry, the
+    // first site was corrected, the restatement was not — and the file was fully green
+    // with a wrong figure carrying the parenthetical "measured, not assumed" for four
+    // commits. Both sites read the one ledger here, so neither can outlive the other.
+    const drift = ledgerEntryKeys('KnownDrift').length;
+    const header = {
+      knownDrift: headerFigures(/\*\*(\d+) entries\*\* in `KnownDrift`/)[0],
+      unmirroredDeclared: headerFigures(/\*\*(\d+) entries\*\* in `UnmirroredDeclared`/)[0],
+      runtimeOnlyDeclared: headerFigures(/\*\*(\d+) entries\*\* in `RuntimeOnlyDeclared`/)[0],
+      knownDriftRestated: headerFigures(/(\d+) of the registered pairs carry TYPE drift TODAY/)[0],
+    };
+
+    expect(header, `
+The header's ledger entry counts disagree with the ledgers they describe.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you added or removed a ledger entry
+    => correct the header figure to the derived one below, and nothing else. If the
+       KnownDrift figure moved, TWO sites move together: the bullet in the population
+       section and its restatement under 'KNOWN_DRIFT is a ratchet, not a waiver'.
+       They state one quantity; this pin reads both, because correcting only the
+       first is the exact drift objectui#7733 was filed for.
+
+  * you edited a header figure by hand, or carried one in from a card, a review
+    comment or another file
+    => put it back to the derived value. The ledger is the measurement; the header
+       only records it, and a figure quoted anywhere else is evidence about that
+       place only.
+
+⛔ Never reconcile the two by moving a ledger ENTRY. The entry key sets are pinned
+against the mirrors themselves elsewhere in this file, so an entry edited to satisfy a
+sentence fails there instead — and that is route 1, which objectui#6141 predicted and
+objectui#7433 measured recurring four more times.
+
+⚠️ This pin covers the ENTRY counts only. The KEY totals beside them are NOT pinned
+here: nobody had measured them when this was written, and a number nobody measured
+gets no verdict.`)
+      .toEqual({
+        knownDrift: drift,
+        unmirroredDeclared: ledgerEntryKeys('UnmirroredDeclared').length,
+        runtimeOnlyDeclared: ledgerEntryKeys('RuntimeOnlyDeclared').length,
+        knownDriftRestated: drift,
+      });
   });
 });
 

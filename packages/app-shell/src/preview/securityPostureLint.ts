@@ -55,6 +55,8 @@
  * pull the whole lint bundle onto the eager console graph.
  */
 
+import { stripReadDecorations } from '@objectstack/spec/kernel';
+
 interface PendingDraft {
   type: string;
   name: string;
@@ -124,9 +126,21 @@ export async function lintDraftSecurityPosture(
     const objects = pending.filter((d) => d.type === 'object');
     if (objects.length === 0) return [];
 
+    // Read decorations do not reach the rule (objectui#8181). MEASURED: neither
+    // `validateSecurityPosture` nor `validateCapabilityReferences` moves its
+    // verdict on a decorated body today (control: an object with no
+    // `sharingModel` fires `security-owd-unset` in both directions), so this is
+    // defence in depth rather than a fix. It is here because the alternative is
+    // leaving one more verbatim copy of the unwrap that omits the strip, which
+    // is the shape objectui#8181 exists to end: the rule should read the
+    // document the AUTHOR wrote, so a future rule that enumerates keys cannot
+    // inherit the defect. The key list is the spec's, never a local copy; the
+    // ADR-0010 protection envelope is not on it and survives.
     const unwrap = (raw: unknown): Record<string, unknown> | null => {
       const item = (raw as { item?: unknown })?.item ?? raw;
-      return item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+      return item && typeof item === 'object'
+        ? (stripReadDecorations(item) as Record<string, unknown>)
+        : null;
     };
 
     const bodies = await Promise.all(

@@ -29,6 +29,7 @@ import { SchemaForm } from '../metadata-admin/SchemaForm.js';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry.js';
 import { useMetadataClient } from '../metadata-admin/useMetadata.js';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n.js';
+import { extractDraftBody } from '@object-ui/data-objectstack';
 import { formatMetadataError } from './metadataError.js';
 
 interface HookItem {
@@ -39,12 +40,16 @@ interface HookItem {
   [key: string]: unknown;
 }
 
-/** The body out of a getDraft() envelope (`{ item: {...} }`). */
-function draftBody(resp: unknown): HookItem | null {
-  if (!resp || typeof resp !== 'object' || !('item' in resp)) return null;
-  const body = (resp as { item?: unknown }).item;
-  return body && typeof body === 'object' && Object.keys(body).length > 0 ? (body as HookItem) : null;
-}
+/**
+ * The body out of a `getDraft()` envelope, decoration-free (objectui#8181).
+ *
+ * This was a hand-rolled fourth copy of `extractDraftBody` that skipped the
+ * read-decoration strip, so a served `_diagnostics` / `_draft` rode the hook
+ * body into `save('hook', ...)` below. The unwrap is the shared one now; only
+ * the `HookItem` narrowing is local.
+ */
+const draftBody = (resp: unknown): HookItem | null =>
+  extractDraftBody(resp) as HookItem | null;
 
 /** Does this hook's `object` target match the object we're viewing? */
 function targetsObject(hook: HookItem, objectName: string): boolean {

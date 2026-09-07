@@ -29,20 +29,15 @@
 import * as React from 'react';
 import { ShieldCheck, Save, Loader2, Lock, ArrowUpRight, AlertTriangle } from 'lucide-react';
 import type { MetadataClient } from '@object-ui/data-objectstack';
+// The ONE draft-envelope reader (objectui#8181): unwrap AND strip the
+// framework's read decorations in one place. This file used to carry its own
+// copy that did the unwrap and skipped the strip.
+import { extractDraftBody } from '@object-ui/data-objectstack';
 import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n.js';
 import { formatMetadataError } from './metadataError.js';
 import { isExternalWider, deriveMasterObject } from './owd-sharing.js';
 import { toast } from 'sonner';
 
-/** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
-function extractDraftBody(resp: unknown): Record<string, unknown> | null {
-  if (!resp || typeof resp !== 'object') return null;
-  const env = resp as Record<string, unknown>;
-  if (!('item' in env)) return null;
-  const body = env.item;
-  if (!body || typeof body !== 'object') return null;
-  return Object.keys(body as object).length > 0 ? (body as Record<string, unknown>) : null;
-}
 
 /** A single object's loaded OWD baseline (already merged over any pending draft). */
 interface OwdRow {

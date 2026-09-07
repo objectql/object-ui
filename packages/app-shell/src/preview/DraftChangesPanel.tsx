@@ -69,6 +69,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 // refuses, and a faithful copy is exactly the fork that guard exists to prevent.
 import { fetchPendingDrafts } from './usePendingDrafts.js';
 import { canonicalMetaUrlType } from '@objectstack/spec/shared';
+import { stripReadDecorations } from '@objectstack/spec/kernel';
 import { diffFields } from '../views/metadata-admin/previews/object-fields-io.js';
 // The live `?surface=` channel, and NOT `useSurfaceDeepLink` beside it: this
 // import must stay React-only, because that module reaches `nav-selection.js`
@@ -151,11 +152,29 @@ async function publishedNamesOf(type: string): Promise<Set<string>> {
  * Some framework reads wrap the body in a `{ type, name, item }` envelope
  * (draft reads do; published reads return the bare body). Unwrap defensively.
  */
+/**
+ * Take the body out of a `/meta` response, decoration-free (objectui#8181).
+ *
+ * ⚠️ The strip is not cosmetic here — it is what makes the review diff below
+ * TRUE. `computeChangeDetail` compares every top-level key of the published
+ * body against the draft body, and the framework decorates the two reads
+ * ASYMMETRICALLY: the draft branch stamps `_draft: true` before decorating,
+ * the published branch does not. So `_draft` differed on every entry that has
+ * a published counterpart, and the sheet listed it as a key this publish
+ * changes — a framework-internal key presented to the author as their own
+ * edit, on the door where they decide whether to publish. `_diagnostics` rides
+ * the same asymmetry whenever the two bodies' read-time verdicts differ.
+ *
+ * The key list is the spec's (`METADATA_READ_DECORATIONS`), never a local
+ * copy. The ADR-0010 protection envelope is deliberately NOT on it: those keys
+ * are declared by the closed schemas, so a real change to one of them IS a
+ * change this diff should report.
+ */
 function unwrapItem(payload: unknown): Record<string, unknown> | null {
   if (!payload || typeof payload !== 'object') return null;
   const p = payload as Record<string, unknown>;
-  if (p.item && typeof p.item === 'object') return p.item as Record<string, unknown>;
-  return p;
+  const body = p.item && typeof p.item === 'object' ? (p.item as Record<string, unknown>) : p;
+  return stripReadDecorations(body) as Record<string, unknown>;
 }
 
 async function fetchItemBody(
