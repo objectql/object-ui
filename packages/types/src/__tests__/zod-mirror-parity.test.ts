@@ -202,6 +202,19 @@
  *     spelled "six" rots exactly as fast as one spelled `6`, it is just harder to
  *     point a regex at. ⛔ Do not spell a live figure out again, and ⛔ do not
  *     restate one without checking that the pin's spelling still reaches it.
+ *   - **34 entries** in `WiderThanDeclared`, **52 keys** across them, and **61 arms**
+ *     under those keys — split **24** SCHEMA-NODE, **27** CONCRETE, **1** MIXED, **9** unions.
+ *     (objectui#8252.) ⚠️ Until #8252
+ *     this ledger had NO figure in this header, and it is the one other cards quote as
+ *     the size of the wider direction: objectui#7759 published its two halves as
+ *     "27 keys / 21 pairs" SCHEMA-NODE and "27 keys / 18 pairs" CONCRETE, and
+ *     objectui#8252's own card body inherited the first 27. Re-derived here the
+ *     SCHEMA-NODE half is 24 pure plus the 1 MIXED — the figure had rotted by two while
+ *     every pin in this file stayed green, which is the objectui#8222 shape on the one
+ *     ledger objectui#8222 did not reach. The CONCRETE half has not moved. All six
+ *     figures are read off `WIDER_ARMS` and the mirrors by 'the WIDER ledger's header
+ *     figures are derived from its ARMS'; the per-KEY class is derived from the arm
+ *     verdicts, never written down beside them, so a MIXED key cannot be filed whole.
  *   - **the pairs with no entry in either** unmirrored ledger — the population minus
  *     the union of the two ledgers above. ⛔ Not written down here in any form: the
  *     census derives it and pins it (objectui#7433). ⚠️ This line used to carry a
@@ -1954,7 +1967,15 @@ interface WiderThanDeclared {
    * MIXED. `header` and `globalFilters` carry the inline-locale widening one level
    * down (a nested `label`), `dateRange.defaultRange` is a bare string on the
    * mirror against a closed literal set on the declaration, and `widgets` is
-   * SCHEMA-NODE. Three of the four also carry a `KnownDrift` entry.
+   * SCHEMA-NODE IN ITS SECOND ARM ONLY. Three of the four also carry a `KnownDrift`
+   * entry.
+   *
+   * ⚠️ That clause read "`widgets` is SCHEMA-NODE" until objectui#8252, and the three
+   * words were the whole verdict on a two-arm union: true of the widget-envelope arm,
+   * false of the component-node arm, which is concrete and whose TypeScript face was
+   * missing outright (objectui#7952, declared by PR #8296 as `c842594`). ⇒ The verdict
+   * that governs is `WIDER_ARMS` below, which names one per arm; this docblock is the
+   * prose beside it and ⛔ may not be the only place the split is recorded again.
    */
   'complex.zod.ts#DashboardComponentSchema': 'header' | 'widgets' | 'globalFilters' | 'dateRange';
   /** CONCRETE: the element shape differs from the named declaration in both directions; also in `KnownDrift`. */
@@ -2053,6 +2074,131 @@ interface WiderThanDeclared {
  */
 export type assertionWiderLedgerKeysAreRegistered =
   Expect< Equal< Exclude< keyof WiderThanDeclared, MirrorKey >, never > >;
+
+/* ── The same ledger at ARM granularity (objectui#8252) ─────────────────────── */
+
+/**
+ * One arm of one ledgered key, classified on the axis objectui#7759 sorted on.
+ *
+ * `SCHEMA-NODE` — the arm IS the recursion-breaking slot, so what the input face
+ * carries there is the `unknown` from `SchemaNodeSchema`'s `z.ZodType< any >`
+ * annotation and the WIDER reading on it is the ANNOTATION, not an accept-set gap.
+ * `CONCRETE` — everything else: the arm states a shape an author can write, so
+ * `safeParse` returns green and the declaration alone decides whether `tsc` agrees.
+ * The INLINE-LOCALE, FUNCTION-SLOT and structural sub-classes the docblocks above
+ * name are all CONCRETE here — this axis asks only whether the instrument produced
+ * the reading, and those finer names stay where they are.
+ */
+type WiderArmClass = 'SCHEMA-NODE' | 'CONCRETE';
+
+/**
+ * `WiderThanDeclared` at ARM granularity — one verdict per union arm of the
+ * mirror's slot, keyed `<pair>.<key>` (objectui#8252).
+ *
+ * ## The per-KEY verdict was a verdict over a per-ARM fact
+ *
+ * The ledger above records a class per ENTRY, in prose, and its clause for
+ * `complex.zod.ts#DashboardComponentSchema.widgets` was three words — "`widgets` is
+ * SCHEMA-NODE". True of the widget-envelope arm; false of the other, a
+ * `BaseSchema.extend({ type: z.enum(DASHBOARD_COMPONENT_WIDGET_TYPES) })` component
+ * node the TypeScript face was missing WHOLE, so the maintainer-ruled `metric-card`
+ * node parsed green and `tsc` refused it with no annotation an author could write
+ * (objectui#7952, ruled under objectstack#8593 and declared by PR #8296, `c842594`).
+ * ⭐ One key, two arms, and the artifact in one absorbed the real divergence in the
+ * other. objectui#7759 sorted its whole SCHEMA-NODE bucket out of its disposition
+ * lane on verdicts of that shape, which is what objectui#8252 re-judged.
+ *
+ * ## What is measured here and what is judged
+ *
+ * The ARM ENUMERATION is a MEASUREMENT — `measureMirrorArms` walks the mirror VALUE,
+ * for the same reason the blind-region leg at the bottom of this file is at runtime:
+ * at the type level every unconstrained face looks alike. The per-arm VERDICT is a
+ * judgement, and this table is where it lives so that three things can be pinned
+ * that prose could not carry: every ledgered key names one verdict PER MEASURED ARM
+ * (a mirror that grows an arm reddens until someone judges it), the row set is
+ * exactly the ledger's key set, and objectui#7952's key cannot collapse back to a
+ * single verdict.
+ *
+ * ⛔ The verdicts are NOT derived. At runtime BOTH of `widgets`' arms reach
+ * `SchemaNodeSchema` — the component arm through `BaseSchema`'s own `body` /
+ * `children` slots — so "reaches a lazy node" separates neither arm from the other
+ * and would classify every component-node arm in this repo as an artifact.
+ * ⚠️ objectui#7952 describes that arm as having "no schema-node recursion in it at
+ * all"; measured, it has, through the base. Its conclusion survives the correction,
+ * because what makes the arm CONCRETE is its own `type` enum and passthrough shape,
+ * not the absence of the artifact underneath it.
+ *
+ * ## The census objectui#8252 ran, on `c842594`
+ *
+ * Every key in the ledger, arms enumerated from the mirror and judged. Most keys are
+ * single-arm, and for those the arm verdict IS the key verdict — a single-arm key
+ * has no sibling to hide behind, which is the entire mechanism, so they are recorded
+ * rather than reasoned about. Of the keys that ARE unions, exactly one sits in the
+ * SCHEMA-NODE bucket and it is objectui#7952's own; the rest were already CONCRETE
+ * in objectui#7759's lane, arm by arm, so nothing was re-filed. ⇒ Measured, the
+ * shape does not recur. The header bullet carries the figures and they are pinned.
+ *
+ * ⚠️ Two bounds, stated because a census that does not state them reads as wider
+ * than it is. It looked ONE LEVEL DOWN as well — each arm's own shape properties,
+ * for a union mixing a schema-node arm with a concrete one — and found none. It does
+ * ⛔ NOT answer whether a single-arm SCHEMA-NODE key's reading has a SECOND, concrete
+ * cause underneath the artifact: that is a different mechanism from hiding behind a
+ * sibling, and it needs a two-face comparison per key rather than an arm count.
+ */
+const WIDER_ARMS: Readonly< Record< string, readonly WiderArmClass[] > > = {
+  'app.zod.ts#AppComponentSchema.label': ['CONCRETE', 'CONCRETE'],
+  'app.zod.ts#AppComponentSchema.areas': ['SCHEMA-NODE'],
+  'app.zod.ts#AppComponentSchema.actions': ['SCHEMA-NODE'],
+  'complex.zod.ts#CarouselSchema.items': ['SCHEMA-NODE'],
+  'complex.zod.ts#ChatbotSchema.body': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema.header': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema.widgets': ['CONCRETE', 'SCHEMA-NODE'],
+  'complex.zod.ts#DashboardComponentSchema.globalFilters': ['CONCRETE'],
+  'complex.zod.ts#DashboardComponentSchema.dateRange': ['CONCRETE'],
+  'complex.zod.ts#FilterBuilderSchema.fields': ['CONCRETE'],
+  'complex.zod.ts#FilterFieldSchema.operators': ['CONCRETE'],
+  'crud.zod.ts#DetailSchema.groups': ['SCHEMA-NODE'],
+  'crud.zod.ts#DetailSchema.tabs': ['SCHEMA-NODE'],
+  'data-display.zod.ts#DataTableSchema.columns': ['CONCRETE'],
+  'data-display.zod.ts#DataTableSchema.renderCellEditor': ['CONCRETE'],
+  'data-display.zod.ts#ListSchema.items': ['SCHEMA-NODE'],
+  'data-display.zod.ts#TableColumnSchema.cell': ['CONCRETE'],
+  'data-display.zod.ts#TimelineSchema.events': ['SCHEMA-NODE'],
+  'disclosure.zod.ts#AccordionSchema.items': ['SCHEMA-NODE'],
+  'form.zod.ts#CalendarSchema.defaultValue': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#CalendarSchema.value': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#FieldConditionSchema.custom': ['CONCRETE'],
+  'form.zod.ts#FieldConstraintsSchema.validate': ['CONCRETE'],
+  'form.zod.ts#FormFieldSchema.validation': ['CONCRETE'],
+  'form.zod.ts#FormFieldSchema.condition': ['CONCRETE'],
+  'form.zod.ts#FormSchema.layout': ['CONCRETE'],
+  'form.zod.ts#FormSchema.fields': ['CONCRETE'],
+  'form.zod.ts#FormSchema.mode': ['CONCRETE'],
+  'form.zod.ts#SliderSchema.defaultValue': ['CONCRETE', 'CONCRETE'],
+  'form.zod.ts#SliderSchema.value': ['CONCRETE', 'CONCRETE'],
+  'layout.zod.ts#ContainerSchema.maxWidth': ['CONCRETE', 'CONCRETE'],
+  'layout.zod.ts#PageNodeSchema.aria': ['CONCRETE'],
+  'layout.zod.ts#PageNodeSchema.regions': ['SCHEMA-NODE'],
+  'layout.zod.ts#PageNodeSchema.slots': ['SCHEMA-NODE'],
+  'layout.zod.ts#ResizableSchema.panels': ['SCHEMA-NODE'],
+  'layout.zod.ts#TabsSchema.items': ['SCHEMA-NODE'],
+  'navigation.zod.ts#HeaderBarSchema.variant': ['CONCRETE'],
+  'objectql.zod.ts#ObjectGridSchema.label': ['CONCRETE', 'CONCRETE'],
+  'objectql.zod.ts#ObjectGridSchema.description': ['CONCRETE', 'CONCRETE'],
+  'objectql.zod.ts#ObjectViewSchema.form': ['SCHEMA-NODE'],
+  'objectql.zod.ts#ObjectViewSchema.table': ['SCHEMA-NODE'],
+  'overlay.zod.ts#MenubarSchema.menus': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportBuilderSchema.report': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportComponentSchema.sections': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportSectionSchema.chart': ['SCHEMA-NODE'],
+  'reports.zod.ts#ReportViewerSchema.report': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewFieldSchema.options': ['CONCRETE'],
+  'views.zod.ts#DetailViewSchema.fields': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSchema.tabs': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSchema.sections': ['SCHEMA-NODE'],
+  'views.zod.ts#DetailViewSectionSchema.fields': ['SCHEMA-NODE'],
+  'views.zod.ts#ViewSwitcherSchema.views': ['SCHEMA-NODE'],
+};
 
 /* ── The invariant ──────────────────────────────────────────────────────────── */
 
@@ -2477,6 +2623,14 @@ const ZOD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'zod');
  */
 const EXPECTED_MIRROR_PAIRS = 158;
 
+/**
+ * A ledger this file can size from its own AST. `WiderThanDeclared` joined at
+ * objectui#8252 — one union arm, no new code, the way `KnownDrift` joined at
+ * objectui#8222 — so the fifth ledger is sized by the SAME instrument as the other
+ * four rather than by a second definition of the word "key".
+ */
+type LedgerName = 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared' | 'WiderThanDeclared';
+
 /** This file, so the census can read its own type-level ledgers. */
 const SELF = fileURLToPath(import.meta.url);
 
@@ -2491,7 +2645,7 @@ let selfAst: ts.SourceFile | undefined;
  * instrument rather than a second one, and it is a MEASUREMENT: an entry added or
  * removed moves it with no list to maintain, which is the whole point of the card.
  */
-function ledgerEntryKeys(ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): string[] {
+function ledgerEntryKeys(ledger: LedgerName): string[] {
   selfAst ??= ts.createSourceFile(
     SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
   );
@@ -2773,7 +2927,7 @@ this derivation subtracts from the pinned population, so it fails as a consequen
  * authoritative, and a `KnownDrift` reading of 63 is a reading rather than a second
  * definition of the word "key".
  */
-function ledgerEntryMembers(ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): Map<string, string[]> {
+function ledgerEntryMembers(ledger: LedgerName): Map<string, string[]> {
   selfAst ??= ts.createSourceFile(
     SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
   );
@@ -3432,5 +3586,154 @@ describe('the blind region of the wider direction is bounded (objectui#7069)', (
     const live = new Set(measureReachableLazyNodes().keys());
     const dead = RECURSION_BREAKING_MIRRORS.filter(([, schema]) => !live.has(schema)).map(([name]) => name);
     expect(dead).toEqual([]);
+  });
+});
+
+/* ── Per-ARM granularity: the derivation and its pins (objectui#8252) ────────── */
+
+/**
+ * Wrappers that carry no arm of their own. Unwrapping them is what makes
+ * `widgets` — `z.array(z.union([...]))` — read as a two-arm key rather than a
+ * one-arm array, which is the shape objectui#7952 measured and the reason the
+ * enumeration cannot simply read `def.options` off the slot.
+ */
+const ARMLESS_WRAPPERS: readonly string[] = [
+  'optional', 'nullable', 'default', 'prefault', 'catch', 'readonly', 'nonoptional',
+];
+
+/**
+ * The union arms of one mirror slot, measured from the mirror VALUE.
+ *
+ * `undefined` when the pair has no such slot — a ledger key that does not exist on
+ * its mirror. That is a hard failure below rather than a skipped row: a row read as
+ * "no arms" would satisfy nothing and pass everything.
+ */
+function measureMirrorArms(pair: MirrorKey, key: string): unknown[] | undefined {
+  const shape = defOf(MIRRORS[pair])?.shape as Record<string, unknown> | undefined;
+  const slot = shape?.[key];
+  if (slot === undefined) return undefined;
+  const unwrap = (node: unknown): unknown => {
+    const def = defOf(node);
+    if (!def) return node;
+    const type = def.type as string;
+    if (ARMLESS_WRAPPERS.includes(type)) return unwrap(def.innerType);
+    if (type === 'array') return unwrap(def.element);
+    if (type === 'pipe') return unwrap(def.in);
+    return node;
+  };
+  const node = unwrap(slot);
+  const def = defOf(node);
+  return def?.type === 'union' ? (def.options as unknown[]) : [node];
+}
+
+/** The arm ledger's rows, split back into the pair and key they judge. */
+function widerArmRows(): { row: string; pair: MirrorKey; key: string; arms: readonly WiderArmClass[] }[] {
+  return Object.entries(WIDER_ARMS).map(([row, arms]) => {
+    const cut = row.lastIndexOf('.');
+    return { row, pair: row.slice(0, cut) as MirrorKey, key: row.slice(cut + 1), arms };
+  });
+}
+
+/** A key's class, DERIVED from its arm verdicts — never stored beside them. */
+const widerKeyClass = (arms: readonly WiderArmClass[]): 'SCHEMA-NODE' | 'CONCRETE' | 'MIXED' =>
+  arms.every((arm) => arm === 'SCHEMA-NODE') ? 'SCHEMA-NODE'
+    : arms.every((arm) => arm === 'CONCRETE') ? 'CONCRETE' : 'MIXED';
+
+describe('the WIDER ledger is judged per ARM, not per key (objectui#8252)', () => {
+  it('the enumeration can tell a union slot from a plain one (non-vacuity)', () => {
+    // Both directions, because both failure modes are silent. An unwrapper that
+    // stopped at `z.array` would report ONE arm for every key and every arity row
+    // below would pass while measuring nothing; one that walked into object shapes
+    // would report many arms everywhere and the ledger would be rewritten to match
+    // an instrument rather than the mirrors. Neither is visible from the arity pin.
+    const measured = widerArmRows().map(({ pair, key }) => measureMirrorArms(pair, key)?.length);
+    expect(measured.filter((n) => n === 1).length).toBeGreaterThan(0);
+    expect(measured.filter((n) => n !== undefined && n > 1).length).toBeGreaterThan(0);
+  });
+
+  it('every ledgered key has exactly one arm row, and every row a ledgered key', () => {
+    // The coverage both ways, and the answer to "a key with no union arms still
+    // needs a verdict": there is no third state. A single-arm key is a one-verdict
+    // row, not an absence — so it lands in the new granularity instead of falling
+    // through the per-arm framing the way it fell through the per-entry prose.
+    const ledgered = [...ledgerEntryMembers('WiderThanDeclared')]
+      .flatMap(([pair, keys]) => keys.map((key) => `${pair}.${key}`));
+    expect(Object.keys(WIDER_ARMS).sort(), `
+WIDER_ARMS and WiderThanDeclared disagree about which keys exist.
+
+  * a key entered or left the type-level ledger => add or remove its arm row, with a
+    verdict per arm measured by measureMirrorArms(). ⛔ Never delete a row to make
+    this green: the ledger above is pinned against the mirrors themselves, so a key
+    removed there for the wrong reason fails at assertionWiderMatchesLedger.
+  * a row is misspelled => the pair half is checked by
+    assertionWiderLedgerKeysAreRegistered, the key half only here.`)
+      .toEqual([...ledgered].sort());
+  });
+
+  it('every row names one verdict per MEASURED arm', () => {
+    // ⭐ The pin objectui#8252 exists for. A MIXED key can no longer be filed
+    // SCHEMA-NODE wholesale, because "wholesale" has no spelling left: the row must
+    // hold as many verdicts as the mirror has arms, and a mirror that GROWS an arm
+    // reddens here until someone judges the new one. That is the event that produced
+    // objectui#7952 — the component arm was added to the mirror under
+    // objectstack#8593 and the key's one-word class never moved.
+    const wrong = widerArmRows()
+      .map(({ row, pair, key, arms }) => ({ row, judged: arms.length, measured: measureMirrorArms(pair, key)?.length }))
+      .filter(({ judged, measured }) => judged !== measured);
+    expect(wrong, `
+An arm row does not name one verdict per arm of its mirror slot.
+
+  * measured LARGER => the mirror grew an arm. Judge it: SCHEMA-NODE only if the
+    arm IS the recursion-breaking slot, CONCRETE if it states a shape an author can
+    write. If it is CONCRETE and the TypeScript face lacks it, that is a real
+    divergence — objectui#7759's lane, or its own card when it carries a ruling.
+  * measured SMALLER => an arm left. Drop its verdict.
+  * measured UNDEFINED => the key is not on the mirror at all.`)
+      .toEqual([]);
+  });
+
+  it("objectui#7952's key still records BOTH arms, and not one verdict twice", () => {
+    // The positive control, and the one row whose collapse is the defect itself: a
+    // concrete arm hidden behind a schema-node sibling. The arity pin above does not
+    // catch that collapse — ['SCHEMA-NODE', 'SCHEMA-NODE'] has the right length —
+    // so the shape is asserted here by name.
+    const arms = WIDER_ARMS['complex.zod.ts#DashboardComponentSchema.widgets'];
+    expect(arms).toHaveLength(2);
+    expect([...new Set(arms)].sort()).toEqual(['CONCRETE', 'SCHEMA-NODE']);
+    expect(widerKeyClass(arms)).toBe('MIXED');
+  });
+});
+
+describe("the WIDER ledger's header figures are derived from its ARMS (objectui#8252)", () => {
+  it('every figure the header writes down for WiderThanDeclared equals the ledger and the mirrors', () => {
+    // objectui#7733 pinned three ledgers' entry counts and objectui#8222 their key
+    // totals; both blocks name the ledgers they reach, and `WiderThanDeclared` was in
+    // neither — it had no figure in the header at all. That is why "27 SCHEMA-NODE
+    // keys" could be quoted by objectui#7759, inherited by objectui#8252's card body,
+    // and be two out by the time anyone re-derived it, with this file green
+    // throughout. ⛔ Do not fold this block into either of those: it fails for a
+    // different movement (an ARM appearing under an existing key moves nothing they
+    // read) and it is the only one that reaches the mirrors as well as the ledger.
+    const rows = widerArmRows();
+    const classes = rows.map(({ arms }) => widerKeyClass(arms));
+
+    const [entries, keys, arms] = headerFigures(
+      /\*\*(\d+) entries\*\* in `WiderThanDeclared`, \*\*(\d+) keys\*\* across them, and \*\*(\d+) arms\*\*/,
+    );
+    const [schemaNode, concrete, mixed, unions] = headerFigures(
+      /split \*\*(\d+)\*\* SCHEMA-NODE, \*\*(\d+)\*\* CONCRETE, \*\*(\d+)\*\* MIXED, \*\*(\d+)\*\* unions/,
+    );
+
+    expect({ entries, keys, arms, schemaNode, concrete, mixed, unions }).toEqual({
+      entries: ledgerEntryKeys('WiderThanDeclared').length,
+      keys: rows.length,
+      arms: rows.reduce((n, { arms: judged }) => n + judged.length, 0),
+      schemaNode: classes.filter((c) => c === 'SCHEMA-NODE').length,
+      concrete: classes.filter((c) => c === 'CONCRETE').length,
+      mixed: classes.filter((c) => c === 'MIXED').length,
+      // Read off the MIRRORS, not off the ledger: the one figure here that fails when
+      // a mirror moves and the ledger does not.
+      unions: rows.filter(({ pair, key }) => (measureMirrorArms(pair, key)?.length ?? 0) > 1).length,
+    });
   });
 });
