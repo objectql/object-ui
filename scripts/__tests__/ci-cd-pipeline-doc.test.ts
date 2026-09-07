@@ -518,6 +518,172 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
 });
 
 /**
+ * ── What a job RUNS, paired against the prose that documents it ──────────────
+ *
+ * objectui#3653 introduced this pairing for `ci.yml`'s job table. objectui#8015
+ * lifted it out of that table, because the rule it encodes was never about a
+ * table: *every first-party command a job runs must be named where this page
+ * documents that job, and that documentation may not credit it with one the job
+ * does not run.*
+ *
+ * Both directions are asserted, because the documentation is a claim in both: a
+ * command the job runs and the page omits is a contributor who cannot learn from
+ * this page that a gate exists; a command the page names and the job does not run
+ * is the objectui#3451 shape one level down — a page advertising a guardrail that
+ * is not there.
+ *
+ * The two sources differ only in WHERE the prose lives — one table cell per job
+ * for `ci.yml`, one whole `##` section for `lint.yml`'s single job — so that is
+ * the only thing a caller supplies. The rule itself is written once, here.
+ *
+ * What counts as a command is deliberately narrower than "every step", and the
+ * boundary is *derived* rather than hand-listed: a step counts when it names
+ * something this repository owns — a `scripts/*.mjs` file, a script in the root
+ * `package.json`, or a `turbo run` task. Environment setup drops out on its own
+ * because it names none of those (`corepack enable`, `pnpm --version`, `pnpm
+ * install --frozen-lockfile`, `pnpm exec playwright install`, `pnpm --filter …
+ * exec vite build`, `pnpm --filter '@object-ui/cli...' build`), which keeps the
+ * documentation a summary of the gates rather than a transcript of the YAML.
+ *
+ * The hole that leaves, stated so nobody mistakes it for coverage: a gate written
+ * as an inline shell block names no first-party command and is invisible here.
+ * Gates in this repository land as a root `package.json` script or a
+ * `scripts/*.mjs` file — both covered — and that is the only reason the narrower
+ * rule is enough.
+ *
+ * Steps are read from `run:` values only, never from the surrounding YAML. Both
+ * workflows carry comments that name their own gates — `ci.yml`'s `type-check`
+ * block mentions `pnpm type-check`, `turbo run type-check` and `pnpm
+ * check:i18n-drift`, and `lint.yml`'s step comments name every script it runs
+ * plus two `pnpm check:*` aliases it deliberately does NOT use — so a scan of the
+ * raw block would take all of them for steps and this pin would then be
+ * describing its own comments.
+ *
+ * A `--self-test` invocation and the real one collapse to one entry: the rule is
+ * about which gate the page must name, not how many times the YAML types it.
+ */
+const rootScripts = new Set(
+  Object.keys(
+    (
+      JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts,
+  ),
+);
+
+/**
+ * The job keys a workflow defines, in file order.
+ *
+ * Scoped to the `jobs:` mapping, because top-level `on:` has two-space children
+ * of its own (`push:`, `pull_request:`) that a whole-file scan would read as
+ * jobs. Inside `jobs:` the only two-space lines are the job keys themselves:
+ * job-level keys sit at four, step bodies deeper still, and every block scalar
+ * (`run: |`) is indented past its key, so nothing else can reach column 2.
+ */
+function jobKeys(yaml: string, workflowFile: string): string[] {
+  const start = yaml.search(/^jobs:[ \t]*$/m);
+  expect(start, `${workflowFile} must still have a top-level \`jobs:\` mapping`).toBeGreaterThan(-1);
+  const body = yaml.slice(start + 'jobs:'.length);
+  // `jobs:` is the last top-level key in both workflows today; stop at the next
+  // one regardless.
+  const end = body.search(/^[A-Za-z]/m);
+  const scoped = end === -1 ? body : body.slice(0, end);
+  return [...scoped.matchAll(/^ {2}([a-z0-9][a-z0-9-]*):[ \t]*$/gm)].map((m) => m[1]);
+}
+
+/** One job's YAML block, from its key line up to the next thing at that indent. */
+function jobBlock(yaml: string, key: string, workflowFile: string): string {
+  const body = yaml.slice(yaml.search(/^jobs:[ \t]*$/m));
+  const at = body.search(new RegExp(`^ {2}${key}:[ \\t]*$`, 'm'));
+  expect(at, `${workflowFile} must still define a \`${key}:\` job`).toBeGreaterThan(-1);
+  const rest = body.slice(at + 1);
+  // A job's own comments are indented four spaces or more; the two-space ones
+  // introduce the *next* job, so stopping at any two-space line is right.
+  const next = rest.search(/^ {2}\S/m);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+/** Every `run:` step body in a job block — single-line and block scalar alike. */
+function runSteps(block: string): string[] {
+  const lines = block.split('\n');
+  const steps: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const at = lines[i].indexOf('run:');
+    // `run:` must be the key of the line, not text inside another value.
+    if (at === -1 || !/^[\s-]*$/.test(lines[i].slice(0, at))) continue;
+    const value = lines[i].slice(at + 'run:'.length).trim();
+    if (!/^[|>][-+]?$/.test(value)) {
+      steps.push(value);
+      continue;
+    }
+    const body: string[] = [];
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j].trim() === '') continue;
+      if (lines[j].search(/\S/) <= at) break;
+      body.push(lines[j].trim());
+    }
+    steps.push(body.join('\n'));
+  }
+  return steps;
+}
+
+/**
+ * The first-party commands named in a piece of text — applied to a job's `run:`
+ * bodies on one side and to the prose documenting it on the other, so the two
+ * sides are compared by the same rule rather than by two spellings of it.
+ */
+function firstPartyCommands(text: string): Set<string> {
+  const found = new Set<string>();
+  // A gate that lives in this repo's `scripts/` tree. The `node ` prefix is not
+  // required: the workflows write `node scripts/x.mjs`, the page writes the path.
+  for (const m of text.matchAll(/scripts\/[\w./-]+\.mjs/g)) found.add(m[0]);
+  // A root `package.json` script. `install`, `--version`, `exec` and `--filter`
+  // are not scripts, so the setup steps need no exemption list.
+  for (const m of text.matchAll(/\bpnpm\s+([\w:.-]+)/g)) {
+    if (rootScripts.has(m[1])) found.add(`pnpm ${m[1]}`);
+  }
+  // The build graph, invoked through the task runner instead of a script.
+  for (const m of text.matchAll(/\bturbo\s+run\s+([\w:-]+)/g)) found.add(`turbo run ${m[1]}`);
+  return found;
+}
+
+/** One unit of the pairing: a job's steps, and the prose this page documents it in. */
+type CommandParity = {
+  /** How a failure names the unit — a `ci.yml` job key, or a workflow section. */
+  label: string;
+  /** First-party commands the job's `run:` steps actually invoke. */
+  ran: Set<string>;
+  /** First-party commands the page credits it with. */
+  named: Set<string>;
+};
+
+/** Pair one job's `run:` steps against the piece of the page that documents it. */
+function commandParity(
+  workflowFile: string,
+  jobKey: string,
+  documentation: string,
+  label: string = jobKey,
+): CommandParity {
+  const yaml = fs.readFileSync(path.join(workflowDir, workflowFile), 'utf8');
+  return {
+    label,
+    ran: firstPartyCommands(runSteps(jobBlock(yaml, jobKey, workflowFile)).join('\n')),
+    named: firstPartyCommands(documentation),
+  };
+}
+
+/** Commands a job runs that the prose documenting it does not name. */
+function undocumentedCommands(units: CommandParity[]): string[] {
+  return units.flatMap((u) => [...u.ran].filter((c) => !u.named.has(c)).map((c) => `${u.label}: ${c}`));
+}
+
+/** Commands the prose names that the job it documents does not run. */
+function phantomCommands(units: CommandParity[]): string[] {
+  return units.flatMap((u) => [...u.named].filter((c) => !u.ran.has(c)).map((c) => `${u.label}: ${c}`));
+}
+
+/**
  * objectui#3451: the same drift as #3197/#3212, one table lower down and pointing
  * the dangerous way. The `## Core CI Workflow (ci.yml)` section opened with "Seven
  * jobs, all parallel" and its table's seventh row described a `dev-server` job —
@@ -554,23 +720,9 @@ describe('ci-cd-pipeline.md — lockfile merge driver', () => {
 describe('ci-cd-pipeline.md — ci.yml job table', () => {
   const ciWorkflow = fs.readFileSync(path.join(workflowDir, 'ci.yml'), 'utf8');
 
-  /**
-   * Job keys from `ci.yml`, in file order.
-   *
-   * Scoped to the `jobs:` mapping, because top-level `on:` has two-space children
-   * of its own (`push:`, `pull_request:`) that a whole-file scan would read as
-   * jobs. Inside `jobs:` the only two-space lines are the job keys themselves:
-   * job-level keys sit at four, step bodies deeper still, and every block scalar
-   * (`run: |`) is indented past its key, so nothing else can reach column 2.
-   */
+  /** Job keys from `ci.yml`, in file order — see `jobKeys` for how the scan is scoped. */
   function ciJobKeys(): string[] {
-    const start = ciWorkflow.search(/^jobs:[ \t]*$/m);
-    expect(start, 'ci.yml must still have a top-level `jobs:` mapping').toBeGreaterThan(-1);
-    const body = ciWorkflow.slice(start + 'jobs:'.length);
-    // `jobs:` is the last top-level key today; stop at the next one regardless.
-    const end = body.search(/^[A-Za-z]/m);
-    const scoped = end === -1 ? body : body.slice(0, end);
-    return [...scoped.matchAll(/^ {2}([a-z0-9][a-z0-9-]*):[ \t]*$/gm)].map((m) => m[1]);
+    return jobKeys(ciWorkflow, 'ci.yml');
   }
 
   /** The `name:` each job reports itself under in the checks list, keyed by job key. */
@@ -714,32 +866,11 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
    * (objectui#3650, PR #3659) both ran in the `type-check` job while its row on the
    * page still listed five commands.
    *
-   * Both directions are asserted, because the column is a claim in both: a command
-   * the job runs and the row omits is a contributor who cannot learn from this page
-   * that a gate exists; a command the row names and the job does not run is the
-   * objectui#3451 shape one level down — a page advertising a guardrail that is not
-   * there.
-   *
-   * What counts as a command is deliberately narrower than "every step", and the
-   * boundary is *derived* rather than hand-listed: a step counts when it names
-   * something this repository owns — a `scripts/*.mjs` file, a script in the root
-   * `package.json`, or a `turbo run` task. Environment setup drops out on its own
-   * because it names none of those (`corepack enable`, `pnpm --version`, `pnpm
-   * install --frozen-lockfile`, `pnpm exec playwright install`, `pnpm --filter …
-   * exec vite build`), which keeps this column a summary of the gates rather than a
-   * transcript of the YAML: the `e2e` job's artifact check and Playwright cache are
-   * real steps that no reader of this page needs enumerated.
-   *
-   * The hole that leaves, stated so nobody mistakes it for coverage: a gate written
-   * as an inline shell block names no first-party command and is invisible here.
-   * Gates in this repository land as a root `package.json` script or a
-   * `scripts/*.mjs` file — both covered — and that is the only reason the narrower
-   * rule is enough.
-   *
-   * Steps are read from `run:` values only, never from the surrounding YAML. The
-   * `type-check` job's comments alone mention `pnpm type-check`, `turbo run
-   * type-check` and `pnpm check:i18n-drift`; a scan of the raw block would take all
-   * three for steps and this pin would then be describing its own comments.
+   * The rule, both of its directions, and what counts as a command all live at
+   * module scope now (objectui#8015) — `lint.yml`'s section had the identical
+   * drift and is pinned by the same code at the bottom of this file. Only the
+   * `ci.yml`-specific part is here: the documentation for each job is that job's
+   * `What it runs` table cell.
    *
    * Whether a given step still EXISTS in `ci.yml` is pinned where that step was
    * introduced — `check-i18n-call-site-keys.test.ts` and
@@ -749,79 +880,9 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
    * this page, which is the part nothing owned.
    */
   describe('what each job runs', () => {
-    const rootScripts = new Set(
-      Object.keys(
-        (
-          JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')) as {
-            scripts: Record<string, string>;
-          }
-        ).scripts,
-      ),
-    );
-
-    /** One job's YAML block, from its key line up to the next thing at that indent. */
-    function jobBlock(key: string): string {
-      const body = ciWorkflow.slice(ciWorkflow.search(/^jobs:[ \t]*$/m));
-      const at = body.search(new RegExp(`^ {2}${key}:[ \\t]*$`, 'm'));
-      expect(at, `ci.yml must still define a \`${key}:\` job`).toBeGreaterThan(-1);
-      const rest = body.slice(at + 1);
-      // A job's own comments are indented four spaces or more; the two-space ones
-      // introduce the *next* job, so stopping at any two-space line is right.
-      const next = rest.search(/^ {2}\S/m);
-      return next === -1 ? rest : rest.slice(0, next);
-    }
-
-    /** Every `run:` step body in a job block — single-line and block scalar alike. */
-    function runSteps(block: string): string[] {
-      const lines = block.split('\n');
-      const steps: string[] = [];
-      for (let i = 0; i < lines.length; i++) {
-        const at = lines[i].indexOf('run:');
-        // `run:` must be the key of the line, not text inside another value.
-        if (at === -1 || !/^[\s-]*$/.test(lines[i].slice(0, at))) continue;
-        const value = lines[i].slice(at + 'run:'.length).trim();
-        if (!/^[|>][-+]?$/.test(value)) {
-          steps.push(value);
-          continue;
-        }
-        const body: string[] = [];
-        for (let j = i + 1; j < lines.length; j++) {
-          if (lines[j].trim() === '') continue;
-          if (lines[j].search(/\S/) <= at) break;
-          body.push(lines[j].trim());
-        }
-        steps.push(body.join('\n'));
-      }
-      return steps;
-    }
-
-    /**
-     * The first-party commands named in a piece of text — applied to a job's `run:`
-     * bodies on one side and to its `What it runs` cell on the other, so the two
-     * sides are compared by the same rule rather than by two spellings of it.
-     */
-    function firstPartyCommands(text: string): Set<string> {
-      const found = new Set<string>();
-      // A gate that lives in this repo's `scripts/` tree. The `node ` prefix is not
-      // required: ci.yml writes `node scripts/x.mjs`, the page writes the path.
-      for (const m of text.matchAll(/scripts\/[\w./-]+\.mjs/g)) found.add(m[0]);
-      // A root `package.json` script. `install`, `--version`, `exec` and `--filter`
-      // are not scripts, so the setup steps need no exemption list.
-      for (const m of text.matchAll(/\bpnpm\s+([\w:.-]+)/g)) {
-        if (rootScripts.has(m[1])) found.add(`pnpm ${m[1]}`);
-      }
-      // The build graph, invoked through the task runner instead of a script.
-      for (const m of text.matchAll(/\bturbo\s+run\s+([\w:-]+)/g)) found.add(`turbo run ${m[1]}`);
-      return found;
-    }
-
     /** `job key -> commands it actually runs`, and the same from the page's table. */
-    function commandsByJob(): { key: string; ran: Set<string>; named: Set<string> }[] {
-      return docJobRows().map((row) => ({
-        key: row.key,
-        ran: firstPartyCommands(runSteps(jobBlock(row.key)).join('\n')),
-        named: firstPartyCommands(row.runs),
-      }));
+    function commandsByJob(): CommandParity[] {
+      return docJobRows().map((row) => commandParity('ci.yml', row.key, row.runs));
     }
 
     it('names every first-party command the job actually runs', () => {
@@ -832,7 +893,7 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
       const ran = jobs.reduce((n, j) => n + j.ran.size, 0);
       expect(ran, 'the ci.yml `run:` parse found implausibly few first-party commands').toBeGreaterThan(8);
 
-      const missing = jobs.flatMap((j) => [...j.ran].filter((c) => !j.named.has(c)).map((c) => `${j.key}: ${c}`));
+      const missing = undocumentedCommands(jobs);
 
       expect(
         missing,
@@ -852,7 +913,7 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
       const named = jobs.reduce((n, j) => n + j.named.size, 0);
       expect(named, 'the job table parse found implausibly few commands in "What it runs"').toBeGreaterThan(8);
 
-      const phantom = jobs.flatMap((j) => [...j.named].filter((c) => !j.ran.has(c)).map((c) => `${j.key}: ${c}`));
+      const phantom = phantomCommands(jobs);
 
       expect(
         phantom,
@@ -865,6 +926,108 @@ describe('ci-cd-pipeline.md — ci.yml job table', () => {
           `guardrail — the objectui#3451 mistake, one level down.`,
       ).toEqual([]);
     });
+  });
+});
+
+/**
+ * objectui#8015: the same pairing, applied to the section this page's other pins
+ * could not reach.
+ *
+ * `lint.yml` is a REQUIRED context on `pull_request` and `merge_group` alike, and
+ * every gate in it blocks a merge. The only thing holding its section here was the
+ * workflow-inventory pin at the top of the file, which requires a `##` heading
+ * naming the file and says nothing whatsoever about the heading's contents — so the
+ * step list underneath it could drift indefinitely and every test on this page
+ * stayed green. It had: measured on `4b4d35a7d`, the section named three of the
+ * seven first-party commands the `lint` job runs, and the four it omitted —
+ * `check-entry-guard.mjs`, `check-upstream-port-parity.mjs`,
+ * `check-bash32-floor.mjs` and `check-cross-repo-closer-outcome.mjs` — are all
+ * blocking gates. Three of them had been missing since they landed; the fourth
+ * (`check-bash32-floor.mjs`, PR #8016) arrived while the card was open, which is
+ * the drift rate this pin exists to absorb.
+ *
+ * The neighbouring gap was demonstrated rather than argued: on the card before this
+ * one, a sentence in this same document was replaced with an obvious falsehood and
+ * the eleven test files that read the page were re-run — 404/404 green, plus
+ * `check-doc-links` at exit 0. Nothing looked at this page's contents beyond the
+ * `ci.yml` table.
+ *
+ * The prose SHAPE differs from `ci.yml`'s (bullets and paragraphs, not a table
+ * cell), which is exactly why the rule was hoisted to module scope instead of
+ * copied: `commandParity` takes whatever text documents a job, so the unit here is
+ * the whole `## Lint (lint.yml)` section against the single `lint` job. Reading the
+ * whole section rather than only the bullet list is deliberate — the paragraphs
+ * below the bullets discuss `pnpm lint` and `pnpm check` too, and a rule that read
+ * only the list would call those phantoms.
+ */
+describe('ci-cd-pipeline.md — lint.yml step list', () => {
+  const lintWorkflow = fs.readFileSync(path.join(workflowDir, 'lint.yml'), 'utf8');
+  const LINT_HEADING = '## Lint (`lint.yml`)';
+
+  /** The `## Lint (lint.yml)` section, up to the next `##` heading. */
+  function lintSection(): string {
+    const start = doc.indexOf(LINT_HEADING);
+    expect(start, `the page must still have a "${LINT_HEADING}" section`).toBeGreaterThan(-1);
+    const rest = doc.slice(start + 2);
+    const next = rest.search(/^## /m);
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  function lintUnits(): CommandParity[] {
+    return [commandParity('lint.yml', 'lint', lintSection(), 'lint.yml `lint`')];
+  }
+
+  it('describes the only job lint.yml defines', () => {
+    // The unit below covers the `lint` job and nothing else. A second job added to
+    // this workflow would run gates that no assertion here reads and no section
+    // here documents, so it has to come through this test first.
+    expect(
+      jobKeys(lintWorkflow, 'lint.yml'),
+      'lint.yml no longer defines exactly one `lint` job. The section pinned below ' +
+        'documents that job alone, so a new job needs its own documentation and its own ' +
+        'unit in `lintUnits()` — otherwise its gates are unpinned and undocumented at once.',
+    ).toEqual(['lint']);
+  });
+
+  it('names every first-party command the lint job actually runs', () => {
+    const units = lintUnits();
+
+    // A parser that matched nothing would make both directions vacuously green.
+    // The floor is a control on the matcher, not a ratchet on the gate count.
+    const ran = units.reduce((n, u) => n + u.ran.size, 0);
+    expect(ran, 'the lint.yml `run:` parse found implausibly few first-party commands').toBeGreaterThan(4);
+
+    const missing = undocumentedCommands(units);
+
+    expect(
+      missing,
+      `.github/workflows/lint.yml runs commands that the "${LINT_HEADING}" section of ` +
+        `content/docs/guide/ci-cd-pipeline.md does not name:\n` +
+        missing.map((m) => `  - ${m}`).join('\n') +
+        `\n\nAdd each one to that section, in the order lint.yml runs it. Every gate in this ` +
+        `job blocks a merge on a required check, so one nobody wrote down is a build failure ` +
+        `contributors meet with no way to learn from this page what produced it — objectui#8015.`,
+    ).toEqual([]);
+  });
+
+  it('credits the lint job with no first-party command it does not run', () => {
+    const units = lintUnits();
+
+    const named = units.reduce((n, u) => n + u.named.size, 0);
+    expect(named, 'the Lint section parse found implausibly few commands').toBeGreaterThan(4);
+
+    const phantom = phantomCommands(units);
+
+    expect(
+      phantom,
+      `the "${LINT_HEADING}" section of content/docs/guide/ci-cd-pipeline.md names commands ` +
+        `that .github/workflows/lint.yml does not run:\n` +
+        phantom.map((p) => `  - ${p}`).join('\n') +
+        `\n\nEither the step was removed and the prose is stale, or the command runs in a ` +
+        `different workflow and belongs in that section. This section reads as the \`lint\` ` +
+        `job's gate list, so naming a command inside it makes the page claim a guardrail — ` +
+        `the objectui#3451 mistake, in prose instead of a table.`,
+    ).toEqual([]);
   });
 });
 
