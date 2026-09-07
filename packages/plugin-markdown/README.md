@@ -24,9 +24,10 @@ pnpm add @object-ui/plugin-markdown
 ```typescript
 // In your app entry point (e.g., App.tsx or main.tsx)
 import '@object-ui/plugin-markdown';
+import type { MarkdownSchema } from '@object-ui/plugin-markdown';
 
 // Now you can use markdown type in your schemas
-const schema = {
+const schema: MarkdownSchema = {
   type: 'markdown',
   content: '# Hello World\n\nThis is **markdown** text.'
 };
@@ -40,7 +41,7 @@ import { ComponentRegistry } from '@object-ui/core';
 
 // Manually register if needed
 Object.entries(markdownComponents).forEach(([type, component]) => {
-  ComponentRegistry.register(type, component);
+  ComponentRegistry.register(type, component, { namespace: 'plugin-markdown' });
 });
 ```
 
@@ -59,13 +60,29 @@ const schema: MarkdownSchema = {
 
 ## Schema API
 
-```typescript
-{
-  type: 'markdown',
-  content: string,     // Markdown content (supports GitHub Flavored Markdown)
-  className?: string   // Tailwind classes
-}
-```
+`MarkdownSchema` has one authority — it is declared in `@object-ui/types` and
+re-exported by this package — so the members are listed here rather than
+re-declared as a second copy in a code block.
+
+| Member | Type | Required | Default | Read by |
+| --- | --- | --- | --- | --- |
+| `type` | `'markdown'` | yes | none | the registry, to resolve this renderer (registered under the `plugin-markdown` namespace) |
+| `content` | `string` | yes | none — see the note below | `MarkdownRenderer`, which forwards it to the lazy implementation; supports GitHub Flavored Markdown |
+| `className` | `string` | no | none | `MarkdownRenderer`, which puts it on the markdown container as Tailwind classes |
+
+Every other member is inherited from `BaseSchema`; this renderer reads none of
+them.
+
+> ⚠️ **`content`: what the contract says and what the runtime does.** The type
+> declares `content` REQUIRED and the component's `inputs` manifest declares it
+> `required: true` — but the renderer reads `schema.content || ''`, so a node
+> that omits it renders empty instead of failing. Both statements are true, and
+> neither is widened or narrowed here.
+
+`sanitize` and `components` appear on the interface only as ADR-0049 retirement
+tombstones (`?: never`, objectui#6972) — they are not authorable members and
+nothing reads them. Sanitization is unconditional: there is no authored spelling
+that turns it off.
 
 ## Supported Markdown Features
 
