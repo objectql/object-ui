@@ -279,6 +279,12 @@ export interface ContainerSchema extends BaseSchema {
  * Types of property 'type' are incompatible.`). Lifting the shared members out
  * of the inheritance path is what keeps them nameable from both sides.
  *
+ * A member here carries an `@default` tag only when BOTH consumers apply the
+ * same value — the criterion is a DIVERGENT shared member, not a shared one:
+ * `align` and `direction` diverge and state their per-type values in prose
+ * instead, while `justify` keeps its `@default 'start'` because `flex.tsx` and
+ * `stack.tsx` both read `|| 'start'`.
+ *
  * Pinned by `__tests__/stack-schema-emitted-members.test.ts`, which asserts
  * against the EMITTED declaration rather than this source — a source-level
  * assertion passes while the emitted declaration is empty, and that gap is
@@ -299,10 +305,6 @@ export interface FlexLayoutProps {
    * deliberately does not — a column is what the `stack` type is FOR). The
    * per-type values are stated in prose so no parser reads a value that is only
    * conditionally true.
-   *
-   * The criterion is a DIVERGENT shared member, not a shared one: the sibling
-   * `justify` keeps its `@default 'start'` because both consumers read
-   * `|| 'start'`, and that tag is correct for both.
    */
   direction?: 'row' | 'col' | 'row-reverse' | 'col-reverse';
   /**
