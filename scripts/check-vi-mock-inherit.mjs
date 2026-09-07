@@ -79,7 +79,8 @@
  *     fixed. Relative specifiers are counted here and never judged.
  *   - **Third-party packages.** `sonner`, `react-router-dom`, `lucide-react`
  *     and friends grow only on a deliberate version bump. Counted, never judged.
- *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
+ *   - **Workspace specifiers that are neither a `COVERED_SPECIFIERS` member
+ *     nor a SUBPATH of one.** See below, and "A member covers its subpaths".
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
  * actually been SWEPT to zero. Today that is eighteen, and each joined by sweep
@@ -827,6 +828,46 @@
  * zero for it, then add it to `COVERED_SPECIFIERS` in the same PR. The list only
  * ever grows. objectui#6892 carries the per-specifier worklist.
  *
+ * ## A member covers its SUBPATHS (objectui#8141)
+ *
+ * The resolver decided scope by EXACT string equality against
+ * `COVERED_SPECIFIERS` until objectui#8141, so `@object-ui/components/ui/sonner`
+ * -- a subpath of the member slice 6 swept -- fell into the "other workspace"
+ * bucket: counted, never judged, while the verdict line above it named the
+ * package as covered. A gate that reports a verdict broader than what it
+ * checked hides the absence behind a green, and the defect it hides is the one
+ * this whole file exists to catch: the failure mechanism does not care whether
+ * the frozen stand-in stood in for a package root or for one of its subpaths.
+ * A subpath's export surface GROWS exactly the way the root's does.
+ *
+ * ⭐ That was not an exemption and not a recogniser bug -- the resolver did
+ * exactly what it said. It was a scope boundary drawn when the covered set had
+ * ONE member and no call site named a subpath.
+ *
+ * A member therefore covers `member` and `member/...`, and the separator is
+ * part of the prefix, so a sibling package whose NAME merely starts with a
+ * member's (`@object-ui/react-native`) is a different package and stays out.
+ * The constant keeps naming package ROOTS only, so "a member joins only by
+ * sweep" is unchanged: what widened is the reach of one membership, not the
+ * test for membership.
+ *
+ * ⚠️ Widening the resolver newly JUDGES sites nobody swept, so it carries the
+ * same precondition a new member does. Re-measured on `b38014e82` against
+ * today's EIGHTEEN members by running this file's own `scan()` -- ⛔ never from
+ * objectui#8141's own table, which was taken on `214d5d5a6` when the constant
+ * held eleven:
+ *
+ *     subpath call sites on a covered member  ->  2, both
+ *       `@object-ui/components/ui/sonner`, both in `packages/plugin-form`
+ *     the same 2, once the prefix match lands  ->  2 inherit, 0 frozen
+ *
+ * with the census moving 623 -> 625 judged and 37 -> 35 other-workspace, no
+ * site moving the other way and every other row byte-identical between the two
+ * runs. Zero frozen before and after, so this landed as a RATCHET -- the same
+ * "the tree is at zero" argument that scoped objectui#6849 -- and no sweep was
+ * owed. ⛔ A later re-measure that DOES turn up a frozen subpath factory sweeps
+ * it in the same PR: never a floor, never a per-site allowance.
+ *
  * ⛔ There is deliberately NO per-file exception list, and adding one is the
  * wrong repair. An exemption means the recogniser called correct code broken;
  * fix the recogniser, or the specifier does not belong in the covered set yet.
@@ -1233,8 +1274,9 @@ export function classifyFactory(masked, literal, start, end, specifier) {
 /**
  * Every mock call site in one file, classified.
  *
- * `scope` is `covered` (judged), `workspace` (a workspace package outside
- * `COVERED_SPECIFIERS`), `external` (a third-party package), `local` (a
+ * `scope` is `covered` (judged -- a `COVERED_SPECIFIERS` member OR a subpath of
+ * one), `workspace` (a workspace package that is neither), `external` (a
+ * third-party package), `local` (a
  * relative specifier -- whole-module replacement, out of scope by the ruling),
  * `dynamic` (an interpolated specifier) or `embedded` (the call token sits
  * inside a string, so it is a code SAMPLE -- see `check-vi-mock-specifiers.mjs`
@@ -1244,6 +1286,12 @@ export function findCallSites(source, { covered = COVERED_SPECIFIERS } = {}) {
   const { comment, literal } = scanSource(source);
   const masked = blank(source, comment);
   const coveredSet = new Set(covered);
+  // A member covers its own SUBPATHS too -- see "A member covers its subpaths"
+  // in the header. The separator is part of the prefix, so a sibling package
+  // whose NAME merely starts with a member's (`@object-ui/react-native`) is not
+  // swallowed; only a subpath of the member itself (`@object-ui/react/x`) is.
+  const coveredPrefixes = [...coveredSet].map((member) => `${member}/`);
+  const isCovered = (spec) => coveredSet.has(spec) || coveredPrefixes.some((prefix) => spec.startsWith(prefix));
 
   const sites = [];
   CALL_RE.lastIndex = 0;
@@ -1260,7 +1308,7 @@ export function findCallSites(source, { covered = COVERED_SPECIFIERS } = {}) {
       ? 'dynamic'
       : specifier === '.' || specifier === '..' || specifier.startsWith('./') || specifier.startsWith('../')
         ? 'local'
-        : coveredSet.has(specifier)
+        : isCovered(specifier)
           ? 'covered'
           : specifier.startsWith('@object-ui/')
             ? 'workspace'
@@ -1375,7 +1423,7 @@ export function summarise({ census, covered }) {
   return (
     `${census.sources} tracked source file(s), ${census.testFiles} test-named; ` +
     `${census.filesWithMocks} carry a mock; ` +
-    `${census.covered} call site(s) on ${covered.join(', ')} judged ` +
+    `${census.covered} call site(s) on ${covered.join(', ')} and their subpaths judged ` +
     `(${census.inherits} inherit, ${census.automock} auto-mocked); ` +
     `${census.workspace} other workspace, ${census.external} external, ` +
     `${census.local} local, ${census.dynamic} non-static, ` +
