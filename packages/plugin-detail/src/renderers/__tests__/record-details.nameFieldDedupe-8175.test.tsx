@@ -110,31 +110,49 @@ afterEach(() => {
 });
 
 describe('record:details dedupe — the declared `nameField` picks the hidden row (#8175)', () => {
-  it('drops the declared `nameField` row and KEEPS the ordinary `name` row', () => {
+  /**
+   * The two halves are separate cases ON PURPOSE. Asserting both inside one
+   * `it` makes the first failure short-circuit the second, so an ablation of
+   * the read site reddens the duplicate half and says nothing at all about the
+   * vanishing half — and "an ordinary field disappears" is half the defect.
+   * Split, the ablation names both.
+   */
+  it('HALF 1 — DROPS the declared `nameField` row (the duplicate must not survive)', () => {
     renderBody(
       { id: 'C1', contract_no: 'HT-2026-001', name: 'internal-name', amount: 42 },
       contractSchema,
       CONTRACT_FIELDS,
     );
 
-    // Half 1 — the duplicate must NOT survive. `HT-2026-001` is exactly what
-    // the H1 shows for this record (pinned in `page-header-title.test.tsx`),
-    // so repeating it in the grid is the duplication this dedupe exists for.
+    // `HT-2026-001` is exactly what the H1 shows for this record (pinned in
+    // `@object-ui/components`' `page-header-title.test.tsx`, case `nameField
+    // wins over a record-level 'name' value`), so repeating it in the grid is
+    // the duplication this dedupe exists for.
     expect(screen.queryByText('HT-2026-001')).toBeNull();
 
-    // Half 2 — the ordinary field must NOT disappear. `internal-name` is a row
-    // the H1 never showed; the literal walk took it out because `name` is its
-    // first entry and the record has a value there.
-    expect(screen.getByText('internal-name')).toBeInTheDocument();
-
-    // CONTROL — the grid rendered at all. Without this, both assertions above
-    // are satisfied by a build that rendered nothing: "queryByText is null" is
-    // trivially true on an empty document, and this is the row that proves the
-    // component produced a grid rather than a placeholder or a crash.
-    // (the row LABEL is `amount`, not `Amount`: `DetailSection` labels a row
-    // from the entry's own `label`, and these entries are bare strings.)
+    // CONTROL — the grid rendered at all. Without it this case is satisfied by
+    // a build that rendered nothing: "queryByText is null" is trivially true on
+    // an empty document. (The row LABEL is `amount`, not `Amount` —
+    // `DetailSection` labels a row from the entry's own `label`, and these
+    // entries are bare strings.)
     expect(screen.getByText('42')).toBeInTheDocument();
     expect(screen.getByText('amount')).toBeInTheDocument();
+  });
+
+  it('HALF 2 — KEEPS the ordinary `name` row (no field may vanish in its place)', () => {
+    renderBody(
+      { id: 'C1', contract_no: 'HT-2026-001', name: 'internal-name', amount: 42 },
+      contractSchema,
+      CONTRACT_FIELDS,
+    );
+
+    // `internal-name` is a row the H1 never showed. The literal walk took it
+    // out anyway, because `name` is its first entry and the record has a value
+    // there — so the grid lost a field AND kept the duplicate, both at once.
+    expect(screen.getByText('internal-name')).toBeInTheDocument();
+
+    // CONTROL — the grid rendered at all.
+    expect(screen.getByText('42')).toBeInTheDocument();
   });
 
   it('honours the deprecated `displayNameField` alias the same way', () => {
