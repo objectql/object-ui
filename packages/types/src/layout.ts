@@ -286,8 +286,23 @@ export interface ContainerSchema extends BaseSchema {
  */
 export interface FlexLayoutProps {
   /**
-   * Flex direction
-   * @default 'row'
+   * Flex direction.
+   *
+   * Deliberately carries NO `@default` tag. The member is declared once here
+   * (see this interface's docblock and objectui#6151), but the two component
+   * types that consume it diverge on the value they apply when it is omitted:
+   * `flex.tsx` reads `schema.direction || 'row'`, `stack.tsx` reads
+   * `schema.direction || 'col'` ("Default to column for Stack"). One tag on a
+   * shared member cannot be right for both — it would publish a single default
+   * that only one consumer applies, which is the defect objectui#7734 records
+   * (the tag here used to read `'row'`, which `flex` applies and `stack`
+   * deliberately does not — a column is what the `stack` type is FOR). The
+   * per-type values are stated in prose so no parser reads a value that is only
+   * conditionally true.
+   *
+   * The criterion is a DIVERGENT shared member, not a shared one: the sibling
+   * `justify` keeps its `@default 'start'` because both consumers read
+   * `|| 'start'`, and that tag is correct for both.
    */
   direction?: 'row' | 'col' | 'row-reverse' | 'col-reverse';
   /**
