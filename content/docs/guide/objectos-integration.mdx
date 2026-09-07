@@ -94,9 +94,7 @@ objects, views and apps that the server exposes.
 ### 4. Set Up Frontend with Console
 
 ```typescript
-// src/index.tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+// src/App.tsx
 import { SchemaRenderer } from '@object-ui/react';
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 
@@ -111,7 +109,7 @@ const dataSource = new ObjectStackAdapter({
   baseUrl: 'http://localhost:3000/api'
 });
 
-function App() {
+export function App() {
   return (
     <div className="min-h-screen bg-background">
       <SchemaRenderer
@@ -146,13 +144,14 @@ function App() {
     </div>
   );
 }
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
 ```
+
+Mount `App` from your project's own React entry point, the way any React
+application is bootstrapped — `createRoot` out of the DOM renderer package,
+inside a `StrictMode`. That entry point is yours, not ObjectUI's: no
+`@object-ui/*` package installs a DOM renderer for you, it is asked for as a
+peer dependency, so the snippet above stops at the component boundary rather
+than showing a line that would only resolve inside this repository.
 
 ## ObjectOS-Specific Features
 
