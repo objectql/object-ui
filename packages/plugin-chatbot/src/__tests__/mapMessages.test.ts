@@ -7,6 +7,7 @@
  * `@ai-sdk/react`'s `useChat()` directly (e.g. Studio's chat panel).
  */
 import { describe, it, expect } from 'vitest';
+import type { UIMessage } from '@ai-sdk/react';
 import {
   uiMessageToChatMessage,
   uiMessagesToChatMessages,
@@ -120,7 +121,7 @@ describe('uiMessageToChatMessage', () => {
   });
 
   it('uiMessagesToChatMessages: only the streaming tail keeps a tool Running; prior messages terminalize', () => {
-    const msgs = [
+    const msgs: UIMessage[] = [
       {
         id: 'm-prior',
         role: 'assistant',
@@ -132,7 +133,7 @@ describe('uiMessageToChatMessage', () => {
         parts: [{ type: 'tool-add_field', toolCallId: 'c2', state: 'input-available', input: {} }],
       },
     ];
-    const out = uiMessagesToChatMessages(msgs as never, { isStreaming: true });
+    const out = uiMessagesToChatMessages(msgs, { isStreaming: true });
     expect(out[0].toolInvocations?.[0]?.state).toBe('output-available'); // prior turn → terminalized
     expect(out[1].toolInvocations?.[0]?.state).toBe('input-available');  // live tail → still Running
   });

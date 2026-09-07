@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { BaseSchema } from './base.js';
+import type { BaseSchema, SchemaNode } from './base.js';
 
 /**
  * Loading/Spinner component
@@ -225,6 +225,45 @@ export interface EmptySchema extends BaseSchema {
    * Icon to display
    */
   icon?: string;
+  /**
+   * Call-to-action node rendered below the description — e.g. the
+   * "Create Project" button in the `with-action-button` demo.
+   *
+   * ## Why this declaration exists (objectui#7105)
+   *
+   * The capability shipped, was documented and was demoed for a long time
+   * while FOUR surfaces disagreed about it: the renderer read it, the docs row
+   * described it, and neither this interface nor the zod mirror nor the
+   * designer's `registrationMeta.inputs` mentioned it. The read compiled only
+   * because `BaseSchema` ends in `[key: string]: any`, so
+   * `(schema as any).action` resolved to `any` instead of erroring — which is
+   * also why objectui#6150's census missed it. That census scanned for
+   * `schema.KEY`, and this renderer spelled the read with a cast.
+   *
+   * The consequence was not cosmetic: an author writing against the published
+   * type could not author the action at all. The key was accepted only
+   * vacuously, through the index signature, and no editor completed it.
+   *
+   * ## Why `SchemaNode` and not the object-only shape the renderer used to want
+   *
+   * `SchemaNode` is the spelling every sibling node slot uses — `body`,
+   * `children`, `DataTableSchema.emptyAction`, the overlay `trigger` /
+   * `content` slots. The renderer previously annotated its cast
+   * `BaseSchema | undefined` and guarded `typeof actionSchema === 'object'`,
+   * which made this slot NARROWER than a node slot: a bare string was silently
+   * dropped rather than rendered.
+   *
+   * Ruled (maintainer, decision batch #69, 2026-09-07) in favour of aligning
+   * with the siblings — the declaration says `SchemaNode` and the RENDERER
+   * moved to match it, so declared equals enforced. `SchemaRenderer` renders a
+   * bare string as its own text (pinned in
+   * `packages/react/src/__tests__/SchemaRenderer.primitiveSchema.test.tsx`),
+   * so nothing had to be invented to make the wider arm real.
+   *
+   * @example { "type": "button", "label": "Create Project", "variant": "default" }
+   * @example "Nothing here yet"
+   */
+  action?: SchemaNode;
 }
 
 /**

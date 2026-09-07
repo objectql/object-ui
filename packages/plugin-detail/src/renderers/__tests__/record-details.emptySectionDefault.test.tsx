@@ -59,6 +59,14 @@ import { RecordDetailsRenderer } from '../record-details';
  */
 const objectSchema = {
   fields: {
+    // DECLARED and left UNSET on every record below, so the `record:details`
+    // dedupe ladder resolves its H1 candidate to `name`, finds no value there
+    // and hides nothing (objectui#8175). Without it the ladder's ADR-0079
+    // derivation rung ends in "first title-eligible field by declaration
+    // order" — `industry` — and every `Manufacturing` assertion in this file
+    // would be measuring the dedupe instead of the empty-section heuristic
+    // these cases exist to pin.
+    name: { type: 'text', label: 'Name' },
     industry: { type: 'text', label: 'Industry' },
     stage: { type: 'text', label: 'Stage' },
     amount: { type: 'text', label: 'Amount' },

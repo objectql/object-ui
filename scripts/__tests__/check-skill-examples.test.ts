@@ -12,6 +12,7 @@ import {
   JSON_FENCE_LANGUAGES,
   KNOWN_BARE_ANY_EXAMPLES,
   KNOWN_ROOT_DEVDEP_EXAMPLES,
+  KNOWN_SHADOWED_PUBLISHED_TYPES,
   MARKED_FLOOR,
   MARKER,
   SCAN_ROOTS,
@@ -20,8 +21,10 @@ import {
   bareAnyRowKey,
   buildFilterArgs,
   classifyRootDevDep,
+  classifyShadowedTypes,
   fenceSpans,
   findBareAny,
+  findLocalTypeDeclarations,
   floorReport,
   listGuides,
   markedPopulation,
@@ -30,6 +33,8 @@ import {
   rootDevDepRowKey,
   scanSkillFences,
   scopedBuildNotice,
+  shadowCandidates,
+  shadowedTypeRowKey,
   stripJsonComments,
 } from '../check-skill-examples.mjs';
 import {
@@ -762,10 +767,30 @@ describe('the harness is imported, not re-rolled', () => {
     }
   });
 
-  it('does not build a TypeScript Program of its own', () => {
+  it('does not JUDGE a snippet with a Program of its own', () => {
+    // ⚠️ This pin was `not.toContain('ts.createProgram')` until objectui#7646,
+    // and it is NARROWED here rather than deleted. What it exists to stop is a
+    // FORKED SNIPPET HARNESS — a second answer to "does this fence compile",
+    // free to drift from the shared one, which is how that harness produced a
+    // false green when it existed three times.
+    //
+    // objectui#7646 needs one Program that answers a DIFFERENT question: what
+    // does the published surface NAME (`derivePublishedTypeNames`). It is built
+    // over the packages' entry `.d.ts` files, never over a fence body, and it
+    // emits and judges nothing.
+    //
+    // So the pin now keys on the act that IS judging a snippet — reading
+    // diagnostics — which no forked harness can avoid, and which the old
+    // spelling did not actually check. The count pin keeps the exemption from
+    // widening: a SECOND Program cannot arrive unnoticed.
     const source = fs.readFileSync(path.join(repoRoot, 'scripts/check-skill-examples.mjs'), 'utf8');
-    expect(source).not.toContain('ts.createProgram');
-    expect(source).not.toContain('ts.createCompilerHost');
+    expect(source).not.toContain('getSemanticDiagnostics');
+    expect(source).not.toContain('getSyntacticDiagnostics');
+    expect(source).not.toContain('getPreEmitDiagnostics');
+    expect(source.match(/ts\.createProgram/g) ?? []).toHaveLength(1);
+    expect(source.match(/ts\.createCompilerHost/g) ?? []).toHaveLength(1);
+    // …and the one Program is the inventory's, not a snippet's.
+    expect(source).toMatch(/export function derivePublishedTypeNames[\s\S]*?ts\.createProgram/);
   });
 });
 
@@ -1028,5 +1053,276 @@ describe('the bare-`any` assertion', () => {
       );
       expect(SCAN_ROOTS.some((r: string) => row.startsWith(`${r}/`))).toBe(true);
     }
+  });
+});
+
+describe('the shadowed-published-type assertion (objectui#7646)', () => {
+  type Declaration = { name: string; line: number; kind: string };
+  type Local = { declarations: Declaration[]; imported: Set<string> };
+  type Candidate = { block: { doc: string; fenceLine: number }; name: string; line: number };
+  type Row = Candidate & { key: string; declared: boolean; reason: string | null };
+  type Split = { rows: Row[]; stale: string[]; undeclared: Row[] };
+
+  const block = (doc: string, fenceLine: number, body: string, marked = true) => ({
+    doc,
+    fenceLine,
+    body,
+    marked,
+    kind: 'ts',
+    language: 'typescript',
+    selected: marked,
+  });
+
+  describe('what a fence DECLARES, read off the block', () => {
+    it('finds a local type alias and a local interface, with the line inside the block', () => {
+      const found = findLocalTypeDeclarations(
+        ['type A = { a: string };', '', 'interface B { b: number }'].join('\n'),
+      ) as Local;
+      expect(found.declarations).toEqual([
+        { name: 'A', line: 1, kind: 'type' },
+        { name: 'B', line: 3, kind: 'interface' },
+      ]);
+    });
+
+    it('parses as TSX, matching the harness — a JSX example is not misread', () => {
+      // `compileSnippets` parses every block as TSX regardless of the fence
+      // label. A guard walking a different tree from the one `tsc` judged would
+      // be reporting about a program that was never checked.
+      const found = findLocalTypeDeclarations(
+        'const El = () => <div className="x">hi</div>;\ntype P = { x: string };',
+      ) as Local;
+      expect(found.declarations.map((d) => d.name)).toEqual(['P']);
+    });
+
+    it('yields nothing rather than throwing on a block too broken to parse', () => {
+      expect(() => findLocalTypeDeclarations('type = ;')).not.toThrow();
+    });
+
+    it('records the names a named, a default and a namespace import bind', () => {
+      const found = findLocalTypeDeclarations(
+        [
+          "import type { AuthUser } from '@object-ui/auth';",
+          "import React from 'react';",
+          "import * as types from '@object-ui/types';",
+        ].join('\n'),
+      ) as Local;
+      expect([...found.imported].sort()).toEqual(['AuthUser', 'React', 'types']);
+    });
+
+    it('records BOTH halves of an aliased import, which is what makes the good pattern legal', () => {
+      // `import type { QueryResult as Published }` then a short local
+      // `QueryResult` derived from it is ANCHORED to the published type and is
+      // exactly what this assertion wants to encourage. Keying only on the
+      // local binding would red on it.
+      const found = findLocalTypeDeclarations(
+        "import type { QueryResult as PublishedQueryResult } from '@object-ui/types';",
+      ) as Local;
+      expect([...found.imported].sort()).toEqual(['PublishedQueryResult', 'QueryResult']);
+    });
+  });
+
+  describe('which declarations become candidates', () => {
+    it('a fence that declares a name it does not import is a candidate', () => {
+      const found = shadowCandidates([block('skills/g.md', 10, 'type QueryResult = { rows: unknown[] };')]) as Candidate[];
+      expect(found).toHaveLength(1);
+      expect(found[0].name).toBe('QueryResult');
+    });
+
+    it('a fence that IMPORTS the name is not a candidate — that is the remedy, not the defect', () => {
+      const found = shadowCandidates([
+        block(
+          'skills/g.md',
+          10,
+          ["import type { QueryResult } from '@object-ui/types';", 'interface QueryResult { data: unknown }'].join(
+            '\n',
+          ),
+        ),
+      ]);
+      expect(found).toEqual([]);
+    });
+
+    it('the aliased-derive pattern is not a candidate either', () => {
+      const found = shadowCandidates([
+        block(
+          'skills/g.md',
+          10,
+          [
+            "import type { QueryResult as PublishedQueryResult } from '@object-ui/types';",
+            'type QueryResult = Pick<PublishedQueryResult, "data">;',
+          ].join('\n'),
+        ),
+      ]);
+      expect(found).toEqual([]);
+    });
+
+    it('runs on an UNBUILT tree, because it is purely syntactic', () => {
+      // The suite's whole boundary: `ci.yml`'s test shards do not build the
+      // workspace, so the half that needs `dist/*.d.ts` lives in `--self-test`
+      // and this half must not.
+      const state = withTree(
+        (write) => {
+          // The workspace scan reads `packages/` directly; an absent directory
+          // is not the thing under test here.
+          write('packages/.keep', '');
+          write(
+            'skills/g.md',
+            [MARKER, '```typescript', 'type BaseSchema = { type: string };', '```', ''].join('\n'),
+          );
+        },
+        (dir) => analyze({ root: dir }),
+      ) as { localTypes: Candidate[]; markedLocalTypes: Candidate[] };
+      expect(state.localTypes.map((c) => c.name)).toEqual(['BaseSchema']);
+      expect(state.markedLocalTypes.map((c) => c.name)).toEqual(['BaseSchema']);
+    });
+
+    it('collects the MARKED half separately from the selected half', () => {
+      // A ledger row is a claim about a GATED fence, so the stale side is read
+      // off the marked population whatever mode the run is in. Under
+      // `--measure` an unmarked fence is selected but must not appear to cover
+      // a row.
+      const state = withTree(
+        (write) => {
+          write('packages/.keep', '');
+          write(
+            'skills/g.md',
+            [
+              MARKER,
+              '```typescript',
+              'type AuthUser = { id: string };',
+              '```',
+              '',
+              '```typescript',
+              'type QueryResult = { data: unknown };',
+              '```',
+              '',
+            ].join('\n'),
+          );
+        },
+        (dir) => analyze({ root: dir, measure: true }),
+      ) as { localTypes: Candidate[]; markedLocalTypes: Candidate[] };
+      expect(state.localTypes.map((c) => c.name).sort()).toEqual(['AuthUser', 'QueryResult']);
+      expect(state.markedLocalTypes.map((c) => c.name)).toEqual(['AuthUser']);
+    });
+  });
+
+  describe('the shrink-only ledger reds in all four directions', () => {
+    const fence = { doc: 'skills/objectui/guides/auth-permissions.md', fenceLine: 59 };
+    const hit = { block: fence, name: 'AuthUser', line: 2, kind: 'type', specifiers: ['@object-ui/auth'] };
+    const declared = new Map([['skills/objectui/guides/auth-permissions.md:59 AuthUser', 'a reason']]);
+
+    it('1 — an offender with NO row is RED, and the row names the guide, the line and the name', () => {
+      const split = classifyShadowedTypes([hit], [hit], new Map()) as Split;
+      expect(split.undeclared).toHaveLength(1);
+      expect(split.undeclared[0].key).toBe('skills/objectui/guides/auth-permissions.md:59 AuthUser');
+      expect(split.stale).toEqual([]);
+    });
+
+    it('a declared offender is debt, not red — and it carries its reason', () => {
+      const split = classifyShadowedTypes([hit], [hit], declared) as Split;
+      expect(split.undeclared).toEqual([]);
+      expect(split.stale).toEqual([]);
+      expect(split.rows[0].reason).toBe('a reason');
+    });
+
+    it('2 — a row whose fence now IMPORTS the name is STALE', () => {
+      // The fence is still there and still marked; it just no longer shadows,
+      // so there is no live hit for the row to describe.
+      const split = classifyShadowedTypes([], [], declared) as Split;
+      expect(split.stale).toEqual(['skills/objectui/guides/auth-permissions.md:59 AuthUser']);
+    });
+
+    it('3 — a row naming a fence that is GONE is STALE', () => {
+      const elsewhere = { ...hit, block: { doc: 'skills/objectui/guides/other.md', fenceLine: 4 } };
+      const split = classifyShadowedTypes([elsewhere], [elsewhere], declared) as Split;
+      expect(split.stale).toEqual(['skills/objectui/guides/auth-permissions.md:59 AuthUser']);
+      expect(split.undeclared.map((r) => r.key)).toEqual(['skills/objectui/guides/other.md:4 AuthUser']);
+    });
+
+    it('4 — a row whose SHADOWED NAME changed reds TWICE, and says both halves', () => {
+      // No extra machinery: the name is IN the key, so the old row goes stale
+      // and the new name arrives undeclared in the same run.
+      const renamed = { ...hit, name: 'AuthSession' };
+      const split = classifyShadowedTypes([renamed], [renamed], declared) as Split;
+      expect(split.stale).toEqual(['skills/objectui/guides/auth-permissions.md:59 AuthUser']);
+      expect(split.undeclared.map((r) => r.key)).toEqual([
+        'skills/objectui/guides/auth-permissions.md:59 AuthSession',
+      ]);
+    });
+
+    it('an UNMARKED fence never covers a row — measured is not gated', () => {
+      // `hits` may carry an unmarked fence under `--measure`; `markedHits` may
+      // not. A row covered by a merely-measured fence would be an exemption
+      // that no run enforces.
+      const split = classifyShadowedTypes([hit], [], declared) as Split;
+      expect(split.undeclared).toEqual([]);
+      expect(split.stale).toEqual(['skills/objectui/guides/auth-permissions.md:59 AuthUser']);
+    });
+
+    it('builds a row key naming the guide, the fence line and the shadowed name', () => {
+      expect(shadowedTypeRowKey({ doc: 'skills/objectui/guides/x.md', fenceLine: 42 }, 'AuthUser')).toBe(
+        'skills/objectui/guides/x.md:42 AuthUser',
+      );
+    });
+  });
+
+  describe('the committed ledger', () => {
+    it('is a shrink-only Map of verbatim rows, each carrying a reason', () => {
+      // Every row must be shaped like a key this gate can actually produce, or
+      // it would sit in the list forever covering nothing — a parked exemption
+      // wearing a ratchet's clothes.
+      expect(KNOWN_SHADOWED_PUBLISHED_TYPES).toBeInstanceOf(Map);
+      for (const [row, reason] of KNOWN_SHADOWED_PUBLISHED_TYPES as Map<string, string>) {
+        expect(row, `ledger row is not \`GUIDE:LINE NAME\`: ${row}`).toMatch(
+          /^[\w./-]+\.md:\d+ [A-Za-z_$][\w$]*$/,
+        );
+        expect(SCAN_ROOTS.some((r: string) => row.startsWith(`${r}/`))).toBe(true);
+        // A row with no reason is an allowlist entry wearing a ledger's
+        // clothes: the reason is what makes the per-fence judgement it is
+        // waiting on visible work rather than a silent exemption.
+        expect(reason.length, `ledger row carries no reason: ${row}`).toBeGreaterThan(20);
+      }
+    });
+
+    it('names the card that owns the repair, because the fences are a GOVERNED surface', () => {
+      // `skills/**` and `.claude/skills/**` are agent-drafts / human-merges, so
+      // the pull request that landed this assertion could not edit a fence. A
+      // row with no owner would be debt nobody is carrying.
+      for (const reason of (KNOWN_SHADOWED_PUBLISHED_TYPES as Map<string, string>).values()) {
+        expect(reason).toMatch(/objectui#\d+/);
+      }
+    });
+
+    it('every row sits on a fence that still exists and still carries the marker', () => {
+      // The cheap half of direction 3, pinned here rather than only in the gate
+      // run: a row pointing at a line no marked fence opens is stale on its
+      // face, and this test says so on an unbuilt tree.
+      const guides = new Map(
+        (listGuides(repoRoot) as string[]).map((g) => [
+          g,
+          scanSkillFences(fs.readFileSync(path.join(repoRoot, g), 'utf8')) as Scan,
+        ]),
+      );
+      for (const row of (KNOWN_SHADOWED_PUBLISHED_TYPES as Map<string, string>).keys()) {
+        const [site] = row.split(' ');
+        const doc = site.slice(0, site.lastIndexOf(':'));
+        const line = Number(site.slice(site.lastIndexOf(':') + 1));
+        const scan = guides.get(doc);
+        expect(scan, `ledger row names a guide that is not in the scan set: ${row}`).toBeTruthy();
+        const fence = scan?.fences.find((f) => f.fenceLine === line);
+        expect(fence, `ledger row names no fence at that line: ${row}`).toBeTruthy();
+        expect(fence?.marked, `ledger row names an UNMARKED fence: ${row}`).toBe(true);
+        expect(fence?.kind).toBe('ts');
+      }
+    });
+
+    it('every row names a type the fence really declares and does not import', () => {
+      // The other cheap half, and the one that catches a row kept alive after
+      // its fence was repaired: the row must correspond to a live candidate.
+      const state = analyze({ root: repoRoot }) as { markedLocalTypes: Candidate[] };
+      const keys = new Set(state.markedLocalTypes.map((c) => shadowedTypeRowKey(c.block, c.name)));
+      for (const row of (KNOWN_SHADOWED_PUBLISHED_TYPES as Map<string, string>).keys()) {
+        expect(keys.has(row), `ledger row describes no live re-declaration: ${row}`).toBe(true);
+      }
+    });
   });
 });
