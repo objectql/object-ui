@@ -1112,6 +1112,9 @@ const ru = {
     loading: "Загрузка графика…",
     nullCategory: "(Не указано)",
     scatterOneMeasure: "Точечная диаграмма строит только одну меру. Оставьте один ряд:",
+    unconfigured: {
+      noCategoryAxis: "Требуется ось категорий диаграммы — диаграмма, привязанная к объекту, не придумывает её. Объявите одно из:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders

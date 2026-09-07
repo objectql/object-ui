@@ -1102,6 +1102,9 @@ const de = {
     loading: "Diagramm wird geladen…",
     nullCategory: "(Ohne Angabe)",
     scatterOneMeasure: "Ein Streudiagramm zeichnet genau eine Kennzahl. Behalten Sie nur eine Datenreihe:",
+    unconfigured: {
+      noCategoryAxis: "Kategorieachse des Diagramms erforderlich — ein objektgebundenes Diagramm erfindet keine. Deklarieren Sie eine davon:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders
