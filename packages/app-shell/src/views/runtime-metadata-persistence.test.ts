@@ -265,6 +265,43 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
       expect(unwrapDraftBody('x')).toBeNull();
       expect(unwrapDraftBody({})).toBeNull();
     });
+
+    /**
+     * objectui#8181 — the read decorations come off HERE, at the one place the
+     * served body becomes a body this seam hands to callers.
+     *
+     * `readRuntimeDraft`'s answer is what `RuntimeDraftBar` passes to
+     * `onResume`, which seeds the host editor whose next save writes it back.
+     * Leaving `_diagnostics` / `_draft` on it completes exactly the read→edit→
+     * write round trip the spec's `stripReadDecorations` exists to break.
+     */
+    describe('read decorations (objectui#8181)', () => {
+      const DECOR = { _diagnostics: { valid: true, errors: [] }, _draft: true };
+
+      it('strips them off the envelope limb', () => {
+        expect(
+          unwrapDraftBody({ type: 'view', name: 'v', item: { a: 1, ...DECOR } }),
+        ).toEqual({ a: 1 });
+      });
+
+      it('strips them off the bare-body limb — the one get() actually feeds', () => {
+        expect(unwrapDraftBody({ a: 1, ...DECOR })).toEqual({ a: 1 });
+      });
+
+      it('keeps the ADR-0010 protection envelope, which the schemas declare', () => {
+        expect(
+          unwrapDraftBody({ a: 1, _lock: { locked: true }, _provenance: 'package', ...DECOR }),
+        ).toEqual({ a: 1, _lock: { locked: true }, _provenance: 'package' });
+      });
+
+      it('a draft carrying ONLY decorations still reads as pending, not as null', () => {
+        // The verdict runs before the strip: `!!readRuntimeDraft(...)` is the
+        // "has pending changes" test, and a served draft must never become
+        // "nothing pending" because we removed our own annotations from it.
+        expect(unwrapDraftBody({ type: 'view', name: 'v', item: { ...DECOR } })).toEqual({});
+        expect(unwrapDraftBody({ ...DECOR })).toEqual({});
+      });
+    });
   });
 
   /**

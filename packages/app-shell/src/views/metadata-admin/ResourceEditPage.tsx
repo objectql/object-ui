@@ -85,6 +85,10 @@ import type {
   MetadataLockState,
   MetadataReference,
 } from '@object-ui/data-objectstack';
+// The ONE draft-envelope reader (objectui#8181). Its docblock carries the
+// read-decoration contract objectui#7603 established here; it was hoisted so
+// the three sibling copies could stop re-deriving it.
+import { extractDraftBody } from '@object-ui/data-objectstack';
 import { PageShell } from './PageShell.js';
 import { MetadataTypeActions } from './MetadataTypeActions.js';
 import { LayeredDiff, countOverlaidFields } from './LayeredDiff.js';
@@ -127,7 +131,6 @@ import { validateMetadataDraft, hasClientValidator, type DraftMode } from './cli
 import { describeIssuePath } from './issuePath.js';
 import { buildCreateModeBody } from './createBody.js';
 import { errorCodeIs, errorCodeIsAnyOf } from '@object-ui/types';
-import { stripReadDecorations } from '@objectstack/spec/kernel';
 
 /**
  * ADR-0010 §3.6 lock state -> the lock banner's headline sentence.
@@ -205,62 +208,6 @@ const CANVAS_OWNED_KEYS: Record<string, string[]> = {
   object: ['fields', 'fieldGroups'],
 };
 
-/**
- * Normalize the framework's draft envelope into either the draft body or
- * `null` (no pending draft). The envelope is:
- *
- *   - `{ type, name, item: {...} }` when a draft exists,
- *   - `{ type, name, label }`       when no draft exists (HTTP 200, item absent).
- *
- * The presence of the `item` key is the single signal; we do NOT fall back
- * to using the envelope itself as the body — doing so would mis-identify the
- * "no draft" stub (which still has `type`/`name`/`label` keys) as a real
- * pending draft and would corrupt the editor baseline.
- *
- * ## The served body is DECORATED, and this is where that stops (objectui#7603)
- *
- * The strict draft branch returns `item: decorateMetadataItem(type, …)`, which
- * attaches `_diagnostics` whenever the type has a registered Zod schema, and
- * `_draft` on the preview-draft branch. The spec calls both a READ-TIME
- * decoration and says a served body "is therefore NOT a valid input to the
- * schema that produced it until these are removed". Every merge site below
- * spreads this body over the layered baseline (`{ ...baseline, ...draftReal }`)
- * and the result reaches the client Zod gate, so the decoration made 14 of the
- * 15 wired types — every one whose schema is `.strict()` — report a body THE
- * SERVER ACCEPTS as `unrecognized_keys`. The layered half is clean
- * (`getMetaItemLayered` serves RAW layers), so the misfire needed a PENDING
- * DRAFT to exist, which is why it stayed invisible.
- *
- * This function is the chokepoint: it is the one place a served draft envelope
- * becomes a body, and all three merge sites (the load effect, the post-save
- * refresh, the post-publish refresh) read it. Stripping here fixes them
- * together and leaves no fourth site to forget.
- *
- * ⛔ Never by loosening a schema, and ⛔ never with a local
- * `['_diagnostics', '_draft']`: the list is the SPEC'S, reached through its own
- * exported helper — the same one `MetadataService.saveFields` uses on the write
- * side — because a second hand-maintained copy goes stale the next time the
- * framework adds a decoration, and a decoration this code does not know to
- * remove is precisely the defect. The ADR-0010 protection envelope (`_lock`,
- * `_provenance`, …) is deliberately NOT on that list: those keys are
- * allowlisted by the closed schemas so provenance survives a re-parse, and this
- * strip leaves them alone.
- *
- * The strip runs AFTER the presence verdict, never before it: what counts as a
- * pending draft is `getDraft`'s answer, and removing our own decorations must
- * not be able to turn a served draft into "no draft".
- */
-function extractDraftBody(
-  draftResp: unknown,
-): Record<string, unknown> | null {
-  if (!draftResp || typeof draftResp !== 'object') return null;
-  const env = draftResp as Record<string, unknown>;
-  if (!('item' in env)) return null;
-  const body = env.item;
-  if (!body || typeof body !== 'object') return null;
-  if (Object.keys(body as object).length === 0) return null;
-  return stripReadDecorations(body) as Record<string, unknown>;
-}
 
 /**
  * The software-package binding this editor is authoring under, read from the
