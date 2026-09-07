@@ -46,19 +46,19 @@ code --install-extension object-ui-<version>.vsix
 
 Access commands via Command Palette (Ctrl+Shift+P / Cmd+Shift+P):
 
-### `ObjectUI: Preview Schema`
+### `Object UI: Open Preview`
 
-Opens a live preview of your schema in a side panel.
+Opens a live preview of your schema in the first editor column. Its sibling
+`Object UI: Open Preview to the Side` opens the same panel beside the editor
+instead.
 
 **Usage:**
 1. Open a `.json` or `.objectui.json` file
 2. Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (Mac)
-3. Type "ObjectUI: Preview Schema"
-4. Preview opens in side panel
+3. Type "Object UI: Open Preview"
+4. Preview opens in a panel
 
-**Keyboard Shortcut:** `Ctrl+Alt+P` (Windows/Linux) or `Cmd+Alt+P` (Mac)
-
-### `ObjectUI: Validate Schema`
+### `Object UI: Validate Schema`
 
 Validates the current schema against ObjectUI schema definitions.
 
@@ -67,9 +67,7 @@ Validates the current schema against ObjectUI schema definitions.
 2. Run command
 3. View validation errors in Problems panel
 
-**Keyboard Shortcut:** `Ctrl+Alt+V` (Windows/Linux) or `Cmd+Alt+V` (Mac)
-
-### `ObjectUI: Export to React`
+### `Object UI: Export to React Component`
 
 Converts the schema to a React component.
 
@@ -115,7 +113,7 @@ export default function GeneratedComponent() {
 }
 ```
 
-### `ObjectUI: Format Schema`
+### `Object UI: Format Schema`
 
 Formats the schema JSON with consistent indentation and ordering.
 
@@ -124,15 +122,13 @@ Formats the schema JSON with consistent indentation and ordering.
 2. Run command
 3. Schema is auto-formatted
 
-**Keyboard Shortcut:** `Ctrl+Alt+F` (Windows/Linux) or `Cmd+Alt+F` (Mac)
-
-### `ObjectUI: Create New Schema`
+### `Object UI: Create New Schema`
 
 Creates a new schema file from a template.
 
 **Usage:**
 1. Run command
-2. Select template (Dashboard, Form, Grid, etc.)
+2. Select a template — `Empty Schema`, `Simple Form`, `Dashboard`, `Card Layout` or `Data Table`
 3. New file is created with template content
 
 ## Language Support
@@ -366,18 +362,15 @@ Create `.vscode/settings.json` in your project:
 
 ## Keyboard Shortcuts
 
-Default keyboard shortcuts:
+**The extension ships no default keyboard shortcuts.** Its manifest has no
+`contributes.keybindings` block, so no command arrives bound to a chord — run them
+from the Command Palette or the context menus above, or bind the ones you use.
 
-| Command | Windows/Linux | Mac |
-|---------|--------------|-----|
-| Preview Schema | `Ctrl+Alt+P` | `Cmd+Alt+P` |
-| Validate Schema | `Ctrl+Alt+V` | `Cmd+Alt+V` |
-| Format Schema | `Ctrl+Alt+F` | `Cmd+Alt+F` |
-| Export to React | `Ctrl+Alt+E` | `Cmd+Alt+E` |
+### Bind a command yourself
 
-### Custom Shortcuts
-
-Customize via Keyboard Shortcuts editor (Ctrl+K Ctrl+S):
+Open the Keyboard Shortcuts editor (Ctrl+K Ctrl+S / Cmd+K Cmd+S), search for the
+command by its name, and assign a chord. To write the binding by hand instead, open
+`keybindings.json` from that editor and add an entry naming the command id:
 
 ```json
 {
@@ -387,21 +380,31 @@ Customize via Keyboard Shortcuts editor (Ctrl+K Ctrl+S):
 }
 ```
 
+Every command the extension contributes, with the id to bind:
+
+| Command | Command id |
+|---------|------------|
+| Object UI: Open Preview | `objectui.preview` |
+| Object UI: Open Preview to the Side | `objectui.previewToSide` |
+| Object UI: Validate Schema | `objectui.validate` |
+| Object UI: Format Schema | `objectui.format` |
+| Object UI: Export to React Component | `objectui.exportToReact` |
+| Object UI: Create New Schema | `objectui.newSchema` |
+
 ## Context Menus
 
-Right-click on a schema file to access:
+Right-click a `.objectui.json` or `.oui.json` file to access — the entries are
+contributed for those two extensions only:
 
 ### Editor Context Menu
 
-- **Preview Schema** - Open live preview
-- **Validate Schema** - Run validation
-- **Export to React** - Convert to React component
-- **Format Schema** - Auto-format
+- **Object UI: Open Preview** - Open live preview
+- **Object UI: Validate Schema** - Run validation
+- **Object UI: Export to React Component** - Convert to React component
 
 ### Explorer Context Menu
 
-- **Preview Schema** - Preview selected file
-- **Create Schema** - Create new schema in folder
+- **Object UI: Open Preview** - Preview selected file
 
 ## Preview Features
 
@@ -420,10 +423,10 @@ The preview panel includes:
 
 1. **Create Schema** - Use snippet or command
 2. **Edit Schema** - IntelliSense helps with completion
-3. **Preview** - Open live preview (Ctrl+Alt+P)
-4. **Validate** - Check for errors (Ctrl+Alt+V)
+3. **Preview** - Open live preview
+4. **Validate** - Check for errors
 5. **Test** - Interact with preview
-6. **Export** - Convert to React (Ctrl+Alt+E)
+6. **Export** - Convert to React
 
 ### Tips
 
