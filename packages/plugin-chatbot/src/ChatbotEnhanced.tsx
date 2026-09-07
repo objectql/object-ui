@@ -1975,6 +1975,16 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // (not the rich `draftReview`, which a reloaded conversation strips), so the
     // done-state survives a refresh. Positional so a later, not-yet-built plan
     // (e.g. after "make it simpler") keeps its live button.
+    //
+    // objectui#8343 — the name alone is NOT enough. When the user didn't say the
+    // magic "直接搭建", `apply_blueprint` hits its own confirm gate and returns
+    // `{status:'awaiting_confirmation'}`: it built nothing and is itself waiting
+    // for the user. Counting that as a build collapsed the plan card to the inert
+    // 已搭建 badge and took its "Build it" button with it, while the
+    // apply_blueprint card has no button of its own — the turn was left with
+    // nothing to click and the only way out was guessing "确认" into the composer.
+    // So a build only counts when the invocation is not a confirm-gate preview,
+    // the same fact `getToolState` already reads to say "Awaiting Approval".
     const builtPlanIds = React.useMemo(() => {
       const ids = new Set<string>();
       const plans: Array<{ id: string; order: number }> = [];
@@ -1988,7 +1998,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           if ((tool.proposedPlan || isUnstructuredBuildProposal(tool)) && tool.toolCallId) {
             plans.push({ id: tool.toolCallId, order });
           }
-          if (tool.toolName === 'apply_blueprint') lastBuildOrder = order;
+          // A still-running apply (no result yet) DOES count: the build is in
+          // flight, and a second "Build it" would re-trigger it (#432).
+          if (tool.toolName === 'apply_blueprint' && !isProposalResult(tool.result)) {
+            lastBuildOrder = order;
+          }
           order += 1;
         }
       }
@@ -2015,6 +2029,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // has been applied — i.e. a LATER invocation of the SAME tool committed (no
     // longer a changes_proposed preview). Positional + per-tool so an earlier
     // confirmed change doesn't silence a later still-pending one.
+    //
+    // objectui#8343 — "no longer a preview" was inferred from the ABSENCE of the
+    // rich `proposedChanges` card, which is a stricter thing: that detector also
+    // needs ≥1 parseable change row. So a later same-tool call that WAS a preview
+    // but produced no card (an empty `changes:[]`, an `awaiting_confirmation`)
+    // silently counted as the commit and settled the pending card — the same
+    // defect `builtPlanIds` had above. Read the preview fact directly instead.
     const confirmedChangeIds = React.useMemo(() => {
       const ids = new Set<string>();
       const proposals: Array<{ id: string; toolName: string; order: number }> = [];
@@ -2024,7 +2045,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         for (const tool of message.toolInvocations ?? []) {
           if (tool.proposedChanges && tool.toolCallId) {
             proposals.push({ id: tool.toolCallId, toolName: tool.toolName ?? '', order });
-          } else if (tool.toolName) {
+          } else if (tool.toolName && !isProposalResult(tool.result)) {
             lastCommitByTool.set(tool.toolName, order);
           }
           order += 1;
