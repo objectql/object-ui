@@ -46,7 +46,8 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
-vi.mock('@object-ui/plugin-designer', () => ({
+vi.mock('@object-ui/plugin-designer', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-designer')>()),
   CreateAppPage: () => <div data-testid="create-app-page">create app</div>,
   EditAppPage: () => <div data-testid="edit-app-page" />,
   DashboardDesignPage: () => <div data-testid="dashboard-design-page" />,

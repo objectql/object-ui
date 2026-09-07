@@ -152,11 +152,25 @@ vi.mock('../marketplace/MarketplacePackagePage', () => ({
   MarketplacePackagePage: () => <div data-testid="marketplace-package-page" />,
 }));
 
-vi.mock('@object-ui/plugin-designer', () => ({
+vi.mock('@object-ui/plugin-designer', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-designer')>()),
   CreateAppPage: () => <div data-testid="create-app-page">create app</div>,
   EditAppPage: () => <div data-testid="edit-app-page" />,
   DashboardDesignPage: () => <div data-testid="dashboard-design-page" />,
 }));
+
+// Pay the real designer barrel's load in the IMPORT phase, where no timeout
+// applies. `AppContent` reaches `CreateAppPage` only through
+// `React.lazy(() => import('@object-ui/plugin-designer'))`, so the factory
+// above -- which now awaits the real module -- first runs when that lazy
+// boundary resolves, i.e. INSIDE the `findByTestId` budget of the two cases
+// below that assert on `create-app-page`. Under a saturated transform pipeline
+// the barrel's graph does not fit in that budget and the file goes red on LOAD
+// rather than on behaviour (AGENTS.md, the flaky-test discipline: an unbounded
+// module load counted against a bounded window). The specifier is byte-
+// identical to the component's own, so ESM hands the lazy factory this
+// already-resolved module.
+import '@object-ui/plugin-designer';
 
 /**
  * The probe that makes the bug visible: it reports WHICH app's shell rendered.
