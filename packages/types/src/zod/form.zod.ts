@@ -162,19 +162,16 @@ export const ButtonSchema = BaseSchema.extend({
   label: z.string().optional().describe('Button text label'),
   variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'ghost', 'link'])
     .optional()
-    .default('default')
     .describe('Button variant/style'),
   size: z.enum(['default', 'sm', 'lg', 'icon'])
     .optional()
-    .default('default')
     .describe('Button size'),
   loading: z.boolean().optional().describe('Whether button is in loading state'),
   icon: z.string().optional().describe('Icon to display (lucide-react icon name)'),
-  iconPosition: z.enum(['left', 'right']).optional().default('left').describe('Icon position'),
+  iconPosition: z.enum(['left', 'right']).optional().describe('Icon position'),
   onClick: handlerKeyRefusal('onClick', 'runtime-slot', 'Click handler'),
   buttonType: z.enum(['button', 'submit', 'reset'])
     .optional()
-    .default('button')
     .describe('Button type'),
   children: z.union([SchemaNodeSchema, z.array(SchemaNodeSchema)]).optional(),
 });
@@ -192,7 +189,6 @@ export const InputSchema = BaseSchema.extend({
     'date', 'time', 'datetime-local',
   ])
     .optional()
-    .default('text')
     .describe('Input type'),
   defaultValue: z.union([z.string(), z.number()]).optional().describe('Default value'),
   value: z.union([z.string(), z.number()]).optional().describe('Controlled value'),
