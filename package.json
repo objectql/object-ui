@@ -62,6 +62,7 @@
     "check:skill-eval-tokens": "node scripts/check-skill-eval-tokens.mjs",
     "check:doc-types": "node scripts/check-doc-component-types.mjs",
     "check:doc-snippets": "node scripts/check-doc-snippet-types.mjs",
+    "check:doc-examples": "node scripts/check-doc-example-types.mjs",
     "check:doc-fences": "node scripts/check-doc-fence-languages.mjs",
     "check:eager-closure": "node scripts/check-eager-closure-budget.mjs",
     "check:side-effects-array": "node scripts/check-side-effects-array.mjs",
