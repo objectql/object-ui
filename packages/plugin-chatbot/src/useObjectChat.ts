@@ -701,6 +701,14 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   const chatRef = useRef<any>(null);
   const chatResult = useChat({
     transport,
+    // The `as any` here is the LIVE suppression on this call, and it is the only
+    // one: `aiInitialMessages` builds `parts` as `Record<string, unknown>[]`, which
+    // is not a `UIMessagePart` union, so dropping this cast turns the call red with
+    // TS2322 (measured, objectui#8378). The blanket `as any` that used to sit on the
+    // whole options object was removed there because it hid nothing this one does not
+    // already absorb — but it also switched off checking of `transport`, `onError`
+    // and excess properties. Fix the builder before deleting this cast; do NOT
+    // re-widen the call by casting the options object again.
     messages: isApiMode && aiInitialMessages.length > 0 ? (aiInitialMessages as any) : undefined,
     onError: isApiMode
       ? (err: Error) => {
@@ -732,7 +740,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
           onError?.(err);
         }
       : undefined,
-  } as any);
+  });
   chatRef.current = chatResult;
 
   // ADR-0057 #8 — refresh the AI usage indicator when a turn finishes. On the
