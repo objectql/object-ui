@@ -82,7 +82,7 @@
  *   - **Workspace specifiers not in `COVERED_SPECIFIERS`.** See below.
  *
  * `COVERED_SPECIFIERS` holds the workspace packages whose frozen sites have
- * actually been SWEPT to zero. Today that is fifteen, and each joined by sweep
+ * actually been SWEPT to zero. Today that is sixteen, and each joined by sweep
  * rather than by judgement. Running this file's classifier over all 1,499
  * `vi.mock` call sites in the tree at `9ce20233f`:
  *
@@ -579,11 +579,89 @@
  * ⭐ The free confirmation is present: 5 of the 16 sites already inherited the
  * real barrel on `main` and passed, all of them in the light `dom` project.
  *
- * The remaining 50 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
+ * `@object-ui/plugin-designer` joined as objectui#6892's ELEVENTH slice,
+ * re-derived on `ecf8e726e` by the same `scan()` method, the constant below
+ * again never widened-and-reverted:
+ *
+ *     @object-ui/plugin-designer   10 judged, 0 inheriting, 10 frozen -> 0
+ *
+ * with the population moving 50 -> 40 frozen over 659 judged and no site moving
+ * the other way. The 10 sites are an `AppContent.*` SIBLING FAMILY in one
+ * syntactic shape -- the zero-parameter object-literal arrow, each hand-listing
+ * the same three of the barrel's 29 exports -- and this is the first slice on
+ * this worklist to reach OUTSIDE `packages/`: nine sit under
+ * `packages/app-shell` and one under `apps/console`, which runs in its own
+ * merged vitest project rather than in the root config's.
+ *
+ * STEP 0 was taken again rather than inherited: 619 modules and 6,825
+ * module-scope statements reached from `packages/plugin-designer/src/index.tsx`
+ * over fourteen workspace packages (`components` 206, `core` 95, `fields` 77,
+ * `react` 64, `plugin-grid` 31, `plugin-designer` 29, `plugin-form` 28, `i18n`
+ * 27, `types` 18, `mobile` 16, `permissions` 10, `sdui-parser` 8,
+ * `data-objectstack` 5, `providers` 5). NOT inert, and the slice proceeded on
+ * the CLASS of the effect: 130 module-scope `ComponentRegistry.register(...)`
+ * calls, ZERO of them bare. Every one carries a namespace (`ui` 89, `element`
+ * 10, `page` 7, `action` 5, `plugin-form` 4, `plugin-designer` 10, `plugin-grid`
+ * 2, `view` 2, `record` 1); the five rows in the `page.tsx` renderer that READ
+ * as bare carry `ui` through the spread `pageMeta` constant, so the deprecation
+ * `console.warn` in `register()` cannot fire. The remaining effects are the
+ * benign registration class slice 7 already measured in `packages/fields`: five
+ * `registerFieldRenderer(...)` map writes, one `setCellRendererResolver(...)`
+ * assignment and `registerAllFields()`. One CSS import, inert (the root config
+ * declares no `css` option). Empirically, importing the real barrel emits ZERO
+ * `console.warn` and ZERO `console.error` in BOTH projects and exports 29 names.
+ *
+ * ⭐ The import cost was taken in both projects the sites run in, and the two
+ * differ by an order of magnitude for the same reason slice 10 recorded: under
+ * the light `dom` project the isolated cold import costs a median 6.89s and
+ * moves the registry 0 -> 405 keys; under the console project, whose merged
+ * config uses the HEAVY dom setup, it costs a median 0.54s and moves the
+ * registry 391 -> 421. Neither number decides anything on its own. The marginal
+ * cost measured in the files that pay it is uniform and small -- an app-shell
+ * file 9.19s frozen -> 9.55s inheriting, the console file 18.84s -> 19.22s --
+ * and the aggregate over the ten files as ONE invocation is +3.6s on a ~36s
+ * median (four frozen runs against five inheriting ones, two of them
+ * interleaved A/B), i.e. inside the noise band of a shared box and nowhere near
+ * objectui#6580's STOP band. The mechanism is measured, not argued: every one
+ * of the ten files ALREADY holds 590 of the barrel's 619 modules at module
+ * scope, so inheriting adds exactly the 29 modules of the designer package
+ * itself.
+ *
+ * ⚠️ This slice met a failure mode the worklist had not met before, and it is
+ * NOT slice 6's collection death: two of the ten went red on LOAD TIMING. The
+ * console shell reaches `CreateAppPage` only through
+ * `React.lazy(() => import('@object-ui/plugin-designer'))`, so an inheriting
+ * factory first runs when that lazy boundary resolves -- inside the RTL
+ * `findBy` budget of the two files that assert on the rendered designer page.
+ * Alone they pass; in the ten-file invocation the transform pipeline is
+ * saturated and the 29 added modules do not fit in 1000ms, so the assertion
+ * fails while the shell is still booting. The repair is the one AGENTS.md
+ * prescribes for an unbounded module load counted against a bounded window --
+ * a module-scope `import '@object-ui/plugin-designer'` in those two files,
+ * which moves the cost into the import phase where no timeout applies. No
+ * assertion was touched. ⇒ CARRY-FORWARD: a specifier reached only through
+ * `React.lazy` defers the whole inheritance cost into a test's assertion
+ * window, so budget the timing check on the AGGREGATE invocation and never on
+ * the per-file run, which cannot see it.
+ *
+ * The neighbour reading found ZERO repairs owed and said so in advance: across
+ * the ten files every workspace neighbour already inherits (10 `@object-ui/auth`
+ * sites, 10 `@object-ui/i18n`, 8 `@object-ui/react`, 1 `@object-ui/plugin-form`)
+ * and there is not one third-party factory in the family at all -- so the frozen
+ * `lucide-react` neighbour that killed 15 files in slice 6 cannot exist here,
+ * even though this barrel's graph reads `lucide-react` 106 times. The remaining
+ * neighbours are 39 local whole-module replacements, out of scope by
+ * construction. No file among the ten mocks `@object-ui/app-shell`, so the
+ * parked specifier stays parked.
+ *
+ * ⚠️ Like slices 4 and 7, this specifier had ZERO already-inheriting sites, so
+ * there was no free confirmation -- the suite runs themselves are the evidence.
+ *
+ * The remaining 40 stay on objectui#6892: `@object-ui/app-shell` (23, ALL
  * frozen, PARKED under objectui#8173 -- objectui#6892 and the closed
  * objectui#6580 point opposite ways on that one specifier and a seat does not
- * decide it), `@object-ui/plugin-designer` (10, ALL frozen),
- * `@object-ui/plugin-list` (9 of 10) and `@object-ui/fields` (8 of 10).
+ * decide it), `@object-ui/plugin-list` (9 of 10) and `@object-ui/fields`
+ * (8 of 10).
  *
  * **The precondition for widening is a sweep, not a judgement.** Convert a
  * specifier's frozen factories to the inheriting form, confirm this gate reads
@@ -683,6 +761,7 @@ export const COVERED_SPECIFIERS = Object.freeze([
   '@object-ui/permissions',
   '@object-ui/plugin-detail',
   '@object-ui/plugin-chatbot',
+  '@object-ui/plugin-designer',
 ]);
 
 /** Files the walk reads at all. */
