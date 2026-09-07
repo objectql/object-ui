@@ -353,6 +353,64 @@ export function galleryViewOptions(viewDef: any): Record<string, unknown> {
 }
 
 /**
+ * The view-level KANBAN block this face forwards — the fifth member of the
+ * `timelineViewOptions` / `calendarViewOptions` / `ganttViewOptions` /
+ * `galleryViewOptions` family above, and the last one still inlined as an
+ * anonymous IIFE inside the schema literal (objectui#8193).
+ *
+ * ⭐ THE LANE KEY IS `groupByField`, THE SPEC'S OWN SPELLING. This used to emit
+ * the legacy `groupField` alias instead — never the canonical key, even though
+ * it already READ the canonical key first. The sibling producer
+ * `defaultKanbanFromObject` (`InterfaceListPage.tsx`) had migrated already and
+ * left the reasoning next to itself — "that read-site now prefers the spec key,
+ * so one key is enough" — but this twin twelve hundred lines away was not
+ * carried along, so ONE producer surface spoke two vocabularies for one concept
+ * depending on which entry point you arrived through.
+ *
+ * ⚠️ The alias is NOT retired and every alias READ stays exactly as it was:
+ * stored metadata still authors `groupField`, and `ListView` resolving
+ * `groupByField || groupField` is the whole reason the sibling could drop it.
+ * What changed is only what this face WRITES.
+ *
+ * ⚠️ WRITING THE CANONICAL KEY HERE REQUIRED THE GATE TO LEARN IT, and that is
+ * the half a reader will not guess from this file. `ListView.availableViews`
+ * consulted the `options.<kind>` bag for the LEGACY spelling only
+ * (`schema.options?.kanban?.groupField`), so emitting `groupByField` alone made
+ * the Kanban capability stop resolving and the toggle vanish from every object
+ * view — measured, not reasoned: `{groupBy, groupField}` offered Kanban, and
+ * `{groupBy, groupByField}` did not. The gate now reads both spellings out of
+ * the bag, the same one-question-two-sites repair objectui#5042 made for `map`
+ * and objectui#7544 for `chart`. Pinned in `ObjectView.kanbanLane-8193` here
+ * and in `ListView.kanbanOptionsBagCanonical-8193` in `plugin-list`.
+ *
+ * ⚠️ `groupBy` is kept VERBATIM and is deliberately not folded. It is not the
+ * spec's key either — measured against `KanbanConfigSchema`, which declares
+ * `groupByField` / `summarizeField` / `columns` and refuses `groupBy` by name —
+ * but it is read by `ListView`'s projection collectors, so retiring it is a
+ * separate change with its own census: objectui#8213.
+ *
+ * ADR-0085: when the view doesn't pick a lane field, the object's declared
+ * lifecycle (`stageField`) decides — including the strict `stageField: false`
+ * suppression (no default lanes; the status-shaped field is declared
+ * non-linear) and the shared name/type heuristic, which never invents a field
+ * the object doesn't have (the old hard-coded 'status' did).
+ *
+ * Exported for the pin test.
+ */
+export function kanbanViewOptions(viewDef: any, objectDef: any): Record<string, unknown> {
+    const lane =
+        viewDef?.kanban?.groupByField ||
+        viewDef?.kanban?.groupField ||
+        detectStatusField(objectDef as any) ||
+        undefined;
+    return {
+        ...(lane ? { groupBy: lane, groupByField: lane } : {}),
+        titleField: viewDef?.kanban?.titleField || 'name',
+        cardFields: viewDef?.kanban?.columns,
+    };
+}
+
+/**
  * THE record-detail URL this list surface builds — one route shape, one place.
  *
  * Derived from the LIST's own pathname rather than re-assembled from route
@@ -2467,25 +2525,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // #2890 — see the note at its single remaining computation)
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),
             options: {
-                kanban: {
-                    // ADR-0085: when the view doesn't pick a lane field, the
-                    // object's declared lifecycle (`stageField`) decides —
-                    // including the strict `stageField: false` suppression
-                    // (no default lanes; the status-shaped field is declared
-                    // non-linear) and the shared name/type heuristic, which
-                    // never invents a field the object doesn't have (the old
-                    // hard-coded 'status' did).
-                    ...(() => {
-                        const lane =
-                            viewDef.kanban?.groupByField ||
-                            viewDef.kanban?.groupField ||
-                            detectStatusField(objectDef as any) ||
-                            undefined;
-                        return lane ? { groupBy: lane, groupField: lane } : {};
-                    })(),
-                    titleField: viewDef.kanban?.titleField || 'name',
-                    cardFields: viewDef.kanban?.columns,
-                },
+                // The lane key is the spec's `groupByField`, not the legacy
+                // `groupField` this used to write. See `kanbanViewOptions`.
+                kanban: kanbanViewOptions(viewDef, objectDef),
                 // The calendar config the view DECLARED, or no calendar key at
                 // all — never an invented field name (objectui#7029). With the
                 // key absent, ListView's capability gate stops offering the

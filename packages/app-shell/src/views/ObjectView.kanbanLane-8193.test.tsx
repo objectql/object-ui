@@ -1,0 +1,219 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * objectui#8193 — the object page emitted the DEPRECATED view-level kanban
+ * alias, into the one bag the alias fold is told not to reach.
+ *
+ * `ObjectView` built `options.kanban` and wrote `groupField` — never the
+ * spec-canonical `groupByField` — even though it already READ the canonical key
+ * first. Its sibling producer in this same package, `defaultKanbanFromObject`
+ * (`InterfaceListPage`), had migrated long before and left the reasoning in a
+ * comment: "that read-site now prefers the spec key, so one key is enough."
+ * The twin twelve hundred lines away was not carried along, so one producer
+ * surface spoke two vocabularies for one concept depending on which entry point
+ * the user arrived through.
+ *
+ * ⭐ THE ANTI-FORK ARM IS THE DURABLE HALF OF THIS CARD. Pinning only
+ * `kanbanViewOptions` would pin today's spelling; the defect was that the two
+ * producers DRIFTED. So the vocabulary of both is derived and compared here —
+ * whichever one a future edit moves, this file reddens.
+ *
+ * ⚠️ WHY `normalizeListViewSchema` CANNOT SAVE THIS. The alias fold maps
+ * `kanban.groupField` to `groupByField` on the DECLARED path only, and its own
+ * suite pins that boundary as intentional ("does not reach into the legacy
+ * `options.*` twin"). `ObjectView` writes into `options.kanban`, on the far
+ * side of that boundary, so nothing folded it and the alias read was
+ * load-bearing purely because of where this producer wrote.
+ *
+ * ⚠️ THE ALIAS IS NOT RETIRED AND NO ALIAS READ WAS TOUCHED. Stored metadata
+ * still authors `groupField`; `ListView` resolving `groupByField || groupField`
+ * is exactly why the sibling could drop the alias write. The arms below assert
+ * what this face WRITES, never what any face reads.
+ *
+ * ⚠️ `groupBy` IS DELIBERATELY STILL WRITTEN, and this file records why rather
+ * than asserting it away. Measured against the spec (below), `groupBy` is not a
+ * declared key either — but it is read by `ListView`'s projection collectors,
+ * so retiring it needs a producer census and got its own card: objectui#8213.
+ * One atomic producer change per PR is what kept this one reviewable.
+ *
+ * REVERSE VERIFICATION — direction predicted before running, then observed:
+ * restore `return lane ? { groupBy: lane, groupField: lane } : {}` and the
+ * canonical arms below go RED (the emitted bag loses `groupByField` and grows
+ * `groupField` back), while the ADR-0085 lane-RESOLUTION controls stay GREEN in
+ * either world — those read which FIELD was chosen, which the defect never
+ * changed. That asymmetry is the point: this defect was never about the value,
+ * only ever about the key it was filed under, so a test asserting the lane
+ * field alone would have passed against the unfixed producer.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { KanbanConfigSchema } from '@objectstack/spec/ui';
+import { kanbanViewOptions } from './ObjectView';
+import { defaultKanbanFromObject } from './InterfaceListPage';
+
+/** An object whose lifecycle field the ADR-0085 detector finds by name. */
+const OBJECT_WITH_STAGE = {
+  name: 'deal',
+  fields: { name: { type: 'text' }, stage: { type: 'select' } },
+};
+
+/** The lane-bearing keys, in every spelling this repo has ever used. */
+const LANE_KEYS = ['groupByField', 'groupField', 'groupBy'] as const;
+const laneKeysOf = (bag: Record<string, unknown>) =>
+  LANE_KEYS.filter((k) => bag[k] !== undefined).sort();
+
+describe('the object page writes the SPEC lane key (objectui#8193)', () => {
+  // THE DISCRIMINATING ARM — the card's defect, stated directly. Before the fix
+  // this bag was `{ groupBy: 'stage', groupField: 'stage' }`: the canonical key
+  // the spec declares was the one spelling it never wrote.
+  it('emits `groupByField` for a view that declared the canonical key', () => {
+    const out = kanbanViewOptions({ kanban: { groupByField: 'stage' } }, OBJECT_WITH_STAGE);
+    expect(out.groupByField).toBe('stage');
+    expect(out).not.toHaveProperty('groupField');
+  });
+
+  it('emits `groupByField` for a view that declared the LEGACY alias', () => {
+    // Reading the alias is untouched — a view that authored `groupField` still
+    // resolves its lane. What changed is that the alias stops being propagated:
+    // the value comes in legacy and leaves canonical.
+    const out = kanbanViewOptions({ kanban: { groupField: 'stage' } }, OBJECT_WITH_STAGE);
+    expect(out.groupByField).toBe('stage');
+    expect(out).not.toHaveProperty('groupField');
+  });
+
+  it('emits `groupByField` for a lane the ADR-0085 detector supplied', () => {
+    // The commonest case in the product: a view that declared no kanban block
+    // at all, on an object whose lifecycle field the detector finds.
+    const out = kanbanViewOptions({}, OBJECT_WITH_STAGE);
+    expect(out.groupByField).toBe('stage');
+    expect(out).not.toHaveProperty('groupField');
+  });
+
+  it('emits NO lane key at all when no lane resolves', () => {
+    // The other half. A producer that always emitted `groupByField` — even
+    // empty — would pass every arm above and light the capability gate for
+    // every object view, which is the objectui#7547 defect one visualization
+    // over. Absence must stay absence.
+    const out = kanbanViewOptions({}, { name: 'note', fields: { body: { type: 'text' } } });
+    expect(laneKeysOf(out)).toEqual([]);
+  });
+
+  it('respects the strict `stageField: false` lane suppression', () => {
+    // ADR-0085: the object declared its status-shaped field non-linear, so the
+    // detector must not offer it as a lane. Pinned here because the rewrite
+    // moved this expression into a named function.
+    const out = kanbanViewOptions(
+      {},
+      { name: 'deal', stageField: false, fields: { stage: { type: 'select' } } },
+    );
+    expect(laneKeysOf(out)).toEqual([]);
+  });
+
+  it('keeps the non-lane forwards the inline expression carried', () => {
+    const out = kanbanViewOptions(
+      { kanban: { groupByField: 'stage', titleField: 'subject', columns: ['amount'] } },
+      OBJECT_WITH_STAGE,
+    );
+    expect(out.titleField).toBe('subject');
+    expect(out.cardFields).toEqual(['amount']);
+  });
+
+  it('floors `titleField` at `name`, as the four sibling faces do', () => {
+    expect(kanbanViewOptions({}, OBJECT_WITH_STAGE).titleField).toBe('name');
+  });
+});
+
+describe('the two app-shell kanban producers speak ONE vocabulary (objectui#8193)', () => {
+  // ⭐ THE ANTI-FORK PIN. This is the arm that would have caught the original
+  // drift, and the one that catches the next one: it names neither spelling,
+  // it asserts the two producers AGREE. `defaultKanbanFromObject` is the
+  // sibling that migrated first and whose comment set the precedent.
+  it('derive the same lane key from the same object', () => {
+    const viaObjectPage = kanbanViewOptions({}, OBJECT_WITH_STAGE);
+    const viaInterfacePage = defaultKanbanFromObject(OBJECT_WITH_STAGE);
+
+    const objectPageLaneKeys = laneKeysOf(viaObjectPage).filter((k) => k !== 'groupBy');
+    const interfacePageLaneKeys = laneKeysOf(
+      viaInterfacePage as unknown as Record<string, unknown>,
+    );
+
+    expect(interfacePageLaneKeys).toEqual(['groupByField']);
+    expect(objectPageLaneKeys).toEqual(interfacePageLaneKeys);
+  });
+
+  it('CONTROL: both actually resolved a lane, so the agreement is not two empties', () => {
+    // Without this, a future edit that made BOTH producers emit nothing would
+    // satisfy the arm above — two empty sets are equal. The agreement has to be
+    // an agreement about a value that exists.
+    expect(kanbanViewOptions({}, OBJECT_WITH_STAGE).groupByField).toBe('stage');
+    expect(defaultKanbanFromObject(OBJECT_WITH_STAGE)?.groupByField).toBe('stage');
+  });
+});
+
+describe('the emitted lane key is the one `@objectstack/spec` declares (objectui#8193)', () => {
+  /** Key-level judgement only: does the strict schema recognize this NAME? */
+  const unrecognized = (cfg: Record<string, unknown>): string[] => {
+    const r = KanbanConfigSchema.safeParse(cfg);
+    if (r.success) return [];
+    return r.error.issues.flatMap((i: any) => (i.code === 'unrecognized_keys' ? i.keys : []));
+  };
+
+  // A config complete enough to parse GREEN, so the arms below separate "this
+  // key is refused" from "this fixture is missing a required key".
+  const complete = (extra: Record<string, unknown>) => ({
+    groupByField: 'stage',
+    columns: ['name'],
+    ...extra,
+  });
+
+  it('CONTROL: the strict schema accepts the canonical config outright', () => {
+    // Establishes the schema can say YES on this exact call shape. Without it,
+    // every refusal below is indistinguishable from a schema that refuses all.
+    expect(KanbanConfigSchema.safeParse(complete({})).success).toBe(true);
+  });
+
+  it('CONTROL: the strict schema refuses a bogus key BY NAME on the same call', () => {
+    // Establishes the schema can say NO, and names what it refused. Without
+    // this arm, an acceptance below means nothing.
+    expect(unrecognized(complete({ zzzBogusKey: 'stage' }))).toContain('zzzBogusKey');
+  });
+
+  it('accepts the key this face now emits', () => {
+    const emitted = kanbanViewOptions({}, OBJECT_WITH_STAGE);
+    expect(emitted.groupByField).toBe('stage');
+    expect(unrecognized({ groupByField: emitted.groupByField as string, columns: ['name'] })).toEqual([]);
+  });
+
+  it('refuses the key this face used to emit, by name', () => {
+    // The spec-side statement of the whole card. Its own message even names the
+    // migration: "Did you mean `groupField` to `groupByField`?"
+    expect(unrecognized(complete({ groupField: 'stage' }))).toContain('groupField');
+  });
+
+  it('MEASURED, NOT FOLDED: the spec refuses `groupBy` too — objectui#8213', () => {
+    // The card's one explicitly unmeasured question, answered here so the
+    // answer cannot be lost: `groupBy` is not a spec key at view level either.
+    // It is still written, because `ListView`'s projection collectors read it;
+    // retiring it needs a producer census and is objectui#8213, not this PR.
+    expect(unrecognized(complete({ groupBy: 'stage' }))).toContain('groupBy');
+    expect(kanbanViewOptions({}, OBJECT_WITH_STAGE).groupBy).toBe('stage');
+  });
+
+  it('declares exactly the three keys this file reasons about', () => {
+    // A tripwire on the premise itself: if a future spec bump declares
+    // `groupBy` (or drops `groupByField`), the arms above stop meaning what
+    // they say and this reddens first. objectui#7685 is in flight to move the
+    // resolved spec version.
+    expect(Object.keys((KanbanConfigSchema as any).shape).sort()).toEqual([
+      'columns',
+      'groupByField',
+      'summarizeField',
+    ]);
+  });
+});
