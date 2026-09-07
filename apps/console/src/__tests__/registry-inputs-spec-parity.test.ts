@@ -640,7 +640,9 @@ const EXPECTED_WITHOUT_INPUTS = [
  *   - EMPTY SPEC SHAPE — `ComponentPropsMap[type]` accepts no top-level key at
  *     all, so neither direction has a question to ask. Whether this repo happens
  *     to register the block is irrelevant to that, which is why it is the
- *     recorded reason even for the two the app shell does register. Asserted as
+ *     recorded reason even for the ones the app shell does register — a count
+ *     this sentence deliberately does not carry, since nothing pins it and the
+ *     pin moves it. Asserted as
  *     `specTopLevelKeys(type).length === 0`, so the day upstream gives one of
  *     these blocks props, this entry goes red and the block gets judged.
  *   - NOT REGISTERED, DELIBERATELY — this repo renders no such block on purpose,
@@ -657,12 +659,18 @@ const UNJUDGED_SPEC_BLOCKS: Record<string, string> = {
     'NOT REGISTERED, DELIBERATELY. `packages/components/src/renderers/placeholders.tsx` omits it from `PROTOCOL_COMPONENTS` in so many words — the floating chat overlay (plugin-chatbot) is the canonical entry point, an inline page-level chat window is not a supported surface, and a page schema referencing it should raise a loud unknown-type error rather than draw a placeholder. `app-shell/src/views/metadata-admin/previews/block-types.ts` records the same refusal. objectui#8176.',
   'app:launcher':
     'EMPTY SPEC SHAPE. `ComponentPropsMap[app:launcher]` declares no props at all, so there is nothing for either direction to judge. It IS registered — `app-shell/src/views/app-launcher-renderer.tsx` registers it propless for exactly this reason, and says so — but by `@object-ui/app-shell`, which this file does not import; the empty shape is the load-bearing half either way. objectui#8176.',
+  'cloud-connection:panel':
+    'EMPTY SPEC SHAPE. New in `@objectstack/spec` 17.3.0, which declares it with no top-level key at all, so neither direction has a question to ask. It IS registered — `app-shell/src/console/cloud-connection/CloudConnectionPanel.tsx` registers it propless — but by `@object-ui/app-shell`, which this file does not import; the empty shape is the load-bearing half either way, exactly as for `app:launcher` above. objectui#7122, ledger objectui#8176.',
   'element:filter':
     'EMPTY SPEC SHAPE. The pin declares no top-level key for it, and no package in this repo registers the tag. Nothing to judge on either count. objectui#8176.',
   'element:form':
     'NOT REGISTERED, DELIBERATELY. `app-shell/src/views/metadata-admin/previews/block-types.ts` records the reason verbatim: no renderer, use the object-bound `object-form` block, which IS registered and IS judged here. objectui#8176.',
   'global:notifications':
     'EMPTY SPEC SHAPE. Same shape and same reasoning as `app:launcher` above: `app-shell/src/views/global-notifications-renderer.tsx` registers it propless because the spec shape is empty, and that registration is not in this file\'s import graph. objectui#8176.',
+  'marketplace:installed-list':
+    'EMPTY SPEC SHAPE. New in `@objectstack/spec` 17.3.0, which declares it with no top-level key at all. Registered propless by `@object-ui/app-shell` (`src/console/marketplace/InstalledListWidget.tsx`), outside this file\'s import graph; the empty shape is the load-bearing half either way. objectui#7122, ledger objectui#8176.',
+  'mcp:connect-agent':
+    'EMPTY SPEC SHAPE. New in `@objectstack/spec` 17.3.0, which declares it with no top-level key at all. Registered propless by `@object-ui/app-shell` (`src/console/connect/ConnectAgentWidget.tsx`), outside this file\'s import graph; the empty shape is the load-bearing half either way. objectui#7122, ledger objectui#8176.',
   'user:profile':
     'EMPTY SPEC SHAPE. Declared by the spec with no top-level key; in this repo it exists only as a `PROTOCOL_COMPONENTS` placeholder name, which is a scaffold rather than a renderer and publishes no authoring surface. objectui#8176.',
 };
@@ -2453,10 +2461,17 @@ describe('registry `inputs` vs `@objectstack/spec` ComponentPropsMap (repo-wide)
       registeredPropless: registeredWithoutInputs.length,
       ledgeredUnjudgeable: Object.keys(UNJUDGED_SPEC_BLOCKS).length,
     }).toEqual({
-      specCarried: 42,
+      // 42 -> 45 on the `@objectstack/spec` 17.3.0 pin: the map grew by
+      // `cloud-connection:panel`, `marketplace:installed-list` and
+      // `mcp:connect-agent`, all three declared with an EMPTY shape, so all
+      // three are ledgered rather than judged and 6 -> 9 is the same three
+      // blocks counted on the other side of the partition. `judged` and
+      // `registeredPropless` do not move, which is the check that the pin
+      // added blocks rather than moving any across the partition (objectui#7122).
+      specCarried: 45,
       judged: 29,
       registeredPropless: 7,
-      ledgeredUnjudgeable: 6,
+      ledgeredUnjudgeable: 9,
     });
     // Non-vacuity, stated rather than implied by the numbers above.
     expect(covered.length).toBeGreaterThan(0);
