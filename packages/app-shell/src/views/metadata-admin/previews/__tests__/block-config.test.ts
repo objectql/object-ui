@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ACTION_LOCATIONS,
   PageAccordionProps,
@@ -14,7 +17,19 @@ import {
   resolvePropsShape,
   shapeMemberTypeName,
 } from '@object-ui/test-support';
-import { BLOCK_CONFIG, blockHasConfig, type PlaceholderSpec } from '../block-config';
+// The NODE face of the block vocabulary — `object-kanban`'s own schema, where
+// objectui#7322 declared `groupBy` REQUIRED and tombstoned `groupField`. The
+// spec imports above cover the PAGE face; the two are different contracts and
+// this file now reads both.
+import { ObjectKanbanSchema } from '@object-ui/types/zod';
+import {
+  BLOCK_CONFIG,
+  RETIRED_BLOCK_PROP_KEYS,
+  blockHasConfig,
+  stripRetiredBlockProps,
+  type BlockPropField,
+  type PlaceholderSpec,
+} from '../block-config';
 import { BLOCK_TYPE_META, PALETTE_EXCLUSIONS } from '../block-types';
 import { t } from '../../i18n';
 
@@ -478,6 +493,245 @@ describe('page:accordion `title` / items `value` — dead designer inputs (#5212
     ]) {
       expect(t(key, 'en-US')).toBe(key);
       expect(t(key, 'zh-CN')).toBe(key);
+    }
+  });
+});
+
+/**
+ * `object-kanban` — the panel that could not author a valid board (objectui#7772).
+ *
+ * Same PUBLISH-FACE-with-no-parity-gate reasoning as the two describes above,
+ * and this block is where that gap cost the most.
+ * `scripts/check-designer-field-key-parity.mjs` judges `PAYLOAD_SHAPES` — the
+ * field / object / permission payloads — and does not read `BLOCK_CONFIG` at
+ * all, so nothing mechanical compared this panel's four fields against
+ * `ObjectKanbanSchema`. What that hid was not one stale key but a matched pair:
+ *
+ *   - the ONLY control able to set grouping wrote `groupField`, which
+ *     `ObjectKanban.tsx` reads at zero sites (`schema.groupBy` at thirteen in
+ *     the same query, so that zero is a reading) and which objectui#7322
+ *     retired BY NAME — `retirementTombstone()` on the zod face, `?: never` on
+ *     the TS one;
+ *   - `groupBy`, which the same card declared REQUIRED, had no control at all.
+ *
+ * So the panel stably emitted a node that was missing a required key AND
+ * carrying a name-retired one, and rendered a board that grouped nothing with
+ * no diagnostic anywhere. `limit` is the third declared key it never offered:
+ * `ObjectKanban.tsx` sends it as a real `$top`, so a board over
+ * `DEFAULT_KANBAN_LIMIT` records was silently truncated with no way to widen it.
+ *
+ * The parse probes below are the instrument this surface otherwise lacks: they
+ * read the CONTRACT rather than a spelling, so the next control added here is
+ * measured against the schema instead of against a reviewer's memory.
+ */
+describe('object-kanban — the required `groupBy` control, and the retired `groupField` (objectui#7772)', () => {
+  const fieldNames = () => BLOCK_CONFIG['object-kanban'].map((f) => f.name);
+
+  /** A block node as the canvas hoists it: `properties.*` at the top level. */
+  const nodeFrom = (properties: Record<string, unknown>) => ({
+    type: 'object-kanban' as const,
+    id: 'k1',
+    ...properties,
+  });
+
+  // POSITIVE half, for the reason the two describes above state: without it the
+  // negative pin would pass just as happily on a panel that lost every field.
+  it('offers exactly the five controls, in panel order', () => {
+    expect(fieldNames()).toEqual(['objectName', 'groupBy', 'titleField', 'cardFields', 'limit']);
+  });
+
+  it('does NOT offer the retired `groupField`', () => {
+    expect(fieldNames().length, 'field list is empty — the pin would be vacuous').toBeGreaterThan(0);
+    expect(fieldNames()).not.toContain('groupField');
+  });
+
+  /* ── the contract, read rather than spelled ───────────────────────────── */
+
+  /** A value of the shape the control commits, chosen by its declared kind. */
+  const sampleFor = (f: BlockPropField): unknown => {
+    switch (f.kind) {
+      case 'number':
+        return 1;
+      case 'boolean':
+        return true;
+      case 'field-list':
+      case 'string-list':
+        return ['name'];
+      default:
+        return 'name';
+    }
+  };
+
+  it('every control writes a key `ObjectKanbanSchema` accepts', () => {
+    // Membership, not absence: a field whose name the schema refuses (retired,
+    // or never declared) fails here without anyone having to name it in
+    // advance — which is the coverage `check-designer-field-key-parity.mjs`
+    // gives the payload shapes and does not give this table.
+    const refused = BLOCK_CONFIG['object-kanban']
+      .filter(
+        (f) =>
+          !ObjectKanbanSchema.safeParse(
+            nodeFrom({ objectName: 'opportunity', groupBy: 'stage', [f.name]: sampleFor(f) }),
+          ).success,
+      )
+      .map((f) => f.name);
+    expect(refused).toEqual([]);
+
+    // Non-vacuity: the probe must be able to say no. A key this block never
+    // declared has to be refused by the very same call shape.
+    expect(
+      ObjectKanbanSchema.safeParse(
+        nodeFrom({ objectName: 'opportunity', groupBy: 'stage', groupField: 'stage' }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it('the node this panel can now author PARSES', () => {
+    const result = ObjectKanbanSchema.safeParse(
+      nodeFrom({
+        objectName: 'opportunity',
+        groupBy: 'stage',
+        titleField: 'name',
+        cardFields: ['amount'],
+        limit: 50,
+      }),
+    );
+    expect(result.success, JSON.stringify(result.error?.issues)).toBe(true);
+  });
+
+  // FALSIFICATION for the probe above — the pre-fix control set, verbatim. A
+  // green "it parses" means nothing unless the node this panel used to emit
+  // goes red, and it must go red TWICE: once for the key that is missing and
+  // once for the key that is refused by name. Either issue alone would be a
+  // different, smaller defect.
+  it('the node the pre-fix panel emitted is refused twice — missing `groupBy`, named `groupField`', () => {
+    const result = ObjectKanbanSchema.safeParse(
+      nodeFrom({ objectName: 'opportunity', groupField: 'stage', titleField: 'name' }),
+    );
+    expect(result.success).toBe(false);
+    const byPath = Object.fromEntries(
+      (result.error?.issues ?? []).map((i) => [i.path.join('.'), i]),
+    );
+    expect(Object.keys(byPath).sort()).toEqual(['groupBy', 'groupField']);
+    // The required key, absent.
+    expect(byPath.groupBy.code).toBe('invalid_type');
+    // The retired key, refused BY NAME — the tombstone's guidance reaches the
+    // author verbatim, which is the whole point of `retirementTombstone()` over
+    // a silent strip. Asserted on the message because `invalid_type` alone
+    // cannot tell a tombstone from an ordinary type mismatch.
+    expect(byPath.groupField.message).toContain('RETIRED (objectui#7322)');
+    expect(byPath.groupField.message).toContain('author `groupBy`');
+  });
+
+  /* ── the placeholder states the real default ──────────────────────────── */
+
+  it("`limit`'s placeholder is DEFAULT_KANBAN_LIMIT, read from the renderer", () => {
+    // The box is empty by default and the board still caps the fetch, so the
+    // hint is only honest while it equals the constant `ObjectKanban.tsx`
+    // actually falls back to. Read from source rather than imported: the
+    // constant is not on `@object-ui/plugin-kanban`'s barrel, and a deep
+    // cross-package import would be a worse coupling than a regex.
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(
+      path.resolve(here, '../../../../../../plugin-kanban/src/ObjectKanban.tsx'),
+      'utf8',
+    );
+    const declared = /export const DEFAULT_KANBAN_LIMIT = (\d+)/.exec(src)?.[1];
+    expect(declared, 'could not read DEFAULT_KANBAN_LIMIT from ObjectKanban.tsx').toBeTruthy();
+
+    const limit = BLOCK_CONFIG['object-kanban'].find((f) => f.name === 'limit');
+    expect(limit?.kind).toBe('number');
+    expect((limit as { placeholder?: PlaceholderSpec }).placeholder).toEqual({ literal: declared });
+  });
+
+  /* ── the i18n side ────────────────────────────────────────────────────── */
+
+  // The two repo-wide i18n gates do NOT reach this table — `check:i18n-keys`
+  // and `check:i18n-dead-keys` both read `packages/i18n/src/locales/en.ts`, and
+  // `engine.inspector.pageBlock.*` lives only in `metadata-admin/i18n.ts`
+  // (which says so in its own header). So the renamed key's two halves are
+  // pinned here, in the same file as the field it labels: the sibling
+  // `block-config-i18n.test.ts` derives the NEW key from this table's position
+  // and demands both locales define it, and this pin is the other direction —
+  // a key kept past its field is dead vocabulary the next author reads as a
+  // live surface.
+  it('has no leftover translation for the retired key in either locale', () => {
+    const retired = 'engine.inspector.pageBlock.field.object-kanban.groupField';
+    expect(t(retired, 'en-US')).toBe(retired);
+    expect(t(retired, 'zh-CN')).toBe(retired);
+    // Non-vacuity: `t()` returning the key unchanged is also what a broken
+    // table would do, so a live neighbour must still resolve to real text.
+    const live = 'engine.inspector.pageBlock.field.object-kanban.groupBy';
+    expect(t(live, 'en-US')).toBe('Group by field');
+    expect(t(live, 'zh-CN')).toBe('分组字段');
+  });
+});
+
+/**
+ * `stripRetiredBlockProps` — the read-door half of objectui#7772.
+ *
+ * The rename above stops the panel WRITING `groupField`; documents saved by
+ * every released build before it still carry the key, and after the rename it
+ * is no longer a curated field, so it lands in `PageBlockInspector`'s generic
+ * "Advanced" section — an editor that can set a value but has no delete. These
+ * pin the door itself; `PageBlockInspector.retiredBlockProps.test.tsx` pins
+ * what an author sees and what the next save commits.
+ */
+describe('stripRetiredBlockProps (objectui#7772)', () => {
+  it('drops the retired key and keeps everything else', () => {
+    const out = stripRetiredBlockProps('object-kanban', {
+      objectName: 'opportunity',
+      groupField: 'stage',
+      groupBy: 'stage',
+      titleField: 'name',
+      // An unknown key the designer does not render still survives: this is a
+      // tombstone-keyed strip, never a blanket unknown-key purge (AGENTS.md
+      // #0.1) — a plugin-registered key would be lost by the blanket version.
+      somePluginKey: 1,
+    });
+    expect(Object.keys(out).sort()).toEqual(
+      ['groupBy', 'objectName', 'somePluginKey', 'titleField'].sort(),
+    );
+  });
+
+  it('is scoped to the block type that retired the key', () => {
+    // `groupField` is NODE-LOCAL to `object-kanban`. Any other block carrying a
+    // key of that name keeps it — and so does the view-level `kanban.groupField`
+    // alias, which is live (`core/src/utils/normalize-list-view.ts`) and is not
+    // a page block at all.
+    const props = { groupField: 'stage' };
+    expect(stripRetiredBlockProps('object-grid', props)).toEqual({ groupField: 'stage' });
+    expect(stripRetiredBlockProps(undefined, props)).toEqual({ groupField: 'stage' });
+  });
+
+  it('returns the very same object when there is nothing to strip', () => {
+    // Identity, not equality: the caller memoises on this value, so allocating a
+    // fresh object per read would churn every consumer downstream of it.
+    const props = { objectName: 'opportunity', groupBy: 'stage' };
+    expect(stripRetiredBlockProps('object-kanban', props)).toBe(props);
+  });
+
+  it('every registered key really is one the block schema refuses BY NAME', () => {
+    // The membership criterion, mechanical: a key the schema ACCEPTS must never
+    // be listed here, because stripping an accepted key deletes authored
+    // metadata. Only `object-kanban` is registered today, and this walks
+    // whatever the registry holds rather than that one literal.
+    for (const [type, keys] of Object.entries(RETIRED_BLOCK_PROP_KEYS)) {
+      expect(type, 'only object-kanban has a schema probe here').toBe('object-kanban');
+      for (const key of keys) {
+        const result = ObjectKanbanSchema.safeParse({
+          type: 'object-kanban',
+          id: 'k1',
+          objectName: 'opportunity',
+          groupBy: 'stage',
+          [key]: 'anything',
+        });
+        expect(result.success, `${type}.${key} is still accepted`).toBe(false);
+        expect(
+          (result.error?.issues ?? []).some((i) => i.path.join('.') === key),
+          `${type}.${key} was not refused at its own path`,
+        ).toBe(true);
+      }
     }
   });
 });

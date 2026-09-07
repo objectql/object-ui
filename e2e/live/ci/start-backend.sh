@@ -8,8 +8,12 @@
 #   2. Rewrite its package.json: every `@objectstack/*` workspace dep -> the
 #      pinned published OBJECTSTACK_VERSION; dev-only tooling dropped.
 #   3. `npm install` (published tarballs only — nothing is built from source,
-#      so the lane tests the console against the released artifacts).
-#   4. `objectstack dev --seed-admin --fresh` on $LIVE_BACKEND_PORT with a
+#      so the lane tests the console against the released artifacts), with the
+#      floating `better-auth` family pinned to BETTER_AUTH_VERSION through an
+#      npm `overrides` block — see backend.env and better-auth-pin.mjs.
+#   4. Verify that pin actually took, ON EVERY RUN including cache hits, and
+#      fail by name if it did not (objectstack#16186 / objectui#8084).
+#   5. `objectstack dev --seed-admin --fresh` on $LIVE_BACKEND_PORT with a
 #      throwaway sqlite db, then poll the seeded sign-in until it answers.
 #
 # Env overrides:
@@ -29,7 +33,15 @@ PORT="${LIVE_BACKEND_PORT:-4010}"
 REPO_URL="${OBJECTSTACK_REPO_URL:-https://github.com/objectstack-ai/objectstack.git}"
 APP_DIR="$BACKEND_DIR/app"
 STAMP="$BACKEND_DIR/.prepared"
-WANT_STAMP="$OBJECTSTACK_REF $OBJECTSTACK_VERSION"
+# An absent pin is a hard stop, not a soft default: silently installing the
+# floating family is the exact outcome this pin exists to prevent, and it costs
+# 300 seconds to discover downstream (objectstack#16186).
+: "${BETTER_AUTH_VERSION:?backend.env must declare BETTER_AUTH_VERSION — see its header and objectstack#16186}"
+# The pin is IN the stamp: without it, a fixture prepared before a pin change
+# satisfies the reuse test and the new pin is never installed. The workflow's
+# fixture cache key is the hash of backend.env, which carries the pin for the
+# same reason.
+WANT_STAMP="$OBJECTSTACK_REF $OBJECTSTACK_VERSION better-auth@$BETTER_AUTH_VERSION"
 
 mkdir -p "$BACKEND_DIR"
 
@@ -54,15 +66,25 @@ prepare() {
   # workspace:* -> the pinned published version; drop dev tooling the server
   # doesn't need (playwright/vitest/typescript — the CLI loads the TS config
   # itself). Keep non-@objectstack runtime deps (e.g. @modelcontextprotocol/sdk).
+  #
+  # The third argument is the `better-auth` pin, as npm's TOP-LEVEL `overrides`
+  # object. Spelling matters and is not interchangeable: this app is installed
+  # with `npm install` below, npm reads `overrides`, pnpm reads
+  # `pnpm.overrides`, and each ignores the other with no warning and exit 0. The
+  # names come from better-auth-pin.mjs so the list that is pinned and the list
+  # that is checked cannot drift apart.
   node -e '
     const fs = require("fs");
     const file = process.argv[1], pin = process.argv[2];
+    const overrides = JSON.parse(process.argv[3]);
     const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
     for (const k of Object.keys(pkg.dependencies || {}))
       if (k.startsWith("@objectstack/")) pkg.dependencies[k] = pin;
     pkg.devDependencies = { "@objectstack/cli": pin };
+    pkg.overrides = Object.assign({}, pkg.overrides, overrides);
     fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
-  ' "$APP_DIR/package.json" "$OBJECTSTACK_VERSION"
+  ' "$APP_DIR/package.json" "$OBJECTSTACK_VERSION" \
+    "$(node "$SCRIPT_DIR/better-auth-pin.mjs" overrides "$BETTER_AUTH_VERSION")"
 
   (cd "$APP_DIR" && npm install --no-audit --no-fund --loglevel=error)
   echo "$WANT_STAMP" > "$STAMP"
@@ -110,4 +132,8 @@ start() {
 }
 
 prepare
+# Deliberately OUTSIDE prepare(): prepare is skipped on a stamp hit, and a
+# reused fixture is one of the ways the pin can stop being true. A check that
+# only runs when the thing it checks was just built is not a check.
+node "$SCRIPT_DIR/better-auth-pin.mjs" verify "$APP_DIR" "$BETTER_AUTH_VERSION"
 start

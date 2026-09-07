@@ -1163,7 +1163,7 @@ function SectionedSchemaForm({
               key={i}
               value={(s.label ?? `section-${i}`).toLowerCase()}
             >
-              {s.label ?? `Section ${i + 1}`}
+              {s.label ?? tFormat('engine.form.sectionN', locale, { n: i + 1 })}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -1405,7 +1405,7 @@ function FieldRow({
           {!labelMatchesName && (
             <code
               className="ml-2 text-[10px] font-mono text-muted-foreground/70"
-              title="Machine name"
+              title={t('engine.form.machineName', locale)}
             >
               {name}
             </code>
@@ -1762,18 +1762,50 @@ function FieldControl({
     );
   }
 
-  // Number / integer → numeric input with min/max from fieldSpec.
+  // Number / integer → numeric input with min/max from fieldSpec, falling back
+  // to the JSON Schema's own bounds.
+  //
+  // objectui#8218 — two halves of the same complaint, both about a box that
+  // shows nothing while the help text underneath describes a live value:
+  //
+  //  • The BOUNDS. Only `fieldSpec.min`/`.max` were read, and a spec-derived
+  //    authoring form (`dashboardForm`, …) declares neither — the numbers live
+  //    on the JSON Schema the same spec produced (`columns` is `minimum: 1,
+  //    maximum: 24`). So the panel accepted a negative column count that the
+  //    contract had already ruled out. Read the schema when the form is silent;
+  //    the form still wins where it speaks.
+  //  • The DEFAULT. An empty box read as "unknown" when it means "using the
+  //    default". `schema.default` now greys in behind it, so empty says which
+  //    value is in force. It is a PLACEHOLDER, not a value: nothing is written
+  //    until the author types, so "leave it alone" stays distinguishable from
+  //    "pin it to today's default" in the saved metadata.
+  //
+  // ⚠️ Scope of the second half at the current spec pin: `columns` / `gap` /
+  // `refreshInterval` carry NO `default` in `DashboardSchema` — "(default 12)"
+  // exists only as prose in the description, and the 12 is applied by the
+  // renderer. Those three boxes therefore stay empty until the spec declares
+  // the defaults it documents; filed upstream rather than hard-coded here,
+  // because a number this file invents is a second source of truth for a value
+  // the contract owns.
   if (effectiveType === 'number' || effectiveType === 'integer') {
-    const min = fieldSpec?.min;
-    const max = fieldSpec?.max;
+    const schemaNumber = (key: string): number | undefined => {
+      const raw = (effective as Record<string, unknown> | undefined)?.[key];
+      return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+    };
+    const min = fieldSpec?.min ?? schemaNumber('minimum');
+    const max = fieldSpec?.max ?? schemaNumber('maximum');
+    const step = schemaNumber('multipleOf');
+    const defaultValue = schemaNumber('default');
     return (
       <Input
         id={id}
         aria-labelledby={ariaLabelledBy}
         type="number"
         value={value == null ? '' : String(value)}
+        placeholder={defaultValue == null ? undefined : String(defaultValue)}
         min={min}
         max={max}
+        step={step}
         onChange={(e) => {
           const raw = e.target.value;
           if (raw === '') return onChange(undefined);
@@ -1933,6 +1965,7 @@ function CompositeField({
   idPath?: string;
   onChange: (v: unknown) => void;
 }) {
+  const locale = useMetadataLocale();
   const obj = (value && typeof value === 'object' && !Array.isArray(value))
     ? (value as Record<string, unknown>)
     : {};
@@ -1967,11 +2000,13 @@ function CompositeField({
         aria-labelledby={ariaLabelledBy}
       >
         <span className="text-sm text-muted-foreground truncate" title={summary}>
-          {summary || <span className="italic opacity-70">Not configured</span>}
+          {summary || (
+            <span className="italic opacity-70">{t('engine.form.notConfigured', locale)}</span>
+          )}
         </span>
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" aria-label="Configure" data-testid={`composite-popover-${fieldSpec.field}`}>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" aria-label={t('engine.form.configure', locale)} data-testid={`composite-popover-${fieldSpec.field}`}>
               <Settings2 className="h-4 w-4" />
             </Button>
           </PopoverTrigger>

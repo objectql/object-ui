@@ -1,27 +1,40 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * The `@default` documentation on two `layout.ts` members agrees with the value
- * the renderer actually applies (objectui#7361).
+ * The `@default` documentation on three `layout.ts` members agrees with the value
+ * the renderer actually applies (objectui#7361 rows 1-2, objectui#7734 row 3).
  *
- * Two published docblocks described a default no renderer ever applied:
+ * Three published docblocks described a default that at least one consuming
+ * renderer does not apply:
  *
- *   | member                     | tag said   | renderer applies                    |
- *   |----------------------------|------------|-------------------------------------|
- *   | `ContainerSchema.maxWidth` | `'lg'`     | `container.tsx`: `?? 'xl'`          |
- *   | `FlexLayoutProps.align`    | `'center'` | `flex.tsx`: `|| 'start'`,           |
- *   |                            |            | `stack.tsx`: `|| 'stretch'`         |
+ *   | member                      | tag said   | renderer applies                   |
+ *   |-----------------------------|------------|------------------------------------|
+ *   | `ContainerSchema.maxWidth`  | `'lg'`     | `container.tsx`: `?? 'xl'`         |
+ *   | `FlexLayoutProps.align`     | `'center'` | `flex.tsx`: `|| 'start'`,          |
+ *   |                             |            | `stack.tsx`: `|| 'stretch'`        |
+ *   | `FlexLayoutProps.direction` | `'row'`    | `flex.tsx`: `|| 'row'`,            |
+ *   |                             |            | `stack.tsx`: `|| 'col'`            |
  *
  * The renderers are the authority — they are what runs — so the tags moved, not
  * the reads. Changing the reads to match the tags would relayout every existing
  * page that omits either key, which is a behaviour change and a separate ruling.
  *
- * `FlexLayoutProps.align` is the structurally interesting half. The member is
- * declared ONCE (objectui#6151 — see the interface docblock for why `StackSchema`
- * cannot derive it with an `Omit`), but `flex` and `stack` deliberately diverge
- * on it: that divergence is most of what distinguishes the two component types.
- * So no single `@default` value can be correct there, and the fix is the absence
- * of a tag plus prose naming both consumers — not a second wrong single value.
+ * `FlexLayoutProps.align` and `FlexLayoutProps.direction` are the structurally
+ * interesting rows. Each member is declared ONCE (objectui#6151 — see the
+ * interface docblock for why `StackSchema` cannot derive them with an `Omit`),
+ * but `flex` and `stack` deliberately diverge on both: that divergence is most of
+ * what distinguishes the two component types. So no single `@default` value can
+ * be correct there, and the fix is the absence of a tag plus prose naming both
+ * consumers — not a second wrong single value. `direction` is the sharper case:
+ * its tag was not wrong for everybody the way `align`'s `'center'` was — `flex`
+ * really does apply `'row'` — which is exactly why "a shared member's tag is only
+ * conditionally true" is the defect, not "the value is wrong".
+ *
+ * The criterion is DIVERGENCE, not sharedness. `FlexLayoutProps.justify` is
+ * shared by the same two consumers and both read `|| 'start'`, so its tag is
+ * correct and must stay — it is pinned below as a negative control, and it is
+ * what stops this row-by-row fix from generalising into "shared members carry no
+ * tags".
  *
  * ## Why this pin reads both sides off disk
  *
@@ -55,6 +68,10 @@ const STACK = 'packages/components/src/renderers/layout/stack.tsx';
 const CONTAINER_MAXWIDTH = /schema\.maxWidth\s*\?\?\s*'([^']+)'/;
 const FLEX_ALIGN = /schema\.align\s*\|\|\s*'([^']+)'/;
 const STACK_ALIGN = /schema\.align\s*\|\|\s*'([^']+)'/;
+const FLEX_DIRECTION = /schema\.direction\s*\|\|\s*'([^']+)'/;
+const STACK_DIRECTION = /schema\.direction\s*\|\|\s*'([^']+)'/;
+const FLEX_JUSTIFY = /schema\.justify\s*\|\|\s*'([^']+)'/;
+const STACK_JUSTIFY = /schema\.justify\s*\|\|\s*'([^']+)'/;
 
 /** The body of a named `export interface`, so member lookups cannot stray. */
 function interfaceBody(src: string, name: string): string {
@@ -91,17 +108,25 @@ describe('layout.ts `@default` docs agree with the renderer fallbacks (objectui#
       expect(CONTAINER_MAXWIDTH.exec(read(CONTAINER))).not.toBeNull();
       expect(FLEX_ALIGN.exec(read(FLEX))).not.toBeNull();
       expect(STACK_ALIGN.exec(read(STACK))).not.toBeNull();
+      expect(FLEX_DIRECTION.exec(read(FLEX))).not.toBeNull();
+      expect(STACK_DIRECTION.exec(read(STACK))).not.toBeNull();
+      expect(FLEX_JUSTIFY.exec(read(FLEX))).not.toBeNull();
+      expect(STACK_JUSTIFY.exec(read(STACK))).not.toBeNull();
     });
 
     it('each extracted fallback is a member of the union the type declares', () => {
       const maxWidth = CONTAINER_MAXWIDTH.exec(read(CONTAINER))![1];
       const flexAlign = FLEX_ALIGN.exec(read(FLEX))![1];
       const stackAlign = STACK_ALIGN.exec(read(STACK))![1];
+      const flexDirection = FLEX_DIRECTION.exec(read(FLEX))![1];
+      const stackDirection = STACK_DIRECTION.exec(read(STACK))![1];
       const container = interfaceBody(types, 'ContainerSchema');
       const flexProps = interfaceBody(types, 'FlexLayoutProps');
       expect(container).toContain(`'${maxWidth}'`);
       expect(flexProps).toContain(`'${flexAlign}'`);
       expect(flexProps).toContain(`'${stackAlign}'`);
+      expect(flexProps).toContain(`'${flexDirection}'`);
+      expect(flexProps).toContain(`'${stackDirection}'`);
     });
   });
 
@@ -146,15 +171,53 @@ describe('layout.ts `@default` docs agree with the renderer fallbacks (objectui#
     });
   });
 
+  describe('row 3 — FlexLayoutProps.direction (shared member, two divergent consumers)', () => {
+    const flexDirection = FLEX_DIRECTION.exec(read(FLEX))![1];
+    const stackDirection = STACK_DIRECTION.exec(read(STACK))![1];
+
+    it('the two consumers really do diverge — the reason a single tag cannot be right', () => {
+      expect(flexDirection).not.toEqual(stackDirection);
+    });
+
+    it('publishes NO single-value `@default` block tag', () => {
+      const doc = docblockFor(interfaceBody(types, 'FlexLayoutProps'), 'direction');
+      expect(defaultTags(doc)).toEqual([]);
+    });
+
+    it('names BOTH consumers and the fallback each one applies', () => {
+      const doc = docblockFor(interfaceBody(types, 'FlexLayoutProps'), 'direction');
+      expect(doc).toContain('flex.tsx');
+      expect(doc).toContain('stack.tsx');
+      expect(doc).toContain(`'${flexDirection}'`);
+      expect(doc).toContain(`'${stackDirection}'`);
+    });
+
+    it('no longer publishes the value only ONE of the two consumers applies', () => {
+      const doc = docblockFor(interfaceBody(types, 'FlexLayoutProps'), 'direction');
+      expect(defaultTags(doc)).not.toContain(`'${flexDirection}'`);
+    });
+  });
+
   describe('negative controls — neighbouring `@default` tags are untouched', () => {
     it('ContainerSchema.centered still reads `@default true`', () => {
       const doc = docblockFor(interfaceBody(types, 'ContainerSchema'), 'centered');
       expect(defaultTags(doc)).toEqual(['true']);
     });
 
-    it('FlexLayoutProps.justify still reads `@default \'start\'`', () => {
+    /**
+     * The load-bearing control. `justify` is shared by the same two consumers as
+     * `align` and `direction`, so it is what makes the criterion DIVERGENCE and
+     * not sharedness: both renderers read `|| 'start'`, so one tag IS right for
+     * both and must stay. Derived off disk like the rows above, so it turns red
+     * if the consumers ever diverge here — at which point the tag becomes a
+     * fourth instance of this defect rather than a control.
+     */
+    it('FlexLayoutProps.justify keeps its tag — its two consumers AGREE', () => {
+      const flexJustify = FLEX_JUSTIFY.exec(read(FLEX))![1];
+      const stackJustify = STACK_JUSTIFY.exec(read(STACK))![1];
+      expect(flexJustify).toEqual(stackJustify);
       const doc = docblockFor(interfaceBody(types, 'FlexLayoutProps'), 'justify');
-      expect(defaultTags(doc)).toEqual(["'start'"]);
+      expect(defaultTags(doc)).toEqual([`'${flexJustify}'`]);
     });
 
     it('FlexLayoutProps.gap still reads `@default 2`', () => {

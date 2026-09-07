@@ -219,9 +219,26 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
   ],
   'object-kanban': [
     { name: 'objectName', label: 'engine.inspector.pageBlock.field.object-kanban.objectName', kind: 'object-picker' },
-    { name: 'groupField', label: 'engine.inspector.pageBlock.field.object-kanban.groupField', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
+    // `groupBy`, not `groupField` (objectui#7772). This lane picker wrote
+    // `groupField` from #1831 until here — the one key `ObjectKanban.tsx` never
+    // reads (thirteen `schema.groupBy` sites, zero `groupField`), and since
+    // objectui#7322 a `retirementTombstone()` on the zod face and `?: never` on
+    // the TS one, so the node it produced was refused BY NAME. The other half
+    // was worse and unnamed: `ObjectKanbanSchema.groupBy` is REQUIRED and had
+    // no control at all, so this panel could not author a valid board however
+    // it was filled in. Measured on the node these four fields produce:
+    // `ObjectKanbanSchema.safeParse` reported BOTH — `groupBy` "expected
+    // string, received undefined" and `groupField` carrying the retirement
+    // message. Pinned in `__tests__/block-config.test.ts`.
+    { name: 'groupBy', label: 'engine.inspector.pageBlock.field.object-kanban.groupBy', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
     { name: 'titleField', label: 'engine.inspector.pageBlock.field.object-kanban.titleField', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
     { name: 'cardFields', label: 'engine.inspector.pageBlock.field.object-kanban.cardFields', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
+    // The board's fetch window, not a page size: `ObjectKanban.tsx` sends it as
+    // a real `$top` (`$top: schema.limit ?? DEFAULT_KANBAN_LIMIT`) and renders
+    // every fetched record into a lane with no pagination, so an author with
+    // more than 100 records had no way to widen it. `{ literal: '100' }` is
+    // `DEFAULT_KANBAN_LIMIT`, the value that applies when the box is empty.
+    { name: 'limit', label: 'engine.inspector.pageBlock.field.object-kanban.limit', kind: 'number', placeholder: { literal: '100' } },
   ],
 
   // ── Layout grid ───────────────────────────────────────────────────────────
@@ -523,4 +540,74 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
 /** Block types that expose a configurable property panel. */
 export function blockHasConfig(type: string | undefined): boolean {
   return !!type && Array.isArray(BLOCK_CONFIG[type]) && BLOCK_CONFIG[type].length > 0;
+}
+
+/**
+ * Per block type, the `properties` keys a SHIPPED designer build wrote that the
+ * block's own node schema now refuses BY NAME — stripped where the inspector
+ * READS a block (objectui#7772).
+ *
+ * ## Membership criterion: evidence, never defence
+ *
+ * A key belongs here only when BOTH hold, the same bar
+ * `previews/object-fields-io.ts`'s `RETIRED_FIELD_KEYS` sets for the object
+ * designer and `PermissionAdvancedFacets`' `RETIRED_RLS_KEYS` for the RLS one:
+ *
+ *   1. a control in {@link BLOCK_CONFIG} above really wrote it in a RELEASED
+ *      build, so stored documents can carry it — never a defensive guess at
+ *      what an author might have typed;
+ *   2. the node schema refuses the key BY NAME rather than ignoring it, so the
+ *      strip cannot lose anything a consumer would have honoured.
+ *
+ * `object-kanban.groupField` meets both: the lane picker wrote it from #1831
+ * (released — `@object-ui/app-shell@17.5.0` and later) until objectui#7772
+ * renamed that control to `groupBy`, and `ObjectKanbanSchema.groupField` is a
+ * `retirementTombstone()` on the zod face and `?: never` on the TS one since
+ * objectui#7322.
+ *
+ * ## Why a strip and not a migration into `groupBy`
+ *
+ * Reading a stored `groupField` into the new `groupBy` box would be a second
+ * de-facto spelling for the key — AGENTS.md #0.1, the renderer-side alias this
+ * repo does not accrete — and it would invent an intent the board never acted
+ * on: `ObjectKanban.tsx` reads `schema.groupBy` at thirteen sites and
+ * `groupField` at none, so the value has never placed a single card in a lane.
+ * Nothing on screen changes when it goes. The `formula` -> `expression`
+ * carry-over (objectui#6526 option B) is the opposite case and stays the
+ * opposite case: there a live editor MIGRATES the value and the authored source
+ * text would be destroyed by a strip.
+ *
+ * ## Why on READ, and why here rather than a data migration
+ *
+ * After the rename `groupField` is no longer a curated field, so it falls into
+ * `PageBlockInspector`'s generic "Advanced" section — whose editor can SET a
+ * value but has no delete, leaving an author with a key the contract refuses
+ * and no control to clear it with. `blockProps` there is the single value every
+ * property write spreads from, so one strip on read makes an edit-and-save
+ * round-trip of an already-poisoned block come out clean, with no migration
+ * pass over stored documents.
+ *
+ * NODE-LOCAL, exactly as the tombstone is: the VIEW-LEVEL `kanban.groupField`
+ * alias (`core/src/utils/normalize-list-view.ts`) is live and is not a page
+ * block, so nothing here reaches it.
+ */
+export const RETIRED_BLOCK_PROP_KEYS: Readonly<Record<string, readonly string[]>> = {
+  'object-kanban': ['groupField'],
+};
+
+/**
+ * Drop the block type's {@link RETIRED_BLOCK_PROP_KEYS} from one block's
+ * `properties`. Returns the input untouched when there is nothing to strip, so
+ * a caller's identity-keyed memo does not churn on every read.
+ */
+export function stripRetiredBlockProps(
+  type: string | undefined,
+  props: Record<string, unknown>,
+): Record<string, unknown> {
+  const retired = (type && RETIRED_BLOCK_PROP_KEYS[type]) || [];
+  const present = retired.filter((k) => k in props);
+  if (present.length === 0) return props;
+  const next = { ...props };
+  for (const k of present) delete next[k];
+  return next;
 }

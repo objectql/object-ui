@@ -13,7 +13,13 @@ description: "Toggle visibility of content"
 interface CollapsibleSchema {
   type: 'collapsible';
   trigger: SchemaNode | SchemaNode[];
-  children: SchemaNode[];
+  content: SchemaNode | SchemaNode[];
   defaultOpen?: boolean;
 }
 ```
+
+The body is authored under `content`, not `children`: the renderer reads
+`schema.content` inside `CollapsibleContent`, with no `children` fallback of any
+kind, and the registration's `defaultProps` ships `content` too. A collapsible
+that puts its body under `children` is refused by the zod twin — `content` is
+required — and paints an empty body wherever nothing validates it.
