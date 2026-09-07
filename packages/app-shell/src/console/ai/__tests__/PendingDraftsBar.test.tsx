@@ -27,7 +27,8 @@ let draftRows: Array<Record<string, unknown>> = [];
 vi.mock('../../../providers/MetadataProvider.js', () => ({
   useMetadata: () => ({ refresh }),
 }));
-vi.mock('@object-ui/plugin-chatbot', () => ({
+vi.mock('@object-ui/plugin-chatbot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-chatbot')>()),
   publishHealthFromResponse: () => undefined,
 }));
 

@@ -420,6 +420,21 @@ comment), so every promotion would stale a hand-copied enumeration here; it alre
 Backend pins live in `e2e/live/ci/backend.env` and must match the `@objectstack/spec` version in
 `pnpm-lock.yaml` — bump both in the same PR, or the run proves nothing.
 
+That file carries a **third** pin, `BETTER_AUTH_VERSION`, and it is a different kind of thing:
+not a matched-pair pin but a workaround for a break inside the published packages themselves.
+`@objectstack/plugin-auth` imports `createLocalAccountIssuer` from `@better-auth/core/db` and
+declares `@better-auth/core` with a caret; `@better-auth/core@1.7.3` removed that export in a
+**patch** release and is also `latest`, so a fresh install floats onto it, AuthPlugin fails to
+load, no `sys_*` table is ever created, the seeded sign-in never answers, and the lane dies on
+its 300-second readiness timeout having run zero specs (objectstack#16186, objectui#8084).
+`start-backend.sh` therefore writes an npm `overrides` block pinning that family, and — because
+pinning a dependency to turn a lane green is a gate weakening — `e2e/live/ci/better-auth-pin.mjs`
+runs on **every** start, cache hits included, and fails by name if the override was not declared,
+did not resolve, or resolved and still lacks the export. ⛔ It is not, and must not become, a
+repair of the two pins above: objectui#7689's triage forbids repairing this lane by moving those.
+Retire the pin and its guard together in the PR that bumps `OBJECTSTACK_VERSION` past the
+upstream fix.
+
 ## Internal Docs Links (`docs-links.yml`)
 
 **Triggers:** Push and PR to `main`/`develop`, plus manual dispatch — with **no path filter at

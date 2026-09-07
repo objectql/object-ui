@@ -13,8 +13,13 @@ const baseProps = {
   onSelectionChange: vi.fn(),
 };
 
+// Scoped to `<label>` on purpose (objectui#8218). The spec-form graft below
+// this inspector's curated basics renders the `header.actions[]` table, whose
+// column headers used to print the raw JSON Schema keys and now read `Label`,
+// `Action Url`, … — so a bare `getByText('Label')` matches the curated Label
+// field AND that `<th>`. The helper only ever meant the form label.
 function labelledInput(label: string): HTMLInputElement {
-  const lab = screen.getByText(label);
+  const lab = screen.getByText(label, { selector: 'label' });
   const input = lab.parentElement!.querySelector('input, textarea');
   return input as HTMLInputElement;
 }

@@ -280,7 +280,7 @@ describe('en-US labels are unchanged by the key migration (#3913)', () => {
     'engine.inspector.pageBlock.field.element:image.src': 'Source URL',
     'engine.inspector.pageBlock.field.element:button.action': 'Action',
     'engine.inspector.pageBlock.field.object-metric.colorVariant': 'Color',
-    'engine.inspector.pageBlock.field.object-kanban.groupField': 'Group by field',
+    'engine.inspector.pageBlock.field.object-kanban.groupBy': 'Group by field',
     // string-list / array container
     'engine.inspector.pageBlock.field.record:quick_actions.actionNames': 'Action names',
     'engine.inspector.pageBlock.field.record:details.sections': 'Sections',
@@ -369,20 +369,27 @@ describe('placeholders that must NOT be translated (#3979)', () => {
       because: 'a JSON sample the author copies — translated keys would fail InlineActionSchema',
     },
     'record:related_list.limit': { literal: '10', because: 'a row limit' },
+    'object-kanban.limit': {
+      literal: '100',
+      because: "a row limit — DEFAULT_KANBAN_LIMIT, the board's fetch cap when the box is empty",
+    },
     'record:details.sections.columns': { literal: '2', because: 'a column count' },
   };
 
-  it('collects all 17 placeholders — 7 keyed, 10 literal', () => {
+  it('collects all 18 placeholders — 7 keyed, 11 literal', () => {
     // Guards the walk: if placeholder collection silently found nothing, every
     // assertion here would pass over an empty list.
     //
     // 18 / 8 / 10 until objectui#3829: the canonical `page:header` icon box was
     // a KEYED placeholder, and it went with the field when objectstack#6946 /
-    // PR objectstack#7115 retired `PageHeaderProps.icon`. The literal half is
-    // untouched, which is what this split says.
-    expect(PLACEHOLDERS.length).toBe(17);
+    // PR objectstack#7115 retired `PageHeaderProps.icon`. Then 17 / 7 / 10
+    // until objectui#7772 gave `object-kanban` the `limit` control its schema
+    // has declared since objectui#7322 — a VALUE placeholder (`100`,
+    // `DEFAULT_KANBAN_LIMIT`), so it lands on the literal side and the keyed
+    // half is what stays untouched this time.
+    expect(PLACEHOLDERS.length).toBe(18);
     expect(PLACEHOLDERS.filter((p) => p.spec.key !== undefined).length).toBe(7);
-    expect(PLACEHOLDERS.filter((p) => p.spec.literal !== undefined).length).toBe(10);
+    expect(PLACEHOLDERS.filter((p) => p.spec.literal !== undefined).length).toBe(11);
   });
 
   it('every placeholder declares exactly one of key / literal', () => {

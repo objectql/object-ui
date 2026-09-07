@@ -50,8 +50,32 @@
  * ⚠️ Every count in this header is READ, not inherited. The three that used to
  * stand here — "163 pairs" twice and "13 entries" once — were stale, and they were
  * the numbers other cards quoted as the size of the drift problem (objectui#5927's
- * framing, and objectui#6058's own dispatch, both inherited "163"). On a file whose
- * entire subject is measurement that is worth stating explicitly:
+ * framing, and objectui#6058's own dispatch, both inherited "163").
+ *
+ * ⚠️ READ is not the same as CHECKED, and the gap between them is where this header
+ * rots: a figure read once becomes prose the moment it is written down. The three
+ * LEDGER ENTRY counts below — and the ratchet section's restatement of the first of
+ * them — are compared to the ledgers they describe by 'the ledger entry counts the
+ * header states are derived, not prose' at the bottom of this file (objectui#7733),
+ * so an entry added or removed fails this file instead of leaving a stale digit
+ * standing. Their KEY totals, and the cross-ledger figures beside them, are
+ * compared the same way by 'the header key totals and cross-ledger figures are
+ * derived, not prose' (objectui#8222) — that pin was filed because `KnownDrift`'s
+ * key total had been one low since objectui#7664 while the file stayed green.
+ *
+ * ⭐ **Every LIVE figure in this header is now pinned or explicitly excluded**, and
+ * that is the state to preserve. A figure here is LIVE when it describes the file as
+ * it is now, so it rots when the file moves; the many figures that name a reading at
+ * a NAMED PAST revision ("42 / 63 until objectui#7542 …", "121 when objectui#6058
+ * seeded it") are historical and cannot rot — they are readings of a tree that is
+ * fixed. Exactly one live figure is excluded rather than pinned, and it says so
+ * where it stands: the seed decomposition under `UnmirroredDeclared`, which needs a
+ * key's PROVENANCE and no ledger in this file records that. ⛔ Do not add a live
+ * figure here without a pin, and ⛔ do not pin one by writing a second constant —
+ * every pin below reads the header's OWN spelling, so the count a human edits stays
+ * exactly one per site (objectui#7733's principle, and objectui#7433's before it).
+ *
+ * On a file whose entire subject is measurement that is worth stating explicitly:
  *
  *   - **the pair population** — `Object.keys(MIRRORS).length`, pinned to the single
  *     written-down constant `EXPECTED_MIRROR_PAIRS` by the runtime census at the
@@ -84,7 +108,16 @@
  *     a delta to this number; count the registry. Nothing asserts it against a written
  *     one, so this line is prose and can rot; the pin that cannot is the one
  *     comparing the two halves to each other.
- *   - **41 entries** in `KnownDrift`, **62 keys** across them — 42 / 63 until
+ *   - **41 entries** in `KnownDrift`, **63 keys** across them — 41 / 62 until
+ *     objectui#7664 RE-KEYED the `kanban` arm (ruling (a)): the retired
+ *     `DeclarativeKanbanSchema` entry carried `onCardMove` / `onCardClick`, and the
+ *     plugin-dialect `KanbanSchema` entry that replaced it carries `onQuickAdd` as
+ *     well — ONE ENTRY OUT, ONE IN, so the entry count did not move and the key
+ *     total did. ⚠️ That is why this figure stood one low and fully green for four
+ *     commits: the pin of the day (objectui#7733) read the entry count beside it,
+ *     and the number that actually moved had nothing looking at it. objectui#8222
+ *     measured it with two instruments and bisected it to this commit; the key
+ *     totals are pinned from objectui#8222 onward. 42 / 63 until
  *     objectui#7542 REPAIRED `app.zod.ts#AppComponentSchema`'s one key `hidden` by
  *     restating the DECLARATION (`app.ts` now says `boolean`, what the spec-derived
  *     mirror enforced all along), the entry's whole content, so the entry went too —
@@ -142,13 +175,33 @@
  *     keys to the ledger below by RECLASSIFICATION, not by fixing them, and
  *     objectui#6639 MIRRORED `ObjectGridSchema.title` — one key actually repaired.
  *     Anything citing "121" as the mirroring debt is citing a number that changed
- *     meaning — the comparable figure is 95 + 1 mirrored + 2 retired + 23
- *     reclassified. The full statement is on that ledger.
- *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them. Six of the
- *     seven are a subset of the 14 pairs above; `TreeViewSchema` is NOT — it is
- *     the first pair whose ONLY ledger entry is a runtime-only one
+ *     meaning. ⛔ **EXPLICITLY EXCLUDED FROM THE PINS, and not restated here as
+ *     digits** (objectui#8222): the comparable decomposition is survivors + mirrored
+ *     + retired + reclassified, and every term but the last needs each key's
+ *     PROVENANCE — which of today's keys descend from the seed. No ledger in this
+ *     file records provenance; they record entry → key set as it stands. So no
+ *     instrument here can derive this figure, and a copy of it in this header could
+ *     only be prose. ⚠️ The copy that stood here WAS prose and had rotted: it read
+ *     "95 + 1 mirrored + 2 retired + 23 reclassified", a survivor count that stopped
+ *     being true when objectui#7352 and objectui#7779 closed keys out of the ledger.
+ *     objectui#8222 measured that it had (⛔ do NOT read 95 against today's 87 — the
+ *     two count different things: 87 is the ledger total, and two of those keys were
+ *     seeded long after the 121). It is ⛔ not replaced with a fresh digit, for the
+ *     reason above. The full statement is on that ledger, which owns it — read it
+ *     there, and ⛔ do not copy it back.
+ *   - **7 entries** in `RuntimeOnlyDeclared`, **24 keys** across them.
+ *     **6 of the 7** are a subset of the **14** pairs above; `TreeViewSchema` is
+ *     NOT — it is the first pair whose ONLY ledger entry is a runtime-only one
  *     (objectui#6150 declared `onNodeClick` on an otherwise clean pair), which is why
- *     the union of the two unmirrored ledgers is **15** pairs and not 14.
+ *     the union of the two unmirrored ledgers is **15** pairs and not **14**.
+ *     ⚠️ Four live figures sit in those two sentences and all four are pinned: the
+ *     `6` (a quantity of its own — how many entries the two unmirrored ledgers
+ *     share), and three RESTATEMENTS — the `7` beside it, and the `14` twice — of
+ *     counts already stated above. The `6` and the `7` were spelled as English WORDS
+ *     until objectui#8222, which is why no instrument had ever read them: a figure
+ *     spelled "six" rots exactly as fast as one spelled `6`, it is just harder to
+ *     point a regex at. ⛔ Do not spell a live figure out again, and ⛔ do not
+ *     restate one without checking that the pin's spelling still reaches it.
  *   - **the pairs with no entry in either** unmirrored ledger — the population minus
  *     the union of the two ledgers above. ⛔ Not written down here in any form: the
  *     census derives it and pins it (objectui#7433). ⚠️ This line used to carry a
@@ -205,7 +258,7 @@
  *
  * ## KNOWN_DRIFT is a ratchet, not a waiver
  *
- * 42 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
+ * 41 of the registered pairs carry TYPE drift TODAY (measured, not assumed). Each is
  * pinned to its EXACT drifted key set, so the entry fails when new drift appears on
  * that mirror AND when the recorded drift is fixed — a stale entry cannot rot
  * quietly. Correcting them is not one change: the pairs below split into DISJOINT
@@ -1161,12 +1214,21 @@ interface KnownDrift {
  * Exact DECLARED-BUT-UNMIRRORED key set per pair: keys the published TypeScript
  * invites an author to write and the published validator has never heard of.
  *
- * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — 121 became 98 by RECLASSIFICATION,
- * ## then 97 by the first REPAIR, then 96 by RETIREMENT, then 94 by REPAIR again
+ * ## ⚠️ READ THIS BEFORE QUOTING THE NUMBER — every figure in this heading is a
+ * ## READING AT THE CARD THAT PRODUCED IT, never today's: 121 at objectui#6058, 98 by
+ * ## RECLASSIFICATION at objectui#6152, 97 by the first REPAIR at objectui#6639, 96 by
+ * ## RETIREMENT at objectui#7623, 94 by REPAIR again at objectui#7352, 87 by MIRRORING
+ * ## BY REFERENCE at objectui#7779. Abridged — it names one card per step and skips
+ * ## three movements the neighbouring steps absorb (objectui#6576 +1, objectui#7129
+ * ## −1, objectui#7655 +2); the unabridged chain is the `UnmirroredDeclared` bullet in
+ * ## the file header. ⛔ None of these is today's figure. Today's is one line down.
  *
- * objectui#6058 seeded this ledger at **121 keys**. It records **94**, and the
- * movements are different facts. objectui#6152 measured the 23 callback-shaped
- * (`on*`) keys and ruled that mirroring is the wrong remedy for every one of them;
+ * objectui#6058 seeded this ledger at **121 keys**, and — on ONE line, because the
+ * pin below reads this sentence off disk —
+ * **87 keys** is what this ledger records today.
+ * The movements between the two are different facts. objectui#6152 measured the 23
+ * callback-shaped (`on*`) keys and ruled that mirroring is the wrong remedy for every
+ * one of them;
  * they moved, intact and still pinned, to `RuntimeOnlyDeclared` below — ⛔ nothing
  * was mirrored, no declaration was removed, nothing was waived by that move. Then
  * objectui#6639 MIRRORED `ObjectGridSchema.title` (census-directed maintainer
@@ -1178,16 +1240,70 @@ interface KnownDrift {
  * objectui#7352 MIRRORED the two `drillDown` keys (`ChartSchema`,
  * `ObjectDataTableSchema`) by minting the `DrillDownConfigSchema` both entries named
  * as their remedy — the second and third repairs, and the first to close two entries
- * in one change.
+ * in one change. Then objectui#7655 SEEDED a `ChatbotFloatingSchema` entry with two
+ * keys — growth, and the only growth this ledger has seen since the seed. Then
+ * objectui#7779 MIRRORED eight of `ObjectViewSchema`'s keys BY REFERENCE and RETIRED a
+ * ninth (`viewTabBar`) — the largest single shrink, and the movement this docstring
+ * did not follow: the figure above read 94, fully green, until objectui#8243.
  *
- * So: **94 is the mirroring debt; 94 − 1 seeded + 3 mirrored + 2 retired + 23
- * reclassified is what "121" used to mean** (the seed is objectui#6576's
- * `ObjectDataTableSchema.drillDown`, which was never part of the 121 — and which
- * objectui#7352 has since repaired). A card that
- * cites 121 as the size of the mirroring problem, or 98/97/96/94 as a shrink from it,
- * is wrong in both directions. objectui#6141 is the
- * standing example of what a silently moved count costs — it is why this paragraph
- * is in the ledger rather than in a commit message.
+ * ## The decomposition of "121" — a reading at NAMED REVISIONS, so it cannot rot
+ *
+ * ⛔ What "121" used to mean is no longer restated as a LIVE decomposition, and
+ * ⛔ do not restore one. objectui#8222 removed the file header's copy for a reason
+ * that applies here too: every term but the reclassification needs each key's
+ * PROVENANCE — which of today's keys descend from the seed — and no ledger in
+ * this file records provenance; they record entry → key set as it stands. So no
+ * instrument here can derive it, a live decomposition is unpinnable, and this one duly
+ * rotted: it stood as `94 − 1 seeded + 3 mirrored + 2 retired + 23 reclassified`
+ * from objectui#7352 through four ledger movements, three of which moved one of its
+ * terms.
+ *
+ * What CAN be written down is a reading at NAMED REVISIONS — nothing later can make
+ * it false, so it needs no pin against the ledger and no hand re-derivation at the next
+ * repair. Measured by the walk `ledgerEntryMembers` performs, run over this file at two
+ * commits:
+ *
+ *   - MEASURED at `beccf1c6b` — this repository's oldest reachable commit, after
+ *     objectui#6152's RECLASSIFICATION and before objectui#6639's first REPAIR —
+ *     this ledger held **98 keys**.
+ *     ⭐ That is the positive control for the whole walk: it is exactly the
+ *     `121 became 98` the heading states, arrived at from the other direction.
+ *   - MEASURED at `ed7178bf3` (objectui#8242's landing, and the revision objectui#8243
+ *     measured on), by SET INTERSECTION on entry → key pairs rather than by
+ *     subtracting one total from another:
+ *     **85** of those keys were still in the ledger and **13** had left.
+ *   - So the seed decomposes, completely and with every term measured, as
+ *     **85 + 13 + 23 = 121** — survivors, departures, and objectui#6152's
+ *     reclassification. Those figures are pinned against each other by objectui#8243:
+ *     arithmetic among historical readings only, and ⛔ nothing in that pin reads
+ *     the live ledger, which is the whole reason it cannot rot.
+ *
+ * ⚠️ **One split below this is PROSE-DERIVED and must not be folded into the
+ * figures above.** The 13 departures divide **10 MIRRORED / 3 RETIRED**, and that
+ * division is read off the cards, not off any ledger: objectui#6639 mirrored
+ * `ObjectGridSchema.title`; objectui#7129 retired `DetailViewSectionSchema.hideEmpty`;
+ * objectui#7623 retired `DashboardComponentSchema.title`; objectui#7352 mirrored
+ * `ChartSchema.drillDown`, the only one of its two `drillDown` rows that was ever part
+ * of the 121 — `ObjectDataTableSchema`'s was seeded later by objectui#6576 and is in
+ * neither measured set; objectui#7779 mirrored eight of `ObjectViewSchema`'s keys and
+ * retired `viewTabBar`. 10 + 3 = 13 reconciles with the measurement, ⛔ which is not
+ * the same as being measured. **The 13 is measured; the 10 / 3 is not**, and a later
+ * reader must not collapse the two into one confident figure. (Measurable in principle
+ * — a MIRRORED key is in the mirror today, a RETIRED one is declared nowhere —
+ * but that would be a LIVE instrument, and a live instrument here is exactly the
+ * maintenance cost this section was rewritten to remove.)
+ *
+ * ⚠️ Today's figure is NOT 85. Two keys entered this ledger AFTER the 121 —
+ * `ChatbotFloatingSchema`'s `displayMode` and `floatingConfig`, seeded by objectui#7655
+ * — so the survivors plus those two are what the live figure above counts.
+ * ⛔ Do not update the 85 when the ledger moves: it is a reading at `ed7178bf3` and
+ * it stays one. The live figure is the pinned one, and it is the ONLY figure in this
+ * docstring that moves.
+ *
+ * A card that cites 121 as the size of the mirroring problem, or any reading in the
+ * heading's chain as a shrink from it, is wrong in both directions. objectui#6141 is
+ * the standing example of what a silently moved count costs — it is why this
+ * paragraph is in the ledger rather than in a commit message.
  *
  * ## ⛔ SHRINK-ONLY, and why a seed is a FLOOR rather than a waiver
  *
@@ -1502,20 +1618,30 @@ interface UnmirroredDeclared {
  *
  * ## ⚠️ THIS IS WHERE 23 KEYS WENT — a RECLASSIFICATION, not a fix
  *
- * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058. It records
- * **94** today: these 23 moved here whole, and three keys were later MIRRORED
- * (`ObjectGridSchema.title` by objectui#6639; `ChartSchema.drillDown` and
- * `ObjectDataTableSchema.drillDown` by objectui#7352) while two were RETIRED by
- * deleting the declaration (objectui#7129, objectui#7623) — the move recorded HERE
- * repaired nothing. ⛔ Nothing was
- * mirrored by it, no declaration was removed, no defect was repaired and nothing was
+ * `UnmirroredDeclared` above was seeded at **121 keys** by objectui#6058, and — on
+ * ONE line, because the pin below reads this sentence off disk —
+ * `UnmirroredDeclared` records **87 keys** today.
+ * These 23 moved here whole. Keys have since left that ledger by MIRRORING and by
+ * RETIREMENT, but the move recorded HERE is neither and repaired nothing. ⛔ Nothing
+ * was mirrored by it, no declaration was removed, no defect was repaired and nothing was
  * waived: the same 23 facts are still measured, still declared-but-unmirrored, still
  * reconciled against the same measurement — under a different remedy.
  *
- * **94 is the mirroring debt; 94 − 1 seeded + 3 mirrored + 2 retired + 23
- * reclassified is what "121" used to mean.** Cite it that way. objectui#6141 is the
- * standing example of what a silently moved count costs — and the pair count in the
- * file header is the second, re-derived at objectui#7352 contract review.
+ * ⚠️ **23 is a HISTORICAL figure and this ledger no longer holds exactly those 23.**
+ * It counts what objectui#6152 RECLASSIFIED, which is a past event and cannot change;
+ * objectui#6150's `TreeViewSchema.onNodeClick` arrived afterwards, so the live total is
+ * larger. ⛔ Do not "correct" the 23 to match it, and ⛔ do not restate the live total
+ * here — it is written down once, in the file header, where objectui#8222 pins it.
+ *
+ * ⛔ The decomposition of "121" is NOT restated here. ONE site owns it — the
+ * `UnmirroredDeclared` docstring above, where it is written as a reading at named
+ * revisions and therefore cannot rot. objectui#8222 removed the file header's copy
+ * for the same reason and deferred to that site; a second copy standing beside a
+ * corrected one is how this figure rotted in the first place (objectui#8243: this
+ * paragraph and the one above it both read 94 for a day after objectui#7779 took the
+ * ledger to 87, and every pin in the file was green). objectui#6141 is the standing
+ * example of what a silently moved count costs — and the pair count in the file
+ * header is the second, re-derived at objectui#7352 contract review.
  *
  * ## Why mirroring is the wrong remedy for these (the objectui#6152 ruling)
  *
@@ -2638,8 +2764,16 @@ this derivation subtracts from the pinned population, so it fails as a consequen
  * A member that is not a string literal is a hard error rather than a skipped row:
  * a ledger that quietly grew a `string` or `never` arm would otherwise read as fewer
  * keys, and every count below would still pass.
+ *
+ * `KnownDrift` joined the parameter type at objectui#8222 — one union arm, no new
+ * code — so the header's `KnownDrift` key total is sized by the SAME instrument that
+ * already sizes the other two. That matters for more than tidiness: objectui#7279's
+ * pin derives `UnmirroredDeclared`'s 87 keys through this function and is green, so
+ * the union-arm semantics used here are the ones this file already treats as
+ * authoritative, and a `KnownDrift` reading of 63 is a reading rather than a second
+ * definition of the word "key".
  */
-function ledgerEntryMembers(ledger: 'UnmirroredDeclared' | 'RuntimeOnlyDeclared'): Map<string, string[]> {
+function ledgerEntryMembers(ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): Map<string, string[]> {
   selfAst ??= ts.createSourceFile(
     SELF, readFileSync(SELF, 'utf8'), ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS,
   );
@@ -2747,6 +2881,359 @@ pinned elsewhere in this file against the mirrors themselves.`)
     for (const [entry, keys] of members) {
       expect(keys.length, `${entry} read as having no keys`).toBeGreaterThan(0);
     }
+  });
+});
+
+
+/* ── The header's LEDGER ENTRY COUNTS are pinned to the ledgers (objectui#7733) ─ */
+
+describe('the ledger entry counts the header states are derived, not prose (objectui#7733)', () => {
+  it('every entry count the header writes down equals the ledger it describes', () => {
+    // objectui#6141 named TWO stale figures in its own title — a pair population and a
+    // ledger entry count — and route 1 (hand-correct the prose) was taken for both.
+    // objectui#7433 built the pin for the population half; this is the other half.
+    // `ReconcileAgainstLedger` and its siblings do NOT reach these figures: they pin
+    // each entry's EXACT key set, so an entry added or removed moves no number they
+    // compare, and until this test the file stayed green either way.
+    //
+    // Both instruments already exist. `ledgerEntryKeys` sizes a ledger from this
+    // file's own AST, and `headerFigures` reads one figure off the header's OWN
+    // spelling — so a rewording that drops the digit is red rather than quietly
+    // unpinned, and a second copy of a spelling (a stale figure left standing beside
+    // a corrected one) fails there rather than passing on whichever copy it met first.
+    //
+    // The last row is the RESTATEMENT, and it is why this pin is measured rather than
+    // predicted: the ratchet section states the KnownDrift entry count a SECOND time,
+    // ~120 lines below the first. objectui#7542 shrank that ledger by one entry, the
+    // first site was corrected, the restatement was not — and the file was fully green
+    // with a wrong figure carrying the parenthetical "measured, not assumed" for four
+    // commits. Both sites read the one ledger here, so neither can outlive the other.
+    const drift = ledgerEntryKeys('KnownDrift').length;
+    const header = {
+      knownDrift: headerFigures(/\*\*(\d+) entries\*\* in `KnownDrift`/)[0],
+      unmirroredDeclared: headerFigures(/\*\*(\d+) entries\*\* in `UnmirroredDeclared`/)[0],
+      runtimeOnlyDeclared: headerFigures(/\*\*(\d+) entries\*\* in `RuntimeOnlyDeclared`/)[0],
+      knownDriftRestated: headerFigures(/(\d+) of the registered pairs carry TYPE drift TODAY/)[0],
+    };
+
+    expect(header, `
+The header's ledger entry counts disagree with the ledgers they describe.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you added or removed a ledger entry
+    => correct the header figure to the derived one below, and nothing else. If the
+       KnownDrift figure moved, TWO sites move together: the bullet in the population
+       section and its restatement under 'KNOWN_DRIFT is a ratchet, not a waiver'.
+       They state one quantity; this pin reads both, because correcting only the
+       first is the exact drift objectui#7733 was filed for.
+
+  * you edited a header figure by hand, or carried one in from a card, a review
+    comment or another file
+    => put it back to the derived value. The ledger is the measurement; the header
+       only records it, and a figure quoted anywhere else is evidence about that
+       place only.
+
+⛔ Never reconcile the two by moving a ledger ENTRY. The entry key sets are pinned
+against the mirrors themselves elsewhere in this file, so an entry edited to satisfy a
+sentence fails there instead — and that is route 1, which objectui#6141 predicted and
+objectui#7433 measured recurring four more times.
+
+⚠️ This pin covers the ENTRY counts only. The KEY totals beside them are pinned by
+'the header key totals and cross-ledger figures are derived, not prose'
+(objectui#8222) — the sibling block directly below. When this was written they were
+not: nobody had measured them, and a number nobody measured gets no verdict. #8222
+measured them, and found this header's KnownDrift key total one low since
+objectui#7664. ⛔ Do not fold the two blocks together: they fail for different
+reasons and each names the ledger movement that causes its own.`)
+      .toEqual({
+        knownDrift: drift,
+        unmirroredDeclared: ledgerEntryKeys('UnmirroredDeclared').length,
+        runtimeOnlyDeclared: ledgerEntryKeys('RuntimeOnlyDeclared').length,
+        knownDriftRestated: drift,
+      });
+  });
+});
+
+/* ── The header's KEY TOTALS and cross-ledger figures are pinned (objectui#8222) ─ */
+
+describe('the header key totals and cross-ledger figures are derived, not prose (objectui#8222)', () => {
+  /** Keys across one ledger — the union arms, summed, from this file's own AST. */
+  const keyTotal = (ledger: 'KnownDrift' | 'RuntimeOnlyDeclared' | 'UnmirroredDeclared'): number =>
+    Array.from(ledgerEntryMembers(ledger).values()).reduce((n, keys) => n + keys.length, 0);
+
+  it('every key total and cross-ledger figure the header writes down equals the ledgers', () => {
+    // objectui#7733 pinned the ENTRY counts and said in as many words that the KEY
+    // totals beside them were not pinned, because nobody had measured them. #8222
+    // measured them — two independent instruments, and a positive control that fires
+    // (`UnmirroredDeclared` reads 14 / 87 and `RuntimeOnlyDeclared` 7 / 24, both
+    // agreeing with their prose, and the 87 is independently derived by objectui#7279's
+    // own green pin through `ledgerEntryMembers`) — and found `KnownDrift`'s total one
+    // low: the header said 62, the ledger holds 63. Bisected to objectui#7664, which
+    // re-keyed the `kanban` arm from a 2-key entry to a 3-key one: one entry out, one
+    // in, so the entry count objectui#7733 watches did not move while the key total
+    // did. A figure with nothing looking at it is the whole subject of this file.
+    //
+    // ⭐ No new instrument and no new constant. `ledgerEntryMembers` already sized a
+    // ledger in keys and gained one union arm; `headerFigures` reads each figure off
+    // the header's OWN spelling, so a rewording that drops a digit is red rather than
+    // quietly unpinned, and the count a human edits stays exactly one per site. A
+    // `const EXPECTED_KNOWN_DRIFT_KEYS = 63` would be a THIRD place the number lives
+    // and would reproduce this defect one level up.
+    //
+    // The last four rows are RESTATEMENTS, and they are why this block reads the
+    // cross-ledger sentence and not just the two bullets: `6 of the 7` restates the
+    // `RuntimeOnlyDeclared` entry count a second time and the `UnmirroredDeclared`
+    // one a third and fourth. Every one of them was spelled as an English WORD or a
+    // bare digit until objectui#8222, which is exactly why no instrument had ever
+    // read them — the same shape as objectui#7733's ratchet restatement, one section
+    // further down the page.
+    const unmirrored = new Set(ledgerEntryKeys('UnmirroredDeclared'));
+    const runtimeOnly = ledgerEntryKeys('RuntimeOnlyDeclared');
+
+    // The entry counts these two spellings also carry are pinned by the block above;
+    // read here only so the regexes stay anchored to the sentence they measure.
+    const [, driftKeys] = headerFigures(/\*\*(\d+) entries\*\* in `KnownDrift`, \*\*(\d+) keys\*\* across them/);
+    const [, runtimeKeys] = headerFigures(/\*\*(\d+) entries\*\* in `RuntimeOnlyDeclared`, \*\*(\d+) keys\*\* across them/);
+    const [inBoth, ofRuntimeOnly, unmirroredPairs] = headerFigures(
+      /\*\*(\d+) of the (\d+)\*\* are a subset of the \*\*(\d+)\*\* pairs above/,
+    );
+    const [unionPairs, notUnmirroredPairs] = headerFigures(
+      /the union of the two unmirrored ledgers is \*\*(\d+)\*\* pairs and not \*\*(\d+)\*\*/,
+    );
+
+    expect({
+      knownDriftKeys: driftKeys,
+      runtimeOnlyKeys: runtimeKeys,
+      runtimeOnlyAlsoUnmirrored: inBoth,
+      runtimeOnlyEntriesRestated: ofRuntimeOnly,
+      unmirroredEntriesRestated: unmirroredPairs,
+      unionOfUnmirroredLedgers: unionPairs,
+      unmirroredEntriesRestatedAgain: notUnmirroredPairs,
+    }, `
+The header's key totals or cross-ledger figures disagree with the ledgers.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you added or removed a ledger KEY (an arm of an entry's union), or an ENTRY that
+    carries keys
+    => correct the header figures to the derived ones below, and ADD the history
+       sentence the bullet keeps for every move — it is cumulative by design, and a
+       move recorded only as a corrected digit is the objectui#7664 shape: the
+       arithmetic in the sentence above it stops adding up and nobody can see why.
+       An entry moving usually moves BOTH its ledger's entry count and its key total,
+       so expect the objectui#7733 block to fail alongside this one; if only one of
+       the two failed, that asymmetry is information — read it before editing.
+
+  * you edited a header figure by hand, or carried one in from a card, a review
+    comment or another file
+    => put it back to the derived value. The ledger is the measurement; the header
+       only records it, and a figure quoted anywhere else is evidence about that
+       place only.
+
+⛔ Never reconcile the two by editing a ledger KEY SET. The key sets are pinned
+against the mirrors themselves elsewhere in this file, so a key edited to satisfy a
+sentence fails there instead — and that is route 1, which objectui#6141 predicted,
+objectui#7433 measured recurring four more times, and objectui#8222 was filed to stop
+being taken for the key totals specifically.
+
+⚠️ ONE live figure in the header is deliberately NOT here: the seed decomposition
+under \`UnmirroredDeclared\` ("what 121 used to mean"). It needs each key's PROVENANCE
+and no ledger in this file records that, so nothing here can derive it. It is
+excluded in writing where it stands, which is the other half of objectui#8222 — every
+live figure in that header is pinned or excluded with its reason, and ⛔ a new one
+that is neither should not be added.`)
+      .toEqual({
+        knownDriftKeys: keyTotal('KnownDrift'),
+        runtimeOnlyKeys: keyTotal('RuntimeOnlyDeclared'),
+        runtimeOnlyAlsoUnmirrored: runtimeOnly.filter((pair) => unmirrored.has(pair)).length,
+        runtimeOnlyEntriesRestated: runtimeOnly.length,
+        unmirroredEntriesRestated: unmirrored.size,
+        unionOfUnmirroredLedgers: new Set([...unmirrored, ...runtimeOnly]).size,
+        unmirroredEntriesRestatedAgain: unmirrored.size,
+      });
+  });
+
+  it('the member reader can see KnownDrift and RuntimeOnlyDeclared (non-vacuity)', () => {
+    // 'the member reader can actually see the unions' above guards `UnmirroredDeclared`
+    // only, because that was the one ledger objectui#7279 read in keys. A reader that
+    // returned no members for the two read HERE would derive 0 keys for both and the
+    // check above would compare 0 against the header — red today, but green the moment
+    // someone "fixed" it by writing 0 down, which is the failure mode these controls
+    // exist for. Each leg below is a fact about the ledger, not about the reader.
+    for (const ledger of ['KnownDrift', 'RuntimeOnlyDeclared'] as const) {
+      const members = ledgerEntryMembers(ledger);
+      expect(Array.from(members.keys()), `${ledger}: the member reader and the entry reader disagree on the entry list`)
+        .toEqual(ledgerEntryKeys(ledger));
+      for (const [entry, keys] of members) {
+        expect(keys.length, `${ledger}['${entry}'] read as having no keys`).toBeGreaterThan(0);
+      }
+      expect(keyTotal(ledger), `${ledger}: no entry read as a union of more than one literal — the reader is not walking union arms`)
+        .toBeGreaterThan(members.size);
+    }
+
+    // The cross-ledger figures are only meaningful if the two ledgers really do
+    // overlap and really do differ: a union equal to either side, or an empty
+    // intersection, would make `6 of the 7` and `15 pairs` pass while measuring a
+    // degenerate case. `TreeViewSchema` is the single member outside the overlap —
+    // the reason the union is 15 and not 14 in the first place.
+    const unmirrored = new Set(ledgerEntryKeys('UnmirroredDeclared'));
+    const runtimeOnly = ledgerEntryKeys('RuntimeOnlyDeclared');
+    expect(runtimeOnly.filter((pair) => unmirrored.has(pair)).length, 'the two unmirrored ledgers read as DISJOINT')
+      .toBeGreaterThan(0);
+    expect(runtimeOnly.filter((pair) => !unmirrored.has(pair)), 'RuntimeOnlyDeclared read as a SUBSET of UnmirroredDeclared — the union figure is then vacuous')
+      .not.toEqual([]);
+  });
+});
+
+/* ── The LEDGER DOCSTRINGS' key total is pinned, their seed history anchored (objectui#8243) ─ */
+
+describe("the ledger docstrings' key total is derived, not prose (objectui#8243)", () => {
+  /** Keys across `UnmirroredDeclared` — the union arms, summed, from this file's own AST. */
+  const unmirroredKeys = (): number =>
+    Array.from(ledgerEntryMembers('UnmirroredDeclared').values()).reduce((n, keys) => n + keys.length, 0);
+
+  it('both ledger docstrings state the key total the ledger actually holds', () => {
+    // objectui#7279 pinned this ledger's four split figures and its totals line;
+    // objectui#8222 pinned the file header's key totals. Both were green, and both
+    // stayed green, while the two LEDGER DOCSTRINGS — the paragraph above
+    // `UnmirroredDeclared` and the one above `RuntimeOnlyDeclared` — each said the
+    // ledger records 94 and two independent instruments read 87. The figures sat in
+    // DIFFERENT PARAGRAPHS of those docstrings, outside every spelling either pin
+    // reaches: #7279's regexes are anchored to the split's own sentences and #8222's
+    // to the top-of-file header. A figure with nothing looking at it is the whole
+    // subject of this file, and this is the fifth link in the chain objectui#6141 →
+    // #7433 → #7733 → #8222 that has left its remainder behind each time.
+    //
+    // 87 is not new: objectui#7779 took the ledger 96 → 87 and correctly moved every
+    // PINNED figure. These two restatements were not pinned, so they did not move.
+    //
+    // ⭐ No new instrument and no new constant. `ledgerEntryMembers` already sizes this
+    // ledger in keys for objectui#7279 and objectui#8222, and `headerFigures` reads
+    // each figure off the prose's OWN spelling — so a rewording that drops a digit is
+    // red rather than quietly unpinned, and the count a human edits stays exactly one
+    // per site. A `const EXPECTED_UNMIRRORED_KEYS = 87` would be a THIRD place the
+    // number lives and would reproduce this defect one level up.
+    //
+    // ⚠️ This reads a KEY total, not an entry count, and that is the objectui#7664
+    // shape rather than a detail: re-keying one entry from N arms to N+1 moves the key
+    // total while the entry count objectui#7733 watches holds still. That is exactly
+    // how the header's `KnownDrift` total stood one low and fully green for four
+    // commits, and it is the leg this pin is proven against.
+    const [inUnmirroredDocstring] = headerFigures(/\*\*(\d+) keys\*\* is what this ledger records today/);
+    const [inRuntimeOnlyDocstring] = headerFigures(/`UnmirroredDeclared` records \*\*(\d+) keys\*\* today/);
+
+    expect({ inUnmirroredDocstring, inRuntimeOnlyDocstring }, `
+A ledger docstring's key total disagrees with the ledger it describes.
+
+WHICH SIDE TO CHANGE — decide by what your diff touched, not by which number looks
+right (git diff -- packages/types/src/__tests__/zod-mirror-parity.test.ts):
+
+  * you added or removed a ledger KEY (an arm of an entry's union), or an ENTRY that
+    carries keys
+    => correct BOTH docstring figures to the derived one below, and ADD the history
+       sentence the narrative keeps for every move. Expect objectui#7279's split pin
+       to fail alongside this one; if it did NOT, the entry count held while the key
+       total moved (the objectui#7664 shape) and that asymmetry is information.
+  * you edited a docstring figure by hand, or carried one in from a card or a comment
+    => put it back to the derived value. The ledger is the measurement; the docstring
+       only records it.
+
+⛔ Never reconcile the two by editing a ledger KEY SET: the key sets are pinned against
+the mirrors themselves elsewhere in this file, so a key edited to satisfy a sentence
+fails there instead — and that is route 1, which objectui#6141 predicted and
+objectui#8243 was filed to stop being taken for these two paragraphs specifically.
+
+⚠️ Both sites are read, deliberately. Correcting one and leaving the other is how a
+stale copy survives beside a corrected one, which is the shape objectui#8243 records.`)
+      .toEqual({ inUnmirroredDocstring: unmirroredKeys(), inRuntimeOnlyDocstring: unmirroredKeys() });
+  });
+
+  it('the seed decomposition is a reading at NAMED REVISIONS and reconciles with itself', () => {
+    // The other half of objectui#8243, and the half that must NOT be pinned to the
+    // ledger. A decomposition of the 121 into survivors + departures needs each key's
+    // PROVENANCE — which of today's keys descend from the seed — and no ledger in this
+    // file records provenance; they record entry → key set as it stands. objectui#8222
+    // hit the identical figure in the file header and REMOVED it rather than refreshing
+    // the digit, deferring to the `UnmirroredDeclared` docstring as the site that owns
+    // the statement. So that site could not simply delete it too: the provenance
+    // narrative would have left the repo.
+    //
+    // ⚠️ objectui#8222's own exclusion note calls that deferred-to statement a LIVE
+    // figure, which it was when the note was written. It is not one any more — read it
+    // as the historical reading described below. That note is left exactly as it
+    // stands: it is an assertion message objectui#8243 has no business editing, and
+    // what it says about the FILE HEADER (no copy there, and none to be added back)
+    // is unchanged.
+    //
+    // ⭐ objectui#8243 took neither route. The statement was rewritten as a reading at
+    // NAMED REVISIONS — 98 keys at `beccf1c6b`, of which 85 survive and 13 have left at
+    // `ed7178bf3` — which cannot rot, because nothing landing later can make a claim
+    // about those two commits false. It therefore needs no pin against the ledger and
+    // no hand re-derivation at the next repair, which was the cost the card flagged.
+    //
+    // ⛔ Nothing in this test reads the live ledger, and nothing in it may start to.
+    // The moment a historical figure is compared with `unmirroredKeys()` the statement
+    // is live again and the maintenance cost is back. What IS checked is the
+    // statement's INTERNAL arithmetic, so a historical digit "refreshed" by hand to
+    // chase a moved ledger — the most likely way this paragraph gets damaged — is red.
+    //
+    // ⚠️ The 10 MIRRORED / 3 RETIRED split of those 13 departures is deliberately NOT
+    // read here. The 13 is measured (a set intersection on entry → key pairs); the
+    // 10 / 3 is PROSE-DERIVED from the cards that moved them. Asserting it would dress
+    // a prose reading as a measurement, and keeping the two visibly apart is the point.
+    const [atGraft] = headerFigures(/this ledger held \*\*(\d+) keys\*\*\./);
+    const [survived, departed] = headerFigures(
+      /\*\*(\d+)\*\* of those keys were still in the ledger and \*\*(\d+)\*\* had left/,
+    );
+    const [sumSurvived, sumDeparted, reclassified, seed] = headerFigures(/\*\*(\d+) \+ (\d+) \+ (\d+) = (\d+)\*\*/);
+
+    expect({
+      survivorsPlusDepartures: survived + departed,
+      sumLineSurvivors: sumSurvived,
+      sumLineDepartures: sumDeparted,
+      sumLineTotal: sumSurvived + sumDeparted + reclassified,
+    }, `
+The HISTORICAL seed decomposition no longer adds up.
+
+Every figure it names is a reading at a NAMED REVISION (\`beccf1c6b\`, \`ed7178bf3\`), so
+none of them moves when the ledger moves. If you got here:
+
+  * you "refreshed" one of them to chase a ledger movement => put it back. That is the
+    live/historical confusion objectui#8243 rewrote this paragraph to remove, and the
+    live figure it belongs on is pinned by the sibling test above.
+  * you re-measured the walk and got different numbers => that is a FINDING, not a
+    prose edit. File it: the two commits are fixed, so a different reading means the
+    instrument changed, not the history.
+
+⛔ Do not repair this by pointing a figure at the live ledger — that reintroduces the
+hand re-derivation on every future repair that objectui#8243 removed, and it cannot be
+pinned anyway (no ledger here records key provenance).`)
+      .toEqual({
+        survivorsPlusDepartures: atGraft,
+        sumLineSurvivors: survived,
+        sumLineDepartures: departed,
+        sumLineTotal: seed,
+      });
+
+    // Non-vacuity: all-zero figures would satisfy every equation above while stating
+    // nothing. Each of these is a fact about the historical reading, not about the reader.
+    for (const [name, value] of Object.entries({ atGraft, survived, departed, reclassified, seed })) {
+      expect(value, `the historical figure ${name} read as 0 — the spelling matched something that is not the reading`)
+        .toBeGreaterThan(0);
+    }
+  });
+
+  it('the member reader can size UnmirroredDeclared in keys (non-vacuity)', () => {
+    // A reader returning no members would derive 0 keys, and a docstring written as 0
+    // would then pass while measuring nothing — the failure mode every control in this
+    // file exists for. These are facts about the ledger, not about the reader.
+    const members = ledgerEntryMembers('UnmirroredDeclared');
+    expect(members.size, 'UnmirroredDeclared read as EMPTY').toBeGreaterThan(0);
+    expect(unmirroredKeys(), 'no entry read as a union of more than one literal — the reader is not walking union arms')
+      .toBeGreaterThan(members.size);
   });
 });
 
