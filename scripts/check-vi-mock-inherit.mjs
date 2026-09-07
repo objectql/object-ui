@@ -527,12 +527,14 @@
  * over eight workspace packages (`components` 206, `core` 95, `react` 64,
  * `plugin-chatbot` 33, `i18n` 27, `types` 17, `sdui-parser` 8,
  * `data-objectstack` 5). NOT inert, and the slice proceeded on the CLASS of the
- * effect: 114 module-scope `ComponentRegistry.register(...)` calls, and -- unlike
- * what slice 9's record predicted for the five in
- * `renderers/layout/page.tsx` -- ZERO of them are bare. Every one carries a
- * namespace (`ui` 89, `element` 10, `page` 7, `action` 5, `plugin-chatbot` 3);
- * the five page rows carry `ui` through the spread `pageMeta` constant, so the
- * deprecation `console.warn` in `register()` cannot fire. Empirically: importing
+ * effect: 114 module-scope `ComponentRegistry.register(...)` calls, and ZERO of
+ * them are bare. Every one carries a namespace (`ui` 89, `element` 10, `page` 7,
+ * `action` 5, `plugin-chatbot` 3); the five rows in `renderers/layout/page.tsx`
+ * that READ as bare carry `ui` through the spread `pageMeta` constant, so the
+ * deprecation `console.warn` in `register()` cannot fire. ⚠️ Slice 9's REPORT
+ * called those five bare, and slice 10's dispatch inherited the claim; slice 7's
+ * record above had them right. Read the third argument, not the key -- the
+ * namespace never appears in the registered string. Empirically: importing
  * the real barrel under happy-dom exports 48 names, moves
  * `ComponentRegistry.getAllTypes()` from 0 to 301 keys, and emits ZERO
  * `console.warn` and ZERO `console.error`.
