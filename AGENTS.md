@@ -70,16 +70,17 @@ You don't just build components — you build a **Renderer** that interprets JSO
 Every node in the UI tree follows this shape (`@object-ui/types`):
 
 ```ts
+// abridged — the full BaseSchema member list is packages/types/src/base.ts
 interface BaseSchema {
-  type: string;                         // registry key: 'input', 'grid', 'card'
-  id?: string;                          // DOM accessibility / event targeting
-  props?: Record<string, any>;          // visual props (mapped to Shadcn props)
-  bind?: string;                        // data binding path: 'user.address.city'
-  className?: string;                   // Tailwind overrides
-  hidden?: string;                      // expression: "${data.role != 'admin'}"
-  disabled?: string;                    // expression
-  events?: Record<string, ActionDef[]>; // onClick -> [Action1, Action2]
-  children?: BaseSchema[];              // layout slots
+  type: string;                            // registry key: 'input', 'grid', 'card'
+  id?: string;                             // DOM accessibility / event targeting
+  props?: Record<string, any>;             // element:* config envelope, not a general bag
+  bind?: string;                           // data binding path: 'user.address.city'
+  className?: string;                      // Tailwind overrides
+  hidden?: boolean | ExpressionWire;       // expression or boolean: "${data.role != 'admin'}"
+  disabled?: boolean | ExpressionWire;     // same wire as hidden
+  events?: Record<string, ActionSchema[]>; // onClick -> [Action1, Action2]
+  children?: SchemaNode | SchemaNode[];    // layout slots; primitives admitted too
 }
 ```
 
