@@ -123,6 +123,17 @@ export const EmptySchema = BaseSchema.extend({
   title: z.string().optional().describe('Empty state title'),
   description: z.string().optional().describe('Empty state description'),
   icon: z.string().optional().describe('Empty state icon'),
+  // The mirror half of `EmptySchema.action` (objectui#7105). `SchemaNodeSchema`,
+  // matching the TypeScript face and every sibling node slot — NOT the
+  // `{ label, onClick }` object `ToastSchema.action` above happens to spell, a
+  // different interface with a different shape.
+  //
+  // What this buys is the VALUE, not key membership: `BaseSchema` is
+  // `.passthrough()` and `.extend()` carries that through, so `action` already
+  // parsed green here as an unexamined key. It is now judged — an `action` that
+  // is neither a node object with a `type` nor a primitive is refused, where
+  // before it was admitted.
+  action: SchemaNodeSchema.optional().describe('Call-to-action node rendered below the description'),
 });
 
 /**
