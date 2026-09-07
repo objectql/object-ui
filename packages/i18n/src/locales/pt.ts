@@ -1102,6 +1102,9 @@ const pt = {
     loading: "Carregando gráfico…",
     nullCategory: "(Não especificado)",
     scatterOneMeasure: "Um gráfico de dispersão traça uma única medida. Mantenha apenas uma série:",
+    unconfigured: {
+      noCategoryAxis: "Eixo de categorias do gráfico obrigatório — um gráfico vinculado a um objeto não o inventa. Declare um destes:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders

@@ -1110,6 +1110,9 @@ const ar = {
     loading: "جارٍ تحميل الرسم البياني…",
     nullCategory: "(غير محدد)",
     scatterOneMeasure: "المخطط المبعثر يرسم مقياسًا واحدًا فقط. أبقِ سلسلة واحدة:",
+    unconfigured: {
+      noCategoryAxis: "محور فئات الرسم البياني مطلوب — الرسم البياني المرتبط بكائن لا يخترع محورًا. أعلن أحد التالي:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders

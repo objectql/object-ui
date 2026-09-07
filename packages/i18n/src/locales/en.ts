@@ -1264,6 +1264,17 @@ const en = {
     // eagerly loaded and the `framework` chunk's gzip ceiling has ~0.2 KB of
     // headroom; the series keys are rendered by the chart as data, after it.
     scatterOneMeasure: 'A scatter plots one measure. Keep exactly one series:',
+    // The refusal an object-bound chart renders when it declares no category
+    // axis (objectui#8168) — `aggregate.groupBy` / `xAxisKey` / `xAxis.field`
+    // all absent, so `runAggregate` would have grouped on a name nobody wrote.
+    // The twin of `timeline.unconfigured.noDateAxis`. ONE short sentence, for
+    // the same reason `scatterOneMeasure` above is one: the packs ship it ten
+    // times, and the binding names are rendered by the component after it
+    // rather than interpolated, so a rung added to or retired from the
+    // resolver cannot leave this sentence naming a stale vocabulary.
+    unconfigured: {
+      noCategoryAxis: 'Chart category axis required — an object-bound chart will not invent one. Declare one of:',
+    },
   },
   report: {
     total: 'Total',

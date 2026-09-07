@@ -1142,6 +1142,9 @@ const zh = {
     loading: '图表加载中…',
     nullCategory: '(未指定)',
     scatterOneMeasure: '散点图只绘制一个度量。请只保留一个系列：',
+    unconfigured: {
+      noCategoryAxis: '图表需要分类轴 —— 对象绑定的图表不会虚构一个。请声明以下之一：',
+    },
   },
   report: {
     total: '总计',

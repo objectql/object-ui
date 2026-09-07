@@ -107,7 +107,8 @@ vi.mock('../../../../packages/app-shell/src/console/marketplace/MarketplacePacka
   MarketplacePackagePage: () => <div data-testid="marketplace-package-page" />,
 }));
 
-vi.mock('@object-ui/plugin-designer', () => ({
+vi.mock('@object-ui/plugin-designer', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@object-ui/plugin-designer')>()),
   CreateAppPage: () => <div data-testid="create-app-page">create app</div>,
   EditAppPage: () => <div data-testid="edit-app-page" />,
   DashboardDesignPage: () => <div data-testid="dashboard-design-page" />,

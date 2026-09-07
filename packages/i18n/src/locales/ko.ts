@@ -1103,6 +1103,9 @@ const ko = {
     loading: "차트 로딩 중…",
     nullCategory: "(미지정)",
     scatterOneMeasure: "산점도는 측정값 하나만 그립니다. 계열을 하나만 남기세요:",
+    unconfigured: {
+      noCategoryAxis: "차트 범주 축이 필요합니다 — 객체 바인딩 차트는 축을 임의로 만들지 않습니다. 다음 중 하나를 선언하세요:",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders

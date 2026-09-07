@@ -17,6 +17,10 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAdapter, SchemaRendererProvider } from '@object-ui/react';
+// The ONE draft-envelope reader (objectui#8181): unwrap AND strip the
+// framework's read decorations in one place. This file used to carry its own
+// copy that did the unwrap and skipped the strip.
+import { extractDraftBody } from '@object-ui/data-objectstack';
 import { StudioChatDock } from './StudioAiCopilot.js';
 import { nextCenterTab, type StudioCenterTab } from './centerTab.js';
 import { useIsWideViewport } from './wideViewport.js';
@@ -241,15 +245,6 @@ const KIND_ICON: Record<string, LucideIcon> = {
 };
 const navIcon = (type?: string): LucideIcon => KIND_ICON[type ?? ''] ?? Compass;
 
-/** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
-function extractDraftBody(resp: unknown): Record<string, unknown> | null {
-  if (!resp || typeof resp !== 'object') return null;
-  const env = resp as Record<string, unknown>;
-  if (!('item' in env)) return null;
-  const body = env.item;
-  if (!body || typeof body !== 'object') return null;
-  return Object.keys(body as object).length > 0 ? (body as Record<string, unknown>) : null;
-}
 
 /** Top-bar package switcher: list app packages (可写 base vs 只读 code), switch by
  * navigation, create a new writable base via the standard CreatePackageDialog,

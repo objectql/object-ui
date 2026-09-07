@@ -1103,6 +1103,9 @@ const ja = {
     loading: "チャート読み込み中…",
     nullCategory: "（未設定）",
     scatterOneMeasure: "散布図は1つの指標だけを描画します。系列は1つだけ残してください：",
+    unconfigured: {
+      noCategoryAxis: "チャートのカテゴリ軸が必要です — オブジェクト連携チャートは軸を推測しません。次のいずれかを宣言してください：",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders

@@ -22,6 +22,7 @@ import { DroppedFieldsEventSchema } from '@objectstack/spec/data';
 // and the wire-side one cannot drift.
 import { isFilterAST, parseFilterAST } from '@objectstack/spec/data';
 import type { ApiError } from '@objectstack/spec/api';
+import { stripReadDecorations } from '@objectstack/spec/kernel';
 // #4237 — the metadata save door's advisory reader, shared with `MetadataClient`
 // rather than forked. ONE reader, two call sites: the other client class calls it
 // from `MetadataClient.save` (#4133/#4236), this one from the interceptor below.
@@ -2404,8 +2405,17 @@ export function narrowPersonalizationOverlay<T>(row: T): T {
 function unwrapViewDraft(resp: unknown): Record<string, any> | null {
   if (!resp || typeof resp !== 'object') return null;
   const env = resp as Record<string, any>;
-  const body = 'item' in env ? env.item : env;
-  if (!body || typeof body !== 'object') return null;
+  const raw = 'item' in env ? env.item : env;
+  if (!raw || typeof raw !== 'object') return null;
+  // Drop the framework's own read decorations (objectui#8181). `updateView`
+  // MERGES this body and writes the result back, so without this the served
+  // `_diagnostics` / `_draft` ride into a `save('view', ...)` — the same
+  // round-trip `stripReadDecorations` exists to stop, and the same one
+  // `extractDraftBody` closes on the `getDraft()` side. The key list is the
+  // spec's; the ADR-0010 protection envelope is not on it and survives.
+  // Applied to the ITEM, before the artifact wrapper below, because that is
+  // the level `decorateMetadataItem` decorates.
+  const body = stripReadDecorations(raw) as Record<string, any>;
   // Same `{list: {...}}` artifact wrapper the published read unwraps.
   const spec = body.list ?? body;
   if (!spec || typeof spec !== 'object') return null;
@@ -6199,6 +6209,10 @@ export type {
 // Designer surfaces; kept separate from ObjectStackAdapter so callers
 // can use it without the full data-source surface.
 export { MetadataClient, readSaveAdvisories } from './metadata-client';
+// The one draft-envelope reader (objectui#8181). Exported beside the
+// `getDraft` that produces the envelope, because the unwrap-and-strip is part
+// of that method's contract rather than a detail of any one view.
+export { extractDraftBody } from './draft-envelope';
 export type {
   RuntimeAuthoringIssue,
   MetadataSaveAdvisoryEvent,

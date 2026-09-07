@@ -1105,6 +1105,9 @@ const fr = {
     loading: "Chargement du graphique…",
     nullCategory: "(Non défini)",
     scatterOneMeasure: "Un nuage de points trace une seule mesure. Ne conservez qu’une série :",
+    unconfigured: {
+      noCategoryAxis: "Axe de catégories requis — un graphique lié à un objet n’en invente pas. Déclarez l’un des suivants :",
+    },
   },
   dashboard: {
     // objectui#7063 — the DEFAULT empty state every dashboard widget renders

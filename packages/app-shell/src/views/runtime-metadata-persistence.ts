@@ -28,6 +28,7 @@
  * the call site.
  */
 
+import { stripReadDecorations } from '@objectstack/spec/kernel';
 import { slugify } from './metadata-admin/createDerive.js';
 
 /** The runtime-editable artifact types ADR-0034 unifies. `page` (a record
@@ -155,7 +156,26 @@ function invalidateViewCaches(
  * The framework wraps draft reads in a `{ type, name, item }` envelope; a
  * published read is the bare body. This accepts either shape and returns
  * `null` for an empty/absent draft so `!!readRuntimeDraft(...)` is a reliable
- * "has pending changes" check. Mirrors studio's `extractDraftBody`.
+ * "has pending changes" check.
+ *
+ * The tolerant sibling of `@object-ui/data-objectstack`'s `extractDraftBody`,
+ * and the tolerance is load-bearing rather than defensive: `readRuntimeDraft`
+ * reads through `MetadataClient.get()`, which UNWRAPS the envelope at the
+ * client boundary (objectui#4271), so the bare-body limb is the normal path
+ * here and the envelope limb covers a body arriving by any other route. That
+ * is the only reason this is a separate function; the two split on which
+ * client method feeds them, not on what they mean.
+ *
+ * ⚠️ It mirrors that helper's read-decoration strip too (objectui#8181): the
+ * body this returns is handed to `RuntimeDraftBar`'s `onResume`, which seeds
+ * the host editor whose next save writes it back, so a served `_diagnostics` /
+ * `_draft` would complete the round trip the spec's `stripReadDecorations`
+ * exists to break. The key list is the spec's, never a copy; the ADR-0010
+ * protection envelope is deliberately not on it and survives untouched.
+ *
+ * The emptiness verdict is taken BEFORE the strip — what counts as a pending
+ * draft is the server's answer, and removing our own decorations must not be
+ * able to turn a served draft into "no draft".
  */
 export function unwrapDraftBody(
   resp: unknown,
@@ -166,10 +186,12 @@ export function unwrapDraftBody(
     const body = env.item;
     if (!body || typeof body !== 'object') return null;
     return Object.keys(body as object).length > 0
-      ? (body as Record<string, unknown>)
+      ? (stripReadDecorations(body) as Record<string, unknown>)
       : null;
   }
-  return Object.keys(env).length > 0 ? env : null;
+  return Object.keys(env).length > 0
+    ? (stripReadDecorations(env) as Record<string, unknown>)
+    : null;
 }
 
 /**
