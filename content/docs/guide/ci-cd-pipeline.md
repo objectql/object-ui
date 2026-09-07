@@ -571,10 +571,10 @@ path filter at all**, for the same reason as the two sections above: this gate's
 is markdown, and `ci.yml` still lists `'**/*.md'` under the `paths-ignore` of its `push` trigger. It
 appears in the checks list as **Skill Guide Path Check**.
 
-Runs `scripts/check-skills-paths.mjs`, which reads every markdown file under `skills/` and asks, of
-each in-repo path the prose states inside a backtick code span, whether it exists on disk. Those
-guides are a direct input to every agent that writes code in this repository, and their prose gives
-paths as coordinates.
+Runs `scripts/check-skills-paths.mjs`, which reads every markdown file under `skills/` and
+`.claude/skills/` and asks, of each in-repo path the prose states inside a backtick code span,
+whether it exists on disk. Those guides are a direct input to every agent that writes code in this
+repository, and their prose gives paths as coordinates.
 
 **Why a dead coordinate costs more than its size suggests:** the symbol named next to it is usually
 real and only the location is wrong, so nobody gets a compile error — an agent gets "file not found"
