@@ -47,7 +47,7 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
 import { SchemaRenderer, SchemaRendererProvider } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
