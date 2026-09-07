@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { useDisplayLocale } from '@object-ui/i18n';
+import { formatDate } from '@object-ui/core';
 import { FieldWidgetComponentProps } from './types.js';
 import { toDomProps } from './toDomProps.js';
 import { openNativePicker } from './openNativePicker.js';
@@ -16,7 +17,22 @@ export function DateField({ value, onChange, field, readonly, error, ...props }:
   // which is how a Chinese form ended up with an `8/11/2026` value in it.
   const locale = useDisplayLocale();
   if (readonly) {
-    return value ? <span className="text-sm">{new Date(value).toLocaleDateString(locale)}</span> : <EmptyValue />;
+    // The readonly face is `formatDate`'s DEFAULT style — the one home for the
+    // `date` display convention (objectui#8194, following the maintainer's
+    // ruling A on objectui#7620). It used to call `toLocaleDateString(locale)`
+    // with NO options bag, i.e. `Intl`'s numeric default (`7/4/2026`), so it
+    // never implemented the deliberate year-dropping decision `formatDate`
+    // documents — and this widget's readonly face is what `FieldEditWidget`
+    // renders in the grid / detail inline editors, right beside
+    // `DateCellRenderer`'s `Jul 4`. Two faces for one value, picked by which
+    // path the surface happened to take: #7620's fact pattern verbatim.
+    // A field that genuinely wants the year on every row is an explicit
+    // `format` style honoured by both paths, never a second option bag.
+    //
+    // `undefined` in the positional slot is how the published signature
+    // `formatDate(value, style?, options?)` asks for the default face; the
+    // positional argument outranks `options.style` (objectui#7745).
+    return value ? <span className="text-sm">{formatDate(value, undefined, { locale })}</span> : <EmptyValue />;
   }
 
   const domProps = toDomProps(props);
